@@ -1,0 +1,15 @@
+diff --git a/meson.build b/meson.build
+index deb1aec3923c..f7283066bf07 100644
+--- a/meson.build
++++ b/meson.build
+@@ -36,6 +36,10 @@ capnpc_c = executable('capnpc-c', capnpc_src,
+       c_args : common_c_args,
+ )
+ 
++if meson.is_subproject()
++  meson.override_find_program('capnpc-c', capnpc_c)
++endif
++
+ capn_test_src = [
+   'tests' / 'capn-test.cpp',
+   'tests' / 'capn-stream-test.cpp',

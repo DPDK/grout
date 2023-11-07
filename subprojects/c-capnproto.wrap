@@ -1,0 +1,9 @@
+[wrap-git]
+url = https://gitlab.com/dkml/ext/c-capnproto
+revision = head
+depth = 1
+diff_files = c-capnproto-meson-override-find-program.patch
+
+[provide]
+dependency_names = libcapnp
+program_names = capnpc-c

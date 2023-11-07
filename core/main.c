@@ -6,9 +6,12 @@
 
 #include <rte_eal.h>
 
-int main(void) {
+int
+main(void)
+{
 	printf("coucou\n");
-	char *argv[] = {"-l", "0", "--in-memory"};
+
+	char *argv[] = { "-l", "0", "--in-memory" };
 	rte_eal_init(3, argv);
 	return 0;
 }

@@ -2,18 +2,29 @@
 # Copyright (c) 2023 Christophe Fontaine
 # Copyright (c) 2023 Robin Jarry
 
-project('boring-router', 'c',
-  version: run_command('git', 'describe', '--always', check: false).stdout().strip(),
+project(
+  'boring-router',
+  'c',
+  version: '0.1',
   license: 'BSD-3-Clause',
-  default_options: [
-    'buildtype=release',
-    'c_std=c11',
-    'default_library=static',
-    'warning_level=2',
-  ],
-  meson_version: '>= 0.53.2',
+  meson_version: '>= 0.63.0',
 )
 
-dpdk = dependency('libdpdk')
+dpdk_dep = dependency(
+  'libdpdk',
+  fallback: ['dpdk', 'dpdk_dep'],
+  default_options: [
+  ],
+)
+capnpc_c = find_program('capnpc-c')
+capnp_dep = dependency(
+  'libcapnp',
+  fallback: ['c-capnproto', 'libcapnp_dep'],
+)
 
-executable('brouter', 'core/main.c', dependencies: dpdk)
+sources = []
+dependencies = [dpdk_dep, capnp_dep]
+
+subdir('core')
+
+executable('brouter', sources, dependencies: dependencies)

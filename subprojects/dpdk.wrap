@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://git.dpdk.org/git/dpdk
+revision = releases
+depth = 1
+
+[provide]
+dependency_names = libdpdk
