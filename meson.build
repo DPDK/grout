@@ -14,4 +14,6 @@ project('boring-router', 'c',
   meson_version: '>= 0.53.2',
 )
 
-executable('brouter', 'core/main.c')
+dpdk = dependency('libdpdk')
+
+executable('brouter', 'core/main.c', dependencies: dpdk)
