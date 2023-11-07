@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2023 Christophe Fontaine
+# Copyright (c) 2023 Robin Jarry
+
+option(
+  'dpdk_source',
+  type: 'string',
+  value: 'vendor/dpdk',
+  description: 'Path to DPDK source tree.',
+)
+option(
+  'capnp_c_source',
+  type: 'string',
+  value: 'vendor/c-capnproto',
+  description: 'Path to capnproto C translator source tree.',
+)
