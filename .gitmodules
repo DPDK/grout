@@ -1,0 +1,6 @@
+[submodule "vendor/dpdk"]
+	path = vendor/dpdk
+	url = https://dpdk.org/git/dpdk
+[submodule "vendor/c-capnproto"]
+	path = vendor/c-capnproto
+	url = https://gitlab.com/dkml/ext/c-capnproto
