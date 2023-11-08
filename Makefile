@@ -15,7 +15,7 @@ $(builddir)/build.ninja: meson.build
 src = `git ls-files '*.[ch]'`
 
 lint:
-	@clang-format --dry-run --Werror $(src)
+	clang-format --dry-run --Werror $(src)
 
 format:
-	@clang-format -i --verbose $(src)
+	clang-format -i --verbose $(src)

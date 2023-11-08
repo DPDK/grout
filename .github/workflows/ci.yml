@@ -11,10 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt update
-      - run: >
-          sudo apt install --no-install-recommends
-            make meson ninja-build libdpdk-dev clang-format
+      - run: sudo apt-get install -y --no-install-recommends make ninja-build libdpdk-dev clang-format
+      - run: pip install meson
       - run: make
       - run: ./build/brouter
       - run: make lint
