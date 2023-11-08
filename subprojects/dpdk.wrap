@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://git.dpdk.org/git/dpdk
+url = https://dpdk.org/git/dpdk
 revision = releases
 depth = 1
 
