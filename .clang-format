@@ -1,5 +1,4 @@
 ---
-Language:        Cpp
 # BasedOnStyle:  WebKit
 AccessModifierOffset: -4
 AlignAfterOpenBracket: DontAlign
@@ -8,7 +7,6 @@ AlignConsecutiveAssignments: None
 AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
 AlignConsecutiveMacros: None
-AlignConsecutiveShortCaseStatements: None
 AlignEscapedNewlines: Right
 AlignOperands: DontAlign
 AlignTrailingComments: false
@@ -25,6 +23,8 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: TopLevel
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: MultiLine
+AttributeMacros:
+  - __capability
 BinPackArguments: false
 BinPackParameters: false
 BitFieldColonSpacing: Both
@@ -45,24 +45,24 @@ BraceWrapping:
   BeforeWhile: false
   IndentBraces: false
   SplitEmptyFunction: true
-  SplitEmptyRecord: true
   SplitEmptyNamespace: true
-BreakAfterAttributes: Never
-BreakArrays: true
+  SplitEmptyRecord: true
 BreakBeforeBinaryOperators: None
-BreakBeforeConceptDeclarations: false
 BreakBeforeBraces: Linux
-BreakBeforeInlineASMColon: OnlyMultiline
+BreakBeforeConceptDeclarations: false
 BreakBeforeTernaryOperators: false
 BreakConstructorInitializers: BeforeComma
+BreakConstructorInitializersBeforeComma: false
 BreakInheritanceList: BeforeColon
 BreakStringLiterals: true
 ColumnLimit: 100
 CommentPragmas: '^ IWYU pragma:'
 CompactNamespaces: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 2
 Cpp11BracedListStyle: true
+DeriveLineEnding: true
 DerivePointerAlignment: false
 DisableFormat: false
 EmptyLineAfterAccessModifier: Never
@@ -94,23 +94,12 @@ IndentCaseLabels: false
 IndentExternBlock: AfterExternBlock
 IndentGotoLabels: false
 IndentPPDirectives: None
-IndentRequiresClause: true
-IndentWidth:     8
+IndentRequires: false
+IndentWidth: 8
 IndentWrappedFunctionNames: false
-InsertBraces:    false
-InsertNewlineAtEOF: false
 InsertTrailingCommas: Wrapped
-IntegerLiteralSeparator:
-  Binary: 0
-  BinaryMinDigits: 0
-  Decimal: 0
-  DecimalMinDigits: 0
-  Hex: 0
-  HexMinDigits: 0
 KeepEmptyLinesAtTheStartOfBlocks: false
-KeepEmptyLinesAtEOF: false
 LambdaBodyIndentation: Signature
-LineEnding: LF
 MacroBlockBegin: ''
 MacroBlockEnd:   ''
 MaxEmptyLinesToKeep: 1
@@ -120,6 +109,7 @@ ObjCBlockIndentWidth: 4
 ObjCBreakBeforeNestedBlockParam: true
 ObjCSpaceAfterProperty: true
 ObjCSpaceBeforeProtocolList: true
+PPIndentWidth: -1
 PackConstructorInitializers: BinPack
 PenaltyBreakAssignment: 2
 PenaltyBreakBeforeFirstCallParameter: 19
@@ -132,19 +122,14 @@ PenaltyExcessCharacter: 1000000
 PenaltyIndentedWhitespace: 0
 PenaltyReturnTypeOnItsOwnLine: 60
 PointerAlignment: Right
-PPIndentWidth: -1
 QualifierAlignment: Leave
 ReferenceAlignment: Pointer
 ReflowComments: false
 RemoveBracesLLVM: false
-RemoveParentheses: Leave
-RemoveSemicolon: true
-RequiresClausePosition: OwnLine
-RequiresExpressionIndentation: OuterScope
 SeparateDefinitionBlocks: Leave
 ShortNamespaceLines: 1
 SortIncludes: CaseSensitive
-SortUsingDeclarations: LexicographicNumeric
+SortUsingDeclarations: true
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
 SpaceAfterTemplateKeyword: true
@@ -154,33 +139,27 @@ SpaceBeforeCaseColon: false
 SpaceBeforeCpp11BracedList: true
 SpaceBeforeCtorInitializerColon: true
 SpaceBeforeInheritanceColon: true
-SpaceBeforeJsonColon: false
-SpaceBeforeParens: Custom
+SpaceBeforeParens: ControlStatements
 SpaceBeforeParensOptions:
   AfterControlStatements: true
   AfterForeachMacros: true
-  AfterFunctionDefinitionName: false
   AfterFunctionDeclarationName: false
+  AfterFunctionDefinitionName: false
   AfterIfMacros: true
-  AfterOverloadedOperator: false
-  AfterRequiresInClause: false
-  AfterRequiresInExpression: false
   BeforeNonEmptyParentheses: false
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceBeforeSquareBrackets: false
 SpaceInEmptyBlock: true
+SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInAngles: Never
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
 SpacesInContainerLiterals: true
 SpacesInLineCommentPrefix:
-  Minimum:         1
-  Maximum:         -1
-SpacesInParens:  Never
-SpacesInParensOptions:
-  InCStyleCasts:   false
-  InConditionalStatements: false
-  InEmptyParentheses: false
-  Other:           false
+  Minimum: 1
+  Maximum: -1
+SpacesInParentheses: false
 SpacesInSquareBrackets: false
 Standard:        Latest
 StatementAttributeLikeMacros:
@@ -189,8 +168,8 @@ StatementMacros:
   - Q_UNUSED
   - QT_REQUIRE_VERSION
 TabWidth: 8
+UseCRLF: false
 UseTab: AlignWithSpaces
-VerilogBreakBetweenInstancePorts: true
 WhitespaceSensitiveMacros:
   - BOOST_PP_STRINGIZE
   - CF_SWIFT_NAME
