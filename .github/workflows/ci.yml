@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt update
-      - run: sudo apt install --no-install-recommends meson ninja-build libdpdk-dev
-      - run: meson setup build
-      - run: ninja -C build
+      - run: >
+          sudo apt install --no-install-recommends
+            make meson ninja-build libdpdk-dev clang-format
+      - run: make
       - run: ./build/brouter
+      - run: make lint

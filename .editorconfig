@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2023 Christophe Fontaine
+# Copyright (c) 2023 Robin Jarry
+# See https://editorconfig.org/ for syntax reference.
+
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+
+[meson.build]
+indent_style = space
+indent_size = 2
+
+[*.{c,h}]
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+tab_width = 8
+max_line_length = 100
