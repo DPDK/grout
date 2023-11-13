@@ -2,5 +2,10 @@
 # Copyright (c) 2023 Robin Jarry
 
 sources += files(
+  'control.c',
+  'dpdk.c',
   'main.c',
+  'signals.c',
 )
+api_headers += files('include/bro_api.h')
+include_dirs += include_directories('include')

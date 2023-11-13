@@ -4,17 +4,23 @@
 builddir = build
 
 .PHONY: all
-all:: $(builddir)/build.ninja
+all: $(builddir)/build.ninja
 	ninja -C $(builddir)
 
-$(builddir)/build.ninja: meson.build
+.PHONY: install
+install: $(builddir)/build.ninja
+	ninja -C $(builddir) install
+
+$(builddir)/build.ninja:
 	meson setup $(builddir)
 
 src = `git ls-files '*.[ch]'`
 
-lint:
+.PHONY: lint
+lint: $(builddir)/build.ninja
 	clang-format --dry-run --Werror $(src)
-	ninja -C $(builddir) scan-build
+	scan-build --status-bugs --exclude subprojects ninja -C $(builddir)
 
+.PHONY: format
 format:
 	clang-format -i --verbose $(src)
