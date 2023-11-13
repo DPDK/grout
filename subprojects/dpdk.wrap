@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://dpdk.org/git/dpdk
-revision = releases
+revision = head
 depth = 1
 
 [provide]
