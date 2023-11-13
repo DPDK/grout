@@ -4,9 +4,7 @@
 builddir = build
 
 .PHONY: all
-all: $(builddir)/brouter
-
-$(builddir)/brouter: $(builddir)/build.ninja
+all:: $(builddir)/build.ninja
 	ninja -C $(builddir)
 
 $(builddir)/build.ninja: meson.build
@@ -16,6 +14,7 @@ src = `git ls-files '*.[ch]'`
 
 lint:
 	clang-format --dry-run --Werror $(src)
+	ninja -C $(builddir) scan-build
 
 format:
 	clang-format -i --verbose $(src)
