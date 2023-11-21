@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <bro_api.h>
-#include <bro_client.h>
-#include <bro_platform.h>
+#include "br_api.pb-c.h"
+
+#include <br_api.h>
+#include <br_client.h>
 
 #include <cmdline.h>
 #include <cmdline_socket.h>
@@ -82,99 +83,80 @@ static int connect_api_sock(void) {
 	return 0;
 }
 
-int send_recv(uint32_t type, void *req, size_t req_len, void *resp, size_t resp_len) {
-	static uint8_t buf[BRO_API_BUF_SIZE];
-	struct bro_api_header *header;
-	ssize_t n, len;
+static uint64_t message_id;
 
-	header = (struct bro_api_header *)buf;
-	header->version = BRO_API_VERSION;
-	header->status = 0;
-	header->type = type;
-	header->payload_len = req_len;
-	if (req_len > 0)
-		memcpy(header + 1, req, req_len);
+uint64_t br_next_message_id(void) {
+	return ++message_id;
+}
 
-	len = sizeof(*header) + req_len;
+Br__Response *br_send_recv(const Br__Request *req) {
+	static uint8_t buf[BR_MAX_MSG_LEN];
+	Br__Response *resp = NULL;
+	size_t len;
+	ssize_t n;
+
+	len = br__request__get_packed_size(req);
+	if (len > sizeof(buf)) {
+		ERR("request too large");
+		goto free;
+	}
+	br__request__pack(req, buf);
+
 	n = send(api_sock, buf, len, 0);
 	if (n < 0) {
 		ERR("send: %s", strerror(errno));
-		return -1;
+		goto free;
 	}
 	if (n < (ssize_t)len) {
 		ERR("send: %zi bytes not sent", len - n);
-		return -1;
+		goto free;
 	}
 
-	len = sizeof(*header) + resp_len;
-	n = recv(api_sock, buf, len, 0);
+	n = recv(api_sock, buf, sizeof(buf), 0);
 	if (n < 0) {
 		ERR("recv: %s", strerror(errno));
-		return -1;
+		goto free;
 	}
-	if (n != (ssize_t)len) {
-		ERR("recv: expected %zu bytes, got %zi", len, n);
-		return -1;
-	}
-	if (header->version != BRO_API_VERSION) {
-		ERR("wrong api version: expected %u, got %u", BRO_API_VERSION, header->version);
-		return -1;
-	}
-	if (header->status != 0) {
-		ERR("%s", strerror(header->status));
-		return -1;
-	}
-	if (header->type != type) {
-		ERR("wrong response type: expected %u, got %u", type, header->type);
-		return -1;
-	}
-	if (header->payload_len != resp_len) {
-		ERR("wrong payload length: expected %zu, got %u", resp_len, header->payload_len);
-		return -1;
-	}
-	if (resp_len > 0 && resp != NULL)
-		memcpy(resp, header + 1, resp_len);
 
-	return 0;
+	resp = br__response__unpack(BR_PROTO_ALLOCATOR, n, buf);
+	if (resp == NULL) {
+		ERR("cannot unpack outer response");
+		goto free;
+	}
+	if (resp->for_id != req->id) {
+		ERR("invalid response id: expected %lu, got %lu", req->id, resp->for_id);
+		goto free;
+	}
+	if (resp->status != 0) {
+		ERR("%s", strerror(resp->status));
+		goto free;
+	}
+
+	return resp;
+
+free:
+	br__response__free_unpacked(resp, BR_PROTO_ALLOCATOR);
+	return NULL;
 }
 
+static size_t num_commands;
 static cmdline_parse_ctx_t *cli_context;
 
-void register_commands(cmdline_parse_ctx_t *ctx) {
-	size_t n, add_len;
-
-	if (ctx == NULL) {
-		ERR("ctx cannot be NULL");
-		abort();
-	}
-
-	if (cli_context != NULL) {
-		for (n = 0; cli_context[n] != NULL; n++) {
-			if (n > 9999) {
-				ERR("cli_context not NULL terminated");
-				abort();
-			}
-		}
-	}
-
-	for (add_len = 0; ctx[add_len] != NULL; add_len++) {
-		if (add_len > 9999) {
-			ERR("ctx array not NULL terminated");
-			abort();
-		}
-	}
+void br_register_commands(cmdline_parse_ctx_t *ctx, size_t num) {
+	size_t new_num = num_commands + num;
 
 	// add 1 for NULL terminator
-	cli_context = realloc(cli_context, sizeof(cmdline_parse_ctx_t *) * (n + add_len + 1));
+	cli_context = realloc(cli_context, sizeof(cmdline_parse_ctx_t) * (new_num + 1));
 	if (cli_context == NULL) {
 		ERR("out of memory");
 		abort();
 	}
 
-	memcpy(&cli_context[n], ctx, add_len);
+	memcpy(&cli_context[num_commands], ctx, sizeof(cmdline_parse_ctx_t) * num);
 
 	// NULL terminator
-	cli_context[n + add_len] = NULL;
+	cli_context[new_num] = NULL;
+	num_commands = new_num;
 }
 
 int main(int argc, char **argv) {
@@ -200,7 +182,6 @@ int main(int argc, char **argv) {
 
 	ret = EXIT_SUCCESS;
 end:
-	cmdline_free(cl);
 	if (api_sock != -1)
 		close(api_sock);
 	return ret;

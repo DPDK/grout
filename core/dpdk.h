@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BROUTER_CORE_DPDK
-#define _BROUTER_CORE_DPDK
+#ifndef _BR_CORE_DPDK
+#define _BR_CORE_DPDK
 
-#include "bro.h"
+#include "br.h"
 
-int dpdk_init(struct brouter *);
-void dpdk_fini(struct brouter *);
+int dpdk_init(struct boring_router *);
+void dpdk_fini(void);
 
-extern int bro_rte_log_type;
-#define RTE_LOGTYPE_BRO bro_rte_log_type
+extern int br_rte_log_type;
+#define RTE_LOGTYPE_BR br_rte_log_type
 
 #define LOG(level, fmt, ...)                                                                       \
 	do {                                                                                       \
 		static_assert(                                                                     \
 			!__builtin_strchr(fmt, '\n'), "This log format string contains a \\n"      \
 		);                                                                                 \
-		RTE_LOG(level, BRO, BROUTER ": " #level ": " fmt "\n" __VA_OPT__(, ) __VA_ARGS__); \
+		RTE_LOG(level, BR, "%s: " fmt "\n", __func__ __VA_OPT__(, ) __VA_ARGS__);          \
 	} while (0)
 
-#endif // _BROUTER_CORE_DPDK
+#endif

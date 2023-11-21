@@ -4,10 +4,9 @@
 #ifndef _BROUTER_API_PLATFORM
 #define _BROUTER_API_PLATFORM
 
-#include <bro_api.h>
-
 #include <rte_build_config.h>
 
+#include <bro_api.h>
 #include <stdint.h>
 
 struct bro_port {

@@ -8,7 +8,7 @@ project(
   license: 'BSD-3-Clause',
   meson_version: '>= 0.63.0',
   default_options: [
-    'buildtype=debugoptimized',
+    'buildtype=debug',
     'c_std=c2x',
     'b_lto=true',
     'b_lto_mode=thin',
@@ -44,6 +44,17 @@ cmdline_gen = [
   '@INPUT@',
 ]
 
+protoc_c = find_program('protoc-c')
+proto_dep = dependency('libprotobuf-c')
+proto_gen = [
+  protoc_c,
+  '--proto_path=@CURRENT_SOURCE_DIR@',
+  '--c_out=@OUTDIR@',
+  '--fatal_warnings',
+  '@INPUT@',
+]
+proto_output = ['@BASENAME@.pb-c.h', '@BASENAME@.pb-c.c']
+
 event_dep = dependency('libevent')
 
 sources = []
@@ -52,26 +63,26 @@ client_sources = []
 client_include_dirs = []
 api_headers = []
 
+subdir('client')
 subdir('core')
 subdir('modules')
-subdir('client')
 
 executable(
-  'brouter', sources,
+  'br', sources,
   include_directories: include_dirs,
   c_args: [
     # required for rte_graph
     '-DALLOW_EXPERIMENTAL_API',
   ],
-  dependencies: [dpdk_dep, event_dep],
+  dependencies: [dpdk_dep, proto_dep, event_dep],
   install: true,
 )
 
-install_headers(api_headers, subdir: 'brouter')
+install_headers(api_headers, subdir: 'br')
 
 executable(
-  'bro-client', client_sources,
+  'br-cli', client_sources,
   include_directories: include_dirs + client_include_dirs,
-  dependencies: [dpdk_dep],
+  dependencies: [dpdk_dep, proto_dep],
   install: true,
 )

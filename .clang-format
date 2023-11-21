@@ -78,9 +78,9 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*'
     Priority:        -1
-  - Regex:           '^<bro_'
+  - Regex:           '^<(br_|br/)'
     Priority:        100
-  - Regex:           '^<(rte_|event|cmdline)'
+  - Regex:           '^<(rte_|event|cmdline|capnp|protobuf)'
     Priority:        500
   - Regex:           '^<'
     Priority:        10000

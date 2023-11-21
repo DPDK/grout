@@ -7,5 +7,18 @@ sources += files(
   'main.c',
   'signals.c',
 )
-api_headers += files('include/bro_api.h')
-include_dirs += include_directories('include')
+
+api = custom_target(
+  command: proto_gen,
+  input: files('br_api.proto'),
+  output: proto_output,
+)
+
+sources += api
+sources += files('api.c')
+client_sources += api
+client_sources += files('api.c')
+
+api_headers += files('br_api.h', 'br_api.proto')
+
+include_dirs += include_directories('.')

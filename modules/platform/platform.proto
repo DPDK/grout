@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2023 Robin Jarry
+
+syntax = "proto3";
+
+package br.platform;
+
+message PortAddReq {
+	string name = 1;
+	string description = 2;
+	string devargs = 3;
+}
+
+// message PortAddResp { }
+
+message PortMatch {
+	oneof criterion {
+		uint32 index = 1;
+		string name = 2;
+	}
+}
+
+message PortGetReq {
+	PortMatch match = 1;
+}
+
+message Port {
+	string name = 1;
+	uint32 index = 2;
+	string description = 3;
+	uint32 mtu = 4;
+	bytes mac = 5;
+	string driver_info = 6;
+}
+
+message PortGetResp {
+	Port port = 1;
+}
+
+message PortDelReq {
+	PortMatch match = 1;
+}
+
+// message PortDelResp { }
+
+// message PortListReq { }
+
+message PortListResp {
+	repeated Port ports = 1;
+}
+
+enum Type {
+	ZERO = 0;
+	PORT_ADD = 1;
+	PORT_GET = 2;
+	PORT_DEL = 3;
+	PORT_LIST = 4;
+	SERVICE_ID = 0xacdc;
+}

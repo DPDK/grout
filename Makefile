@@ -18,6 +18,7 @@ src = `git ls-files '*.[ch]'`
 
 .PHONY: lint
 lint: $(builddir)/build.ninja
+	buildtools/check-proto.sh
 	clang-format --dry-run --Werror $(src)
 	scan-build --status-bugs --exclude subprojects ninja -C $(builddir)
 

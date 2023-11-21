@@ -3,12 +3,12 @@
 
 client_sources += files(
   'main.c',
-  'cli.c',
+  'quit.c',
 )
 client_sources += custom_target(
   command: cmdline_gen,
-  input: files('cli.list'),
-  output: 'cli.h'
+  input: files('quit.list'),
+  output: 'quit.h'
 )
 
-client_include_dirs += include_directories('include')
+client_include_dirs += include_directories('.')
