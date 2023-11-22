@@ -2,7 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "br_api.pb-c.h"
-#include "platform.pb-c.h"
+#include "infra.pb-c.h"
 
 #include <br_api.h>
 #include <br_control.h>
@@ -59,14 +59,14 @@ free:
 }
 
 static Br__Response *port_add(const Br__Request *req) {
-	Br__Platform__PortAddReq *sub = NULL;
+	Br__Infra__PortAddReq *sub = NULL;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	struct port_entry *entry;
 	uint32_t status = 0;
 	int ret;
 
-	sub = br__platform__port_add_req__unpack(
+	sub = br__infra__port_add_req__unpack(
 		BR_PROTO_ALLOCATOR, req->payload.len, req->payload.data
 	);
 	if (sub == NULL) {
@@ -113,25 +113,25 @@ static Br__Response *port_add(const Br__Request *req) {
 	TAILQ_INSERT_TAIL(&port_entries, entry, entries);
 
 end:
-	br__platform__port_add_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
+	br__infra__port_add_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
 	return br_new_response(req, status, 0, NULL);
 }
 
-static struct port_entry *find_port(Br__Platform__PortMatch *match) {
+static struct port_entry *find_port(Br__Infra__PortMatch *match) {
 	struct port_entry *entry;
 
 	TAILQ_FOREACH(entry, &port_entries, entries) {
 		switch (match->criterion_case) {
-		case BR__PLATFORM__PORT_MATCH__CRITERION_NAME:
+		case BR__INFRA__PORT_MATCH__CRITERION_NAME:
 			if (strcmp(match->name, entry->name))
 				return entry;
 			break;
-		case BR__PLATFORM__PORT_MATCH__CRITERION_INDEX:
+		case BR__INFRA__PORT_MATCH__CRITERION_INDEX:
 			if (match->index == entry->port_id)
 				return entry;
 			break;
-		case BR__PLATFORM__PORT_MATCH__CRITERION__NOT_SET:
-		case _BR__PLATFORM__PORT_MATCH__CRITERION__CASE_IS_INT_SIZE:
+		case BR__INFRA__PORT_MATCH__CRITERION__NOT_SET:
+		case _BR__INFRA__PORT_MATCH__CRITERION__CASE_IS_INT_SIZE:
 			break;
 		}
 	}
@@ -139,7 +139,7 @@ static struct port_entry *find_port(Br__Platform__PortMatch *match) {
 	return NULL;
 }
 
-static int fill_port_info(struct port_entry *e, Br__Platform__Port *port) {
+static int fill_port_info(struct port_entry *e, Br__Infra__Port *port) {
 	struct rte_ether_addr *mac = malloc(sizeof(*mac));
 	struct rte_eth_dev_info info;
 	uint16_t mtu;
@@ -171,15 +171,15 @@ static int fill_port_info(struct port_entry *e, Br__Platform__Port *port) {
 
 static Br__Response *port_get(const Br__Request *req) {
 	Br__Response *resp = br_new_response(req, 0, 0, NULL);
-	Br__Platform__PortGetResp *subresp = NULL;
-	Br__Platform__PortGetReq *sub = NULL;
+	Br__Infra__PortGetResp *subresp = NULL;
+	Br__Infra__PortGetReq *sub = NULL;
 	struct port_entry *entry;
 	int ret;
 
 	if (resp == NULL)
 		goto end;
 
-	sub = br__platform__port_get_req__unpack(
+	sub = br__infra__port_get_req__unpack(
 		BR_PROTO_ALLOCATOR, req->payload.len, req->payload.data
 	);
 	if (sub == NULL) {
@@ -192,7 +192,7 @@ static Br__Response *port_get(const Br__Request *req) {
 		resp->status = ENOMEM;
 		goto end;
 	}
-	br__platform__port_get_resp__init(subresp);
+	br__infra__port_get_resp__init(subresp);
 
 	entry = find_port(sub->match);
 	if (entry == NULL) {
@@ -205,36 +205,36 @@ static Br__Response *port_get(const Br__Request *req) {
 		resp->status = ENOMEM;
 		goto end;
 	}
-	br__platform__port__init(subresp->port);
+	br__infra__port__init(subresp->port);
 
 	if ((ret = fill_port_info(entry, subresp->port)) < 0)
 		resp->status = -ret;
 
 end:
 	if (subresp != NULL) {
-		size_t len = br__platform__port_get_resp__get_packed_size(subresp);
+		size_t len = br__infra__port_get_resp__get_packed_size(subresp);
 		uint8_t *data = malloc(len);
 		if (data != NULL) {
-			br__platform__port_get_resp__pack(subresp, data);
+			br__infra__port_get_resp__pack(subresp, data);
 			resp->payload.len = len;
 			resp->payload.data = data;
 		} else {
 			resp->status = ENOMEM;
 		}
 	}
-	br__platform__port_get_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
-	br__platform__port_get_resp__free_unpacked(subresp, BR_PROTO_ALLOCATOR);
+	br__infra__port_get_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
+	br__infra__port_get_resp__free_unpacked(subresp, BR_PROTO_ALLOCATOR);
 	return resp;
 }
 
 static Br__Response *port_del(const Br__Request *req) {
-	Br__Platform__PortDelReq *sub;
+	Br__Infra__PortDelReq *sub;
 	struct rte_eth_dev_info info;
 	struct port_entry *entry;
 	uint32_t status = 0;
 	int ret;
 
-	sub = br__platform__port_del_req__unpack(
+	sub = br__infra__port_del_req__unpack(
 		BR_PROTO_ALLOCATOR, req->payload.len, req->payload.data
 	);
 	if (sub == NULL) {
@@ -265,13 +265,13 @@ static Br__Response *port_del(const Br__Request *req) {
 	port_entry_free(entry);
 
 end:
-	br__platform__port_del_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
+	br__infra__port_del_req__free_unpacked(sub, BR_PROTO_ALLOCATOR);
 	return br_new_response(req, status, 0, NULL);
 }
 
 static Br__Response *port_list(const Br__Request *req) {
 	Br__Response *resp = br_new_response(req, 0, 0, NULL);
-	Br__Platform__PortListResp *subresp = NULL;
+	Br__Infra__PortListResp *subresp = NULL;
 	struct port_entry *entry;
 	size_t n = 0;
 	int ret;
@@ -284,24 +284,24 @@ static Br__Response *port_list(const Br__Request *req) {
 		resp->status = ENOMEM;
 		goto end;
 	}
-	br__platform__port_list_resp__init(subresp);
+	br__infra__port_list_resp__init(subresp);
 
 	TAILQ_FOREACH(entry, &port_entries, entries) {
 		n++;
 	}
-	subresp->ports = calloc(n, sizeof(Br__Platform__Port *));
+	subresp->ports = calloc(n, sizeof(Br__Infra__Port *));
 	if (subresp->ports == NULL) {
 		resp->status = ENOMEM;
 		goto end;
 	}
 
 	TAILQ_FOREACH(entry, &port_entries, entries) {
-		Br__Platform__Port *port = malloc(sizeof(*port));
+		Br__Infra__Port *port = malloc(sizeof(*port));
 		if (port == NULL) {
 			resp->status = ENOMEM;
 			goto end;
 		}
-		br__platform__port__init(port);
+		br__infra__port__init(port);
 		subresp->ports[subresp->n_ports++] = port;
 		if ((ret = fill_port_info(entry, port)) < 0) {
 			resp->status = -ret;
@@ -311,42 +311,42 @@ static Br__Response *port_list(const Br__Request *req) {
 
 end:
 	if (subresp != NULL) {
-		size_t len = br__platform__port_list_resp__get_packed_size(subresp);
+		size_t len = br__infra__port_list_resp__get_packed_size(subresp);
 		uint8_t *data = malloc(len);
 		if (data != NULL) {
-			br__platform__port_list_resp__pack(subresp, data);
+			br__infra__port_list_resp__pack(subresp, data);
 			resp->payload.len = len;
 			resp->payload.data = data;
 		} else {
 			resp->status = ENOMEM;
 		}
 	}
-	br__platform__port_list_resp__free_unpacked(subresp, BR_PROTO_ALLOCATOR);
+	br__infra__port_list_resp__free_unpacked(subresp, BR_PROTO_ALLOCATOR);
 	return resp;
 }
 
 static Br__Response *service_handler(const Br__Request *req) {
-	Br__Platform__Type method = req->service_method & 0xffff;
+	Br__Infra__Type method = req->service_method & 0xffff;
 
 	switch (method) {
-	case BR__PLATFORM__TYPE__PORT_ADD:
+	case BR__INFRA__TYPE__PORT_ADD:
 		return port_add(req);
-	case BR__PLATFORM__TYPE__PORT_GET:
+	case BR__INFRA__TYPE__PORT_GET:
 		return port_get(req);
-	case BR__PLATFORM__TYPE__PORT_DEL:
+	case BR__INFRA__TYPE__PORT_DEL:
 		return port_del(req);
-	case BR__PLATFORM__TYPE__PORT_LIST:
+	case BR__INFRA__TYPE__PORT_LIST:
 		return port_list(req);
-	case BR__PLATFORM__TYPE__SERVICE_ID:
-	case BR__PLATFORM__TYPE__ZERO:
-	case _BR__PLATFORM__TYPE_IS_INT_SIZE:
+	case BR__INFRA__TYPE__SERVICE_ID:
+	case BR__INFRA__TYPE__ZERO:
+	case _BR__INFRA__TYPE_IS_INT_SIZE:
 		break;
 	}
 
 	return br_new_response(req, ENOTSUP, 0, NULL);
 }
 
-RTE_INIT(control_platform_init) {
+RTE_INIT(control_infra_init) {
 	TAILQ_INIT(&port_entries);
-	br_register_service_handler(BR__PLATFORM__TYPE__SERVICE_ID, service_handler);
+	br_register_service_handler(BR__INFRA__TYPE__SERVICE_ID, service_handler);
 }

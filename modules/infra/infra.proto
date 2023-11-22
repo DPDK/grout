@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package br.platform;
+package br.infra;
 
 message PortAddReq {
 	string name = 1;

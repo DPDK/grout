@@ -3,7 +3,7 @@
 
 api = custom_target(
   command: proto_gen,
-  input: files('platform.proto'),
+  input: files('infra.proto'),
   output: proto_output,
 )
 
@@ -11,7 +11,6 @@ sources += files(
   'control.c',
 )
 sources += api
-api_headers += files('bro_platform.h')
 
 client_sources += files(
   'cli.c',
@@ -19,7 +18,7 @@ client_sources += files(
 client_sources += custom_target(
   command: cmdline_gen,
   input: files('cli.list'),
-  output: 'platform_cli.h'
+  output: 'infra_cli.h'
 )
 client_sources += api
 

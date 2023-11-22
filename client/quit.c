@@ -16,6 +16,6 @@ void cmd_quit_parsed(void *parsed_result, struct cmdline *cl, void *data) {
 	cmdline_quit(cl);
 }
 
-RTE_INIT(platform_cli_init) {
+RTE_INIT(infra_cli_init) {
 	BR_REGISTER_COMMANDS(commands_context);
 }
