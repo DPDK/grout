@@ -9,10 +9,16 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: fedora:latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get install -y --no-install-recommends make ninja-build libdpdk-dev clang-format
-      - run: pip install meson
+      - run: |
+          dnf install -y \
+            make ninja-build meson dpdk-devel clang-analyzer clang-tools-extra \
+            protobuf-c-compiler protobuf-c-devel libevent-devel
+      - run: |
+          curl -LO https://git.dpdk.org/dpdk/plain/buildtools/dpdk-cmdline-gen.py
+          chmod 755 dpdk-cmdline-gen.py
+          mv dpdk-cmdline-gen.py /usr/local/bin
       - run: make
-      - run: ./build/brouter
       - run: make lint
