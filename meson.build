@@ -10,14 +10,15 @@ project(
   default_options: [
     'buildtype=debug',
     'c_std=c2x',
-    'b_lto=true',
-    'b_lto_mode=thin',
     'werror=true',
     'warning_level=2',
+    'b_lto=true',
+    'b_lto_mode=thin',
   ],
 )
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
+add_project_arguments('-Wmissing-prototypes', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',
@@ -44,17 +45,6 @@ cmdline_gen = [
   '@INPUT@',
 ]
 
-protoc_c = find_program('protoc-c')
-proto_dep = dependency('libprotobuf-c')
-proto_gen = [
-  protoc_c,
-  '--proto_path=@CURRENT_SOURCE_DIR@',
-  '--c_out=@OUTDIR@',
-  '--fatal_warnings',
-  '@INPUT@',
-]
-proto_output = ['@BASENAME@.pb-c.h', '@BASENAME@.pb-c.c']
-
 event_dep = dependency('libevent')
 
 sources = []
@@ -74,7 +64,7 @@ executable(
     # required for rte_graph
     '-DALLOW_EXPERIMENTAL_API',
   ],
-  dependencies: [dpdk_dep, proto_dep, event_dep],
+  dependencies: [dpdk_dep, event_dep],
   install: true,
 )
 
@@ -83,6 +73,6 @@ install_headers(api_headers, subdir: 'br')
 executable(
   'br-cli', client_sources,
   include_directories: include_dirs + client_include_dirs,
-  dependencies: [dpdk_dep, proto_dep],
+  dependencies: [dpdk_dep],
   install: true,
 )

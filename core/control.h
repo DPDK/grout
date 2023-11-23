@@ -6,6 +6,6 @@
 
 #include <br_control.h>
 
-br_service_handler_t *br_lookup_service_handler(uint32_t type);
+br_api_handler_t *br_lookup_api_handler(const struct br_api_request *);
 
 #endif

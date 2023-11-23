@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright(c) 2023 Robin Jarry
+
+port add <STRING>name devargs <STRING>devargs_val       # attach a port
+port del <STRING>name                                   # detach a port
+port get <STRING>name                                   # show port details
+port list                                               # list all ports

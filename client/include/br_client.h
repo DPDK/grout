@@ -4,7 +4,7 @@
 #ifndef _BR_CLIENT
 #define _BR_CLIENT
 
-#include "../core/br_api.pb-c.h"
+#include <br_api.h>
 
 #include <cmdline.h>
 
@@ -16,10 +16,13 @@ void br_register_commands(cmdline_parse_ctx_t *ctx, size_t num);
 #define BR_REGISTER_COMMANDS(ctx) br_register_commands(ctx, sizeof(ctx) / sizeof(ctx[0]) - 1)
 
 // send a command to the server and receive a response
-// caller needs to free the response with br__response__free_unpacked
-Br__Response *br_send_recv(const Br__Request *);
-
-uint64_t br_next_message_id(void);
+int br_send_recv(
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	size_t rx_len,
+	void *rx_data
+);
 
 #define ERR(fmt, ...)                                                                              \
 	do {                                                                                       \

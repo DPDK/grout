@@ -3,6 +3,7 @@
 
 #include "br.h"
 #include "dpdk.h"
+#include "signals.h"
 
 #include <event2/event.h>
 #include <rte_log.h>

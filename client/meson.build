@@ -11,4 +11,6 @@ client_sources += custom_target(
   output: 'quit.h'
 )
 
-client_include_dirs += include_directories('.')
+api_headers += files('include/br_client.h')
+
+client_include_dirs += include_directories('include')

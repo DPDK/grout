@@ -7,7 +7,7 @@
 #include "br.h"
 
 int dpdk_init(struct boring_router *);
-void dpdk_fini(void);
+void dpdk_fini(struct boring_router *);
 
 extern int br_rte_log_type;
 #define RTE_LOGTYPE_BR br_rte_log_type

@@ -7,6 +7,10 @@ builddir = build
 all: $(builddir)/build.ninja
 	ninja -C $(builddir)
 
+.PHONY: all
+clean:
+	ninja -C $(builddir) clean
+
 .PHONY: install
 install: $(builddir)/build.ninja
 	ninja -C $(builddir) install
@@ -18,9 +22,7 @@ src = `git ls-files '*.[ch]'`
 
 .PHONY: lint
 lint: $(builddir)/build.ninja
-	buildtools/check-proto.sh
 	clang-format --dry-run --Werror $(src)
-	scan-build --status-bugs --exclude subprojects ninja -C $(builddir)
 
 .PHONY: format
 format:

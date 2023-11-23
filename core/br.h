@@ -22,6 +22,9 @@ struct boring_router {
 	struct event *ev_sigterm;
 	struct event *ev_sigchld;
 	struct event *ev_sigpipe;
+
+	// dpdk
+	struct rte_mempool *api_pool;
 };
 
 #define DEFAULT_SOCK_PATH "/run/brouter.sock"

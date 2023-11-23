@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_api.pb-c.h"
-
 #include <br_api.h>
 #include <br_client.h>
 
@@ -83,60 +81,57 @@ static int connect_api_sock(void) {
 	return 0;
 }
 
-static uint64_t message_id;
+static uint32_t message_id;
 
-uint64_t br_next_message_id(void) {
-	return ++message_id;
-}
-
-Br__Response *br_send_recv(const Br__Request *req) {
-	static uint8_t buf[BR_MAX_MSG_LEN];
-	Br__Response *resp = NULL;
-	size_t len;
+int br_send_recv(
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	size_t rx_len,
+	void *rx_data
+) {
+	uint8_t buf[BR_API_MAX_MSG_LEN];
+	struct br_api_request *req = (void *)buf;
+	struct br_api_response *resp = (void *)buf;
+	uint32_t id = ++message_id;
 	ssize_t n;
 
-	len = br__request__get_packed_size(req);
-	if (len > sizeof(buf)) {
-		ERR("request too large");
-		goto free;
-	}
-	br__request__pack(req, buf);
+	req->id = id;
+	req->type = req_type;
+	req->payload_len = tx_len;
+	if (tx_len > 0)
+		memcpy(PAYLOAD(req), tx_data, tx_len);
 
-	n = send(api_sock, buf, len, 0);
-	if (n < 0) {
+	if (send(api_sock, req, sizeof(*req) + tx_len, 0) < 0) {
 		ERR("send: %s", strerror(errno));
-		goto free;
-	}
-	if (n < (ssize_t)len) {
-		ERR("send: %zi bytes not sent", len - n);
-		goto free;
+		return -1;
 	}
 
-	n = recv(api_sock, buf, sizeof(buf), 0);
+	n = recv(api_sock, resp, sizeof(buf), 0);
 	if (n < 0) {
 		ERR("recv: %s", strerror(errno));
-		goto free;
+		return -1;
 	}
-
-	resp = br__response__unpack(BR_PROTO_ALLOCATOR, n, buf);
-	if (resp == NULL) {
-		ERR("cannot unpack outer response");
-		goto free;
+	if ((size_t)n != sizeof(*resp) + rx_len) {
+		ERR("invalid response size: expected %zu, got %zu", sizeof(*resp) + rx_len, n);
+		return -1;
 	}
-	if (resp->for_id != req->id) {
-		ERR("invalid response id: expected %lu, got %lu", req->id, resp->for_id);
-		goto free;
+	if (resp->for_id != id) {
+		ERR("invalid response id: expected %u, got %u", id, resp->for_id);
+		return -1;
 	}
 	if (resp->status != 0) {
 		ERR("%s", strerror(resp->status));
-		goto free;
+		return -1;
 	}
+	if (resp->payload_len != rx_len) {
+		ERR("invalid payload size: expected %zu, got %u", rx_len, resp->payload_len);
+		return -1;
+	}
+	if (rx_len > 0)
+		memcpy(rx_data, PAYLOAD(resp), rx_len);
 
-	return resp;
-
-free:
-	br__response__free_unpacked(resp, BR_PROTO_ALLOCATOR);
-	return NULL;
+	return 0;
 }
 
 static size_t num_commands;

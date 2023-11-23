@@ -3,17 +3,17 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "br.h"
-#include "control-priv.h"
+#include "control.h"
 #include "dpdk.h"
 #include "signals.h"
 
 #include <br_api.h>
-#include <br_api.pb-c.h>
+#include <br_control.h>
 
 #include <event2/event.h>
 #include <rte_eal.h>
 #include <rte_log.h>
-#include <rte_malloc.h>
+#include <rte_mempool.h>
 
 #include <fcntl.h>
 #include <getopt.h>
@@ -90,36 +90,31 @@ static void event_fd_close(struct event *ev, void *priv) {
 	close(event_get_fd(ev));
 }
 
-static ssize_t send_response(evutil_socket_t sock, const Br__Response *resp) {
-	uint8_t buf[BR_MAX_MSG_LEN];
-	size_t len;
-
+static ssize_t send_response(evutil_socket_t sock, struct br_api_response *resp) {
 	if (resp == NULL) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 	LOG(DEBUG,
-	    "for_id=%lu len=%lu data=%p status=%u %s",
+	    "for_id=%u len=%u status=%u %s",
 	    resp->for_id,
-	    resp->payload.len,
-	    resp->payload.data,
+	    resp->payload_len,
 	    resp->status,
 	    strerror(resp->status));
 
-	len = br__response__get_packed_size(resp);
-	if (len > sizeof(buf)) {
+	size_t len = sizeof(*resp) + resp->payload_len;
+	if (len > BR_API_MAX_MSG_LEN) {
 		errno = ENOBUFS;
 		return -1;
 	}
-	br__response__pack(resp, buf);
 
-	return send(sock, buf, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+	return send(sock, resp, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 }
 
 static void api_write_cb(evutil_socket_t sock, short what, void *priv) {
 	struct event *ev = event_base_get_running_event(br.base);
-	Br__Response *resp = priv;
+	struct br_api_response *resp = priv;
 
 	(void)what;
 
@@ -140,26 +135,31 @@ retry:
 free:
 	if (ev != NULL)
 		event_free(ev);
-	br__response__free_unpacked(resp, BR_PROTO_ALLOCATOR);
+	rte_mempool_put(br.api_pool, resp);
 }
 
-static void api_read_cb(evutil_socket_t sock, short what, void *priv) {
+static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev = event_base_get_running_event(br.base);
-	uint8_t buf[BR_MAX_MSG_LEN];
-	Br__Response *resp = NULL;
-	uint16_t service, method;
 	struct event *write_ev;
 	ssize_t len;
+	void *buf;
 
 	(void)what;
-	(void)priv;
+	(void)ctx;
 
-	if ((len = recv(sock, buf, sizeof(buf), MSG_DONTWAIT | MSG_TRUNC)) < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
+	if (rte_mempool_get(br.api_pool, &buf) < 0) {
+		LOG(ERR, "no memory buffer available");
+		return;
+	}
+
+	if ((len = recv(sock, buf, BR_API_MAX_MSG_LEN, MSG_DONTWAIT | MSG_TRUNC)) < 0) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+			rte_mempool_put(br.api_pool, buf);
 			return;
+		}
 		LOG(ERR, "recv: %s", strerror(errno));
 		goto close;
-	} else if (len > (ssize_t)sizeof(buf)) {
+	} else if (len > (ssize_t)BR_API_MAX_MSG_LEN) {
 		LOG(ERR, "recv: request truncated");
 		goto close;
 	} else if (len == 0) {
@@ -167,33 +167,28 @@ static void api_read_cb(evutil_socket_t sock, short what, void *priv) {
 		goto close;
 	}
 
-	Br__Request *req = br__request__unpack(BR_PROTO_ALLOCATOR, len, buf);
-	if (req == NULL) {
-		LOG(ERR, "br__request__unpack: failed");
-		goto close;
-	}
+	struct br_api_request *req = buf;
+	struct br_api_response *resp = buf;
 
-	service = UINT16_C(req->service_method >> 16);
-	method = UINT16_C(req->service_method);
+	LOG(DEBUG, "request: id=%u type=0x%x len=%u", req->id, req->type, req->payload_len);
 
-	LOG(DEBUG, "id=%lu service=0x%x method=%u", req->id, service, method);
-	br_service_handler_t *handler = br_lookup_service_handler(service);
-	if (handler == NULL) {
-		resp = br_new_response(req, ENOTSUP, 0, NULL);
+	br_api_handler_t *callback = br_lookup_api_handler(req);
+	if (callback == NULL) {
+		resp->status = ENOTSUP;
+		resp->payload_len = 0;
 		goto send;
 	}
 
-	resp = handler(req);
+	callback(PAYLOAD(req), resp);
 
 send:
-	br__request__free_unpacked(req, BR_PROTO_ALLOCATOR);
 	if (send_response(sock, resp) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto retry_send;
-		LOG(ERR, "send_response: %s", strerror(errno));
+		LOG(ERR, "api_read_cb: send: %s", strerror(errno));
 		goto close;
 	}
-	br__response__free_unpacked(resp, BR_PROTO_ALLOCATOR);
+	rte_mempool_put(br.api_pool, buf);
 	return;
 
 retry_send:
@@ -207,7 +202,7 @@ retry_send:
 	return;
 
 close:
-	br__response__free_unpacked(resp, BR_PROTO_ALLOCATOR);
+	rte_mempool_put(br.api_pool, buf);
 	if (ev != NULL)
 		event_free_finalize(0, ev, event_fd_close);
 }
@@ -312,7 +307,7 @@ end:
 		event_base_free(br.base);
 	unlink(br.api_sock_path);
 	libevent_global_shutdown();
-	dpdk_fini();
+	dpdk_fini(&br);
 
 	return ret;
 }
