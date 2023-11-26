@@ -1,22 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_INFRA
-#define _BR_INFRA
+#ifndef _BR_INFRA_MSG
+#define _BR_INFRA_MSG
 
 #include <br_api.h>
-
-#include <rte_ether.h>
+#include <br_infra_types.h>
 
 #define BR_INFRA_MODULE 0xacdc
-
-struct br_infra_port {
-	uint16_t index;
-	char name[64];
-	char device[128];
-	uint16_t mtu;
-	struct rte_ether_addr mac;
-};
 
 #define BR_INFRA_PORT_ADD REQUEST_TYPE(BR_INFRA_MODULE, 1)
 

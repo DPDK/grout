@@ -27,6 +27,4 @@ struct boring_router {
 	struct rte_mempool *api_pool;
 };
 
-#define DEFAULT_SOCK_PATH "/run/brouter.sock"
-
 #endif

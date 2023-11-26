@@ -23,4 +23,6 @@ struct br_api_response {
 #define REQUEST_TYPE(module, id) (((uint32_t)module << 16) | (0xffff & id))
 #define PAYLOAD(header) ((void *)(header + 1))
 
+#define BR_DEFAULT_SOCK_PATH "/run/br.sock"
+
 #endif

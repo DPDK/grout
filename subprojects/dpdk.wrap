@@ -5,4 +5,3 @@ depth = 1
 
 [provide]
 dependency_names = libdpdk
-program_names = dpdk-cmdline-gen.py

@@ -80,7 +80,7 @@ IncludeCategories:
     Priority:        -1
   - Regex:           '^<(br_|br/)'
     Priority:        100
-  - Regex:           '^<(rte_|event|cmdline|capnp|protobuf)'
+  - Regex:           '^<(rte_|event)'
     Priority:        500
   - Regex:           '^<'
     Priority:        10000

@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 
-quit   # exit the application
+clientlib_sources += files(
+  'client.c',
+)
+
+subdir('include')

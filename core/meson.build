@@ -11,3 +11,4 @@ sources += files(
 api_headers += files('include/br_api.h')
 
 include_dirs += include_directories('include')
+clientlib_include_dirs += include_directories('include')

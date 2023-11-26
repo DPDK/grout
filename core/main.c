@@ -43,7 +43,7 @@ struct boring_router br;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-	br.api_sock_path = DEFAULT_SOCK_PATH;
+	br.api_sock_path = BR_DEFAULT_SOCK_PATH;
 
 #define FLAGS "c:s:ht"
 	static struct option long_options[] = {
@@ -170,7 +170,7 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct br_api_request *req = buf;
 	struct br_api_response *resp = buf;
 
-	LOG(DEBUG, "request: id=%u type=0x%x len=%u", req->id, req->type, req->payload_len);
+	LOG(DEBUG, "request: id=%u type=0x%08x len=%u", req->id, req->type, req->payload_len);
 
 	br_api_handler_t *callback = br_lookup_api_handler(req);
 	if (callback == NULL) {

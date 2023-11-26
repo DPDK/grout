@@ -3,7 +3,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
-#include <br_infra.h>
+#include <br_infra_msg.h>
 
 #include <rte_build_config.h>
 #include <rte_common.h>
@@ -34,7 +34,7 @@ static int fill_port_info(struct port_entry *e, struct br_infra_port *port) {
 		return ret;
 	if ((ret = rte_eth_dev_get_mtu(e->port_id, &port->mtu)) < 0)
 		return ret;
-	if ((ret = rte_eth_macaddr_get(e->port_id, &port->mac)) < 0)
+	if ((ret = rte_eth_macaddr_get(e->port_id, (void *)&port->mac)) < 0)
 		return ret;
 
 	strlcpy(port->device, rte_dev_name(info.device), sizeof(port->device));

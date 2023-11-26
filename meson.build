@@ -19,6 +19,7 @@ project(
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
+add_project_arguments('-fanalyzer', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',
@@ -37,23 +38,17 @@ dpdk_dep = dependency(
     'enable_docs=false',
   ],
 )
-cmdline_gen_py = find_program('dpdk-cmdline-gen.py')
-cmdline_gen = [
-  cmdline_gen_py,
-  '--context-name=commands_context',
-  '--output-file=@OUTPUT@',
-  '@INPUT@',
-]
 
 event_dep = dependency('libevent')
 
 sources = []
 include_dirs = []
-client_sources = []
-client_include_dirs = []
+
+clientlib_sources = []
+clientlib_include_dirs = []
 api_headers = []
 
-subdir('client')
+subdir('clientlib')
 subdir('core')
 subdir('modules')
 
@@ -70,9 +65,10 @@ executable(
 
 install_headers(api_headers, subdir: 'br')
 
-executable(
-  'br-cli', client_sources,
-  include_directories: include_dirs + client_include_dirs,
-  dependencies: [dpdk_dep],
+clientlib = shared_library(
+  'br-client',
+  clientlib_sources,
+  include_directories: clientlib_include_dirs,
   install: true,
 )
+import('pkgconfig').generate(clientlib)
