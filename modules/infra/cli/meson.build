@@ -1,7 +1,4 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 
-subdir('cli')
-subdir('clientlib')
-subdir('control')
-subdir('include')
+python_sources += files('br/port.py')

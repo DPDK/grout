@@ -18,12 +18,24 @@ install: $(builddir)/build.ninja
 $(builddir)/build.ninja:
 	meson setup $(builddir)
 
-src = `git ls-files '*.[ch]'`
+files = `find * -path $(builddir) -prune -o -type f -name $1 -print`
+c_src = $(call files,'*.[ch]')
+py_src = $(call files,'*.py')
+empty =
+space = $(empty) $(empty)
+cli_dirs = $(builddir)/cli cli $(wildcard modules/*/cli)
+PYTHONPATH = $(subst $(space),:,$(cli_dirs))
 
 .PHONY: lint
 lint: $(builddir)/build.ninja
-	clang-format --dry-run --Werror $(src)
+	clang-format --dry-run --Werror $(c_src)
+	black --diff --check $(py_src)
+	isort --diff --check-only $(py_src)
+	ninja -C $(builddir) cffi_ext
+	PYTHONPATH=$(PYTHONPATH) pylint $(py_src)
 
 .PHONY: format
 format:
-	clang-format -i --verbose $(src)
+	clang-format -i --verbose $(c_src)
+	isort $(py_src)
+	black $(py_src)

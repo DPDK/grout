@@ -48,6 +48,8 @@ clientlib_sources = []
 clientlib_include_dirs = []
 api_headers = []
 
+python_sources = []
+
 subdir('clientlib')
 subdir('core')
 subdir('modules')
@@ -72,3 +74,5 @@ clientlib = shared_library(
   install: true,
 )
 import('pkgconfig').generate(clientlib)
+
+subdir('cli')
