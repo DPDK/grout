@@ -1,5 +1,4 @@
-# SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2023 Christophe Fontaine
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2023 Robin Jarry
 ---
 name: CI
@@ -14,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           dnf install -y \
-            make gcc ninja-build meson dpdk-devel clang-tools-extra libevent-devel \
-            python3-devel python3-cffi black pylint python3-isort
+            make gcc ninja-build meson dpdk-devel clang-tools-extra \
+            libevent-devel libedit-devel git
       - run: make
       - run: make lint

@@ -1,11 +1,11 @@
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2023 Robin Jarry
 
 project(
   'boring-router',
   'c',
   version: '0.1',
-  license: 'BSD-3-Clause',
+  license: 'Apache-2.0',
   meson_version: '>= 0.63.0',
   default_options: [
     'buildtype=debug',
@@ -19,7 +19,6 @@ project(
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
-add_project_arguments('-fanalyzer', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',
@@ -40,23 +39,35 @@ dpdk_dep = dependency(
 )
 
 event_dep = dependency('libevent')
+ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
 
-sources = []
-include_dirs = []
+src = []
+inc = []
 
-clientlib_sources = []
-clientlib_include_dirs = []
+lib_src = []
+lib_inc = []
 api_headers = []
 
-python_sources = []
+cli_src = []
+cli_inc = []
 
-subdir('clientlib')
+subdir('lib')
 subdir('core')
 subdir('modules')
+subdir('cli')
+
+libbr = shared_library(
+  'br',
+  lib_src,
+  include_directories: lib_inc,
+  install: true,
+)
+import('pkgconfig').generate(libbr)
+install_headers(api_headers, subdir: 'br')
 
 executable(
-  'br', sources,
-  include_directories: include_dirs,
+  'br', src,
+  include_directories: inc,
   c_args: [
     # required for rte_graph
     '-DALLOW_EXPERIMENTAL_API',
@@ -65,14 +76,11 @@ executable(
   install: true,
 )
 
-install_headers(api_headers, subdir: 'br')
-
-clientlib = shared_library(
-  'br-client',
-  clientlib_sources,
-  include_directories: clientlib_include_dirs,
+executable(
+  'br-cli', cli_src,
+  include_directories: lib_inc + cli_inc,
+  dependencies: [ecoli_dep],
+  link_with: libbr,
   install: true,
 )
-import('pkgconfig').generate(clientlib)
 
-subdir('cli')

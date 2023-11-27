@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
 #include <br_api.h>
@@ -47,7 +47,7 @@ int br_disconnect(struct br_client *client) {
 }
 
 int send_recv(
-	struct br_client *client,
+	const struct br_client *client,
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,

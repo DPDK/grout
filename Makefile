@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2023 Robin Jarry
 
 builddir = build
@@ -18,24 +18,29 @@ install: $(builddir)/build.ninja
 $(builddir)/build.ninja:
 	meson setup $(builddir)
 
-files = `find * -path $(builddir) -prune -o -type f -name $1 -print`
-c_src = $(call files,'*.[ch]')
-py_src = $(call files,'*.py')
-empty =
-space = $(empty) $(empty)
-cli_dirs = $(builddir)/cli cli $(wildcard modules/*/cli)
-PYTHONPATH = $(subst $(space),:,$(cli_dirs))
+prune = -path $1 -prune -o
+exclude = $(builddir) subprojects LICENSE .git README.md
+c_src = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print`
+all_files = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -print`
 
 .PHONY: lint
 lint: $(builddir)/build.ninja
-	clang-format --dry-run --Werror $(c_src)
-	black --diff --check $(py_src)
-	isort --diff --check-only $(py_src)
-	ninja -C $(builddir) cffi_ext
-	PYTHONPATH=$(PYTHONPATH) pylint $(py_src)
+	@echo '[clang-format]'
+	@clang-format --dry-run --Werror $(c_src)
+	@echo '[license-check]'
+	@! for f in $(all_files); do \
+		if ! grep -qF 'SPDX-License-Identifier: Apache-2.0' $$f; then \
+			echo $$f; \
+		fi; \
+		if ! grep -q 'Copyright .* [0-9]\{4\} .*' $$f; then \
+			echo $$f; \
+		fi; \
+	done | LC_ALL=C sort -u | grep --color . || { \
+		echo 'error: files are missing license and/or copyright notice'; \
+		exit 1; \
+	}
 
 .PHONY: format
 format:
-	clang-format -i --verbose $(c_src)
-	isort $(py_src)
-	black $(py_src)
+	@echo '[clang-format]'
+	@clang-format -i --verbose $(c_src)

@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://git.sr.ht/~rjarry/libecoli
+revision = head
+depth = 1
+
+[provide]
+dependency_names = libecoli

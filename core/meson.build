@@ -1,7 +1,7 @@
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2023 Robin Jarry
 
-sources += files(
+src += files(
   'control.c',
   'dpdk.c',
   'main.c',
@@ -10,5 +10,5 @@ sources += files(
 
 api_headers += files('include/br_api.h')
 
-include_dirs += include_directories('include')
-clientlib_include_dirs += include_directories('include')
+inc += include_directories('include')
+lib_inc += include_directories('include')

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
 #ifndef _BR_CLIENT_PRIV
@@ -12,7 +12,7 @@ struct br_client {
 };
 
 int send_recv(
-	struct br_client *,
+	const struct br_client *,
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,

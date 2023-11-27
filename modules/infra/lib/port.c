@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
 #include "br_infra.h"
@@ -12,7 +12,7 @@
 #include <string.h>
 
 int br_infra_port_add(
-	struct br_client *c,
+	const struct br_client *c,
 	const char *name,
 	const char *devargs,
 	struct br_infra_port *port
@@ -38,7 +38,7 @@ int br_infra_port_add(
 	return 0;
 }
 
-int br_infra_port_del(struct br_client *c, const char *name) {
+int br_infra_port_del(const struct br_client *c, const char *name) {
 	struct br_infra_port_del_req req;
 
 	memset(&req, 0, sizeof(req));
@@ -47,7 +47,7 @@ int br_infra_port_del(struct br_client *c, const char *name) {
 	return send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, 0, NULL);
 }
 
-int br_infra_port_get(struct br_client *c, const char *name, struct br_infra_port *port) {
+int br_infra_port_get(const struct br_client *c, const char *name, struct br_infra_port *port) {
 	struct br_infra_port_get_resp resp;
 	struct br_infra_port_get_req req;
 
@@ -69,7 +69,7 @@ int br_infra_port_get(struct br_client *c, const char *name, struct br_infra_por
 }
 
 int br_infra_port_list(
-	struct br_client *c,
+	const struct br_client *c,
 	size_t max_ports,
 	struct br_infra_port *ports,
 	size_t *n_ports

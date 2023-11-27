@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2023 Robin Jarry
 ---
 AccessModifierOffset: -4
 AlignAfterOpenBracket: BlockIndent
@@ -80,7 +82,7 @@ IncludeCategories:
     Priority:        -1
   - Regex:           '^<(br_|br/)'
     Priority:        100
-  - Regex:           '^<(rte_|event)'
+  - Regex:           '^<(rte_|event|ecoli)'
     Priority:        500
   - Regex:           '^<'
     Priority:        10000
