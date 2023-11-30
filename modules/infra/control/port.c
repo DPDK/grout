@@ -173,10 +173,31 @@ static void port_list(void *req_payload, struct br_api_response *resp) {
 	return_resp(resp, 0, sizeof(*payload));
 }
 
+static struct br_api_handler port_add_handler = {
+	.name = "port add",
+	.request_type = BR_INFRA_PORT_ADD,
+	.callback = port_add,
+};
+static struct br_api_handler port_del_handler = {
+	.name = "port del",
+	.request_type = BR_INFRA_PORT_DEL,
+	.callback = port_del,
+};
+static struct br_api_handler port_get_handler = {
+	.name = "port get",
+	.request_type = BR_INFRA_PORT_GET,
+	.callback = port_get,
+};
+static struct br_api_handler port_list_handler = {
+	.name = "port list",
+	.request_type = BR_INFRA_PORT_LIST,
+	.callback = port_list,
+};
+
 RTE_INIT(control_infra_init) {
 	TAILQ_INIT(&port_entries);
-	br_register_api_handler(BR_INFRA_PORT_ADD, port_add);
-	br_register_api_handler(BR_INFRA_PORT_GET, port_get);
-	br_register_api_handler(BR_INFRA_PORT_DEL, port_del);
-	br_register_api_handler(BR_INFRA_PORT_LIST, port_list);
+	br_register_api_handler(&port_add_handler);
+	br_register_api_handler(&port_del_handler);
+	br_register_api_handler(&port_get_handler);
+	br_register_api_handler(&port_list_handler);
 }

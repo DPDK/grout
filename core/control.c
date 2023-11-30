@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "control.h"
+#include "dpdk.h"
 
 #include <br_api.h>
 #include <br_control.h>
@@ -9,34 +10,31 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/queue.h>
 
-struct api_handler {
-	uint32_t request_type;
-	br_api_handler_t *callback;
-};
+static LIST_HEAD(, br_api_handler) handlers;
 
-#define MAX_API_HANDLERS 256
-static struct api_handler handlers[MAX_API_HANDLERS];
+void br_register_api_handler(struct br_api_handler *handler) {
+	const struct br_api_handler *h;
 
-void br_register_api_handler(uint32_t request_type, br_api_handler_t *callback) {
-	int i;
+	assert(handler != NULL);
+	assert(handler->callback != NULL);
+	assert(handler->name != NULL);
+	LIST_FOREACH(h, &handlers, entries) {
+		assert(h->request_type != handler->request_type);
+	}
 
-	assert(request_type > 0);
-
-	for (i = 0; i < MAX_API_HANDLERS && handlers[i].request_type != 0; i++)
-		assert(handlers[i].request_type != request_type);
-
-	assert(i < MAX_API_HANDLERS);
-
-	handlers[i].request_type = request_type;
-	handlers[i].callback = callback;
+	LOG(DEBUG, "registered api handler type=0x%08x '%s'", handler->request_type, handler->name);
+	LIST_INSERT_HEAD(&handlers, handler, entries);
 }
 
-br_api_handler_t *br_lookup_api_handler(const struct br_api_request *req) {
-	for (int i = 0; i < MAX_API_HANDLERS; i++) {
-		struct api_handler *h = &handlers[i];
-		if (h->request_type == req->type)
-			return handlers[i].callback;
+const struct br_api_handler *br_lookup_api_handler(const struct br_api_request *req) {
+	const struct br_api_handler *handler;
+
+	LIST_FOREACH(handler, &handlers, entries) {
+		if (handler->request_type == req->type)
+			return handler;
 	}
+
 	return NULL;
 }

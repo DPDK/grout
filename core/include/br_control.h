@@ -7,9 +7,17 @@
 #include <br_api.h>
 
 #include <stdint.h>
+#include <sys/queue.h>
 
-typedef void(br_api_handler_t)(void *req_payload, struct br_api_response *);
+typedef void(br_api_handler_cb_t)(void *req_payload, struct br_api_response *);
 
-void br_register_api_handler(uint32_t request_type, br_api_handler_t *);
+struct br_api_handler {
+	const char *name;
+	uint32_t request_type;
+	br_api_handler_cb_t *callback;
+	LIST_ENTRY(br_api_handler) entries;
+};
+
+void br_register_api_handler(struct br_api_handler *);
 
 #endif

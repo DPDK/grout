@@ -169,16 +169,21 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct br_api_request *req = buf;
 	struct br_api_response *resp = buf;
 
-	LOG(DEBUG, "request: id=%u type=0x%08x len=%u", req->id, req->type, req->payload_len);
-
-	br_api_handler_t *callback = br_lookup_api_handler(req);
-	if (callback == NULL) {
+	const struct br_api_handler *handler = br_lookup_api_handler(req);
+	if (handler == NULL) {
 		resp->status = ENOTSUP;
 		resp->payload_len = 0;
 		goto send;
 	}
 
-	callback(PAYLOAD(req), resp);
+	LOG(DEBUG,
+	    "request: id=%u type='%s' (0x%08x) len=%u",
+	    req->id,
+	    handler->name,
+	    req->type,
+	    req->payload_len);
+
+	handler->callback(PAYLOAD(req), resp);
 
 send:
 	if (send_response(sock, resp) < 0) {
