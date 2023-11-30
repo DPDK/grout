@@ -11,20 +11,11 @@
 struct boring_router {
 	const char *config_file_path;
 	const char *api_sock_path;
+	unsigned log_level;
 	bool test_mode;
 
-	// libevent
-	struct event_base *base;
-	struct event *ev_listen;
-	struct event *ev_sock;
-	struct event *ev_sigint;
-	struct event *ev_sigquit;
-	struct event *ev_sigterm;
-	struct event *ev_sigchld;
-	struct event *ev_sigpipe;
-
 	// dpdk
-	struct rte_mempool *api_pool;
+	struct rte_mempool *api_pool; // for control API messages
 };
 
 #endif

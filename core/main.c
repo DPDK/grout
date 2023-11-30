@@ -32,24 +32,29 @@ static void usage(const char *prog) {
 	puts("  Boring router.");
 	puts("");
 	puts("options:");
+	puts("  -v, --verbose              Increase verbosity.");
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
 	puts("  -c FILE, --config FILE     Path the configuration file.");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
 }
 
-struct boring_router br;
+static struct boring_router br;
+static struct event_base *ev_base;
+static struct event *ev_listen;
 
 static int parse_args(int argc, char **argv) {
 	int c;
 
 	br.api_sock_path = BR_DEFAULT_SOCK_PATH;
+	br.log_level = RTE_LOG_NOTICE;
 
-#define FLAGS "c:s:ht"
+#define FLAGS "c:s:htv"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
 		{"config", required_argument, NULL, 'c'},
 		{"help", no_argument, NULL, 'h'},
 		{"test-mode", no_argument, NULL, 't'},
+		{"verbose", no_argument, NULL, 'v'},
 		{0},
 	};
 
@@ -63,6 +68,9 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 't':
 			br.test_mode = true;
+			break;
+		case 'v':
+			br.log_level++;
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -112,7 +120,7 @@ static ssize_t send_response(evutil_socket_t sock, struct br_api_response *resp)
 }
 
 static void api_write_cb(evutil_socket_t sock, short what, void *priv) {
-	struct event *ev = event_base_get_running_event(br.base);
+	struct event *ev = event_base_get_running_event(ev_base);
 	struct br_api_response *resp = priv;
 
 	(void)what;
@@ -138,7 +146,7 @@ free:
 }
 
 static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
-	struct event *ev = event_base_get_running_event(br.base);
+	struct event *ev = event_base_get_running_event(ev_base);
 	struct event *write_ev;
 	ssize_t len;
 	void *buf;
@@ -196,7 +204,7 @@ send:
 	return;
 
 retry_send:
-	write_ev = event_new(br.base, sock, EV_WRITE, api_write_cb, resp);
+	write_ev = event_new(ev_base, sock, EV_WRITE, api_write_cb, resp);
 	if (write_ev == NULL || event_add(write_ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (write_ev != NULL)
@@ -227,7 +235,7 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	LOG(DEBUG, "new connection");
 
-	ev = event_new(br.base, fd, EV_READ | EV_PERSIST, api_read_cb, NULL);
+	ev = event_new(ev_base, fd, EV_READ | EV_PERSIST, api_read_cb, NULL);
 	if (ev == NULL || event_add(ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (ev != NULL)
@@ -240,6 +248,7 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 static int listen_api_socket(void) {
 	struct sockaddr_un addr = {.sun_family = AF_UNIX};
+	struct event *ev_listen;
 	int fd;
 
 	fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -262,10 +271,10 @@ static int listen_api_socket(void) {
 		return -1;
 	}
 
-	br.ev_listen = event_new(br.base, fd, EV_READ | EV_WRITE | EV_PERSIST, listen_cb, NULL);
-	if (br.ev_listen == NULL || event_add(br.ev_listen, NULL) < 0) {
+	ev_listen = event_new(ev_base, fd, EV_READ | EV_WRITE | EV_PERSIST, listen_cb, NULL);
+	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
 		close(fd);
-		abort();
+		LOG(ERR, "event_new: %s: %s", br.api_sock_path, strerror(errno));
 		return -1;
 	}
 
@@ -286,7 +295,7 @@ int main(int argc, char **argv) {
 	if (dpdk_init(&br) < 0)
 		goto end;
 
-	if ((br.base = event_base_new()) == NULL) {
+	if ((ev_base = event_base_new()) == NULL) {
 		LOG(ERR, "event_base_new: %s", strerror(errno));
 		goto end;
 	}
@@ -294,21 +303,19 @@ int main(int argc, char **argv) {
 	if (listen_api_socket() < 0)
 		goto end;
 
-	if (register_signals(&br) < 0)
+	if (register_signals(ev_base) < 0)
 		goto end;
 
 	// run until signal or fatal error
-	if (event_base_dispatch(br.base) == 0)
+	if (event_base_dispatch(ev_base) == 0)
 		ret = EXIT_SUCCESS;
 
 end:
-	unregister_signals(&br);
-	if (br.ev_listen) {
-		close(event_get_fd(br.ev_listen));
-		event_free(br.ev_listen);
-	}
-	if (br.base)
-		event_base_free(br.base);
+	unregister_signals();
+	if (ev_listen)
+		event_free_finalize(0, ev_listen, event_fd_close);
+	if (ev_base)
+		event_base_free(ev_base);
 	unlink(br.api_sock_path);
 	libevent_global_shutdown();
 	dpdk_fini(&br);

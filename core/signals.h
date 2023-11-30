@@ -4,9 +4,9 @@
 #ifndef _BR_SIGNALS
 #define _BR_SIGNALS
 
-#include "br.h"
+#include <event2/event.h>
 
-int register_signals(struct boring_router *);
-void unregister_signals(struct boring_router *);
+int register_signals(struct event_base *base);
+void unregister_signals(void);
 
 #endif

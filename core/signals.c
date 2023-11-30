@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
-#include "br.h"
 #include "dpdk.h"
 #include "signals.h"
 
 #include <event2/event.h>
-#include <rte_log.h>
 
 #include <signal.h>
 #include <string.h>
 
-static void signal_cb(evutil_socket_t sig, short what, void *ctx) {
-	struct boring_router *br = ctx;
+static void signal_cb(evutil_socket_t sig, short what, void *priv) {
+	struct event_base *base = priv;
 
 	(void)what;
 
-	LOG(INFO, "received signal SIG%s", sigabbrev_np(sig));
+	LOG(WARNING, "received signal SIG%s", sigabbrev_np(sig));
 
 	switch (sig) {
 	case SIGPIPE:
@@ -24,48 +22,56 @@ static void signal_cb(evutil_socket_t sig, short what, void *ctx) {
 	case SIGCHLD:
 		break;
 	default:
-		event_base_loopexit(br->base, NULL);
+		event_base_loopexit(base, NULL);
 	}
 }
 
-int register_signals(struct boring_router *br) {
-	br->ev_sigint = evsignal_new(br->base, SIGINT, signal_cb, br);
-	if (br->ev_sigint == NULL || event_add(br->ev_sigint, NULL) < 0)
+static struct event *ev_sigint;
+static struct event *ev_sigquit;
+static struct event *ev_sigterm;
+static struct event *ev_sigchld;
+static struct event *ev_sigpipe;
+
+int register_signals(struct event_base *base) {
+	unregister_signals();
+
+	ev_sigint = evsignal_new(base, SIGINT, signal_cb, base);
+	if (ev_sigint == NULL || event_add(ev_sigint, NULL) < 0)
 		return -1;
 
-	br->ev_sigterm = evsignal_new(br->base, SIGTERM, signal_cb, br);
-	if (br->ev_sigterm == NULL || event_add(br->ev_sigterm, NULL) < 0)
+	ev_sigterm = evsignal_new(base, SIGTERM, signal_cb, base);
+	if (ev_sigterm == NULL || event_add(ev_sigterm, NULL) < 0)
 		return -1;
 
-	br->ev_sigquit = evsignal_new(br->base, SIGQUIT, signal_cb, br);
-	if (br->ev_sigquit == NULL || event_add(br->ev_sigquit, NULL) < 0)
+	ev_sigquit = evsignal_new(base, SIGQUIT, signal_cb, base);
+	if (ev_sigquit == NULL || event_add(ev_sigquit, NULL) < 0)
 		return -1;
 
-	br->ev_sigchld = evsignal_new(br->base, SIGCHLD, signal_cb, br);
-	if (br->ev_sigchld == NULL || event_add(br->ev_sigchld, NULL) < 0)
+	ev_sigchld = evsignal_new(base, SIGCHLD, signal_cb, base);
+	if (ev_sigchld == NULL || event_add(ev_sigchld, NULL) < 0)
 		return -1;
 
-	br->ev_sigpipe = evsignal_new(br->base, SIGPIPE, signal_cb, br);
-	if (br->ev_sigpipe == NULL || event_add(br->ev_sigpipe, NULL) < 0)
+	ev_sigpipe = evsignal_new(base, SIGPIPE, signal_cb, base);
+	if (ev_sigpipe == NULL || event_add(ev_sigpipe, NULL) < 0)
 		return -1;
 
 	return 0;
 }
 
-void unregister_signals(struct boring_router *br) {
-	if (br->ev_sigpipe)
-		event_free(br->ev_sigpipe);
-	if (br->ev_sigchld)
-		event_free(br->ev_sigchld);
-	if (br->ev_sigint)
-		event_free(br->ev_sigint);
-	if (br->ev_sigquit)
-		event_free(br->ev_sigquit);
-	if (br->ev_sigterm)
-		event_free(br->ev_sigterm);
-	br->ev_sigpipe = NULL;
-	br->ev_sigchld = NULL;
-	br->ev_sigterm = NULL;
-	br->ev_sigquit = NULL;
-	br->ev_sigint = NULL;
+void unregister_signals(void) {
+	if (ev_sigpipe != NULL)
+		event_free(ev_sigpipe);
+	if (ev_sigchld != NULL)
+		event_free(ev_sigchld);
+	if (ev_sigint != NULL)
+		event_free(ev_sigint);
+	if (ev_sigquit != NULL)
+		event_free(ev_sigquit);
+	if (ev_sigterm != NULL)
+		event_free(ev_sigterm);
+	ev_sigpipe = NULL;
+	ev_sigchld = NULL;
+	ev_sigterm = NULL;
+	ev_sigquit = NULL;
+	ev_sigint = NULL;
 }
