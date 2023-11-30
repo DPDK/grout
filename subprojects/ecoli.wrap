@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://git.sr.ht/~rjarry/libecoli
-revision = head
+revision = master
 depth = 1
 
 [provide]

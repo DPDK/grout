@@ -28,7 +28,7 @@ static int fill_port_info(struct port_entry *e, struct br_infra_port *port) {
 
 	memset(port, 0, sizeof(*port));
 	port->index = e->port_id;
-	strlcpy(port->name, e->name, sizeof(port->name));
+	memccpy(port->name, e->name, 0, sizeof(port->name));
 
 	if ((ret = rte_eth_dev_info_get(e->port_id, &info)) < 0)
 		return ret;
@@ -37,7 +37,7 @@ static int fill_port_info(struct port_entry *e, struct br_infra_port *port) {
 	if ((ret = rte_eth_macaddr_get(e->port_id, (void *)&port->mac)) < 0)
 		return ret;
 
-	strlcpy(port->device, rte_dev_name(info.device), sizeof(port->device));
+	memccpy(port->device, rte_dev_name(info.device), 0, sizeof(port->device));
 
 	return 0;
 }
@@ -87,7 +87,7 @@ static void port_add(void *req_payload, struct br_api_response *resp) {
 	}
 
 	entry->port_id = port_id;
-	strlcpy(entry->name, req->name, sizeof(entry->name));
+	memccpy(entry->name, req->name, 0, sizeof(entry->name));
 
 	TAILQ_INSERT_TAIL(&port_entries, entry, entries);
 

@@ -27,8 +27,8 @@ int br_infra_port_add(
 
 	memset(&req, 0, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
-	strlcpy(req.name, name, sizeof(req.name));
-	strlcpy(req.devargs, devargs, sizeof(req.devargs));
+	memccpy(req.name, name, 0, sizeof(req.name));
+	memccpy(req.devargs, devargs, 0, sizeof(req.devargs));
 
 	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, sizeof(resp), &resp) < 0)
 		return -1;
@@ -42,7 +42,7 @@ int br_infra_port_del(const struct br_client *c, const char *name) {
 	struct br_infra_port_del_req req;
 
 	memset(&req, 0, sizeof(req));
-	strlcpy(req.name, name, sizeof(req.name));
+	memccpy(req.name, name, 0, sizeof(req.name));
 
 	return send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, 0, NULL);
 }
@@ -58,7 +58,7 @@ int br_infra_port_get(const struct br_client *c, const char *name, struct br_inf
 
 	memset(&req, 0, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
-	strlcpy(req.name, name, sizeof(req.name));
+	memccpy(req.name, name, 0, sizeof(req.name));
 
 	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, sizeof(resp), &resp) < 0)
 		return -1;
