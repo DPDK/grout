@@ -9,7 +9,7 @@ project(
   meson_version: '>= 0.63.0',
   default_options: [
     'buildtype=debug',
-    'c_std=c2x',
+    'c_std=gnu2x',
     'werror=true',
     'warning_level=2',
     'b_lto=true',

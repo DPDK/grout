@@ -67,8 +67,8 @@ int dpdk_init(struct boring_router *br) {
 		NULL, // obj_init
 		NULL, // obj_init_arg
 		SOCKET_ID_ANY,
-		RTE_MEMPOOL_F_NO_CACHE_ALIGN | RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_SC_GET |
-			RTE_MEMPOOL_F_NO_IOVA_CONTIG
+		RTE_MEMPOOL_F_NO_CACHE_ALIGN | RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_SC_GET
+			| RTE_MEMPOOL_F_NO_IOVA_CONTIG
 	);
 	if (br->api_pool == NULL) {
 		LOG(ERR, "rte_mempool_create: %s", rte_strerror(rte_errno));
