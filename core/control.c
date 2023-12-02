@@ -28,7 +28,7 @@ void br_register_api_handler(struct br_api_handler *handler) {
 	LIST_INSERT_HEAD(&handlers, handler, entries);
 }
 
-const struct br_api_handler *br_lookup_api_handler(const struct br_api_request *req) {
+const struct br_api_handler *lookup_api_handler(const struct br_api_request *req) {
 	const struct br_api_handler *handler;
 
 	LIST_FOREACH(handler, &handlers, entries) {
