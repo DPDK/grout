@@ -2,10 +2,10 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "control.h"
-#include "dpdk.h"
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_log.h>
 
 #include <assert.h>
 #include <stdio.h>

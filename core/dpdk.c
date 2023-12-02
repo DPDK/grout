@@ -5,6 +5,7 @@
 #include "dpdk.h"
 
 #include <br_api.h>
+#include <br_log.h>
 
 #include <rte_eal.h>
 #include <rte_errno.h>

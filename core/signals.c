@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
-#include "dpdk.h"
 #include "signals.h"
+
+#include <br_log.h>
 
 #include <event2/event.h>
 

@@ -8,6 +8,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_log.h>
 
 #include <event2/event.h>
 #include <rte_eal.h>
