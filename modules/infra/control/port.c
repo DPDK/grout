@@ -42,16 +42,9 @@ static int fill_port_info(struct port_entry *e, struct br_infra_port *port) {
 	return 0;
 }
 
-#define return_resp(resp, code, len)                                                               \
-	do {                                                                                       \
-		resp->status = code;                                                               \
-		resp->payload_len = len;                                                           \
-		return;                                                                            \
-	} while (0)
-
-static void port_add(void *req_payload, struct br_api_response *resp) {
-	struct br_infra_port_add_req *req = req_payload;
-	struct br_infra_port_add_resp *payload;
+static struct api_out port_add(const void *request, void *response) {
+	const struct br_infra_port_add_req *req = request;
+	struct br_infra_port_add_resp *resp = response;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	struct rte_eth_dev_info info;
@@ -60,30 +53,30 @@ static void port_add(void *req_payload, struct br_api_response *resp) {
 
 	RTE_ETH_FOREACH_MATCHING_DEV(port_id, req->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
-		return_resp(resp, EEXIST, 0);
+		return api_out(EEXIST, 0);
 	}
 	TAILQ_FOREACH(entry, &port_entries, entries) {
 		if (strcmp(entry->name, req->name) != 0)
 			continue;
-		return_resp(resp, EEXIST, 0);
+		return api_out(EEXIST, 0);
 	}
 
 	if ((ret = rte_dev_probe(req->devargs)) < 0)
-		return_resp(resp, -ret, 0);
+		return api_out(-ret, 0);
 
 	RTE_ETH_FOREACH_MATCHING_DEV(port_id, req->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		break;
 	}
 	if (!rte_eth_dev_is_valid_port(port_id))
-		return_resp(resp, ENOENT, 0);
+		return api_out(ENOENT, 0);
 
 	entry = calloc(1, sizeof(*entry));
 	if (entry == NULL) {
 		rte_eth_dev_info_get(port_id, &info);
 		rte_eth_dev_close(port_id);
 		rte_dev_remove(info.device);
-		return_resp(resp, ENOMEM, 0);
+		return api_out(ENOMEM, 0);
 	}
 
 	entry->port_id = port_id;
@@ -91,11 +84,10 @@ static void port_add(void *req_payload, struct br_api_response *resp) {
 
 	TAILQ_INSERT_TAIL(&port_entries, entry, entries);
 
-	payload = PAYLOAD(resp);
-	if ((ret = fill_port_info(entry, &payload->port)) < 0)
-		return_resp(resp, -ret, 0);
+	if ((ret = fill_port_info(entry, &resp->port)) < 0)
+		return api_out(-ret, 0);
 
-	return_resp(resp, 0, sizeof(*payload));
+	return api_out(0, sizeof(*resp));
 }
 
 static struct port_entry *find_port(const char *name) {
@@ -107,11 +99,13 @@ static struct port_entry *find_port(const char *name) {
 	return NULL;
 }
 
-static void port_del(void *req_payload, struct br_api_response *resp) {
-	struct br_infra_port_del_req *req = req_payload;
+static struct api_out port_del(const void *request, void *response) {
+	const struct br_infra_port_del_req *req = request;
 	struct rte_eth_dev_info info;
 	struct port_entry *entry;
 	int ret;
+
+	(void)response;
 
 	TAILQ_FOREACH(entry, &port_entries, entries) {
 		if (strcmp(entry->name, req->name) != 0)
@@ -121,56 +115,54 @@ static void port_del(void *req_payload, struct br_api_response *resp) {
 
 	entry = find_port(req->name);
 	if (entry == NULL)
-		return_resp(resp, ENODEV, 0);
+		return api_out(ENODEV, 0);
 
 	if ((ret = rte_eth_dev_info_get(entry->port_id, &info)) < 0)
-		return_resp(resp, -ret, 0);
+		return api_out(-ret, 0);
 	if ((ret = rte_eth_dev_close(entry->port_id)) < 0)
-		return_resp(resp, -ret, 0);
+		return api_out(-ret, 0);
 	if ((ret = rte_dev_remove(info.device)) < 0)
-		return_resp(resp, -ret, 0);
+		return api_out(-ret, 0);
 
 	TAILQ_REMOVE(&port_entries, entry, entries);
 	free(entry);
 
-	return_resp(resp, 0, 0);
+	return api_out(0, 0);
 }
 
-static void port_get(void *req_payload, struct br_api_response *resp) {
-	struct br_infra_port_get_req *req = req_payload;
-	struct br_infra_port_get_resp *payload;
+static struct api_out port_get(const void *request, void *response) {
+	const struct br_infra_port_get_req *req = request;
+	struct br_infra_port_get_resp *resp = response;
 	struct port_entry *entry;
 	int ret;
 
 	entry = find_port(req->name);
 	if (entry == NULL)
-		return_resp(resp, ENODEV, 0);
+		return api_out(ENODEV, 0);
 
-	payload = PAYLOAD(resp);
-	if ((ret = fill_port_info(entry, &payload->port)) < 0)
-		return_resp(resp, -ret, 0);
+	if ((ret = fill_port_info(entry, &resp->port)) < 0)
+		return api_out(-ret, 0);
 
-	return_resp(resp, 0, sizeof(*payload));
+	return api_out(0, sizeof(*resp));
 }
 
-static void port_list(void *req_payload, struct br_api_response *resp) {
-	struct br_infra_port_list_resp *payload;
+static struct api_out port_list(const void *request, void *response) {
+	struct br_infra_port_list_resp *resp = response;
 	struct port_entry *entry;
 	int ret;
 
-	(void)req_payload;
+	(void)request;
 
-	payload = PAYLOAD(resp);
-	payload->n_ports = 0;
+	resp->n_ports = 0;
 
 	TAILQ_FOREACH(entry, &port_entries, entries) {
-		struct br_infra_port *port = &payload->ports[payload->n_ports];
+		struct br_infra_port *port = &resp->ports[resp->n_ports];
 		if ((ret = fill_port_info(entry, port)) < 0)
-			return_resp(resp, -ret, 0);
-		payload->n_ports++;
+			return api_out(-ret, 0);
+		resp->n_ports++;
 	}
 
-	return_resp(resp, 0, sizeof(*payload));
+	return api_out(0, sizeof(*resp));
 }
 
 static struct br_api_handler port_add_handler = {

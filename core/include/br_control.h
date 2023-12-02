@@ -4,12 +4,20 @@
 #ifndef _BR_CONTROL
 #define _BR_CONTROL
 
-#include <br_api.h>
-
 #include <stdint.h>
 #include <sys/queue.h>
 
-typedef void(br_api_handler_cb_t)(void *req_payload, struct br_api_response *);
+struct api_out {
+	uint32_t code;
+	uint32_t len;
+};
+
+static inline struct api_out api_out(uint32_t code, uint32_t len) {
+	struct api_out out = {code, len};
+	return out;
+}
+
+typedef struct api_out(br_api_handler_cb_t)(const void *request, void *response);
 
 struct br_api_handler {
 	const char *name;

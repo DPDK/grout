@@ -148,6 +148,7 @@ free:
 static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev = event_base_get_running_event(ev_base);
 	struct event *write_ev;
+	struct api_out out;
 	ssize_t len;
 	void *buf;
 
@@ -179,8 +180,8 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	const struct br_api_handler *handler = lookup_api_handler(req);
 	if (handler == NULL) {
-		resp->status = ENOTSUP;
-		resp->payload_len = 0;
+		out.code = ENOTSUP;
+		out.len = 0;
 		goto send;
 	}
 
@@ -191,9 +192,11 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	    handler->name,
 	    req->payload_len);
 
-	handler->callback(PAYLOAD(req), resp);
+	out = handler->callback(PAYLOAD(req), PAYLOAD(resp));
 
 send:
+	resp->status = out.code;
+	resp->payload_len = out.len;
 	if (send_response(sock, resp) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto retry_send;
