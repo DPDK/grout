@@ -38,3 +38,25 @@ const struct br_api_handler *lookup_api_handler(const struct br_api_request *req
 
 	return NULL;
 }
+
+static LIST_HEAD(, br_module) modules;
+
+void br_register_module(struct br_module *mod) {
+	LIST_INSERT_HEAD(&modules, mod, entries);
+}
+
+void modules_init(void) {
+	struct br_module *mod;
+	LIST_FOREACH(mod, &modules, entries) {
+		if (mod->init != NULL)
+			mod->init();
+	}
+}
+
+void modules_fini(void) {
+	struct br_module *mod;
+	LIST_FOREACH(mod, &modules, entries) {
+		if (mod->fini != NULL)
+			mod->fini();
+	}
+}

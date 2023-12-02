@@ -299,6 +299,8 @@ int main(int argc, char **argv) {
 	if (dpdk_init(&br) < 0)
 		goto end;
 
+	modules_init();
+
 	if ((ev_base = event_base_new()) == NULL) {
 		LOG(ERR, "event_base_new: %s", strerror(errno));
 		goto end;
@@ -322,6 +324,7 @@ end:
 		event_base_free(ev_base);
 	unlink(br.api_sock_path);
 	libevent_global_shutdown();
+	modules_fini();
 	dpdk_fini(&br);
 
 	return ret;

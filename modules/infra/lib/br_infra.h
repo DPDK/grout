@@ -7,6 +7,7 @@
 #include <br_client.h>
 #include <br_infra_types.h>
 
+#include <sched.h>
 #include <stddef.h>
 
 int br_infra_port_add(

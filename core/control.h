@@ -9,4 +9,8 @@
 
 const struct br_api_handler *lookup_api_handler(const struct br_api_request *);
 
+void modules_init(void);
+
+void modules_fini(void);
+
 #endif

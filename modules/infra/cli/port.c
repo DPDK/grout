@@ -33,6 +33,8 @@ static void show(const struct br_infra_port *port) {
 	printf("    device: %s\n", port->device);
 	printf("    mtu: %u\n", port->mtu);
 	printf("    mac: %s\n", mac);
+	printf("    rx_queues: %u\n", port->n_rxq);
+	printf("    tx_queues: %u\n", port->n_txq);
 }
 
 #define LIST_TITLE_FMT "%-16s  %-8s %-24s %s\n"

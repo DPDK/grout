@@ -4,6 +4,7 @@
 #ifndef _BR_INFRA_TYPES
 #define _BR_INFRA_TYPES
 
+#include <sched.h>
 #include <stdint.h>
 
 struct br_ether_addr {
@@ -16,6 +17,8 @@ struct br_infra_port {
 	char device[128];
 	uint16_t mtu;
 	struct br_ether_addr mac;
+	uint16_t n_rxq;
+	uint16_t n_txq;
 };
 
 #endif

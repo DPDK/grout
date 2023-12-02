@@ -28,4 +28,12 @@ struct br_api_handler {
 
 void br_register_api_handler(struct br_api_handler *);
 
+struct br_module {
+	void (*init)(void);
+	void (*fini)(void);
+	LIST_ENTRY(br_module) entries;
+};
+
+void br_register_module(struct br_module *);
+
 #endif

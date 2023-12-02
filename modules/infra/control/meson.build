@@ -3,4 +3,5 @@
 
 src += files(
   'port.c',
+  'port_config.c',
 )
