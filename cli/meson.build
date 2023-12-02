@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'complete.c',
   'ecoli.c',
   'exec.c',
   'interact.c',

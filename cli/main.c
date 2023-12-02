@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
+#include "complete.h"
 #include "exec.h"
 #include "interact.h"
 #include "log.h"
@@ -20,7 +21,7 @@
 
 static void usage(const char *prog) {
 	printf("Usage: %s [-h] [-e] [-x] [-s PATH] ...\n", prog);
-	printf("       %s --complete CMD\n", prog);
+	printf("       %s --bash-complete\n", prog);
 }
 
 static void help(void) {
@@ -29,17 +30,17 @@ static void help(void) {
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Show this help message and exit.");
-	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
+	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -x, --trace-commands       Print executed commands.");
-	puts("  -c CMD, --complete CMD     Complete command line.");
+	puts("  -c, --bash-complete        For use in bash completion.");
 }
 
 struct br_cli_opts {
 	const char *sock_path;
 	bool err_exit;
 	bool trace_commands;
-	const char *complete_cmdline;
+	bool bash_complete;
 };
 
 struct br_cli_opts opts = {
@@ -49,17 +50,16 @@ struct br_cli_opts opts = {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":s:exhc:"
+#define FLAGS ":s:exh"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
 		{"err-exit", no_argument, NULL, 'e'},
 		{"trace-commands", no_argument, NULL, 'x'},
-		{"complete-command", required_argument, NULL, 'c'},
 		{"help", no_argument, NULL, 'h'},
 		{0},
 	};
 
-	opterr = 0; // disable getopt error reporting
+	opterr = 0; // disable getopt default error reporting
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
@@ -71,9 +71,6 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'x':
 			opts.trace_commands = true;
-			break;
-		case 'c':
-			opts.complete_cmdline = optarg;
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -94,14 +91,6 @@ static int parse_args(int argc, char **argv) {
 		}
 	}
 
-	if (opts.complete_cmdline != NULL &&
-	    (optind != argc || opts.err_exit || opts.trace_commands))
-	{
-		usage(argv[0]);
-		errorf("--complete cannot be combined with other arguments");
-		return -1;
-	}
-
 	return optind;
 }
 
@@ -114,12 +103,6 @@ int main(int argc, char **argv) {
 	ret = EXIT_FAILURE;
 	tty_init();
 
-	if ((c = parse_args(argc, argv)) < 0)
-		goto end;
-
-	argc -= c;
-	argv += c;
-
 	if (ec_init() < 0) {
 		errorf("ec_init: %s", strerror(errno));
 		goto end;
@@ -128,31 +111,35 @@ int main(int argc, char **argv) {
 	if ((cmdlist = init_commands()) == NULL)
 		goto end;
 
+	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete")))
+		return bash_complete(cmdlist);
+
+	if ((c = parse_args(argc, argv)) < 0)
+		goto end;
+
+	argc -= c;
+	argv += c;
+
 	if ((client = br_connect(opts.sock_path)) == NULL) {
 		errorf("br_connect: %s", strerror(errno));
 		goto end;
 	}
 
 	if (argc > 0) {
-		status = exec_args(client, cmdlist, argc, (const char *const *)argv);
+		status = exec_args(client, cmdlist, argc, (void *)argv);
 		if (print_cmd_status(status) < 0)
 			goto end;
-	} else {
-		if (opts.complete_cmdline != NULL) {
-			errorf("shell completion is not implemented");
+	} else if (is_tty(stdin) && is_tty(stdout) && is_tty(stderr)) {
+		if (interact(client, cmdlist) < 0)
 			goto end;
-		} else if (is_tty(stdin) && is_tty(stdout) && is_tty(stderr)) {
-			if (interact(client, cmdlist) < 0)
+	} else {
+		char buf[BUFSIZ];
+		while (fgets(buf, sizeof(buf), stdin)) {
+			if (opts.trace_commands)
+				trace_cmd(buf);
+			status = exec_line(client, cmdlist, buf);
+			if (print_cmd_status(status) < 0 && opts.err_exit)
 				goto end;
-		} else {
-			char buf[BUFSIZ];
-			while (fgets(buf, sizeof(buf), stdin)) {
-				if (opts.trace_commands)
-					trace_cmd(buf);
-				status = exec_line(client, cmdlist, buf);
-				if (print_cmd_status(status) < 0 && opts.err_exit)
-					goto end;
-			}
 		}
 	}
 
