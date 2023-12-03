@@ -46,7 +46,7 @@ static const char *find_help(const struct ec_comp_item *item) {
 	while (pstate != NULL && help == NULL) {
 		node = ec_pnode_get_node(pstate);
 		type = ec_node_get_type_name(node);
-		if (strcmp(type, "file") == 0)
+		if (strcmp(type, "devargs") == 0)
 			break;
 		help = ec_dict_get(ec_node_attrs(node), "help");
 		pstate = ec_pnode_get_parent(pstate);
@@ -66,18 +66,25 @@ int bash_complete(struct ec_node *cmdlist) {
 	char buf[BUFSIZ];
 	uint64_t i = 0;
 
+	if (comp_line == NULL) {
+		errorf("COMP_LINE is not defined");
+		goto end;
+	}
+	if (comp_point == NULL) {
+		errorf("COMP_POINT is not defined");
+		goto end;
+	}
+	if (ec_str_parse_ullint(comp_point, 10, 0, strlen(comp_line), &i) < 0) {
+		errorf("invalid COMP_POINT value");
+		goto end;
+	}
+	memccpy(buf, comp_line, 0, i);
+	buf[i] = '\0';
+
 	if ((cmdlist = add_flags(cmdlist)) == NULL) {
 		errorf("add_flags: %s", strerror(errno));
 		goto end;
 	}
-	if (ec_str_parse_ullint(comp_point, 10, 0, strlen(comp_line), &i) < 0) {
-		errorf("cannot parse COMP_POINT: %s", strerror(errno));
-		goto end;
-	}
-
-	memccpy(buf, comp_line, 0, i);
-	buf[i] = '\0';
-
 	if ((vec = ec_strvec_sh_lex_str(buf, EC_STRVEC_TRAILSP, NULL)) == NULL) {
 		errorf("ec_strvec_sh_lex_str: %s", strerror(errno));
 		goto end;

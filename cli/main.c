@@ -33,7 +33,8 @@ static void help(void) {
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -x, --trace-commands       Print executed commands.");
-	puts("  -c, --bash-complete        For use in bash completion.");
+	puts("  -c, --bash-complete        For use in bash completion:");
+	puts("                             complete -o default -C 'br-cli -c' br-cli");
 }
 
 struct br_cli_opts {
@@ -129,7 +130,7 @@ int main(int argc, char **argv) {
 		status = exec_args(client, cmdlist, argc, (void *)argv);
 		if (print_cmd_status(status) < 0)
 			goto end;
-	} else if (is_tty(stdin) && is_tty(stdout) && is_tty(stderr)) {
+	} else if (is_tty(stdin)) {
 		if (interact(client, cmdlist) < 0)
 			goto end;
 	} else {
