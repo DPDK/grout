@@ -8,21 +8,21 @@
 #include <sys/queue.h>
 
 struct api_out {
-	uint32_t code;
+	uint32_t status;
 	uint32_t len;
 };
 
-static inline struct api_out api_out(uint32_t code, uint32_t len) {
-	struct api_out out = {code, len};
+static inline struct api_out api_out(uint32_t status, uint32_t len) {
+	struct api_out out = {status, len};
 	return out;
 }
 
-typedef struct api_out(br_api_handler_cb_t)(const void *request, void *response);
+typedef struct api_out(*br_api_handler_func)(const void *request, void *response);
 
 struct br_api_handler {
 	const char *name;
 	uint32_t request_type;
-	br_api_handler_cb_t *callback;
+	br_api_handler_func callback;
 	LIST_ENTRY(br_api_handler) entries;
 };
 

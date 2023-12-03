@@ -20,7 +20,7 @@ struct br_api_response {
 
 #define BR_API_MAX_MSG_LEN (128 * 1024)
 
-#define REQUEST_TYPE(module, id) (((uint32_t)module << 16) | (0xffff & id))
+#define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 #define PAYLOAD(header) ((void *)(header + 1))
 
 #define BR_DEFAULT_SOCK_PATH "/run/br.sock"

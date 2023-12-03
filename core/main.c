@@ -181,7 +181,7 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	const struct br_api_handler *handler = lookup_api_handler(req);
 	if (handler == NULL) {
-		out.code = ENOTSUP;
+		out.status = ENOTSUP;
 		out.len = 0;
 		goto send;
 	}
@@ -196,7 +196,7 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	out = handler->callback(PAYLOAD(req), PAYLOAD(resp));
 
 send:
-	resp->status = out.code;
+	resp->status = out.status;
 	resp->payload_len = out.len;
 	if (send_response(sock, resp) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
