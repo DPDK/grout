@@ -19,8 +19,8 @@ static void signal_cb(evutil_socket_t sig, short what, void *priv) {
 
 	switch (sig) {
 	case SIGPIPE:
-		break;
 	case SIGCHLD:
+		// ignore
 		break;
 	default:
 		event_base_loopexit(base, NULL);

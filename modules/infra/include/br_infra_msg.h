@@ -9,7 +9,8 @@
 
 #define BR_INFRA_MODULE 0xacdc
 
-#define BR_INFRA_PORT_ADD REQUEST_TYPE(BR_INFRA_MODULE, 1)
+// ports
+#define BR_INFRA_PORT_ADD REQUEST_TYPE(BR_INFRA_MODULE, 0x0001)
 
 struct br_infra_port_add_req {
 	char name[64];
@@ -20,7 +21,7 @@ struct br_infra_port_add_resp {
 	struct br_infra_port port;
 };
 
-#define BR_INFRA_PORT_DEL REQUEST_TYPE(BR_INFRA_MODULE, 3)
+#define BR_INFRA_PORT_DEL REQUEST_TYPE(BR_INFRA_MODULE, 0x0002)
 
 struct br_infra_port_del_req {
 	char name[64];
@@ -28,7 +29,7 @@ struct br_infra_port_del_req {
 
 // struct br_infra_port_del_resp { };
 
-#define BR_INFRA_PORT_GET REQUEST_TYPE(BR_INFRA_MODULE, 2)
+#define BR_INFRA_PORT_GET REQUEST_TYPE(BR_INFRA_MODULE, 0x0003)
 
 struct br_infra_port_get_req {
 	char name[64];
@@ -38,7 +39,7 @@ struct br_infra_port_get_resp {
 	struct br_infra_port port;
 };
 
-#define BR_INFRA_PORT_LIST REQUEST_TYPE(BR_INFRA_MODULE, 4)
+#define BR_INFRA_PORT_LIST REQUEST_TYPE(BR_INFRA_MODULE, 0x0004)
 
 // struct br_infra_port_list_req { };
 
