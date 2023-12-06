@@ -22,7 +22,7 @@ static struct rte_eth_conf default_port_config = {
 	},
 };
 
-int port_destroy(uint16_t port_id, struct port_entry *entry) {
+int port_destroy(uint16_t port_id, struct port *port) {
 	struct rte_eth_dev_info info;
 	int ret;
 
@@ -31,11 +31,11 @@ int port_destroy(uint16_t port_id, struct port_entry *entry) {
 		ret = rte_eth_dev_close(port_id);
 	if (ret == 0)
 		ret = rte_dev_remove(info.device);
-	if (entry != NULL) {
-		rte_mempool_free(entry->pool);
-		entry->pool = NULL;
-		LIST_REMOVE(entry, entries);
-		rte_free(entry);
+	if (port != NULL) {
+		rte_mempool_free(port->pool);
+		port->pool = NULL;
+		LIST_REMOVE(port, next);
+		rte_free(port);
 	}
 
 	return ret;
@@ -80,23 +80,23 @@ static uint32_t next_pow2(uint32_t x) {
 	return pow2(lo);
 }
 
-int port_reconfig(struct port_entry *e, uint16_t n_rxq, uint16_t n_txq) {
+int port_reconfig(struct port *p, uint16_t n_rxq, uint16_t n_txq) {
 	struct rte_eth_conf conf = default_port_config;
 	struct rte_eth_dev_info info;
 	char pool_name[128];
 	uint32_t mbuf_count;
 	int ret;
 
-	if ((ret = rte_eth_dev_info_get(e->port_id, &info)) < 0)
+	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return ret;
 
-	if ((ret = rte_eth_dev_stop(e->port_id)) < 0) {
+	if ((ret = rte_eth_dev_stop(p->port_id)) < 0) {
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
 		return ret;
 	}
 
-	rte_mempool_free(e->pool);
-	e->pool = NULL;
+	rte_mempool_free(p->pool);
+	p->pool = NULL;
 
 	// Limit configured rss hash functions to only those supported by hardware
 	conf.rx_adv_conf.rss_conf.rss_hf &= info.flow_type_rss_offloads;
@@ -105,7 +105,7 @@ int port_reconfig(struct port_entry *e, uint16_t n_rxq, uint16_t n_txq) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 
-	if ((ret = rte_eth_dev_configure(e->port_id, n_rxq, n_txq, &conf)) < 0) {
+	if ((ret = rte_eth_dev_configure(p->port_id, n_rxq, n_txq, &conf)) < 0) {
 		LOG(ERR, "rte_eth_dev_configure: %s", rte_strerror(-ret));
 		return ret;
 	}
@@ -122,28 +122,28 @@ int port_reconfig(struct port_entry *e, uint16_t n_rxq, uint16_t n_txq) {
 	    MBUF_CACHE_SIZE,
 	    0,
 	    RTE_MBUF_DEFAULT_BUF_SIZE,
-	    rte_eth_dev_socket_id(e->port_id));
-	e->pool = rte_pktmbuf_pool_create(
+	    rte_eth_dev_socket_id(p->port_id));
+	p->pool = rte_pktmbuf_pool_create(
 		pool_name,
 		mbuf_count,
 		MBUF_CACHE_SIZE,
 		0, // priv_size
 		RTE_MBUF_DEFAULT_BUF_SIZE,
-		rte_eth_dev_socket_id(e->port_id)
+		rte_eth_dev_socket_id(p->port_id)
 	);
-	if (e->pool == NULL) {
+	if (p->pool == NULL) {
 		LOG(ERR, "rte_pktmbuf_pool_create: %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
 
 	for (size_t q = 0; q < n_rxq; q++) {
-		if ((ret = rte_eth_rx_queue_setup(e->port_id, q, 0, 0, NULL, e->pool)) < 0) {
+		if ((ret = rte_eth_rx_queue_setup(p->port_id, q, 0, 0, NULL, p->pool)) < 0) {
 			LOG(ERR, "rte_eth_rx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}
 	}
 	for (size_t q = 0; q < n_txq; q++) {
-		if ((ret = rte_eth_tx_queue_setup(e->port_id, q, 0, 0, NULL)) < 0) {
+		if ((ret = rte_eth_tx_queue_setup(p->port_id, q, 0, 0, NULL)) < 0) {
 			LOG(ERR, "rte_eth_tx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}

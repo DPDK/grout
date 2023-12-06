@@ -11,54 +11,39 @@
 #include <errno.h>
 #include <string.h>
 
-int br_infra_port_add(
-	const struct br_client *c,
-	const char *name,
-	const char *devargs,
-	struct br_infra_port *port
-) {
+int br_infra_port_add(const struct br_client *c, const char *devargs, uint16_t *port_id) {
 	struct br_infra_port_add_resp resp;
 	struct br_infra_port_add_req req;
 
-	if (port == NULL) {
-		errno = EINVAL;
-		return -1;
-	}
-
 	memset(&req, 0, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
-	memccpy(req.name, name, 0, sizeof(req.name));
 	memccpy(req.devargs, devargs, 0, sizeof(req.devargs));
 
 	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, sizeof(resp), &resp) < 0)
 		return -1;
 
-	memcpy(port, &resp.port, sizeof(*port));
+	if (port_id != NULL)
+		*port_id = resp.port_id;
 
 	return 0;
 }
 
-int br_infra_port_del(const struct br_client *c, const char *name) {
-	struct br_infra_port_del_req req;
-
-	memset(&req, 0, sizeof(req));
-	memccpy(req.name, name, 0, sizeof(req.name));
+int br_infra_port_del(const struct br_client *c, uint16_t port_id) {
+	struct br_infra_port_del_req req = {port_id};
 
 	return send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, 0, NULL);
 }
 
-int br_infra_port_get(const struct br_client *c, const char *name, struct br_infra_port *port) {
+int br_infra_port_get(const struct br_client *c, uint16_t port_id, struct br_infra_port *port) {
+	struct br_infra_port_get_req req = {port_id};
 	struct br_infra_port_get_resp resp;
-	struct br_infra_port_get_req req;
 
 	if (port == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	memset(&req, 0, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
-	memccpy(req.name, name, 0, sizeof(req.name));
 
 	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, sizeof(resp), &resp) < 0)
 		return -1;
@@ -94,4 +79,14 @@ int br_infra_port_list(
 	memcpy(ports, &resp.ports, resp.n_ports * sizeof(struct br_infra_port));
 
 	return 0;
+}
+
+int br_infra_port_set(const struct br_client *c, uint16_t port_id, uint16_t n_rxq) {
+	struct br_infra_port_set_req req = {
+		.port_id = port_id,
+		.set_attrs = BR_INFRA_PORT_N_RXQ,
+		.n_rxq = n_rxq,
+	};
+
+	return send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, 0, NULL);
 }

@@ -35,6 +35,8 @@ struct ec_node *with_help(const char *help, struct ec_node *node);
 struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
 
 const char *arg_str(const struct ec_pnode *p, const char *id);
+int arg_int(const struct ec_pnode *p, const char *id, int64_t *);
+int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *);
 
 #define CLI_COMMAND_CONTEXT(name, help, ...)                                                       \
 	EC_NODE_SEQ(                                                                               \

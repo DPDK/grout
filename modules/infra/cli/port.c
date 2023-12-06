@@ -9,70 +9,71 @@
 
 #include <ecoli.h>
 
-static void print_mac(const struct br_ether_addr *mac, char *buf, size_t len) {
-	snprintf(
-		buf,
-		len,
-		"%02x:%02x:%02x:%02x:%02x:%02x",
-		mac->bytes[0],
-		mac->bytes[1],
-		mac->bytes[2],
-		mac->bytes[3],
-		mac->bytes[4],
-		mac->bytes[5]
-	);
-}
+#include <stdint.h>
 
 static void show(const struct br_infra_port *port) {
-	char mac[20];
 	if (port == NULL)
 		return;
-	print_mac(&port->mac, mac, sizeof(mac));
-	printf("%s\n", port->name);
-	printf("    index: %u\n", port->index);
+	printf("index: %u\n", port->index);
 	printf("    device: %s\n", port->device);
-	printf("    mtu: %u\n", port->mtu);
-	printf("    mac: %s\n", mac);
 	printf("    rx_queues: %u\n", port->n_rxq);
 	printf("    tx_queues: %u\n", port->n_txq);
 }
 
-#define LIST_TITLE_FMT "%-16s  %-8s %-24s %s\n"
-#define LIST_FMT "%-16s  %-8u %-24s %s\n"
+#define LIST_TITLE_FMT "%-12s  %-32s  %-12s  %s\n"
+#define LIST_FMT "%-12u  %-32s  %-12u  %u\n"
 
 static void list(const struct br_infra_port *port) {
-	char mac[20];
 	if (port == NULL)
 		return;
-	print_mac(&port->mac, mac, sizeof(mac));
-	printf(LIST_FMT, port->name, port->index, port->device, mac);
+	printf(LIST_FMT, port->index, port->device, port->n_rxq, port->n_txq);
 }
 
 static cmd_status_t port_add(const struct br_client *c, const struct ec_pnode *p) {
-	const char *name = arg_str(p, "name");
 	const char *devargs = arg_str(p, "devargs");
-	struct br_infra_port port;
+	uint16_t port_id;
 
-	if (br_infra_port_add(c, name, devargs, &port) < 0)
+	if (br_infra_port_add(c, devargs, &port_id) < 0)
 		return CMD_ERROR;
 
-	show(&port);
+	printf("Created port %u\n", port_id);
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t port_set(const struct br_client *c, const struct ec_pnode *p) {
+	uint64_t port_id, n_rxq;
+
+	if (arg_uint(p, "index", &port_id) < 0)
+		return CMD_ERROR;
+	if (arg_uint(p, "n_rxq", &n_rxq) < 0)
+		return CMD_ERROR;
+
+	if (br_infra_port_set(c, port_id, n_rxq) < 0)
+		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t port_del(const struct br_client *c, const struct ec_pnode *p) {
-	const char *name = arg_str(p, "name");
-	if (br_infra_port_del(c, name) < 0)
+	uint64_t port_id;
+
+	if (arg_uint(p, "index", &port_id) < 0)
 		return CMD_ERROR;
+
+	if (br_infra_port_del(c, port_id) < 0)
+		return CMD_ERROR;
+
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t port_show(const struct br_client *c, const struct ec_pnode *p) {
-	const char *name = arg_str(p, "name");
 	struct br_infra_port port;
+	uint64_t port_id;
 
-	if (br_infra_port_get(c, name, &port) < 0)
+	if (arg_uint(p, "index", &port_id) < 0)
+		return CMD_ERROR;
+	if (br_infra_port_get(c, port_id, &port) < 0)
 		return CMD_ERROR;
 
 	show(&port);
@@ -89,7 +90,7 @@ static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *
 	if (br_infra_port_list(c, 32, ports, &len) < 0)
 		return CMD_ERROR;
 
-	printf(LIST_TITLE_FMT, "NAME", "INDEX", "DEVICE", "MAC");
+	printf(LIST_TITLE_FMT, "INDEX", "DEVICE", "RX_QUEUES", "TX_QUEUES");
 	for (size_t i = 0; i < len; i++)
 		list(&ports[i]);
 
@@ -103,23 +104,31 @@ static int ctx_init(struct ec_node *root) {
 		"port",
 		"Manage ports.",
 		CLI_COMMAND(
-			"add name devargs",
+			"add devargs",
 			port_add,
 			"Create a new port.",
-			with_help("Port name.", ec_node("any", "name")),
 			with_help("DPDK device args.", ec_node("devargs", "devargs"))
 		),
 		CLI_COMMAND(
-			"del name",
-			port_del,
-			"Delete an existing port.",
-			with_help("Port name.", ec_node("any", "name"))
+			"set index rxqs n_rxq",
+			port_set,
+			"Create a new port.",
+			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10)),
+			with_help(
+				"Number of Rx queues.", ec_node_uint("n_rxq", 0, UINT16_MAX - 1, 10)
+			)
 		),
 		CLI_COMMAND(
-			"show name",
+			"del index",
+			port_del,
+			"Delete an existing port.",
+			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10))
+		),
+		CLI_COMMAND(
+			"show index",
 			port_show,
 			"Show one port details.",
-			with_help("Port name.", ec_node("any", "name"))
+			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10))
 		),
 		CLI_COMMAND("list", port_list, "List all ports.")
 	);

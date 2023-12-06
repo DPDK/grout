@@ -7,6 +7,8 @@
 
 #include <ecoli.h>
 
+#include <errno.h>
+
 #define HELP_ATTR "help"
 
 struct ec_node *with_help(const char *help, struct ec_node *node) {
@@ -34,9 +36,50 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
 const char *arg_str(const struct ec_pnode *p, const char *id) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL)
-		return NULL;
+		goto err;
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
 	if (v == NULL || ec_strvec_len(v) != 1)
-		return NULL;
+		goto err;
 	return ec_strvec_val(v, 0);
+err:
+	errno = EINVAL;
+	return NULL;
+}
+
+int arg_int(const struct ec_pnode *p, const char *id, int64_t *val) {
+	const struct ec_pnode *n = ec_pnode_find(p, id);
+	if (n == NULL)
+		goto err;
+	const struct ec_strvec *v = ec_pnode_get_strvec(n);
+	if (v == NULL || ec_strvec_len(v) != 1)
+		goto err;
+	const char *str = ec_strvec_val(v, 0);
+	if (ec_node_int_getval(ec_pnode_get_node(n), str, val) < 0) {
+		if (errno == 0)
+			errno = EINVAL;
+		goto err;
+	}
+	return 0;
+err:
+	errno = EINVAL;
+	return -1;
+}
+
+int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *val) {
+	const struct ec_pnode *n = ec_pnode_find(p, id);
+	if (n == NULL)
+		goto err;
+	const struct ec_strvec *v = ec_pnode_get_strvec(n);
+	if (v == NULL || ec_strvec_len(v) != 1)
+		goto err;
+	const char *str = ec_strvec_val(v, 0);
+	if (ec_node_uint_getval(ec_pnode_get_node(n), str, val) < 0) {
+		if (errno == 0)
+			errno = EINVAL;
+		goto err;
+	}
+	return 0;
+err:
+	errno = EINVAL;
+	return -1;
 }

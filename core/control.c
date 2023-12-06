@@ -20,7 +20,7 @@ void br_register_api_handler(struct br_api_handler *handler) {
 	assert(handler != NULL);
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
-	LIST_FOREACH(h, &handlers, entries) {
+	LIST_FOREACH (h, &handlers, entries) {
 		assert(h->request_type != handler->request_type);
 	}
 
@@ -31,7 +31,7 @@ void br_register_api_handler(struct br_api_handler *handler) {
 const struct br_api_handler *lookup_api_handler(const struct br_api_request *req) {
 	const struct br_api_handler *handler;
 
-	LIST_FOREACH(handler, &handlers, entries) {
+	LIST_FOREACH (handler, &handlers, entries) {
 		if (handler->request_type == req->type)
 			return handler;
 	}
@@ -47,7 +47,7 @@ void br_register_module(struct br_module *mod) {
 
 void modules_init(void) {
 	struct br_module *mod;
-	LIST_FOREACH(mod, &modules, entries) {
+	LIST_FOREACH (mod, &modules, entries) {
 		if (mod->init != NULL)
 			mod->init();
 	}
@@ -55,7 +55,7 @@ void modules_init(void) {
 
 void modules_fini(void) {
 	struct br_module *mod;
-	LIST_FOREACH(mod, &modules, entries) {
+	LIST_FOREACH (mod, &modules, entries) {
 		if (mod->fini != NULL)
 			mod->fini();
 	}

@@ -4,10 +4,10 @@
 #ifndef _BR_PORT_CONFIG
 #define _BR_PORT_CONFIG
 
-#include "port.h"
+#include <br_port.h>
 
-int port_destroy(uint16_t port_id, struct port_entry *);
+int port_destroy(uint16_t port_id, struct port *);
 
-int port_reconfig(struct port_entry *, uint16_t n_rxq, uint16_t n_txq);
+int port_reconfig(struct port *, uint16_t n_rxq, uint16_t n_txq);
 
 #endif

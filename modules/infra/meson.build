@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 subdir('cli')
-subdir('lib')
 subdir('control')
+subdir('datapath')
 subdir('include')
+subdir('lib')

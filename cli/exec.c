@@ -22,7 +22,7 @@ struct ec_node *init_commands(void) {
 	if ((root = ec_node("or", "br-cli")) == NULL)
 		goto fail;
 
-	LIST_FOREACH(ctx, &contexts, entries) {
+	LIST_FOREACH (ctx, &contexts, entries) {
 		if (ctx->init(root) < 0) {
 			errorf("context init %s: %s", ctx->name, strerror(errno));
 			goto fail;

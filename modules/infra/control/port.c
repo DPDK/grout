@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
-#include "port.h"
 #include "port_config.h"
+#include "worker.h"
 
 #include <br_api.h>
 #include <br_control.h>
 #include <br_infra_msg.h>
+#include <br_infra_types.h>
+#include <br_port.h>
+#include <br_worker.h>
 
 #include <rte_build_config.h>
 #include <rte_common.h>
@@ -19,21 +22,16 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static LIST_HEAD(, port_entry) port_entries;
+static LIST_HEAD(, port) ports;
 
-static int fill_port_info(struct port_entry *e, struct br_infra_port *port) {
+static int fill_port_info(struct port *e, struct br_infra_port *port) {
 	struct rte_eth_dev_info info;
 	int ret;
 
 	memset(port, 0, sizeof(*port));
 	port->index = e->port_id;
-	memccpy(port->name, e->name, 0, sizeof(port->name));
 
 	if ((ret = rte_eth_dev_info_get(e->port_id, &info)) < 0)
-		return ret;
-	if ((ret = rte_eth_dev_get_mtu(e->port_id, &port->mtu)) < 0)
-		return ret;
-	if ((ret = rte_eth_macaddr_get(e->port_id, (void *)&port->mac)) < 0)
 		return ret;
 
 	port->n_rxq = info.nb_rx_queues;
@@ -49,16 +47,11 @@ static struct api_out port_add(const void *request, void *response) {
 	struct br_infra_port_add_resp *resp = response;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
-	struct port_entry *entry;
+	struct port *port;
 	int ret;
 
 	RTE_ETH_FOREACH_MATCHING_DEV(port_id, req->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
-		return api_out(EEXIST, 0);
-	}
-	LIST_FOREACH(entry, &port_entries, entries) {
-		if (strcmp(entry->name, req->name) != 0)
-			continue;
 		return api_out(EEXIST, 0);
 	}
 
@@ -72,56 +65,49 @@ static struct api_out port_add(const void *request, void *response) {
 	if (!rte_eth_dev_is_valid_port(port_id))
 		return api_out(ENOENT, 0);
 
-	entry = rte_zmalloc("port_entry", sizeof(*entry), 0);
-	if (entry == NULL) {
+	port = rte_zmalloc("port", sizeof(*port), 0);
+	if (port == NULL) {
 		port_destroy(port_id, NULL);
 		return api_out(ENOMEM, 0);
 	}
 
-	entry->port_id = port_id;
-	memccpy(entry->name, req->name, 0, sizeof(entry->name));
-	LIST_INSERT_HEAD(&port_entries, entry, entries);
+	port->port_id = port_id;
+	LIST_INSERT_HEAD(&ports, port, next);
 
-	if ((ret = port_reconfig(entry, 1, 1)) < 0) {
-		port_destroy(port_id, NULL);
+	if ((ret = port_reconfig(port, 1, 1)) < 0) {
+		port_destroy(port_id, port);
+		return api_out(-ret, 0);
+	}
+	if ((ret = worker_assign_default(port)) < 0) {
+		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
 
-	if ((ret = fill_port_info(entry, &resp->port)) < 0) {
-		port_destroy(port_id, entry);
-		return api_out(-ret, 0);
-	}
+	resp->port_id = port_id;
 
 	return api_out(0, sizeof(*resp));
 }
 
-static struct port_entry *find_port(const char *name) {
-	struct port_entry *entry;
-	LIST_FOREACH(entry, &port_entries, entries) {
-		if (strcmp(entry->name, name) == 0)
-			return entry;
+static struct port *find_port(uint16_t port_id) {
+	struct port *port;
+	LIST_FOREACH (port, &ports, next) {
+		if (port->port_id == port_id)
+			return port;
 	}
 	return NULL;
 }
 
 static struct api_out port_del(const void *request, void *response) {
 	const struct br_infra_port_del_req *req = request;
-	struct port_entry *entry;
+	struct port *port;
 	int ret;
 
 	(void)response;
 
-	LIST_FOREACH(entry, &port_entries, entries) {
-		if (strcmp(entry->name, req->name) != 0)
-			continue;
-		break;
-	}
-
-	entry = find_port(req->name);
-	if (entry == NULL)
+	if ((port = find_port(req->port_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	ret = port_destroy(entry->port_id, entry);
+	ret = port_destroy(port->port_id, port);
 
 	return api_out(-ret, 0);
 }
@@ -129,14 +115,13 @@ static struct api_out port_del(const void *request, void *response) {
 static struct api_out port_get(const void *request, void *response) {
 	const struct br_infra_port_get_req *req = request;
 	struct br_infra_port_get_resp *resp = response;
-	struct port_entry *entry;
+	struct port *port;
 	int ret;
 
-	entry = find_port(req->name);
-	if (entry == NULL)
+	if ((port = find_port(req->port_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if ((ret = fill_port_info(entry, &resp->port)) < 0)
+	if ((ret = fill_port_info(port, &resp->port)) < 0)
 		return api_out(-ret, 0);
 
 	return api_out(0, sizeof(*resp));
@@ -144,21 +129,44 @@ static struct api_out port_get(const void *request, void *response) {
 
 static struct api_out port_list(const void *request, void *response) {
 	struct br_infra_port_list_resp *resp = response;
-	struct port_entry *entry;
+	struct port *port;
 	int ret;
 
 	(void)request;
 
 	resp->n_ports = 0;
 
-	LIST_FOREACH(entry, &port_entries, entries) {
-		struct br_infra_port *port = &resp->ports[resp->n_ports];
-		if ((ret = fill_port_info(entry, port)) < 0)
+	LIST_FOREACH (port, &ports, next) {
+		struct br_infra_port *p = &resp->ports[resp->n_ports];
+		if ((ret = fill_port_info(port, p)) < 0)
 			return api_out(-ret, 0);
 		resp->n_ports++;
 	}
 
 	return api_out(0, sizeof(*resp));
+}
+
+static struct api_out port_set(const void *request, void *response) {
+	const struct br_infra_port_set_req *req = request;
+	struct rte_eth_dev_info info;
+	struct port *port;
+
+	int ret;
+
+	(void)response;
+
+	if ((port = find_port(req->port_id)) == NULL)
+		return api_out(ENODEV, 0);
+
+	if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
+		return api_out(-ret, 0);
+
+	if (req->set_attrs & BR_INFRA_PORT_N_RXQ) {
+		if ((ret = port_reconfig(port, req->n_rxq, info.nb_tx_queues)) < 0)
+			return api_out(-ret, 0);
+	}
+
+	return api_out(0, 0);
 }
 
 static struct br_api_handler port_add_handler = {
@@ -181,17 +189,22 @@ static struct br_api_handler port_list_handler = {
 	.request_type = BR_INFRA_PORT_LIST,
 	.callback = port_list,
 };
+static struct br_api_handler port_set_handler = {
+	.name = "port set",
+	.request_type = BR_INFRA_PORT_SET,
+	.callback = port_set,
+};
 
 static void port_fini(void) {
-	struct port_entry *e, *next;
+	struct port *e, *next;
 
-	e = LIST_FIRST(&port_entries);
+	e = LIST_FIRST(&ports);
 	while (e != NULL) {
-		next = LIST_NEXT(e, entries);
+		next = LIST_NEXT(e, next);
 		port_destroy(e->port_id, e);
 		e = next;
 	}
-	LIST_INIT(&port_entries);
+	LIST_INIT(&ports);
 }
 
 static struct br_module port_module = {
@@ -203,5 +216,6 @@ RTE_INIT(control_infra_init) {
 	br_register_api_handler(&port_del_handler);
 	br_register_api_handler(&port_get_handler);
 	br_register_api_handler(&port_list_handler);
+	br_register_api_handler(&port_set_handler);
 	br_register_module(&port_module);
 }

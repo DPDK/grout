@@ -25,4 +25,7 @@ struct br_api_response {
 
 #define BR_DEFAULT_SOCK_PATH "/run/br.sock"
 
+#define BR_BIT32(n) (UINT32_C(1) << (n))
+#define BR_BIT64(n) (UINT64_C(1) << (n))
+
 #endif
