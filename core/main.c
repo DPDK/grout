@@ -144,22 +144,29 @@ free:
 
 static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev = event_base_get_running_event(ev_base);
+	struct br_api_response *resp;
+	struct br_api_request *req;
 	struct event *write_ev;
 	struct api_out out;
 	ssize_t len;
-	void *buf;
 
 	(void)what;
 	(void)ctx;
 
-	if (rte_mempool_get(br.api_pool, &buf) < 0) {
+	if (rte_mempool_get(br.api_pool, (void **)&req) < 0) {
+		LOG(ERR, "no memory buffer available");
+		return;
+	}
+	if (rte_mempool_get(br.api_pool, (void **)&resp) < 0) {
+		rte_mempool_put(br.api_pool, req);
 		LOG(ERR, "no memory buffer available");
 		return;
 	}
 
-	if ((len = recv(sock, buf, BR_API_MAX_MSG_LEN, MSG_DONTWAIT | MSG_TRUNC)) < 0) {
+	if ((len = recv(sock, req, BR_API_MAX_MSG_LEN, MSG_DONTWAIT | MSG_TRUNC)) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			rte_mempool_put(br.api_pool, buf);
+			rte_mempool_put(br.api_pool, req);
+			rte_mempool_put(br.api_pool, resp);
 			return;
 		}
 		LOG(ERR, "recv: %s", strerror(errno));
@@ -171,9 +178,6 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 		LOG(DEBUG, "client disconnected");
 		goto close;
 	}
-
-	struct br_api_request *req = buf;
-	struct br_api_response *resp = buf;
 
 	const struct br_api_handler *handler = lookup_api_handler(req);
 	if (handler == NULL) {
@@ -200,7 +204,8 @@ send:
 		LOG(ERR, "api_read_cb: send: %s", strerror(errno));
 		goto close;
 	}
-	rte_mempool_put(br.api_pool, buf);
+	rte_mempool_put(br.api_pool, req);
+	rte_mempool_put(br.api_pool, resp);
 	return;
 
 retry_send:
@@ -211,10 +216,12 @@ retry_send:
 			event_free(write_ev);
 		goto close;
 	}
+	rte_mempool_put(br.api_pool, req);
 	return;
 
 close:
-	rte_mempool_put(br.api_pool, buf);
+	rte_mempool_put(br.api_pool, req);
+	rte_mempool_put(br.api_pool, resp);
 	if (ev != NULL)
 		event_free_finalize(0, ev, event_fd_close);
 }
