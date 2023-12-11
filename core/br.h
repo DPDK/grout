@@ -9,7 +9,6 @@
 #include <stdbool.h>
 
 struct boring_router {
-	const char *config_file_path;
 	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;

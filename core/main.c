@@ -35,8 +35,9 @@ static void usage(const char *prog) {
 	puts("options:");
 	puts("  -v, --verbose              Increase verbosity.");
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
-	puts("  -c FILE, --config FILE     Path the configuration file.");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
+	puts("                             Default: BR_SOCK_PATH from env or");
+	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
 }
 
 static struct boring_router br;
@@ -46,13 +47,12 @@ static struct event *ev_listen;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-	br.api_sock_path = BR_DEFAULT_SOCK_PATH;
+	br.api_sock_path = getenv("BR_SOCK_PATH");
 	br.log_level = RTE_LOG_NOTICE;
 
-#define FLAGS "c:s:htv"
+#define FLAGS "s:htv"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
-		{"config", required_argument, NULL, 'c'},
 		{"help", no_argument, NULL, 'h'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"verbose", no_argument, NULL, 'v'},
@@ -63,9 +63,6 @@ static int parse_args(int argc, char **argv) {
 		switch (c) {
 		case 's':
 			br.api_sock_path = optarg;
-			break;
-		case 'c':
-			br.config_file_path = optarg;
 			break;
 		case 't':
 			br.test_mode = true;
@@ -86,10 +83,9 @@ end:
 		return -1;
 	}
 
-	return 0;
-}
+	if (br.api_sock_path == NULL)
+		br.api_sock_path = BR_DEFAULT_SOCK_PATH;
 
-static int parse_config_file(void) {
 	return 0;
 }
 
@@ -291,9 +287,6 @@ int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
 
 	if (parse_args(argc, argv) < 0)
-		goto end;
-
-	if (parse_config_file() < 0)
 		goto end;
 
 	if (dpdk_init(&br) < 0)

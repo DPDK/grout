@@ -31,6 +31,8 @@ static void help(void) {
 	puts("options:");
 	puts("  -h, --help                 Show this help message and exit.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
+	puts("                             Default: BR_SOCK_PATH from env or");
+	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -x, --trace-commands       Print executed commands.");
 	puts("  -c, --bash-complete        For use in bash completion:");
@@ -44,9 +46,7 @@ struct br_cli_opts {
 	bool bash_complete;
 };
 
-struct br_cli_opts opts = {
-	.sock_path = BR_DEFAULT_SOCK_PATH,
-};
+struct br_cli_opts opts;
 
 static int parse_args(int argc, char **argv) {
 	int c;
@@ -61,6 +61,8 @@ static int parse_args(int argc, char **argv) {
 	};
 
 	opterr = 0; // disable getopt default error reporting
+
+	opts.sock_path = getenv("BR_SOCK_PATH");
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
@@ -91,6 +93,9 @@ static int parse_args(int argc, char **argv) {
 			return -1;
 		}
 	}
+
+	if (opts.sock_path == NULL)
+		opts.sock_path = BR_DEFAULT_SOCK_PATH;
 
 	return optind;
 }
