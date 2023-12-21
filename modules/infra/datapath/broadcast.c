@@ -82,10 +82,11 @@ static int broadcast_init(const struct rte_graph *graph, struct rte_node *node) 
 }
 
 static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node) {
-	struct broadcast_ctx *ctx = (struct broadcast_ctx *)node->ctx;
+	struct broadcast_ctx *ctx;
 
 	(void)graph;
 
+	memcpy(&ctx, node->ctx, sizeof(struct broadcast_ctx *));
 	rte_free(ctx);
 }
 
