@@ -9,6 +9,7 @@
 #include <br_infra_msg.h>
 #include <br_infra_types.h>
 #include <br_port.h>
+#include <br_queue.h>
 #include <br_worker.h>
 
 #include <rte_build_config.h>
@@ -20,9 +21,8 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/queue.h>
 
-static LIST_HEAD(, port) ports;
+struct ports ports;
 
 static int fill_port_info(struct port *e, struct br_infra_port *port) {
 	struct rte_eth_dev_info info;
@@ -42,9 +42,9 @@ static int fill_port_info(struct port *e, struct br_infra_port *port) {
 	return 0;
 }
 
-static struct api_out port_add(const void *request, void *response) {
+static struct api_out port_add(const void *request, void **response) {
 	const struct br_infra_port_add_req *req = request;
-	struct br_infra_port_add_resp *resp = response;
+	struct br_infra_port_add_resp *resp;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	struct port *port;
@@ -74,16 +74,22 @@ static struct api_out port_add(const void *request, void *response) {
 	port->port_id = port_id;
 	LIST_INSERT_HEAD(&ports, port, next);
 
-	if ((ret = port_reconfig(port, 1, 1)) < 0) {
+	if ((ret = port_reconfig(port, 1)) < 0) {
 		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
-	if ((ret = worker_assign_default(port)) < 0) {
+	if ((ret = port_plug(port, true)) < 0) {
 		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
 
+	if ((resp = malloc(sizeof(*resp))) == NULL) {
+		port_destroy(port_id, port);
+		return api_out(ENOMEM, 0);
+	}
+
 	resp->port_id = port_id;
+	*response = resp;
 
 	return api_out(0, sizeof(*resp));
 }
@@ -97,7 +103,7 @@ static struct port *find_port(uint16_t port_id) {
 	return NULL;
 }
 
-static struct api_out port_del(const void *request, void *response) {
+static struct api_out port_del(const void *request, void **response) {
 	const struct br_infra_port_del_req *req = request;
 	struct port *port;
 	int ret;
@@ -112,43 +118,59 @@ static struct api_out port_del(const void *request, void *response) {
 	return api_out(-ret, 0);
 }
 
-static struct api_out port_get(const void *request, void *response) {
+static struct api_out port_get(const void *request, void **response) {
 	const struct br_infra_port_get_req *req = request;
-	struct br_infra_port_get_resp *resp = response;
+	struct br_infra_port_get_resp *resp = NULL;
 	struct port *port;
 	int ret;
 
 	if ((port = find_port(req->port_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if ((ret = fill_port_info(port, &resp->port)) < 0)
+	if ((resp = malloc(sizeof(*resp))) == NULL)
+		return api_out(ENOMEM, 0);
+
+	if ((ret = fill_port_info(port, &resp->port)) < 0) {
+		free(resp);
 		return api_out(-ret, 0);
+	}
+	*response = resp;
 
 	return api_out(0, sizeof(*resp));
 }
 
-static struct api_out port_list(const void *request, void *response) {
-	struct br_infra_port_list_resp *resp = response;
+static struct api_out port_list(const void *request, void **response) {
+	struct br_infra_port_list_resp *resp = NULL;
+	uint16_t n_ports = 0;
 	struct port *port;
 	int ret;
 
 	(void)request;
 
-	resp->n_ports = 0;
+	LIST_FOREACH (port, &ports, next)
+		n_ports++;
+
+	if ((resp = malloc(sizeof(*resp) + n_ports * (sizeof(*port)))) == NULL)
+		return api_out(ENOMEM, 0);
+
+	resp->n_ports = n_ports;
 
 	LIST_FOREACH (port, &ports, next) {
 		struct br_infra_port *p = &resp->ports[resp->n_ports];
-		if ((ret = fill_port_info(port, p)) < 0)
+		if ((ret = fill_port_info(port, p)) < 0) {
+			free(resp);
 			return api_out(-ret, 0);
+		}
 		resp->n_ports++;
 	}
+
+	*response = resp;
 
 	return api_out(0, sizeof(*resp));
 }
 
-static struct api_out port_set(const void *request, void *response) {
+static struct api_out port_set(const void *request, void **response) {
 	const struct br_infra_port_set_req *req = request;
-	struct rte_eth_dev_info info;
 	struct port *port;
 
 	int ret;
@@ -158,11 +180,8 @@ static struct api_out port_set(const void *request, void *response) {
 	if ((port = find_port(req->port_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
-		return api_out(-ret, 0);
-
 	if (req->set_attrs & BR_INFRA_PORT_N_RXQ) {
-		if ((ret = port_reconfig(port, req->n_rxq, info.nb_tx_queues)) < 0)
+		if ((ret = port_reconfig(port, req->n_rxq)) < 0)
 			return api_out(-ret, 0);
 	}
 
@@ -196,14 +215,11 @@ static struct br_api_handler port_set_handler = {
 };
 
 static void port_fini(void) {
-	struct port *e, *next;
+	struct port *port, *tmp;
 
-	e = LIST_FIRST(&ports);
-	while (e != NULL) {
-		next = LIST_NEXT(e, next);
-		port_destroy(e->port_id, e);
-		e = next;
-	}
+	LIST_FOREACH_SAFE (port, &ports, next, tmp)
+		port_destroy(port->port_id, port);
+
 	LIST_INIT(&ports);
 }
 

@@ -5,7 +5,10 @@
 #define _BR_CONTROL_WORKER
 
 #include <br_port.h>
+#include <br_worker.h>
 
-int worker_assign_default(struct port *);
+int port_unplug(const struct port *, bool commit);
+int port_plug(const struct port *, bool commit);
+size_t worker_count(void);
 
 #endif

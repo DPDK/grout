@@ -20,45 +20,59 @@
 
 void *br_datapath_loop(void *priv) {
 	struct worker *w = priv;
-	struct queue_map *rxq;
+	struct worker_config *config;
+	rte_cpuset_t cpuset;
+	char name[16];
+	unsigned cur;
 
-	LOG(INFO, "[%d] starting", rte_gettid());
+	w->tid = rte_gettid();
+
+	LOG(INFO, "[%d] starting", w->tid);
 
 	if (rte_thread_register() < 0) {
-		LOG(ERR, "rte_thread_register: %s", rte_strerror(rte_errno));
-		goto stop;
+		LOG(ERR, "[%d] rte_thread_register: %s", w->tid, rte_strerror(rte_errno));
+		return NULL;
 	}
+
 	w->lcore_id = rte_lcore_id();
+	snprintf(name, 15, "datapath-%u", w->lcore_id);
+	pthread_setname_np(pthread_self(), name);
 
-	LOG(INFO, "[%d] lcore_id = %u", rte_gettid(), w->lcore_id);
+	LOG(INFO, "[%d] lcore_id = %u", w->tid, w->lcore_id);
 
-start:
-	pthread_mutex_lock(&w->lock);
-	pthread_mutex_unlock(&w->lock);
-	if (atomic_load(&w->pause))
-		goto start;
-	if (atomic_load(&w->shutdown))
-		goto stop;
+	_Static_assert(atomic_is_lock_free(&w->shutdown));
+	_Static_assert(atomic_is_lock_free(&w->cur_config));
+	atomic_store_explicit(&w->started, true, memory_order_release);
 
-	LOG(INFO, "[%d] unpaused", rte_gettid());
-	LIST_FOREACH (rxq, &w->rxqs, next)
-		LOG(INFO, "[%d] handling port %u rxq %u", rte_gettid(), rxq->port_id, rxq->queue_id
-		);
+reconfig:
+	if (w->shutdown)
+		goto shutdown;
 
-	LOG(INFO, "[%d] running", rte_gettid());
+	cur = atomic_load_explicit(&w->next_config, memory_order_acquire);
+	config = &w->config[cur];
+	atomic_store_explicit(&w->cur_config, cur, memory_order_release);
 
-	while (!atomic_load(&w->pause))
-		usleep(100000);
+	if (config->graph == NULL) {
+		usleep(1000);
+		goto reconfig;
+	}
 
-	pthread_mutex_lock(&w->lock);
-	pthread_cond_signal(&w->paused);
-	pthread_mutex_unlock(&w->lock);
-	LOG(INFO, "[%d] paused", rte_gettid());
+	CPU_ZERO(&cpuset);
+	CPU_SET(w->cpu_id, &cpuset);
+	rte_thread_set_affinity(&cpuset);
 
-	goto start;
+	LOG(INFO, "[%d] reconfigured", w->tid);
 
-stop:
-	LOG(INFO, "[%d] shutting down", rte_gettid());
+	while (!atomic_load_explicit(&w->shutdown, memory_order_relaxed)) {
+		rte_graph_walk(config->graph);
+
+		if (unlikely(atomic_load_explicit(&w->next_config, memory_order_relaxed) != cur))
+			goto reconfig;
+		usleep(500);
+	}
+
+shutdown:
+	LOG(INFO, "[%d] shutting down", w->tid);
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
 

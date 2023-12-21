@@ -44,7 +44,7 @@ struct br_infra_port_get_resp {
 
 struct br_infra_port_list_resp {
 	uint16_t n_ports;
-	struct br_infra_port ports[32];
+	struct br_infra_port ports[/* n_ports */];
 };
 
 #define BR_INFRA_PORT_SET REQUEST_TYPE(BR_INFRA_MODULE, 0x0005)
@@ -96,7 +96,7 @@ struct br_infra_worker_get_resp {
 
 struct br_infra_worker_list_resp {
 	uint16_t n_workers;
-	struct br_infra_worker workers[64];
+	struct br_infra_worker workers[/* n_workers */];
 };
 
 #define BR_INFRA_WORKER_SET REQUEST_TYPE(BR_INFRA_MODULE, 0x0014)
@@ -106,7 +106,7 @@ struct br_infra_worker_set_req {
 	br_infra_worker_attr_t set_attrs;
 	uint16_t cpu_id;
 	uint8_t n_rx_queues;
-	struct br_infra_rxq rx_queues[32];
+	struct br_infra_rxq rx_queues[/* n_rx_queues */];
 };
 
 // struct br_infra_worker_set_resp { };

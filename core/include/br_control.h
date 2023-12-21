@@ -17,7 +17,7 @@ static inline struct api_out api_out(uint32_t status, uint32_t len) {
 	return out;
 }
 
-typedef struct api_out (*br_api_handler_func)(const void *request, void *response);
+typedef struct api_out (*br_api_handler_func)(const void *request, void **response);
 
 struct br_api_handler {
 	const char *name;

@@ -2,10 +2,12 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "port_config.h"
+#include "worker.h"
 
 #include <br_control.h>
 #include <br_log.h>
 
+#include <rte_bitops.h>
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
@@ -26,7 +28,11 @@ int port_destroy(uint16_t port_id, struct port *port) {
 	struct rte_eth_dev_info info;
 	int ret;
 
+	port_unplug(port, true);
+
 	ret = rte_eth_dev_info_get(port_id, &info);
+	if (ret == 0)
+		ret = rte_eth_dev_stop(port_id);
 	if (ret == 0)
 		ret = rte_eth_dev_close(port_id);
 	if (ret == 0)
@@ -61,31 +67,20 @@ static uint16_t tx_size(struct rte_eth_dev_info *info) {
 	return size;
 }
 
-static uint32_t pow2(uint8_t e) {
-	return ((uint16_t)1) << e;
-}
-
-static uint32_t next_pow2(uint32_t x) {
-	uint8_t lo = 0, hi = 31;
-	while (lo < hi) {
-		uint8_t test = (lo + hi) / 2;
-		if (x < pow2(test)) {
-			hi = test;
-		} else if (pow2(test) < x) {
-			lo = test + 1;
-		} else {
-			return pow2(test);
-		}
-	}
-	return pow2(lo);
-}
-
-int port_reconfig(struct port *p, uint16_t n_rxq, uint16_t n_txq) {
+int port_reconfig(struct port *p, uint16_t n_rxq) {
 	struct rte_eth_conf conf = default_port_config;
 	struct rte_eth_dev_info info;
 	char pool_name[128];
 	uint32_t mbuf_count;
+	uint16_t n_txq;
 	int ret;
+
+	// FIXME: deal with drivers that do not support more than 1 (or N) tx queues
+	n_txq = worker_count();
+	if (n_txq == 0) {
+		// no worker created yet, it will be spawned when the port is plugged
+		n_txq = 1;
+	}
 
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return ret;
@@ -113,16 +108,8 @@ int port_reconfig(struct port *p, uint16_t n_rxq, uint16_t n_txq) {
 	mbuf_count = rx_size(&info) * n_rxq;
 	mbuf_count += tx_size(&info) * n_txq;
 	mbuf_count += BR_MAX_BURST_SIZE;
-	mbuf_count = next_pow2(mbuf_count) - 1;
+	mbuf_count = rte_align32pow2(mbuf_count) - 1;
 	snprintf(pool_name, sizeof(pool_name), "mbuf_%s", rte_dev_name(info.device));
-	LOG(DEBUG,
-	    "rte_pktmbuf_pool_create(\"%s\", count=%u, cache=%u, priv=%u, eltsize=%u, socket=%u)",
-	    pool_name,
-	    mbuf_count,
-	    MBUF_CACHE_SIZE,
-	    0,
-	    RTE_MBUF_DEFAULT_BUF_SIZE,
-	    rte_eth_dev_socket_id(p->port_id));
 	p->pool = rte_pktmbuf_pool_create(
 		pool_name,
 		mbuf_count,
@@ -147,6 +134,10 @@ int port_reconfig(struct port *p, uint16_t n_rxq, uint16_t n_txq) {
 			LOG(ERR, "rte_eth_tx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}
+	}
+	if ((ret = rte_eth_dev_start(p->port_id)) < 0) {
+		LOG(ERR, "rte_eth_dev_start: %s", rte_strerror(-ret));
+		return ret;
 	}
 
 	return 0;

@@ -16,8 +16,7 @@ int send_recv(
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,
-	size_t rx_len,
-	void *rx_data
+	void **rx_data
 );
 
 #endif

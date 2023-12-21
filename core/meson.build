@@ -6,6 +6,7 @@ src += files(
   'dpdk.c',
   'main.c',
   'signals.c',
+  'corelist.c',
 )
 
 api_headers += files('include/br_api.h')

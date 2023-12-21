@@ -6,15 +6,16 @@
 
 #include <event2/event.h>
 
+#include <sched.h>
 #include <stdbool.h>
 
 struct boring_router {
 	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;
-
-	// dpdk
-	struct rte_mempool *api_pool; // for control API messages
+	cpu_set_t cores;
 };
+
+int parse_cpu_list(const char *arg, cpu_set_t *cpuset);
 
 #endif

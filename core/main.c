@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 #include <getopt.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +29,7 @@
 #include <unistd.h>
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-t] [-c FILE] [-s PATH]\n", prog);
+	printf("Usage: %s [-t] [-c FILE] [-s PATH] [-c CORES]\n", prog);
 	puts("");
 	puts("  Boring router.");
 	puts("");
@@ -38,6 +39,8 @@ static void usage(const char *prog) {
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
 	puts("                             Default: BR_SOCK_PATH from env or");
 	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
+	puts("  -c CORES, --cores CORES    Datapath cores (comma separated");
+	puts("                             CPU list and/or masks).");
 }
 
 static struct boring_router br;
@@ -47,22 +50,37 @@ static struct event *ev_listen;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-	br.api_sock_path = getenv("BR_SOCK_PATH");
-	br.log_level = RTE_LOG_NOTICE;
-
-#define FLAGS "s:htv"
+#define FLAGS ":s:c:htv"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
+		{"cores", required_argument, NULL, 'c'},
 		{"help", no_argument, NULL, 'h'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"verbose", no_argument, NULL, 'v'},
 		{0},
 	};
 
+	opterr = 0; // disable getopt default error reporting
+
+	br.api_sock_path = getenv("BR_SOCK_PATH");
+	br.log_level = RTE_LOG_NOTICE;
+
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
 		case 's':
 			br.api_sock_path = optarg;
+			break;
+		case 'c':
+			if (parse_cpu_list(optarg, &br.cores) < 0) {
+				fprintf(stderr, "error: -c %s: %s", optarg, strerror(errno));
+				return -1;
+			}
+			if (CPU_ISSET(0, &br.cores)) {
+				fprintf(stderr, "error: -c %s: cpu 0 is reserved", optarg);
+				return -1;
+			} else if (CPU_COUNT(&br.cores) == 0) {
+				CPU_SET(1, &br.cores);
+			}
 			break;
 		case 't':
 			br.test_mode = true;
@@ -72,6 +90,14 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'h':
 			usage(argv[0]);
+			return -1;
+		case ':':
+			usage(argv[0]);
+			fprintf(stderr, "error: -%c requires a value", optopt);
+			return -1;
+		case '?':
+			usage(argv[0]);
+			fprintf(stderr, "error: -%c unknown option", optopt);
 			return -1;
 		default:
 			goto end;
@@ -108,11 +134,6 @@ static ssize_t send_response(evutil_socket_t sock, struct br_api_response *resp)
 	    strerror(resp->status));
 
 	size_t len = sizeof(*resp) + resp->payload_len;
-	if (len > BR_API_MAX_MSG_LEN) {
-		errno = ENOBUFS;
-		return -1;
-	}
-
 	return send(sock, resp, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 }
 
@@ -137,15 +158,16 @@ retry:
 	return;
 
 free:
+	free(resp);
 	if (ev != NULL)
 		event_free(ev);
-	rte_mempool_put(br.api_pool, resp);
 }
 
 static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev = event_base_get_running_event(ev_base);
-	struct br_api_response *resp;
-	struct br_api_request *req;
+	void *req_payload = NULL, *resp_payload = NULL;
+	struct br_api_response *resp = NULL;
+	struct br_api_request req;
 	struct event *write_ev;
 	struct api_out out;
 	ssize_t len;
@@ -153,33 +175,33 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	(void)what;
 	(void)ctx;
 
-	if (rte_mempool_get(br.api_pool, (void **)&req) < 0) {
-		LOG(ERR, "no memory buffer available");
-		return;
-	}
-	if (rte_mempool_get(br.api_pool, (void **)&resp) < 0) {
-		rte_mempool_put(br.api_pool, req);
-		LOG(ERR, "no memory buffer available");
-		return;
-	}
-
-	if ((len = recv(sock, req, BR_API_MAX_MSG_LEN, MSG_DONTWAIT | MSG_TRUNC)) < 0) {
+	if ((len = recv(sock, &req, sizeof(req), MSG_DONTWAIT)) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			rte_mempool_put(br.api_pool, req);
-			rte_mempool_put(br.api_pool, resp);
 			return;
 		}
 		LOG(ERR, "recv: %s", strerror(errno));
-		goto close;
-	} else if (len > (ssize_t)BR_API_MAX_MSG_LEN) {
-		LOG(ERR, "recv: request truncated");
 		goto close;
 	} else if (len == 0) {
 		LOG(DEBUG, "client disconnected");
 		goto close;
 	}
 
-	const struct br_api_handler *handler = lookup_api_handler(req);
+	if (req.payload_len > 0) {
+		req_payload = malloc(req.payload_len);
+		if (req_payload == NULL) {
+			LOG(ERR, "cannot allocate %u bytes for request payload", req.payload_len);
+			goto close;
+		}
+		if ((len = recv(sock, req_payload, req.payload_len, MSG_DONTWAIT)) < 0) {
+			LOG(ERR, "recv: %s", strerror(errno));
+			goto close;
+		} else if (len == 0) {
+			LOG(DEBUG, "client disconnected");
+			goto close;
+		}
+	}
+
+	const struct br_api_handler *handler = lookup_api_handler(&req);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
 		out.len = 0;
@@ -188,24 +210,35 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	LOG(DEBUG,
 	    "request: id=%u type=0x%08x '%s' len=%u",
-	    req->id,
-	    req->type,
+	    req.id,
+	    req.type,
 	    handler->name,
-	    req->payload_len);
+	    req.payload_len);
 
-	out = handler->callback(PAYLOAD(req), PAYLOAD(resp));
+	out = handler->callback(req_payload, &resp_payload);
 
 send:
+	resp = malloc(sizeof(*resp) + out.len);
+	if (resp == NULL) {
+		LOG(ERR, "cannot allocate %zu bytes for response payload", sizeof(*resp) + out.len);
+		goto close;
+	}
+	resp->for_id = req.id;
 	resp->status = out.status;
 	resp->payload_len = out.len;
+	if (resp_payload != NULL && out.len > 0) {
+		memcpy(PAYLOAD(resp), resp_payload, out.len);
+		free(resp_payload);
+		resp_payload = NULL;
+	}
 	if (send_response(sock, resp) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto retry_send;
-		LOG(ERR, "api_read_cb: send: %s", strerror(errno));
+		LOG(ERR, "send: %s", strerror(errno));
 		goto close;
 	}
-	rte_mempool_put(br.api_pool, req);
-	rte_mempool_put(br.api_pool, resp);
+	free(req_payload);
+	free(resp);
 	return;
 
 retry_send:
@@ -216,12 +249,12 @@ retry_send:
 			event_free(write_ev);
 		goto close;
 	}
-	rte_mempool_put(br.api_pool, req);
+	free(req_payload);
 	return;
 
 close:
-	rte_mempool_put(br.api_pool, req);
-	rte_mempool_put(br.api_pool, resp);
+	free(req_payload);
+	free(resp);
 	if (ev != NULL)
 		event_free_finalize(0, ev, event_fd_close);
 }
@@ -258,7 +291,7 @@ static int listen_api_socket(void) {
 	struct event *ev_listen;
 	int fd;
 
-	fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (fd == -1) {
 		LOG(ERR, "socket: %s", strerror(errno));
 		return -1;
@@ -325,7 +358,7 @@ end:
 	unlink(br.api_sock_path);
 	libevent_global_shutdown();
 	modules_fini();
-	dpdk_fini(&br);
+	dpdk_fini();
 
 	return ret;
 }

@@ -9,21 +9,23 @@
 #include <br_infra_msg.h>
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 int br_infra_port_add(const struct br_client *c, const char *devargs, uint16_t *port_id) {
-	struct br_infra_port_add_resp resp;
+	struct br_infra_port_add_resp *resp = NULL;
 	struct br_infra_port_add_req req;
 
 	memset(&req, 0, sizeof(req));
-	memset(&resp, 0, sizeof(resp));
 	memccpy(req.devargs, devargs, 0, sizeof(req.devargs));
 
-	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, sizeof(resp), &resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, (void **)&resp) < 0)
 		return -1;
 
 	if (port_id != NULL)
-		*port_id = resp.port_id;
+		*port_id = resp->port_id;
+
+	free(resp);
 
 	return 0;
 }
@@ -31,52 +33,45 @@ int br_infra_port_add(const struct br_client *c, const char *devargs, uint16_t *
 int br_infra_port_del(const struct br_client *c, uint16_t port_id) {
 	struct br_infra_port_del_req req = {port_id};
 
-	return send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, 0, NULL);
+	return send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, NULL);
 }
 
 int br_infra_port_get(const struct br_client *c, uint16_t port_id, struct br_infra_port *port) {
 	struct br_infra_port_get_req req = {port_id};
-	struct br_infra_port_get_resp resp;
+	struct br_infra_port_get_resp *resp = NULL;
 
 	if (port == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	memset(&resp, 0, sizeof(resp));
-
-	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, sizeof(resp), &resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, (void **)&resp) < 0)
 		return -1;
 
-	memcpy(port, &resp.port, sizeof(*port));
+	memcpy(port, &resp->port, sizeof(*port));
 
 	return 0;
 }
 
-int br_infra_port_list(
-	const struct br_client *c,
-	size_t max_ports,
-	struct br_infra_port *ports,
-	size_t *n_ports
-) {
-	struct br_infra_port_list_resp resp;
+int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_infra_port **ports) {
+	struct br_infra_port_list_resp *resp = NULL;
 
 	if (ports == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	memset(&resp, 0, sizeof(resp));
-
-	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, sizeof(resp), &resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, (void **)&resp) < 0)
 		return -1;
 
-	if (resp.n_ports > max_ports) {
-		errno = ENOBUFS;
+	*n_ports = resp->n_ports;
+	*ports = calloc(resp->n_ports, sizeof(struct br_infra_port));
+	if (*ports == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
-	*n_ports = resp.n_ports;
-	memcpy(ports, &resp.ports, resp.n_ports * sizeof(struct br_infra_port));
+	memcpy(*ports, &resp->ports, resp->n_ports * sizeof(struct br_infra_port));
+	free(resp);
 
 	return 0;
 }
@@ -88,5 +83,5 @@ int br_infra_port_set(const struct br_client *c, uint16_t port_id, uint16_t n_rx
 		.n_rxq = n_rxq,
 	};
 
-	return send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, 0, NULL);
+	return send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, NULL);
 }

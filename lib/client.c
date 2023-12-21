@@ -22,7 +22,7 @@ struct br_client *br_connect(const char *sock_path) {
 	if (client == NULL)
 		goto err;
 
-	client->sock_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+	client->sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (client->sock_fd == -1)
 		goto err;
 
@@ -51,20 +51,21 @@ int send_recv(
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,
-	size_t rx_len,
-	void *rx_data
+	void **rx_data
 ) {
-	uint8_t buf[BR_API_MAX_MSG_LEN];
-	struct br_api_request *req = (void *)buf;
-	struct br_api_response *resp = (void *)buf;
+	struct br_api_request *req = NULL;
+	struct br_api_response resp;
 	static uint32_t message_id;
 	uint32_t id = ++message_id;
+	void *payload = NULL;
 	ssize_t n;
 
 	if (client == NULL) {
 		errno = EINVAL;
-		return -1;
+		goto err;
 	}
+	if ((req = malloc(sizeof(*req) + tx_len)) == NULL)
+		goto err;
 
 	req->id = id;
 	req->type = req_type;
@@ -73,33 +74,34 @@ int send_recv(
 		memcpy(PAYLOAD(req), tx_data, tx_len);
 
 	if (send(client->sock_fd, req, sizeof(*req) + tx_len, 0) < 0)
-		return -1;
+		goto err;
 
-	if ((n = recv(client->sock_fd, resp, sizeof(buf), 0)) < 0)
-		return -1;
+	if ((n = recv(client->sock_fd, &resp, sizeof(resp), 0)) < 0)
+		goto err;
 
-	if (n < (ssize_t)sizeof(*resp)) {
+	if (n != sizeof(resp) || resp.for_id != id) {
 		errno = EBADMSG;
-		return -1;
+		goto err;
 	}
-	if (resp->for_id != id) {
-		errno = EBADMSG;
-		return -1;
+	if (resp.payload_len > 0) {
+		// receive payload *before* checking response status to drain socket buffer
+		if ((payload = malloc(resp.payload_len)) == NULL)
+			goto err;
+		if ((n = recv(client->sock_fd, payload, resp.payload_len, 0)) < 0)
+			goto err;
 	}
-	if (resp->status != 0) {
-		errno = resp->status;
-		return -1;
+	if (resp.status != 0) {
+		errno = resp.status;
+		goto err;
 	}
-	if ((size_t)n != sizeof(*resp) + rx_len) {
-		errno = EBADMSG;
-		return -1;
-	}
-	if (resp->payload_len != rx_len) {
-		errno = EBADMSG;
-		return -1;
-	}
-	if (rx_len > 0)
-		memcpy(rx_data, PAYLOAD(resp), rx_len);
 
+	if (payload != NULL && rx_data != NULL)
+		*rx_data = payload;
+
+	free(req);
 	return 0;
+err:
+	free(req);
+	free(payload);
+	return -1;
 }

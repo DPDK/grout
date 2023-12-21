@@ -82,17 +82,19 @@ static cmd_status_t port_show(const struct br_client *c, const struct ec_pnode *
 }
 
 static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_port ports[32];
-	size_t len;
+	struct br_infra_port *ports = NULL;
+	size_t len = 0;
 
 	(void)p;
 
-	if (br_infra_port_list(c, 32, ports, &len) < 0)
+	if (br_infra_port_list(c, &len, &ports) < 0)
 		return CMD_ERROR;
 
 	printf(LIST_TITLE_FMT, "INDEX", "DEVICE", "RX_QUEUES", "TX_QUEUES");
 	for (size_t i = 0; i < len; i++)
 		list(&ports[i]);
+
+	free(ports);
 
 	return CMD_SUCCESS;
 }

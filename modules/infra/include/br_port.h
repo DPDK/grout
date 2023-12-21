@@ -15,4 +15,8 @@ struct port {
 	struct rte_mempool *pool;
 };
 
+LIST_HEAD(ports, port);
+
+extern struct ports ports;
+
 #endif
