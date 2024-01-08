@@ -22,8 +22,8 @@ struct broadcast_ctx {
 static uint16_t
 broadcast_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	struct rte_mbuf *mbuf, *clone;
 	struct broadcast_ctx *ctx;
-	struct rte_mbuf *mbuf;
 	uint16_t n, port_id;
 	rte_edge_t edge;
 	unsigned clones;
@@ -42,9 +42,13 @@ broadcast_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		for (edge = 0; edge < ctx->num_ports; edge++) {
 			if (ctx->edge_port[edge] == port_id)
 				continue;
-			if (clones < ctx->num_ports)
-				mbuf = rte_pktmbuf_clone(mbuf, mbuf->pool);
-			rte_node_enqueue(graph, node, edge, (void **)&mbuf, 1);
+			if (clones < ctx->num_ports - 2) {
+				clone = rte_pktmbuf_clone(mbuf, mbuf->pool);
+				clones++;
+			} else {
+				clone = mbuf;
+			}
+			rte_node_enqueue(graph, node, edge, (void **)&clone, 1);
 		}
 	}
 
@@ -85,6 +89,11 @@ static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node)
 	struct broadcast_ctx *ctx;
 
 	(void)graph;
+
+	if (node == NULL) {
+		LOG(ERR, "graph %s: node == NULL", graph->name);
+		return;
+	}
 
 	memcpy(&ctx, node->ctx, sizeof(struct broadcast_ctx *));
 	rte_free(ctx);
