@@ -68,7 +68,7 @@ reconfig:
 
 		if (unlikely(atomic_load_explicit(&w->next_config, memory_order_relaxed) != cur))
 			goto reconfig;
-		usleep(500);
+		usleep(500000);
 	}
 
 shutdown:

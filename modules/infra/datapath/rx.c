@@ -25,11 +25,36 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	(void)objs;
 
-	count = rte_eth_rx_burst(
-		ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, RTE_GRAPH_BURST_SIZE
-	);
+	count = rte_eth_rx_burst(ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, 1);
 	if (count > 0) {
 		node->idx = count;
+		for (uint16_t c = 0; c < count; c++) {
+			struct rte_mbuf *mbuf = node->objs[c];
+			struct rte_ether_hdr eth_hdr;
+
+			rte_pktmbuf_read(mbuf, 0, sizeof(eth_hdr), &eth_hdr);
+			uint16_t eth_type = rte_be_to_cpu_16(eth_hdr.ether_type);
+
+			LOG(INFO,
+			    "RX port %u queue %u: %02x:%02x:%02x:%02x:%02x:%02x > "
+			    "%02x:%02x:%02x:%02x:%02x:%02x (0x%04x) len=%u",
+			    ctx->port_id,
+			    ctx->rxq_id,
+			    eth_hdr.src_addr.addr_bytes[0],
+			    eth_hdr.src_addr.addr_bytes[1],
+			    eth_hdr.src_addr.addr_bytes[2],
+			    eth_hdr.src_addr.addr_bytes[3],
+			    eth_hdr.src_addr.addr_bytes[4],
+			    eth_hdr.src_addr.addr_bytes[5],
+			    eth_hdr.dst_addr.addr_bytes[0],
+			    eth_hdr.dst_addr.addr_bytes[1],
+			    eth_hdr.dst_addr.addr_bytes[2],
+			    eth_hdr.dst_addr.addr_bytes[3],
+			    eth_hdr.dst_addr.addr_bytes[4],
+			    eth_hdr.dst_addr.addr_bytes[5],
+			    eth_type,
+			    mbuf->pkt_len);
+		}
 		rte_node_next_stream_move(graph, node, DEFAULT_NEXT);
 	}
 
