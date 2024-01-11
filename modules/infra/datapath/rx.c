@@ -25,7 +25,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	(void)objs;
 
-	count = rte_eth_rx_burst(ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, 1);
+	count = rte_eth_rx_burst(ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, 32);
 	if (count > 0) {
 		node->idx = count;
 		for (uint16_t c = 0; c < count; c++) {

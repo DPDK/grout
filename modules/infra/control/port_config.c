@@ -105,6 +105,11 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		return ret;
 	}
 
+	if ((ret = rte_eth_promiscuous_enable(p->port_id)) < 0) {
+		LOG(ERR, "rte_eth_promiscuous_enable: %s", rte_strerror(-ret));
+		return ret;
+	}
+
 	mbuf_count = rx_size(&info) * n_rxq;
 	mbuf_count += tx_size(&info) * n_txq;
 	mbuf_count += BR_MAX_BURST_SIZE;
