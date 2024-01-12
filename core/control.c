@@ -75,6 +75,8 @@ void modules_init(void) {
 		if (mod->init != NULL)
 			mod->init();
 	}
+
+	free(sorted);
 }
 
 static int module_fini_prio_order(const void *a, const void *b) {
@@ -107,4 +109,6 @@ void modules_fini(void) {
 		if (mod->fini != NULL)
 			mod->fini();
 	}
+
+	free(sorted);
 }
