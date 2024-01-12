@@ -73,6 +73,8 @@ static void worker_destroy(struct worker *worker) {
 	// XXX: destroy graphs
 
 	rte_free(worker);
+
+	LOG(INFO, "worker %u destroyed", worker->lcore_id);
 }
 
 size_t worker_count(void) {
@@ -113,6 +115,11 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		node_names[num_nodes++] = rte_node_id_to_name(node);
 	}
 
+	if (num_nodes == 0) {
+		worker->config[index].graph = NULL;
+		return 0;
+	}
+
 	node_names[num_nodes++] = "br_broadcast";
 
 	num_edges = 0;
@@ -151,8 +158,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	}
 
 	worker->config[index].graph = rte_graph_lookup(name);
-
-	rte_graph_dump(stdout, graph_id);
 
 	return 0;
 }
@@ -208,6 +213,8 @@ int port_unplug(const struct port *port, bool commit) {
 			}
 		}
 	}
+
+	LOG(INFO, "port %u unplugged", port->port_id);
 
 	if (commit)
 		return worker_graph_reload_all();
@@ -269,6 +276,8 @@ int port_plug(const struct port *port, bool commit) {
 			LIST_INSERT_HEAD(&worker->rxqs, qmap, next);
 		}
 	}
+
+	LOG(INFO, "port %u plugged", port->port_id);
 
 	if (commit)
 		return worker_graph_reload_all();
@@ -383,6 +392,7 @@ static void worker_fini(void) {
 static struct br_module worker_module = {
 	.init = worker_init,
 	.fini = worker_fini,
+	.fini_prio = -1000,
 };
 
 RTE_INIT(control_infra_init) {

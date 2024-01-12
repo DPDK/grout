@@ -4,7 +4,6 @@
 
 ### Control API
 
-- stop graph polling before interface destroy
 - graph statistics
 - interfaces mapping to ports
 - next hops mapping to interfaces

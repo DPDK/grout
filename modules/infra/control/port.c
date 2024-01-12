@@ -225,6 +225,7 @@ static void port_fini(void) {
 
 static struct br_module port_module = {
 	.fini = port_fini,
+	.fini_prio = 1000,
 };
 
 RTE_INIT(control_infra_init) {

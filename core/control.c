@@ -45,17 +45,65 @@ void br_register_module(struct br_module *mod) {
 	LIST_INSERT_HEAD(&modules, mod, entries);
 }
 
+static int module_init_prio_order(const void *a, const void *b) {
+	const struct br_module *mod_a = a;
+	const struct br_module *mod_b = b;
+	return mod_a->init_prio - mod_b->init_prio;
+}
+
 void modules_init(void) {
-	struct br_module *mod;
-	LIST_FOREACH (mod, &modules, entries) {
+	struct br_module *mod, **sorted;
+	int num = 0;
+
+	LIST_FOREACH (mod, &modules, entries)
+		num++;
+
+	sorted = calloc(num, sizeof(struct br_module *));
+	if (!sorted) {
+		LOG(ERR, "Not enough memory");
+		return;
+	}
+
+	num = 0;
+	LIST_FOREACH (mod, &modules, entries)
+		sorted[num++] = mod;
+
+	qsort(sorted, num, sizeof(struct br_module *), module_init_prio_order);
+
+	for (int i = 0; i < num; i++) {
+		mod = sorted[i];
 		if (mod->init != NULL)
 			mod->init();
 	}
 }
 
+static int module_fini_prio_order(const void *a, const void *b) {
+	const struct br_module *mod_a = a;
+	const struct br_module *mod_b = b;
+	return mod_a->fini_prio - mod_b->fini_prio;
+}
+
 void modules_fini(void) {
-	struct br_module *mod;
-	LIST_FOREACH (mod, &modules, entries) {
+	struct br_module *mod, **sorted;
+	int num = 0;
+
+	LIST_FOREACH (mod, &modules, entries)
+		num++;
+
+	sorted = calloc(num, sizeof(struct br_module *));
+	if (!sorted) {
+		LOG(ERR, "Not enough memory");
+		return;
+	}
+
+	num = 0;
+	LIST_FOREACH (mod, &modules, entries)
+		sorted[num++] = mod;
+
+	qsort(sorted, num, sizeof(struct br_module *), module_fini_prio_order);
+
+	for (int i = 0; i < num; i++) {
+		mod = sorted[i];
 		if (mod->fini != NULL)
 			mod->fini();
 	}

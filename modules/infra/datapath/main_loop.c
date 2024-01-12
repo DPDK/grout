@@ -66,6 +66,7 @@ void *br_datapath_loop(void *priv) {
 
 reconfig:
 	rte_graph_cluster_stats_destroy(stats);
+	stats = NULL;
 	if (w->shutdown)
 		goto shutdown;
 

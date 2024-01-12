@@ -44,6 +44,8 @@ int port_destroy(uint16_t port_id, struct port *port) {
 		rte_free(port);
 	}
 
+	LOG(INFO, "port %u destroyed", port_id);
+
 	return ret;
 }
 
