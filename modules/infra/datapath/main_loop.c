@@ -18,12 +18,32 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
+static int update_object_count(
+	bool is_first,
+	bool is_last,
+	void *cookie,
+	const struct rte_graph_cluster_node_stats *stats
+) {
+	uint64_t *counter = cookie;
+
+	(void)is_first;
+	(void)is_last;
+
+	*counter += stats->objs - stats->prev_objs;
+
+	return 0;
+}
+
 void *br_datapath_loop(void *priv) {
-	struct worker *w = priv;
+	struct rte_graph_cluster_stats_param stats_param;
+	struct rte_graph_cluster_stats *stats = NULL;
 	struct worker_config *config;
+	struct worker *w = priv;
+	char *graph_names[1];
 	rte_cpuset_t cpuset;
+	unsigned cur, loop;
+	uint64_t counter;
 	char name[16];
-	unsigned cur;
 
 	w->tid = rte_gettid();
 
@@ -45,6 +65,7 @@ void *br_datapath_loop(void *priv) {
 	atomic_store_explicit(&w->started, true, memory_order_release);
 
 reconfig:
+	rte_graph_cluster_stats_destroy(stats);
 	if (w->shutdown)
 		goto shutdown;
 
@@ -61,14 +82,34 @@ reconfig:
 	CPU_SET(w->cpu_id, &cpuset);
 	rte_thread_set_affinity(&cpuset);
 
+	graph_names[0] = config->graph->name;
+	memset(&stats_param, 0, sizeof(stats_param));
+	stats_param.socket_id = config->graph->socket;
+	stats_param.nb_graph_patterns = 1;
+	stats_param.graph_patterns = (const char **)graph_names;
+	stats_param.cookie = &counter;
+	stats_param.fn = update_object_count;
+	stats = rte_graph_cluster_stats_create(&stats_param);
+
 	LOG(INFO, "[%d] reconfigured", w->tid);
 
-	while (!atomic_load_explicit(&w->shutdown, memory_order_relaxed)) {
+	loop = 0;
+	for (;;) {
 		rte_graph_walk(config->graph);
 
-		if (unlikely(atomic_load_explicit(&w->next_config, memory_order_relaxed) != cur))
-			goto reconfig;
-		usleep(500000);
+		if (++loop == 32) {
+			if (atomic_load_explicit(&w->shutdown, memory_order_relaxed))
+				goto reconfig;
+			if (atomic_load_explicit(&w->next_config, memory_order_relaxed) != cur)
+				goto reconfig;
+
+			counter = 0;
+			rte_graph_cluster_stats_get(stats, false);
+			if (counter == 0) {
+				usleep(500);
+			}
+			loop = 0;
+		}
 	}
 
 shutdown:

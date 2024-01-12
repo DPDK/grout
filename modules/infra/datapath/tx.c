@@ -26,6 +26,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	const struct tx_node_ctx *ctx = (struct tx_node_ctx *)node->ctx;
 	uint16_t count;
 
+#if 0
 	for (uint16_t c = 0; c < nb_objs; c++) {
 		struct rte_mbuf *mbuf = objs[c];
 		const struct rte_ether_hdr *eth_hdr;
@@ -54,6 +55,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		    eth_type,
 		    mbuf->pkt_len);
 	}
+#endif
 
 	count = rte_eth_tx_burst(ctx->port_id, ctx->txq_id, (struct rte_mbuf **)objs, nb_objs);
 	if (count != nb_objs)
