@@ -48,11 +48,15 @@ err:
 
 int arg_int(const struct ec_pnode *p, const char *id, int64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL)
+	if (n == NULL) {
+		errno = ENOENT;
 		goto err;
+	}
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1)
+	if (v == NULL || ec_strvec_len(v) != 1) {
+		errno = EFAULT;
 		goto err;
+	}
 	const char *str = ec_strvec_val(v, 0);
 	if (ec_node_int_getval(ec_pnode_get_node(n), str, val) < 0) {
 		if (errno == 0)
@@ -61,17 +65,20 @@ int arg_int(const struct ec_pnode *p, const char *id, int64_t *val) {
 	}
 	return 0;
 err:
-	errno = EINVAL;
 	return -1;
 }
 
 int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL)
+	if (n == NULL) {
+		errno = ENOENT;
 		goto err;
+	}
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1)
+	if (v == NULL || ec_strvec_len(v) != 1) {
+		errno = EFAULT;
 		goto err;
+	}
 	const char *str = ec_strvec_val(v, 0);
 	if (ec_node_uint_getval(ec_pnode_get_node(n), str, val) < 0) {
 		if (errno == 0)
@@ -80,6 +87,5 @@ int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	}
 	return 0;
 err:
-	errno = EINVAL;
 	return -1;
 }

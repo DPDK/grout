@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include <br_log.h>
+#include <br_port.h>
 #include <br_worker.h>
 
 #include <rte_ethdev.h>
@@ -17,6 +18,7 @@
 struct rx_node_ctx {
 	uint16_t port_id;
 	uint16_t rxq_id;
+	uint16_t burst;
 };
 
 static uint16_t
@@ -25,7 +27,9 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	(void)objs;
 
-	count = rte_eth_rx_burst(ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, 32);
+	count = rte_eth_rx_burst(
+		ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, ctx->burst
+	);
 	if (count > 0) {
 		node->idx = count;
 #if 0
@@ -89,6 +93,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 			if (strcmp(name, node->name) == 0) {
 				ctx->port_id = qmap->port_id;
 				ctx->rxq_id = qmap->queue_id;
+				ctx->burst = port_get_burst_size(qmap->port_id);
 				return 0;
 			}
 		}

@@ -76,12 +76,17 @@ int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_inf
 	return 0;
 }
 
-int br_infra_port_set(const struct br_client *c, uint16_t port_id, uint16_t n_rxq) {
+int br_infra_port_set(const struct br_client *c, uint16_t port_id, uint16_t n_rxq, uint16_t burst) {
 	struct br_infra_port_set_req req = {
 		.port_id = port_id,
-		.set_attrs = BR_INFRA_PORT_N_RXQ,
-		.n_rxq = n_rxq,
 	};
-
+	if (n_rxq > 0) {
+		req.n_rxq = n_rxq;
+		req.set_attrs |= BR_INFRA_PORT_N_RXQ;
+	}
+	if (burst > 0) {
+		req.burst = burst;
+		req.set_attrs |= BR_INFRA_PORT_BURST;
+	}
 	return send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, NULL);
 }

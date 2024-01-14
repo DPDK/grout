@@ -15,6 +15,7 @@ struct br_infra_port {
 	char device[128];
 	uint16_t n_rxq;
 	uint16_t n_txq;
+	uint16_t burst;
 };
 
 struct br_infra_rxq {

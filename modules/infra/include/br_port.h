@@ -12,11 +12,14 @@
 struct port {
 	LIST_ENTRY(port) next;
 	uint16_t port_id;
+	uint16_t burst;
 	struct rte_mempool *pool;
 };
 
 LIST_HEAD(ports, port);
 
 extern struct ports ports;
+
+uint16_t port_get_burst_size(uint16_t port_id);
 
 #endif
