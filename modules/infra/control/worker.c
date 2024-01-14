@@ -91,7 +91,7 @@ static unsigned stamp;
 static rte_node_t rx_base = RTE_NODE_ID_INVALID;
 static rte_node_t tx_base = RTE_NODE_ID_INVALID;
 static rte_node_t drop_base = RTE_NODE_ID_INVALID;
-static rte_node_t bcast_base = RTE_NODE_ID_INVALID;
+static rte_node_t class_base = RTE_NODE_ID_INVALID;
 
 static int worker_graph_new(struct worker *worker, uint8_t index) {
 	uint16_t num_edges, num_nodes;
@@ -120,7 +120,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		return 0;
 	}
 
-	node_names[num_nodes++] = "br_broadcast";
+	node_names[num_nodes++] = "br_classify";
 
 	num_edges = 0;
 	LIST_FOREACH (qmap, &worker->txqs, next) {
@@ -136,7 +136,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		edge_names[num_edges++] = rte_node_id_to_name(node);
 	}
 
-	edge = rte_node_edge_update(bcast_base, 0, (const char **)edge_names, num_edges);
+	edge = rte_node_edge_update(class_base, 0, (const char **)edge_names, num_edges);
 	if (edge == RTE_EDGE_ID_INVALID)
 		return -ERANGE;
 
@@ -373,9 +373,9 @@ static void worker_init(void) {
 	drop_base = rte_node_from_name("br_drop");
 	if (drop_base == RTE_NODE_ID_INVALID)
 		LOG(ERR, "'br_drop' node not found");
-	bcast_base = rte_node_from_name("br_broadcast");
-	if (bcast_base == RTE_NODE_ID_INVALID)
-		LOG(ERR, "'br_broadcast' node not found");
+	class_base = rte_node_from_name("br_classify");
+	if (class_base == RTE_NODE_ID_INVALID)
+		LOG(ERR, "'br_classify' node not found");
 }
 
 static void worker_fini(void) {
