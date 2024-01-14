@@ -12,7 +12,8 @@
 #include <stdbool.h>
 #include <sys/queue.h>
 
-#define CLASSIFY 0
+// the rx nodes will always have a single next edge (l2, l3, io broadcast, etc.)
+#define DEFAULT_NEXT 0
 
 struct rx_node_ctx {
 	uint16_t port_id;
@@ -61,7 +62,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			    mbuf->pkt_len);
 		}
 #endif
-		rte_node_next_stream_move(graph, node, CLASSIFY);
+		rte_node_next_stream_move(graph, node, DEFAULT_NEXT);
 	}
 
 	return count;
@@ -111,7 +112,7 @@ static struct rte_node_register rx_node_base = {
 
 	.nb_edges = 1,
 	.next_nodes = {
-		[CLASSIFY] = "br_classify",
+		[DEFAULT_NEXT] = "br_broadcast",
 	},
 };
 
