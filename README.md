@@ -8,6 +8,7 @@
 - interfaces mapping to ports
 - next hops mapping to interfaces
 - routing table
+- worker management
 
 ### Dataplane
 

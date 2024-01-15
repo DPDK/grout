@@ -121,7 +121,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_COMMAND(
 			"set index [rxqs n_rxq] [burst rx_burst]",
 			port_set,
-			"Create a new port.",
+			"Modify port parameters.",
 			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10)),
 			with_help(
 				"Number of Rx queues.", ec_node_uint("n_rxq", 0, UINT16_MAX - 1, 10)
