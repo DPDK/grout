@@ -155,6 +155,7 @@ static struct api_out port_list(const void *request, void **response) {
 	struct br_infra_port_list_resp *resp = NULL;
 	uint16_t n_ports = 0;
 	struct port *port;
+	size_t len;
 	int ret;
 
 	(void)request;
@@ -162,23 +163,27 @@ static struct api_out port_list(const void *request, void **response) {
 	LIST_FOREACH (port, &ports, next)
 		n_ports++;
 
-	if ((resp = malloc(sizeof(*resp) + n_ports * (sizeof(*port)))) == NULL)
+	len = sizeof(*resp) + n_ports * sizeof(struct br_infra_port);
+	if ((resp = malloc(len)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->n_ports = n_ports;
+	memset(resp, 0, len);
 
+	n_ports = 0;
 	LIST_FOREACH (port, &ports, next) {
-		struct br_infra_port *p = &resp->ports[resp->n_ports];
+		struct br_infra_port *p = &resp->ports[n_ports];
 		if ((ret = fill_port_info(port, p)) < 0) {
 			free(resp);
 			return api_out(-ret, 0);
 		}
-		resp->n_ports++;
+		n_ports++;
 	}
+
+	resp->n_ports = n_ports;
 
 	*response = resp;
 
-	return api_out(0, sizeof(*resp));
+	return api_out(0, len);
 }
 
 static struct api_out port_set(const void *request, void **response) {
