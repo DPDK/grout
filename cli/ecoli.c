@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
+#include "br_net_types.h"
 #include "exec.h"
 
 #include <br_cli.h>
@@ -83,6 +84,28 @@ int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	if (ec_node_uint_getval(ec_pnode_get_node(n), str, val) < 0) {
 		if (errno == 0)
 			errno = EINVAL;
+		goto err;
+	}
+	return 0;
+err:
+	return -1;
+}
+
+int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *val) {
+	const struct ec_pnode *n = ec_pnode_find(p, id);
+	if (n == NULL) {
+		errno = ENOENT;
+		goto err;
+	}
+	const struct ec_strvec *v = ec_pnode_get_strvec(n);
+	if (v == NULL || ec_strvec_len(v) != 1) {
+		errno = EFAULT;
+		goto err;
+	}
+	const char *str = ec_strvec_val(v, 0);
+
+	if (br_eth_addr_scan(str, val) < 0) {
+		errno = EINVAL;
 		goto err;
 	}
 	return 0;

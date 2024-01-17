@@ -5,6 +5,7 @@
 #define _BR_CLI
 
 #include <br_client.h>
+#include <br_net_types.h>
 
 #include <ecoli.h>
 
@@ -37,6 +38,7 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
 const char *arg_str(const struct ec_pnode *p, const char *id);
 int arg_int(const struct ec_pnode *p, const char *id, int64_t *);
 int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *);
+int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *);
 
 #define CLI_COMMAND_CONTEXT(name, help, ...)                                                       \
 	EC_NODE_SEQ(                                                                               \
