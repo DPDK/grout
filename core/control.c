@@ -21,10 +21,14 @@ void br_register_api_handler(struct br_api_handler *handler) {
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
 	LIST_FOREACH (h, &handlers, entries) {
-		assert(h->request_type != handler->request_type);
+		if (h->request_type == handler->request_type) {
+			LOG(EMERG,
+			    "duplicate api handler type=0x%08x '%s'",
+			    handler->request_type,
+			    handler->name);
+			abort();
+		}
 	}
-
-	LOG(DEBUG, "registered api handler type=0x%08x '%s'", handler->request_type, handler->name);
 	LIST_INSERT_HEAD(&handlers, handler, entries);
 }
 

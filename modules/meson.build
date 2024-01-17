@@ -2,3 +2,4 @@
 # Copyright (c) 2023 Robin Jarry
 
 subdir('infra')
+subdir('ip')
