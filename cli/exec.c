@@ -61,7 +61,7 @@ static exec_status_t exec_strvec(
 		status = EXEC_OTHER_ERROR;
 		goto out;
 	}
-	if (!ec_pnode_matches(parsed)) {
+	if (!ec_pnode_matches(parsed) || ec_pnode_len(parsed) != ec_strvec_len(vec)) {
 		status = EXEC_CMD_INVALID_ARGS;
 		goto out;
 	}
