@@ -32,7 +32,7 @@ static void list(const struct br_infra_port *port) {
 }
 
 static cmd_status_t port_add(const struct br_client *c, const struct ec_pnode *p) {
-	const char *devargs = arg_str(p, "devargs");
+	const char *devargs = arg_str(p, "DEVARGS");
 	uint16_t port_id;
 
 	if (br_infra_port_add(c, devargs, &port_id) < 0)
@@ -49,11 +49,11 @@ static cmd_status_t port_set(const struct br_client *c, const struct ec_pnode *p
 	n_rxq = 0;
 	burst = 0;
 
-	if (arg_uint(p, "index", &port_id) < 0)
+	if (arg_uint(p, "INDEX", &port_id) < 0)
 		return CMD_ERROR;
-	if (arg_uint(p, "n_rxq", &n_rxq) < 0 && errno != ENOENT)
+	if (arg_uint(p, "N_RXQ", &n_rxq) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if (arg_uint(p, "rx_burst", &burst) < 0 && errno != ENOENT)
+	if (arg_uint(p, "RX_BURST", &burst) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	if (br_infra_port_set(c, port_id, n_rxq, burst) < 0)
@@ -65,7 +65,7 @@ static cmd_status_t port_set(const struct br_client *c, const struct ec_pnode *p
 static cmd_status_t port_del(const struct br_client *c, const struct ec_pnode *p) {
 	uint64_t port_id;
 
-	if (arg_uint(p, "index", &port_id) < 0)
+	if (arg_uint(p, "INDEX", &port_id) < 0)
 		return CMD_ERROR;
 
 	if (br_infra_port_del(c, port_id) < 0)
@@ -78,7 +78,7 @@ static cmd_status_t port_show(const struct br_client *c, const struct ec_pnode *
 	struct br_infra_port port;
 	uint64_t port_id;
 
-	if (arg_uint(p, "index", &port_id) < 0)
+	if (arg_uint(p, "INDEX", &port_id) < 0)
 		return CMD_ERROR;
 	if (br_infra_port_get(c, port_id, &port) < 0)
 		return CMD_ERROR;
@@ -113,35 +113,35 @@ static int ctx_init(struct ec_node *root) {
 		"port",
 		"Manage ports.",
 		CLI_COMMAND(
-			"add devargs",
+			"add DEVARGS",
 			port_add,
 			"Create a new port.",
-			with_help("DPDK device args.", ec_node("devargs", "devargs"))
+			with_help("DPDK device args.", ec_node("devargs", "DEVARGS"))
 		),
 		CLI_COMMAND(
-			"set index [rxqs n_rxq] [burst rx_burst]",
+			"set INDEX [rxqs N_RXQ] [burst RX_BURST]",
 			port_set,
 			"Modify port parameters.",
-			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10)),
+			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10)),
 			with_help(
-				"Number of Rx queues.", ec_node_uint("n_rxq", 0, UINT16_MAX - 1, 10)
+				"Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)
 			),
 			with_help(
 				"Number of packets per Rx burst.",
-				ec_node_uint("rx_burst", 0, UINT16_MAX - 1, 10)
+				ec_node_uint("RX_BURST", 0, UINT16_MAX - 1, 10)
 			)
 		),
 		CLI_COMMAND(
-			"del index",
+			"del INDEX",
 			port_del,
 			"Delete an existing port.",
-			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10))
+			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
 		),
 		CLI_COMMAND(
-			"show index",
+			"show INDEX",
 			port_show,
 			"Show one port details.",
-			with_help("Port index.", ec_node_uint("index", 0, UINT16_MAX - 1, 10))
+			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
 		),
 		CLI_COMMAND("list", port_list, "List all ports.")
 	);
