@@ -43,7 +43,6 @@ struct br_cli_opts {
 	const char *sock_path;
 	bool err_exit;
 	bool trace_commands;
-	bool bash_complete;
 };
 
 struct br_cli_opts opts;

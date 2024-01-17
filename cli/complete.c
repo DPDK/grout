@@ -56,13 +56,14 @@ static const char *find_help(const struct ec_comp_item *item) {
 }
 
 int bash_complete(struct ec_node *cmdlist) {
-	const char *comp_line = getenv("COMP_LINE");
-	const char *comp_point = getenv("COMP_POINT");
 	struct ec_strvec *vec = NULL, *vec_cmd = NULL;
+	const char *comp_point = getenv("COMP_POINT");
+	const char *comp_line = getenv("COMP_LINE");
+	const char *comp_word, *last_colon;
+	int count, comp_width, colon_prefix;
 	struct ec_comp *cmpl = NULL;
 	struct ec_comp_item *item;
 	int ret = EXIT_FAILURE;
-	int count, comp_width;
 	char buf[BUFSIZ];
 	uint64_t i = 0;
 
@@ -109,13 +110,22 @@ int bash_complete(struct ec_node *cmdlist) {
 			comp_width = w;
 		count++;
 	}
+	// Bash considers that ':' is a word separator when dealing with completion items.
+	// Detect the prefix up to the last ':' from the current completed word and strip it from
+	// the beginning of completion choices.
+	comp_word = ec_strvec_val(vec_cmd, ec_strvec_len(vec_cmd) - 1);
+	colon_prefix = 0;
+	if ((last_colon = strrchr(comp_word, ':')) != NULL)
+		colon_prefix = last_colon - comp_word + 1;
+	comp_width -= colon_prefix;
 
 	EC_COMP_FOREACH(item, cmpl, EC_COMP_FULL | EC_COMP_PARTIAL) {
+		const char *choice = ec_comp_item_get_str(item) + colon_prefix;
 		const char *help = find_help(item);
 		if (count > 1 && help != NULL) {
-			printf("%-*s      (%s)\n", comp_width, ec_comp_item_get_str(item), help);
+			printf("%-*s      (%s)\n", comp_width, choice, help);
 		} else {
-			printf("%s\n", ec_comp_item_get_str(item));
+			printf("%s\n", choice);
 		}
 	}
 
