@@ -34,20 +34,16 @@ static struct api_out route4_add(const void *request, void **response) {
 
 	(void)response;
 
-	if (req->nh == 0)
-		return api_out(EINVAL, 0);
+	if (rte_hash_lookup_data(ip4_next_hops, &req->nh, (void **)&nh) < 0)
+		return api_out(ENETUNREACH, 0);
 
 	route = rte_rib_lookup_exact(ip4_rib, req->dest.addr, req->dest.prefixlen);
 	if (route != NULL) {
-		uint64_t next_hop;
-		rte_rib_get_nh(route, &next_hop);
-		if (next_hop == req->nh && req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
+		if (!req->exist_ok)
+			return api_out(EEXIST, 0);
+		rte_rib_set_nh(route, req->nh);
+		return api_out(0, 0);
 	}
-
-	if (rte_hash_lookup_data(ip4_next_hops, &req->nh, (void **)&nh) < 0)
-		return api_out(ENETUNREACH, 0);
 
 	route = rte_rib_insert(ip4_rib, req->dest.addr, req->dest.prefixlen);
 	rte_rib_set_nh(route, req->nh);
@@ -95,6 +91,7 @@ static struct api_out route4_list(const void *request, void **response) {
 		rte_rib_get_depth(route, &resp->routes[num].dest.prefixlen);
 		rte_rib_get_nh(route, &nh);
 		resp->routes[num].nh = (ip4_addr_t)nh;
+		num++;
 	}
 
 	resp->n_routes = num;

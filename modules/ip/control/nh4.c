@@ -86,8 +86,6 @@ static struct api_out nh4_list(const void *request, void **response) {
 	ip4_addr_t *host;
 	size_t len;
 
-	char buf[BUFSIZ];
-
 	(void)request;
 
 	num = rte_hash_count(ip4_next_hops);
@@ -98,11 +96,6 @@ static struct api_out nh4_list(const void *request, void **response) {
 	num = 0;
 	iter = 0;
 	while (rte_hash_iterate(ip4_next_hops, (const void **)&host, (void **)&nh, &iter) >= 0) {
-		inet_ntop(AF_INET, &nh->host, buf, sizeof(buf));
-		printf("%s mac " ETH_ADDR_FMT " port %u\n",
-		       buf,
-		       ETH_BYTES_SPLIT(nh->mac.bytes),
-		       nh->port_id);
 		resp->nhs[num].host = nh->host;
 		resp->nhs[num].port_id = nh->port_id;
 		memcpy(&resp->nhs[num].mac, &nh->mac, sizeof(resp->nhs[num].mac));
