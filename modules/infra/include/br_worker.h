@@ -47,8 +47,4 @@ struct worker {
 LIST_HEAD(workers, worker);
 extern struct workers workers;
 
-struct worker_graph_ctx {
-	struct worker *worker;
-};
-
 #endif

@@ -88,8 +88,6 @@ static int broadcast_init(const struct rte_graph *graph, struct rte_node *node) 
 static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node) {
 	struct broadcast_ctx *ctx;
 
-	(void)graph;
-
 	if (node == NULL) {
 		LOG(ERR, "graph %s: node == NULL", graph->name);
 		return;
@@ -101,7 +99,7 @@ static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node)
 
 static struct rte_node_register broadcast_node_base = {
 	.process = broadcast_process,
-	.name = "br_broadcast",
+	.name = "broadcast",
 
 	.init = broadcast_init,
 	.fini = broadcast_fini,

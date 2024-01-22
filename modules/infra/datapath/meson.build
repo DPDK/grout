@@ -2,7 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
-  'broadcast.c',
+  'classify.c',
   'drop.c',
   'main_loop.c',
   'rx.c',

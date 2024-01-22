@@ -83,4 +83,3 @@ executable(
   link_with: libbr,
   install: true,
 )
-

@@ -13,43 +13,48 @@
 
 #include <rte_bitmap.h>
 #include <rte_ethdev.h>
+#include <rte_ether.h>
 #include <rte_hash.h>
 #include <rte_mempool.h>
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 
 static struct rte_mempool *nh_pool;
+static struct rte_hash *ip4_next_hops;
 
 static struct api_out nh4_add(const void *request, void **response) {
 	const struct br_ip_nh4_add_req *req = request;
-	struct br_ip_nh4 *nh;
+	struct rte_ether_addr src;
+	struct next_hop *nh;
 	int ret;
 
 	(void)response;
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
-	if (!rte_eth_dev_is_valid_port(req->nh.port_id))
-		return api_out(ENODEV, 0);
+	if ((ret = rte_eth_macaddr_get(req->nh.port_id, &src)) < 0)
+		return api_out(-ret, 0);
 
-	if (rte_hash_lookup_data(ip4_next_hops, &req->nh.host, (void **)&nh) >= 0) {
+	if (rte_hash_lookup_data(ip4_next_hops, &req->nh.host, (void **)&nh) > 0) {
 		if (!req->exist_ok)
 			return api_out(EEXIST, 0);
 		nh->port_id = req->nh.port_id;
-		memcpy(&nh->mac, &req->nh.mac, sizeof(nh->mac));
+		memcpy(&nh->dst, &req->nh.mac, sizeof(nh->dst));
+		memcpy(&nh->src, &src, sizeof(nh->src));
 		return api_out(0, 0);
 	}
 
 	if (rte_mempool_get(nh_pool, (void **)&nh) < 0)
 		return api_out(ENOMEM, 0);
 
-	memcpy(nh, &req->nh, sizeof(*nh));
+	nh->port_id = req->nh.port_id;
+	memcpy(&nh->dst, &req->nh.mac, sizeof(nh->dst));
+	memcpy(&nh->src, &src, sizeof(nh->src));
 
-	if ((ret = rte_hash_add_key_data(ip4_next_hops, &nh->host, nh)) < 0) {
+	if ((ret = rte_hash_add_key_data(ip4_next_hops, &req->nh.host, nh)) < 0) {
 		rte_mempool_put(nh_pool, nh);
 		return api_out(-ret, 0);
 	}
@@ -59,7 +64,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 static struct api_out nh4_del(const void *request, void **response) {
 	const struct br_ip_nh4_del_req *req = request;
-	struct nh4 *nh;
+	struct next_hop *nh;
 	int32_t pos;
 
 	(void)response;
@@ -81,7 +86,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 
 static struct api_out nh4_list(const void *request, void **response) {
 	struct br_ip_nh4_list_resp *resp = NULL;
-	struct br_ip_nh4 *nh;
+	struct next_hop *nh;
 	uint32_t iter, num;
 	ip4_addr_t *host;
 	size_t len;
@@ -96,9 +101,9 @@ static struct api_out nh4_list(const void *request, void **response) {
 	num = 0;
 	iter = 0;
 	while (rte_hash_iterate(ip4_next_hops, (const void **)&host, (void **)&nh, &iter) >= 0) {
-		resp->nhs[num].host = nh->host;
+		resp->nhs[num].host = *host;
 		resp->nhs[num].port_id = nh->port_id;
-		memcpy(&resp->nhs[num].mac, &nh->mac, sizeof(resp->nhs[num].mac));
+		memcpy(&resp->nhs[num].mac, &nh->dst, sizeof(resp->nhs[num].mac));
 		num++;
 	}
 
@@ -110,8 +115,6 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 // XXX: why not 1337, eh?
 #define MAX_NEXT_HOPS 1024
-
-struct rte_hash *ip4_next_hops;
 
 static void nh4_init(void) {
 	nh_pool = rte_mempool_create(
@@ -133,7 +136,7 @@ static void nh4_init(void) {
 	}
 
 	struct rte_hash_parameters params = {
-		.name = "nh4",
+		.name = IP4_NH_HASH_NAME,
 		.entries = 1024, // XXX: why not 1337, eh?
 		.key_len = sizeof(ip4_addr_t),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF

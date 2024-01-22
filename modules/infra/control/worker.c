@@ -2,10 +2,11 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "worker.h"
+#include "graph.h"
 
 #include <br_api.h>
 #include <br_control.h>
-#include <br_datapath_loop.h>
+#include <br_datapath.h>
 #include <br_infra_msg.h>
 #include <br_log.h>
 #include <br_port.h>
@@ -87,113 +88,7 @@ size_t worker_count(void) {
 	return count;
 }
 
-static unsigned stamp;
-static rte_node_t rx_base = RTE_NODE_ID_INVALID;
-static rte_node_t tx_base = RTE_NODE_ID_INVALID;
-static rte_node_t drop_base = RTE_NODE_ID_INVALID;
-static rte_node_t bcast_base = RTE_NODE_ID_INVALID;
 
-static int worker_graph_new(struct worker *worker, uint8_t index) {
-	uint16_t num_edges, num_nodes;
-	char name[RTE_NODE_NAMESIZE];
-	struct queue_map *qmap;
-	char *node_names[512];
-	char *edge_names[32];
-	rte_node_t node;
-	rte_edge_t edge;
-
-	num_nodes = 0;
-	LIST_FOREACH (qmap, &worker->rxqs, next) {
-		snprintf(name, sizeof(name), "br_rx-%u-%u", qmap->port_id, qmap->queue_id);
-		node = rte_node_from_name(name);
-		if (node == RTE_NODE_ID_INVALID) {
-			snprintf(name, sizeof(name), "%u-%u", qmap->port_id, qmap->queue_id);
-			node = rte_node_clone(rx_base, name);
-			if (node == RTE_NODE_ID_INVALID)
-				return -ENOMEM;
-		}
-		node_names[num_nodes++] = rte_node_id_to_name(node);
-	}
-
-	if (num_nodes == 0) {
-		worker->config[index].graph = NULL;
-		return 0;
-	}
-
-	node_names[num_nodes++] = "br_broadcast";
-
-	num_edges = 0;
-	LIST_FOREACH (qmap, &worker->txqs, next) {
-		snprintf(name, sizeof(name), "br_tx-%u-%u", qmap->port_id, qmap->queue_id);
-		node = rte_node_from_name(name);
-		if (node == RTE_NODE_ID_INVALID) {
-			snprintf(name, sizeof(name), "%u-%u", qmap->port_id, qmap->queue_id);
-			node = rte_node_clone(tx_base, name);
-			if (node == RTE_NODE_ID_INVALID)
-				return -ENOMEM;
-		}
-		node_names[num_nodes++] = rte_node_id_to_name(node);
-		edge_names[num_edges++] = rte_node_id_to_name(node);
-	}
-
-	edge = rte_node_edge_update(bcast_base, 0, (const char **)edge_names, num_edges);
-	if (edge == RTE_EDGE_ID_INVALID)
-		return -ERANGE;
-
-	node_names[num_nodes++] = "br_drop";
-
-	struct rte_graph_param params = {
-		.socket_id = rte_lcore_to_socket_id(worker->lcore_id),
-		.nb_node_patterns = num_nodes,
-		.node_patterns = (const char **)node_names,
-	};
-
-	snprintf(name, sizeof(name), "br-%u-%u", index, worker->lcore_id);
-
-	rte_graph_t graph_id = rte_graph_create(name, &params);
-	if (graph_id == RTE_GRAPH_ID_INVALID) {
-		if (rte_errno == 0)
-			rte_errno = EINVAL;
-		return -rte_errno;
-	}
-
-	worker->config[index].graph = rte_graph_lookup(name);
-
-	return 0;
-}
-
-static int worker_graph_reload_all(void) {
-	struct worker *worker;
-	unsigned next;
-	int ret;
-
-	stamp++;
-
-	LIST_FOREACH (worker, &workers, next) {
-		next = !atomic_load(&worker->cur_config);
-
-		if ((ret = worker_graph_new(worker, next)) < 0) {
-			LOG(ERR, "worker_graph_new: %s", rte_strerror(-ret));
-			return -ret;
-		}
-
-		// wait for datapath worker to pickup the config update
-		atomic_store_explicit(&worker->next_config, next, memory_order_release);
-		while (atomic_load_explicit(&worker->cur_config, memory_order_acquire) != next)
-			usleep(500);
-
-		// free old config
-		next = !next;
-
-		if (worker->config[next].graph != NULL) {
-			if ((ret = rte_graph_destroy(worker->config[next].graph->id)) < 0)
-				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
-			worker->config[next].graph = NULL;
-		}
-	}
-
-	return 0;
-}
 
 int port_unplug(const struct port *port, bool commit) {
 	struct queue_map *qmap, *tmp;
@@ -358,24 +253,11 @@ static unsigned cpu_socket_id(unsigned cpu_id) {
 
 static void worker_init(void) {
 	ncpus = sysconf(_SC_NPROCESSORS_ONLN);
-	cpu_sockets = rte_calloc(__func__, ncpus, sizeof(*cpu_sockets), 0);
+	cpu_sockets = calloc(ncpus, sizeof(*cpu_sockets));
 
 	for (long i = 0; i < ncpus; i++) {
 		cpu_sockets[i] = cpu_socket_id(i);
 	}
-
-	rx_base = rte_node_from_name("br_rx");
-	if (rx_base == RTE_NODE_ID_INVALID)
-		LOG(ERR, "'br_rx' node not found");
-	tx_base = rte_node_from_name("br_tx");
-	if (tx_base == RTE_NODE_ID_INVALID)
-		LOG(ERR, "'br_tx' node not found");
-	drop_base = rte_node_from_name("br_drop");
-	if (drop_base == RTE_NODE_ID_INVALID)
-		LOG(ERR, "'br_drop' node not found");
-	bcast_base = rte_node_from_name("br_broadcast");
-	if (bcast_base == RTE_NODE_ID_INVALID)
-		LOG(ERR, "'br_broadcast' node not found");
 }
 
 static void worker_fini(void) {
@@ -386,7 +268,7 @@ static void worker_fini(void) {
 
 	LIST_INIT(&workers);
 
-	rte_free(cpu_sockets);
+	free(cpu_sockets);
 }
 
 static struct br_module worker_module = {

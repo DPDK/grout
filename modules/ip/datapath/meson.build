@@ -2,4 +2,6 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
+  'lookup.c',
+  'rewrite.c',
 )

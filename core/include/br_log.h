@@ -17,4 +17,10 @@ extern int br_rte_log_type;
 		RTE_LOG(level, BR, "%s: " fmt "\n", __func__ __VA_OPT__(, ) __VA_ARGS__);          \
 	} while (0)
 
+#define ABORT(fmt, ...)                                                                            \
+	do {                                                                                       \
+		LOG(EMERG, fmt __VA_OPT__(, ) __VA_ARGS__);                                        \
+		abort();                                                                           \
+	} while (0);
+
 #endif

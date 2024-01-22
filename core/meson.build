@@ -7,6 +7,7 @@ src += files(
   'main.c',
   'signals.c',
   'corelist.c',
+  'stb_ds_impl.c',
 )
 
 api_headers += files('include/br_api.h')

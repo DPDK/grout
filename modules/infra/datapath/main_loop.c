@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
-#include <br_datapath_loop.h>
+#include <br_datapath.h>
 #include <br_log.h>
 #include <br_worker.h>
 
@@ -17,6 +17,9 @@
 #include <stdatomic.h>
 #include <sys/queue.h>
 #include <unistd.h>
+
+#define MAX_SLEEP_MS 500
+#define INC_SLEEP_MS 50
 
 static int update_object_count(
 	bool is_first,
@@ -43,6 +46,7 @@ void *br_datapath_loop(void *priv) {
 	rte_cpuset_t cpuset;
 	unsigned cur, loop;
 	uint64_t counter;
+	uint32_t sleep;
 	char name[16];
 
 	w->tid = rte_gettid();
@@ -95,6 +99,7 @@ reconfig:
 	LOG(INFO, "[%d] reconfigured", w->tid);
 
 	loop = 0;
+	sleep = 0;
 	for (;;) {
 		rte_graph_walk(config->graph);
 
@@ -107,7 +112,10 @@ reconfig:
 			counter = 0;
 			rte_graph_cluster_stats_get(stats, false);
 			if (counter == 0) {
-				usleep(500);
+				sleep = sleep == MAX_SLEEP_MS ? sleep : (sleep + INC_SLEEP_MS);
+				usleep(sleep);
+			} else {
+				sleep = 0;
 			}
 			loop = 0;
 		}

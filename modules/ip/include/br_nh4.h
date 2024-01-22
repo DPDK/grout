@@ -4,8 +4,14 @@
 #ifndef _BR_IP_NH4
 #define _BR_IP_NH4
 
-#include <rte_hash.h>
+#include <rte_ether.h>
 
-extern struct rte_hash *ip4_next_hops;
+struct next_hop {
+	struct rte_ether_addr dst;
+	struct rte_ether_addr src;
+	uint16_t port_id;
+} __rte_aligned(2);
+
+#define IP4_NH_HASH_NAME "nh4"
 
 #endif

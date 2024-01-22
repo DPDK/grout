@@ -25,16 +25,21 @@
 #include <string.h>
 #include <sys/queue.h>
 
+static struct rte_fib *ip4_fib;
 static struct rte_rib *ip4_rib;
 
 static struct api_out route4_add(const void *request, void **response) {
+	struct rte_hash *next_hops = rte_hash_find_existing(IP4_NH_HASH_NAME);
 	const struct br_ip_route4_add_req *req = request;
 	struct rte_rib_node *route;
 	struct br_ip_nh4 *nh;
 
 	(void)response;
 
-	if (rte_hash_lookup_data(ip4_next_hops, &req->nh, (void **)&nh) < 0)
+	if (next_hops == NULL)
+		return api_out(-rte_errno, 0);
+
+	if (rte_hash_lookup_data(next_hops, &req->nh, (void **)&nh) < 0)
 		return api_out(ENETUNREACH, 0);
 
 	route = rte_rib_lookup_exact(ip4_rib, req->dest.addr, req->dest.prefixlen);
@@ -100,8 +105,6 @@ static struct api_out route4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-struct rte_fib *ip4_fib;
-
 static void route4_init(void) {
 	struct rte_fib_conf conf
 		= {.type = RTE_FIB_DIR24_8,
@@ -112,7 +115,7 @@ static void route4_init(void) {
 			   .nh_sz = RTE_FIB_DIR24_8_4B, // XXX: what the f is this?
 			   .num_tbl8 = 1 << 15, // XXX: what the *actual* f is this?
 		   }};
-	ip4_fib = rte_fib_create("route4", 0, &conf);
+	ip4_fib = rte_fib_create(IP4_FIB_NAME, 0, &conf);
 	if (ip4_fib == NULL) {
 		LOG(EMERG, "rte_fib_create: %s", rte_strerror(rte_errno));
 		abort();

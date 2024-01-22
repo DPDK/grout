@@ -16,7 +16,7 @@ drop_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 
 static struct rte_node_register drop_node = {
 	.process = drop_process,
-	.name = "br_drop",
+	.name = "drop",
 };
 
 RTE_NODE_REGISTER(drop_node)

@@ -5,4 +5,5 @@ src += files(
   'port.c',
   'port_config.c',
   'worker.c',
+  'graph.c',
 )
