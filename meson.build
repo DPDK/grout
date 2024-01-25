@@ -12,13 +12,12 @@ project(
     'c_std=gnu2x',
     'werror=true',
     'warning_level=2',
-    'b_lto=true',
-    'b_lto_mode=thin',
   ],
 )
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
+add_global_arguments('-march=corei7', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',
@@ -26,12 +25,11 @@ dpdk_dep = dependency(
   default_options: [
     'buildtype=release',
     'c_std=c11',
-    'c_args=',
     'default_library=static',
     'werror=false',
     'enable_kmods=false',
     'tests=false',
-    'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,*/iavf',
+    'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,*/iavf,net/null,net/tap',
     'disable_libs=table,bpf',
     'disable_apps=*',
     'enable_docs=false',
