@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
-#include "worker.h"
 #include "graph.h"
+#include "worker.h"
 
 #include <br_api.h>
 #include <br_control.h>
@@ -87,8 +87,6 @@ size_t worker_count(void) {
 
 	return count;
 }
-
-
 
 int port_unplug(const struct port *port, bool commit) {
 	struct queue_map *qmap, *tmp;
