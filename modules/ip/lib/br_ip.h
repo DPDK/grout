@@ -17,6 +17,7 @@ int br_ip_nh4_list(const struct br_client *, size_t *n_nhs, struct br_ip_nh4 **)
 
 int br_ip_route4_add(const struct br_client *, const struct ip4_net *, ip4_addr_t, bool exist_ok);
 int br_ip_route4_del(const struct br_client *, const struct ip4_net *, bool missing_ok);
+int br_ip_route4_get(const struct br_client *, ip4_addr_t, struct br_ip_nh4 *);
 int br_ip_route4_list(const struct br_client *, size_t *n_routes, struct br_ip_route4 **);
 
 #endif

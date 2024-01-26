@@ -37,7 +37,7 @@ static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
 #define IPV4_RE "^" IPV4_ATOM "(\\." IPV4_ATOM "){3}$"
-#define IPV4_NET_RE "^" IPV4_ATOM "(\\." IPV4_ATOM "){3}/(3[0-2]|[12][0-9]|[1-9])$"
+#define IPV4_NET_RE "^" IPV4_ATOM "(\\." IPV4_ATOM "){3}/(3[0-2]|[12][0-9]|[0-9])$"
 
 typedef uint32_t ip4_addr_t;
 
@@ -50,7 +50,7 @@ static inline int br_ip4_net_parse(const char *s, struct ip4_net *net) {
 	char *addr = NULL;
 	int ret = -1;
 
-	if (sscanf(s, "%m[0-9.]/%hhu", &addr, &net->prefixlen) != 2) {
+	if (sscanf(s, "%m[0-9.]/%hhu%*c", &addr, &net->prefixlen) != 2) {
 		errno = EINVAL;
 		goto out;
 	}

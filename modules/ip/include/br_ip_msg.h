@@ -59,7 +59,17 @@ struct br_ip_route4_del_req {
 
 // struct br_ip_route4_del_resp { };
 
-#define BR_IP_ROUTE4_LIST REQUEST_TYPE(BR_IP_MODULE, 0x0012)
+#define BR_IP_ROUTE4_GET REQUEST_TYPE(BR_IP_MODULE, 0x0012)
+
+struct br_ip_route4_get_req {
+	ip4_addr_t dest;
+};
+
+struct br_ip_route4_get_resp {
+	struct br_ip_nh4 nh;
+};
+
+#define BR_IP_ROUTE4_LIST REQUEST_TYPE(BR_IP_MODULE, 0x0013)
 
 // struct br_ip_route4_list_req { };
 

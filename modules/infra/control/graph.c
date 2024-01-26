@@ -42,30 +42,24 @@ static rte_node_t drop_base = NODE_ERR;
 
 static rte_node_t __attribute__((format(printf, 3, 4)))
 node_clone(uint16_t graph_uid, rte_node_t base, const char *fmt, ...) {
-	char buf[BUFSIZ];
+	char name[RTE_NODE_NAMESIZE];
 	rte_node_t node;
 	va_list ap;
 	size_t n;
 
-	n = snprintf(buf, sizeof(buf), "%s-" GRAPH_UID_FMT, rte_node_id_to_name(base), graph_uid);
+	n = snprintf(name, sizeof(name), "%s-" GRAPH_UID_FMT, rte_node_id_to_name(base), graph_uid);
 	if (fmt != NULL) {
-		n += snprintf(buf + n, sizeof(buf) - n, "-");
+		n += snprintf(name + n, sizeof(name) - n, "-");
 		va_start(ap);
-		n += vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
+		n += vsnprintf(name + n, sizeof(name) - n, fmt, ap);
 		va_end(ap);
 	}
 
-	node = rte_node_from_name(buf);
+	node = rte_node_from_name(name);
 	if (node == NODE_ERR) {
-		// FIXME: shift buf to point after prefix
-		n = snprintf(buf, sizeof(buf), GRAPH_UID_FMT, graph_uid);
-		if (fmt != NULL) {
-			n += snprintf(buf + n, sizeof(buf) - n, "-");
-			va_start(ap);
-			n += vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
-			va_end(ap);
-		}
-		node = rte_node_clone(base, buf);
+		// rte_node_clone needs the suffix only: strip "$base_name-"
+		n = strnlen(rte_node_id_to_name(base), sizeof(name) - 1) + 1;
+		node = rte_node_clone(base, name + n);
 		LOG(DEBUG, "'%s' -> '%s'", rte_node_id_to_name(base), rte_node_id_to_name(node));
 	}
 
@@ -87,8 +81,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		worker->config[index].graph = NULL;
 		return 0;
 	}
-
-	//n_nodes = 0;
 
 	// All nodes are cloned with a special suffix containing the worker
 	// current config and lcore_id to ensure unique names. We start from the
@@ -316,9 +308,11 @@ static void graph_fini(void) {
 		free(ctx);
 	}
 	rte_hash_free(node_ctx_data);
+	node_ctx_data = NULL;
 }
 
 static struct br_module graph_module = {
+	.name = "graph",
 	.init = graph_init,
 	.fini = graph_fini,
 	.fini_prio = -999,

@@ -29,6 +29,7 @@ struct br_api_handler {
 void br_register_api_handler(struct br_api_handler *);
 
 struct br_module {
+	const char *name;
 	int init_prio;
 	void (*init)(void);
 	int fini_prio;

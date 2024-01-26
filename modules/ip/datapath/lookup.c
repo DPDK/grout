@@ -41,7 +41,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		ipv4_hdr = rte_pktmbuf_mtod_offset(
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
 		);
-		dst_addr = ipv4_hdr->dst_addr;
+		dst_addr = ntohl(ipv4_hdr->dst_addr);
 
 		// TODO: optimize with lookup of multiple packets
 		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0 || next_hop == NO_ROUTE) {

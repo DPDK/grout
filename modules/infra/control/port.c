@@ -253,6 +253,7 @@ static void port_fini(void) {
 }
 
 static struct br_module port_module = {
+	.name = "port",
 	.fini = port_fini,
 	.fini_prio = 1000,
 };

@@ -6,6 +6,7 @@
 #include <br_api.h>
 #include <br_control.h>
 #include <br_log.h>
+#include <br_stb_ds.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -21,13 +22,10 @@ void br_register_api_handler(struct br_api_handler *handler) {
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
 	LIST_FOREACH (h, &handlers, entries) {
-		if (h->request_type == handler->request_type) {
-			LOG(EMERG,
-			    "duplicate api handler type=0x%08x '%s'",
-			    handler->request_type,
-			    handler->name);
-			abort();
-		}
+		if (h->request_type == handler->request_type)
+			ABORT("duplicate api handler type=0x%08x '%s'",
+			      handler->request_type,
+			      handler->name);
 	}
 	LIST_INSERT_HEAD(&handlers, handler, entries);
 }
@@ -50,69 +48,51 @@ void br_register_module(struct br_module *mod) {
 }
 
 static int module_init_prio_order(const void *a, const void *b) {
-	const struct br_module *mod_a = a;
-	const struct br_module *mod_b = b;
-	return mod_a->init_prio - mod_b->init_prio;
+	const struct br_module *const *mod_a = a;
+	const struct br_module *const *mod_b = b;
+	return (*mod_a)->init_prio - (*mod_b)->init_prio;
 }
 
 void modules_init(void) {
-	struct br_module *mod, **sorted;
-	int num = 0;
+	struct br_module *mod, **mods = NULL;
 
 	LIST_FOREACH (mod, &modules, entries)
-		num++;
+		arrpush(mods, mod); // NOLINT
 
-	sorted = calloc(num, sizeof(struct br_module *));
-	if (!sorted) {
-		LOG(ERR, "Not enough memory");
-		return;
-	}
+	qsort(mods, arrlen(mods), sizeof(struct br_module *), module_init_prio_order);
 
-	num = 0;
-	LIST_FOREACH (mod, &modules, entries)
-		sorted[num++] = mod;
-
-	qsort(sorted, num, sizeof(struct br_module *), module_init_prio_order);
-
-	for (int i = 0; i < num; i++) {
-		mod = sorted[i];
-		if (mod->init != NULL)
+	for (int i = 0; i < arrlen(mods); i++) {
+		mod = mods[i];
+		if (mod->init != NULL) {
+			LOG(DEBUG, "%s prio %i", mod->name, mod->init_prio);
 			mod->init();
+		}
 	}
 
-	free(sorted);
+	arrfree(mods);
 }
 
 static int module_fini_prio_order(const void *a, const void *b) {
-	const struct br_module *mod_a = a;
-	const struct br_module *mod_b = b;
-	return mod_a->fini_prio - mod_b->fini_prio;
+	const struct br_module *const *mod_a = a;
+	const struct br_module *const *mod_b = b;
+	return (*mod_a)->fini_prio - (*mod_b)->fini_prio;
 }
 
 void modules_fini(void) {
-	struct br_module *mod, **sorted;
-	int num = 0;
+	struct br_module *mod, **mods = NULL;
 
 	LIST_FOREACH (mod, &modules, entries)
-		num++;
+		arrpush(mods, mod); // NOLINT
 
-	sorted = calloc(num, sizeof(struct br_module *));
-	if (!sorted) {
-		LOG(ERR, "Not enough memory");
-		return;
-	}
+	qsort(mods, arrlen(mods), sizeof(struct br_module *), module_fini_prio_order);
 
-	num = 0;
-	LIST_FOREACH (mod, &modules, entries)
-		sorted[num++] = mod;
-
-	qsort(sorted, num, sizeof(struct br_module *), module_fini_prio_order);
-
-	for (int i = 0; i < num; i++) {
-		mod = sorted[i];
-		if (mod->fini != NULL)
+	for (int i = 0; i < arrlen(mods); i++) {
+		mod = mods[i];
+		if (mod->fini != NULL) {
+			LOG(DEBUG, "%s prio %i", mod->name, mod->fini_prio);
 			mod->fini();
+		}
 	}
 
-	free(sorted);
+	arrfree(mods);
 }

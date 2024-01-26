@@ -111,7 +111,11 @@ reconfig:
 
 			counter = 0;
 			rte_graph_cluster_stats_get(stats, false);
+#if 0
 			if (counter == 0) {
+#else
+			if (1) {
+#endif
 				sleep = sleep == MAX_SLEEP_MS ? sleep : (sleep + INC_SLEEP_MS);
 				usleep(sleep);
 			} else {

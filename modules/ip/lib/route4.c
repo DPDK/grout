@@ -46,6 +46,27 @@ int br_ip_route4_del(const struct br_client *c, const struct ip4_net *dest, bool
 	return send_recv(c, BR_IP_ROUTE4_DEL, sizeof(req), &req, NULL);
 }
 
+int br_ip_route4_get(const struct br_client *c, ip4_addr_t dest, struct br_ip_nh4 *nh) {
+	struct br_ip_route4_get_resp *resp = NULL;
+	struct br_ip_route4_get_req req;
+	int ret = -1;
+
+	if (nh == NULL) {
+		errno = EINVAL;
+		goto out;
+	}
+
+	req.dest = dest;
+	if ((ret = send_recv(c, BR_IP_ROUTE4_GET, sizeof(req), &req, (void **)&resp)) < 0)
+		goto out;
+
+	memcpy(nh, &resp->nh, sizeof(*nh));
+	ret = 0;
+out:
+	free(resp);
+	return ret;
+}
+
 int br_ip_route4_list(const struct br_client *c, size_t *n_routes, struct br_ip_route4 **routes) {
 	struct br_ip_route4_list_resp *resp = NULL;
 	int ret = -1;

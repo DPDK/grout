@@ -4,13 +4,25 @@
 #ifndef _BR_IP_NH4
 #define _BR_IP_NH4
 
+#include <br_net_types.h>
+
 #include <rte_ether.h>
 
 struct next_hop {
-	struct rte_ether_addr dst;
-	struct rte_ether_addr src;
+	struct rte_ether_addr eth_addr[2];
 	uint16_t port_id;
-} __rte_aligned(2);
+	// number of routes with this next hop
+	uint64_t ref_count;
+	ip4_addr_t ip;
+};
+
+static inline struct rte_ether_addr *next_hop_eth_dst(struct next_hop *nh) {
+	return &nh->eth_addr[0];
+}
+
+static inline struct rte_ether_addr *next_hop_eth_src(struct next_hop *nh) {
+	return &nh->eth_addr[1];
+}
 
 #define IP4_NH_HASH_NAME "nh4"
 

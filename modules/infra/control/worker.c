@@ -270,6 +270,7 @@ static void worker_fini(void) {
 }
 
 static struct br_module worker_module = {
+	.name = "worker",
 	.init = worker_init,
 	.fini = worker_fini,
 	.fini_prio = -1000,

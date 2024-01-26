@@ -40,6 +40,26 @@ static cmd_status_t route4_del(const struct br_client *c, const struct ec_pnode 
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t route4_get(const struct br_client *c, const struct ec_pnode *p) {
+	struct br_ip_nh4 nh;
+	char buf[BUFSIZ];
+	ip4_addr_t dest;
+
+	if (inet_pton(AF_INET, arg_str(p, "DEST"), &dest) != 1) {
+		errno = EINVAL;
+		return CMD_ERROR;
+	}
+
+	if (br_ip_route4_get(c, dest, &nh) < 0)
+		return CMD_ERROR;
+
+	printf("%-16s  %-20s  %s\n", "GATEWAY", "MAC", "PORT");
+	inet_ntop(AF_INET, &nh.host, buf, sizeof(buf));
+	printf("%-16s  " ETH_ADDR_FMT "     %u\n", buf, ETH_BYTES_SPLIT(nh.mac.bytes), nh.port_id);
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t route4_list(const struct br_client *c, const struct ec_pnode *p) {
 	struct br_ip_route4 *routes = NULL;
 	char dest[BUFSIZ], nh[BUFSIZ];
@@ -81,6 +101,12 @@ static int ctx_init(struct ec_node *root) {
 			route4_del,
 			"Delete a route.",
 			with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE))
+		),
+		CLI_COMMAND(
+			"get DEST",
+			route4_get,
+			"Get the next hop that would be taken for a destination address.",
+			with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE))
 		),
 		CLI_COMMAND("list", route4_list, "List all routes.")
 	);
