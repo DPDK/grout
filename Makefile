@@ -2,18 +2,21 @@
 # Copyright (c) 2023 Robin Jarry
 
 builddir = build
+ifeq ($V,1)
+ninja_opts = --verbose
+endif
 
 .PHONY: all
 all: $(builddir)/build.ninja
-	ninja -C $(builddir)
+	ninja -C $(builddir) $(ninja_opts)
 
 .PHONY: all
 clean:
-	ninja -C $(builddir) clean
+	ninja -C $(builddir) clean $(ninja_opts)
 
 .PHONY: install
 install: $(builddir)/build.ninja
-	ninja -C $(builddir) install
+	ninja -C $(builddir) install $(ninja_opts)
 
 $(builddir)/build.ninja:
 	meson setup $(builddir)
