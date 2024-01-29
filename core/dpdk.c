@@ -11,6 +11,7 @@
 #include <rte_errno.h>
 #include <rte_log.h>
 #include <rte_mempool.h>
+#include <rte_version.h>
 
 #include <sched.h>
 
@@ -49,6 +50,8 @@ int dpdk_init(struct boring_router *br) {
 	} else {
 		eal_arg("--log-level=*:notice");
 	}
+
+	LOG(INFO, "DPDK version: %s", rte_version());
 
 	br_rte_log_type = rte_log_register_type_and_pick_level("br", RTE_LOG_INFO);
 	if (br_rte_log_type < 0)
