@@ -75,6 +75,7 @@ static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
 	struct port_edge_map *tx_nodes = rte_zmalloc(
 		__func__, sizeof(*tx_nodes), RTE_CACHE_LINE_SIZE
 	);
+	struct rewrite_ctx *ctx = (struct rewrite_ctx *)node->ctx;
 	struct port_edge_map *data;
 
 	(void)graph;
@@ -95,6 +96,8 @@ static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
 	}
 
 	memcpy(tx_nodes, data, sizeof(*tx_nodes));
+	ctx->tx_nodes = tx_nodes;
+	ctx->next_hops = next_hops;
 
 	return 0;
 }
