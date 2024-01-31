@@ -45,6 +45,8 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		mbuf = objs[i];
 		next = DROP;
 
+		trace_packet(node->name, mbuf);
+
 		dst_addr = ip4_fwd_mbuf_priv(mbuf)->next_hop;
 		if (rte_hash_lookup_data(ctx->next_hops, &dst_addr, (void **)&nh) < 0)
 			goto next;

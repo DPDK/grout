@@ -26,6 +26,8 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	count = rte_eth_rx_burst(
 		ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, ctx->burst
 	);
+	for (uint16_t i = 0; i < count; i++)
+		trace_packet(node->name, node->objs[i]);
 	if (count > 0) {
 		node->idx = count;
 		rte_node_next_stream_move(graph, node, DEFAULT_NEXT);

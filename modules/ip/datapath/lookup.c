@@ -3,6 +3,7 @@
 
 #include "mbuf_priv.h"
 
+#include <br_datapath.h>
 #include <br_log.h>
 #include <br_route4.h>
 
@@ -37,6 +38,8 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+
+		trace_packet(node->name, mbuf);
 
 		ipv4_hdr = rte_pktmbuf_mtod_offset(
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
