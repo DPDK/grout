@@ -34,9 +34,15 @@ struct br_module {
 	void (*init)(void);
 	int fini_prio;
 	void (*fini)(void);
+	void (*init_dp)(void);
+	void (*fini_dp)(void);
 	LIST_ENTRY(br_module) entries;
 };
 
 void br_register_module(struct br_module *);
+
+void br_modules_dp_init(void);
+
+void br_modules_dp_fini(void);
 
 #endif

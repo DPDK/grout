@@ -96,3 +96,25 @@ void modules_fini(void) {
 
 	arrfree(mods);
 }
+
+void br_modules_dp_init(void) {
+	struct br_module *mod;
+
+	LIST_FOREACH (mod, &modules, entries) {
+		if (mod->init_dp != NULL) {
+			LOG(DEBUG, "%s", mod->name);
+			mod->init_dp();
+		}
+	}
+}
+
+void br_modules_dp_fini(void) {
+	struct br_module *mod;
+
+	LIST_FOREACH (mod, &modules, entries) {
+		if (mod->fini_dp != NULL) {
+			LOG(DEBUG, "%s", mod->name);
+			mod->fini_dp();
+		}
+	}
+}

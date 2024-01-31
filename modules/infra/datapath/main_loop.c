@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2023 Robin Jarry
 
+#include <br_control.h>
 #include <br_datapath.h>
 #include <br_log.h>
 #include <br_worker.h>
@@ -96,6 +97,8 @@ reconfig:
 	stats_param.fn = update_object_count;
 	stats = rte_graph_cluster_stats_create(&stats_param);
 
+	br_modules_dp_init();
+
 	LOG(INFO, "[%d] reconfigured", w->tid);
 
 	loop = 0;
@@ -104,10 +107,10 @@ reconfig:
 		rte_graph_walk(config->graph);
 
 		if (++loop == 32) {
-			if (atomic_load_explicit(&w->shutdown, memory_order_relaxed))
+			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
+				br_modules_dp_fini();
 				goto reconfig;
-			if (atomic_load_explicit(&w->next_config, memory_order_relaxed) != cur)
-				goto reconfig;
+			}
 
 			counter = 0;
 			rte_graph_cluster_stats_get(stats, false);
