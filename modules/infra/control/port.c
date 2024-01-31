@@ -16,6 +16,7 @@
 #include <rte_common.h>
 #include <rte_dev.h>
 #include <rte_ethdev.h>
+#include <rte_ether.h>
 #include <rte_malloc.h>
 
 #include <arpa/inet.h>
@@ -36,6 +37,7 @@ uint16_t port_get_burst_size(uint16_t port_id) {
 
 static int fill_port_info(struct port *e, struct br_infra_port *port) {
 	struct rte_eth_dev_info info;
+	struct rte_ether_addr mac;
 	int ret;
 
 	memset(port, 0, sizeof(*port));
@@ -43,12 +45,15 @@ static int fill_port_info(struct port *e, struct br_infra_port *port) {
 
 	if ((ret = rte_eth_dev_info_get(e->port_id, &info)) < 0)
 		return ret;
+	if ((ret = rte_eth_macaddr_get(e->port_id, &mac)) < 0)
+		return ret;
 
 	port->n_rxq = info.nb_rx_queues;
 	port->n_txq = info.nb_tx_queues;
 	port->burst = e->burst;
 
 	memccpy(port->device, rte_dev_name(info.device), 0, sizeof(port->device));
+	memcpy(port->mac.bytes, mac.addr_bytes, sizeof(port->mac.bytes));
 
 	return 0;
 }

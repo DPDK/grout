@@ -6,6 +6,7 @@
 #include <br_cli.h>
 #include <br_client.h>
 #include <br_infra.h>
+#include <br_net_types.h>
 
 #include <ecoli.h>
 
@@ -20,15 +21,22 @@ static void show(const struct br_infra_port *port) {
 	printf("    rx_queues: %u\n", port->n_rxq);
 	printf("    tx_queues: %u\n", port->n_txq);
 	printf("    rx_burst: %u\n", port->burst);
+	printf("    mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port->mac.bytes));
 }
 
-#define LIST_TITLE_FMT "%-12s  %-32s  %-12s  %-12s  %s\n"
-#define LIST_FMT "%-12u  %-32s  %-12u  %-12u  %u\n"
+#define LIST_TITLE_FMT "%-8s  %-20s  %-10s  %-10s  %-10s  %s\n"
+#define LIST_FMT "%-8u  %-20s  %-10u  %-10u  %-10u  " ETH_ADDR_FMT "\n"
 
 static void list(const struct br_infra_port *port) {
 	if (port == NULL)
 		return;
-	printf(LIST_FMT, port->index, port->device, port->n_rxq, port->n_txq, port->burst);
+	printf(LIST_FMT,
+	       port->index,
+	       port->device,
+	       port->n_rxq,
+	       port->n_txq,
+	       port->burst,
+	       ETH_BYTES_SPLIT(port->mac.bytes));
 }
 
 static cmd_status_t port_add(const struct br_client *c, const struct ec_pnode *p) {
@@ -97,7 +105,7 @@ static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *
 	if (br_infra_port_list(c, &len, &ports) < 0)
 		return CMD_ERROR;
 
-	printf(LIST_TITLE_FMT, "INDEX", "DEVICE", "RX_QUEUES", "TX_QUEUES", "RX_BURST");
+	printf(LIST_TITLE_FMT, "INDEX", "DEVICE", "RX_QUEUES", "TX_QUEUES", "RX_BURST", "MAC");
 	for (size_t i = 0; i < len; i++)
 		list(&ports[i]);
 

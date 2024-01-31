@@ -5,6 +5,7 @@
 #define _BR_INFRA_TYPES
 
 #include <br_api.h>
+#include <br_net_types.h>
 
 #include <sched.h>
 #include <stdint.h>
@@ -16,6 +17,7 @@ struct br_infra_port {
 	uint16_t n_rxq;
 	uint16_t n_txq;
 	uint16_t burst;
+	struct eth_addr mac;
 };
 
 struct br_infra_rxq {
