@@ -9,4 +9,6 @@
 #define NO_ROUTE 0
 #define IP4_FIB_NAME "route4"
 
+struct rte_rcu_qsbr *br_route4_rcu(void);
+
 #endif

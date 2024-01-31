@@ -14,10 +14,13 @@
 #include <br_route4.h>
 
 #include <rte_bitmap.h>
+#include <rte_build_config.h>
 #include <rte_ethdev.h>
 #include <rte_fib.h>
 #include <rte_hash.h>
+#include <rte_malloc.h>
 #include <rte_memory.h>
+#include <rte_rcu_qsbr.h>
 #include <rte_rib.h>
 
 #include <arpa/inet.h>
@@ -29,6 +32,11 @@
 
 static struct rte_hash *routes;
 static struct rte_fib *fib;
+static struct rte_rcu_qsbr *rcu;
+
+struct rte_rcu_qsbr *br_route4_rcu(void) {
+	return rcu;
+}
 
 int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 	uint64_t gateway = 0;
@@ -107,10 +115,7 @@ int route_delete(ip4_addr_t net, uint8_t prefix, bool force) {
 	nh->ref_count--;
 
 	rte_fib_delete(fib, ntohl(net), prefix);
-
-	ret = rte_hash_del_key(routes, &network);
-	// TODO: use RCU to avoid freeing while datapath is still using
-	rte_hash_free_key_with_position(routes, ret);
+	rte_hash_del_key(routes, &network);
 
 	return 0;
 }
@@ -205,10 +210,24 @@ static void route4_init(void) {
 		.name = "route4",
 		.entries = MAX_ROUTES,
 		.key_len = sizeof(struct ip4_net),
+		.extra_flag = RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT
+			| RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF,
 	};
 	routes = rte_hash_create(&params);
 	if (routes == NULL)
 		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
+
+	size_t sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
+	rcu = rte_malloc("route4-rcu", sz, RTE_CACHE_LINE_SIZE);
+	if (rcu == NULL)
+		ABORT("rte_malloc(rcu): %s", rte_strerror(rte_errno));
+
+	if (rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE))
+		ABORT("rte_rcu_qsbr_init: %s", rte_strerror(rte_errno));
+
+	struct rte_hash_rcu_config rcu_conf = {.v = rcu};
+	if (rte_hash_rcu_qsbr_add(routes, &rcu_conf))
+		ABORT("rte_hash_rcu_qsbr_add: %s", rte_strerror(rte_errno));
 }
 
 static void route4_fini(void) {
@@ -216,6 +235,16 @@ static void route4_fini(void) {
 	fib = NULL;
 	rte_hash_free(routes);
 	routes = NULL;
+	rte_free(rcu);
+	rcu = NULL;
+}
+
+static void route4_dp_init(void) {
+	rte_rcu_qsbr_thread_register(rcu, rte_lcore_id());
+}
+
+static void route4_dp_fini(void) {
+	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 }
 
 static struct br_api_handler route4_add_handler = {
@@ -244,6 +273,8 @@ static struct br_module route4_module = {
 	.init = route4_init,
 	.fini = route4_fini,
 	.fini_prio = 10000,
+	.init_dp = route4_dp_init,
+	.fini_dp = route4_dp_fini,
 };
 
 RTE_INIT(control_ip_init) {

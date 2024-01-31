@@ -7,6 +7,7 @@
 #include <br_net_types.h>
 
 #include <rte_ether.h>
+#include <rte_rcu_qsbr.h>
 
 struct next_hop {
 	struct rte_ether_addr eth_addr[2];
@@ -25,5 +26,7 @@ static inline struct rte_ether_addr *next_hop_eth_src(struct next_hop *nh) {
 }
 
 #define IP4_NH_HASH_NAME "nh4"
+
+struct rte_rcu_qsbr *br_nh4_rcu(void);
 
 #endif

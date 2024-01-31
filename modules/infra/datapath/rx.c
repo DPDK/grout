@@ -47,6 +47,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 
+	_Static_assert(sizeof(*ctx) <= sizeof(node->ctx));
 	ctx->port_id = data->port_id;
 	ctx->rxq_id = data->rxq_id;
 	ctx->burst = data->burst;

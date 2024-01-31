@@ -102,7 +102,7 @@ static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 	}
 }
 #else
-#define trace_packet(node, mbuf) ((void)0)
+#define trace_packet(node, mbuf)
 #endif // TRACE_PACKETS
 
 #endif

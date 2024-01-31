@@ -14,6 +14,7 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
+#include <rte_rcu_qsbr.h>
 
 enum {
 	DROP = 0,
@@ -27,6 +28,8 @@ struct lookup_ctx {
 
 #define FIB(ctx) (((struct lookup_ctx *)ctx)->fib)
 
+static struct rte_rcu_qsbr *rcu;
+
 static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_fib *fib = FIB(node->ctx);
@@ -35,6 +38,8 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	ip4_addr_t dst_addr;
 	uint64_t next_hop;
 	uint16_t i;
+
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -56,6 +61,8 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		rte_node_enqueue_x1(graph, node, IP4_REWRITE, mbuf);
 	}
 
+	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
+
 	return nb_objs;
 }
 
@@ -68,7 +75,7 @@ static const struct rte_mbuf_dynfield ip4_fwd_mbuf_priv_desc = {
 int ip4_fwd_mbuf_priv_offset = -1;
 
 static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
-	struct rte_fib *fib = rte_fib_find_existing(IP4_FIB_NAME);
+	struct lookup_ctx *ctx = (struct lookup_ctx *)&node->ctx;
 	static bool once;
 
 	(void)graph;
@@ -76,18 +83,22 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 	if (!once) {
 		once = true;
 		ip4_fwd_mbuf_priv_offset = rte_mbuf_dynfield_register(&ip4_fwd_mbuf_priv_desc);
-		if (ip4_fwd_mbuf_priv_offset < 0) {
-			LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
-			return -rte_errno;
-		}
+		rcu = br_route4_rcu();
 	}
-
-	if (fib == NULL) {
+	if (ip4_fwd_mbuf_priv_offset < 0) {
+		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
+		return -rte_errno;
+	}
+	if (rcu == NULL) {
+		LOG(ERR, "br_route4_rcu() == NULL");
+		return -ENOENT;
+	}
+	_Static_assert(sizeof(*ctx) <= sizeof(node->ctx));
+	ctx->fib = rte_fib_find_existing(IP4_FIB_NAME);
+	if (ctx->fib == NULL) {
 		LOG(ERR, "rte_fib_find_existing(%s): %s", IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-
-	FIB(node->ctx) = fib;
 
 	return 0;
 }

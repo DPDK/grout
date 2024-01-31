@@ -18,8 +18,10 @@
 #include <rte_ether.h>
 #include <rte_fib.h>
 #include <rte_hash.h>
+#include <rte_malloc.h>
 #include <rte_memory.h>
 #include <rte_mempool.h>
+#include <rte_rcu_qsbr.h>
 
 #include <errno.h>
 #include <stdio.h>
@@ -28,6 +30,11 @@
 
 static struct rte_mempool *nh_pool;
 static struct rte_hash *next_hops;
+static struct rte_rcu_qsbr *rcu;
+
+struct rte_rcu_qsbr *br_nh4_rcu(void) {
+	return rcu;
+}
 
 int next_hop_lookup(ip4_addr_t gw, struct next_hop **nh) {
 	int ret;
@@ -56,10 +63,7 @@ int next_hop_delete(ip4_addr_t gw, bool force) {
 
 	if ((pos = route_delete(gw, 32, force)) < 0)
 		return pos;
-	pos = rte_hash_del_key(next_hops, &gw);
-	// FIXME: use RCU to avoid freeing while datapath is still using
-	rte_hash_free_key_with_position(next_hops, pos);
-	rte_mempool_put(nh_pool, nh);
+	rte_hash_del_key(next_hops, &gw);
 
 	return 0;
 }
@@ -92,13 +96,15 @@ static struct api_out nh4_add(const void *request, void **response) {
 		rte_mempool_put(nh_pool, nh);
 		return api_out(-ret, 0);
 	}
-	if ((ret = route_insert(req->nh.host, 32, req->nh.host, req->exist_ok)) < 0) {
-		rte_mempool_put(nh_pool, nh);
+	if ((ret = route_insert(req->nh.host, 32, req->nh.host, req->exist_ok)) < 0)
 		return api_out(-ret, 0);
-	}
-	if (old_nh != NULL)
-		// FIXME: wait for no more users
+
+	if (old_nh != NULL) {
+		// XXX: rte_hash_add_key_data does not free the data when the key already exists in
+		// the hash map. We need to free the data manually.
+		rte_rcu_qsbr_synchronize(rcu, RTE_QSBR_THRID_INVALID);
 		rte_mempool_put(nh_pool, nh);
+	}
 
 	return api_out(0, 0);
 }
@@ -144,6 +150,11 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+static void next_hop_free(void *priv, void *next_hop) {
+	(void)priv;
+	rte_mempool_put(nh_pool, next_hop);
+}
+
 // XXX: why not 1337, eh?
 #define MAX_NEXT_HOPS 1024
 
@@ -169,15 +180,26 @@ static void nh4_init(void) {
 		.entries = 1024, // XXX: why not 1337, eh?
 		.key_len = sizeof(ip4_addr_t),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
-			| RTE_HASH_EXTRA_FLAGS_NO_FREE_ON_DEL
 			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
 	};
 	next_hops = rte_hash_create(&params);
 	if (next_hops == NULL)
 		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
-	// TODO: add RCU config?
-	// struct rte_hash_rcu_config rcu;
-	// rte_hash_rcu_qsbr_add(ip4_next_hops, &rcu);
+
+	size_t sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
+	rcu = rte_malloc("nh4-rcu", sz, RTE_CACHE_LINE_SIZE);
+	if (rcu == NULL)
+		ABORT("rte_malloc(rcu): %s", rte_strerror(rte_errno));
+
+	if (rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE))
+		ABORT("rte_rcu_qsbr_init: %s", rte_strerror(rte_errno));
+
+	struct rte_hash_rcu_config rcu_conf = {
+		.v = rcu,
+		.free_key_data_func = next_hop_free,
+	};
+	if (rte_hash_rcu_qsbr_add(next_hops, &rcu_conf))
+		ABORT("rte_hash_rcu_qsbr_add: %s", rte_strerror(rte_errno));
 }
 
 static void nh4_fini(void) {
@@ -185,6 +207,16 @@ static void nh4_fini(void) {
 	next_hops = NULL;
 	rte_mempool_free(nh_pool);
 	nh_pool = NULL;
+	rte_free(rcu);
+	rcu = NULL;
+}
+
+static void nh4_init_dp(void) {
+	rte_rcu_qsbr_thread_register(rcu, rte_lcore_id());
+}
+
+static void nh4_fini_dp(void) {
+	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 }
 
 static struct br_api_handler nh4_add_handler = {
@@ -207,6 +239,8 @@ static struct br_module nh4_module = {
 	.name = "nh4",
 	.init = nh4_init,
 	.fini = nh4_fini,
+	.init_dp = nh4_init_dp,
+	.fini_dp = nh4_fini_dp,
 };
 
 RTE_INIT(control_ip_init) {

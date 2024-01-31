@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_nh4.h"
 #include "mbuf_priv.h"
 
 #include <br_datapath.h>
 #include <br_log.h>
+#include <br_nh4.h>
 #include <br_route4.h>
 #include <br_worker.h>
 
@@ -19,6 +19,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
+#include <rte_rcu_qsbr.h>
 
 enum {
 	DROP = 0,
@@ -30,6 +31,8 @@ struct rewrite_ctx {
 	struct port_edge_map *tx_nodes;
 };
 
+static struct rte_rcu_qsbr *rcu;
+
 static uint16_t
 rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rewrite_ctx *ctx = (struct rewrite_ctx *)node->ctx;
@@ -40,6 +43,8 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 	ip4_addr_t dst_addr;
 	rte_edge_t next;
 	uint16_t i, csum;
+
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -69,6 +74,8 @@ next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
+	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
+
 	return nb_objs;
 }
 
@@ -79,9 +86,18 @@ static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
 	);
 	struct rewrite_ctx *ctx = (struct rewrite_ctx *)node->ctx;
 	struct port_edge_map *data;
+	static bool once;
 
 	(void)graph;
 
+	if (!once) {
+		once = true;
+		rcu = br_nh4_rcu();
+	}
+	if (rcu == NULL) {
+		LOG(ERR, "br_nh4_rcu == NULL");
+		return -1;
+	}
 	if (tx_nodes == NULL) {
 		LOG(ERR, "rte_zmalloc: %s", rte_strerror(ENOMEM));
 		return -1;
@@ -97,6 +113,7 @@ static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 
+	_Static_assert(sizeof(*ctx) <= sizeof(node->ctx));
 	memcpy(tx_nodes, data, sizeof(*tx_nodes));
 	ctx->tx_nodes = tx_nodes;
 	ctx->next_hops = next_hops;
