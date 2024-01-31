@@ -44,7 +44,7 @@ int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 		return -ret;
 	if (gateway == NO_ROUTE)
 		return -ENETUNREACH;
-	if ((ret = next_hop_lookup(gateway, nh)) < 0)
+	if ((ret = next_hop_lookup(htonl((ip4_addr_t)gateway), nh)) < 0)
 		return ret;
 
 	return 0;
@@ -81,7 +81,7 @@ int route_insert(ip4_addr_t net, uint8_t prefix, ip4_addr_t gw, bool force) {
 		if (gw == old_nh->ip)
 			return 0;
 	}
-	if ((ret = rte_fib_add(fib, ntohl(net), prefix, (uint64_t)gw)) < 0)
+	if ((ret = rte_fib_add(fib, ntohl(net), prefix, (uint64_t)ntohl(gw))) < 0)
 		return ret;
 
 	if ((ret = rte_hash_add_key_data(routes, &network, (void *)(uintptr_t)gw)) < 0)
