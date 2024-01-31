@@ -51,7 +51,7 @@ int next_hop_delete(ip4_addr_t gw, bool force) {
 		return 0;
 	if (pos < 0)
 		return -pos;
-	if (nh->ref_count > 0)
+	if (nh->ref_count > 1)
 		return -EBUSY;
 
 	if ((pos = route_delete(gw, 32, force)) < 0)
@@ -159,8 +159,7 @@ static void nh4_init(void) {
 		NULL, // obj_init
 		NULL, // obj_init_arg
 		SOCKET_ID_ANY,
-		RTE_MEMPOOL_F_NO_SPREAD | RTE_MEMPOOL_F_NO_CACHE_ALIGN | RTE_MEMPOOL_F_SP_PUT
-			| RTE_MEMPOOL_F_SC_GET | RTE_MEMPOOL_F_NO_IOVA_CONTIG
+		RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_NO_IOVA_CONTIG
 	);
 	if (nh_pool == NULL)
 		ABORT("rte_mempool_create: %s", rte_strerror(rte_errno));

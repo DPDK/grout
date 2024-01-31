@@ -104,6 +104,7 @@ int route_delete(ip4_addr_t net, uint8_t prefix, bool force) {
 			return 0;
 		return ret;
 	}
+	nh->ref_count--;
 
 	rte_fib_delete(fib, ntohl(net), prefix);
 
