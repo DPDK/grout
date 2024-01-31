@@ -81,7 +81,7 @@ int route_insert(ip4_addr_t net, uint8_t prefix, ip4_addr_t gw, bool force) {
 		if (gw == old_nh->ip)
 			return 0;
 	}
-	if ((ret = rte_fib_add(fib, ntohl(net), prefix, (uint64_t)ntohl(gw))) < 0)
+	if ((ret = rte_fib_add(fib, ntohl(net), prefix, gw)) < 0)
 		return ret;
 
 	if ((ret = rte_hash_add_key_data(routes, &network, (void *)(uintptr_t)gw)) < 0)
@@ -190,8 +190,11 @@ static void route4_init(void) {
 		.max_routes = MAX_ROUTES,
 		.rib_ext_sz = 0,
 		.dir24_8 = {
-			   .nh_sz = RTE_FIB_DIR24_8_4B,
-			   .num_tbl8 = 1 << 15,
+			// DIR24_8 uses 1 bit to store routing table structure
+			// information.  4 bytes next hops are not enough to
+			// store IPv4 addresses.  Use 8 bytes next hops.
+			.nh_sz = RTE_FIB_DIR24_8_8B,
+			.num_tbl8 = 1 << 15,
 		},
 	};
 	fib = rte_fib_create(IP4_FIB_NAME, SOCKET_ID_ANY, &conf);

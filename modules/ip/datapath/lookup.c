@@ -52,7 +52,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			continue;
 		}
 
-		ip4_fwd_mbuf_priv(mbuf)->next_hop = htonl((ip4_addr_t)next_hop);
+		ip4_fwd_mbuf_priv(mbuf)->next_hop = (ip4_addr_t)next_hop;
 		rte_node_enqueue_x1(graph, node, IP4_REWRITE, mbuf);
 	}
 
