@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <br_graph.h>
+
 #include <rte_graph.h>
 #include <rte_mbuf.h>
 
@@ -15,8 +17,12 @@ drop_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 }
 
 static struct rte_node_register drop_node = {
-	.process = drop_process,
 	.name = "drop",
+	.process = drop_process,
 };
 
-RTE_NODE_REGISTER(drop_node)
+static struct br_node_info info = {
+	.node = &drop_node,
+};
+
+BR_NODE_REGISTER(info)

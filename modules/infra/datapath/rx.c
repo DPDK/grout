@@ -2,70 +2,96 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include <br_datapath.h>
+#include <br_graph.h>
 #include <br_log.h>
-#include <br_port.h>
-#include <br_worker.h>
+#include <br_rx.h>
 
+#include <rte_build_config.h>
 #include <rte_ethdev.h>
 #include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_hash.h>
+#include <rte_malloc.h>
 
 #include <stdbool.h>
 #include <sys/queue.h>
 
-// the rx nodes will always have a single next edge (l2, l3, io broadcast, etc.)
-#define DEFAULT_NEXT 0
+#define CLASSIFY 0
+
+struct rx_ctx {
+	uint16_t n_queues;
+	struct rx_port_queue *queues; // n_queues
+};
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
-	const struct rx_node_ctx *ctx = (struct rx_node_ctx *)node->ctx;
+	NODE_CTX_PTR(const struct rx_ctx *, ctx, node);
+	struct rx_port_queue q;
 
 	(void)objs;
 
-	count = rte_eth_rx_burst(
-		ctx->port_id, ctx->rxq_id, (struct rte_mbuf **)node->objs, ctx->burst
-	);
+	count = 0;
+	for (int i = 0; i < ctx->n_queues; i++) {
+		q = ctx->queues[i];
+		count += rte_eth_rx_burst(
+			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], q.burst
+		);
+	}
 	for (uint16_t i = 0; i < count; i++)
 		trace_packet(node->name, node->objs[i]);
 	if (count > 0) {
 		node->idx = count;
-		rte_node_next_stream_move(graph, node, DEFAULT_NEXT);
+		rte_node_next_stream_move(graph, node, CLASSIFY);
 	}
 
 	return count;
 }
 
 static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
-	struct rx_node_ctx *ctx = (struct rx_node_ctx *)node->ctx;
-	const struct rx_node_ctx *data;
+	NODE_CTX_PTR(struct rx_ctx *, ctx, node);
+	const struct rx_node_queues *data;
 
 	(void)graph;
 
-	if (get_ctx_data(node, (void **)&data) < 0) {
-		LOG(ERR, "get_ctx_data(%s) %s", node->name, rte_strerror(rte_errno));
+	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
+		return -1;
+
+	ctx->n_queues = data->n_queues;
+	ctx->queues = rte_calloc(
+		__func__, ctx->n_queues, sizeof(*ctx->queues), RTE_CACHE_LINE_SIZE
+	);
+	if (ctx->queues == NULL) {
+		LOG(ERR, "rte_calloc: %s", rte_strerror(rte_errno));
 		return -1;
 	}
-
-	_Static_assert(sizeof(*ctx) <= sizeof(node->ctx));
-	ctx->port_id = data->port_id;
-	ctx->rxq_id = data->rxq_id;
-	ctx->burst = data->burst;
+	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
 
 	return 0;
 }
 
-static struct rte_node_register rx_node_base = {
-	.process = rx_process,
-	.flags = RTE_NODE_SOURCE_F,
-	.name = "rx",
+static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
+	NODE_CTX_PTR(struct rx_ctx *, ctx, node);
+	(void)graph;
+	rte_free(ctx->queues);
+	ctx->queues = NULL;
+}
 
+static struct rte_node_register rx_node_base = {
+	.name = "rx",
+	.flags = RTE_NODE_SOURCE_F,
+
+	.process = rx_process,
 	.init = rx_init,
+	.fini = rx_fini,
 
 	.nb_edges = 1,
 	.next_nodes = {
-		[DEFAULT_NEXT] = "classify",
+		[CLASSIFY] = "classify",
 	},
 };
 
-RTE_NODE_REGISTER(rx_node_base)
+static struct br_node_info info = {
+	.node = &rx_node_base,
+};
+
+BR_NODE_REGISTER(info)

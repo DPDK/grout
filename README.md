@@ -7,6 +7,10 @@
 - graph statistics
 - routing table: handle live modification while traffic is running
 - worker management
+- no more unique node names per graph DONE
+- hash map with node data per graph name DONE
+- register system for nodes to plug themselves into the graph DONE'ish
+- select TX (vhost-user)? (dispatch graph mode or special node)
 
 ### Dataplane
 
@@ -33,3 +37,4 @@
 - every ipv4 address (route *and* next hop) needs to be host order (why not
   hiding this in the API)
 - no api to list all configured routes
+- is it ok to modify the fib while performing lookups in parallel?

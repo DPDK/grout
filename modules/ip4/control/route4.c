@@ -52,7 +52,7 @@ int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 		return -ret;
 	if (gateway == NO_ROUTE)
 		return -ENETUNREACH;
-	if ((ret = next_hop_lookup(htonl((ip4_addr_t)gateway), nh)) < 0)
+	if ((ret = next_hop_lookup(gateway, nh)) < 0)
 		return ret;
 
 	return 0;

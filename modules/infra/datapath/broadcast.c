@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <br_broadcast.h>
+#include <br_graph.h>
 #include <br_log.h>
+#include <br_tx.h>
 #include <br_worker.h>
 
 #include <rte_build_config.h>
@@ -14,95 +17,89 @@
 
 #include <sys/queue.h>
 
+enum {
+	DROP = 0,
+	TX,
+};
+
 struct broadcast_ctx {
-	unsigned num_ports;
-	uint16_t edge_port[RTE_MAX_ETHPORTS];
+	uint16_t n_ports;
+	uint16_t *port_ids;
 };
 
 static uint16_t
 broadcast_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
-	struct rte_mbuf *mbuf, *clone;
-	struct broadcast_ctx *ctx;
-	uint16_t n, port_id;
-	rte_edge_t edge;
-	unsigned clones;
+	NODE_CTX_PTR(const struct broadcast_ctx *, ctx, node);
+	rte_edge_t next = DROP;
 
-	memcpy(&ctx, node->ctx, sizeof(struct broadcast_ctx *));
+	if (ctx->n_ports == 1)
+		goto end;
 
-	if (ctx->num_ports == 1) {
-		rte_pktmbuf_free_bulk(mbufs, nb_objs);
-		return 0;
-	}
+	next = TX;
 
-	for (n = 0; n < nb_objs; n++) {
-		mbuf = mbufs[n];
-		port_id = mbuf->port;
-		clones = 0;
-		for (edge = 0; edge < ctx->num_ports; edge++) {
-			if (ctx->edge_port[edge] == port_id)
+	for (unsigned o = 0; o < nb_objs; o++) {
+		struct rte_mbuf *mbuf = objs[o];
+		unsigned clones = 0;
+
+		for (unsigned p = 0; p < ctx->n_ports; p++) {
+			struct rte_mbuf *clone;
+
+			if (ctx->port_ids[p] == mbuf->port)
 				continue;
-			if (clones < ctx->num_ports - 2) {
+
+			if (clones < ctx->n_ports - 2) {
 				clone = rte_pktmbuf_clone(mbuf, mbuf->pool);
+				tx_mbuf_priv(clone)->port_id = ctx->port_ids[p];
+				rte_node_enqueue_x1(graph, node, next, clone);
 				clones++;
 			} else {
-				clone = mbuf;
+				tx_mbuf_priv(mbuf)->port_id = ctx->port_ids[p];
 			}
-			rte_node_enqueue(graph, node, edge, (void **)&clone, 1);
 		}
+		nb_objs += clones;
 	}
-
+end:
+	rte_node_next_stream_move(graph, node, next);
 	return nb_objs;
 }
 
 static int broadcast_init(const struct rte_graph *graph, struct rte_node *node) {
-	struct broadcast_ctx *ctx = rte_zmalloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
-	struct queue_map *qmap;
-	struct worker *worker;
-	char name[BUFSIZ];
-	rte_edge_t edge;
-	uint8_t index;
+	NODE_CTX_PTR(struct broadcast_ctx *, ctx, node);
+	const struct broadcast_node_ports *data;
 
-	if (ctx == NULL)
-		return -ENOMEM;
+	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
+		return -1;
 
-	LIST_FOREACH (worker, &workers, next) {
-		index = !atomic_load(&worker->cur_config);
-		snprintf(name, sizeof(name), "br-%u-%u", index, worker->lcore_id);
-		if (strcmp(name, graph->name) != 0)
-			continue;
-
-		edge = 0;
-		LIST_FOREACH (qmap, &worker->txqs, next) {
-			ctx->edge_port[edge++] = qmap->port_id;
-		}
-		ctx->num_ports = edge;
-		memcpy(node->ctx, &ctx, sizeof(struct broadcast_ctx *));
-		return 0;
+	ctx->n_ports = data->n_ports;
+	ctx->port_ids = rte_calloc(
+		__func__, ctx->n_ports, sizeof(*ctx->port_ids), RTE_CACHE_LINE_SIZE
+	);
+	if (ctx->port_ids == NULL) {
+		LOG(ERR, "rte_calloc: failed");
+		return -1;
 	}
+	memcpy(ctx->port_ids, data->port_ids, ctx->n_ports * sizeof(*ctx->port_ids));
 
-	LOG(ERR, "no worker found for graph %s", graph->name);
-	return -ENOENT;
+	return 0;
 }
 
 static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node) {
-	struct broadcast_ctx *ctx;
-
-	if (node == NULL) {
-		LOG(ERR, "graph %s: node == NULL", graph->name);
-		return;
-	}
-
-	memcpy(&ctx, node->ctx, sizeof(struct broadcast_ctx *));
-	rte_free(ctx);
+	NODE_CTX_PTR(struct broadcast_ctx *, ctx, node);
+	(void)graph;
+	rte_free(ctx->port_ids);
+	ctx->port_ids = NULL;
 }
 
 static struct rte_node_register broadcast_node_base = {
-	.process = broadcast_process,
 	.name = "broadcast",
-
+	.process = broadcast_process,
 	.init = broadcast_init,
 	.fini = broadcast_fini,
+	.nb_edges = 1,
+	.next_nodes = {
+		[DROP] = "drop",
+		[TX] = "tx",
+	},
 };
 
 RTE_NODE_REGISTER(broadcast_node_base);
