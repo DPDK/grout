@@ -1,11 +1,11 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 
 project(
   'boring-router',
   'c',
   version: '0.1',
-  license: 'Apache-2.0',
+  license: 'BSD-3-Clause',
   meson_version: '>= 0.63.0',
   default_options: [
     'buildtype=debug',

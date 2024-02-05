@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 
 builddir = build
@@ -32,7 +32,7 @@ lint: $(builddir)/build.ninja
 	@clang-format --dry-run --Werror $(c_src)
 	@echo '[license-check]'
 	@! for f in $(all_files); do \
-		if ! grep -qF 'SPDX-License-Identifier: Apache-2.0' $$f; then \
+		if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
 			echo $$f; \
 		fi; \
 		if ! grep -q 'Copyright .* [0-9]\{4\} .*' $$f; then \
