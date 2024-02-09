@@ -1,0 +1,32 @@
+From 2cbe2205e5790c517eb70f065fe75b3ae968f628 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <robin@jarry.cc>
+Date: Fri, 9 Feb 2024 11:33:20 +0100
+Subject: node: change ctx array to union
+
+Signed-off-by: Robin Jarry <robin@jarry.cc>
+---
+ lib/graph/rte_graph_worker_common.h | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/lib/graph/rte_graph_worker_common.h b/lib/graph/rte_graph_worker_common.h
+index 4045a7a8dc82..0a0f9f1f4aa8 100644
+--- a/lib/graph/rte_graph_worker_common.h
++++ b/lib/graph/rte_graph_worker_common.h
+@@ -109,7 +109,13 @@ struct rte_node {
+ 	};
+ 	/* Fast path area  */
+ #define RTE_NODE_CTX_SZ 16
+-	uint8_t ctx[RTE_NODE_CTX_SZ] __rte_cache_aligned; /**< Node Context. */
++	union {
++		uint8_t ctx[RTE_NODE_CTX_SZ]; /**< Node Context. */
++		struct {
++			void *ctx_ptr;
++			void *ctx_ptr2;
++		};
++	};
+ 	uint16_t size;		/**< Total number of objects available. */
+ 	uint16_t idx;		/**< Number of objects used. */
+ 	rte_graph_off_t off;	/**< Offset of node in the graph reel. */
+-- 
+2.43.0
+
