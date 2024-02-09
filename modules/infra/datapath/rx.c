@@ -20,12 +20,12 @@
 
 struct rx_ctx {
 	uint16_t n_queues;
-	struct rx_port_queue *queues; // n_queues
+	struct rx_port_queue queues[/* n_queues */];
 };
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
-	NODE_CTX_PTR(const struct rx_ctx *, ctx, node);
+	const struct rx_ctx *ctx = node->ctx_ptr;
 	struct rx_port_queue q;
 
 	(void)objs;
@@ -48,32 +48,30 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 }
 
 static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct rx_ctx *, ctx, node);
 	const struct rx_node_queues *data;
+	struct rx_ctx *ctx;
 
 	(void)graph;
 
 	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
 		return -1;
 
-	ctx->n_queues = data->n_queues;
-	ctx->queues = rte_calloc(
-		__func__, ctx->n_queues, sizeof(*ctx->queues), RTE_CACHE_LINE_SIZE
+	node->ctx_ptr = ctx = rte_zmalloc(
+		__func__, sizeof(*ctx) + data->n_queues * sizeof(*ctx->queues), RTE_CACHE_LINE_SIZE
 	);
-	if (ctx->queues == NULL) {
-		LOG(ERR, "rte_calloc: %s", rte_strerror(rte_errno));
+	if (ctx == NULL) {
+		LOG(ERR, "rte_zmalloc: %s", rte_strerror(rte_errno));
 		return -1;
 	}
+	ctx->n_queues = data->n_queues;
 	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
 
 	return 0;
 }
 
 static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct rx_ctx *, ctx, node);
 	(void)graph;
-	rte_free(ctx->queues);
-	ctx->queues = NULL;
+	rte_free(node->ctx_ptr);
 }
 
 static struct rte_node_register rx_node_base = {

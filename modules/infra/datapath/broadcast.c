@@ -24,12 +24,12 @@ enum {
 
 struct broadcast_ctx {
 	uint16_t n_ports;
-	uint16_t *port_ids;
+	uint16_t port_ids[RTE_MAX_ETHPORTS];
 };
 
 static uint16_t
 broadcast_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	NODE_CTX_PTR(const struct broadcast_ctx *, ctx, node);
+	const struct broadcast_ctx *ctx = node->ctx_ptr;
 	rte_edge_t next = DROP;
 
 	if (ctx->n_ports == 1)
@@ -64,30 +64,26 @@ end:
 }
 
 static int broadcast_init(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct broadcast_ctx *, ctx, node);
 	const struct broadcast_node_ports *data;
+	struct broadcast_ctx *ctx;
 
 	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
 		return -1;
 
-	ctx->n_ports = data->n_ports;
-	ctx->port_ids = rte_calloc(
-		__func__, ctx->n_ports, sizeof(*ctx->port_ids), RTE_CACHE_LINE_SIZE
-	);
-	if (ctx->port_ids == NULL) {
+	node->ctx_ptr = ctx = rte_zmalloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
+	if (ctx == NULL) {
 		LOG(ERR, "rte_calloc: failed");
 		return -1;
 	}
+	ctx->n_ports = data->n_ports;
 	memcpy(ctx->port_ids, data->port_ids, ctx->n_ports * sizeof(*ctx->port_ids));
 
 	return 0;
 }
 
 static void broadcast_fini(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct broadcast_ctx *, ctx, node);
 	(void)graph;
-	rte_free(ctx->port_ids);
-	ctx->port_ids = NULL;
+	rte_free(node->ctx_ptr);
 }
 
 static struct rte_node_register broadcast_node_base = {

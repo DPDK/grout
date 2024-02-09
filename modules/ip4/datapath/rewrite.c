@@ -29,14 +29,10 @@ enum {
 	EDGE_COUNT,
 };
 
-struct rewrite_ctx {
-	struct rte_hash *next_hops;
-	struct rte_rcu_qsbr *rcu;
-};
-
 static uint16_t
 rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	NODE_CTX_PTR(const struct rewrite_ctx *, ctx, node);
+	struct rte_hash *next_hops = node->ctx_ptr;
+	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
 	struct rte_ether_hdr *eth_hdr;
 	struct rte_ipv4_hdr *ip4_hdr;
 	const struct next_hop *nh;
@@ -45,7 +41,7 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 	rte_edge_t next;
 	uint16_t i, csum;
 
-	rte_rcu_qsbr_thread_online(ctx->rcu, rte_lcore_id());
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -54,7 +50,7 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		trace_packet(node->name, mbuf);
 
 		dst_addr = ip4_fwd_mbuf_priv(mbuf)->next_hop;
-		if (rte_hash_lookup_data(ctx->next_hops, &dst_addr, (void **)&nh) < 0)
+		if (rte_hash_lookup_data(next_hops, &dst_addr, (void **)&nh) < 0)
 			goto next;
 
 		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
@@ -76,23 +72,21 @@ next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
-	rte_rcu_qsbr_thread_offline(ctx->rcu, rte_lcore_id());
+	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 
 	return nb_objs;
 }
 
 static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct rewrite_ctx *, ctx, node);
-
 	(void)graph;
 
-	ctx->next_hops = rte_hash_find_existing(IP4_NH_HASH_NAME);
-	if (ctx->next_hops == NULL) {
+	node->ctx_ptr = rte_hash_find_existing(IP4_NH_HASH_NAME);
+	if (node->ctx_ptr == NULL) {
 		LOG(ERR, "rte_hash_find_existing: %s", rte_strerror(rte_errno));
 		return -1;
 	}
-	ctx->rcu = br_nh4_rcu();
-	if (ctx->rcu == NULL) {
+	node->ctx_ptr2 = br_nh4_rcu();
+	if (node->ctx_ptr2 == NULL) {
 		LOG(ERR, "br_nh4_rcu == NULL");
 		return -1;
 	}

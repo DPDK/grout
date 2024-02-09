@@ -81,7 +81,7 @@ rte_edge_t br_node_attach_parent(const char *parent, const char *node) {
 	}
 
 	edge = rte_node_edge_update(parent_id, RTE_EDGE_ID_INVALID, &node, 1);
-	if (edge == 0 || edge == RTE_EDGE_ID_INVALID)
+	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("rte_node_edge_update: %s", rte_strerror(rte_errno));
 
 	return edge;

@@ -17,12 +17,12 @@
 #define DROP 0
 
 struct tx_ctx {
-	uint16_t *txq_ids; // RTE_MAX_ETHPORTS
+	uint16_t txq_ids[RTE_MAX_ETHPORTS];
 };
 
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	NODE_CTX_PTR(const struct tx_ctx *, ctx, node);
+	const struct tx_ctx *ctx = node->ctx_ptr;
 	uint16_t c, count = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -56,8 +56,8 @@ static const struct rte_mbuf_dynfield tx_mbuf_priv_desc = {
 int tx_mbuf_priv_offset = -1;
 
 static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct tx_ctx *, ctx, node);
 	const struct tx_node_queues *data;
+	struct tx_ctx *ctx;
 	static bool once;
 
 	(void)graph;
@@ -74,21 +74,19 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
 		return -1;
 
-	ctx->txq_ids = rte_malloc(__func__, sizeof(data->txq_ids), RTE_CACHE_LINE_SIZE);
-	if (ctx->txq_ids == NULL) {
+	node->ctx_ptr = ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
+	if (ctx == NULL) {
 		LOG(ERR, "rte_malloc(): %s", rte_strerror(rte_errno));
 		return -1;
 	}
-	memcpy(ctx->txq_ids, data->txq_ids, sizeof(data->txq_ids));
+	memcpy(ctx->txq_ids, data->txq_ids, sizeof(ctx->txq_ids));
 
 	return 0;
 }
 
 static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct tx_ctx *, ctx, node);
 	(void)graph;
-	rte_free(ctx->txq_ids);
-	ctx->txq_ids = NULL;
+	rte_free(node->ctx_ptr);
 }
 
 static struct rte_node_register tx_node_base = {

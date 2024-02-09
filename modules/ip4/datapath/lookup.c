@@ -23,21 +23,17 @@ enum edges {
 	EDGE_COUNT,
 };
 
-struct lookup_ctx {
-	struct rte_fib *fib;
-	struct rte_rcu_qsbr *rcu;
-};
-
 static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	NODE_CTX_PTR(const struct lookup_ctx *, ctx, node);
+	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
+	struct rte_fib *fib = node->ctx_ptr;
 	struct rte_ipv4_hdr *ipv4_hdr;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
 	uint64_t next_hop;
 	uint16_t i;
 
-	rte_rcu_qsbr_thread_online(ctx->rcu, rte_lcore_id());
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -50,7 +46,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		dst_addr = ntohl(ipv4_hdr->dst_addr);
 
 		// TODO: optimize with lookup of multiple packets
-		if (rte_fib_lookup_bulk(ctx->fib, &dst_addr, &next_hop, 1) < 0
+		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
 		    || next_hop == NO_ROUTE)
 		{
 			rte_node_enqueue_x1(graph, node, DROP, mbuf);
@@ -61,7 +57,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		rte_node_enqueue_x1(graph, node, IP4_REWRITE, mbuf);
 	}
 
-	rte_rcu_qsbr_thread_offline(ctx->rcu, rte_lcore_id());
+	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 
 	return nb_objs;
 }
@@ -75,7 +71,6 @@ static const struct rte_mbuf_dynfield ip4_fwd_mbuf_priv_desc = {
 int ip4_fwd_mbuf_priv_offset = -1;
 
 static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
-	NODE_CTX_PTR(struct lookup_ctx *, ctx, node);
 	static bool once;
 
 	(void)graph;
@@ -88,13 +83,13 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	ctx->fib = rte_fib_find_existing(IP4_FIB_NAME);
-	if (ctx->fib == NULL) {
+	node->ctx_ptr = rte_fib_find_existing(IP4_FIB_NAME);
+	if (node->ctx_ptr == NULL) {
 		LOG(ERR, "rte_fib_find_existing(%s): %s", IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	ctx->rcu = br_route4_rcu();
-	if (ctx->rcu == NULL) {
+	node->ctx_ptr2 = br_route4_rcu();
+	if (node->ctx_ptr2 == NULL) {
 		LOG(ERR, "br_route4_rcu() == NULL");
 		return -ENOENT;
 	}
