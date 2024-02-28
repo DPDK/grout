@@ -194,7 +194,7 @@ int worker_graph_reload_all(void) {
 
 		if ((ret = worker_graph_new(worker, next)) < 0) {
 			LOG(ERR, "worker_graph_new: %s", rte_strerror(-ret));
-			return -ret;
+			return ret;
 		}
 
 		// wait for datapath worker to pickup the config update
