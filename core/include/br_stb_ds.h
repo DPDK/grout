@@ -6,6 +6,10 @@
 
 #include "stb_ds.h"
 
+#define stbds_arrforeach(v, a)                                                                     \
+	for (int __i = 0, __next = 1; __next && __i < arrlen(a); __next = !__next, __i++)          \
+		for (v = &a[__i]; __next; __next = !__next)
+
 // extra macros for dynamic string vectors
 #define stbds_arrput_strdup(a, v) stbds_arrput(a, strdup(v))
 #define stbds_arrpush_strdup stbds_arrput_strdup
@@ -22,5 +26,6 @@
 #define arrpush_strdup stbds_arrpush_strdup
 #define arrpop_free stbds_arrpop_free
 #define arrfree_all stbds_arrfree_all
+#define arrforeach stbds_arrforeach
 
 #endif
