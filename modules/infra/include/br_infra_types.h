@@ -22,19 +22,9 @@ struct br_infra_port {
 
 struct br_infra_rxq {
 	uint16_t port_id;
-	uint16_t rxq;
-};
-
-typedef enum {
-	BR_INFRA_WORKER_CPU_ID = BR_BIT32(0),
-	BR_INFRA_WORKER_RXQS = BR_BIT32(1),
-} br_infra_worker_attr_t;
-
-struct br_infra_worker {
-	uint64_t worker_id;
+	uint16_t rxq_id;
 	uint16_t cpu_id;
-	uint8_t n_rx_queues;
-	struct br_infra_rxq rx_queues[32];
+	uint16_t enabled;
 };
 
 #endif

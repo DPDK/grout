@@ -95,7 +95,7 @@ static struct api_out port_add(const void *request, void **response) {
 		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
-	if ((ret = port_plug(port, true)) < 0) {
+	if ((ret = port_plug(port)) < 0) {
 		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
@@ -205,7 +205,7 @@ static struct api_out port_set(const void *request, void **response) {
 	if ((port = find_port(req->port_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if ((ret = port_unplug(port, true)) < 0)
+	if ((ret = port_unplug(port)) < 0)
 		return api_out(-ret, 0);
 
 	if (req->set_attrs & BR_INFRA_PORT_N_RXQ) {
@@ -216,7 +216,7 @@ static struct api_out port_set(const void *request, void **response) {
 	if (req->set_attrs & BR_INFRA_PORT_BURST)
 		port->burst = req->burst;
 
-	if ((ret = port_plug(port, true)) < 0)
+	if ((ret = port_plug(port)) < 0)
 		return api_out(-ret, 0);
 
 	return api_out(0, 0);

@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <sys/queue.h>
 #include <sys/types.h>
 
@@ -19,9 +20,9 @@ struct worker_config {
 };
 
 struct queue_map {
-	LIST_ENTRY(queue_map) next;
 	uint16_t port_id;
 	uint16_t queue_id;
+	bool enabled;
 };
 
 struct worker {
@@ -32,15 +33,15 @@ struct worker {
 
 	// synced with thread_fence
 	struct worker_config config[2]; // dataplane: ro, ctlplane: rw
-	unsigned cpu_id;
-	unsigned lcore_id;
+	int cpu_id;
+	int lcore_id;
 
 	pid_t tid;
 
 	// private for control plane only
 	pthread_t thread;
-	LIST_HEAD(, queue_map) rxqs;
-	LIST_HEAD(, queue_map) txqs;
+	struct queue_map *rxqs;
+	struct queue_map *txqs;
 	LIST_ENTRY(worker) next;
 } __rte_cache_aligned;
 

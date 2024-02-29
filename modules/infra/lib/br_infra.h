@@ -15,4 +15,7 @@ int br_infra_port_get(const struct br_client *, uint16_t port_id, struct br_infr
 int br_infra_port_list(const struct br_client *, size_t *n_ports, struct br_infra_port **);
 int br_infra_port_set(const struct br_client *, uint16_t port_id, uint16_t n_rxq, uint16_t burst);
 
+int br_infra_rxq_list(const struct br_client *, size_t *n_rxqs, struct br_infra_rxq **);
+int br_infra_rxq_set(const struct br_client *, uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
+
 #endif

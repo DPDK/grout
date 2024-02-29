@@ -65,54 +65,24 @@ struct br_infra_port_set_req {
 
 // struct br_infra_port_set_resp { };
 
-// workers
-#define BR_INFRA_WORKER_ADD REQUEST_TYPE(BR_INFRA_MODULE, 0x0010)
+// port rxqs
+#define BR_INFRA_RXQ_LIST REQUEST_TYPE(BR_INFRA_MODULE, 0x0010)
 
-struct br_infra_worker_add_req {
+// struct br_infra_rxq_list_req { };
+
+struct br_infra_rxq_list_resp {
+	uint16_t n_rxqs;
+	struct br_infra_rxq rxqs[/* n_rxq */];
+};
+
+#define BR_INFRA_RXQ_SET REQUEST_TYPE(BR_INFRA_MODULE, 0x0011)
+
+struct br_infra_rxq_set_req {
+	uint16_t port_id;
+	uint16_t rxq_id;
 	uint16_t cpu_id;
 };
 
-struct br_infra_worker_add_resp {
-	struct br_infra_worker worker;
-};
-
-#define BR_INFRA_WORKER_DEL REQUEST_TYPE(BR_INFRA_MODULE, 0x0011)
-
-struct br_infra_worker_del_req {
-	uint64_t worker_id;
-};
-
-// struct br_infra_worker_del_resp { };
-
-#define BR_INFRA_WORKER_GET REQUEST_TYPE(BR_INFRA_MODULE, 0x0012)
-
-struct br_infra_worker_get_req {
-	uint64_t worker_id;
-};
-
-struct br_infra_worker_get_resp {
-	struct br_infra_worker worker;
-};
-
-#define BR_INFRA_WORKER_LIST REQUEST_TYPE(BR_INFRA_MODULE, 0x0013)
-
-// struct br_infra_worker_list_req { };
-
-struct br_infra_worker_list_resp {
-	uint16_t n_workers;
-	struct br_infra_worker workers[/* n_workers */];
-};
-
-#define BR_INFRA_WORKER_SET REQUEST_TYPE(BR_INFRA_MODULE, 0x0014)
-
-struct br_infra_worker_set_req {
-	uint64_t worker_id;
-	br_infra_worker_attr_t set_attrs;
-	uint16_t cpu_id;
-	uint8_t n_rx_queues;
-	struct br_infra_rxq rx_queues[/* n_rx_queues */];
-};
-
-// struct br_infra_worker_set_resp { };
+// struct br_infra_rxq_set_resp { };
 
 #endif

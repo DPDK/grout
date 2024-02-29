@@ -6,4 +6,5 @@ src += files(
   'port_config.c',
   'worker.c',
   'graph.c',
+  'rxq.c',
 )

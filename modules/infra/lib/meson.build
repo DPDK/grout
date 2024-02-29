@@ -3,6 +3,7 @@
 
 lib_src += files(
   'port.c',
+  'rxq.c',
 )
 
 api_headers += files('br_infra.h')

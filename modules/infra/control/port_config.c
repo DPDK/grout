@@ -6,7 +6,10 @@
 
 #include <br_control.h>
 #include <br_log.h>
+#include <br_stb_ds.h>
+#include <br_worker.h>
 
+#include <numa.h>
 #include <rte_bitops.h>
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
@@ -28,7 +31,7 @@ int port_destroy(uint16_t port_id, struct port *port) {
 	struct rte_eth_dev_info info;
 	int ret;
 
-	port_unplug(port, true);
+	port_unplug(port);
 
 	ret = rte_eth_dev_info_get(port_id, &info);
 	if (ret == 0)
@@ -51,7 +54,6 @@ int port_destroy(uint16_t port_id, struct port *port) {
 
 #define BR_MAX_BURST_SIZE 32
 #define MBUF_CACHE_SIZE 256
-#define qsize(info, type)
 
 static uint16_t rx_size(struct rte_eth_dev_info *info) {
 	uint16_t size = info->default_rxportconf.ring_size;
@@ -70,22 +72,28 @@ static uint16_t tx_size(struct rte_eth_dev_info *info) {
 }
 
 int port_reconfig(struct port *p, uint16_t n_rxq) {
+	int socket_id = rte_eth_dev_socket_id(p->port_id);
 	struct rte_eth_conf conf = default_port_config;
+	struct worker *worker, *default_worker = NULL;
 	struct rte_eth_dev_info info;
+	uint16_t n_txq, txq;
 	char pool_name[128];
 	uint32_t mbuf_count;
-	uint16_t n_txq;
+	uint64_t rxq_ids;
 	int ret;
+
+	// ensure there is a datapath worker running on the socket where the port is
+	if ((ret = worker_ensure_default(socket_id)) < 0)
+		return ret;
 
 	// FIXME: deal with drivers that do not support more than 1 (or N) tx queues
 	n_txq = worker_count();
-	if (n_txq == 0) {
-		// no worker created yet, it will be spawned when the port is plugged
-		n_txq = 1;
-	}
 
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return ret;
+
+	if (n_rxq == 0)
+		n_rxq = info.nb_rx_queues;
 
 	if ((ret = rte_eth_dev_stop(p->port_id)) < 0) {
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
@@ -107,13 +115,6 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		return ret;
 	}
 
-#if 0
-	if ((ret = rte_eth_promiscuous_enable(p->port_id)) < 0) {
-		LOG(ERR, "rte_eth_promiscuous_enable: %s", rte_strerror(-ret));
-		return ret;
-	}
-#endif
-
 	mbuf_count = rx_size(&info) * n_rxq;
 	mbuf_count += tx_size(&info) * n_txq;
 	mbuf_count += BR_MAX_BURST_SIZE;
@@ -125,13 +126,14 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		MBUF_CACHE_SIZE,
 		0, // priv_size
 		RTE_MBUF_DEFAULT_BUF_SIZE,
-		rte_eth_dev_socket_id(p->port_id)
+		socket_id
 	);
 	if (p->pool == NULL) {
 		LOG(ERR, "rte_pktmbuf_pool_create: %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
 
+	// initialize rx/tx queues
 	for (size_t q = 0; q < n_rxq; q++) {
 		if ((ret = rte_eth_rx_queue_setup(p->port_id, q, 0, 0, NULL, p->pool)) < 0) {
 			LOG(ERR, "rte_eth_rx_queue_setup: %s", rte_strerror(-ret));
@@ -144,6 +146,63 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 			return ret;
 		}
 	}
+
+	// update queue/worker mapping
+	txq = 0;
+	rxq_ids = 0; // XXX: can we assume there will never be more than 64 rxqs per port?
+	LIST_FOREACH (worker, &workers, next) {
+		struct queue_map tx_qmap = {
+			.port_id = p->port_id,
+			.queue_id = txq,
+			.enabled = false,
+		};
+		for (int i = 0; i < arrlen(worker->txqs); i++) {
+			if (worker->txqs[i].port_id == p->port_id) {
+				// ensure no duplicates
+				arrdelswap(worker->txqs, i);
+				i--;
+			}
+		}
+		// assign one txq to every worker
+		arrpush(worker->txqs, tx_qmap);
+		LOG(DEBUG, "port %d txq %d <- cpu %d", p->port_id, txq, worker->cpu_id);
+		txq++;
+
+		for (int i = 0; i < arrlen(worker->rxqs); i++) {
+			struct queue_map *qmap = &worker->rxqs[i];
+			if (qmap->port_id == p->port_id) {
+				if (qmap->queue_id < n_rxq) {
+					// rxq already assigned to a worker
+					LOG(DEBUG,
+					    "port %d rxq %d -> cpu %d",
+					    p->port_id,
+					    qmap->queue_id,
+					    worker->cpu_id);
+					rxq_ids |= 1 << qmap->queue_id;
+				} else {
+					// remove extraneous rxq
+					arrdelswap(worker->rxqs, i);
+					i--;
+				}
+			}
+		}
+		if (socket_id == SOCKET_ID_ANY || socket_id == numa_node_of_cpu(worker->cpu_id)) {
+			default_worker = worker;
+		}
+	}
+	assert(default_worker != NULL);
+	for (uint16_t rxq = 0; rxq < n_rxq; rxq++) {
+		if (rxq_ids & (1 << rxq))
+			continue;
+		struct queue_map rx_qmap = {
+			.port_id = p->port_id,
+			.queue_id = rxq,
+			.enabled = false,
+		};
+		arrpush(default_worker->rxqs, rx_qmap);
+		LOG(DEBUG, "port %d rxq %d -> cpu %d", p->port_id, rxq, default_worker->cpu_id);
+	}
+
 	if ((ret = rte_eth_dev_start(p->port_id)) < 0) {
 		LOG(ERR, "rte_eth_dev_start: %s", rte_strerror(-ret));
 		return ret;

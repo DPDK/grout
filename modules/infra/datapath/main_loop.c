@@ -50,20 +50,32 @@ void *br_datapath_loop(void *priv) {
 	uint32_t sleep;
 	char name[16];
 
+#define log(lvl, fmt, ...) LOG(lvl, "[CPU %d] " fmt, w->cpu_id __VA_OPT__(, ) __VA_ARGS__)
+
 	w->tid = rte_gettid();
 
-	LOG(INFO, "[%d] starting", w->tid);
+	log(NOTICE, "starting tid=%d", w->tid);
 
 	if (rte_thread_register() < 0) {
-		LOG(ERR, "[%d] rte_thread_register: %s", w->tid, rte_strerror(rte_errno));
+		log(ERR, "rte_thread_register: %s", rte_strerror(rte_errno));
+		return NULL;
+	}
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(w->cpu_id, &cpuset);
+	if (rte_thread_set_affinity(&cpuset) < 0) {
+		log(ERR, "rte_thread_set_affinity: %s", rte_strerror(rte_errno));
 		return NULL;
 	}
 
 	w->lcore_id = rte_lcore_id();
-	snprintf(name, 15, "datapath-%u", w->lcore_id);
-	pthread_setname_np(pthread_self(), name);
+	snprintf(name, 15, "datapath-%d", w->cpu_id);
+	if (pthread_setname_np(pthread_self(), name)) {
+		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
+		return NULL;
+	}
 
-	LOG(INFO, "[%d] lcore_id = %u", w->tid, w->lcore_id);
+	log(INFO, "lcore_id = %d", w->lcore_id);
 
 	_Static_assert(atomic_is_lock_free(&w->shutdown));
 	_Static_assert(atomic_is_lock_free(&w->cur_config));
@@ -84,10 +96,6 @@ reconfig:
 		goto reconfig;
 	}
 
-	CPU_ZERO(&cpuset);
-	CPU_SET(w->cpu_id, &cpuset);
-	rte_thread_set_affinity(&cpuset);
-
 	graph_names[0] = config->graph->name;
 	memset(&stats_param, 0, sizeof(stats_param));
 	stats_param.socket_id = config->graph->socket;
@@ -99,7 +107,7 @@ reconfig:
 
 	br_modules_dp_init();
 
-	LOG(INFO, "[%d] reconfigured", w->tid);
+	log(INFO, "reconfigured");
 
 	loop = 0;
 	sleep = 0;
@@ -125,7 +133,7 @@ reconfig:
 	}
 
 shutdown:
-	LOG(INFO, "[%d] shutting down", w->tid);
+	log(NOTICE, "shutting down tid=%d", w->tid);
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
 

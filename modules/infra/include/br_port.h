@@ -12,6 +12,7 @@
 struct port {
 	LIST_ENTRY(port) next;
 	uint16_t port_id;
+	uint16_t n_rxq;
 	uint16_t burst;
 	struct rte_mempool *pool;
 };

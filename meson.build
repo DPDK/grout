@@ -37,6 +37,7 @@ dpdk_dep = dependency(
 )
 
 event_dep = dependency('libevent')
+numa_dep = dependency('numa')
 ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
 
 src = []
@@ -70,7 +71,7 @@ executable(
     # required for rte_graph
     '-DALLOW_EXPERIMENTAL_API',
   ],
-  dependencies: [dpdk_dep, event_dep],
+  dependencies: [dpdk_dep, event_dep, numa_dep],
   install: true,
 )
 

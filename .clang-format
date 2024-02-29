@@ -93,7 +93,7 @@ IncludeCategories:
     Priority:        -1
   - Regex:           '^<(br_|br/)'
     Priority:        100
-  - Regex:           '^<(rte_|event|ecoli|stb_)'
+  - Regex:           '^<(rte_|event|ecoli|stb_|numa.h)'
     Priority:        500
   - Regex:           '^<'
     Priority:        10000
