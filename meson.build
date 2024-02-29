@@ -50,7 +50,7 @@ cli_src = []
 cli_inc = []
 
 subdir('lib')
-subdir('core')
+subdir('main')
 subdir('modules')
 subdir('cli')
 

@@ -22,7 +22,7 @@ $(builddir)/build.ninja:
 	meson setup $(builddir)
 
 prune = -path $1 -prune -o
-exclude = $(builddir) subprojects LICENSE .git README.md core/include/stb_ds.h
+exclude = $(builddir) subprojects LICENSE .git README.md main/include/stb_ds.h
 c_src = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print`
 all_files = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -print`
 
