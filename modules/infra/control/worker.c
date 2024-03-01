@@ -84,7 +84,7 @@ stop:
 
 	rte_free(worker);
 
-	LOG(INFO, "worker %u destroyed", worker->cpu_id);
+	LOG(INFO, "worker %u destroyed", cpu_id);
 	return 0;
 }
 
