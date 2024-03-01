@@ -32,7 +32,7 @@ int dpdk_init(struct boring_router *br) {
 		arrpush(eal_args, "--no-shconf");
 		arrpush(eal_args, "--no-huge");
 		arrpush(eal_args, "-m");
-		arrpush(eal_args, "256");
+		arrpush(eal_args, "1024");
 	} else {
 		arrpush(eal_args, "--in-memory");
 	}
