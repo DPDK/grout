@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2024 Robin Jarry
+
+#include <br_string.h>
+
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char *br_astrcat(char *buf, const char *fmt, ...) {
+	char *ret = NULL;
+	va_list ap;
+	int n;
+
+	if (fmt == NULL) {
+		errno = EINVAL;
+		goto out;
+	}
+
+	va_start(ap, fmt);
+	if ((n = vasprintf(&ret, fmt, ap)) < 0) {
+		ret = NULL;
+		goto out;
+	}
+	va_end(ap);
+
+	if (buf != NULL) {
+		int buf_len = strlen(buf);
+		char *tmp = malloc(buf_len + n + 1);
+		if (tmp == NULL) {
+			free(ret);
+			ret = NULL;
+			goto out;
+		}
+		memcpy(tmp, buf, buf_len);
+		memcpy(tmp + buf_len, ret, n + 1);
+		free(buf);
+		free(ret);
+		ret = tmp;
+	}
+out:
+	return ret;
+}

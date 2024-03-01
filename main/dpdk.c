@@ -6,6 +6,7 @@
 
 #include <br_api.h>
 #include <br_log.h>
+#include <br_stb_ds.h>
 
 #include <rte_eal.h>
 #include <rte_errno.h>
@@ -18,51 +19,48 @@
 int br_rte_log_type;
 
 int dpdk_init(struct boring_router *br) {
-	int argc = 0, n = 0;
-	char buf[BUFSIZ];
-	char *argv[32];
+	char **eal_args = NULL;
+	int ret = -1;
 
-#define eal_arg(arg)                                                                               \
-	do {                                                                                       \
-		if (argc > 0)                                                                      \
-			n += snprintf(buf + n, sizeof(buf) - n, " %s", arg);                       \
-		argv[argc++] = arg;                                                                \
-	} while (0)
-
-	eal_arg("br");
-	eal_arg("-l");
-	eal_arg("0");
-	eal_arg("-a");
-	eal_arg("0000:00:00.0");
+	arrpush(eal_args, "");
+	arrpush(eal_args, "-l");
+	arrpush(eal_args, "0");
+	arrpush(eal_args, "-a");
+	arrpush(eal_args, "0000:00:00.0");
 
 	if (br->test_mode) {
-		eal_arg("--no-shconf");
-		eal_arg("--no-huge");
-		eal_arg("-m");
-		eal_arg("256");
+		arrpush(eal_args, "--no-shconf");
+		arrpush(eal_args, "--no-huge");
+		arrpush(eal_args, "-m");
+		arrpush(eal_args, "256");
 	} else {
-		eal_arg("--in-memory");
+		arrpush(eal_args, "--in-memory");
 	}
 	if (br->log_level >= RTE_LOG_DEBUG) {
-		eal_arg("--log-level=*:debug");
+		arrpush(eal_args, "--log-level=*:debug");
 	} else if (br->log_level >= RTE_LOG_INFO) {
-		eal_arg("--log-level=*:info");
+		arrpush(eal_args, "--log-level=*:info");
 	} else {
-		eal_arg("--log-level=*:notice");
+		arrpush(eal_args, "--log-level=*:notice");
 	}
 
 	LOG(INFO, "DPDK version: %s", rte_version());
 
 	br_rte_log_type = rte_log_register_type_and_pick_level("br", RTE_LOG_INFO);
 	if (br_rte_log_type < 0)
-		return -1;
+		goto end;
 
+	char *buf = arrjoin(eal_args, " ");
 	LOG(INFO, "EAL arguments:%s", buf);
+	free(buf);
 
-	if (rte_eal_init(argc, argv) < 0)
-		return -1;
+	if (rte_eal_init(arrlen(eal_args), eal_args) < 0)
+		goto end;
 
-	return 0;
+	ret = 0;
+end:
+	arrfree(eal_args);
+	return ret;
 }
 
 void dpdk_fini(void) {
