@@ -242,7 +242,7 @@ send:
 	return;
 
 retry_send:
-	write_ev = event_new(ev_base, sock, EV_WRITE, api_write_cb, resp);
+	write_ev = event_new(ev_base, sock, EV_WRITE | EV_FINALIZE, api_write_cb, resp);
 	if (write_ev == NULL || event_add(write_ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (write_ev != NULL)
@@ -275,7 +275,7 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	LOG(DEBUG, "new connection");
 
-	ev = event_new(ev_base, fd, EV_READ | EV_PERSIST, api_read_cb, NULL);
+	ev = event_new(ev_base, fd, EV_READ | EV_PERSIST | EV_FINALIZE, api_read_cb, NULL);
 	if (ev == NULL || event_add(ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (ev != NULL)
@@ -288,7 +288,6 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 static int listen_api_socket(void) {
 	struct sockaddr_un addr = {.sun_family = AF_UNIX};
-	struct event *ev_listen;
 	int fd;
 
 	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -311,7 +310,9 @@ static int listen_api_socket(void) {
 		return -1;
 	}
 
-	ev_listen = event_new(ev_base, fd, EV_READ | EV_WRITE | EV_PERSIST, listen_cb, NULL);
+	ev_listen = event_new(
+		ev_base, fd, EV_READ | EV_WRITE | EV_PERSIST | EV_FINALIZE, listen_cb, NULL
+	);
 	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
 		close(fd);
 		LOG(ERR, "event_new: %s: %s", br.api_sock_path, strerror(errno));
