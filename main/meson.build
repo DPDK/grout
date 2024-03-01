@@ -6,7 +6,6 @@ src += files(
   'dpdk.c',
   'main.c',
   'signals.c',
-  'corelist.c',
   'stb_ds_impl.c',
   'string.c',
 )

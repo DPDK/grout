@@ -39,8 +39,6 @@ static void usage(const char *prog) {
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
 	puts("                             Default: BR_SOCK_PATH from env or");
 	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
-	puts("  -c CORES, --cores CORES    Datapath cores (comma separated");
-	puts("                             CPU list and/or masks).");
 }
 
 static struct boring_router br;
@@ -50,10 +48,9 @@ static struct event *ev_listen;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":s:c:htv"
+#define FLAGS ":s:htv"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
-		{"cores", required_argument, NULL, 'c'},
 		{"help", no_argument, NULL, 'h'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"verbose", no_argument, NULL, 'v'},
@@ -69,18 +66,6 @@ static int parse_args(int argc, char **argv) {
 		switch (c) {
 		case 's':
 			br.api_sock_path = optarg;
-			break;
-		case 'c':
-			if (parse_cpu_list(optarg, &br.cores) < 0) {
-				fprintf(stderr, "error: -c %s: %s", optarg, strerror(errno));
-				return -1;
-			}
-			if (CPU_ISSET(0, &br.cores)) {
-				fprintf(stderr, "error: -c %s: cpu 0 is reserved", optarg);
-				return -1;
-			} else if (CPU_COUNT(&br.cores) == 0) {
-				CPU_SET(1, &br.cores);
-			}
 			break;
 		case 't':
 			br.test_mode = true;
