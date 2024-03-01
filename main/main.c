@@ -43,7 +43,6 @@ static void usage(const char *prog) {
 
 static struct boring_router br;
 static struct event_base *ev_base;
-static struct event *ev_listen;
 
 static int parse_args(int argc, char **argv) {
 	int c;
@@ -100,7 +99,7 @@ end:
 	return 0;
 }
 
-static void event_fd_close(struct event *ev, void *priv) {
+static void finalize_close_fd(struct event *ev, void *priv) {
 	(void)priv;
 	close(event_get_fd(ev));
 }
@@ -157,8 +156,10 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct api_out out;
 	ssize_t len;
 
-	(void)what;
 	(void)ctx;
+
+	if (what & EV_CLOSED)
+		goto close;
 
 	if ((len = recv(sock, &req, sizeof(req), MSG_DONTWAIT)) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -241,15 +242,20 @@ close:
 	free(req_payload);
 	free(resp);
 	if (ev != NULL)
-		event_free_finalize(0, ev, event_fd_close);
+		event_free_finalize(0, ev, finalize_close_fd);
 }
 
 static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev;
 	int fd;
 
-	(void)what;
 	(void)ctx;
+
+	if (what & EV_CLOSED) {
+		ev = event_base_get_running_event(ev_base);
+		event_free_finalize(0, ev, finalize_close_fd);
+		return;
+	}
 
 	if ((fd = accept4(sock, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC)) < 0) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -260,7 +266,9 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 	LOG(DEBUG, "new connection");
 
-	ev = event_new(ev_base, fd, EV_READ | EV_PERSIST | EV_FINALIZE, api_read_cb, NULL);
+	ev = event_new(
+		ev_base, fd, EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE, api_read_cb, NULL
+	);
 	if (ev == NULL || event_add(ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (ev != NULL)
@@ -273,6 +281,7 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 
 static int listen_api_socket(void) {
 	struct sockaddr_un addr = {.sun_family = AF_UNIX};
+	struct event *ev_listen;
 	int fd;
 
 	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -296,7 +305,11 @@ static int listen_api_socket(void) {
 	}
 
 	ev_listen = event_new(
-		ev_base, fd, EV_READ | EV_WRITE | EV_PERSIST | EV_FINALIZE, listen_cb, NULL
+		ev_base,
+		fd,
+		EV_READ | EV_WRITE | EV_CLOSED | EV_PERSIST | EV_FINALIZE,
+		listen_cb,
+		NULL
 	);
 	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
 		close(fd);
@@ -337,8 +350,6 @@ int main(int argc, char **argv) {
 
 end:
 	unregister_signals();
-	if (ev_listen)
-		event_free_finalize(0, ev_listen, event_fd_close);
 	if (ev_base)
 		event_base_free(ev_base);
 	unlink(br.api_sock_path);

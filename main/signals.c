@@ -10,6 +10,13 @@
 #include <signal.h>
 #include <string.h>
 
+static int close_fds(const struct event_base *base, const struct event *ev, void *priv) {
+	(void)base;
+	(void)priv;
+	close(event_get_fd(ev));
+	return 0;
+}
+
 static void signal_cb(evutil_socket_t sig, short what, void *priv) {
 	struct event_base *base = priv;
 
@@ -23,6 +30,7 @@ static void signal_cb(evutil_socket_t sig, short what, void *priv) {
 		// ignore
 		break;
 	default:
+		event_base_foreach_event(base, close_fds, NULL);
 		event_base_loopexit(base, NULL);
 	}
 }
