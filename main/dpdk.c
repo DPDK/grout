@@ -8,6 +8,7 @@
 #include <br_log.h>
 #include <br_stb_ds.h>
 
+#include <numa.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
 #include <rte_log.h>
@@ -19,12 +20,25 @@
 int br_rte_log_type;
 
 int dpdk_init(struct boring_router *br) {
+	char main_lcore[32] = {0};
 	char **eal_args = NULL;
 	int ret = -1;
 
+	for (unsigned cpu = 0; cpu < numa_all_cpus_ptr->size; cpu++) {
+		if (numa_bitmask_isbitset(numa_all_cpus_ptr, cpu)) {
+			// use the first available CPU as main lcore
+			snprintf(main_lcore, sizeof(main_lcore), "%u", cpu);
+			break;
+		}
+	}
+	if (main_lcore[0] == '\0') {
+		LOG(ERR, "no CPU found as main lcore");
+		goto end;
+	}
+
 	arrpush(eal_args, "");
 	arrpush(eal_args, "-l");
-	arrpush(eal_args, "0");
+	arrpush(eal_args, main_lcore);
 	arrpush(eal_args, "-a");
 	arrpush(eal_args, "0000:00:00.0");
 

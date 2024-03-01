@@ -14,7 +14,9 @@
 #include <br_stb_ds.h>
 #include <br_worker.h>
 
+#include <numa.h>
 #include <rte_ethdev.h>
+#include <rte_lcore.h>
 
 #include <errno.h>
 #include <unistd.h>
@@ -61,6 +63,11 @@ static struct api_out rxq_set(const void *request, void **response) {
 	int ret;
 
 	(void)response;
+
+	if (req->cpu_id == rte_get_main_lcore())
+		return api_out(EBUSY, 0);
+	if (!numa_bitmask_isbitset(numa_all_cpus_ptr, req->cpu_id))
+		return api_out(ERANGE, 0);
 
 	LIST_FOREACH (src_worker, &workers, next) {
 		arrforeach (qmap, src_worker->rxqs) {

@@ -130,6 +130,7 @@ int port_unplug(const struct port *port) {
 }
 
 int worker_ensure_default(int socket_id) {
+	unsigned main_lcore = rte_get_main_lcore();
 	struct bitmask *mask = NULL;
 	struct worker *worker;
 
@@ -147,9 +148,9 @@ int worker_ensure_default(int socket_id) {
 	if (numa_node_to_cpus(socket_id, mask) < 0)
 		goto fail;
 
-	// CPU 0 is reserved for the main lcore and cannot be assigned to a datapath worker.
-	for (unsigned cpu_id = 1; cpu_id < mask->size; cpu_id++) {
-		if (numa_bitmask_isbitset(mask, cpu_id)) {
+	// never spawn workers on the main lcore
+	for (unsigned cpu_id = 0; cpu_id < mask->size; cpu_id++) {
+		if (cpu_id != main_lcore && numa_bitmask_isbitset(mask, cpu_id)) {
 			numa_free_cpumask(mask);
 			return worker_create(cpu_id);
 		}
