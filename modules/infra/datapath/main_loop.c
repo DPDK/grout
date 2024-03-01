@@ -19,8 +19,8 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-#define MAX_SLEEP_MS 500
-#define INC_SLEEP_MS 50
+#define MAX_SLEEP_US 500
+#define INC_SLEEP_US 50
 
 static int update_object_count(
 	bool is_first,
@@ -123,7 +123,7 @@ reconfig:
 			counter = 0;
 			rte_graph_cluster_stats_get(stats, false);
 			if (counter == 0) {
-				sleep = sleep == MAX_SLEEP_MS ? sleep : (sleep + INC_SLEEP_MS);
+				sleep = sleep == MAX_SLEEP_US ? sleep : (sleep + INC_SLEEP_US);
 				usleep(sleep);
 			} else {
 				sleep = 0;
