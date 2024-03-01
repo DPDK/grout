@@ -165,7 +165,6 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		}
 		// assign one txq to every worker
 		arrpush(worker->txqs, tx_qmap);
-		LOG(DEBUG, "port %d txq %d <- cpu %d", p->port_id, txq, worker->cpu_id);
 		txq++;
 
 		for (int i = 0; i < arrlen(worker->rxqs); i++) {
@@ -173,11 +172,6 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 			if (qmap->port_id == p->port_id) {
 				if (qmap->queue_id < n_rxq) {
 					// rxq already assigned to a worker
-					LOG(DEBUG,
-					    "port %d rxq %d -> cpu %d",
-					    p->port_id,
-					    qmap->queue_id,
-					    worker->cpu_id);
 					rxq_ids |= 1 << qmap->queue_id;
 				} else {
 					// remove extraneous rxq
@@ -200,7 +194,6 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 			.enabled = false,
 		};
 		arrpush(default_worker->rxqs, rx_qmap);
-		LOG(DEBUG, "port %d rxq %d -> cpu %d", p->port_id, rxq, default_worker->cpu_id);
 	}
 
 	if ((ret = rte_eth_dev_start(p->port_id)) < 0) {

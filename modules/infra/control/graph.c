@@ -136,6 +136,11 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	arrforeach (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
+		LOG(DEBUG,
+		    "[CPU %d] <- port %u rxq %u",
+		    worker->cpu_id,
+		    qmap->port_id,
+		    qmap->queue_id);
 		rx->queues[n_rxqs].port_id = qmap->port_id;
 		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
 		rx->queues[n_rxqs].burst = port_get_burst_size(qmap->port_id);
@@ -156,8 +161,14 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	memset(tx, 0, sizeof(*tx));
-	arrforeach (qmap, worker->txqs)
+	arrforeach (qmap, worker->txqs) {
+		LOG(DEBUG,
+		    "[CPU %d] -> port %u txq %u",
+		    worker->cpu_id,
+		    qmap->port_id,
+		    qmap->queue_id);
 		tx->txq_ids[qmap->port_id] = qmap->queue_id;
+	}
 	if (br_node_data_set(name, "tx", tx) < 0) {
 		if (rte_errno == 0)
 			rte_errno = EINVAL;
