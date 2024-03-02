@@ -7,14 +7,11 @@
 - graph statistics
 - routing table: handle live modification while traffic is running
 - worker management
-- no more unique node names per graph DONE
-- hash map with node data per graph name DONE
 - register system for nodes to plug themselves into the graph DONE'ish
 - select TX (vhost-user)? (dispatch graph mode or special node)
 
 ### Dataplane
 
-- proper CPU pinning
 - packet classifier node: vector optimization
 - ip lookup node: vector optimization
 - ip rewrite node: vector optimization
