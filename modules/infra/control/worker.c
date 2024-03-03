@@ -64,27 +64,24 @@ err:
 }
 
 int worker_destroy(int cpu_id) {
-	struct worker *worker;
+	struct worker *worker = worker_find(cpu_id);
 
-	LIST_FOREACH (worker, &workers, next) {
-		if (worker->cpu_id == cpu_id) {
-			goto stop;
-		}
+	if (worker == NULL) {
+		errno = ENOENT;
+		return -1;
 	}
-	errno = EEXIST;
-	return -1;
-
-stop:
 	LIST_REMOVE(worker, next);
 
 	atomic_store_explicit(&worker->shutdown, true, memory_order_release);
 	pthread_join(worker->thread, NULL);
 
 	// XXX: destroy graphs
-
+	worker_graph_free(worker);
+	arrfree(worker->rxqs);
+	arrfree(worker->txqs);
 	rte_free(worker);
 
-	LOG(INFO, "worker %u destroyed", cpu_id);
+	LOG(INFO, "worker %d destroyed", cpu_id);
 	return 0;
 }
 

@@ -60,6 +60,7 @@ static struct api_out rxq_set(const void *request, void **response) {
 	const struct br_infra_rxq_set_req *req = request;
 	struct worker *src_worker, *dst_worker;
 	struct queue_map *qmap;
+	size_t n_workers;
 	int ret;
 
 	(void)response;
@@ -84,24 +85,7 @@ static struct api_out rxq_set(const void *request, void **response) {
 	}
 	return api_out(ENODEV, 0);
 dest:
-	dst_worker = worker_find(req->cpu_id);
-	if (dst_worker == NULL) {
-		// no worker assigned to this cpu id yet, create one
-		if (worker_create(req->cpu_id) < 0)
-			return api_out(errno, 0);
-		dst_worker = worker_find(req->cpu_id);
-
-		struct port *port;
-		// one more worker, need to reconfigure all ports to update tx queues
-		LIST_FOREACH (port, &ports, next) {
-			if ((ret = port_unplug(port)) < 0)
-				return api_out(-ret, 0);
-			if ((ret = port_reconfig(port, 0)) < 0)
-				return api_out(-ret, 0);
-			if ((ret = port_plug(port)) < 0)
-				return api_out(-ret, 0);
-		}
-	}
+	n_workers = worker_count();
 
 	// unassign from src_worker
 	for (int i = 0; i < arrlen(src_worker->rxqs); i++) {
@@ -112,6 +96,31 @@ dest:
 			continue;
 		arrdelswap(src_worker->rxqs, i);
 		break;
+	}
+	if (arrlen(src_worker->rxqs) == 0) {
+		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
+			return api_out(-errno, 0);
+	}
+
+	dst_worker = worker_find(req->cpu_id);
+	if (dst_worker == NULL) {
+		// no worker assigned to this cpu id yet, create one
+		if (worker_create(req->cpu_id) < 0)
+			return api_out(errno, 0);
+		dst_worker = worker_find(req->cpu_id);
+	}
+
+	if (worker_count() != n_workers) {
+		struct port *port;
+		// number of workers changed, adjust number of tx queues
+		LIST_FOREACH (port, &ports, next) {
+			if ((ret = port_unplug(port)) < 0)
+				return api_out(-ret, 0);
+			if ((ret = port_reconfig(port, 0)) < 0)
+				return api_out(-ret, 0);
+			if ((ret = port_plug(port)) < 0)
+				return api_out(-ret, 0);
+		}
 	}
 
 	// assign to dst_worker

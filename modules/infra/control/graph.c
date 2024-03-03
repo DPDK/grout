@@ -101,6 +101,18 @@ static void node_data_reset(const char *graph) {
 	}
 }
 
+void worker_graph_free(struct worker *worker) {
+	int ret;
+	for (int i = 0; i < 2; i++) {
+		if (worker->config[i].graph != NULL) {
+			node_data_reset(worker->config[i].graph->name);
+			if ((ret = rte_graph_destroy(worker->config[i].graph->id)) < 0)
+				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
+			worker->config[i].graph = NULL;
+		}
+	}
+}
+
 static int worker_graph_new(struct worker *worker, uint8_t index) {
 	struct rx_node_queues *rx = NULL;
 	struct tx_node_queues *tx = NULL;

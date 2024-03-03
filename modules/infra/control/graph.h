@@ -7,5 +7,6 @@
 #include <br_worker.h>
 
 int worker_graph_reload_all(void);
+void worker_graph_free(struct worker *);
 
 #endif

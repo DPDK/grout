@@ -6,7 +6,6 @@
 
 - graph statistics
 - routing table: handle live modification while traffic is running
-- worker management
 - register system for nodes to plug themselves into the graph DONE'ish
 - select TX (vhost-user)? (dispatch graph mode or special node)
 

@@ -6,6 +6,7 @@
 
 #include <br_control.h>
 #include <br_log.h>
+#include <br_queue.h>
 #include <br_stb_ds.h>
 #include <br_worker.h>
 
@@ -15,8 +16,6 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
-
-#include <sys/queue.h>
 
 static struct rte_eth_conf default_port_config = {
 	.rx_adv_conf = {
@@ -29,6 +28,8 @@ static struct rte_eth_conf default_port_config = {
 
 int port_destroy(uint16_t port_id, struct port *port) {
 	struct rte_eth_dev_info info;
+	struct worker *worker, *tmp;
+	size_t n_workers;
 	int ret;
 
 	port_unplug(port);
@@ -46,9 +47,33 @@ int port_destroy(uint16_t port_id, struct port *port) {
 		LIST_REMOVE(port, next);
 		rte_free(port);
 	}
+	if (ret != 0)
+		return ret;
 
 	LOG(INFO, "port %u destroyed", port_id);
 
+	LIST_FOREACH_SAFE (worker, &workers, next, tmp) {
+		for (int i = 0; i < arrlen(worker->rxqs); i++) {
+			if (worker->rxqs[i].port_id == port_id) {
+				arrdelswap(worker->rxqs, i);
+				i--;
+			}
+		}
+		if (arrlen(worker->rxqs) == 0)
+			worker_destroy(worker->cpu_id);
+	}
+	n_workers = worker_count();
+	if (worker_count() != n_workers) {
+		LIST_FOREACH (port, &ports, next) {
+			if ((ret = port_unplug(port)) < 0)
+				goto out;
+			if ((ret = port_reconfig(port, 0)) < 0)
+				goto out;
+			if ((ret = port_plug(port)) < 0)
+				goto out;
+		}
+	}
+out:
 	return ret;
 }
 
