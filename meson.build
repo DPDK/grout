@@ -8,10 +8,10 @@ project(
   license: 'BSD-3-Clause',
   meson_version: '>= 0.63.0',
   default_options: [
-    'buildtype=debug',
+    'buildtype=debugoptimized',
     'c_std=gnu2x',
-    'werror=true',
-    'warning_level=2',
+    'werror=false',
+    'warning_level=1',
   ],
 )
 
@@ -50,6 +50,8 @@ api_headers = []
 cli_src = []
 cli_inc = []
 
+tests = []
+
 subdir('lib')
 subdir('main')
 subdir('modules')
@@ -82,3 +84,18 @@ executable(
   link_with: libbr,
   install: true,
 )
+
+fs = import('fs')
+cmocka_dep = dependency('cmocka')
+
+foreach t : tests
+  name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
+  t += {
+    'sources': t['sources'] + files('main/stb_ds_impl.c', 'main/string.c'),
+    'include_directories': inc + lib_inc + cli_inc,
+    'c_args': ['-coverage'],
+    'link_args': t['link_args'] + ['-lgcov'],
+    'dependencies': [dpdk_dep, event_dep, numa_dep, ecoli_dep, cmocka_dep],
+  }
+  test(name, executable(name, kwargs: t))
+endforeach

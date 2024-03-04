@@ -81,7 +81,7 @@ static struct api_out port_add(const void *request, void **response) {
 	if (!rte_eth_dev_is_valid_port(port_id))
 		return api_out(ENOENT, 0);
 
-	port = rte_zmalloc("port", sizeof(*port), 0);
+	port = calloc(1, sizeof(*port));
 	if (port == NULL) {
 		port_destroy(port_id, NULL);
 		return api_out(ENOMEM, 0);

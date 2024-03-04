@@ -45,7 +45,7 @@ int port_destroy(uint16_t port_id, struct port *port) {
 		rte_mempool_free(port->pool);
 		port->pool = NULL;
 		LIST_REMOVE(port, next);
-		rte_free(port);
+		free(port);
 	}
 	if (ret != 0)
 		return ret;

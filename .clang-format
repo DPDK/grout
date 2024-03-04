@@ -95,6 +95,8 @@ IncludeCategories:
     Priority:        100
   - Regex:           '^<(rte_|event|ecoli|stb_|numa.h)'
     Priority:        500
+  - Regex:           '^<cmocka'
+    Priority:        100000
   - Regex:           '^<'
     Priority:        10000
 IncludeIsMainRegex: '(Test)?$'

@@ -13,7 +13,13 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           dnf install -y \
-            make gcc ninja-build meson clang-tools-extra \
-            python3-pyelftools libevent-devel libedit-devel numactl-devel git
+            make gcc ninja-build meson clang-tools-extra git gcovr \
+            libasan \
+            libcmocka-devel \
+            libedit-devel \
+            libevent-devel \
+            numactl-devel \
+            python3-pyelftools
       - run: make
       - run: make lint
+      - run: make coverage
