@@ -17,16 +17,21 @@
 
 ## DPDK API GRUDGES
 
-### graph dynamic reconfig
-
-- no way to pass node context data with `rte_graph_create`
-- need to generate unique node names manually
-- no way to free nodes after they have been created
-
 ### node
 
+- ideally, we would need a generic way to pass node context data agnostic of
+  the control plane implementation. Maybe using a global rte_hash with
+  a well-known name that can be referenced from the node init callbacks.
+- node context data is a 16 bytes array. When storing pointers (2 pointers max)
+  it requires obscure casting that is error prone.
+- `rx`: tightly coupled with graph layout generation (multiple rx/tx nodes on
+  a single graph).
 - `ethdev_tx`: tx queue id is initialized to `graph_id` ???
-- `ip_lookup`: global lpm variable, no way to do dynamic reconfig
+- `ip_lookup`: global lpm variable, no way to do dynamic reconfig. No way to
+  use fib.
+- `ip_rewrite`: high complexity due to multiple tx nodes per graph (also not
+  flexible with other graph layouts).
+- `classify`: add generic api without hard coded next nodes.
 
 ### fib
 
@@ -34,3 +39,4 @@
   hiding this in the API)
 - no api to list all configured routes
 - is it ok to modify the fib while performing lookups in parallel?
+- missing neon vector code for dir24 and trie.
