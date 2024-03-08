@@ -33,7 +33,6 @@ install: $(builddir)/build.ninja
 	$Q ninja -C $(builddir) install $(ninja_opts)
 
 meson_opts = \
-	--reconfigure \
 	--buildtype=debug \
 	--werror \
 	--warnlevel=2 \
