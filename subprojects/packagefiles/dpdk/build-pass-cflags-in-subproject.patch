@@ -1,0 +1,48 @@
+From 6a724e94fd49eec171ad5828a6f775b27fc5e34c Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Mon, 29 Jan 2024 13:47:17 +0100
+Subject: [PATCH] build: pass cflags in subproject
+
+When DPDK is used as a subproject, include the required compile
+arguments so that the parent project is also built with the appropriate
+cflags (most importantly -march). Use the same cflags as pkg-config.
+
+Fixes: f93a605f2d6e ("build: add definitions for use as Meson subproject")
+Cc: stable@dpdk.org
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ buildtools/subproject/meson.build | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/buildtools/subproject/meson.build b/buildtools/subproject/meson.build
+index 322e01c02969..203c5d36c6e9 100644
+--- a/buildtools/subproject/meson.build
++++ b/buildtools/subproject/meson.build
+@@ -2,10 +2,15 @@
+ # Copyright(c) 2022 Intel Corporation
+ 
+ message('DPDK subproject linking: ' + get_option('default_library'))
++subproject_cflags = ['-include', 'rte_config.h'] + machine_args
++if is_freebsd
++    subproject_cflags += ['-D__BSD_VISIBLE']
++endif
+ if get_option('default_library') == 'static'
+     dpdk_dep = declare_dependency(
+             version: meson.project_version(),
+             dependencies: dpdk_static_lib_deps,
++            compile_args: subproject_cflags,
+             # static library deps in DPDK build don't include "link_with" parameters,
+             # so explicitly link-in both libs and drivers
+             link_whole: dpdk_static_libraries + dpdk_drivers,
+@@ -13,6 +18,7 @@ if get_option('default_library') == 'static'
+ else
+     dpdk_dep = declare_dependency(
+             version: meson.project_version(),
++            compile_args: subproject_cflags,
+             # shared library deps include all necessary linking parameters
+             dependencies: dpdk_shared_lib_deps)
+ endif
+-- 
+2.44.0
+
