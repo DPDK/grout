@@ -68,10 +68,6 @@ install_headers(api_headers, subdir: 'br')
 executable(
   'br', src,
   include_directories: inc,
-  c_args: [
-    # required for rte_graph
-    '-DALLOW_EXPERIMENTAL_API',
-  ],
   dependencies: [dpdk_dep, event_dep, numa_dep],
   install: true,
 )
