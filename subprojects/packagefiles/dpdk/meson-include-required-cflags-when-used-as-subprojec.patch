@@ -1,0 +1,25 @@
+From 3d3bf16dbb2d968fafc3ed0d0d9412f7dfc3b444 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <robin@jarry.cc>
+Date: Fri, 8 Mar 2024 11:23:24 +0100
+Subject: meson: include required cflags when used as subproject
+
+Signed-off-by: Robin Jarry <robin@jarry.cc>
+---
+ buildtools/subproject/meson.build | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/buildtools/subproject/meson.build b/buildtools/subproject/meson.build
+index 3192efaa406f..0571391edcfc 100644
+--- a/buildtools/subproject/meson.build
++++ b/buildtools/subproject/meson.build
+@@ -6,6 +6,7 @@ if get_option('default_library') == 'static'
+     dpdk_dep = declare_dependency(
+             version: meson.project_version(),
+             dependencies: dpdk_static_lib_deps,
++            compile_args: ['-include', 'rte_config.h'] + machine_args,
+             # static library deps in DPDK build don't include "link_with" parameters,
+             # so explicitly link-in both libs and drivers
+             link_with: dpdk_static_libraries,
+-- 
+2.44.0
+

@@ -4,6 +4,7 @@ revision = releases
 depth = 1
 diff_files =
 	dpdk/build-whole-archive-for-static-libs.patch,
+	dpdk/meson-include-required-cflags-when-used-as-subprojec.patch,
 	dpdk/node-change-ctx-array-to-union.patch
 
 [provide]

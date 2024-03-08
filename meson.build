@@ -17,7 +17,6 @@ project(
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
-add_global_arguments('-march=corei7', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',
