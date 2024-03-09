@@ -8,7 +8,7 @@ project(
   license: 'BSD-3-Clause',
   meson_version: '>= 0.63.0',
   default_options: [
-    'buildtype=debugoptimized',
+    'buildtype=release',
     'c_std=gnu2x',
     'werror=false',
     'warning_level=1',

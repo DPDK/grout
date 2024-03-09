@@ -33,7 +33,7 @@ install: $(builddir)/build.ninja
 	$Q ninja -C $(builddir) install $(ninja_opts)
 
 meson_opts = \
-	--buildtype=debug \
+	--buildtype=debugoptimized \
 	--werror \
 	--warnlevel=2 \
 	-Db_sanitize=address
