@@ -73,11 +73,11 @@ static exec_status_t exec_strvec(
 	case CMD_SUCCESS:
 		status = EXEC_SUCCESS;
 		break;
-	case CMD_ERROR:
-		status = EXEC_CMD_FAILED;
-		break;
 	case CMD_EXIT:
 		status = EXEC_CMD_EXIT;
+		break;
+	default:
+		status = EXEC_CMD_FAILED;
 		break;
 	}
 out:
