@@ -101,10 +101,9 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 	struct rte_eth_conf conf = default_port_config;
 	struct worker *worker, *default_worker = NULL;
 	struct rte_eth_dev_info info;
-	uint16_t n_txq, txq;
 	char pool_name[128];
 	uint32_t mbuf_count;
-	uint64_t rxq_ids;
+	uint16_t n_txq;
 	int ret;
 
 	// ensure there is a datapath worker running on the socket where the port is
@@ -160,21 +159,26 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < n_rxq; q++) {
-		if ((ret = rte_eth_rx_queue_setup(p->port_id, q, 0, 0, NULL, p->pool)) < 0) {
+		ret = rte_eth_rx_queue_setup(
+			p->port_id, q, rx_size(&info), socket_id, NULL, p->pool
+		);
+		if (ret < 0) {
 			LOG(ERR, "rte_eth_rx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}
 	}
 	for (size_t q = 0; q < n_txq; q++) {
-		if ((ret = rte_eth_tx_queue_setup(p->port_id, q, 0, 0, NULL)) < 0) {
+		ret = rte_eth_tx_queue_setup(p->port_id, q, tx_size(&info), socket_id, NULL);
+		if (ret < 0) {
 			LOG(ERR, "rte_eth_tx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}
 	}
 
 	// update queue/worker mapping
-	txq = 0;
-	rxq_ids = 0; // XXX: can we assume there will never be more than 64 rxqs per port?
+	uint16_t txq = 0;
+	// XXX: can we assume there will never be more than 64 rxqs per port?
+	uint64_t rxq_ids = 0;
 	LIST_FOREACH (worker, &workers, next) {
 		struct queue_map tx_qmap = {
 			.port_id = p->port_id,
