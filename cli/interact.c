@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "ecoli_node_sh_lex.h"
 #include "exec.h"
 #include "interact.h"
 #include "log.h"
 
 #include <br_cli.h>
 #include <br_client.h>
+
+#include <ecoli.h>
 
 #include <errno.h>
 #include <signal.h>
@@ -47,6 +48,18 @@ out:
 static void sighandler(int signum) {
 	(void)signum;
 }
+
+#if defined(__has_feature) && !defined(__SANITIZE_ADDRESS__)
+#if __has_feature(address_sanitizer)
+#define __SANITIZE_ADDRESS__ 1
+#endif
+#endif
+#ifdef __SANITIZE_ADDRESS__
+const char *__lsan_default_options(void);
+const char *__lsan_default_options(void) {
+	return "suppressions=../.lsan-suppressions";
+}
+#endif
 
 int interact(const struct br_client *client, struct ec_node *cmdlist) {
 	int flags = EC_EDITLINE_DEFAULT_SIGHANDLER;

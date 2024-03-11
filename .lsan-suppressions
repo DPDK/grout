@@ -1,0 +1,3 @@
+# Known wcsdup() leak in libedit
+# https://salsa.debian.org/debian/libedit/-/blob/upstream/3.1-20230828/src/eln.c#L227-229
+leak:el_set
