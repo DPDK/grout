@@ -8,8 +8,9 @@
 
 #include <cmocka.h>
 
-#define mock_func(type, func)                                                                      \
+#define mock_func(type, func, ...)                                                                 \
 	type func;                                                                                 \
 	type func {                                                                                \
+		__VA_ARGS__;                                                                       \
 		return (type)mock();                                                               \
 	}
