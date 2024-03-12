@@ -69,7 +69,7 @@ void *br_datapath_loop(void *priv) {
 	}
 
 	w->lcore_id = rte_lcore_id();
-	snprintf(name, 15, "datapath-%d", w->cpu_id);
+	snprintf(name, 15, "br:loop-c%d", w->cpu_id);
 	if (pthread_setname_np(pthread_self(), name)) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
 		return NULL;

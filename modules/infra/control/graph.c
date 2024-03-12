@@ -134,7 +134,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	}
 
 	// unique suffix for this graph
-	graph_uid = (worker->lcore_id << 1) | (0x1 & index);
+	graph_uid = (worker->cpu_id << 1) | (0x1 & index);
 	snprintf(name, sizeof(name), "br-%04x", graph_uid);
 
 	// build rx & tx nodes data
