@@ -60,7 +60,7 @@ static struct api_out rxq_set(const void *request, void **response) {
 	const struct br_infra_rxq_set_req *req = request;
 	struct worker *src_worker, *dst_worker;
 	struct queue_map *qmap;
-	size_t n_workers;
+	bool reconfig;
 	int ret;
 
 	(void)response;
@@ -80,12 +80,12 @@ static struct api_out rxq_set(const void *request, void **response) {
 				// rxq already assigned to the correct worker
 				return api_out(0, 0);
 			}
-			goto dest;
+			goto move;
 		}
 	}
 	return api_out(ENODEV, 0);
-dest:
-	n_workers = worker_count();
+move:
+	reconfig = false;
 
 	// unassign from src_worker
 	for (int i = 0; i < arrlen(src_worker->rxqs); i++) {
@@ -100,6 +100,7 @@ dest:
 	if (arrlen(src_worker->rxqs) == 0) {
 		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
 			return api_out(-errno, 0);
+		reconfig = true;
 	}
 
 	dst_worker = worker_find(req->cpu_id);
@@ -108,9 +109,19 @@ dest:
 		if (worker_create(req->cpu_id) < 0)
 			return api_out(errno, 0);
 		dst_worker = worker_find(req->cpu_id);
+		reconfig = true;
 	}
 
-	if (worker_count() != n_workers) {
+	// assign to dst_worker *before* reconfiguring ports
+	// to avoid the dangling rxq to be assigned twice
+	struct queue_map rx_qmap = {
+		.port_id = req->port_id,
+		.queue_id = req->rxq_id,
+		.enabled = true,
+	};
+	arrpush(dst_worker->rxqs, rx_qmap);
+
+	if (reconfig) {
 		struct port *port;
 		// number of workers changed, adjust number of tx queues
 		LIST_FOREACH (port, &ports, next) {
@@ -122,14 +133,6 @@ dest:
 				return api_out(-ret, 0);
 		}
 	}
-
-	// assign to dst_worker
-	struct queue_map rx_qmap = {
-		.port_id = req->port_id,
-		.queue_id = req->rxq_id,
-		.enabled = true,
-	};
-	arrpush(dst_worker->rxqs, rx_qmap);
 
 	ret = worker_graph_reload_all();
 	return api_out(-ret, 0);
