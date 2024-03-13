@@ -77,9 +77,6 @@ out:
 	return ret;
 }
 
-#define BR_MAX_BURST_SIZE 32
-#define MBUF_CACHE_SIZE 256
-
 static uint16_t rx_size(struct rte_eth_dev_info *info) {
 	uint16_t size = info->default_rxportconf.ring_size;
 	if (size == 0) {
@@ -141,13 +138,13 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 
 	mbuf_count = rx_size(&info) * n_rxq;
 	mbuf_count += tx_size(&info) * n_txq;
-	mbuf_count += BR_MAX_BURST_SIZE;
+	mbuf_count += p->burst;
 	mbuf_count = rte_align32pow2(mbuf_count) - 1;
 	snprintf(pool_name, sizeof(pool_name), "mbuf_%s", rte_dev_name(info.device));
 	p->pool = rte_pktmbuf_pool_create(
 		pool_name,
 		mbuf_count,
-		MBUF_CACHE_SIZE,
+		256, // cache_size
 		0, // priv_size
 		RTE_MBUF_DEFAULT_BUF_SIZE,
 		socket_id
