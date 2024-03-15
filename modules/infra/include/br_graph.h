@@ -21,6 +21,8 @@ int br_node_data_set(const char *graph, const char *node, void *data);
 
 rte_edge_t br_node_attach_parent(const char *parent, const char *node);
 
+uint16_t br_node_drop_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+
 struct br_node_info {
 	struct rte_node_register *node;
 	void (*register_callback)(void);
@@ -33,6 +35,18 @@ extern struct node_infos node_infos;
 #define BR_NODE_REGISTER(info)                                                                     \
 	RTE_INIT(br_node_register_##info) {                                                        \
 		LIST_INSERT_HEAD(&node_infos, &info, next);                                        \
+	}
+
+#define BR_DROP_REGISTER(node_name)                                                                \
+	static struct rte_node_register drop_node_##node_name = {                                  \
+		.name = #node_name,                                                                \
+		.process = br_node_drop_process,                                                   \
+	};                                                                                         \
+	static struct br_node_info drop_info_##node_name = {                                       \
+		.node = &drop_node_##node_name,                                                    \
+	};                                                                                         \
+	RTE_INIT(br_drop_register_##node_name) {                                                   \
+		LIST_INSERT_HEAD(&node_infos, &drop_info_##node_name, next);                       \
 	}
 
 #endif
