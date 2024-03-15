@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "br_infra_msg.h"
 #include "port_config.h"
 #include "worker.h"
 
@@ -67,7 +68,7 @@ int port_destroy(uint16_t port_id, struct port *port) {
 		LIST_FOREACH (port, &ports, next) {
 			if ((ret = port_unplug(port)) < 0)
 				goto out;
-			if ((ret = port_reconfig(port, 0)) < 0)
+			if ((ret = port_reconfig(port)) < 0)
 				goto out;
 			if ((ret = port_plug(port)) < 0)
 				goto out;
@@ -77,30 +78,30 @@ out:
 	return ret;
 }
 
-static uint16_t rx_size(struct rte_eth_dev_info *info) {
-	uint16_t size = info->default_rxportconf.ring_size;
-	if (size == 0) {
-		size = RTE_ETH_DEV_FALLBACK_RX_RINGSIZE;
-	}
-	return size;
+static uint16_t get_rxq_size(struct port *p, const struct rte_eth_dev_info *info) {
+	if (p->rxq_size == 0)
+		p->rxq_size = info->default_rxportconf.ring_size;
+	if (p->rxq_size == 0)
+		p->rxq_size = RTE_ETH_DEV_FALLBACK_RX_RINGSIZE;
+	return p->rxq_size;
 }
 
-static uint16_t tx_size(struct rte_eth_dev_info *info) {
-	uint16_t size = info->default_txportconf.ring_size;
-	if (size == 0) {
-		size = RTE_ETH_DEV_FALLBACK_TX_RINGSIZE;
-	}
-	return size;
+static uint16_t get_txq_size(struct port *p, const struct rte_eth_dev_info *info) {
+	if (p->txq_size == 0)
+		p->txq_size = info->default_txportconf.ring_size;
+	if (p->txq_size == 0)
+		p->txq_size = RTE_ETH_DEV_FALLBACK_TX_RINGSIZE;
+	return p->txq_size;
 }
 
-int port_reconfig(struct port *p, uint16_t n_rxq) {
+int port_reconfig(struct port *p) {
 	int socket_id = rte_eth_dev_socket_id(p->port_id);
 	struct rte_eth_conf conf = default_port_config;
 	struct worker *worker, *default_worker = NULL;
+	uint16_t n_txq, rxq_size, txq_size;
 	struct rte_eth_dev_info info;
 	char pool_name[128];
 	uint32_t mbuf_count;
-	uint16_t n_txq;
 	int ret;
 
 	// ensure there is a datapath worker running on the socket where the port is
@@ -113,8 +114,12 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return ret;
 
-	if (n_rxq == 0)
-		n_rxq = info.nb_rx_queues;
+	if (p->n_rxq == 0)
+		p->n_rxq = 1;
+	if (p->burst == 0)
+		p->burst = BR_INFRA_PORT_BURST_DEFAULT;
+	rxq_size = get_rxq_size(p, &info);
+	txq_size = get_txq_size(p, &info);
 
 	if ((ret = rte_eth_dev_stop(p->port_id)) < 0) {
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
@@ -131,13 +136,13 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 
-	if ((ret = rte_eth_dev_configure(p->port_id, n_rxq, n_txq, &conf)) < 0) {
+	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, n_txq, &conf)) < 0) {
 		LOG(ERR, "rte_eth_dev_configure: %s", rte_strerror(-ret));
 		return ret;
 	}
 
-	mbuf_count = rx_size(&info) * n_rxq;
-	mbuf_count += tx_size(&info) * n_txq;
+	mbuf_count = rxq_size * p->n_rxq;
+	mbuf_count += txq_size * n_txq;
 	mbuf_count += p->burst;
 	mbuf_count = rte_align32pow2(mbuf_count) - 1;
 	snprintf(pool_name, sizeof(pool_name), "mbuf_%s", rte_dev_name(info.device));
@@ -155,17 +160,15 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 	}
 
 	// initialize rx/tx queues
-	for (size_t q = 0; q < n_rxq; q++) {
-		ret = rte_eth_rx_queue_setup(
-			p->port_id, q, rx_size(&info), socket_id, NULL, p->pool
-		);
+	for (size_t q = 0; q < p->n_rxq; q++) {
+		ret = rte_eth_rx_queue_setup(p->port_id, q, rxq_size, socket_id, NULL, p->pool);
 		if (ret < 0) {
 			LOG(ERR, "rte_eth_rx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
 		}
 	}
 	for (size_t q = 0; q < n_txq; q++) {
-		ret = rte_eth_tx_queue_setup(p->port_id, q, tx_size(&info), socket_id, NULL);
+		ret = rte_eth_tx_queue_setup(p->port_id, q, txq_size, socket_id, NULL);
 		if (ret < 0) {
 			LOG(ERR, "rte_eth_tx_queue_setup: %s", rte_strerror(-ret));
 			return ret;
@@ -196,7 +199,7 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		for (int i = 0; i < arrlen(worker->rxqs); i++) {
 			struct queue_map *qmap = &worker->rxqs[i];
 			if (qmap->port_id == p->port_id) {
-				if (qmap->queue_id < n_rxq) {
+				if (qmap->queue_id < p->n_rxq) {
 					// rxq already assigned to a worker
 					rxq_ids |= 1 << qmap->queue_id;
 				} else {
@@ -211,7 +214,7 @@ int port_reconfig(struct port *p, uint16_t n_rxq) {
 		}
 	}
 	assert(default_worker != NULL);
-	for (uint16_t rxq = 0; rxq < n_rxq; rxq++) {
+	for (uint16_t rxq = 0; rxq < p->n_rxq; rxq++) {
 		if (rxq_ids & (1 << rxq))
 			continue;
 		struct queue_map rx_qmap = {

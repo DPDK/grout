@@ -16,6 +16,8 @@ struct br_infra_port {
 	char device[128];
 	uint16_t n_rxq;
 	uint16_t n_txq;
+	uint16_t rxq_size;
+	uint16_t txq_size;
 	uint16_t burst;
 	struct eth_addr mac;
 };

@@ -8,6 +8,6 @@
 
 int port_destroy(uint16_t port_id, struct port *);
 
-int port_reconfig(struct port *, uint16_t n_rxq);
+int port_reconfig(struct port *);
 
 #endif

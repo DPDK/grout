@@ -127,7 +127,7 @@ move:
 		LIST_FOREACH (port, &ports, next) {
 			if ((ret = port_unplug(port)) < 0)
 				return api_out(-ret, 0);
-			if ((ret = port_reconfig(port, 0)) < 0)
+			if ((ret = port_reconfig(port)) < 0)
 				return api_out(-ret, 0);
 			if ((ret = port_plug(port)) < 0)
 				return api_out(-ret, 0);

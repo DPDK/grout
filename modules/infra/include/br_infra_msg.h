@@ -52,6 +52,7 @@ struct br_infra_port_list_resp {
 typedef enum {
 	BR_INFRA_PORT_N_RXQ = BR_BIT32(0),
 	BR_INFRA_PORT_BURST = BR_BIT32(1),
+	BR_INFRA_PORT_Q_SIZE = BR_BIT32(2),
 } br_infra_port_attr_t;
 
 #define BR_INFRA_PORT_BURST_DEFAULT 32
@@ -61,6 +62,7 @@ struct br_infra_port_set_req {
 	br_infra_port_attr_t set_attrs;
 	uint16_t n_rxq;
 	uint16_t burst;
+	uint16_t q_size;
 };
 
 // struct br_infra_port_set_resp { };

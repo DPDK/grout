@@ -85,13 +85,23 @@ out:
 	return ret;
 }
 
-int br_infra_port_set(const struct br_client *c, uint16_t port_id, uint16_t n_rxq, uint16_t burst) {
+int br_infra_port_set(
+	const struct br_client *c,
+	uint16_t port_id,
+	uint16_t n_rxq,
+	uint16_t q_size,
+	uint16_t burst
+) {
 	struct br_infra_port_set_req req = {
 		.port_id = port_id,
 	};
 	if (n_rxq > 0) {
 		req.n_rxq = n_rxq;
 		req.set_attrs |= BR_INFRA_PORT_N_RXQ;
+	}
+	if (q_size > 0) {
+		req.q_size = q_size;
+		req.set_attrs |= BR_INFRA_PORT_Q_SIZE;
 	}
 	if (burst > 0) {
 		req.burst = burst;

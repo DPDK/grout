@@ -50,6 +50,8 @@ static int fill_port_info(struct port *e, struct br_infra_port *port) {
 
 	port->n_rxq = info.nb_rx_queues;
 	port->n_txq = info.nb_tx_queues;
+	port->rxq_size = e->rxq_size;
+	port->txq_size = e->txq_size;
 	port->burst = e->burst;
 
 	memccpy(port->device, rte_dev_name(info.device), 0, sizeof(port->device));
@@ -88,10 +90,9 @@ static struct api_out port_add(const void *request, void **response) {
 	}
 
 	port->port_id = port_id;
-	port->burst = BR_INFRA_PORT_BURST_DEFAULT;
 	LIST_INSERT_HEAD(&ports, port, next);
 
-	if ((ret = port_reconfig(port, 1)) < 0) {
+	if ((ret = port_reconfig(port)) < 0) {
 		port_destroy(port_id, port);
 		return api_out(-ret, 0);
 	}
@@ -193,13 +194,14 @@ static struct api_out port_list(const void *request, void **response) {
 
 static struct api_out port_set(const void *request, void **response) {
 	const struct br_infra_port_set_req *req = request;
+	bool reconfig = false;
 	struct port *port;
 
 	int ret;
 
 	(void)response;
 
-	if ((req->set_attrs & (BR_INFRA_PORT_N_RXQ | BR_INFRA_PORT_BURST)) == 0)
+	if (req->set_attrs == 0)
 		return api_out(EINVAL, 0);
 
 	if ((port = find_port(req->port_id)) == NULL)
@@ -209,12 +211,20 @@ static struct api_out port_set(const void *request, void **response) {
 		return api_out(-ret, 0);
 
 	if (req->set_attrs & BR_INFRA_PORT_N_RXQ) {
-		if ((ret = port_reconfig(port, req->n_rxq)) < 0)
-			return api_out(-ret, 0);
+		port->n_rxq = req->n_rxq;
+		reconfig = true;
 	}
-
-	if (req->set_attrs & BR_INFRA_PORT_BURST)
+	if (req->set_attrs & BR_INFRA_PORT_BURST) {
 		port->burst = req->burst;
+		reconfig = true;
+	}
+	if (req->set_attrs & BR_INFRA_PORT_Q_SIZE) {
+		port->rxq_size = req->q_size;
+		port->txq_size = req->q_size;
+		reconfig = true;
+	}
+	if (reconfig && (ret = port_reconfig(port)) < 0)
+		return api_out(-ret, 0);
 
 	if ((ret = port_plug(port)) < 0)
 		return api_out(-ret, 0);

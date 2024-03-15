@@ -14,6 +14,8 @@ struct port {
 	uint16_t port_id;
 	uint16_t n_rxq;
 	uint16_t burst;
+	uint16_t rxq_size;
+	uint16_t txq_size;
 	struct rte_mempool *pool;
 };
 
