@@ -202,6 +202,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	worker->config[index].graph = rte_graph_lookup(name);
+	rte_graph_export(name, stderr);
 
 	return 0;
 err:
