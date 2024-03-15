@@ -27,34 +27,71 @@ static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
 	struct rte_fib *fib = node->ctx_ptr;
-	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
 	uint64_t next_hop;
+	rte_edge_t next;
 	uint16_t i;
 
 	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+		next = IP4_REWRITE;
 
 		trace_packet(node->name, mbuf);
 
-		ipv4_hdr = rte_pktmbuf_mtod_offset(
+		hdr = rte_pktmbuf_mtod_offset(
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
 		);
-		dst_addr = ntohl(ipv4_hdr->dst_addr);
+		dst_addr = ntohl(hdr->dst_addr);
+
+		// RFC 1812 section 5.2.2 IP Header Validation
+		//
+		// (1) The packet length reported by the Link Layer must be large
+		//     enough to hold the minimum length legal IP datagram (20 bytes).
+		// XXX: already checked by hardware
+
+		// (2) The IP checksum must be correct.
+		if ((mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) == RTE_MBUF_F_RX_IP_CKSUM_NONE) {
+			// if this is not checked in H/W, check it.
+			uint16_t actual_cksum, expected_cksum;
+			actual_cksum = hdr->hdr_checksum;
+			hdr->hdr_checksum = 0;
+			expected_cksum = rte_ipv4_cksum(hdr);
+			if (actual_cksum != expected_cksum) {
+				next = DROP;
+				goto next_packet;
+			}
+		}
+
+		// (3) The IP version number must be 4.  If the version number is not 4
+		//     then the packet may be another version of IP, such as IPng or
+		//     ST-II.
+		// (4) The IP header length field must be large enough to hold the
+		//     minimum length legal IP datagram (20 bytes = 5 words).
+		// XXX: already checked by hardware
+
+		// (5) The IP total length field must be large enough to hold the IP
+		//     datagram header, whose length is specified in the IP header
+		//     length field.
+		if (rte_cpu_to_be_16(hdr->total_length) < sizeof(struct rte_ipv4_hdr)) {
+			next = DROP;
+			goto next_packet;
+		}
 
 		// TODO: optimize with lookup of multiple packets
 		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
 		    || next_hop == BR_NO_ROUTE)
 		{
-			rte_node_enqueue_x1(graph, node, DROP, mbuf);
-			continue;
+			next = DROP;
+			goto next_packet;
 		}
 
 		ip4_fwd_mbuf_priv(mbuf)->next_hop = (ip4_addr_t)next_hop;
-		rte_node_enqueue_x1(graph, node, IP4_REWRITE, mbuf);
+next_packet:
+		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
 	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
