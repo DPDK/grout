@@ -50,7 +50,7 @@ int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 		return -EIO;
 	if ((ret = rte_fib_lookup_bulk(fib, &dest, &gateway, 1)) < 0)
 		return -ret;
-	if (gateway == NO_ROUTE)
+	if (gateway == BR_NO_ROUTE)
 		return -ENETUNREACH;
 	if ((ret = next_hop_lookup(gateway, nh)) < 0)
 		return ret;
@@ -191,8 +191,8 @@ static struct api_out route4_list(const void *request, void **response) {
 static void route4_init(void) {
 	struct rte_fib_conf conf = {
 		.type = RTE_FIB_DIR24_8,
-		.default_nh = NO_ROUTE,
-		.max_routes = MAX_ROUTES,
+		.default_nh = BR_NO_ROUTE,
+		.max_routes = BR_MAX_ROUTES,
 		.rib_ext_sz = 0,
 		.dir24_8 = {
 			// DIR24_8 uses 1 bit to store routing table structure
@@ -202,13 +202,13 @@ static void route4_init(void) {
 			.num_tbl8 = 1 << 15,
 		},
 	};
-	fib = rte_fib_create(IP4_FIB_NAME, SOCKET_ID_ANY, &conf);
+	fib = rte_fib_create(BR_IP4_FIB_NAME, SOCKET_ID_ANY, &conf);
 	if (fib == NULL)
 		ABORT("rte_fib_create: %s", rte_strerror(rte_errno));
 
 	struct rte_hash_parameters params = {
 		.name = "route4",
-		.entries = MAX_ROUTES,
+		.entries = BR_MAX_ROUTES,
 		.key_len = sizeof(struct ip4_net),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT
 			| RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF,

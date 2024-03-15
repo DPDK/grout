@@ -46,7 +46,9 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		dst_addr = ntohl(ipv4_hdr->dst_addr);
 
 		// TODO: optimize with lookup of multiple packets
-		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0 || next_hop == NO_ROUTE) {
+		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
+		    || next_hop == BR_NO_ROUTE)
+		{
 			rte_node_enqueue_x1(graph, node, DROP, mbuf);
 			continue;
 		}
@@ -81,9 +83,9 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	node->ctx_ptr = rte_fib_find_existing(IP4_FIB_NAME);
+	node->ctx_ptr = rte_fib_find_existing(BR_IP4_FIB_NAME);
 	if (node->ctx_ptr == NULL) {
-		LOG(ERR, "rte_fib_find_existing(%s): %s", IP4_FIB_NAME, rte_strerror(rte_errno));
+		LOG(ERR, "rte_fib_find_existing(%s): %s", BR_IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
 	}
 	node->ctx_ptr2 = br_route4_rcu();
