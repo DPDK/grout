@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 
-builddir = build
+BUILDDIR ?= build
+BUILDTYPE ?= debugoptimized
+SANITIZE ?= none
+V ?= 0
 ifeq ($V,1)
 ninja_opts = --verbose
 Q =
@@ -10,44 +13,40 @@ Q = @
 endif
 
 .PHONY: all
-all: $(builddir)/build.ninja
-	$Q ninja -C $(builddir) $(ninja_opts)
+all: $(BUILDDIR)/build.ninja
+	$Q ninja -C $(BUILDDIR) $(ninja_opts)
 
 .PHONY: test
-test: $(builddir)/build.ninja
-	$Q ninja -C $(builddir) test $(ninja_opts)
+test: $(BUILDDIR)/build.ninja
+	$Q ninja -C $(BUILDDIR) test $(ninja_opts)
 
 .PHONY: coverage
 coverage: test
-	$Q mkdir -p $(builddir)/coverage
-	$Q gcovr --html-details $(builddir)/coverage/index.html --txt \
-		-e '.*stb_ds.*' -e '.*_test.c' -ur . $(builddir)
-	@echo Coverage data is present in $(builddir)/coverage/index.html
+	$Q mkdir -p $(BUILDDIR)/coverage
+	$Q gcovr --html-details $(BUILDDIR)/coverage/index.html --txt \
+		-e '.*stb_ds.*' -e '.*_test.c' -ur . $(BUILDDIR)
+	@echo Coverage data is present in $(BUILDDIR)/coverage/index.html
 
 .PHONY: all
 clean:
-	$Q ninja -C $(builddir) clean $(ninja_opts)
+	$Q ninja -C $(BUILDDIR) clean $(ninja_opts)
 
 .PHONY: install
-install: $(builddir)/build.ninja
-	$Q ninja -C $(builddir) install $(ninja_opts)
+install: $(BUILDDIR)/build.ninja
+	$Q ninja -C $(BUILDDIR) install $(ninja_opts)
 
-meson_opts = \
-	--buildtype=debugoptimized \
-	--werror \
-	--warnlevel=2 \
-	-Db_sanitize=address
+meson_opts := --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
 
-$(builddir)/build.ninja:
-	$Q meson setup $(builddir) $(meson_opts)
+$(BUILDDIR)/build.ninja:
+	meson setup $(BUILDDIR) $(meson_opts)
 
 prune = -path $1 -prune -o
-exclude = $(builddir) subprojects LICENSE .git README.md .lsan-suppressions main/include/stb_ds.h
+exclude = $(BUILDDIR) subprojects LICENSE .git README.md .lsan-suppressions main/include/stb_ds.h
 c_src = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print`
 all_files = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -print`
 
 .PHONY: lint
-lint: $(builddir)/build.ninja
+lint: $(BUILDDIR)/build.ninja
 	@echo '[clang-format]'
 	$Q clang-format --dry-run --Werror $(c_src)
 	@echo '[license-check]'
