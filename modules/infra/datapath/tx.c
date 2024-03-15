@@ -14,7 +14,7 @@
 #include <rte_graph_worker.h>
 #include <rte_malloc.h>
 
-#define DROP 0
+#define TX_ERROR 0
 
 struct tx_ctx {
 	uint16_t txq_ids[RTE_MAX_ETHPORTS];
@@ -41,7 +41,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		if (c == 1)
 			continue;
 drop:
-		rte_node_enqueue(graph, node, DROP, (void **)&mbuf, 1);
+		rte_node_enqueue(graph, node, TX_ERROR, (void **)&mbuf, 1);
 	}
 
 	return count;
@@ -90,7 +90,7 @@ static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
 }
 
 static struct rte_node_register tx_node_base = {
-	.name = "tx",
+	.name = "eth_tx",
 
 	.process = tx_process,
 	.init = tx_init,
@@ -98,7 +98,7 @@ static struct rte_node_register tx_node_base = {
 
 	.nb_edges = 1,
 	.next_nodes = {
-		[DROP] = "drop",
+		[TX_ERROR] = "eth_tx_error",
 	},
 };
 
@@ -106,4 +106,6 @@ static struct br_node_info info = {
 	.node = &tx_node_base,
 };
 
-BR_NODE_REGISTER(info)
+BR_NODE_REGISTER(info);
+
+BR_DROP_REGISTER(eth_tx_error);

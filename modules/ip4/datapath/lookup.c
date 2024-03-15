@@ -18,8 +18,10 @@
 #include <rte_rcu_qsbr.h>
 
 enum edges {
-	DROP = 0,
-	IP4_REWRITE,
+	IP4_REWRITE = 0,
+	BAD_CHECKSUM,
+	BAD_LENGTH,
+	NO_ROUTE,
 	EDGE_COUNT,
 };
 
@@ -61,7 +63,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			hdr->hdr_checksum = 0;
 			expected_cksum = rte_ipv4_cksum(hdr);
 			if (actual_cksum != expected_cksum) {
-				next = DROP;
+				next = BAD_CHECKSUM;
 				goto next_packet;
 			}
 		}
@@ -77,7 +79,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		//     datagram header, whose length is specified in the IP header
 		//     length field.
 		if (rte_cpu_to_be_16(hdr->total_length) < sizeof(struct rte_ipv4_hdr)) {
-			next = DROP;
+			next = BAD_LENGTH;
 			goto next_packet;
 		}
 
@@ -85,7 +87,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
 		    || next_hop == BR_NO_ROUTE)
 		{
-			next = DROP;
+			next = NO_ROUTE;
 			goto next_packet;
 		}
 
@@ -135,7 +137,7 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 }
 
 static void lookup_register(void) {
-	rte_edge_t edge = br_node_attach_parent("classify", "ipv4_lookup");
+	rte_edge_t edge = br_node_attach_parent("eth_classify", "ipv4_lookup");
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("br_node_attach_parent(classify, ipv4_lookup) failed");
 	br_classify_add_proto(RTE_PTYPE_L3_IPV4, edge);
@@ -154,8 +156,10 @@ static struct rte_node_register lookup_node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[DROP] = "drop",
 		[IP4_REWRITE] = "ipv4_rewrite",
+		[BAD_CHECKSUM] = "ipv4_lookup_bad_checksum",
+		[BAD_LENGTH] = "ipv4_lookup_no_route",
+		[NO_ROUTE] = "ipv4_lookup_bad_length",
 	},
 };
 
@@ -164,4 +168,8 @@ static struct br_node_info info = {
 	.register_callback = lookup_register,
 };
 
-BR_NODE_REGISTER(info)
+BR_NODE_REGISTER(info);
+
+BR_DROP_REGISTER(ipv4_lookup_bad_checksum);
+BR_DROP_REGISTER(ipv4_lookup_no_route);
+BR_DROP_REGISTER(ipv4_lookup_bad_length);

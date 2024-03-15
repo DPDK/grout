@@ -24,8 +24,9 @@
 #include <rte_rcu_qsbr.h>
 
 enum {
-	DROP = 0,
-	TX,
+	TX = 0,
+	NO_NEXT_HOP,
+	TTL_EXCEEDED,
 	EDGE_COUNT,
 };
 
@@ -45,7 +46,7 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		next = DROP;
+		next = TX;
 
 		trace_packet(node->name, mbuf);
 
@@ -100,9 +101,17 @@ struct rte_node_register rewrite_node = {
 	.process = rewrite_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[DROP] = "drop",
-		[TX] = "tx",
+		[TX] = "eth_tx",
+		[NO_NEXT_HOP] = "ipv4_rewrite_no_next_hop",
+		[TTL_EXCEEDED] = "ipv4_rewrite_ttl_exceeded",
 	},
 };
 
-RTE_NODE_REGISTER(rewrite_node)
+static struct br_node_info info = {
+	.node = &rewrite_node,
+};
+
+BR_NODE_REGISTER(info);
+
+BR_DROP_REGISTER(ipv4_rewrite_no_next_hop);
+BR_DROP_REGISTER(ipv4_rewrite_ttl_exceeded);

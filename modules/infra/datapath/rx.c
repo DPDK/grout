@@ -75,7 +75,7 @@ static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
 }
 
 static struct rte_node_register rx_node_base = {
-	.name = "rx",
+	.name = "eth_rx",
 	.flags = RTE_NODE_SOURCE_F,
 
 	.process = rx_process,
@@ -84,7 +84,7 @@ static struct rte_node_register rx_node_base = {
 
 	.nb_edges = 1,
 	.next_nodes = {
-		[CLASSIFY] = "classify",
+		[CLASSIFY] = "eth_classify",
 	},
 };
 
@@ -92,4 +92,4 @@ static struct br_node_info info = {
 	.node = &rx_node_base,
 };
 
-BR_NODE_REGISTER(info)
+BR_NODE_REGISTER(info);

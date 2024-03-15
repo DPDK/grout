@@ -7,8 +7,8 @@
 #include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
-#define DROP 0
-static rte_edge_t l2l3_edges[256] = {DROP};
+#define UNKNOWN_PTYPE 0
+static rte_edge_t l2l3_edges[256] = {UNKNOWN_PTYPE};
 
 void br_classify_add_proto(uint8_t l2l3_type, rte_edge_t edge) {
 	l2l3_edges[l2l3_type] = edge;
@@ -27,16 +27,18 @@ classify_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 }
 
 static struct rte_node_register classify_node = {
-	.name = "classify",
+	.name = "eth_classify",
 	.process = classify_process,
 	.nb_edges = 1,
 	.next_nodes = {
-		[DROP] = "drop",
+		[UNKNOWN_PTYPE] = "eth_classify_unknown_ptype",
 	},
 };
 
-static struct br_node_info info = {
+static struct br_node_info classify_info = {
 	.node = &classify_node,
 };
 
-BR_NODE_REGISTER(info)
+BR_NODE_REGISTER(classify_info);
+
+BR_DROP_REGISTER(eth_classify_unknown_ptype);
