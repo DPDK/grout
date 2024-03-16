@@ -4,5 +4,6 @@
 cli_src += files(
   'port.c',
   'rxq.c',
+  'stats.c',
   'ec_node_devargs.c',
 )

@@ -104,11 +104,11 @@ static void node_data_reset(const char *graph) {
 void worker_graph_free(struct worker *worker) {
 	int ret;
 	for (int i = 0; i < 2; i++) {
-		if (worker->config[i].graph != NULL) {
-			node_data_reset(worker->config[i].graph->name);
-			if ((ret = rte_graph_destroy(worker->config[i].graph->id)) < 0)
+		if (worker->graph[i] != NULL) {
+			node_data_reset(worker->graph[i]->name);
+			if ((ret = rte_graph_destroy(worker->graph[i]->id)) < 0)
 				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
-			worker->config[i].graph = NULL;
+			worker->graph[i] = NULL;
 		}
 	}
 }
@@ -129,7 +129,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 			n_rxqs++;
 	}
 	if (n_rxqs == 0) {
-		worker->config[index].graph = NULL;
+		worker->graph[index] = NULL;
 		return 0;
 	}
 
@@ -201,8 +201,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		ret = -rte_errno;
 		goto err;
 	}
-	worker->config[index].graph = rte_graph_lookup(name);
-	rte_graph_export(name, stderr);
+	worker->graph[index] = rte_graph_lookup(name);
 
 	return 0;
 err:
@@ -233,11 +232,11 @@ int worker_graph_reload_all(void) {
 		// free old config
 		next = !next;
 
-		if (worker->config[next].graph != NULL) {
-			node_data_reset(worker->config[next].graph->name);
-			if ((ret = rte_graph_destroy(worker->config[next].graph->id)) < 0)
+		if (worker->graph[next] != NULL) {
+			node_data_reset(worker->graph[next]->name);
+			if ((ret = rte_graph_destroy(worker->graph[next]->id)) < 0)
 				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
-			worker->config[next].graph = NULL;
+			worker->graph[next] = NULL;
 		}
 	}
 

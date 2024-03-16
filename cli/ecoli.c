@@ -36,15 +36,16 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
 
 const char *arg_str(const struct ec_pnode *p, const char *id) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL)
-		goto err;
+	if (n == NULL) {
+		errno = ENOENT;
+		return NULL;
+	}
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1)
-		goto err;
+	if (v == NULL || ec_strvec_len(v) != 1) {
+		errno = EIO;
+		return NULL;
+	}
 	return ec_strvec_val(v, 0);
-err:
-	errno = EINVAL;
-	return NULL;
 }
 
 int arg_int(const struct ec_pnode *p, const char *id, int64_t *val) {

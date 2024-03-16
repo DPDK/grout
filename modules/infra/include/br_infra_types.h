@@ -29,4 +29,9 @@ struct br_infra_rxq {
 	uint16_t enabled;
 };
 
+struct br_infra_stat {
+	char name[64];
+	uint64_t value;
+};
+
 #endif

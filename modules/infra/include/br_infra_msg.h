@@ -87,4 +87,30 @@ struct br_infra_rxq_set_req {
 
 // struct br_infra_rxq_set_resp { };
 
+// stats
+typedef enum {
+	BR_INFRA_STAT_F_SW = BR_BIT32(0), // include software stats
+	BR_INFRA_STAT_F_HW = BR_BIT32(1), // include hardware stats
+	BR_INFRA_STAT_F_XHW = BR_BIT32(2), // include hardware extended stats
+	BR_INFRA_STAT_F_ZERO = BR_BIT32(3), // include zero value stats
+} br_infra_stats_flags_t;
+
+#define BR_INFRA_STATS_GET REQUEST_TYPE(BR_INFRA_MODULE, 0x0020)
+
+struct br_infra_stats_get_req {
+	br_infra_stats_flags_t flags;
+	char pattern[64]; // optional glob pattern
+};
+
+struct br_infra_stats_get_resp {
+	uint16_t n_stats;
+	struct br_infra_stat stats[/* n_stats */];
+};
+
+#define BR_INFRA_STATS_RESET REQUEST_TYPE(BR_INFRA_MODULE, 0x0021)
+
+// struct br_infra_stats_reset_resp { };
+
+// struct br_infra_stats_reset_resp { };
+
 #endif

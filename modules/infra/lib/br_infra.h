@@ -5,6 +5,7 @@
 #define _BR_INFRA
 
 #include <br_client.h>
+#include <br_infra_msg.h>
 #include <br_infra_types.h>
 
 #include <stddef.h>
@@ -23,5 +24,8 @@ int br_infra_port_set(
 
 int br_infra_rxq_list(const struct br_client *, size_t *n_rxqs, struct br_infra_rxq **);
 int br_infra_rxq_set(const struct br_client *, uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
+
+int br_infra_stats_get(const struct br_client *, br_infra_stats_flags_t, const char *pattern, size_t *n_stats, struct br_infra_stat **);
+int br_infra_stats_reset(const struct br_client *);
 
 #endif

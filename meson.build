@@ -17,6 +17,7 @@ project(
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
+add_project_arguments('-Wno-format-truncation', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',

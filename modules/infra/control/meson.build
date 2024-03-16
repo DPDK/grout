@@ -7,6 +7,7 @@ src += files(
   'worker.c',
   'graph.c',
   'rxq.c',
+  'stats.c',
 )
 
 tests += [
