@@ -1,12 +1,28 @@
 # BRouter: A Boring Router
 
+## Better ideas for project names
+
+| initials | full name      | notes                                            |
+|----------|----------------|--------------------------------------------------|
+| tr       | table router   | woodworking joke                                 |
+| hr       | hand router    | woodworking joke                                 |
+| br       | boring router  | boring ssl reference, brouter joke in french     |
+| vr       | virtual router | even more boring than boring router              |
+| ur       | micro router   | sounds nice, maybe misleading?                   |
+| rr       | routing router | ends like frr, lion roar joke, makes no sense    |
+
 ## TODO
 
 - make debug/release target
+- write man pages
+    * br: command usage
+    * br-cli command usage
+    * br-api: API to configure the router
+    * br-architecture: code structure, modules, etc.
 
 ### Control API
 
-- graph statistics
+- Add graph commands to dump graph in DOT and get node cycles/object statistics.
 
 - QUESTION: routing table: handle live modification while traffic is running
 
