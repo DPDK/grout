@@ -51,6 +51,7 @@ cli_inc = []
 
 tests = []
 
+subdir('docs')
 subdir('lib')
 subdir('main')
 subdir('modules')
