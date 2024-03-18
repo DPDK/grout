@@ -10,6 +10,7 @@
 | vr       | virtual router | even more boring than boring router              |
 | ur       | micro router   | sounds nice, maybe misleading?                   |
 | rr       | routing router | ends like frr, lion roar joke, makes no sense    |
+| jar      | just a router  | you can put food in a jar, java connotation      |
 
 ## TODO
 
