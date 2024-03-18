@@ -49,29 +49,31 @@ static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode
 
 	qsort(stats, n_stats, sizeof(*stats), stats_order);
 
-	printf("%-32s  %14s  %16s  %10s  %18s  %10s\n",
+	printf("%-32s  %14s  %16s  %12s  %12s  %12s\n",
 	       "NODE",
 	       "CALLS",
 	       "PACKETS",
 	       "PKTS/CALL",
-	       "CYCLES",
+	       "CYCLES/CALL",
 	       "CYCLES/PKT");
 
 	for (size_t i = 0; i < n_stats; i++) {
 		struct br_infra_graph_stat *s = &stats[i];
-		double pkt_call = 0, cycles_pkt = 0;
+		double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
 
-		if (s->calls != 0)
+		if (s->calls != 0) {
 			pkt_call = ((double)s->objects) / ((double)s->calls);
+			cycles_call = ((double)s->cycles) / ((double)s->calls);
+		}
 		if (s->objects != 0)
 			cycles_pkt = ((double)s->cycles) / ((double)s->objects);
 
-		printf("%-32s  %14lu  %16lu  %10.01f  %18lu  %10.01f\n",
+		printf("%-32s  %14lu  %16lu  %12.01f  %12.01f  %12.01f\n",
 		       s->node,
 		       s->calls,
 		       s->objects,
 		       pkt_call,
-		       s->cycles,
+		       cycles_call,
 		       cycles_pkt);
 	}
 
