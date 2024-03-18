@@ -20,59 +20,56 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
+struct stats_context {
+	struct rte_graph_cluster_stats *stats;
+	uint64_t last_count;
+	struct worker_stats *w_stats;
+	uint8_t node_to_index[256];
+};
+
 static int node_stats_callback(
 	bool is_first,
 	bool is_last,
 	void *cookie,
 	const struct rte_graph_cluster_node_stats *stats
 ) {
-	struct worker_stats *w_stats = cookie;
+	struct stats_context *ctx = cookie;
 	struct worker_stat *s;
+	uint64_t objs_incr;
+	uint8_t index;
 
 	(void)is_first;
 	(void)is_last;
 
-	w_stats->last_count += stats->objs - stats->prev_objs;
-	s = &w_stats->stats[w_stats->__n++];
-	s->node_id = stats->id;
-	s->objs = stats->objs;
-	s->calls = stats->calls;
-	s->cycles = stats->cycles;
+	objs_incr = stats->objs - stats->prev_objs;
+	ctx->last_count += objs_incr;
+	index = ctx->node_to_index[stats->id];
+	s = &ctx->w_stats->stats[index];
+	s->objs += objs_incr;
+	s->calls += stats->calls - stats->prev_calls;
+	s->cycles += stats->cycles - stats->prev_cycles;
 
 	return 0;
 }
 
-static inline void stats_prep(struct worker_stats *s) {
-	s->last_count = 0;
-	s->__n = 0;
+static inline void stats_reset(struct worker_stats *stats) {
+	for (unsigned i = 0; i < stats->n_stats; i++) {
+		struct worker_stat *s = &stats->stats[i];
+		s->objs = 0;
+		s->calls = 0;
+		s->cycles = 0;
+	}
 }
 
-static inline void stats_reset(struct worker_stats *s) {
-	memset(s->stats, 0, s->n_stats * sizeof(*s->stats));
-}
-
-static int stats_reload(
-	const struct rte_graph *graph,
-	struct worker_stats **w_stats,
-	struct rte_graph_cluster_stats **stats
-) {
+static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
 	struct rte_graph_cluster_stats_param stats_param;
 	const char *graph_names[1];
 
 	assert(graph != NULL);
 
-	if (*stats != NULL) {
-		rte_graph_cluster_stats_destroy(*stats);
-		*stats = NULL;
-	}
-	if (*w_stats == NULL) {
-		size_t len = sizeof(**w_stats) + graph->nb_nodes * sizeof((*w_stats)->stats[0]);
-		*w_stats = rte_zmalloc_socket(__func__, len, RTE_CACHE_LINE_SIZE, graph->socket);
-		if (*w_stats == NULL) {
-			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
-			return -1;
-		}
-		(*w_stats)->n_stats = graph->nb_nodes;
+	if (ctx->stats != NULL) {
+		rte_graph_cluster_stats_destroy(ctx->stats);
+		ctx->stats = NULL;
 	}
 
 	graph_names[0] = graph->name;
@@ -80,20 +77,40 @@ static int stats_reload(
 	stats_param.socket_id = graph->socket;
 	stats_param.nb_graph_patterns = 1;
 	stats_param.graph_patterns = graph_names;
-	stats_param.cookie = *w_stats;
+	stats_param.cookie = ctx;
 	stats_param.fn = node_stats_callback;
 
-	*stats = rte_graph_cluster_stats_create(&stats_param);
-	if (*stats == NULL) {
+	ctx->stats = rte_graph_cluster_stats_create(&stats_param);
+	if (ctx->stats == NULL) {
 		LOG(ERR, "rte_graph_cluster_stats_create: %s", rte_strerror(rte_errno));
 		return -1;
 	}
+
+	if (ctx->w_stats == NULL) {
+		size_t len = sizeof(*ctx->w_stats) + graph->nb_nodes * sizeof(*ctx->w_stats->stats);
+		ctx->w_stats = rte_zmalloc_socket(
+			__func__, len, RTE_CACHE_LINE_SIZE, graph->socket
+		);
+		if (ctx->w_stats == NULL) {
+			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
+			return -1;
+		}
+		ctx->w_stats->n_stats = graph->nb_nodes;
+
+		struct rte_node *node;
+		rte_graph_off_t off;
+		rte_node_t count;
+		rte_graph_foreach_node (count, off, graph, node) {
+			ctx->node_to_index[node->id] = count;
+			ctx->w_stats->stats[count].node_id = node->id;
+		}
+	}
+
 	return 0;
 }
 
 void *br_datapath_loop(void *priv) {
-	struct rte_graph_cluster_stats *stats = NULL;
-	struct worker_stats *w_stats = NULL;
+	struct stats_context ctx = {.last_count = 0};
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
 	struct rte_graph *graph;
@@ -147,9 +164,9 @@ reconfig:
 		goto reconfig;
 	}
 
-	if (stats_reload(graph, &w_stats, &stats) < 0)
+	if (stats_reload(graph, &ctx) < 0)
 		goto shutdown;
-	atomic_store(&w->stats, w_stats);
+	atomic_store(&w->stats, ctx.w_stats);
 
 	br_modules_dp_init();
 
@@ -166,18 +183,16 @@ reconfig:
 				goto reconfig;
 			}
 
-			stats_prep(w_stats);
-			rte_graph_cluster_stats_get(stats, false);
-			if (w_stats->last_count == 0 && max_sleep_us > 0) {
+			ctx.last_count = 0;
+			rte_graph_cluster_stats_get(ctx.stats, false);
+			if (ctx.last_count == 0 && max_sleep_us > 0) {
 				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);
 			} else {
 				sleep = 0;
 			}
-			if (atomic_exchange(&w->stats_reset, false)) {
-				rte_graph_cluster_stats_reset(stats);
-				stats_reset(w_stats);
-			}
+			if (atomic_exchange(&w->stats_reset, false))
+				stats_reset(ctx.w_stats);
 
 			loop = 0;
 		}
@@ -185,9 +200,9 @@ reconfig:
 
 shutdown:
 	log(NOTICE, "shutting down tid=%d", w->tid);
-	rte_graph_cluster_stats_destroy(stats);
 	atomic_store(&w->stats, NULL);
-	rte_free(w_stats);
+	rte_graph_cluster_stats_destroy(ctx.stats);
+	rte_free(ctx.w_stats);
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
 

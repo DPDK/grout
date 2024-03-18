@@ -29,13 +29,7 @@ struct worker_stat {
 };
 
 struct worker_stats {
-	// number of objects processed in the last graph walk
-	// used to determine if the datapath loop can be paused
-	uint64_t last_count;
-	// total number of worker_stat objects in the stats array
 	size_t n_stats;
-	// internal counter (not for external use)
-	size_t __n;
 	struct worker_stat stats[/* n_stats */];
 };
 
