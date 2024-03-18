@@ -20,9 +20,6 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-#define MAX_SLEEP_US 500
-#define INC_SLEEP_US 50
-
 static int node_stats_callback(
 	bool is_first,
 	bool is_last,
@@ -97,11 +94,11 @@ static int stats_reload(
 void *br_datapath_loop(void *priv) {
 	struct rte_graph_cluster_stats *stats = NULL;
 	struct worker_stats *w_stats = NULL;
+	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
 	struct rte_graph *graph;
 	rte_cpuset_t cpuset;
 	unsigned cur, loop;
-	uint32_t sleep;
 	char name[16];
 
 #define log(lvl, fmt, ...) LOG(lvl, "[CPU %d] " fmt, w->cpu_id __VA_OPT__(, ) __VA_ARGS__)
@@ -141,7 +138,8 @@ reconfig:
 		goto shutdown;
 
 	cur = atomic_load_explicit(&w->next_config, memory_order_acquire);
-	graph = w->graph[cur];
+	graph = w->config[cur].graph;
+	max_sleep_us = w->config[cur].max_sleep_us;
 	atomic_store_explicit(&w->cur_config, cur, memory_order_release);
 
 	if (graph == NULL) {
@@ -155,7 +153,7 @@ reconfig:
 
 	br_modules_dp_init();
 
-	log(INFO, "reconfigured");
+	log(INFO, "reconfigured max_sleep=%uus", max_sleep_us);
 
 	loop = 0;
 	sleep = 0;
@@ -170,8 +168,8 @@ reconfig:
 
 			stats_prep(w_stats);
 			rte_graph_cluster_stats_get(stats, false);
-			if (w_stats->last_count == 0) {
-				sleep = sleep == MAX_SLEEP_US ? sleep : (sleep + INC_SLEEP_US);
+			if (w_stats->last_count == 0 && max_sleep_us > 0) {
+				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);
 			} else {
 				sleep = 0;

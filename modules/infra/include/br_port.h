@@ -24,5 +24,6 @@ LIST_HEAD(ports, port);
 extern struct ports ports;
 
 uint16_t port_get_burst_size(uint16_t port_id);
+uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
 
 #endif

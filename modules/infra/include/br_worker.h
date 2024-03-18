@@ -45,7 +45,10 @@ struct worker {
 	atomic_uint next_config; // dataplane: ro, ctlplane: rw
 	atomic_uint cur_config; // dataplane: wo, ctlplane: ro
 	// synced with thread_fence
-	struct rte_graph *graph[2]; // dataplane: ro, ctlplane: rw
+	struct {
+		struct rte_graph *graph;
+		uint32_t max_sleep_us;
+	} config[2]; // dataplane: ro, ctlplane: rw
 
 	atomic_bool stats_reset; // dataplane: rw, ctlplane: rw
 	// dataplane: wo, ctlplane: ro, may be NULL

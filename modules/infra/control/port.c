@@ -8,6 +8,7 @@
 #include <br_control.h>
 #include <br_infra_msg.h>
 #include <br_infra_types.h>
+#include <br_log.h>
 #include <br_port.h>
 #include <br_queue.h>
 #include <br_worker.h>
@@ -33,6 +34,37 @@ uint16_t port_get_burst_size(uint16_t port_id) {
 			return port->burst;
 	}
 	return BR_INFRA_PORT_BURST_DEFAULT;
+}
+
+#define ETHER_FRAME_GAP 20
+
+uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id) {
+	uint32_t frame_size, pkts_per_us;
+	struct rte_eth_rxq_info qinfo;
+	struct rte_eth_link link;
+	int ret;
+
+	if ((ret = rte_eth_link_get_nowait(port_id, &link)) < 0)
+		return 0;
+	switch (link.link_speed) {
+	case RTE_ETH_SPEED_NUM_NONE:
+	case RTE_ETH_SPEED_NUM_UNKNOWN:
+		return 0;
+	}
+
+	if (rte_eth_rx_queue_info_get(port_id, rxq_id, &qinfo) < 0)
+		return 0;
+
+	// minimum ethernet frame size on the wire
+	frame_size = (RTE_ETHER_MIN_LEN + ETHER_FRAME_GAP) * 8;
+
+	// reported speed by driver is in megabit/s and we need a result in micro seconds.
+	// we can use link_speed without any conversion: megabit/s is equivalent to bit/us
+	pkts_per_us = link.link_speed / frame_size;
+	if (pkts_per_us == 0)
+		return 0;
+
+	return qinfo.nb_desc / pkts_per_us;
 }
 
 static int fill_port_info(struct port *e, struct br_infra_port *port) {
