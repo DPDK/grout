@@ -39,6 +39,8 @@ static int node_stats_callback(
 	s = &w_stats->stats[w_stats->__n++];
 	s->node_id = stats->id;
 	s->objs = stats->objs;
+	s->calls = stats->calls;
+	s->cycles = stats->cycles;
 
 	return 0;
 }

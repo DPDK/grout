@@ -34,4 +34,11 @@ struct br_infra_stat {
 	uint64_t value;
 };
 
+struct br_infra_graph_stat {
+	char node[64];
+	uint64_t objects;
+	uint64_t calls;
+	uint64_t cycles;
+};
+
 #endif

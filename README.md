@@ -23,8 +23,6 @@
 
 ### Control API
 
-- Add graph commands to dump graph in DOT and get node cycles/object statistics.
-
 - QUESTION: routing table: handle live modification while traffic is running
 
 - LATER: select TX (vhost-user)? (dispatch graph mode or special node)

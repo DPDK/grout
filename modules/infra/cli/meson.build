@@ -2,8 +2,9 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'ec_node_devargs.c',
+  'graph.c',
   'port.c',
   'rxq.c',
   'stats.c',
-  'ec_node_devargs.c',
 )

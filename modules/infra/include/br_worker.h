@@ -24,6 +24,8 @@ struct queue_map {
 struct worker_stat {
 	rte_node_t node_id;
 	uint64_t objs;
+	uint64_t calls;
+	uint64_t cycles;
 };
 
 struct worker_stats {

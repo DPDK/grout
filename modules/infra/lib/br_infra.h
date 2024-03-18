@@ -28,4 +28,7 @@ int br_infra_rxq_set(const struct br_client *, uint16_t port_id, uint16_t rxq_id
 int br_infra_stats_get(const struct br_client *, br_infra_stats_flags_t, const char *pattern, size_t *n_stats, struct br_infra_stat **);
 int br_infra_stats_reset(const struct br_client *);
 
+int br_infra_graph_dump(const struct br_client *, size_t *len, char **dot);
+int br_infra_graph_stats(const struct br_client *, size_t *n_stats, struct br_infra_graph_stat **);
+
 #endif

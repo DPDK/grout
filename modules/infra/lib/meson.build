@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 lib_src += files(
+  'graph.c',
   'port.c',
   'rxq.c',
   'stats.c',

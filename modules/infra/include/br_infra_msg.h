@@ -113,4 +113,24 @@ struct br_infra_stats_get_resp {
 
 // struct br_infra_stats_reset_resp { };
 
+// graph
+
+#define BR_INFRA_GRAPH_DUMP REQUEST_TYPE(BR_INFRA_MODULE, 0x0030)
+
+// struct br_infra_graph_dump_req { };
+
+struct br_infra_graph_dump_resp {
+	uint32_t len;
+	char dot[/* len */];
+};
+
+#define BR_INFRA_GRAPH_STATS REQUEST_TYPE(BR_INFRA_MODULE, 0x0031)
+
+// struct br_infra_graph_stats_req { };
+
+struct br_infra_graph_stats_resp {
+	uint16_t n_stats;
+	struct br_infra_graph_stat stats[/* n_stats */];
+};
+
 #endif
