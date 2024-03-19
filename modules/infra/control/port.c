@@ -26,16 +26,6 @@
 
 struct ports ports;
 
-uint16_t port_get_burst_size(uint16_t port_id) {
-	struct port *port;
-
-	LIST_FOREACH (port, &ports, next) {
-		if (port->port_id == port_id)
-			return port->burst;
-	}
-	return BR_INFRA_PORT_BURST_DEFAULT;
-}
-
 #define ETHER_FRAME_GAP 20
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id) {
@@ -84,7 +74,6 @@ static int fill_port_info(struct port *e, struct br_infra_port *port) {
 	port->n_txq = info.nb_tx_queues;
 	port->rxq_size = e->rxq_size;
 	port->txq_size = e->txq_size;
-	port->burst = e->burst;
 
 	memccpy(port->device, rte_dev_name(info.device), 0, sizeof(port->device));
 	memcpy(port->mac.bytes, mac.addr_bytes, sizeof(port->mac.bytes));
@@ -244,10 +233,6 @@ static struct api_out port_set(const void *request, void **response) {
 
 	if (req->set_attrs & BR_INFRA_PORT_N_RXQ) {
 		port->n_rxq = req->n_rxq;
-		reconfig = true;
-	}
-	if (req->set_attrs & BR_INFRA_PORT_BURST) {
-		port->burst = req->burst;
 		reconfig = true;
 	}
 	if (req->set_attrs & BR_INFRA_PORT_Q_SIZE) {

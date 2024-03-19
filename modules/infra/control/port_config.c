@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_infra_msg.h"
 #include "port_config.h"
+#include "rte_config.h"
 #include "worker.h"
 
 #include <br_control.h>
@@ -116,8 +116,6 @@ int port_reconfig(struct port *p) {
 
 	if (p->n_rxq == 0)
 		p->n_rxq = 1;
-	if (p->burst == 0)
-		p->burst = BR_INFRA_PORT_BURST_DEFAULT;
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
 
@@ -143,7 +141,7 @@ int port_reconfig(struct port *p) {
 
 	mbuf_count = rxq_size * p->n_rxq;
 	mbuf_count += txq_size * n_txq;
-	mbuf_count += p->burst;
+	mbuf_count += RTE_GRAPH_BURST_SIZE;
 	mbuf_count = rte_align32pow2(mbuf_count) - 1;
 	snprintf(pool_name, sizeof(pool_name), "mbuf_%s", rte_dev_name(info.device));
 	p->pool = rte_pktmbuf_pool_create(

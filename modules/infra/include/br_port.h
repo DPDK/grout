@@ -13,7 +13,6 @@ struct port {
 	LIST_ENTRY(port) next;
 	uint16_t port_id;
 	uint16_t n_rxq;
-	uint16_t burst;
 	uint16_t rxq_size;
 	uint16_t txq_size;
 	struct rte_mempool *pool;
@@ -23,7 +22,6 @@ LIST_HEAD(ports, port);
 
 extern struct ports ports;
 
-uint16_t port_get_burst_size(uint16_t port_id);
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
 
 #endif

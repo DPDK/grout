@@ -89,8 +89,7 @@ int br_infra_port_set(
 	const struct br_client *c,
 	uint16_t port_id,
 	uint16_t n_rxq,
-	uint16_t q_size,
-	uint16_t burst
+	uint16_t q_size
 ) {
 	struct br_infra_port_set_req req = {
 		.port_id = port_id,
@@ -102,10 +101,6 @@ int br_infra_port_set(
 	if (q_size > 0) {
 		req.q_size = q_size;
 		req.set_attrs |= BR_INFRA_PORT_Q_SIZE;
-	}
-	if (burst > 0) {
-		req.burst = burst;
-		req.set_attrs |= BR_INFRA_PORT_BURST;
 	}
 	return send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, NULL);
 }

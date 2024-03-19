@@ -157,7 +157,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		rx->queues[n_rxqs].port_id = qmap->port_id;
 		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
-		rx->queues[n_rxqs].burst = port_get_burst_size(qmap->port_id);
 		// divide buffer size by two to take into account the time to wakeup from sleep
 		rx_buffer_us = port_get_rxq_buffer_us(qmap->port_id, qmap->queue_id) / 2;
 		if (rx_buffer_us < max_sleep_us)

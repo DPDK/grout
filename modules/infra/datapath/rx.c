@@ -19,6 +19,7 @@
 #define CLASSIFY 0
 
 struct rx_ctx {
+	uint16_t burst_size;
 	uint16_t n_queues;
 	struct rx_port_queue queues[/* n_queues */];
 };
@@ -34,7 +35,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	for (int i = 0; i < ctx->n_queues; i++) {
 		q = ctx->queues[i];
 		count += rte_eth_rx_burst(
-			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], q.burst
+			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
 	}
 	for (uint16_t i = 0; i < count; i++)
@@ -64,6 +65,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 	ctx->n_queues = data->n_queues;
+	ctx->burst_size = RTE_GRAPH_BURST_SIZE / data->n_queues;
 	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
 
 	return 0;
