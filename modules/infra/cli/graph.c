@@ -41,8 +41,10 @@ static int stats_order(const void *sa, const void *sb) {
 static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode *p) {
 	struct br_infra_graph_stat *stats = NULL;
 	size_t n_stats = 0;
+	bool zero = false;
 
-	(void)p;
+	if (arg_str(p, "zero") != NULL)
+		zero = true;
 
 	if (br_infra_graph_stats(c, &n_stats, &stats) < 0)
 		return CMD_ERROR;
@@ -68,6 +70,9 @@ static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode
 		if (s->objects != 0)
 			cycles_pkt = ((double)s->cycles) / ((double)s->objects);
 
+		if (!zero && pkt_call == 0 && cycles_pkt == 0 && cycles_call == 0)
+			continue;
+
 		printf("%-32s  %14lu  %16lu  %12.01f  %12.01f  %12.01f\n",
 		       s->node,
 		       s->calls,
@@ -89,7 +94,12 @@ static int ctx_init(struct ec_node *root) {
 		"graph",
 		"Get information about the packet processing graph.",
 		CLI_COMMAND("dump", graph_dump, "Dump the graph in DOT format."),
-		CLI_COMMAND("stats", graph_stats, "Print graph nodes statistics.")
+		CLI_COMMAND(
+			"stats [zero]",
+			graph_stats,
+			"Print graph nodes statistics.",
+			with_help("Print stats with value 0.", ec_node_str("zero", "zero"))
+		)
 	);
 	if (node == NULL)
 		goto fail;
