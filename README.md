@@ -4,7 +4,7 @@
 
 | initials | full name      | notes                                            |
 |----------|----------------|--------------------------------------------------|
-| tr       | table router   | woodworking joke                                 |
+| tr       | table router   | woodworking joke (clash with `/usr/bin/tr`)      |
 | hr       | hand router    | woodworking joke                                 |
 | br       | boring router  | boring ssl reference, brouter joke in french     |
 | vr       | virtual router | even more boring than boring router              |
@@ -36,6 +36,11 @@
 - LATER: ip rewrite node: vector optimization
 
 ## DPDK API GRUDGES
+
+### graph
+
+- TO BE CONFIRMED: Possible issue with `rte_graph_cluster_stats_reset` when
+  called from multiple threads on different graphs.
 
 ### node
 
