@@ -1,16 +1,34 @@
-# BRouter: A Boring Router
+# `brouter`: *A sample DPDK router based on rte_graph*
 
-## Better ideas for project names
+`brouter` stands for *Boring Router*. *Boring* because it should work in all
+circumstances, without any fuss nor extended configuration/tuning.
 
-| initials | full name      | notes                                            |
-|----------|----------------|--------------------------------------------------|
-| tr       | table router   | woodworking joke (clash with `/usr/bin/tr`)      |
-| hr       | hand router    | woodworking joke                                 |
-| br       | boring router  | boring ssl reference, brouter joke in french     |
-| vr       | virtual router | even more boring than boring router              |
-| ur       | micro router   | sounds nice, maybe misleading?                   |
-| rr       | routing router | ends like frr, lion roar joke, makes no sense    |
-| jar      | just a router  | you can put food in a jar, java connotation      |
+## Better ideas for project names?
+
+| initials | full name       | notes                                            |
+|----------|-----------------|--------------------------------------------------|
+| tr       | table router    | woodworking joke (clash with `/usr/bin/tr`)      |
+| hr       | hand router     | woodworking joke                                 |
+| br       | boring router   | boring ssl reference, brouter joke in french     |
+| vr       | virtual router  | even more boring than boring router              |
+| ur       | micro router    | sounds nice, maybe misleading?                   |
+| rr       | routing router  | ends like frr, lion roar joke, makes no sense    |
+
+I lean on the JR acronym for several reasons:
+
+- these are my initials (nobody needs to know).
+- `jr` and `jr-cli` are awesome.
+- nice reference to [J.R. Ewing](https://fr.wikipedia.org/wiki/J._R._Ewing).
+
+| initials | full name       | notes                                            |
+|----------|-----------------|--------------------------------------------------|
+| jr       | just (a) router | dinner de cons joke                              |
+| jr       | jet router      | short and cute, [PHP project homonym]            |
+| jr       | jumbo router    | funnier yet not too extreme, jumbo frames hint   |
+| jr       | junk router     | why not?                                         |
+| jr       | jump router     | it jumps like a kangaroo                         |
+
+[PHP project homonym]: https://github.com/sformisano/jetrouter
 
 ## TODO
 
@@ -19,15 +37,19 @@
     * br: command usage
     * br-cli command usage
     * br-api: API to configure the router
-    * br-architecture: code structure, modules, etc.
+- write architecture documentation
+- make svg of the projected graph with missing nodes greyed out.
 
 ### Control API
 
-- QUESTION: routing table: handle live modification while traffic is running
+- routing table: handle live modification while traffic is running (need patch
+  in `rte_fib` to support RCU).
 
 - LATER: select TX (vhost-user)? (dispatch graph mode or special node)
 
 ### Dataplane
+
+- Include ARP request/reply handling in the graph.
 
 - QUESTION: adjust mbuf data pointer before enqueue to next graph node?
 
