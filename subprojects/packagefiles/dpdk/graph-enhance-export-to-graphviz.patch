@@ -1,14 +1,24 @@
-From 74300e0007965dab6bc744e608732b8285f2e386 Mon Sep 17 00:00:00 2001
-From: Robin Jarry <robin@jarry.cc>
-Date: Fri, 15 Mar 2024 22:40:22 +0100
+From affb18c5d24aba613a038cd032efeff583b5af85 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Tue, 19 Mar 2024 17:46:17 +0100
 Subject: [PATCH] graph: enhance export to graphviz
 
+* Quote graph name to avoid parsing errors when it contains a dash.
+* Use fixed margin and smaller font for a more compact layout.
+* Use sans-serif font, the default is times new roman which is not the
+  best choice for a packet processing generated graph.
+* Force bold blue border and arrows for source nodes.
+* Force dark orange borders for sink nodes (nodes without next nodes).
+
+Link: https://f.jarry.cc/rte-graph-dot/before.svg
+Link: https://f.jarry.cc/rte-graph-dot/after.svg
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
  lib/graph/graph.c | 32 +++++++++++++++++++++++++-------
  1 file changed, 25 insertions(+), 7 deletions(-)
 
 diff --git a/lib/graph/graph.c b/lib/graph/graph.c
-index 26f0968a978d..a85ddc956e83 100644
+index 26f0968a978d..147bc6c685c5 100644
 --- a/lib/graph/graph.c
 +++ b/lib/graph/graph.c
 @@ -674,25 +674,43 @@ __rte_node_stream_alloc_size(struct rte_graph *graph, struct rte_node *node,
@@ -23,24 +33,24 @@ index 26f0968a978d..a85ddc956e83 100644
  	int rc;
  
 -	rc = fprintf(f, "Digraph %s {\n\trankdir=LR;\n", graph->name);
-+	rc = fprintf(f, "digraph \"%s\" {\n\trankdir=TD;\n", graph->name);
++	rc = fprintf(f, "digraph \"%s\" {\n\trankdir=LR;\n", graph->name);
 +	if (rc < 0)
 +		goto end;
 +
-+	rc = fprintf(f, "\tnode [fontsize=11 fontname=monospace margin=0];\n");
++	rc = fprintf(f, "\tnode [margin=0.02 fontsize=11 fontname=sans];\n");
  	if (rc < 0)
  		goto end;
  
  	STAILQ_FOREACH(graph_node, &graph->node_list, next) {
-+		const char *color = "";
++		const char *attrs = "";
  		node_name = graph_node->node->name;
 +
 +		rc = fprintf(f, "\t\"%s\"", node_name);
 +		if (rc < 0)
 +			goto end;
 +		if (graph_node->node->flags & RTE_NODE_SOURCE_F) {
-+			color = " [color=blue]";
-+			rc = fprintf(f, "%s", color);
++			attrs = " [color=blue style=bold]";
++			rc = fprintf(f, "%s", attrs);
 +			if (rc < 0)
 +				goto end;
 +		} else if (graph_node->node->nb_edges == 0) {
@@ -58,7 +68,7 @@ index 26f0968a978d..a85ddc956e83 100644
 -				     graph_node->node->flags & RTE_NODE_SOURCE_F
 -					     ? src_edge_color
 -					     : edge_color);
-+				     color);
++				     attrs);
  			if (rc < 0)
  				goto end;
  		}
