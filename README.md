@@ -1,4 +1,4 @@
-# *Boring Router*: a sample router based on DPDK
+# Boring Router: a sample router based on DPDK
 
 `brouter` stands for *Boring Router*. *Boring* because it should work in all
 circumstances, without any fuss nor extended configuration/tuning.
