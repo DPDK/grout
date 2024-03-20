@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024 Robin Jarry
+---
+name: Lint
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          dnf install -y \
+            make gcc ninja-build meson clang-tools-extra git
+      - run: git log --oneline -20 --decorate
+      - run: make lint

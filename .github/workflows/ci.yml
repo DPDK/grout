@@ -21,5 +21,4 @@ jobs:
             numactl-devel \
             python3-pyelftools
       - run: make
-      - run: make lint
       - run: make coverage
