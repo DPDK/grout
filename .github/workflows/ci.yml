@@ -28,18 +28,14 @@ jobs:
       - run: make coverage
   lint:
     runs-on: ubuntu-latest
-    container: debian:testing
-    env:
-      DEBIAN_FRONTEND: noninteractive
     steps:
-      - run: |
-          apt-get update
-          apt-get install -y make clang-format git jq
+      - run: sudo apt-get install make clang-format git
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: make lint
+        # TODO: later, check commit messages here
       - run: |
           git config --global --add safe.directory $PWD
-          git log --oneline --decorate "${{ github.pull_request.base.sha }}..${{ github.pull_request.head.sha }}"
-        if: ${{ github.pull_request.base.sha && github.pull_request.head.sha }}
+          git log --oneline --decorate "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+        if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
