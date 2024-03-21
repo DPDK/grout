@@ -12,7 +12,7 @@ also in scripts one command at a time, or by batches.
 
 ## Quick start
 
-### System dependencies:
+### Install system dependencies
 
 ```sh
 dnf install gcc git libcmocka-devel libedit-devel libevent-devel make meson \
@@ -26,7 +26,7 @@ apt install build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
         libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc
 ```
 
-Compiling:
+### Build
 
 ```
 git clone https://github.com/rjarry/brouter
@@ -34,10 +34,10 @@ cd brouter
 make
 ```
 
-### Running the router
+### Start the router
 
 ```console
-~# taskset --cpu-list 6-19,26-39 ./build/br -v
+[root@dio brouter]$ taskset --cpu-list 6-19,26-39 ./build/br -v
 BR: dpdk_init: DPDK version: DPDK 23.11.0
 BR: dpdk_init: EAL arguments: -l 6 -a 0000:00:00.0 --in-memory --log-level=*:info
 EAL: Detected CPU lcores: 40
@@ -46,10 +46,12 @@ EAL: Detected NUMA nodes: 1
 BR: listen_api_socket: listening on API socket /run/br.sock
 ```
 
-### Starting the CLI
+### Start the CLI
+
+By default, the CLI will start an interactive shell with command completion:
 
 ```console
-~# ./build/br-cli
+[root@dio brouter]$  ./build/br-cli
 Welcome to the boring router CLI.
 Use ? for help and <tab> for command completion.
 br#
@@ -65,7 +67,7 @@ graph                Get information about the packet processing graph.
 Multiple commands can be piped into standard input:
 
 ```console
-~# ./build/br-cli -ex < commands.list
+[root@dio brouter]$ ./build/br-cli -ex < commands.list
 + port add 0000:18:00.0
 Created port 0
 + port add 0000:18:00.1
@@ -93,8 +95,8 @@ PORT      RXQ_ID    CPU_ID    ENABLED
 The CLI can be used as a one-shot command (with bash completion built-in):
 
 ```console
-~# complete -C './build/br-cli --bash-complete' ./build/br-cli
-~# ./build/br-cli <TAB><TAB>
+[root@dio brouter]$ complete -C './build/br-cli --bash-complete' ./build/br-cli
+[root@dio brouter]$ ./build/br-cli <TAB><TAB>
 -e                    (Abort on first error.)
 --err-exit            (Abort on first error.)
 graph                 (Get information about the packet processing graph.)
@@ -110,8 +112,8 @@ rxq                   (Manage ports RX queues.)
 stats                 (Manage stack statistics.)
 --trace-commands      (Print executed commands.)
 -x                    (Print executed commands.)
-~# ./build/br-cli stats reset
-~# ./build/br-cli graph dump
+[root@dio brouter]$ ./build/br-cli stats reset
+[root@dio brouter]$ ./build/br-cli graph dump
 digraph "br-0037" {
         rankdir=LR;
         node [margin=0.02 fontsize=11 fontname=sans];
@@ -139,7 +141,7 @@ digraph "br-0037" {
         "eth_classify" -> "eth_classify_unknown_ptype";
         "eth_classify" -> "ipv4_lookup";
 }
-~# ./build/br-cli graph stats
+[root@dio brouter]$ ./build/br-cli graph stats
 NODE               CALLS     PACKETS   PKTS/CALL  CYCLES/CALL    CYCLES/PKT
 eth_tx            449804   114771409       255.2      79044.8         309.8
 ipv4_rewrite      449804   114771409       255.2      14291.0          56.0
