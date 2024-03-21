@@ -34,13 +34,12 @@ jobs:
     steps:
       - run: |
           apt-get update
-          apt-get install -y make clang-format git
+          apt-get install -y make clang-format git jq
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: make lint
       - run: |
-          echo $${{github.event}}
           git config --global --add safe.directory $PWD
-          git log --oneline --decorate "origin/${{ github.base_ref }}..${{ github.ref }}"
-        if: ${{ github.base_ref && github.ref }}
+          git log --oneline --decorate "${{ github.pull_request.base.sha }}..${{ github.pull_request.head.sha }}"
+        if: ${{ github.pull_request.base.sha && github.pull_request.head.sha }}
