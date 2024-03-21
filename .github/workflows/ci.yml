@@ -14,16 +14,28 @@ jobs:
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
-      - uses: actions/checkout@v4
       - run: |
           dnf install -y \
-            make gcc ninja-build meson clang-tools-extra git gcovr scdoc \
+            make gcc ninja-build meson git gcovr scdoc \
             libasan \
             libcmocka-devel \
             libedit-devel \
             libevent-devel \
             numactl-devel \
             python3-pyelftools
+      - uses: actions/checkout@v4
       - run: make
       - run: make coverage
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get install make clang-format git
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: make lint
+        # TODO: later, check commit messages here
+      - run: |
+          git config --global --add safe.directory $PWD
+          git log --oneline --decorate "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+        if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
