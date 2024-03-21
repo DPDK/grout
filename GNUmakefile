@@ -46,7 +46,7 @@ c_src = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch
 all_files = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -print`
 
 .PHONY: lint
-lint: $(BUILDDIR)/build.ninja
+lint:
 	@echo '[clang-format]'
 	$Q clang-format --dry-run --Werror $(c_src)
 	@echo '[license-check]'
