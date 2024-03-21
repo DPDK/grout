@@ -41,16 +41,17 @@ $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)
 
 prune = -path $1 -prune -o
-exclude = $(BUILDDIR) subprojects LICENSE .git README.md .lsan-suppressions main/include/stb_ds.h
-c_src = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print`
-all_files = `find * .* $(foreach d,$(exclude),$(call prune,$d)) -type f -print`
+exclude = $(BUILDDIR) subprojects LICENSE README.md main/include/stb_ds.h
+c_src = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print
+all_files = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -print
 
 .PHONY: lint
 lint:
 	@echo '[clang-format]'
-	$Q clang-format --dry-run --Werror $(c_src)
+	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
+		clang-format --files="$$tmp" --dry-run --Werror
 	@echo '[license-check]'
-	$Q ! for f in $(all_files); do \
+	$Q ! $(all_files) | while read -r f; do \
 		if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
 			echo $$f; \
 		fi; \
@@ -65,4 +66,5 @@ lint:
 .PHONY: format
 format:
 	@echo '[clang-format]'
-	$Q clang-format -i --verbose $(c_src)
+	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
+		clang-format --files="$$tmp" -i --verbose
