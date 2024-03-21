@@ -85,8 +85,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 
 		// TODO: optimize with lookup of multiple packets
 		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
-		    || next_hop == BR_NO_ROUTE)
-		{
+		    || next_hop == BR_NO_ROUTE) {
 			next = NO_ROUTE;
 			goto next_packet;
 		}
