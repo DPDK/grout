@@ -38,6 +38,7 @@ dpdk_dep = dependency(
 
 event_dep = dependency('libevent')
 numa_dep = dependency('numa')
+stb_dep = dependency('stb', fallback: ['stb', 'stb_dep'])
 ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
 
 src = []
@@ -70,7 +71,7 @@ install_headers(api_headers, subdir: 'br')
 executable(
   'br', src,
   include_directories: inc,
-  dependencies: [dpdk_dep, event_dep, numa_dep],
+  dependencies: [dpdk_dep, event_dep, numa_dep, stb_dep],
   install: true,
 )
 
@@ -92,7 +93,7 @@ foreach t : tests
     'include_directories': inc + lib_inc + cli_inc,
     'c_args': ['-coverage'],
     'link_args': t['link_args'] + ['-lgcov'],
-    'dependencies': [dpdk_dep, event_dep, numa_dep, ecoli_dep, cmocka_dep],
+    'dependencies': [dpdk_dep, event_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],
   }
   test(name, executable(name, kwargs: t))
 endforeach

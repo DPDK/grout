@@ -2,9 +2,10 @@
 // Copyright (c) 2024 Robin Jarry
 
 #define STB_DS_IMPLEMENTATION
-#include "br_stb_ds.h"
-
+#include <br_stb_ds.h>
 #include <br_string.h>
+
+#include <stddef.h>
 
 char *arrjoin(char **array, char *sep) {
 	char *out = NULL;

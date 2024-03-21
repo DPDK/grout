@@ -4,7 +4,7 @@
 #ifndef _BR_CORE_STB_DS
 #define _BR_CORE_STB_DS
 
-#include "stb_ds.h"
+#include <stb_ds.h>
 
 #define stbds_arrforeach(v, a)                                                                     \
 	for (int __i = 0, __next = 1; __next && __i < arrlen(a); __next = !__next, __i++)          \
