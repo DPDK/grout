@@ -29,11 +29,12 @@
 #include <unistd.h>
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-t] [-c FILE] [-s PATH] [-c CORES]\n", prog);
+	printf("Usage: %s [-h] [-v] [-t] [-c FILE] [-s PATH]\n", prog);
 	puts("");
 	puts("  Boring router.");
 	puts("");
 	puts("options:");
+	puts("  -h, --help                 Display this help message and exit.");
 	puts("  -v, --verbose              Increase verbosity.");
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
