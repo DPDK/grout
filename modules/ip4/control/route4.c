@@ -30,13 +30,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_hash *routes;
 static struct rte_fib *fib;
-static struct rte_rcu_qsbr *rcu;
-
-struct rte_rcu_qsbr *br_route4_rcu(void) {
-	return rcu;
-}
+static struct rte_rib *rib;
 
 int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 	uint64_t gateway = 0;
@@ -59,16 +54,18 @@ int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 }
 
 int route_lookup_exact(ip4_addr_t net, uint8_t prefix, struct next_hop **nh) {
-	struct ip4_net network = {.addr = net, .prefixlen = prefix};
-	uintptr_t gateway;
+	struct rte_rib_node *rn;
+	uint64_t gateway;
 	int ret;
 
 	if (nh == NULL)
 		return -EINVAL;
-	if (routes == NULL)
+	if (rib == NULL)
 		return -EIO;
-	if ((ret = rte_hash_lookup_data(routes, &network, (void **)&gateway)) < 0)
-		return ret;
+	if ((rn = rte_rib_lookup_exact(rib, ntohl(net), prefix)) == NULL)
+		return -ENOENT;
+
+	rte_rib_get_nh(rn, &gateway);
 	if ((ret = next_hop_lookup(gateway, nh)) < 0)
 		return ret;
 
@@ -76,23 +73,29 @@ int route_lookup_exact(ip4_addr_t net, uint8_t prefix, struct next_hop **nh) {
 }
 
 int route_insert(ip4_addr_t net, uint8_t prefix, ip4_addr_t gw, bool force) {
-	struct ip4_net network = {.addr = net, .prefixlen = prefix};
 	struct next_hop *old_nh = NULL, *nh = NULL;
+	struct rte_rib *rib = rte_fib_get_rib(fib);
+	struct rte_rib_node *rn;
 	int ret;
+
+	if (rib == NULL)
+		return -EIO;
 
 	if ((ret = next_hop_lookup(gw, &nh)) < 0)
 		return ret;
 
-	if (route_lookup_exact(net, prefix, &old_nh) == 0) {
+	if ((rn = rte_rib_lookup_exact(rib, ntohl(net), prefix)) != NULL) {
+		uint64_t old_gw;
 		if (!force)
 			return -EEXIST;
-		if (gw == old_nh->ip)
+		rte_rib_get_nh(rn, &old_gw);
+		if (gw == old_gw)
 			return 0;
+		if ((ret = next_hop_lookup(old_gw, &old_nh)) < 0)
+			return ret;
 	}
-	if ((ret = rte_fib_add(fib, ntohl(net), prefix, gw)) < 0)
-		return ret;
 
-	if ((ret = rte_hash_add_key_data(routes, &network, (void *)(uintptr_t)gw)) < 0)
+	if ((ret = rte_fib_add(fib, ntohl(net), prefix, gw)) < 0)
 		return ret;
 
 	if (old_nh != NULL)
@@ -103,7 +106,6 @@ int route_insert(ip4_addr_t net, uint8_t prefix, ip4_addr_t gw, bool force) {
 }
 
 int route_delete(ip4_addr_t net, uint8_t prefix, bool force) {
-	struct ip4_net network = {.addr = net, .prefixlen = prefix};
 	struct next_hop *nh;
 	int ret;
 
@@ -115,7 +117,6 @@ int route_delete(ip4_addr_t net, uint8_t prefix, bool force) {
 	nh->ref_count--;
 
 	rte_fib_delete(fib, ntohl(net), prefix);
-	rte_hash_del_key(routes, &network);
 
 	return 0;
 }
@@ -162,27 +163,42 @@ static struct api_out route4_get(const void *request, void **response) {
 
 static struct api_out route4_list(const void *request, void **response) {
 	struct br_ip_route4_list_resp *resp = NULL;
-	struct ip4_net *net;
+	struct rte_rib *rib = rte_fib_get_rib(fib);
+	struct rte_rib_node *rn = NULL;
+	struct br_ip_route4 *r;
 	size_t num, len;
-	uintptr_t gw;
-	uint32_t iter;
+	uint64_t gw;
+	uint32_t ip;
 
 	(void)request;
 
-	num = rte_hash_count(routes);
+	num = 0;
+	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL)
+		num++;
+	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
+	if (rte_rib_lookup_exact(rib, 0, 0) != NULL)
+		num++;
+
 	len = sizeof(*resp) + num * sizeof(struct br_ip_route4);
-	if ((resp = malloc(len)) == NULL)
+	if ((resp = calloc(1, len)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	num = 0;
-	iter = 0;
-	while (rte_hash_iterate(routes, (const void **)&net, (void **)&gw, &iter) >= 0) {
-		memcpy(&resp->routes[num].dest, net, sizeof(resp->routes[num].dest));
-		resp->routes[num].nh = gw;
-		num++;
+	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
+		r = &resp->routes[resp->n_routes++];
+		rte_rib_get_ip(rn, &ip);
+		rte_rib_get_nh(rn, &gw);
+		rte_rib_get_depth(rn, &r->dest.prefixlen);
+		r->dest.addr = htonl(ip);
+		r->nh = gw;
 	}
-
-	resp->n_routes = num;
+	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
+	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
+		r = &resp->routes[resp->n_routes++];
+		rte_rib_get_nh(rn, &gw);
+		r->dest.addr = 0;
+		r->dest.prefixlen = 0;
+		r->nh = gw;
+	}
 	*response = resp;
 
 	return api_out(0, len);
@@ -205,46 +221,13 @@ static void route4_init(void) {
 	fib = rte_fib_create(BR_IP4_FIB_NAME, SOCKET_ID_ANY, &conf);
 	if (fib == NULL)
 		ABORT("rte_fib_create: %s", rte_strerror(rte_errno));
-
-	struct rte_hash_parameters params = {
-		.name = "route4",
-		.entries = BR_MAX_ROUTES,
-		.key_len = sizeof(struct ip4_net),
-		.extra_flag = RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT
-			| RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF,
-	};
-	routes = rte_hash_create(&params);
-	if (routes == NULL)
-		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
-
-	size_t sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
-	rcu = rte_malloc("route4-rcu", sz, RTE_CACHE_LINE_SIZE);
-	if (rcu == NULL)
-		ABORT("rte_malloc(rcu): %s", rte_strerror(rte_errno));
-
-	if (rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE))
-		ABORT("rte_rcu_qsbr_init: %s", rte_strerror(rte_errno));
-
-	struct rte_hash_rcu_config rcu_conf = {.v = rcu};
-	if (rte_hash_rcu_qsbr_add(routes, &rcu_conf))
-		ABORT("rte_hash_rcu_qsbr_add: %s", rte_strerror(rte_errno));
+	rib = rte_fib_get_rib(fib);
 }
 
 static void route4_fini(void) {
+	rib = NULL;
 	rte_fib_free(fib);
 	fib = NULL;
-	rte_hash_free(routes);
-	routes = NULL;
-	rte_free(rcu);
-	rcu = NULL;
-}
-
-static void route4_dp_init(void) {
-	rte_rcu_qsbr_thread_register(rcu, rte_lcore_id());
-}
-
-static void route4_dp_fini(void) {
-	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 }
 
 static struct br_api_handler route4_add_handler = {
@@ -273,8 +256,6 @@ static struct br_module route4_module = {
 	.init = route4_init,
 	.fini = route4_fini,
 	.fini_prio = 10000,
-	.init_dp = route4_dp_init,
-	.fini_dp = route4_dp_fini,
 };
 
 RTE_INIT(control_ip_init) {

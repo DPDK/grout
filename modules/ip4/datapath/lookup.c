@@ -27,7 +27,6 @@ enum edges {
 
 static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
 	struct rte_fib *fib = node->ctx_ptr;
 	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
@@ -35,8 +34,6 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	uint64_t next_hop;
 	rte_edge_t next;
 	uint16_t i;
-
-	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -95,8 +92,6 @@ next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
-	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
-
 	return nb_objs;
 }
 
@@ -125,11 +120,6 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 	if (node->ctx_ptr == NULL) {
 		LOG(ERR, "rte_fib_find_existing(%s): %s", BR_IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
-	}
-	node->ctx_ptr2 = br_route4_rcu();
-	if (node->ctx_ptr2 == NULL) {
-		LOG(ERR, "br_route4_rcu() == NULL");
-		return -ENOENT;
 	}
 
 	return 0;
