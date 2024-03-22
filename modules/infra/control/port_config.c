@@ -25,6 +25,9 @@ static struct rte_eth_conf default_port_config = {
 			.rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_UDP | RTE_ETH_RSS_TCP,
 		},
 	},
+	.rxmode = {
+		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM,
+	},
 };
 
 int port_destroy(uint16_t port_id, struct port *port) {
@@ -133,6 +136,7 @@ int port_reconfig(struct port *p) {
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+	conf.rxmode.offloads &= info.rx_offload_capa;
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, n_txq, &conf)) < 0) {
 		LOG(ERR, "rte_eth_dev_configure: %s", rte_strerror(-ret));
