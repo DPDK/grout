@@ -72,14 +72,14 @@ Multiple commands can be piped into standard input:
 Created port 0
 + port add 0000:18:00.1
 Created port 1
-+ port set 0 qsize 4096
-+ port set 1 qsize 4096
++ port set 0 qsize 2048
++ port set 1 qsize 2048
 + rxq set port 0 rxq 0 cpu 7
 + rxq set port 1 rxq 0 cpu 27
 + port list
 INDEX  DEVICE        RX_QUEUES  RXQ_SIZE  TX_QUEUES  TXQ_SIZE  MAC
-1      0000:18:00.1  1          4096      2          4096      b8:3f:d2:fa:53:87
-0      0000:18:00.0  1          4096      2          4096      b8:3f:d2:fa:53:86
+1      0000:18:00.1  1          2048      2          2048      b8:3f:d2:fa:53:87
+0      0000:18:00.0  1          2048      2          2048      b8:3f:d2:fa:53:86
 + rxq list
 PORT      RXQ_ID    CPU_ID    ENABLED
 0         0         7         1
@@ -143,11 +143,11 @@ digraph "br-0037" {
 }
 [root@dio brouter]$ ./build/br-cli graph stats
 NODE               CALLS     PACKETS   PKTS/CALL  CYCLES/CALL    CYCLES/PKT
-eth_tx            449804   114771409       255.2      79044.8         309.8
-ipv4_rewrite      449804   114771409       255.2      14291.0          56.0
-ipv4_lookup       449804   114771409       255.2      11872.2          46.5
-eth_rx            857824   114771409       133.8       4452.6          33.3
-eth_classify      449804   114771409       255.2       1818.2           7.1
+ipv4_rewrite        1024      261698       255.6      16982.8          66.5
+ipv4_lookup         1024      261698       255.6      12355.8          48.3
+eth_rx              1024      261698       255.6       8315.6          32.5
+eth_tx              1024      261698       255.6       7107.8          27.8
+eth_classify        1024      261698       255.6       1941.1           7.6
 ```
 
 ## License
