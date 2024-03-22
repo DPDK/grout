@@ -17,6 +17,7 @@
 
 #include <pthread.h>
 #include <stdatomic.h>
+#include <sys/prctl.h>
 #include <sys/queue.h>
 #include <unistd.h>
 
@@ -109,6 +110,9 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	return 0;
 }
 
+// The default timer resolution is around 50us, make it more precise
+#define SLEEP_RESOLUTION_NS 1000
+
 void *br_datapath_loop(void *priv) {
 	struct stats_context ctx = {.last_count = 0};
 	uint32_t sleep, max_sleep_us;
@@ -140,6 +144,10 @@ void *br_datapath_loop(void *priv) {
 	snprintf(name, 15, "br:loop-c%d", w->cpu_id);
 	if (pthread_setname_np(pthread_self(), name)) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
+		return NULL;
+	}
+	if (prctl(PR_SET_TIMERSLACK, SLEEP_RESOLUTION_NS) < 0) {
+		log(ERR, "prctl(PR_SET_TIMERSLACK): %s", strerror(errno));
 		return NULL;
 	}
 
