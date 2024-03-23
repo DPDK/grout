@@ -330,33 +330,34 @@ int main(int argc, char **argv) {
 		goto end;
 
 	if (dpdk_init(&br) < 0)
-		goto end;
+		goto dpdk_stop;
 
 	modules_init();
 
 	if ((ev_base = event_base_new()) == NULL) {
 		LOG(ERR, "event_base_new: %s", strerror(errno));
-		goto end;
+		goto shutdown;
 	}
 
 	if (listen_api_socket() < 0)
-		goto end;
+		goto shutdown;
 
 	if (register_signals(ev_base) < 0)
-		goto end;
+		goto shutdown;
 
 	// run until signal or fatal error
 	if (event_base_dispatch(ev_base) == 0)
 		ret = EXIT_SUCCESS;
 
-end:
+shutdown:
 	unregister_signals();
 	if (ev_base)
 		event_base_free(ev_base);
 	unlink(br.api_sock_path);
 	libevent_global_shutdown();
 	modules_fini();
+dpdk_stop:
 	dpdk_fini();
-
+end:
 	return ret;
 }
