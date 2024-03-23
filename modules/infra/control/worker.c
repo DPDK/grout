@@ -174,6 +174,26 @@ int port_plug(const struct port *port) {
 	return worker_graph_reload_all();
 }
 
+static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {
+	const struct worker_stats *stats;
+	struct worker *worker;
+	LIST_FOREACH (worker, &workers, next) {
+		if (worker->lcore_id == lcore_id) {
+			stats = atomic_load(&worker->stats);
+			if (stats == NULL)
+				return -1;
+			usage->busy_cycles = stats->busy_cycles;
+			usage->total_cycles = stats->total_cycles;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+static void worker_init(void) {
+	rte_lcore_register_usage_cb(lcore_usage_cb);
+}
+
 static void worker_fini(void) {
 	struct worker *w, *tmp;
 
@@ -185,6 +205,7 @@ static void worker_fini(void) {
 
 static struct br_module worker_module = {
 	.name = "worker",
+	.init = worker_init,
 	.fini = worker_fini,
 	.fini_prio = -1000,
 };

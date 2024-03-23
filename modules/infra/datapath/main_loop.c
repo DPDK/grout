@@ -35,7 +35,7 @@ static int node_stats_callback(
 	const struct rte_graph_cluster_node_stats *stats
 ) {
 	struct stats_context *ctx = cookie;
-	struct worker_stat *s;
+	struct node_stats *s;
 	uint64_t objs_incr;
 	uint8_t index;
 
@@ -55,7 +55,7 @@ static int node_stats_callback(
 
 static inline void stats_reset(struct worker_stats *stats) {
 	for (unsigned i = 0; i < stats->n_stats; i++) {
-		struct worker_stat *s = &stats->stats[i];
+		struct node_stats *s = &stats->stats[i];
 		s->objs = 0;
 		s->calls = 0;
 		s->cycles = 0;
@@ -115,6 +115,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 
 void *br_datapath_loop(void *priv) {
 	struct stats_context ctx = {.last_count = 0};
+	uint64_t timestamp, timestamp_tmp, cycles;
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
 	struct rte_graph *graph;
@@ -182,6 +183,7 @@ reconfig:
 
 	loop = 0;
 	sleep = 0;
+	timestamp = rte_rdtsc();
 	for (;;) {
 		rte_graph_walk(graph);
 
@@ -193,16 +195,21 @@ reconfig:
 
 			ctx.last_count = 0;
 			rte_graph_cluster_stats_get(ctx.stats, false);
+			timestamp_tmp = rte_rdtsc();
+			cycles = timestamp_tmp - timestamp;
 			if (ctx.last_count == 0 && max_sleep_us > 0) {
 				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);
 			} else {
 				sleep = 0;
+				ctx.w_stats->busy_cycles += cycles;
 			}
 			if (atomic_exchange(&w->stats_reset, false))
 				stats_reset(ctx.w_stats);
 
 			loop = 0;
+			timestamp = timestamp_tmp;
+			ctx.w_stats->total_cycles += cycles;
 		}
 	}
 

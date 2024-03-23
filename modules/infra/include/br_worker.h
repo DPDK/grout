@@ -21,7 +21,7 @@ struct queue_map {
 	bool enabled;
 };
 
-struct worker_stat {
+struct node_stats {
 	rte_node_t node_id;
 	uint64_t objs;
 	uint64_t calls;
@@ -29,8 +29,10 @@ struct worker_stat {
 };
 
 struct worker_stats {
+	uint64_t total_cycles;
+	uint64_t busy_cycles;
 	size_t n_stats;
-	struct worker_stat stats[/* n_stats */];
+	struct node_stats stats[/* n_stats */];
 };
 
 struct worker {

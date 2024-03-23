@@ -319,7 +319,7 @@ static struct api_out graph_stats(const void *request, void **response) {
 		if (w_stats == NULL)
 			continue;
 		for (unsigned i = 0; i < w_stats->n_stats; i++) {
-			const struct worker_stat *s = &w_stats->stats[i];
+			const struct node_stats *s = &w_stats->stats[i];
 			const char *name = rte_node_id_to_name(s->node_id);
 			struct stat_entry *e = shgetp_null(smap, name);
 			if (e != NULL) {
