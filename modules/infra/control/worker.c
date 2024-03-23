@@ -32,7 +32,7 @@
 
 struct workers workers;
 
-int worker_create(int cpu_id) {
+int worker_create(unsigned cpu_id) {
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
 	int ret = ENOMEM;
 
@@ -63,7 +63,7 @@ err:
 	return -1;
 }
 
-int worker_destroy(int cpu_id) {
+int worker_destroy(unsigned cpu_id) {
 	struct worker *worker = worker_find(cpu_id);
 
 	if (worker == NULL) {
@@ -93,7 +93,7 @@ size_t worker_count(void) {
 	return count;
 }
 
-struct worker *worker_find(int cpu_id) {
+struct worker *worker_find(unsigned cpu_id) {
 	struct worker *worker;
 	LIST_FOREACH (worker, &workers, next) {
 		if (worker->cpu_id == cpu_id)

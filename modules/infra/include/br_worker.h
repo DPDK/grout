@@ -49,8 +49,8 @@ struct worker {
 	_Atomic(const struct worker_stats *) stats;
 
 	// shared between control & dataplane
-	int cpu_id;
-	int lcore_id;
+	unsigned cpu_id;
+	unsigned lcore_id;
 	pid_t tid;
 
 	// private for control plane only

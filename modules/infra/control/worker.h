@@ -11,9 +11,9 @@ int port_unplug(const struct port *);
 int port_plug(const struct port *);
 
 size_t worker_count(void);
-int worker_create(int cpu_id);
-struct worker *worker_find(int cpu_id);
-int worker_destroy(int cpu_id);
+int worker_create(unsigned cpu_id);
+struct worker *worker_find(unsigned cpu_id);
+int worker_destroy(unsigned cpu_id);
 int worker_ensure_default(int socket_id);
 
 #endif
