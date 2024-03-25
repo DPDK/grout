@@ -1,7 +1,7 @@
 From affb18c5d24aba613a038cd032efeff583b5af85 Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Tue, 19 Mar 2024 17:46:17 +0100
-Subject: [PATCH] graph: enhance export to graphviz
+Subject: [PATCH 1/4] graph: enhance export to graphviz
 
 * Quote graph name to avoid parsing errors when it contains a dash.
 * Use fixed margin and smaller font for a more compact layout.
