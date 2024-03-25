@@ -30,7 +30,7 @@ static inline uint16_t tx_burst(
 	struct rte_mbuf **mbufs,
 	uint16_t n
 ) {
-	const struct tx_ctx *ctx = rte_node_ctx_ptr1_get(node);
+	const struct tx_ctx *ctx = node->ctx_ptr1;
 	uint16_t txq_id, tx_ok;
 
 	txq_id = ctx->txq_ids[port_id];
@@ -118,14 +118,14 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 	memcpy(ctx->txq_ids, data->txq_ids, sizeof(ctx->txq_ids));
-	rte_node_ctx_ptr1_set(node, ctx);
+	node->ctx_ptr1 = ctx;
 
 	return 0;
 }
 
 static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	(void)graph;
-	rte_free(rte_node_ctx_ptr1_get(node));
+	rte_free(node->ctx_ptr1);
 }
 
 static struct rte_node_register tx_node_base = {

@@ -26,7 +26,7 @@ struct rx_ctx {
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
-	const struct rx_ctx *ctx = rte_node_ctx_ptr1_get(node);
+	const struct rx_ctx *ctx = node->ctx_ptr1;
 	struct rx_port_queue q;
 
 	(void)objs;
@@ -67,14 +67,14 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	ctx->n_queues = data->n_queues;
 	ctx->burst_size = RTE_GRAPH_BURST_SIZE / data->n_queues;
 	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
-	rte_node_ctx_ptr1_set(node, ctx);
+	node->ctx_ptr1 = ctx;
 
 	return 0;
 }
 
 static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	(void)graph;
-	rte_free(rte_node_ctx_ptr1_get(node));
+	rte_free(node->ctx_ptr1);
 }
 
 static struct rte_node_register rx_node_base = {
