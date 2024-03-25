@@ -1,0 +1,83 @@
+From fc24833e2ba76b8add966f1a2593a2dbaa7aa10c Mon Sep 17 00:00:00 2001
+From: Robin Jarry <robin@jarry.cc>
+Date: Mon, 25 Mar 2024 17:15:13 +0100
+Subject: [PATCH] graph: expose node context as pointers
+
+In some cases, the node context data is used to store two pointers
+because the data is larger than the reserved 16 bytes. Having to define
+intermediate structures just to be able to cast is tedious. Add helper
+inline functions to cast the node context to opaque pointers.
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ lib/graph/rte_graph_worker_common.h | 54 +++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/lib/graph/rte_graph_worker_common.h b/lib/graph/rte_graph_worker_common.h
+index 4045a7a8dc82..de78cef3362b 100644
+--- a/lib/graph/rte_graph_worker_common.h
++++ b/lib/graph/rte_graph_worker_common.h
+@@ -127,6 +127,60 @@ struct rte_node {
+ 	struct rte_node *nodes[] __rte_cache_min_aligned; /**< Next nodes. */
+ } __rte_cache_aligned;
+ 
++/**
++ * Cast the first 8 bytes of node context as an opaque pointer.
++ *
++ * @param node
++ *   Pointer to the node object.
++ *
++ * @return
++ *   The opaque pointer value.
++ */
++static inline void *rte_node_ctx_ptr1_get(struct rte_node *node)
++{
++	return ((void **)node->ctx)[0];
++}
++
++/**
++ * Cast the last 8 bytes of node context as an opaque pointer.
++ *
++ * @param node
++ *   Pointer to the node object.
++ *
++ * @return
++ *   The opaque pointer value.
++ */
++static inline void *rte_node_ctx_ptr2_get(struct rte_node *node)
++{
++	return ((void **)node->ctx)[1];
++}
++
++/**
++ * Set the first 8 bytes of node context to an opaque pointer value.
++ *
++ * @param node
++ *   Pointer to the node object.
++ * @param ptr
++ *   The opaque pointer value.
++ */
++static inline void rte_node_ctx_ptr1_set(struct rte_node *node, void *ptr)
++{
++	((void **)node->ctx)[0] = ptr;
++}
++
++/**
++ * Set the last 8 bytes of node context to an opaque pointer value.
++ *
++ * @param node
++ *   Pointer to the node object.
++ * @param ptr
++ *   The opaque pointer value.
++ */
++static inline void rte_node_ctx_ptr2_set(struct rte_node *node, void *ptr)
++{
++	((void **)node->ctx)[1] = ptr;
++}
++
+ /**
+  * @internal
+  *
+-- 
+2.44.0
+

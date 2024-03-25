@@ -27,7 +27,7 @@ enum edges {
 
 static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_fib *fib = node->ctx_ptr;
+	struct rte_fib *fib = rte_node_ctx_ptr1_get(node);
 	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
@@ -104,6 +104,7 @@ static const struct rte_mbuf_dynfield ip4_fwd_mbuf_priv_desc = {
 int ip4_fwd_mbuf_priv_offset = -1;
 
 static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
+	struct rte_fib *fib;
 	static bool once;
 
 	(void)graph;
@@ -116,11 +117,12 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	node->ctx_ptr = rte_fib_find_existing(BR_IP4_FIB_NAME);
-	if (node->ctx_ptr == NULL) {
+	fib = rte_fib_find_existing(BR_IP4_FIB_NAME);
+	if (fib == NULL) {
 		LOG(ERR, "rte_fib_find_existing(%s): %s", BR_IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
 	}
+	rte_node_ctx_ptr1_set(node, fib);
 
 	return 0;
 }

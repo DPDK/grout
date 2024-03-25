@@ -26,7 +26,7 @@ struct rx_ctx {
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
-	const struct rx_ctx *ctx = node->ctx_ptr;
+	const struct rx_ctx *ctx = rte_node_ctx_ptr1_get(node);
 	struct rx_port_queue q;
 
 	(void)objs;
@@ -57,7 +57,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
 		return -1;
 
-	node->ctx_ptr = ctx = rte_zmalloc(
+	ctx = rte_zmalloc(
 		__func__, sizeof(*ctx) + data->n_queues * sizeof(*ctx->queues), RTE_CACHE_LINE_SIZE
 	);
 	if (ctx == NULL) {
@@ -67,13 +67,14 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	ctx->n_queues = data->n_queues;
 	ctx->burst_size = RTE_GRAPH_BURST_SIZE / data->n_queues;
 	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
+	rte_node_ctx_ptr1_set(node, ctx);
 
 	return 0;
 }
 
 static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	(void)graph;
-	rte_free(node->ctx_ptr);
+	rte_free(rte_node_ctx_ptr1_get(node));
 }
 
 static struct rte_node_register rx_node_base = {

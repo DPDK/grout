@@ -30,7 +30,7 @@ static inline uint16_t tx_burst(
 	struct rte_mbuf **mbufs,
 	uint16_t n
 ) {
-	const struct tx_ctx *ctx = node->ctx_ptr;
+	const struct tx_ctx *ctx = rte_node_ctx_ptr1_get(node);
 	uint16_t txq_id, tx_ok;
 
 	txq_id = ctx->txq_ids[port_id];
@@ -112,19 +112,20 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
 		return -1;
 
-	node->ctx_ptr = ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
+	ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
 	if (ctx == NULL) {
 		LOG(ERR, "rte_malloc(): %s", rte_strerror(rte_errno));
 		return -1;
 	}
 	memcpy(ctx->txq_ids, data->txq_ids, sizeof(ctx->txq_ids));
+	rte_node_ctx_ptr1_set(node, ctx);
 
 	return 0;
 }
 
 static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	(void)graph;
-	rte_free(node->ctx_ptr);
+	rte_free(rte_node_ctx_ptr1_get(node));
 }
 
 static struct rte_node_register tx_node_base = {

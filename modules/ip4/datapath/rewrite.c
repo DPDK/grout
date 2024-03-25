@@ -32,8 +32,8 @@ enum {
 
 static uint16_t
 rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_hash *next_hops = node->ctx_ptr;
-	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
+	struct rte_hash *next_hops = rte_node_ctx_ptr1_get(node);
+	struct rte_rcu_qsbr *rcu = rte_node_ctx_ptr2_get(node);
 	struct rte_ether_hdr *eth_hdr;
 	struct rte_ipv4_hdr *ip4_hdr;
 	const struct next_hop *nh;
@@ -79,18 +79,24 @@ next:
 }
 
 static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
+	struct rte_hash *next_hops;
+	struct rte_rcu_qsbr *rcu;
+
 	(void)graph;
 
-	node->ctx_ptr = rte_hash_find_existing(IP4_NH_HASH_NAME);
-	if (node->ctx_ptr == NULL) {
+	next_hops = rte_hash_find_existing(IP4_NH_HASH_NAME);
+	if (next_hops == NULL) {
 		LOG(ERR, "rte_hash_find_existing: %s", rte_strerror(rte_errno));
 		return -1;
 	}
-	node->ctx_ptr2 = br_nh4_rcu();
-	if (node->ctx_ptr2 == NULL) {
+	rcu = br_nh4_rcu();
+	if (rcu == NULL) {
 		LOG(ERR, "br_nh4_rcu == NULL");
 		return -1;
 	}
+
+	rte_node_ctx_ptr1_set(node, next_hops);
+	rte_node_ctx_ptr2_set(node, rcu);
 
 	return 0;
 }
