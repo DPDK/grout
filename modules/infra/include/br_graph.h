@@ -15,7 +15,7 @@
 		var = (void *)node->ctx;                                                           \
 	} while (0)
 
-int br_node_data_get(const char *graph, const char *node, void **data);
+void *br_node_data_get(const char *graph, const char *node);
 
 int br_node_data_set(const char *graph, const char *node, void *data);
 

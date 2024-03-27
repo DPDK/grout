@@ -5,6 +5,7 @@ depth = 1
 diff_files =
 	dpdk/build-whole-archive-for-static-libs.patch,
 	dpdk/build-pass-cflags-in-subproject.patch,
+	dpdk/mbuf-fix-strict-aliasing-error.patch,
 	dpdk/graph-enhance-export-to-graphviz.patch,
 	dpdk/graph-expose-node-context-as-pointers.patch,
 	dpdk/graph-avoid-accessing-global-list-in-rte_graph_clust.patch,

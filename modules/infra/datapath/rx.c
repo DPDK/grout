@@ -54,7 +54,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 
 	(void)graph;
 
-	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
+	if ((data = br_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 
 	ctx = rte_zmalloc(

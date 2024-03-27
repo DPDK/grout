@@ -43,7 +43,7 @@ int br_ip_nh4_list(const struct br_client *c, size_t *n_nhs, struct br_ip_nh4 **
 		goto out;
 	}
 
-	if (send_recv(c, BR_IP_NH4_LIST, 0, NULL, (void **)&resp) < 0)
+	if (send_recv(c, BR_IP_NH4_LIST, 0, NULL, (void *)&resp) < 0)
 		goto out;
 
 	*n_nhs = resp->n_nhs;

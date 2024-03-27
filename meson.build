@@ -18,6 +18,8 @@ project(
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-DALLOW_EXPERIMENTAL_API', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
+add_project_arguments('-fstrict-aliasing', language: 'c')
+add_project_arguments('-Wstrict-aliasing=2', language: 'c')
 add_project_arguments('-Wno-format-truncation', language: 'c')
 
 dpdk_dep = dependency(

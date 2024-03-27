@@ -20,7 +20,7 @@ int br_infra_port_add(const struct br_client *c, const char *devargs, uint16_t *
 	memset(&req, 0, sizeof(req));
 	memccpy(req.devargs, devargs, 0, sizeof(req.devargs));
 
-	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, (void *)&resp) < 0)
 		goto out;
 
 	if (port_id != NULL)
@@ -48,7 +48,7 @@ int br_infra_port_get(const struct br_client *c, uint16_t port_id, struct br_inf
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, (void *)&resp) < 0)
 		goto out;
 
 	memcpy(port, &resp->port, sizeof(*port));
@@ -68,7 +68,7 @@ int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_inf
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, (void *)&resp) < 0)
 		goto out;
 
 	*n_ports = resp->n_ports;

@@ -21,7 +21,7 @@ int br_infra_rxq_list(const struct br_client *c, size_t *n_rxqs, struct br_infra
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, (void *)&resp) < 0)
 		goto out;
 
 	*n_rxqs = resp->n_rxqs;

@@ -29,7 +29,7 @@ int br_infra_stats_get(
 	if (pattern != NULL)
 		snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
 
-	if (send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, (void *)&resp) < 0)
 		goto out;
 
 	*stats = calloc(resp->n_stats, sizeof(*resp->stats));

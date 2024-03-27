@@ -20,7 +20,7 @@ int br_infra_graph_dump(const struct br_client *c, size_t *len, char **dot) {
 		errno = EINVAL;
 		goto out;
 	}
-	if (send_recv(c, BR_INFRA_GRAPH_DUMP, 0, NULL, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_GRAPH_DUMP, 0, NULL, (void *)&resp) < 0)
 		goto out;
 
 	*dot = calloc(1, resp->len);
@@ -49,7 +49,7 @@ int br_infra_graph_stats(
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_GRAPH_STATS, 0, NULL, (void **)&resp) < 0)
+	if (send_recv(c, BR_INFRA_GRAPH_STATS, 0, NULL, (void *)&resp) < 0)
 		goto out;
 
 	*stats = calloc(resp->n_stats, sizeof(*resp->stats));

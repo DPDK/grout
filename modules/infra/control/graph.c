@@ -44,14 +44,17 @@ static void set_key(struct node_data_key *key, const char *graph, const char *no
 	memccpy(key->node, node, 0, sizeof(key->node));
 }
 
-int br_node_data_get(const char *graph, const char *node, void **data) {
+void *br_node_data_get(const char *graph, const char *node) {
 	struct node_data_key key;
+	void *data = NULL;
+
 	set_key(&key, graph, node);
-	if (rte_hash_lookup_data(hash, &key, data) < 0) {
+
+	if (rte_hash_lookup_data(hash, &key, &data) < 0) {
 		LOG(ERR, "(%s, %s): %s", graph, node, rte_strerror(rte_errno));
-		return -1;
+		return NULL;
 	}
-	return 0;
+	return data;
 }
 
 int br_node_data_set(const char *graph, const char *node, void *data) {
@@ -93,7 +96,7 @@ static void node_data_reset(const char *graph) {
 	uint32_t iter;
 
 	iter = 0;
-	while (rte_hash_iterate(hash, (const void **)&key, &data, &iter) >= 0) {
+	while (rte_hash_iterate(hash, (void *)&key, &data, &iter) >= 0) {
 		if (strcmp(key->graph, graph) == 0) {
 			rte_hash_del_key(hash, key);
 			free(data);
@@ -399,7 +402,7 @@ static void graph_fini(void) {
 	uint32_t iter;
 
 	iter = 0;
-	while (rte_hash_iterate(hash, (const void **)&key, &data, &iter) >= 0) {
+	while (rte_hash_iterate(hash, (void *)&key, &data, &iter) >= 0) {
 		rte_hash_del_key(hash, key);
 		free(data);
 	}

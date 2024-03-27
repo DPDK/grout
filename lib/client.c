@@ -28,7 +28,7 @@ struct br_client *br_connect(const char *sock_path) {
 
 	strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
 
-	if (connect(client->sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+	if (connect(client->sock_fd, (void *)&addr, sizeof(addr)) < 0)
 		goto err;
 
 	return client;

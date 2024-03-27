@@ -51,7 +51,7 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		trace_packet(node->name, mbuf);
 
 		dst_addr = ip4_fwd_mbuf_priv(mbuf)->next_hop;
-		if (rte_hash_lookup_data(next_hops, &dst_addr, (void **)&nh) < 0)
+		if (rte_hash_lookup_data(next_hops, &dst_addr, (void *)&nh) < 0)
 			goto next;
 
 		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);

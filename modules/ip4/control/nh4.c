@@ -40,7 +40,7 @@ int next_hop_lookup(ip4_addr_t gw, struct next_hop **nh) {
 	int ret;
 	if (next_hops == NULL)
 		return -EIO;
-	if ((ret = rte_hash_lookup_data(next_hops, &gw, (void **)nh)) < 0) {
+	if ((ret = rte_hash_lookup_data(next_hops, &gw, (void *)nh)) < 0) {
 		return ret;
 	}
 	return 0;
@@ -53,7 +53,7 @@ int next_hop_delete(ip4_addr_t gw, bool force) {
 	if (next_hops == NULL)
 		return -EIO;
 
-	pos = rte_hash_lookup_data(next_hops, &gw, (void **)&nh);
+	pos = rte_hash_lookup_data(next_hops, &gw, (void *)&nh);
 	if (pos == -ENOENT && force)
 		return 0;
 	if (pos < 0)
@@ -82,7 +82,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 		return api_out(ENODEV, 0);
 	if (next_hop_lookup(req->nh.host, &old_nh) == 0 && !req->exist_ok)
 		return api_out(EEXIST, 0);
-	if (rte_mempool_get(nh_pool, (void **)&nh) < 0)
+	if (rte_mempool_get(nh_pool, (void *)&nh) < 0)
 		return api_out(ENOMEM, 0);
 
 	memset(nh, 0, sizeof(*nh));
@@ -137,7 +137,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 	num = 0;
 	iter = 0;
-	while (rte_hash_iterate(next_hops, (const void **)&host, (void **)&nh, &iter) >= 0) {
+	while (rte_hash_iterate(next_hops, (void *)&host, (void *)&nh, &iter) >= 0) {
 		resp->nhs[num].host = nh->ip;
 		resp->nhs[num].port_id = nh->port_id;
 		memcpy(&resp->nhs[num].mac, &nh->eth_addr[0], sizeof(resp->nhs[num].mac));

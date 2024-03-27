@@ -1,0 +1,29 @@
+From 880c9688cf7403846dbf6ef0191e722d62a16a23 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <robin@jarry.cc>
+Date: Wed, 27 Mar 2024 22:22:13 +0100
+Subject: [PATCH] mbuf: fix strict-aliasing error
+
+Signed-off-by: Robin Jarry <robin@jarry.cc>
+---
+ lib/mbuf/rte_mbuf.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/lib/mbuf/rte_mbuf.h b/lib/mbuf/rte_mbuf.h
+index 286b32b788a5..0076f0d80ba8 100644
+--- a/lib/mbuf/rte_mbuf.h
++++ b/lib/mbuf/rte_mbuf.h
+@@ -595,9 +595,9 @@ __rte_mbuf_raw_sanity_check(__rte_unused const struct rte_mbuf *m)
+  */
+ static inline struct rte_mbuf *rte_mbuf_raw_alloc(struct rte_mempool *mp)
+ {
+-	struct rte_mbuf *m;
++	void *m;
+ 
+-	if (rte_mempool_get(mp, (void **)&m) < 0)
++	if (rte_mempool_get(mp, &m) < 0)
+ 		return NULL;
+ 	__rte_mbuf_raw_sanity_check(m);
+ 	return m;
+-- 
+2.44.0
+

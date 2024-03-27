@@ -36,7 +36,7 @@ static inline uint16_t tx_burst(
 	txq_id = ctx->txq_ids[port_id];
 	tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
 	if (tx_ok < n)
-		rte_node_enqueue(graph, node, TX_ERROR, (void **)&mbufs[tx_ok], n - tx_ok);
+		rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
 
 	return tx_ok;
 }
@@ -54,7 +54,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		struct tx_mbuf_priv *priv;
 
 		if ((priv = tx_mbuf_priv(mbuf)) == NULL) {
-			rte_node_enqueue(graph, node, NO_PORT, (void **)&mbuf, 1);
+			rte_node_enqueue(graph, node, NO_PORT, (void *)&mbuf, 1);
 			continue;
 		}
 		if (priv->port_id != port_id) {
@@ -64,7 +64,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 					graph,
 					node,
 					port_id,
-					(struct rte_mbuf **)&objs[burst_start],
+					(void *)&objs[burst_start],
 					i - burst_start
 				);
 			}
@@ -109,7 +109,7 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 
-	if (br_node_data_get(graph->name, node->name, (void **)&data) < 0)
+	if ((data = br_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 
 	ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);

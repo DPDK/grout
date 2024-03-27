@@ -293,7 +293,7 @@ static int listen_api_socket(void) {
 
 	strncpy(addr.sun_path, br.api_sock_path, sizeof addr.sun_path - 1);
 
-	if (bind(fd, (struct sockaddr *)&addr, sizeof addr) < 0) {
+	if (bind(fd, (void *)&addr, sizeof addr) < 0) {
 		LOG(ERR, "bind: %s: %s", br.api_sock_path, strerror(errno));
 		close(fd);
 		return -1;
