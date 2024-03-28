@@ -112,6 +112,12 @@ rxq                   (Manage ports RX queues.)
 stats                 (Manage stack statistics.)
 --trace-commands      (Print executed commands.)
 -x                    (Print executed commands.)
+[root@dio brouter]$ ./build/br-cli stats <TAB><TAB>
+all           (Print all stats.)
+hardware      (Print hardware stats.)
+reset         (Reset all stats to zero.)
+software      (Print software stats.)
+xstats        (Print extended driver stats.)
 [root@dio brouter]$ ./build/br-cli stats reset
 [root@dio brouter]$ ./build/br-cli graph dump
 digraph "br-0037" {
