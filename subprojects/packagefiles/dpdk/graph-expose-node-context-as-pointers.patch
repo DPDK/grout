@@ -1,6 +1,6 @@
-From cc63894567e3cdc187076f4522299de879fcadc9 Mon Sep 17 00:00:00 2001
-From: Robin Jarry <robin@jarry.cc>
-Date: Wed, 27 Mar 2024 12:31:57 +0100
+From ccee0823214d32bd7b9fd7541e8870d6e4f9ba4f Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Wed, 20 Mar 2024 18:16:03 +0100
 Subject: [PATCH] graph: expose node context as pointers
 
 In some cases, the node context data is used to store two pointers
@@ -20,22 +20,58 @@ bytes.
 Add a static assert to ensure that the unnamed union is not larger than
 the context array (RTE_NODE_CTX_SZ).
 
-Signed-off-by: Robin Jarry <robin@jarry.cc>
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
- lib/graph/rte_graph_worker_common.h | 22 +++++++++++++++-------
- 1 file changed, 15 insertions(+), 7 deletions(-)
+
+Notes:
+    v5:
+    
+    * Helper functions to hide casting proved to be harder than expected.
+      Naive casting may even be impossible without breaking strict aliasing
+      rules. The only other option would be to use explicit memcpy calls.
+    * Unnamed union tentative again. As suggested by Tyler (thank you!),
+      using an intermediate unnamed struct to carry the alignment produces
+      consistent ABI in C and C++.
+    * Also, Tyler (thank you!) suggested that the fast path area alignment
+      size may be incorrect for architectures where the cache line is not 64
+      bytes. There will be a 64 bytes hole in the structure at the end of
+      the unnamed struct before the zero length next nodes array. Use
+      __rte_cache_min_aligned to preserve existing alignment.
+    
+    v4:
+    
+    * Replaced the unnamed union with helper inline functions.
+    
+    v3:
+    
+    * Added __extension__ to the unnamed struct inside the union.
+    * Fixed C++ header checks.
+    * Replaced alignas() with an explicit static_assert.
+
+ lib/graph/rte_graph_worker_common.h | 27 ++++++++++++++++++++-------
+ 1 file changed, 20 insertions(+), 7 deletions(-)
 
 diff --git a/lib/graph/rte_graph_worker_common.h b/lib/graph/rte_graph_worker_common.h
-index 4045a7a8dc82..4aaba9fc86fc 100644
+index 36d864e2c14e..84d4997bbbf6 100644
 --- a/lib/graph/rte_graph_worker_common.h
 +++ b/lib/graph/rte_graph_worker_common.h
-@@ -108,14 +108,21 @@ struct rte_node {
+@@ -12,7 +12,9 @@
+  * process, enqueue and move streams of objects to the next nodes.
+  */
+ 
++#include <assert.h>
+ #include <stdalign.h>
++#include <stddef.h>
+ 
+ #include <rte_common.h>
+ #include <rte_cycles.h>
+@@ -111,14 +113,21 @@ struct __rte_cache_aligned rte_node {
  		} dispatch;
  	};
  	/* Fast path area  */
 +	__extension__ struct __rte_cache_min_aligned {
  #define RTE_NODE_CTX_SZ 16
--	uint8_t ctx[RTE_NODE_CTX_SZ] __rte_cache_aligned; /**< Node Context. */
+-	alignas(RTE_CACHE_LINE_SIZE) uint8_t ctx[RTE_NODE_CTX_SZ]; /**< Node Context. */
 -	uint16_t size;		/**< Total number of objects available. */
 -	uint16_t idx;		/**< Number of objects used. */
 -	rte_graph_off_t off;	/**< Offset of node in the graph reel. */
@@ -43,12 +79,12 @@ index 4045a7a8dc82..4aaba9fc86fc 100644
 -	uint64_t total_calls;	/**< Calls done to this node. */
 -	uint64_t total_objs;	/**< Objects processed by this node. */
 +		union {
-+			uint8_t ctx[RTE_NODE_CTX_SZ]; /**< Node Context. */
++			uint8_t ctx[RTE_NODE_CTX_SZ];
 +			__extension__ struct {
-+				void *ctx_ptr1;
++				void *ctx_ptr;
 +				void *ctx_ptr2;
 +			};
-+		};
++		}; /**< Node Context. */
 +		uint16_t size;		/**< Total number of objects available. */
 +		uint16_t idx;		/**< Number of objects used. */
 +		rte_graph_off_t off;	/**< Offset of node in the graph reel. */
@@ -58,14 +94,20 @@ index 4045a7a8dc82..4aaba9fc86fc 100644
  		union {
  			void **objs;	   /**< Array of object pointers. */
  			uint64_t objs_u64;
-@@ -124,6 +131,7 @@ struct rte_node {
+@@ -127,9 +136,13 @@ struct __rte_cache_aligned rte_node {
  			rte_node_process_t process; /**< Process function. */
  			uint64_t process_u64;
  		};
 +	};
- 	struct rte_node *nodes[] __rte_cache_min_aligned; /**< Next nodes. */
- } __rte_cache_aligned;
+ 	alignas(RTE_CACHE_LINE_MIN_SIZE) struct rte_node *nodes[]; /**< Next nodes. */
+ };
  
++static_assert(offsetof(struct rte_node, size) - offsetof(struct rte_node, ctx) == RTE_NODE_CTX_SZ,
++	"rte_node context must be RTE_NODE_CTX_SZ bytes exactly");
++
+ /**
+  * @internal
+  *
 -- 
 2.44.0
 

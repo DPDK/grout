@@ -32,7 +32,7 @@ enum {
 
 static uint16_t
 rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_hash *next_hops = node->ctx_ptr1;
+	struct rte_hash *next_hops = node->ctx_ptr;
 	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
 	struct rte_ether_hdr *eth_hdr;
 	struct rte_ipv4_hdr *ip4_hdr;
@@ -97,7 +97,7 @@ static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
 		return -1;
 	}
 
-	node->ctx_ptr1 = next_hops;
+	node->ctx_ptr = next_hops;
 	node->ctx_ptr2 = rcu;
 
 	return 0;

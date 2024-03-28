@@ -27,7 +27,7 @@ enum edges {
 
 static uint16_t
 lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_fib *fib = node->ctx_ptr1;
+	struct rte_fib *fib = node->ctx_ptr;
 	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
@@ -122,7 +122,7 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 		LOG(ERR, "rte_fib_find_existing(%s): %s", BR_IP4_FIB_NAME, rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	node->ctx_ptr1 = fib;
+	node->ctx_ptr = fib;
 
 	return 0;
 }
