@@ -91,14 +91,17 @@ rte_edge_t br_node_attach_parent(const char *parent, const char *node) {
 }
 
 static void node_data_reset(const char *graph) {
-	const struct node_data_key *key;
+	union {
+		const struct node_data_key *k;
+		const void *v;
+	} key;
 	void *data = NULL;
 	uint32_t iter;
 
 	iter = 0;
-	while (rte_hash_iterate(hash, (void *)&key, &data, &iter) >= 0) {
-		if (strcmp(key->graph, graph) == 0) {
-			rte_hash_del_key(hash, key);
+	while (rte_hash_iterate(hash, &key.v, &data, &iter) >= 0) {
+		if (strcmp(key.k->graph, graph) == 0) {
+			rte_hash_del_key(hash, key.v);
 			free(data);
 		}
 	}
@@ -397,12 +400,12 @@ static void graph_init(void) {
 }
 
 static void graph_fini(void) {
-	const struct node_data_key *key;
+	const void *key = NULL;
 	void *data = NULL;
 	uint32_t iter;
 
 	iter = 0;
-	while (rte_hash_iterate(hash, (void *)&key, &data, &iter) >= 0) {
+	while (rte_hash_iterate(hash, &key, &data, &iter) >= 0) {
 		rte_hash_del_key(hash, key);
 		free(data);
 	}

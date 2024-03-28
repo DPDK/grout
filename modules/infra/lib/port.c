@@ -13,22 +13,24 @@
 #include <string.h>
 
 int br_infra_port_add(const struct br_client *c, const char *devargs, uint16_t *port_id) {
-	struct br_infra_port_add_resp *resp = NULL;
+	const struct br_infra_port_add_resp *resp;
 	struct br_infra_port_add_req req;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	memset(&req, 0, sizeof(req));
 	memccpy(req.devargs, devargs, 0, sizeof(req.devargs));
 
-	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	if (port_id != NULL)
 		*port_id = resp->port_id;
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 
@@ -40,7 +42,8 @@ int br_infra_port_del(const struct br_client *c, uint16_t port_id) {
 
 int br_infra_port_get(const struct br_client *c, uint16_t port_id, struct br_infra_port *port) {
 	struct br_infra_port_get_req req = {port_id};
-	struct br_infra_port_get_resp *resp = NULL;
+	const struct br_infra_port_get_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (port == NULL) {
@@ -48,19 +51,21 @@ int br_infra_port_get(const struct br_client *c, uint16_t port_id, struct br_inf
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	memcpy(port, &resp->port, sizeof(*port));
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 
 int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_infra_port **ports) {
-	struct br_infra_port_list_resp *resp = NULL;
+	const struct br_infra_port_list_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_ports == NULL || ports == NULL) {
@@ -68,9 +73,10 @@ int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_inf
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*n_ports = resp->n_ports;
 	*ports = calloc(resp->n_ports, sizeof(struct br_infra_port));
 	if (*ports == NULL) {
@@ -81,7 +87,7 @@ int br_infra_port_list(const struct br_client *c, size_t *n_ports, struct br_inf
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 

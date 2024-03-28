@@ -13,7 +13,8 @@
 #include <string.h>
 
 int br_infra_rxq_list(const struct br_client *c, size_t *n_rxqs, struct br_infra_rxq **rxqs) {
-	struct br_infra_rxq_list_resp *resp = NULL;
+	const struct br_infra_rxq_list_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_rxqs == NULL || rxqs == NULL) {
@@ -21,9 +22,10 @@ int br_infra_rxq_list(const struct br_client *c, size_t *n_rxqs, struct br_infra
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*n_rxqs = resp->n_rxqs;
 	*rxqs = calloc(resp->n_rxqs, sizeof(struct br_infra_rxq));
 	if (*rxqs == NULL) {
@@ -34,7 +36,7 @@ int br_infra_rxq_list(const struct br_client *c, size_t *n_rxqs, struct br_infra
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 

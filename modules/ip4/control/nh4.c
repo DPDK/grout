@@ -37,27 +37,31 @@ struct rte_rcu_qsbr *br_nh4_rcu(void) {
 }
 
 int next_hop_lookup(ip4_addr_t gw, struct next_hop **nh) {
+	void *data = NULL;
 	int ret;
 	if (next_hops == NULL)
 		return -EIO;
-	if ((ret = rte_hash_lookup_data(next_hops, &gw, (void *)nh)) < 0) {
+	if ((ret = rte_hash_lookup_data(next_hops, &gw, &data)) < 0) {
 		return ret;
 	}
+	*nh = data;
 	return 0;
 }
 
 int next_hop_delete(ip4_addr_t gw, bool force) {
-	struct next_hop *nh;
+	const struct next_hop *nh;
+	void *data = NULL;
 	int32_t pos;
 
 	if (next_hops == NULL)
 		return -EIO;
 
-	pos = rte_hash_lookup_data(next_hops, &gw, (void *)&nh);
+	pos = rte_hash_lookup_data(next_hops, &gw, &data);
 	if (pos == -ENOENT && force)
 		return 0;
 	if (pos < 0)
 		return -pos;
+	nh = data;
 	if (nh->ref_count > 1)
 		return -EBUSY;
 
@@ -72,6 +76,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 	const struct br_ip_nh4_add_req *req = request;
 	struct next_hop *nh, *old_nh = NULL;
 	struct rte_ether_addr src;
+	void *data = NULL;
 	int ret;
 
 	(void)response;
@@ -82,9 +87,10 @@ static struct api_out nh4_add(const void *request, void **response) {
 		return api_out(ENODEV, 0);
 	if (next_hop_lookup(req->nh.host, &old_nh) == 0 && !req->exist_ok)
 		return api_out(EEXIST, 0);
-	if (rte_mempool_get(nh_pool, (void *)&nh) < 0)
+	if (rte_mempool_get(nh_pool, &data) < 0)
 		return api_out(ENOMEM, 0);
 
+	nh = data;
 	memset(nh, 0, sizeof(*nh));
 	nh->ip = req->nh.host;
 	nh->port_id = req->nh.port_id;
@@ -123,9 +129,9 @@ static struct api_out nh4_del(const void *request, void **response) {
 
 static struct api_out nh4_list(const void *request, void **response) {
 	struct br_ip_nh4_list_resp *resp = NULL;
-	struct next_hop *nh;
 	uint32_t iter, num;
-	ip4_addr_t *host;
+	const void *key;
+	void *data;
 	size_t len;
 
 	(void)request;
@@ -137,7 +143,8 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 	num = 0;
 	iter = 0;
-	while (rte_hash_iterate(next_hops, (void *)&host, (void *)&nh, &iter) >= 0) {
+	while (rte_hash_iterate(next_hops, &key, &data, &iter) >= 0) {
+		struct next_hop *nh = data;
 		resp->nhs[num].host = nh->ip;
 		resp->nhs[num].port_id = nh->port_id;
 		memcpy(&resp->nhs[num].mac, &nh->eth_addr[0], sizeof(resp->nhs[num].mac));

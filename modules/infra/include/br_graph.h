@@ -9,12 +9,6 @@
 
 #include <sys/queue.h>
 
-#define NODE_LOAD_CTX(var, node)                                                                   \
-	do {                                                                                       \
-		_Static_assert(sizeof(typeof(*var)) <= sizeof(node->ctx));                         \
-		var = (void *)node->ctx;                                                           \
-	} while (0)
-
 void *br_node_data_get(const char *graph, const char *node);
 
 int br_node_data_set(const char *graph, const char *node, void *data);

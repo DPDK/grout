@@ -16,7 +16,10 @@
 #include <unistd.h>
 
 struct br_client *br_connect(const char *sock_path) {
-	struct sockaddr_un addr = {.sun_family = AF_UNIX};
+	union {
+		struct sockaddr_un un;
+		struct sockaddr a;
+	} addr;
 
 	struct br_client *client = calloc(1, sizeof(*client));
 	if (client == NULL)
@@ -26,9 +29,10 @@ struct br_client *br_connect(const char *sock_path) {
 	if (client->sock_fd == -1)
 		goto err;
 
-	strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
+	addr.un.sun_family = AF_UNIX;
+	memccpy(addr.un.sun_path, sock_path, 0, sizeof(addr.un.sun_path) - 1);
 
-	if (connect(client->sock_fd, (void *)&addr, sizeof(addr)) < 0)
+	if (connect(client->sock_fd, &addr.a, sizeof(addr.un)) < 0)
 		goto err;
 
 	return client;

@@ -19,7 +19,8 @@ int br_infra_stats_get(
 	struct br_infra_stat **stats
 ) {
 	struct br_infra_stats_get_req req = {.flags = flags};
-	struct br_infra_stats_get_resp *resp = NULL;
+	const struct br_infra_stats_get_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_stats == NULL || stats == NULL) {
@@ -29,9 +30,10 @@ int br_infra_stats_get(
 	if (pattern != NULL)
 		snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
 
-	if (send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*stats = calloc(resp->n_stats, sizeof(*resp->stats));
 	if (*stats == NULL) {
 		errno = ENOMEM;
@@ -42,7 +44,7 @@ int br_infra_stats_get(
 	memcpy(*stats, resp->stats, resp->n_stats * sizeof(*resp->stats));
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 

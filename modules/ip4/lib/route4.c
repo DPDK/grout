@@ -47,8 +47,9 @@ int br_ip_route4_del(const struct br_client *c, const struct ip4_net *dest, bool
 }
 
 int br_ip_route4_get(const struct br_client *c, ip4_addr_t dest, struct br_ip_nh4 *nh) {
-	struct br_ip_route4_get_resp *resp = NULL;
+	const struct br_ip_route4_get_resp *resp;
 	struct br_ip_route4_get_req req;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (nh == NULL) {
@@ -57,18 +58,20 @@ int br_ip_route4_get(const struct br_client *c, ip4_addr_t dest, struct br_ip_nh
 	}
 
 	req.dest = dest;
-	if ((ret = send_recv(c, BR_IP_ROUTE4_GET, sizeof(req), &req, (void *)&resp)) < 0)
+	if ((ret = send_recv(c, BR_IP_ROUTE4_GET, sizeof(req), &req, &resp_ptr)) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	memcpy(nh, &resp->nh, sizeof(*nh));
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 
 int br_ip_route4_list(const struct br_client *c, size_t *n_routes, struct br_ip_route4 **routes) {
-	struct br_ip_route4_list_resp *resp = NULL;
+	const struct br_ip_route4_list_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_routes == NULL || routes == NULL) {
@@ -76,9 +79,10 @@ int br_ip_route4_list(const struct br_client *c, size_t *n_routes, struct br_ip_
 		goto out;
 	}
 
-	if (send_recv(c, BR_IP_ROUTE4_LIST, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_IP_ROUTE4_LIST, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*n_routes = resp->n_routes;
 	*routes = calloc(resp->n_routes, sizeof(struct br_ip_route4));
 	if (*routes == NULL) {
@@ -89,6 +93,6 @@ int br_ip_route4_list(const struct br_client *c, size_t *n_routes, struct br_ip_
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }

@@ -281,7 +281,10 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 #define BACKLOG 16
 
 static int listen_api_socket(void) {
-	struct sockaddr_un addr = {.sun_family = AF_UNIX};
+	union {
+		struct sockaddr_un un;
+		struct sockaddr a;
+	} addr;
 	struct event *ev_listen;
 	int fd;
 
@@ -291,9 +294,10 @@ static int listen_api_socket(void) {
 		return -1;
 	}
 
-	strncpy(addr.sun_path, br.api_sock_path, sizeof addr.sun_path - 1);
+	addr.un.sun_family = AF_UNIX;
+	strncpy(addr.un.sun_path, br.api_sock_path, sizeof addr.un.sun_path - 1);
 
-	if (bind(fd, (void *)&addr, sizeof addr) < 0) {
+	if (bind(fd, &addr.a, sizeof(addr.un)) < 0) {
 		LOG(ERR, "bind: %s: %s", br.api_sock_path, strerror(errno));
 		close(fd);
 		return -1;

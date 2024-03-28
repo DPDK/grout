@@ -35,7 +35,8 @@ int br_ip_nh4_del(const struct br_client *c, ip4_addr_t host, bool missing_ok) {
 }
 
 int br_ip_nh4_list(const struct br_client *c, size_t *n_nhs, struct br_ip_nh4 **nhs) {
-	struct br_ip_nh4_list_resp *resp = NULL;
+	const struct br_ip_nh4_list_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_nhs == NULL || nhs == NULL) {
@@ -43,9 +44,10 @@ int br_ip_nh4_list(const struct br_client *c, size_t *n_nhs, struct br_ip_nh4 **
 		goto out;
 	}
 
-	if (send_recv(c, BR_IP_NH4_LIST, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_IP_NH4_LIST, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*n_nhs = resp->n_nhs;
 	*nhs = calloc(resp->n_nhs, sizeof(struct br_ip_nh4));
 	if (*nhs == NULL) {
@@ -56,6 +58,6 @@ int br_ip_nh4_list(const struct br_client *c, size_t *n_nhs, struct br_ip_nh4 **
 
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }

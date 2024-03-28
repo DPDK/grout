@@ -39,8 +39,9 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 	const struct next_hop *nh;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
-	rte_edge_t next;
 	uint16_t i, csum;
+	rte_edge_t next;
+	void *data;
 
 	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
@@ -51,9 +52,10 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		trace_packet(node->name, mbuf);
 
 		dst_addr = ip4_fwd_mbuf_priv(mbuf)->next_hop;
-		if (rte_hash_lookup_data(next_hops, &dst_addr, (void *)&nh) < 0)
+		if (rte_hash_lookup_data(next_hops, &dst_addr, &data) < 0)
 			goto next;
 
+		nh = data;
 		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 		rte_memcpy(eth_hdr, nh, sizeof(eth_hdr->dst_addr) + sizeof(eth_hdr->src_addr));
 

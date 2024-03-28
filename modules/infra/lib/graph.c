@@ -13,16 +13,18 @@
 #include <stdlib.h>
 
 int br_infra_graph_dump(const struct br_client *c, size_t *len, char **dot) {
-	struct br_infra_graph_dump_resp *resp = NULL;
+	const struct br_infra_graph_dump_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (len == NULL || dot == NULL) {
 		errno = EINVAL;
 		goto out;
 	}
-	if (send_recv(c, BR_INFRA_GRAPH_DUMP, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_GRAPH_DUMP, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*dot = calloc(1, resp->len);
 	if (*dot == NULL) {
 		errno = ENOMEM;
@@ -32,7 +34,7 @@ int br_infra_graph_dump(const struct br_client *c, size_t *len, char **dot) {
 	memcpy(*dot, resp->dot, resp->len);
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }
 
@@ -41,7 +43,8 @@ int br_infra_graph_stats(
 	size_t *n_stats,
 	struct br_infra_graph_stat **stats
 ) {
-	struct br_infra_graph_stats_resp *resp = NULL;
+	const struct br_infra_graph_stats_resp *resp;
+	void *resp_ptr = NULL;
 	int ret = -1;
 
 	if (n_stats == NULL || stats == NULL) {
@@ -49,9 +52,10 @@ int br_infra_graph_stats(
 		goto out;
 	}
 
-	if (send_recv(c, BR_INFRA_GRAPH_STATS, 0, NULL, (void *)&resp) < 0)
+	if (send_recv(c, BR_INFRA_GRAPH_STATS, 0, NULL, &resp_ptr) < 0)
 		goto out;
 
+	resp = resp_ptr;
 	*stats = calloc(resp->n_stats, sizeof(*resp->stats));
 	if (*stats == NULL) {
 		errno = ENOMEM;
@@ -62,6 +66,6 @@ int br_infra_graph_stats(
 	memcpy(*stats, resp->stats, resp->n_stats * sizeof(*resp->stats));
 	ret = 0;
 out:
-	free(resp);
+	free(resp_ptr);
 	return ret;
 }

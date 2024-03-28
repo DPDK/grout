@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (argc > 0) {
-		status = exec_args(client, cmdlist, argc, (void *)argv);
+		status = exec_args(client, cmdlist, argc, (const char *const *)argv);
 		if (print_cmd_status(status) < 0)
 			goto end;
 	} else if (is_tty(stdin)) {
