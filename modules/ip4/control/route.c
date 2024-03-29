@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip_priv.h"
+#include "ip4_priv.h"
 
 #include <br_api.h>
 #include <br_control.h>
-#include <br_ip_msg.h>
-#include <br_ip_types.h>
+#include <br_ip4_control.h>
+#include <br_ip4_msg.h>
+#include <br_ip4_types.h>
 #include <br_log.h>
 #include <br_net_types.h>
-#include <br_nh4.h>
 #include <br_queue.h>
-#include <br_route4.h>
 
 #include <rte_bitmap.h>
 #include <rte_build_config.h>
@@ -33,6 +32,10 @@
 static struct rte_fib *fib;
 static struct rte_rib *rib;
 
+struct rte_fib *ip4_fib_get(void) {
+	return fib;
+}
+
 int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 	uint64_t gateway = 0;
 	int ret;
@@ -45,7 +48,7 @@ int route_lookup(ip4_addr_t dest, struct next_hop **nh) {
 		return -EIO;
 	if ((ret = rte_fib_lookup_bulk(fib, &dest, &gateway, 1)) < 0)
 		return -ret;
-	if (gateway == BR_NO_ROUTE)
+	if (gateway == BR_IP4_ROUTE_UNKNOWN)
 		return -ENETUNREACH;
 	if ((ret = next_hop_lookup(gateway, nh)) < 0)
 		return ret;
@@ -122,7 +125,7 @@ int route_delete(ip4_addr_t net, uint8_t prefix, bool force) {
 }
 
 static struct api_out route4_add(const void *request, void **response) {
-	const struct br_ip_route4_add_req *req = request;
+	const struct br_ip4_route_add_req *req = request;
 	int ret;
 
 	(void)response;
@@ -132,7 +135,7 @@ static struct api_out route4_add(const void *request, void **response) {
 }
 
 static struct api_out route4_del(const void *request, void **response) {
-	const struct br_ip_route4_del_req *req = request;
+	const struct br_ip4_route_del_req *req = request;
 	int ret;
 
 	(void)response;
@@ -142,8 +145,8 @@ static struct api_out route4_del(const void *request, void **response) {
 }
 
 static struct api_out route4_get(const void *request, void **response) {
-	const struct br_ip_route4_get_req *req = request;
-	struct br_ip_route4_get_resp *resp = NULL;
+	const struct br_ip4_route_get_req *req = request;
+	struct br_ip4_route_get_resp *resp = NULL;
 	struct next_hop *next_hop = NULL;
 	int ret;
 
@@ -162,10 +165,10 @@ static struct api_out route4_get(const void *request, void **response) {
 }
 
 static struct api_out route4_list(const void *request, void **response) {
-	struct br_ip_route4_list_resp *resp = NULL;
+	struct br_ip4_route_list_resp *resp = NULL;
 	struct rte_rib *rib = rte_fib_get_rib(fib);
 	struct rte_rib_node *rn = NULL;
-	struct br_ip_route4 *r;
+	struct br_ip4_route *r;
 	size_t num, len;
 	uint64_t gw;
 	uint32_t ip;
@@ -179,7 +182,7 @@ static struct api_out route4_list(const void *request, void **response) {
 	if (rte_rib_lookup_exact(rib, 0, 0) != NULL)
 		num++;
 
-	len = sizeof(*resp) + num * sizeof(struct br_ip_route4);
+	len = sizeof(*resp) + num * sizeof(struct br_ip4_route);
 	if ((resp = calloc(1, len)) == NULL)
 		return api_out(ENOMEM, 0);
 
@@ -204,11 +207,14 @@ static struct api_out route4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+// XXX: why not 1337, eh?
+#define BR_IP4_MAX_ROUTES (1 << 16)
+
 static void route4_init(void) {
 	struct rte_fib_conf conf = {
 		.type = RTE_FIB_DIR24_8,
-		.default_nh = BR_NO_ROUTE,
-		.max_routes = BR_MAX_ROUTES,
+		.default_nh = BR_IP4_ROUTE_UNKNOWN ,
+		.max_routes = BR_IP4_MAX_ROUTES,
 		.rib_ext_sz = 0,
 		.dir24_8 = {
 			// DIR24_8 uses 1 bit to store routing table structure
@@ -218,7 +224,7 @@ static void route4_init(void) {
 			.num_tbl8 = 1 << 15,
 		},
 	};
-	fib = rte_fib_create(BR_IP4_FIB_NAME, SOCKET_ID_ANY, &conf);
+	fib = rte_fib_create("ip4-route", SOCKET_ID_ANY, &conf);
 	if (fib == NULL)
 		ABORT("rte_fib_create: %s", rte_strerror(rte_errno));
 	rib = rte_fib_get_rib(fib);
@@ -231,28 +237,28 @@ static void route4_fini(void) {
 }
 
 static struct br_api_handler route4_add_handler = {
-	.name = "route4 add",
-	.request_type = BR_IP_ROUTE4_ADD,
+	.name = "ipv4 route add",
+	.request_type = BR_IP4_ROUTE_ADD,
 	.callback = route4_add,
 };
 static struct br_api_handler route4_del_handler = {
-	.name = "route4 del",
-	.request_type = BR_IP_ROUTE4_DEL,
+	.name = "ipv4 route del",
+	.request_type = BR_IP4_ROUTE_DEL,
 	.callback = route4_del,
 };
 static struct br_api_handler route4_get_handler = {
-	.name = "route4 get",
-	.request_type = BR_IP_ROUTE4_GET,
+	.name = "ipv4 route get",
+	.request_type = BR_IP4_ROUTE_GET,
 	.callback = route4_get,
 };
 static struct br_api_handler route4_list_handler = {
-	.name = "route4 list",
-	.request_type = BR_IP_ROUTE4_LIST,
+	.name = "ipv4 route list",
+	.request_type = BR_IP4_ROUTE_LIST,
 	.callback = route4_list,
 };
 
 static struct br_module route4_module = {
-	.name = "route4",
+	.name = "ipv4 route",
 	.init = route4_init,
 	.fini = route4_fini,
 	.fini_prio = 10000,

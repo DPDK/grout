@@ -5,8 +5,8 @@
 
 #include <br_datapath.h>
 #include <br_graph.h>
+#include <br_ip4_control.h>
 #include <br_log.h>
-#include <br_route4.h>
 
 #include <rte_errno.h>
 #include <rte_ether.h>
@@ -16,6 +16,8 @@
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
 #include <rte_rcu_qsbr.h>
+
+#include <assert.h>
 
 enum edges {
 	IP4_REWRITE = 0,
@@ -81,8 +83,9 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		}
 
 		// TODO: optimize with lookup of multiple packets
-		if (rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1) < 0
-		    || next_hop == BR_NO_ROUTE) {
+		next_hop = BR_IP4_ROUTE_UNKNOWN;
+		rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1);
+		if (next_hop == BR_IP4_ROUTE_UNKNOWN) {
 			next = NO_ROUTE;
 			goto next_packet;
 		}
@@ -104,7 +107,6 @@ static const struct rte_mbuf_dynfield ip4_fwd_mbuf_priv_desc = {
 int ip4_fwd_mbuf_priv_offset = -1;
 
 static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
-	struct rte_fib *fib;
 	static bool once;
 
 	(void)graph;
@@ -117,12 +119,9 @@ static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
 		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
 		return -rte_errno;
 	}
-	fib = rte_fib_find_existing(BR_IP4_FIB_NAME);
-	if (fib == NULL) {
-		LOG(ERR, "rte_fib_find_existing(%s): %s", BR_IP4_FIB_NAME, rte_strerror(rte_errno));
-		return -rte_errno;
-	}
-	node->ctx_ptr = fib;
+
+	node->ctx_ptr = ip4_fib_get();
+	assert(node->ctx_ptr);
 
 	return 0;
 }

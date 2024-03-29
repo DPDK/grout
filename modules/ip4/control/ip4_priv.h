@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_IP_PRIV
-#define _BR_IP_PRIV
+#ifndef _BR_IP4_PRIV
+#define _BR_IP4_PRIV
 
-#include <br_ip_types.h>
+#include <br_ip4_control.h>
+#include <br_ip4_types.h>
 #include <br_net_types.h>
-#include <br_nh4.h>
 
 #include <rte_fib.h>
 #include <rte_hash.h>

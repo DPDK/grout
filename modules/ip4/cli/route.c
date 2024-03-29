@@ -3,8 +3,8 @@
 
 #include <br_cli.h>
 #include <br_client.h>
-#include <br_ip.h>
-#include <br_ip_types.h>
+#include <br_ip4.h>
+#include <br_ip4_types.h>
 #include <br_net_types.h>
 
 #include <ecoli.h>
@@ -22,7 +22,7 @@ static cmd_status_t route4_add(const struct br_client *c, const struct ec_pnode 
 		return CMD_ERROR;
 	}
 
-	if (br_ip_route4_add(c, &dest, next_hop, true) < 0)
+	if (br_ip4_route_add(c, &dest, next_hop, true) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -34,14 +34,14 @@ static cmd_status_t route4_del(const struct br_client *c, const struct ec_pnode 
 	if (br_ip4_net_parse(arg_str(p, "DEST"), &dest) < 0)
 		return CMD_ERROR;
 
-	if (br_ip_route4_del(c, &dest, true) < 0)
+	if (br_ip4_route_del(c, &dest, true) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t route4_get(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_ip_nh4 nh;
+	struct br_ip4_nh nh;
 	char buf[BUFSIZ];
 	ip4_addr_t dest;
 
@@ -50,7 +50,7 @@ static cmd_status_t route4_get(const struct br_client *c, const struct ec_pnode 
 		return CMD_ERROR;
 	}
 
-	if (br_ip_route4_get(c, dest, &nh) < 0)
+	if (br_ip4_route_get(c, dest, &nh) < 0)
 		return CMD_ERROR;
 
 	printf("%-16s  %-20s  %s\n", "GATEWAY", "MAC", "PORT");
@@ -61,18 +61,18 @@ static cmd_status_t route4_get(const struct br_client *c, const struct ec_pnode 
 }
 
 static cmd_status_t route4_list(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_ip_route4 *routes = NULL;
+	struct br_ip4_route *routes = NULL;
 	char dest[BUFSIZ], nh[BUFSIZ];
 	size_t len = 0;
 
 	(void)p;
 
-	if (br_ip_route4_list(c, &len, &routes) < 0)
+	if (br_ip4_route_list(c, &len, &routes) < 0)
 		return CMD_ERROR;
 
 	printf("%-20s  %s\n", "DESTINATION", "NEXT_HOP");
 	for (size_t i = 0; i < len; i++) {
-		const struct br_ip_route4 *route = &routes[i];
+		const struct br_ip4_route *route = &routes[i];
 		br_ip4_net_format(&route->dest, dest, sizeof(dest));
 		inet_ntop(AF_INET, &route->nh, nh, sizeof(nh));
 		printf("%-20s  %s\n", dest, nh);

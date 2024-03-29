@@ -2,7 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 api_headers += files(
-  'br_ip_types.h',
+  'br_ip4_types.h',
 )
 
 cli_inc += include_directories('.')

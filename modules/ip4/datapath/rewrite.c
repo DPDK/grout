@@ -5,9 +5,8 @@
 
 #include <br_datapath.h>
 #include <br_graph.h>
+#include <br_ip4_control.h>
 #include <br_log.h>
-#include <br_nh4.h>
-#include <br_route4.h>
 #include <br_tx.h>
 #include <br_worker.h>
 
@@ -22,6 +21,8 @@
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
 #include <rte_rcu_qsbr.h>
+
+#include <assert.h>
 
 enum {
 	TX = 0,
@@ -81,24 +82,12 @@ next:
 }
 
 static int rewrite_init(const struct rte_graph *graph, struct rte_node *node) {
-	struct rte_hash *next_hops;
-	struct rte_rcu_qsbr *rcu;
-
 	(void)graph;
 
-	next_hops = rte_hash_find_existing(IP4_NH_HASH_NAME);
-	if (next_hops == NULL) {
-		LOG(ERR, "rte_hash_find_existing: %s", rte_strerror(rte_errno));
-		return -1;
-	}
-	rcu = br_nh4_rcu();
-	if (rcu == NULL) {
-		LOG(ERR, "br_nh4_rcu == NULL");
-		return -1;
-	}
-
-	node->ctx_ptr = next_hops;
-	node->ctx_ptr2 = rcu;
+	node->ctx_ptr = ip4_next_hops_hash_get();
+	assert(node->ctx_ptr);
+	node->ctx_ptr2 = ip4_next_hops_rcu_get();
+	assert(node->ctx_ptr2);
 
 	return 0;
 }
