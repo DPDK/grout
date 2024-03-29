@@ -46,7 +46,7 @@ struct ip4_net {
 	uint8_t prefixlen;
 };
 
-static inline int br_ip4_net_parse(const char *s, struct ip4_net *net) {
+static inline int br_ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
 
@@ -62,8 +62,10 @@ static inline int br_ip4_net_parse(const char *s, struct ip4_net *net) {
 		errno = EINVAL;
 		goto out;
 	}
-	// mask non network bits to zero
-	net->addr &= htonl((uint32_t)(UINT64_MAX << (32 - net->prefixlen)));
+	if (zero_mask) {
+		// mask non network bits to zero
+		net->addr &= htonl((uint32_t)(UINT64_MAX << (32 - net->prefixlen)));
+	}
 	ret = 0;
 out:
 	free(addr);

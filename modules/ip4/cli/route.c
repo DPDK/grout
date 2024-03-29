@@ -15,7 +15,7 @@ static cmd_status_t route4_add(const struct br_client *c, const struct ec_pnode 
 	struct ip4_net dest;
 	ip4_addr_t next_hop;
 
-	if (br_ip4_net_parse(arg_str(p, "DEST"), &dest) < 0)
+	if (br_ip4_net_parse(arg_str(p, "DEST"), &dest, true) < 0)
 		return CMD_ERROR;
 	if (inet_pton(AF_INET, arg_str(p, "NH"), &next_hop) != 1) {
 		errno = EINVAL;
@@ -31,7 +31,7 @@ static cmd_status_t route4_add(const struct br_client *c, const struct ec_pnode 
 static cmd_status_t route4_del(const struct br_client *c, const struct ec_pnode *p) {
 	struct ip4_net dest;
 
-	if (br_ip4_net_parse(arg_str(p, "DEST"), &dest) < 0)
+	if (br_ip4_net_parse(arg_str(p, "DEST"), &dest, true) < 0)
 		return CMD_ERROR;
 
 	if (br_ip4_route_del(c, &dest, true) < 0)
