@@ -34,6 +34,34 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
 	return node;
 }
 
+struct ec_node *cli_context(struct ec_node *root, const char *name, const char *help) {
+	struct ec_node *ctx = NULL, *or_node = NULL;
+
+	if (root == NULL || name == NULL || help == NULL) {
+		errno = EINVAL;
+		goto fail;
+	}
+
+	// if context is already present, return the OR node directly
+	or_node = ec_node_find(root, name);
+	if (or_node != NULL)
+		return or_node;
+
+	// else, create the context node
+	if ((or_node = ec_node("or", name)) == NULL)
+		goto fail;
+	ctx = EC_NODE_SEQ(EC_NO_ID, with_help(help, ec_node_str(EC_NO_ID, name)), or_node);
+	if (ctx == NULL)
+		goto fail;
+	if (ec_node_or_add(root, ctx) < 0)
+		goto fail;
+
+	return or_node;
+fail:
+	ec_node_free(ctx);
+	return NULL;
+}
+
 const char *arg_str(const struct ec_pnode *p, const char *id) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL) {

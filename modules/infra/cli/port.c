@@ -111,54 +111,49 @@ static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *node = NULL;
+	struct ec_node *port = cli_context(root, "port", "Manage ports.");
+	int ret;
 
-	node = CLI_COMMAND_CONTEXT(
-		"port",
-		"Manage ports.",
-		CLI_COMMAND(
-			"add DEVARGS",
-			port_add,
-			"Create a new port.",
-			with_help("DPDK device args.", ec_node("devargs", "DEVARGS"))
-		),
-		CLI_COMMAND(
-			"set INDEX [rxqs N_RXQ] [qsize Q_SIZE]",
-			port_set,
-			"Modify port parameters.",
-			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10)),
-			with_help(
-				"Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)
-			),
-			with_help(
-				"Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10)
-			)
-		),
-		CLI_COMMAND(
-			"del INDEX",
-			port_del,
-			"Delete an existing port.",
-			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
-		),
-		CLI_COMMAND(
-			"show INDEX",
-			port_show,
-			"Show one port details.",
-			with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
-		),
-		CLI_COMMAND("list", port_list, "List all ports.")
+	if (port == NULL)
+		return -1;
+
+	ret = CLI_COMMAND(
+		port,
+		"add DEVARGS",
+		port_add,
+		"Create a new port.",
+		with_help("DPDK device args.", ec_node("devargs", "DEVARGS"))
 	);
-	if (node == NULL)
-		goto fail;
-
-	if (ec_node_or_add(root, node) < 0)
-		goto fail;
-
-	return 0;
-
-fail:
-	ec_node_free(node);
-	return -1;
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		port,
+		"set INDEX [rxqs N_RXQ] [qsize Q_SIZE]",
+		port_set,
+		"Modify port parameters.",
+		with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10)),
+		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),
+		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		port,
+		"del INDEX",
+		port_del,
+		"Delete an existing port.",
+		with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		port,
+		"show INDEX",
+		port_show,
+		"Show one port details.",
+		with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
+	);
+	return CLI_COMMAND(port, "list", port_list, "List all ports.");
 }
 
 static struct br_cli_context ctx = {

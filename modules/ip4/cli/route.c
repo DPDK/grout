@@ -84,47 +84,46 @@ static cmd_status_t route4_list(const struct br_client *c, const struct ec_pnode
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *node = NULL;
+	struct ec_node *ipv4 = cli_context(root, "ipv4", "Manage IPv4.");
+	struct ec_node *route = cli_context(ipv4, "route", "Manage IPv4 routes.");
+	int ret;
 
-	node = CLI_COMMAND_CONTEXT(
-		"route4",
-		"Manage IPv4 routes.",
-		CLI_COMMAND(
-			"add DEST via NH",
-			route4_add,
-			"Add a new route.",
-			with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
-			with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE))
-		),
-		CLI_COMMAND(
-			"del DEST",
-			route4_del,
-			"Delete a route.",
-			with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE))
-		),
-		CLI_COMMAND(
-			"get DEST",
-			route4_get,
-			"Get the next hop that would be taken for a destination address.",
-			with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE))
-		),
-		CLI_COMMAND("list", route4_list, "List all routes.")
+	if (ipv4 == NULL || route == NULL)
+		return -1;
+
+	ret = CLI_COMMAND(
+		route,
+		"add DEST via NH",
+		route4_add,
+		"Add a new route.",
+		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
+		with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE))
 	);
-	if (node == NULL)
-		goto fail;
-
-	if (ec_node_or_add(root, node) < 0)
-		goto fail;
-
-	return 0;
-
-fail:
-	ec_node_free(node);
-	return -1;
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		route,
+		"del DEST",
+		route4_del,
+		"Delete a route.",
+		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		route,
+		"get DEST",
+		route4_get,
+		"Get the next hop that would be taken for a destination address.",
+		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE))
+	);
+	if (ret < 0)
+		return ret;
+	return CLI_COMMAND(route, "list", route4_list, "List all routes.");
 }
 
 static struct br_cli_context ctx = {
-	.name = "route4",
+	.name = "ipv4 route",
 	.init = ctx_init,
 };
 

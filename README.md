@@ -56,8 +56,7 @@ Welcome to the boring router CLI.
 Use ? for help and <tab> for command completion.
 br#
 quit                 Exit the CLI.
-route4               Manage IPv4 routes.
-nh4                  Manage IPv4 next hops.
+ipv4                 Manage IPv4 stack.
 stats                Manage stack statistics.
 rxq                  Manage ports RX queues.
 port                 Manage ports.
@@ -84,12 +83,12 @@ INDEX  DEVICE        RX_QUEUES  RXQ_SIZE  TX_QUEUES  TXQ_SIZE  MAC
 PORT      RXQ_ID    CPU_ID    ENABLED
 0         0         7         1
 1         0         27        1
-+ nh4 add 172.16.0.1 mac b8:3f:d2:fa:53:7a port 0
-+ nh4 add 172.16.1.1 mac b8:3f:d2:fa:53:7b port 1
-+ route4 add 172.16.0.0/24 via 172.16.0.1
-+ route4 add 172.16.1.0/24 via 172.16.1.1
-+ route4 add 192.168.0.0/16 via 172.16.0.1
-+ route4 add 0.0.0.0/0 via 172.16.1.1
++ ipv4 nexthop add 172.16.0.1 mac b8:3f:d2:fa:53:7a port 0
++ ipv4 nexthop add 172.16.1.1 mac b8:3f:d2:fa:53:7b port 1
++ ipv4 route add 172.16.0.0/24 via 172.16.0.1
++ ipv4 route add 172.16.1.0/24 via 172.16.1.1
++ ipv4 route add 192.168.0.0/16 via 172.16.0.1
++ ipv4 route add 0.0.0.0/0 via 172.16.1.1
 ```
 
 The CLI can be used as a one-shot command (with bash completion built-in):
@@ -102,10 +101,9 @@ The CLI can be used as a one-shot command (with bash completion built-in):
 graph                 (Get information about the packet processing graph.)
 --help                (Show usage help and exit.)
 -h                    (Show usage help and exit.)
-nh4                   (Manage IPv4 next hops.)
+ipv4                  (Manage IPv4 stack.)
 port                  (Manage ports.)
 quit                  (Exit the CLI.)
-route4                (Manage IPv4 routes.)
 rxq                   (Manage ports RX queues.)
 --socket              (Path to the control plane API socket.)
 -s                    (Path to the control plane API socket.)

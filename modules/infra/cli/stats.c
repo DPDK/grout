@@ -64,35 +64,28 @@ static cmd_status_t stats_reset(const struct br_client *c, const struct ec_pnode
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *node = NULL;
+	struct ec_node *stats = cli_context(root, "stats", "Manage statistics.");
+	int ret;
 
-	node = CLI_COMMAND_CONTEXT(
-		"stats",
-		"Manage stack statistics.",
-		CLI_COMMAND(
-			"software|hardware|xstats|all [zero] [pattern PATTERN]",
-			stats_get,
-			"Print statistics.",
-			with_help("Print software stats.", ec_node_str("software", "software")),
-			with_help("Print hardware stats.", ec_node_str("hardware", "hardware")),
-			with_help("Print extended driver stats.", ec_node_str("xstats", "xstats")),
-			with_help("Print all stats.", ec_node_str("all", "all")),
-			with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
-			with_help("Filter by glob pattern.", ec_node("any", "PATTERN"))
-		),
-		CLI_COMMAND("reset", stats_reset, "Reset all stats to zero.")
+	if (stats == NULL)
+		return -1;
+
+	ret = CLI_COMMAND(
+		stats,
+		"software|hardware|xstats|all [zero] [pattern PATTERN]",
+		stats_get,
+		"Print statistics.",
+		with_help("Print software stats.", ec_node_str("software", "software")),
+		with_help("Print hardware stats.", ec_node_str("hardware", "hardware")),
+		with_help("Print extended driver stats.", ec_node_str("xstats", "xstats")),
+		with_help("Print all stats.", ec_node_str("all", "all")),
+		with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
+		with_help("Filter by glob pattern.", ec_node("any", "PATTERN"))
 	);
-	if (node == NULL)
-		goto fail;
+	if (ret < 0)
+		return ret;
 
-	if (ec_node_or_add(root, node) < 0)
-		goto fail;
-
-	return 0;
-
-fail:
-	ec_node_free(node);
-	return -1;
+	return CLI_COMMAND(stats, "reset", stats_reset, "Reset all stats to zero.");
 }
 
 static struct br_cli_context ctx = {

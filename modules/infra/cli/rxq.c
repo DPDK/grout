@@ -64,33 +64,24 @@ static cmd_status_t rxq_set(const struct br_client *c, const struct ec_pnode *p)
 }
 
 static int ctx_init(struct ec_node *root) {
+	struct ec_node *rxq = cli_context(root, "rxq", "Manage port RX queues.");
 	unsigned ncpus = sysconf(_SC_NPROCESSORS_ONLN);
-	struct ec_node *node = NULL;
 
-	node = CLI_COMMAND_CONTEXT(
-		"rxq",
-		"Manage ports RX queues.",
-		CLI_COMMAND("list", rxq_list, "List all RX queues."),
-		CLI_COMMAND(
-			"set port PORT rxq RXQ cpu CPU",
-			rxq_set,
-			"Assign an RX queue to a given CPU.",
-			with_help("Port index.", ec_node_uint("PORT", 0, UINT16_MAX - 1, 10)),
-			with_help("RX queue ID.", ec_node_uint("RXQ", 0, UINT16_MAX - 1, 10)),
-			with_help("CPU ID.", ec_node_uint("CPU", 0, ncpus - 1, 10))
-		)
+	if (rxq == NULL)
+		return -1;
+
+	if (CLI_COMMAND(rxq, "list", rxq_list, "List all RX queues.") < 0)
+		return -1;
+
+	return CLI_COMMAND(
+		rxq,
+		"set port PORT rxq RXQ cpu CPU",
+		rxq_set,
+		"Assign an RX queue to a given CPU.",
+		with_help("Port index.", ec_node_uint("PORT", 0, UINT16_MAX - 1, 10)),
+		with_help("RX queue ID.", ec_node_uint("RXQ", 0, UINT16_MAX - 1, 10)),
+		with_help("CPU ID.", ec_node_uint("CPU", 0, ncpus - 1, 10))
 	);
-	if (node == NULL)
-		goto fail;
-
-	if (ec_node_or_add(root, node) < 0)
-		goto fail;
-
-	return 0;
-
-fail:
-	ec_node_free(node);
-	return -1;
 }
 
 static struct br_cli_context ctx = {

@@ -35,19 +35,19 @@ struct ec_node *with_help(const char *help, struct ec_node *node);
 
 struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
 
+struct ec_node *cli_context(struct ec_node *root, const char *name, const char *help);
+
 const char *arg_str(const struct ec_pnode *p, const char *id);
 int arg_int(const struct ec_pnode *p, const char *id, int64_t *);
 int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *);
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *);
 
-#define CLI_COMMAND_CONTEXT(name, help, ...)                                                       \
-	EC_NODE_SEQ(                                                                               \
-		EC_NO_ID,                                                                          \
-		with_help(help, ec_node_str(name, name)),                                          \
-		EC_NODE_OR(EC_NO_ID, __VA_ARGS__)                                                  \
+#define CLI_COMMAND(ctx, cmd, cb, help, ...)                                                       \
+	ec_node_or_add(                                                                            \
+		ctx,                                                                               \
+		with_callback(                                                                     \
+			cb, with_help(help, EC_NODE_CMD(cmd, cmd __VA_OPT__(, ) __VA_ARGS__))      \
+		)                                                                                  \
 	)
-
-#define CLI_COMMAND(cmd, cb, help, ...)                                                            \
-	with_callback(cb, with_help(help, EC_NODE_CMD(cmd, cmd __VA_OPT__(, ) __VA_ARGS__)))
 
 #endif

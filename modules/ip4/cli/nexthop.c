@@ -72,42 +72,35 @@ static cmd_status_t nh4_list(const struct br_client *c, const struct ec_pnode *p
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *node = NULL;
+	struct ec_node *ipv4 = cli_context(root, "ipv4", "Manage IPv4 stack.");
+	struct ec_node *nh = cli_context(ipv4, "nexthop", "Manage IPv4 next hops.");
+	int ret;
 
-	node = CLI_COMMAND_CONTEXT(
-		"nh4",
-		"Manage IPv4 next hops.",
-		CLI_COMMAND(
-			"add IP mac MAC port PORT_ID",
-			nh4_add,
-			"Add a new next hop.",
-			with_help("IPv4 address.", ec_node_re("IP", IPV4_RE)),
-			with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
-			with_help("Output port ID.", ec_node_uint("PORT_ID", 0, UINT16_MAX - 1, 10))
-		),
-		CLI_COMMAND(
-			"del IP",
-			nh4_del,
-			"Delete a next hop.",
-			with_help("IPv4 address.", ec_node_re("IP", IPV4_RE))
-		),
-		CLI_COMMAND("list", nh4_list, "List all next hops.")
+	ret = CLI_COMMAND(
+		nh,
+		"add IP mac MAC port PORT_ID",
+		nh4_add,
+		"Add a new next hop.",
+		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE)),
+		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
+		with_help("Output port ID.", ec_node_uint("PORT_ID", 0, UINT16_MAX - 1, 10))
 	);
-	if (node == NULL)
-		goto fail;
-
-	if (ec_node_or_add(root, node) < 0)
-		goto fail;
-
-	return 0;
-
-fail:
-	ec_node_free(node);
-	return -1;
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		nh,
+		"del IP",
+		nh4_del,
+		"Delete a next hop.",
+		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE))
+	);
+	if (ret < 0)
+		return ret;
+	return CLI_COMMAND(nh, "list", nh4_list, "List all next hops.");
 }
 
 static struct br_cli_context ctx = {
-	.name = "nh4",
+	.name = "ipv4 nexthop",
 	.init = ctx_init,
 };
 
