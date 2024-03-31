@@ -11,6 +11,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+int br_ip4_addr_add(const struct br_client *, const struct br_ip4_addr *, bool exist_ok);
+int br_ip4_addr_del(const struct br_client *, const struct br_ip4_addr *, bool missing_ok);
+int br_ip4_addr_list(const struct br_client *, size_t *n_addrs, struct br_ip4_addr **);
+
 int br_ip4_nh_add(const struct br_client *, const struct br_ip4_nh *, bool exist_ok);
 int br_ip4_nh_del(const struct br_client *, ip4_addr_t, bool missing_ok);
 int br_ip4_nh_list(const struct br_client *, size_t *n_nhs, struct br_ip4_nh **);

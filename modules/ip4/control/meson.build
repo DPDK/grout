@@ -2,6 +2,7 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
+  'address.c',
   'nexthop.c',
   'route.c',
 )

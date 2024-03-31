@@ -78,4 +78,33 @@ struct br_ip4_route_list_resp {
 	struct br_ip4_route routes[/* n_routes */];
 };
 
+// addresses ///////////////////////////////////////////////////////////////////
+
+#define BR_IP4_ADDR_ADD REQUEST_TYPE(BR_IP4_MODULE, 0x0021)
+
+struct br_ip4_addr_add_req {
+	struct br_ip4_addr addr;
+	uint8_t exist_ok;
+};
+
+// struct br_ip4_addr_add_resp { };
+
+#define BR_IP4_ADDR_DEL REQUEST_TYPE(BR_IP4_MODULE, 0x0022)
+
+struct br_ip4_addr_del_req {
+	struct br_ip4_addr addr;
+	uint8_t missing_ok;
+};
+
+// struct br_ip4_addr_del_resp { };
+
+#define BR_IP4_ADDR_LIST REQUEST_TYPE(BR_IP4_MODULE, 0x0023)
+
+// struct br_ip4_addr_list_req { };
+
+struct br_ip4_addr_list_resp {
+	uint16_t n_addrs;
+	struct br_ip4_addr addrs[/* n_addrs */];
+};
+
 #endif

@@ -32,5 +32,7 @@ static inline const struct rte_ether_addr *next_hop_eth_src(const struct next_ho
 struct rte_hash *ip4_next_hops_hash_get(void);
 struct rte_rcu_qsbr *ip4_next_hops_rcu_get(void);
 struct rte_fib *ip4_fib_get(void);
+struct rte_hash *ip4_address_hash_get(void);
+struct rte_rcu_qsbr *ip4_address_rcu_get(void);
 
 #endif

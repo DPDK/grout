@@ -2,6 +2,7 @@
 # Copyright (c) 2024 Robin Jarry
 
 cli_src += files(
+  'address.c',
   'nexthop.c',
   'route.c',
 )

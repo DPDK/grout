@@ -10,6 +10,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct br_ip4_addr {
+	struct ip4_net ip;
+	uint16_t port_id;
+};
+
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
