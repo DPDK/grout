@@ -279,13 +279,13 @@ static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
 }
 
 #define BACKLOG 16
+static struct event *ev_listen;
 
 static int listen_api_socket(void) {
 	union {
 		struct sockaddr_un un;
 		struct sockaddr a;
 	} addr;
-	struct event *ev_listen;
 	int fd;
 
 	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -355,6 +355,8 @@ int main(int argc, char **argv) {
 
 shutdown:
 	unregister_signals();
+	if (ev_listen)
+		event_free_finalize(0, ev_listen, finalize_close_fd);
 	if (ev_base)
 		event_base_free(ev_base);
 	unlink(br.api_sock_path);
