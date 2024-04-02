@@ -4,6 +4,7 @@
 #ifndef _BR_IP4_CONTROL
 #define _BR_IP4_CONTROL
 
+#include <br_ip4_types.h>
 #include <br_net_types.h>
 
 #include <rte_ether.h>
@@ -15,8 +16,6 @@ struct next_hop {
 	struct rte_ether_addr eth_addr[2];
 	uint16_t port_id;
 	ip4_addr_t ip;
-	// number of routes with this next hop
-	uint64_t ref_count;
 };
 
 static inline const struct rte_ether_addr *next_hop_eth_dst(const struct next_hop *nh) {
@@ -25,6 +24,18 @@ static inline const struct rte_ether_addr *next_hop_eth_dst(const struct next_ho
 
 static inline const struct rte_ether_addr *next_hop_eth_src(const struct next_hop *nh) {
 	return &nh->eth_addr[1];
+}
+
+static inline int next_hop_lookup(struct rte_hash *h, ip4_addr_t ip, struct next_hop **nh) {
+	void *data = NULL;
+	int ret;
+
+	if ((ret = rte_hash_lookup_data(h, &ip, &data)) < 0)
+		return ret;
+
+	*nh = data;
+
+	return 0;
 }
 
 #define BR_IP4_ROUTE_UNKNOWN 0

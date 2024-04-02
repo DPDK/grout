@@ -22,6 +22,10 @@ struct eth_addr {
 	uint8_t bytes[6];
 };
 
+static inline void br_eth_addr_broadcast(struct eth_addr *mac) {
+	memset(mac->bytes, 0xff, sizeof(mac->bytes));
+}
+
 static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
 	int ret = sscanf(
 		s,

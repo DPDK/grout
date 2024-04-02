@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4_priv.h"
-
 #include <br_api.h>
 #include <br_control.h>
 #include <br_ip4_control.h>
@@ -39,42 +37,6 @@ struct rte_rcu_qsbr *ip4_next_hops_rcu_get(void) {
 	return rcu;
 }
 
-int next_hop_lookup(ip4_addr_t gw, struct next_hop **nh) {
-	void *data = NULL;
-	int ret;
-	if (nh_hash == NULL)
-		return -EIO;
-	if ((ret = rte_hash_lookup_data(nh_hash, &gw, &data)) < 0) {
-		return ret;
-	}
-	*nh = data;
-	return 0;
-}
-
-int next_hop_delete(ip4_addr_t gw, bool force) {
-	const struct next_hop *nh;
-	void *data = NULL;
-	int32_t pos;
-
-	if (nh_hash == NULL)
-		return -EIO;
-
-	pos = rte_hash_lookup_data(nh_hash, &gw, &data);
-	if (pos == -ENOENT && force)
-		return 0;
-	if (pos < 0)
-		return -pos;
-	nh = data;
-	if (nh->ref_count > 1)
-		return -EBUSY;
-
-	if ((pos = route_delete(gw, 32, force)) < 0)
-		return pos;
-	rte_hash_del_key(nh_hash, &gw);
-
-	return 0;
-}
-
 static struct api_out nh4_add(const void *request, void **response) {
 	const struct br_ip4_nh_add_req *req = request;
 	struct next_hop *nh, *old_nh = NULL;
@@ -88,7 +50,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 		return api_out(EINVAL, 0);
 	if (rte_eth_macaddr_get(req->nh.port_id, &src) < 0)
 		return api_out(ENODEV, 0);
-	if (next_hop_lookup(req->nh.host, &old_nh) == 0 && !req->exist_ok)
+	if (next_hop_lookup(nh_hash, req->nh.host, &old_nh) == 0 && !req->exist_ok)
 		return api_out(EEXIST, 0);
 	if (rte_mempool_get(nh_pool, &data) < 0)
 		return api_out(ENOMEM, 0);
@@ -105,8 +67,6 @@ static struct api_out nh4_add(const void *request, void **response) {
 		rte_mempool_put(nh_pool, nh);
 		return api_out(-ret, 0);
 	}
-	if ((ret = route_insert(req->nh.host, 32, req->nh.host, req->exist_ok)) < 0)
-		return api_out(-ret, 0);
 
 	if (old_nh != NULL) {
 		// XXX: rte_hash_add_key_data does not free the data when the key already exists in
@@ -120,12 +80,17 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 static struct api_out nh4_del(const void *request, void **response) {
 	const struct br_ip4_nh_del_req *req = request;
+	struct next_hop *nh;
 	int ret;
 
 	(void)response;
 
-	if ((ret = next_hop_delete(req->host, req->missing_ok)) < 0)
+	if ((ret = next_hop_lookup(nh_hash, req->host, &nh)) < 0) {
+		if (ret == -ENOENT && req->missing_ok)
+			return api_out(0, 0);
 		return api_out(-ret, 0);
+	}
+	rte_hash_del_key(nh_hash, &req->host);
 
 	return api_out(0, 0);
 }

@@ -4,6 +4,7 @@
 #ifndef _BR_IP4_TYPES
 #define _BR_IP4_TYPES
 
+#include <br_api.h>
 #include <br_net_types.h>
 
 #include <netinet/in.h>

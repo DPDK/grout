@@ -35,18 +35,16 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	ip4_addr_t dst_addr;
 	uint64_t next_hop;
 	rte_edge_t next;
+
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		next = IP4_REWRITE;
 
-		trace_packet(node->name, mbuf);
-
 		hdr = rte_pktmbuf_mtod_offset(
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
 		);
-		dst_addr = ntohl(hdr->dst_addr);
 
 		// RFC 1812 section 5.2.2 IP Header Validation
 		//
@@ -83,6 +81,7 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		}
 
 		// TODO: optimize with lookup of multiple packets
+		dst_addr = ntohl(hdr->dst_addr);
 		next_hop = BR_IP4_ROUTE_UNKNOWN;
 		rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1);
 		if (next_hop == BR_IP4_ROUTE_UNKNOWN) {

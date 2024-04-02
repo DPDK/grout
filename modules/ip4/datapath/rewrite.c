@@ -6,6 +6,7 @@
 #include <br_datapath.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
+#include <br_ip4_types.h>
 #include <br_log.h>
 #include <br_tx.h>
 #include <br_worker.h>
@@ -37,12 +38,11 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 	struct rte_rcu_qsbr *rcu = node->ctx_ptr2;
 	struct rte_ether_hdr *eth_hdr;
 	struct rte_ipv4_hdr *ip4_hdr;
-	const struct next_hop *nh;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t dst_addr;
+	struct next_hop *nh;
 	uint16_t i, csum;
 	rte_edge_t next;
-	void *data;
 
 	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
@@ -50,13 +50,12 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		mbuf = objs[i];
 		next = TX;
 
-		trace_packet(node->name, mbuf);
-
 		dst_addr = ip4_fwd_mbuf_priv(mbuf)->next_hop;
-		if (rte_hash_lookup_data(next_hops, &dst_addr, &data) < 0)
+		if (next_hop_lookup(next_hops, dst_addr, &nh) < 0) {
+			next = NO_NEXT_HOP;
 			goto next;
+		}
 
-		nh = data;
 		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 		rte_memcpy(eth_hdr, nh, sizeof(eth_hdr->dst_addr) + sizeof(eth_hdr->src_addr));
 
@@ -64,14 +63,15 @@ rewrite_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
 		);
 		ip4_hdr->time_to_live -= 1;
-		if (ip4_hdr->time_to_live == 0)
+		if (ip4_hdr->time_to_live == 0) {
+			next = TTL_EXCEEDED;
 			goto next;
+		}
 
 		csum = ip4_hdr->hdr_checksum + rte_cpu_to_be_16(0x0100);
 		csum += csum >= 0xffff;
 		ip4_hdr->hdr_checksum = csum;
 		tx_mbuf_priv(mbuf)->port_id = nh->port_id;
-		next = TX;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
