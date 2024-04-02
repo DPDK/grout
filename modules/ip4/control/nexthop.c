@@ -112,7 +112,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 		// XXX: rte_hash_add_key_data does not free the data when the key already exists in
 		// the hash map. We need to free the data manually.
 		rte_rcu_qsbr_synchronize(rcu, RTE_QSBR_THRID_INVALID);
-		rte_mempool_put(nh_pool, nh);
+		rte_mempool_put(nh_pool, old_nh);
 	}
 
 	return api_out(0, 0);
