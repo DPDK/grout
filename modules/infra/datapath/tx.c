@@ -58,7 +58,6 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			continue;
 		}
 		if (priv->port_id != port_id) {
-			burst_start = i;
 			if (burst_start != i) {
 				count += tx_burst(
 					graph,
@@ -67,6 +66,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 					(void *)&objs[burst_start],
 					i - burst_start
 				);
+				burst_start = i;
 			}
 			port_id = priv->port_id;
 		}
