@@ -15,6 +15,7 @@
 struct next_hop {
 	struct rte_ether_addr eth_addr[2];
 	uint16_t port_id;
+	uint16_t flags; // OR'ed flags BR_IP4_NH_F_*
 	ip4_addr_t ip;
 };
 

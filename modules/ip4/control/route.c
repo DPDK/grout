@@ -87,9 +87,11 @@ static struct api_out route4_get(const void *request, void **response) {
 	if (next_hop_lookup(ip4_next_hops_hash_get(), ip, &next_hop) == 0) {
 		resp->nh.port_id = next_hop->port_id;
 		memcpy(&resp->nh.mac, &next_hop->eth_addr[0], sizeof(resp->nh.mac));
+		resp->nh.flags = next_hop->flags;
 	} else {
 		resp->nh.port_id = UINT16_MAX;
 		br_eth_addr_broadcast(&resp->nh.mac);
+		resp->nh.flags = BR_IP4_NH_F_UNKNOWN;
 	}
 
 	*response = resp;

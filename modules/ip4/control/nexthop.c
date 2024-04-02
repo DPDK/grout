@@ -62,6 +62,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 	memcpy(&nh->eth_addr[0], &req->nh.mac, sizeof(nh->eth_addr[0]));
 	// FIXME: update all next hops when changing a port's mac address
 	memcpy(&nh->eth_addr[1], &src, sizeof(nh->eth_addr[1]));
+	nh->flags = BR_IP4_NH_F_STATIC;
 
 	if ((ret = rte_hash_add_key_data(nh_hash, &req->nh.host, nh)) < 0) {
 		rte_mempool_put(nh_pool, nh);
@@ -116,6 +117,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 		resp->nhs[num].host = nh->ip;
 		resp->nhs[num].port_id = nh->port_id;
 		memcpy(&resp->nhs[num].mac, &nh->eth_addr[0], sizeof(resp->nhs[num].mac));
+		resp->nhs[num].flags = nh->flags;
 		num++;
 	}
 

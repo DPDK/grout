@@ -7,6 +7,7 @@
 #include <br_client.h>
 #include <br_client_priv.h>
 #include <br_ip4_msg.h>
+#include <br_ip4_types.h>
 
 #include <errno.h>
 #include <stdbool.h>
@@ -21,6 +22,7 @@ int br_ip4_nh_add(const struct br_client *c, const struct br_ip4_nh *nh, bool ex
 		return -1;
 	}
 	memcpy(&req.nh, nh, sizeof(req.nh));
+	req.nh.flags = BR_IP4_NH_F_STATIC;
 	req.exist_ok = exist_ok;
 
 	return send_recv(c, BR_IP4_NH_ADD, sizeof(req), &req, NULL);

@@ -46,6 +46,14 @@ static cmd_status_t nh4_del(const struct br_client *c, const struct ec_pnode *p)
 	return CMD_SUCCESS;
 }
 
+static const char *nh_state(const struct br_ip4_nh *nh) {
+	if (nh->flags & BR_IP4_NH_F_STATIC)
+		return "static";
+	if (nh->flags & BR_IP4_NH_F_UNKNOWN)
+		return "unknown";
+	return "resolved";
+}
+
 static cmd_status_t nh4_list(const struct br_client *c, const struct ec_pnode *p) {
 	struct br_ip4_nh *next_hops = NULL;
 	char buf[BUFSIZ];
@@ -56,14 +64,21 @@ static cmd_status_t nh4_list(const struct br_client *c, const struct ec_pnode *p
 	if (br_ip4_nh_list(c, &len, &next_hops) < 0)
 		return CMD_ERROR;
 
-	printf("%-16s  %-20s  %s\n", "HOST", "MAC", "PORT");
+	printf("%-16s  %-20s  %-8s  %s\n", "HOST", "MAC", "PORT", "STATE");
 	for (size_t i = 0; i < len; i++) {
 		const struct br_ip4_nh *nh = &next_hops[i];
+		const char *state = nh_state(nh);
 		inet_ntop(AF_INET, &nh->host, buf, sizeof(buf));
-		printf("%-16s  " ETH_ADDR_FMT "     %u\n",
-		       buf,
-		       ETH_BYTES_SPLIT(nh->mac.bytes),
-		       nh->port_id);
+
+		if (nh->flags & BR_IP4_NH_F_UNKNOWN) {
+			printf("%-16s  %-20s  %-8s  %s\n", buf, "??:??:??:??:??", "?", state);
+		} else {
+			printf("%-16s  " ETH_ADDR_FMT "     %-8u  %s\n",
+			       buf,
+			       ETH_BYTES_SPLIT(nh->mac.bytes),
+			       nh->port_id,
+			       state);
+		}
 	}
 
 	free(next_hops);

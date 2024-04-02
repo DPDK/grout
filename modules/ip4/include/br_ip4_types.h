@@ -16,10 +16,18 @@ struct br_ip4_addr {
 	uint16_t port_id;
 };
 
+enum {
+	// Configured by user
+	BR_IP4_NH_F_STATIC = BR_BIT16(1),
+	// Unknown next hop
+	BR_IP4_NH_F_UNKNOWN = BR_BIT16(2),
+};
+
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
 	uint16_t port_id;
+	uint16_t flags; // OR'ed flags BR_IP4_NH_F_*
 };
 
 struct br_ip4_route {
