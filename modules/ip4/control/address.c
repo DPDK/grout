@@ -39,15 +39,14 @@ struct rte_rcu_qsbr *ip4_address_rcu_get(void) {
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct br_ip4_addr_add_req *req = request;
-	struct br_ip4_addr *addr;
-	void *data = NULL;
+	struct port_addr *addr = NULL;
+	void *data;
 	int ret;
 
 	(void)response;
 
-	if (rte_hash_lookup_data(addr_hash, &req->addr.ip.addr, &data) == 0) {
-		addr = data;
-		if (req->addr.ip.prefixlen != addr->ip.prefixlen)
+	if (address_lookup(addr_hash, req->addr.addr.ip, &addr) == 0) {
+		if (req->addr.addr.prefixlen != addr->prefixlen)
 			return api_out(EADDRINUSE, 0);
 		if (req->addr.port_id != addr->port_id)
 			return api_out(EADDRINUSE, 0);
@@ -66,7 +65,7 @@ static struct api_out addr_add(const void *request, void **response) {
 	addr = data;
 	memcpy(addr, &req->addr, sizeof(*addr));
 
-	if ((ret = rte_hash_add_key_data(addr_hash, &addr->ip.addr, addr)) < 0) {
+	if ((ret = rte_hash_add_key_data(addr_hash, &addr->ip, addr)) < 0) {
 		rte_mempool_put(addr_pool, addr);
 		return api_out(-ret, 0);
 	}
@@ -76,25 +75,23 @@ static struct api_out addr_add(const void *request, void **response) {
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct br_ip4_addr_del_req *req = request;
-	struct br_ip4_addr *addr;
-	void *data = NULL;
+	struct port_addr *addr = NULL;
 	int ret;
 
 	(void)response;
 
-	if ((ret = rte_hash_lookup_data(addr_hash, &req->addr.ip.addr, &data)) < 0) {
+	if ((ret = address_lookup(addr_hash, req->addr.addr.ip, &addr)) < 0) {
 		if (ret == -ENOENT && req->missing_ok)
 			return api_out(0, 0);
-		return api_out(ENXIO, 0);
+		return api_out(EADDRNOTAVAIL, 0);
 	}
 
-	addr = data;
-	if (addr->ip.prefixlen != req->addr.ip.prefixlen)
-		return api_out(ENXIO, 0);
+	if (addr->prefixlen != req->addr.addr.prefixlen)
+		return api_out(EADDRNOTAVAIL, 0);
 	if (addr->port_id != req->addr.port_id)
-		return api_out(ENXIO, 0);
+		return api_out(EADDRNOTAVAIL, 0);
 
-	rte_hash_del_key(addr_hash, &req->addr.ip.addr);
+	rte_hash_del_key(addr_hash, &req->addr.addr.ip);
 	return api_out(0, 0);
 }
 
@@ -115,8 +112,11 @@ static struct api_out addr_list(const void *request, void **response) {
 	num = 0;
 	iter = 0;
 	while (rte_hash_iterate(addr_hash, &key, &data, &iter) >= 0) {
-		const struct br_ip4_addr *addr = data;
-		memcpy(&resp->addrs[num++], addr, sizeof(*addr));
+		const struct port_addr *src = data;
+		struct br_ip4_addr *dst = &resp->addrs[num++];
+		dst->addr.ip = src->ip;
+		dst->addr.prefixlen = src->prefixlen;
+		dst->port_id = src->port_id;
 	}
 
 	resp->n_addrs = num;

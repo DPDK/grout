@@ -15,7 +15,7 @@ static cmd_status_t addr_add(const struct br_client *c, const struct ec_pnode *p
 	struct br_ip4_addr addr;
 	uint64_t port_id;
 
-	if (br_ip4_net_parse(arg_str(p, "IP_NET"), &addr.ip, false) < 0)
+	if (br_ip4_net_parse(arg_str(p, "IP_NET"), &addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (arg_uint(p, "PORT_ID", &port_id) < 0)
 		return CMD_ERROR;
@@ -31,7 +31,7 @@ static cmd_status_t addr_del(const struct br_client *c, const struct ec_pnode *p
 	struct br_ip4_addr addr;
 	uint64_t port_id;
 
-	if (br_ip4_net_parse(arg_str(p, "IP_NET"), &addr.ip, false) < 0)
+	if (br_ip4_net_parse(arg_str(p, "IP_NET"), &addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (arg_uint(p, "PORT_ID", &port_id) < 0)
 		return CMD_ERROR;
@@ -56,7 +56,7 @@ static cmd_status_t addr_list(const struct br_client *c, const struct ec_pnode *
 	printf("%-10s  %s\n", "PORT", "ADDRESS");
 	for (size_t i = 0; i < n_addrs; i++) {
 		const struct br_ip4_addr *addr = &addrs[i];
-		br_ip4_net_format(&addr->ip, buf, sizeof(buf));
+		br_ip4_net_format(&addr->addr, buf, sizeof(buf));
 		printf("%-10u  %s\n", addr->port_id, buf);
 	}
 

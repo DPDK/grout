@@ -41,6 +41,24 @@ static inline int next_hop_lookup(struct rte_hash *h, ip4_addr_t ip, struct next
 
 #define BR_IP4_ROUTE_UNKNOWN 0
 
+struct port_addr {
+	ip4_addr_t ip;
+	uint8_t prefixlen;
+	uint16_t port_id;
+};
+
+static inline int address_lookup(struct rte_hash *h, ip4_addr_t ip, struct port_addr **addr) {
+	void *data = NULL;
+	int ret;
+
+	if ((ret = rte_hash_lookup_data(h, &ip, &data)) < 0)
+		return ret;
+
+	*addr = data;
+
+	return 0;
+}
+
 struct rte_hash *ip4_next_hops_hash_get(void);
 struct rte_rcu_qsbr *ip4_next_hops_rcu_get(void);
 struct rte_fib *ip4_fib_get(void);

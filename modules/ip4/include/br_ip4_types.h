@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 struct br_ip4_addr {
-	struct ip4_net ip;
+	struct ip4_net addr;
 	uint16_t port_id;
 };
 

@@ -41,7 +41,7 @@ static struct api_out route4_add(const void *request, void **response) {
 
 	(void)response;
 
-	if ((rn = rte_rib_lookup_exact(rib, ntohl(req->dest.addr), req->dest.prefixlen)) != NULL) {
+	if ((rn = rte_rib_lookup_exact(rib, ntohl(req->dest.ip), req->dest.prefixlen)) != NULL) {
 		uint64_t old_gw;
 		rte_rib_get_nh(rn, &old_gw);
 		if (req->nh == old_gw && req->exist_ok)
@@ -49,7 +49,7 @@ static struct api_out route4_add(const void *request, void **response) {
 		return api_out(EEXIST, 0);
 	}
 
-	ret = rte_fib_add(fib, ntohl(req->dest.addr), req->dest.prefixlen, req->nh);
+	ret = rte_fib_add(fib, ntohl(req->dest.ip), req->dest.prefixlen, req->nh);
 	return api_out(-ret, 0);
 }
 
@@ -58,13 +58,13 @@ static struct api_out route4_del(const void *request, void **response) {
 
 	(void)response;
 
-	if (rte_rib_lookup_exact(rib, ntohl(req->dest.addr), req->dest.prefixlen) == NULL) {
+	if (rte_rib_lookup_exact(rib, ntohl(req->dest.ip), req->dest.prefixlen) == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
 	}
 
-	rte_fib_delete(fib, ntohl(req->dest.addr), req->dest.prefixlen);
+	rte_fib_delete(fib, ntohl(req->dest.ip), req->dest.prefixlen);
 	return api_out(0, 0);
 }
 
@@ -126,14 +126,14 @@ static struct api_out route4_list(const void *request, void **response) {
 		rte_rib_get_ip(rn, &ip);
 		rte_rib_get_nh(rn, &gw);
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
-		r->dest.addr = htonl(ip);
+		r->dest.ip = htonl(ip);
 		r->nh = gw;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib_get_nh(rn, &gw);
-		r->dest.addr = 0;
+		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
 		r->nh = gw;
 	}

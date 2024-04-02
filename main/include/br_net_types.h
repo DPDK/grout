@@ -47,7 +47,7 @@ static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
 typedef uint32_t ip4_addr_t;
 
 struct ip4_net {
-	ip4_addr_t addr;
+	ip4_addr_t ip;
 	uint8_t prefixlen;
 };
 
@@ -63,13 +63,13 @@ static inline int br_ip4_net_parse(const char *s, struct ip4_net *net, bool zero
 		errno = EINVAL;
 		goto out;
 	}
-	if (inet_pton(AF_INET, addr, &net->addr) != 1) {
+	if (inet_pton(AF_INET, addr, &net->ip) != 1) {
 		errno = EINVAL;
 		goto out;
 	}
 	if (zero_mask) {
 		// mask non network bits to zero
-		net->addr &= htonl((uint32_t)(UINT64_MAX << (32 - net->prefixlen)));
+		net->ip &= htonl((uint32_t)(UINT64_MAX << (32 - net->prefixlen)));
 	}
 	ret = 0;
 out:
@@ -81,7 +81,7 @@ static inline int br_ip4_net_format(const struct ip4_net *net, char *buf, size_t
 	const char *tmp;
 	int n;
 
-	if ((tmp = inet_ntop(AF_INET, &net->addr, buf, len)) == NULL)
+	if ((tmp = inet_ntop(AF_INET, &net->ip, buf, len)) == NULL)
 		return -1;
 	n = strlen(tmp);
 	return snprintf(buf + n, len - n, "/%u", net->prefixlen);

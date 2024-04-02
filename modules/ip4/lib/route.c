@@ -25,7 +25,7 @@ int br_ip4_route_add(
 		errno = EINVAL;
 		return -1;
 	}
-	req.dest.addr = dest->addr;
+	req.dest.ip = dest->ip;
 	req.dest.prefixlen = dest->prefixlen;
 	req.nh = nh;
 	req.exist_ok = exist_ok;
