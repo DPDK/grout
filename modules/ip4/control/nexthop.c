@@ -63,7 +63,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 	memcpy(&nh->eth_addr[1], &src, sizeof(nh->eth_addr[1]));
 	nh->flags = BR_IP4_NH_F_STATIC;
 
-	if ((ret = rte_hash_add_key_data(nh_hash, &req->nh.host, nh)) < 0) {
+	if ((ret = rte_hash_add_key_with_hash_data(nh_hash, &req->nh.host, req->nh.host, nh)) < 0) {
 		rte_mempool_put(nh_pool, nh);
 		return api_out(-ret, 0);
 	}
@@ -90,7 +90,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 			return api_out(0, 0);
 		return api_out(-ret, 0);
 	}
-	rte_hash_del_key(nh_hash, &req->host);
+	rte_hash_del_key_with_hash(nh_hash, &req->host, req->host);
 
 	return api_out(0, 0);
 }

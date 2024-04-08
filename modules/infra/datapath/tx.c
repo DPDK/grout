@@ -16,14 +16,17 @@
 
 #include <stdint.h>
 
-#define TX_ERROR 0
-#define NO_PORT 1
+enum {
+	TX_ERROR = 0,
+	NO_DEST,
+	NB_EDGES,
+};
 
 struct tx_ctx {
 	uint16_t txq_ids[RTE_MAX_ETHPORTS];
 };
 
-static inline uint16_t tx_burst(
+static inline void tx_burst(
 	struct rte_graph *graph,
 	struct rte_node *node,
 	uint16_t port_id,
@@ -37,29 +40,41 @@ static inline uint16_t tx_burst(
 	tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
 	if (tx_ok < n)
 		rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
-
-	return tx_ok;
 }
 
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	uint16_t port_id, i, count, burst_start;
+	uint16_t port_id, i, burst_start;
+	struct rte_ether_hdr *eth_hdr;
 
 	port_id = UINT16_MAX;
 	burst_start = 0;
-	count = 0;
 
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
-		struct tx_mbuf_priv *priv;
+		struct tx_mdyn *priv;
 
-		if ((priv = tx_mbuf_priv(mbuf)) == NULL) {
-			rte_node_enqueue(graph, node, NO_PORT, (void *)&mbuf, 1);
+		if ((priv = tx_mdyn(mbuf)) == NULL) {
+			if (burst_start != i) {
+				tx_burst(
+					graph,
+					node,
+					port_id,
+					(void *)&objs[burst_start],
+					i - burst_start
+				);
+				burst_start = i;
+			}
+			rte_node_enqueue(graph, node, NO_DEST, (void *)&mbuf, 1);
 			continue;
 		}
+
+		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+		rte_memcpy(eth_hdr, &priv->mac, sizeof(*eth_hdr));
+
 		if (priv->port_id != port_id) {
 			if (burst_start != i) {
-				count += tx_burst(
+				tx_burst(
 					graph,
 					node,
 					port_id,
@@ -72,26 +87,19 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		}
 	}
 
-	if (burst_start != i) {
-		count += tx_burst(
-			graph,
-			node,
-			port_id,
-			(struct rte_mbuf **)&objs[burst_start],
-			i - burst_start
-		);
-	}
+	if (burst_start != i)
+		tx_burst(graph, node, port_id, (void *)&objs[burst_start], i - burst_start);
 
-	return count;
+	return nb_objs;
 }
 
-static const struct rte_mbuf_dynfield tx_mbuf_priv_desc = {
+static const struct rte_mbuf_dynfield tx_mdyn_desc = {
 	.name = "tx",
-	.size = sizeof(struct tx_mbuf_priv),
-	.align = __alignof__(struct tx_mbuf_priv),
+	.size = sizeof(struct tx_mdyn),
+	.align = __alignof__(struct tx_mdyn),
 };
 
-int tx_mbuf_priv_offset = -1;
+int tx_mdyn_offset = -1;
 
 static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	const struct tx_node_queues *data;
@@ -102,9 +110,9 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 
 	if (!once) {
 		once = true;
-		tx_mbuf_priv_offset = rte_mbuf_dynfield_register(&tx_mbuf_priv_desc);
+		tx_mdyn_offset = rte_mbuf_dynfield_register(&tx_mdyn_desc);
 	}
-	if (tx_mbuf_priv_offset < 0) {
+	if (tx_mdyn_offset < 0) {
 		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
 		return -1;
 	}
@@ -135,10 +143,10 @@ static struct rte_node_register tx_node_base = {
 	.init = tx_init,
 	.fini = tx_fini,
 
-	.nb_edges = 2,
+	.nb_edges = NB_EDGES,
 	.next_nodes = {
 		[TX_ERROR] = "eth_tx_error",
-		[NO_PORT] = "eth_tx_no_port",
+		[NO_DEST] = "eth_tx_no_dest",
 	},
 };
 
@@ -149,4 +157,4 @@ static struct br_node_info info = {
 BR_NODE_REGISTER(info);
 
 BR_DROP_REGISTER(eth_tx_error);
-BR_DROP_REGISTER(eth_tx_no_port);
+BR_DROP_REGISTER(eth_tx_no_dest);

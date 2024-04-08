@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "mbuf_priv.h"
-
 #include <br_datapath.h>
 #include <br_graph.h>
-#include <br_ip4_control.h>
 #include <br_log.h>
 
 #include <rte_errno.h>
@@ -15,33 +12,24 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
-#include <rte_rcu_qsbr.h>
-
-#include <assert.h>
 
 enum edges {
-	IP4_REWRITE = 0,
+	FORWARD = 0,
+	LOCAL,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
-	NO_ROUTE,
 	EDGE_COUNT,
 };
 
 static uint16_t
-lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_fib *fib = node->ctx_ptr;
+input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
-	ip4_addr_t dst_addr;
-	uint64_t next_hop;
 	rte_edge_t next;
-
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		next = IP4_REWRITE;
-
 		hdr = rte_pktmbuf_mtod_offset(
 			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
 		);
@@ -80,16 +68,15 @@ lookup_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			goto next_packet;
 		}
 
-		// TODO: optimize with lookup of multiple packets
-		dst_addr = ntohl(hdr->dst_addr);
-		next_hop = BR_IP4_ROUTE_UNKNOWN;
-		rte_fib_lookup_bulk(fib, &dst_addr, &next_hop, 1);
-		if (next_hop == BR_IP4_ROUTE_UNKNOWN) {
-			next = NO_ROUTE;
+		// FIXME: this lookup really kills performance
+		// we need to find a way to speed up hash map lookups
+#if 0
+		if (address_exists(addr_hash, hdr->dst_addr)) {
+			next = LOCAL;
 			goto next_packet;
 		}
-
-		ip4_fwd_mbuf_priv(mbuf)->next_hop = (ip4_addr_t)next_hop;
+#endif
+		next = FORWARD;
 next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
@@ -97,38 +84,10 @@ next_packet:
 	return nb_objs;
 }
 
-static const struct rte_mbuf_dynfield ip4_fwd_mbuf_priv_desc = {
-	.name = "ip4_fwd",
-	.size = sizeof(struct ip4_fwd_mbuf_priv),
-	.align = __alignof__(struct ip4_fwd_mbuf_priv),
-};
-
-int ip4_fwd_mbuf_priv_offset = -1;
-
-static int lookup_init(const struct rte_graph *graph, struct rte_node *node) {
-	static bool once;
-
-	(void)graph;
-
-	if (!once) {
-		once = true;
-		ip4_fwd_mbuf_priv_offset = rte_mbuf_dynfield_register(&ip4_fwd_mbuf_priv_desc);
-	}
-	if (ip4_fwd_mbuf_priv_offset < 0) {
-		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
-		return -rte_errno;
-	}
-
-	node->ctx_ptr = ip4_fib_get();
-	assert(node->ctx_ptr);
-
-	return 0;
-}
-
-static void lookup_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_classify", "ipv4_lookup");
+static void input_register(void) {
+	rte_edge_t edge = br_node_attach_parent("eth_classify", "ipv4_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(classify, ipv4_lookup) failed");
+		ABORT("br_node_attach_parent(classify, ipv4_input) failed");
 	br_classify_add_proto(RTE_PTYPE_L3_IPV4, edge);
 	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT, edge);
 	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN, edge);
@@ -137,28 +96,27 @@ static void lookup_register(void) {
 	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L2_ETHER, edge);
 }
 
-static struct rte_node_register lookup_node = {
-	.name = "ipv4_lookup",
+static struct rte_node_register input_node = {
+	.name = "ipv4_input",
 
-	.init = lookup_init,
-	.process = lookup_process,
+	.process = input_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[IP4_REWRITE] = "ipv4_rewrite",
-		[BAD_CHECKSUM] = "ipv4_lookup_bad_checksum",
-		[BAD_LENGTH] = "ipv4_lookup_no_route",
-		[NO_ROUTE] = "ipv4_lookup_bad_length",
+		[FORWARD] = "ipv4_forward",
+		[LOCAL] = "ipv4_input_local",
+		[BAD_CHECKSUM] = "ipv4_input_bad_checksum",
+		[BAD_LENGTH] = "ipv4_input_bad_length",
 	},
 };
 
 static struct br_node_info info = {
-	.node = &lookup_node,
-	.register_callback = lookup_register,
+	.node = &input_node,
+	.register_callback = input_register,
 };
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_lookup_bad_checksum);
-BR_DROP_REGISTER(ipv4_lookup_no_route);
-BR_DROP_REGISTER(ipv4_lookup_bad_length);
+BR_DROP_REGISTER(ipv4_input_local);
+BR_DROP_REGISTER(ipv4_input_bad_checksum);
+BR_DROP_REGISTER(ipv4_input_bad_length);

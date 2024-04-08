@@ -2,7 +2,8 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
-  'lookup.c',
-  'rewrite.c',
+  'ip_forward.c',
+  'ip_input.c',
+  'ip_output.c',
 )
 inc += include_directories('.')

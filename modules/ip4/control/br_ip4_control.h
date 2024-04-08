@@ -28,14 +28,13 @@ static inline const struct rte_ether_addr *next_hop_eth_src(const struct next_ho
 }
 
 static inline int next_hop_lookup(struct rte_hash *h, ip4_addr_t ip, struct next_hop **nh) {
-	void *data = NULL;
+	void *data;
 	int ret;
 
-	if ((ret = rte_hash_lookup_data(h, &ip, &data)) < 0)
+	if ((ret = rte_hash_lookup_with_hash_data(h, &ip, ip, &data)) < 0)
 		return ret;
 
 	*nh = data;
-
 	return 0;
 }
 
@@ -47,15 +46,21 @@ struct port_addr {
 	uint16_t port_id;
 };
 
+static inline bool address_exists(struct rte_hash *h, ip4_addr_t ip) {
+	if (rte_hash_lookup_with_hash(h, &ip, ip) < 0)
+		return false;
+
+	return true;
+}
+
 static inline int address_lookup(struct rte_hash *h, ip4_addr_t ip, struct port_addr **addr) {
-	void *data = NULL;
+	void *data;
 	int ret;
 
-	if ((ret = rte_hash_lookup_data(h, &ip, &data)) < 0)
+	if ((ret = rte_hash_lookup_with_hash_data(h, &ip, ip, &data)) < 0)
 		return ret;
 
 	*addr = data;
-
 	return 0;
 }
 
