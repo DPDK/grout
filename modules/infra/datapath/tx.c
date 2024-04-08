@@ -69,6 +69,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			continue;
 		}
 
+		mbuf->data_off -= sizeof(struct rte_ether_hdr);
 		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 		rte_memcpy(eth_hdr, &priv->mac, sizeof(*eth_hdr));
 

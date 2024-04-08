@@ -6,7 +6,6 @@
 #include <br_log.h>
 
 #include <rte_errno.h>
-#include <rte_ether.h>
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
@@ -30,9 +29,7 @@ input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		hdr = rte_pktmbuf_mtod_offset(
-			mbuf, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)
-		);
+		hdr = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
 		// RFC 1812 section 5.2.2 IP Header Validation
 		//

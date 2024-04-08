@@ -4,6 +4,7 @@
 #include <br_datapath.h>
 #include <br_graph.h>
 
+#include <rte_ether.h>
 #include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
@@ -21,6 +22,7 @@ classify_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
 		uint8_t ptype = mbuf->packet_type & L2L3_PTYPE_MASK;
+		mbuf->data_off += sizeof(struct rte_ether_hdr);
 		rte_node_enqueue_x1(graph, node, l2l3_edges[ptype], mbuf);
 	}
 	return nb_objs;
