@@ -16,18 +16,16 @@ struct br_ip4_addr {
 	uint16_t port_id;
 };
 
-enum {
-	// Configured by user
-	BR_IP4_NH_F_STATIC = BR_BIT16(1),
-	// Unknown next hop
-	BR_IP4_NH_F_UNKNOWN = BR_BIT16(2),
-};
+#define BR_IP4_NH_F_STATIC BR_BIT16(1) //!< Configured by user
+#define BR_IP4_NH_F_UNKNOWN BR_BIT16(2) //!< Unknown next hop
+#define BR_IP4_NH_F_PENDING BR_BIT16(3) //!< ARP resolution pending
+typedef uint16_t br_ip4_nh_flags_t;
 
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
 	uint16_t port_id;
-	uint16_t flags; // OR'ed flags BR_IP4_NH_F_*
+	br_ip4_nh_flags_t flags;
 };
 
 struct br_ip4_route {

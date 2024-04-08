@@ -9,7 +9,7 @@
 
 #define BR_INFRA_MODULE 0xacdc
 
-// ports
+// ports ///////////////////////////////////////////////////////////////////////
 #define BR_INFRA_PORT_ADD REQUEST_TYPE(BR_INFRA_MODULE, 0x0001)
 
 struct br_infra_port_add_req {
@@ -49,10 +49,9 @@ struct br_infra_port_list_resp {
 
 #define BR_INFRA_PORT_SET REQUEST_TYPE(BR_INFRA_MODULE, 0x0005)
 
-typedef enum {
-	BR_INFRA_PORT_N_RXQ = BR_BIT32(0),
-	BR_INFRA_PORT_Q_SIZE = BR_BIT32(1),
-} br_infra_port_attr_t;
+#define BR_INFRA_PORT_N_RXQ BR_BIT16(0)
+#define BR_INFRA_PORT_Q_SIZE BR_BIT16(1)
+typedef uint16_t br_infra_port_attr_t;
 
 struct br_infra_port_set_req {
 	uint16_t port_id;
@@ -63,7 +62,7 @@ struct br_infra_port_set_req {
 
 // struct br_infra_port_set_resp { };
 
-// port rxqs
+// port rxqs ///////////////////////////////////////////////////////////////////
 #define BR_INFRA_RXQ_LIST REQUEST_TYPE(BR_INFRA_MODULE, 0x0010)
 
 // struct br_infra_rxq_list_req { };
@@ -83,13 +82,12 @@ struct br_infra_rxq_set_req {
 
 // struct br_infra_rxq_set_resp { };
 
-// stats
-typedef enum {
-	BR_INFRA_STAT_F_SW = BR_BIT32(0), // include software stats
-	BR_INFRA_STAT_F_HW = BR_BIT32(1), // include hardware stats
-	BR_INFRA_STAT_F_XHW = BR_BIT32(2), // include hardware extended stats
-	BR_INFRA_STAT_F_ZERO = BR_BIT32(3), // include zero value stats
-} br_infra_stats_flags_t;
+// stats ///////////////////////////////////////////////////////////////////////
+#define BR_INFRA_STAT_F_SW BR_BIT16(0) //!< include software stats
+#define BR_INFRA_STAT_F_HW BR_BIT16(1) //!< include hardware stats
+#define BR_INFRA_STAT_F_XHW BR_BIT16(2) //<! include hardware extended stats
+#define BR_INFRA_STAT_F_ZERO BR_BIT16(3) //<! include zero value stats
+typedef uint16_t br_infra_stats_flags_t;
 
 #define BR_INFRA_STATS_GET REQUEST_TYPE(BR_INFRA_MODULE, 0x0020)
 
@@ -109,7 +107,7 @@ struct br_infra_stats_get_resp {
 
 // struct br_infra_stats_reset_resp { };
 
-// graph
+// graph ///////////////////////////////////////////////////////////////////////
 
 #define BR_INFRA_GRAPH_DUMP REQUEST_TYPE(BR_INFRA_MODULE, 0x0030)
 
