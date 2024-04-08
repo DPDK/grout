@@ -14,6 +14,7 @@
 #include <rte_graph_worker.h>
 #include <rte_malloc.h>
 
+#include <stdalign.h>
 #include <stdint.h>
 
 enum {
@@ -97,7 +98,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 static const struct rte_mbuf_dynfield tx_mdyn_desc = {
 	.name = "tx",
 	.size = sizeof(struct tx_mdyn),
-	.align = __alignof__(struct tx_mdyn),
+	.align = alignof(struct tx_mdyn),
 };
 
 int tx_mdyn_offset = -1;

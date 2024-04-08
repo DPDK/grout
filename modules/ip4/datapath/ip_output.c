@@ -25,6 +25,7 @@
 #include <rte_rcu_qsbr.h>
 
 #include <assert.h>
+#include <stdalign.h>
 
 enum {
 	TX = 0,
@@ -71,7 +72,7 @@ next:
 static const struct rte_mbuf_dynfield ip4_output_mdyn_desc = {
 	.name = "ip4_output",
 	.size = sizeof(struct ip4_output_mdyn),
-	.align = __alignof__(struct ip4_output_mdyn),
+	.align = alignof(struct ip4_output_mdyn),
 };
 
 int ip4_output_mdyn_offset = -1;
