@@ -4,7 +4,7 @@
 #ifndef _BR_CLI_EXEC
 #define _BR_CLI_EXEC
 
-#include <br_client.h>
+#include <br_api.h>
 
 #include <ecoli.h>
 
@@ -23,9 +23,13 @@ typedef enum {
 
 #define CALLBACK_ATTR "callback"
 
-exec_status_t exec_line(const struct br_client *, const struct ec_node *, const char *line);
+exec_status_t exec_line(const struct br_api_client *, const struct ec_node *, const char *line);
 
-exec_status_t
-exec_args(const struct br_client *, const struct ec_node *, size_t argc, const char *const *argv);
+exec_status_t exec_args(
+	const struct br_api_client *,
+	const struct ec_node *,
+	size_t argc,
+	const char *const *argv
+);
 
 #endif

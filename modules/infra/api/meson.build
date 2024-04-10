@@ -1,12 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2023 Robin Jarry
-
-lib_src += files(
-  'graph.c',
-  'port.c',
-  'rxq.c',
-  'stats.c',
-)
+# Copyright (c) 2024 Robin Jarry
 
 api_headers += files('br_infra.h')
+inc += include_directories('.')
 cli_inc += include_directories('.')

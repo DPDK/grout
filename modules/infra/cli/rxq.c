@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_infra_types.h"
-
+#include <br_api.h>
 #include <br_cli.h>
-#include <br_client.h>
 #include <br_infra.h>
 #include <br_net_types.h>
 
@@ -25,39 +23,40 @@ static int rxqs_order(const void *a, const void *b) {
 	return rxq_a->cpu_id - rxq_b->cpu_id;
 }
 
-static cmd_status_t rxq_list(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_rxq *rxqs = NULL;
-	size_t len = 0;
+static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_rxq_list_resp *resp;
+	void *resp_ptr = NULL;
 
 	(void)p;
 
-	if (br_infra_rxq_list(c, &len, &rxqs) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	qsort(rxqs, len, sizeof(*rxqs), rxqs_order);
+	resp = resp_ptr;
+	qsort(resp->rxqs, resp->n_rxqs, sizeof(*resp->rxqs), rxqs_order);
 
 	printf("%-8s  %-8s  %-8s  %s\n", "PORT", "RXQ_ID", "CPU_ID", "ENABLED");
-	for (size_t i = 0; i < len; i++) {
-		struct br_infra_rxq *q = &rxqs[i];
+	for (size_t i = 0; i < resp->n_rxqs; i++) {
+		const struct br_infra_rxq *q = &resp->rxqs[i];
 		printf("%-8u  %-8u  %-8u  %u\n", q->port_id, q->rxq_id, q->cpu_id, q->enabled);
 	}
 
-	free(rxqs);
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t rxq_set(const struct br_client *c, const struct ec_pnode *p) {
-	uint64_t port_id, rxq_id, cpu_id;
+static cmd_status_t rxq_set(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_rxq_set_req req;
 
-	if (arg_uint(p, "PORT", &port_id) < 0)
+	if (arg_u16(p, "PORT", &req.port_id) < 0)
 		return CMD_ERROR;
-	if (arg_uint(p, "RXQ", &rxq_id) < 0)
+	if (arg_u16(p, "RXQ", &req.rxq_id) < 0)
 		return CMD_ERROR;
-	if (arg_uint(p, "CPU", &cpu_id) < 0)
+	if (arg_u16(p, "CPU", &req.cpu_id) < 0)
 		return CMD_ERROR;
 
-	if (br_infra_rxq_set(c, port_id, rxq_id, cpu_id) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_RXQ_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;

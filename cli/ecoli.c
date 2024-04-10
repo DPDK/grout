@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_net_types.h"
 #include "exec.h"
 
 #include <br_cli.h>
+#include <br_net_types.h>
 
 #include <ecoli.h>
 
@@ -76,7 +76,7 @@ const char *arg_str(const struct ec_pnode *p, const char *id) {
 	return ec_strvec_val(v, 0);
 }
 
-int arg_int(const struct ec_pnode *p, const char *id, int64_t *val) {
+int arg_i64(const struct ec_pnode *p, const char *id, int64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL) {
 		errno = ENOENT;
@@ -98,7 +98,7 @@ err:
 	return -1;
 }
 
-int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *val) {
+int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL) {
 		errno = ENOENT;

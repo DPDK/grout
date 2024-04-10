@@ -9,6 +9,7 @@ src += files(
   'rxq.c',
   'stats.c',
 )
+inc += include_directories('.')
 
 tests += [
   {

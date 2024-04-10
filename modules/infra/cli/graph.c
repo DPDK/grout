@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <br_api.h>
 #include <br_cli.h>
-#include <br_client.h>
 #include <br_infra.h>
-#include <br_infra_msg.h>
-#include <br_infra_types.h>
 #include <br_net_types.h>
 
 #include <ecoli.h>
@@ -13,17 +11,18 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static cmd_status_t graph_dump(const struct br_client *c, const struct ec_pnode *p) {
-	char *dot = NULL;
-	size_t len = 0;
+static cmd_status_t graph_dump(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct br_infra_graph_dump_resp *resp;
+	void *resp_ptr = NULL;
 
 	(void)p;
 
-	if (br_infra_graph_dump(c, &len, &dot) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_GRAPH_DUMP, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	fwrite(dot, 1, len, stdout);
-	free(dot);
+	resp = resp_ptr;
+	fwrite(resp->dot, 1, resp->len, stdout);
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }
@@ -38,18 +37,19 @@ static int stats_order(const void *sa, const void *sb) {
 	return 1;
 }
 
-static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_graph_stat *stats = NULL;
-	size_t n_stats = 0;
+static cmd_status_t graph_stats(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_graph_stats_resp *resp;
+	void *resp_ptr = NULL;
 	bool zero = false;
 
 	if (arg_str(p, "zero") != NULL)
 		zero = true;
 
-	if (br_infra_graph_stats(c, &n_stats, &stats) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_GRAPH_STATS, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	qsort(stats, n_stats, sizeof(*stats), stats_order);
+	resp = resp_ptr;
+	qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order);
 
 	printf("%-32s  %14s  %16s  %12s  %12s  %12s\n",
 	       "NODE",
@@ -59,8 +59,8 @@ static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode
 	       "CYCLES/CALL",
 	       "CYCLES/PKT");
 
-	for (size_t i = 0; i < n_stats; i++) {
-		struct br_infra_graph_stat *s = &stats[i];
+	for (size_t i = 0; i < resp->n_stats; i++) {
+		const struct br_infra_graph_stat *s = &resp->stats[i];
 		double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
 
 		if (s->calls != 0) {
@@ -82,7 +82,7 @@ static cmd_status_t graph_stats(const struct br_client *c, const struct ec_pnode
 		       cycles_pkt);
 	}
 
-	free(stats);
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }

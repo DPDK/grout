@@ -10,7 +10,4 @@ src += files(
   'string.c',
 )
 
-api_headers += files('include/br_api.h')
-
 inc += include_directories('include')
-lib_inc += include_directories('include')

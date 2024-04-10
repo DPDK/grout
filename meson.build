@@ -47,8 +47,6 @@ ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
 src = []
 inc = []
 
-lib_src = []
-lib_inc = []
 api_headers = []
 
 cli_src = []
@@ -57,18 +55,11 @@ cli_inc = []
 tests = []
 
 subdir('docs')
-subdir('lib')
+subdir('api')
 subdir('main')
 subdir('modules')
 subdir('cli')
 
-libbr = shared_library(
-  'br',
-  lib_src,
-  include_directories: lib_inc,
-  install: true,
-)
-import('pkgconfig').generate(libbr)
 install_headers(api_headers, subdir: 'br')
 
 executable(
@@ -80,9 +71,8 @@ executable(
 
 executable(
   'br-cli', cli_src,
-  include_directories: lib_inc + cli_inc,
+  include_directories: cli_inc,
   dependencies: [ecoli_dep],
-  link_with: libbr,
   install: true,
 )
 
@@ -93,7 +83,7 @@ foreach t : tests
   name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
   t += {
     'sources': t['sources'] + files('main/stb_ds_impl.c', 'main/string.c'),
-    'include_directories': inc + lib_inc + cli_inc,
+    'include_directories': inc + cli_inc,
     'c_args': ['-coverage'],
     'link_args': t['link_args'] + ['-lgcov'],
     'dependencies': [dpdk_dep, event_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],

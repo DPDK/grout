@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <br_api.h>
 #include <br_cli.h>
-#include <br_client.h>
 #include <br_infra.h>
-#include <br_infra_msg.h>
-#include <br_infra_types.h>
 #include <br_net_types.h>
 
 #include <ecoli.h>
@@ -18,46 +16,47 @@ static int stats_order(const void *a, const void *b) {
 	return strncmp(stat_a->name, stat_b->name, sizeof(stat_a->name));
 }
 
-static cmd_status_t stats_get(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_stat *stats = NULL;
-	br_infra_stats_flags_t flags = 0;
+static cmd_status_t stats_get(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_stats_get_req req = {.flags = 0};
+	struct br_infra_stats_get_resp *resp;
+	void *resp_ptr = NULL;
 	const char *pattern;
-	size_t len = 0;
 
 	if (arg_str(p, "software") != NULL)
-		flags |= BR_INFRA_STAT_F_SW;
+		req.flags |= BR_INFRA_STAT_F_SW;
 	if (arg_str(p, "hardware") != NULL)
-		flags |= BR_INFRA_STAT_F_HW;
+		req.flags |= BR_INFRA_STAT_F_HW;
 	if (arg_str(p, "xstats") != NULL)
-		flags |= BR_INFRA_STAT_F_XHW;
+		req.flags |= BR_INFRA_STAT_F_XHW;
 	if (arg_str(p, "all") != NULL)
-		flags |= BR_INFRA_STAT_F_SW | BR_INFRA_STAT_F_HW | BR_INFRA_STAT_F_XHW;
+		req.flags |= BR_INFRA_STAT_F_SW | BR_INFRA_STAT_F_HW | BR_INFRA_STAT_F_XHW;
 	if (arg_str(p, "zero") != NULL)
-		flags |= BR_INFRA_STAT_F_ZERO;
+		req.flags |= BR_INFRA_STAT_F_ZERO;
 	pattern = arg_str(p, "PATTERN");
 	if (pattern == NULL)
 		pattern = "*";
-	errno = 0;
+	snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
 
-	if (br_infra_stats_get(c, flags, pattern, &len, &stats) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	qsort(stats, len, sizeof(*stats), stats_order);
+	resp = resp_ptr;
+	qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order);
 
-	for (size_t i = 0; i < len; i++) {
-		struct br_infra_stat *s = &stats[i];
+	for (size_t i = 0; i < resp->n_stats; i++) {
+		const struct br_infra_stat *s = &resp->stats[i];
 		printf("%s %lu\n", s->name, s->value);
 	}
 
-	free(stats);
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t stats_reset(const struct br_client *c, const struct ec_pnode *p) {
+static cmd_status_t stats_reset(const struct br_api_client *c, const struct ec_pnode *p) {
 	(void)p;
 
-	if (br_infra_stats_reset(c) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;

@@ -8,3 +8,4 @@ src += files(
   'rx.c',
   'tx.c',
 )
+inc += include_directories('.')

@@ -5,3 +5,4 @@ src += files(
   'lookup.c',
   'rewrite.c',
 )
+inc += include_directories('.')

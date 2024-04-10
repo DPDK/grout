@@ -7,8 +7,8 @@
 #include "log.h"
 
 #include <br_api.h>
+#include <br_api_client_impl.h>
 #include <br_cli.h>
-#include <br_client.h>
 
 #include <ecoli.h>
 
@@ -100,7 +100,7 @@ static int parse_args(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-	struct br_client *client = NULL;
+	struct br_api_client *client = NULL;
 	struct ec_node *cmdlist = NULL;
 	exec_status_t status;
 	int ret, c;
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
 	argc -= c;
 	argv += c;
 
-	if ((client = br_connect(opts.sock_path)) == NULL) {
+	if ((client = br_api_client_connect(opts.sock_path)) == NULL) {
 		errorf("br_connect: %s", strerror(errno));
 		goto end;
 	}
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
 	ret = EXIT_SUCCESS;
 
 end:
-	if (br_disconnect(client) < 0) {
+	if (br_api_client_disconnect(client) < 0) {
 		errorf("br_disconnect: %s", strerror(errno));
 		ret = EXIT_FAILURE;
 	}

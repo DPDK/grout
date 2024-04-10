@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "ecoli_string.h"
-
 #include <ecoli.h>
 
 #include <dirent.h>

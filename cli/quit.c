@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <br_api.h>
 #include <br_cli.h>
-#include <br_client.h>
 
-static cmd_status_t quit(const struct br_client *c, const struct ec_pnode *p) {
+static cmd_status_t quit(const struct br_api_client *c, const struct ec_pnode *p) {
 	(void)c;
 	(void)p;
 	return CMD_EXIT;

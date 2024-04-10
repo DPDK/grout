@@ -7,7 +7,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
-#include <br_infra_msg.h>
+#include <br_infra.h>
 #include <br_log.h>
 #include <br_port.h>
 #include <br_queue.h>

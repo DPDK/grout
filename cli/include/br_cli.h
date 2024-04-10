@@ -4,7 +4,7 @@
 #ifndef _BR_CLI
 #define _BR_CLI
 
-#include <br_client.h>
+#include <br_api.h>
 #include <br_net_types.h>
 
 #include <ecoli.h>
@@ -29,7 +29,7 @@ typedef enum {
 	CMD_EXIT,
 } cmd_status_t;
 
-typedef cmd_status_t(cmd_cb_t)(const struct br_client *, const struct ec_pnode *);
+typedef cmd_status_t(cmd_cb_t)(const struct br_api_client *, const struct ec_pnode *);
 
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
@@ -38,9 +38,17 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
 struct ec_node *cli_context(struct ec_node *root, const char *name, const char *help);
 
 const char *arg_str(const struct ec_pnode *p, const char *id);
-int arg_int(const struct ec_pnode *p, const char *id, int64_t *);
-int arg_uint(const struct ec_pnode *p, const char *id, uint64_t *);
+int arg_i64(const struct ec_pnode *p, const char *id, int64_t *);
+int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *);
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *);
+
+static inline int arg_u16(const struct ec_pnode *p, const char *id, uint16_t *val) {
+	uint64_t v;
+	int ret = arg_u64(p, id, &v);
+	if (ret == 0)
+		*val = v;
+	return ret;
+}
 
 #define CLI_COMMAND(ctx, cmd, cb, help, ...)                                                       \
 	ec_node_or_add(                                                                            \

@@ -4,7 +4,7 @@
 #ifndef _BR_IP4_CONTROL
 #define _BR_IP4_CONTROL
 
-#include <br_ip4_types.h>
+#include <br_ip4.h>
 #include <br_net_types.h>
 
 #include <rte_ether.h>

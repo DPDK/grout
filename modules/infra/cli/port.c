@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_infra_types.h"
+#include "br_infra.h"
 
+#include <br_api.h>
 #include <br_cli.h>
-#include <br_client.h>
 #include <br_infra.h>
 #include <br_net_types.h>
 
@@ -13,78 +13,90 @@
 #include <errno.h>
 #include <stdint.h>
 
-static cmd_status_t port_add(const struct br_client *c, const struct ec_pnode *p) {
-	const char *devargs = arg_str(p, "DEVARGS");
-	uint16_t port_id;
+static cmd_status_t port_add(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct br_infra_port_add_resp *resp;
+	struct br_infra_port_add_req req = {0};
+	void *resp_ptr = NULL;
 
-	if (br_infra_port_add(c, devargs, &port_id) < 0)
+	memccpy(req.devargs, arg_str(p, "DEVARGS"), 0, sizeof(req.devargs));
+
+	if (br_api_client_send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	printf("Created port %u\n", port_id);
-
+	resp = resp_ptr;
+	printf("Created port %u\n", resp->port_id);
+	free(resp_ptr);
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_set(const struct br_client *c, const struct ec_pnode *p) {
-	uint64_t port_id, n_rxq, q_size;
+static cmd_status_t port_set(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_port_set_req req = {0};
 
-	n_rxq = 0;
-	q_size = 0;
-
-	if (arg_uint(p, "INDEX", &port_id) < 0)
-		return CMD_ERROR;
-	if (arg_uint(p, "N_RXQ", &n_rxq) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-	if (arg_uint(p, "Q_SIZE", &q_size) < 0 && errno != ENOENT)
+	if (arg_u16(p, "INDEX", &req.port_id) < 0)
 		return CMD_ERROR;
 
-	if (br_infra_port_set(c, port_id, n_rxq, q_size) < 0)
+	if (arg_u16(p, "N_RXQ", &req.n_rxq) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+	else
+		req.set_attrs |= BR_INFRA_PORT_N_RXQ;
 
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t port_del(const struct br_client *c, const struct ec_pnode *p) {
-	uint64_t port_id;
-
-	if (arg_uint(p, "INDEX", &port_id) < 0)
+	if (arg_u16(p, "Q_SIZE", &req.q_size) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+	else
+		req.set_attrs |= BR_INFRA_PORT_Q_SIZE;
 
-	if (br_infra_port_del(c, port_id) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_show(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_port port;
-	uint64_t port_id;
+static cmd_status_t port_del(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_port_del_req req;
 
-	if (arg_uint(p, "INDEX", &port_id) < 0)
-		return CMD_ERROR;
-	if (br_infra_port_get(c, port_id, &port) < 0)
+	if (arg_u16(p, "INDEX", &req.port_id) < 0)
 		return CMD_ERROR;
 
-	printf("index: %u\n", port.index);
-	printf("    device: %s\n", port.device);
-	printf("    rx_queues: %u\n", port.n_rxq);
-	printf("    rxq_size: %u\n", port.rxq_size);
-	printf("    tx_queues: %u\n", port.n_txq);
-	printf("    txq_size: %u\n", port.txq_size);
-	printf("    mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port.mac.bytes));
+	if (br_api_client_send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *p) {
-	struct br_infra_port *ports = NULL;
-	size_t len = 0;
+static cmd_status_t port_show(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct br_infra_port_get_resp *resp;
+	struct br_infra_port_get_req req;
+	void *resp_ptr = NULL;
+
+	if (arg_u16(p, "INDEX", &req.port_id) < 0)
+		return CMD_ERROR;
+
+	if (br_api_client_send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	printf("index: %u\n", resp->port.index);
+	printf("    device: %s\n", resp->port.device);
+	printf("    rx_queues: %u\n", resp->port.n_rxq);
+	printf("    rxq_size: %u\n", resp->port.rxq_size);
+	printf("    tx_queues: %u\n", resp->port.n_txq);
+	printf("    txq_size: %u\n", resp->port.txq_size);
+	printf("    mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(resp->port.mac.bytes));
+
+	free(resp_ptr);
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t port_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct br_infra_port_list_resp *resp;
+	void *resp_ptr = NULL;
 
 	(void)p;
 
-	if (br_infra_port_list(c, &len, &ports) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
+	resp = resp_ptr;
 	printf("%-8s  %-20s  %-10s  %-10s  %-10s  %-10s  %s\n",
 	       "INDEX",
 	       "DEVICE",
@@ -93,8 +105,8 @@ static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *
 	       "TX_QUEUES",
 	       "TXQ_SIZE",
 	       "MAC");
-	for (size_t i = 0; i < len; i++) {
-		struct br_infra_port *p = &ports[i];
+	for (size_t i = 0; i < resp->n_ports; i++) {
+		const struct br_infra_port *p = &resp->ports[i];
 		printf("%-8u  %-20s  %-10u  %-10u  %-10u  %-10u  " ETH_ADDR_FMT "\n",
 		       p->index,
 		       p->device,
@@ -105,7 +117,7 @@ static cmd_status_t port_list(const struct br_client *c, const struct ec_pnode *
 		       ETH_BYTES_SPLIT(p->mac.bytes));
 	}
 
-	free(ports);
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }

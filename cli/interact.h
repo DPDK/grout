@@ -4,10 +4,10 @@
 #ifndef _BR_CLI_INTERACT
 #define _BR_CLI_INTERACT
 
-#include <br_client.h>
+#include <br_api.h>
 
 #include <ecoli.h>
 
-int interact(const struct br_client *, struct ec_node *);
+int interact(const struct br_api_client *, struct ec_node *);
 
 #endif

@@ -6,7 +6,6 @@
 #include "log.h"
 
 #include <br_cli.h>
-#include <br_client.h>
 
 #include <ecoli.h>
 
@@ -61,7 +60,7 @@ const char *__lsan_default_options(void) {
 }
 #endif
 
-int interact(const struct br_client *client, struct ec_node *cmdlist) {
+int interact(const struct br_api_client *client, struct ec_node *cmdlist) {
 	int flags = EC_EDITLINE_DEFAULT_SIGHANDLER;
 	struct ec_editline *edit = NULL;
 	struct ec_node *shlex = NULL;

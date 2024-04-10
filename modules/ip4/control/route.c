@@ -3,9 +3,8 @@
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_ip4.h>
 #include <br_ip4_control.h>
-#include <br_ip4_msg.h>
-#include <br_ip4_types.h>
 #include <br_log.h>
 #include <br_net_types.h>
 #include <br_queue.h>

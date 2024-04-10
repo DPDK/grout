@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Copyright (c) 2023 Robin Jarry
+// Copyright (c) 2024 Robin Jarry
 
 #ifndef _BR_API
 #define _BR_API
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct br_api_request {
@@ -25,8 +26,18 @@ struct br_api_response {
 
 #define BR_DEFAULT_SOCK_PATH "/run/br.sock"
 
-#define BR_BIT16(n) (UINT16_C(1) << (n))
-#define BR_BIT32(n) (UINT32_C(1) << (n))
-#define BR_BIT64(n) (UINT64_C(1) << (n))
+struct br_api_client;
+
+struct br_api_client *br_api_client_connect(const char *sock_path);
+
+int br_api_client_disconnect(struct br_api_client *);
+
+int br_api_client_send_recv(
+	const struct br_api_client *,
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	void **rx_data
+);
 
 #endif

@@ -6,7 +6,7 @@
 #include <br_api.h>
 #include <br_cmocka.h>
 #include <br_control.h>
-#include <br_infra_msg.h>
+#include <br_infra.h>
 #include <br_port.h>
 #include <br_queue.h>
 #include <br_stb_ds.h>
