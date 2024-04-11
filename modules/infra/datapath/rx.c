@@ -42,7 +42,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		trace_packet(node->name, node->objs[i]);
 	if (count > 0) {
 		node->idx = count;
-		rte_node_next_stream_move(graph, node, CLASSIFY);
+		rte_node_enqueue(graph, node, CLASSIFY, node->objs, count);
 	}
 
 	return count;
