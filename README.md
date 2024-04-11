@@ -146,12 +146,13 @@ digraph "br-0037" {
         "eth_classify" -> "ipv4_lookup";
 }
 [root@dio brouter]$ ./build/br-cli graph stats
-NODE               CALLS     PACKETS   PKTS/CALL  CYCLES/CALL    CYCLES/PKT
-ipv4_rewrite        1024      261698       255.6      16982.8          66.5
-ipv4_lookup         1024      261698       255.6      12355.8          48.3
-eth_rx              1024      261698       255.6       8315.6          32.5
-eth_tx              1024      261698       255.6       7107.8          27.8
-eth_classify        1024      261698       255.6       1941.1           7.6
+NODE              CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
+ipv4_output        3089       265234        85.9        4263.0          49.6
+eth_rx             4192       265234        63.3        2519.2          39.8
+ipv4_forward       3089       265234        85.9        3118.1          36.3
+eth_tx             3089       265234        85.9        3035.9          35.4
+ipv4_input         3089       265234        85.9        1612.8          18.8
+eth_classify       3089       265234        85.9         820.4           9.6
 ```
 
 ## License
