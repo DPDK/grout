@@ -7,6 +7,7 @@
 #include <br_log.h>
 #include <br_net_types.h>
 
+#include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_graph_worker.h>
@@ -17,7 +18,7 @@
 
 void *br_datapath_loop(void *priv);
 
-void br_classify_add_proto(uint8_t l2l3_type, rte_edge_t edge);
+void br_classify_add_proto(rte_be16_t eth_type, rte_edge_t edge);
 
 #ifdef TRACE_PACKETS
 static inline void trace_packet(const char *node, const struct rte_mbuf *m) {

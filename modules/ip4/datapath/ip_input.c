@@ -5,7 +5,9 @@
 #include <br_graph.h>
 #include <br_log.h>
 
+#include <rte_byteorder.h>
 #include <rte_errno.h>
+#include <rte_ether.h>
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
@@ -85,12 +87,7 @@ static void input_register(void) {
 	rte_edge_t edge = br_node_attach_parent("eth_classify", "ipv4_input");
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("br_node_attach_parent(classify, ipv4_input) failed");
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4, edge);
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT, edge);
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN, edge);
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L2_ETHER, edge);
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT | RTE_PTYPE_L2_ETHER, edge);
-	br_classify_add_proto(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN | RTE_PTYPE_L2_ETHER, edge);
+	br_classify_add_proto(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
 }
 
 static struct rte_node_register input_node = {

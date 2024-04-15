@@ -3,27 +3,29 @@
 
 #include <br_datapath.h>
 #include <br_graph.h>
+#include <br_log.h>
 
+#include <rte_byteorder.h>
 #include <rte_ether.h>
+#include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
 #define UNKNOWN_PTYPE 0
-static rte_edge_t l2l3_edges[256] = {UNKNOWN_PTYPE};
+static rte_edge_t l2l3_edges[1 << 16] = {UNKNOWN_PTYPE};
 
-void br_classify_add_proto(uint8_t l2l3_type, rte_edge_t edge) {
-	l2l3_edges[l2l3_type] = edge;
+void br_classify_add_proto(rte_be16_t eth_type, rte_edge_t edge) {
+	l2l3_edges[eth_type] = edge;
+	LOG(DEBUG, "eth_classify: type=0x%x -> edge %u", rte_be_to_cpu_16(eth_type), edge);
 }
-
-#define L2L3_PTYPE_MASK (RTE_PTYPE_L2_MASK | RTE_PTYPE_L3_MASK)
 
 static uint16_t
 classify_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
-		uint8_t ptype = mbuf->packet_type & L2L3_PTYPE_MASK;
-		mbuf->data_off += sizeof(struct rte_ether_hdr);
-		rte_node_enqueue_x1(graph, node, l2l3_edges[ptype], mbuf);
+		struct rte_ether_hdr *eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+		rte_pktmbuf_adj(mbuf, sizeof(*eth));
+		rte_node_enqueue_x1(graph, node, l2l3_edges[eth->ether_type], mbuf);
 	}
 	return nb_objs;
 }
