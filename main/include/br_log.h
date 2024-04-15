@@ -11,7 +11,7 @@ extern int br_rte_log_type;
 
 #define LOG(level, fmt, ...)                                                                       \
 	do {                                                                                       \
-		_Static_assert(                                                                    \
+		static_assert(                                                                     \
 			!__builtin_strchr(fmt, '\n'), "This log format string contains a \\n"      \
 		);                                                                                 \
 		RTE_LOG(level, BR, "%s: " fmt "\n", __func__ __VA_OPT__(, ) __VA_ARGS__);          \

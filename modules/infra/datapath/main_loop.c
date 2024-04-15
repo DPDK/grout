@@ -154,9 +154,9 @@ void *br_datapath_loop(void *priv) {
 
 	log(INFO, "lcore_id = %d", w->lcore_id);
 
-	_Static_assert(atomic_is_lock_free(&w->shutdown));
-	_Static_assert(atomic_is_lock_free(&w->cur_config));
-	_Static_assert(atomic_is_lock_free(&w->stats_reset));
+	static_assert(atomic_is_lock_free(&w->shutdown));
+	static_assert(atomic_is_lock_free(&w->cur_config));
+	static_assert(atomic_is_lock_free(&w->stats_reset));
 	atomic_store_explicit(&w->started, true, memory_order_release);
 
 reconfig:
