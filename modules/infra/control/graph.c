@@ -77,15 +77,29 @@ int br_node_data_set(const char *graph, const char *node, void *data) {
 rte_edge_t br_node_attach_parent(const char *parent, const char *node) {
 	rte_node_t parent_id;
 	rte_edge_t edge;
+	char **names;
 
-	if ((parent_id = rte_node_from_name(parent)) == RTE_NODE_ID_INVALID) {
-		LOG(ERR, "'%s' parent node not found", parent);
-		return RTE_EDGE_ID_INVALID;
-	}
+	if ((parent_id = rte_node_from_name(parent)) == RTE_NODE_ID_INVALID)
+		ABORT("'%s' parent node not found", parent);
 
 	edge = rte_node_edge_update(parent_id, RTE_EDGE_ID_INVALID, &node, 1);
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("rte_node_edge_update: %s", rte_strerror(rte_errno));
+
+	names = calloc(rte_node_edge_count(parent_id), sizeof(char *));
+	if (names == NULL)
+		ABORT("calloc(rte_node_edge_count('%s')) failed", parent);
+	if (rte_node_edge_get(parent_id, names) == RTE_EDGE_ID_INVALID)
+		ABORT("rte_node_edge_get('%s')) failed", parent);
+	for (edge = 0; edge < rte_node_edge_count(parent_id); edge++) {
+		if (strcmp(names[edge], node) == 0)
+			break;
+	}
+	free(names);
+	if (edge == rte_node_edge_count(parent_id))
+		ABORT("cannot find added edge");
+
+	LOG(DEBUG, "attach %s -> %s (edge=%u)", parent, node, edge);
 
 	return edge;
 }
