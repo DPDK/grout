@@ -14,8 +14,6 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 
-#include <stdint.h>
-
 void *br_datapath_loop(void *priv);
 
 void br_classify_add_proto(rte_be16_t eth_type, rte_edge_t edge);
@@ -23,39 +21,43 @@ void br_classify_add_proto(rte_be16_t eth_type, rte_edge_t edge);
 #ifdef TRACE_PACKETS
 static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 	const struct rte_ether_hdr *eth;
-	struct rte_ether_hdr eth_;
+	rte_be16_t ether_type;
 
-	eth = rte_pktmbuf_read(m, 0, sizeof(eth_), &eth_);
-	if (ntohs(eth->ether_type) == 0x0800) {
+	eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+	ether_type = rte_be_to_cpu_16(eth->ether_type);
+	switch (ether_type) {
+	case RTE_ETHER_TYPE_IPV4: {
 		const struct rte_ipv4_hdr *ip;
-		struct rte_ipv4_hdr ip_;
 		char src[64], dst[64];
 
-		ip = rte_pktmbuf_read(m, sizeof(eth_), sizeof(ip_), &ip_);
+		ip = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, sizeof(*eth));
 		inet_ntop(AF_INET, &ip->src_addr, src, sizeof(src));
 		inet_ntop(AF_INET, &ip->dst_addr, dst, sizeof(dst));
 
-		LOG(INFO,
-		    "[%s] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " type=0x%04x len=%u"
-		    " / %s > %s ttl=%hhu len=%u proto=%hhu",
+		LOG(NOTICE,
+		    "[%s p%u] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " / IP"
+		    " %s > %s ttl=%hhu len=%u proto=%hhu",
 		    node,
+		    m->port,
 		    ETH_BYTES_SPLIT(eth->src_addr.addr_bytes),
 		    ETH_BYTES_SPLIT(eth->dst_addr.addr_bytes),
-		    rte_be_to_cpu_16(eth->ether_type),
-		    m->pkt_len,
 		    src,
 		    dst,
 		    ip->time_to_live,
 		    ntohs(ip->total_length),
 		    ip->next_proto_id);
-	} else {
-		LOG(INFO,
-		    "[%s] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " type=0x%04x len=%u",
+		break;
+	}
+	default:
+		LOG(NOTICE,
+		    "[%s p%u] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " type=0x%04x len=%u",
 		    node,
+		    m->port,
 		    ETH_BYTES_SPLIT(eth->src_addr.addr_bytes),
 		    ETH_BYTES_SPLIT(eth->dst_addr.addr_bytes),
-		    rte_be_to_cpu_16(eth->ether_type),
+		    ether_type,
 		    m->pkt_len);
+		break;
 	}
 }
 #else
