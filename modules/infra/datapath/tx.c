@@ -4,6 +4,7 @@
 #include <br_datapath.h>
 #include <br_graph.h>
 #include <br_log.h>
+#include <br_mbuf.h>
 #include <br_tx.h>
 #include <br_worker.h>
 
@@ -46,16 +47,24 @@ static inline void tx_burst(
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t port_id, i, burst_start;
-	struct rte_ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth;
 
 	port_id = UINT16_MAX;
 	burst_start = 0;
 
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
-		struct tx_mdyn *priv;
+		struct tx_mbuf_data *priv = tx_mbuf_data(mbuf);
 
-		if ((priv = tx_mdyn(mbuf)) == NULL) {
+		eth = (struct rte_ether_hdr *)
+			rte_pktmbuf_prepend(mbuf, sizeof(struct rte_ether_hdr));
+		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
+		rte_eth_macaddr_get(mbuf->port, &eth->src_addr);
+		eth->ether_type = priv->ether_type;
+
+		trace_packet(node->name, mbuf);
+
+		if (mbuf->port != port_id) {
 			if (burst_start != i) {
 				tx_burst(
 					graph,
@@ -66,26 +75,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 				);
 				burst_start = i;
 			}
-			rte_node_enqueue(graph, node, NO_DEST, (void *)&mbuf, 1);
-			continue;
-		}
-
-		mbuf->data_off -= sizeof(struct rte_ether_hdr);
-		eth_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
-		rte_memcpy(eth_hdr, &priv->mac, sizeof(*eth_hdr));
-
-		if (priv->port_id != port_id) {
-			if (burst_start != i) {
-				tx_burst(
-					graph,
-					node,
-					port_id,
-					(void *)&objs[burst_start],
-					i - burst_start
-				);
-				burst_start = i;
-			}
-			port_id = priv->port_id;
+			port_id = mbuf->port;
 		}
 	}
 
@@ -95,29 +85,11 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	return nb_objs;
 }
 
-static const struct rte_mbuf_dynfield tx_mdyn_desc = {
-	.name = "tx",
-	.size = sizeof(struct tx_mdyn),
-	.align = alignof(struct tx_mdyn),
-};
-
-int tx_mdyn_offset = -1;
-
 static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	const struct tx_node_queues *data;
 	struct tx_ctx *ctx;
-	static bool once;
 
 	(void)graph;
-
-	if (!once) {
-		once = true;
-		tx_mdyn_offset = rte_mbuf_dynfield_register(&tx_mdyn_desc);
-	}
-	if (tx_mdyn_offset < 0) {
-		LOG(ERR, "rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));
-		return -1;
-	}
 
 	if ((data = br_node_data_get(graph->name, node->name)) == NULL)
 		return -1;

@@ -1,21 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip_output.h"
+#include "ip4_mbuf.h"
 
-#include <br_datapath.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
-#include <br_log.h>
 
-#include <rte_errno.h>
-#include <rte_ether.h>
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
-#include <rte_mbuf_dyn.h>
-#include <rte_rcu_qsbr.h>
 
 #include <assert.h>
 
@@ -60,7 +54,7 @@ forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		csum += csum >= 0xffff;
 		hdr->hdr_checksum = csum;
 
-		ip4_output_mdyn(mbuf)->next_hop = (ip4_addr_t)next_hop;
+		ip_output_mbuf_data(mbuf)->next_hop = (ip4_addr_t)next_hop;
 		next = OUTPUT;
 next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
