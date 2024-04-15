@@ -117,43 +117,23 @@ reset         (Reset all stats to zero.)
 software      (Print software stats.)
 xstats        (Print extended driver stats.)
 [root@dio brouter]$ ./build/br-cli stats reset
-[root@dio brouter]$ ./build/br-cli graph dump
-digraph "br-0037" {
-        rankdir=LR;
-        node [margin=0.02 fontsize=11 fontname=sans];
-        "ipv4_rewrite_ttl_exceeded" [color=darkorange];
-        "ipv4_rewrite_no_nexthop" [color=darkorange];
-        "ipv4_rewrite";
-        "ipv4_rewrite" -> "eth_tx";
-        "ipv4_rewrite" -> "ipv4_rewrite_no_nexthop";
-        "ipv4_rewrite" -> "ipv4_rewrite_ttl_exceeded";
-        "ipv4_lookup_bad_length" [color=darkorange];
-        "ipv4_lookup_no_route" [color=darkorange];
-        "ipv4_lookup_bad_checksum" [color=darkorange];
-        "ipv4_lookup";
-        "ipv4_lookup" -> "ipv4_rewrite";
-        "ipv4_lookup" -> "ipv4_lookup_bad_checksum";
-        "ipv4_lookup" -> "ipv4_lookup_no_route";
-        "ipv4_lookup" -> "ipv4_lookup_bad_length";
-        "eth_tx_error" [color=darkorange];
-        "eth_tx";
-        "eth_tx" -> "eth_tx_error";
-        "eth_rx" [color=blue style=bold];
-        "eth_rx" -> "eth_classify" [color=blue style=bold];
-        "eth_classify_unknown_ptype" [color=darkorange];
-        "eth_classify";
-        "eth_classify" -> "eth_classify_unknown_ptype";
-        "eth_classify" -> "ipv4_lookup";
-}
 [root@dio brouter]$ ./build/br-cli graph stats
-NODE              CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
-ipv4_output        3089       265234        85.9        4263.0          49.6
-eth_rx             4192       265234        63.3        2519.2          39.8
-ipv4_forward       3089       265234        85.9        3118.1          36.3
-eth_tx             3089       265234        85.9        3035.9          35.4
-ipv4_input         3089       265234        85.9        1612.8          18.8
-eth_classify       3089       265234        85.9         820.4           9.6
+NODE               CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
+eth_tx            223946     24121370       107.7        6076.0          56.4
+ipv4_input        223946     24121370       107.7        4999.5          46.4
+eth_rx            268128     24121370        90.0        3648.6          40.6
+eth_classify      223946     24121370       107.7        2404.0          22.3
+ipv4_output       223946     24121370       107.7        1518.5          14.1
+ipv4_forward      223946     24121370       107.7        1141.3          10.6
 ```
+
+## Packet graph
+
+```console
+$ br-cli graph dump | dot -Tsvg > docs/graph.svg
+```
+
+![docs/graph.svg](https://raw.githubusercontent.com/rjarry/brouter/main/docs/graph.svg)
 
 ## License
 

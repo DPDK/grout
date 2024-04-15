@@ -41,7 +41,7 @@ $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)
 
 prune = -path $1 -prune -o
-exclude = $(BUILDDIR) subprojects LICENSE README.md
+exclude = $(BUILDDIR) subprojects LICENSE README.md '**.svg'
 c_src = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print
 all_files = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -print
 
