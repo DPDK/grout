@@ -36,6 +36,7 @@ dpdk_dep = dependency(
     'disable_libs=table,bpf',
     'disable_apps=*',
     'enable_docs=false',
+    'developer_mode=disabled',
   ],
 )
 
