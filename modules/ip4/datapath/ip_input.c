@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ip4_mbuf.h"
+
 #include <br_datapath.h>
 #include <br_graph.h>
+#include <br_ip4_control.h>
 #include <br_log.h>
 
 #include <rte_byteorder.h>
@@ -17,6 +20,7 @@
 enum edges {
 	FORWARD = 0,
 	LOCAL,
+	NO_ROUTE,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
 	EDGE_COUNT,
@@ -26,6 +30,7 @@ static uint16_t
 input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_ipv4_hdr *hdr;
 	struct rte_mbuf *mbuf;
+	struct next_hop *nh;
 	rte_edge_t next;
 	uint16_t i;
 
@@ -67,15 +72,19 @@ input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 			goto next_packet;
 		}
 
-		// FIXME: this lookup really kills performance
-		// we need to find a way to speed up hash map lookups
-#if 0
-		if (address_exists(addr_hash, hdr->dst_addr)) {
-			next = LOCAL;
+		nh = ip4_route_lookup(hdr->dst_addr);
+		if (nh == NULL) {
+			next = NO_ROUTE;
 			goto next_packet;
 		}
-#endif
-		next = FORWARD;
+		// If the resolved next hop is local and the destination IP is ourselves,
+		// send to ip_local.
+		if (nh->flags & BR_IP4_NH_F_LOCAL && hdr->dst_addr == nh->ip)
+			next = LOCAL;
+		else
+			next = FORWARD;
+		// Store the resolved next hop for ip_output to avoid a second route lookup.
+		ip_output_mbuf_data(mbuf)->nh = nh;
 next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
@@ -99,6 +108,7 @@ static struct rte_node_register input_node = {
 	.next_nodes = {
 		[FORWARD] = "ipv4_forward",
 		[LOCAL] = "ipv4_input_local",
+		[NO_ROUTE] = "ipv4_input_no_route",
 		[BAD_CHECKSUM] = "ipv4_input_bad_checksum",
 		[BAD_LENGTH] = "ipv4_input_bad_length",
 	},
@@ -112,5 +122,6 @@ static struct br_node_info info = {
 BR_NODE_REGISTER(info);
 
 BR_DROP_REGISTER(ipv4_input_local);
+BR_DROP_REGISTER(ipv4_input_no_route);
 BR_DROP_REGISTER(ipv4_input_bad_checksum);
 BR_DROP_REGISTER(ipv4_input_bad_length);

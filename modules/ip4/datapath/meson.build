@@ -2,6 +2,9 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
+  'arp_input.c',
+  'arp_output_reply.c',
+  'arp_output_request.c',
   'ip_forward.c',
   'ip_input.c',
   'ip_output.c',

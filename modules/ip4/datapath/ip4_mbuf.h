@@ -5,8 +5,12 @@
 #define _IP4_MBUF_H
 
 #include <br_mbuf.h>
-#include <br_net_types.h>
 
-BR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { ip4_addr_t next_hop; });
+BR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { struct next_hop *nh; });
+
+BR_MBUF_PRIV_DATA_TYPE(arp_mbuf_data, {
+	struct next_hop *local;
+	struct next_hop *remote;
+});
 
 #endif

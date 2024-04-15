@@ -7,6 +7,7 @@
 #include <br_log.h>
 #include <br_net_types.h>
 
+#include <rte_arp.h>
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
@@ -47,6 +48,40 @@ static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 		    ntohs(ip->total_length),
 		    ip->next_proto_id);
 		break;
+	}
+	case RTE_ETHER_TYPE_ARP: {
+		const struct rte_arp_hdr *arp;
+		char src[64], dst[64];
+
+		arp = rte_pktmbuf_mtod_offset(m, const struct rte_arp_hdr *, sizeof(*eth));
+		inet_ntop(AF_INET, &arp->arp_data.arp_sip, src, sizeof(src));
+		inet_ntop(AF_INET, &arp->arp_data.arp_tip, dst, sizeof(dst));
+
+		uint16_t op = rte_be_to_cpu_16(arp->arp_opcode);
+		if (op == RTE_ARP_OP_REQUEST) {
+			LOG(NOTICE,
+			    "[%s p%u] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " / ARP"
+			    " request who has %s? tell %s",
+			    node,
+			    m->port,
+			    ETH_BYTES_SPLIT(eth->src_addr.addr_bytes),
+			    ETH_BYTES_SPLIT(eth->dst_addr.addr_bytes),
+			    dst,
+			    src);
+			break;
+		} else if (op == RTE_ARP_OP_REPLY) {
+			LOG(NOTICE,
+			    "[%s p%u] " ETH_ADDR_FMT " > " ETH_ADDR_FMT " / ARP"
+			    " reply %s is at " ETH_ADDR_FMT,
+			    node,
+			    m->port,
+			    ETH_BYTES_SPLIT(eth->src_addr.addr_bytes),
+			    ETH_BYTES_SPLIT(eth->dst_addr.addr_bytes),
+			    src,
+			    ETH_BYTES_SPLIT(eth->src_addr.addr_bytes));
+			break;
+		}
+		__attribute__((fallthrough));
 	}
 	default:
 		LOG(NOTICE,

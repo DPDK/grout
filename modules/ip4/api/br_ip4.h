@@ -13,16 +13,44 @@ struct br_ip4_addr {
 	uint16_t port_id;
 };
 
-#define BR_IP4_NH_F_STATIC BR_BIT16(1) //!< Configured by user
-#define BR_IP4_NH_F_UNKNOWN BR_BIT16(2) //!< Unknown next hop
+#define BR_IP4_NH_F_BLACKHOLE BR_BIT16(0) //!< Self explanatory
+#define BR_IP4_NH_F_REACHABLE BR_BIT16(1) //!< L2 address valid
+#define BR_IP4_NH_F_STATIC BR_BIT16(2) //!< Configured by user
 #define BR_IP4_NH_F_PENDING BR_BIT16(3) //!< ARP resolution pending
+#define BR_IP4_NH_F_STALE BR_BIT16(4) //!< Expired
+#define BR_IP4_NH_F_LOCAL BR_BIT16(5) //!< Local address
+#define BR_IP4_NH_F_GATEWAY BR_BIT16(6) //!< Gateway route
+#define BR_IP4_NH_F_LINK BR_BIT16(7) //!< Connected link route
 typedef uint16_t br_ip4_nh_flags_t;
+
+static inline const char *br_ip4_nh_f_name(const br_ip4_nh_flags_t flag) {
+	switch (flag) {
+	case BR_IP4_NH_F_BLACKHOLE:
+		return "blackhole";
+	case BR_IP4_NH_F_REACHABLE:
+		return "reachable";
+	case BR_IP4_NH_F_STATIC:
+		return "static";
+	case BR_IP4_NH_F_PENDING:
+		return "pending";
+	case BR_IP4_NH_F_STALE:
+		return "stale";
+	case BR_IP4_NH_F_LOCAL:
+		return "local";
+	case BR_IP4_NH_F_GATEWAY:
+		return "gateway";
+	case BR_IP4_NH_F_LINK:
+		return "link";
+	}
+	return "";
+}
 
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
 	uint16_t port_id;
 	br_ip4_nh_flags_t flags;
+	uint32_t age; //<! number of seconds since last arp reply
 };
 
 struct br_ip4_route {

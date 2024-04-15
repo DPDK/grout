@@ -11,63 +11,38 @@
 #include <rte_fib.h>
 #include <rte_hash.h>
 #include <rte_rcu_qsbr.h>
+#include <rte_spinlock.h>
 
-struct next_hop {
-	struct rte_ether_addr eth_addr[2];
-	uint16_t port_id;
+struct __rte_cache_aligned next_hop {
 	br_ip4_nh_flags_t flags;
-	ip4_addr_t ip;
-};
-
-static inline const struct rte_ether_addr *next_hop_eth_dst(const struct next_hop *nh) {
-	return &nh->eth_addr[0];
-}
-
-static inline const struct rte_ether_addr *next_hop_eth_src(const struct next_hop *nh) {
-	return &nh->eth_addr[1];
-}
-
-static inline int next_hop_lookup(struct rte_hash *h, ip4_addr_t ip, struct next_hop **nh) {
-	void *data;
-	int ret;
-
-	if ((ret = rte_hash_lookup_with_hash_data(h, &ip, ip, &data)) < 0)
-		return ret;
-
-	*nh = data;
-	return 0;
-}
-
-#define BR_IP4_ROUTE_UNKNOWN 0
-
-struct port_addr {
+	struct rte_ether_addr lladdr;
+	uint16_t port_id;
 	ip4_addr_t ip;
 	uint8_t prefixlen;
-	uint16_t port_id;
+	uint64_t last_seen;
+	uint32_t ref_count;
+	rte_spinlock_t lock;
+	// packets waiting for ARP resolution
+	uint32_t n_held_pkts;
+	struct rte_mbuf *held_pkts; // linked list using br_mbuf_priv->next
 };
 
-static inline bool address_exists(struct rte_hash *h, ip4_addr_t ip) {
-	if (rte_hash_lookup_with_hash(h, &ip, ip) < 0)
-		return false;
+#define IP4_NH_MAX_HELD_PKTS 8192
+// XXX: why not 1337, eh?
+#define MAX_NEXT_HOPS (1 << 12)
+// XXX: why not 1337, eh?
+#define MAX_ROUTES (1 << 16)
 
-	return true;
-}
+struct next_hop *ip4_next_hop_get(uint32_t idx);
+int ip4_next_hop_lookup(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh);
+int ip4_next_hop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh);
+void ip4_next_hop_incref(struct next_hop *);
+void ip4_next_hop_decref(struct next_hop *);
 
-static inline int address_lookup(struct rte_hash *h, ip4_addr_t ip, struct port_addr **addr) {
-	void *data;
-	int ret;
+int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct next_hop *);
+int ip4_route_delete(ip4_addr_t ip, uint8_t prefixlen);
+struct next_hop *ip4_route_lookup(ip4_addr_t ip);
 
-	if ((ret = rte_hash_lookup_with_hash_data(h, &ip, ip, &data)) < 0)
-		return ret;
-
-	*addr = data;
-	return 0;
-}
-
-struct rte_hash *ip4_next_hops_hash_get(void);
-struct rte_rcu_qsbr *ip4_next_hops_rcu_get(void);
-struct rte_fib *ip4_fib_get(void);
-struct rte_hash *ip4_address_hash_get(void);
-struct rte_rcu_qsbr *ip4_address_rcu_get(void);
+struct next_hop *ip4_addr_get(uint16_t port_id);
 
 #endif

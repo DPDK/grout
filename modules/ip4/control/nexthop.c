@@ -9,96 +9,122 @@
 #include <br_net_types.h>
 #include <br_queue.h>
 
-#include <rte_bitmap.h>
+#include <rte_errno.h>
 #include <rte_ethdev.h>
-#include <rte_ether.h>
-#include <rte_fib.h>
 #include <rte_hash.h>
 #include <rte_malloc.h>
-#include <rte_memory.h>
-#include <rte_mempool.h>
-#include <rte_rcu_qsbr.h>
 
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_mempool *nh_pool;
-static struct rte_hash *nh_hash;
-static struct rte_rcu_qsbr *rcu;
+struct next_hop *nh_array;
+struct rte_hash *nh_hash;
 
-struct rte_hash *ip4_next_hops_hash_get(void) {
-	return nh_hash;
+struct next_hop *ip4_next_hop_get(uint32_t idx) {
+	// no index check, for datapath use
+	return &nh_array[idx];
 }
 
-struct rte_rcu_qsbr *ip4_next_hops_rcu_get(void) {
-	return rcu;
+int ip4_next_hop_lookup(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh) {
+	int32_t nh_idx;
+
+	if ((nh_idx = rte_hash_lookup(nh_hash, &ip)) < 0)
+		return nh_idx;
+
+	*idx = nh_idx;
+	*nh = ip4_next_hop_get(nh_idx);
+
+	return 0;
+}
+
+int ip4_next_hop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh) {
+	if (ip4_next_hop_lookup(ip, idx, nh) < 0) {
+		int32_t nh_idx = rte_hash_add_key(nh_hash, &ip);
+		if (nh_idx < 0)
+			return nh_idx;
+		*idx = nh_idx;
+		*nh = ip4_next_hop_get(nh_idx);
+		(*nh)->ip = ip;
+	}
+	return 0;
+}
+
+void ip4_next_hop_decref(struct next_hop *nh) {
+	if (nh->ref_count <= 1) {
+		rte_hash_del_key(nh_hash, &nh->ip);
+		memset(nh, 0, sizeof(*nh));
+	} else {
+		nh->ref_count--;
+	}
+}
+
+void ip4_next_hop_incref(struct next_hop *nh) {
+	nh->ref_count++;
 }
 
 static struct api_out nh4_add(const void *request, void **response) {
 	const struct br_ip4_nh_add_req *req = request;
-	struct next_hop *nh, *old_nh = NULL;
-	struct rte_ether_addr src;
-	void *data = NULL;
+	struct next_hop *nh;
+	uint32_t nh_idx;
 	int ret;
 
 	(void)response;
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
-	if (rte_eth_macaddr_get(req->nh.port_id, &src) < 0)
+	if (!rte_eth_dev_is_valid_port(req->nh.port_id))
 		return api_out(ENODEV, 0);
-	if (next_hop_lookup(nh_hash, req->nh.host, &old_nh) == 0 && !req->exist_ok)
+
+	if (ip4_next_hop_lookup(req->nh.host, &nh_idx, &nh) == 0) {
+		if (req->exist_ok && req->nh.port_id == nh->port_id
+		    && br_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
+			return api_out(0, 0);
 		return api_out(EEXIST, 0);
-	if (rte_mempool_get(nh_pool, &data) < 0)
-		return api_out(ENOMEM, 0);
+	}
 
-	nh = data;
-	memset(nh, 0, sizeof(*nh));
-	nh->ip = req->nh.host;
-	nh->port_id = req->nh.port_id;
-	memcpy(&nh->eth_addr[0], &req->nh.mac, sizeof(nh->eth_addr[0]));
-	// FIXME: update all next hops when changing a port's mac address
-	memcpy(&nh->eth_addr[1], &src, sizeof(nh->eth_addr[1]));
-	nh->flags = BR_IP4_NH_F_STATIC;
-
-	if ((ret = rte_hash_add_key_with_hash_data(nh_hash, &req->nh.host, req->nh.host, nh)) < 0) {
-		rte_mempool_put(nh_pool, nh);
+	if ((ret = ip4_next_hop_lookup_add(req->nh.host, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
-	}
 
-	if (old_nh != NULL) {
-		// XXX: rte_hash_add_key_data does not free the data when the key already exists in
-		// the hash map. We need to free the data manually.
-		rte_rcu_qsbr_synchronize(rcu, RTE_QSBR_THRID_INVALID);
-		rte_mempool_put(nh_pool, old_nh);
-	}
+	nh->port_id = req->nh.port_id;
+	memcpy(&nh->lladdr, (void *)&req->nh.mac, sizeof(nh->lladdr));
+	nh->flags = BR_IP4_NH_F_STATIC | BR_IP4_NH_F_REACHABLE;
+	ret = ip4_route_insert(nh->ip, 32, nh_idx, nh);
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out nh4_del(const void *request, void **response) {
 	const struct br_ip4_nh_del_req *req = request;
 	struct next_hop *nh;
+	uint32_t idx;
 	int ret;
 
 	(void)response;
 
-	if ((ret = next_hop_lookup(nh_hash, req->host, &nh)) < 0) {
+	if ((ret = ip4_next_hop_lookup(req->host, &idx, &nh)) < 0) {
 		if (ret == -ENOENT && req->missing_ok)
 			return api_out(0, 0);
 		return api_out(-ret, 0);
 	}
-	rte_hash_del_key_with_hash(nh_hash, &req->host, req->host);
+	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
+		return api_out(EBUSY, 0);
+
+	// this also does ip4_next_hop_decref(), freeing the next hop
+	if ((ret = ip4_route_delete(req->host, 32)) < 0)
+		return api_out(-ret, 0);
 
 	return api_out(0, 0);
 }
 
 static struct api_out nh4_list(const void *request, void **response) {
 	struct br_ip4_nh_list_resp *resp = NULL;
-	uint32_t iter, num;
+	struct br_ip4_nh *api_nh;
+	struct next_hop *nh;
+	uint32_t num, iter;
 	const void *key;
+	int32_t idx;
 	void *data;
 	size_t len;
 
@@ -106,54 +132,30 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 	num = rte_hash_count(nh_hash);
 	len = sizeof(*resp) + num * sizeof(struct br_ip4_nh);
-	if ((resp = malloc(len)) == NULL)
+	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	num = 0;
 	iter = 0;
-	while (rte_hash_iterate(nh_hash, &key, &data, &iter) >= 0) {
-		struct next_hop *nh = data;
-		resp->nhs[num].host = nh->ip;
-		resp->nhs[num].port_id = nh->port_id;
-		memcpy(&resp->nhs[num].mac, &nh->eth_addr[0], sizeof(resp->nhs[num].mac));
-		resp->nhs[num].flags = nh->flags;
-		num++;
+	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
+		nh = ip4_next_hop_get(idx);
+		api_nh = &resp->nhs[resp->n_nhs++];
+		api_nh->host = nh->ip;
+		api_nh->port_id = nh->port_id;
+		memcpy(&api_nh->mac, &nh->lladdr, sizeof(api_nh->mac));
+		api_nh->flags = nh->flags;
+		if (nh->last_seen > 0)
+			api_nh->age = (nh->last_seen - rte_get_tsc_cycles()) / rte_get_tsc_hz();
 	}
 
-	resp->n_nhs = num;
 	*response = resp;
 
 	return api_out(0, len);
 }
 
-static void next_hop_free(void *priv, void *next_hop) {
-	(void)priv;
-	rte_mempool_put(nh_pool, next_hop);
-}
-
-// XXX: why not 1337, eh?
-#define MAX_NEXT_HOPS 1024
-
 static void nh4_init(void) {
-	nh_pool = rte_mempool_create(
-		"nh4",
-		MAX_NEXT_HOPS,
-		sizeof(struct next_hop),
-		0, // cache_size
-		0, // private_data_size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_NO_IOVA_CONTIG
-	);
-	if (nh_pool == NULL)
-		ABORT("rte_mempool_create: %s", rte_strerror(rte_errno));
-
 	struct rte_hash_parameters params = {
-		.name = "ip4-nexthops",
-		.entries = 1024, // XXX: why not 1337, eh?
+		.name = "ip4_nh",
+		.entries = MAX_NEXT_HOPS,
 		.key_len = sizeof(ip4_addr_t),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
 			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
@@ -162,37 +164,21 @@ static void nh4_init(void) {
 	if (nh_hash == NULL)
 		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
 
-	size_t sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
-	rcu = rte_malloc("nh4-rcu", sz, RTE_CACHE_LINE_SIZE);
-	if (rcu == NULL)
-		ABORT("rte_malloc(rcu): %s", rte_strerror(rte_errno));
-
-	if (rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE))
-		ABORT("rte_rcu_qsbr_init: %s", rte_strerror(rte_errno));
-
-	struct rte_hash_rcu_config rcu_conf = {
-		.v = rcu,
-		.free_key_data_func = next_hop_free,
-	};
-	if (rte_hash_rcu_qsbr_add(nh_hash, &rcu_conf))
-		ABORT("rte_hash_rcu_qsbr_add: %s", rte_strerror(rte_errno));
+	nh_array = rte_calloc(
+		"nh4_array",
+		rte_hash_max_key_id(nh_hash) + 1,
+		sizeof(struct next_hop),
+		RTE_CACHE_LINE_SIZE
+	);
+	if (nh_array == NULL)
+		ABORT("rte_calloc(nh4_array) failed");
 }
 
 static void nh4_fini(void) {
 	rte_hash_free(nh_hash);
 	nh_hash = NULL;
-	rte_mempool_free(nh_pool);
-	nh_pool = NULL;
-	rte_free(rcu);
-	rcu = NULL;
-}
-
-static void nh4_init_dp(void) {
-	rte_rcu_qsbr_thread_register(rcu, rte_lcore_id());
-}
-
-static void nh4_fini_dp(void) {
-	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
+	rte_free(nh_array);
+	nh_array = NULL;
 }
 
 static struct br_api_handler nh4_add_handler = {
@@ -215,8 +201,6 @@ static struct br_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.init = nh4_init,
 	.fini = nh4_fini,
-	.init_dp = nh4_init_dp,
-	.fini_dp = nh4_fini_dp,
 };
 
 RTE_INIT(control_ip_init) {

@@ -24,163 +24,107 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_mempool *addr_pool;
-static struct rte_hash *addr_hash;
-static struct rte_rcu_qsbr *rcu;
+static struct next_hop *addrs[RTE_MAX_ETHPORTS];
 
-struct rte_hash *ip4_address_hash_get(void) {
-	return addr_hash;
-}
-
-struct rte_rcu_qsbr *ip4_address_rcu_get(void) {
-	return rcu;
+struct next_hop *ip4_addr_get(uint16_t port_id) {
+	// no check for index, for data path use
+	return addrs[port_id];
 }
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct br_ip4_addr_add_req *req = request;
-	struct port_addr *addr = NULL;
-	void *data;
+	struct next_hop *nh;
+	uint32_t nh_idx;
 	int ret;
 
 	(void)response;
 
-	if (address_lookup(addr_hash, req->addr.addr.ip, &addr) == 0) {
-		if (req->addr.addr.prefixlen != addr->prefixlen)
-			return api_out(EADDRINUSE, 0);
-		if (req->addr.port_id != addr->port_id)
-			return api_out(EADDRINUSE, 0);
-		// address already set with the same prefix and same port
-		if (req->exist_ok)
+	if ((nh = ip4_addr_get(req->addr.port_id)) != NULL) {
+		if (req->exist_ok && req->addr.addr.ip == nh->ip
+		    && req->addr.addr.prefixlen == nh->prefixlen)
 			return api_out(0, 0);
-		return api_out(EADDRINUSE, 0);
+		return api_out(EEXIST, 0);
 	}
-
+	if (ip4_next_hop_lookup(req->addr.addr.ip, &nh_idx, &nh) == 0)
+		return api_out(EADDRINUSE, 0);
 	if (!rte_eth_dev_is_valid_port(req->addr.port_id))
 		return api_out(ENODEV, 0);
 
-	if (rte_mempool_get(addr_pool, &data) < 0)
-		return api_out(ENOMEM, 0);
-
-	addr = data;
-	memcpy(addr, &req->addr, sizeof(*addr));
-
-	if ((ret = rte_hash_add_key_with_hash_data(addr_hash, &addr->ip, addr->ip, addr)) < 0) {
-		rte_mempool_put(addr_pool, addr);
+	if ((ret = ip4_next_hop_lookup_add(req->addr.addr.ip, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
-	}
 
-	return api_out(0, 0);
+	nh->port_id = req->addr.port_id;
+	nh->prefixlen = req->addr.addr.prefixlen;
+	nh->flags = BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK | BR_IP4_NH_F_REACHABLE
+		| BR_IP4_NH_F_STATIC;
+	if ((ret = rte_eth_macaddr_get(nh->port_id, &nh->lladdr)) < 0)
+		return api_out(-ret, 0);
+
+	ret = ip4_route_insert(nh->ip, nh->prefixlen, nh_idx, nh);
+	if (ret == 0)
+		addrs[nh->port_id] = nh;
+	else
+		ip4_next_hop_decref(nh);
+
+	return api_out(-ret, 0);
 }
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct br_ip4_addr_del_req *req = request;
-	struct port_addr *addr = NULL;
-	int ret;
+	struct next_hop *nh;
 
 	(void)response;
 
-	if ((ret = address_lookup(addr_hash, req->addr.addr.ip, &addr)) < 0) {
-		if (ret == -ENOENT && req->missing_ok)
+	if ((nh = ip4_addr_get(req->addr.port_id)) == NULL) {
+		if (req->missing_ok)
 			return api_out(0, 0);
-		return api_out(EADDRNOTAVAIL, 0);
+		return api_out(ENOENT, 0);
 	}
+	if (nh->ip != req->addr.addr.ip || nh->prefixlen != req->addr.addr.prefixlen)
+		return api_out(ENOENT, 0);
 
-	if (addr->prefixlen != req->addr.addr.prefixlen)
-		return api_out(EADDRNOTAVAIL, 0);
-	if (addr->port_id != req->addr.port_id)
-		return api_out(EADDRNOTAVAIL, 0);
+	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
+		return api_out(EBUSY, 0);
 
-	rte_hash_del_key_with_hash(addr_hash, &req->addr.addr.ip, req->addr.addr.ip);
+	ip4_route_delete(nh->ip, nh->prefixlen);
+	addrs[req->addr.port_id] = NULL;
+
 	return api_out(0, 0);
 }
 
 static struct api_out addr_list(const void *request, void **response) {
 	struct br_ip4_addr_list_resp *resp = NULL;
-	uint32_t iter, num;
-	const void *key;
-	void *data;
+	const struct next_hop *nh;
+	struct br_ip4_addr *addr;
+	uint16_t port_id, num;
 	size_t len;
 
 	(void)request;
 
-	num = rte_hash_count(addr_hash);
+	num = 0;
+	for (port_id = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
+		if (ip4_addr_get(port_id) != NULL)
+			num++;
+	}
+
 	len = sizeof(*resp) + num * sizeof(struct br_ip4_addr);
-	if ((resp = malloc(len)) == NULL)
+	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
 
 	num = 0;
-	iter = 0;
-	while (rte_hash_iterate(addr_hash, &key, &data, &iter) >= 0) {
-		const struct port_addr *src = data;
-		struct br_ip4_addr *dst = &resp->addrs[num++];
-		dst->addr.ip = src->ip;
-		dst->addr.prefixlen = src->prefixlen;
-		dst->port_id = src->port_id;
+	for (port_id = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
+		nh = ip4_addr_get(port_id);
+		if (nh == NULL)
+			continue;
+		addr = &resp->addrs[resp->n_addrs++];
+		addr->addr.ip = nh->ip;
+		addr->addr.prefixlen = nh->prefixlen;
+		addr->port_id = nh->port_id;
 	}
 
-	resp->n_addrs = num;
 	*response = resp;
 
 	return api_out(0, len);
-}
-
-// used by rte_hash rcu mechanism
-static void addr_free(void *priv, void *address) {
-	(void)priv;
-	rte_mempool_put(addr_pool, address);
-}
-
-static void addr_init(void) {
-	addr_pool = rte_mempool_create(
-		"ip4-address",
-		RTE_MAX_ETHPORTS * 8,
-		sizeof(struct br_ip4_addr),
-		0, // cache_size
-		0, // private_data_size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_NO_IOVA_CONTIG
-	);
-	if (addr_pool == NULL)
-		ABORT("rte_mempool_create: %s", rte_strerror(rte_errno));
-
-	struct rte_hash_parameters params = {
-		.name = "ip4-address",
-		.entries = RTE_MAX_ETHPORTS * 8,
-		.key_len = sizeof(ip4_addr_t),
-		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
-			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
-	};
-	addr_hash = rte_hash_create(&params);
-	if (addr_hash == NULL)
-		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
-
-	size_t sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
-	rcu = rte_malloc("ip4-addr-rcu", sz, RTE_CACHE_LINE_SIZE);
-	if (rcu == NULL)
-		ABORT("rte_malloc(rcu): %s", rte_strerror(rte_errno));
-
-	if (rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE))
-		ABORT("rte_rcu_qsbr_init: %s", rte_strerror(rte_errno));
-
-	struct rte_hash_rcu_config rcu_conf = {
-		.v = rcu,
-		.free_key_data_func = addr_free,
-	};
-	if (rte_hash_rcu_qsbr_add(addr_hash, &rcu_conf))
-		ABORT("rte_hash_rcu_qsbr_add: %s", rte_strerror(rte_errno));
-}
-
-static void addr_fini(void) {
-	rte_hash_free(addr_hash);
-	addr_hash = NULL;
-	rte_mempool_free(addr_pool);
-	addr_pool = NULL;
-	rte_free(rcu);
-	rcu = NULL;
 }
 
 static struct br_api_handler addr_add_handler = {
@@ -199,16 +143,8 @@ static struct br_api_handler addr_list_handler = {
 	.callback = addr_list,
 };
 
-static struct br_module addr_module = {
-	.name = "ipv4 address",
-	.init = addr_init,
-	.fini = addr_fini,
-	.fini_prio = 10000,
-};
-
 RTE_INIT(ip4_addr_init) {
 	br_register_api_handler(&addr_add_handler);
 	br_register_api_handler(&addr_del_handler);
 	br_register_api_handler(&addr_list_handler);
-	br_register_module(&addr_module);
 }
