@@ -24,16 +24,16 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct next_hop *addrs[RTE_MAX_ETHPORTS];
+static struct nexthop *addrs[RTE_MAX_ETHPORTS];
 
-struct next_hop *ip4_addr_get(uint16_t port_id) {
+struct nexthop *ip4_addr_get(uint16_t port_id) {
 	// no check for index, for data path use
 	return addrs[port_id];
 }
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct br_ip4_addr_add_req *req = request;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
 
@@ -45,12 +45,12 @@ static struct api_out addr_add(const void *request, void **response) {
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
-	if (ip4_next_hop_lookup(req->addr.addr.ip, &nh_idx, &nh) == 0)
+	if (ip4_nexthop_lookup(req->addr.addr.ip, &nh_idx, &nh) == 0)
 		return api_out(EADDRINUSE, 0);
 	if (!rte_eth_dev_is_valid_port(req->addr.port_id))
 		return api_out(ENODEV, 0);
 
-	if ((ret = ip4_next_hop_lookup_add(req->addr.addr.ip, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_lookup_add(req->addr.addr.ip, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->port_id = req->addr.port_id;
@@ -64,14 +64,14 @@ static struct api_out addr_add(const void *request, void **response) {
 	if (ret == 0)
 		addrs[nh->port_id] = nh;
 	else
-		ip4_next_hop_decref(nh);
+		ip4_nexthop_decref(nh);
 
 	return api_out(-ret, 0);
 }
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct br_ip4_addr_del_req *req = request;
-	struct next_hop *nh;
+	struct nexthop *nh;
 
 	(void)response;
 
@@ -94,7 +94,7 @@ static struct api_out addr_del(const void *request, void **response) {
 
 static struct api_out addr_list(const void *request, void **response) {
 	struct br_ip4_addr_list_resp *resp = NULL;
-	const struct next_hop *nh;
+	const struct nexthop *nh;
 	struct br_ip4_addr *addr;
 	uint16_t port_id, num;
 	size_t len;

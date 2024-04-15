@@ -16,23 +16,23 @@ enum edges {
 
 static uint16_t
 forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_ipv4_hdr *hdr;
+	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	rte_be32_t csum;
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		hdr = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
-		if (hdr->time_to_live <= 1) {
+		if (ip->time_to_live <= 1) {
 			rte_node_enqueue_x1(graph, node, TTL_EXCEEDED, mbuf);
 			continue;
 		}
-		hdr->time_to_live -= 1;
-		csum = hdr->hdr_checksum + rte_cpu_to_be_16(0x0100);
+		ip->time_to_live -= 1;
+		csum = ip->hdr_checksum + rte_cpu_to_be_16(0x0100);
 		csum += csum >= 0xffff;
-		hdr->hdr_checksum = csum;
+		ip->hdr_checksum = csum;
 		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
 	}
 

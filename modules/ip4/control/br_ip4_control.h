@@ -13,7 +13,7 @@
 #include <rte_rcu_qsbr.h>
 #include <rte_spinlock.h>
 
-struct __rte_cache_aligned next_hop {
+struct __rte_cache_aligned nexthop {
 	br_ip4_nh_flags_t flags;
 	struct rte_ether_addr lladdr;
 	uint16_t port_id;
@@ -33,16 +33,16 @@ struct __rte_cache_aligned next_hop {
 // XXX: why not 1337, eh?
 #define MAX_ROUTES (1 << 16)
 
-struct next_hop *ip4_next_hop_get(uint32_t idx);
-int ip4_next_hop_lookup(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh);
-int ip4_next_hop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh);
-void ip4_next_hop_incref(struct next_hop *);
-void ip4_next_hop_decref(struct next_hop *);
+struct nexthop *ip4_nexthop_get(uint32_t idx);
+int ip4_nexthop_lookup(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
+int ip4_nexthop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
+void ip4_nexthop_incref(struct nexthop *);
+void ip4_nexthop_decref(struct nexthop *);
 
-int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct next_hop *);
+int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct nexthop *);
 int ip4_route_delete(ip4_addr_t ip, uint8_t prefixlen);
-struct next_hop *ip4_route_lookup(ip4_addr_t ip);
+struct nexthop *ip4_route_lookup(ip4_addr_t ip);
 
-struct next_hop *ip4_addr_get(uint16_t port_id);
+struct nexthop *ip4_addr_get(uint16_t port_id);
 
 #endif

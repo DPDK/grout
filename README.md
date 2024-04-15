@@ -122,10 +122,10 @@ digraph "br-0037" {
         rankdir=LR;
         node [margin=0.02 fontsize=11 fontname=sans];
         "ipv4_rewrite_ttl_exceeded" [color=darkorange];
-        "ipv4_rewrite_no_next_hop" [color=darkorange];
+        "ipv4_rewrite_no_nexthop" [color=darkorange];
         "ipv4_rewrite";
         "ipv4_rewrite" -> "eth_tx";
-        "ipv4_rewrite" -> "ipv4_rewrite_no_next_hop";
+        "ipv4_rewrite" -> "ipv4_rewrite_no_nexthop";
         "ipv4_rewrite" -> "ipv4_rewrite_ttl_exceeded";
         "ipv4_lookup_bad_length" [color=darkorange];
         "ipv4_lookup_no_route" [color=darkorange];

@@ -25,7 +25,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static inline bool hold_packet(struct next_hop *nh, struct rte_mbuf *mbuf) {
+static inline bool hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
 	bool held = false;
 
 	rte_spinlock_lock(&nh->lock);
@@ -54,7 +54,7 @@ static uint16_t arp_output_request_process(
 	uint16_t nb_objs
 ) {
 	struct tx_mbuf_data *tx_data;
-	struct next_hop *nh, *local;
+	struct nexthop *nh, *local;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
 	uint16_t sent = 0;

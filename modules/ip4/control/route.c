@@ -30,7 +30,7 @@ static struct rte_fib *fib;
 static struct rte_rib *rib;
 #define BLACKHOLE (MAX_NEXT_HOPS + 1)
 
-struct next_hop *ip4_route_lookup(ip4_addr_t ip) {
+struct nexthop *ip4_route_lookup(ip4_addr_t ip) {
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	uint64_t nh_idx;
 
@@ -38,10 +38,10 @@ struct next_hop *ip4_route_lookup(ip4_addr_t ip) {
 	if (nh_idx == BLACKHOLE)
 		return NULL;
 
-	return ip4_next_hop_get(nh_idx);
+	return ip4_nexthop_get(nh_idx);
 }
 
-int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct next_hop *nh) {
+int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct nexthop *nh) {
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	int ret;
 
@@ -51,7 +51,7 @@ int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct n
 	if ((ret = rte_fib_add(fib, host_order_ip, prefixlen, nh_idx)) < 0)
 		return ret;
 
-	ip4_next_hop_incref(nh);
+	ip4_nexthop_incref(nh);
 
 	return 0;
 }
@@ -70,7 +70,7 @@ int ip4_route_delete(ip4_addr_t ip, uint8_t prefixlen) {
 	if ((ret = rte_fib_delete(fib, host_order_ip, prefixlen)) < 0)
 		return ret;
 
-	ip4_next_hop_decref(ip4_next_hop_get(nh_idx));
+	ip4_nexthop_decref(ip4_nexthop_get(nh_idx));
 
 	return 0;
 }
@@ -78,7 +78,7 @@ int ip4_route_delete(ip4_addr_t ip, uint8_t prefixlen) {
 static struct api_out route4_add(const void *request, void **response) {
 	const struct br_ip4_route_add_req *req = request;
 	struct rte_rib_node *rn;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
 
@@ -87,7 +87,7 @@ static struct api_out route4_add(const void *request, void **response) {
 	if ((rn = rte_rib_lookup_exact(rib, ntohl(req->dest.ip), req->dest.prefixlen)) != NULL) {
 		uint64_t idx;
 		rte_rib_get_nh(rn, &idx);
-		nh = ip4_next_hop_get(idx);
+		nh = ip4_nexthop_get(idx);
 		if (req->nh == nh->ip && req->exist_ok)
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
@@ -95,13 +95,13 @@ static struct api_out route4_add(const void *request, void **response) {
 	if (ip4_route_lookup(req->nh) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
-	if ((ret = ip4_next_hop_lookup_add(req->nh, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_lookup_add(req->nh, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	if ((ret = rte_fib_add(fib, ntohl(req->dest.ip), req->dest.prefixlen, nh_idx)) < 0) {
-		ip4_next_hop_decref(nh);
+		ip4_nexthop_decref(nh);
 	} else {
-		ip4_next_hop_incref(nh);
+		ip4_nexthop_incref(nh);
 		nh->flags |= BR_IP4_NH_F_GATEWAY;
 	}
 
@@ -111,7 +111,7 @@ static struct api_out route4_add(const void *request, void **response) {
 static struct api_out route4_del(const void *request, void **response) {
 	const struct br_ip4_route_del_req *req = request;
 	struct rte_rib_node *rn;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint64_t idx;
 
 	(void)response;
@@ -123,12 +123,12 @@ static struct api_out route4_del(const void *request, void **response) {
 	}
 
 	rte_rib_get_nh(rn, &idx);
-	nh = ip4_next_hop_get(idx);
+	nh = ip4_nexthop_get(idx);
 	if (!(nh->flags & BR_IP4_NH_F_GATEWAY))
 		return api_out(EBUSY, 0);
 
 	rte_fib_delete(fib, ntohl(req->dest.ip), req->dest.prefixlen);
-	ip4_next_hop_decref(nh);
+	ip4_nexthop_decref(nh);
 
 	return api_out(0, 0);
 }
@@ -136,19 +136,19 @@ static struct api_out route4_del(const void *request, void **response) {
 static struct api_out route4_get(const void *request, void **response) {
 	const struct br_ip4_route_get_req *req = request;
 	struct br_ip4_route_get_resp *resp = NULL;
-	struct next_hop *next_hop = NULL;
+	struct nexthop *nh = NULL;
 
-	next_hop = ip4_route_lookup(req->dest);
-	if (next_hop == NULL)
+	nh = ip4_route_lookup(req->dest);
+	if (nh == NULL)
 		return api_out(ENETUNREACH, 0);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->nh.host = next_hop->ip;
-	resp->nh.port_id = next_hop->port_id;
-	memcpy(&resp->nh.mac, &next_hop->lladdr, sizeof(resp->nh.mac));
-	resp->nh.flags = next_hop->flags;
+	resp->nh.host = nh->ip;
+	resp->nh.port_id = nh->port_id;
+	memcpy(&resp->nh.mac, &nh->lladdr, sizeof(resp->nh.mac));
+	resp->nh.flags = nh->flags;
 
 	*response = resp;
 
@@ -160,7 +160,7 @@ static struct api_out route4_list(const void *request, void **response) {
 	struct rte_rib *rib = rte_fib_get_rib(fib);
 	struct rte_rib_node *rn = NULL;
 	struct br_ip4_route *r;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	size_t num, len;
 	uint64_t nh_idx;
 	uint32_t ip;
@@ -181,7 +181,7 @@ static struct api_out route4_list(const void *request, void **response) {
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib_get_nh(rn, &nh_idx);
-		nh = ip4_next_hop_get(nh_idx);
+		nh = ip4_nexthop_get(nh_idx);
 		rte_rib_get_ip(rn, &ip);
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
@@ -191,7 +191,7 @@ static struct api_out route4_list(const void *request, void **response) {
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib_get_nh(rn, &nh_idx);
-		nh = ip4_next_hop_get(nh_idx);
+		nh = ip4_nexthop_get(nh_idx);
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
 		r->nh = nh->ip;

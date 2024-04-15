@@ -6,11 +6,11 @@
 
 #include <br_mbuf.h>
 
-BR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { struct next_hop *nh; });
+BR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { struct nexthop *nh; });
 
 BR_MBUF_PRIV_DATA_TYPE(arp_mbuf_data, {
-	struct next_hop *local;
-	struct next_hop *remote;
+	struct nexthop *local;
+	struct nexthop *remote;
 });
 
 #endif

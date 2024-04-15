@@ -19,39 +19,39 @@
 #include <string.h>
 #include <sys/queue.h>
 
-struct next_hop *nh_array;
+struct nexthop *nh_array;
 struct rte_hash *nh_hash;
 
-struct next_hop *ip4_next_hop_get(uint32_t idx) {
+struct nexthop *ip4_nexthop_get(uint32_t idx) {
 	// no index check, for datapath use
 	return &nh_array[idx];
 }
 
-int ip4_next_hop_lookup(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh) {
+int ip4_nexthop_lookup(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
 	int32_t nh_idx;
 
 	if ((nh_idx = rte_hash_lookup(nh_hash, &ip)) < 0)
 		return nh_idx;
 
 	*idx = nh_idx;
-	*nh = ip4_next_hop_get(nh_idx);
+	*nh = ip4_nexthop_get(nh_idx);
 
 	return 0;
 }
 
-int ip4_next_hop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct next_hop **nh) {
-	if (ip4_next_hop_lookup(ip, idx, nh) < 0) {
+int ip4_nexthop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
+	if (ip4_nexthop_lookup(ip, idx, nh) < 0) {
 		int32_t nh_idx = rte_hash_add_key(nh_hash, &ip);
 		if (nh_idx < 0)
 			return nh_idx;
 		*idx = nh_idx;
-		*nh = ip4_next_hop_get(nh_idx);
+		*nh = ip4_nexthop_get(nh_idx);
 		(*nh)->ip = ip;
 	}
 	return 0;
 }
 
-void ip4_next_hop_decref(struct next_hop *nh) {
+void ip4_nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		rte_hash_del_key(nh_hash, &nh->ip);
 		memset(nh, 0, sizeof(*nh));
@@ -60,13 +60,13 @@ void ip4_next_hop_decref(struct next_hop *nh) {
 	}
 }
 
-void ip4_next_hop_incref(struct next_hop *nh) {
+void ip4_nexthop_incref(struct nexthop *nh) {
 	nh->ref_count++;
 }
 
 static struct api_out nh4_add(const void *request, void **response) {
 	const struct br_ip4_nh_add_req *req = request;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
 
@@ -77,14 +77,14 @@ static struct api_out nh4_add(const void *request, void **response) {
 	if (!rte_eth_dev_is_valid_port(req->nh.port_id))
 		return api_out(ENODEV, 0);
 
-	if (ip4_next_hop_lookup(req->nh.host, &nh_idx, &nh) == 0) {
+	if (ip4_nexthop_lookup(req->nh.host, &nh_idx, &nh) == 0) {
 		if (req->exist_ok && req->nh.port_id == nh->port_id
 		    && br_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if ((ret = ip4_next_hop_lookup_add(req->nh.host, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_lookup_add(req->nh.host, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->port_id = req->nh.port_id;
@@ -97,13 +97,13 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 static struct api_out nh4_del(const void *request, void **response) {
 	const struct br_ip4_nh_del_req *req = request;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint32_t idx;
 	int ret;
 
 	(void)response;
 
-	if ((ret = ip4_next_hop_lookup(req->host, &idx, &nh)) < 0) {
+	if ((ret = ip4_nexthop_lookup(req->host, &idx, &nh)) < 0) {
 		if (ret == -ENOENT && req->missing_ok)
 			return api_out(0, 0);
 		return api_out(-ret, 0);
@@ -111,7 +111,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	// this also does ip4_next_hop_decref(), freeing the next hop
+	// this also does ip4_nexthop_decref(), freeing the next hop
 	if ((ret = ip4_route_delete(req->host, 32)) < 0)
 		return api_out(-ret, 0);
 
@@ -121,7 +121,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 static struct api_out nh4_list(const void *request, void **response) {
 	struct br_ip4_nh_list_resp *resp = NULL;
 	struct br_ip4_nh *api_nh;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	uint32_t num, iter;
 	const void *key;
 	int32_t idx;
@@ -137,7 +137,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 	iter = 0;
 	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
-		nh = ip4_next_hop_get(idx);
+		nh = ip4_nexthop_get(idx);
 		api_nh = &resp->nhs[resp->n_nhs++];
 		api_nh->host = nh->ip;
 		api_nh->port_id = nh->port_id;
@@ -167,7 +167,7 @@ static void nh4_init(void) {
 	nh_array = rte_calloc(
 		"nh4_array",
 		rte_hash_max_key_id(nh_hash) + 1,
-		sizeof(struct next_hop),
+		sizeof(struct nexthop),
 		RTE_CACHE_LINE_SIZE
 	);
 	if (nh_array == NULL)

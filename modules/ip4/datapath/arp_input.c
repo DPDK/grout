@@ -23,10 +23,10 @@ enum {
 	EDGE_COUNT,
 };
 
-static inline void update_next_hop(
+static inline void update_nexthop(
 	struct rte_graph *graph,
 	struct rte_node *node,
-	struct next_hop *nh,
+	struct nexthop *nh,
 	uint64_t now,
 	const struct rte_mbuf *mbuf,
 	const struct rte_arp_hdr *arp
@@ -64,7 +64,7 @@ static inline void update_next_hop(
 
 static uint16_t
 arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct next_hop *remote, *local;
+	struct nexthop *remote, *local;
 	struct arp_mbuf_data *arp_data;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
@@ -101,16 +101,16 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		local = ip4_addr_get(mbuf->port);
 
-		if (ip4_next_hop_lookup(arp->arp_data.arp_sip, &idx, &remote) >= 0) {
-			update_next_hop(graph, node, remote, now, mbuf, arp);
+		if (ip4_nexthop_lookup(arp->arp_data.arp_sip, &idx, &remote) >= 0) {
+			update_nexthop(graph, node, remote, now, mbuf, arp);
 		} else if (local != NULL && local->ip == arp->arp_data.arp_tip) {
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.
-			if (ip4_next_hop_lookup_add(arp->arp_data.arp_sip, &idx, &remote) < 0)
+			if (ip4_nexthop_lookup_add(arp->arp_data.arp_sip, &idx, &remote) < 0)
 				goto next;
 			ip4_route_insert(arp->arp_data.arp_sip, 32, idx, remote);
-			update_next_hop(graph, node, remote, now, mbuf, arp);
+			update_nexthop(graph, node, remote, now, mbuf, arp);
 		}
 		arp_data = arp_mbuf_data(mbuf);
 		arp_data->local = local;

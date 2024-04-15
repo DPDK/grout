@@ -30,7 +30,7 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	struct tx_mbuf_data *tx_data;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct next_hop *nh;
+	struct nexthop *nh;
 	rte_edge_t next;
 	uint32_t idx;
 
@@ -52,8 +52,8 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /32 route so that next
 			// packets take it in priority with a single route lookup.
-			struct next_hop *remote;
-			if (ip4_next_hop_lookup_add(ip->dst_addr, &idx, &remote) < 0) {
+			struct nexthop *remote;
+			if (ip4_nexthop_lookup_add(ip->dst_addr, &idx, &remote) < 0) {
 				next = ERROR;
 				goto next;
 			}
