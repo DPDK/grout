@@ -25,12 +25,25 @@ enum {
 	EDGE_COUNT,
 };
 
-static inline bool hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
-	bool held = false;
+typedef enum {
+	OK_TO_SEND,
+	HELD,
+	HOLD_QUEUE_FULL,
+} hold_status_t;
+
+static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
+	hold_status_t status;
 
 	rte_spinlock_lock(&nh->lock);
 
-	if (nh->n_held_pkts < IP4_NH_MAX_HELD_PKTS) {
+	if (nh->flags & BR_IP4_NH_F_REACHABLE) {
+		// The next hop somehow became reachable after it was moved here from ip_output.
+		struct tx_mbuf_data *tx_data = tx_mbuf_data(mbuf);
+		rte_ether_addr_copy(&nh->lladdr, &tx_data->dst);
+		tx_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		mbuf->port = nh->port_id;
+		status = OK_TO_SEND;
+	} else if (nh->n_held_pkts < IP4_NH_MAX_HELD_PKTS) {
 		// TODO: Implement this as a tail queue to preserve ordering.
 		if (nh->held_pkts == NULL) {
 			nh->held_pkts = mbuf;
@@ -39,12 +52,14 @@ static inline bool hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
 			nh->held_pkts = mbuf;
 		}
 		nh->n_held_pkts++;
-		held = true;
+		status = HELD;
+	} else {
+		status = HOLD_QUEUE_FULL;
 	}
 
 	rte_spinlock_unlock(&nh->lock);
 
-	return held;
+	return status;
 }
 
 static uint16_t arp_output_request_process(
@@ -69,23 +84,30 @@ static uint16_t arp_output_request_process(
 			next = ERROR;
 			goto next;
 		}
-		local = ip4_addr_get(nh->port_id);
-		if (local == NULL) {
-			next = ERROR;
-			goto next;
-		}
 		// Store packet in the next hop hold queue to be flushed upon reception
 		// of an ARP request or reply from the destination IP.
-		if (!hold_packet(nh, mbuf)) {
+		switch (hold_packet(nh, mbuf)) {
+		case OK_TO_SEND:
+			next = TX;
+			goto next;
+		case HOLD_QUEUE_FULL:
 			next = FULL;
 			goto next;
+		case HELD:
+			break;
 		}
+
 		// Create a brand new mbuf to old the ARP request.
 		mbuf = rte_pktmbuf_alloc(mbuf->pool);
 		if (mbuf == NULL) {
 			// original packet was held in the nexthop queue
 			// do not pass anything to the arp_error node
 			continue;
+		}
+		local = ip4_addr_get(nh->port_id);
+		if (local == NULL) {
+			next = ERROR;
+			goto next;
 		}
 
 		// Set all ARP request fields. TODO: upstream this in dpdk.
