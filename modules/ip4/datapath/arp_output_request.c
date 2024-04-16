@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4_mbuf.h"
+#include "ip4.h"
 #include "rte_mbuf.h"
 
 #include <br_datapath.h>

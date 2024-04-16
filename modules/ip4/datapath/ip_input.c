@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4_mbuf.h"
+#include "ip4.h"
 
 #include <br_datapath.h>
 #include <br_graph.h>
@@ -47,11 +47,7 @@ input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 		// (2) The IP checksum must be correct.
 		if ((mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) == RTE_MBUF_F_RX_IP_CKSUM_NONE) {
 			// if this is not checked in H/W, check it.
-			uint16_t actual_cksum, expected_cksum;
-			actual_cksum = ip->hdr_checksum;
-			ip->hdr_checksum = 0;
-			expected_cksum = rte_ipv4_cksum(ip);
-			if (actual_cksum != expected_cksum) {
+			if (rte_ipv4_cksum(ip)) {
 				next = BAD_CHECKSUM;
 				goto next_packet;
 			}
@@ -121,7 +117,6 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_input_local);
 BR_DROP_REGISTER(ipv4_input_no_route);
 BR_DROP_REGISTER(ipv4_input_bad_checksum);
 BR_DROP_REGISTER(ipv4_input_bad_length);
