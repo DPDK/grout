@@ -37,41 +37,49 @@ static void usage(const char *prog) {
 	puts("  -h, --help                 Display this help message and exit.");
 	puts("  -v, --verbose              Increase verbosity.");
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
+	puts("  -p, --poll-mode            Disable automatic micro-sleep.");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
 	puts("                             Default: BR_SOCK_PATH from env or");
 	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
 }
 
-static struct boring_router br;
-static struct event_base *ev_base;
+static struct br_args args;
+
+const struct br_args *br_args(void) {
+	return &args;
+}
 
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":s:htv"
+#define FLAGS ":s:htpv"
 	static struct option long_options[] = {
 		{"socket", required_argument, NULL, 's'},
 		{"help", no_argument, NULL, 'h'},
 		{"test-mode", no_argument, NULL, 't'},
+		{"poll-mode", no_argument, NULL, 'p'},
 		{"verbose", no_argument, NULL, 'v'},
 		{0},
 	};
 
 	opterr = 0; // disable getopt default error reporting
 
-	br.api_sock_path = getenv("BR_SOCK_PATH");
-	br.log_level = RTE_LOG_NOTICE;
+	args.api_sock_path = getenv("BR_SOCK_PATH");
+	args.log_level = RTE_LOG_NOTICE;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
 		case 's':
-			br.api_sock_path = optarg;
+			args.api_sock_path = optarg;
 			break;
 		case 't':
-			br.test_mode = true;
+			args.test_mode = true;
+			break;
+		case 'p':
+			args.poll_mode = true;
 			break;
 		case 'v':
-			br.log_level++;
+			args.log_level++;
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -94,8 +102,8 @@ end:
 		return -1;
 	}
 
-	if (br.api_sock_path == NULL)
-		br.api_sock_path = BR_DEFAULT_SOCK_PATH;
+	if (args.api_sock_path == NULL)
+		args.api_sock_path = BR_DEFAULT_SOCK_PATH;
 
 	return 0;
 }
@@ -121,6 +129,8 @@ static ssize_t send_response(evutil_socket_t sock, struct br_api_response *resp)
 	size_t len = sizeof(*resp) + resp->payload_len;
 	return send(sock, resp, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 }
+
+static struct event_base *ev_base;
 
 static void api_write_cb(evutil_socket_t sock, short what, void *priv) {
 	struct event *ev = event_base_get_running_event(ev_base);
@@ -295,16 +305,16 @@ static int listen_api_socket(void) {
 	}
 
 	addr.un.sun_family = AF_UNIX;
-	strncpy(addr.un.sun_path, br.api_sock_path, sizeof addr.un.sun_path - 1);
+	strncpy(addr.un.sun_path, args.api_sock_path, sizeof addr.un.sun_path - 1);
 
 	if (bind(fd, &addr.a, sizeof(addr.un)) < 0) {
-		LOG(ERR, "bind: %s: %s", br.api_sock_path, strerror(errno));
+		LOG(ERR, "bind: %s: %s", args.api_sock_path, strerror(errno));
 		close(fd);
 		return -1;
 	}
 
 	if (listen(fd, BACKLOG) < 0) {
-		LOG(ERR, "listen: %s: %s", br.api_sock_path, strerror(errno));
+		LOG(ERR, "listen: %s: %s", args.api_sock_path, strerror(errno));
 		close(fd);
 		return -1;
 	}
@@ -318,11 +328,11 @@ static int listen_api_socket(void) {
 	);
 	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
 		close(fd);
-		LOG(ERR, "event_new: %s: %s", br.api_sock_path, strerror(errno));
+		LOG(ERR, "event_new: %s: %s", args.api_sock_path, strerror(errno));
 		return -1;
 	}
 
-	LOG(INFO, "listening on API socket %s", br.api_sock_path);
+	LOG(INFO, "listening on API socket %s", args.api_sock_path);
 
 	return 0;
 }
@@ -333,7 +343,7 @@ int main(int argc, char **argv) {
 	if (parse_args(argc, argv) < 0)
 		goto end;
 
-	if (dpdk_init(&br) < 0)
+	if (dpdk_init(&args) < 0)
 		goto dpdk_stop;
 
 	modules_init();
@@ -359,7 +369,7 @@ shutdown:
 		event_free_finalize(0, ev_listen, finalize_close_fd);
 	if (ev_base)
 		event_base_free(ev_base);
-	unlink(br.api_sock_path);
+	unlink(args.api_sock_path);
 	libevent_global_shutdown();
 	modules_fini();
 dpdk_stop:

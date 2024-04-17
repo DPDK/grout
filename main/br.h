@@ -4,15 +4,15 @@
 #ifndef _BR
 #define _BR
 
-#include <event2/event.h>
-
-#include <sched.h>
 #include <stdbool.h>
 
-struct boring_router {
+struct br_args {
 	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;
+	bool poll_mode;
 };
+
+const struct br_args *br_args(void);
 
 #endif

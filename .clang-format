@@ -90,7 +90,7 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*'
     Priority:        -1
-  - Regex:           '^<(br_|br/)'
+  - Regex:           '^<(br_|br\.)'
     Priority:        100
   - Regex:           '^<(rte_|event|ecoli|stb_|numa.h)'
     Priority:        500

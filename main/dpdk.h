@@ -6,7 +6,7 @@
 
 #include "br.h"
 
-int dpdk_init(struct boring_router *);
+int dpdk_init(struct br_args *);
 void dpdk_fini(void);
 
 #endif

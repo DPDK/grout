@@ -3,6 +3,7 @@
 
 #include "graph.h"
 
+#include <br.h>
 #include <br_api.h>
 #include <br_control.h>
 #include <br_datapath.h>
@@ -166,7 +167,10 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	n_rxqs = 0;
-	max_sleep_us = 1000; // unreasonably long maximum (1ms)
+	if (br_args()->poll_mode)
+		max_sleep_us = 0;
+	else
+		max_sleep_us = 1000; // unreasonably long maximum (1ms)
 	arrforeach (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
@@ -177,10 +181,13 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		rx->queues[n_rxqs].port_id = qmap->port_id;
 		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
-		// divide buffer size by two to take into account the time to wakeup from sleep
-		rx_buffer_us = port_get_rxq_buffer_us(qmap->port_id, qmap->queue_id) / 2;
-		if (rx_buffer_us < max_sleep_us)
-			max_sleep_us = rx_buffer_us;
+		if (!br_args()->poll_mode) {
+			// divide buffer size by two to take into account
+			// the time to wakeup from sleep
+			rx_buffer_us = port_get_rxq_buffer_us(qmap->port_id, qmap->queue_id) / 2;
+			if (rx_buffer_us < max_sleep_us)
+				max_sleep_us = rx_buffer_us;
+		}
 		n_rxqs++;
 	}
 	rx->n_queues = n_rxqs;

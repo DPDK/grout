@@ -19,7 +19,7 @@
 
 int br_rte_log_type;
 
-int dpdk_init(struct boring_router *br) {
+int dpdk_init(struct br_args *args) {
 	char main_lcore[32] = {0};
 	char **eal_args = NULL;
 	int ret = -1;
@@ -42,7 +42,7 @@ int dpdk_init(struct boring_router *br) {
 	arrpush(eal_args, "-a");
 	arrpush(eal_args, "0000:00:00.0");
 
-	if (br->test_mode) {
+	if (args->test_mode) {
 		arrpush(eal_args, "--no-shconf");
 		arrpush(eal_args, "--no-huge");
 		arrpush(eal_args, "-m");
@@ -50,9 +50,9 @@ int dpdk_init(struct boring_router *br) {
 	} else {
 		arrpush(eal_args, "--in-memory");
 	}
-	if (br->log_level >= RTE_LOG_DEBUG) {
+	if (args->log_level >= RTE_LOG_DEBUG) {
 		arrpush(eal_args, "--log-level=*:debug");
-	} else if (br->log_level >= RTE_LOG_INFO) {
+	} else if (args->log_level >= RTE_LOG_INFO) {
 		arrpush(eal_args, "--log-level=*:info");
 	} else {
 		arrpush(eal_args, "--log-level=*:notice");

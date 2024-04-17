@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <br.h>
 #include <br_control.h>
 #include <br_datapath.h>
 #include <br_log.h>
@@ -147,9 +148,11 @@ void *br_datapath_loop(void *priv) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
 		return NULL;
 	}
-	if (prctl(PR_SET_TIMERSLACK, SLEEP_RESOLUTION_NS) < 0) {
-		log(ERR, "prctl(PR_SET_TIMERSLACK): %s", strerror(errno));
-		return NULL;
+	if (!br_args()->poll_mode) {
+		if (prctl(PR_SET_TIMERSLACK, SLEEP_RESOLUTION_NS) < 0) {
+			log(ERR, "prctl(PR_SET_TIMERSLACK): %s", strerror(errno));
+			return NULL;
+		}
 	}
 
 	log(INFO, "lcore_id = %d", w->lcore_id);
