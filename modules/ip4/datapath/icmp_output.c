@@ -51,9 +51,9 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip->hdr_checksum = rte_ipv4_cksum(ip);
 
 		ip_output_mbuf_data(mbuf)->nh = NULL;
-
-		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
 	}
+
+	rte_node_enqueue(graph, node, OUTPUT, objs, nb_objs);
 
 	return nb_objs;
 }

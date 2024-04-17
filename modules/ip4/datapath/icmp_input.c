@@ -56,6 +56,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			next = UNSUPPORTED;
 			goto next;
 		}
+		next = OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
