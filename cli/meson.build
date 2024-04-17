@@ -11,4 +11,4 @@ cli_src += files(
   'quit.c',
 )
 
-cli_inc += include_directories('include')
+cli_inc += include_directories('.')

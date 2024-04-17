@@ -10,4 +10,4 @@ src += files(
   'string.c',
 )
 
-inc += include_directories('include')
+inc += include_directories('.')
