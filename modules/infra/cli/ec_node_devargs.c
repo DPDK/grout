@@ -5,6 +5,8 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <libgen.h>
+#include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -32,10 +34,10 @@ static int ec_node_devargs_complete(
 	struct ec_comp *comp,
 	const struct ec_strvec *strvec
 ) {
+	const char *word, *driver;
 	struct dirent *de = NULL;
-	const char *word;
+	char buf[512], buf2[512];
 	DIR *dir = NULL;
-	char buf[512];
 	int ret = -1;
 	int fd = -1;
 	ssize_t n;
@@ -47,28 +49,34 @@ static int ec_node_devargs_complete(
 
 	dir = opendir(SYS_PCI_DEVICES);
 	if (dir == NULL)
-		goto fail; // sysfs not mounted.
+		goto out; // sysfs not mounted.
 
-	// find pci devices with device class "Ethernet Controller" (0x020000)
 	while ((de = readdir(dir)) != NULL) {
 		if (fd != -1)
 			close(fd);
 
 		if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
 			continue;
-
 		if (!ec_str_startswith(de->d_name, word))
 			continue;
 
+		// check for device class "Ethernet Controller" (0x020000)
 		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "class");
 		if ((fd = openat(dirfd(dir), buf, O_RDONLY)) < 0)
 			continue;
-
 		if ((n = read(fd, buf, sizeof(buf))) < 0)
 			continue;
-		buf[n - 1] = '\0';
-
+		buf[n - 1] = '\0'; // last character is a new line
 		if (strcmp(buf, PCI_CLASS_ETH) != 0)
+			continue;
+
+		// check if the bound driver is known to dpdk
+		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "driver");
+		if ((n = readlinkat(dirfd(dir), buf, buf2, sizeof(buf2))) < 0)
+			continue;
+		buf2[n] = '\0';
+		driver = basename(buf2);
+		if (strcmp(driver, "vfio-pci") != 0 && strcmp(driver, "mlx5_core") != 0)
 			continue;
 
 		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, word, de->d_name))
