@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "graph.h"
-#include "worker.h"
+#include "graph_priv.h"
+#include "worker_priv.h"
 
-#include <br_api.h>
 #include <br_control.h>
 #include <br_datapath.h>
 #include <br_infra.h>
@@ -34,16 +33,19 @@ struct workers workers;
 
 int worker_create(unsigned cpu_id) {
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
-	int ret = ENOMEM;
+	int ret;
 
 	if (worker == NULL)
-		goto err;
+		return -ENOMEM;
 
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
 
-	if (!!(ret = pthread_create(&worker->thread, NULL, br_datapath_loop, worker)))
-		goto err;
+	if (!!(ret = pthread_create(&worker->thread, NULL, br_datapath_loop, worker))) {
+		pthread_cancel(worker->thread);
+		rte_free(worker);
+		return -ret;
+	}
 
 	LIST_INSERT_HEAD(&workers, worker, next);
 
@@ -53,23 +55,14 @@ int worker_create(unsigned cpu_id) {
 
 	LOG(INFO, "worker %u started", worker->cpu_id);
 	return 0;
-
-err:
-	if (worker) {
-		pthread_cancel(worker->thread);
-		rte_free(worker);
-	}
-	errno = ret;
-	return -1;
 }
 
 int worker_destroy(unsigned cpu_id) {
 	struct worker *worker = worker_find(cpu_id);
 
-	if (worker == NULL) {
-		errno = ENOENT;
-		return -1;
-	}
+	if (worker == NULL)
+		return -ENOENT;
+
 	LIST_REMOVE(worker, next);
 
 	atomic_store_explicit(&worker->shutdown, true, memory_order_release);
@@ -105,19 +98,24 @@ struct worker *worker_find(unsigned cpu_id) {
 int port_unplug(const struct port *port) {
 	struct queue_map *qmap;
 	struct worker *worker;
+	int changed = 0;
 
 	LIST_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = false;
+				changed++;
 			}
 		}
 		arrforeach (qmap, worker->txqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = false;
+				changed++;
 			}
 		}
 	}
+	if (changed == 0)
+		return 0;
 
 	LOG(INFO, "port %u unplugged", port->port_id);
 
@@ -148,28 +146,106 @@ int worker_ensure_default(int socket_id) {
 			continue;
 		return worker_create(cpu_id);
 	}
-	errno = ERANGE;
-	return -1;
+	return -ERANGE;
 }
 
 int port_plug(const struct port *port) {
 	struct queue_map *qmap;
 	struct worker *worker;
+	int changed = 0;
 
 	LIST_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = true;
+				changed++;
 			}
 		}
 		arrforeach (qmap, worker->txqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = true;
+				changed++;
 			}
 		}
 	}
+	if (changed == 0)
+		return -ENODEV;
 
 	LOG(INFO, "port %u plugged", port->port_id);
+
+	return worker_graph_reload_all();
+}
+
+int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
+	struct worker *src_worker, *dst_worker;
+	struct queue_map *qmap;
+	bool reconfig;
+	int ret;
+
+	if (cpu_id == rte_get_main_lcore())
+		return -EBUSY;
+	if (!numa_bitmask_isbitset(numa_all_cpus_ptr, cpu_id))
+		return -ERANGE;
+
+	LIST_FOREACH (src_worker, &workers, next) {
+		arrforeach (qmap, src_worker->rxqs) {
+			if (qmap->port_id != port_id)
+				continue;
+			if (qmap->queue_id != rxq_id)
+				continue;
+			if (src_worker->cpu_id == cpu_id) {
+				// rxq already assigned to the correct worker
+				return 0;
+			}
+			goto move;
+		}
+	}
+	return -ENODEV;
+move:
+	reconfig = false;
+
+	// unassign from src_worker
+	for (int i = 0; i < arrlen(src_worker->rxqs); i++) {
+		struct queue_map *qmap = &src_worker->rxqs[i];
+		if (qmap->port_id != port_id)
+			continue;
+		if (qmap->queue_id != rxq_id)
+			continue;
+		arrdelswap(src_worker->rxqs, i);
+		break;
+	}
+	if (arrlen(src_worker->rxqs) == 0) {
+		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
+			return ret;
+		reconfig = true;
+	}
+
+	dst_worker = worker_find(cpu_id);
+	if (dst_worker == NULL) {
+		// no worker assigned to this cpu id yet, create one
+		if ((ret = worker_create(cpu_id)) < 0)
+			return ret;
+		dst_worker = worker_find(cpu_id);
+		reconfig = true;
+	}
+
+	// assign to dst_worker *before* reconfiguring ports
+	// to avoid the dangling rxq to be assigned twice
+	struct queue_map rx_qmap = {
+		.port_id = port_id,
+		.queue_id = rxq_id,
+		.enabled = true,
+	};
+	arrpush(dst_worker->rxqs, rx_qmap);
+
+	if (reconfig) {
+		struct port *port;
+		// number of workers changed, adjust number of tx queues
+		LIST_FOREACH (port, &ports, next) {
+			if ((ret = port_reconfig(port)) < 0)
+				return ret;
+		}
+	}
 
 	return worker_graph_reload_all();
 }
@@ -181,13 +257,13 @@ static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) 
 		if (worker->lcore_id == lcore_id) {
 			stats = atomic_load(&worker->stats);
 			if (stats == NULL)
-				return -1;
+				return -EIO;
 			usage->busy_cycles = stats->busy_cycles;
 			usage->total_cycles = stats->total_cycles;
 			return 0;
 		}
 	}
-	return -1;
+	return -ENODEV;
 }
 
 static void worker_init(void) {

@@ -22,6 +22,10 @@ LIST_HEAD(ports, port);
 
 extern struct ports ports;
 
+int32_t port_create(const char *devargs);
+int port_destroy(uint16_t port_id);
+int port_reconfig(struct port *p);
+struct port *find_port(uint16_t port_id);
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
 
 #endif

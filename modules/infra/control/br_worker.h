@@ -65,4 +65,6 @@ struct worker {
 LIST_HEAD(workers, worker);
 extern struct workers workers;
 
+int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
+
 #endif

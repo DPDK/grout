@@ -3,17 +3,14 @@
 
 src += files(
   'port.c',
-  'port_config.c',
   'worker.c',
   'graph.c',
-  'rxq.c',
-  'stats.c',
 )
 inc += include_directories('.')
 
 tests += [
   {
-    'sources': files('rxq_test.c', 'rxq.c', 'port.c', 'worker.c', 'port_config.c'),
+    'sources': files('worker_test.c', 'port.c', 'worker.c'),
     'link_args': [
       '-Wl,--wrap=numa_bitmask_isbitset',
       '-Wl,--wrap=numa_node_of_cpu',

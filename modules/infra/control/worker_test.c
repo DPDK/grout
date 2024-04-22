@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "worker.h"
+#include "worker_priv.h"
 
 #include <br_api.h>
 #include <br_cmocka.h>
@@ -15,22 +15,6 @@
 #include <numa.h>
 #include <rte_ethdev.h>
 
-// tested functions
-br_api_handler_func rxq_set;
-
-// mocked types/functions
-void br_register_api_handler(struct br_api_handler *);
-void br_register_api_handler(struct br_api_handler *h) {
-	switch (h->request_type) {
-	case BR_INFRA_RXQ_SET:
-		rxq_set = h->callback;
-		break;
-	}
-}
-
-int br_rte_log_type;
-void br_register_module(struct br_module *) { }
-
 static struct port p0 = {.port_id = 0, .n_rxq = 2};
 static struct port p1 = {.port_id = 1, .n_rxq = 2};
 static struct port p2 = {.port_id = 2, .n_rxq = 2};
@@ -38,6 +22,11 @@ static struct worker w1 = {.cpu_id = 1, .started = true};
 static struct worker w2 = {.cpu_id = 2, .started = true};
 static struct worker w3 = {.cpu_id = 3, .started = true};
 static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
+
+// mocked types/functions
+int br_rte_log_type;
+void br_register_api_handler(struct br_api_handler *) { }
+void br_register_module(struct br_module *) { }
 
 mock_func(int, worker_graph_reload_all(void));
 mock_func(void, worker_graph_free(struct worker *));
@@ -81,21 +70,6 @@ mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(v
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
 mock_func(unsigned, __wrap_rte_get_main_lcore(void));
 mock_func(int, __wrap_numa_bitmask_isbitset(const struct bitmask *, int));
-
-#define assert_api_out(expr, code, length)                                                         \
-	do {                                                                                       \
-		struct api_out out = expr;                                                         \
-		if (out.status != code)                                                            \
-			fail_msg(                                                                  \
-				"unexpected status %u (%s) != %u (%s)",                            \
-				out.status,                                                        \
-				strerror(out.status),                                              \
-				code,                                                              \
-				strerror(code)                                                     \
-			);                                                                         \
-		if (out.len != length)                                                             \
-			fail_msg("unexpected length %u != %u", out.len, length);                   \
-	} while (0)
 
 #define assert_qmaps(qmaps, ...)                                                                   \
 	do {                                                                                       \
@@ -168,19 +142,6 @@ static int teardown(void **) {
 	return 0;
 }
 
-static void rxq_set_main_lcore(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 4};
-	will_return(__wrap_rte_get_main_lcore, 4);
-	assert_api_out(rxq_set(&req, NULL), EBUSY, 0);
-}
-
-static void rxq_set_invalid_cpu(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 9999};
-	will_return(__wrap_rte_get_main_lcore, 0);
-	will_return(__wrap_numa_bitmask_isbitset, 0);
-	assert_api_out(rxq_set(&req, NULL), ERANGE, 0);
-}
-
 static void common_mocks(void) {
 	will_return_maybe(worker_graph_free, 0);
 	will_return_maybe(worker_graph_reload_all, 0);
@@ -200,28 +161,35 @@ static void common_mocks(void) {
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);
 }
 
-static void rxq_set_invalid_port(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 1, .port_id = 9999};
-	common_mocks();
-	assert_api_out(rxq_set(&req, NULL), ENODEV, 0);
+static void rxq_assign_main_lcore(void **) {
+	will_return(__wrap_rte_get_main_lcore, 4);
+	assert_int_equal(worker_rxq_assign(0, 0, 4), -EBUSY);
 }
 
-static void rxq_set_invalid_rxq(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 1, .port_id = 0, .rxq_id = 9999};
-	common_mocks();
-	assert_api_out(rxq_set(&req, NULL), ENODEV, 0);
+static void rxq_assign_invalid_cpu(void **) {
+	will_return(__wrap_rte_get_main_lcore, 0);
+	will_return(__wrap_numa_bitmask_isbitset, 0);
+	assert_int_equal(worker_rxq_assign(0, 0, 9999), -ERANGE);
 }
 
-static void rxq_set_already_set(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 2, .port_id = 1, .rxq_id = 1};
+static void rxq_assign_invalid_port(void **) {
 	common_mocks();
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(9999, 0, 1), -ENODEV);
 }
 
-static void rxq_set_existing_worker(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 1, .port_id = 1, .rxq_id = 1};
+static void rxq_assign_invalid_rxq(void **) {
 	common_mocks();
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(0, 9999, 1), -ENODEV);
+}
+
+static void rxq_assign_already_set(void **) {
+	common_mocks();
+	assert_int_equal(worker_rxq_assign(1, 1, 2), 0);
+}
+
+static void rxq_assign_existing_worker(void **) {
+	common_mocks();
+	assert_int_equal(worker_rxq_assign(1, 1, 1), 0);
 	assert_int_equal(worker_count(), 2);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
 	assert_qmaps(w2.rxqs, q(2, 1), q(2, 0));
@@ -231,11 +199,10 @@ static void rxq_set_existing_worker(void **) {
 	assert_qmaps(w3.txqs);
 }
 
-static void rxq_set_existing_worker_destroy(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 1, .port_id = 2, .rxq_id = 0};
+static void rxq_assign_existing_worker_destroy(void **) {
 	common_mocks();
 
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(2, 0, 1), 0);
 	assert_int_equal(worker_count(), 2);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
@@ -244,8 +211,7 @@ static void rxq_set_existing_worker_destroy(void **) {
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
 	assert_qmaps(w3.txqs);
 
-	req.rxq_id = 1;
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(2, 1, 1), 0);
 	assert_int_equal(worker_count(), 1);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0), q(2, 1));
 	assert_qmaps(w2.rxqs);
@@ -255,12 +221,11 @@ static void rxq_set_existing_worker_destroy(void **) {
 	assert_qmaps(w3.txqs);
 }
 
-static void rxq_set_new_worker(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 2, .port_id = 2, .rxq_id = 1};
+static void rxq_assign_new_worker(void **) {
 	common_mocks();
 
 	will_return(__wrap_rte_zmalloc, &w2);
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(2, 1, 2), 0);
 	assert_int_equal(worker_count(), 2);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
@@ -270,12 +235,11 @@ static void rxq_set_new_worker(void **) {
 	assert_qmaps(w3.txqs);
 }
 
-static void rxq_set_new_worker_destroy(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 3, .port_id = 2, .rxq_id = 1};
+static void rxq_assign_new_worker_destroy(void **) {
 	common_mocks();
 
 	will_return(__wrap_rte_zmalloc, &w3);
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(2, 1, 3), 0);
 	assert_int_equal(worker_count(), 2);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs);
@@ -285,12 +249,11 @@ static void rxq_set_new_worker_destroy(void **) {
 	assert_qmaps(w3.txqs, q(0, 0), q(1, 0), q(2, 0));
 }
 
-static void rxq_set_new_worker2(void **) {
-	struct br_infra_rxq_set_req req = {.cpu_id = 2, .port_id = 2, .rxq_id = 0};
+static void rxq_assign_new_worker2(void **) {
 	common_mocks();
 
 	will_return(__wrap_rte_zmalloc, &w2);
-	assert_api_out(rxq_set(&req, NULL), 0, 0);
+	assert_int_equal(worker_rxq_assign(2, 0, 2), 0);
 	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
 	assert_qmaps(w2.rxqs, q(2, 0));
@@ -302,16 +265,16 @@ static void rxq_set_new_worker2(void **) {
 
 int main(void) {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(rxq_set_main_lcore),
-		cmocka_unit_test(rxq_set_invalid_cpu),
-		cmocka_unit_test(rxq_set_invalid_port),
-		cmocka_unit_test(rxq_set_invalid_rxq),
-		cmocka_unit_test(rxq_set_already_set),
-		cmocka_unit_test(rxq_set_existing_worker),
-		cmocka_unit_test(rxq_set_existing_worker_destroy),
-		cmocka_unit_test(rxq_set_new_worker),
-		cmocka_unit_test(rxq_set_new_worker_destroy),
-		cmocka_unit_test(rxq_set_new_worker2),
+		cmocka_unit_test(rxq_assign_main_lcore),
+		cmocka_unit_test(rxq_assign_invalid_cpu),
+		cmocka_unit_test(rxq_assign_invalid_port),
+		cmocka_unit_test(rxq_assign_invalid_rxq),
+		cmocka_unit_test(rxq_assign_already_set),
+		cmocka_unit_test(rxq_assign_existing_worker),
+		cmocka_unit_test(rxq_assign_existing_worker_destroy),
+		cmocka_unit_test(rxq_assign_new_worker),
+		cmocka_unit_test(rxq_assign_new_worker_destroy),
+		cmocka_unit_test(rxq_assign_new_worker2),
 	};
 	return cmocka_run_group_tests(tests, setup, teardown);
 }
