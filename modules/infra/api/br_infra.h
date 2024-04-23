@@ -137,12 +137,10 @@ struct br_infra_stats_get_resp {
 
 #define BR_INFRA_STATS_RESET REQUEST_TYPE(BR_INFRA_MODULE, 0x0021)
 
-// struct br_infra_stats_reset_resp { };
-
+// struct br_infra_stats_reset_req { };
 // struct br_infra_stats_reset_resp { };
 
 // graph ///////////////////////////////////////////////////////////////////////
-
 #define BR_INFRA_GRAPH_DUMP REQUEST_TYPE(BR_INFRA_MODULE, 0x0030)
 
 // struct br_infra_graph_dump_req { };

@@ -54,70 +54,92 @@ By default, the CLI will start an interactive shell with command completion:
 [root@dio brouter]$  ./build/br-cli
 Welcome to the boring router CLI.
 Use ? for help and <tab> for command completion.
-br#
+br# ?
 quit                 Exit the CLI.
-ipv4                 Manage IPv4 stack.
-stats                Manage stack statistics.
-rxq                  Manage ports RX queues.
-port                 Manage ports.
-graph                Get information about the packet processing graph.
+add                  Create objects in the configuration.
+del                  Delete objects from the configuration.
+show                 Display information about the configuration.
+clear                Clear counters or temporary entries.
+set                  Modify existing objects in the configuration.
 ```
 
 Multiple commands can be piped into standard input:
 
 ```console
 [root@dio brouter]$ ./build/br-cli -ex < commands.list
-+ port add 0000:18:00.0
++ add port devargs 0000:18:00.0
 Created port 0
-+ port add 0000:18:00.1
++ add port devargs 0000:18:00.1
 Created port 1
-+ port set 0 qsize 2048
-+ port set 1 qsize 2048
-+ rxq set port 0 rxq 0 cpu 7
-+ rxq set port 1 rxq 0 cpu 27
-+ port list
++ set port index 0 numrxqs 1 qsize 2048
++ set port index 1 numrxqs 1 qsize 2048
++ set port index 0 rxqmap 0 cpu 7
++ set port index 1 rxqmap 0 cpu 27
++ show port all
 INDEX  DEVICE        RX_QUEUES  RXQ_SIZE  TX_QUEUES  TXQ_SIZE  MAC
 1      0000:18:00.1  1          2048      2          2048      b8:3f:d2:fa:53:87
 0      0000:18:00.0  1          2048      2          2048      b8:3f:d2:fa:53:86
-+ rxq list
++ show port rxqs
 PORT      RXQ_ID    CPU_ID    ENABLED
 0         0         7         1
 1         0         27        1
-+ ipv4 nexthop add 172.16.0.1 mac b8:3f:d2:fa:53:7a port 0
-+ ipv4 nexthop add 172.16.1.1 mac b8:3f:d2:fa:53:7b port 1
-+ ipv4 route add 172.16.0.0/24 via 172.16.0.1
-+ ipv4 route add 172.16.1.0/24 via 172.16.1.1
-+ ipv4 route add 192.168.0.0/16 via 172.16.0.1
-+ ipv4 route add 0.0.0.0/0 via 172.16.1.1
++ add ip addr 172.16.0.2/32 port 0
++ add ip addr 172.16.1.2/32 port 1
++ add ip nexthop 172.16.0.1 mac 30:3e:a7:0b:f2:54 port 0
++ add ip nexthop 172.16.1.1 mac 30:3e:a7:0b:f2:55 port 1
++ add ip route 172.16.0.0/24 via 172.16.0.1
++ add ip route 172.16.1.0/24 via 172.16.1.1
++ add ip route 0.0.0.0/0 via 172.16.1.183
++ show ip addr
+PORT        ADDRESS
+0           172.16.0.2/32
+1           172.16.1.2/32
++ show ip route
+DESTINATION           NEXT_HOP
+172.16.0.1/32         172.16.0.1
+172.16.0.2/32         172.16.0.2
+172.16.0.0/24         172.16.0.1
+172.16.1.1/32         172.16.1.1
+172.16.1.2/32         172.16.1.2
+172.16.1.0/24         172.16.1.1
+0.0.0.0/0             172.16.1.183
++ show ip nexthop
+IP              MAC                   PORT    AGE    STATE
+172.16.1.183    ??:??:??:??:??:??     ?       ?      gateway
+172.16.1.2      30:3e:a7:0b:ea:79     1       0      reachable static local link
+172.16.0.2      30:3e:a7:0b:ea:78     0       0      reachable static local link
+172.16.0.1      30:3e:a7:0b:f2:54     0       0      reachable static gateway
+172.16.1.1      30:3e:a7:0b:f2:55     1       0      reachable static gateway
 ```
 
 The CLI can be used as a one-shot command (with bash completion built-in):
 
 ```console
-[root@dio brouter]$ complete -C './build/br-cli --bash-complete' ./build/br-cli
+[root@dio brouter]$ complete -o default -C './build/br-cli -c' ./build/br-cli
 [root@dio brouter]$ ./build/br-cli <TAB><TAB>
+add                   (Create objects in the configuration.)
+clear                 (Clear counters or temporary entries.)
+del                   (Delete objects from the configuration.)
 -e                    (Abort on first error.)
 --err-exit            (Abort on first error.)
-graph                 (Get information about the packet processing graph.)
 --help                (Show usage help and exit.)
 -h                    (Show usage help and exit.)
-ipv4                  (Manage IPv4 stack.)
-port                  (Manage ports.)
 quit                  (Exit the CLI.)
-rxq                   (Manage ports RX queues.)
+set                   (Modify existing objects in the configuration.)
+show                  (Display information about the configuration.)
 --socket              (Path to the control plane API socket.)
 -s                    (Path to the control plane API socket.)
-stats                 (Manage stack statistics.)
 --trace-commands      (Print executed commands.)
 -x                    (Print executed commands.)
-[root@dio brouter]$ ./build/br-cli stats <TAB><TAB>
-all           (Print all stats.)
-hardware      (Print hardware stats.)
-reset         (Reset all stats to zero.)
-software      (Print software stats.)
-xstats        (Print extended driver stats.)
-[root@dio brouter]$ ./build/br-cli stats reset
-[root@dio brouter]$ ./build/br-cli graph stats
+[root@dio brouter]$ ./build/br-cli show <TAB><TAB>
+graph      (Show packet processing graph info.)
+ip         (Show IPv4 stack details.)
+port       (Display port details.)
+stats      (Print statistics.)
+[root@dio brouter]$ ./build/br-cli show graph <TAB><TAB>
+dot        (Dump the graph in DOT format.)
+stats      (Print graph nodes statistics.)
+[root@dio brouter]$ ./build/br-cli show graph stats
 NODE               CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
 eth_tx            223946     24121370       107.7        6076.0          56.4
 ip_input          223946     24121370       107.7        4999.5          46.4
@@ -130,7 +152,7 @@ ip_forward        223946     24121370       107.7        1141.3          10.6
 ## Packet graph
 
 ```console
-$ br-cli graph dump | dot -Tsvg > docs/graph.svg
+[root@dio brouter]$ ./build/br-cli show graph dot | dot -Tsvg > docs/graph.svg
 ```
 
 ![docs/graph.svg](https://raw.githubusercontent.com/rjarry/brouter/main/docs/graph.svg)

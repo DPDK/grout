@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ip.h"
+
 #include <br_api.h>
 #include <br_cli.h>
 #include <br_ip4.h>
@@ -63,34 +65,33 @@ static cmd_status_t addr_list(const struct br_api_client *c, const struct ec_pno
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *ipv4 = cli_context(root, "ipv4", "Manage IPv4 stack.");
-	struct ec_node *addr = cli_context(ipv4, "addr", "Manage IPv4 local addresses.");
 	int ret;
 
-	if (ipv4 == NULL || addr == NULL)
-		return -1;
-
 	ret = CLI_COMMAND(
-		addr,
-		"add IP_NET port PORT_ID",
+		IP_ADD_CTX(root),
+		"addr IP_NET port PORT_ID",
 		addr_add,
-		"Add an address to a port.",
+		"Add an IPv4 address to a port.",
 		with_help("IPv4 address with prefix length.", ec_node_re("IP_NET", IPV4_NET_RE)),
 		with_help("Port ID.", ec_node_uint("PORT_ID", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		addr,
-		"del IP_NET port PORT_ID",
+		IP_DEL_CTX(root),
+		"addr IP_NET port PORT_ID",
 		addr_del,
-		"Remove an address from a port.",
+		"Remove an IPv4 address from a port.",
 		with_help("IPv4 address with prefix length.", ec_node_re("IP_NET", IPV4_NET_RE)),
 		with_help("Port ID.", ec_node_uint("PORT_ID", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
-	return CLI_COMMAND(addr, "list", addr_list, "List all addresses.");
+	ret = CLI_COMMAND(IP_SHOW_CTX(root), "addr", addr_list, "Display all IPv4 addresses.");
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static struct br_cli_context ctx = {

@@ -63,14 +63,10 @@ static cmd_status_t stats_reset(const struct br_api_client *c, const struct ec_p
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *stats = cli_context(root, "stats", "Manage statistics.");
 	int ret;
 
-	if (stats == NULL)
-		return -1;
-
 	ret = CLI_COMMAND(
-		stats,
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("stats", "Print statistics.")),
 		"software|hardware|xstats|all [zero] [pattern PATTERN]",
 		stats_get,
 		"Print statistics.",
@@ -83,8 +79,13 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_CLEAR), "stats", stats_reset, "Reset all stats to zero."
+	);
+	if (ret < 0)
+		return ret;
 
-	return CLI_COMMAND(stats, "reset", stats_reset, "Reset all stats to zero.");
+	return 0;
 }
 
 static struct br_cli_context ctx = {

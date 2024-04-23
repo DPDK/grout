@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ip.h"
+
 #include <br_api.h>
 #include <br_cli.h>
 #include <br_ip4.h>
@@ -38,31 +40,6 @@ static cmd_status_t route4_del(const struct br_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pnode *p) {
-	const struct br_ip4_route_get_resp *resp;
-	struct br_ip4_route_get_req req;
-	void *resp_ptr = NULL;
-	char buf[BUFSIZ];
-
-	if (inet_pton(AF_INET, arg_str(p, "DEST"), &req.dest) != 1) {
-		errno = EINVAL;
-		return CMD_ERROR;
-	}
-
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-	printf("%-16s  %-20s  %s\n", "GATEWAY", "MAC", "PORT");
-	inet_ntop(AF_INET, &resp->nh.host, buf, sizeof(buf));
-	printf("%-16s  " ETH_ADDR_FMT "     %u\n",
-	       buf,
-	       ETH_BYTES_SPLIT(resp->nh.mac.bytes),
-	       resp->nh.port_id);
-
-	return CMD_SUCCESS;
-}
-
 static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_pnode *p) {
 	const struct br_ip4_route_list_resp *resp;
 	char dest[BUFSIZ], nh[BUFSIZ];
@@ -87,17 +64,43 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct br_ip4_route_get_resp *resp;
+	struct br_ip4_route_get_req req;
+	void *resp_ptr = NULL;
+	char buf[BUFSIZ];
+	const char *dest = arg_str(p, "DEST");
+
+	if (dest == NULL) {
+		if (errno == ENOENT)
+			return route4_list(c, p);
+		return CMD_ERROR;
+	}
+	if (inet_pton(AF_INET, dest, &req.dest) != 1) {
+		errno = EINVAL;
+		return CMD_ERROR;
+	}
+
+	if (br_api_client_send_recv(c, BR_IP4_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	printf("%-16s  %-20s  %s\n", "GATEWAY", "MAC", "PORT");
+	inet_ntop(AF_INET, &resp->nh.host, buf, sizeof(buf));
+	printf("%-16s  " ETH_ADDR_FMT "     %u\n",
+	       buf,
+	       ETH_BYTES_SPLIT(resp->nh.mac.bytes),
+	       resp->nh.port_id);
+
+	return CMD_SUCCESS;
+}
+
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *ipv4 = cli_context(root, "ipv4", "Manage IPv4.");
-	struct ec_node *route = cli_context(ipv4, "route", "Manage IPv4 routes.");
 	int ret;
 
-	if (ipv4 == NULL || route == NULL)
-		return -1;
-
 	ret = CLI_COMMAND(
-		route,
-		"add DEST via NH",
+		IP_ADD_CTX(root),
+		"route DEST via NH",
 		route4_add,
 		"Add a new route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
@@ -106,8 +109,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		route,
-		"del DEST",
+		IP_DEL_CTX(root),
+		"route DEST",
 		route4_del,
 		"Delete a route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE))
@@ -115,15 +118,16 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		route,
-		"get DEST",
+		IP_SHOW_CTX(root),
+		"route [DEST]",
 		route4_get,
-		"Get the next hop that would be taken for a destination address.",
+		"Show IPv4 routes.",
 		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE))
 	);
 	if (ret < 0)
 		return ret;
-	return CLI_COMMAND(route, "list", route4_list, "List all routes.");
+
+	return 0;
 }
 
 static struct br_cli_context ctx = {

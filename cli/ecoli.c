@@ -9,6 +9,7 @@
 #include <ecoli.h>
 
 #include <errno.h>
+#include <stdarg.h>
 
 #define HELP_ATTR "help"
 
@@ -34,7 +35,7 @@ struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
 	return node;
 }
 
-struct ec_node *cli_context(struct ec_node *root, const char *name, const char *help) {
+static struct ec_node *get_or_create(struct ec_node *root, const char *name, const char *help) {
 	struct ec_node *ctx = NULL, *or_node = NULL;
 
 	if (root == NULL || name == NULL || help == NULL) {
@@ -60,6 +61,26 @@ struct ec_node *cli_context(struct ec_node *root, const char *name, const char *
 fail:
 	ec_node_free(ctx);
 	return NULL;
+}
+
+struct ec_node *__cli_context(struct ec_node *root, const struct ctx_arg *arg, ...) {
+	struct ec_node *ctx;
+	va_list ap;
+
+	ctx = get_or_create(root, arg->name, arg->help);
+	if (ctx == NULL)
+		goto end;
+
+	va_start(ap, arg);
+	for (arg = va_arg(ap, const struct ctx_arg *); arg->name != NULL;
+	     arg = va_arg(ap, const struct ctx_arg *)) {
+		ctx = get_or_create(ctx, arg->name, arg->help);
+		if (ctx == NULL)
+			goto end;
+	}
+end:
+	va_end(ap);
+	return ctx;
 }
 
 const char *arg_str(const struct ec_pnode *p, const char *id) {

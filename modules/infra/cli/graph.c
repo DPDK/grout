@@ -88,20 +88,27 @@ static cmd_status_t graph_stats(const struct br_api_client *c, const struct ec_p
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *graph = cli_context(
-		root, "graph", "Get information about the packet processing graph."
+	int ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("graph", "Show packet processing graph info.")),
+		"dot",
+		graph_dump,
+		"Dump the graph in DOT format."
 	);
-	if (graph == NULL)
-		return -1;
-	if (CLI_COMMAND(graph, "dump", graph_dump, "Dump the graph in DOT format.") < 0)
-		return -1;
-	return CLI_COMMAND(
-		graph,
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("graph", "Show packet processing graph info.")),
 		"stats [zero]",
 		graph_stats,
 		"Print graph nodes statistics.",
 		with_help("Print stats with value 0.", ec_node_str("zero", "zero"))
 	);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static struct br_cli_context ctx = {

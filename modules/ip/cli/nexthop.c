@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ip.h"
+
 #include <br_api.h>
 #include <br_cli.h>
 #include <br_ip4.h>
@@ -75,16 +77,15 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 		inet_ntop(AF_INET, &nh->host, ip, sizeof(ip));
 
-		if (nh->flags == 0) {
-			printf("%-16s  %-20s  %-8s  %-8u  %s\n", ip, "??:??:??:??:??", "?", 0, state
-			);
-		} else {
+		if (nh->flags & BR_IP4_NH_F_REACHABLE) {
 			printf("%-16s  " ETH_ADDR_FMT "     %-8u  %-8u  %s\n",
 			       ip,
 			       ETH_BYTES_SPLIT(nh->mac.bytes),
 			       nh->port_id,
 			       nh->age,
 			       state);
+		} else {
+			printf("%-16s  ??:??:??:??:??:??     ?         ?         %s\n", ip, state);
 		}
 	}
 
@@ -94,13 +95,11 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 }
 
 static int ctx_init(struct ec_node *root) {
-	struct ec_node *ipv4 = cli_context(root, "ipv4", "Manage IPv4 stack.");
-	struct ec_node *nh = cli_context(ipv4, "nexthop", "Manage IPv4 next hops.");
 	int ret;
 
 	ret = CLI_COMMAND(
-		nh,
-		"add IP mac MAC port PORT_ID",
+		IP_ADD_CTX(root),
+		"nexthop IP mac MAC port PORT_ID",
 		nh4_add,
 		"Add a new next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE)),
@@ -110,15 +109,19 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		nh,
-		"del IP",
+		IP_DEL_CTX(root),
+		"nexthop IP",
 		nh4_del,
 		"Delete a next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE))
 	);
 	if (ret < 0)
 		return ret;
-	return CLI_COMMAND(nh, "list", nh4_list, "List all next hops.");
+	ret = CLI_COMMAND(IP_SHOW_CTX(root), "nexthop", nh4_list, "List all next hops.");
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static struct br_cli_context ctx = {
