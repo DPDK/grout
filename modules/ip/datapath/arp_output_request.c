@@ -142,7 +142,7 @@ static struct rte_node_register arp_output_request_node = {
 	.process = arp_output_request_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "eth_tx",
+		[TX] = "port_tx",
 		[FULL] = "arp_queue_full",
 		[ERROR] = "arp_output_error",
 	},

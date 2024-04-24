@@ -189,7 +189,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		n_rxqs++;
 	}
 	rx->n_queues = n_rxqs;
-	if (br_node_data_set(name, "eth_rx", rx) < 0) {
+	if (br_node_data_set(name, "port_rx", rx) < 0) {
 		if (rte_errno == 0)
 			rte_errno = EINVAL;
 		ret = -rte_errno;
@@ -211,7 +211,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		tx->txq_ids[qmap->port_id] = qmap->queue_id;
 	}
-	if (br_node_data_set(name, "eth_tx", tx) < 0) {
+	if (br_node_data_set(name, "port_tx", tx) < 0) {
 		if (rte_errno == 0)
 			rte_errno = EINVAL;
 		ret = -rte_errno;

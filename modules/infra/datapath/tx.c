@@ -111,7 +111,7 @@ static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
 }
 
 static struct rte_node_register tx_node_base = {
-	.name = "eth_tx",
+	.name = "port_tx",
 
 	.process = tx_process,
 	.init = tx_init,
@@ -119,8 +119,8 @@ static struct rte_node_register tx_node_base = {
 
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
-		[TX_ERROR] = "eth_tx_error",
-		[NO_DEST] = "eth_tx_no_dest",
+		[TX_ERROR] = "port_tx_error",
+		[NO_DEST] = "port_tx_no_dest",
 	},
 };
 
@@ -130,5 +130,5 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(eth_tx_error);
-BR_DROP_REGISTER(eth_tx_no_dest);
+BR_DROP_REGISTER(port_tx_error);
+BR_DROP_REGISTER(port_tx_no_dest);

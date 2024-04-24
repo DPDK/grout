@@ -78,7 +78,7 @@ static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
 }
 
 static struct rte_node_register rx_node_base = {
-	.name = "eth_rx",
+	.name = "port_rx",
 	.flags = RTE_NODE_SOURCE_F,
 
 	.process = rx_process,

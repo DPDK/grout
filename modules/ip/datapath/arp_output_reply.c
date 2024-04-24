@@ -68,7 +68,7 @@ static struct rte_node_register arp_output_reply_node = {
 	.process = arp_output_reply_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "eth_tx",
+		[TX] = "port_tx",
 	},
 };
 
