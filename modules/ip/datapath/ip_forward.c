@@ -40,14 +40,14 @@ forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 }
 
 static struct rte_node_register forward_node = {
-	.name = "ipv4_forward",
+	.name = "ip_forward",
 
 	.process = forward_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[OUTPUT] = "ipv4_output",
-		[TTL_EXCEEDED] = "ipv4_forward_ttl_exceeded",
+		[OUTPUT] = "ip_output",
+		[TTL_EXCEEDED] = "ip_forward_ttl_exceeded",
 	},
 };
 
@@ -57,4 +57,4 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_forward_ttl_exceeded);
+BR_DROP_REGISTER(ip_forward_ttl_exceeded);

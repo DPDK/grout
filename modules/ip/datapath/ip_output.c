@@ -79,13 +79,13 @@ next:
 }
 
 struct rte_node_register output_node = {
-	.name = "ipv4_output",
+	.name = "ip_output",
 	.process = output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[TX] = "eth_tx",
-		[ERROR] = "ipv4_output_error",
-		[NO_ROUTE] = "ipv4_output_no_route",
+		[ERROR] = "ip_output_error",
+		[NO_ROUTE] = "ip_output_no_route",
 		[ARP_REQUEST] = "arp_output_request",
 	},
 };
@@ -96,5 +96,5 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_output_error);
-BR_DROP_REGISTER(ipv4_output_no_route);
+BR_DROP_REGISTER(ip_output_error);
+BR_DROP_REGISTER(ip_output_no_route);

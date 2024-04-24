@@ -27,12 +27,12 @@ BR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint8_t proto;
 });
 
-void ip4_local_add_proto(uint8_t proto, rte_edge_t edge);
+void ip_local_add_proto(uint8_t proto, rte_edge_t edge);
 
 #define IPV4_VERSION_IHL 0x45
 #define IPV4_DEFAULT_TTL 64
 
-static inline void ip4_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_data *data) {
+static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_data *data) {
 	ip->version_ihl = IPV4_VERSION_IHL;
 	ip->type_of_service = 0;
 	ip->total_length = rte_cpu_to_be_16(data->len + sizeof(*ip));

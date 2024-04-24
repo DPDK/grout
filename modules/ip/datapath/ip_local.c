@@ -13,7 +13,7 @@
 #define UNKNOWN_PROTO 0
 static rte_edge_t edges[256] = {UNKNOWN_PROTO};
 
-void ip4_local_add_proto(uint8_t proto, rte_edge_t edge) {
+void ip_local_add_proto(uint8_t proto, rte_edge_t edge) {
 	edges[proto] = edge;
 	LOG(DEBUG, "ip_input_local: proto=%u -> edge %u", proto, edge);
 }
@@ -44,11 +44,11 @@ local_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 }
 
 static struct rte_node_register input_node = {
-	.name = "ipv4_input_local",
+	.name = "ip_input_local",
 	.process = local_process,
 	.nb_edges = 1,
 	.next_nodes = {
-		[UNKNOWN_PROTO] = "ipv4_input_local_unknown_proto",
+		[UNKNOWN_PROTO] = "ip_input_local_unknown_proto",
 	},
 };
 
@@ -58,4 +58,4 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_input_local_unknown_proto);
+BR_DROP_REGISTER(ip_input_local_unknown_proto);

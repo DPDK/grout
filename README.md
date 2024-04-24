@@ -120,11 +120,11 @@ xstats        (Print extended driver stats.)
 [root@dio brouter]$ ./build/br-cli graph stats
 NODE               CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
 eth_tx            223946     24121370       107.7        6076.0          56.4
-ipv4_input        223946     24121370       107.7        4999.5          46.4
+ip_input          223946     24121370       107.7        4999.5          46.4
 eth_rx            268128     24121370        90.0        3648.6          40.6
 eth_classify      223946     24121370       107.7        2404.0          22.3
-ipv4_output       223946     24121370       107.7        1518.5          14.1
-ipv4_forward      223946     24121370       107.7        1141.3          10.6
+ip_output         223946     24121370       107.7        1518.5          14.1
+ip_forward        223946     24121370       107.7        1141.3          10.6
 ```
 
 ## Packet graph

@@ -140,7 +140,7 @@ static struct rte_node_register arp_input_node = {
 		[OP_REPLY] = "arp_input_reply",
 		[OP_UNSUPPORTED] = "arp_input_op_unsupported",
 		[PROTO_UNSUPPORTED] = "arp_input_proto_unsupported",
-		[IP_OUTPUT] = "ipv4_output",
+		[IP_OUTPUT] = "ip_output",
 	},
 };
 

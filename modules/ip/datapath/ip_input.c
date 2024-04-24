@@ -89,24 +89,24 @@ next_packet:
 }
 
 static void input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_classify", "ipv4_input");
+	rte_edge_t edge = br_node_attach_parent("eth_classify", "ip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("br_node_attach_parent(classify, ipv4_input) failed");
 	br_classify_add_proto(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
 }
 
 static struct rte_node_register input_node = {
-	.name = "ipv4_input",
+	.name = "ip_input",
 
 	.process = input_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[FORWARD] = "ipv4_forward",
-		[LOCAL] = "ipv4_input_local",
-		[NO_ROUTE] = "ipv4_input_no_route",
-		[BAD_CHECKSUM] = "ipv4_input_bad_checksum",
-		[BAD_LENGTH] = "ipv4_input_bad_length",
+		[FORWARD] = "ip_forward",
+		[LOCAL] = "ip_input_local",
+		[NO_ROUTE] = "ip_input_no_route",
+		[BAD_CHECKSUM] = "ip_input_bad_checksum",
+		[BAD_LENGTH] = "ip_input_bad_length",
 	},
 };
 
@@ -117,6 +117,6 @@ static struct br_node_info info = {
 
 BR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ipv4_input_no_route);
-BR_DROP_REGISTER(ipv4_input_bad_checksum);
-BR_DROP_REGISTER(ipv4_input_bad_length);
+BR_DROP_REGISTER(ip_input_no_route);
+BR_DROP_REGISTER(ip_input_bad_checksum);
+BR_DROP_REGISTER(ip_input_bad_length);

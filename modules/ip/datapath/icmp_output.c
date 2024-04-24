@@ -36,7 +36,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		icmp->icmp_cksum = ~rte_raw_cksum(icmp, local_data->len);
 
 		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip4_set_fields(ip, local_data);
+		ip_set_fields(ip, local_data);
 		ip_output_mbuf_data(mbuf)->nh = NULL;
 	}
 
@@ -52,7 +52,7 @@ static struct rte_node_register icmp_output_node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[OUTPUT] = "ipv4_output",
+		[OUTPUT] = "ip_output",
 	},
 };
 
