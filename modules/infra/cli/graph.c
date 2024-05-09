@@ -5,8 +5,10 @@
 #include <br_cli.h>
 #include <br_infra.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -38,6 +40,7 @@ static int stats_order(const void *sa, const void *sb) {
 }
 
 static cmd_status_t graph_stats(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	struct br_infra_graph_stats_resp *resp;
 	void *resp_ptr = NULL;
 	bool zero = false;
@@ -51,15 +54,16 @@ static cmd_status_t graph_stats(const struct br_api_client *c, const struct ec_p
 	resp = resp_ptr;
 	qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order);
 
-	printf("%-32s  %14s  %16s  %12s  %12s  %12s\n",
-	       "NODE",
-	       "CALLS",
-	       "PACKETS",
-	       "PKTS/CALL",
-	       "CYCLES/CALL",
-	       "CYCLES/PKT");
+	scols_table_new_column(table, "NODE", 0, 0);
+	scols_table_new_column(table, "CALLS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "PKTS/CALL", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CYCLES/CALL", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
+	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_stats; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_infra_graph_stat *s = &resp->stats[i];
 		double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
 
@@ -73,15 +77,16 @@ static cmd_status_t graph_stats(const struct br_api_client *c, const struct ec_p
 		if (!zero && pkt_call == 0 && cycles_pkt == 0 && cycles_call == 0)
 			continue;
 
-		printf("%-32s  %14lu  %16lu  %12.01f  %12.01f  %12.01f\n",
-		       s->node,
-		       s->calls,
-		       s->objects,
-		       pkt_call,
-		       cycles_call,
-		       cycles_pkt);
+		scols_line_sprintf(line, 0, "%s", s->node);
+		scols_line_sprintf(line, 1, "%lu", s->calls);
+		scols_line_sprintf(line, 2, "%lu", s->objects);
+		scols_line_sprintf(line, 3, "%.01f", pkt_call);
+		scols_line_sprintf(line, 4, "%.01f", cycles_call);
+		scols_line_sprintf(line, 5, "%.01f", cycles_pkt);
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

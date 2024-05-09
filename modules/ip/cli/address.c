@@ -7,8 +7,10 @@
 #include <br_cli.h>
 #include <br_ip4.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <stdint.h>
 
@@ -41,24 +43,36 @@ static cmd_status_t addr_del(const struct br_api_client *c, const struct ec_pnod
 }
 
 static cmd_status_t addr_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_addr_list_resp *resp;
+
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 
 	(void)p;
+
+	if (table == NULL)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_IP4_ADDR_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
 
-	printf("%-10s  %s\n", "PORT", "ADDRESS");
+	scols_table_new_column(table, "PORT", 0, 0);
+	scols_table_new_column(table, "ADDRESS", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
 	for (size_t i = 0; i < resp->n_addrs; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_ip4_addr *addr = &resp->addrs[i];
 		br_ip4_net_format(&addr->addr, buf, sizeof(buf));
-		printf("%-10u  %s\n", addr->port_id, buf);
+		scols_line_sprintf(line, 0, "%u", addr->port_id);
+		scols_line_sprintf(line, 1, "%s", buf);
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

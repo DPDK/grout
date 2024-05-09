@@ -9,6 +9,7 @@ cli_src += files(
   'log.c',
   'main.c',
   'quit.c',
+  'table.c',
 )
 
 cli_inc += include_directories('.')

@@ -16,14 +16,16 @@ also in scripts one command at a time, or by batches.
 
 ```sh
 dnf install gcc git libcmocka-devel libedit-devel libevent-devel make meson \
-        ninja-build numactl-devel pkgconf python3-pyelftools scdoc
+        ninja-build numactl-devel pkgconf python3-pyelftools scdoc \
+        libsmartcols-devel
 ```
 
 or
 
 ```sh
 apt install build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
-        libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc
+        libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc \
+        libsmartcols-dev
 ```
 
 ### Build

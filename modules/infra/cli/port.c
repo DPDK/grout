@@ -5,8 +5,10 @@
 #include <br_cli.h>
 #include <br_infra.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <errno.h>
 #include <stdint.h>
@@ -81,35 +83,43 @@ static cmd_status_t port_del(const struct br_api_client *c, const struct ec_pnod
 }
 
 static cmd_status_t port_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	const struct br_infra_port_list_resp *resp;
 	void *resp_ptr = NULL;
 
 	(void)p;
 
+	if (table == NULL)
+		return CMD_ERROR;
+
 	if (br_api_client_send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("%-8s  %-20s  %-10s  %-10s  %-10s  %-10s  %s\n",
-	       "INDEX",
-	       "DEVICE",
-	       "RX_QUEUES",
-	       "RXQ_SIZE",
-	       "TX_QUEUES",
-	       "TXQ_SIZE",
-	       "MAC");
+	scols_table_new_column(table, "INDEX", 0, 0);
+	scols_table_new_column(table, "DEVICE", 0, 0);
+	scols_table_new_column(table, "RX_QUEUES", 0, 0);
+	scols_table_new_column(table, "RXQ_SIZE", 0, 0);
+	scols_table_new_column(table, "TX_QUEUES", 0, 0);
+	scols_table_new_column(table, "TXQ_SIZE", 0, 0);
+	scols_table_new_column(table, "MAC", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
 	for (size_t i = 0; i < resp->n_ports; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_infra_port *p = &resp->ports[i];
-		printf("%-8u  %-20s  %-10u  %-10u  %-10u  %-10u  " ETH_ADDR_FMT "\n",
-		       p->index,
-		       p->device,
-		       p->n_rxq,
-		       p->rxq_size,
-		       p->n_txq,
-		       p->txq_size,
-		       ETH_BYTES_SPLIT(p->mac.bytes));
+
+		scols_line_sprintf(line, 0, "%u", p->index);
+		scols_line_sprintf(line, 1, "%s", p->device);
+		scols_line_sprintf(line, 2, "%u", p->n_rxq);
+		scols_line_sprintf(line, 3, "%u", p->rxq_size);
+		scols_line_sprintf(line, 4, "%u", p->n_txq);
+		scols_line_sprintf(line, 5, "%u", p->txq_size);
+		scols_line_sprintf(line, 6, ETH_ADDR_FMT, ETH_BYTES_SPLIT(p->mac.bytes));
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -128,10 +138,14 @@ static int rxqs_order(const void *a, const void *b) {
 }
 
 static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	struct br_infra_rxq_list_resp *resp;
 	void *resp_ptr = NULL;
 
 	(void)p;
+
+	if (table == NULL)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_INFRA_RXQ_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
@@ -139,12 +153,24 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 	resp = resp_ptr;
 	qsort(resp->rxqs, resp->n_rxqs, sizeof(*resp->rxqs), rxqs_order);
 
-	printf("%-8s  %-8s  %-8s  %s\n", "PORT", "RXQ_ID", "CPU_ID", "ENABLED");
+	scols_table_new_column(table, "PORT", 0, 0);
+	scols_table_new_column(table, "RXQ_ID", 0, 0);
+	scols_table_new_column(table, "CPU_ID", 0, 0);
+	scols_table_new_column(table, "ENABLED", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
 	for (size_t i = 0; i < resp->n_rxqs; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_infra_rxq *q = &resp->rxqs[i];
-		printf("%-8u  %-8u  %-8u  %u\n", q->port_id, q->rxq_id, q->cpu_id, q->enabled);
+
+		scols_line_sprintf(line, 0, "%u", q->port_id);
+		scols_line_sprintf(line, 1, "%u", q->rxq_id);
+		scols_line_sprintf(line, 2, "%u", q->cpu_id);
+		scols_line_sprintf(line, 3, "%u", q->enabled);
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -167,12 +193,12 @@ static cmd_status_t port_show(const struct br_api_client *c, const struct ec_pno
 
 	resp = resp_ptr;
 	printf("index: %u\n", resp->port.index);
-	printf("    device: %s\n", resp->port.device);
-	printf("    rx_queues: %u\n", resp->port.n_rxq);
-	printf("    rxq_size: %u\n", resp->port.rxq_size);
-	printf("    tx_queues: %u\n", resp->port.n_txq);
-	printf("    txq_size: %u\n", resp->port.txq_size);
-	printf("    mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(resp->port.mac.bytes));
+	printf("device: %s\n", resp->port.device);
+	printf("rx_queues: %u\n", resp->port.n_rxq);
+	printf("rxq_size: %u\n", resp->port.rxq_size);
+	printf("tx_queues: %u\n", resp->port.n_txq);
+	printf("txq_size: %u\n", resp->port.txq_size);
+	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(resp->port.mac.bytes));
 
 	free(resp_ptr);
 	return CMD_SUCCESS;

@@ -44,6 +44,7 @@ event_dep = dependency('libevent')
 numa_dep = dependency('numa')
 stb_dep = dependency('stb', fallback: ['stb', 'stb_dep'])
 ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
+smartcols_dep = dependency('smartcols')
 
 src = []
 inc = []
@@ -73,7 +74,7 @@ executable(
 executable(
   'br-cli', cli_src,
   include_directories: cli_inc,
-  dependencies: [ecoli_dep],
+  dependencies: [ecoli_dep, smartcols_dep],
   install: true,
 )
 

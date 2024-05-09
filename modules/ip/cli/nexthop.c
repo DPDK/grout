@@ -7,8 +7,10 @@
 #include <br_cli.h>
 #include <br_ip4.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <errno.h>
 #include <stdint.h>
@@ -46,6 +48,7 @@ static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode
 }
 
 static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_nh_list_resp *resp;
 	char ip[BUFSIZ], state[BUFSIZ];
 	void *resp_ptr = NULL;
@@ -53,13 +56,23 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 	(void)p;
 
+	if (table == NULL)
+		return CMD_ERROR;
+
 	if (br_api_client_send_recv(c, BR_IP4_NH_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
 
-	printf("%-16s  %-20s  %-8s  %-8s  %s\n", "IP", "MAC", "PORT", "AGE", "STATE");
+	scols_table_new_column(table, "IP", 0, 0);
+	scols_table_new_column(table, "MAC", 0, 0);
+	scols_table_new_column(table, "PORT", 0, 0);
+	scols_table_new_column(table, "AGE", 0, 0);
+	scols_table_new_column(table, "STATE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
 	for (size_t i = 0; i < resp->n_nhs; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_ip4_nh *nh = &resp->nhs[i];
 
 		n = 0;
@@ -77,18 +90,21 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 		inet_ntop(AF_INET, &nh->host, ip, sizeof(ip));
 
+		scols_line_sprintf(line, 0, "%s", ip);
 		if (nh->flags & BR_IP4_NH_F_REACHABLE) {
-			printf("%-16s  " ETH_ADDR_FMT "     %-8u  %-8u  %s\n",
-			       ip,
-			       ETH_BYTES_SPLIT(nh->mac.bytes),
-			       nh->port_id,
-			       nh->age,
-			       state);
+			scols_line_sprintf(line, 1, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
+			scols_line_sprintf(line, 2, "%u", nh->port_id);
+			scols_line_sprintf(line, 3, "%u", nh->age);
 		} else {
-			printf("%-16s  ??:??:??:??:??:??     ?         ?         %s\n", ip, state);
+			scols_line_set_data(line, 1, "??:??:??:??:??:??");
+			scols_line_set_data(line, 2, "?");
+			scols_line_set_data(line, 3, "?");
 		}
+		scols_line_sprintf(line, 4, "%s", state);
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

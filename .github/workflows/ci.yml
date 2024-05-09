@@ -21,6 +21,7 @@ jobs:
             libcmocka-devel \
             libedit-devel \
             libevent-devel \
+            libsmartcols-devel \
             numactl-devel \
             python3-pyelftools
       - uses: actions/checkout@v4

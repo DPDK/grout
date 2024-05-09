@@ -92,7 +92,7 @@ IncludeCategories:
     Priority:        -1
   - Regex:           '^<(br_|br\.)'
     Priority:        100
-  - Regex:           '^<(rte_|event|ecoli|stb_|numa.h)'
+  - Regex:           '^<(rte_|event|ecoli|stb_|numa.h|libsmartcols.h)'
     Priority:        500
   - Regex:           '^<cmocka'
     Priority:        100000

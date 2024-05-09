@@ -7,8 +7,10 @@
 #include <br_cli.h>
 #include <br_ip4.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <errno.h>
 
@@ -41,24 +43,35 @@ static cmd_status_t route4_del(const struct br_api_client *c, const struct ec_pn
 }
 
 static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_route_list_resp *resp;
 	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
 	(void)p;
 
+	if (table == NULL)
+		return CMD_ERROR;
+
 	if (br_api_client_send_recv(c, BR_IP4_ROUTE_LIST, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("%-20s  %s\n", "DESTINATION", "NEXT_HOP");
+	scols_table_new_column(table, "DESTINATION", 0, 0);
+	scols_table_new_column(table, "NEXT_HOP", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
 	for (size_t i = 0; i < resp->n_routes; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct br_ip4_route *route = &resp->routes[i];
 		br_ip4_net_format(&route->dest, dest, sizeof(dest));
 		inet_ntop(AF_INET, &route->nh, nh, sizeof(nh));
-		printf("%-20s  %s\n", dest, nh);
+		scols_line_set_data(line, 0, dest);
+		scols_line_set_data(line, 1, nh);
 	}
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -85,12 +98,11 @@ static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("%-16s  %-20s  %s\n", "GATEWAY", "MAC", "PORT");
 	inet_ntop(AF_INET, &resp->nh.host, buf, sizeof(buf));
-	printf("%-16s  " ETH_ADDR_FMT "     %u\n",
-	       buf,
-	       ETH_BYTES_SPLIT(resp->nh.mac.bytes),
-	       resp->nh.port_id);
+	printf("%s via %s lladdr " ETH_ADDR_FMT, dest, buf, ETH_BYTES_SPLIT(resp->nh.mac.bytes));
+	printf("iface %u", resp->nh.port_id);
+	printf("\n");
+	free(resp_ptr);
 
 	return CMD_SUCCESS;
 }
