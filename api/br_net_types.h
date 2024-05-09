@@ -26,7 +26,14 @@ static inline bool br_eth_addr_eq(const struct eth_addr *a, const struct eth_add
 	return memcmp(a->bytes, b->bytes, sizeof(a->bytes)) == 0;
 }
 
+static inline bool br_eth_addr_is_zero(const struct eth_addr *mac) {
+	struct eth_addr zero = {0};
+	return br_eth_addr_eq(mac, &zero);
+}
+
 static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
+	if (s == NULL)
+		goto err;
 	int ret = sscanf(
 		s,
 		ETH_ADDR_SCAN,
@@ -37,7 +44,12 @@ static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
 		&mac->bytes[4],
 		&mac->bytes[5]
 	);
-	return ret == 6 ? 0 : -1;
+	if (ret != 6)
+		goto err;
+	return 0;
+err:
+	errno = EINVAL;
+	return -1;
 }
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
