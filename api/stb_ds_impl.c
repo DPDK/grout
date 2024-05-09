@@ -12,7 +12,7 @@ char *arrjoin(char **array, char *sep) {
 
 	for (int i = 0; i < arrlen(array); i++) {
 		if (i > 0) {
-			out = br_astrcat(out, "%s%s", sep, array[i]);
+			out = astrcat(out, "%s%s", sep, array[i]);
 		} else {
 			out = strdup(array[i]);
 		}

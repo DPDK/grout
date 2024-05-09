@@ -84,7 +84,7 @@ cmocka_dep = dependency('cmocka')
 foreach t : tests
   name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
   t += {
-    'sources': t['sources'] + files('main/stb_ds_impl.c', 'main/string.c'),
+    'sources': t['sources'] + files('api/stb_ds_impl.c', 'api/string.c'),
     'include_directories': inc + cli_inc,
     'c_args': ['-coverage'],
     'link_args': t['link_args'] + ['-lgcov'],

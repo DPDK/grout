@@ -6,8 +6,6 @@ src += files(
   'dpdk.c',
   'main.c',
   'signals.c',
-  'stb_ds_impl.c',
-  'string.c',
 )
 
 inc += include_directories('.')

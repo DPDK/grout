@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_string.h>
+#include "br_string.h"
 
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
-char *br_astrcat(char *buf, const char *fmt, ...) {
+char *astrcat(char *buf, const char *fmt, ...) {
 	char *ret = NULL;
 	va_list ap;
 	int n;
@@ -42,4 +43,23 @@ char *br_astrcat(char *buf, const char *fmt, ...) {
 	}
 out:
 	return ret;
+}
+
+int utf8_check(const char *buf, size_t maxlen) {
+	mbstate_t mb;
+	size_t len;
+
+	if (strlen(buf) >= maxlen) {
+		errno = ENAMETOOLONG;
+		return -1;
+	}
+
+	memset(&mb, 0, sizeof(mb));
+	len = mbsrtowcs(NULL, &buf, 0, &mb);
+	if (len == (size_t)-1) {
+		errno = EILSEQ;
+		return -1;
+	}
+
+	return 0;
 }

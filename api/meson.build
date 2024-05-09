@@ -8,5 +8,10 @@ api_headers += files(
   'br_net_types.h',
 )
 
+src += files(
+  'stb_ds_impl.c',
+  'string.c',
+)
+
 inc += include_directories('.')
 cli_inc += include_directories('.')
