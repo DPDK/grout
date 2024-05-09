@@ -4,6 +4,8 @@
 #ifndef _BR_MBUF
 #define _BR_MBUF
 
+#include <br_macro.h>
+
 #include <rte_build_config.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
@@ -11,7 +13,6 @@
 #include <stdalign.h>
 #include <stdint.h>
 
-#define member_size(type, member) (sizeof(((type *)0)->member))
 #define BR_MBUF_PRIV_MAX_SIZE 24
 
 struct br_mbuf_priv {
@@ -19,7 +20,7 @@ struct br_mbuf_priv {
 	uint8_t data[BR_MBUF_PRIV_MAX_SIZE];
 };
 
-static_assert(sizeof(struct br_mbuf_priv) <= member_size(struct rte_mbuf, dynfield1));
+static_assert(sizeof(struct br_mbuf_priv) <= MEMBER_SIZE(struct rte_mbuf, dynfield1));
 
 extern int br_mdyn_offset;
 
