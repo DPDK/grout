@@ -79,4 +79,17 @@ static inline int arg_u16(const struct ec_pnode *p, const char *id, uint16_t *va
 #define CTX_SHOW CTX_ARG("show", "Display information about the configuration.")
 #define CTX_CLEAR CTX_ARG("clear", "Clear counters or temporary entries.")
 
+typedef int (*ec_node_dyn_comp_t)(
+	const struct br_api_client *,
+	const struct ec_node *,
+	struct ec_comp *,
+	const char *arg,
+	void *cb_arg
+);
+
+struct ec_node *ec_node_dyn(const char *id, ec_node_dyn_comp_t cb, void *cb_arg);
+
+#define CLIENT_ATTR "br_api_client"
+#define SOCK_PATH_ID "br_api_sock_path"
+
 #endif

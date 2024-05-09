@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "br_cli.h"
 #include "complete.h"
 #include "exec.h"
 #include "interact.h"
@@ -8,7 +9,6 @@
 
 #include <br_api.h>
 #include <br_api_client_impl.h>
-#include <br_cli.h>
 
 #include <ecoli.h>
 
@@ -134,6 +134,8 @@ int main(int argc, char **argv) {
 		errorf("br_connect: %s", strerror(errno));
 		goto end;
 	}
+
+	ec_dict_set(ec_node_attrs(cmdlist), CLIENT_ATTR, client, NULL);
 
 	if (argc > 0) {
 		status = exec_args(client, cmdlist, argc, (const char *const *)argv);

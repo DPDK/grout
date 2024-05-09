@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "br_cli.h"
 #include "complete.h"
-
-#include <br_cli.h>
 
 #include <ecoli.h>
 
@@ -17,19 +16,17 @@
 static struct ec_node *add_flags(struct ec_node *cmdlist) {
 	return EC_NODE_SEQ(
 		EC_NO_ID,
-		ec_node_many(
+		ec_node_option(
 			EC_NO_ID,
-			EC_NODE_OR(
+			EC_NODE_SUBSET(
 				EC_NO_ID,
 				FLAG("-h|--help", "Show usage help and exit."),
-				OPT("-s|--socket file",
+				OPT("-s|--socket " SOCK_PATH_ID,
 				    "Path to the control plane API socket.",
-				    ec_node("any", "file")),
+				    ec_node("file", SOCK_PATH_ID)),
 				FLAG("-e|--err-exit", "Abort on first error."),
 				FLAG("-x|--trace-commands", "Print executed commands.")
-			),
-			0,
-			0
+			)
 		),
 		cmdlist
 	);
@@ -123,7 +120,7 @@ int bash_complete(struct ec_node *cmdlist) {
 		const char *choice = ec_comp_item_get_str(item) + colon_prefix;
 		const char *help = find_help(item);
 		if (count > 1 && help != NULL) {
-			printf("%-*s      (%s)\n", comp_width, choice, help);
+			printf("%-*s    (%s)\n", comp_width, choice, help);
 		} else {
 			printf("%s\n", choice);
 		}
