@@ -14,6 +14,7 @@
 
 #include <errno.h>
 #include <getopt.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
@@ -106,6 +107,10 @@ int main(int argc, char **argv) {
 	int ret, c;
 
 	ret = EXIT_FAILURE;
+	if (setlocale(LC_CTYPE, "C.UTF-8") == NULL) {
+		perror("setlocale(LC_CTYPE, C.UTF-8)");
+		goto end;
+	}
 	tty_init();
 
 	if (ec_init() < 0) {

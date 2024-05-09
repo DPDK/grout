@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 #include <getopt.h>
+#include <locale.h>
 #include <sched.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -339,6 +340,11 @@ static int listen_api_socket(void) {
 
 int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
+
+	if (setlocale(LC_CTYPE, "C.UTF-8") == NULL) {
+		perror("setlocale(LC_CTYPE, C.UTF-8)");
+		goto end;
+	}
 
 	if (parse_args(argc, argv) < 0)
 		goto end;
