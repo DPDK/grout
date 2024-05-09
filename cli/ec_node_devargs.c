@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <br_macro.h>
+
 #include <ecoli.h>
 
 #include <dirent.h>
@@ -28,6 +30,13 @@ static int ec_node_devargs_parse(
 
 #define SYS_PCI_DEVICES "/sys/bus/pci/devices"
 #define PCI_CLASS_ETH "0x020000"
+static const char *const dpdk_vdevs[] = {
+	"net_null",
+	"net_tap",
+	"net_tun",
+	"net_vhost",
+	"net_virtio_user",
+};
 
 static int ec_node_devargs_complete(
 	const struct ec_node *node,
@@ -80,6 +89,13 @@ static int ec_node_devargs_complete(
 			continue;
 
 		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, word, de->d_name))
+			goto fail;
+	}
+
+	for (unsigned i = 0; i < ARRAY_DIM(dpdk_vdevs); i++) {
+		if (!ec_str_startswith(dpdk_vdevs[i], word))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_PARTIAL, word, dpdk_vdevs[i]))
 			goto fail;
 	}
 
