@@ -36,7 +36,7 @@ int worker_create(unsigned cpu_id) {
 	int ret;
 
 	if (worker == NULL)
-		return -ENOMEM;
+		return errno_log(ENOMEM, "rte_zmalloc");
 
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
@@ -44,7 +44,7 @@ int worker_create(unsigned cpu_id) {
 	if (!!(ret = pthread_create(&worker->thread, NULL, br_datapath_loop, worker))) {
 		pthread_cancel(worker->thread);
 		rte_free(worker);
-		return -ret;
+		return errno_log(-ret, "pthread_create");
 	}
 
 	LIST_INSERT_HEAD(&workers, worker, next);
@@ -61,7 +61,7 @@ int worker_destroy(unsigned cpu_id) {
 	struct worker *worker = worker_find(cpu_id);
 
 	if (worker == NULL)
-		return -ENOENT;
+		return errno_log(ENOENT, "worker_find");
 
 	LIST_REMOVE(worker, next);
 
@@ -146,7 +146,7 @@ int worker_ensure_default(int socket_id) {
 			continue;
 		return worker_create(cpu_id);
 	}
-	return -ERANGE;
+	return errno_log(ERANGE, "socket_id");
 }
 
 int port_plug(const struct port *port) {
@@ -169,7 +169,7 @@ int port_plug(const struct port *port) {
 		}
 	}
 	if (changed == 0)
-		return -ENODEV;
+		return errno_set(ENODEV);
 
 	LOG(INFO, "port %u plugged", port->port_id);
 
@@ -183,9 +183,9 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	int ret;
 
 	if (cpu_id == rte_get_main_lcore())
-		return -EBUSY;
+		return errno_set(EBUSY);
 	if (!numa_bitmask_isbitset(numa_all_cpus_ptr, cpu_id))
-		return -ERANGE;
+		return errno_set(ERANGE);
 
 	LIST_FOREACH (src_worker, &workers, next) {
 		arrforeach (qmap, src_worker->rxqs) {
@@ -200,7 +200,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 			goto move;
 		}
 	}
-	return -ENODEV;
+	return errno_set(ENODEV);
 move:
 	reconfig = false;
 

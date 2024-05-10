@@ -4,7 +4,10 @@
 #ifndef _BR_CORE_LOG
 #define _BR_CORE_LOG
 
+#include <rte_errno.h>
 #include <rte_log.h>
+
+#include <errno.h>
 
 extern int br_rte_log_type;
 #define RTE_LOGTYPE_BR br_rte_log_type
@@ -21,6 +24,32 @@ extern int br_rte_log_type;
 	do {                                                                                       \
 		LOG(EMERG, fmt __VA_OPT__(, ) __VA_ARGS__);                                        \
 		abort();                                                                           \
-	} while (0);
+	} while (0)
+
+static inline int __errno_log(int errnum, const char *func, const char *what) {
+	RTE_LOG(ERR, BR, "%s: %s: %s\n", func, what, rte_strerror(errnum));
+	errno = errnum;
+	return -errnum;
+}
+
+#define errno_log(err, what) __errno_log(err, __func__, what)
+
+static inline void *__errno_log_null(int errnum, const char *func, const char *what) {
+	RTE_LOG(ERR, BR, "%s: %s: %s\n", func, what, rte_strerror(errnum));
+	errno = errnum;
+	return NULL;
+}
+
+#define errno_log_null(err, what) __errno_log_null(err, __func__, what)
+
+static inline int errno_set(int errnum) {
+	errno = errnum;
+	return -errnum;
+}
+
+static inline void *errno_set_num(int errnum) {
+	errno = errnum;
+	return NULL;
+}
 
 #endif

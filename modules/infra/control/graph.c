@@ -49,10 +49,9 @@ void *br_node_data_get(const char *graph, const char *node) {
 
 	set_key(&key, graph, node);
 
-	if (rte_hash_lookup_data(hash, &key, &data) < 0) {
-		LOG(ERR, "(%s, %s): %s", graph, node, rte_strerror(rte_errno));
-		return NULL;
-	}
+	if (rte_hash_lookup_data(hash, &key, &data) < 0)
+		return errno_log_null(rte_errno, "rte_hash_lookup_data");
+
 	return data;
 }
 
@@ -66,10 +65,9 @@ int br_node_data_set(const char *graph, const char *node, void *data) {
 		rte_hash_del_key(hash, &key);
 		free(old_data);
 	}
-	if (rte_hash_add_key_data(hash, &key, data) < 0) {
-		LOG(ERR, "(%s, %s): %s", graph, node, rte_strerror(rte_errno));
-		return -1;
-	}
+	if (rte_hash_add_key_data(hash, &key, data) < 0)
+		return errno_log(rte_errno, "rte_hash_add_key_data");
+
 	return 0;
 }
 
@@ -239,7 +237,7 @@ err:
 	free(rx);
 	free(tx);
 	node_data_reset(name);
-	return ret;
+	return errno_set(-ret);
 }
 
 int worker_graph_reload_all(void) {
@@ -250,10 +248,8 @@ int worker_graph_reload_all(void) {
 	LIST_FOREACH (worker, &workers, next) {
 		next = !atomic_load(&worker->cur_config);
 
-		if ((ret = worker_graph_new(worker, next)) < 0) {
-			LOG(ERR, "worker_graph_new: %s", rte_strerror(-ret));
-			return ret;
-		}
+		if ((ret = worker_graph_new(worker, next)) < 0)
+			return errno_log(-ret, "worker_graph_new");
 
 		// wait for datapath worker to pickup the config update
 		atomic_store_explicit(&worker->next_config, next, memory_order_release);
@@ -266,7 +262,7 @@ int worker_graph_reload_all(void) {
 		if (worker->config[next].graph != NULL) {
 			node_data_reset(worker->config[next].graph->name);
 			if ((ret = rte_graph_destroy(worker->config[next].graph->id)) < 0)
-				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
+				errno_log(-ret, "rte_graph_destroy");
 			worker->config[next].graph = NULL;
 		}
 	}
