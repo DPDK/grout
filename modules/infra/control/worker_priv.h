@@ -7,8 +7,8 @@
 #include <br_port.h>
 #include <br_worker.h>
 
-int port_unplug(const struct port *);
-int port_plug(const struct port *);
+int port_unplug(uint16_t port_id);
+int port_plug(uint16_t port_id);
 
 size_t worker_count(void);
 int worker_create(unsigned cpu_id);

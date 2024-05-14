@@ -95,20 +95,20 @@ struct worker *worker_find(unsigned cpu_id) {
 	return NULL;
 }
 
-int port_unplug(const struct port *port) {
+int port_unplug(uint16_t port_id) {
 	struct queue_map *qmap;
 	struct worker *worker;
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
-			if (qmap->port_id == port->port_id) {
+			if (qmap->port_id == port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
 		}
 		arrforeach (qmap, worker->txqs) {
-			if (qmap->port_id == port->port_id) {
+			if (qmap->port_id == port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
@@ -117,7 +117,7 @@ int port_unplug(const struct port *port) {
 	if (changed == 0)
 		return 0;
 
-	LOG(INFO, "port %u unplugged", port->port_id);
+	LOG(INFO, "port %u unplugged", port_id);
 
 	return worker_graph_reload_all();
 }
@@ -149,20 +149,20 @@ int worker_ensure_default(int socket_id) {
 	return errno_log(ERANGE, "socket_id");
 }
 
-int port_plug(const struct port *port) {
+int port_plug(uint16_t port_id) {
 	struct queue_map *qmap;
 	struct worker *worker;
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
-			if (qmap->port_id == port->port_id) {
+			if (qmap->port_id == port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
 		}
 		arrforeach (qmap, worker->txqs) {
-			if (qmap->port_id == port->port_id) {
+			if (qmap->port_id == port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
@@ -171,7 +171,7 @@ int port_plug(const struct port *port) {
 	if (changed == 0)
 		return errno_set(ENODEV);
 
-	LOG(INFO, "port %u plugged", port->port_id);
+	LOG(INFO, "port %u plugged", port_id);
 
 	return worker_graph_reload_all();
 }
