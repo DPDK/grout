@@ -69,49 +69,47 @@ Multiple commands can be piped into standard input:
 
 ```console
 [root@dio brouter]$ ./build/br-cli -ex < commands.list
-+ add port devargs 0000:18:00.0
-Created port 0
-+ add port devargs 0000:18:00.1
-Created port 1
-+ set port index 0 numrxqs 1 qsize 2048
-+ set port index 1 numrxqs 1 qsize 2048
-+ set port index 0 rxqmap 0 cpu 7
-+ set port index 1 rxqmap 0 cpu 27
-+ show port all
-INDEX  DEVICE        RX_QUEUES  RXQ_SIZE  TX_QUEUES  TXQ_SIZE  MAC
-1      0000:18:00.1  1          2048      2          2048      b8:3f:d2:fa:53:87
-0      0000:18:00.0  1          2048      2          2048      b8:3f:d2:fa:53:86
-+ show port rxqs
-PORT      RXQ_ID    CPU_ID    ENABLED
-0         0         7         1
-1         0         27        1
-+ add ip addr 172.16.0.2/32 port 0
-+ add ip addr 172.16.1.2/32 port 1
-+ add ip nexthop 172.16.0.1 mac 30:3e:a7:0b:f2:54 port 0
-+ add ip nexthop 172.16.1.1 mac 30:3e:a7:0b:f2:55 port 1
++ add interface port p0 devargs 0000:18:00.0 rxqs 1 qsize 2048
+Created interface 0
++ add interface port p1 devargs 0000:18:00.1 rxqs 1 qsize 2048
+Created interface 1
++ set port qmap p0 rxq 0 cpu 7
++ set port qmap p1 rxq 0 cpu 27
++ show interface all
+NAME  ID  FLAGS       TYPE  INFO
+p0    0   up running  port  devargs=0000:18:00.0 mac=b8:3f:d2:fa:53:86
+p1    1   up running  port  devargs=0000:18:00.1 mac=b8:3f:d2:fa:53:87
++ show port qmap
+IFACE  RXQ_ID  CPU_ID  ENABLED
+p0     0       7       1
+p1     0       27      1
++ add ip address 172.16.0.2/32 iface p0
++ add ip address 172.16.1.2/32 iface p1
++ add ip nexthop 172.16.0.1 mac b8:3f:d2:fa:53:7a iface p0
++ add ip nexthop 172.16.1.1 mac b8:3f:d2:fa:53:7b iface p1
 + add ip route 172.16.0.0/24 via 172.16.0.1
 + add ip route 172.16.1.0/24 via 172.16.1.1
 + add ip route 0.0.0.0/0 via 172.16.1.183
-+ show ip addr
-PORT        ADDRESS
-0           172.16.0.2/32
-1           172.16.1.2/32
++ show ip address
+IFACE  ADDRESS
+p0     172.16.0.2/32
+p1     172.16.1.2/32
 + show ip route
-DESTINATION           NEXT_HOP
-172.16.0.1/32         172.16.0.1
-172.16.0.2/32         172.16.0.2
-172.16.0.0/24         172.16.0.1
-172.16.1.1/32         172.16.1.1
-172.16.1.2/32         172.16.1.2
-172.16.1.0/24         172.16.1.1
-0.0.0.0/0             172.16.1.183
+DESTINATION    NEXT_HOP
+172.16.0.1/32  172.16.0.1
+172.16.0.2/32  172.16.0.2
+172.16.0.0/24  172.16.0.1
+172.16.1.1/32  172.16.1.1
+172.16.1.2/32  172.16.1.2
+172.16.1.0/24  172.16.1.1
+0.0.0.0/0      172.16.1.183
 + show ip nexthop
-IP              MAC                   PORT    AGE    STATE
-172.16.1.183    ??:??:??:??:??:??     ?       ?      gateway
-172.16.1.2      30:3e:a7:0b:ea:79     1       0      reachable static local link
-172.16.0.2      30:3e:a7:0b:ea:78     0       0      reachable static local link
-172.16.0.1      30:3e:a7:0b:f2:54     0       0      reachable static gateway
-172.16.1.1      30:3e:a7:0b:f2:55     1       0      reachable static gateway
+IP            MAC                IFACE  AGE  STATE
+172.16.1.183  ??:??:??:??:??:??  ?      ?    gateway
+172.16.1.2    b8:3f:d2:fa:53:87  p1     0    reachable static local link
+172.16.0.2    b8:3f:d2:fa:53:86  p0     0    reachable static local link
+172.16.0.1    b8:3f:d2:fa:53:7a  p0     0    reachable static gateway
+172.16.1.1    b8:3f:d2:fa:53:7b  p1     0    reachable static gateway
 ```
 
 The CLI can be used as a one-shot command (with bash completion built-in):
@@ -119,36 +117,38 @@ The CLI can be used as a one-shot command (with bash completion built-in):
 ```console
 [root@dio brouter]$ complete -o default -C './build/br-cli -c' ./build/br-cli
 [root@dio brouter]$ ./build/br-cli <TAB><TAB>
-add                   (Create objects in the configuration.)
-clear                 (Clear counters or temporary entries.)
-del                   (Delete objects from the configuration.)
--e                    (Abort on first error.)
---err-exit            (Abort on first error.)
---help                (Show usage help and exit.)
--h                    (Show usage help and exit.)
-quit                  (Exit the CLI.)
-set                   (Modify existing objects in the configuration.)
-show                  (Display information about the configuration.)
---socket              (Path to the control plane API socket.)
--s                    (Path to the control plane API socket.)
---trace-commands      (Print executed commands.)
--x                    (Print executed commands.)
+add                 (Create objects in the configuration.)
+clear               (Clear counters or temporary entries.)
+del                 (Delete objects from the configuration.)
+-e                  (Abort on first error.)
+--err-exit          (Abort on first error.)
+--help              (Show usage help and exit.)
+-h                  (Show usage help and exit.)
+quit                (Exit the CLI.)
+set                 (Modify existing objects in the configuration.)
+show                (Display information about the configuration.)
+--socket            (Path to the control plane API socket.)
+-s                  (Path to the control plane API socket.)
+--trace-commands    (Print executed commands.)
+-x                  (Print executed commands.)
 [root@dio brouter]$ ./build/br-cli show <TAB><TAB>
-graph      (Show packet processing graph info.)
-ip         (Show IPv4 stack details.)
-port       (Display port details.)
-stats      (Print statistics.)
-[root@dio brouter]$ ./build/br-cli show graph <TAB><TAB>
-dot        (Dump the graph in DOT format.)
-stats      (Print graph nodes statistics.)
-[root@dio brouter]$ ./build/br-cli show graph stats
-NODE               CALLS      PACKETS   PKTS/CALL   CYCLES/CALL    CYCLES/PKT
-port_tx           223946     24121370       107.7        6076.0          56.4
-ip_input          223946     24121370       107.7        4999.5          46.4
-port_rx           268128     24121370        90.0        3648.6          40.6
-eth_classify      223946     24121370       107.7        2404.0          22.3
-ip_output         223946     24121370       107.7        1518.5          14.1
-ip_forward        223946     24121370       107.7        1141.3          10.6
+graph        (Show packet processing graph info.)
+interface    (Display interface details.)
+ip           (Show IPv4 stack details.)
+port         (Display DPDK port information.)
+stats        (Print statistics.)
+[root@dio brouter]$ ./build/br-cli show stats <TAB><TAB>
+hardware    (Print hardware stats.)
+software    (Print software stats.)
+[root@dio brouter]$ ./build/br-cli show stats software
+NODE         CALLS   PACKETS  PKTS/CALL  CYCLES/CALL  CYCLES/PKT
+port_rx     757792  22623757       29.9       1776.4        59.5
+ip_input    333675  22623757       67.8       3091.0        45.6
+port_tx     333675  22623757       67.8       1984.2        29.3
+eth_input   757792  22623757       29.9        659.7        22.1
+eth_output  333675  22623757       67.8       1323.4        19.5
+ip_output   333675  22623757       67.8        926.3        13.7
+ip_forward  333675  22623757       67.8        691.8        10.2
 ```
 
 ## Packet graph
