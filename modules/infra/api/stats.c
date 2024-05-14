@@ -15,9 +15,15 @@
 
 #include <fnmatch.h>
 
+struct stat_value {
+	uint64_t objs;
+	uint64_t calls;
+	uint64_t cycles;
+};
+
 struct stat_entry {
 	char *key;
-	uint64_t value;
+	struct stat_value value;
 };
 
 static struct api_out stats_get(const void *request, void **response) {
@@ -42,60 +48,22 @@ static struct api_out stats_get(const void *request, void **response) {
 				const char *name = rte_node_id_to_name(s->node_id);
 				struct stat_entry *e = shgetp_null(smap, name);
 				if (e != NULL) {
-					e->value += s->objs;
+					e->value.objs += s->objs;
+					e->value.calls += s->calls;
+					e->value.cycles += s->cycles;
 				} else {
-					shput(smap, name, s->objs);
+					struct stat_value value = {
+						.objs = s->objs,
+						.calls = s->calls,
+						.cycles = s->cycles,
+					};
+					shput(smap, name, value);
 				}
 			}
 		}
 	}
 
 	if (req->flags & BR_INFRA_STAT_F_HW) {
-		struct rte_eth_stats rte_stats;
-		struct rte_eth_dev_info info;
-		struct port *port;
-
-#define hw_stat(field)                                                                             \
-	do {                                                                                       \
-		snprintf(name, sizeof(name), "p%u.%s", port->port_id, #field);                     \
-		shput(smap, name, rte_stats.field);                                                \
-	} while (0)
-#define q_stat(q, dir, field)                                                                      \
-	do {                                                                                       \
-		snprintf(name, sizeof(name), "p%u.%sq%u.%s", port->port_id, dir, q, #field);       \
-		shput(smap, name, rte_stats.q_##field[q]);                                         \
-	} while (0)
-
-		STAILQ_FOREACH (port, &ports, next) {
-			if ((ret = rte_eth_stats_get(port->port_id, &rte_stats)) < 0)
-				goto err;
-			if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
-				goto err;
-
-			hw_stat(ipackets);
-			hw_stat(opackets);
-			hw_stat(ibytes);
-			hw_stat(obytes);
-			hw_stat(imissed);
-			hw_stat(ierrors);
-			hw_stat(oerrors);
-			hw_stat(rx_nombuf);
-
-			for (unsigned q = 0; q < info.nb_rx_queues; q++) {
-				q_stat(q, "rx", ipackets);
-				q_stat(q, "rx", ibytes);
-				q_stat(q, "rx", errors);
-			}
-			for (unsigned q = 0; q < info.nb_tx_queues; q++) {
-				q_stat(q, "tx", opackets);
-				q_stat(q, "tx", obytes);
-			}
-		}
-#undef hw_stat
-#undef q_stat
-	}
-
-	if (req->flags & BR_INFRA_STAT_F_XHW) {
 		struct rte_eth_xstat_name *names = NULL;
 		struct rte_eth_xstat *xstats = NULL;
 		struct port *port;
@@ -125,11 +93,12 @@ static struct api_out stats_get(const void *request, void **response) {
 
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
+				struct stat_value value = {.objs = xstats[i].value};
 				// prefix each xstat name with 'p${PORT_ID}.'
 				snprintf(
 					name, sizeof(name), "p%u.%s", port->port_id, names[i].name
 				);
-				shput(smap, name, xstats[i].value);
+				shput(smap, name, value);
 			}
 free_xstat:
 			free(xstats);
@@ -143,7 +112,7 @@ free_xstat:
 	n_stats = 0;
 	for (unsigned i = 0; i < shlenu(smap); i++) {
 		struct stat_entry *e = &smap[i];
-		if (e->value == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
+		if (e->value.objs == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
 			continue;
 		switch (fnmatch(req->pattern, e->key, 0)) {
 		case 0:
@@ -167,13 +136,15 @@ free_xstat:
 	for (unsigned i = 0; i < shlenu(smap); i++) {
 		struct stat_entry *e = &smap[i];
 		struct br_infra_stat *s;
-		if (e->value == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
+		if (e->value.objs == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
 			continue;
 		switch (fnmatch(req->pattern, e->key, 0)) {
 		case 0:
 			s = &resp->stats[resp->n_stats++];
 			memccpy(s->name, e->key, 0, sizeof(s->name));
-			s->value = e->value;
+			s->objs = e->value.objs;
+			s->calls = e->value.calls;
+			s->cycles = e->value.cycles;
 		case FNM_NOMATCH:
 			continue;
 		default:

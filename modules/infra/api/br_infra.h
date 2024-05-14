@@ -31,12 +31,7 @@ struct br_infra_rxq {
 
 struct br_infra_stat {
 	char name[64];
-	uint64_t value;
-};
-
-struct br_infra_graph_stat {
-	char node[64];
-	uint64_t objects;
+	uint64_t objs;
 	uint64_t calls;
 	uint64_t cycles;
 };
@@ -119,8 +114,7 @@ struct br_infra_rxq_set_req {
 // stats ///////////////////////////////////////////////////////////////////////
 #define BR_INFRA_STAT_F_SW BR_BIT16(0) //!< include software stats
 #define BR_INFRA_STAT_F_HW BR_BIT16(1) //!< include hardware stats
-#define BR_INFRA_STAT_F_XHW BR_BIT16(2) //<! include hardware extended stats
-#define BR_INFRA_STAT_F_ZERO BR_BIT16(3) //<! include zero value stats
+#define BR_INFRA_STAT_F_ZERO BR_BIT16(2) //!< include zero value stats
 typedef uint16_t br_infra_stats_flags_t;
 
 #define BR_INFRA_STATS_GET REQUEST_TYPE(BR_INFRA_MODULE, 0x0020)
@@ -148,15 +142,6 @@ struct br_infra_stats_get_resp {
 struct br_infra_graph_dump_resp {
 	uint32_t len;
 	char dot[/* len */];
-};
-
-#define BR_INFRA_GRAPH_STATS REQUEST_TYPE(BR_INFRA_MODULE, 0x0031)
-
-// struct br_infra_graph_stats_req { };
-
-struct br_infra_graph_stats_resp {
-	uint16_t n_stats;
-	struct br_infra_graph_stat stats[/* n_stats */];
 };
 
 #endif

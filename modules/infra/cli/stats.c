@@ -5,31 +5,41 @@
 #include <br_cli.h>
 #include <br_infra.h>
 #include <br_net_types.h>
+#include <br_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
+#include <inttypes.h>
 #include <unistd.h>
 
-static int stats_order(const void *a, const void *b) {
-	const struct br_infra_stat *stat_a = a;
-	const struct br_infra_stat *stat_b = b;
-	return strncmp(stat_a->name, stat_b->name, sizeof(stat_a->name));
+static int stats_order_name(const void *sa, const void *sb) {
+	const struct br_infra_stat *a = sa;
+	const struct br_infra_stat *b = sb;
+	return strncmp(a->name, b->name, sizeof(a->name));
+}
+
+static int stats_order_cycles(const void *sa, const void *sb) {
+	const struct br_infra_stat *a = sa;
+	const struct br_infra_stat *b = sb;
+	if (a->cycles == b->cycles)
+		return 0;
+	if (a->cycles > b->cycles)
+		return -1;
+	return 1;
 }
 
 static cmd_status_t stats_get(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct br_infra_stats_get_req req = {.flags = 0};
+	bool brief = arg_str(p, "brief") != NULL;
 	struct br_infra_stats_get_resp *resp;
 	void *resp_ptr = NULL;
 	const char *pattern;
 
 	if (arg_str(p, "software") != NULL)
 		req.flags |= BR_INFRA_STAT_F_SW;
-	if (arg_str(p, "hardware") != NULL)
+	else if (arg_str(p, "hardware") != NULL)
 		req.flags |= BR_INFRA_STAT_F_HW;
-	if (arg_str(p, "xstats") != NULL)
-		req.flags |= BR_INFRA_STAT_F_XHW;
-	if (arg_str(p, "all") != NULL)
-		req.flags |= BR_INFRA_STAT_F_SW | BR_INFRA_STAT_F_HW | BR_INFRA_STAT_F_XHW;
 	if (arg_str(p, "zero") != NULL)
 		req.flags |= BR_INFRA_STAT_F_ZERO;
 	pattern = arg_str(p, "PATTERN");
@@ -38,19 +48,59 @@ static cmd_status_t stats_get(const struct br_api_client *c, const struct ec_pno
 	snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
 
 	if (br_api_client_send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
+		goto fail;
 
 	resp = resp_ptr;
-	qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order);
 
-	for (size_t i = 0; i < resp->n_stats; i++) {
-		const struct br_infra_stat *s = &resp->stats[i];
-		printf("%s %lu\n", s->name, s->value);
+	if (req.flags & BR_INFRA_STAT_F_HW || brief) {
+		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order_name);
+		for (size_t i = 0; i < resp->n_stats; i++) {
+			const struct br_infra_stat *s = &resp->stats[i];
+			if (req.flags & BR_INFRA_STAT_F_HW || brief)
+				printf("%s %lu\n", s->name, s->objs);
+		}
+	} else {
+		struct libscols_table *table = scols_new_table();
+
+		scols_table_new_column(table, "NODE", 0, 0);
+		scols_table_new_column(table, "CALLS", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "PACKETS", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "PKTS/CALL", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "CYCLES/CALL", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
+		scols_table_set_column_separator(table, "  ");
+
+		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order_cycles);
+
+		for (size_t i = 0; i < resp->n_stats; i++) {
+			struct libscols_line *line = scols_table_new_line(table, NULL);
+			double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
+			const struct br_infra_stat *s = &resp->stats[i];
+
+			if (s->calls != 0) {
+				pkt_call = ((double)s->objs) / ((double)s->calls);
+				cycles_call = ((double)s->cycles) / ((double)s->calls);
+			}
+			if (s->objs != 0)
+				cycles_pkt = ((double)s->cycles) / ((double)s->objs);
+
+			scols_line_sprintf(line, 0, "%s", s->name);
+			scols_line_sprintf(line, 1, "%lu", s->calls);
+			scols_line_sprintf(line, 2, "%lu", s->objs);
+			scols_line_sprintf(line, 3, "%.01f", pkt_call);
+			scols_line_sprintf(line, 4, "%.01f", cycles_call);
+			scols_line_sprintf(line, 5, "%.01f", cycles_pkt);
+		}
+
+		scols_print_table(table);
+		scols_unref_table(table);
 	}
 
 	free(resp_ptr);
-
 	return CMD_SUCCESS;
+fail:
+	free(resp_ptr);
+	return CMD_ERROR;
 }
 
 static cmd_status_t stats_reset(const struct br_api_client *c, const struct ec_pnode *p) {
@@ -67,13 +117,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("stats", "Print statistics.")),
-		"software|hardware|xstats|all [zero] [pattern PATTERN]",
+		"(software [brief])|hardware [zero,(pattern PATTERN)]",
 		stats_get,
 		"Print statistics.",
 		with_help("Print software stats.", ec_node_str("software", "software")),
 		with_help("Print hardware stats.", ec_node_str("hardware", "hardware")),
-		with_help("Print extended driver stats.", ec_node_str("xstats", "xstats")),
-		with_help("Print all stats.", ec_node_str("all", "all")),
+		with_help("Only print packet counts.", ec_node_str("brief", "brief")),
 		with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
 		with_help("Filter by glob pattern.", ec_node("any", "PATTERN"))
 	);
