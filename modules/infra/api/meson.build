@@ -3,7 +3,7 @@
 
 src += files(
   'graph.c',
-  'port.c',
+  'iface.c',
   'rxq.c',
   'stats.c',
 )

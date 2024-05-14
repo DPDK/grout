@@ -5,10 +5,11 @@
 #include "rte_mbuf.h"
 
 #include <br_datapath.h>
+#include <br_eth_output.h>
 #include <br_graph.h>
+#include <br_iface.h>
 #include <br_ip4_control.h>
 #include <br_log.h>
-#include <br_tx.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -19,7 +20,7 @@
 #include <rte_spinlock.h>
 
 enum {
-	TX = 0,
+	OUTPUT = 0,
 	FULL,
 	ERROR,
 	EDGE_COUNT,
@@ -38,10 +39,10 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 
 	if (nh->flags & BR_IP4_NH_F_REACHABLE) {
 		// The next hop somehow became reachable after it was moved here from ip_output.
-		struct tx_mbuf_data *tx_data = tx_mbuf_data(mbuf);
-		rte_ether_addr_copy(&nh->lladdr, &tx_data->dst);
-		tx_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		mbuf->port = nh->port_id;
+		struct eth_output_mbuf_data *data = eth_output_mbuf_data(mbuf);
+		rte_ether_addr_copy(&nh->lladdr, &data->dst);
+		data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		data->iface_id = nh->iface_id;
 		status = OK_TO_SEND;
 	} else if (nh->n_held_pkts < IP4_NH_MAX_HELD_PKTS) {
 		// TODO: Implement this as a tail queue to preserve ordering.
@@ -68,7 +69,7 @@ static uint16_t arp_output_request_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct tx_mbuf_data *tx_data;
+	struct eth_output_mbuf_data *eth_data;
 	struct nexthop *nh, *local;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
@@ -88,7 +89,7 @@ static uint16_t arp_output_request_process(
 		// of an ARP request or reply from the destination IP.
 		switch (hold_packet(nh, mbuf)) {
 		case OK_TO_SEND:
-			next = TX;
+			next = OUTPUT;
 			goto next;
 		case HOLD_QUEUE_FULL:
 			next = FULL;
@@ -97,14 +98,13 @@ static uint16_t arp_output_request_process(
 			break;
 		}
 
-		// Create a brand new mbuf to old the ARP request.
+		// Create a brand new mbuf to hold the ARP request.
 		mbuf = rte_pktmbuf_alloc(mbuf->pool);
 		if (mbuf == NULL) {
-			// original packet was held in the nexthop queue
-			// do not pass anything to the arp_error node
-			continue;
+			next = ERROR;
+			goto next;
 		}
-		local = ip4_addr_get(nh->port_id);
+		local = ip4_addr_get(nh->iface_id);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;
@@ -117,18 +117,21 @@ static uint16_t arp_output_request_process(
 		arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REQUEST);
 		arp->arp_hlen = sizeof(struct eth_addr);
 		arp->arp_plen = sizeof(ip4_addr_t);
-		rte_eth_macaddr_get(local->port_id, &arp->arp_data.arp_sha);
+		if (iface_get_eth_addr(local->iface_id, &arp->arp_data.arp_sha) < 0) {
+			next = ERROR;
+			goto next;
+		}
 		arp->arp_data.arp_sip = local->ip;
 		memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
 		arp->arp_data.arp_tip = nh->ip;
 
 		// Prepare ethernet layer info.
-		tx_data = tx_mbuf_data(mbuf);
-		rte_ether_addr_copy(&arp->arp_data.arp_tha, &tx_data->dst);
-		tx_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
-		mbuf->port = nh->port_id;
+		eth_data = eth_output_mbuf_data(mbuf);
+		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
+		eth_data->iface_id = nh->iface_id;
 
-		next = TX;
+		next = OUTPUT;
 		sent++;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
@@ -142,7 +145,7 @@ static struct rte_node_register arp_output_request_node = {
 	.process = arp_output_request_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "port_tx",
+		[OUTPUT] = "eth_output",
 		[FULL] = "arp_queue_full",
 		[ERROR] = "arp_output_error",
 	},

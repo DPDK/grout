@@ -15,9 +15,7 @@
 #include <numa.h>
 #include <rte_ethdev.h>
 
-static struct port p0 = {.port_id = 0, .n_rxq = 2};
-static struct port p1 = {.port_id = 1, .n_rxq = 2};
-static struct port p2 = {.port_id = 2, .n_rxq = 2};
+static struct iface *ifaces[] = {NULL, NULL, NULL};
 static struct worker w1 = {.cpu_id = 1, .started = true};
 static struct worker w2 = {.cpu_id = 2, .started = true};
 static struct worker w3 = {.cpu_id = 3, .started = true};
@@ -27,6 +25,19 @@ static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
 int br_rte_log_type;
 void br_register_api_handler(struct br_api_handler *) { }
 void br_register_module(struct br_module *) { }
+void iface_type_register(struct iface_type *) { }
+
+struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
+	uint16_t ifid;
+	(void)type_id;
+	if (prev == NULL)
+		ifid = 0;
+	else
+		ifid = prev->id + 1;
+	if (ifid < ARRAY_DIM(ifaces))
+		return ifaces[ifid];
+	return NULL;
+}
 
 mock_func(int, worker_graph_reload_all(void));
 mock_func(void, worker_graph_free(struct worker *));
@@ -50,6 +61,8 @@ mock_func(
 	__wrap_rte_eth_dev_info_get(uint16_t, struct rte_eth_dev_info *info),
 	memcpy(info, &dev_info, sizeof(*info))
 );
+mock_func(int, __wrap_rte_eth_dev_get_mtu(uint16_t, uint16_t *));
+mock_func(int, __wrap_rte_eth_macaddr_get(uint16_t, struct rte_ether_addr *));
 mock_func(
 	int,
 	__wrap_rte_eth_rx_queue_setup(uint16_t, uint16_t, uint16_t, unsigned int, const struct rte_eth_rxconf *, struct rte_mempool *)
@@ -108,10 +121,15 @@ static struct queue_map q(uint16_t port_id, uint16_t rxq_id) {
 }
 
 static int setup(void **) {
-	STAILQ_INSERT_TAIL(&ports, &p0, next);
-	STAILQ_INSERT_TAIL(&ports, &p1, next);
-	STAILQ_INSERT_TAIL(&ports, &p2, next);
-
+	for (int i = 0; i < 3; i++) {
+		struct iface_info_port *port;
+		struct iface *iface = calloc(1, sizeof(*iface) + sizeof(*port));
+		port = (struct iface_info_port *)iface->info;
+		iface->id = i;
+		port->port_id = i;
+		port->n_rxq = 2;
+		ifaces[i] = iface;
+	}
 	STAILQ_INSERT_TAIL(&workers, &w1, next);
 	arrpush(w1.rxqs, q(0, 0));
 	arrpush(w1.rxqs, q(0, 1));
@@ -140,6 +158,8 @@ static int teardown(void **) {
 		arrfree(w->txqs);
 	}
 	STAILQ_INIT(&workers);
+	for (int i = 0; i < 3; i++)
+		free(ifaces[i]);
 	return 0;
 }
 
@@ -157,6 +177,8 @@ static void common_mocks(void) {
 	will_return_maybe(__wrap_rte_eth_rx_queue_setup, 0);
 	will_return_maybe(__wrap_rte_eth_tx_queue_setup, 0);
 	will_return_maybe(__wrap_rte_free, 0);
+	will_return_maybe(__wrap_rte_eth_dev_get_mtu, 0);
+	will_return_maybe(__wrap_rte_eth_macaddr_get, 0);
 	will_return_maybe(__wrap_rte_get_main_lcore, 0);
 	will_return_maybe(__wrap_rte_mempool_free, 0);
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);

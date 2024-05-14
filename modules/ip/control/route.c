@@ -146,7 +146,7 @@ static struct api_out route4_get(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	resp->nh.host = nh->ip;
-	resp->nh.port_id = nh->port_id;
+	resp->nh.iface_id = nh->iface_id;
 	memcpy(&resp->nh.mac, &nh->lladdr, sizeof(resp->nh.mac));
 	resp->nh.flags = nh->flags;
 

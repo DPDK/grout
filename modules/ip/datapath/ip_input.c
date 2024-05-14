@@ -3,7 +3,7 @@
 
 #include "ip4.h"
 
-#include <br_datapath.h>
+#include <br_eth_input.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
 #include <br_log.h>
@@ -89,10 +89,10 @@ next_packet:
 }
 
 static void input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_classify", "ip_input");
+	rte_edge_t edge = br_node_attach_parent("eth_input", "ip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(classify, ipv4_input) failed");
-	br_classify_add_proto(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
+		ABORT("br_node_attach_parent(eth_input, ip_input) failed");
+	br_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
 }
 
 static struct rte_node_register input_node = {

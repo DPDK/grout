@@ -66,10 +66,12 @@ static struct api_out stats_get(const void *request, void **response) {
 	if (req->flags & BR_INFRA_STAT_F_HW) {
 		struct rte_eth_xstat_name *names = NULL;
 		struct rte_eth_xstat *xstats = NULL;
-		struct port *port;
+		struct iface *iface = NULL;
 		unsigned num;
 
-		STAILQ_FOREACH (port, &ports, next) {
+		while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+			struct iface_info_port *port = (struct iface_info_port *)iface->info;
+
 			// call first with NULL/0 to get the exact count
 			if ((ret = rte_eth_xstats_get(port->port_id, NULL, 0)) < 0)
 				goto err;
@@ -94,10 +96,8 @@ static struct api_out stats_get(const void *request, void **response) {
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
 				struct stat_value value = {.objs = xstats[i].value};
-				// prefix each xstat name with 'p${PORT_ID}.'
-				snprintf(
-					name, sizeof(name), "p%u.%s", port->port_id, names[i].name
-				);
+				// prefix each xstat name with interface name
+				snprintf(name, sizeof(name), "%s.%s", iface->name, names[i].name);
 				shput(smap, name, value);
 			}
 free_xstat:
@@ -164,7 +164,7 @@ err:
 
 static struct api_out stats_reset(const void *request, void **response) {
 	struct worker *worker;
-	struct port *port;
+	struct iface *iface;
 	int ret;
 
 	(void)request;
@@ -172,7 +172,10 @@ static struct api_out stats_reset(const void *request, void **response) {
 
 	STAILQ_FOREACH (worker, &workers, next)
 		atomic_store(&worker->stats_reset, true);
-	STAILQ_FOREACH (port, &ports, next) {
+
+	iface = NULL;
+	while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+		struct iface_info_port *port = (struct iface_info_port *)iface->info;
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0);
 		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)

@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'iface.c',
   'port.c',
   'worker.c',
   'graph.c',
@@ -17,6 +18,8 @@ tests += [
       '-Wl,--wrap=pthread_create',
       '-Wl,--wrap=pthread_join',
       '-Wl,--wrap=rte_dev_name',
+      '-Wl,--wrap=rte_eth_macaddr_get',
+      '-Wl,--wrap=rte_eth_dev_get_mtu',
       '-Wl,--wrap=rte_eth_dev_configure',
       '-Wl,--wrap=rte_eth_dev_info_get',
       '-Wl,--wrap=rte_eth_dev_start',

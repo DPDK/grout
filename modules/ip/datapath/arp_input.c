@@ -3,7 +3,7 @@
 
 #include "ip4.h"
 
-#include <br_datapath.h>
+#include <br_eth_input.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
 #include <br_log.h>
@@ -17,8 +17,8 @@
 enum {
 	OP_REQUEST = 0,
 	OP_REPLY,
-	OP_UNSUPPORTED,
-	PROTO_UNSUPPORTED,
+	OP_UNSUPP,
+	PROTO_UNSUPP,
 	IP_OUTPUT,
 	EDGE_COUNT,
 };
@@ -28,7 +28,7 @@ static inline void update_nexthop(
 	struct rte_node *node,
 	struct nexthop *nh,
 	uint64_t now,
-	const struct rte_mbuf *mbuf,
+	uint16_t iface_id,
 	const struct rte_arp_hdr *arp
 ) {
 	struct br_mbuf_priv *priv;
@@ -42,7 +42,7 @@ static inline void update_nexthop(
 
 	// Refresh all fields.
 	nh->last_seen = now;
-	nh->port_id = mbuf->port;
+	nh->iface_id = iface_id;
 	nh->flags |= BR_IP4_NH_F_REACHABLE;
 	nh->flags &= ~(BR_IP4_NH_F_STALE | BR_IP4_NH_F_PENDING);
 	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
@@ -68,6 +68,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct arp_mbuf_data *arp_data;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
+	uint16_t iface_id;
 	rte_edge_t next;
 	uint32_t idx;
 	uint64_t now;
@@ -80,11 +81,11 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// ARP protocol sanity checks.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		if (rte_be_to_cpu_16(arp->arp_hardware) != RTE_ARP_HRD_ETHER) {
-			next = PROTO_UNSUPPORTED;
+			next = PROTO_UNSUPP;
 			goto next;
 		}
 		if (rte_be_to_cpu_16(arp->arp_protocol) != RTE_ETHER_TYPE_IPV4) {
-			next = PROTO_UNSUPPORTED;
+			next = PROTO_UNSUPP;
 			goto next;
 		}
 		switch (rte_be_to_cpu_16(arp->arp_opcode)) {
@@ -95,14 +96,15 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			next = OP_REPLY;
 			break;
 		default:
-			next = OP_UNSUPPORTED;
+			next = OP_UNSUPP;
 			goto next;
 		}
 
-		local = ip4_addr_get(mbuf->port);
+		iface_id = eth_input_mbuf_data(mbuf)->iface->id;
+		local = ip4_addr_get(iface_id);
 
 		if (ip4_nexthop_lookup(arp->arp_data.arp_sip, &idx, &remote) >= 0) {
-			update_nexthop(graph, node, remote, now, mbuf, arp);
+			update_nexthop(graph, node, remote, now, iface_id, arp);
 		} else if (local != NULL && local->ip == arp->arp_data.arp_tip) {
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
@@ -110,7 +112,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			if (ip4_nexthop_lookup_add(arp->arp_data.arp_sip, &idx, &remote) < 0)
 				goto next;
 			ip4_route_insert(arp->arp_data.arp_sip, 32, idx, remote);
-			update_nexthop(graph, node, remote, now, mbuf, arp);
+			update_nexthop(graph, node, remote, now, iface_id, arp);
 		}
 		arp_data = arp_mbuf_data(mbuf);
 		arp_data->local = local;
@@ -123,13 +125,13 @@ next:
 }
 
 static void arp_input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_classify", "arp_input");
+	rte_edge_t edge = br_node_attach_parent("eth_input", "arp_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(classify, arp_input) failed");
-	br_classify_add_proto(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), edge);
+		ABORT("br_node_attach_parent(eth_input, arp_input) failed");
+	br_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), edge);
 }
 
-static struct rte_node_register arp_input_node = {
+static struct rte_node_register node = {
 	.name = "arp_input",
 
 	.process = arp_input_process,
@@ -138,19 +140,19 @@ static struct rte_node_register arp_input_node = {
 	.next_nodes = {
 		[OP_REQUEST] = "arp_output_reply",
 		[OP_REPLY] = "arp_input_reply",
-		[OP_UNSUPPORTED] = "arp_input_op_unsupported",
-		[PROTO_UNSUPPORTED] = "arp_input_proto_unsupported",
+		[OP_UNSUPP] = "arp_input_op_unsupp",
+		[PROTO_UNSUPP] = "arp_input_proto_unsupp",
 		[IP_OUTPUT] = "ip_output",
 	},
 };
 
-static struct br_node_info arp_input_info = {
-	.node = &arp_input_node,
+static struct br_node_info info = {
+	.node = &node,
 	.register_callback = arp_input_register,
 };
 
-BR_NODE_REGISTER(arp_input_info);
+BR_NODE_REGISTER(info);
 
 BR_DROP_REGISTER(arp_input_reply);
-BR_DROP_REGISTER(arp_input_op_unsupported);
-BR_DROP_REGISTER(arp_input_proto_unsupported);
+BR_DROP_REGISTER(arp_input_op_unsupp);
+BR_DROP_REGISTER(arp_input_proto_unsupp);

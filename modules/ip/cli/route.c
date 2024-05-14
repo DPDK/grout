@@ -5,6 +5,7 @@
 
 #include <br_api.h>
 #include <br_cli.h>
+#include <br_cli_iface.h>
 #include <br_ip4.h>
 #include <br_net_types.h>
 #include <br_table.h>
@@ -80,6 +81,7 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pnode *p) {
 	const struct br_ip4_route_get_resp *resp;
 	struct br_ip4_route_get_req req;
+	struct br_iface iface;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 	const char *dest = arg_str(p, "DEST");
@@ -100,7 +102,10 @@ static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pn
 	resp = resp_ptr;
 	inet_ntop(AF_INET, &resp->nh.host, buf, sizeof(buf));
 	printf("%s via %s lladdr " ETH_ADDR_FMT, dest, buf, ETH_BYTES_SPLIT(resp->nh.mac.bytes));
-	printf("iface %u", resp->nh.port_id);
+	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
+		printf("iface %s", iface.name);
+	else
+		printf("iface %u", resp->nh.iface_id);
 	printf("\n");
 	free(resp_ptr);
 

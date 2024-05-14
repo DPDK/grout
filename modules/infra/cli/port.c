@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "br_cli_iface.h"
+
 #include <br_api.h>
 #include <br_cli.h>
 #include <br_infra.h>
@@ -11,29 +13,158 @@
 #include <libsmartcols.h>
 
 #include <errno.h>
-#include <stdint.h>
+#include <sys/queue.h>
+
+static void port_show(const struct br_iface *iface) {
+	const struct br_iface_info_port *port = (const struct br_iface_info_port *)iface->info;
+	printf("devargs: %s\n", port->devargs);
+	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port->mac.bytes));
+	printf("n_rxq: %u\n", port->n_rxq);
+	printf("n_txq: %u\n", port->n_txq);
+	printf("rxq_size: %u\n", port->rxq_size);
+	printf("txq_size: %u\n", port->txq_size);
+}
+
+static void port_list_info(const struct br_iface *iface, char *buf, size_t len) {
+	const struct br_iface_info_port *port = (const struct br_iface_info_port *)iface->info;
+	snprintf(
+		buf,
+		len,
+		"devargs=%s mac=" ETH_ADDR_FMT,
+		port->devargs,
+		ETH_BYTES_SPLIT(port->mac.bytes)
+	);
+}
+
+static struct cli_iface_type port_type = {
+	.type_id = BR_IFACE_TYPE_PORT,
+	.name = "port",
+	.show = port_show,
+	.list_info = port_list_info,
+};
+
+static uint64_t parse_port_args(
+	const struct br_api_client *c,
+	const struct ec_pnode *p,
+	struct br_iface *iface,
+	bool update
+) {
+	const char *promisc, *allmulti, *devargs, *name;
+	struct br_iface_info_port *port;
+	uint64_t set_attrs = 0;
+
+	name = arg_str(p, "NAME");
+	if (update) {
+		if (iface_from_name(c, name, iface) < 0)
+			goto err;
+		name = arg_str(p, "NEW_NAME");
+	}
+
+	if (name != NULL) {
+		if (strlen(name) >= sizeof(iface->name)) {
+			errno = ENAMETOOLONG;
+			goto err;
+		}
+		set_attrs |= BR_IFACE_SET_NAME;
+		memccpy(iface->name, name, 0, sizeof(iface->name));
+	}
+
+	if (arg_str(p, "up")) {
+		iface->flags |= BR_IFACE_F_UP;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (arg_str(p, "down")) {
+		iface->flags &= ~BR_IFACE_F_UP;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+
+	if (arg_u16(p, "MTU", &iface->mtu) == 0)
+		set_attrs |= BR_IFACE_SET_MTU;
+
+	promisc = arg_str(p, "PROMISC");
+	if (promisc != NULL && strcmp(promisc, "on") == 0) {
+		iface->flags |= BR_IFACE_F_PROMISC;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
+		iface->flags &= ~BR_IFACE_F_PROMISC;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+
+	allmulti = arg_str(p, "ALLMULTI");
+	if (allmulti != NULL && strcmp(allmulti, "on") == 0) {
+		iface->flags |= BR_IFACE_F_ALLMULTI;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (allmulti != NULL && strcmp(allmulti, "off") == 0) {
+		iface->flags &= ~BR_IFACE_F_ALLMULTI;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+
+	port = (struct br_iface_info_port *)iface->info;
+	devargs = arg_str(p, "DEVARGS");
+	if (devargs != NULL) {
+		if (strlen(devargs) >= sizeof(port->devargs)) {
+			errno = ENAMETOOLONG;
+			goto err;
+		}
+		memccpy(port->devargs, devargs, 0, sizeof(port->devargs));
+	}
+	if (br_eth_addr_parse(arg_str(p, "MAC"), &port->mac) == 0)
+		set_attrs |= BR_PORT_SET_MAC;
+
+	if (arg_u16(p, "N_RXQ", &port->n_rxq) == 0)
+		set_attrs |= BR_PORT_SET_N_RXQS;
+
+	if (arg_u16(p, "Q_SIZE", &port->rxq_size) == 0) {
+		port->txq_size = port->rxq_size;
+		set_attrs |= BR_PORT_SET_Q_SIZE;
+	}
+
+	if (set_attrs == 0)
+		errno = EINVAL;
+	return set_attrs;
+err:
+	return 0;
+}
 
 static cmd_status_t port_add(const struct br_api_client *c, const struct ec_pnode *p) {
-	const struct br_infra_port_add_resp *resp;
-	struct br_infra_port_add_req req = {0};
+	const struct br_infra_iface_add_resp *resp;
+	struct br_infra_iface_add_req req = {
+		.iface = {.type = BR_IFACE_TYPE_PORT, .flags = BR_IFACE_F_UP}
+	};
 	void *resp_ptr = NULL;
 
-	memccpy(req.devargs, arg_str(p, "DEVARGS"), 0, sizeof(req.devargs));
+	if (parse_port_args(c, p, &req.iface, false) == 0)
+		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_INFRA_PORT_ADD, sizeof(req), &req, &resp_ptr) < 0)
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_ADD, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("Created port %u\n", resp->port_id);
+	printf("Created interface %u\n", resp->iface_id);
 	free(resp_ptr);
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t port_set(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_iface_set_req req = {0};
+
+	if ((req.set_attrs = parse_port_args(c, p, &req.iface, true)) == 0)
+		return CMD_ERROR;
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t rxq_set(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct br_infra_rxq_set_req req;
+	struct br_iface iface;
 
-	if (arg_u16(p, "INDEX", &req.port_id) < 0)
+	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
 		return CMD_ERROR;
+
+	req.iface_id = iface.id;
+
 	if (arg_u16(p, "RXQ", &req.rxq_id) < 0)
 		return CMD_ERROR;
 	if (arg_u16(p, "CPU", &req.cpu_id) < 0)
@@ -45,90 +176,10 @@ static cmd_status_t rxq_set(const struct br_api_client *c, const struct ec_pnode
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_set(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_infra_port_set_req req = {0};
-
-	if (arg_u16(p, "RXQ", &req.n_rxq) == 0)
-		return rxq_set(c, p);
-
-	if (arg_u16(p, "INDEX", &req.port_id) < 0)
-		return CMD_ERROR;
-
-	if (arg_u16(p, "N_RXQ", &req.n_rxq) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-	else
-		req.set_attrs |= BR_INFRA_PORT_N_RXQ;
-
-	if (arg_u16(p, "Q_SIZE", &req.q_size) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-	else
-		req.set_attrs |= BR_INFRA_PORT_Q_SIZE;
-
-	if (br_api_client_send_recv(c, BR_INFRA_PORT_SET, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t port_del(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_infra_port_del_req req;
-
-	if (arg_u16(p, "INDEX", &req.port_id) < 0)
-		return CMD_ERROR;
-
-	if (br_api_client_send_recv(c, BR_INFRA_PORT_DEL, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t port_list(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct libscols_table *table = scols_new_table();
-	const struct br_infra_port_list_resp *resp;
-	void *resp_ptr = NULL;
-
-	(void)p;
-
-	if (table == NULL)
-		return CMD_ERROR;
-
-	if (br_api_client_send_recv(c, BR_INFRA_PORT_LIST, 0, NULL, &resp_ptr) < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-	scols_table_new_column(table, "INDEX", 0, 0);
-	scols_table_new_column(table, "DEVICE", 0, 0);
-	scols_table_new_column(table, "RX_QUEUES", 0, 0);
-	scols_table_new_column(table, "RXQ_SIZE", 0, 0);
-	scols_table_new_column(table, "TX_QUEUES", 0, 0);
-	scols_table_new_column(table, "TXQ_SIZE", 0, 0);
-	scols_table_new_column(table, "MAC", 0, 0);
-	scols_table_set_column_separator(table, "  ");
-
-	for (size_t i = 0; i < resp->n_ports; i++) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct br_infra_port *p = &resp->ports[i];
-
-		scols_line_sprintf(line, 0, "%u", p->index);
-		scols_line_sprintf(line, 1, "%s", p->device);
-		scols_line_sprintf(line, 2, "%u", p->n_rxq);
-		scols_line_sprintf(line, 3, "%u", p->rxq_size);
-		scols_line_sprintf(line, 4, "%u", p->n_txq);
-		scols_line_sprintf(line, 5, "%u", p->txq_size);
-		scols_line_sprintf(line, 6, ETH_ADDR_FMT, ETH_BYTES_SPLIT(p->mac.bytes));
-	}
-
-	scols_print_table(table);
-	scols_unref_table(table);
-	free(resp_ptr);
-
-	return CMD_SUCCESS;
-}
-
 static int rxqs_order(const void *a, const void *b) {
-	const struct br_infra_rxq *rxq_a = a;
-	const struct br_infra_rxq *rxq_b = b;
-	int v = rxq_a->port_id - rxq_b->port_id;
+	const struct br_port_rxq_map *rxq_a = a;
+	const struct br_port_rxq_map *rxq_b = b;
+	int v = rxq_a->iface_id - rxq_b->iface_id;
 	if (v != 0)
 		return v;
 	v = rxq_a->rxq_id - rxq_b->rxq_id;
@@ -153,7 +204,7 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 	resp = resp_ptr;
 	qsort(resp->rxqs, resp->n_rxqs, sizeof(*resp->rxqs), rxqs_order);
 
-	scols_table_new_column(table, "PORT", 0, 0);
+	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "RXQ_ID", 0, 0);
 	scols_table_new_column(table, "CPU_ID", 0, 0);
 	scols_table_new_column(table, "ENABLED", 0, 0);
@@ -161,9 +212,13 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 
 	for (size_t i = 0; i < resp->n_rxqs; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct br_infra_rxq *q = &resp->rxqs[i];
+		const struct br_port_rxq_map *q = &resp->rxqs[i];
+		struct br_iface iface;
 
-		scols_line_sprintf(line, 0, "%u", q->port_id);
+		if (iface_from_id(c, q->iface_id, &iface) == 0)
+			scols_line_sprintf(line, 0, "%s", iface.name);
+		else
+			scols_line_sprintf(line, 0, "%u", q->iface_id);
 		scols_line_sprintf(line, 1, "%u", q->rxq_id);
 		scols_line_sprintf(line, 2, "%u", q->cpu_id);
 		scols_line_sprintf(line, 3, "%u", q->enabled);
@@ -176,77 +231,73 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_show(const struct br_api_client *c, const struct ec_pnode *p) {
-	const struct br_infra_port_get_resp *resp;
-	struct br_infra_port_get_req req;
-	void *resp_ptr = NULL;
+#define PORT_ATTRS_CMD                                                                             \
+	"(up|down),(mtu MTU),(promisc PROMISC),(allmulti ALLMULTI),(mac MAC),"                     \
+	"(rxqs N_RXQ),(qsize Q_SIZE)"
 
-	if (arg_str(p, "all") != NULL)
-		return port_list(c, p);
-	if (arg_str(p, "rxqs") != NULL)
-		return rxq_list(c, p);
-	if (arg_u16(p, "INDEX", &req.port_id) < 0)
-		return CMD_ERROR;
-
-	if (br_api_client_send_recv(c, BR_INFRA_PORT_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-	printf("index: %u\n", resp->port.index);
-	printf("device: %s\n", resp->port.device);
-	printf("rx_queues: %u\n", resp->port.n_rxq);
-	printf("rxq_size: %u\n", resp->port.rxq_size);
-	printf("tx_queues: %u\n", resp->port.n_txq);
-	printf("txq_size: %u\n", resp->port.txq_size);
-	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(resp->port.mac.bytes));
-
-	free(resp_ptr);
-	return CMD_SUCCESS;
-}
+#define PORT_ATTRS_ARGS                                                                            \
+	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
+		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
+		with_help(                                                                         \
+			"Maximum transmision unit size.",                                          \
+			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
+		),                                                                                 \
+		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
+		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
+		with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),            \
+		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),   \
+		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("port", "Create ports.")),
-		"devargs DEVARGS",
+		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
+		"port NAME devargs DEVARGS [" PORT_ATTRS_CMD "]",
 		port_add,
-		"Create a new physical port.",
-		with_help("DPDK device args.", ec_node("devargs", "DEVARGS"))
+		"Create a new DPDK port.",
+		with_help("Interface name.", ec_node("any", "NAME")),
+		with_help("DPDK device args.", ec_node("devargs", "DEVARGS")),
+		PORT_ATTRS_ARGS
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("port", "Modify port properties.")),
-		"index INDEX (rxqmap RXQ cpu CPU)|((numrxqs N_RXQ),(qsize Q_SIZE))",
+		CLI_CONTEXT(root, CTX_SET, CTX_ARG("interface", "Modify interfaces.")),
+		"port NAME (name NEW_NAME)," PORT_ATTRS_CMD,
 		port_set,
 		"Modify port parameters.",
-		with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10)),
-		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),
-		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10)),
+		with_help(
+			"Interface name.",
+			ec_node_dyn("NAME", complete_iface_names, INT2PTR(BR_IFACE_TYPE_PORT))
+		),
+		with_help("New interface name.", ec_node("any", "NEW_NAME")),
+		PORT_ATTRS_ARGS
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SET, CTX_ARG("port", "Set DPDK port queue mapping.")),
+		"qmap NAME rxq RXQ cpu CPU",
+		rxq_set,
+		"Set DPDK port queue mapping.",
+		with_help(
+			"Interface name.",
+			ec_node_dyn("NAME", complete_iface_names, INT2PTR(BR_IFACE_TYPE_PORT))
+		),
 		with_help("RX queue ID.", ec_node_uint("RXQ", 0, UINT16_MAX - 1, 10)),
-		with_help("CPU ID.", ec_node_uint("CPU", 0, UINT16_MAX - 1, 10))
+		with_help("Worker CPU ID.", ec_node_uint("CPU", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("port", "Delete ports.")),
-		"index INDEX",
-		port_del,
-		"Delete an existing port.",
-		with_help("Port index.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10))
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("port", "Display DPDK port information.")),
+		"qmap",
+		rxq_list,
+		"Display DPDK port RXQ assignment."
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("port", "Display port details.")),
-		"all|(index INDEX)|rxqs",
-		port_show,
-		"Show port details.",
-		with_help("Show all ports.", ec_node_str("all", "all")),
-		with_help("Show only this port.", ec_node_uint("INDEX", 0, UINT16_MAX - 1, 10)),
-		with_help("Show port RX queues.", ec_node_str("rxqs", "rxqs"))
-	);
 
 	return 0;
 }
@@ -258,4 +309,5 @@ static struct br_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	register_iface_type(&port_type);
 }

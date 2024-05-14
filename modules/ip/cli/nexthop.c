@@ -5,6 +5,7 @@
 
 #include <br_api.h>
 #include <br_cli.h>
+#include <br_cli_iface.h>
 #include <br_ip4.h>
 #include <br_net_types.h>
 #include <br_table.h>
@@ -17,6 +18,7 @@
 
 static cmd_status_t nh4_add(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct br_ip4_nh_add_req req = {0};
+	struct br_iface iface;
 
 	if (inet_pton(AF_INET, arg_str(p, "IP"), &req.nh.host) != 1) {
 		errno = EINVAL;
@@ -24,8 +26,9 @@ static cmd_status_t nh4_add(const struct br_api_client *c, const struct ec_pnode
 	}
 	if (br_eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
 		return CMD_ERROR;
-	if (arg_u16(p, "PORT_ID", &req.nh.port_id) < 0)
+	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
+	req.nh.iface_id = iface.id;
 
 	if (br_api_client_send_recv(c, BR_IP4_NH_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -51,6 +54,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_nh_list_resp *resp;
 	char ip[BUFSIZ], state[BUFSIZ];
+	struct br_iface iface;
 	void *resp_ptr = NULL;
 	ssize_t n;
 
@@ -66,7 +70,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 	scols_table_new_column(table, "IP", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
-	scols_table_new_column(table, "PORT", 0, 0);
+	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "AGE", 0, 0);
 	scols_table_new_column(table, "STATE", 0, 0);
 	scols_table_set_column_separator(table, "  ");
@@ -93,7 +97,10 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 		scols_line_sprintf(line, 0, "%s", ip);
 		if (nh->flags & BR_IP4_NH_F_REACHABLE) {
 			scols_line_sprintf(line, 1, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
-			scols_line_sprintf(line, 2, "%u", nh->port_id);
+			if (iface_from_id(c, nh->iface_id, &iface) == 0)
+				scols_line_sprintf(line, 2, "%s", iface.name);
+			else
+				scols_line_sprintf(line, 2, "%u", nh->iface_id);
 			scols_line_sprintf(line, 3, "%u", nh->age);
 		} else {
 			scols_line_set_data(line, 1, "??:??:??:??:??:??");
@@ -115,12 +122,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP_ADD_CTX(root),
-		"nexthop IP mac MAC port PORT_ID",
+		"nexthop IP mac MAC iface IFACE",
 		nh4_add,
 		"Add a new next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
-		with_help("Output port ID.", ec_node_uint("PORT_ID", 0, UINT16_MAX - 1, 10))
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
 	);
 	if (ret < 0)
 		return ret;

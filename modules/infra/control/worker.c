@@ -239,10 +239,12 @@ move:
 	arrpush(dst_worker->rxqs, rx_qmap);
 
 	if (reconfig) {
-		struct port *port;
 		// number of workers changed, adjust number of tx queues
-		STAILQ_FOREACH (port, &ports, next) {
-			if ((ret = port_reconfig(port)) < 0)
+		struct iface_info_port p = {.n_txq = 0};
+		struct iface *iface = NULL;
+
+		while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+			if ((ret = iface_port_reconfig(iface, PORT_SET_N_TXQS, &p)) < 0)
 				return ret;
 		}
 	}

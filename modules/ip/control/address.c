@@ -3,6 +3,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_iface.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
 #include <br_log.h>
@@ -24,11 +25,15 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct nexthop *addrs[RTE_MAX_ETHPORTS];
+static struct nexthop **addrs;
 
-struct nexthop *ip4_addr_get(uint16_t port_id) {
-	// no check for index, for data path use
-	return addrs[port_id];
+struct nexthop *ip4_addr_get(uint16_t iface_id) {
+	struct nexthop *nh = NULL;
+	if (iface_id < MAX_IFACES)
+		nh = addrs[iface_id];
+	if (nh == NULL)
+		errno = ENODEV;
+	return nh;
 }
 
 static struct api_out addr_add(const void *request, void **response) {
@@ -39,7 +44,7 @@ static struct api_out addr_add(const void *request, void **response) {
 
 	(void)response;
 
-	if ((nh = ip4_addr_get(req->addr.port_id)) != NULL) {
+	if ((nh = ip4_addr_get(req->addr.iface_id)) != NULL) {
 		if (req->exist_ok && req->addr.addr.ip == nh->ip
 		    && req->addr.addr.prefixlen == nh->prefixlen)
 			return api_out(0, 0);
@@ -47,22 +52,22 @@ static struct api_out addr_add(const void *request, void **response) {
 	}
 	if (ip4_nexthop_lookup(req->addr.addr.ip, &nh_idx, &nh) == 0)
 		return api_out(EADDRINUSE, 0);
-	if (!rte_eth_dev_is_valid_port(req->addr.port_id))
-		return api_out(ENODEV, 0);
+	if (iface_from_id(req->addr.iface_id) == NULL)
+		return api_out(errno, 0);
 
 	if ((ret = ip4_nexthop_lookup_add(req->addr.addr.ip, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
-	nh->port_id = req->addr.port_id;
+	nh->iface_id = req->addr.iface_id;
 	nh->prefixlen = req->addr.addr.prefixlen;
 	nh->flags = BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK | BR_IP4_NH_F_REACHABLE
 		| BR_IP4_NH_F_STATIC;
-	if ((ret = rte_eth_macaddr_get(nh->port_id, &nh->lladdr)) < 0)
+	if ((ret = rte_eth_macaddr_get(nh->iface_id, &nh->lladdr)) < 0)
 		return api_out(-ret, 0);
 
 	ret = ip4_route_insert(nh->ip, nh->prefixlen, nh_idx, nh);
 	if (ret == 0)
-		addrs[nh->port_id] = nh;
+		addrs[nh->iface_id] = nh;
 	else
 		ip4_nexthop_decref(nh);
 
@@ -75,7 +80,7 @@ static struct api_out addr_del(const void *request, void **response) {
 
 	(void)response;
 
-	if ((nh = ip4_addr_get(req->addr.port_id)) == NULL) {
+	if ((nh = ip4_addr_get(req->addr.iface_id)) == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
@@ -87,44 +92,55 @@ static struct api_out addr_del(const void *request, void **response) {
 		return api_out(EBUSY, 0);
 
 	ip4_route_delete(nh->ip, nh->prefixlen);
-	addrs[req->addr.port_id] = NULL;
+	addrs[req->addr.iface_id] = NULL;
 
 	return api_out(0, 0);
 }
 
 static struct api_out addr_list(const void *request, void **response) {
 	struct br_ip4_addr_list_resp *resp = NULL;
+	struct br_ip4_ifaddr *addr;
 	const struct nexthop *nh;
-	struct br_ip4_addr *addr;
-	uint16_t port_id, num;
+	uint16_t iface_id, num;
 	size_t len;
 
 	(void)request;
 
 	num = 0;
-	for (port_id = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
-		if (ip4_addr_get(port_id) != NULL)
+	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
+		if (ip4_addr_get(iface_id) != NULL)
 			num++;
 	}
 
-	len = sizeof(*resp) + num * sizeof(struct br_ip4_addr);
+	len = sizeof(*resp) + num * sizeof(struct br_ip4_ifaddr);
 	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
 
 	num = 0;
-	for (port_id = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
-		nh = ip4_addr_get(port_id);
+	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
+		nh = ip4_addr_get(iface_id);
 		if (nh == NULL)
 			continue;
 		addr = &resp->addrs[resp->n_addrs++];
 		addr->addr.ip = nh->ip;
 		addr->addr.prefixlen = nh->prefixlen;
-		addr->port_id = nh->port_id;
+		addr->iface_id = nh->iface_id;
 	}
 
 	*response = resp;
 
 	return api_out(0, len);
+}
+
+static void addr_init(void) {
+	addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct nexthop *), RTE_CACHE_LINE_SIZE);
+	if (addrs == NULL)
+		ABORT("rte_calloc(addrs)");
+}
+
+static void addr_fini(void) {
+	rte_free(addrs);
+	addrs = NULL;
 }
 
 static struct br_api_handler addr_add_handler = {
@@ -142,9 +158,15 @@ static struct br_api_handler addr_list_handler = {
 	.request_type = BR_IP4_ADDR_LIST,
 	.callback = addr_list,
 };
+static struct br_module addr_module = {
+	.name = "ipv4 address",
+	.init = addr_init,
+	.fini = addr_fini,
+};
 
-RTE_INIT(ip4_addr_init) {
+RTE_INIT(address_constructor) {
 	br_register_api_handler(&addr_add_handler);
 	br_register_api_handler(&addr_del_handler);
 	br_register_api_handler(&addr_list_handler);
+	br_register_module(&addr_module);
 }

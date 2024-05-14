@@ -1,0 +1,324 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2023 Robin Jarry
+
+#include "br_cli_iface.h"
+
+#include <br_api.h>
+#include <br_cli.h>
+#include <br_infra.h>
+#include <br_net_types.h>
+#include <br_string.h>
+#include <br_table.h>
+
+#include <ecoli.h>
+#include <libsmartcols.h>
+
+#include <errno.h>
+#include <sys/queue.h>
+
+static STAILQ_HEAD(, cli_iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+
+void register_iface_type(struct cli_iface_type *type) {
+	STAILQ_INSERT_TAIL(&types, type, next);
+}
+
+const struct cli_iface_type *type_from_name(const char *name) {
+	const struct cli_iface_type *type;
+
+	if (name == NULL) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	STAILQ_FOREACH (type, &types, next) {
+		if (strcmp(type->name, name) == 0)
+			return type;
+	}
+	errno = ENODEV;
+	return NULL;
+}
+
+int complete_iface_types(
+	const struct br_api_client *c,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void *cb_arg
+) {
+	const struct cli_iface_type *type;
+
+	(void)c;
+	(void)cb_arg;
+
+	STAILQ_FOREACH (type, &types, next) {
+		if (!ec_str_startswith(type->name, arg))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, type->name))
+			return -1;
+	}
+	return 0;
+}
+const struct cli_iface_type *type_from_id(uint16_t type_id) {
+	const struct cli_iface_type *type;
+
+	STAILQ_FOREACH (type, &types, next) {
+		if (type->type_id == type_id)
+			return type;
+	}
+	errno = ENODEV;
+	return NULL;
+}
+
+int complete_iface_names(
+	const struct br_api_client *c,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void *cb_arg
+) {
+	struct br_infra_iface_list_req req = {.type = (uintptr_t)cb_arg};
+	const struct br_infra_iface_list_resp *resp;
+	void *resp_ptr = NULL;
+	int ret = -1;
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
+		goto fail;
+
+	resp = resp_ptr;
+
+	for (uint16_t i = 0; i < resp->n_ifaces; i++) {
+		const struct br_iface *iface = &resp->ifaces[i];
+		if (!ec_str_startswith(iface->name, arg))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
+			goto fail;
+	}
+
+	ret = 0;
+fail:
+	free(resp_ptr);
+	return ret;
+}
+
+int iface_from_name(const struct br_api_client *c, const char *name, struct br_iface *iface) {
+	struct br_infra_iface_list_req req = {.type = BR_IFACE_TYPE_UNDEF};
+	const struct br_infra_iface_list_resp *resp;
+	void *resp_ptr = NULL;
+	int ret = -1;
+
+	if (name == NULL) {
+		errno = EINVAL;
+		goto out;
+	}
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
+		goto out;
+
+	resp = resp_ptr;
+	for (uint16_t i = 0; i < resp->n_ifaces; i++) {
+		const struct br_iface *iter = &resp->ifaces[i];
+		if (strcmp(iter->name, name) == 0) {
+			memcpy(iface, iter, sizeof(*iface));
+			ret = 0;
+			goto out;
+		}
+	}
+
+	errno = ENODEV;
+out:
+	free(resp_ptr);
+	return ret;
+}
+
+int iface_from_id(const struct br_api_client *c, uint16_t iface_id, struct br_iface *iface) {
+	struct br_infra_iface_get_req req = {.iface_id = iface_id};
+	const struct br_infra_iface_get_resp *resp;
+	void *resp_ptr = NULL;
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
+		return -1;
+
+	resp = resp_ptr;
+	memcpy(iface, &resp->iface, sizeof(*iface));
+	free(resp_ptr);
+
+	return 0;
+}
+
+static cmd_status_t iface_del(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_infra_iface_del_req req;
+	struct br_iface iface;
+
+	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+		return CMD_ERROR;
+
+	req.iface_id = iface.id;
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_DEL, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static int iface_order(const void *ia, const void *ib) {
+	const struct br_iface *a = ia;
+	const struct br_iface *b = ib;
+	return a->id - b->id;
+}
+
+static cmd_status_t iface_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct libscols_table *table = scols_new_table();
+	struct br_infra_iface_list_resp *resp;
+	struct br_infra_iface_list_req req;
+	const struct cli_iface_type *type;
+	void *resp_ptr = NULL;
+
+	if (table == NULL)
+		return CMD_ERROR;
+
+	type = type_from_name(arg_str(p, "TYPE"));
+	if (type == NULL)
+		req.type = BR_IFACE_TYPE_UNDEF;
+	else
+		req.type = type->type_id;
+
+	if (br_api_client_send_recv(c, BR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	qsort(resp->ifaces, resp->n_ifaces, sizeof(*resp->ifaces), iface_order);
+
+	scols_table_new_column(table, "NAME", 0, 0);
+	scols_table_new_column(table, "ID", 0, 0);
+	scols_table_new_column(table, "FLAGS", 0, 0);
+	scols_table_new_column(table, "TYPE", 0, 0);
+	scols_table_new_column(table, "INFO", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
+	for (size_t i = 0; i < resp->n_ifaces; i++) {
+		const struct br_iface *iface = &resp->ifaces[i];
+		const struct cli_iface_type *type = type_from_id(iface->type);
+		struct libscols_line *line = scols_table_new_line(table, NULL);
+		char buf[BUFSIZ];
+		size_t n = 0;
+
+		// name
+		scols_line_set_data(line, 0, iface->name);
+
+		// id
+		scols_line_sprintf(line, 1, "%u", iface->id);
+
+		// flags
+		if (iface->flags & BR_IFACE_F_UP)
+			n += snprintf(buf + n, sizeof(buf) - n, "up");
+		else
+			n += snprintf(buf + n, sizeof(buf) - n, "down");
+		if (iface->state & BR_IFACE_S_RUNNING)
+			n += snprintf(buf + n, sizeof(buf) - n, " running");
+		if (iface->flags & BR_IFACE_F_PROMISC)
+			n += snprintf(buf + n, sizeof(buf) - n, " promisc");
+		if (iface->flags & BR_IFACE_F_ALLMULTI)
+			n += snprintf(buf + n, sizeof(buf) - n, " allmulti");
+		scols_line_set_data(line, 2, buf);
+
+		// type
+		if (type == NULL) {
+			scols_line_sprintf(line, 3, "%u", iface->type);
+			// info
+			scols_line_set_data(line, 4, "");
+		} else {
+			scols_line_set_data(line, 3, type->name);
+			// info
+			type->list_info(iface, buf, sizeof(buf));
+			scols_line_set_data(line, 4, buf);
+		}
+	}
+
+	scols_print_table(table);
+	scols_unref_table(table);
+
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t iface_show(const struct br_api_client *c, const struct ec_pnode *p) {
+	const struct cli_iface_type *type;
+	struct br_iface iface;
+
+	if (arg_str(p, "all") != NULL || arg_str(p, "TYPE") != NULL)
+		return iface_list(c, p);
+
+	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+		return CMD_ERROR;
+
+	type = type_from_id(iface.type);
+
+	printf("name: %s\n", iface.name);
+	printf("id: %u\n", iface.id);
+	printf("flags: ");
+	if (iface.flags & BR_IFACE_F_UP)
+		printf("up");
+	else
+		printf("down");
+	if (iface.state & BR_IFACE_S_RUNNING)
+		printf(" running");
+	if (iface.flags & BR_IFACE_F_PROMISC)
+		printf(" promisc");
+	if (iface.flags & BR_IFACE_F_ALLMULTI)
+		printf(" allmulti");
+	printf("\n");
+	printf("mtu: %u\n", iface.mtu);
+
+	if (type == NULL) {
+		printf("type: %u\n", iface.type);
+	} else {
+		printf("type: %s\n", type->name);
+		type->show(&iface);
+	}
+
+	return CMD_SUCCESS;
+}
+
+static int ctx_init(struct ec_node *root) {
+	int ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("interface", "Delete interfaces.")),
+		"NAME",
+		iface_del,
+		"Delete an existing interface.",
+		with_help(
+			"Interface name.",
+			ec_node_dyn("NAME", complete_iface_names, INT2PTR(BR_IFACE_TYPE_UNDEF))
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("interface", "Display interface details.")),
+		"all|(name NAME)|(type TYPE)",
+		iface_show,
+		"Show interface details.",
+		with_help("Show all interfaces.", ec_node_str("all", "all")),
+		with_help(
+			"Show only this interface.",
+			ec_node_dyn("NAME", complete_iface_names, INT2PTR(BR_IFACE_TYPE_UNDEF))
+		),
+		with_help(
+			"Show only this type of interface.",
+			ec_node_dyn("TYPE", complete_iface_types, NULL)
+		)
+	);
+
+	return 0;
+}
+
+static struct br_cli_context ctx = {
+	.name = "infra iface",
+	.init = ctx_init,
+};
+
+static void __attribute__((constructor, used)) init(void) {
+	register_context(&ctx);
+}

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <br_datapath.h>
+#include "br_datapath.h"
+#include "br_eth_input.h"
+#include "br_rx.h"
+
 #include <br_graph.h>
+#include <br_iface.h>
 #include <br_log.h>
-#include <br_rx.h>
+#include <br_port.h>
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
@@ -16,7 +20,7 @@
 #include <stdbool.h>
 #include <sys/queue.h>
 
-#define CLASSIFY 0
+#define ETH_IN 0
 
 struct rx_ctx {
 	uint16_t burst_size;
@@ -38,12 +42,14 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
 	}
-	for (uint16_t i = 0; i < count; i++)
-		trace_packet(node->name, node->objs[i]);
-	if (count > 0) {
-		node->idx = count;
-		rte_node_enqueue(graph, node, CLASSIFY, node->objs, count);
+	for (uint16_t i = 0; i < count; i++) {
+		struct rte_mbuf *m = node->objs[i];
+		struct eth_input_mbuf_data *if_in = eth_input_mbuf_data(m);
+		if_in->iface = port_get_iface(m->port);
+		trace_packet(node->name, m);
 	}
+
+	rte_node_enqueue(graph, node, ETH_IN, node->objs, count);
 
 	return count;
 }
@@ -77,7 +83,7 @@ static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
 
-static struct rte_node_register rx_node_base = {
+static struct rte_node_register node = {
 	.name = "port_rx",
 	.flags = RTE_NODE_SOURCE_F,
 
@@ -87,12 +93,12 @@ static struct rte_node_register rx_node_base = {
 
 	.nb_edges = 1,
 	.next_nodes = {
-		[CLASSIFY] = "eth_classify",
+		[ETH_IN] = "eth_input",
 	},
 };
 
 static struct br_node_info info = {
-	.node = &rx_node_base,
+	.node = &node,
 };
 
 BR_NODE_REGISTER(info);

@@ -16,7 +16,7 @@
 struct __rte_cache_aligned nexthop {
 	br_ip4_nh_flags_t flags;
 	struct rte_ether_addr lladdr;
-	uint16_t port_id;
+	uint16_t iface_id;
 	ip4_addr_t ip;
 	uint8_t prefixlen;
 	uint64_t last_seen;
@@ -43,6 +43,6 @@ int ip4_route_insert(ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct n
 int ip4_route_delete(ip4_addr_t ip, uint8_t prefixlen);
 struct nexthop *ip4_route_lookup(ip4_addr_t ip);
 
-struct nexthop *ip4_addr_get(uint16_t port_id);
+struct nexthop *ip4_addr_get(uint16_t iface_id);
 
 #endif

@@ -3,6 +3,9 @@
 
 cli_src += files(
   'graph.c',
+  'iface.c',
   'port.c',
   'stats.c',
 )
+
+cli_inc += include_directories('.')

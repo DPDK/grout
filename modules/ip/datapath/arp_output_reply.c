@@ -4,10 +4,10 @@
 #include "ip4.h"
 
 #include <br_datapath.h>
+#include <br_eth_output.h>
 #include <br_graph.h>
+#include <br_iface.h>
 #include <br_ip4_control.h>
-#include <br_log.h>
-#include <br_tx.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -16,7 +16,8 @@
 #include <rte_graph_worker.h>
 
 enum {
-	TX = 0,
+	OUTPUT = 0,
+	ERROR,
 	EDGE_COUNT,
 };
 
@@ -26,19 +27,22 @@ static uint16_t arp_output_reply_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	struct eth_output_mbuf_data *eth_data;
 	struct arp_mbuf_data *arp_data;
-	struct tx_mbuf_data *tx_data;
 	struct rte_arp_hdr *arp;
+	uint16_t num, iface_id;
 	struct rte_mbuf *mbuf;
-	uint16_t num = 0;
+	rte_edge_t next;
+
+	num = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		arp_data = arp_mbuf_data(mbuf);
 		if (arp_data->local == NULL || arp_data->remote == NULL) {
-			// mbuf is not an ARP request, drop and exclude from stats
-			rte_pktmbuf_free(mbuf);
-			continue;
+			// mbuf is not an ARP request
+			next = ERROR;
+			goto next;
 		}
 
 		// Reuse mbuf to craft an ARP reply.
@@ -47,33 +51,42 @@ static uint16_t arp_output_reply_process(
 		arp->arp_protocol = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
 		rte_ether_addr_copy(&arp_data->remote->lladdr, &arp->arp_data.arp_tha);
-		rte_eth_macaddr_get(arp_data->local->port_id, &arp->arp_data.arp_sha);
+		iface_id = arp_data->local->iface_id;
+		if (iface_get_eth_addr(iface_id, &arp->arp_data.arp_sha) < 0) {
+			next = ERROR;
+			goto next;
+		}
 		arp->arp_data.arp_tip = arp_data->remote->ip;
 		arp->arp_data.arp_sip = arp_data->local->ip;
 
 		// Prepare ethernet layer info.
-		tx_data = tx_mbuf_data(mbuf);
-		rte_ether_addr_copy(&arp->arp_data.arp_tha, &tx_data->dst);
-		tx_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
-
-		rte_node_enqueue_x1(graph, node, TX, mbuf);
+		eth_data = eth_output_mbuf_data(mbuf);
+		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
+		eth_data->iface_id = iface_id;
+		next = OUTPUT;
 		num++;
+next:
+		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
 	return num;
 }
 
-static struct rte_node_register arp_output_reply_node = {
+static struct rte_node_register node = {
 	.name = "arp_output_reply",
 	.process = arp_output_reply_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "port_tx",
+		[OUTPUT] = "eth_output",
+		[ERROR] = "arp_output_reply_error",
 	},
 };
 
-static struct br_node_info arp_output_reply_info = {
-	.node = &arp_output_reply_node,
+static struct br_node_info info = {
+	.node = &node,
 };
 
-BR_NODE_REGISTER(arp_output_reply_info);
+BR_NODE_REGISTER(info);
+
+BR_DROP_REGISTER(arp_output_reply_error);

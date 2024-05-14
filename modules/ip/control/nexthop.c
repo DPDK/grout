@@ -3,6 +3,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_iface.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
 #include <br_log.h>
@@ -74,11 +75,11 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
-	if (!rte_eth_dev_is_valid_port(req->nh.port_id))
-		return api_out(ENODEV, 0);
+	if (iface_from_id(req->nh.iface_id) == NULL)
+		return api_out(errno, 0);
 
 	if (ip4_nexthop_lookup(req->nh.host, &nh_idx, &nh) == 0) {
-		if (req->exist_ok && req->nh.port_id == nh->port_id
+		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && br_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
@@ -87,7 +88,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 	if ((ret = ip4_nexthop_lookup_add(req->nh.host, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
-	nh->port_id = req->nh.port_id;
+	nh->iface_id = req->nh.iface_id;
 	memcpy(&nh->lladdr, (void *)&req->nh.mac, sizeof(nh->lladdr));
 	nh->flags = BR_IP4_NH_F_STATIC | BR_IP4_NH_F_REACHABLE;
 	ret = ip4_route_insert(nh->ip, 32, nh_idx, nh);
@@ -140,7 +141,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 		nh = ip4_nexthop_get(idx);
 		api_nh = &resp->nhs[resp->n_nhs++];
 		api_nh->host = nh->ip;
-		api_nh->port_id = nh->port_id;
+		api_nh->iface_id = nh->iface_id;
 		memcpy(&api_nh->mac, &nh->lladdr, sizeof(api_nh->mac));
 		api_nh->flags = nh->flags;
 		if (nh->last_seen > 0)

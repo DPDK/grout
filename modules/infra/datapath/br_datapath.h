@@ -17,8 +17,6 @@
 
 void *br_datapath_loop(void *priv);
 
-void br_classify_add_proto(rte_be16_t eth_type, rte_edge_t edge);
-
 #ifdef TRACE_PACKETS
 static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 	const struct rte_ether_hdr *eth;

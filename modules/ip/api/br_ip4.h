@@ -8,9 +8,9 @@
 #include <br_bitops.h>
 #include <br_net_types.h>
 
-struct br_ip4_addr {
+struct br_ip4_ifaddr {
+	uint16_t iface_id;
 	struct ip4_net addr;
-	uint16_t port_id;
 };
 
 #define BR_IP4_NH_F_BLACKHOLE BR_BIT16(0) //!< Self explanatory
@@ -48,7 +48,7 @@ static inline const char *br_ip4_nh_f_name(const br_ip4_nh_flags_t flag) {
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
-	uint16_t port_id;
+	uint16_t iface_id;
 	br_ip4_nh_flags_t flags;
 	uint32_t age; //<! number of seconds since last arp reply
 };
@@ -134,7 +134,7 @@ struct br_ip4_route_list_resp {
 #define BR_IP4_ADDR_ADD REQUEST_TYPE(BR_IP4_MODULE, 0x0021)
 
 struct br_ip4_addr_add_req {
-	struct br_ip4_addr addr;
+	struct br_ip4_ifaddr addr;
 	uint8_t exist_ok;
 };
 
@@ -143,7 +143,7 @@ struct br_ip4_addr_add_req {
 #define BR_IP4_ADDR_DEL REQUEST_TYPE(BR_IP4_MODULE, 0x0022)
 
 struct br_ip4_addr_del_req {
-	struct br_ip4_addr addr;
+	struct br_ip4_ifaddr addr;
 	uint8_t missing_ok;
 };
 
@@ -155,7 +155,7 @@ struct br_ip4_addr_del_req {
 
 struct br_ip4_addr_list_resp {
 	uint16_t n_addrs;
-	struct br_ip4_addr addrs[/* n_addrs */];
+	struct br_ip4_ifaddr addrs[/* n_addrs */];
 };
 
 #endif

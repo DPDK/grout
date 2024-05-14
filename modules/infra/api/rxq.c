@@ -5,6 +5,7 @@
 
 #include <br_api.h>
 #include <br_control.h>
+#include <br_port.h>
 #include <br_stb_ds.h>
 #include <br_worker.h>
 
@@ -24,7 +25,7 @@ static struct api_out rxq_list(const void *request, void **response) {
 	STAILQ_FOREACH (worker, &workers, next)
 		n_rxqs += arrlen(worker->rxqs);
 
-	len = sizeof(*resp) + n_rxqs * sizeof(struct br_infra_rxq);
+	len = sizeof(*resp) + n_rxqs * sizeof(struct br_port_rxq_map);
 	if ((resp = malloc(len)) == NULL)
 		return api_out(ENOMEM, 0);
 
@@ -33,8 +34,8 @@ static struct api_out rxq_list(const void *request, void **response) {
 	n_rxqs = 0;
 	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
-			struct br_infra_rxq *q = &resp->rxqs[n_rxqs];
-			q->port_id = qmap->port_id;
+			struct br_port_rxq_map *q = &resp->rxqs[n_rxqs];
+			q->iface_id = port_get_iface(qmap->port_id)->id;
 			q->rxq_id = qmap->queue_id;
 			q->cpu_id = worker->cpu_id;
 			q->enabled = qmap->enabled;
@@ -49,12 +50,19 @@ static struct api_out rxq_list(const void *request, void **response) {
 
 static struct api_out rxq_set(const void *request, void **response) {
 	const struct br_infra_rxq_set_req *req = request;
-	int ret;
+	struct iface *iface = iface_from_id(req->iface_id);
+	struct iface_info_port *port;
 
 	(void)response;
 
-	ret = worker_rxq_assign(req->port_id, req->rxq_id, req->cpu_id);
-	return api_out(-ret, 0);
+	if (iface == NULL)
+		return api_out(errno, 0);
+
+	port = (struct iface_info_port *)iface->info;
+	if (worker_rxq_assign(port->port_id, req->rxq_id, req->cpu_id) < 0)
+		return api_out(errno, 0);
+
+	return api_out(0, 0);
 }
 
 static struct br_api_handler rxq_list_handler = {

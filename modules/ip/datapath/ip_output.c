@@ -4,11 +4,11 @@
 #include "ip4.h"
 
 #include <br_datapath.h>
+#include <br_eth_output.h>
 #include <br_graph.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
 #include <br_mbuf.h>
-#include <br_tx.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -27,7 +27,7 @@ enum {
 
 static uint16_t
 output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct tx_mbuf_data *tx_data;
+	struct eth_output_mbuf_data *eth_data;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
@@ -58,7 +58,7 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 				goto next;
 			}
 			ip4_route_insert(ip->dst_addr, 32, idx, remote);
-			remote->port_id = nh->port_id;
+			remote->iface_id = nh->iface_id;
 			ip_output_mbuf_data(mbuf)->nh = nh;
 		}
 		if (!(nh->flags & BR_IP4_NH_F_REACHABLE)) {
@@ -66,10 +66,11 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			goto next;
 		}
 		// Prepare ethernet layer info.
-		tx_data = tx_mbuf_data(mbuf);
-		rte_ether_addr_copy(&nh->lladdr, &tx_data->dst);
-		tx_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		mbuf->port = nh->port_id;
+		eth_data = eth_output_mbuf_data(mbuf);
+		rte_ether_addr_copy(&nh->lladdr, &eth_data->dst);
+		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		eth_data->iface_id = nh->iface_id;
+
 		next = TX;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
@@ -83,7 +84,7 @@ struct rte_node_register output_node = {
 	.process = output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "port_tx",
+		[TX] = "eth_output",
 		[ERROR] = "ip_output_error",
 		[NO_ROUTE] = "ip_output_no_route",
 		[ARP_REQUEST] = "arp_output_request",

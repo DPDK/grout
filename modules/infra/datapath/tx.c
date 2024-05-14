@@ -1,26 +1,21 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <br_datapath.h>
+#include "br_datapath.h"
+#include "br_tx.h"
+
 #include <br_graph.h>
-#include <br_log.h>
-#include <br_mbuf.h>
-#include <br_tx.h>
 #include <br_worker.h>
 
 #include <rte_build_config.h>
-#include <rte_debug.h>
 #include <rte_ethdev.h>
-#include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_malloc.h>
 
-#include <stdalign.h>
 #include <stdint.h>
 
 enum {
 	TX_ERROR = 0,
-	NO_DEST,
 	NB_EDGES,
 };
 
@@ -47,20 +42,12 @@ static inline void tx_burst(
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t port_id, i, burst_start;
-	struct rte_ether_hdr *eth;
 
 	port_id = UINT16_MAX;
 	burst_start = 0;
 
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
-		struct tx_mbuf_data *priv = tx_mbuf_data(mbuf);
-
-		eth = (struct rte_ether_hdr *)
-			rte_pktmbuf_prepend(mbuf, sizeof(struct rte_ether_hdr));
-		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
-		rte_eth_macaddr_get(mbuf->port, &eth->src_addr);
-		eth->ether_type = priv->ether_type;
 
 		trace_packet(node->name, mbuf);
 
@@ -110,7 +97,7 @@ static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
 
-static struct rte_node_register tx_node_base = {
+static struct rte_node_register node = {
 	.name = "port_tx",
 
 	.process = tx_process,
@@ -120,15 +107,13 @@ static struct rte_node_register tx_node_base = {
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
 		[TX_ERROR] = "port_tx_error",
-		[NO_DEST] = "port_tx_no_dest",
 	},
 };
 
 static struct br_node_info info = {
-	.node = &tx_node_base,
+	.node = &node,
 };
 
 BR_NODE_REGISTER(info);
 
 BR_DROP_REGISTER(port_tx_error);
-BR_DROP_REGISTER(port_tx_no_dest);
