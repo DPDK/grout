@@ -32,7 +32,8 @@ static struct api_out stats_get(const void *request, void **response) {
 
 	if (req->flags & BR_INFRA_STAT_F_SW) {
 		struct worker *worker;
-		LIST_FOREACH (worker, &workers, next) {
+
+		STAILQ_FOREACH (worker, &workers, next) {
 			const struct worker_stats *w_stats = atomic_load(&worker->stats);
 			if (w_stats == NULL)
 				continue;
@@ -65,7 +66,7 @@ static struct api_out stats_get(const void *request, void **response) {
 		shput(smap, name, rte_stats.q_##field[q]);                                         \
 	} while (0)
 
-		LIST_FOREACH (port, &ports, next) {
+		STAILQ_FOREACH (port, &ports, next) {
 			if ((ret = rte_eth_stats_get(port->port_id, &rte_stats)) < 0)
 				goto err;
 			if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
@@ -100,7 +101,7 @@ static struct api_out stats_get(const void *request, void **response) {
 		struct port *port;
 		unsigned num;
 
-		LIST_FOREACH (port, &ports, next) {
+		STAILQ_FOREACH (port, &ports, next) {
 			// call first with NULL/0 to get the exact count
 			if ((ret = rte_eth_xstats_get(port->port_id, NULL, 0)) < 0)
 				goto err;
@@ -198,9 +199,9 @@ static struct api_out stats_reset(const void *request, void **response) {
 	(void)request;
 	(void)response;
 
-	LIST_FOREACH (worker, &workers, next)
+	STAILQ_FOREACH (worker, &workers, next)
 		atomic_store(&worker->stats_reset, true);
-	LIST_FOREACH (port, &ports, next) {
+	STAILQ_FOREACH (port, &ports, next) {
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0);
 		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)

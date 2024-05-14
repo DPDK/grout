@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <sys/queue.h>
 
-static LIST_HEAD(, br_api_handler) handlers;
+static STAILQ_HEAD(, br_api_handler) handlers = STAILQ_HEAD_INITIALIZER(handlers);
 
 void br_register_api_handler(struct br_api_handler *handler) {
 	const struct br_api_handler *h;
@@ -21,19 +21,19 @@ void br_register_api_handler(struct br_api_handler *handler) {
 	assert(handler != NULL);
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
-	LIST_FOREACH (h, &handlers, entries) {
+	STAILQ_FOREACH (h, &handlers, entries) {
 		if (h->request_type == handler->request_type)
 			ABORT("duplicate api handler type=0x%08x '%s'",
 			      handler->request_type,
 			      handler->name);
 	}
-	LIST_INSERT_HEAD(&handlers, handler, entries);
+	STAILQ_INSERT_TAIL(&handlers, handler, entries);
 }
 
 const struct br_api_handler *lookup_api_handler(const struct br_api_request *req) {
 	const struct br_api_handler *handler;
 
-	LIST_FOREACH (handler, &handlers, entries) {
+	STAILQ_FOREACH (handler, &handlers, entries) {
 		if (handler->request_type == req->type)
 			return handler;
 	}
@@ -41,10 +41,10 @@ const struct br_api_handler *lookup_api_handler(const struct br_api_request *req
 	return NULL;
 }
 
-static LIST_HEAD(, br_module) modules;
+static STAILQ_HEAD(, br_module) modules = STAILQ_HEAD_INITIALIZER(modules);
 
 void br_register_module(struct br_module *mod) {
-	LIST_INSERT_HEAD(&modules, mod, entries);
+	STAILQ_INSERT_TAIL(&modules, mod, entries);
 }
 
 static int module_init_prio_order(const void *a, const void *b) {
@@ -56,7 +56,7 @@ static int module_init_prio_order(const void *a, const void *b) {
 void modules_init(void) {
 	struct br_module *mod, **mods = NULL;
 
-	LIST_FOREACH (mod, &modules, entries)
+	STAILQ_FOREACH (mod, &modules, entries)
 		arrpush(mods, mod); // NOLINT
 
 	qsort(mods, arrlen(mods), sizeof(struct br_module *), module_init_prio_order);
@@ -81,7 +81,7 @@ static int module_fini_prio_order(const void *a, const void *b) {
 void modules_fini(void) {
 	struct br_module *mod, **mods = NULL;
 
-	LIST_FOREACH (mod, &modules, entries)
+	STAILQ_FOREACH (mod, &modules, entries)
 		arrpush(mods, mod); // NOLINT
 
 	qsort(mods, arrlen(mods), sizeof(struct br_module *), module_fini_prio_order);
@@ -100,7 +100,7 @@ void modules_fini(void) {
 void br_modules_dp_init(void) {
 	struct br_module *mod;
 
-	LIST_FOREACH (mod, &modules, entries) {
+	STAILQ_FOREACH (mod, &modules, entries) {
 		if (mod->init_dp != NULL) {
 			LOG(DEBUG, "%s", mod->name);
 			mod->init_dp();
@@ -111,7 +111,7 @@ void br_modules_dp_init(void) {
 void br_modules_dp_fini(void) {
 	struct br_module *mod;
 
-	LIST_FOREACH (mod, &modules, entries) {
+	STAILQ_FOREACH (mod, &modules, entries) {
 		if (mod->fini_dp != NULL) {
 			LOG(DEBUG, "%s", mod->name);
 			mod->fini_dp();

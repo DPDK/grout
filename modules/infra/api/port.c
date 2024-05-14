@@ -99,7 +99,7 @@ static struct api_out port_list(const void *request, void **response) {
 
 	(void)request;
 
-	LIST_FOREACH (port, &ports, next)
+	STAILQ_FOREACH (port, &ports, next)
 		n_ports++;
 
 	len = sizeof(*resp) + n_ports * sizeof(struct br_infra_port);
@@ -109,7 +109,7 @@ static struct api_out port_list(const void *request, void **response) {
 	memset(resp, 0, len);
 
 	n_ports = 0;
-	LIST_FOREACH (port, &ports, next) {
+	STAILQ_FOREACH (port, &ports, next) {
 		struct br_infra_port *p = &resp->ports[n_ports];
 		if ((ret = fill_port_info(port, p)) < 0) {
 			free(resp);

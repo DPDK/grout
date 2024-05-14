@@ -23,7 +23,7 @@ struct br_api_handler {
 	const char *name;
 	uint32_t request_type;
 	br_api_handler_func callback;
-	LIST_ENTRY(br_api_handler) entries;
+	STAILQ_ENTRY(br_api_handler) entries;
 };
 
 void br_register_api_handler(struct br_api_handler *);
@@ -36,7 +36,7 @@ struct br_module {
 	void (*fini)(void);
 	void (*init_dp)(void);
 	void (*fini_dp)(void);
-	LIST_ENTRY(br_module) entries;
+	STAILQ_ENTRY(br_module) entries;
 };
 
 void br_register_module(struct br_module *);

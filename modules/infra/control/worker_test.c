@@ -108,11 +108,11 @@ static struct queue_map q(uint16_t port_id, uint16_t rxq_id) {
 }
 
 static int setup(void **) {
-	LIST_INSERT_HEAD(&ports, &p0, next);
-	LIST_INSERT_HEAD(&ports, &p1, next);
-	LIST_INSERT_HEAD(&ports, &p2, next);
+	STAILQ_INSERT_TAIL(&ports, &p0, next);
+	STAILQ_INSERT_TAIL(&ports, &p1, next);
+	STAILQ_INSERT_TAIL(&ports, &p2, next);
 
-	LIST_INSERT_HEAD(&workers, &w1, next);
+	STAILQ_INSERT_TAIL(&workers, &w1, next);
 	arrpush(w1.rxqs, q(0, 0));
 	arrpush(w1.rxqs, q(0, 1));
 	arrpush(w1.rxqs, q(1, 0));
@@ -121,7 +121,7 @@ static int setup(void **) {
 	arrpush(w1.txqs, q(1, 0));
 	arrpush(w1.txqs, q(2, 0));
 
-	LIST_INSERT_HEAD(&workers, &w2, next);
+	STAILQ_INSERT_TAIL(&workers, &w2, next);
 	arrpush(w2.rxqs, q(1, 1));
 	arrpush(w2.rxqs, q(2, 0));
 	arrpush(w2.rxqs, q(2, 1));
@@ -135,10 +135,11 @@ static int setup(void **) {
 
 static int teardown(void **) {
 	struct worker *w;
-	LIST_FOREACH (w, &workers, next) {
+	STAILQ_FOREACH (w, &workers, next) {
 		arrfree(w->rxqs);
 		arrfree(w->txqs);
 	}
+	STAILQ_INIT(&workers);
 	return 0;
 }
 
@@ -230,8 +231,8 @@ static void rxq_assign_new_worker(void **) {
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
 	assert_qmaps(w3.rxqs);
-	assert_qmaps(w1.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w2.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
 	assert_qmaps(w3.txqs);
 }
 
@@ -244,9 +245,9 @@ static void rxq_assign_new_worker_destroy(void **) {
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs, q(2, 1));
-	assert_qmaps(w1.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs);
-	assert_qmaps(w3.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w3.txqs, q(0, 1), q(1, 1), q(2, 1));
 }
 
 static void rxq_assign_new_worker2(void **) {
@@ -258,8 +259,8 @@ static void rxq_assign_new_worker2(void **) {
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
 	assert_qmaps(w2.rxqs, q(2, 0));
 	assert_qmaps(w3.rxqs, q(2, 1));
-	assert_qmaps(w1.txqs, q(0, 2), q(1, 2), q(2, 2));
-	assert_qmaps(w2.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 2), q(1, 2), q(2, 2));
 	assert_qmaps(w3.txqs, q(0, 1), q(1, 1), q(2, 1));
 }
 

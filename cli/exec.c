@@ -9,10 +9,10 @@
 
 #include <errno.h>
 
-static LIST_HEAD(, br_cli_context) contexts;
+static STAILQ_HEAD(, br_cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 
 void register_context(struct br_cli_context *ctx) {
-	LIST_INSERT_HEAD(&contexts, ctx, entries);
+	STAILQ_INSERT_HEAD(&contexts, ctx, entries);
 }
 
 struct ec_node *init_commands(void) {
@@ -22,7 +22,7 @@ struct ec_node *init_commands(void) {
 	if ((root = ec_node("or", "br-cli")) == NULL)
 		goto fail;
 
-	LIST_FOREACH (ctx, &contexts, entries) {
+	STAILQ_FOREACH (ctx, &contexts, entries) {
 		if (ctx->init(root) < 0) {
 			errorf("context init %s: %s", ctx->name, strerror(errno));
 			goto fail;

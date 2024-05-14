@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 
-struct ports ports;
+struct ports ports = STAILQ_HEAD_INITIALIZER(ports);
 
 int32_t port_create(const char *devargs) {
 	uint16_t port_id = RTE_MAX_ETHPORTS;
@@ -53,7 +53,7 @@ int32_t port_create(const char *devargs) {
 	}
 
 	port->port_id = port_id;
-	LIST_INSERT_HEAD(&ports, port, next);
+	STAILQ_INSERT_TAIL(&ports, port, next);
 
 	if ((ret = port_reconfig(port)) < 0) {
 		port_destroy(port_id);
@@ -65,7 +65,7 @@ int32_t port_create(const char *devargs) {
 
 struct port *find_port(uint16_t port_id) {
 	struct port *port;
-	LIST_FOREACH (port, &ports, next) {
+	STAILQ_FOREACH (port, &ports, next) {
 		if (port->port_id == port_id)
 			return port;
 	}
@@ -95,7 +95,7 @@ int port_destroy(uint16_t port_id) {
 	if (port != NULL) {
 		rte_mempool_free(port->pool);
 		port->pool = NULL;
-		LIST_REMOVE(port, next);
+		STAILQ_REMOVE(&ports, port, port, next);
 		free(port);
 	}
 	if (ret != 0)
@@ -103,7 +103,7 @@ int port_destroy(uint16_t port_id) {
 
 	LOG(INFO, "port %u destroyed", port_id);
 
-	LIST_FOREACH_SAFE (worker, &workers, next, tmp) {
+	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
 		for (int i = 0; i < arrlen(worker->rxqs); i++) {
 			if (worker->rxqs[i].port_id == port_id) {
 				arrdelswap(worker->rxqs, i);
@@ -115,7 +115,7 @@ int port_destroy(uint16_t port_id) {
 	}
 	n_workers = worker_count();
 	if (worker_count() != n_workers) {
-		LIST_FOREACH (port, &ports, next) {
+		STAILQ_FOREACH (port, &ports, next) {
 			if ((ret = port_reconfig(port)) < 0)
 				goto out;
 		}
@@ -270,7 +270,8 @@ int port_reconfig(struct port *p) {
 	uint16_t txq = 0;
 	// XXX: can we assume there will never be more than 64 rxqs per port?
 	uint64_t rxq_ids = 0;
-	LIST_FOREACH (worker, &workers, next) {
+
+	STAILQ_FOREACH (worker, &workers, next) {
 		struct queue_map tx_qmap = {
 			.port_id = p->port_id,
 			.queue_id = txq,
@@ -327,10 +328,10 @@ int port_reconfig(struct port *p) {
 static void port_fini(void) {
 	struct port *port, *tmp;
 
-	LIST_FOREACH_SAFE (port, &ports, next, tmp)
+	STAILQ_FOREACH_SAFE (port, &ports, next, tmp)
 		port_destroy(port->port_id);
 
-	LIST_INIT(&ports);
+	STAILQ_INIT(&ports);
 }
 
 static struct br_module port_module = {

@@ -16,7 +16,7 @@ typedef int(br_cli_ctx_init_t)(struct ec_node *root);
 struct br_cli_context {
 	const char *name;
 	br_cli_ctx_init_t *init;
-	LIST_ENTRY(br_cli_context) entries;
+	STAILQ_ENTRY(br_cli_context) entries;
 };
 
 void register_context(struct br_cli_context *);

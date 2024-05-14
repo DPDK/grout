@@ -29,7 +29,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-struct workers workers;
+struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
 int worker_create(unsigned cpu_id) {
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
@@ -47,7 +47,7 @@ int worker_create(unsigned cpu_id) {
 		return errno_log(-ret, "pthread_create");
 	}
 
-	LIST_INSERT_HEAD(&workers, worker, next);
+	STAILQ_INSERT_TAIL(&workers, worker, next);
 
 	// wait until thread has initialized lcore_id
 	while (!atomic_load_explicit(&worker->started, memory_order_acquire))
@@ -63,7 +63,7 @@ int worker_destroy(unsigned cpu_id) {
 	if (worker == NULL)
 		return errno_log(ENOENT, "worker_find");
 
-	LIST_REMOVE(worker, next);
+	STAILQ_REMOVE(&workers, worker, worker, next);
 
 	atomic_store_explicit(&worker->shutdown, true, memory_order_release);
 	pthread_join(worker->thread, NULL);
@@ -80,7 +80,7 @@ size_t worker_count(void) {
 	struct worker *worker;
 	size_t count = 0;
 
-	LIST_FOREACH (worker, &workers, next)
+	STAILQ_FOREACH (worker, &workers, next)
 		count++;
 
 	return count;
@@ -88,7 +88,7 @@ size_t worker_count(void) {
 
 struct worker *worker_find(unsigned cpu_id) {
 	struct worker *worker;
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		if (worker->cpu_id == cpu_id)
 			return worker;
 	}
@@ -100,7 +100,7 @@ int port_unplug(const struct port *port) {
 	struct worker *worker;
 	int changed = 0;
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = false;
@@ -126,7 +126,7 @@ int worker_ensure_default(int socket_id) {
 	unsigned main_lcore = rte_get_main_lcore();
 	struct worker *worker;
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		if (socket_id == SOCKET_ID_ANY)
 			return 0;
 		if (socket_id == numa_node_of_cpu(worker->cpu_id))
@@ -154,7 +154,7 @@ int port_plug(const struct port *port) {
 	struct worker *worker;
 	int changed = 0;
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
 			if (qmap->port_id == port->port_id) {
 				qmap->enabled = true;
@@ -187,7 +187,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	if (!numa_bitmask_isbitset(numa_all_cpus_ptr, cpu_id))
 		return errno_set(ERANGE);
 
-	LIST_FOREACH (src_worker, &workers, next) {
+	STAILQ_FOREACH (src_worker, &workers, next) {
 		arrforeach (qmap, src_worker->rxqs) {
 			if (qmap->port_id != port_id)
 				continue;
@@ -241,7 +241,7 @@ move:
 	if (reconfig) {
 		struct port *port;
 		// number of workers changed, adjust number of tx queues
-		LIST_FOREACH (port, &ports, next) {
+		STAILQ_FOREACH (port, &ports, next) {
 			if ((ret = port_reconfig(port)) < 0)
 				return ret;
 		}
@@ -253,7 +253,7 @@ move:
 static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {
 	const struct worker_stats *stats;
 	struct worker *worker;
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		if (worker->lcore_id == lcore_id) {
 			stats = atomic_load(&worker->stats);
 			if (stats == NULL)
@@ -273,10 +273,10 @@ static void worker_init(void) {
 static void worker_fini(void) {
 	struct worker *w, *tmp;
 
-	LIST_FOREACH_SAFE (w, &workers, next, tmp)
+	STAILQ_FOREACH_SAFE (w, &workers, next, tmp)
 		worker_destroy(w->cpu_id);
 
-	LIST_INIT(&workers);
+	STAILQ_INIT(&workers);
 }
 
 static struct br_module worker_module = {

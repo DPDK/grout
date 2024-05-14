@@ -10,7 +10,7 @@
 #include <sys/queue.h>
 
 struct port {
-	LIST_ENTRY(port) next;
+	STAILQ_ENTRY(port) next;
 	uint16_t port_id;
 	uint16_t n_rxq;
 	uint16_t rxq_size;
@@ -18,7 +18,7 @@ struct port {
 	struct rte_mempool *pool;
 };
 
-LIST_HEAD(ports, port);
+STAILQ_HEAD(ports, port);
 
 extern struct ports ports;
 

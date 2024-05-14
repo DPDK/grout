@@ -25,7 +25,7 @@ static struct api_out graph_dump(const void *request, void **response) {
 
 	(void)request;
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		for (int i = 0; i < 2; i++) {
 			if (worker->config[i].graph != NULL) {
 				graph_name = worker->config[i].graph->name;
@@ -79,7 +79,7 @@ static struct api_out graph_stats(const void *request, void **response) {
 
 	sh_new_arena(smap);
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		const struct worker_stats *w_stats = atomic_load(&worker->stats);
 		if (w_stats == NULL)
 			continue;

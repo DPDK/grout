@@ -21,7 +21,7 @@ static struct api_out rxq_list(const void *request, void **response) {
 
 	(void)request;
 
-	LIST_FOREACH (worker, &workers, next)
+	STAILQ_FOREACH (worker, &workers, next)
 		n_rxqs += arrlen(worker->rxqs);
 
 	len = sizeof(*resp) + n_rxqs * sizeof(struct br_infra_rxq);
@@ -31,7 +31,7 @@ static struct api_out rxq_list(const void *request, void **response) {
 	memset(resp, 0, len);
 
 	n_rxqs = 0;
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		arrforeach (qmap, worker->rxqs) {
 			struct br_infra_rxq *q = &resp->rxqs[n_rxqs];
 			q->port_id = qmap->port_id;

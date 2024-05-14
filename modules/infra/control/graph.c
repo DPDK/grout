@@ -27,7 +27,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-struct node_infos node_infos;
+struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 static const char **node_names;
 
 struct node_data_key {
@@ -245,7 +245,7 @@ int worker_graph_reload_all(void) {
 	unsigned next;
 	int ret;
 
-	LIST_FOREACH (worker, &workers, next) {
+	STAILQ_FOREACH (worker, &workers, next) {
 		next = !atomic_load(&worker->cur_config);
 
 		if ((ret = worker_graph_new(worker, next)) < 0)
@@ -275,7 +275,7 @@ static void graph_init(void) {
 	struct br_node_info *info;
 
 	// register nodes first
-	LIST_FOREACH (info, &node_infos, next) {
+	STAILQ_FOREACH (info, &node_infos, next) {
 		if (info->node == NULL)
 			ABORT("info->node == NULL");
 		reg = info->node;
@@ -287,7 +287,7 @@ static void graph_init(void) {
 	}
 
 	// then, invoke all registration callbacks where applicable
-	LIST_FOREACH (info, &node_infos, next) {
+	STAILQ_FOREACH (info, &node_infos, next) {
 		if (info->register_callback != NULL) {
 			info->register_callback();
 		}

@@ -20,15 +20,15 @@ uint16_t br_node_drop_process(struct rte_graph *, struct rte_node *, void **, ui
 struct br_node_info {
 	struct rte_node_register *node;
 	void (*register_callback)(void);
-	LIST_ENTRY(br_node_info) next;
+	STAILQ_ENTRY(br_node_info) next;
 };
 
-LIST_HEAD(node_infos, br_node_info);
+STAILQ_HEAD(node_infos, br_node_info);
 extern struct node_infos node_infos;
 
 #define BR_NODE_REGISTER(info)                                                                     \
 	RTE_INIT(br_node_register_##info) {                                                        \
-		LIST_INSERT_HEAD(&node_infos, &info, next);                                        \
+		STAILQ_INSERT_TAIL(&node_infos, &info, next);                                      \
 	}
 
 #define BR_DROP_REGISTER(node_name)                                                                \
@@ -40,7 +40,7 @@ extern struct node_infos node_infos;
 		.node = &drop_node_##node_name,                                                    \
 	};                                                                                         \
 	RTE_INIT(br_drop_register_##node_name) {                                                   \
-		LIST_INSERT_HEAD(&node_infos, &drop_info_##node_name, next);                       \
+		STAILQ_INSERT_TAIL(&node_infos, &drop_info_##node_name, next);                     \
 	}
 
 #endif

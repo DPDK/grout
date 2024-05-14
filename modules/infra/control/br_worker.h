@@ -59,10 +59,10 @@ struct worker {
 	pthread_t thread;
 	struct queue_map *rxqs;
 	struct queue_map *txqs;
-	LIST_ENTRY(worker) next;
+	STAILQ_ENTRY(worker) next;
 } __rte_cache_aligned;
 
-LIST_HEAD(workers, worker);
+STAILQ_HEAD(workers, worker);
 extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
