@@ -17,6 +17,9 @@ jobs:
       - run: |
           dnf install -y \
             make gcc ninja-build meson git gcovr scdoc \
+            socat \
+            iproute \
+            iputils \
             libasan \
             libcmocka-devel \
             libedit-devel \

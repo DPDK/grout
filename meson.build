@@ -64,14 +64,14 @@ subdir('cli')
 
 install_headers(api_headers, subdir: 'br')
 
-executable(
+br_exe = executable(
   'br', src,
   include_directories: inc,
   dependencies: [dpdk_dep, event_dep, numa_dep, stb_dep],
   install: true,
 )
 
-executable(
+br_cli_exe = executable(
   'br-cli', cli_src,
   include_directories: cli_inc,
   dependencies: [ecoli_dep, smartcols_dep],
@@ -90,5 +90,7 @@ foreach t : tests
     'link_args': t['link_args'] + ['-lgcov'],
     'dependencies': [dpdk_dep, event_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],
   }
-  test(name, executable(name, kwargs: t))
+  test(name, executable(name, kwargs: t), suite: 'unit')
 endforeach
+
+subdir('tests')
