@@ -12,7 +12,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: fedora:latest
+    container:
+      image: fedora:latest
+      options: --device=/dev/net/tun --privileged
     steps:
       - run: |
           dnf install -y \
@@ -32,8 +34,9 @@ jobs:
       - run: make coverage
   lint:
     runs-on: ubuntu-latest
+    container: fedora:latest
     steps:
-      - run: sudo apt-get install make clang-format git
+      - run: dnf install -y make clang-tools-extra git
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
