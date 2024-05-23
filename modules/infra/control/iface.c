@@ -45,8 +45,14 @@ static int next_ifid(uint16_t *ifid) {
 	return -1;
 }
 
-struct iface *
-iface_create(uint16_t type_id, uint32_t flags, uint16_t mtu, const char *name, void *info) {
+struct iface *iface_create(
+	uint16_t type_id,
+	uint32_t flags,
+	uint16_t mtu,
+	uint16_t vrf_id,
+	const char *name,
+	void *info
+) {
 	struct iface_type *type = iface_type_get(type_id);
 	struct iface *iface = NULL;
 	uint16_t ifid;
@@ -68,6 +74,7 @@ iface_create(uint16_t type_id, uint32_t flags, uint16_t mtu, const char *name, v
 	iface->type_id = type_id;
 	iface->flags = flags;
 	iface->mtu = mtu;
+	iface->vrf_id = vrf_id;
 	memccpy(iface->name, name, 0, sizeof(iface->name));
 	memcpy(iface->info, info, type->info_size);
 
@@ -87,6 +94,7 @@ int iface_reconfig(
 	uint64_t set_attrs,
 	uint32_t flags,
 	uint16_t mtu,
+	uint16_t vrf_id,
 	const char *name,
 	void *info
 ) {
@@ -107,6 +115,8 @@ int iface_reconfig(
 		iface->flags = flags;
 	if (set_attrs & IFACE_SET_MTU)
 		iface->mtu = mtu;
+	if (set_attrs & IFACE_SET_VRF)
+		iface->vrf_id = vrf_id;
 
 	type = iface_type_get(iface->type_id);
 	return type->reconfig(iface, set_attrs, info);

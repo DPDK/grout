@@ -6,6 +6,8 @@
 
 #include <br_infra.h>
 
+#include <ecoli.h>
+
 #include <stdint.h>
 #include <sys/queue.h>
 
@@ -43,5 +45,26 @@ int complete_iface_names(
 );
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
+
+#define IFACE_ATTRS_CMD "(up|down),(mtu MTU),(vrf VRF)"
+
+#define IFACE_ATTRS_ARGS                                                                           \
+	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
+		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
+		with_help(                                                                         \
+			"Maximum transmision unit size.",                                          \
+			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
+		),                                                                                 \
+		with_help(                                                                         \
+			"L3 addressing/routing domain ID.",                                        \
+			ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)                                 \
+		)
+
+uint64_t parse_iface_args(
+	const struct br_api_client *c,
+	const struct ec_pnode *p,
+	struct br_iface *iface,
+	bool update
+);
 
 #endif

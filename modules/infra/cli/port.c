@@ -49,36 +49,9 @@ static uint64_t parse_port_args(
 	struct br_iface *iface,
 	bool update
 ) {
-	const char *promisc, *allmulti, *devargs, *name;
+	const char *promisc, *allmulti, *devargs;
 	struct br_iface_info_port *port;
-	uint64_t set_attrs = 0;
-
-	name = arg_str(p, "NAME");
-	if (update) {
-		if (iface_from_name(c, name, iface) < 0)
-			goto err;
-		name = arg_str(p, "NEW_NAME");
-	}
-
-	if (name != NULL) {
-		if (strlen(name) >= sizeof(iface->name)) {
-			errno = ENAMETOOLONG;
-			goto err;
-		}
-		set_attrs |= BR_IFACE_SET_NAME;
-		memccpy(iface->name, name, 0, sizeof(iface->name));
-	}
-
-	if (arg_str(p, "up")) {
-		iface->flags |= BR_IFACE_F_UP;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	} else if (arg_str(p, "down")) {
-		iface->flags &= ~BR_IFACE_F_UP;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	}
-
-	if (arg_u16(p, "MTU", &iface->mtu) == 0)
-		set_attrs |= BR_IFACE_SET_MTU;
+	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
 
 	promisc = arg_str(p, "PROMISC");
 	if (promisc != NULL && strcmp(promisc, "on") == 0) {
@@ -232,16 +205,11 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 }
 
 #define PORT_ATTRS_CMD                                                                             \
-	"(up|down),(mtu MTU),(promisc PROMISC),(allmulti ALLMULTI),(mac MAC),"                     \
-	"(rxqs N_RXQ),(qsize Q_SIZE)"
+	IFACE_ATTRS_CMD ",(promisc PROMISC),(allmulti ALLMULTI),(mac MAC),"                        \
+			"(rxqs N_RXQ),(qsize Q_SIZE)"
 
 #define PORT_ATTRS_ARGS                                                                            \
-	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
-		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
-		with_help(                                                                         \
-			"Maximum transmision unit size.",                                          \
-			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
-		),                                                                                 \
+	IFACE_ATTRS_ARGS,                                                                          \
 		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
 		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
 		with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),            \

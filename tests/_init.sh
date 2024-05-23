@@ -5,7 +5,7 @@ set -e
 
 cleanup() {
 	set +e
-	kill -INT %1
+	kill -INT %?br
 	wait
 	if [ -r $tmp/cleanup ]; then
 		sh -x $tmp/cleanup
@@ -15,12 +15,18 @@ cleanup() {
 
 tmp=$(mktemp -d)
 trap cleanup EXIT
-sock=$tmp/br.sock
+builddir=$1
 
-alias br="$1 -s $sock"
-alias br-cli="$2 -s $sock"
+export BR_SOCK_PATH=$tmp/br.sock
+export PATH=$builddir:$PATH
+
+uid=$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)
+
+name() {
+	echo "br$2-$uid-$1"
+}
 
 set -x
 
 br -tv &
-socat FILE:/dev/null UNIX-CONNECT:$sock,retry=3
+socat FILE:/dev/null UNIX-CONNECT:$BR_SOCK_PATH,retry=3

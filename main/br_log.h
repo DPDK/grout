@@ -47,7 +47,7 @@ static inline int errno_set(int errnum) {
 	return -errnum;
 }
 
-static inline void *errno_set_num(int errnum) {
+static inline void *errno_set_null(int errnum) {
 	errno = errnum;
 	return NULL;
 }

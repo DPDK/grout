@@ -145,6 +145,50 @@ int iface_from_id(const struct br_api_client *c, uint16_t iface_id, struct br_if
 	return 0;
 }
 
+uint64_t parse_iface_args(
+	const struct br_api_client *c,
+	const struct ec_pnode *p,
+	struct br_iface *iface,
+	bool update
+) {
+	const char *name;
+	uint64_t set_attrs = 0;
+
+	name = arg_str(p, "NAME");
+	if (update) {
+		if (iface_from_name(c, name, iface) < 0)
+			goto err;
+		name = arg_str(p, "NEW_NAME");
+	}
+
+	if (name != NULL) {
+		if (strlen(name) >= sizeof(iface->name)) {
+			errno = ENAMETOOLONG;
+			goto err;
+		}
+		set_attrs |= BR_IFACE_SET_NAME;
+		memccpy(iface->name, name, 0, sizeof(iface->name));
+	}
+
+	if (arg_str(p, "up")) {
+		iface->flags |= BR_IFACE_F_UP;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (arg_str(p, "down")) {
+		iface->flags &= ~BR_IFACE_F_UP;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+
+	if (arg_u16(p, "MTU", &iface->mtu) == 0)
+		set_attrs |= BR_IFACE_SET_MTU;
+
+	if (arg_u16(p, "VRF", &iface->vrf_id) == 0)
+		set_attrs |= BR_IFACE_SET_VRF;
+
+	return set_attrs;
+err:
+	return 0;
+}
+
 static cmd_status_t iface_del(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct br_infra_iface_del_req req;
 	struct br_iface iface;
@@ -268,6 +312,7 @@ static cmd_status_t iface_show(const struct br_api_client *c, const struct ec_pn
 	if (iface.flags & BR_IFACE_F_ALLMULTI)
 		printf(" allmulti");
 	printf("\n");
+	printf("vrf: %u\n", iface.vrf_id);
 	printf("mtu: %u\n", iface.mtu);
 
 	if (type == NULL) {

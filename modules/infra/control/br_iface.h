@@ -26,6 +26,7 @@
 #define IFACE_SET_FLAGS BR_BIT64(0)
 #define IFACE_SET_MTU BR_BIT64(1)
 #define IFACE_SET_NAME BR_BIT64(2)
+#define IFACE_SET_VRF BR_BIT64(3)
 #define IFACE_SET_GENERIC UINT64_C(0x00000000ffffffff)
 #define IFACE_SET_SPECIFIC UINT64_C(0xffffffff00000000)
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
@@ -36,6 +37,7 @@ struct iface {
 	uint16_t flags;
 	uint16_t state;
 	uint16_t mtu;
+	uint16_t vrf_id; // L3 addressing and routing domain
 	char name[64];
 	uint8_t info[/* size depends on type */];
 };
@@ -58,13 +60,20 @@ struct iface_type {
 
 void iface_type_register(struct iface_type *);
 struct iface_type *iface_type_get(uint16_t type_id);
-struct iface *
-iface_create(uint16_t type_id, uint32_t flags, uint16_t mtu, const char *name, void *info);
+struct iface *iface_create(
+	uint16_t type_id,
+	uint32_t flags,
+	uint16_t mtu,
+	uint16_t vrf_id,
+	const char *name,
+	void *info
+);
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
 	uint32_t flags,
 	uint16_t mtu,
+	uint16_t vrf_id,
 	const char *name,
 	void *info
 );

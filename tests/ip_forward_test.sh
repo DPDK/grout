@@ -4,8 +4,8 @@
 
 . $(dirname $0)/_init.sh
 
-p0=brtap0
-p1=brtap1
+p0=$(name 0)
+p1=$(name 1)
 
 br-cli -xe <<EOF
 add interface port $p0 devargs net_tap0,iface=$p0
@@ -15,13 +15,14 @@ add ip address 10.1.0.1/24 iface $p1
 EOF
 
 for n in 0 1; do
-	ip netns add brns$n
-	echo ip netns del brns$n >> $tmp/cleanup
-	ip link set brtap$n netns brns$n
-	ip -n brns$n link set brtap$n up
-	ip -n brns$n addr add 10.$n.0.2/24 dev brtap$n
-	ip -n brns$n route add default via 10.$n.0.1
+	p=$(name $n)
+	ip netns add $p
+	echo ip netns del $p >> $tmp/cleanup
+	ip link set $p netns $p
+	ip -n $p link set $p up
+	ip -n $p addr add 10.$n.0.2/24 dev $p
+	ip -n $p route add default via 10.$n.0.1
 done
 
-ip netns exec brns0 ping -c3 10.1.0.2
-ip netns exec brns1 ping -c3 10.0.0.2
+ip netns exec $p0 ping -i0.01 -c3 10.1.0.2
+ip netns exec $p1 ping -i0.01 -c3 10.0.0.2

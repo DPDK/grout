@@ -50,6 +50,7 @@ static cmd_status_t addr_del(const struct br_api_client *c, const struct ec_pnod
 static cmd_status_t addr_list(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_addr_list_resp *resp;
+	struct br_ip4_addr_list_req req = {0};
 	struct br_iface iface;
 
 	void *resp_ptr = NULL;
@@ -60,8 +61,15 @@ static cmd_status_t addr_list(const struct br_api_client *c, const struct ec_pno
 	if (table == NULL)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ADDR_LIST, 0, NULL, &resp_ptr) < 0)
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
+		scols_unref_table(table);
 		return CMD_ERROR;
+	}
+
+	if (br_api_client_send_recv(c, BR_IP4_ADDR_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
 
 	resp = resp_ptr;
 
@@ -110,7 +118,13 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(IP_SHOW_CTX(root), "address", addr_list, "Display all IPv4 addresses.");
+	ret = CLI_COMMAND(
+		IP_SHOW_CTX(root),
+		"address [vrf VRF]",
+		addr_list,
+		"Display all IPv4 addresses.",
+		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+	);
 	if (ret < 0)
 		return ret;
 

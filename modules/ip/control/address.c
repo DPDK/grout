@@ -38,11 +38,16 @@ struct nexthop *ip4_addr_get(uint16_t iface_id) {
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct br_ip4_addr_add_req *req = request;
+	const struct iface *iface;
 	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
 
 	(void)response;
+
+	iface = iface_from_id(req->addr.iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0);
 
 	if ((nh = ip4_addr_get(req->addr.iface_id)) != NULL) {
 		if (req->exist_ok && req->addr.addr.ip == nh->ip
@@ -50,22 +55,21 @@ static struct api_out addr_add(const void *request, void **response) {
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
-	if (ip4_nexthop_lookup(req->addr.addr.ip, &nh_idx, &nh) == 0)
+	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh) == 0)
 		return api_out(EADDRINUSE, 0);
-	if (iface_from_id(req->addr.iface_id) == NULL)
-		return api_out(errno, 0);
 
-	if ((ret = ip4_nexthop_lookup_add(req->addr.addr.ip, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_lookup_add(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->iface_id = req->addr.iface_id;
 	nh->prefixlen = req->addr.addr.prefixlen;
 	nh->flags = BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK | BR_IP4_NH_F_REACHABLE
 		| BR_IP4_NH_F_STATIC;
-	if ((ret = rte_eth_macaddr_get(nh->iface_id, &nh->lladdr)) < 0)
-		return api_out(-ret, 0);
 
-	ret = ip4_route_insert(nh->ip, nh->prefixlen, nh_idx, nh);
+	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
+		return api_out(errno, 0);
+
+	ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh_idx, nh);
 	if (ret == 0)
 		addrs[nh->iface_id] = nh;
 	else
@@ -76,6 +80,7 @@ static struct api_out addr_add(const void *request, void **response) {
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct br_ip4_addr_del_req *req = request;
+	const struct iface *iface;
 	struct nexthop *nh;
 
 	(void)response;
@@ -91,20 +96,23 @@ static struct api_out addr_del(const void *request, void **response) {
 	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ip4_route_delete(nh->ip, nh->prefixlen);
+	iface = iface_from_id(req->addr.iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0);
+
+	ip4_route_delete(iface->vrf_id, nh->ip, nh->prefixlen);
 	addrs[req->addr.iface_id] = NULL;
 
 	return api_out(0, 0);
 }
 
 static struct api_out addr_list(const void *request, void **response) {
+	const struct br_ip4_addr_list_req *req = request;
 	struct br_ip4_addr_list_resp *resp = NULL;
 	struct br_ip4_ifaddr *addr;
 	const struct nexthop *nh;
 	uint16_t iface_id, num;
 	size_t len;
-
-	(void)request;
 
 	num = 0;
 	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
@@ -119,7 +127,7 @@ static struct api_out addr_list(const void *request, void **response) {
 	num = 0;
 	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
 		nh = ip4_addr_get(iface_id);
-		if (nh == NULL)
+		if (nh == NULL || nh->vrf_id != req->vrf_id)
 			continue;
 		addr = &resp->addrs[resp->n_addrs++];
 		addr->addr.ip = nh->ip;

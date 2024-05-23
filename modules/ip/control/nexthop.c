@@ -23,38 +23,46 @@
 struct nexthop *nh_array;
 struct rte_hash *nh_hash;
 
+struct nexthop_key {
+	uint16_t vrf_id;
+	ip4_addr_t ip;
+};
+
 struct nexthop *ip4_nexthop_get(uint32_t idx) {
-	// no index check, for datapath use
 	return &nh_array[idx];
 }
 
-int ip4_nexthop_lookup(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
+int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
+	struct nexthop_key key = {vrf_id, ip};
 	int32_t nh_idx;
 
-	if ((nh_idx = rte_hash_lookup(nh_hash, &ip)) < 0)
-		return nh_idx;
+	if ((nh_idx = rte_hash_lookup(nh_hash, &key)) < 0)
+		return errno_set(-nh_idx);
 
 	*idx = nh_idx;
-	*nh = ip4_nexthop_get(nh_idx);
+	*nh = &nh_array[nh_idx];
 
 	return 0;
 }
 
-int ip4_nexthop_lookup_add(ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
-	if (ip4_nexthop_lookup(ip, idx, nh) < 0) {
-		int32_t nh_idx = rte_hash_add_key(nh_hash, &ip);
+int ip4_nexthop_lookup_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
+	if (ip4_nexthop_lookup(vrf_id, ip, idx, nh) < 0) {
+		struct nexthop_key key = {vrf_id, ip};
+		int32_t nh_idx = rte_hash_add_key(nh_hash, &key);
 		if (nh_idx < 0)
 			return nh_idx;
+		nh_array[nh_idx].vrf_id = vrf_id;
+		nh_array[nh_idx].ip = ip;
 		*idx = nh_idx;
-		*nh = ip4_nexthop_get(nh_idx);
-		(*nh)->ip = ip;
+		*nh = &nh_array[nh_idx];
 	}
 	return 0;
 }
 
 void ip4_nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
-		rte_hash_del_key(nh_hash, &nh->ip);
+		struct nexthop_key key = {nh->vrf_id, nh->ip};
+		rte_hash_del_key(nh_hash, &key);
 		memset(nh, 0, sizeof(*nh));
 	} else {
 		nh->ref_count--;
@@ -78,20 +86,20 @@ static struct api_out nh4_add(const void *request, void **response) {
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if (ip4_nexthop_lookup(req->nh.host, &nh_idx, &nh) == 0) {
+	if (ip4_nexthop_lookup(req->nh.vrf_id, req->nh.host, &nh_idx, &nh) == 0) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && br_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if ((ret = ip4_nexthop_lookup_add(req->nh.host, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_lookup_add(req->nh.vrf_id, req->nh.host, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->iface_id = req->nh.iface_id;
 	memcpy(&nh->lladdr, (void *)&req->nh.mac, sizeof(nh->lladdr));
 	nh->flags = BR_IP4_NH_F_STATIC | BR_IP4_NH_F_REACHABLE;
-	ret = ip4_route_insert(nh->ip, 32, nh_idx, nh);
+	ret = ip4_route_insert(nh->vrf_id, nh->ip, 32, nh_idx, nh);
 
 	return api_out(-ret, 0);
 }
@@ -100,26 +108,26 @@ static struct api_out nh4_del(const void *request, void **response) {
 	const struct br_ip4_nh_del_req *req = request;
 	struct nexthop *nh;
 	uint32_t idx;
-	int ret;
 
 	(void)response;
 
-	if ((ret = ip4_nexthop_lookup(req->host, &idx, &nh)) < 0) {
-		if (ret == -ENOENT && req->missing_ok)
+	if (ip4_nexthop_lookup(req->vrf_id, req->host, &idx, &nh) < 0) {
+		if (errno == ENOENT && req->missing_ok)
 			return api_out(0, 0);
-		return api_out(-ret, 0);
+		return api_out(errno, 0);
 	}
 	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	// this also does ip4_nexthop_decref(), freeing the next hop
-	if ((ret = ip4_route_delete(req->host, 32)) < 0)
-		return api_out(-ret, 0);
+	if (ip4_route_delete(req->vrf_id, req->host, 32) < 0)
+		return api_out(errno, 0);
 
 	return api_out(0, 0);
 }
 
 static struct api_out nh4_list(const void *request, void **response) {
+	const struct br_ip4_nh_list_req *req = request;
 	struct br_ip4_nh_list_resp *resp = NULL;
 	struct br_ip4_nh *api_nh;
 	struct nexthop *nh;
@@ -129,9 +137,14 @@ static struct api_out nh4_list(const void *request, void **response) {
 	void *data;
 	size_t len;
 
-	(void)request;
+	num = 0;
+	iter = 0;
+	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
+		nh = ip4_nexthop_get(idx);
+		if (nh->vrf_id == req->vrf_id)
+			num++;
+	}
 
-	num = rte_hash_count(nh_hash);
 	len = sizeof(*resp) + num * sizeof(struct br_ip4_nh);
 	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
@@ -139,6 +152,8 @@ static struct api_out nh4_list(const void *request, void **response) {
 	iter = 0;
 	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
 		nh = ip4_nexthop_get(idx);
+		if (nh->vrf_id != req->vrf_id)
+			continue;
 		api_nh = &resp->nhs[resp->n_nhs++];
 		api_nh->host = nh->ip;
 		api_nh->iface_id = nh->iface_id;
@@ -157,7 +172,7 @@ static void nh4_init(void) {
 	struct rte_hash_parameters params = {
 		.name = "ip4_nh",
 		.entries = MAX_NEXT_HOPS,
-		.key_len = sizeof(ip4_addr_t),
+		.key_len = sizeof(struct nexthop_key),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
 			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
 	};

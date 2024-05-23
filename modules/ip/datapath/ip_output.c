@@ -4,6 +4,7 @@
 #include "ip4.h"
 
 #include <br_datapath.h>
+#include <br_eth_input.h>
 #include <br_eth_output.h>
 #include <br_graph.h>
 #include <br_ip4.h>
@@ -41,8 +42,10 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
 		nh = ip_output_mbuf_data(mbuf)->nh; // from ip_input
-		if (nh == NULL)
-			nh = ip4_route_lookup(ip->dst_addr); // from arp_input
+		if (nh == NULL) {
+			const struct iface *iface = eth_input_mbuf_data(mbuf)->iface;
+			nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr); // from arp_input
+		}
 		if (nh == NULL) {
 			next = NO_ROUTE;
 			goto next;
@@ -53,11 +56,11 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			// Create a new next hop and its associated /32 route so that next
 			// packets take it in priority with a single route lookup.
 			struct nexthop *remote;
-			if (ip4_nexthop_lookup_add(ip->dst_addr, &idx, &remote) < 0) {
+			if (ip4_nexthop_lookup_add(nh->vrf_id, ip->dst_addr, &idx, &remote) < 0) {
 				next = ERROR;
 				goto next;
 			}
-			ip4_route_insert(ip->dst_addr, 32, idx, remote);
+			ip4_route_insert(nh->vrf_id, ip->dst_addr, 32, idx, remote);
 			remote->iface_id = nh->iface_id;
 			ip_output_mbuf_data(mbuf)->nh = nh;
 		}

@@ -19,6 +19,7 @@ enum {
 	OP_REPLY,
 	OP_UNSUPP,
 	PROTO_UNSUPP,
+	ERROR,
 	IP_OUTPUT,
 	EDGE_COUNT,
 };
@@ -66,10 +67,11 @@ static uint16_t
 arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct nexthop *remote, *local;
 	struct arp_mbuf_data *arp_data;
+	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
-	uint16_t iface_id;
 	rte_edge_t next;
+	ip4_addr_t sip;
 	uint32_t idx;
 	uint64_t now;
 
@@ -100,19 +102,22 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
-		iface_id = eth_input_mbuf_data(mbuf)->iface->id;
-		local = ip4_addr_get(iface_id);
+		iface = eth_input_mbuf_data(mbuf)->iface;
+		local = ip4_addr_get(iface->id);
+		sip = arp->arp_data.arp_sip;
 
-		if (ip4_nexthop_lookup(arp->arp_data.arp_sip, &idx, &remote) >= 0) {
-			update_nexthop(graph, node, remote, now, iface_id, arp);
+		if (ip4_nexthop_lookup(iface->vrf_id, sip, &idx, &remote) >= 0) {
+			update_nexthop(graph, node, remote, now, iface->id, arp);
 		} else if (local != NULL && local->ip == arp->arp_data.arp_tip) {
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.
-			if (ip4_nexthop_lookup_add(arp->arp_data.arp_sip, &idx, &remote) < 0)
+			if (ip4_nexthop_lookup_add(iface->vrf_id, sip, &idx, &remote) < 0) {
+				next = ERROR;
 				goto next;
-			ip4_route_insert(arp->arp_data.arp_sip, 32, idx, remote);
-			update_nexthop(graph, node, remote, now, iface_id, arp);
+			}
+			ip4_route_insert(iface->vrf_id, sip, 32, idx, remote);
+			update_nexthop(graph, node, remote, now, iface->id, arp);
 		}
 		arp_data = arp_mbuf_data(mbuf);
 		arp_data->local = local;
@@ -142,6 +147,7 @@ static struct rte_node_register node = {
 		[OP_REPLY] = "arp_input_reply",
 		[OP_UNSUPP] = "arp_input_op_unsupp",
 		[PROTO_UNSUPP] = "arp_input_proto_unsupp",
+		[ERROR] = "arp_input_error",
 		[IP_OUTPUT] = "ip_output",
 	},
 };
@@ -156,3 +162,4 @@ BR_NODE_REGISTER(info);
 BR_DROP_REGISTER(arp_input_reply);
 BR_DROP_REGISTER(arp_input_op_unsupp);
 BR_DROP_REGISTER(arp_input_proto_unsupp);
+BR_DROP_REGISTER(arp_input_error);

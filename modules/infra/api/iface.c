@@ -73,6 +73,7 @@ static void iface_to_api(struct br_iface *to, const struct iface *from) {
 	to->flags = from->flags;
 	to->state = from->state;
 	to->mtu = from->mtu;
+	to->vrf_id = from->vrf_id;
 	memccpy(to->name, from->name, 0, sizeof(to->name));
 	types[from->type_id].to_api(to->info, from);
 }
@@ -87,7 +88,12 @@ static struct api_out iface_add(const void *request, void **response) {
 		return api_out(errno, 0);
 
 	iface = iface_create(
-		req->iface.type, req->iface.flags, req->iface.mtu, req->iface.name, info
+		req->iface.type,
+		req->iface.flags,
+		req->iface.mtu,
+		req->iface.vrf_id,
+		req->iface.name,
+		info
 	);
 	free(info);
 	if (iface == NULL)
@@ -168,6 +174,7 @@ static struct api_out iface_set(const void *request, void **response) {
 		req->set_attrs,
 		req->iface.flags,
 		req->iface.mtu,
+		req->iface.vrf_id,
 		req->iface.name,
 		info
 	);

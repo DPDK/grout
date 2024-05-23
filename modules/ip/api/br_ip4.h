@@ -48,6 +48,7 @@ static inline const char *br_ip4_nh_f_name(const br_ip4_nh_flags_t flag) {
 struct br_ip4_nh {
 	ip4_addr_t host;
 	struct eth_addr mac;
+	uint16_t vrf_id;
 	uint16_t iface_id;
 	br_ip4_nh_flags_t flags;
 	uint32_t age; //<! number of seconds since last arp reply
@@ -74,6 +75,7 @@ struct br_ip4_nh_add_req {
 #define BR_IP4_NH_DEL REQUEST_TYPE(BR_IP4_MODULE, 0x0002)
 
 struct br_ip4_nh_del_req {
+	uint16_t vrf_id;
 	ip4_addr_t host;
 	uint8_t missing_ok;
 };
@@ -82,7 +84,9 @@ struct br_ip4_nh_del_req {
 
 #define BR_IP4_NH_LIST REQUEST_TYPE(BR_IP4_MODULE, 0x0003)
 
-// struct br_ip4_nh_list_req { };
+struct br_ip4_nh_list_req {
+	uint16_t vrf_id;
+};
 
 struct br_ip4_nh_list_resp {
 	uint16_t n_nhs;
@@ -94,6 +98,7 @@ struct br_ip4_nh_list_resp {
 #define BR_IP4_ROUTE_ADD REQUEST_TYPE(BR_IP4_MODULE, 0x0010)
 
 struct br_ip4_route_add_req {
+	uint16_t vrf_id;
 	struct ip4_net dest;
 	ip4_addr_t nh;
 	uint8_t exist_ok;
@@ -104,6 +109,7 @@ struct br_ip4_route_add_req {
 #define BR_IP4_ROUTE_DEL REQUEST_TYPE(BR_IP4_MODULE, 0x0011)
 
 struct br_ip4_route_del_req {
+	uint16_t vrf_id;
 	struct ip4_net dest;
 	uint8_t missing_ok;
 };
@@ -113,6 +119,7 @@ struct br_ip4_route_del_req {
 #define BR_IP4_ROUTE_GET REQUEST_TYPE(BR_IP4_MODULE, 0x0012)
 
 struct br_ip4_route_get_req {
+	uint16_t vrf_id;
 	ip4_addr_t dest;
 };
 
@@ -122,7 +129,9 @@ struct br_ip4_route_get_resp {
 
 #define BR_IP4_ROUTE_LIST REQUEST_TYPE(BR_IP4_MODULE, 0x0013)
 
-// struct br_ip4_route_list_req { };
+struct br_ip4_route_list_req {
+	uint16_t vrf_id;
+};
 
 struct br_ip4_route_list_resp {
 	uint16_t n_routes;
@@ -151,7 +160,9 @@ struct br_ip4_addr_del_req {
 
 #define BR_IP4_ADDR_LIST REQUEST_TYPE(BR_IP4_MODULE, 0x0023)
 
-// struct br_ip4_addr_list_req { };
+struct br_ip4_addr_list_req {
+	uint16_t vrf_id;
+};
 
 struct br_ip4_addr_list_resp {
 	uint16_t n_addrs;

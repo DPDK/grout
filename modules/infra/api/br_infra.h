@@ -29,6 +29,7 @@
 #define BR_IFACE_SET_FLAGS BR_BIT64(0)
 #define BR_IFACE_SET_MTU BR_BIT64(1)
 #define BR_IFACE_SET_NAME BR_BIT64(2)
+#define BR_IFACE_SET_VRF BR_BIT64(3)
 
 // Generic struct for all network interfaces.
 struct br_iface {
@@ -37,6 +38,7 @@ struct br_iface {
 	uint16_t flags; // Interface flags. Bit mask of BR_IFACE_F_*.
 	uint16_t state; // Interface state. Bit mask of BR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
+	uint16_t vrf_id; // L3 addressing and routing domain
 	char name[64]; // Interface name (utf-8 encoded, nul terminated).
 	uint8_t info[256]; // Type specific interface info.
 };

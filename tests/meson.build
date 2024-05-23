@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Robin Jarry
 
-sudo = find_program('sudo')
-
 test_scripts = files(
   'config_test.sh',
   'ip_forward_test.sh',
+  'vrf_forward_test.sh',
 )
 
-foreach t : test_scripts
-  name = fs.replace_suffix(t, '')
-  test(name, sudo, args: [t, br_exe, br_cli_exe], suite: 'integration')
-endforeach
+sudo = find_program('sudo', required: false)
+if sudo.found()
+  foreach t : test_scripts
+    if run_command(sudo, '-ll', t, check: false).returncode() == 0
+      name = fs.replace_suffix(t, '')
+      test(name,
+        sudo, args: [t, meson.project_build_root()],
+        depends: [br_exe, br_cli_exe],
+        suite: 'integration',
+      )
+    endif
+  endforeach
+endif

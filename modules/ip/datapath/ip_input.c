@@ -28,6 +28,7 @@ enum edges {
 
 static uint16_t
 input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
@@ -68,7 +69,8 @@ input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 			goto next_packet;
 		}
 
-		nh = ip4_route_lookup(ip->dst_addr);
+		iface = eth_input_mbuf_data(mbuf)->iface;
+		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			next = NO_ROUTE;
 			goto next_packet;

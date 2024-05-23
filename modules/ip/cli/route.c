@@ -24,6 +24,8 @@ static cmd_status_t route4_add(const struct br_api_client *c, const struct ec_pn
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_IP4_ROUTE_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -36,6 +38,8 @@ static cmd_status_t route4_del(const struct br_api_client *c, const struct ec_pn
 
 	if (br_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
 		return CMD_ERROR;
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_IP4_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -46,6 +50,7 @@ static cmd_status_t route4_del(const struct br_api_client *c, const struct ec_pn
 static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_route_list_resp *resp;
+	struct br_ip4_route_list_req req = {0};
 	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
@@ -54,8 +59,13 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 	if (table == NULL)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_LIST, 0, NULL, &resp_ptr) < 0)
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+
+	if (br_api_client_send_recv(c, BR_IP4_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
 
 	resp = resp_ptr;
 	scols_table_new_column(table, "DESTINATION", 0, 0);
@@ -80,7 +90,7 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 
 static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pnode *p) {
 	const struct br_ip4_route_get_resp *resp;
-	struct br_ip4_route_get_req req;
+	struct br_ip4_route_get_req req = {0};
 	struct br_iface iface;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
@@ -95,6 +105,8 @@ static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pn
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_IP4_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
@@ -117,29 +129,32 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP_ADD_CTX(root),
-		"route DEST via NH",
+		"route DEST via NH [vrf VRF]",
 		route4_add,
 		"Add a new route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
-		with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE))
+		with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		IP_DEL_CTX(root),
-		"route DEST",
+		"route DEST [vrf VRF]",
 		route4_del,
 		"Delete a route.",
-		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE))
+		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		IP_SHOW_CTX(root),
-		"route [DEST]",
+		"route [(destination DEST),(vrf VRF)]",
 		route4_get,
 		"Show IPv4 routes.",
-		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE))
+		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;

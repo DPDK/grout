@@ -43,6 +43,8 @@ static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	if (br_api_client_send_recv(c, BR_IP4_NH_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -53,6 +55,7 @@ static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode
 static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_nh_list_resp *resp;
+	struct br_ip4_nh_list_req req = {0};
 	char ip[BUFSIZ], state[BUFSIZ];
 	struct br_iface iface;
 	void *resp_ptr = NULL;
@@ -62,9 +65,14 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 	if (table == NULL)
 		return CMD_ERROR;
-
-	if (br_api_client_send_recv(c, BR_IP4_NH_LIST, 0, NULL, &resp_ptr) < 0)
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
+		scols_unref_table(table);
 		return CMD_ERROR;
+	}
+	if (br_api_client_send_recv(c, BR_IP4_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
 
 	resp = resp_ptr;
 
@@ -133,14 +141,21 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		IP_DEL_CTX(root),
-		"nexthop IP",
+		"nexthop IP [vrf VRF]",
 		nh4_del,
 		"Delete a next hop.",
-		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE))
+		with_help("IPv4 address.", ec_node_re("IP", IPV4_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(IP_SHOW_CTX(root), "nexthop", nh4_list, "List all next hops.");
+	ret = CLI_COMMAND(
+		IP_SHOW_CTX(root),
+		"nexthop [vrf VRF]",
+		nh4_list,
+		"List all next hops.",
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+	);
 	if (ret < 0)
 		return ret;
 
