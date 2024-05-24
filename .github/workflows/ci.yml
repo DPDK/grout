@@ -22,6 +22,7 @@ jobs:
           dnf install -y \
             make gcc ccache ninja-build meson git gcovr scdoc \
             socat \
+            tcpdump \
             iproute \
             iputils \
             libasan \

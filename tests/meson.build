@@ -8,7 +8,10 @@ test_scripts = files(
 )
 
 sudo = find_program('sudo', required: false)
-if sudo.found()
+tcpdump = find_program('tcpdump', required: false)
+ping = find_program('ping', required: false)
+ip = find_program('ip', required: false)
+if sudo.found() and tcpdump.found() and ping.found() and ip.found()
   foreach t : test_scripts
     if run_command(sudo, '-ll', t, check: false).returncode() == 0
       name = fs.replace_suffix(t, '')
