@@ -74,11 +74,14 @@ static struct rte_eth_conf default_port_config = {
 	.rx_adv_conf = {
 		.rss_conf = {
 			.rss_key = NULL, // use default key
-			.rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_UDP | RTE_ETH_RSS_TCP,
+			.rss_hf = RTE_ETH_RSS_VLAN
+				| RTE_ETH_RSS_IP
+				| RTE_ETH_RSS_UDP
+				| RTE_ETH_RSS_TCP,
 		},
 	},
 	.rxmode = {
-		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM,
+		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN,
 	},
 };
 

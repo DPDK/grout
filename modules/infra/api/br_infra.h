@@ -17,6 +17,7 @@
 // Value for br_iface.type
 #define BR_IFACE_TYPE_UNDEF 0x0000
 #define BR_IFACE_TYPE_PORT 0x0001
+#define BR_IFACE_TYPE_VLAN 0x0002
 
 // Interface configure flags
 #define BR_IFACE_F_UP BR_BIT16(0)
@@ -60,6 +61,20 @@ struct br_iface_info_port {
 };
 
 static_assert(sizeof(struct br_iface_info_port) <= MEMBER_SIZE(struct br_iface, info));
+
+// VLAN reconfig attributes
+#define BR_VLAN_SET_PARENT BR_BIT64(32)
+#define BR_VLAN_SET_VLAN BR_BIT64(33)
+#define BR_VLAN_SET_MAC BR_BIT64(34)
+
+// Info for BR_IFACE_TYPE_VLAN interfaces
+struct br_iface_info_vlan {
+	uint16_t parent_id;
+	uint16_t vlan_id;
+	struct eth_addr mac;
+};
+
+static_assert(sizeof(struct br_iface_info_vlan) <= MEMBER_SIZE(struct br_iface, info));
 
 struct br_port_rxq_map {
 	uint16_t iface_id;

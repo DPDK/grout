@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <sys/queue.h>
 
-static void port_show(const struct br_iface *iface) {
+static void port_show(const struct br_api_client *, const struct br_iface *iface) {
 	const struct br_iface_info_port *port = (const struct br_iface_info_port *)iface->info;
 	printf("devargs: %s\n", port->devargs);
 	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port->mac.bytes));
@@ -25,7 +25,8 @@ static void port_show(const struct br_iface *iface) {
 	printf("txq_size: %u\n", port->txq_size);
 }
 
-static void port_list_info(const struct br_iface *iface, char *buf, size_t len) {
+static void
+port_list_info(const struct br_api_client *, const struct br_iface *iface, char *buf, size_t len) {
 	const struct br_iface_info_port *port = (const struct br_iface_info_port *)iface->info;
 	snprintf(
 		buf,
@@ -49,27 +50,9 @@ static uint64_t parse_port_args(
 	struct br_iface *iface,
 	bool update
 ) {
-	const char *promisc, *allmulti, *devargs;
-	struct br_iface_info_port *port;
 	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
-
-	promisc = arg_str(p, "PROMISC");
-	if (promisc != NULL && strcmp(promisc, "on") == 0) {
-		iface->flags |= BR_IFACE_F_PROMISC;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
-		iface->flags &= ~BR_IFACE_F_PROMISC;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	}
-
-	allmulti = arg_str(p, "ALLMULTI");
-	if (allmulti != NULL && strcmp(allmulti, "on") == 0) {
-		iface->flags |= BR_IFACE_F_ALLMULTI;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	} else if (allmulti != NULL && strcmp(allmulti, "off") == 0) {
-		iface->flags &= ~BR_IFACE_F_ALLMULTI;
-		set_attrs |= BR_IFACE_SET_FLAGS;
-	}
+	struct br_iface_info_port *port;
+	const char *devargs;
 
 	port = (struct br_iface_info_port *)iface->info;
 	devargs = arg_str(p, "DEVARGS");
@@ -204,15 +187,10 @@ static cmd_status_t rxq_list(const struct br_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-#define PORT_ATTRS_CMD                                                                             \
-	IFACE_ATTRS_CMD ",(promisc PROMISC),(allmulti ALLMULTI),(mac MAC),"                        \
-			"(rxqs N_RXQ),(qsize Q_SIZE)"
+#define PORT_ATTRS_CMD IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE)"
 
 #define PORT_ATTRS_ARGS                                                                            \
-	IFACE_ATTRS_ARGS,                                                                          \
-		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
-		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
-		with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),            \
+	IFACE_ATTRS_ARGS, with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),  \
 		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),   \
 		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10))
 

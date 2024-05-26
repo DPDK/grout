@@ -5,6 +5,7 @@ test_scripts = files(
   'config_test.sh',
   'ip_forward_test.sh',
   'vrf_forward_test.sh',
+  'vlan_forward_test.sh',
 )
 
 sudo = find_program('sudo', required: false)

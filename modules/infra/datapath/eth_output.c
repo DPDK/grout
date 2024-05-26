@@ -6,6 +6,7 @@
 #include <br_graph.h>
 #include <br_iface.h>
 #include <br_port.h>
+#include <br_vlan.h>
 
 #include <rte_ether.h>
 #include <rte_graph_worker.h>
@@ -20,9 +21,11 @@ enum {
 
 static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct eth_output_mbuf_data *priv;
+	const struct rte_ether_addr *src_mac;
 	const struct iface_info_port *port;
+	struct eth_output_mbuf_data *priv;
 	const struct iface *iface;
+	struct rte_vlan_hdr *vlan;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *mbuf;
 	rte_edge_t next;
@@ -37,15 +40,28 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		eth = (struct rte_ether_hdr *)
-			rte_pktmbuf_prepend(mbuf, sizeof(struct rte_ether_hdr));
+		if (iface->type_id == BR_IFACE_TYPE_VLAN) {
+			struct iface_info_vlan *sub = (struct iface_info_vlan *)iface->info;
+			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
+			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
+			vlan->eth_proto = priv->ether_type;
+			priv->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN);
+			iface = iface_from_id(sub->parent_id);
+			src_mac = &sub->mac;
+		} else {
+			src_mac = NULL;
+		}
+
+		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
 		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
 		eth->ether_type = priv->ether_type;
 
 		switch (iface->type_id) {
 		case BR_IFACE_TYPE_PORT:
 			port = (const struct iface_info_port *)iface->info;
-			rte_ether_addr_copy(&port->mac, &eth->src_addr);
+			if (src_mac == NULL)
+				src_mac = &port->mac;
+			rte_ether_addr_copy(src_mac, &eth->src_addr);
 			mbuf->port = port->port_id;
 			next = TX;
 			break;

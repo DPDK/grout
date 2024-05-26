@@ -15,8 +15,8 @@ struct cli_iface_type {
 	STAILQ_ENTRY(cli_iface_type) next;
 	uint16_t type_id;
 	const char *name;
-	void (*show)(const struct br_iface *);
-	void (*list_info)(const struct br_iface *, char *, size_t);
+	void (*show)(const struct br_api_client *c, const struct br_iface *);
+	void (*list_info)(const struct br_api_client *c, const struct br_iface *, char *, size_t);
 };
 
 void register_iface_type(struct cli_iface_type *);
@@ -46,10 +46,12 @@ int complete_iface_names(
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 
-#define IFACE_ATTRS_CMD "(up|down),(mtu MTU),(vrf VRF)"
+#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(allmulti ALLMULTI),(mtu MTU),(vrf VRF)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
+		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
+		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
 			"Maximum transmision unit size.",                                          \

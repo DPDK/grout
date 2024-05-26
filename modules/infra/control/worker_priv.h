@@ -4,8 +4,7 @@
 #ifndef _BR_CONTROL_WORKER
 #define _BR_CONTROL_WORKER
 
-#include <br_port.h>
-#include <br_worker.h>
+#include "br_worker.h"
 
 int port_unplug(uint16_t port_id);
 int port_plug(uint16_t port_id);

@@ -151,7 +151,7 @@ uint64_t parse_iface_args(
 	struct br_iface *iface,
 	bool update
 ) {
-	const char *name;
+	const char *name, *promisc, *allmulti;
 	uint64_t set_attrs = 0;
 
 	name = arg_str(p, "NAME");
@@ -175,6 +175,23 @@ uint64_t parse_iface_args(
 		set_attrs |= BR_IFACE_SET_FLAGS;
 	} else if (arg_str(p, "down")) {
 		iface->flags &= ~BR_IFACE_F_UP;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+	promisc = arg_str(p, "PROMISC");
+	if (promisc != NULL && strcmp(promisc, "on") == 0) {
+		iface->flags |= BR_IFACE_F_PROMISC;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
+		iface->flags &= ~BR_IFACE_F_PROMISC;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	}
+
+	allmulti = arg_str(p, "ALLMULTI");
+	if (allmulti != NULL && strcmp(allmulti, "on") == 0) {
+		iface->flags |= BR_IFACE_F_ALLMULTI;
+		set_attrs |= BR_IFACE_SET_FLAGS;
+	} else if (allmulti != NULL && strcmp(allmulti, "off") == 0) {
+		iface->flags &= ~BR_IFACE_F_ALLMULTI;
 		set_attrs |= BR_IFACE_SET_FLAGS;
 	}
 
@@ -273,7 +290,7 @@ static cmd_status_t iface_list(const struct br_api_client *c, const struct ec_pn
 		} else {
 			scols_line_set_data(line, 3, type->name);
 			// info
-			type->list_info(iface, buf, sizeof(buf));
+			type->list_info(c, iface, buf, sizeof(buf));
 			scols_line_set_data(line, 4, buf);
 		}
 	}
@@ -319,7 +336,7 @@ static cmd_status_t iface_show(const struct br_api_client *c, const struct ec_pn
 		printf("type: %u\n", iface.type);
 	} else {
 		printf("type: %s\n", type->name);
-		type->show(&iface);
+		type->show(c, &iface);
 	}
 
 	return CMD_SUCCESS;

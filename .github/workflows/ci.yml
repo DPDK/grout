@@ -38,7 +38,7 @@ jobs:
           path: ~/.ccache
           key: ccache
       - run: make
-      - run: make coverage
+      - run: make test
   lint:
     runs-on: ubuntu-latest
     container: fedora:latest
