@@ -338,6 +338,13 @@ static int listen_api_socket(void) {
 	return 0;
 }
 
+static int ev_close(const struct event_base *, const struct event *ev, void *) {
+	event_callback_fn cb = event_get_callback(ev);
+	if (cb == api_read_cb || cb == api_write_cb)
+		event_free_finalize(0, (struct event *)ev, finalize_close_fd);
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
 
@@ -373,8 +380,10 @@ shutdown:
 	unregister_signals();
 	if (ev_listen)
 		event_free_finalize(0, ev_listen, finalize_close_fd);
-	if (ev_base)
+	if (ev_base) {
+		event_base_foreach_event(ev_base, ev_close, NULL);
 		event_base_free(ev_base);
+	}
 	unlink(args.api_sock_path);
 	libevent_global_shutdown();
 	modules_fini();
