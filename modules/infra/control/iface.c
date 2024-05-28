@@ -106,16 +106,16 @@ int iface_reconfig(
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -1;
 
-	if (set_attrs & IFACE_SET_NAME) {
+	if (set_attrs & BR_IFACE_SET_NAME) {
 		if (utf8_check(name, MEMBER_SIZE(struct iface, name)) < 0)
 			return -1;
 		memccpy(iface->name, name, 0, sizeof(iface->name));
 	}
-	if (set_attrs & IFACE_SET_FLAGS)
+	if (set_attrs & BR_IFACE_SET_FLAGS)
 		iface->flags = flags;
-	if (set_attrs & IFACE_SET_MTU)
+	if (set_attrs & BR_IFACE_SET_MTU)
 		iface->mtu = mtu;
-	if (set_attrs & IFACE_SET_VRF)
+	if (set_attrs & BR_IFACE_SET_VRF)
 		iface->vrf_id = vrf_id;
 
 	type = iface_type_get(iface->type_id);
@@ -127,7 +127,7 @@ uint16_t ifaces_count(uint16_t type_id) {
 
 	for (uint16_t ifid = 0; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == BR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
 			count++;
 	}
 
@@ -144,7 +144,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 
 	for (uint16_t ifid = start_id; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == BR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
 			return iface;
 	}
 

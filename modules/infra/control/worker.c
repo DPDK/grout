@@ -243,8 +243,8 @@ move:
 		struct iface_info_port p = {.n_txq = 0};
 		struct iface *iface = NULL;
 
-		while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
-			if ((ret = iface_port_reconfig(iface, PORT_SET_N_TXQS, &p)) < 0)
+		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
+			if ((ret = iface_port_reconfig(iface, BR_PORT_SET_N_TXQS, &p)) < 0)
 				return ret;
 		}
 	}

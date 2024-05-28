@@ -5,31 +5,13 @@
 #define _BR_INFRA_IFACE
 
 #include <br_bitops.h>
+#include <br_infra.h>
 
 #include <rte_ether.h>
 
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/queue.h>
-
-// Value for iface.type
-#define IFACE_TYPE_UNDEF 0x0000
-
-// Interface configure flags
-#define IFACE_F_UP BR_BIT16(0)
-#define IFACE_F_PROMISC BR_BIT16(1)
-#define IFACE_F_ALLMULTI BR_BIT16(2)
-// Interface state flags
-#define IFACE_S_RUNNING BR_BIT16(0)
-
-// Interface reconfig attributes
-#define IFACE_SET_FLAGS BR_BIT64(0)
-#define IFACE_SET_MTU BR_BIT64(1)
-#define IFACE_SET_NAME BR_BIT64(2)
-#define IFACE_SET_VRF BR_BIT64(3)
-#define IFACE_SET_GENERIC UINT64_C(0x00000000ffffffff)
-#define IFACE_SET_SPECIFIC UINT64_C(0xffffffff00000000)
-#define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
 struct iface {
 	uint16_t id;
@@ -41,6 +23,8 @@ struct iface {
 	char name[64];
 	uint8_t info[/* size depends on type */];
 };
+
+#define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
 typedef int (*iface_init_t)(struct iface *);
 typedef int (*iface_reconfig_t)(struct iface *, uint64_t set_attrs, void *new_info);

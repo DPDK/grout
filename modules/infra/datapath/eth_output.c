@@ -43,7 +43,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->ether_type = priv->ether_type;
 
 		switch (iface->type_id) {
-		case IFACE_TYPE_PORT:
+		case BR_IFACE_TYPE_PORT:
 			port = (const struct iface_info_port *)iface->info;
 			rte_ether_addr_copy(&port->mac, &eth->src_addr);
 			mbuf->port = port->port_id;

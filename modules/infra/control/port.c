@@ -218,19 +218,20 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 	if ((ret = port_unplug(p->port_id)) < 0)
 		return ret;
 
-	if (set_attrs & (PORT_SET_N_RXQS | PORT_SET_N_TXQS | PORT_SET_Q_SIZE)) {
-		if (set_attrs & PORT_SET_N_RXQS)
+	if (set_attrs & (BR_PORT_SET_N_RXQS | BR_PORT_SET_N_TXQS | BR_PORT_SET_Q_SIZE)) {
+		if (set_attrs & BR_PORT_SET_N_RXQS)
 			p->n_rxq = new_p->n_rxq;
-		if (set_attrs & PORT_SET_N_TXQS)
+		if (set_attrs & BR_PORT_SET_N_TXQS)
 			p->n_txq = new_p->n_txq;
-		if (set_attrs & PORT_SET_Q_SIZE) {
+		if (set_attrs & BR_PORT_SET_Q_SIZE) {
 			p->rxq_size = new_p->rxq_size;
 			p->txq_size = new_p->rxq_size;
 		}
 		p->configured = false;
 	}
 
-	if (!p->configured || (set_attrs & (IFACE_SET_FLAGS | IFACE_SET_MTU | PORT_SET_MAC))) {
+	if (!p->configured
+	    || (set_attrs & (BR_IFACE_SET_FLAGS | BR_IFACE_SET_MTU | BR_PORT_SET_MAC))) {
 		if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
 			return errno_log(-ret, "rte_eth_dev_stop");
 		stopped = true;
@@ -238,32 +239,32 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 	if (!p->configured && (ret = port_configure(p)) < 0)
 		return ret;
 
-	if (set_attrs & IFACE_SET_FLAGS) {
-		if (iface->flags & IFACE_F_PROMISC)
+	if (set_attrs & BR_IFACE_SET_FLAGS) {
+		if (iface->flags & BR_IFACE_F_PROMISC)
 			ret = rte_eth_promiscuous_enable(p->port_id);
 		else
 			ret = rte_eth_promiscuous_disable(p->port_id);
 		if (ret < 0) {
 			errno_log(-ret, "rte_eth_promiscuous_{en,dis}able");
 			if (rte_eth_promiscuous_get(p->port_id) == 1)
-				iface->flags |= IFACE_F_PROMISC;
+				iface->flags |= BR_IFACE_F_PROMISC;
 			else
-				iface->flags &= ~IFACE_F_PROMISC;
+				iface->flags &= ~BR_IFACE_F_PROMISC;
 		}
 
-		if (iface->flags & IFACE_F_ALLMULTI)
+		if (iface->flags & BR_IFACE_F_ALLMULTI)
 			ret = rte_eth_allmulticast_enable(p->port_id);
 		else
 			ret = rte_eth_allmulticast_disable(p->port_id);
 		if (ret < 0) {
 			errno_log(-ret, "rte_eth_allmulticast_{en,dis}able");
 			if (rte_eth_allmulticast_get(p->port_id) == 1)
-				iface->flags |= IFACE_F_ALLMULTI;
+				iface->flags |= BR_IFACE_F_ALLMULTI;
 			else
-				iface->flags &= ~IFACE_F_ALLMULTI;
+				iface->flags &= ~BR_IFACE_F_ALLMULTI;
 		}
 
-		if (iface->flags & IFACE_F_UP)
+		if (iface->flags & BR_IFACE_F_UP)
 			ret = rte_eth_dev_set_link_up(p->port_id);
 		else
 			ret = rte_eth_dev_set_link_down(p->port_id);
@@ -273,13 +274,13 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 		struct rte_eth_link link;
 		if (rte_eth_link_get(p->port_id, &link) == 0) {
 			if (link.link_status == RTE_ETH_LINK_UP)
-				iface->state |= IFACE_S_RUNNING;
+				iface->state |= BR_IFACE_S_RUNNING;
 			else
-				iface->state &= ~IFACE_S_RUNNING;
+				iface->state &= ~BR_IFACE_S_RUNNING;
 		}
 	}
 
-	if (set_attrs & IFACE_SET_MTU && iface->mtu != 0) {
+	if ((set_attrs & BR_IFACE_SET_MTU) && iface->mtu != 0) {
 		if ((ret = rte_eth_dev_set_mtu(p->port_id, iface->mtu)) < 0)
 			return errno_log(-ret, "rte_eth_dev_set_mtu");
 	} else {
@@ -287,7 +288,7 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
 	}
 
-	if (set_attrs & PORT_SET_MAC && !br_eth_addr_is_zero((void *)&new_p->mac)) {
+	if ((set_attrs & BR_PORT_SET_MAC) && !br_eth_addr_is_zero((void *)&new_p->mac)) {
 		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &new_p->mac)) < 0)
 			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
 		rte_ether_addr_copy(&p->mac, &new_p->mac);
@@ -345,9 +346,9 @@ static int iface_port_fini(struct iface *iface) {
 	if (worker_count() != n_workers) {
 		// update the number of tx queues for all ports
 		struct iface *iface = NULL;
-		while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
 			struct iface_info_port p = {.n_txq = 0};
-			if ((ret = iface_port_reconfig(iface, PORT_SET_N_TXQS, &p)) < 0)
+			if ((ret = iface_port_reconfig(iface, BR_PORT_SET_N_TXQS, &p)) < 0)
 				goto out;
 		}
 	}
@@ -398,7 +399,7 @@ static int iface_port_get_eth_addr(const struct iface *iface, struct rte_ether_a
 }
 
 static struct iface_type iface_type_port = {
-	.id = IFACE_TYPE_PORT,
+	.id = BR_IFACE_TYPE_PORT,
 	.name = "port",
 	.info_size = sizeof(struct iface_info_port),
 	.init = iface_port_init,

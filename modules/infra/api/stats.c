@@ -69,7 +69,7 @@ static struct api_out stats_get(const void *request, void **response) {
 		struct iface *iface = NULL;
 		unsigned num;
 
-		while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
 			struct iface_info_port *port = (struct iface_info_port *)iface->info;
 
 			// call first with NULL/0 to get the exact count
@@ -174,7 +174,7 @@ static struct api_out stats_reset(const void *request, void **response) {
 		atomic_store(&worker->stats_reset, true);
 
 	iface = NULL;
-	while ((iface = iface_next(IFACE_TYPE_PORT, iface)) != NULL) {
+	while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = (struct iface_info_port *)iface->info;
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0);
