@@ -209,9 +209,9 @@ static int port_configure(struct iface_info_port *p) {
 	return 0;
 }
 
-int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info) {
+int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, const void *api_info) {
 	struct iface_info_port *p = (struct iface_info_port *)iface->info;
-	struct iface_info_port *new_p = new_info;
+	const struct br_iface_info_port *api = api_info;
 	bool stopped = false;
 	int ret;
 
@@ -220,12 +220,12 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 
 	if (set_attrs & (BR_PORT_SET_N_RXQS | BR_PORT_SET_N_TXQS | BR_PORT_SET_Q_SIZE)) {
 		if (set_attrs & BR_PORT_SET_N_RXQS)
-			p->n_rxq = new_p->n_rxq;
+			p->n_rxq = api->n_rxq;
 		if (set_attrs & BR_PORT_SET_N_TXQS)
-			p->n_txq = new_p->n_txq;
+			p->n_txq = api->n_txq;
 		if (set_attrs & BR_PORT_SET_Q_SIZE) {
-			p->rxq_size = new_p->rxq_size;
-			p->txq_size = new_p->rxq_size;
+			p->rxq_size = api->rxq_size;
+			p->txq_size = api->rxq_size;
 		}
 		p->configured = false;
 	}
@@ -288,10 +288,12 @@ int iface_port_reconfig(struct iface *iface, uint64_t set_attrs, void *new_info)
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
 	}
 
-	if ((set_attrs & BR_PORT_SET_MAC) && !br_eth_addr_is_zero((void *)&new_p->mac)) {
-		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &new_p->mac)) < 0)
+	if ((set_attrs & BR_PORT_SET_MAC) && !br_eth_addr_is_zero(&api->mac)) {
+		struct rte_ether_addr mac;
+		memcpy(&mac, &api->mac, sizeof(mac));
+		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mac)) < 0)
 			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
-		rte_ether_addr_copy(&p->mac, &new_p->mac);
+		rte_ether_addr_copy(&mac, &p->mac);
 	} else {
 		if ((ret = rte_eth_macaddr_get(p->port_id, &p->mac)) < 0)
 			return errno_log(-ret, "rte_eth_macaddr_get");
@@ -356,21 +358,22 @@ out:
 	return ret;
 }
 
-static int iface_port_init(struct iface *iface) {
+static int iface_port_init(struct iface *iface, const void *api_info) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	const struct br_iface_info_port *api = api_info;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	int ret;
 
-	RTE_ETH_FOREACH_MATCHING_DEV(port_id, port->devargs, &iterator) {
+	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		return errno_set(EEXIST);
 	}
 
-	if ((ret = rte_dev_probe(port->devargs)) < 0)
+	if ((ret = rte_dev_probe(api->devargs)) < 0)
 		return errno_set(-ret);
 
-	RTE_ETH_FOREACH_MATCHING_DEV(port_id, port->devargs, &iterator) {
+	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		break;
 	}
@@ -380,7 +383,7 @@ static int iface_port_init(struct iface *iface) {
 	port->port_id = port_id;
 	port_ifaces[port_id] = iface;
 
-	if ((ret = iface_port_reconfig(iface, IFACE_SET_ALL, port)) < 0) {
+	if ((ret = iface_port_reconfig(iface, IFACE_SET_ALL, api_info)) < 0) {
 		iface_port_fini(iface);
 		return ret;
 	}
@@ -398,6 +401,18 @@ static int iface_port_get_eth_addr(const struct iface *iface, struct rte_ether_a
 	return 0;
 }
 
+static void port_to_api(void *info, const struct iface *iface) {
+	const struct iface_info_port *port = (const struct iface_info_port *)iface->info;
+	struct br_iface_info_port *api = info;
+
+	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
+	memcpy(&api->mac, &port->mac, sizeof(api->mac));
+	api->n_rxq = port->n_rxq;
+	api->n_txq = port->n_txq;
+	api->rxq_size = port->rxq_size;
+	api->txq_size = port->txq_size;
+}
+
 static struct iface_type iface_type_port = {
 	.id = BR_IFACE_TYPE_PORT,
 	.name = "port",
@@ -406,6 +421,7 @@ static struct iface_type iface_type_port = {
 	.reconfig = iface_port_reconfig,
 	.fini = iface_port_fini,
 	.get_eth_addr = iface_port_get_eth_addr,
+	.to_api = port_to_api,
 };
 
 RTE_INIT(port_constructor) {

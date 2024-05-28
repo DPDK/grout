@@ -240,7 +240,7 @@ move:
 
 	if (reconfig) {
 		// number of workers changed, adjust number of tx queues
-		struct iface_info_port p = {.n_txq = 0};
+		struct br_iface_info_port p = {0};
 		struct iface *iface = NULL;
 
 		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {

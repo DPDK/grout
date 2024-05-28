@@ -7,67 +7,14 @@
 #include <br_control.h>
 #include <br_iface.h>
 #include <br_log.h>
-#include <br_port.h>
 #include <br_queue.h>
 #include <br_worker.h>
 
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 
-static void port_from_api(void *info, const struct br_iface *iface) {
-	const struct br_iface_info_port *api = (const struct br_iface_info_port *)iface->info;
-	struct iface_info_port *port = info;
-
-	memccpy(port->devargs, api->devargs, 0, sizeof(port->devargs));
-	memcpy(&port->mac, &api->mac, sizeof(port->mac));
-	port->n_rxq = api->n_rxq;
-	port->n_txq = api->n_txq;
-	port->rxq_size = api->rxq_size;
-	port->txq_size = api->txq_size;
-}
-
-static void port_to_api(void *info, const struct iface *iface) {
-	const struct iface_info_port *port = (const struct iface_info_port *)iface->info;
-	struct br_iface_info_port *api = info;
-
-	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
-	memcpy(&api->mac, &port->mac, sizeof(api->mac));
-	api->n_rxq = port->n_rxq;
-	api->n_txq = port->n_txq;
-	api->rxq_size = port->rxq_size;
-	api->txq_size = port->txq_size;
-}
-
-// TODO: make this modular
-static struct {
-	size_t info_size;
-	void (*from_api)(void *, const struct br_iface *);
-	void (*to_api)(void *, const struct iface *);
-} types[] = {
-	[BR_IFACE_TYPE_PORT] = {
-		.info_size = sizeof(struct iface_info_port),
-		.from_api = port_from_api,
-		.to_api = port_to_api,
-	},
-};
-
-static void *info_from_api(const struct br_iface *iface) {
-	void *info;
-
-	if (iface->type == BR_IFACE_TYPE_UNDEF || iface->type > ARRAY_DIM(types)) {
-		errno = EOPNOTSUPP;
-		return NULL;
-	}
-	info = calloc(1, types[iface->type].info_size);
-	if (info == NULL)
-		return NULL;
-
-	types[iface->type].from_api(info, iface);
-
-	return info;
-}
-
 static void iface_to_api(struct br_iface *to, const struct iface *from) {
+	struct iface_type *type = iface_type_get(from->type_id);
 	to->id = from->id;
 	to->type = from->type_id;
 	to->flags = from->flags;
@@ -75,17 +22,13 @@ static void iface_to_api(struct br_iface *to, const struct iface *from) {
 	to->mtu = from->mtu;
 	to->vrf_id = from->vrf_id;
 	memccpy(to->name, from->name, 0, sizeof(to->name));
-	types[from->type_id].to_api(to->info, from);
+	type->to_api(to->info, from);
 }
 
 static struct api_out iface_add(const void *request, void **response) {
 	const struct br_infra_iface_add_req *req = request;
-	void *info = info_from_api(&req->iface);
 	struct br_infra_iface_add_resp *resp;
 	struct iface *iface;
-
-	if (info == NULL)
-		return api_out(errno, 0);
 
 	iface = iface_create(
 		req->iface.type,
@@ -93,9 +36,8 @@ static struct api_out iface_add(const void *request, void **response) {
 		req->iface.mtu,
 		req->iface.vrf_id,
 		req->iface.name,
-		info
+		req->iface.info
 	);
-	free(info);
 	if (iface == NULL)
 		return api_out(errno, 0);
 
@@ -161,13 +103,9 @@ static struct api_out iface_list(const void *request, void **response) {
 
 static struct api_out iface_set(const void *request, void **response) {
 	const struct br_infra_iface_set_req *req = request;
-	void *info = info_from_api(&req->iface);
 	int ret;
 
 	(void)response;
-
-	if (info == NULL)
-		return api_out(errno, 0);
 
 	ret = iface_reconfig(
 		req->iface.id,
@@ -176,9 +114,8 @@ static struct api_out iface_set(const void *request, void **response) {
 		req->iface.mtu,
 		req->iface.vrf_id,
 		req->iface.name,
-		info
+		req->iface.info
 	);
-	free(info);
 	if (ret < 0)
 		return api_out(errno, 0);
 

@@ -26,10 +26,11 @@ struct iface {
 
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
-typedef int (*iface_init_t)(struct iface *);
-typedef int (*iface_reconfig_t)(struct iface *, uint64_t set_attrs, void *new_info);
+typedef int (*iface_init_t)(struct iface *, const void *api_info);
+typedef int (*iface_reconfig_t)(struct iface *, uint64_t set_attrs, const void *api_info);
 typedef int (*iface_fini_t)(struct iface *);
 typedef int (*iface_get_eth_addr_t)(const struct iface *, struct rte_ether_addr *);
+typedef void (*iface_to_api_t)(void *api_info, const struct iface *);
 
 struct iface_type {
 	uint16_t id;
@@ -38,6 +39,7 @@ struct iface_type {
 	iface_reconfig_t reconfig;
 	iface_fini_t fini;
 	iface_get_eth_addr_t get_eth_addr;
+	iface_to_api_t to_api;
 	const char *name;
 	STAILQ_ENTRY(iface_type) next;
 };
@@ -50,7 +52,7 @@ struct iface *iface_create(
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
-	void *info
+	const void *api_info
 );
 int iface_reconfig(
 	uint16_t ifid,
@@ -59,7 +61,7 @@ int iface_reconfig(
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
-	void *info
+	const void *api_info
 );
 int iface_destroy(uint16_t ifid);
 struct iface *iface_from_id(uint16_t ifid);

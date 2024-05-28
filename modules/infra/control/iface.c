@@ -51,7 +51,7 @@ struct iface *iface_create(
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
-	void *info
+	const void *api_info
 ) {
 	struct iface_type *type = iface_type_get(type_id);
 	struct iface *iface = NULL;
@@ -76,9 +76,8 @@ struct iface *iface_create(
 	iface->mtu = mtu;
 	iface->vrf_id = vrf_id;
 	memccpy(iface->name, name, 0, sizeof(iface->name));
-	memcpy(iface->info, info, type->info_size);
 
-	if (type->init(iface) < 0)
+	if (type->init(iface, api_info) < 0)
 		goto fail;
 
 	ifaces[ifid] = iface;
@@ -96,7 +95,7 @@ int iface_reconfig(
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
-	void *info
+	const void *api_info
 ) {
 	struct iface_type *type;
 	struct iface *iface;
@@ -119,7 +118,7 @@ int iface_reconfig(
 		iface->vrf_id = vrf_id;
 
 	type = iface_type_get(iface->type_id);
-	return type->reconfig(iface, set_attrs, info);
+	return type->reconfig(iface, set_attrs, api_info);
 }
 
 uint16_t ifaces_count(uint16_t type_id) {
