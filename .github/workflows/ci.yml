@@ -11,27 +11,18 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:latest
-      options: --device=/dev/net/tun --privileged
+    runs-on: ubuntu-24.04
     env:
       CC: ccache gcc
     steps:
-      - run: |
-          dnf install -y \
-            make gcc ccache ninja-build meson git gcovr scdoc \
-            socat \
-            tcpdump \
-            iproute \
-            iputils \
-            libasan \
-            libcmocka-devel \
-            libedit-devel \
-            libevent-devel \
-            libsmartcols-devel \
-            numactl-devel \
-            python3-pyelftools
+      - name: install system dependencies
+        run: |
+          set -xe
+          sudo apt-get update -qy
+          sudo apt-get install -qy \
+            make gcc ccache ninja-build meson git scdoc socat tcpdump \
+            iproute2 iputils-ping libasan8 libcmocka-dev libedit-dev \
+            libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
