@@ -29,4 +29,4 @@ name() {
 set -x
 
 br -tv &
-socat FILE:/dev/null UNIX-CONNECT:$BR_SOCK_PATH,retry=3
+socat FILE:/dev/null UNIX-CONNECT:$BR_SOCK_PATH,retry=10
