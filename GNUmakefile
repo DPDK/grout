@@ -16,9 +16,13 @@ endif
 all: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) $(ninja_opts)
 
-.PHONY: test
-test: $(BUILDDIR)/build.ninja
+.PHONY: unit-tests
+unit-tests: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) test $(ninja_opts)
+
+.PHONY: smoke-tests
+smoke-tests: all
+	./tests/smoke.sh $(BUILDDIR)
 
 .PHONY: coverage
 coverage: test

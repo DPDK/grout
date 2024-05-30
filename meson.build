@@ -92,5 +92,3 @@ foreach t : tests
   }
   test(name, executable(name, kwargs: t), suite: 'unit')
 endforeach
-
-subdir('tests')
