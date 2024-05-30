@@ -13,7 +13,6 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     env:
-      CC: ccache gcc
       SANITIZE: address
       BUILDTYPE: debugoptimized
     steps:
@@ -25,10 +24,11 @@ jobs:
             make gcc ccache ninja-build meson git scdoc \
             libasan8 libcmocka-dev libedit-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
+          echo "PATH=/usr/lib/ccache:$PATH" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
-          path: ~/.ccache
+          path: ~/.cache/ccache
           key: ccache
       - run: make
       - uses: actions/upload-artifact@v4
