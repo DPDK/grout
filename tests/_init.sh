@@ -23,7 +23,7 @@ export PATH=$builddir:$PATH
 uid=$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)
 
 name() {
-	echo "br$2-$uid-$1"
+	echo "br$uid-$1"
 }
 
 set -x
