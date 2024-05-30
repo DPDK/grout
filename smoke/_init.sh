@@ -16,18 +16,18 @@ cleanup() {
 
 tmp=$(mktemp -d)
 trap cleanup EXIT
-builddir=$1
+builddir=${1?builddir}
 
 export BR_SOCK_PATH=$tmp/br.sock
 export PATH=$builddir:$PATH
 
-uid=$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)
+set -x
+
+uid=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1)
 
 name() {
 	echo "br$uid-$1"
 }
-
-set -x
 
 br -tv &
 socat FILE:/dev/null UNIX-CONNECT:$BR_SOCK_PATH,retry=10

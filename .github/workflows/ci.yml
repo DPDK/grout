@@ -14,14 +14,16 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CC: ccache gcc
+      SANITIZE: address
+      BUILDTYPE: debugoptimized
     steps:
       - name: install system dependencies
         run: |
           set -xe
           sudo apt-get update -qy
           sudo apt-get install -qy \
-            make gcc ccache ninja-build meson git scdoc socat tcpdump \
-            iproute2 iputils-ping libasan8 libcmocka-dev libedit-dev \
+            make gcc ccache ninja-build meson git scdoc \
+            libasan8 libcmocka-dev libedit-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -29,7 +31,31 @@ jobs:
           path: ~/.ccache
           key: ccache
       - run: make
+      - uses: actions/upload-artifact@v4
+        with:
+          path: |
+            build/br
+            build/br-cli
+          retention-days: 5
       - run: make unit-tests
+  smoke:
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          sudo apt-get update -qy
+          sudo apt-get install -qy \
+            git socat tcpdump \
+            iproute2 iputils-ping libasan8 libedit2 \
+            libevent-2.1-7t64 libsmartcols1 libnuma1
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: build
+          merge-multiple: true
+      - run: chmod 755 build/br build/br-cli
       - run: sudo smoke/run.sh build
   lint:
     runs-on: ubuntu-latest
