@@ -4,16 +4,14 @@
 
 . $(dirname $0)/_init.sh
 
-br-cli -xe <<EOF
-add interface port p0 devargs net_null0
-add interface port p1 devargs net_null1
-add ip address 10.0.0.1/24 iface p0
-add ip address 10.1.0.1/24 iface p1
-add ip route 0.0.0.0/0 via 10.0.0.2
-show interface all
-show ip route
-show ip nexthop
-show graph dot
-show stats software
-show stats hardware
-EOF
+br-cli add interface port p0 devargs net_null0
+br-cli add interface port p1 devargs net_null1
+br-cli add ip address 10.0.0.1/24 iface p0
+br-cli add ip address 10.1.0.1/24 iface p1
+br-cli add ip route 0.0.0.0/0 via 10.0.0.2
+br-cli show interface all
+br-cli show ip route
+br-cli show ip nexthop
+br-cli show graph dot
+br-cli show stats software
+br-cli show stats hardware

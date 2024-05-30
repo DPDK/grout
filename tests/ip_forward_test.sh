@@ -7,12 +7,12 @@
 p0=$(name 0)
 p1=$(name 1)
 
-br-cli -xe <<EOF
-add interface port $p0 devargs net_tap0,iface=$p0
-add interface port $p1 devargs net_tap1,iface=$p1
-add ip address 10.0.0.1/24 iface $p0
-add ip address 10.1.0.1/24 iface $p1
-EOF
+br-cli add interface port $p0 devargs net_tap0,iface=$p0
+br-cli add interface port $p1 devargs net_tap1,iface=$p1
+br-cli add ip address 172.16.0.1/24 iface $p0
+br-cli add ip address 172.16.1.1/24 iface $p1
+br-cli show interface all
+br-cli show ip address
 
 for n in 0 1; do
 	p=$(name $n)
@@ -20,9 +20,9 @@ for n in 0 1; do
 	echo ip netns del $p >> $tmp/cleanup
 	ip link set $p netns $p
 	ip -n $p link set $p up
-	ip -n $p addr add 10.$n.0.2/24 dev $p
-	ip -n $p route add default via 10.$n.0.1
+	ip -n $p addr add 172.16.$n.2/24 dev $p
+	ip -n $p route add default via 172.16.$n.1
 done
 
-ip netns exec $p0 ping -i0.01 -c3 10.1.0.2
-ip netns exec $p1 ping -i0.01 -c3 10.0.0.2
+ip netns exec $p0 ping -i0.01 -c3 172.16.1.2
+ip netns exec $p1 ping -i0.01 -c3 172.16.0.2
