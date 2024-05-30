@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4.h"
-
 #include <br_datapath.h>
 #include <br_eth_input.h>
 #include <br_eth_output.h>
@@ -10,6 +8,7 @@
 #include <br_iface.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
+#include <br_ip4_datapath.h>
 #include <br_mbuf.h>
 
 #include <rte_byteorder.h>
@@ -26,6 +25,13 @@ enum {
 	ARP_REQUEST,
 	EDGE_COUNT,
 };
+
+static rte_edge_t edges[128] = {ETH_OUTPUT};
+
+void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge) {
+	edges[iface_type_id] = edge;
+	LOG(DEBUG, "ip_output: iface_type=%u -> edge %u", iface_type_id, edge);
+}
 
 static uint16_t
 output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -48,6 +54,17 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			next = NO_ROUTE;
 			goto next;
 		}
+		iface = iface_from_id(nh->iface_id);
+		if (iface == NULL) {
+			next = ERROR;
+			goto next;
+		}
+		// Determine what is the next node based on the output interface type
+		// By default, it will be eth_output unless another output node was registered.
+		next = edges[iface->type_id];
+		if (next != ETH_OUTPUT)
+			goto next;
+
 		if (nh->flags & BR_IP4_NH_F_LINK && ip->dst_addr != nh->ip) {
 			// The resolved next hop is associated with a "connected" route.
 			// We currently do not have an explicit entry for this destination IP.
@@ -67,18 +84,11 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			next = ARP_REQUEST;
 			goto next;
 		}
-		iface = iface_from_id(nh->iface_id);
-		if (iface == NULL) {
-			next = ERROR;
-			goto next;
-		}
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&nh->lladdr, &eth_data->dst);
 		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 		eth_data->iface = iface;
-
-		next = ETH_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}

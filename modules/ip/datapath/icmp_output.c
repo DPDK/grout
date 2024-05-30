@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4.h"
-
 #include <br_datapath.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
+#include <br_ip4_datapath.h>
 #include <br_log.h>
 #include <br_mbuf.h>
 
@@ -37,7 +36,9 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
 		ip_set_fields(ip, local_data);
-		ip_output_mbuf_data(mbuf)->nh = NULL;
+		ip_output_mbuf_data(mbuf)->nh = ip4_route_lookup(
+			local_data->vrf_id, local_data->dst
+		);
 	}
 
 	rte_node_enqueue(graph, node, OUTPUT, objs, nb_objs);

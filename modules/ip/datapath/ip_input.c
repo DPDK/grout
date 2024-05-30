@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4.h"
-
 #include <br_eth_input.h>
 #include <br_graph.h>
 #include <br_ip4_control.h>
+#include <br_ip4_datapath.h>
 #include <br_log.h>
 
 #include <rte_byteorder.h>
@@ -46,12 +45,18 @@ input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint1
 		// XXX: already checked by hardware
 
 		// (2) The IP checksum must be correct.
-		if ((mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) == RTE_MBUF_F_RX_IP_CKSUM_NONE) {
+		switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
+		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
+		case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
 			// if this is not checked in H/W, check it.
 			if (rte_ipv4_cksum(ip)) {
 				next = BAD_CHECKSUM;
 				goto next_packet;
 			}
+			break;
+		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
+			next = BAD_CHECKSUM;
+			goto next_packet;
 		}
 
 		// (3) The IP version number must be 4.  If the version number is not 4

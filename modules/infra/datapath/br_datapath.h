@@ -51,6 +51,7 @@ static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 
 	switch (ether_type) {
 	case RTE_ETHER_TYPE_IPV4: {
+ipv4:
 		const struct rte_ipv4_hdr *ip;
 
 		ip = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, offset);
@@ -95,6 +96,8 @@ static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 			);
 			break;
 		}
+		case IPPROTO_IPIP:
+			goto ipv4;
 		default:
 			n += snprintf(buf + n, sizeof(buf) - n, " proto=%hhu", ip->next_proto_id);
 			break;

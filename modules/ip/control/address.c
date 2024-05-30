@@ -67,7 +67,8 @@ static struct api_out addr_add(const void *request, void **response) {
 		| BR_IP4_NH_F_STATIC;
 
 	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
-		return api_out(errno, 0);
+		if (errno != EOPNOTSUPP)
+			return api_out(errno, 0);
 
 	ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh_idx, nh);
 	if (ret == 0)

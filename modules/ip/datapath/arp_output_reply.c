@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip4.h"
-
 #include <br_datapath.h>
 #include <br_eth_output.h>
 #include <br_graph.h>
 #include <br_iface.h>
 #include <br_ip4_control.h>
+#include <br_ip4_datapath.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>

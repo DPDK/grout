@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _IP4_H
-#define _IP4_H
+#ifndef _BR_IP4_DATAPATH_H
+#define _BR_IP4_DATAPATH_H
 
+#include <br_ip4_control.h>
 #include <br_mbuf.h>
 #include <br_net_types.h>
 
@@ -24,10 +25,12 @@ BR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	ip4_addr_t src;
 	ip4_addr_t dst;
 	uint16_t len;
+	uint16_t vrf_id;
 	uint8_t proto;
 });
 
 void ip_local_add_proto(uint8_t proto, rte_edge_t edge);
+void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge);
 
 #define IPV4_VERSION_IHL 0x45
 #define IPV4_DEFAULT_TTL 64
