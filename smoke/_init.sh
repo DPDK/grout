@@ -5,6 +5,7 @@ set -e
 
 cleanup() {
 	set +e
+	br-cli show stats software
 	kill -INT %?br
 	wait
 	if [ -r $tmp/cleanup ]; then
