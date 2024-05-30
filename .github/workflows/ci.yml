@@ -36,6 +36,7 @@ jobs:
           path: |
             build/br
             build/br-cli
+            build/subprojects/ecoli/src/libecoli.so
           retention-days: 5
       - run: make unit-tests
   smoke:
@@ -55,7 +56,7 @@ jobs:
         with:
           path: build
           merge-multiple: true
-      - run: chmod 755 build/br build/br-cli
+      - run: chmod -c a+x build/br* build/subprojects/ecoli/src/libecoli.so
       - run: sudo smoke/run.sh build
   lint:
     runs-on: ubuntu-latest
