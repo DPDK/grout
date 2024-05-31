@@ -40,6 +40,7 @@ install: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) install $(ninja_opts)
 
 meson_opts := --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
+meson_opts += $(MESON_EXTRA_OPTS)
 
 $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)

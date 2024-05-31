@@ -15,8 +15,7 @@ br-cli add interface vlan $v0 parent $p0 vlan_id 42
 br-cli add interface vlan $v1 parent $p1 vlan_id 43
 br-cli add ip address 172.16.0.1/24 iface $v0
 br-cli add ip address 172.16.1.1/24 iface $v1
-br-cli show interface all
-br-cli show ip address
+echo br-cli show ip nexthop >> $tmp/cleanup
 
 for n in 0 1; do
 	p=$run_id$n
@@ -29,6 +28,7 @@ for n in 0 1; do
 	ip -n $p link set $v up
 	ip -n $p addr add 172.16.$n.2/24 dev $v
 	ip -n $p route add default via 172.16.$n.1
+	ip -n $p addr show
 done
 
 ip netns exec $p0 ping -i0.01 -c3 172.16.1.2

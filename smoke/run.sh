@@ -3,10 +3,16 @@
 # Copyright (c) 2024 Robin Jarry
 
 here=$(dirname $0)
+if [ "$1" = "--coredump" ]; then
+	coredump=true
+	ulimit -c unlimited
+	trap "sysctl -qw 'kernel.core_pattern=$(sysctl -n kernel.core_pattern)'" EXIT
+	sysctl -qw kernel.core_pattern=/tmp/br-core.%e.%p
+	shift
+fi
 builddir=${1?build dir}
 log=$(mktemp)
 result=0
-trap "if [ -s $log ]; then cat $log; fi; rm -f $log" EXIT
 
 run() {
 	local script="$1"
@@ -26,6 +32,16 @@ for script in $here/*_test.sh; do
 		if ! "$script" "$builddir"; then
 			res=FAILED
 		fi
+		for core in /tmp/br-core.*.*; do
+			[ -s "$core" ] || continue
+			binary=$(file -b "$core" | sed -En "s/.*, execfn: '([^']+)',.*/\\1/p")
+			[ -x "$binary" ] || continue
+			gdb -ex 'info threads' \
+				-ex 'thread apply all bt full' \
+				-ex 'quit' \
+				"$binary" -c "$core" || true
+			rm -f "$core"
+		done
 		end=$(date +%s)
 		duration=$(date -d "@$((end - start))" "+%Mm%Ss")
 		echo "-----------------------------------------------------"

@@ -17,8 +17,8 @@ br-cli add ip address 172.16.0.1/24 iface $p0
 br-cli add ip address 172.16.1.1/24 iface $p1
 br-cli add ip address 172.16.0.1/24 iface $p2
 br-cli add ip address 172.16.1.1/24 iface $p3
-br-cli show ip address vrf 1
-br-cli show ip address vrf 2
+echo br-cli show ip nexthop vrf 1 >> $tmp/cleanup
+echo br-cli show ip nexthop vrf 2 >> $tmp/cleanup
 
 for n in 0 1 2 3; do
 	p=$run_id$n
@@ -28,6 +28,7 @@ for n in 0 1 2 3; do
 	ip -n $p link set $p up
 	ip -n $p addr add 172.16.$((n % 2)).2/16 dev $p
 	ip -n $p route add default via 172.16.$((n % 2)).1
+	ip -n $p addr show
 done
 
 tcpdump_opts="--immediate-mode --no-promiscuous-mode"
@@ -43,8 +44,3 @@ timeout 3 ip netns exec $p3 \
 sleep 1
 ip netns exec $p2 ping -i0.01 -c3 172.16.1.2
 wait -f %?tcpdump
-
-br-cli show ip route vrf 1
-br-cli show ip route vrf 2
-br-cli show ip nexthop vrf 1
-br-cli show ip nexthop vrf 2
