@@ -4,8 +4,8 @@
 
 . $(dirname $0)/_init.sh
 
-p0=$(name 0)
-p1=$(name 1)
+p0=${run_id}0
+p1=${run_id}1
 v0=$p0.42
 v1=$p1.43
 
@@ -19,7 +19,7 @@ br-cli show interface all
 br-cli show ip address
 
 for n in 0 1; do
-	p=$(name $n)
+	p=$run_id$n
 	v=$p.$((n+42))
 	ip netns add $p
 	echo ip netns del $p >> $tmp/cleanup

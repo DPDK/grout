@@ -22,7 +22,7 @@ for script in $here/*_test.sh; do
 
 	{
 		echo "====================================================="
-		echo "+$script $builddir"
+		echo "+ $script $builddir"
 		if ! "$script" "$builddir"; then
 			res=FAILED
 		fi

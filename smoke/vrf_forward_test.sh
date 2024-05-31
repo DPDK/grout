@@ -4,10 +4,10 @@
 
 . $(dirname $0)/_init.sh
 
-p0=$(name 0)
-p1=$(name 1)
-p2=$(name 2)
-p3=$(name 3)
+p0=${run_id}0
+p1=${run_id}1
+p2=${run_id}2
+p3=${run_id}3
 
 br-cli add interface port $p0 devargs net_tap0,iface=$p0 vrf 1
 br-cli add interface port $p1 devargs net_tap1,iface=$p1 vrf 1
@@ -21,7 +21,7 @@ br-cli show ip address vrf 1
 br-cli show ip address vrf 2
 
 for n in 0 1 2 3; do
-	p=$(name $n)
+	p=$run_id$n
 	ip netns add $p
 	echo ip netns del $p >> $tmp/cleanup
 	ip link set $p netns $p
