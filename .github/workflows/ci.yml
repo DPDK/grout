@@ -21,7 +21,7 @@ jobs:
         run: |
           set -xe
           sudo apt-get update -qy
-          sudo apt-get install -qy \
+          sudo NEEDRESTART_MODE=l apt-get install -qy \
             make gcc ccache ninja-build meson git scdoc \
             libasan8 libcmocka-dev libedit-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -xe
           sudo apt-get update -qy
-          sudo apt-get install -qy \
+          sudo NEEDRESTART_MODE=l apt-get install -qy \
             git socat tcpdump gdb binutils \
             iproute2 iputils-ping libasan8 libedit2 \
             libevent-2.1-7t64 libsmartcols1 libnuma1
