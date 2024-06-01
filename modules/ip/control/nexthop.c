@@ -50,7 +50,7 @@ int ip4_nexthop_lookup_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct
 		struct nexthop_key key = {vrf_id, ip};
 		int32_t nh_idx = rte_hash_add_key(nh_hash, &key);
 		if (nh_idx < 0)
-			return nh_idx;
+			return errno_set(-nh_idx);
 		nh_array[nh_idx].vrf_id = vrf_id;
 		nh_array[nh_idx].ip = ip;
 		*idx = nh_idx;
