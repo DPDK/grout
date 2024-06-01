@@ -20,6 +20,7 @@ enum {
 	OP_UNSUPP,
 	PROTO_UNSUPP,
 	ERROR,
+	DROP,
 	IP_OUTPUT,
 	EDGE_COUNT,
 };
@@ -118,6 +119,9 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			}
 			ip4_route_insert(iface->vrf_id, sip, 32, idx, remote);
 			update_nexthop(graph, node, remote, now, iface->id, arp);
+		} else {
+			next = DROP;
+			goto next;
 		}
 		arp_data = arp_mbuf_data(mbuf);
 		arp_data->local = local;
@@ -148,6 +152,7 @@ static struct rte_node_register node = {
 		[OP_UNSUPP] = "arp_input_op_unsupp",
 		[PROTO_UNSUPP] = "arp_input_proto_unsupp",
 		[ERROR] = "arp_input_error",
+		[DROP] = "arp_input_drop",
 		[IP_OUTPUT] = "ip_output",
 	},
 };
@@ -163,3 +168,4 @@ BR_DROP_REGISTER(arp_input_reply);
 BR_DROP_REGISTER(arp_input_op_unsupp);
 BR_DROP_REGISTER(arp_input_proto_unsupp);
 BR_DROP_REGISTER(arp_input_error);
+BR_DROP_REGISTER(arp_input_drop);
