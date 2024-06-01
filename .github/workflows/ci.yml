@@ -16,12 +16,14 @@ jobs:
       SANITIZE: none
       BUILDTYPE: debugoptimized
       MESON_EXTRA_OPTS: -Dc_args=-DTRACE_PACKETS
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
     steps:
       - name: install system dependencies
         run: |
           set -xe
           sudo apt-get update -qy
-          sudo NEEDRESTART_MODE=l apt-get install -qy \
+          sudo apt-get install -qy \
             make gcc ccache ninja-build meson git scdoc \
             libasan8 libcmocka-dev libedit-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
@@ -43,13 +45,16 @@ jobs:
   smoke:
     runs-on: ubuntu-24.04
     needs: build
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
     steps:
       - name: install system dependencies
         run: |
           set -xe
           sudo apt-get update -qy
           sudo NEEDRESTART_MODE=l apt-get install -qy \
-            git socat tcpdump gdb binutils \
+            git socat tcpdump \
             iproute2 iputils-ping libasan8 libedit2 \
             libevent-2.1-7t64 libsmartcols1 libnuma1
       - uses: actions/checkout@v4
@@ -58,7 +63,7 @@ jobs:
           path: build
           merge-multiple: true
       - run: chmod -c a+x build/br* build/subprojects/ecoli/src/libecoli.so
-      - run: sudo smoke/run.sh --coredump build
+      - run: sudo smoke/run.sh build
   lint:
     runs-on: ubuntu-latest
     container: fedora:latest
