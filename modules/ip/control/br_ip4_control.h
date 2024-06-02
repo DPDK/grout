@@ -38,7 +38,7 @@ struct __rte_cache_aligned nexthop {
 
 struct nexthop *ip4_nexthop_get(uint32_t idx);
 int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
-int ip4_nexthop_lookup_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
+int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
 void ip4_nexthop_incref(struct nexthop *);
 void ip4_nexthop_decref(struct nexthop *);
 

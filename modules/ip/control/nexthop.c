@@ -45,17 +45,19 @@ int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nex
 	return 0;
 }
 
-int ip4_nexthop_lookup_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
-	if (ip4_nexthop_lookup(vrf_id, ip, idx, nh) < 0) {
-		struct nexthop_key key = {vrf_id, ip};
-		int32_t nh_idx = rte_hash_add_key(nh_hash, &key);
-		if (nh_idx < 0)
-			return errno_set(-nh_idx);
-		nh_array[nh_idx].vrf_id = vrf_id;
-		nh_array[nh_idx].ip = ip;
-		*idx = nh_idx;
-		*nh = &nh_array[nh_idx];
-	}
+int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
+	struct nexthop_key key = {vrf_id, ip};
+	int32_t nh_idx = rte_hash_add_key(nh_hash, &key);
+
+	if (nh_idx < 0)
+		return errno_set(-nh_idx);
+
+	nh_array[nh_idx].vrf_id = vrf_id;
+	nh_array[nh_idx].ip = ip;
+
+	*idx = nh_idx;
+	*nh = &nh_array[nh_idx];
+
 	return 0;
 }
 
@@ -93,7 +95,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 		return api_out(EEXIST, 0);
 	}
 
-	if ((ret = ip4_nexthop_lookup_add(req->nh.vrf_id, req->nh.host, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_add(req->nh.vrf_id, req->nh.host, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->iface_id = req->nh.iface_id;

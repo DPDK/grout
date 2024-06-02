@@ -106,14 +106,15 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		iface = eth_input_mbuf_data(mbuf)->iface;
 		local = ip4_addr_get(iface->id);
 		sip = arp->arp_data.arp_sip;
+		remote = ip4_route_lookup(iface->vrf_id, sip);
 
-		if (ip4_nexthop_lookup(iface->vrf_id, sip, &idx, &remote) >= 0) {
+		if (remote != NULL && remote->ip == sip) {
 			update_nexthop(graph, node, remote, now, iface->id, arp);
 		} else if (local != NULL && local->ip == arp->arp_data.arp_tip) {
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.
-			if (ip4_nexthop_lookup_add(iface->vrf_id, sip, &idx, &remote) < 0) {
+			if (ip4_nexthop_add(iface->vrf_id, sip, &idx, &remote) < 0) {
 				next = ERROR;
 				goto next;
 			}

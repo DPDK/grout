@@ -58,7 +58,7 @@ static struct api_out addr_add(const void *request, void **response) {
 	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh) == 0)
 		return api_out(EADDRINUSE, 0);
 
-	if ((ret = ip4_nexthop_lookup_add(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh)) < 0)
+	if ((ret = ip4_nexthop_add(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh)) < 0)
 		return api_out(-ret, 0);
 
 	nh->iface_id = req->addr.iface_id;

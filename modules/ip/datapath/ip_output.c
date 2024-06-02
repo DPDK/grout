@@ -56,13 +56,14 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			// Create a new next hop and its associated /32 route so that next
 			// packets take it in priority with a single route lookup.
 			struct nexthop *remote;
-			if (ip4_nexthop_lookup_add(nh->vrf_id, ip->dst_addr, &idx, &remote) < 0) {
+			if (ip4_nexthop_add(nh->vrf_id, ip->dst_addr, &idx, &remote) < 0) {
 				next = ERROR;
 				goto next;
 			}
 			ip4_route_insert(nh->vrf_id, ip->dst_addr, 32, idx, remote);
 			remote->iface_id = nh->iface_id;
-			ip_output_mbuf_data(mbuf)->nh = nh;
+			ip_output_mbuf_data(mbuf)->nh = remote;
+			nh = remote;
 		}
 		if (!(nh->flags & BR_IP4_NH_F_REACHABLE)) {
 			next = ARP_REQUEST;
