@@ -115,8 +115,8 @@ static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
 				buf + n,
 				sizeof(buf) - n,
 				" / ARP request who has %s? tell %s",
-				src,
-				dst
+				dst,
+				src
 			);
 			break;
 		case RTE_ARP_OP_REPLY:
