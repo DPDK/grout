@@ -32,6 +32,7 @@ export PATH=$builddir:$PATH
 cat > $tmp/cleanup <<EOF
 br-cli show stats software
 br-cli show interface all
+br-cli show ip nexthop
 EOF
 
 set -x

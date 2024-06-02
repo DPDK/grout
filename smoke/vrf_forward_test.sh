@@ -17,8 +17,6 @@ br-cli add ip address 172.16.0.1/24 iface $p0
 br-cli add ip address 172.16.1.1/24 iface $p1
 br-cli add ip address 172.16.0.1/24 iface $p2
 br-cli add ip address 172.16.1.1/24 iface $p3
-echo br-cli show ip nexthop vrf 1 >> $tmp/cleanup
-echo br-cli show ip nexthop vrf 2 >> $tmp/cleanup
 
 for n in 0 1 2 3; do
 	p=$run_id$n

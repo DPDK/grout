@@ -15,7 +15,6 @@ br-cli add interface vlan $v0 parent $p0 vlan_id 42
 br-cli add interface vlan $v1 parent $p1 vlan_id 43
 br-cli add ip address 172.16.0.1/24 iface $v0
 br-cli add ip address 172.16.1.1/24 iface $v1
-echo br-cli show ip nexthop >> $tmp/cleanup
 
 for n in 0 1; do
 	p=$run_id$n

@@ -8,6 +8,8 @@
 #include <br_bitops.h>
 #include <br_net_types.h>
 
+#include <stdint.h>
+
 struct br_ip4_ifaddr {
 	uint16_t iface_id;
 	struct ip4_net addr;
@@ -44,6 +46,8 @@ static inline const char *br_ip4_nh_f_name(const br_ip4_nh_flags_t flag) {
 	}
 	return "";
 }
+
+#define BR_VRF_ID_ALL UINT16_MAX
 
 struct br_ip4_nh {
 	ip4_addr_t host;

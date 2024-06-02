@@ -11,7 +11,6 @@ br-cli add interface port $p0 devargs net_tap0,iface=$p0
 br-cli add interface port $p1 devargs net_tap1,iface=$p1
 br-cli add ip address 172.16.0.1/24 iface $p0
 br-cli add ip address 172.16.1.1/24 iface $p1
-echo br-cli show ip nexthop >> $tmp/cleanup
 
 for n in 0 1; do
 	p=$run_id$n

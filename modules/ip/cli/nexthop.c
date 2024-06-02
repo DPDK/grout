@@ -53,9 +53,9 @@ static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode
 }
 
 static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnode *p) {
+	struct br_ip4_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct br_ip4_nh_list_resp *resp;
-	struct br_ip4_nh_list_req req = {0};
 	char ip[BUFSIZ], state[BUFSIZ];
 	struct br_iface iface;
 	void *resp_ptr = NULL;
@@ -76,6 +76,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 	resp = resp_ptr;
 
+	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "IP", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
@@ -102,20 +103,21 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 		inet_ntop(AF_INET, &nh->host, ip, sizeof(ip));
 
-		scols_line_sprintf(line, 0, "%s", ip);
+		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
+		scols_line_sprintf(line, 1, "%s", ip);
 		if (nh->flags & BR_IP4_NH_F_REACHABLE) {
-			scols_line_sprintf(line, 1, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
+			scols_line_sprintf(line, 2, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
 			if (iface_from_id(c, nh->iface_id, &iface) == 0)
-				scols_line_sprintf(line, 2, "%s", iface.name);
+				scols_line_sprintf(line, 3, "%s", iface.name);
 			else
-				scols_line_sprintf(line, 2, "%u", nh->iface_id);
-			scols_line_sprintf(line, 3, "%u", nh->age);
+				scols_line_sprintf(line, 3, "%u", nh->iface_id);
+			scols_line_sprintf(line, 4, "%u", nh->age);
 		} else {
-			scols_line_set_data(line, 1, "??:??:??:??:??:??");
-			scols_line_set_data(line, 2, "?");
+			scols_line_set_data(line, 2, "??:??:??:??:??:??");
 			scols_line_set_data(line, 3, "?");
+			scols_line_set_data(line, 4, "?");
 		}
-		scols_line_sprintf(line, 4, "%s", state);
+		scols_line_sprintf(line, 5, "%s", state);
 	}
 
 	scols_print_table(table);

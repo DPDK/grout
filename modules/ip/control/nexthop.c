@@ -85,6 +85,8 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
+	if (req->nh.vrf_id >= MAX_VRFS)
+		return api_out(EOVERFLOW, 0);
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
@@ -112,6 +114,9 @@ static struct api_out nh4_del(const void *request, void **response) {
 	uint32_t idx;
 
 	(void)response;
+
+	if (req->vrf_id >= MAX_VRFS)
+		return api_out(EOVERFLOW, 0);
 
 	if (ip4_nexthop_lookup(req->vrf_id, req->host, &idx, &nh) < 0) {
 		if (errno == ENOENT && req->missing_ok)
@@ -143,7 +148,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	iter = 0;
 	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
 		nh = ip4_nexthop_get(idx);
-		if (nh->vrf_id == req->vrf_id)
+		if (nh->vrf_id == req->vrf_id || req->vrf_id == UINT16_MAX)
 			num++;
 	}
 
@@ -154,11 +159,12 @@ static struct api_out nh4_list(const void *request, void **response) {
 	iter = 0;
 	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
 		nh = ip4_nexthop_get(idx);
-		if (nh->vrf_id != req->vrf_id)
+		if (nh->vrf_id != req->vrf_id && req->vrf_id != UINT16_MAX)
 			continue;
 		api_nh = &resp->nhs[resp->n_nhs++];
 		api_nh->host = nh->ip;
 		api_nh->iface_id = nh->iface_id;
+		api_nh->vrf_id = nh->vrf_id;
 		memcpy(&api_nh->mac, &nh->lladdr, sizeof(api_nh->mac));
 		api_nh->flags = nh->flags;
 		if (nh->last_seen > 0)

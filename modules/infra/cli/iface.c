@@ -252,6 +252,7 @@ static cmd_status_t iface_list(const struct br_api_client *c, const struct ec_pn
 	scols_table_new_column(table, "NAME", 0, 0);
 	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_new_column(table, "FLAGS", 0, 0);
+	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
@@ -282,16 +283,20 @@ static cmd_status_t iface_list(const struct br_api_client *c, const struct ec_pn
 			n += snprintf(buf + n, sizeof(buf) - n, " allmulti");
 		scols_line_set_data(line, 2, buf);
 
-		// type
+		// vrf
+		scols_line_sprintf(line, 3, "%u", iface->vrf_id);
+
 		if (type == NULL) {
-			scols_line_sprintf(line, 3, "%u", iface->type);
+			// type
+			scols_line_sprintf(line, 4, "%u", iface->type);
 			// info
-			scols_line_set_data(line, 4, "");
+			scols_line_set_data(line, 5, "");
 		} else {
-			scols_line_set_data(line, 3, type->name);
+			// type
+			scols_line_set_data(line, 4, type->name);
 			// info
 			type->list_info(c, iface, buf, sizeof(buf));
-			scols_line_set_data(line, 4, buf);
+			scols_line_set_data(line, 5, buf);
 		}
 	}
 

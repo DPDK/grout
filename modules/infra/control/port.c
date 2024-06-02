@@ -384,6 +384,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		return errno_set(EIDRM);
 
 	port->port_id = port_id;
+	memccpy(port->devargs, api->devargs, 0, sizeof(port->devargs));
 	port_ifaces[port_id] = iface;
 
 	if ((ret = iface_port_reconfig(iface, IFACE_SET_ALL, api_info)) < 0) {
