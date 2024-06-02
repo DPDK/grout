@@ -18,7 +18,7 @@ br-cli add ip address 172.16.1.1/24 iface $p1
 br-cli add ip address 172.16.0.1/24 iface $p2
 br-cli add ip address 172.16.1.1/24 iface $p3
 
-for n in 0 1 2 3; do
+for n in 0 1; do
 	p=$run_id$n
 	ip netns add $p
 	echo ip netns del $p >> $tmp/cleanup
@@ -28,17 +28,16 @@ for n in 0 1 2 3; do
 	ip -n $p route add default via 172.16.$((n % 2)).1
 	ip -n $p addr show
 done
-
-tcpdump_opts="--immediate-mode --no-promiscuous-mode"
-
-timeout 3 ip netns exec $p1 \
-	tcpdump $tcpdump_opts -c 3 -i $p1 icmp[icmptype] == icmp-echoreply &
-sleep 1
 ip netns exec $p0 ping -i0.01 -c3 172.16.1.2
-wait -f %?tcpdump
 
-timeout 3 ip netns exec $p3 \
-	tcpdump $tcpdump_opts -c 3 -i $p3 icmp[icmptype] == icmp-echoreply &
-sleep 1
+for n in 2 3; do
+	p=$run_id$n
+	ip netns add $p
+	echo ip netns del $p >> $tmp/cleanup
+	ip link set $p netns $p
+	ip -n $p link set $p up
+	ip -n $p addr add 172.16.$((n % 2)).2/24 dev $p
+	ip -n $p route add default via 172.16.$((n % 2)).1
+	ip -n $p addr show
+done
 ip netns exec $p2 ping -i0.01 -c3 172.16.1.2
-wait -f %?tcpdump
