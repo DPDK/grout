@@ -244,7 +244,15 @@ move:
 		struct iface *iface = NULL;
 
 		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
-			if ((ret = iface_port_reconfig(iface, BR_PORT_SET_N_TXQS, &p)) < 0)
+			ret = iface_port_reconfig(
+				iface,
+				BR_PORT_SET_N_TXQS,
+				iface->flags,
+				iface->mtu,
+				iface->vrf_id,
+				&p
+			);
+			if (ret < 0)
 				return ret;
 		}
 	}

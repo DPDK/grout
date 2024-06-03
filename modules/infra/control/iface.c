@@ -47,7 +47,7 @@ static int next_ifid(uint16_t *ifid) {
 
 struct iface *iface_create(
 	uint16_t type_id,
-	uint32_t flags,
+	uint16_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -91,7 +91,7 @@ fail:
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	uint32_t flags,
+	uint16_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -104,21 +104,20 @@ int iface_reconfig(
 		return errno_set(EINVAL);
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -1;
-
 	if (set_attrs & BR_IFACE_SET_NAME) {
 		if (utf8_check(name, MEMBER_SIZE(struct iface, name)) < 0)
 			return -1;
+
+		const struct iface *i = NULL;
+		while ((i = iface_next(BR_IFACE_TYPE_UNDEF, i)) != NULL)
+			if (i != iface && strcmp(name, i->name) == 0)
+				return errno_set(EEXIST);
+
 		memccpy(iface->name, name, 0, sizeof(iface->name));
 	}
-	if (set_attrs & BR_IFACE_SET_FLAGS)
-		iface->flags = flags;
-	if (set_attrs & BR_IFACE_SET_MTU)
-		iface->mtu = mtu;
-	if (set_attrs & BR_IFACE_SET_VRF)
-		iface->vrf_id = vrf_id;
 
 	type = iface_type_get(iface->type_id);
-	return type->reconfig(iface, set_attrs, api_info);
+	return type->reconfig(iface, set_attrs, flags, mtu, vrf_id, api_info);
 }
 
 uint16_t ifaces_count(uint16_t type_id) {

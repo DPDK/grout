@@ -27,7 +27,14 @@ struct iface {
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
 typedef int (*iface_init_t)(struct iface *, const void *api_info);
-typedef int (*iface_reconfig_t)(struct iface *, uint64_t set_attrs, const void *api_info);
+typedef int (*iface_reconfig_t)(
+	struct iface *,
+	uint64_t set_attrs,
+	uint16_t flags,
+	uint16_t mtu,
+	uint16_t vrf_id,
+	const void *api_info
+);
 typedef int (*iface_fini_t)(struct iface *);
 typedef int (*iface_get_eth_addr_t)(const struct iface *, struct rte_ether_addr *);
 typedef void (*iface_to_api_t)(void *api_info, const struct iface *);
@@ -48,7 +55,7 @@ void iface_type_register(struct iface_type *);
 struct iface_type *iface_type_get(uint16_t type_id);
 struct iface *iface_create(
 	uint16_t type_id,
-	uint32_t flags,
+	uint16_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -57,7 +64,7 @@ struct iface *iface_create(
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	uint32_t flags,
+	uint16_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,

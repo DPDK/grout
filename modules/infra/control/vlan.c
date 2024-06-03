@@ -60,7 +60,14 @@ static bool need_mac_filter(uint16_t port_id, struct rte_ether_addr *mac) {
 	return true;
 }
 
-static int iface_vlan_reconfig(struct iface *iface, uint64_t set_attrs, const void *api_info) {
+static int iface_vlan_reconfig(
+	struct iface *iface,
+	uint64_t set_attrs,
+	uint16_t flags,
+	uint16_t mtu,
+	uint16_t vrf_id,
+	const void *api_info
+) {
 	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
 	const struct br_iface_info_vlan *next = api_info;
 	struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
@@ -116,6 +123,13 @@ static int iface_vlan_reconfig(struct iface *iface, uint64_t set_attrs, const vo
 		rte_ether_addr_copy(&next_mac, &cur->mac);
 	}
 
+	if (set_attrs & BR_IFACE_SET_FLAGS)
+		iface->flags = flags;
+	if (set_attrs & BR_IFACE_SET_MTU)
+		iface->mtu = mtu;
+	if (set_attrs & BR_IFACE_SET_VRF)
+		iface->vrf_id = vrf_id;
+
 	return 0;
 }
 
@@ -147,7 +161,10 @@ static int iface_vlan_fini(struct iface *iface) {
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
 	int ret;
 
-	if ((ret = iface_vlan_reconfig(iface, IFACE_SET_ALL, api_info)) < 0) {
+	ret = iface_vlan_reconfig(
+		iface, IFACE_SET_ALL, iface->flags, iface->mtu, iface->vrf_id, api_info
+	);
+	if (ret < 0) {
 		iface_vlan_fini(iface);
 		errno = -ret;
 	}
