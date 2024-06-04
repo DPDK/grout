@@ -6,6 +6,8 @@
 
 #include "br_mbuf.h"
 
+#include <br_iface.h>
+
 #include <rte_build_config.h>
 #include <rte_ether.h>
 #include <rte_mbuf.h>
@@ -13,9 +15,9 @@
 #include <stdint.h>
 
 BR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
+	const struct iface *iface;
 	struct rte_ether_addr dst;
 	rte_be16_t ether_type;
-	uint16_t iface_id;
 });
 
 #endif

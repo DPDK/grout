@@ -42,7 +42,7 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 		struct eth_output_mbuf_data *data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&nh->lladdr, &data->dst);
 		data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		data->iface_id = nh->iface_id;
+		data->iface = iface_from_id(nh->iface_id);
 		status = OK_TO_SEND;
 	} else if (nh->n_held_pkts < IP4_NH_MAX_HELD_PKTS) {
 		// TODO: Implement this as a tail queue to preserve ordering.
@@ -129,7 +129,7 @@ static uint16_t arp_output_request_process(
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
 		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
-		eth_data->iface_id = nh->iface_id;
+		eth_data->iface = iface_from_id(nh->iface_id);
 
 		next = OUTPUT;
 		sent++;

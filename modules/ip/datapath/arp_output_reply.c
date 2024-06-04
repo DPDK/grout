@@ -29,10 +29,11 @@ static uint16_t arp_output_reply_process(
 ) {
 	struct eth_output_mbuf_data *eth_data;
 	struct arp_mbuf_data *arp_data;
+	const struct iface *iface;
 	struct rte_arp_hdr *arp;
-	uint16_t num, iface_id;
 	struct rte_mbuf *mbuf;
 	rte_edge_t next;
+	uint16_t num;
 
 	num = 0;
 
@@ -45,14 +46,18 @@ static uint16_t arp_output_reply_process(
 			goto next;
 		}
 
+		iface = iface_from_id(arp_data->local->iface_id);
+		if (iface == NULL) {
+			next = ERROR;
+			goto next;
+		}
 		// Reuse mbuf to craft an ARP reply.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		arp->arp_hardware = rte_cpu_to_be_16(RTE_ARP_HRD_ETHER);
 		arp->arp_protocol = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
 		rte_ether_addr_copy(&arp_data->remote->lladdr, &arp->arp_data.arp_tha);
-		iface_id = arp_data->local->iface_id;
-		if (iface_get_eth_addr(iface_id, &arp->arp_data.arp_sha) < 0) {
+		if (iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha) < 0) {
 			next = ERROR;
 			goto next;
 		}
@@ -63,7 +68,7 @@ static uint16_t arp_output_reply_process(
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
 		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
-		eth_data->iface_id = iface_id;
+		eth_data->iface = iface;
 		next = OUTPUT;
 		num++;
 next:

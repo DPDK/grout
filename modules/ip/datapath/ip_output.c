@@ -7,6 +7,7 @@
 #include <br_eth_input.h>
 #include <br_eth_output.h>
 #include <br_graph.h>
+#include <br_iface.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
 #include <br_mbuf.h>
@@ -19,7 +20,7 @@
 #include <rte_mbuf.h>
 
 enum {
-	TX = 0,
+	ETH_OUTPUT = 0,
 	NO_ROUTE,
 	ERROR,
 	ARP_REQUEST,
@@ -29,6 +30,7 @@ enum {
 static uint16_t
 output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
+	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
@@ -69,13 +71,18 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 			next = ARP_REQUEST;
 			goto next;
 		}
+		iface = iface_from_id(nh->iface_id);
+		if (iface == NULL) {
+			next = ERROR;
+			goto next;
+		}
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&nh->lladdr, &eth_data->dst);
 		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		eth_data->iface_id = nh->iface_id;
+		eth_data->iface = iface;
 
-		next = TX;
+		next = ETH_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
@@ -88,7 +95,7 @@ struct rte_node_register output_node = {
 	.process = output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "eth_output",
+		[ETH_OUTPUT] = "eth_output",
 		[ERROR] = "ip_output_error",
 		[NO_ROUTE] = "ip_output_no_route",
 		[ARP_REQUEST] = "arp_output_request",
