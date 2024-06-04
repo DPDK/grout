@@ -44,15 +44,15 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 		data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 		data->iface = iface_from_id(nh->iface_id);
 		status = OK_TO_SEND;
-	} else if (nh->n_held_pkts < IP4_NH_MAX_HELD_PKTS) {
-		// TODO: Implement this as a tail queue to preserve ordering.
-		if (nh->held_pkts == NULL) {
-			nh->held_pkts = mbuf;
+	} else if (nh->held_pkts.num < IP4_NH_MAX_HELD_PKTS) {
+		queue_mbuf_data(mbuf)->next = NULL;
+		if (nh->held_pkts.head == NULL) {
+			nh->held_pkts.head = mbuf;
 		} else {
-			br_mbuf_priv(mbuf)->next = nh->held_pkts;
-			nh->held_pkts = mbuf;
+			queue_mbuf_data(nh->held_pkts.tail)->next = mbuf;
+			nh->held_pkts.tail = mbuf;
 		}
-		nh->n_held_pkts++;
+		nh->held_pkts.num++;
 		status = HELD;
 	} else {
 		status = HOLD_QUEUE_FULL;

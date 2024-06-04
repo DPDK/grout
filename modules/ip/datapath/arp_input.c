@@ -8,6 +8,7 @@
 #include <br_ip4_control.h>
 #include <br_log.h>
 #include <br_mbuf.h>
+#include <br_queue.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -33,8 +34,7 @@ static inline void update_nexthop(
 	uint16_t iface_id,
 	const struct rte_arp_hdr *arp
 ) {
-	struct br_mbuf_priv *priv;
-	struct rte_mbuf *m;
+	struct rte_mbuf *m, *next;
 
 	// Static next hops never need updating.
 	if (nh->flags & BR_IP4_NH_F_STATIC)
@@ -50,16 +50,14 @@ static inline void update_nexthop(
 	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
 
 	// Flush all held packets.
-	m = nh->held_pkts;
+	m = nh->held_pkts.head;
 	while (m != NULL) {
+		next = queue_mbuf_data(m)->next;
+		ip_output_mbuf_data(m)->nh = nh;
 		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
-		// TODO: Implement this as a tail queue to preserve ordering.
-		priv = br_mbuf_priv(m);
-		m = priv->next;
-		priv->next = NULL;
+		m = next;
 	}
-	nh->held_pkts = NULL;
-	nh->n_held_pkts = 0;
+	memset(&nh->held_pkts, 0, sizeof(nh->held_pkts));
 
 	rte_spinlock_unlock(&nh->lock);
 }

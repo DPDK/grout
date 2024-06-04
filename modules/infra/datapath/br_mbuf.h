@@ -13,26 +13,19 @@
 #include <stdalign.h>
 #include <stdint.h>
 
-#define BR_MBUF_PRIV_MAX_SIZE 24
+#define BR_MBUF_PRIV_MAX_SIZE 32
 
-struct br_mbuf_priv {
-	struct rte_mbuf *next;
-	uint8_t data[BR_MBUF_PRIV_MAX_SIZE];
-};
-
-static_assert(sizeof(struct br_mbuf_priv) <= MEMBER_SIZE(struct rte_mbuf, dynfield1));
+static_assert(BR_MBUF_PRIV_MAX_SIZE <= MEMBER_SIZE(struct rte_mbuf, dynfield1));
 
 extern int br_mdyn_offset;
-
-static inline struct br_mbuf_priv *br_mbuf_priv(struct rte_mbuf *m) {
-	return RTE_MBUF_DYNFIELD(m, br_mdyn_offset, struct br_mbuf_priv *);
-}
 
 #define BR_MBUF_PRIV_DATA_TYPE(type_name, fields)                                                  \
 	struct type_name fields;                                                                   \
 	static inline struct type_name *type_name(struct rte_mbuf *m) {                            \
 		static_assert(sizeof(struct type_name) <= BR_MBUF_PRIV_MAX_SIZE);                  \
-		return (struct type_name *)br_mbuf_priv(m)->data;                                  \
+		return RTE_MBUF_DYNFIELD(m, br_mdyn_offset, struct type_name *);                   \
 	}
+
+BR_MBUF_PRIV_DATA_TYPE(queue_mbuf_data, { struct rte_mbuf *next; });
 
 #endif

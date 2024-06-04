@@ -12,8 +12,8 @@
 
 static const struct rte_mbuf_dynfield dyn_desc = {
 	.name = "br_priv",
-	.size = sizeof(struct br_mbuf_priv),
-	.align = alignof(struct br_mbuf_priv),
+	.size = BR_MBUF_PRIV_MAX_SIZE,
+	.align = alignof(void *),
 };
 
 int br_mdyn_offset = -1;

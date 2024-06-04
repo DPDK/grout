@@ -14,6 +14,7 @@
 #include <rte_spinlock.h>
 
 #include <stdint.h>
+#include <sys/queue.h>
 
 struct __rte_cache_aligned nexthop {
 	br_ip4_nh_flags_t flags;
@@ -26,8 +27,10 @@ struct __rte_cache_aligned nexthop {
 	uint32_t ref_count;
 	rte_spinlock_t lock;
 	// packets waiting for ARP resolution
-	uint32_t n_held_pkts;
-	struct rte_mbuf *held_pkts; // linked list using br_mbuf_priv->next
+	struct {
+		struct rte_mbuf *head, *tail;
+		uint32_t num;
+	} held_pkts;
 };
 
 #define IP4_NH_MAX_HELD_PKTS 8192

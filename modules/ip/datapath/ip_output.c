@@ -43,11 +43,7 @@ output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
-		nh = ip_output_mbuf_data(mbuf)->nh; // from ip_input
-		if (nh == NULL) {
-			const struct iface *iface = eth_input_mbuf_data(mbuf)->iface;
-			nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr); // from arp_input
-		}
+		nh = ip_output_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
 			next = NO_ROUTE;
 			goto next;
