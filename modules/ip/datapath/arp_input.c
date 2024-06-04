@@ -8,7 +8,6 @@
 #include <br_ip4_control.h>
 #include <br_log.h>
 #include <br_mbuf.h>
-#include <br_queue.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>

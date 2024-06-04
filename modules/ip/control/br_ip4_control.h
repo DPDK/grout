@@ -14,7 +14,6 @@
 #include <rte_spinlock.h>
 
 #include <stdint.h>
-#include <sys/queue.h>
 
 struct __rte_cache_aligned nexthop {
 	br_ip4_nh_flags_t flags;
