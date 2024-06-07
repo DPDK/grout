@@ -15,7 +15,7 @@ int br_node_data_set(const char *graph, const char *node, void *data);
 
 rte_edge_t br_node_attach_parent(const char *parent, const char *node);
 
-uint16_t br_node_drop_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
 struct br_node_info {
 	struct rte_node_register *node;
@@ -34,7 +34,7 @@ extern struct node_infos node_infos;
 #define BR_DROP_REGISTER(node_name)                                                                \
 	static struct rte_node_register drop_node_##node_name = {                                  \
 		.name = #node_name,                                                                \
-		.process = br_node_drop_process,                                                   \
+		.process = drop_packets,                                                           \
 	};                                                                                         \
 	static struct br_node_info drop_info_##node_name = {                                       \
 		.node = &drop_node_##node_name,                                                    \

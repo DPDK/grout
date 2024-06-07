@@ -19,7 +19,7 @@
 void *br_datapath_loop(void *priv);
 
 #ifdef TRACE_PACKETS
-static inline void trace_packet(const char *node, const struct rte_mbuf *m) {
+static inline void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m) {
 	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
 	uint16_t ether_type;
@@ -149,10 +149,10 @@ ipv4:
 	}
 	n += snprintf(buf + n, sizeof(buf) - n, ", (pkt_len=%u)", m->pkt_len);
 
-	LOG(NOTICE, "[%s p%u] %s", node, m->port, buf);
+	LOG(NOTICE, "[%s %s] %s", node, iface, buf);
 }
 #else
-#define trace_packet(node, mbuf)
+#define trace_packet(node, iface, mbuf)
 #endif // TRACE_PACKETS
 
 #endif

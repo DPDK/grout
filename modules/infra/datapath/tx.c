@@ -49,8 +49,6 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
 
-		trace_packet(node->name, mbuf);
-
 		if (mbuf->port != port_id) {
 			if (burst_start != i) {
 				tx_burst(

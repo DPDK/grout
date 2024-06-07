@@ -46,7 +46,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		struct rte_mbuf *m = node->objs[i];
 		struct eth_input_mbuf_data *if_in = eth_input_mbuf_data(m);
 		if_in->iface = port_get_iface(m->port);
-		trace_packet(node->name, m);
+		trace_packet("rx", if_in->iface->name, m);
 	}
 
 	rte_node_enqueue(graph, node, ETH_IN, node->objs, count);

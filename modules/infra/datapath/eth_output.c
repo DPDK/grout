@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "br_datapath.h"
 #include "br_eth_output.h"
 
 #include <br_graph.h>
@@ -57,6 +58,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			rte_ether_addr_copy(src_mac, &eth->src_addr);
 			mbuf->port = port->port_id;
 			next = TX;
+			trace_packet("tx", priv->iface->name, mbuf);
 			break;
 		default:
 			next = INVAL;
