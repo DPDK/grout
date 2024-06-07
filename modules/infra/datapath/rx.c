@@ -31,22 +31,24 @@ struct rx_ctx {
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
 	const struct rx_ctx *ctx = node->ctx_ptr;
+	const struct iface *iface;
 	struct rx_port_queue q;
+	uint16_t rx;
 
 	(void)objs;
 
 	count = 0;
 	for (int i = 0; i < ctx->n_queues; i++) {
 		q = ctx->queues[i];
-		count += rte_eth_rx_burst(
+		rx = rte_eth_rx_burst(
 			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
-	}
-	for (uint16_t i = 0; i < count; i++) {
-		struct rte_mbuf *m = node->objs[i];
-		struct eth_input_mbuf_data *if_in = eth_input_mbuf_data(m);
-		if_in->iface = port_get_iface(m->port);
-		trace_packet("rx", if_in->iface->name, m);
+		iface = port_get_iface(q.port_id);
+		for (int r = 0; r < rx; r++) {
+			eth_input_mbuf_data(node->objs[r])->iface = iface;
+			trace_packet("rx", iface->name, node->objs[r]);
+		}
+		count += rx;
 	}
 
 	rte_node_enqueue(graph, node, ETH_IN, node->objs, count);
