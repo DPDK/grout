@@ -15,7 +15,7 @@ jobs:
     env:
       SANITIZE: none
       BUILDTYPE: debugoptimized
-      MESON_EXTRA_OPTS: -Dc_args=-DTRACE_PACKETS
+      MESON_EXTRA_OPTS: "-Dc_args=-DTRACE_PACKETS -Ddpdk:platform=generic"
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
     steps:
