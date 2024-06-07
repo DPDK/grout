@@ -25,46 +25,42 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	const struct rte_ether_addr *src_mac;
 	const struct iface_info_port *port;
 	struct eth_output_mbuf_data *priv;
+	struct iface_info_vlan *sub;
 	struct rte_vlan_hdr *vlan;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		priv = eth_output_mbuf_data(mbuf);
 
-		if (priv->iface->type_id == BR_IFACE_TYPE_VLAN) {
-			struct iface_info_vlan *sub = (struct iface_info_vlan *)priv->iface->info;
+		switch (priv->iface->type_id) {
+		case BR_IFACE_TYPE_VLAN:
+			sub = (struct iface_info_vlan *)priv->iface->info;
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
 			vlan->eth_proto = priv->ether_type;
 			priv->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN);
 			priv->iface = iface_from_id(sub->parent_id);
 			src_mac = &sub->mac;
-		} else {
-			src_mac = NULL;
+			port = (const struct iface_info_port *)priv->iface->info;
+			break;
+		case BR_IFACE_TYPE_PORT:
+			port = (const struct iface_info_port *)priv->iface->info;
+			src_mac = &port->mac;
+			break;
+		default:
+			rte_node_enqueue_x1(graph, node, INVAL, mbuf);
+			continue;
 		}
 
 		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
 		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
+		rte_ether_addr_copy(src_mac, &eth->src_addr);
 		eth->ether_type = priv->ether_type;
-
-		switch (priv->iface->type_id) {
-		case BR_IFACE_TYPE_PORT:
-			port = (const struct iface_info_port *)priv->iface->info;
-			if (src_mac == NULL)
-				src_mac = &port->mac;
-			rte_ether_addr_copy(src_mac, &eth->src_addr);
-			mbuf->port = port->port_id;
-			next = TX;
-			trace_packet("tx", priv->iface->name, mbuf);
-			break;
-		default:
-			next = INVAL;
-			break;
-		}
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		mbuf->port = port->port_id;
+		trace_packet("tx", priv->iface->name, mbuf);
+		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 
 	return nb_objs;
