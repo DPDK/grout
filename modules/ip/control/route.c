@@ -176,13 +176,12 @@ static struct api_out route4_add(const void *request, void **response) {
 	if ((fib = get_or_create_fib(req->vrf_id)) == NULL)
 		return api_out(errno, 0);
 
-	if (ip4_nexthop_add(req->vrf_id, req->nh, &nh_idx, &nh) < 0)
-		return api_out(errno, 0);
+	if (ip4_nexthop_lookup(req->vrf_id, req->nh, &nh_idx, &nh) < 0)
+		if (ip4_nexthop_add(req->vrf_id, req->nh, &nh_idx, &nh) < 0)
+			return api_out(errno, 0);
 
-	if ((ret = rte_fib_add(fib, ntohl(req->dest.ip), req->dest.prefixlen, nh_idx)) < 0) {
-		ip4_nexthop_decref(nh);
+	if ((ret = rte_fib_add(fib, ntohl(req->dest.ip), req->dest.prefixlen, nh_idx)) < 0)
 		return api_out(-ret, 0);
-	}
 
 	ip4_nexthop_incref(nh);
 	nh->flags |= BR_IP4_NH_F_GATEWAY;
