@@ -34,7 +34,7 @@ void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge) {
 }
 
 static uint16_t
-output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
 	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
@@ -98,7 +98,7 @@ next:
 
 struct rte_node_register output_node = {
 	.name = "ip_output",
-	.process = output_process,
+	.process = ip_output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ETH_OUTPUT] = "eth_output",

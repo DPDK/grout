@@ -57,7 +57,7 @@ static void ipip_input_register(void) {
 	rte_edge_t edge = br_node_attach_parent("ip_input_local", "ipip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("br_node_attach_parent(ip_input_local, ipip_input) failed");
-	ip_local_add_proto(IPPROTO_IPIP, edge);
+	ip_input_local_add_proto(IPPROTO_IPIP, edge);
 }
 
 static struct rte_node_register ipip_input_node = {

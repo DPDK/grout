@@ -15,7 +15,7 @@ enum edges {
 };
 
 static uint16_t
-forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	rte_be32_t csum;
@@ -42,7 +42,7 @@ forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 static struct rte_node_register forward_node = {
 	.name = "ip_forward",
 
-	.process = forward_process,
+	.process = ip_forward_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {

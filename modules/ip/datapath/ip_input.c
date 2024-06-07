@@ -26,7 +26,7 @@ enum edges {
 };
 
 static uint16_t
-input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
@@ -95,7 +95,7 @@ next_packet:
 	return nb_objs;
 }
 
-static void input_register(void) {
+static void ip_input_register(void) {
 	rte_edge_t edge = br_node_attach_parent("eth_input", "ip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
 		ABORT("br_node_attach_parent(eth_input, ip_input) failed");
@@ -105,7 +105,7 @@ static void input_register(void) {
 static struct rte_node_register input_node = {
 	.name = "ip_input",
 
-	.process = input_process,
+	.process = ip_input_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
@@ -119,7 +119,7 @@ static struct rte_node_register input_node = {
 
 static struct br_node_info info = {
 	.node = &input_node,
-	.register_callback = input_register,
+	.register_callback = ip_input_register,
 };
 
 BR_NODE_REGISTER(info);

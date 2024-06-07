@@ -29,7 +29,7 @@ BR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint8_t proto;
 });
 
-void ip_local_add_proto(uint8_t proto, rte_edge_t edge);
+void ip_input_local_add_proto(uint8_t proto, rte_edge_t edge);
 void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge);
 
 #define IPV4_VERSION_IHL 0x45

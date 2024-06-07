@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_datapath.h"
 #include "br_tx.h"
 
 #include <br_graph.h>
+#include <br_log.h>
 #include <br_worker.h>
 
 #include <rte_build_config.h>
