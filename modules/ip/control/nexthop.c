@@ -24,8 +24,16 @@ struct nexthop *nh_array;
 struct rte_hash *nh_hash;
 
 struct nexthop_key {
-	uint16_t vrf_id;
 	ip4_addr_t ip;
+	// XXX: Using uint16_t to hold vrf_id causes the compiler to add 2 bytes
+	// padding at the end of the structure. When the structure is
+	// initialized on the stack, the padding bytes have undetermined
+	// contents.
+	//
+	// This structure is used to compute a hash key. In order to get
+	// deterministic results, use uint32_t to store the vrf_id so that the
+	// compiler does not insert any padding.
+	uint32_t vrf_id;
 };
 
 struct nexthop *ip4_nexthop_get(uint32_t idx) {
@@ -33,7 +41,7 @@ struct nexthop *ip4_nexthop_get(uint32_t idx) {
 }
 
 int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
-	struct nexthop_key key = {vrf_id, ip};
+	struct nexthop_key key = {ip, vrf_id};
 	int32_t nh_idx;
 
 	if ((nh_idx = rte_hash_lookup(nh_hash, &key)) < 0)
@@ -46,7 +54,7 @@ int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nex
 }
 
 int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh) {
-	struct nexthop_key key = {vrf_id, ip};
+	struct nexthop_key key = {ip, vrf_id};
 	int32_t nh_idx = rte_hash_add_key(nh_hash, &key);
 
 	if (nh_idx < 0)
@@ -63,7 +71,7 @@ int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nextho
 
 void ip4_nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
-		struct nexthop_key key = {nh->vrf_id, nh->ip};
+		struct nexthop_key key = {nh->ip, nh->vrf_id};
 		rte_hash_del_key(nh_hash, &key);
 		memset(nh, 0, sizeof(*nh));
 	} else {
