@@ -45,12 +45,11 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 		status = OK_TO_SEND;
 	} else if (nh->held_pkts.num < IP4_NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
-		if (nh->held_pkts.head == NULL) {
+		if (nh->held_pkts.head == NULL)
 			nh->held_pkts.head = mbuf;
-		} else {
+		else
 			queue_mbuf_data(nh->held_pkts.tail)->next = mbuf;
-			nh->held_pkts.tail = mbuf;
-		}
+		nh->held_pkts.tail = mbuf;
 		nh->held_pkts.num++;
 		status = HELD;
 	} else {
