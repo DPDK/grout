@@ -24,15 +24,10 @@ jobs:
           set -xe
           sudo apt-get update -qy
           sudo apt-get install -qy \
-            make gcc ccache ninja-build meson git scdoc \
+            make gcc ninja-build meson git scdoc \
             libasan8 libcmocka-dev libedit-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
-          echo "PATH=/usr/lib/ccache:$PATH" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache
       - run: make
       - uses: actions/upload-artifact@v4
         with:
