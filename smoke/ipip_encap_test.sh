@@ -18,7 +18,7 @@ br-cli add ip address 10.98.0.1/24 iface $iptun
 ip netns add $p0
 echo ip netns del $p0 >> $tmp/cleanup
 ip link set $p0 netns $p0
-ip -n $p0 link set $p0 address ba:d0:ca:ca:00:01
+ip -n $p0 link set $p0 address ba:d0:ca:ca:00:00
 ip -n $p0 link set $p0 up
 ip -n $p0 addr add 10.99.0.2/24 dev $p0
 ip -n $p0 route add default via 10.99.0.1
@@ -27,7 +27,7 @@ ip -n $p0 addr show
 ip netns add $p1
 echo ip netns del $p1 >> $tmp/cleanup
 ip link set $p1 netns $p1
-ip -n $p1 link set $p1 address ba:d0:ca:ca:00:02
+ip -n $p1 link set $p1 address ba:d0:ca:ca:00:01
 ip -n $p1 link set $p1 up
 ip -n $p1 addr add 172.16.1.2/24 dev $p1
 ip -n $p1 tunnel add $iptun mode ipip local 172.16.1.2 remote 172.16.1.1

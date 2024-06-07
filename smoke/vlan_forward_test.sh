@@ -9,8 +9,8 @@ p1=${run_id}1
 v0=$p0.42
 v1=$p1.43
 
-br-cli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:01
-br-cli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:02
+br-cli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
+br-cli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
 br-cli add interface vlan $v0 parent $p0 vlan_id 42
 br-cli add interface vlan $v1 parent $p1 vlan_id 43
 br-cli add ip address 172.16.0.1/24 iface $v0
