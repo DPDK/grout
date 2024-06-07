@@ -38,7 +38,7 @@ void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge);
 static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_data *data) {
 	ip->version_ihl = IPV4_VERSION_IHL;
 	ip->type_of_service = 0;
-	ip->total_length = rte_cpu_to_be_16(data->len + sizeof(*ip));
+	ip->total_length = rte_cpu_to_be_16(data->len + rte_ipv4_hdr_len(ip));
 	ip->fragment_offset = 0;
 	ip->packet_id = 0;
 	ip->time_to_live = IPV4_DEFAULT_TTL; // make this confgurable somehow?
