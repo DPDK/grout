@@ -20,7 +20,14 @@
 struct ipip_key {
 	ip4_addr_t local;
 	ip4_addr_t remote;
-	uint16_t vrf_id;
+	// XXX: Using uint16_t causes the compiler to add 2 bytes padding at the
+	// end of the structure. When the structure is initialized on the stack,
+	// the padding bytes have undetermined contents.
+	//
+	// This structure is used to compute a hash key. In order to get
+	// deterministic results, use uint32_t to store the vrf_id so that the
+	// compiler does not insert any padding.
+	uint32_t vrf_id;
 };
 
 static struct rte_hash *ipip_hash;
