@@ -42,6 +42,7 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 		rte_ether_addr_copy(&nh->lladdr, &data->dst);
 		data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 		data->iface = iface_from_id(nh->iface_id);
+		nh->flags &= ~BR_IP4_NH_F_PENDING;
 		status = OK_TO_SEND;
 	} else if (nh->held_pkts.num < IP4_NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
@@ -51,6 +52,7 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 			queue_mbuf_data(nh->held_pkts.tail)->next = mbuf;
 		nh->held_pkts.tail = mbuf;
 		nh->held_pkts.num++;
+		nh->flags |= BR_IP4_NH_F_PENDING;
 		status = HELD;
 	} else {
 		status = HOLD_QUEUE_FULL;
