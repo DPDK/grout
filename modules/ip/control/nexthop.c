@@ -10,6 +10,7 @@
 #include <br_net_types.h>
 #include <br_queue.h>
 
+#include <event2/event.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_hash.h>
@@ -184,7 +185,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh4_init(void) {
+static void nh4_init(struct event_base *) {
 	struct rte_hash_parameters params = {
 		.name = "ip4_nh",
 		.entries = MAX_NEXT_HOPS,
@@ -206,7 +207,7 @@ static void nh4_init(void) {
 		ABORT("rte_calloc(nh4_array) failed");
 }
 
-static void nh4_fini(void) {
+static void nh4_fini(struct event_base *) {
 	rte_hash_free(nh_hash);
 	nh_hash = NULL;
 	rte_free(nh_array);

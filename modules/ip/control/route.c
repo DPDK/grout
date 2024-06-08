@@ -9,6 +9,7 @@
 #include <br_net_types.h>
 #include <br_queue.h>
 
+#include <event2/event.h>
 #include <rte_bitmap.h>
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
@@ -285,13 +286,13 @@ static struct api_out route4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void route4_init(void) {
+static void route4_init(struct event_base *) {
 	vrf_fibs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE);
 	if (vrf_fibs == NULL)
 		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
 }
 
-static void route4_fini(void) {
+static void route4_fini(struct event_base *) {
 	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
 		rte_fib_free(vrf_fibs[vrf_id]);
 		vrf_fibs[vrf_id] = NULL;

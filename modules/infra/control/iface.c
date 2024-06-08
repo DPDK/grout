@@ -8,6 +8,7 @@
 #include <br_macro.h>
 #include <br_string.h>
 
+#include <event2/event.h>
 #include <rte_malloc.h>
 
 #include <errno.h>
@@ -188,13 +189,13 @@ int iface_destroy(uint16_t ifid) {
 	return ret;
 }
 
-static void iface_init(void) {
+static void iface_init(struct event_base *) {
 	ifaces = rte_calloc(__func__, MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
 	if (ifaces == NULL)
 		ABORT("rte_zmalloc(ifaces)");
 }
 
-static void iface_fini(void) {
+static void iface_fini(struct event_base *) {
 	for (uint16_t ifid = 0; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface == NULL)

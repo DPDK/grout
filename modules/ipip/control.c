@@ -11,6 +11,7 @@
 #include <br_log.h>
 #include <br_port.h>
 
+#include <event2/event.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -128,7 +129,7 @@ static struct iface_type iface_type_ipip = {
 	.to_api = ipip_to_api,
 };
 
-static void ipip_init(void) {
+static void ipip_init(struct event_base *) {
 	struct rte_hash_parameters params = {
 		.name = "ipip",
 		.entries = MAX_IFACES,
@@ -142,7 +143,7 @@ static void ipip_init(void) {
 		ABORT("rte_hash_create(ipip)");
 }
 
-static void ipip_fini(void) {
+static void ipip_fini(struct event_base *) {
 	rte_hash_free(ipip_hash);
 	ipip_hash = NULL;
 }

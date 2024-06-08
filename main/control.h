@@ -7,10 +7,12 @@
 #include <br_api.h>
 #include <br_control.h>
 
+#include <event2/event.h>
+
 const struct br_api_handler *lookup_api_handler(const struct br_api_request *);
 
-void modules_init(void);
+void modules_init(struct event_base *);
 
-void modules_fini(void);
+void modules_fini(struct event_base *);
 
 #endif

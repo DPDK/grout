@@ -10,6 +10,7 @@
 #include <br_net_types.h>
 #include <br_queue.h>
 
+#include <event2/event.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_hash.h>
@@ -141,13 +142,13 @@ static struct api_out addr_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void addr_init(void) {
+static void addr_init(struct event_base *) {
 	addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct nexthop *), RTE_CACHE_LINE_SIZE);
 	if (addrs == NULL)
 		ABORT("rte_calloc(addrs)");
 }
 
-static void addr_fini(void) {
+static void addr_fini(struct event_base *) {
 	rte_free(addrs);
 	addrs = NULL;
 }

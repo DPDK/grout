@@ -53,7 +53,7 @@ static int module_init_prio_order(const void *a, const void *b) {
 	return (*mod_a)->init_prio - (*mod_b)->init_prio;
 }
 
-void modules_init(void) {
+void modules_init(struct event_base *ev_base) {
 	struct br_module *mod, **mods = NULL;
 
 	STAILQ_FOREACH (mod, &modules, entries)
@@ -65,7 +65,7 @@ void modules_init(void) {
 		mod = mods[i];
 		if (mod->init != NULL) {
 			LOG(DEBUG, "%s prio %i", mod->name, mod->init_prio);
-			mod->init();
+			mod->init(ev_base);
 		}
 	}
 
@@ -78,7 +78,7 @@ static int module_fini_prio_order(const void *a, const void *b) {
 	return (*mod_a)->fini_prio - (*mod_b)->fini_prio;
 }
 
-void modules_fini(void) {
+void modules_fini(struct event_base *ev_base) {
 	struct br_module *mod, **mods = NULL;
 
 	STAILQ_FOREACH (mod, &modules, entries)
@@ -90,7 +90,7 @@ void modules_fini(void) {
 		mod = mods[i];
 		if (mod->fini != NULL) {
 			LOG(DEBUG, "%s prio %i", mod->name, mod->fini_prio);
-			mod->fini();
+			mod->fini(ev_base);
 		}
 	}
 

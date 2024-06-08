@@ -4,6 +4,8 @@
 #ifndef _BR_CONTROL
 #define _BR_CONTROL
 
+#include <event2/event.h>
+
 #include <stdint.h>
 #include <sys/queue.h>
 
@@ -31,9 +33,9 @@ void br_register_api_handler(struct br_api_handler *);
 struct br_module {
 	const char *name;
 	int init_prio;
-	void (*init)(void);
+	void (*init)(struct event_base *);
 	int fini_prio;
-	void (*fini)(void);
+	void (*fini)(struct event_base *);
 	void (*init_dp)(void);
 	void (*fini_dp)(void);
 	STAILQ_ENTRY(br_module) entries;

@@ -13,6 +13,7 @@
 #include <br_stb_ds.h>
 #include <br_worker.h>
 
+#include <event2/event.h>
 #include <numa.h>
 #include <rte_atomic.h>
 #include <rte_build_config.h>
@@ -276,11 +277,11 @@ static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) 
 	return -ENODEV;
 }
 
-static void worker_init(void) {
+static void worker_init(struct event_base *) {
 	rte_lcore_register_usage_cb(lcore_usage_cb);
 }
 
-static void worker_fini(void) {
+static void worker_fini(struct event_base *) {
 	struct worker *w, *tmp;
 
 	STAILQ_FOREACH_SAFE (w, &workers, next, tmp)

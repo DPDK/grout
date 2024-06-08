@@ -6,6 +6,7 @@
 #include <br_control.h>
 #include <br_log.h>
 
+#include <event2/event.h>
 #include <rte_common.h>
 #include <rte_errno.h>
 #include <rte_mbuf_dyn.h>
@@ -18,7 +19,7 @@ static const struct rte_mbuf_dynfield dyn_desc = {
 
 int br_mdyn_offset = -1;
 
-static void mbuf_init(void) {
+static void mbuf_init(struct event_base *) {
 	br_mdyn_offset = rte_mbuf_dynfield_register(&dyn_desc);
 	if (br_mdyn_offset < 0)
 		ABORT("rte_mbuf_dynfield_register(): %s", rte_strerror(rte_errno));

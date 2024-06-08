@@ -359,12 +359,12 @@ int main(int argc, char **argv) {
 	if (dpdk_init(&args) < 0)
 		goto dpdk_stop;
 
-	modules_init();
-
 	if ((ev_base = event_base_new()) == NULL) {
 		LOG(ERR, "event_base_new: %s", strerror(errno));
 		goto shutdown;
 	}
+
+	modules_init(ev_base);
 
 	if (listen_api_socket() < 0)
 		goto shutdown;
@@ -380,13 +380,14 @@ shutdown:
 	unregister_signals();
 	if (ev_listen)
 		event_free_finalize(0, ev_listen, finalize_close_fd);
+
 	if (ev_base) {
+		modules_fini(ev_base);
 		event_base_foreach_event(ev_base, ev_close, NULL);
 		event_base_free(ev_base);
 	}
 	unlink(args.api_sock_path);
 	libevent_global_shutdown();
-	modules_fini();
 dpdk_stop:
 	dpdk_fini();
 end:

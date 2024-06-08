@@ -16,6 +16,7 @@
 #include <br_tx.h>
 #include <br_worker.h>
 
+#include <event2/event.h>
 #include <rte_build_config.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
@@ -270,7 +271,7 @@ int worker_graph_reload_all(void) {
 	return 0;
 }
 
-static void graph_init(void) {
+static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct br_node_info *info;
 
@@ -303,7 +304,7 @@ static void graph_init(void) {
 		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
 }
 
-static void graph_fini(void) {
+static void graph_fini(struct event_base *) {
 	const void *key = NULL;
 	void *data = NULL;
 	uint32_t iter;
