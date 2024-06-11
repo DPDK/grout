@@ -20,6 +20,7 @@ uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
 struct br_node_info {
 	struct rte_node_register *node;
 	void (*register_callback)(void);
+	void (*unregister_callback)(void);
 	STAILQ_ENTRY(br_node_info) next;
 };
 

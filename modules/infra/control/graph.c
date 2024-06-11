@@ -305,9 +305,16 @@ static void graph_init(struct event_base *) {
 }
 
 static void graph_fini(struct event_base *) {
+	struct br_node_info *info;
 	const void *key = NULL;
 	void *data = NULL;
 	uint32_t iter;
+
+	STAILQ_FOREACH (info, &node_infos, next) {
+		if (info->unregister_callback != NULL) {
+			info->unregister_callback();
+		}
+	}
 
 	iter = 0;
 	while (rte_hash_iterate(hash, &key, &data, &iter) >= 0) {
