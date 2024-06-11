@@ -48,14 +48,16 @@ static inline void update_nexthop(
 	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
 
 	// Flush all held packets.
-	m = nh->held_pkts.head;
+	m = nh->held_pkts_head;
 	while (m != NULL) {
 		next = queue_mbuf_data(m)->next;
 		ip_output_mbuf_data(m)->nh = nh;
 		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
 		m = next;
 	}
-	memset(&nh->held_pkts, 0, sizeof(nh->held_pkts));
+	nh->held_pkts_head = NULL;
+	nh->held_pkts_tail = NULL;
+	nh->held_pkts_num = 0;
 
 	rte_spinlock_unlock(&nh->lock);
 }

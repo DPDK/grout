@@ -80,6 +80,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 	scols_table_new_column(table, "IP", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
+	scols_table_new_column(table, "QUEUE", 0, 0);
 	scols_table_new_column(table, "AGE", 0, 0);
 	scols_table_new_column(table, "STATE", 0, 0);
 	scols_table_set_column_separator(table, "  ");
@@ -111,13 +112,15 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 				scols_line_sprintf(line, 3, "%s", iface.name);
 			else
 				scols_line_sprintf(line, 3, "%u", nh->iface_id);
-			scols_line_sprintf(line, 4, "%u", nh->age);
+			scols_line_sprintf(line, 4, "%u", nh->held_pkts);
+			scols_line_sprintf(line, 5, "%u", nh->age);
 		} else {
 			scols_line_set_data(line, 2, "??:??:??:??:??:??");
 			scols_line_set_data(line, 3, "?");
-			scols_line_set_data(line, 4, "?");
+			scols_line_sprintf(line, 4, "%u", nh->held_pkts);
+			scols_line_set_data(line, 5, "?");
 		}
-		scols_line_sprintf(line, 5, "%s", state);
+		scols_line_sprintf(line, 6, "%s", state);
 	}
 
 	scols_print_table(table);

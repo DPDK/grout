@@ -26,10 +26,9 @@ struct __rte_cache_aligned nexthop {
 	uint32_t ref_count;
 	rte_spinlock_t lock;
 	// packets waiting for ARP resolution
-	struct {
-		struct rte_mbuf *head, *tail;
-		uint32_t num;
-	} held_pkts;
+	uint32_t held_pkts_num;
+	struct rte_mbuf *held_pkts_head;
+	struct rte_mbuf *held_pkts_tail;
 };
 
 #define IP4_NH_MAX_HELD_PKTS 8192

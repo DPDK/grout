@@ -44,14 +44,14 @@ static inline hold_status_t hold_packet(struct nexthop *nh, struct rte_mbuf *mbu
 		data->iface = iface_from_id(nh->iface_id);
 		nh->flags &= ~BR_IP4_NH_F_PENDING;
 		status = OK_TO_SEND;
-	} else if (nh->held_pkts.num < IP4_NH_MAX_HELD_PKTS) {
+	} else if (nh->held_pkts_num < IP4_NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
-		if (nh->held_pkts.head == NULL)
-			nh->held_pkts.head = mbuf;
+		if (nh->held_pkts_head == NULL)
+			nh->held_pkts_head = mbuf;
 		else
-			queue_mbuf_data(nh->held_pkts.tail)->next = mbuf;
-		nh->held_pkts.tail = mbuf;
-		nh->held_pkts.num++;
+			queue_mbuf_data(nh->held_pkts_tail)->next = mbuf;
+		nh->held_pkts_tail = mbuf;
+		nh->held_pkts_num++;
 		nh->flags |= BR_IP4_NH_F_PENDING;
 		status = HELD;
 	} else {
