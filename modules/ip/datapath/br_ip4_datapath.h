@@ -31,6 +31,7 @@ BR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 
 void ip_input_local_add_proto(uint8_t proto, rte_edge_t edge);
 void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge);
+int arp_output_request_solicit(struct nexthop *nh);
 
 #define IPV4_VERSION_IHL 0x45
 #define IPV4_DEFAULT_TTL 64
