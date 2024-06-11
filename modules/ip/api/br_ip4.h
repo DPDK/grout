@@ -15,28 +15,28 @@ struct br_ip4_ifaddr {
 	struct ip4_net addr;
 };
 
-#define BR_IP4_NH_F_BLACKHOLE BR_BIT16(0) //!< Self explanatory
-#define BR_IP4_NH_F_REACHABLE BR_BIT16(1) //!< L2 address valid
-#define BR_IP4_NH_F_STATIC BR_BIT16(2) //!< Configured by user
-#define BR_IP4_NH_F_PENDING BR_BIT16(3) //!< ARP resolution pending
-#define BR_IP4_NH_F_STALE BR_BIT16(4) //!< Expired
-#define BR_IP4_NH_F_LOCAL BR_BIT16(5) //!< Local address
-#define BR_IP4_NH_F_GATEWAY BR_BIT16(6) //!< Gateway route
-#define BR_IP4_NH_F_LINK BR_BIT16(7) //!< Connected link route
+#define BR_IP4_NH_F_PENDING BR_BIT16(0) // ARP probe sent
+#define BR_IP4_NH_F_REACHABLE BR_BIT16(1) // ARP reply received
+#define BR_IP4_NH_F_STALE BR_BIT16(2) // Reachable lifetime expired, need ARP refresh
+#define BR_IP4_NH_F_FAILED BR_BIT16(3) // All ARP probes sent without reply
+#define BR_IP4_NH_F_STATIC BR_BIT16(4) // Configured by user
+#define BR_IP4_NH_F_LOCAL BR_BIT16(5) // Local address
+#define BR_IP4_NH_F_GATEWAY BR_BIT16(6) // Gateway route
+#define BR_IP4_NH_F_LINK BR_BIT16(7) // Connected link route
 typedef uint16_t br_ip4_nh_flags_t;
 
 static inline const char *br_ip4_nh_f_name(const br_ip4_nh_flags_t flag) {
 	switch (flag) {
-	case BR_IP4_NH_F_BLACKHOLE:
-		return "blackhole";
-	case BR_IP4_NH_F_REACHABLE:
-		return "reachable";
-	case BR_IP4_NH_F_STATIC:
-		return "static";
 	case BR_IP4_NH_F_PENDING:
 		return "pending";
+	case BR_IP4_NH_F_REACHABLE:
+		return "reachable";
 	case BR_IP4_NH_F_STALE:
 		return "stale";
+	case BR_IP4_NH_F_FAILED:
+		return "failed";
+	case BR_IP4_NH_F_STATIC:
+		return "static";
 	case BR_IP4_NH_F_LOCAL:
 		return "local";
 	case BR_IP4_NH_F_GATEWAY:
