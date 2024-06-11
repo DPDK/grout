@@ -31,7 +31,8 @@ struct __rte_cache_aligned nexthop {
 	struct rte_mbuf *held_pkts_tail;
 };
 
-#define IP4_NH_MAX_HELD_PKTS 8192
+// Max number of packets to hold per next hop waiting for resolution (default: 256).
+#define IP4_NH_MAX_HELD_PKTS 256
 // XXX: why not 1337, eh?
 #define MAX_NEXT_HOPS (1 << 16)
 #define MAX_ROUTES (1 << 16)
