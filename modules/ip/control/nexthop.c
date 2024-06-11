@@ -177,7 +177,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 		memcpy(&api_nh->mac, &nh->lladdr, sizeof(api_nh->mac));
 		api_nh->flags = nh->flags;
 		if (nh->last_seen > 0)
-			api_nh->age = (nh->last_seen - rte_get_tsc_cycles()) / rte_get_tsc_hz();
+			api_nh->age = (rte_get_tsc_cycles() - nh->last_seen) / rte_get_tsc_hz();
 		api_nh->held_pkts = nh->held_pkts_num;
 	}
 
