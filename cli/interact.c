@@ -11,6 +11,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <wordexp.h>
 
 #define __PROMPT "br#"
 #define PROMPT __PROMPT " "
@@ -79,6 +80,11 @@ int interact(const struct br_api_client *client, struct ec_node *cmdlist) {
 			goto end;
 		}
 	}
+
+	wordexp_t w;
+	if (wordexp("~/.brcli_history", &w, 0) == 0 && w.we_wordc == 1)
+		ec_editline_set_history(edit, 256, w.we_wordv[0]);
+	wordfree(&w);
 
 	// Don't ignore SIGINT, we want it to interrupt the current command.
 	if (signal(SIGINT, sighandler) == SIG_ERR) {
