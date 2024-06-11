@@ -55,7 +55,7 @@ struct br_ip4_nh {
 	uint16_t vrf_id;
 	uint16_t iface_id;
 	br_ip4_nh_flags_t flags;
-	uint32_t age; //<! number of seconds since last arp reply
+	uint16_t age; //<! number of seconds since last update
 	uint16_t held_pkts;
 };
 

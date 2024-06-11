@@ -6,6 +6,7 @@
 #include <br_iface.h>
 #include <br_ip4.h>
 #include <br_ip4_control.h>
+#include <br_ip4_datapath.h>
 #include <br_log.h>
 #include <br_net_types.h>
 #include <br_queue.h>
@@ -132,7 +133,8 @@ static struct api_out nh4_del(const void *request, void **response) {
 			return api_out(0, 0);
 		return api_out(errno, 0);
 	}
-	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK)) || nh->ref_count > 1)
+	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK | BR_IP4_NH_F_GATEWAY))
+	    || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	// this also does ip4_nexthop_decref(), freeing the next hop
@@ -176,8 +178,8 @@ static struct api_out nh4_list(const void *request, void **response) {
 		api_nh->vrf_id = nh->vrf_id;
 		memcpy(&api_nh->mac, &nh->lladdr, sizeof(api_nh->mac));
 		api_nh->flags = nh->flags;
-		if (nh->last_seen > 0)
-			api_nh->age = (rte_get_tsc_cycles() - nh->last_seen) / rte_get_tsc_hz();
+		if (nh->last_reply > 0)
+			api_nh->age = (rte_get_tsc_cycles() - nh->last_reply) / rte_get_tsc_hz();
 		api_nh->held_pkts = nh->held_pkts_num;
 	}
 
@@ -186,7 +188,81 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh4_init(struct event_base *) {
+static void nexthop_gc(evutil_socket_t, short, void *) {
+	uint64_t now = rte_get_tsc_cycles();
+	uint64_t reply_age, request_age;
+	unsigned probes, max_probes;
+	struct nexthop *nh;
+	const void *key;
+	uint32_t iter;
+	int32_t idx;
+	void *data;
+
+	max_probes = IP4_NH_UCAST_PROBES + IP4_NH_BCAST_PROBES;
+	iter = 0;
+
+	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
+		nh = ip4_nexthop_get(idx);
+
+		if (nh->flags & BR_IP4_NH_F_STATIC)
+			continue;
+
+		reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
+		request_age = (now - nh->last_request) / rte_get_tsc_hz();
+		probes = nh->ucast_probes + nh->bcast_probes;
+
+		if (nh->flags & (BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE) && request_age > probes) {
+			if (probes >= max_probes && !(nh->flags & BR_IP4_NH_F_GATEWAY)) {
+				LOG(DEBUG,
+				    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: %s -> failed",
+				    nh->vrf_id,
+				    ntohl(nh->ip),
+				    probes,
+				    nh->held_pkts_num,
+				    br_ip4_nh_f_name(
+					    nh->flags & (BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE)
+				    ));
+				nh->flags &= ~(BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE);
+				nh->flags |= BR_IP4_NH_F_FAILED;
+			} else {
+				if (arp_output_request_solicit(nh) < 0)
+					LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
+			}
+		} else if (nh->flags & BR_IP4_NH_F_REACHABLE
+			   && reply_age > IP4_NH_LIFETIME_REACHABLE) {
+			nh->flags &= ~BR_IP4_NH_F_REACHABLE;
+			nh->flags |= BR_IP4_NH_F_STALE;
+		} else if (nh->flags & BR_IP4_NH_F_FAILED
+			   && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
+			LOG(DEBUG,
+			    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: failed -> <destroy>",
+			    nh->vrf_id,
+			    ntohl(nh->ip),
+			    probes,
+			    nh->held_pkts_num);
+
+			rte_spinlock_lock(&nh->lock);
+			// Flush all held packets.
+			struct rte_mbuf *m = nh->held_pkts_head;
+			while (m != NULL) {
+				struct rte_mbuf *next = queue_mbuf_data(m)->next;
+				m = next;
+			}
+			nh->held_pkts_head = NULL;
+			nh->held_pkts_tail = NULL;
+			nh->held_pkts_num = 0;
+			rte_spinlock_unlock(&nh->lock);
+
+			// this also does ip4_nexthop_decref(), freeing the next hop
+			if (ip4_route_delete(nh->vrf_id, nh->ip, 32) < 0)
+				LOG(ERR, "ip4_route_delete: %s", strerror(errno));
+		}
+	}
+}
+
+static struct event *nh_gc_timer;
+
+static void nh4_init(struct event_base *ev_base) {
 	struct rte_hash_parameters params = {
 		.name = "ip4_nh",
 		.entries = MAX_NEXT_HOPS,
@@ -206,9 +282,18 @@ static void nh4_init(struct event_base *) {
 	);
 	if (nh_array == NULL)
 		ABORT("rte_calloc(nh4_array) failed");
+
+	nh_gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, nexthop_gc, NULL);
+	if (nh_gc_timer == NULL)
+		ABORT("event_new() failed");
+	struct timeval tv = {.tv_sec = 1};
+	if (event_add(nh_gc_timer, &tv) < 0)
+		ABORT("event_add() failed");
 }
 
 static void nh4_fini(struct event_base *) {
+	event_free(nh_gc_timer);
+	nh_gc_timer = NULL;
 	rte_hash_free(nh_hash);
 	nh_hash = NULL;
 	rte_free(nh_array);

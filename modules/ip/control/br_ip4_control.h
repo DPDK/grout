@@ -21,18 +21,28 @@ struct __rte_cache_aligned nexthop {
 	uint16_t vrf_id;
 	uint16_t iface_id;
 	ip4_addr_t ip;
-	uint8_t prefixlen;
-	uint64_t last_seen;
+	uint64_t last_request, last_reply;
 	uint32_t ref_count;
+	uint8_t prefixlen;
+	uint8_t ucast_probes : 4, bcast_probes : 4;
 	rte_spinlock_t lock;
 	// packets waiting for ARP resolution
-	uint32_t held_pkts_num;
+	uint16_t held_pkts_num;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
 };
 
 // Max number of packets to hold per next hop waiting for resolution (default: 256).
 #define IP4_NH_MAX_HELD_PKTS 256
+// Reachable next hop lifetime after last ARP reply received (default: 20 min).
+#define IP4_NH_LIFETIME_REACHABLE (20 * 60)
+// Unreachable next hop lifetime after last unreplied ARP request was sent (default: 1 min).
+#define IP4_NH_LIFETIME_UNREACHABLE 60
+// Max number of unicast ARP probes to send after IP4_NH_LIFETIME_REACHABLE.
+#define IP4_NH_UCAST_PROBES 3
+// Max number of broadcast ARP probes to send after unicast probes failed.
+#define IP4_NH_BCAST_PROBES 3
+
 // XXX: why not 1337, eh?
 #define MAX_NEXT_HOPS (1 << 16)
 #define MAX_ROUTES (1 << 16)

@@ -52,15 +52,15 @@ arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void 
 	struct rte_mbuf *mbuf;
 	rte_edge_t next;
 	uint16_t sent;
+	uint64_t now;
 	unsigned n;
 
+	now = rte_get_tsc_cycles();
 	n = rte_ring_dequeue_burst(nexthop_ring, objs, ARRAY_DIM(objs), NULL);
 	sent = 0;
 
 	for (unsigned i = 0; i < n; i++) {
 		nh = objs[i];
-
-		ip4_nexthop_decref(nh);
 
 		// Create a brand new mbuf to hold the ARP request.
 		mbuf = rte_pktmbuf_alloc(arp_pool);
@@ -86,15 +86,26 @@ arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void 
 			goto next;
 		}
 		arp->arp_data.arp_sip = local->ip;
-		memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
+		if (nh->last_reply != 0)
+			rte_ether_addr_copy(&nh->lladdr, &arp->arp_data.arp_tha);
+		else
+			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
 		arp->arp_data.arp_tip = nh->ip;
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+		if (nh->ucast_probes < IP4_NH_UCAST_PROBES) {
+			rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+			nh->ucast_probes++;
+		} else {
+			memset(&eth_data->dst, 0xff, sizeof(eth_data->dst));
+			nh->bcast_probes++;
+		}
+		nh->last_request = now;
 		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface_from_id(nh->iface_id);
 
+		ip4_nexthop_decref(nh);
 		next = OUTPUT;
 		sent++;
 next:

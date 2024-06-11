@@ -41,10 +41,12 @@ static inline void update_nexthop(
 	rte_spinlock_lock(&nh->lock);
 
 	// Refresh all fields.
-	nh->last_seen = now;
+	nh->last_reply = now;
 	nh->iface_id = iface_id;
 	nh->flags |= BR_IP4_NH_F_REACHABLE;
-	nh->flags &= ~(BR_IP4_NH_F_STALE | BR_IP4_NH_F_PENDING);
+	nh->flags &= ~(BR_IP4_NH_F_STALE | BR_IP4_NH_F_PENDING | BR_IP4_NH_F_FAILED);
+	nh->ucast_probes = 0;
+	nh->bcast_probes = 0;
 	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
 
 	// Flush all held packets.
