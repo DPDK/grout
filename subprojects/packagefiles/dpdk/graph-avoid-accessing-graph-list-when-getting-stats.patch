@@ -1,8 +1,7 @@
-From 1b52e39c61260745852dce3343921169e0437de3 Mon Sep 17 00:00:00 2001
+From 2990aece4f19b569d70f905cd0b53a03bbcd7327 Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Mon, 25 Mar 2024 11:50:19 +0100
-Subject: [PATCH 3/4] graph: avoid accessing global list in
- rte_graph_cluster_stats_get
+Subject: [PATCH] graph: avoid accessing graph list when getting stats
 
 In rte_graph_cluster_stats_get, the walk model of the first graph is
 checked to determine if multi-core dispatch specific counters should be
@@ -18,15 +17,15 @@ accessing the global list instead by storing a bool field in the private
 rte_graph_cluster_stats structure.
 
 Also update the default callback to avoid accessing the global list and
-store different callbacks according to the graph models.
+use a different default callback depending on the graph model.
 
 Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
- lib/graph/graph_stats.c | 60 ++++++++++++++++++++++++++---------------
- 1 file changed, 39 insertions(+), 21 deletions(-)
+ lib/graph/graph_stats.c | 57 ++++++++++++++++++++++++++---------------
+ 1 file changed, 36 insertions(+), 21 deletions(-)
 
 diff --git a/lib/graph/graph_stats.c b/lib/graph/graph_stats.c
-index 2fb808b21ec5..f8048e08be8a 100644
+index 2fb808b21ec5..d71451a17b95 100644
 --- a/lib/graph/graph_stats.c
 +++ b/lib/graph/graph_stats.c
 @@ -34,6 +34,7 @@ struct __rte_cache_aligned rte_graph_cluster_stats {
@@ -114,26 +113,23 @@ index 2fb808b21ec5..f8048e08be8a 100644
  static struct rte_graph_cluster_stats *
  stats_mem_init(struct cluster *cluster,
  	       const struct rte_graph_cluster_stats_param *prm)
-@@ -157,8 +167,16 @@ stats_mem_init(struct cluster *cluster,
+@@ -157,8 +167,13 @@ stats_mem_init(struct cluster *cluster,
  
  	/* Fix up callback */
  	fn = prm->fn;
 -	if (fn == NULL)
 -		fn = graph_cluster_stats_cb;
 +	if (fn == NULL) {
-+		for (int i = 0; i < cluster->nb_graphs; i++) {
-+			const struct rte_graph *graph = cluster->graphs[i]->graph;
-+			if (graph->model == RTE_GRAPH_MODEL_MCORE_DISPATCH)
-+				fn = graph_cluster_stats_cb_dispatch;
-+			else
-+				fn = graph_cluster_stats_cb_rtc;
-+			break;
-+		}
++		const struct rte_graph *graph = cluster->graphs[0]->graph;
++		if (graph->model == RTE_GRAPH_MODEL_MCORE_DISPATCH)
++			fn = graph_cluster_stats_cb_dispatch;
++		else
++			fn = graph_cluster_stats_cb_rtc;
 +	}
  
  	cluster_node_size = sizeof(struct cluster_node);
  	/* For a given cluster, max nodes will be the max number of graphs */
-@@ -350,6 +368,8 @@ rte_graph_cluster_stats_create(const struct rte_graph_cluster_stats_param *prm)
+@@ -350,6 +365,8 @@ rte_graph_cluster_stats_create(const struct rte_graph_cluster_stats_param *prm)
  			if (stats_mem_populate(&stats, graph_fp, graph_node))
  				goto realloc_fail;
  		}
@@ -142,7 +138,7 @@ index 2fb808b21ec5..f8048e08be8a 100644
  	}
  
  	/* Finally copy to hugepage memory to avoid pressure on rte_realloc */
-@@ -375,20 +395,18 @@ rte_graph_cluster_stats_destroy(struct rte_graph_cluster_stats *stat)
+@@ -375,20 +392,18 @@ rte_graph_cluster_stats_destroy(struct rte_graph_cluster_stats *stat)
  }
  
  static inline void
@@ -165,7 +161,7 @@ index 2fb808b21ec5..f8048e08be8a 100644
  			sched_objs += node->dispatch.total_sched_objs;
  			sched_fail += node->dispatch.total_sched_fail;
  		}
-@@ -403,7 +421,7 @@ cluster_node_arregate_stats(struct cluster_node *cluster)
+@@ -403,7 +418,7 @@ cluster_node_arregate_stats(struct cluster_node *cluster)
  	stat->objs = objs;
  	stat->cycles = cycles;
  
@@ -174,7 +170,7 @@ index 2fb808b21ec5..f8048e08be8a 100644
  		stat->dispatch.sched_objs = sched_objs;
  		stat->dispatch.sched_fail = sched_fail;
  	}
-@@ -433,7 +451,7 @@ rte_graph_cluster_stats_get(struct rte_graph_cluster_stats *stat, bool skip_cb)
+@@ -433,7 +448,7 @@ rte_graph_cluster_stats_get(struct rte_graph_cluster_stats *stat, bool skip_cb)
  	cluster = stat->clusters;
  
  	for (count = 0; count < stat->max_nodes; count++) {
@@ -184,5 +180,5 @@ index 2fb808b21ec5..f8048e08be8a 100644
  			rc = stat->fn(!count, (count == stat->max_nodes - 1),
  				      stat->cookie, &cluster->stat);
 -- 
-2.44.0
+2.45.2
 

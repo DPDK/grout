@@ -1,34 +1,129 @@
-From 065501abf9657da6b57d4fbcbed6bb42376de06a Mon Sep 17 00:00:00 2001
+From 237d601b7e98406c57aeeabac25911df683eb521 Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Mon, 25 Mar 2024 14:29:06 +0100
-Subject: [PATCH 4/4] graph: avoid id collisions
+Subject: [PATCH] graph: avoid id collisions
 
 The graph id is determined based on a global variable that is
 incremented every time a graph is created, and decremented every time
 a graph is destroyed. This only works if graphs are destroyed in the
 reverse order in which they have been created.
 
-The following code produces duplicate graph ids:
+The following code produces duplicate graph IDs which can lead to
+use-after-free bugs and other undefined behaviours:
 
-	id1 = rte_graph_create(...);
-	id2 = rte_graph_create(...);
-	rte_graph_destroy(id1);
-	id3 = rte_graph_create(...); // new graph with duplicate id=2
+  a = rte_graph_create(...); // id=0 graph_id=1
+  b = rte_graph_create(...); // id=1 graph_id=2
+  rte_graph_destroy(a);      // graph_id=1
+  c = rte_graph_create(...); // id=1 graph_id=2 (duplicate with b)
+  rte_graph_destroy(c);      // frees memory still used by b
 
 Remove the global counter. Make sure that the graph list is always
 ordered by increasing graph ids. When creating a new graph, pick a free
 id which is not allocated.
 
+Update unit tests to ensure it works as expected.
+
 Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
- lib/graph/graph.c | 75 ++++++++++++++++++++++++++++++++++++++++-------
- 1 file changed, 64 insertions(+), 11 deletions(-)
+ app/test/test_graph.c | 72 ++++++++++++++++++++++++++++++++++++
+ lib/graph/graph.c     | 86 ++++++++++++++++++++++++++++++++++---------
+ 2 files changed, 141 insertions(+), 17 deletions(-)
 
+diff --git a/app/test/test_graph.c b/app/test/test_graph.c
+index b8409bc60497..2840a25b13b7 100644
+--- a/app/test/test_graph.c
++++ b/app/test/test_graph.c
+@@ -696,6 +696,77 @@ test_graph_clone(void)
+ 	return ret;
+ }
+ 
++static int
++test_graph_id_collisions(void)
++{
++	static const char *node_patterns[] = {"test_node_source1", "test_node00"};
++	struct rte_graph_param gconf = {
++		.socket_id = SOCKET_ID_ANY,
++		.nb_node_patterns = 2,
++		.node_patterns = node_patterns,
++	};
++	rte_graph_t g1, g2, g3, g4;
++
++	g1 = rte_graph_create("worker1", &gconf);
++	if (g1 == RTE_GRAPH_ID_INVALID) {
++		printf("Graph 1 creation failed with error = %d\n", rte_errno);
++		return -1;
++	}
++	g2 = rte_graph_create("worker2", &gconf);
++	if (g2 == RTE_GRAPH_ID_INVALID) {
++		printf("Graph 2 creation failed with error = %d\n", rte_errno);
++		return -1;
++	}
++	g3 = rte_graph_create("worker3", &gconf);
++	if (g3 == RTE_GRAPH_ID_INVALID) {
++		printf("Graph 3 creation failed with error = %d\n", rte_errno);
++		return -1;
++	}
++	if (g1 == g2 || g2 == g3 || g1 == g3) {
++		printf("Graph ids should be different\n");
++		return -1;
++	}
++	if (rte_graph_destroy(g2) < 0) {
++		printf("Graph 2 suppression failed\n");
++		return -1;
++	}
++	g4 = rte_graph_create("worker4", &gconf);
++	if (g4 == RTE_GRAPH_ID_INVALID) {
++		printf("Graph 4 creation failed with error = %d\n", rte_errno);
++		return -1;
++	}
++	if (g1 == g3 || g1 == g4 || g3 == g4) {
++		printf("Graph ids should be different\n");
++		return -1;
++	}
++	g2 = rte_graph_clone(g1, "worker2", &gconf);
++	if (g2 == RTE_GRAPH_ID_INVALID) {
++		printf("Graph 4 creation failed with error = %d\n", rte_errno);
++		return -1;
++	}
++	if (g1 == g2 || g1 == g3 || g1 == g4 || g2 == g3 || g2 == g4 || g3 == g4) {
++		printf("Graph ids should be different\n");
++		return -1;
++	}
++	if (rte_graph_destroy(g1) < 0) {
++		printf("Graph 1 suppression failed\n");
++		return -1;
++	}
++	if (rte_graph_destroy(g2) < 0) {
++		printf("Graph 2 suppression failed\n");
++		return -1;
++	}
++	if (rte_graph_destroy(g3) < 0) {
++		printf("Graph 3 suppression failed\n");
++		return -1;
++	}
++	if (rte_graph_destroy(g4) < 0) {
++		printf("Graph 4 suppression failed\n");
++		return -1;
++	}
++	return 0;
++}
++
+ static int
+ test_graph_model_mcore_dispatch_node_lcore_affinity_set(void)
+ {
+@@ -977,6 +1048,7 @@ static struct unit_test_suite graph_testsuite = {
+ 		TEST_CASE(test_lookup_functions),
+ 		TEST_CASE(test_create_graph),
+ 		TEST_CASE(test_graph_clone),
++		TEST_CASE(test_graph_id_collisions),
+ 		TEST_CASE(test_graph_model_mcore_dispatch_node_lcore_affinity_set),
+ 		TEST_CASE(test_graph_model_mcore_dispatch_core_bind_unbind),
+ 		TEST_CASE(test_graph_worker_model_set_get),
 diff --git a/lib/graph/graph.c b/lib/graph/graph.c
-index 147bc6c685c5..f40b47297633 100644
+index 147bc6c685c5..d5b8c9f918cf 100644
 --- a/lib/graph/graph.c
 +++ b/lib/graph/graph.c
-@@ -19,11 +19,61 @@
+@@ -19,11 +19,54 @@
  
  static struct graph_head graph_list = STAILQ_HEAD_INITIALIZER(graph_list);
  static rte_spinlock_t graph_lock = RTE_SPINLOCK_INITIALIZER;
@@ -49,12 +144,6 @@ index 147bc6c685c5..f40b47297633 100644
 +	return NULL;
 +}
 +
-+#define GRAPH_ID_CHECK(id)                                                     \
-+	do {                                                                   \
-+		if (graph_from_id(id) == NULL)                                 \
-+			goto fail;                                             \
-+	} while (0)
-+
 +static rte_graph_t
 +graph_next_free_id(void)
 +{
@@ -62,9 +151,8 @@ index 147bc6c685c5..f40b47297633 100644
 +	rte_graph_t id = 0;
 +
 +	STAILQ_FOREACH(graph, &graph_list, next) {
-+		if (id < graph->id) {
++		if (id < graph->id)
 +			break;
-+		}
 +		id = graph->id + 1;
 +	}
 +
@@ -78,13 +166,13 @@ index 147bc6c685c5..f40b47297633 100644
 +
 +	after = NULL;
 +	STAILQ_FOREACH(g, &graph_list, next) {
-+		if (g->id < graph->id) {
++		if (g->id < graph->id)
 +			after = g;
++		else if (g->id > graph->id)
 +			break;
-+		}
 +	}
 +	if (after == NULL) {
-+		STAILQ_INSERT_TAIL(&graph_list, graph, next);
++		STAILQ_INSERT_HEAD(&graph_list, graph, next);
 +	} else {
 +		STAILQ_INSERT_AFTER(&graph_list, after, graph, next);
 +	}
@@ -93,7 +181,27 @@ index 147bc6c685c5..f40b47297633 100644
  struct graph_head *
  graph_list_head_get(void)
  {
-@@ -406,7 +456,7 @@ rte_graph_create(const char *name, struct rte_graph_param *prm)
+@@ -279,7 +322,8 @@ rte_graph_model_mcore_dispatch_core_bind(rte_graph_t id, int lcore)
+ {
+ 	struct graph *graph;
+ 
+-	GRAPH_ID_CHECK(id);
++	if (graph_from_id(id) == NULL)
++		goto fail;
+ 	if (!rte_lcore_is_enabled(lcore))
+ 		SET_ERR_JMP(ENOLINK, fail, "lcore %d not enabled", lcore);
+ 
+@@ -309,7 +353,8 @@ rte_graph_model_mcore_dispatch_core_unbind(rte_graph_t id)
+ {
+ 	struct graph *graph;
+ 
+-	GRAPH_ID_CHECK(id);
++	if (graph_from_id(id) == NULL)
++		goto fail;
+ 	STAILQ_FOREACH(graph, &graph_list, next)
+ 		if (graph->id == id)
+ 			break;
+@@ -406,7 +451,7 @@ rte_graph_create(const char *name, struct rte_graph_param *prm)
  	graph->socket = prm->socket_id;
  	graph->src_node_count = src_node_count;
  	graph->node_count = graph_nodes_count(graph);
@@ -102,7 +210,7 @@ index 147bc6c685c5..f40b47297633 100644
  	graph->parent_id = RTE_GRAPH_ID_INVALID;
  	graph->lcore_id = RTE_MAX_LCORE;
  	graph->num_pkt_to_capture = prm->num_pkt_to_capture;
-@@ -422,8 +472,7 @@ rte_graph_create(const char *name, struct rte_graph_param *prm)
+@@ -422,8 +467,7 @@ rte_graph_create(const char *name, struct rte_graph_param *prm)
  		goto graph_mem_destroy;
  
  	/* All good, Lets add the graph to the list */
@@ -112,7 +220,7 @@ index 147bc6c685c5..f40b47297633 100644
  
  	graph_spinlock_unlock();
  	return graph->id;
-@@ -467,7 +516,6 @@ rte_graph_destroy(rte_graph_t id)
+@@ -467,7 +511,6 @@ rte_graph_destroy(rte_graph_t id)
  			graph_cleanup(graph);
  			STAILQ_REMOVE(&graph_list, graph, graph, next);
  			free(graph);
@@ -120,7 +228,7 @@ index 147bc6c685c5..f40b47297633 100644
  			goto done;
  		}
  		graph = tmp;
-@@ -520,7 +568,7 @@ graph_clone(struct graph *parent_graph, const char *name, struct rte_graph_param
+@@ -520,7 +563,7 @@ graph_clone(struct graph *parent_graph, const char *name, struct rte_graph_param
  	graph->parent_id = parent_graph->id;
  	graph->lcore_id = parent_graph->lcore_id;
  	graph->socket = parent_graph->socket;
@@ -129,7 +237,7 @@ index 147bc6c685c5..f40b47297633 100644
  
  	/* Allocate the Graph fast path memory and populate the data */
  	if (graph_fp_mem_create(graph))
-@@ -539,8 +587,7 @@ graph_clone(struct graph *parent_graph, const char *name, struct rte_graph_param
+@@ -539,8 +582,7 @@ graph_clone(struct graph *parent_graph, const char *name, struct rte_graph_param
  		goto graph_mem_destroy;
  
  	/* All good, Lets add the graph to the list */
@@ -139,7 +247,47 @@ index 147bc6c685c5..f40b47297633 100644
  
  	graph_spinlock_unlock();
  	return graph->id;
-@@ -776,7 +823,13 @@ rte_graph_list_dump(FILE *f)
+@@ -561,7 +603,8 @@ rte_graph_clone(rte_graph_t id, const char *name, struct rte_graph_param *prm)
+ {
+ 	struct graph *graph;
+ 
+-	GRAPH_ID_CHECK(id);
++	if (graph_from_id(id) == NULL)
++		goto fail;
+ 	STAILQ_FOREACH(graph, &graph_list, next)
+ 		if (graph->id == id)
+ 			return graph_clone(graph, name, prm);
+@@ -587,7 +630,8 @@ rte_graph_id_to_name(rte_graph_t id)
+ {
+ 	struct graph *graph;
+ 
+-	GRAPH_ID_CHECK(id);
++	if (graph_from_id(id) == NULL)
++		goto fail;
+ 	STAILQ_FOREACH(graph, &graph_list, next)
+ 		if (graph->id == id)
+ 			return graph->name;
+@@ -604,7 +648,8 @@ rte_graph_node_get(rte_graph_t gid, uint32_t nid)
+ 	rte_graph_off_t off;
+ 	rte_node_t count;
+ 
+-	GRAPH_ID_CHECK(gid);
++	if (graph_from_id(gid) == NULL)
++		goto fail;
+ 	STAILQ_FOREACH(graph, &graph_list, next)
+ 		if (graph->id == gid) {
+ 			rte_graph_foreach_node(count, off, graph->graph,
+@@ -747,7 +792,8 @@ graph_scan_dump(FILE *f, rte_graph_t id, bool all)
+ 	struct graph *graph;
+ 
+ 	RTE_VERIFY(f);
+-	GRAPH_ID_CHECK(id);
++	if (graph_from_id(id) == NULL)
++		goto fail;
+ 
+ 	STAILQ_FOREACH(graph, &graph_list, next) {
+ 		if (all == true) {
+@@ -776,7 +822,13 @@ rte_graph_list_dump(FILE *f)
  rte_graph_t
  rte_graph_max_count(void)
  {
@@ -155,5 +303,5 @@ index 147bc6c685c5..f40b47297633 100644
  
  RTE_LOG_REGISTER_DEFAULT(rte_graph_logtype, INFO);
 -- 
-2.44.0
+2.45.2
 

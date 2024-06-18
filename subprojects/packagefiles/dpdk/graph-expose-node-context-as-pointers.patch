@@ -1,4 +1,4 @@
-From ccee0823214d32bd7b9fd7541e8870d6e4f9ba4f Mon Sep 17 00:00:00 2001
+From f803631ef7ab9f27c5d351b2251faf88852e3e12 Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Wed, 20 Mar 2024 18:16:03 +0100
 Subject: [PATCH] graph: expose node context as pointers
@@ -22,32 +22,6 @@ the context array (RTE_NODE_CTX_SZ).
 
 Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
-
-Notes:
-    v5:
-    
-    * Helper functions to hide casting proved to be harder than expected.
-      Naive casting may even be impossible without breaking strict aliasing
-      rules. The only other option would be to use explicit memcpy calls.
-    * Unnamed union tentative again. As suggested by Tyler (thank you!),
-      using an intermediate unnamed struct to carry the alignment produces
-      consistent ABI in C and C++.
-    * Also, Tyler (thank you!) suggested that the fast path area alignment
-      size may be incorrect for architectures where the cache line is not 64
-      bytes. There will be a 64 bytes hole in the structure at the end of
-      the unnamed struct before the zero length next nodes array. Use
-      __rte_cache_min_aligned to preserve existing alignment.
-    
-    v4:
-    
-    * Replaced the unnamed union with helper inline functions.
-    
-    v3:
-    
-    * Added __extension__ to the unnamed struct inside the union.
-    * Fixed C++ header checks.
-    * Replaced alignas() with an explicit static_assert.
-
  lib/graph/rte_graph_worker_common.h | 27 ++++++++++++++++++++-------
  1 file changed, 20 insertions(+), 7 deletions(-)
 
@@ -109,5 +83,5 @@ index 36d864e2c14e..84d4997bbbf6 100644
   * @internal
   *
 -- 
-2.44.0
+2.45.2
 
