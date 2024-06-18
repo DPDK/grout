@@ -40,7 +40,8 @@ struct br_iface {
 	uint16_t state; // Interface state. Bit mask of BR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
 	uint16_t vrf_id; // L3 addressing and routing domain
-	char name[64]; // Interface name (utf-8 encoded, nul terminated).
+#define BR_IFACE_NAME_SIZE 64
+	char name[BR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
 	uint8_t info[256]; // Type specific interface info.
 };
 
@@ -52,7 +53,8 @@ struct br_iface {
 
 // Info for BR_IFACE_TYPE_PORT interfaces
 struct br_iface_info_port {
-	char devargs[64];
+#define BR_PORT_DEVARGS_SIZE 64
+	char devargs[BR_PORT_DEVARGS_SIZE];
 	uint16_t n_rxq;
 	uint16_t n_txq;
 	uint16_t rxq_size;

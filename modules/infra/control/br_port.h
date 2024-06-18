@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-struct iface_info_port {
+struct __rte_aligned(alignof(void *)) iface_info_port {
 	uint16_t port_id;
 	uint8_t n_rxq;
 	uint8_t n_txq;
@@ -21,7 +21,7 @@ struct iface_info_port {
 	uint16_t txq_size;
 	struct rte_ether_addr mac;
 	struct rte_mempool *pool;
-	char devargs[64];
+	char *devargs;
 };
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);

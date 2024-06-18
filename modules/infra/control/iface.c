@@ -60,7 +60,7 @@ struct iface *iface_create(
 
 	if (type == NULL)
 		goto fail;
-	if (utf8_check(name, MEMBER_SIZE(struct iface, name)) < 0)
+	if (utf8_check(name, BR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 
 	iface = rte_zmalloc(__func__, sizeof(*iface) + type->info_size, RTE_CACHE_LINE_SIZE);
@@ -76,7 +76,10 @@ struct iface *iface_create(
 	iface->flags = flags;
 	iface->mtu = mtu;
 	iface->vrf_id = vrf_id;
-	memccpy(iface->name, name, 0, sizeof(iface->name));
+	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
+	iface->name = strndup(name, BR_IFACE_NAME_SIZE);
+	if (iface->name == NULL)
+		goto fail;
 
 	if (type->init(iface, api_info) < 0)
 		goto fail;
@@ -85,6 +88,8 @@ struct iface *iface_create(
 
 	return iface;
 fail:
+	if (iface != NULL)
+		free(iface->name);
 	rte_free(iface);
 	return NULL;
 }
@@ -106,7 +111,7 @@ int iface_reconfig(
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -1;
 	if (set_attrs & BR_IFACE_SET_NAME) {
-		if (utf8_check(name, MEMBER_SIZE(struct iface, name)) < 0)
+		if (utf8_check(name, BR_IFACE_NAME_SIZE) < 0)
 			return -1;
 
 		const struct iface *i = NULL;
@@ -114,7 +119,11 @@ int iface_reconfig(
 			if (i != iface && strcmp(name, i->name) == 0)
 				return errno_set(EEXIST);
 
-		memccpy(iface->name, name, 0, sizeof(iface->name));
+		char *new_name = strndup(name, BR_IFACE_NAME_SIZE);
+		if (new_name == NULL)
+			return -1;
+		free(iface->name);
+		iface->name = new_name;
 	}
 
 	type = iface_type_get(iface->type_id);
@@ -184,6 +193,7 @@ int iface_destroy(uint16_t ifid) {
 	ifaces[ifid] = NULL;
 	type = iface_type_get(iface->type_id);
 	ret = type->fini(iface);
+	free(iface->name);
 	rte_free(iface);
 
 	return ret;

@@ -13,15 +13,15 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-struct iface {
+struct __rte_cache_aligned iface {
 	uint16_t id;
 	uint16_t type_id;
 	uint16_t flags;
 	uint16_t state;
 	uint16_t mtu;
 	uint16_t vrf_id; // L3 addressing and routing domain
-	char name[64];
-	uint8_t info[/* size depends on type */];
+	char *name;
+	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)

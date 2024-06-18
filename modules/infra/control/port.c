@@ -333,6 +333,7 @@ static int iface_port_fini(struct iface *iface) {
 
 	port_ifaces[port->port_id] = NULL;
 
+	free(port->devargs);
 	ret = rte_eth_dev_info_get(port->port_id, &info);
 	if (ret == 0)
 		ret = rte_eth_dev_stop(port->port_id);
@@ -404,18 +405,23 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		return errno_set(EIDRM);
 
 	port->port_id = port_id;
-	memccpy(port->devargs, api->devargs, 0, sizeof(port->devargs));
-	port_ifaces[port_id] = iface;
+	port->devargs = strndup(api->devargs, BR_PORT_DEVARGS_SIZE);
+	if (port->devargs == NULL)
+		goto fail;
 
 	ret = iface_port_reconfig(
 		iface, IFACE_SET_ALL, iface->flags, iface->mtu, iface->vrf_id, api_info
 	);
 	if (ret < 0) {
 		iface_port_fini(iface);
-		return ret;
+		goto fail;
 	}
+	port_ifaces[port_id] = iface;
 
 	return 0;
+fail:
+	free(port->devargs);
+	return -1;
 }
 
 const struct iface *port_get_iface(uint16_t port_id) {

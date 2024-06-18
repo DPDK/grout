@@ -201,8 +201,11 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		ret = -ENOMEM;
 		goto err;
 	}
-	memset(tx, 0, sizeof(*tx));
+	// initialize all to invalid queue_ids
+	memset(tx, 0xff, sizeof(*tx));
 	arrforeach (qmap, worker->txqs) {
+		if (!qmap->enabled)
+			continue;
 		LOG(DEBUG,
 		    "[CPU %d] -> port %u txq %u",
 		    worker->cpu_id,

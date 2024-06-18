@@ -34,9 +34,13 @@ static inline void tx_burst(
 	uint16_t txq_id, tx_ok;
 
 	txq_id = ctx->txq_ids[port_id];
-	tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
-	if (tx_ok < n)
-		rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
+	if (txq_id == 0xffff) {
+		rte_node_enqueue(graph, node, TX_ERROR, (void *)mbufs, n);
+	} else {
+		tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
+		if (tx_ok < n)
+			rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
+	}
 }
 
 static uint16_t

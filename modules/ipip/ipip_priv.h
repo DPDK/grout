@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-struct iface_info_ipip {
+struct __rte_aligned(alignof(void *)) iface_info_ipip {
 	ip4_addr_t local;
 	ip4_addr_t remote;
 };
