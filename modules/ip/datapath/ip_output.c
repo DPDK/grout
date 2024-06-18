@@ -42,18 +42,18 @@ typedef enum {
 static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
 	hold_status_t status;
 
-	rte_spinlock_lock(&nh->lock);
-
 	if (nh->flags & BR_IP4_NH_F_REACHABLE) {
 		status = OK_TO_SEND;
 	} else if (nh->held_pkts_num < IP4_NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
+		rte_spinlock_lock(&nh->lock);
 		if (nh->held_pkts_head == NULL)
 			nh->held_pkts_head = mbuf;
 		else
 			queue_mbuf_data(nh->held_pkts_tail)->next = mbuf;
 		nh->held_pkts_tail = mbuf;
 		nh->held_pkts_num++;
+		rte_spinlock_unlock(&nh->lock);
 		if (!(nh->flags & BR_IP4_NH_F_PENDING)) {
 			arp_output_request_solicit(nh);
 			nh->flags |= BR_IP4_NH_F_PENDING;
@@ -62,8 +62,6 @@ static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbu
 	} else {
 		status = HOLD_QUEUE_FULL;
 	}
-
-	rte_spinlock_unlock(&nh->lock);
 
 	return status;
 }
