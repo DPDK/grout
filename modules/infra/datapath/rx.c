@@ -20,7 +20,11 @@
 #include <stdbool.h>
 #include <sys/queue.h>
 
-#define ETH_IN 0
+enum {
+	ETH_IN = 0,
+	NO_IFACE,
+	NB_EDGES,
+};
 
 struct rx_ctx {
 	uint16_t burst_size;
@@ -44,7 +48,11 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
 		iface = port_get_iface(q.port_id);
-		for (int r = 0; r < rx; r++) {
+		if (rx > 0 && iface == NULL) {
+			rte_node_enqueue(graph, node, NO_IFACE, &node->objs[count], rx);
+			continue;
+		}
+		for (int r = count; r < count + rx; r++) {
 			eth_input_mbuf_data(node->objs[r])->iface = iface;
 			trace_packet("rx", iface->name, node->objs[r]);
 		}
@@ -93,9 +101,10 @@ static struct rte_node_register node = {
 	.init = rx_init,
 	.fini = rx_fini,
 
-	.nb_edges = 1,
+	.nb_edges = NB_EDGES,
 	.next_nodes = {
 		[ETH_IN] = "eth_input",
+		[NO_IFACE] = "port_rx_no_iface",
 	},
 };
 
@@ -104,3 +113,5 @@ static struct br_node_info info = {
 };
 
 BR_NODE_REGISTER(info);
+
+BR_DROP_REGISTER(port_rx_no_iface);
