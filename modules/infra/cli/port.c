@@ -201,7 +201,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
 		"port NAME devargs DEVARGS [" PORT_ATTRS_CMD "]",
 		port_add,
-		"Create a new DPDK port.",
+		"Create a new port.",
 		with_help("Interface name.", ec_node("any", "NAME")),
 		with_help("DPDK device args.", ec_node("devargs", "DEVARGS")),
 		PORT_ATTRS_ARGS

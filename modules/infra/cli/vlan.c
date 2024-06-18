@@ -134,7 +134,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
 		"vlan NAME parent PARENT vlan_id VLAN [" VLAN_ATTRS_CMD "]",
 		vlan_add,
-		"Create a new DPDK vlan.",
+		"Create a new VLAN sub interface.",
 		with_help("Interface name.", ec_node("any", "NAME")),
 		with_help(
 			"Parent port interface.",
@@ -149,7 +149,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(root, CTX_SET, CTX_ARG("interface", "Modify interfaces.")),
 		"vlan NAME (name NEW_NAME),(parent PARENT),(vlan_id VLAN)," VLAN_ATTRS_CMD,
 		vlan_set,
-		"Modify vlan parameters.",
+		"Modify VLAN parameters.",
 		with_help(
 			"Interface name.",
 			ec_node_dyn("NAME", complete_iface_names, INT2PTR(BR_IFACE_TYPE_VLAN))
