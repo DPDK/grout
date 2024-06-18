@@ -46,7 +46,6 @@ static struct rte_mempool *arp_pool;
 static uint16_t
 arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct eth_output_mbuf_data *eth_data;
-	void *objs[RTE_GRAPH_BURST_SIZE];
 	struct nexthop *local, *nh;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
@@ -56,11 +55,11 @@ arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void 
 	unsigned n;
 
 	now = rte_get_tsc_cycles();
-	n = rte_ring_dequeue_burst(nexthop_ring, objs, ARRAY_DIM(objs), NULL);
+	n = rte_ring_dequeue_burst(nexthop_ring, node->objs, RTE_GRAPH_BURST_SIZE, NULL);
 	sent = 0;
 
 	for (unsigned i = 0; i < n; i++) {
-		nh = objs[i];
+		nh = node->objs[i];
 
 		// Create a brand new mbuf to hold the ARP request.
 		mbuf = rte_pktmbuf_alloc(arp_pool);
