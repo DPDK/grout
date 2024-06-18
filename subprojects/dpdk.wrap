@@ -6,7 +6,7 @@ diff_files =
 	dpdk/mbuf-fix-strict-aliasing-error.patch,
 	dpdk/graph-enhance-export-to-graphviz.patch,
 	dpdk/graph-expose-node-context-as-pointers.patch,
-	dpdk/graph-avoid-accessing-global-list-in-rte_graph_clust.patch,
+	dpdk/graph-avoid-accessing-graph-list-when-getting-stats.patch,
 	dpdk/graph-avoid-id-collisions.patch
 
 [provide]
