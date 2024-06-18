@@ -36,7 +36,7 @@ int dpdk_init(struct br_args *args) {
 		goto end;
 	}
 
-	arrpush(eal_args, "");
+	arrpush(eal_args, "br");
 	arrpush(eal_args, "-l");
 	arrpush(eal_args, main_lcore);
 	arrpush(eal_args, "-a");
@@ -50,22 +50,23 @@ int dpdk_init(struct br_args *args) {
 	} else {
 		arrpush(eal_args, "--in-memory");
 	}
-	if (args->log_level >= RTE_LOG_DEBUG) {
+	arrpush(eal_args, "--log-level=*:notice");
+	if (args->log_level > RTE_LOG_DEBUG) {
 		arrpush(eal_args, "--log-level=*:debug");
+	} else if (args->log_level >= RTE_LOG_DEBUG) {
+		arrpush(eal_args, "--log-level=br:debug");
 	} else if (args->log_level >= RTE_LOG_INFO) {
-		arrpush(eal_args, "--log-level=*:info");
-	} else {
-		arrpush(eal_args, "--log-level=*:notice");
+		arrpush(eal_args, "--log-level=br:info");
 	}
 
-	LOG(INFO, "DPDK version: %s", rte_version());
+	LOG(INFO, "%s", rte_version());
 
 	br_rte_log_type = rte_log_register_type_and_pick_level("br", RTE_LOG_INFO);
 	if (br_rte_log_type < 0)
 		goto end;
 
 	char *buf = arrjoin(eal_args, " ");
-	LOG(INFO, "EAL arguments:%s", buf);
+	LOG(INFO, "EAL arguments: %s", buf);
 	free(buf);
 
 	if (rte_eal_init(arrlen(eal_args), eal_args) < 0)
