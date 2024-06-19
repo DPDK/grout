@@ -28,14 +28,28 @@ static uint16_t
 ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_input_mbuf_data *eth_data;
 	struct ip_local_mbuf_data *ip_data;
+	ip4_addr_t last_src, last_dst;
+	uint16_t last_vrf_id;
 	struct rte_mbuf *mbuf;
 	struct iface *ipip;
 	rte_edge_t next;
 
+	ipip = NULL;
+	last_src = 0;
+	last_dst = 0;
+	last_vrf_id = UINT16_MAX;
+
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		ip_data = ip_local_mbuf_data(mbuf);
-		ipip = ipip_get_iface(ip_data->dst, ip_data->src, ip_data->vrf_id);
+
+		if (ip_data->dst != last_dst || ip_data->src != last_src
+		    || ip_data->vrf_id != last_vrf_id) {
+			ipip = ipip_get_iface(ip_data->dst, ip_data->src, ip_data->vrf_id);
+			last_dst = ip_data->dst;
+			last_src = ip_data->src;
+			last_vrf_id = ip_data->vrf_id;
+		}
 		if (ipip == NULL) {
 			next = NO_TUNNEL;
 			goto next;
