@@ -28,12 +28,17 @@ void br_eth_input_add_type(rte_be16_t eth_type, rte_edge_t edge) {
 
 static uint16_t
 eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	uint16_t vlan_id, last_iface_id, last_vlan_id;
 	struct rte_ether_hdr *eth;
 	struct rte_vlan_hdr *vlan;
+	struct iface *vlan_iface;
 	rte_be16_t eth_type;
 	struct rte_mbuf *m;
-	uint16_t vlan_id;
 	rte_edge_t next;
+
+	vlan_iface = NULL;
+	last_iface_id = UINT16_MAX;
+	last_vlan_id = UINT16_MAX;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -55,14 +60,19 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
 			eth_type = vlan->eth_proto;
 		}
-		if (vlan_id > 0) {
+		if (vlan_id != 0) {
 			struct eth_input_mbuf_data *eth_in = eth_input_mbuf_data(m);
-			struct iface *iface = vlan_get_iface(eth_in->iface->id, vlan_id);
-			if (iface == NULL) {
+
+			if (eth_in->iface->id != last_iface_id || vlan_id != last_vlan_id) {
+				vlan_iface = vlan_get_iface(eth_in->iface->id, vlan_id);
+				last_iface_id = eth_in->iface->id;
+				last_vlan_id = vlan_id;
+			}
+			if (vlan_iface == NULL) {
 				next = UNKNOWN_VLAN;
 				goto next;
 			}
-			eth_in->iface = iface;
+			eth_in->iface = vlan_iface;
 		}
 		next = l2l3_edges[eth_type];
 next:
