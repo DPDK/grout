@@ -1,11 +1,67 @@
 # grout # a graph router based on DPDK
 
-`grout` is a DPDK based network processing application. It uses the `rte_graph`
+`grout` is a DPDK based network processing application. It uses the [rte_graph]
 library for data path processing.
+
+Its main purpose is to simulate a network function or a physical router for
+testing/replicating real (usually closed source) VNF/CNF behavior with an
+opensource tool.
 
 It comes with a client library to configure it over a standard UNIX socket and
 a CLI that uses that library. The CLI can be used as an interactive shell, but
 also in scripts one command at a time, or by batches.
+
+[rte_graph]: http://doc.dpdk.org/guides/prog_guide/graph_lib.html
+
+## License
+
+[BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html)
+
+## Features
+
+### Supported
+
+* IPv4 basic forwarding
+* ARP resolution/reply (packets waiting for resolution are buffered)
+* ICMP echo reply
+* Multiple VRF domains
+* VLAN sub interfaces
+* IP in IP tunnels
+
+### In Progress
+
+* IPv6 forwarding
+* NDP resolution/reply
+
+### Planned Short Term
+
+* FRR zebra forwarding plane plugin
+* loopback interfaces
+* packet tracing
+
+### Planned Long Term
+
+* hardware offload using generic DPDK APIs
+* IPsec datapath
+* strongSwan plugin for IKEv2 integration
+* port mirroring for tcpdump native support
+* ...
+
+## Dependencies
+
+| Name | Type | License | Code |
+|------|------|---------|------|
+| DPDK | Build & Runtime | BSD-3-Clause | https://git.dpdk.org/dpdk/ |
+| libnuma | Build & Runtime | LGPL-2.1 | https://github.com/numactl/numactl |
+| libevent | Build & Runtime | BSD-3-Clause | https://github.com/libevent/libevent |
+| libstb | Build & Runtime | Public Domain | https://github.com/nothings/stb |
+| libecoli | Build & Runtime | BSD-3-Clause | https://git.sr.ht/~rjarry/libecoli |
+| libsmartcols | Build & Runtime | LGPL-2.1 | https://github.com/util-linux/util-linux/tree/master/libsmartcols |
+| cmocka | Build | Apache-2.0 | https://github.com/clibs/cmocka |
+| meson | Build | Apache-2.0 | https://github.com/mesonbuild/meson |
+| ninja | Build | Apache-2.0 | https://github.com/ninja-build/ninja |
+| libasan | Dev | MIT+BSD | https://github.com/gcc-mirror/gcc/tree/master/libsanitizer |
+| clang-format | Dev | MIT+BSD | https://clang.llvm.org/docs/ClangFormat.html |
 
 ## Quick start
 
@@ -155,7 +211,3 @@ ip_forward  333675  22623757       67.8        691.8        10.2
 ```
 
 ![docs/graph.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/graph.svg)
-
-## License
-
-BSD 3 clause.
