@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_CLI_LOG
-#define _BR_CLI_LOG
+#ifndef _GR_CLI_LOG
+#define _GR_CLI_LOG
 
 #include "exec.h"
 

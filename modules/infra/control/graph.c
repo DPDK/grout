@@ -3,18 +3,18 @@
 
 #include "graph_priv.h"
 
-#include <br.h>
-#include <br_control.h>
-#include <br_datapath.h>
-#include <br_graph.h>
-#include <br_infra.h>
-#include <br_log.h>
-#include <br_port.h>
-#include <br_queue.h>
-#include <br_rx.h>
-#include <br_stb_ds.h>
-#include <br_tx.h>
-#include <br_worker.h>
+#include <gr.h>
+#include <gr_control.h>
+#include <gr_datapath.h>
+#include <gr_graph.h>
+#include <gr_infra.h>
+#include <gr_log.h>
+#include <gr_port.h>
+#include <gr_queue.h>
+#include <gr_rx.h>
+#include <gr_stb_ds.h>
+#include <gr_tx.h>
+#include <gr_worker.h>
 
 #include <event2/event.h>
 #include <rte_build_config.h>
@@ -44,7 +44,7 @@ static void set_key(struct node_data_key *key, const char *graph, const char *no
 	memccpy(key->node, node, 0, sizeof(key->node));
 }
 
-void *br_node_data_get(const char *graph, const char *node) {
+void *gr_node_data_get(const char *graph, const char *node) {
 	struct node_data_key key;
 	void *data = NULL;
 
@@ -56,7 +56,7 @@ void *br_node_data_get(const char *graph, const char *node) {
 	return data;
 }
 
-int br_node_data_set(const char *graph, const char *node, void *data) {
+int gr_node_data_set(const char *graph, const char *node, void *data) {
 	struct node_data_key key;
 	void *old_data = NULL;
 
@@ -72,7 +72,7 @@ int br_node_data_set(const char *graph, const char *node, void *data) {
 	return 0;
 }
 
-rte_edge_t br_node_attach_parent(const char *parent, const char *node) {
+rte_edge_t gr_node_attach_parent(const char *parent, const char *node) {
 	rte_node_t parent_id;
 	rte_edge_t edge;
 	char **names;
@@ -154,7 +154,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 
 	// unique suffix for this graph
 	graph_uid = (worker->cpu_id << 1) | (0x1 & index);
-	snprintf(name, sizeof(name), "br-%04x", graph_uid);
+	snprintf(name, sizeof(name), "gr-%04x", graph_uid);
 
 	// build rx & tx nodes data
 	len = sizeof(*rx) + n_rxqs * sizeof(struct rx_port_queue);
@@ -164,7 +164,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	n_rxqs = 0;
-	if (br_args()->poll_mode)
+	if (gr_args()->poll_mode)
 		max_sleep_us = 0;
 	else
 		max_sleep_us = 1000; // unreasonably long maximum (1ms)
@@ -178,7 +178,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		rx->queues[n_rxqs].port_id = qmap->port_id;
 		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
-		if (!br_args()->poll_mode) {
+		if (!gr_args()->poll_mode) {
 			// divide buffer size by two to take into account
 			// the time to wakeup from sleep
 			rx_buffer_us = port_get_rxq_buffer_us(qmap->port_id, qmap->queue_id) / 2;
@@ -188,7 +188,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		n_rxqs++;
 	}
 	rx->n_queues = n_rxqs;
-	if (br_node_data_set(name, "port_rx", rx) < 0) {
+	if (gr_node_data_set(name, "port_rx", rx) < 0) {
 		if (rte_errno == 0)
 			rte_errno = EINVAL;
 		ret = -rte_errno;
@@ -213,7 +213,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		tx->txq_ids[qmap->port_id] = qmap->queue_id;
 	}
-	if (br_node_data_set(name, "port_tx", tx) < 0) {
+	if (gr_node_data_set(name, "port_tx", tx) < 0) {
 		if (rte_errno == 0)
 			rte_errno = EINVAL;
 		ret = -rte_errno;
@@ -276,7 +276,7 @@ int worker_graph_reload_all(void) {
 
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
-	struct br_node_info *info;
+	struct gr_node_info *info;
 
 	// register nodes first
 	STAILQ_FOREACH (info, &node_infos, next) {
@@ -308,7 +308,7 @@ static void graph_init(struct event_base *) {
 }
 
 static void graph_fini(struct event_base *) {
-	struct br_node_info *info;
+	struct gr_node_info *info;
 	const void *key = NULL;
 	void *data = NULL;
 	uint32_t iter;
@@ -331,7 +331,7 @@ static void graph_fini(struct event_base *) {
 	node_names = NULL;
 }
 
-static struct br_module graph_module = {
+static struct gr_module graph_module = {
 	.name = "graph",
 	.init = graph_init,
 	.fini = graph_fini,
@@ -339,5 +339,5 @@ static struct br_module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
-	br_register_module(&graph_module);
+	gr_register_module(&graph_module);
 }

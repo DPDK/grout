@@ -3,10 +3,10 @@
 
 // This file must be included in *one* of your client application files.
 
-#ifndef _BR_API_CLIENT_IMPL
-#define _BR_API_CLIENT_IMPL
+#ifndef _GR_API_CLIENT_IMPL
+#define _GR_API_CLIENT_IMPL
 
-#include "br_api.h"
+#include "gr_api.h"
 
 #include <errno.h>
 #include <getopt.h>
@@ -18,17 +18,17 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-struct br_api_client {
+struct gr_api_client {
 	int sock_fd;
 };
 
-struct br_api_client *br_api_client_connect(const char *sock_path) {
+struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 	union {
 		struct sockaddr_un un;
 		struct sockaddr a;
 	} addr;
 
-	struct br_api_client *client = calloc(1, sizeof(*client));
+	struct gr_api_client *client = calloc(1, sizeof(*client));
 	if (client == NULL)
 		goto err;
 
@@ -49,7 +49,7 @@ err:
 	return NULL;
 }
 
-int br_api_client_disconnect(struct br_api_client *client) {
+int gr_api_client_disconnect(struct gr_api_client *client) {
 	if (client == NULL)
 		return 0;
 	int ret = close(client->sock_fd);
@@ -57,15 +57,15 @@ int br_api_client_disconnect(struct br_api_client *client) {
 	return ret;
 }
 
-int br_api_client_send_recv(
-	const struct br_api_client *client,
+int gr_api_client_send_recv(
+	const struct gr_api_client *client,
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,
 	void **rx_data
 ) {
-	struct br_api_request *req = NULL;
-	struct br_api_response resp;
+	struct gr_api_request *req = NULL;
+	struct gr_api_response resp;
 	static uint32_t message_id;
 	uint32_t id = ++message_id;
 	void *payload = NULL;

@@ -32,8 +32,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: |
-            build/br
-            build/br-cli
+            build/grout
+            build/grcli
             build/subprojects/ecoli/src/libecoli.so
           retention-days: 5
       - run: make unit-tests
@@ -57,7 +57,7 @@ jobs:
         with:
           path: build
           merge-multiple: true
-      - run: chmod -c a+x build/br* build/subprojects/ecoli/src/libecoli.so
+      - run: chmod -c a+x build/gr* build/subprojects/ecoli/src/libecoli.so
       - run: sudo smoke/run.sh build
   lint:
     runs-on: ubuntu-latest

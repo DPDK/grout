@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_CORE_STB_DS
-#define _BR_CORE_STB_DS
+#ifndef _GR_CORE_STB_DS
+#define _GR_CORE_STB_DS
 
 #include <stb_ds.h>
 

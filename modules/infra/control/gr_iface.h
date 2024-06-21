@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_INFRA_IFACE
-#define _BR_INFRA_IFACE
+#ifndef _GR_INFRA_IFACE
+#define _GR_INFRA_IFACE
 
-#include <br_bitops.h>
-#include <br_infra.h>
+#include <gr_bitops.h>
+#include <gr_infra.h>
 
 #include <rte_ether.h>
 

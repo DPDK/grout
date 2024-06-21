@@ -3,14 +3,14 @@
 
 #include "ipip_priv.h"
 
-#include <br_datapath.h>
-#include <br_eth_output.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_ipip.h>
-#include <br_log.h>
-#include <br_mbuf.h>
+#include <gr_datapath.h>
+#include <gr_eth_output.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_ipip.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -42,7 +42,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Resolve the IPIP interface from the nexthop provided by ip_output.
 		ip_data = ip_output_mbuf_data(mbuf);
 		iface = iface_from_id(ip_data->nh->iface_id);
-		if (iface == NULL || iface->type_id != BR_IFACE_TYPE_IPIP) {
+		if (iface == NULL || iface->type_id != GR_IFACE_TYPE_IPIP) {
 			next = NO_TUNNEL;
 			goto next;
 		}
@@ -69,10 +69,10 @@ next:
 }
 
 static void ipip_output_register(void) {
-	rte_edge_t edge = br_node_attach_parent("ip_output", "ipip_output");
+	rte_edge_t edge = gr_node_attach_parent("ip_output", "ipip_output");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(ip_output, ipip_output) failed");
-	ip_output_add_tunnel(BR_IFACE_TYPE_IPIP, edge);
+		ABORT("gr_node_attach_parent(ip_output, ipip_output) failed");
+	ip_output_add_tunnel(GR_IFACE_TYPE_IPIP, edge);
 }
 
 static struct rte_node_register ipip_output_node = {
@@ -87,11 +87,11 @@ static struct rte_node_register ipip_output_node = {
 	},
 };
 
-static struct br_node_info ipip_output_info = {
+static struct gr_node_info ipip_output_info = {
 	.node = &ipip_output_node,
 	.register_callback = ipip_output_register,
 };
 
-BR_NODE_REGISTER(ipip_output_info);
+GR_NODE_REGISTER(ipip_output_info);
 
-BR_DROP_REGISTER(ipip_output_no_tunnel);
+GR_DROP_REGISTER(ipip_output_no_tunnel);

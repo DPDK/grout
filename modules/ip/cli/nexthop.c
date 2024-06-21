@@ -3,12 +3,12 @@
 
 #include "ip.h"
 
-#include <br_api.h>
-#include <br_cli.h>
-#include <br_cli_iface.h>
-#include <br_ip4.h>
-#include <br_net_types.h>
-#include <br_table.h>
+#include <gr_api.h>
+#include <gr_cli.h>
+#include <gr_cli_iface.h>
+#include <gr_ip4.h>
+#include <gr_net_types.h>
+#include <gr_table.h>
 
 #include <ecoli.h>
 #include <libsmartcols.h>
@@ -16,28 +16,28 @@
 #include <errno.h>
 #include <stdint.h>
 
-static cmd_status_t nh4_add(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_ip4_nh_add_req req = {0};
-	struct br_iface iface;
+static cmd_status_t nh4_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_nh_add_req req = {0};
+	struct gr_iface iface;
 
 	if (inet_pton(AF_INET, arg_str(p, "IP"), &req.nh.host) != 1) {
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
-	if (br_eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
+	if (gr_eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
 	req.nh.iface_id = iface.id;
 
-	if (br_api_client_send_recv(c, BR_IP4_NH_ADD, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IP4_NH_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_ip4_nh_del_req req = {.missing_ok = true};
+static cmd_status_t nh4_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_nh_del_req req = {.missing_ok = true};
 
 	if (inet_pton(AF_INET, arg_str(p, "IP"), &req.host) != 1) {
 		errno = EINVAL;
@@ -46,18 +46,18 @@ static cmd_status_t nh4_del(const struct br_api_client *c, const struct ec_pnode
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_NH_DEL, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IP4_NH_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_ip4_nh_list_req req = {.vrf_id = UINT16_MAX};
+static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
-	const struct br_ip4_nh_list_resp *resp;
+	const struct gr_ip4_nh_list_resp *resp;
 	char ip[BUFSIZ], state[BUFSIZ];
-	struct br_iface iface;
+	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	ssize_t n;
 
@@ -69,7 +69,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 		scols_unref_table(table);
 		return CMD_ERROR;
 	}
-	if (br_api_client_send_recv(c, BR_IP4_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+	if (gr_api_client_send_recv(c, GR_IP4_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
 		scols_unref_table(table);
 		return CMD_ERROR;
 	}
@@ -87,15 +87,15 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 	for (size_t i = 0; i < resp->n_nhs; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct br_ip4_nh *nh = &resp->nhs[i];
+		const struct gr_ip4_nh *nh = &resp->nhs[i];
 
 		n = 0;
 		state[0] = '\0';
 		for (uint8_t i = 0; i < 16; i++) {
-			br_ip4_nh_flags_t f = 1 << i;
+			gr_ip4_nh_flags_t f = 1 << i;
 			if (f & nh->flags) {
 				n += snprintf(
-					state + n, sizeof(state) - n, "%s ", br_ip4_nh_f_name(f)
+					state + n, sizeof(state) - n, "%s ", gr_ip4_nh_f_name(f)
 				);
 			}
 		}
@@ -106,7 +106,7 @@ static cmd_status_t nh4_list(const struct br_api_client *c, const struct ec_pnod
 
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
 		scols_line_sprintf(line, 1, "%s", ip);
-		if (nh->flags & BR_IP4_NH_F_REACHABLE) {
+		if (nh->flags & GR_IP4_NH_F_REACHABLE) {
 			scols_line_sprintf(line, 2, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
 			if (iface_from_id(c, nh->iface_id, &iface) == 0)
 				scols_line_sprintf(line, 3, "%s", iface.name);
@@ -167,7 +167,7 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct br_cli_context ctx = {
+static struct gr_cli_context ctx = {
 	.name = "ipv4 nexthop",
 	.init = ctx_init,
 };

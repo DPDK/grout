@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_ipip.h"
+#include "gr_ipip.h"
 #include "ipip_priv.h"
 
-#include <br_control.h>
-#include <br_iface.h>
-#include <br_infra.h>
-#include <br_ip4_control.h>
-#include <br_log.h>
-#include <br_port.h>
+#include <gr_control.h>
+#include <gr_iface.h>
+#include <gr_infra.h>
+#include <gr_ip4_control.h>
+#include <gr_log.h>
+#include <gr_port.h>
 
 #include <event2/event.h>
 #include <rte_ethdev.h>
@@ -52,12 +52,12 @@ static int iface_ipip_reconfig(
 	const void *api_info
 ) {
 	struct iface_info_ipip *cur = (struct iface_info_ipip *)iface->info;
-	const struct br_iface_info_ipip *next = api_info;
+	const struct gr_iface_info_ipip *next = api_info;
 	struct ipip_key cur_key = {cur->local, cur->remote, iface->vrf_id};
 	struct ipip_key next_key = {next->local, next->remote, vrf_id};
 	int ret;
 
-	if (set_attrs & (BR_IFACE_SET_VRF | BR_IPIP_SET_LOCAL | BR_IPIP_SET_REMOTE)) {
+	if (set_attrs & (GR_IFACE_SET_VRF | GR_IPIP_SET_LOCAL | GR_IPIP_SET_REMOTE)) {
 		if (vrf_id >= MAX_VRFS)
 			return errno_set(EOVERFLOW);
 
@@ -80,9 +80,9 @@ static int iface_ipip_reconfig(
 		iface->vrf_id = vrf_id;
 	}
 
-	if (set_attrs & BR_IFACE_SET_FLAGS)
+	if (set_attrs & GR_IFACE_SET_FLAGS)
 		iface->flags = flags;
-	if (set_attrs & BR_IFACE_SET_MTU)
+	if (set_attrs & GR_IFACE_SET_MTU)
 		iface->mtu = mtu;
 
 	return 0;
@@ -113,14 +113,14 @@ static int iface_ipip_init(struct iface *iface, const void *api_info) {
 
 static void ipip_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_ipip *ipip = (const struct iface_info_ipip *)iface->info;
-	struct br_iface_info_ipip *api = info;
+	struct gr_iface_info_ipip *api = info;
 
 	api->local = ipip->local;
 	api->remote = ipip->remote;
 }
 
 static struct iface_type iface_type_ipip = {
-	.id = BR_IFACE_TYPE_IPIP,
+	.id = GR_IFACE_TYPE_IPIP,
 	.name = "ipip",
 	.info_size = sizeof(struct iface_info_ipip),
 	.init = iface_ipip_init,
@@ -148,7 +148,7 @@ static void ipip_fini(struct event_base *) {
 	ipip_hash = NULL;
 }
 
-static struct br_module ipip_module = {
+static struct gr_module ipip_module = {
 	.name = "ipip",
 	.init = ipip_init,
 	.fini = ipip_fini,
@@ -156,6 +156,6 @@ static struct br_module ipip_module = {
 };
 
 RTE_INIT(ipip_constructor) {
-	br_register_module(&ipip_module);
+	gr_register_module(&ipip_module);
 	iface_type_register(&iface_type_ipip);
 }

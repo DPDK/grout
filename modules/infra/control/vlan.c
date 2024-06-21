@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_vlan.h"
+#include "gr_vlan.h"
 
-#include <br_control.h>
-#include <br_iface.h>
-#include <br_infra.h>
-#include <br_log.h>
-#include <br_port.h>
+#include <gr_control.h>
+#include <gr_iface.h>
+#include <gr_infra.h>
+#include <gr_log.h>
+#include <gr_port.h>
 
 #include <event2/event.h>
 #include <rte_ethdev.h>
@@ -38,7 +38,7 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 
 	if (parent == NULL)
 		return -1;
-	if (parent->type_id != BR_IFACE_TYPE_PORT)
+	if (parent->type_id != GR_IFACE_TYPE_PORT)
 		return errno_set(EMEDIUMTYPE);
 
 	port = (const struct iface_info_port *)parent->info;
@@ -70,7 +70,7 @@ static int iface_vlan_reconfig(
 	const void *api_info
 ) {
 	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
-	const struct br_iface_info_vlan *next = api_info;
+	const struct gr_iface_info_vlan *next = api_info;
 	struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
 	struct vlan_key next_key = {next->parent_id, next->vlan_id};
 	uint16_t cur_port_id, next_port_id;
@@ -81,7 +81,7 @@ static int iface_vlan_reconfig(
 	if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
 		return -1;
 
-	if (set_attrs & (BR_VLAN_SET_PARENT | BR_VLAN_SET_VLAN)) {
+	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
 		if (rte_hash_lookup(vlan_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
@@ -104,7 +104,7 @@ static int iface_vlan_reconfig(
 			return errno_log(-ret, "rte_hash_add_key_data");
 	}
 
-	if (set_attrs & BR_VLAN_SET_MAC) {
+	if (set_attrs & GR_VLAN_SET_MAC) {
 		struct rte_ether_addr next_mac;
 		memcpy(&next_mac, &next->mac, sizeof(next_mac));
 
@@ -124,11 +124,11 @@ static int iface_vlan_reconfig(
 		rte_ether_addr_copy(&next_mac, &cur->mac);
 	}
 
-	if (set_attrs & BR_IFACE_SET_FLAGS)
+	if (set_attrs & GR_IFACE_SET_FLAGS)
 		iface->flags = flags;
-	if (set_attrs & BR_IFACE_SET_MTU)
+	if (set_attrs & GR_IFACE_SET_MTU)
 		iface->mtu = mtu;
-	if (set_attrs & BR_IFACE_SET_VRF)
+	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = vrf_id;
 
 	return 0;
@@ -181,7 +181,7 @@ static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_a
 
 static void vlan_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
-	struct br_iface_info_vlan *api = info;
+	struct gr_iface_info_vlan *api = info;
 
 	api->parent_id = vlan->parent_id;
 	api->vlan_id = vlan->vlan_id;
@@ -189,7 +189,7 @@ static void vlan_to_api(void *info, const struct iface *iface) {
 }
 
 static struct iface_type iface_type_vlan = {
-	.id = BR_IFACE_TYPE_VLAN,
+	.id = GR_IFACE_TYPE_VLAN,
 	.name = "vlan",
 	.info_size = sizeof(struct iface_info_vlan),
 	.init = iface_vlan_init,
@@ -218,7 +218,7 @@ static void vlan_fini(struct event_base *) {
 	vlan_hash = NULL;
 }
 
-static struct br_module vlan_module = {
+static struct gr_module vlan_module = {
 	.name = "vlan",
 	.init = vlan_init,
 	.fini = vlan_fini,
@@ -226,6 +226,6 @@ static struct br_module vlan_module = {
 };
 
 RTE_INIT(vlan_constructor) {
-	br_register_module(&vlan_module);
+	gr_register_module(&vlan_module);
 	iface_type_register(&iface_type_vlan);
 }

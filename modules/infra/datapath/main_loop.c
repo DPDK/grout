@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <br.h>
-#include <br_control.h>
-#include <br_datapath.h>
-#include <br_log.h>
-#include <br_worker.h>
+#include <gr.h>
+#include <gr_control.h>
+#include <gr_datapath.h>
+#include <gr_log.h>
+#include <gr_worker.h>
 
 #include <rte_atomic.h>
 #include <rte_common.h>
@@ -114,7 +114,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 // The default timer resolution is around 50us, make it more precise
 #define SLEEP_RESOLUTION_NS 1000
 
-void *br_datapath_loop(void *priv) {
+void *gr_datapath_loop(void *priv) {
 	struct stats_context ctx = {.last_count = 0};
 	uint64_t timestamp, timestamp_tmp, cycles;
 	uint32_t sleep, max_sleep_us;
@@ -143,12 +143,12 @@ void *br_datapath_loop(void *priv) {
 	}
 
 	w->lcore_id = rte_lcore_id();
-	snprintf(name, 15, "br:loop-c%d", w->cpu_id);
+	snprintf(name, 15, "gr:loop-c%d", w->cpu_id);
 	if (pthread_setname_np(pthread_self(), name)) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
 		return NULL;
 	}
-	if (!br_args()->poll_mode) {
+	if (!gr_args()->poll_mode) {
 		if (prctl(PR_SET_TIMERSLACK, SLEEP_RESOLUTION_NS) < 0) {
 			log(ERR, "prctl(PR_SET_TIMERSLACK): %s", strerror(errno));
 			return NULL;
@@ -180,7 +180,7 @@ reconfig:
 		goto shutdown;
 	atomic_store(&w->stats, ctx.w_stats);
 
-	br_modules_dp_init();
+	gr_modules_dp_init();
 
 	log(INFO, "reconfigured max_sleep=%uus", max_sleep_us);
 
@@ -192,7 +192,7 @@ reconfig:
 
 		if (++loop == 32) {
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
-				br_modules_dp_fini();
+				gr_modules_dp_fini();
 				goto reconfig;
 			}
 

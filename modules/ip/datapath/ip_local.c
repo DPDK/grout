@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_datapath.h>
-#include <br_graph.h>
-#include <br_ip4_datapath.h>
+#include <gr_datapath.h>
+#include <gr_graph.h>
+#include <gr_ip4_datapath.h>
 
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
@@ -57,10 +57,10 @@ static struct rte_node_register input_node = {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &input_node,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ip_input_local_unknown_proto);
+GR_DROP_REGISTER(ip_input_local_unknown_proto);

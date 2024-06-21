@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_datapath.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
-#include <br_mbuf.h>
+#include <gr_datapath.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
 
 #include <rte_graph_worker.h>
 #include <rte_icmp.h>
@@ -57,8 +57,8 @@ static struct rte_node_register icmp_output_node = {
 	},
 };
 
-static struct br_node_info icmp_output_info = {
+static struct gr_node_info icmp_output_info = {
 	.node = &icmp_output_node,
 };
 
-BR_NODE_REGISTER(icmp_output_info);
+GR_NODE_REGISTER(icmp_output_info);

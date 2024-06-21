@@ -3,14 +3,14 @@
 
 #include "worker_priv.h"
 
-#include <br_api.h>
-#include <br_cmocka.h>
-#include <br_control.h>
-#include <br_infra.h>
-#include <br_port.h>
-#include <br_queue.h>
-#include <br_stb_ds.h>
-#include <br_worker.h>
+#include <gr_api.h>
+#include <gr_cmocka.h>
+#include <gr_control.h>
+#include <gr_infra.h>
+#include <gr_port.h>
+#include <gr_queue.h>
+#include <gr_stb_ds.h>
+#include <gr_worker.h>
 
 #include <numa.h>
 #include <rte_ethdev.h>
@@ -22,9 +22,9 @@ static struct worker w3 = {.cpu_id = 3, .started = true};
 static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
 
 // mocked types/functions
-int br_rte_log_type;
-void br_register_api_handler(struct br_api_handler *) { }
-void br_register_module(struct br_module *) { }
+int gr_rte_log_type;
+void gr_register_api_handler(struct gr_api_handler *) { }
+void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
 
 struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
@@ -41,7 +41,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 
 mock_func(int, worker_graph_reload_all(void));
 mock_func(void, worker_graph_free(struct worker *));
-mock_func(void *, br_datapath_loop(void *));
+mock_func(void *, gr_datapath_loop(void *));
 mock_func(void, __wrap_rte_free(void *));
 mock_func(int, __wrap_rte_eth_dev_stop(uint16_t));
 mock_func(

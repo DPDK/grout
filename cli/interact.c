@@ -5,7 +5,7 @@
 #include "interact.h"
 #include "log.h"
 
-#include <br_cli.h>
+#include <gr_cli.h>
 
 #include <ecoli.h>
 
@@ -13,7 +13,7 @@
 #include <signal.h>
 #include <wordexp.h>
 
-#define __PROMPT "br#"
+#define __PROMPT "grout#"
 #define PROMPT __PROMPT " "
 #define DELIM "\x1e"
 #define COLOR_PROMPT DELIM CYAN_SGR DELIM __PROMPT DELIM RESET_SGR DELIM " "
@@ -61,14 +61,14 @@ const char *__lsan_default_options(void) {
 }
 #endif
 
-int interact(const struct br_api_client *client, struct ec_node *cmdlist) {
+int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
 	int flags = EC_EDITLINE_DEFAULT_SIGHANDLER;
 	struct ec_editline *edit = NULL;
 	struct ec_node *shlex = NULL;
 	char *line = NULL;
 	int ret = -1;
 
-	if ((edit = ec_editline("br-cli", stdin, stdout, stderr, flags)) == NULL) {
+	if ((edit = ec_editline("grcli", stdin, stdout, stderr, flags)) == NULL) {
 		errorf("ec_editline: %s", strerror(errno));
 		goto end;
 	}

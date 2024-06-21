@@ -2,8 +2,8 @@
 // Copyright (c) 1991, 1993 The Regents of the University of California
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_QUEUE
-#define _BR_QUEUE
+#ifndef _GR_QUEUE
+#define _GR_QUEUE
 
 #include <sys/queue.h>
 

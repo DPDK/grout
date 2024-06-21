@@ -2,10 +2,10 @@
 # Copyright (c) 2024 Robin Jarry
 
 api_headers += files(
-  'br_api.h',
-  'br_api_client_impl.h',
-  'br_bitops.h',
-  'br_net_types.h',
+  'gr_api.h',
+  'gr_api_client_impl.h',
+  'gr_bitops.h',
+  'gr_net_types.h',
 )
 
 src += files(

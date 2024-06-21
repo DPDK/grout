@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_datapath.h>
-#include <br_eth_output.h>
-#include <br_graph.h>
-#include <br_iface.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
+#include <gr_datapath.h>
+#include <gr_eth_output.h>
+#include <gr_graph.h>
+#include <gr_iface.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -152,12 +152,12 @@ static struct rte_node_register arp_output_request_node = {
 	},
 };
 
-static struct br_node_info arp_output_request_info = {
+static struct gr_node_info arp_output_request_info = {
 	.node = &arp_output_request_node,
 	.register_callback = arp_output_request_register,
 	.unregister_callback = arp_output_request_unregister,
 };
 
-BR_NODE_REGISTER(arp_output_request_info);
+GR_NODE_REGISTER(arp_output_request_info);
 
-BR_DROP_REGISTER(arp_output_error);
+GR_DROP_REGISTER(arp_output_error);

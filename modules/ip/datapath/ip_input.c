@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_eth_input.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
+#include <gr_eth_input.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -82,7 +82,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (nh->flags & BR_IP4_NH_F_LOCAL && ip->dst_addr == nh->ip)
+		if (nh->flags & GR_IP4_NH_F_LOCAL && ip->dst_addr == nh->ip)
 			next = LOCAL;
 		else
 			next = FORWARD;
@@ -96,10 +96,10 @@ next_packet:
 }
 
 static void ip_input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_input", "ip_input");
+	rte_edge_t edge = gr_node_attach_parent("eth_input", "ip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(eth_input, ip_input) failed");
-	br_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
+		ABORT("gr_node_attach_parent(eth_input, ip_input) failed");
+	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
 }
 
 static struct rte_node_register input_node = {
@@ -117,13 +117,13 @@ static struct rte_node_register input_node = {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &input_node,
 	.register_callback = ip_input_register,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ip_input_no_route);
-BR_DROP_REGISTER(ip_input_bad_checksum);
-BR_DROP_REGISTER(ip_input_bad_length);
+GR_DROP_REGISTER(ip_input_no_route);
+GR_DROP_REGISTER(ip_input_bad_checksum);
+GR_DROP_REGISTER(ip_input_bad_length);

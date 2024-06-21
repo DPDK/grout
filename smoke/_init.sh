@@ -3,17 +3,17 @@
 
 set -e
 
-if [ -S "$BR_SOCK_PATH" ]; then
-	run_br=false
+if [ -S "$GROUT_SOCK_PATH" ]; then
+	run_grout=false
 else
-	run_br=true
+	run_grout=true
 fi
 
 cleanup() {
 	set +e
 	sh -x $tmp/cleanup
-	if [ "$run_br" = true ]; then
-		kill -INT %?br
+	if [ "$run_grout" = true ]; then
+		kill -INT %?grout
 		wait
 	fi
 	rm -rf -- "$tmp"
@@ -24,20 +24,20 @@ trap cleanup EXIT
 builddir=${1?builddir}
 run_id=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1)
 
-if [ "$run_br" = true ]; then
-	export BR_SOCK_PATH=$tmp/br.sock
+if [ "$run_grout" = true ]; then
+	export GROUT_SOCK_PATH=$tmp/grout.sock
 fi
 export PATH=$builddir:$PATH
 
 cat > $tmp/cleanup <<EOF
-br-cli show stats software
-br-cli show interface all
-br-cli show ip nexthop
+grcli show stats software
+grcli show interface all
+grcli show ip nexthop
 EOF
 
 set -x
 
-if [ "$run_br" = true ]; then
-	br -tv &
+if [ "$run_grout" = true ]; then
+	grout -tv &
 fi
-socat FILE:/dev/null UNIX-CONNECT:$BR_SOCK_PATH,retry=10
+socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10

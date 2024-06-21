@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_IP4_CONTROL
-#define _BR_IP4_CONTROL
+#ifndef _GR_IP4_CONTROL
+#define _GR_IP4_CONTROL
 
-#include <br_ip4.h>
-#include <br_net_types.h>
+#include <gr_ip4.h>
+#include <gr_net_types.h>
 
 #include <rte_ether.h>
 #include <rte_fib.h>
@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 struct __rte_cache_aligned nexthop {
-	br_ip4_nh_flags_t flags;
+	gr_ip4_nh_flags_t flags;
 	struct rte_ether_addr lladdr;
 	uint16_t vrf_id;
 	uint16_t iface_id;

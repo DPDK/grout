@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_CLI_EXEC
-#define _BR_CLI_EXEC
+#ifndef _GR_CLI_EXEC
+#define _GR_CLI_EXEC
 
-#include <br_api.h>
+#include <gr_api.h>
 
 #include <ecoli.h>
 
@@ -23,10 +23,10 @@ typedef enum {
 
 #define CALLBACK_ATTR "callback"
 
-exec_status_t exec_line(const struct br_api_client *, const struct ec_node *, const char *line);
+exec_status_t exec_line(const struct gr_api_client *, const struct ec_node *, const char *line);
 
 exec_status_t exec_args(
-	const struct br_api_client *,
+	const struct gr_api_client *,
 	const struct ec_node *,
 	size_t argc,
 	const char *const *argv

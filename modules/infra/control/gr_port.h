@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_INFRA_PORT
-#define _BR_INFRA_PORT
+#ifndef _GR_INFRA_PORT
+#define _GR_INFRA_PORT
 
-#include <br_iface.h>
+#include <gr_iface.h>
 
 #include <rte_ether.h>
 #include <rte_mempool.h>

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_TABLE
-#define _BR_TABLE
+#ifndef _GR_TABLE
+#define _GR_TABLE
 
 struct libscols_line;
 

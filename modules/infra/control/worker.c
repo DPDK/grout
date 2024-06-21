@@ -4,14 +4,14 @@
 #include "graph_priv.h"
 #include "worker_priv.h"
 
-#include <br_control.h>
-#include <br_datapath.h>
-#include <br_infra.h>
-#include <br_log.h>
-#include <br_port.h>
-#include <br_queue.h>
-#include <br_stb_ds.h>
-#include <br_worker.h>
+#include <gr_control.h>
+#include <gr_datapath.h>
+#include <gr_infra.h>
+#include <gr_log.h>
+#include <gr_port.h>
+#include <gr_queue.h>
+#include <gr_stb_ds.h>
+#include <gr_worker.h>
 
 #include <event2/event.h>
 #include <numa.h>
@@ -42,7 +42,7 @@ int worker_create(unsigned cpu_id) {
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
 
-	if (!!(ret = pthread_create(&worker->thread, NULL, br_datapath_loop, worker))) {
+	if (!!(ret = pthread_create(&worker->thread, NULL, gr_datapath_loop, worker))) {
 		pthread_cancel(worker->thread);
 		rte_free(worker);
 		return errno_log(-ret, "pthread_create");
@@ -241,13 +241,13 @@ move:
 
 	if (reconfig) {
 		// number of workers changed, adjust number of tx queues
-		struct br_iface_info_port p = {0};
+		struct gr_iface_info_port p = {0};
 		struct iface *iface = NULL;
 
-		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
+		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 			ret = iface_port_reconfig(
 				iface,
-				BR_PORT_SET_N_TXQS,
+				GR_PORT_SET_N_TXQS,
 				iface->flags,
 				iface->mtu,
 				iface->vrf_id,
@@ -290,7 +290,7 @@ static void worker_fini(struct event_base *) {
 	STAILQ_INIT(&workers);
 }
 
-static struct br_module worker_module = {
+static struct gr_module worker_module = {
 	.name = "worker",
 	.init = worker_init,
 	.fini = worker_fini,
@@ -298,5 +298,5 @@ static struct br_module worker_module = {
 };
 
 RTE_INIT(control_infra_init) {
-	br_register_module(&worker_module);
+	gr_register_module(&worker_module);
 }

@@ -8,6 +8,6 @@ src += files(
   'stats.c',
 )
 
-api_headers += files('br_infra.h')
+api_headers += files('gr_infra.h')
 inc += include_directories('.')
 cli_inc += include_directories('.')

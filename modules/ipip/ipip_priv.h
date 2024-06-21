@@ -4,8 +4,8 @@
 #ifndef _IPIP_PRIV_H
 #define _IPIP_PRIV_H
 
-#include <br_iface.h>
-#include <br_net_types.h>
+#include <gr_iface.h>
+#include <gr_net_types.h>
 
 #include <stdint.h>
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_cli.h"
 #include "complete.h"
 #include "exec.h"
+#include "gr_cli.h"
 #include "interact.h"
 #include "log.h"
 
-#include <br_api.h>
-#include <br_api_client_impl.h>
+#include <gr_api.h>
+#include <gr_api_client_impl.h>
 
 #include <ecoli.h>
 
@@ -32,21 +32,21 @@ static void help(void) {
 	puts("options:");
 	puts("  -h, --help                 Show this help message and exit.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
-	puts("                             Default: BR_SOCK_PATH from env or");
-	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
+	puts("                             Default: GROUT_SOCK_PATH from env or");
+	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -x, --trace-commands       Print executed commands.");
 	puts("  -c, --bash-complete        For use in bash completion:");
-	puts("                             complete -o default -C 'br-cli -c' br-cli");
+	puts("                             complete -o default -C 'grcli -c' grcli");
 }
 
-struct br_cli_opts {
+struct gr_cli_opts {
 	const char *sock_path;
 	bool err_exit;
 	bool trace_commands;
 };
 
-struct br_cli_opts opts;
+struct gr_cli_opts opts;
 
 static int parse_args(int argc, char **argv) {
 	int c;
@@ -62,7 +62,7 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	opts.sock_path = getenv("BR_SOCK_PATH");
+	opts.sock_path = getenv("GROUT_SOCK_PATH");
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
@@ -95,13 +95,13 @@ static int parse_args(int argc, char **argv) {
 	}
 
 	if (opts.sock_path == NULL)
-		opts.sock_path = BR_DEFAULT_SOCK_PATH;
+		opts.sock_path = GR_DEFAULT_SOCK_PATH;
 
 	return optind;
 }
 
 int main(int argc, char **argv) {
-	struct br_api_client *client = NULL;
+	struct gr_api_client *client = NULL;
 	struct ec_node *cmdlist = NULL;
 	exec_status_t status;
 	int ret, c;
@@ -130,8 +130,8 @@ int main(int argc, char **argv) {
 	argc -= c;
 	argv += c;
 
-	if ((client = br_api_client_connect(opts.sock_path)) == NULL) {
-		errorf("br_connect: %s", strerror(errno));
+	if ((client = gr_api_client_connect(opts.sock_path)) == NULL) {
+		errorf("gr_connect: %s", strerror(errno));
 		goto end;
 	}
 
@@ -158,8 +158,8 @@ int main(int argc, char **argv) {
 	ret = EXIT_SUCCESS;
 
 end:
-	if (br_api_client_disconnect(client) < 0) {
-		errorf("br_disconnect: %s", strerror(errno));
+	if (gr_api_client_disconnect(client) < 0) {
+		errorf("gr_disconnect: %s", strerror(errno));
 		ret = EXIT_FAILURE;
 	}
 	ec_node_free(cmdlist);

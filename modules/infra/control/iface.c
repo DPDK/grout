@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_iface.h"
+#include "gr_iface.h"
 
-#include <br_control.h>
-#include <br_log.h>
-#include <br_macro.h>
-#include <br_string.h>
+#include <gr_control.h>
+#include <gr_log.h>
+#include <gr_macro.h>
+#include <gr_string.h>
 
 #include <event2/event.h>
 #include <rte_malloc.h>
@@ -60,7 +60,7 @@ struct iface *iface_create(
 
 	if (type == NULL)
 		goto fail;
-	if (utf8_check(name, BR_IFACE_NAME_SIZE) < 0)
+	if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 
 	iface = rte_zmalloc(__func__, sizeof(*iface) + type->info_size, RTE_CACHE_LINE_SIZE);
@@ -77,7 +77,7 @@ struct iface *iface_create(
 	iface->mtu = mtu;
 	iface->vrf_id = vrf_id;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
-	iface->name = strndup(name, BR_IFACE_NAME_SIZE);
+	iface->name = strndup(name, GR_IFACE_NAME_SIZE);
 	if (iface->name == NULL)
 		goto fail;
 
@@ -110,16 +110,16 @@ int iface_reconfig(
 		return errno_set(EINVAL);
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -1;
-	if (set_attrs & BR_IFACE_SET_NAME) {
-		if (utf8_check(name, BR_IFACE_NAME_SIZE) < 0)
+	if (set_attrs & GR_IFACE_SET_NAME) {
+		if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
 			return -1;
 
 		const struct iface *i = NULL;
-		while ((i = iface_next(BR_IFACE_TYPE_UNDEF, i)) != NULL)
+		while ((i = iface_next(GR_IFACE_TYPE_UNDEF, i)) != NULL)
 			if (i != iface && strcmp(name, i->name) == 0)
 				return errno_set(EEXIST);
 
-		char *new_name = strndup(name, BR_IFACE_NAME_SIZE);
+		char *new_name = strndup(name, GR_IFACE_NAME_SIZE);
 		if (new_name == NULL)
 			return -1;
 		free(iface->name);
@@ -135,7 +135,7 @@ uint16_t ifaces_count(uint16_t type_id) {
 
 	for (uint16_t ifid = 0; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == BR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
 			count++;
 	}
 
@@ -152,7 +152,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 
 	for (uint16_t ifid = start_id; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == BR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
 			return iface;
 	}
 
@@ -217,7 +217,7 @@ static void iface_fini(struct event_base *) {
 	ifaces = NULL;
 }
 
-static struct br_module iface_module = {
+static struct gr_module iface_module = {
 	.name = "iface",
 	.init = iface_init,
 	.fini = iface_fini,
@@ -225,5 +225,5 @@ static struct br_module iface_module = {
 };
 
 RTE_INIT(iface_constructor) {
-	br_register_module(&iface_module);
+	gr_register_module(&iface_module);
 }

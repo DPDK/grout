@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_api.h>
-#include <br_cli.h>
-#include <br_infra.h>
-#include <br_net_types.h>
-#include <br_table.h>
+#include <gr_api.h>
+#include <gr_cli.h>
+#include <gr_infra.h>
+#include <gr_net_types.h>
+#include <gr_table.h>
 
 #include <ecoli.h>
 #include <libsmartcols.h>
@@ -14,14 +14,14 @@
 #include <unistd.h>
 
 static int stats_order_name(const void *sa, const void *sb) {
-	const struct br_infra_stat *a = sa;
-	const struct br_infra_stat *b = sb;
+	const struct gr_infra_stat *a = sa;
+	const struct gr_infra_stat *b = sb;
 	return strncmp(a->name, b->name, sizeof(a->name));
 }
 
 static int stats_order_cycles(const void *sa, const void *sb) {
-	const struct br_infra_stat *a = sa;
-	const struct br_infra_stat *b = sb;
+	const struct gr_infra_stat *a = sa;
+	const struct gr_infra_stat *b = sb;
 	if (a->cycles == b->cycles)
 		return 0;
 	if (a->cycles > b->cycles)
@@ -29,34 +29,34 @@ static int stats_order_cycles(const void *sa, const void *sb) {
 	return 1;
 }
 
-static cmd_status_t stats_get(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_infra_stats_get_req req = {.flags = 0};
+static cmd_status_t stats_get(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_infra_stats_get_req req = {.flags = 0};
 	bool brief = arg_str(p, "brief") != NULL;
-	struct br_infra_stats_get_resp *resp;
+	struct gr_infra_stats_get_resp *resp;
 	void *resp_ptr = NULL;
 	const char *pattern;
 
 	if (arg_str(p, "software") != NULL)
-		req.flags |= BR_INFRA_STAT_F_SW;
+		req.flags |= GR_INFRA_STAT_F_SW;
 	else if (arg_str(p, "hardware") != NULL)
-		req.flags |= BR_INFRA_STAT_F_HW;
+		req.flags |= GR_INFRA_STAT_F_HW;
 	if (arg_str(p, "zero") != NULL)
-		req.flags |= BR_INFRA_STAT_F_ZERO;
+		req.flags |= GR_INFRA_STAT_F_ZERO;
 	pattern = arg_str(p, "PATTERN");
 	if (pattern == NULL)
 		pattern = "*";
 	snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
 
-	if (br_api_client_send_recv(c, BR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
 		goto fail;
 
 	resp = resp_ptr;
 
-	if (req.flags & BR_INFRA_STAT_F_HW || brief) {
+	if (req.flags & GR_INFRA_STAT_F_HW || brief) {
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order_name);
 		for (size_t i = 0; i < resp->n_stats; i++) {
-			const struct br_infra_stat *s = &resp->stats[i];
-			if (req.flags & BR_INFRA_STAT_F_HW || brief)
+			const struct gr_infra_stat *s = &resp->stats[i];
+			if (req.flags & GR_INFRA_STAT_F_HW || brief)
 				printf("%s %lu\n", s->name, s->objs);
 		}
 	} else {
@@ -75,7 +75,7 @@ static cmd_status_t stats_get(const struct br_api_client *c, const struct ec_pno
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			struct libscols_line *line = scols_table_new_line(table, NULL);
 			double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
-			const struct br_infra_stat *s = &resp->stats[i];
+			const struct gr_infra_stat *s = &resp->stats[i];
 
 			if (s->calls != 0) {
 				pkt_call = ((double)s->objs) / ((double)s->calls);
@@ -103,10 +103,10 @@ fail:
 	return CMD_ERROR;
 }
 
-static cmd_status_t stats_reset(const struct br_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t stats_reset(const struct gr_api_client *c, const struct ec_pnode *p) {
 	(void)p;
 
-	if (br_api_client_send_recv(c, BR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -137,7 +137,7 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct br_cli_context ctx = {
+static struct gr_cli_context ctx = {
 	.name = "stats",
 	.init = ctx_init,
 };

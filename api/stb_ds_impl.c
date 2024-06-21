@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #define STB_DS_IMPLEMENTATION
-#include <br_stb_ds.h>
-#include <br_string.h>
+#include <gr_stb_ds.h>
+#include <gr_string.h>
 
 #include <stddef.h>
 

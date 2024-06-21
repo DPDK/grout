@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_eth_input.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
-#include <br_mbuf.h>
+#include <gr_eth_input.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -35,7 +35,7 @@ static inline void update_nexthop(
 	struct rte_mbuf *m, *next;
 
 	// Static next hops never need updating.
-	if (nh->flags & BR_IP4_NH_F_STATIC)
+	if (nh->flags & GR_IP4_NH_F_STATIC)
 		return;
 
 	rte_spinlock_lock(&nh->lock);
@@ -43,8 +43,8 @@ static inline void update_nexthop(
 	// Refresh all fields.
 	nh->last_reply = now;
 	nh->iface_id = iface_id;
-	nh->flags |= BR_IP4_NH_F_REACHABLE;
-	nh->flags &= ~(BR_IP4_NH_F_STALE | BR_IP4_NH_F_PENDING | BR_IP4_NH_F_FAILED);
+	nh->flags |= GR_IP4_NH_F_REACHABLE;
+	nh->flags &= ~(GR_IP4_NH_F_STALE | GR_IP4_NH_F_PENDING | GR_IP4_NH_F_FAILED);
 	nh->ucast_probes = 0;
 	nh->bcast_probes = 0;
 	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
@@ -135,10 +135,10 @@ next:
 }
 
 static void arp_input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("eth_input", "arp_input");
+	rte_edge_t edge = gr_node_attach_parent("eth_input", "arp_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(eth_input, arp_input) failed");
-	br_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), edge);
+		ABORT("gr_node_attach_parent(eth_input, arp_input) failed");
+	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), edge);
 }
 
 static struct rte_node_register node = {
@@ -158,15 +158,15 @@ static struct rte_node_register node = {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &node,
 	.register_callback = arp_input_register,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(arp_input_reply);
-BR_DROP_REGISTER(arp_input_op_unsupp);
-BR_DROP_REGISTER(arp_input_proto_unsupp);
-BR_DROP_REGISTER(arp_input_error);
-BR_DROP_REGISTER(arp_input_drop);
+GR_DROP_REGISTER(arp_input_reply);
+GR_DROP_REGISTER(arp_input_op_unsupp);
+GR_DROP_REGISTER(arp_input_proto_unsupp);
+GR_DROP_REGISTER(arp_input_error);
+GR_DROP_REGISTER(arp_input_drop);

@@ -6,7 +6,7 @@ scdoc = find_program(scdoc_dep.get_variable(pkgconfig: 'scdoc'), native: true)
 mandir = get_option('mandir')
 
 man_src = [
-  'br.1.scd',
+  'grout.1.scd',
 ]
 
 foreach m : man_src

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_graph.h>
-#include <br_log.h>
+#include <gr_graph.h>
+#include <gr_log.h>
 
 #include <rte_graph_worker.h>
 #include <rte_mbuf.h>

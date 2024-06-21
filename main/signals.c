@@ -3,7 +3,7 @@
 
 #include "signals.h"
 
-#include <br_log.h>
+#include <gr_log.h>
 
 #include <event2/event.h>
 

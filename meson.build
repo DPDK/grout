@@ -2,7 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 project(
-  'boring-router',
+  'grout',
   'c',
   version: '0.1',
   license: 'BSD-3-Clause',
@@ -62,17 +62,17 @@ subdir('main')
 subdir('modules')
 subdir('cli')
 
-install_headers(api_headers, subdir: 'br')
+install_headers(api_headers, subdir: 'grout')
 
-br_exe = executable(
-  'br', src,
+grout_exe = executable(
+  'grout', src,
   include_directories: inc,
   dependencies: [dpdk_dep, event_dep, numa_dep, stb_dep],
   install: true,
 )
 
-br_cli_exe = executable(
-  'br-cli', cli_src,
+grcli_exe = executable(
+  'grcli', cli_src,
   include_directories: cli_inc,
   dependencies: [ecoli_dep, smartcols_dep],
   install: true,

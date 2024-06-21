@@ -3,13 +3,13 @@
 
 #include "ipip_priv.h"
 
-#include <br_datapath.h>
-#include <br_eth_input.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
-#include <br_mbuf.h>
+#include <gr_datapath.h>
+#include <gr_eth_input.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -68,9 +68,9 @@ next:
 }
 
 static void ipip_input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("ip_input_local", "ipip_input");
+	rte_edge_t edge = gr_node_attach_parent("ip_input_local", "ipip_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(ip_input_local, ipip_input) failed");
+		ABORT("gr_node_attach_parent(ip_input_local, ipip_input) failed");
 	ip_input_local_add_proto(IPPROTO_IPIP, edge);
 }
 
@@ -86,11 +86,11 @@ static struct rte_node_register ipip_input_node = {
 	},
 };
 
-static struct br_node_info ipip_input_info = {
+static struct gr_node_info ipip_input_info = {
 	.node = &ipip_input_node,
 	.register_callback = ipip_input_register,
 };
 
-BR_NODE_REGISTER(ipip_input_info);
+GR_NODE_REGISTER(ipip_input_info);
 
-BR_DROP_REGISTER(ipip_input_no_tunnel);
+GR_DROP_REGISTER(ipip_input_no_tunnel);

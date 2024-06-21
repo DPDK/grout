@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_tx.h"
+#include "gr_tx.h"
 
-#include <br_graph.h>
-#include <br_log.h>
-#include <br_worker.h>
+#include <gr_graph.h>
+#include <gr_log.h>
+#include <gr_worker.h>
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
@@ -80,7 +80,7 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 
 	(void)graph;
 
-	if ((data = br_node_data_get(graph->name, node->name)) == NULL)
+	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 
 	ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
@@ -112,10 +112,10 @@ static struct rte_node_register node = {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &node,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(port_tx_error);
+GR_DROP_REGISTER(port_tx_error);

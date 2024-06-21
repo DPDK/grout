@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_string.h"
+#include "gr_string.h"
 
 #include <errno.h>
 #include <stdarg.h>

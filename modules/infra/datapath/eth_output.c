@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_datapath.h"
-#include "br_eth_output.h"
+#include "gr_datapath.h"
+#include "gr_eth_output.h"
 
-#include <br_graph.h>
-#include <br_iface.h>
-#include <br_port.h>
-#include <br_vlan.h>
+#include <gr_graph.h>
+#include <gr_iface.h>
+#include <gr_port.h>
+#include <gr_vlan.h>
 
 #include <rte_ether.h>
 #include <rte_graph_worker.h>
@@ -35,7 +35,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		priv = eth_output_mbuf_data(mbuf);
 
 		switch (priv->iface->type_id) {
-		case BR_IFACE_TYPE_VLAN:
+		case GR_IFACE_TYPE_VLAN:
 			sub = (struct iface_info_vlan *)priv->iface->info;
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
@@ -45,7 +45,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			src_mac = &sub->mac;
 			port = (const struct iface_info_port *)priv->iface->info;
 			break;
-		case BR_IFACE_TYPE_PORT:
+		case GR_IFACE_TYPE_PORT:
 			port = (const struct iface_info_port *)priv->iface->info;
 			src_mac = &port->mac;
 			break;
@@ -78,10 +78,10 @@ static struct rte_node_register node= {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &node,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(eth_output_inval);
+GR_DROP_REGISTER(eth_output_inval);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_CONTROL
-#define _BR_CONTROL
+#ifndef _GR_CONTROL
+#define _GR_CONTROL
 
 #include <event2/event.h>
 
@@ -19,18 +19,18 @@ static inline struct api_out api_out(uint32_t status, uint32_t len) {
 	return out;
 }
 
-typedef struct api_out (*br_api_handler_func)(const void *request, void **response);
+typedef struct api_out (*gr_api_handler_func)(const void *request, void **response);
 
-struct br_api_handler {
+struct gr_api_handler {
 	const char *name;
 	uint32_t request_type;
-	br_api_handler_func callback;
-	STAILQ_ENTRY(br_api_handler) entries;
+	gr_api_handler_func callback;
+	STAILQ_ENTRY(gr_api_handler) entries;
 };
 
-void br_register_api_handler(struct br_api_handler *);
+void gr_register_api_handler(struct gr_api_handler *);
 
-struct br_module {
+struct gr_module {
 	const char *name;
 	int init_prio;
 	void (*init)(struct event_base *);
@@ -38,13 +38,13 @@ struct br_module {
 	void (*fini)(struct event_base *);
 	void (*init_dp)(void);
 	void (*fini_dp)(void);
-	STAILQ_ENTRY(br_module) entries;
+	STAILQ_ENTRY(gr_module) entries;
 };
 
-void br_register_module(struct br_module *);
+void gr_register_module(struct gr_module *);
 
-void br_modules_dp_init(void);
+void gr_modules_dp_init(void);
 
-void br_modules_dp_fini(void);
+void gr_modules_dp_fini(void);
 
 #endif

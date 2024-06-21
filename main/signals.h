@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_SIGNALS
-#define _BR_SIGNALS
+#ifndef _GR_SIGNALS
+#define _GR_SIGNALS
 
 #include <event2/event.h>
 

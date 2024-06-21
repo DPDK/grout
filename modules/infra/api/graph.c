@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "br_infra.h"
+#include "gr_infra.h"
 
-#include <br_api.h>
-#include <br_control.h>
-#include <br_worker.h>
+#include <gr_api.h>
+#include <gr_control.h>
+#include <gr_worker.h>
 
 #include <rte_graph_worker.h>
 
@@ -14,7 +14,7 @@
 #include <sys/queue.h>
 
 static struct api_out graph_dump(const void *request, void **response) {
-	struct br_infra_graph_dump_resp *resp;
+	struct gr_infra_graph_dump_resp *resp;
 	size_t buf_len = 0, resp_len = 0;
 	const char *graph_name;
 	struct worker *worker;
@@ -56,12 +56,12 @@ end:
 	return api_out(-ret, resp_len);
 }
 
-static struct br_api_handler graph_dump_handler = {
+static struct gr_api_handler graph_dump_handler = {
 	.name = "graph dump",
-	.request_type = BR_INFRA_GRAPH_DUMP,
+	.request_type = GR_INFRA_GRAPH_DUMP,
 	.callback = graph_dump,
 };
 
 RTE_INIT(graph_init) {
-	br_register_api_handler(&graph_dump_handler);
+	gr_register_api_handler(&graph_dump_handler);
 }

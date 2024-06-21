@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_INFRA_TX
-#define _BR_INFRA_TX
+#ifndef _GR_INFRA_TX
+#define _GR_INFRA_TX
 
 #include <rte_build_config.h>
 

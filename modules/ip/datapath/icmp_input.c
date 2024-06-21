@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_datapath.h>
-#include <br_graph.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
-#include <br_mbuf.h>
+#include <gr_datapath.h>
+#include <gr_graph.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -64,9 +64,9 @@ next:
 }
 
 static void icmp_input_register(void) {
-	rte_edge_t edge = br_node_attach_parent("ip_input_local", "icmp_input");
+	rte_edge_t edge = gr_node_attach_parent("ip_input_local", "icmp_input");
 	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("br_node_attach_parent(classify, icmp_input) failed");
+		ABORT("gr_node_attach_parent(classify, icmp_input) failed");
 	ip_input_local_add_proto(IPPROTO_ICMP, edge);
 }
 
@@ -83,12 +83,12 @@ static struct rte_node_register icmp_input_node = {
 	},
 };
 
-static struct br_node_info icmp_input_info = {
+static struct gr_node_info icmp_input_info = {
 	.node = &icmp_input_node,
 	.register_callback = icmp_input_register,
 };
 
-BR_NODE_REGISTER(icmp_input_info);
+GR_NODE_REGISTER(icmp_input_info);
 
-BR_DROP_REGISTER(icmp_input_invalid);
-BR_DROP_REGISTER(icmp_input_unsupported);
+GR_DROP_REGISTER(icmp_input_invalid);
+GR_DROP_REGISTER(icmp_input_unsupported);

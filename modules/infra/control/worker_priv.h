@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_CONTROL_WORKER
-#define _BR_CONTROL_WORKER
+#ifndef _GR_CONTROL_WORKER
+#define _GR_CONTROL_WORKER
 
-#include "br_worker.h"
+#include "gr_worker.h"
 
 int port_unplug(uint16_t port_id);
 int port_plug(uint16_t port_id);

@@ -3,22 +3,22 @@
 
 #include "ip.h"
 
-#include <br_api.h>
-#include <br_cli.h>
-#include <br_cli_iface.h>
-#include <br_ip4.h>
-#include <br_net_types.h>
-#include <br_table.h>
+#include <gr_api.h>
+#include <gr_cli.h>
+#include <gr_cli_iface.h>
+#include <gr_ip4.h>
+#include <gr_net_types.h>
+#include <gr_table.h>
 
 #include <ecoli.h>
 #include <libsmartcols.h>
 
 #include <errno.h>
 
-static cmd_status_t route4_add(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_ip4_route_add_req req = {.exist_ok = true};
+static cmd_status_t route4_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_route_add_req req = {.exist_ok = true};
 
-	if (br_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (gr_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (inet_pton(AF_INET, arg_str(p, "NH"), &req.nh) != 1) {
 		errno = EINVAL;
@@ -27,30 +27,30 @@ static cmd_status_t route4_add(const struct br_api_client *c, const struct ec_pn
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_ADD, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t route4_del(const struct br_api_client *c, const struct ec_pnode *p) {
-	struct br_ip4_route_del_req req = {.missing_ok = true};
+static cmd_status_t route4_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_route_del_req req = {.missing_ok = true};
 
-	if (br_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (gr_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
-	const struct br_ip4_route_list_resp *resp;
-	struct br_ip4_route_list_req req = {0};
+	const struct gr_ip4_route_list_resp *resp;
+	struct gr_ip4_route_list_req req = {0};
 	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
@@ -62,7 +62,7 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
 		scols_unref_table(table);
 		return CMD_ERROR;
 	}
@@ -74,8 +74,8 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct br_ip4_route *route = &resp->routes[i];
-		br_ip4_net_format(&route->dest, dest, sizeof(dest));
+		const struct gr_ip4_route *route = &resp->routes[i];
+		gr_ip4_net_format(&route->dest, dest, sizeof(dest));
 		inet_ntop(AF_INET, &route->nh, nh, sizeof(nh));
 		scols_line_set_data(line, 0, dest);
 		scols_line_set_data(line, 1, nh);
@@ -88,10 +88,10 @@ static cmd_status_t route4_list(const struct br_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pnode *p) {
-	const struct br_ip4_route_get_resp *resp;
-	struct br_ip4_route_get_req req = {0};
-	struct br_iface iface;
+static cmd_status_t route4_get(const struct gr_api_client *c, const struct ec_pnode *p) {
+	const struct gr_ip4_route_get_resp *resp;
+	struct gr_ip4_route_get_req req = {0};
+	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 	const char *dest = arg_str(p, "DEST");
@@ -108,7 +108,7 @@ static cmd_status_t route4_get(const struct br_api_client *c, const struct ec_pn
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (br_api_client_send_recv(c, BR_IP4_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
@@ -162,7 +162,7 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct br_cli_context ctx = {
+static struct gr_cli_context ctx = {
 	.name = "ipv4 route",
 	.init = ctx_init,
 };

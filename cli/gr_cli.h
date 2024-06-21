@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_CLI
-#define _BR_CLI
+#ifndef _GR_CLI
+#define _GR_CLI
 
-#include <br_api.h>
-#include <br_net_types.h>
+#include <gr_api.h>
+#include <gr_net_types.h>
 
 #include <ecoli.h>
 
 #include <sys/queue.h>
 
-typedef int(br_cli_ctx_init_t)(struct ec_node *root);
+typedef int(gr_cli_ctx_init_t)(struct ec_node *root);
 
-struct br_cli_context {
+struct gr_cli_context {
 	const char *name;
-	br_cli_ctx_init_t *init;
-	STAILQ_ENTRY(br_cli_context) entries;
+	gr_cli_ctx_init_t *init;
+	STAILQ_ENTRY(gr_cli_context) entries;
 };
 
-void register_context(struct br_cli_context *);
+void register_context(struct gr_cli_context *);
 
 void errorf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
@@ -29,7 +29,7 @@ typedef enum {
 	CMD_EXIT,
 } cmd_status_t;
 
-typedef cmd_status_t(cmd_cb_t)(const struct br_api_client *, const struct ec_pnode *);
+typedef cmd_status_t(cmd_cb_t)(const struct gr_api_client *, const struct ec_pnode *);
 
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
@@ -80,7 +80,7 @@ static inline int arg_u16(const struct ec_pnode *p, const char *id, uint16_t *va
 #define CTX_CLEAR CTX_ARG("clear", "Clear counters or temporary entries.")
 
 typedef int (*ec_node_dyn_comp_t)(
-	const struct br_api_client *,
+	const struct gr_api_client *,
 	const struct ec_node *,
 	struct ec_comp *,
 	const char *arg,
@@ -89,7 +89,7 @@ typedef int (*ec_node_dyn_comp_t)(
 
 struct ec_node *ec_node_dyn(const char *id, ec_node_dyn_comp_t cb, void *cb_arg);
 
-#define CLIENT_ATTR "br_api_client"
-#define SOCK_PATH_ID "br_api_sock_path"
+#define CLIENT_ATTR "gr_api_client"
+#define SOCK_PATH_ID "gr_api_sock_path"
 
 #endif

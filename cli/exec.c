@@ -3,23 +3,23 @@
 
 #include "exec.h"
 
-#include <br_cli.h>
+#include <gr_cli.h>
 
 #include <ecoli.h>
 
 #include <errno.h>
 
-static STAILQ_HEAD(, br_cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
+static STAILQ_HEAD(, gr_cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 
-void register_context(struct br_cli_context *ctx) {
+void register_context(struct gr_cli_context *ctx) {
 	STAILQ_INSERT_HEAD(&contexts, ctx, entries);
 }
 
 struct ec_node *init_commands(void) {
-	struct br_cli_context *ctx;
+	struct gr_cli_context *ctx;
 	struct ec_node *root;
 
-	if ((root = ec_node("or", "br-cli")) == NULL)
+	if ((root = ec_node("or", "grcli")) == NULL)
 		goto fail;
 
 	STAILQ_FOREACH (ctx, &contexts, entries) {
@@ -49,7 +49,7 @@ static cmd_cb_t *find_cmd_callback(struct ec_pnode *parsed) {
 }
 
 static exec_status_t exec_strvec(
-	const struct br_api_client *client,
+	const struct gr_api_client *client,
 	const struct ec_node *cmdlist,
 	const struct ec_strvec *vec
 ) {
@@ -86,7 +86,7 @@ out:
 }
 
 exec_status_t
-exec_line(const struct br_api_client *client, const struct ec_node *cmdlist, const char *line) {
+exec_line(const struct gr_api_client *client, const struct ec_node *cmdlist, const char *line) {
 	exec_status_t status = EXEC_SUCCESS;
 	struct ec_strvec *vec = NULL;
 
@@ -110,7 +110,7 @@ out:
 }
 
 exec_status_t exec_args(
-	const struct br_api_client *client,
+	const struct gr_api_client *client,
 	const struct ec_node *cmdlist,
 	size_t argc,
 	const char *const *argv

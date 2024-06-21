@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_INFRA_RX
-#define _BR_INFRA_RX
+#ifndef _GR_INFRA_RX
+#define _GR_INFRA_RX
 
 #include <stdint.h>
 

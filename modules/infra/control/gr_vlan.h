@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_INFRA_VLAN_PRIV
-#define _BR_INFRA_VLAN_PRIV
+#ifndef _GR_INFRA_VLAN_PRIV
+#define _GR_INFRA_VLAN_PRIV
 
-#include <br_iface.h>
+#include <gr_iface.h>
 
 #include <rte_ether.h>
 #include <rte_mempool.h>

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br_cli.h"
+#include "gr_cli.h"
 
-#include <br_api.h>
+#include <gr_api.h>
 
 #include <ecoli.h>
 
@@ -32,13 +32,13 @@ static int ec_node_dyn_parse(
 }
 
 static void disconnect_client(void *ptr) {
-	br_api_client_disconnect(ptr);
+	gr_api_client_disconnect(ptr);
 }
 
-static struct br_api_client *connect_client(struct ec_comp *comp) {
+static struct gr_api_client *connect_client(struct ec_comp *comp) {
 	const struct ec_pnode *pstate = ec_comp_get_cur_pstate(comp);
 	const char *sock_path = NULL;
-	struct br_api_client *client;
+	struct gr_api_client *client;
 
 	// find the root of the parsed tree
 	while (ec_pnode_get_parent(pstate) != NULL)
@@ -52,9 +52,9 @@ static struct br_api_client *connect_client(struct ec_comp *comp) {
 			sock_path = ec_strvec_val(vec, 0);
 	}
 	if (sock_path == NULL)
-		sock_path = BR_DEFAULT_SOCK_PATH; // not specified, use default
+		sock_path = GR_DEFAULT_SOCK_PATH; // not specified, use default
 
-	client = br_api_client_connect(sock_path);
+	client = gr_api_client_connect(sock_path);
 	if (client != NULL) {
 		// attach the connected client to the complete tree so that it is
 		// automatically disconnected when the tree is freed.
@@ -64,9 +64,9 @@ static struct br_api_client *connect_client(struct ec_comp *comp) {
 	return client;
 }
 
-static const struct br_api_client *get_client(struct ec_comp *comp) {
+static const struct gr_api_client *get_client(struct ec_comp *comp) {
 	struct ec_pnode *pstate = ec_comp_get_cur_pstate(comp);
-	const struct br_api_client *client = NULL;
+	const struct gr_api_client *client = NULL;
 
 	while (client == NULL && pstate != NULL) {
 		const struct ec_node *node = ec_pnode_get_node(pstate);
@@ -85,7 +85,7 @@ static int ec_node_dyn_complete(
 	const struct ec_strvec *strvec
 ) {
 	const struct ec_node_dyn *priv = ec_node_priv(node);
-	const struct br_api_client *client;
+	const struct gr_api_client *client;
 
 	assert(priv->cb != NULL);
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br.h"
 #include "control.h"
 #include "dpdk.h"
+#include "gr.h"
 #include "signals.h"
 
-#include <br_api.h>
-#include <br_control.h>
-#include <br_log.h>
+#include <gr_api.h>
+#include <gr_control.h>
+#include <gr_log.h>
 
 #include <event2/event.h>
 #include <rte_eal.h>
@@ -40,13 +40,13 @@ static void usage(const char *prog) {
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
 	puts("  -p, --poll-mode            Disable automatic micro-sleep.");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
-	puts("                             Default: BR_SOCK_PATH from env or");
-	printf("                             %s).\n", BR_DEFAULT_SOCK_PATH);
+	puts("                             Default: GROUT_SOCK_PATH from env or");
+	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
 }
 
-static struct br_args args;
+static struct gr_args args;
 
-const struct br_args *br_args(void) {
+const struct gr_args *gr_args(void) {
 	return &args;
 }
 
@@ -65,7 +65,7 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	args.api_sock_path = getenv("BR_SOCK_PATH");
+	args.api_sock_path = getenv("GROUT_SOCK_PATH");
 	args.log_level = RTE_LOG_NOTICE;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
@@ -104,7 +104,7 @@ end:
 	}
 
 	if (args.api_sock_path == NULL)
-		args.api_sock_path = BR_DEFAULT_SOCK_PATH;
+		args.api_sock_path = GR_DEFAULT_SOCK_PATH;
 
 	return 0;
 }
@@ -114,7 +114,7 @@ static void finalize_close_fd(struct event *ev, void *priv) {
 	close(event_get_fd(ev));
 }
 
-static ssize_t send_response(evutil_socket_t sock, struct br_api_response *resp) {
+static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp) {
 	if (resp == NULL) {
 		errno = ENOMEM;
 		return -1;
@@ -135,7 +135,7 @@ static struct event_base *ev_base;
 
 static void api_write_cb(evutil_socket_t sock, short what, void *priv) {
 	struct event *ev = event_base_get_running_event(ev_base);
-	struct br_api_response *resp = priv;
+	struct gr_api_response *resp = priv;
 
 	(void)what;
 
@@ -162,8 +162,8 @@ free:
 static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *ev = event_base_get_running_event(ev_base);
 	void *req_payload = NULL, *resp_payload = NULL;
-	struct br_api_response *resp = NULL;
-	struct br_api_request req;
+	struct gr_api_response *resp = NULL;
+	struct gr_api_request req;
 	struct event *write_ev;
 	struct api_out out;
 	ssize_t len;
@@ -199,7 +199,7 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 		}
 	}
 
-	const struct br_api_handler *handler = lookup_api_handler(&req);
+	const struct gr_api_handler *handler = lookup_api_handler(&req);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
 		out.len = 0;

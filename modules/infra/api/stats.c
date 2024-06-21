@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_api.h>
-#include <br_control.h>
-#include <br_infra.h>
-#include <br_log.h>
-#include <br_port.h>
-#include <br_stb_ds.h>
-#include <br_worker.h>
+#include <gr_api.h>
+#include <gr_control.h>
+#include <gr_infra.h>
+#include <gr_log.h>
+#include <gr_port.h>
+#include <gr_stb_ds.h>
+#include <gr_worker.h>
 
 #include <rte_common.h>
 #include <rte_ethdev.h>
@@ -27,8 +27,8 @@ struct stat_entry {
 };
 
 static struct api_out stats_get(const void *request, void **response) {
-	const struct br_infra_stats_get_req *req = request;
-	struct br_infra_stats_get_resp *resp = NULL;
+	const struct gr_infra_stats_get_req *req = request;
+	struct gr_infra_stats_get_resp *resp = NULL;
 	struct stat_entry *smap = NULL;
 	size_t len, n_stats;
 	char name[64];
@@ -36,7 +36,7 @@ static struct api_out stats_get(const void *request, void **response) {
 
 	sh_new_arena(smap);
 
-	if (req->flags & BR_INFRA_STAT_F_SW) {
+	if (req->flags & GR_INFRA_STAT_F_SW) {
 		struct worker *worker;
 
 		STAILQ_FOREACH (worker, &workers, next) {
@@ -63,13 +63,13 @@ static struct api_out stats_get(const void *request, void **response) {
 		}
 	}
 
-	if (req->flags & BR_INFRA_STAT_F_HW) {
+	if (req->flags & GR_INFRA_STAT_F_HW) {
 		struct rte_eth_xstat_name *names = NULL;
 		struct rte_eth_xstat *xstats = NULL;
 		struct iface *iface = NULL;
 		unsigned num;
 
-		while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
+		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 			struct iface_info_port *port = (struct iface_info_port *)iface->info;
 
 			// call first with NULL/0 to get the exact count
@@ -112,7 +112,7 @@ free_xstat:
 	n_stats = 0;
 	for (unsigned i = 0; i < shlenu(smap); i++) {
 		struct stat_entry *e = &smap[i];
-		if (e->value.objs == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
+		if (e->value.objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
 			continue;
 		switch (fnmatch(req->pattern, e->key, 0)) {
 		case 0:
@@ -126,7 +126,7 @@ free_xstat:
 	}
 
 	// allocate correct response size
-	len = sizeof(*resp) + n_stats * sizeof(struct br_infra_stat);
+	len = sizeof(*resp) + n_stats * sizeof(struct gr_infra_stat);
 	if ((resp = calloc(1, len)) == NULL) {
 		ret = -ENOMEM;
 		goto err;
@@ -135,8 +135,8 @@ free_xstat:
 	// fill in response
 	for (unsigned i = 0; i < shlenu(smap); i++) {
 		struct stat_entry *e = &smap[i];
-		struct br_infra_stat *s;
-		if (e->value.objs == 0 && !(req->flags & BR_INFRA_STAT_F_ZERO))
+		struct gr_infra_stat *s;
+		if (e->value.objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
 			continue;
 		switch (fnmatch(req->pattern, e->key, 0)) {
 		case 0:
@@ -174,7 +174,7 @@ static struct api_out stats_reset(const void *request, void **response) {
 		atomic_store(&worker->stats_reset, true);
 
 	iface = NULL;
-	while ((iface = iface_next(BR_IFACE_TYPE_PORT, iface)) != NULL) {
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = (struct iface_info_port *)iface->info;
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0);
@@ -185,19 +185,19 @@ static struct api_out stats_reset(const void *request, void **response) {
 	return api_out(0, 0);
 }
 
-static struct br_api_handler stats_get_handler = {
+static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
-	.request_type = BR_INFRA_STATS_GET,
+	.request_type = GR_INFRA_STATS_GET,
 	.callback = stats_get,
 };
 
-static struct br_api_handler stats_reset_handler = {
+static struct gr_api_handler stats_reset_handler = {
 	.name = "stats reset",
-	.request_type = BR_INFRA_STATS_RESET,
+	.request_type = GR_INFRA_STATS_RESET,
 	.callback = stats_reset,
 };
 
 RTE_INIT(infra_stats_init) {
-	br_register_api_handler(&stats_get_handler);
-	br_register_api_handler(&stats_reset_handler);
+	gr_register_api_handler(&stats_get_handler);
+	gr_register_api_handler(&stats_reset_handler);
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_graph.h>
+#include <gr_graph.h>
 
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
@@ -51,10 +51,10 @@ static struct rte_node_register forward_node = {
 	},
 };
 
-static struct br_node_info info = {
+static struct gr_node_info info = {
 	.node = &forward_node,
 };
 
-BR_NODE_REGISTER(info);
+GR_NODE_REGISTER(info);
 
-BR_DROP_REGISTER(ip_forward_ttl_exceeded);
+GR_DROP_REGISTER(ip_forward_ttl_exceeded);

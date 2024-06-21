@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR
-#define _BR
+#ifndef _GR
+#define _GR
 
 #include <stdbool.h>
 
-struct br_args {
+struct gr_args {
 	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;
 	bool poll_mode;
 };
 
-const struct br_args *br_args(void);
+const struct gr_args *gr_args(void);
 
 #endif

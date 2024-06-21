@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <br_api.h>
-#include <br_control.h>
-#include <br_iface.h>
-#include <br_ip4.h>
-#include <br_ip4_control.h>
-#include <br_ip4_datapath.h>
-#include <br_log.h>
-#include <br_net_types.h>
-#include <br_queue.h>
+#include <gr_api.h>
+#include <gr_control.h>
+#include <gr_iface.h>
+#include <gr_ip4.h>
+#include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
+#include <gr_log.h>
+#include <gr_net_types.h>
+#include <gr_queue.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -86,7 +86,7 @@ void ip4_nexthop_incref(struct nexthop *nh) {
 }
 
 static struct api_out nh4_add(const void *request, void **response) {
-	const struct br_ip4_nh_add_req *req = request;
+	const struct gr_ip4_nh_add_req *req = request;
 	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
@@ -102,7 +102,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (ip4_nexthop_lookup(req->nh.vrf_id, req->nh.host, &nh_idx, &nh) == 0) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && br_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
+		    && gr_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
@@ -112,14 +112,14 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	nh->iface_id = req->nh.iface_id;
 	memcpy(&nh->lladdr, (void *)&req->nh.mac, sizeof(nh->lladdr));
-	nh->flags = BR_IP4_NH_F_STATIC | BR_IP4_NH_F_REACHABLE;
+	nh->flags = GR_IP4_NH_F_STATIC | GR_IP4_NH_F_REACHABLE;
 	ret = ip4_route_insert(nh->vrf_id, nh->ip, 32, nh_idx, nh);
 
 	return api_out(-ret, 0);
 }
 
 static struct api_out nh4_del(const void *request, void **response) {
-	const struct br_ip4_nh_del_req *req = request;
+	const struct gr_ip4_nh_del_req *req = request;
 	struct nexthop *nh;
 	uint32_t idx;
 
@@ -133,7 +133,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 			return api_out(0, 0);
 		return api_out(errno, 0);
 	}
-	if ((nh->flags & (BR_IP4_NH_F_LOCAL | BR_IP4_NH_F_LINK | BR_IP4_NH_F_GATEWAY))
+	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK | GR_IP4_NH_F_GATEWAY))
 	    || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
@@ -145,9 +145,9 @@ static struct api_out nh4_del(const void *request, void **response) {
 }
 
 static struct api_out nh4_list(const void *request, void **response) {
-	const struct br_ip4_nh_list_req *req = request;
-	struct br_ip4_nh_list_resp *resp = NULL;
-	struct br_ip4_nh *api_nh;
+	const struct gr_ip4_nh_list_req *req = request;
+	struct gr_ip4_nh_list_resp *resp = NULL;
+	struct gr_ip4_nh *api_nh;
 	struct nexthop *nh;
 	uint32_t num, iter;
 	const void *key;
@@ -163,7 +163,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 			num++;
 	}
 
-	len = sizeof(*resp) + num * sizeof(struct br_ip4_nh);
+	len = sizeof(*resp) + num * sizeof(struct gr_ip4_nh);
 	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
 
@@ -204,35 +204,35 @@ static void nexthop_gc(evutil_socket_t, short, void *) {
 	while ((idx = rte_hash_iterate(nh_hash, &key, &data, &iter)) >= 0) {
 		nh = ip4_nexthop_get(idx);
 
-		if (nh->flags & BR_IP4_NH_F_STATIC)
+		if (nh->flags & GR_IP4_NH_F_STATIC)
 			continue;
 
 		reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
 		request_age = (now - nh->last_request) / rte_get_tsc_hz();
 		probes = nh->ucast_probes + nh->bcast_probes;
 
-		if (nh->flags & (BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE) && request_age > probes) {
-			if (probes >= max_probes && !(nh->flags & BR_IP4_NH_F_GATEWAY)) {
+		if (nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE) && request_age > probes) {
+			if (probes >= max_probes && !(nh->flags & GR_IP4_NH_F_GATEWAY)) {
 				LOG(DEBUG,
 				    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: %s -> failed",
 				    nh->vrf_id,
 				    ntohl(nh->ip),
 				    probes,
 				    nh->held_pkts_num,
-				    br_ip4_nh_f_name(
-					    nh->flags & (BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE)
+				    gr_ip4_nh_f_name(
+					    nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE)
 				    ));
-				nh->flags &= ~(BR_IP4_NH_F_PENDING | BR_IP4_NH_F_STALE);
-				nh->flags |= BR_IP4_NH_F_FAILED;
+				nh->flags &= ~(GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE);
+				nh->flags |= GR_IP4_NH_F_FAILED;
 			} else {
 				if (arp_output_request_solicit(nh) < 0)
 					LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
 			}
-		} else if (nh->flags & BR_IP4_NH_F_REACHABLE
+		} else if (nh->flags & GR_IP4_NH_F_REACHABLE
 			   && reply_age > IP4_NH_LIFETIME_REACHABLE) {
-			nh->flags &= ~BR_IP4_NH_F_REACHABLE;
-			nh->flags |= BR_IP4_NH_F_STALE;
-		} else if (nh->flags & BR_IP4_NH_F_FAILED
+			nh->flags &= ~GR_IP4_NH_F_REACHABLE;
+			nh->flags |= GR_IP4_NH_F_STALE;
+		} else if (nh->flags & GR_IP4_NH_F_FAILED
 			   && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
 			LOG(DEBUG,
 			    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: failed -> <destroy>",
@@ -300,31 +300,31 @@ static void nh4_fini(struct event_base *) {
 	nh_array = NULL;
 }
 
-static struct br_api_handler nh4_add_handler = {
+static struct gr_api_handler nh4_add_handler = {
 	.name = "ipv4 nexthop add",
-	.request_type = BR_IP4_NH_ADD,
+	.request_type = GR_IP4_NH_ADD,
 	.callback = nh4_add,
 };
-static struct br_api_handler nh4_del_handler = {
+static struct gr_api_handler nh4_del_handler = {
 	.name = "ipv4 nexthop del",
-	.request_type = BR_IP4_NH_DEL,
+	.request_type = GR_IP4_NH_DEL,
 	.callback = nh4_del,
 };
-static struct br_api_handler nh4_list_handler = {
+static struct gr_api_handler nh4_list_handler = {
 	.name = "ipv4 nexthop list",
-	.request_type = BR_IP4_NH_LIST,
+	.request_type = GR_IP4_NH_LIST,
 	.callback = nh4_list,
 };
 
-static struct br_module nh4_module = {
+static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.init = nh4_init,
 	.fini = nh4_fini,
 };
 
 RTE_INIT(control_ip_init) {
-	br_register_api_handler(&nh4_add_handler);
-	br_register_api_handler(&nh4_del_handler);
-	br_register_api_handler(&nh4_list_handler);
-	br_register_module(&nh4_module);
+	gr_register_api_handler(&nh4_add_handler);
+	gr_register_api_handler(&nh4_del_handler);
+	gr_register_api_handler(&nh4_list_handler);
+	gr_register_module(&nh4_module);
 }

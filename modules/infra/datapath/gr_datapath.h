@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_INFRA_DATAPATH
-#define _BR_INFRA_DATAPATH
+#ifndef _GR_INFRA_DATAPATH
+#define _GR_INFRA_DATAPATH
 
-#include <br_log.h>
-#include <br_net_types.h>
+#include <gr_log.h>
+#include <gr_net_types.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -16,7 +16,7 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 
-void *br_datapath_loop(void *priv);
+void *gr_datapath_loop(void *priv);
 
 #ifdef TRACE_PACKETS
 static inline void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m) {

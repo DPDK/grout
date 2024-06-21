@@ -8,6 +8,6 @@ src += files(
   'datapath_out.c',
 )
 
-api_headers += files('br_ipip.h')
+api_headers += files('gr_ipip.h')
 cli_inc += include_directories('.')
 cli_src += files('cli.c')

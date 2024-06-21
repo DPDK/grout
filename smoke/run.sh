@@ -7,7 +7,7 @@ if [ "$1" = "--coredump" ]; then
 	coredump=true
 	ulimit -c unlimited
 	trap "sysctl -qw 'kernel.core_pattern=$(sysctl -n kernel.core_pattern)'" EXIT
-	sysctl -qw kernel.core_pattern=/tmp/br-core.%e.%p
+	sysctl -qw kernel.core_pattern=/tmp/grout-core.%e.%p
 	shift
 fi
 builddir=${1?build dir}
@@ -32,7 +32,7 @@ for script in $here/*_test.sh; do
 		if ! "$script" "$builddir"; then
 			res=FAILED
 		fi
-		for core in /tmp/br-core.*.*; do
+		for core in /tmp/grout-core.*.*; do
 			[ -s "$core" ] || continue
 			binary=$(file -b "$core" | sed -En "s/.*, execfn: '([^']+)',.*/\\1/p")
 			[ -x "$binary" ] || continue

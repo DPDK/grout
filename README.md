@@ -1,10 +1,7 @@
-# Boring Router: a sample router based on DPDK
+# grout # a graph router based on DPDK
 
-`brouter` stands for *Boring Router*. *Boring* because it should work in all
-circumstances, without any fuss nor extended configuration/tuning.
-
-*Boring Router* is a DPDK based network processing application. It uses the
-`rte_graph` library for data path processing.
+`grout` is a DPDK based network processing application. It uses the `rte_graph`
+library for data path processing.
 
 It comes with a client library to configure it over a standard UNIX socket and
 a CLI that uses that library. The CLI can be used as an interactive shell, but
@@ -31,21 +28,21 @@ apt install build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
 ### Build
 
 ```
-git clone https://github.com/rjarry/brouter
-cd brouter
+git clone https://github.com/rjarry/grout
+cd grout
 make
 ```
 
-### Start the router
+### Start the router daemon
 
 ```console
-[root@dio brouter]$ taskset --cpu-list 6-19,26-39 ./build/br -v
-BR: dpdk_init: DPDK version: DPDK 23.11.0
-BR: dpdk_init: EAL arguments: -l 6 -a 0000:00:00.0 --in-memory --log-level=*:info
+[root@dio grout]$ taskset --cpu-list 6-19,26-39 ./build/grout -v
+GR: dpdk_init: DPDK 24.03.0
+GR: dpdk_init: EAL arguments: -l 0 -a 0000:00:00.0 --log-level=*:notice --log-level=gr:info
 EAL: Detected CPU lcores: 40
 EAL: Detected NUMA nodes: 1
 ...
-BR: listen_api_socket: listening on API socket /run/br.sock
+GROUT: listen_api_socket: listening on API socket /run/grout.sock
 ```
 
 ### Start the CLI
@@ -53,10 +50,10 @@ BR: listen_api_socket: listening on API socket /run/br.sock
 By default, the CLI will start an interactive shell with command completion:
 
 ```console
-[root@dio brouter]$  ./build/br-cli
-Welcome to the boring router CLI.
+[root@dio grout]$ ./build/grcli
+Welcome to the grout CLI.
 Use ? for help and <tab> for command completion.
-br# ?
+grout# ?
 quit                 Exit the CLI.
 add                  Create objects in the configuration.
 del                  Delete objects from the configuration.
@@ -68,7 +65,7 @@ set                  Modify existing objects in the configuration.
 Multiple commands can be piped into standard input:
 
 ```console
-[root@dio brouter]$ ./build/br-cli -ex < commands.list
+[root@dio grout]$ ./build/grcli -ex < commands.list
 + add interface port p0 devargs 0000:18:00.0 rxqs 1 qsize 2048
 Created interface 0
 + add interface port p1 devargs 0000:18:00.1 rxqs 1 qsize 2048
@@ -115,8 +112,8 @@ IP            MAC                IFACE  AGE  STATE
 The CLI can be used as a one-shot command (with bash completion built-in):
 
 ```console
-[root@dio brouter]$ complete -o default -C './build/br-cli -c' ./build/br-cli
-[root@dio brouter]$ ./build/br-cli <TAB><TAB>
+[root@dio grout]$ complete -o default -C './build/grcli -c' ./build/grcli
+[root@dio grout]$ ./build/grcli <TAB><TAB>
 add                 (Create objects in the configuration.)
 clear               (Clear counters or temporary entries.)
 del                 (Delete objects from the configuration.)
@@ -131,16 +128,16 @@ show                (Display information about the configuration.)
 -s                  (Path to the control plane API socket.)
 --trace-commands    (Print executed commands.)
 -x                  (Print executed commands.)
-[root@dio brouter]$ ./build/br-cli show <TAB><TAB>
+[root@dio grout]$ ./build/grcli show <TAB><TAB>
 graph        (Show packet processing graph info.)
 interface    (Display interface details.)
 ip           (Show IPv4 stack details.)
 port         (Display DPDK port information.)
 stats        (Print statistics.)
-[root@dio brouter]$ ./build/br-cli show stats <TAB><TAB>
+[root@dio grout]$ ./build/grcli show stats <TAB><TAB>
 hardware    (Print hardware stats.)
 software    (Print software stats.)
-[root@dio brouter]$ ./build/br-cli show stats software
+[root@dio grout]$ ./build/grcli show stats software
 NODE         CALLS   PACKETS  PKTS/CALL  CYCLES/CALL  CYCLES/PKT
 port_rx     757792  22623757       29.9       1776.4        59.5
 ip_input    333675  22623757       67.8       3091.0        45.6
@@ -154,10 +151,10 @@ ip_forward  333675  22623757       67.8        691.8        10.2
 ## Packet graph
 
 ```console
-[root@dio brouter]$ ./build/br-cli show graph dot | dot -Tsvg > docs/graph.svg
+[root@dio grout]$ ./build/grcli show graph dot | dot -Tsvg > docs/graph.svg
 ```
 
-![docs/graph.svg](https://raw.githubusercontent.com/rjarry/brouter/main/docs/graph.svg)
+![docs/graph.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/graph.svg)
 
 ## License
 

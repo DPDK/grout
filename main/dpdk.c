@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "br.h"
 #include "dpdk.h"
+#include "gr.h"
 
-#include <br_api.h>
-#include <br_log.h>
-#include <br_stb_ds.h>
+#include <gr_api.h>
+#include <gr_log.h>
+#include <gr_stb_ds.h>
 
 #include <numa.h>
 #include <rte_eal.h>
@@ -17,9 +17,9 @@
 
 #include <sched.h>
 
-int br_rte_log_type;
+int gr_rte_log_type;
 
-int dpdk_init(struct br_args *args) {
+int dpdk_init(struct gr_args *args) {
 	char main_lcore[32] = {0};
 	char **eal_args = NULL;
 	int ret = -1;
@@ -36,7 +36,7 @@ int dpdk_init(struct br_args *args) {
 		goto end;
 	}
 
-	arrpush(eal_args, "br");
+	arrpush(eal_args, "");
 	arrpush(eal_args, "-l");
 	arrpush(eal_args, main_lcore);
 	arrpush(eal_args, "-a");
@@ -54,19 +54,19 @@ int dpdk_init(struct br_args *args) {
 	if (args->log_level > RTE_LOG_DEBUG) {
 		arrpush(eal_args, "--log-level=*:debug");
 	} else if (args->log_level >= RTE_LOG_DEBUG) {
-		arrpush(eal_args, "--log-level=br:debug");
+		arrpush(eal_args, "--log-level=grout:debug");
 	} else if (args->log_level >= RTE_LOG_INFO) {
-		arrpush(eal_args, "--log-level=br:info");
+		arrpush(eal_args, "--log-level=grout:info");
 	}
 
 	LOG(INFO, "%s", rte_version());
 
-	br_rte_log_type = rte_log_register_type_and_pick_level("br", RTE_LOG_INFO);
-	if (br_rte_log_type < 0)
+	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_INFO);
+	if (gr_rte_log_type < 0)
 		goto end;
 
 	char *buf = arrjoin(eal_args, " ");
-	LOG(INFO, "EAL arguments: %s", buf);
+	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
 	if (rte_eal_init(arrlen(eal_args), eal_args) < 0)

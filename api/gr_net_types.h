@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _BR_NET_TYPES
-#define _BR_NET_TYPES
+#ifndef _GR_NET_TYPES
+#define _GR_NET_TYPES
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -22,16 +22,16 @@ struct eth_addr {
 	uint8_t bytes[6];
 };
 
-static inline bool br_eth_addr_eq(const struct eth_addr *a, const struct eth_addr *b) {
+static inline bool gr_eth_addr_eq(const struct eth_addr *a, const struct eth_addr *b) {
 	return memcmp(a->bytes, b->bytes, sizeof(a->bytes)) == 0;
 }
 
-static inline bool br_eth_addr_is_zero(const struct eth_addr *mac) {
+static inline bool gr_eth_addr_is_zero(const struct eth_addr *mac) {
 	struct eth_addr zero = {0};
-	return br_eth_addr_eq(mac, &zero);
+	return gr_eth_addr_eq(mac, &zero);
 }
 
-static inline int br_eth_addr_parse(const char *s, struct eth_addr *mac) {
+static inline int gr_eth_addr_parse(const char *s, struct eth_addr *mac) {
 	if (s == NULL)
 		goto err;
 	int ret = sscanf(
@@ -63,7 +63,7 @@ struct ip4_net {
 	uint8_t prefixlen;
 };
 
-static inline int br_ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
+static inline int gr_ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
 
@@ -89,7 +89,7 @@ out:
 	return ret;
 }
 
-static inline int br_ip4_net_format(const struct ip4_net *net, char *buf, size_t len) {
+static inline int gr_ip4_net_format(const struct ip4_net *net, char *buf, size_t len) {
 	const char *tmp;
 	int n;
 

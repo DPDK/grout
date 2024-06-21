@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _BR_INFRA_WORKER
-#define _BR_INFRA_WORKER
+#ifndef _GR_INFRA_WORKER
+#define _GR_INFRA_WORKER
 
 #include <rte_common.h>
 #include <rte_graph.h>
