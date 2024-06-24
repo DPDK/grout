@@ -82,7 +82,7 @@ int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
 	}
 
 	wordexp_t w;
-	if (wordexp("~/.brcli_history", &w, 0) == 0 && w.we_wordc == 1)
+	if (wordexp("~/.grcli_history", &w, 0) == 0 && w.we_wordc == 1)
 		ec_editline_set_history(edit, 256, w.we_wordv[0]);
 	wordfree(&w);
 
