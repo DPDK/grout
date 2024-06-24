@@ -1,5 +1,7 @@
 # grout # a graph router based on DPDK
 
+![logo.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/logo.svg)
+
 `grout` stands for *Graph Router*. In English, *"grout"* refers to thin mortar
 that hardens to fill gaps between tiles.
 

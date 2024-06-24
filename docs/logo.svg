@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="349.73569"
+   height="240.84607"
+   viewBox="0 0 354.9995 244.471"
+   version="1.1"
+   id="svg5"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title
+     id="title12">Grout # a graph router based on DPDK</title>
+  <defs
+     id="defs2" />
+  <g
+     id="layer1"
+     transform="translate(-381.90859,-288.91877)">
+    <path
+       style="fill:#ffffff;fill-opacity:1;stroke:#1e66be;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+       d="m 392.53086,430.70993 83.43875,-48.25098 83.43875,48.25098 -83.43875,48.25099 z"
+       id="path7" />
+    <path
+       style="fill:#ffffff;fill-opacity:1;stroke:#1e66be;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+       d="m 475.96959,478.96092 83.43877,-48.25099 83.43873,48.25099 -83.43873,48.25099 z"
+       id="path8" />
+    <path
+       style="fill:#ffffff;fill-opacity:1;stroke:#1e66be;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+       d="m 559.40833,430.70993 83.43876,-48.25098 83.43874,48.25098 -83.43874,48.25099 z"
+       id="path9" />
+    <path
+       style="fill:#1e66be;fill-opacity:1;stroke:#1e66be;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+       d="m 475.96959,343.85815 83.43877,-48.25099 83.43873,48.25099 -83.43873,48.25099 z"
+       id="path10" />
+  </g>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:1.25;font-family:Terminus;-inkscape-font-specification:Terminus"
+     x="-38.480995"
+     y="107.81113"
+     id="text4"><tspan
+       id="tspan4"
+       x="-38.480995"
+       y="107.81113">g</tspan></text>
+  <path
+     d="m 227.04636,51.865069 q 0.48328,4.608264 -3.97496,9.701411 -4.45823,5.093156 -12.89139,9.969885 -8.67005,5.01372 -18.75572,6.907425 -10.08569,1.893694 -20.05235,0.34936 -9.96031,-1.595454 -18.55464,-6.40098 l -4.67741,-2.704854 q -13.5399,-7.829851 -13.64481,-16.5481 -0.14594,-8.74196 13.26183,-16.495421 11.51269,-6.65756 23.21124,-7.728168 11.69854,-1.070606 22.34526,3.497137 l -11.74956,6.794542 q -12.78076,-5.089464 -25.24099,2.116048 -8.05414,4.657553 -7.22404,10.01431 0.83646,5.305636 10.41844,11.011087 l 4.59535,2.657403 q 9.68306,5.599527 19.74836,5.995401 10.07158,0.344754 18.45737,-4.504584 9.1912,-5.315086 9.46553,-9.649633 l -11.69354,-6.762144 -14.21319,8.219209 -7.87776,-4.55555 26.15227,-15.123344 z"
+     id="text5-2"
+     style="font-size:50.3539px;line-height:1.25;font-family:Roboto;-inkscape-font-specification:Roboto;fill:#ffffff;stroke-width:1"
+     aria-label="G" />
+  <path
+     d="m 169.9845,193.621 -13.3604,-7.72605 -23.01781,13.31074 -11.98646,-6.93153 59.73962,-34.54624 24.25717,14.02745 q 11.93908,6.90414 13.79339,13.33871 1.85431,6.43456 -6.92609,11.5121 -5.99036,3.46411 -13.41615,3.86785 -7.33733,0.40742 -15.48147,-1.78714 l -9.4128,23.36112 -0.53339,0.30844 -12.83925,-7.42466 z m -5.03132,-12.54259 12.31808,7.12331 q 6.0643,3.50686 12.10142,3.96096 6.07809,0.43036 10.67344,-2.22704 4.8005,-2.77604 4.25215,-6.13018 -0.50099,-3.32674 -6.67275,-6.99065 l -12.64973,-7.31509 z"
+     id="text6-4"
+     style="font-size:50.3539px;line-height:1.25;font-family:Roboto;-inkscape-font-specification:Roboto;fill:#1e66be;stroke-width:1"
+     aria-label="R" />
+  <metadata
+     id="metadata12">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Grout # a graph router based on DPDK</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Robin Jarry</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:date>2024-06-24</dc:date>
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>All rights reserved</dc:title>
+          </cc:Agent>
+        </dc:rights>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>
