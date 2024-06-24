@@ -1,7 +1,7 @@
 # grout # a graph router based on DPDK
 
-`grout` stands for *Graph Router*. As a common English word, *"grout"* is
-a dense fluid that hardens to fill gaps between floor tiles.
+`grout` stands for *Graph Router*. In English, *"grout"* refers to thin mortar
+that hardens to fill gaps between tiles.
 
 `grout` is a DPDK based network processing application. It uses the [rte_graph]
 library for data path processing.
