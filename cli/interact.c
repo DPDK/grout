@@ -92,7 +92,7 @@ int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
 		goto end;
 	}
 
-	printf("Welcome to the boring router CLI.\n");
+	printf("Welcome to the graph router CLI.\n");
 	printf("Use ? for help and <tab> for command completion.\n");
 
 	// required for command completion in ec_editline_gets
