@@ -88,6 +88,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			next = FORWARD;
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
 		ip_output_mbuf_data(mbuf)->nh = nh;
+		ip_output_mbuf_data(mbuf)->input_iface = iface;
 next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
