@@ -56,5 +56,3 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
-
-GR_DROP_REGISTER(ip_forward_ttl_exceeded);

@@ -4,6 +4,7 @@
 #ifndef _GR_IP4_DATAPATH_H
 #define _GR_IP4_DATAPATH_H
 
+#include <gr_iface.h>
 #include <gr_ip4_control.h>
 #include <gr_mbuf.h>
 #include <gr_net_types.h>
@@ -14,7 +15,10 @@
 
 #include <stdint.h>
 
-GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { struct nexthop *nh; });
+GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, {
+	struct nexthop *nh;
+	const struct iface *input_iface;
+});
 
 GR_MBUF_PRIV_DATA_TYPE(arp_mbuf_data, {
 	struct nexthop *local;
@@ -49,5 +53,7 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 	ip->hdr_checksum = 0;
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
 }
+
+#define GR_IP_ICMP_TTL_EXCEEDED 11
 
 #endif
