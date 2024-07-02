@@ -75,15 +75,15 @@ also in scripts one command at a time, or by batches.
 ```sh
 dnf install gcc git libcmocka-devel libedit-devel libevent-devel make meson \
         ninja-build numactl-devel pkgconf python3-pyelftools scdoc \
-        libsmartcols-devel
+        libsmartcols-devel clang-tools-extra
 ```
 
 or
 
 ```sh
-apt install build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
+apt install git build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
         libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc \
-        libsmartcols-dev
+        libsmartcols-dev clang-format
 ```
 
 ### Build
