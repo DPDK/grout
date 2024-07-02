@@ -19,3 +19,6 @@ drop_packets(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 
 	return nb_objs;
 }
+
+// Global drop counters, used by multiple nodes
+GR_DROP_REGISTER(error_no_headroom);
