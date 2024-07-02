@@ -11,5 +11,6 @@ src += files(
   'ip_input.c',
   'ip_local.c',
   'ip_output.c',
+  'ip_ttl_exceeded.c',
 )
 inc += include_directories('.')
