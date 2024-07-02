@@ -16,6 +16,7 @@
 
 enum {
 	OUTPUT = 0,
+	NO_HEADROOM,
 	EDGE_COUNT,
 };
 
@@ -35,13 +36,16 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		icmp->icmp_cksum = ~rte_raw_cksum(icmp, local_data->len);
 
 		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+		if (unlikely(ip == NULL)) {
+			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
+			continue;
+		}
 		ip_set_fields(ip, local_data);
 		ip_output_mbuf_data(mbuf)->nh = ip4_route_lookup(
 			local_data->vrf_id, local_data->dst
 		);
+		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
 	}
-
-	rte_node_enqueue(graph, node, OUTPUT, objs, nb_objs);
 
 	return nb_objs;
 }
@@ -54,6 +58,7 @@ static struct rte_node_register icmp_output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "ip_output",
+		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 

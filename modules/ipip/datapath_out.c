@@ -22,6 +22,7 @@
 enum {
 	IP_OUTPUT = 0,
 	NO_TUNNEL,
+	NO_HEADROOM,
 	EDGE_COUNT,
 };
 
@@ -56,6 +57,10 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		tunnel.vrf_id = iface->vrf_id;
 		tunnel.proto = IPPROTO_IPIP;
 		outer = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*outer));
+		if (unlikely(outer == NULL)) {
+			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
+			continue;
+		}
 		ip_set_fields(outer, &tunnel);
 
 		// Resolve nexthop for the encapsulated packet.
@@ -84,6 +89,7 @@ static struct rte_node_register ipip_output_node = {
 	.next_nodes = {
 		[IP_OUTPUT] = "ip_output",
 		[NO_TUNNEL] = "ipip_output_no_tunnel",
+		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 

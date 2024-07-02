@@ -17,6 +17,7 @@
 enum {
 	TX = 0,
 	INVAL,
+	NO_HEADROOM,
 	NB_EDGES,
 };
 
@@ -38,6 +39,10 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		case GR_IFACE_TYPE_VLAN:
 			sub = (struct iface_info_vlan *)priv->iface->info;
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
+			if (unlikely(vlan == NULL)) {
+				rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
+				continue;
+			}
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
 			vlan->eth_proto = priv->ether_type;
 			priv->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN);
@@ -55,6 +60,10 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 
 		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
+		if (unlikely(eth == NULL)) {
+			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
+			continue;
+		}
 		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
 		rte_ether_addr_copy(src_mac, &eth->src_addr);
 		eth->ether_type = priv->ether_type;
@@ -75,6 +84,7 @@ static struct rte_node_register node= {
 	.next_nodes = {
 		[TX] = "port_tx",
 		[INVAL] = "eth_output_inval",
+		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 
