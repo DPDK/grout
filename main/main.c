@@ -32,7 +32,7 @@
 static void usage(const char *prog) {
 	printf("Usage: %s [-h] [-v] [-t] [-c FILE] [-s PATH]\n", prog);
 	puts("");
-	puts("  Boring router.");
+	puts("  Graph router.");
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Display this help message and exit.");

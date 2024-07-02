@@ -27,7 +27,7 @@ static void usage(const char *prog) {
 
 static void help(void) {
 	puts("");
-	puts("  Boring router CLI.");
+	puts("  Graph router CLI.");
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Show this help message and exit.");
