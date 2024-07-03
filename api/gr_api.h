@@ -7,6 +7,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef GROUT_VERSION
+#define GROUT_VERSION "v0.1"
+#endif
+
 struct gr_api_request {
 	uint32_t id;
 	uint32_t type;

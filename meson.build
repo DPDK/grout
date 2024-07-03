@@ -4,7 +4,11 @@
 project(
   'grout',
   'c',
-  version: '0.1',
+  version: run_command(
+    'sh', '-c', 'git describe --long --abbrev=12 --tags --dirty 2>/dev/null || echo v0.1',
+    check: false,
+    capture: true,
+  ).stdout().strip(),
   license: 'BSD-3-Clause',
   meson_version: '>= 0.63.0',
   default_options: [
@@ -21,6 +25,7 @@ add_project_arguments('-Wmissing-prototypes', language: 'c')
 add_project_arguments('-fstrict-aliasing', language: 'c')
 add_project_arguments('-Wstrict-aliasing=2', language: 'c')
 add_project_arguments('-Wno-format-truncation', language: 'c')
+add_project_arguments('-DGROUT_VERSION="' + meson.project_version() + '"', language: 'c')
 
 dpdk_dep = dependency(
   'libdpdk',

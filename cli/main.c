@@ -27,7 +27,7 @@ static void usage(const char *prog) {
 
 static void help(void) {
 	puts("");
-	puts("  Graph router CLI.");
+	printf("  Graph router CLI version %s.\n", GROUT_VERSION);
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Show this help message and exit.");

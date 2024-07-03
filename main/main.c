@@ -32,7 +32,7 @@
 static void usage(const char *prog) {
 	printf("Usage: %s [-h] [-v] [-t] [-c FILE] [-s PATH]\n", prog);
 	puts("");
-	puts("  Graph router.");
+	printf("  Graph router version %s.\n", GROUT_VERSION);
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Display this help message and exit.");
@@ -355,6 +355,8 @@ int main(int argc, char **argv) {
 
 	if (parse_args(argc, argv) < 0)
 		goto end;
+
+	LOG(INFO, "starting grout version %s", GROUT_VERSION);
 
 	if (dpdk_init(&args) < 0)
 		goto dpdk_stop;
