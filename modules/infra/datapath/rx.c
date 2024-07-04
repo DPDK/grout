@@ -38,6 +38,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	const struct iface *iface;
 	struct rx_port_queue q;
 	uint16_t rx;
+	unsigned r;
 
 	(void)objs;
 
@@ -52,10 +53,15 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			rte_node_enqueue(graph, node, NO_IFACE, &node->objs[count], rx);
 			continue;
 		}
-		for (int r = count; r < count + rx; r++) {
+		for (r = count; r < count + rx; r++) {
 			eth_input_mbuf_data(node->objs[r])->iface = iface;
-			trace_packet("rx", iface->name, node->objs[r]);
 		}
+		if (unlikely(packet_trace_enabled)) {
+			for (r = count; r < count + rx; r++) {
+				trace_packet("rx", iface->name, node->objs[r]);
+			}
+		}
+
 		count += rx;
 	}
 

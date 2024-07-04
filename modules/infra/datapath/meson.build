@@ -8,6 +8,7 @@ src += files(
   'main_loop.c',
   'mbuf.c',
   'rx.c',
+  'trace.c',
   'tx.c',
 )
 inc += include_directories('.')
