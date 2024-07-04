@@ -9,6 +9,7 @@
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
+#include <gr_log.h>
 #include <gr_mbuf.h>
 
 #include <rte_byteorder.h>

@@ -4,6 +4,7 @@
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_ip4_datapath.h>
+#include <gr_log.h>
 
 #include <rte_graph_worker.h>
 #include <rte_ip.h>

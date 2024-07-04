@@ -6,6 +6,7 @@
 
 #include <gr_graph.h>
 #include <gr_iface.h>
+#include <gr_log.h>
 #include <gr_port.h>
 #include <gr_vlan.h>
 
@@ -68,7 +69,8 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		rte_ether_addr_copy(src_mac, &eth->src_addr);
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
-		trace_packet("tx", priv->iface->name, mbuf);
+		if (unlikely(packet_trace_enabled))
+			trace_packet("tx", priv->iface->name, mbuf);
 		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 

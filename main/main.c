@@ -32,7 +32,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-p] [-s PATH] [-t] [-v]\n", prog);
+	printf("Usage: %s [-h] [-p] [-s PATH] [-t] [-v] [-x]\n", prog);
 	puts("");
 	printf("  Graph router version %s.\n", GROUT_VERSION);
 	puts("");
@@ -44,9 +44,11 @@ static void usage(const char *prog) {
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
 	puts("  -v, --verbose              Increase verbosity.");
+	puts("  -x, --trace-packets        Print all ingress/egress packets.");
 }
 
 static struct gr_args args;
+bool packet_trace_enabled;
 
 const struct gr_args *gr_args(void) {
 	return &args;
@@ -55,13 +57,14 @@ const struct gr_args *gr_args(void) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":hps:tv"
+#define FLAGS ":hps:tvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"verbose", no_argument, NULL, 'v'},
+		{"trace-packets", no_argument, NULL, 'x'},
 		{0},
 	};
 
@@ -86,6 +89,9 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'v':
 			args.log_level++;
+			break;
+		case 'x':
+			packet_trace_enabled = true;
 			break;
 		case ':':
 			usage(argv[0]);

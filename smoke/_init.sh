@@ -38,6 +38,6 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
-	grout -tv &
+	grout -tvx &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10

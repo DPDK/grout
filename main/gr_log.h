@@ -52,4 +52,6 @@ static inline void *errno_set_null(int errnum) {
 	return NULL;
 }
 
+extern bool packet_trace_enabled;
+
 #endif

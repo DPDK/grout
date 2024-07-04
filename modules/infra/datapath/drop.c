@@ -12,9 +12,9 @@ drop_packets(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 	(void)node;
 	(void)graph;
 
-#ifdef TRACE_PACKETS
-	LOG(NOTICE, "[%s] %u packets", node->name, nb_objs);
-#endif
+	if (unlikely(packet_trace_enabled)) {
+		LOG(NOTICE, "[%s] %u packets", node->name, nb_objs);
+	}
 	rte_pktmbuf_free_bulk((struct rte_mbuf **)objs, nb_objs);
 
 	return nb_objs;
