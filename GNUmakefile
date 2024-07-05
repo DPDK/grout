@@ -22,7 +22,7 @@ unit-tests: $(BUILDDIR)/build.ninja
 
 .PHONY: smoke-tests
 smoke-tests: all
-	./tests/smoke.sh $(BUILDDIR)
+	./smoke/run.sh $(BUILDDIR)
 
 .PHONY: coverage
 coverage: test
