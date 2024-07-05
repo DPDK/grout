@@ -29,19 +29,21 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+// Please keep options/flags in alphabetical order.
+
 static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-v] [-t] [-c FILE] [-s PATH]\n", prog);
+	printf("Usage: %s [-h] [-p] [-s PATH] [-t] [-v]\n", prog);
 	puts("");
 	printf("  Graph router version %s.\n", GROUT_VERSION);
 	puts("");
 	puts("options:");
 	puts("  -h, --help                 Display this help message and exit.");
-	puts("  -v, --verbose              Increase verbosity.");
-	puts("  -t, --test-mode            Run in test mode (no hugepages).");
 	puts("  -p, --poll-mode            Disable automatic micro-sleep.");
 	puts("  -s PATH, --socket PATH     Path the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
+	puts("  -t, --test-mode            Run in test mode (no hugepages).");
+	puts("  -v, --verbose              Increase verbosity.");
 }
 
 static struct gr_args args;
@@ -53,12 +55,12 @@ const struct gr_args *gr_args(void) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":s:htpv"
+#define FLAGS ":hps:tv"
 	static struct option long_options[] = {
-		{"socket", required_argument, NULL, 's'},
 		{"help", no_argument, NULL, 'h'},
-		{"test-mode", no_argument, NULL, 't'},
 		{"poll-mode", no_argument, NULL, 'p'},
+		{"socket", required_argument, NULL, 's'},
+		{"test-mode", no_argument, NULL, 't'},
 		{"verbose", no_argument, NULL, 'v'},
 		{0},
 	};
@@ -70,21 +72,21 @@ static int parse_args(int argc, char **argv) {
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
+		case 'h':
+			usage(argv[0]);
+			return -1;
+		case 'p':
+			args.poll_mode = true;
+			break;
 		case 's':
 			args.api_sock_path = optarg;
 			break;
 		case 't':
 			args.test_mode = true;
 			break;
-		case 'p':
-			args.poll_mode = true;
-			break;
 		case 'v':
 			args.log_level++;
 			break;
-		case 'h':
-			usage(argv[0]);
-			return -1;
 		case ':':
 			usage(argv[0]);
 			fprintf(stderr, "error: -%c requires a value", optopt);

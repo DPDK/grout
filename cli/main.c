@@ -20,9 +20,11 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
+// Please keep options/flags in alphabetical order.
+
 static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-e] [-x] [-s PATH] ...\n", prog);
-	printf("       %s --bash-complete\n", prog);
+	printf("Usage: %s [-e] [-h] [-s PATH] [-x] ...\n", prog);
+	printf("       %s -c|--bash-complete\n", prog);
 }
 
 static void help(void) {
@@ -30,12 +32,14 @@ static void help(void) {
 	printf("  Graph router CLI version %s.\n", GROUT_VERSION);
 	puts("");
 	puts("options:");
+	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -h, --help                 Show this help message and exit.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
-	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -x, --trace-commands       Print executed commands.");
+	puts("");
+	puts("external completion:");
 	puts("  -c, --bash-complete        For use in bash completion:");
 	puts("                             complete -o default -C 'grcli -c' grcli");
 }
@@ -51,12 +55,12 @@ struct gr_cli_opts opts;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":s:exh"
+#define FLAGS ":ehs:x"
 	static struct option long_options[] = {
-		{"socket", required_argument, NULL, 's'},
 		{"err-exit", no_argument, NULL, 'e'},
-		{"trace-commands", no_argument, NULL, 'x'},
 		{"help", no_argument, NULL, 'h'},
+		{"socket", required_argument, NULL, 's'},
+		{"trace-commands", no_argument, NULL, 'x'},
 		{0},
 	};
 
@@ -66,19 +70,19 @@ static int parse_args(int argc, char **argv) {
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
-		case 's':
-			opts.sock_path = optarg;
-			break;
 		case 'e':
 			opts.err_exit = true;
-			break;
-		case 'x':
-			opts.trace_commands = true;
 			break;
 		case 'h':
 			usage(argv[0]);
 			help();
 			return -1;
+		case 's':
+			opts.sock_path = optarg;
+			break;
+		case 'x':
+			opts.trace_commands = true;
+			break;
 		case ':':
 			usage(argv[0]);
 			errorf("-%c requires a value", optopt);
