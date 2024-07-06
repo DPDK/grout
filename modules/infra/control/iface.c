@@ -46,6 +46,18 @@ static int next_ifid(uint16_t *ifid) {
 	return -1;
 }
 
+static STAILQ_HEAD(, iface_event_handler) event_handlers = STAILQ_HEAD_INITIALIZER(event_handlers);
+
+void iface_event_register_handler(struct iface_event_handler *cb) {
+	STAILQ_INSERT_TAIL(&event_handlers, cb, next);
+}
+
+void iface_event_notify(iface_event_t event, struct iface *iface) {
+	struct iface_event_handler *iface_event_handler;
+	STAILQ_FOREACH (iface_event_handler, &event_handlers, next)
+		iface_event_handler->callback(event, iface);
+}
+
 struct iface *iface_create(
 	uint16_t type_id,
 	uint16_t flags,
@@ -85,6 +97,8 @@ struct iface *iface_create(
 		goto fail;
 
 	ifaces[ifid] = iface;
+
+	iface_event_notify(IFACE_EVENT_POST_ADD, iface);
 
 	return iface;
 fail:
@@ -190,6 +204,8 @@ int iface_destroy(uint16_t ifid) {
 	if (iface == NULL)
 		return -1;
 
+	iface_event_notify(IFACE_EVENT_PRE_REMOVE, iface);
+
 	ifaces[ifid] = NULL;
 	type = iface_type_get(iface->type_id);
 	ret = type->fini(iface);
@@ -224,6 +240,23 @@ static struct gr_module iface_module = {
 	.fini_prio = 1000,
 };
 
+static void iface_event_debug(iface_event_t event, struct iface *iface) {
+	const char *str = "IFACE_EVENT_UNKNOWN";
+#define IFACE_EVENT(name) #name
+	const char *evt_to_str[] = {IFACE_EVENTS};
+#undef IFACE_EVENT
+
+	if (event < (sizeof(evt_to_str) / sizeof(evt_to_str[0])))
+		str = evt_to_str[event];
+
+	LOG(DEBUG, "iface event [%d] %s triggered for iface %s.", event, str, iface->name);
+}
+
+static struct iface_event_handler iface_event_debug_handler = {
+	.callback = iface_event_debug,
+};
+
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
+	iface_event_register_handler(&iface_event_debug_handler);
 }

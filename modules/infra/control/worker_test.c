@@ -26,6 +26,7 @@ int gr_rte_log_type;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
+void iface_event_notify(iface_event_t, struct iface *) { }
 
 struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 	uint16_t ifid;

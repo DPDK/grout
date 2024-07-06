@@ -76,6 +76,24 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
 uint16_t ifaces_count(uint16_t type_id);
 struct iface *iface_next(uint16_t type_id, const struct iface *prev);
 
+#define IFACE_EVENTS                                                                               \
+	IFACE_EVENT(UNKNOWN), IFACE_EVENT(POST_ADD), IFACE_EVENT(PRE_REMOVE),                      \
+		IFACE_EVENT(PORT_POST_RECONFIG)
+
+#define IFACE_EVENT(name) IFACE_EVENT_##name
+typedef enum {
+	IFACE_EVENTS
+} iface_event_t;
+#undef IFACE_EVENT
+
+typedef void (*iface_event_cb_t)(iface_event_t event, struct iface *iface);
+struct iface_event_handler {
+	iface_event_cb_t callback;
+	STAILQ_ENTRY(iface_event_handler) next;
+};
+void iface_event_register_handler(struct iface_event_handler *handler);
+void iface_event_notify(iface_event_t event, struct iface *iface);
+
 #define MAX_IFACES 1024
 
 #endif
