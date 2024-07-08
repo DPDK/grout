@@ -21,7 +21,10 @@ enum {
 
 static rte_edge_t l2l3_edges[1 << 16] = {UNKNOWN_ETHER_TYPE};
 
-void gr_eth_input_add_type(rte_be16_t eth_type, rte_edge_t edge) {
+void gr_eth_input_add_type(rte_be16_t eth_type, const char *node_name) {
+	rte_edge_t edge = gr_node_attach_parent("eth_input", node_name);
+	if (edge == RTE_EDGE_ID_INVALID)
+		ABORT("gr_node_attach_parent(eth_input, %s) failed", node_name);
 	l2l3_edges[eth_type] = edge;
 	LOG(DEBUG, "eth_input: type=0x%04x -> edge %u", rte_be_to_cpu_16(eth_type), edge);
 }

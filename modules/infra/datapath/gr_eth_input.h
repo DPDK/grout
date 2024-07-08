@@ -13,6 +13,6 @@
 
 GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { const struct iface *iface; });
 
-void gr_eth_input_add_type(rte_be16_t eth_type, rte_edge_t edge);
+void gr_eth_input_add_type(rte_be16_t eth_type, const char *node_name);
 
 #endif

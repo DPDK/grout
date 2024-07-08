@@ -64,10 +64,7 @@ next:
 }
 
 static void icmp_input_register(void) {
-	rte_edge_t edge = gr_node_attach_parent("ip_input_local", "icmp_input");
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(classify, icmp_input) failed");
-	ip_input_local_add_proto(IPPROTO_ICMP, edge);
+	ip_input_local_add_proto(IPPROTO_ICMP, "icmp_input");
 }
 
 static struct rte_node_register icmp_input_node = {

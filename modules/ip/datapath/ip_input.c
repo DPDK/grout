@@ -97,10 +97,7 @@ next_packet:
 }
 
 static void ip_input_register(void) {
-	rte_edge_t edge = gr_node_attach_parent("eth_input", "ip_input");
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(eth_input, ip_input) failed");
-	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), edge);
+	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), "ip_input");
 }
 
 static struct rte_node_register input_node = {
