@@ -135,10 +135,7 @@ next:
 }
 
 static void arp_input_register(void) {
-	rte_edge_t edge = gr_node_attach_parent("eth_input", "arp_input");
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(eth_input, arp_input) failed");
-	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), edge);
+	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), "arp_input");
 }
 
 static struct rte_node_register node = {
