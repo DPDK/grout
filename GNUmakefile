@@ -73,3 +73,9 @@ format:
 	@echo '[clang-format]'
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
 		clang-format --files="$$tmp" -i --verbose
+
+REVISION_RANGE ?= origin/main..
+
+.PHONY: check-patches
+check-patches:
+	$Q devtools/check-patches $(REVISION_RANGE)
