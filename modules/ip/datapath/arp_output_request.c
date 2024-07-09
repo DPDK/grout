@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_input.h>
 #include <gr_datapath.h>
 #include <gr_eth_output.h>
 #include <gr_graph.h>
@@ -17,8 +18,6 @@
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
-#include <rte_ring.h>
-#include <rte_spinlock.h>
 
 enum {
 	OUTPUT = 0,
@@ -26,14 +25,12 @@ enum {
 	EDGE_COUNT,
 };
 
-static struct rte_ring *nexthop_ring;
-
 int arp_output_request_solicit(struct nexthop *nh) {
 	int ret;
 	if (nh == NULL)
 		return errno_set(EINVAL);
 	ip4_nexthop_incref(nh);
-	ret = rte_ring_enqueue(nexthop_ring, nh);
+	ret = post_to_stack(CONTROL_INPUT_ARP_REQUEST, nh);
 	if (ret < 0) {
 		ip4_nexthop_decref(nh);
 		return errno_set(-ret);
@@ -41,10 +38,12 @@ int arp_output_request_solicit(struct nexthop *nh) {
 	return 0;
 }
 
-static struct rte_mempool *arp_pool;
-
-static uint16_t
-arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+static uint16_t arp_output_request_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t n_objs
+) {
 	struct eth_output_mbuf_data *eth_data;
 	struct nexthop *local, *nh;
 	struct rte_arp_hdr *arp;
@@ -52,21 +51,13 @@ arp_output_request_process(struct rte_graph *graph, struct rte_node *node, void 
 	rte_edge_t next;
 	uint16_t sent;
 	uint64_t now;
-	unsigned n;
 
 	now = rte_get_tsc_cycles();
-	n = rte_ring_dequeue_burst(nexthop_ring, node->objs, RTE_GRAPH_BURST_SIZE, NULL);
 	sent = 0;
 
-	for (unsigned i = 0; i < n; i++) {
-		nh = node->objs[i];
-
-		// Create a brand new mbuf to hold the ARP request.
-		mbuf = rte_pktmbuf_alloc(arp_pool);
-		if (mbuf == NULL) {
-			next = ERROR;
-			goto next;
-		}
+	for (unsigned i = 0; i < n_objs; i++) {
+		mbuf = objs[i];
+		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
 		local = ip4_addr_get(nh->iface_id);
 		if (local == NULL) {
 			next = ERROR;
@@ -115,34 +106,10 @@ next:
 }
 
 static void arp_output_request_register(void) {
-	nexthop_ring = rte_ring_create(
-		"arp_output_request",
-		RTE_GRAPH_BURST_SIZE * 4,
-		SOCKET_ID_ANY,
-		RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ
-	);
-	if (nexthop_ring == NULL)
-		ABORT("rte_ring_create(arp_output_request): %s", rte_strerror(rte_errno));
-
-	arp_pool = rte_pktmbuf_pool_create(
-		"arp_output_request",
-		RTE_GRAPH_BURST_SIZE * 4,
-		256, // cache_size
-		GR_MBUF_PRIV_MAX_SIZE,
-		RTE_MBUF_DEFAULT_BUF_SIZE,
-		SOCKET_ID_ANY
-	);
-	if (arp_pool == NULL)
-		ABORT("rte_pktmbuf_pool_create(arp_output_request): %s", rte_strerror(rte_errno));
-}
-
-static void arp_output_request_unregister(void) {
-	rte_ring_free(nexthop_ring);
-	rte_mempool_free(arp_pool);
+	gr_control_input_add_handler(CONTROL_INPUT_ARP_REQUEST, "arp_output_request");
 }
 
 static struct rte_node_register arp_output_request_node = {
-	.flags = RTE_NODE_SOURCE_F,
 	.name = "arp_output_request",
 	.process = arp_output_request_process,
 	.nb_edges = EDGE_COUNT,
@@ -155,7 +122,6 @@ static struct rte_node_register arp_output_request_node = {
 static struct gr_node_info arp_output_request_info = {
 	.node = &arp_output_request_node,
 	.register_callback = arp_output_request_register,
-	.unregister_callback = arp_output_request_unregister,
 };
 
 GR_NODE_REGISTER(arp_output_request_info);
