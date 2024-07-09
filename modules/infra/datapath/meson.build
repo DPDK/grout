@@ -6,7 +6,6 @@ src += files(
   'eth_input.c',
   'eth_output.c',
   'main_loop.c',
-  'mbuf.c',
   'rx.c',
   'trace.c',
   'tx.c',

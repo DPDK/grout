@@ -128,7 +128,7 @@ static void arp_output_request_register(void) {
 		"arp_output_request",
 		RTE_GRAPH_BURST_SIZE * 4,
 		256, // cache_size
-		0, // priv_size
+		GR_MBUF_PRIV_MAX_SIZE,
 		RTE_MBUF_DEFAULT_BUF_SIZE,
 		SOCKET_ID_ANY
 	);
