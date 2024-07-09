@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024 Robin Jarry
 # Known wcsdup() leak in libedit
 # https://salsa.debian.org/debian/libedit/-/blob/upstream/3.1-20230828/src/eln.c#L227-229
 leak:el_set

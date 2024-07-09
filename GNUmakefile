@@ -45,10 +45,9 @@ meson_opts += $(MESON_EXTRA_OPTS)
 $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)
 
-prune = -path $1 -prune -o
-exclude = $(BUILDDIR) subprojects LICENSE README.md '**.svg'
-c_src = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -name '*.[ch]' -print
-all_files = find * $(foreach d,$(exclude),$(call prune,$d)) -type f -print
+c_src = git ls-files '*.[ch]' ':!:subprojects'
+all_files = git ls-files ':!:subprojects'
+licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:README.md' ':!:subprojects'
 
 .PHONY: lint
 lint:
@@ -56,7 +55,7 @@ lint:
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
 		clang-format --files="$$tmp" --dry-run --Werror
 	@echo '[license-check]'
-	$Q ! $(all_files) | while read -r f; do \
+	$Q ! $(licensed_files) | while read -r f; do \
 		if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
 			echo $$f; \
 		fi; \
@@ -67,6 +66,8 @@ lint:
 		echo 'error: files are missing license and/or copyright notice'; \
 		exit 1; \
 	}
+	@echo '[white-space]'
+	$Q $(all_files) | xargs devtools/check-whitespace
 
 .PHONY: format
 format:
