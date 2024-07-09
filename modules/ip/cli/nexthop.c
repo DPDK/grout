@@ -24,7 +24,7 @@ static cmd_status_t nh4_add(const struct gr_api_client *c, const struct ec_pnode
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
-	if (gr_eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
+	if (eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;

@@ -154,7 +154,7 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *val)
 	}
 	const char *str = ec_strvec_val(v, 0);
 
-	if (gr_eth_addr_parse(str, val) < 0) {
+	if (eth_addr_parse(str, val) < 0) {
 		errno = EINVAL;
 		goto err;
 	}
