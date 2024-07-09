@@ -22,16 +22,16 @@ struct eth_addr {
 	uint8_t bytes[6];
 };
 
-static inline bool gr_eth_addr_eq(const struct eth_addr *a, const struct eth_addr *b) {
+static inline bool eth_addr_eq(const struct eth_addr *a, const struct eth_addr *b) {
 	return memcmp(a->bytes, b->bytes, sizeof(a->bytes)) == 0;
 }
 
-static inline bool gr_eth_addr_is_zero(const struct eth_addr *mac) {
+static inline bool eth_addr_is_zero(const struct eth_addr *mac) {
 	struct eth_addr zero = {0};
-	return gr_eth_addr_eq(mac, &zero);
+	return eth_addr_eq(mac, &zero);
 }
 
-static inline int gr_eth_addr_parse(const char *s, struct eth_addr *mac) {
+static inline int eth_addr_parse(const char *s, struct eth_addr *mac) {
 	if (s == NULL)
 		goto err;
 	int ret = sscanf(
@@ -53,8 +53,9 @@ err:
 }
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
-#define IPV4_RE "^" IPV4_ATOM "(\\." IPV4_ATOM "){3}$"
-#define IPV4_NET_RE "^" IPV4_ATOM "(\\." IPV4_ATOM "){3}/(3[0-2]|[12][0-9]|[0-9])$"
+#define __IPV4_RE IPV4_ATOM "(\\." IPV4_ATOM "){3}"
+#define IPV4_RE "^" __IPV4_RE "$"
+#define IPV4_NET_RE "^" __IPV4_RE "/(3[0-2]|[12][0-9]|[0-9])$"
 
 typedef uint32_t ip4_addr_t;
 
@@ -63,7 +64,7 @@ struct ip4_net {
 	uint8_t prefixlen;
 };
 
-static inline int gr_ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
+static inline int ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
 
@@ -89,7 +90,7 @@ out:
 	return ret;
 }
 
-static inline int gr_ip4_net_format(const struct ip4_net *net, char *buf, size_t len) {
+static inline int ip4_net_format(const struct ip4_net *net, char *buf, size_t len) {
 	const char *tmp;
 	int n;
 

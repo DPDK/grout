@@ -19,7 +19,7 @@ static cmd_status_t addr_add(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip4_addr_add_req req = {.exist_ok = true};
 	struct gr_iface iface;
 
-	if (gr_ip4_net_parse(arg_str(p, "IP_NET"), &req.addr.addr, false) < 0)
+	if (ip4_net_parse(arg_str(p, "IP_NET"), &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
@@ -35,7 +35,7 @@ static cmd_status_t addr_del(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip4_addr_del_req req = {.missing_ok = true};
 	struct gr_iface iface;
 
-	if (gr_ip4_net_parse(arg_str(p, "IP_NET"), &req.addr.addr, false) < 0)
+	if (ip4_net_parse(arg_str(p, "IP_NET"), &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
@@ -80,7 +80,7 @@ static cmd_status_t addr_list(const struct gr_api_client *c, const struct ec_pno
 	for (size_t i = 0; i < resp->n_addrs; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip4_ifaddr *addr = &resp->addrs[i];
-		gr_ip4_net_format(&addr->addr, buf, sizeof(buf));
+		ip4_net_format(&addr->addr, buf, sizeof(buf));
 		if (iface_from_id(c, addr->iface_id, &iface) == 0)
 			scols_line_sprintf(line, 0, "%s", iface.name);
 		else

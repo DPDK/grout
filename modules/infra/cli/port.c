@@ -63,7 +63,7 @@ static uint64_t parse_port_args(
 		}
 		memccpy(port->devargs, devargs, 0, sizeof(port->devargs));
 	}
-	if (gr_eth_addr_parse(arg_str(p, "MAC"), &port->mac) == 0)
+	if (eth_addr_parse(arg_str(p, "MAC"), &port->mac) == 0)
 		set_attrs |= GR_PORT_SET_MAC;
 
 	if (arg_u16(p, "N_RXQ", &port->n_rxq) == 0)

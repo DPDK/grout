@@ -102,7 +102,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (ip4_nexthop_lookup(req->nh.vrf_id, req->nh.host, &nh_idx, &nh) == 0) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && gr_eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
+		    && eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
@@ -192,6 +192,7 @@ static void nexthop_gc(evutil_socket_t, short, void *) {
 	uint64_t now = rte_get_tsc_cycles();
 	uint64_t reply_age, request_age;
 	unsigned probes, max_probes;
+	char buf[INET_ADDRSTRLEN];
 	struct nexthop *nh;
 	const void *key;
 	uint32_t iter;
@@ -213,10 +214,11 @@ static void nexthop_gc(evutil_socket_t, short, void *) {
 
 		if (nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE) && request_age > probes) {
 			if (probes >= max_probes && !(nh->flags & GR_IP4_NH_F_GATEWAY)) {
+				inet_ntop(AF_INET, &nh->ip, buf, sizeof(buf));
 				LOG(DEBUG,
-				    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: %s -> failed",
+				    "%s vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
+				    buf,
 				    nh->vrf_id,
-				    ntohl(nh->ip),
 				    probes,
 				    nh->held_pkts_num,
 				    gr_ip4_nh_f_name(
@@ -234,10 +236,11 @@ static void nexthop_gc(evutil_socket_t, short, void *) {
 			nh->flags |= GR_IP4_NH_F_STALE;
 		} else if (nh->flags & GR_IP4_NH_F_FAILED
 			   && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
+			inet_ntop(AF_INET, &nh->ip, buf, sizeof(buf));
 			LOG(DEBUG,
-			    "vrf=%u ip=0x%08x failed_probes=%u held_pkts=%u: failed -> <destroy>",
+			    "%s vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
+			    buf,
 			    nh->vrf_id,
-			    ntohl(nh->ip),
 			    probes,
 			    nh->held_pkts_num);
 

@@ -18,7 +18,7 @@
 static cmd_status_t route4_add(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_route_add_req req = {.exist_ok = true};
 
-	if (gr_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (inet_pton(AF_INET, arg_str(p, "NH"), &req.nh) != 1) {
 		errno = EINVAL;
@@ -36,7 +36,7 @@ static cmd_status_t route4_add(const struct gr_api_client *c, const struct ec_pn
 static cmd_status_t route4_del(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_route_del_req req = {.missing_ok = true};
 
-	if (gr_ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (ip4_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -75,7 +75,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip4_route *route = &resp->routes[i];
-		gr_ip4_net_format(&route->dest, dest, sizeof(dest));
+		ip4_net_format(&route->dest, dest, sizeof(dest));
 		inet_ntop(AF_INET, &route->nh, nh, sizeof(nh));
 		scols_line_set_data(line, 0, dest);
 		scols_line_set_data(line, 1, nh);
