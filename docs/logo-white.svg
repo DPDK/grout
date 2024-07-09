@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="349.73569"
+   height="240.84607"
+   viewBox="0 0 354.9995 244.471"
+   version="1.1"
+   id="svg5"
+   sodipodi:docname="logo-white.svg"
+   inkscape:version="1.3.2 (091e20ef0f, 2023-11-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.5522181"
+     inkscape:cx="124.98243"
+     inkscape:cy="91.481987"
+     inkscape:window-width="1916"
+     inkscape:window-height="1034"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg5" />
+  <title
+     id="title12">Grout # a graph router based on DPDK</title>
+  <defs
+     id="defs2" />
+  <path
+     style="fill:none;fill-opacity:1;stroke:#f7fafe;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+     d="m 10.62227,141.79116 83.43875,-48.25098 83.43875,48.25098 -83.43875,48.25099 z"
+     id="path7" />
+  <path
+     style="fill:none;fill-opacity:1;stroke:#f7fafe;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+     d="m 94.061,190.04215 83.43877,-48.25099 83.43873,48.25099 -83.43873,48.25099 z"
+     id="path8" />
+  <path
+     style="fill:none;fill-opacity:1;stroke:#f7fafe;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+     d="m 177.49974,141.79116 83.43876,-48.25098 83.43874,48.25098 -83.43874,48.25099 z"
+     id="path9" />
+  <path
+     id="path10"
+     style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:7.99962;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
+     d="M 177.49908 4.3417213 L 176.48403 4.9305301 C 147.65793 21.600523 118.83229 38.269183 90.00646 54.939626 C 119.17068 71.805636 148.33497 88.669336 177.49908 105.53555 C 206.66319 88.669336 235.82946 71.805635 264.99369 54.939626 C 235.8294 38.073077 206.66322 21.208528 177.49908 4.3417213 z M 176.75167 28.732679 C 182.46946 28.902169 187.9903 30.128369 193.31365 32.412238 L 181.56325 39.206338 C 173.04275 35.813366 164.63059 36.520001 156.32377 41.323671 C 150.95435 44.428703 148.54607 47.766217 149.09947 51.337385 C 149.65711 54.874472 153.12964 58.544677 159.51762 62.348307 L 164.1131 65.006868 C 170.56847 68.739883 177.1508 70.738096 183.86099 71.002012 C 190.57537 71.231848 196.72774 69.730613 202.31827 66.497724 C 208.44573 62.954337 211.60192 59.736506 211.7848 56.846811 L 200.08991 50.084432 L 185.87722 58.303964 L 177.99868 53.748131 L 204.1521 38.625459 L 227.04625 51.864736 C 227.36844 54.936909 226.04345 58.171766 223.0713 61.567194 C 220.09915 64.962628 215.80305 68.286144 210.18094 71.537293 C 204.40092 74.87977 198.14808 77.181928 191.42431 78.444397 C 184.70052 79.706858 178.01554 79.822875 171.37111 78.79332 C 164.73091 77.729685 158.54624 75.59544 152.81669 72.39176 L 148.13993 69.687601 C 139.11334 64.467705 134.56417 58.951657 134.49423 53.139497 C 134.39694 47.311529 138.8188 41.811907 147.7573 36.642938 C 155.43242 32.204569 163.16963 29.628809 170.96866 28.915071 C 172.91841 28.736637 174.84574 28.676182 176.75167 28.732679 z " />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:40px;line-height:1.25;font-family:Terminus;-inkscape-font-specification:Terminus"
+     x="-38.480995"
+     y="107.81113"
+     id="text4"><tspan
+       id="tspan4"
+       x="-38.480995"
+       y="107.81113">g</tspan></text>
+  <path
+     d="m 169.9845,193.621 -13.3604,-7.72605 -23.01781,13.31074 -11.98646,-6.93153 59.73962,-34.54624 24.25717,14.02745 q 11.93908,6.90414 13.79339,13.33871 1.85431,6.43456 -6.92609,11.5121 -5.99036,3.46411 -13.41615,3.86785 -7.33733,0.40742 -15.48147,-1.78714 l -9.4128,23.36112 -0.53339,0.30844 -12.83925,-7.42466 z m -5.03132,-12.54259 12.31808,7.12331 q 6.0643,3.50686 12.10142,3.96096 6.07809,0.43036 10.67344,-2.22704 4.8005,-2.77604 4.25215,-6.13018 -0.50099,-3.32674 -6.67275,-6.99065 l -12.64973,-7.31509 z"
+     id="text6-4"
+     style="font-size:50.3539px;line-height:1.25;font-family:Roboto;-inkscape-font-specification:Roboto;fill:#ffffff;stroke-width:1;fill-opacity:1"
+     aria-label="R" />
+  <metadata
+     id="metadata12">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Grout # a graph router based on DPDK</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Robin Jarry</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:date>2024-06-24</dc:date>
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>All rights reserved</dc:title>
+          </cc:Agent>
+        </dc:rights>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>
