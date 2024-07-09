@@ -80,3 +80,9 @@ REVISION_RANGE ?= origin/main..
 .PHONY: check-patches
 check-patches:
 	$Q devtools/check-patches $(REVISION_RANGE)
+
+.PHONY: git-config
+git-config:
+	@mkdir -p .git/hooks
+	@rm -f .git/hooks/commit-msg*
+	ln -s ../../contrib/commit-msg .git/hooks/commit-msg
