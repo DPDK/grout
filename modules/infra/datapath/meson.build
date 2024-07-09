@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'control_input.c',
   'drop.c',
   'eth_input.c',
   'eth_output.c',
