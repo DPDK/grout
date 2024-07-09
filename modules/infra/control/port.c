@@ -6,6 +6,7 @@
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
+#include <gr_mbuf.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_stb_ds.h>
@@ -186,7 +187,7 @@ static int port_configure(struct iface_info_port *p) {
 		pool_name,
 		mbuf_count,
 		256, // cache_size
-		0, // priv_size
+		GR_MBUF_PRIV_MAX_SIZE,
 		RTE_MBUF_DEFAULT_BUF_SIZE,
 		socket_id
 	);

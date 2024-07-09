@@ -4,26 +4,16 @@
 #ifndef _GR_MBUF
 #define _GR_MBUF
 
-#include <gr_macro.h>
-
 #include <rte_build_config.h>
 #include <rte_mbuf.h>
-#include <rte_mbuf_dyn.h>
 
-#include <stdalign.h>
-#include <stdint.h>
-
-#define GR_MBUF_PRIV_MAX_SIZE 32
-
-static_assert(GR_MBUF_PRIV_MAX_SIZE <= MEMBER_SIZE(struct rte_mbuf, dynfield1));
-
-extern int gr_mdyn_offset;
+#define GR_MBUF_PRIV_MAX_SIZE RTE_CACHE_LINE_MIN_SIZE
 
 #define GR_MBUF_PRIV_DATA_TYPE(type_name, fields)                                                  \
 	struct type_name fields;                                                                   \
 	static inline struct type_name *type_name(struct rte_mbuf *m) {                            \
 		static_assert(sizeof(struct type_name) <= GR_MBUF_PRIV_MAX_SIZE);                  \
-		return RTE_MBUF_DYNFIELD(m, gr_mdyn_offset, struct type_name *);                   \
+		return rte_mbuf_to_priv(m);                                                        \
 	}
 
 GR_MBUF_PRIV_DATA_TYPE(queue_mbuf_data, { struct rte_mbuf *next; });
