@@ -65,7 +65,7 @@ jobs:
     env:
       REVISION_RANGE: "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
     steps:
-      - run: dnf install -y make clang-tools-extra git
+      - run: dnf install -y make clang-tools-extra git jq curl
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history

@@ -75,7 +75,7 @@ also in scripts one command at a time, or by batches.
 ```sh
 dnf install gcc git libcmocka-devel libedit-devel libevent-devel make meson \
         ninja-build numactl-devel pkgconf python3-pyelftools scdoc \
-        libsmartcols-devel clang-tools-extra
+        libsmartcols-devel clang-tools-extra jq curl
 ```
 
 or
@@ -83,7 +83,7 @@ or
 ```sh
 apt install git build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
         libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc \
-        libsmartcols-dev clang-format
+        libsmartcols-dev clang-format jq curl
 ```
 
 ### Build
