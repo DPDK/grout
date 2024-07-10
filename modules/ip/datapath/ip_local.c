@@ -13,12 +13,9 @@
 #define UNKNOWN_PROTO 0
 static rte_edge_t edges[256] = {UNKNOWN_PROTO};
 
-void ip_input_local_add_proto(uint8_t proto, const char *node_name) {
-	rte_edge_t edge = gr_node_attach_parent("ip_input_local", node_name);
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(ip_input_local, %s) failed", node_name);
-	edges[proto] = edge;
-	LOG(DEBUG, "ip_input_local: proto=%u -> edge %u", proto, edge);
+void ip_input_local_add_proto(uint8_t proto, const char *next_node) {
+	LOG(DEBUG, "ip_input_local: proto=%u -> %s", proto, next_node);
+	edges[proto] = gr_node_attach_parent("ip_input_local", next_node);
 }
 
 static uint16_t ip_input_local_process(

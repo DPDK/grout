@@ -29,9 +29,9 @@ enum {
 
 static rte_edge_t edges[128] = {ETH_OUTPUT};
 
-void ip_output_add_tunnel(uint16_t iface_type_id, rte_edge_t edge) {
-	edges[iface_type_id] = edge;
-	LOG(DEBUG, "ip_output: iface_type=%u -> edge %u", iface_type_id, edge);
+void ip_output_add_tunnel(uint16_t iface_type_id, const char *next_node) {
+	LOG(DEBUG, "ip_output: iface_type=%u -> %s", iface_type_id, next_node);
+	edges[iface_type_id] = gr_node_attach_parent("ip_output", next_node);
 }
 
 typedef enum {

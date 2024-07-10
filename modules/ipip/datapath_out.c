@@ -74,10 +74,7 @@ next:
 }
 
 static void ipip_output_register(void) {
-	rte_edge_t edge = gr_node_attach_parent("ip_output", "ipip_output");
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(ip_output, ipip_output) failed");
-	ip_output_add_tunnel(GR_IFACE_TYPE_IPIP, edge);
+	ip_output_add_tunnel(GR_IFACE_TYPE_IPIP, "ipip_output");
 }
 
 static struct rte_node_register ipip_output_node = {
