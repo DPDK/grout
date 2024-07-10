@@ -30,14 +30,10 @@ static struct rte_mempool *control_input_pool;
 static rte_edge_t control_input_edges[1 << 8] = {UNKNOWN_CONTROL_INPUT_TYPE};
 
 void gr_control_input_add_handler(control_input_t type, const char *node_name) {
-	rte_edge_t edge = gr_node_attach_parent("control_input", node_name);
-	if (edge == RTE_EDGE_ID_INVALID)
-		ABORT("gr_node_attach_parent(control_input, lldp_output) failed");
-	if (control_input_edges[type] != UNKNOWN_CONTROL_INPUT_TYPE) {
-		ABORT("control_input: type=0x%04x -> already set to edge %u", type, edge);
-	}
-	control_input_edges[type] = edge;
-	LOG(DEBUG, "control_input: type=0x%04x -> edge %u", type, edge);
+	LOG(DEBUG, "control_input: type=%u -> %s", type, node_name);
+	if (control_input_edges[type] != UNKNOWN_CONTROL_INPUT_TYPE)
+		ABORT("control_input: handler for type=%u is already registered", type);
+	control_input_edges[type] = gr_node_attach_parent("control_input", node_name);
 }
 
 int post_to_stack(control_input_t type, void *data) {
