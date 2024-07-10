@@ -14,7 +14,9 @@
 static rte_edge_t edges[256] = {UNKNOWN_PROTO};
 
 void ip_input_local_add_proto(uint8_t proto, const char *next_node) {
-	LOG(DEBUG, "ip_input_local: proto=%u -> %s", proto, next_node);
+	LOG(DEBUG, "ip_input_local: proto=%hhu -> %s", proto, next_node);
+	if (edges[proto] != UNKNOWN_PROTO)
+		ABORT("next node already registered for proto=%hhu", proto);
 	edges[proto] = gr_node_attach_parent("ip_input_local", next_node);
 }
 

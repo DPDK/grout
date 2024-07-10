@@ -27,13 +27,15 @@ struct gr_control_input_msg {
 static struct rte_ring *control_input_ring;
 static struct rte_mempool *control_input_pool;
 
+static control_input_t next_id = 0;
 static rte_edge_t control_input_edges[1 << 8] = {UNKNOWN_CONTROL_INPUT_TYPE};
 
-void gr_control_input_add_handler(control_input_t type, const char *node_name) {
-	LOG(DEBUG, "control_input: type=%u -> %s", type, node_name);
-	if (control_input_edges[type] != UNKNOWN_CONTROL_INPUT_TYPE)
-		ABORT("control_input: handler for type=%u is already registered", type);
-	control_input_edges[type] = gr_node_attach_parent("control_input", node_name);
+control_input_t gr_control_input_register_handler(const char *node_name) {
+	if (next_id == 0xff)
+		ABORT("control_input: max number of handlers reached");
+	LOG(DEBUG, "control_input: type=%hhu -> %s", next_id, node_name);
+	control_input_edges[next_id] = gr_node_attach_parent("control_input", node_name);
+	return next_id++;
 }
 
 int post_to_stack(control_input_t type, void *data) {
