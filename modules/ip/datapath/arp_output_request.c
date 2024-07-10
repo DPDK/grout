@@ -25,12 +25,14 @@ enum {
 	EDGE_COUNT,
 };
 
+static control_input_t arp_solicit;
+
 int arp_output_request_solicit(struct nexthop *nh) {
 	int ret;
 	if (nh == NULL)
 		return errno_set(EINVAL);
 	ip4_nexthop_incref(nh);
-	ret = post_to_stack(CONTROL_INPUT_ARP_REQUEST, nh);
+	ret = post_to_stack(arp_solicit, nh);
 	if (ret < 0) {
 		ip4_nexthop_decref(nh);
 		return errno_set(-ret);
@@ -106,7 +108,7 @@ next:
 }
 
 static void arp_output_request_register(void) {
-	gr_control_input_add_handler(CONTROL_INPUT_ARP_REQUEST, "arp_output_request");
+	arp_solicit = gr_control_input_register_handler("arp_output_request");
 }
 
 static struct rte_node_register arp_output_request_node = {
