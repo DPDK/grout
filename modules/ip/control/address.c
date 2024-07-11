@@ -142,6 +142,19 @@ static struct api_out addr_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+static void iface_event_handler(iface_event_t event, struct iface *iface) {
+	struct nexthop *nh;
+
+	if (event != IFACE_EVENT_PRE_REMOVE)
+		return;
+
+	nh = ip4_addr_get(iface->id);
+	if (nh)
+		ip4_route_cleanup(iface->vrf_id, nh);
+
+	addrs[iface->id] = NULL;
+}
+
 static void addr_init(struct event_base *) {
 	addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct nexthop *), RTE_CACHE_LINE_SIZE);
 	if (addrs == NULL)
@@ -172,6 +185,11 @@ static struct gr_module addr_module = {
 	.name = "ipv4 address",
 	.init = addr_init,
 	.fini = addr_fini,
+	.fini_prio = 2000,
+};
+
+static struct iface_event_handler iface_event_address_handler = {
+	.callback = iface_event_handler,
 };
 
 RTE_INIT(address_constructor) {
@@ -179,4 +197,5 @@ RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_del_handler);
 	gr_register_api_handler(&addr_list_handler);
 	gr_register_module(&addr_module);
+	iface_event_register_handler(&iface_event_address_handler);
 }

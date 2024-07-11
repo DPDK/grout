@@ -323,6 +323,7 @@ static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.init = nh4_init,
 	.fini = nh4_fini,
+	.fini_prio = 20000,
 };
 
 RTE_INIT(control_ip_init) {
