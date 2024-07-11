@@ -74,6 +74,17 @@ int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nextho
 void ip4_nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		struct nexthop_key key = {nh->ip, nh->vrf_id};
+
+		rte_spinlock_lock(&nh->lock);
+		// Flush all held packets.
+		struct rte_mbuf *m = nh->held_pkts_head;
+		while (m != NULL) {
+			struct rte_mbuf *next = queue_mbuf_data(m)->next;
+			rte_pktmbuf_free(m);
+			m = next;
+		}
+		rte_spinlock_unlock(&nh->lock);
+
 		rte_hash_del_key(nh_hash, &key);
 		memset(nh, 0, sizeof(*nh));
 	} else {
@@ -244,19 +255,8 @@ static void nexthop_gc(evutil_socket_t, short, void *) {
 			    probes,
 			    nh->held_pkts_num);
 
-			rte_spinlock_lock(&nh->lock);
-			// Flush all held packets.
-			struct rte_mbuf *m = nh->held_pkts_head;
-			while (m != NULL) {
-				struct rte_mbuf *next = queue_mbuf_data(m)->next;
-				m = next;
-			}
-			nh->held_pkts_head = NULL;
-			nh->held_pkts_tail = NULL;
-			nh->held_pkts_num = 0;
-			rte_spinlock_unlock(&nh->lock);
-
 			// this also does ip4_nexthop_decref(), freeing the next hop
+			// and buffered packets.
 			if (ip4_route_delete(nh->vrf_id, nh->ip, 32) < 0)
 				LOG(ERR, "ip4_route_delete: %s", strerror(errno));
 		}
