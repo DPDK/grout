@@ -56,6 +56,8 @@ err:
 #define __IPV4_RE IPV4_ATOM "(\\." IPV4_ATOM "){3}"
 #define IPV4_RE "^" __IPV4_RE "$"
 #define IPV4_NET_RE "^" __IPV4_RE "/(3[0-2]|[12][0-9]|[0-9])$"
+#define IP4_ADDR_FMT "%d.%d.%d.%d"
+#define IP4_ADDR_SPLIT(b) ((uint8_t *)b)[0], ((uint8_t *)b)[1], ((uint8_t *)b)[2], ((uint8_t *)b)[3]
 
 typedef uint32_t ip4_addr_t;
 
