@@ -5,6 +5,7 @@
 #define _GR_NET_TYPES
 
 #include <arpa/inet.h>
+#include <endian.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdbool.h>
@@ -57,7 +58,11 @@ err:
 #define IPV4_RE "^" __IPV4_RE "$"
 #define IPV4_NET_RE "^" __IPV4_RE "/(3[0-2]|[12][0-9]|[0-9])$"
 #define IP4_ADDR_FMT "%d.%d.%d.%d"
+#if BYTE_ORDER == LITTLE_ENDIAN
 #define IP4_ADDR_SPLIT(b) ((uint8_t *)b)[0], ((uint8_t *)b)[1], ((uint8_t *)b)[2], ((uint8_t *)b)[3]
+#else
+#define IP4_ADDR_SPLIT(b) ((uint8_t *)b)[3], ((uint8_t *)b)[2], ((uint8_t *)b)[1], ((uint8_t *)b)[0]
+#endif
 
 typedef uint32_t ip4_addr_t;
 
