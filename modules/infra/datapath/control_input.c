@@ -75,8 +75,9 @@ control_input_process(struct rte_graph *graph, struct rte_node *node, void **, u
 }
 
 static void control_input_register(void) {
-	control_input_ring = rte_ring_create(
+	control_input_ring = rte_ring_create_elem(
 		"control_input",
+		sizeof(struct gr_control_input_msg),
 		RTE_GRAPH_BURST_SIZE * 4,
 		SOCKET_ID_ANY,
 		RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ
