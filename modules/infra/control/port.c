@@ -439,6 +439,7 @@ static int iface_port_get_eth_addr(const struct iface *iface, struct rte_ether_a
 static void port_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_port *port = (const struct iface_info_port *)iface->info;
 	struct gr_iface_info_port *api = info;
+	struct rte_eth_dev_info dev_info;
 
 	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
 	memcpy(&api->mac, &port->mac, sizeof(api->mac));
@@ -446,6 +447,12 @@ static void port_to_api(void *info, const struct iface *iface) {
 	api->n_txq = port->n_txq;
 	api->rxq_size = port->rxq_size;
 	api->txq_size = port->txq_size;
+
+	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0) {
+		memccpy(api->driver_name, dev_info.driver_name, 0, sizeof(api->driver_name));
+	} else {
+		memccpy(api->driver_name, "unknown", 0, sizeof(api->driver_name));
+	}
 }
 
 static struct iface_type iface_type_port = {
