@@ -55,6 +55,8 @@ struct gr_iface {
 struct gr_iface_info_port {
 #define GR_PORT_DEVARGS_SIZE 64
 	char devargs[GR_PORT_DEVARGS_SIZE];
+#define GR_PORT_DRIVER_NAME_SIZE 32
+	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
 	uint16_t n_rxq;
 	uint16_t n_txq;
 	uint16_t rxq_size;

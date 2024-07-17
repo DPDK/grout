@@ -17,7 +17,9 @@
 
 static void port_show(const struct gr_api_client *, const struct gr_iface *iface) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
+
 	printf("devargs: %s\n", port->devargs);
+	printf("driver:  %s\n", port->driver_name);
 	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port->mac.bytes));
 	printf("n_rxq: %u\n", port->n_rxq);
 	printf("n_txq: %u\n", port->n_txq);
