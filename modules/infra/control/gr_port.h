@@ -22,6 +22,7 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 	struct rte_ether_addr mac;
 	struct rte_mempool *pool;
 	char *devargs;
+	uint32_t pool_size;
 };
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
