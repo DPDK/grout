@@ -7,6 +7,7 @@
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_mempool.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_stb_ds.h>
@@ -146,7 +147,6 @@ static int port_configure(struct iface_info_port *p) {
 	uint16_t rxq_size, txq_size;
 	struct rte_eth_dev_info info;
 	uint32_t mbuf_count;
-	char pool_name[128];
 	int ret;
 
 	// ensure there is a datapath worker running on the socket where the port is
@@ -164,8 +164,18 @@ static int port_configure(struct iface_info_port *p) {
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
 
-	rte_mempool_free(p->pool);
-	p->pool = NULL;
+	mbuf_count = rxq_size * p->n_rxq;
+	mbuf_count += txq_size * p->n_txq;
+	mbuf_count += RTE_GRAPH_BURST_SIZE;
+	mbuf_count = rte_align32pow2(mbuf_count) - 1;
+	if (mbuf_count != p->pool_size) {
+		gr_pktmbuf_pool_release(p->pool, p->pool_size);
+		p->pool = gr_pktmbuf_pool_get(socket_id, mbuf_count);
+		p->pool_size = mbuf_count;
+	}
+
+	if (p->pool == NULL)
+		return errno_log(errno, "gr_pktmbuf_pool_get");
 
 	// Limit configured rss hash functions to only those supported by hardware
 	conf.rx_adv_conf.rss_conf.rss_hf &= info.flow_type_rss_offloads;
@@ -177,22 +187,6 @@ static int port_configure(struct iface_info_port *p) {
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
-
-	mbuf_count = rxq_size * p->n_rxq;
-	mbuf_count += txq_size * p->n_txq;
-	mbuf_count += RTE_GRAPH_BURST_SIZE;
-	mbuf_count = rte_align32pow2(mbuf_count) - 1;
-	snprintf(pool_name, sizeof(pool_name), "mbuf_%s", rte_dev_name(info.device));
-	p->pool = rte_pktmbuf_pool_create(
-		pool_name,
-		mbuf_count,
-		256, // cache_size
-		GR_MBUF_PRIV_MAX_SIZE,
-		RTE_MBUF_DEFAULT_BUF_SIZE,
-		socket_id
-	);
-	if (p->pool == NULL)
-		return errno_log(rte_errno, "rte_pktmbuf_pool_create");
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {
@@ -347,7 +341,7 @@ static int iface_port_fini(struct iface *iface) {
 	if (info.device != NULL && (ret = rte_dev_remove(info.device)) < 0)
 		LOG(ERR, "rte_dev_remove: %s", rte_strerror(-ret));
 	if (port->pool != NULL) {
-		rte_mempool_free(port->pool);
+		gr_pktmbuf_pool_release(port->pool, port->pool_size);
 		port->pool = NULL;
 	}
 
