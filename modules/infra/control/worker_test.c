@@ -7,6 +7,7 @@
 #include <gr_cmocka.h>
 #include <gr_control.h>
 #include <gr_infra.h>
+#include <gr_mempool.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_stb_ds.h>
@@ -27,6 +28,8 @@ void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
 void iface_event_notify(iface_event_t, struct iface *) { }
+mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
+void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 
 struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 	uint16_t ifid;
@@ -183,6 +186,7 @@ static void common_mocks(void) {
 	will_return_maybe(__wrap_rte_get_main_lcore, 0);
 	will_return_maybe(__wrap_rte_mempool_free, 0);
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);
+	will_return_maybe(gr_pktmbuf_pool_get, 1);
 }
 
 static void rxq_assign_main_lcore(void **) {

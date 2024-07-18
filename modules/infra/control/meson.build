@@ -3,6 +3,7 @@
 
 src += files(
   'iface.c',
+  'mempool.c',
   'port.c',
   'worker.c',
   'graph.c',
