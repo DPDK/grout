@@ -337,6 +337,7 @@ static int iface_port_fini(struct iface *iface) {
 	port_ifaces[port->port_id] = NULL;
 
 	free(port->devargs);
+	port->devargs = NULL;
 	if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
 		LOG(ERR, "rte_eth_dev_info_get: %s", rte_strerror(-ret));
 	if ((ret = rte_eth_dev_stop(port->port_id)) < 0)
