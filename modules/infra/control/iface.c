@@ -222,13 +222,27 @@ static void iface_init(struct event_base *) {
 }
 
 static void iface_fini(struct event_base *) {
-	for (uint16_t ifid = 0; ifid < MAX_IFACES; ifid++) {
-		struct iface *iface = ifaces[ifid];
+	struct iface *iface;
+	uint16_t ifid;
+
+	// Destroy all virtual interface first before removing DPDK ports.
+	for (ifid = 0; ifid < MAX_IFACES; ifid++) {
+		iface = ifaces[ifid];
+		if (iface != NULL || iface->type_id != GR_IFACE_TYPE_PORT) {
+			if (iface_destroy(ifid) < 0)
+				LOG(ERR, "iface_destroy: %s", strerror(errno));
+			ifaces[ifid] = NULL;
+		}
+	}
+	// Finally, destroy DPDK ports.
+	for (ifid = 0; ifid < MAX_IFACES; ifid++) {
+		iface = ifaces[ifid];
 		if (iface == NULL)
 			continue;
 		if (iface_destroy(ifid) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));
 	}
+
 	rte_free(ifaces);
 	ifaces = NULL;
 }
