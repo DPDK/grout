@@ -237,6 +237,7 @@ static void iface_fini(struct event_base *) {
 			ifaces[ifid] = NULL;
 		}
 	}
+
 	// Finally, destroy DPDK ports.
 	for (ifid = 0; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];

@@ -54,6 +54,7 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
 }
 
+#define GR_IP_ICMP_DEST_UNREACHABLE 3
 #define GR_IP_ICMP_TTL_EXCEEDED 11
 
 #endif

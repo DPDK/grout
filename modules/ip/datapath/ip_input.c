@@ -35,6 +35,8 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
+		iface = NULL;
+		nh = NULL;
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
@@ -87,9 +89,9 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		else
 			next = FORWARD;
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
+next_packet:
 		ip_output_mbuf_data(mbuf)->nh = nh;
 		ip_output_mbuf_data(mbuf)->input_iface = iface;
-next_packet:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
@@ -122,6 +124,5 @@ static struct gr_node_info info = {
 
 GR_NODE_REGISTER(info);
 
-GR_DROP_REGISTER(ip_input_no_route);
 GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);

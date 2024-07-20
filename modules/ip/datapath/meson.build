@@ -8,7 +8,7 @@ src += files(
   'icmp_input.c',
   'icmp_output.c',
   'ip_forward.c',
-  'ip_forward_ttl_exceeded.c',
+  'ip_forward_error.c',
   'ip_input.c',
   'ip_local.c',
   'ip_output.c',
