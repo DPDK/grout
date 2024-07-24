@@ -117,6 +117,9 @@ for rev in $revisions; do
 	if [ "$(echo "$body" | wc -w)" -lt 3 ]; then
 		err "body has less than three words, please describe your changes"
 	fi
+	if ! [ "$(git log --format='%P' -1 "$rev" | wc -w)" = 1 ]; then
+		err "merge commit found, please rebase your code"
+	fi
 
 	if [ "$fail" = true ]; then
 		continue
