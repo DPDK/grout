@@ -20,6 +20,7 @@ struct __rte_cache_aligned iface {
 	uint16_t state;
 	uint16_t mtu;
 	uint16_t vrf_id; // L3 addressing and routing domain
+	uint8_t subinterfaces;
 	char *name;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };

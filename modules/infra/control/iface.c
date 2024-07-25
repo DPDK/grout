@@ -204,6 +204,9 @@ int iface_destroy(uint16_t ifid) {
 	if (iface == NULL)
 		return -1;
 
+	if (iface->subinterfaces > 0)
+		return errno_set(EBUSY);
+
 	iface_event_notify(IFACE_EVENT_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
