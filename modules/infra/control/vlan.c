@@ -156,10 +156,13 @@ static int iface_vlan_fini(struct iface *iface) {
 			status = ret;
 	}
 
+	iface_from_id(vlan->parent_id)->subinterfaces--;
+
 	return status;
 }
 
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
+	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	int ret;
 
 	ret = iface_vlan_reconfig(
@@ -169,6 +172,8 @@ static int iface_vlan_init(struct iface *iface, const void *api_info) {
 		iface_vlan_fini(iface);
 		errno = -ret;
 	}
+
+	iface_from_id(vlan->parent_id)->subinterfaces++;
 
 	return ret;
 }
