@@ -215,6 +215,34 @@ void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
 	}
 }
 
+int iface_add_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
+	struct iface *iface = iface_from_id(ifid);
+	struct iface_type *type;
+
+	if (iface == NULL)
+		return -1;
+
+	type = iface_type_get(iface->type_id);
+	if (type->add_eth_addr == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->add_eth_addr(iface, mac);
+}
+
+int iface_del_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
+	struct iface *iface = iface_from_id(ifid);
+	struct iface_type *type;
+
+	if (iface == NULL)
+		return -1;
+
+	type = iface_type_get(iface->type_id);
+	if (type->del_eth_addr == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->del_eth_addr(iface, mac);
+}
+
 int iface_destroy(uint16_t ifid) {
 	struct iface *iface = iface_from_id(ifid);
 	struct iface_type *type;
