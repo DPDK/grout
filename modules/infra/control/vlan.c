@@ -47,20 +47,6 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 	return 0;
 }
 
-static bool need_mac_filter(uint16_t port_id, struct rte_ether_addr *mac) {
-	struct rte_ether_addr parent_mac;
-	int ret;
-
-	if ((ret = rte_eth_macaddr_get(port_id, &parent_mac)) < 0) {
-		errno_log(-ret, "rte_eth_dev_vlan_filter");
-		return false;
-	}
-	if (memcmp(mac, &parent_mac, sizeof(*mac)) == 0)
-		return false;
-
-	return true;
-}
-
 static int iface_vlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -76,6 +62,7 @@ static int iface_vlan_reconfig(
 	struct iface *cur_parent = iface_from_id(cur->parent_id);
 	struct iface *next_parent = iface_from_id(next->parent_id);
 	uint16_t cur_port_id, next_port_id;
+	struct iface_type *parent_type;
 	int ret;
 
 	if (get_parent_port_id(cur->parent_id, &cur_port_id) < 0)
@@ -83,11 +70,14 @@ static int iface_vlan_reconfig(
 	if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
 		return -1;
 
+	parent_type = iface_type_get(next_parent->type_id);
+
 	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
 		if (rte_hash_lookup(vlan_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
-		if (next->parent_id != cur->parent_id || next->vlan_id != cur->vlan_id) {
+		if (set_attrs != IFACE_SET_ALL) {
+			// reconfig, *not initial config*
 			rte_hash_del_key(vlan_hash, &cur_key);
 			iface_del_subinterface(cur_parent, iface);
 			// remove previous vlan filter (ignore errors)
@@ -109,23 +99,14 @@ static int iface_vlan_reconfig(
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
-		struct rte_ether_addr next_mac;
-		memcpy(&next_mac, &next->mac, sizeof(next_mac));
-
-		if (need_mac_filter(cur_port_id, &cur->mac)) {
-			if ((ret = rte_eth_dev_mac_addr_remove(cur_port_id, &cur->mac)) < 0)
-				errno_log(-ret, "rte_eth_dev_mac_addr_remove");
+		if (set_attrs != IFACE_SET_ALL) {
+			// reconfig, *not initial config*
+			// remove previous mac filter (ignore errors)
+			parent_type->del_eth_addr(cur_parent, &cur->mac);
 		}
-		if (need_mac_filter(next_port_id, &next_mac)) {
-			if ((ret = rte_eth_dev_mac_addr_add(next_port_id, &next_mac, 0)) < 0) {
-				errno_log(-ret, "rte_eth_dev_mac_addr_add");
-				if (ret != ENOTSUP)
-					return ret;
-				if ((ret = rte_eth_promiscuous_enable(next_port_id)) < 0)
-					return errno_log(-ret, "rte_eth_promiscuous_enable");
-			}
-		}
-		rte_ether_addr_copy(&next_mac, &cur->mac);
+		if ((ret = parent_type->add_eth_addr(next_parent, &next->mac)) < 0)
+			return ret;
+		rte_ether_addr_copy(&next->mac, &cur->mac);
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
@@ -141,11 +122,14 @@ static int iface_vlan_reconfig(
 static int iface_vlan_fini(struct iface *iface) {
 	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	struct iface *parent = iface_from_id(vlan->parent_id);
+	struct iface_type *parent_type;
 	int ret, status = 0;
 	uint16_t port_id;
 
 	if (get_parent_port_id(vlan->parent_id, &port_id) < 0)
 		return -1;
+
+	parent_type = iface_type_get(parent->type_id);
 
 	rte_hash_del_key(vlan_hash, &(struct vlan_key) {vlan->parent_id, vlan->vlan_id});
 
@@ -154,12 +138,9 @@ static int iface_vlan_fini(struct iface *iface) {
 	if (status == 0 && ret < 0)
 		status = ret;
 
-	if (need_mac_filter(port_id, &vlan->mac)) {
-		if ((ret = rte_eth_dev_mac_addr_remove(port_id, &vlan->mac)) < 0)
-			errno_log(-ret, "rte_eth_dev_mac_addr_remove");
-		if (status == 0 && ret < 0)
-			status = ret;
-	}
+	ret = parent_type->del_eth_addr(parent, &vlan->mac);
+	if (status == 0 && ret < 0)
+		status = ret;
 
 	iface_del_subinterface(parent, iface);
 

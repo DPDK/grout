@@ -37,7 +37,8 @@ typedef int (*iface_reconfig_t)(
 	const void *api_info
 );
 typedef int (*iface_fini_t)(struct iface *);
-typedef int (*iface_get_eth_addr_t)(const struct iface *, struct rte_ether_addr *);
+typedef int (*iface_eth_addr_get_t)(const struct iface *, struct rte_ether_addr *);
+typedef int (*iface_eth_addr_filter_t)(struct iface *, const struct rte_ether_addr *);
 typedef void (*iface_to_api_t)(void *api_info, const struct iface *);
 
 struct iface_type {
@@ -46,7 +47,9 @@ struct iface_type {
 	iface_init_t init;
 	iface_reconfig_t reconfig;
 	iface_fini_t fini;
-	iface_get_eth_addr_t get_eth_addr;
+	iface_eth_addr_get_t get_eth_addr;
+	iface_eth_addr_filter_t add_eth_addr;
+	iface_eth_addr_filter_t del_eth_addr;
 	iface_to_api_t to_api;
 	const char *name;
 	STAILQ_ENTRY(iface_type) next;
@@ -76,6 +79,8 @@ struct iface *iface_from_id(uint16_t ifid);
 void iface_add_subinterface(struct iface *parent, const struct iface *sub);
 void iface_del_subinterface(struct iface *parent, const struct iface *sub);
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
+int iface_add_eth_addr(uint16_t ifid, struct rte_ether_addr *);
+int iface_del_eth_addr(uint16_t ifid, struct rte_ether_addr *);
 uint16_t ifaces_count(uint16_t type_id);
 struct iface *iface_next(uint16_t type_id, const struct iface *prev);
 

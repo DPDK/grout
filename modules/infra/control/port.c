@@ -425,9 +425,182 @@ const struct iface *port_get_iface(uint16_t port_id) {
 	return port_ifaces[port_id];
 }
 
-static int iface_port_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
-	const struct iface_info_port *port = (const struct iface_info_port *)iface->info;
+static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
+	struct iface_info_port *port = (struct iface_info_port *)iface->info;
 	rte_ether_addr_copy(&port->mac, mac);
+	return 0;
+}
+
+static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct mac_filter *filter;
+	const char *mac_type;
+	bool multicast;
+	uint8_t i;
+	int ret;
+
+	if (mac == NULL || !(rte_is_multicast_ether_addr(mac) || rte_is_unicast_ether_addr(mac)))
+		return errno_set(EINVAL);
+
+	if (rte_is_same_ether_addr(mac, &port->mac))
+		return 0;
+
+	multicast = rte_is_multicast_ether_addr(mac);
+	if (multicast) {
+		mac_type = "multicast";
+		filter = &port->mcast_filter;
+	} else {
+		mac_type = "unicast";
+		filter = &port->ucast_filter;
+	}
+
+	for (i = 0; i < filter->count; i++) {
+		if (rte_is_same_ether_addr(&filter->mac[i], mac)) {
+			LOG(INFO,
+			    "%s: %s mac " ETH_ADDR_FMT " already filtered (refs=%u)",
+			    iface->name,
+			    mac_type,
+			    ETH_ADDR_SPLIT(mac),
+			    filter->refcnt[i]++);
+			return 0;
+		}
+	}
+	if (i == ARRAY_DIM(filter->mac))
+		return errno_log(ENOSPC, mac_type);
+
+	rte_ether_addr_copy(mac, &filter->mac[i]);
+	filter->refcnt[i] = 1;
+	filter->count++;
+
+	LOG(NOTICE,
+	    "%s: enabling %s " ETH_ADDR_FMT " mac filter",
+	    iface->name,
+	    mac_type,
+	    ETH_ADDR_SPLIT(mac));
+
+	if (filter->flags & MAC_FILTER_F_ALL)
+		return 0;
+
+	if (multicast)
+		ret = rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, filter->count);
+	else
+		ret = rte_eth_dev_mac_addr_add(port->port_id, &filter->mac[i], 0);
+
+	if (ret == -ENOSPC || ret == -EOPNOTSUPP) {
+		if (ret == -ENOSPC) {
+			filter->flags |= MAC_FILTER_F_NOSPC;
+			filter->hw_limit = filter->count - 1;
+			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+		} else {
+			filter->flags |= MAC_FILTER_F_UNSUPP;
+			LOG(NOTICE, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+		}
+
+		mac_type = multicast ? "allmulti" : "promisc";
+		LOG(NOTICE, "%s: enabling %s", iface->name, mac_type);
+
+		// promisc and allmulti enable is a noop if already enabled
+		if (multicast)
+			ret = rte_eth_allmulticast_enable(port->port_id);
+		else
+			ret = rte_eth_promiscuous_enable(port->port_id);
+
+		if (ret == 0)
+			filter->flags |= MAC_FILTER_F_ALL;
+	}
+
+	if (ret < 0) {
+		filter->count--;
+		return errno_log(-ret, mac_type);
+	}
+
+	return 0;
+}
+
+static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct mac_filter *filter;
+	const char *mac_type;
+	bool multicast;
+	uint8_t i;
+	int ret;
+
+	if (mac == NULL || !(rte_is_multicast_ether_addr(mac) || rte_is_unicast_ether_addr(mac)))
+		return errno_set(EINVAL);
+
+	if (rte_is_same_ether_addr(mac, &port->mac))
+		return 0;
+
+	multicast = rte_is_multicast_ether_addr(mac);
+	if (multicast) {
+		mac_type = "multicast";
+		filter = &port->mcast_filter;
+	} else {
+		mac_type = "unicast";
+		filter = &port->ucast_filter;
+	}
+
+	for (i = 0; i < filter->count; i++) {
+		if (rte_is_same_ether_addr(&filter->mac[i], mac))
+			goto found;
+	}
+	return errno_log(ENOENT, mac_type);
+
+found:
+	if (--filter->refcnt[i] > 0) {
+		LOG(INFO,
+		    "%s: %s mac " ETH_ADDR_FMT " still filtered (refs=%u)",
+		    iface->name,
+		    mac_type,
+		    ETH_ADDR_SPLIT(mac),
+		    filter->refcnt[i]);
+		return 0;
+	}
+
+	LOG(NOTICE,
+	    "%s: removing %s " ETH_ADDR_FMT " mac filter",
+	    iface->name,
+	    mac_type,
+	    ETH_ADDR_SPLIT(mac));
+
+	if (i + 1 < filter->count) {
+		// shift other addresses and ref counts left
+		memmove(&filter->mac[i],
+			&filter->mac[i + 1],
+			(filter->count - i - 1) * sizeof(filter->mac[i]));
+		memmove(&filter->refcnt[i],
+			&filter->refcnt[i + 1],
+			(filter->count - i - 1) * sizeof(filter->refcnt[i]));
+	}
+	filter->count--;
+
+	if (filter->flags & MAC_FILTER_F_ALL) {
+		if (filter->count > 0 && filter->flags & MAC_FILTER_F_UNSUPP)
+			return 0;
+		if (filter->count > filter->hw_limit && filter->flags & MAC_FILTER_F_NOSPC)
+			return 0;
+		filter->flags = 0;
+		filter->hw_limit = 0;
+		if (multicast)
+			ret = rte_eth_allmulticast_disable(port->port_id);
+		else
+			ret = rte_eth_promiscuous_disable(port->port_id);
+		if (ret < 0)
+			LOG(WARNING,
+			    "%s: %s disable: %s",
+			    iface->name,
+			    multicast ? "allmulti" : "promisc",
+			    rte_strerror(-ret));
+	}
+
+	if (multicast)
+		ret = rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, filter->count);
+	else
+		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
+
+	if (ret < 0)
+		LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+
 	return 0;
 }
 
@@ -457,7 +630,9 @@ static struct iface_type iface_type_port = {
 	.init = iface_port_init,
 	.reconfig = iface_port_reconfig,
 	.fini = iface_port_fini,
-	.get_eth_addr = iface_port_get_eth_addr,
+	.get_eth_addr = port_mac_get,
+	.add_eth_addr = port_mac_add,
+	.del_eth_addr = port_mac_del,
 	.to_api = port_to_api,
 };
 
