@@ -57,7 +57,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				rte_pktmbuf_adj(m, sizeof(*vlan));
 			}
 			vlan_id = m->vlan_tci & 0xfff;
-		} else if (eth_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN)) {
+		} else if (eth_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
 			vlan = rte_pktmbuf_mtod(m, struct rte_vlan_hdr *);
 			rte_pktmbuf_adj(m, sizeof(*vlan));
 			vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;

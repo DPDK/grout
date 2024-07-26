@@ -137,7 +137,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&nh->lladdr, &eth_data->dst);
-		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		eth_data->iface = iface;
 		sent++;
 next:

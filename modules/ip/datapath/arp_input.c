@@ -135,7 +135,7 @@ next:
 }
 
 static void arp_input_register(void) {
-	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP), "arp_input");
+	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_ARP), "arp_input");
 }
 
 static struct rte_node_register node = {

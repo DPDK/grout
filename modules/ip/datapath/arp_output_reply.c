@@ -52,9 +52,9 @@ static uint16_t arp_output_reply_process(
 		}
 		// Reuse mbuf to craft an ARP reply.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
-		arp->arp_hardware = rte_cpu_to_be_16(RTE_ARP_HRD_ETHER);
-		arp->arp_protocol = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
+		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
+		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
 		rte_ether_addr_copy(&arp_data->remote->lladdr, &arp->arp_data.arp_tha);
 		if (iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha) < 0) {
 			next = ERROR;
@@ -66,7 +66,7 @@ static uint16_t arp_output_reply_process(
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
-		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
+		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface;
 		next = OUTPUT;
 		num++;
