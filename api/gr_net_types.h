@@ -38,6 +38,11 @@ struct ip4_net {
 	uint8_t prefixlen;
 };
 
+static inline bool ip4_addr_same_subnet(ip4_addr_t a, ip4_addr_t b, uint8_t prefixlen) {
+	ip4_addr_t mask = htonl(~(UINT32_MAX >> prefixlen));
+	return ((a ^ b) & mask) == 0;
+}
+
 static inline int ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
