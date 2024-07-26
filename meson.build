@@ -79,7 +79,7 @@ grout_exe = executable(
 grcli_exe = executable(
   'grcli', cli_src,
   include_directories: cli_inc,
-  dependencies: [ecoli_dep, smartcols_dep],
+  dependencies: [dpdk_dep, ecoli_dep, smartcols_dep],
   install: true,
 )
 

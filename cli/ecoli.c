@@ -4,9 +4,8 @@
 #include "exec.h"
 #include "gr_cli.h"
 
-#include <gr_net_types.h>
-
 #include <ecoli.h>
+#include <rte_ether.h>
 
 #include <errno.h>
 #include <stdarg.h>
@@ -141,7 +140,7 @@ err:
 	return -1;
 }
 
-int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *val) {
+int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL) {
 		errno = ENOENT;
@@ -154,7 +153,7 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct eth_addr *val)
 	}
 	const char *str = ec_strvec_val(v, 0);
 
-	if (eth_addr_parse(str, val) < 0) {
+	if (rte_ether_unformat_addr(str, val) < 0) {
 		errno = EINVAL;
 		goto err;
 	}

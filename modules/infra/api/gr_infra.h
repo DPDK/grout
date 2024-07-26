@@ -9,6 +9,8 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
+#include <rte_ether.h>
+
 #include <assert.h>
 #include <sched.h>
 #include <stdint.h>
@@ -61,7 +63,7 @@ struct gr_iface_info_port {
 	uint16_t n_txq;
 	uint16_t rxq_size;
 	uint16_t txq_size;
-	struct eth_addr mac;
+	struct rte_ether_addr mac;
 };
 
 static_assert(sizeof(struct gr_iface_info_port) <= MEMBER_SIZE(struct gr_iface, info));
@@ -75,7 +77,7 @@ static_assert(sizeof(struct gr_iface_info_port) <= MEMBER_SIZE(struct gr_iface, 
 struct gr_iface_info_vlan {
 	uint16_t parent_id;
 	uint16_t vlan_id;
-	struct eth_addr mac;
+	struct rte_ether_addr mac;
 };
 
 static_assert(sizeof(struct gr_iface_info_vlan) <= MEMBER_SIZE(struct gr_iface, info));

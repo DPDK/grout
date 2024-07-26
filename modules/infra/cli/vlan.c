@@ -71,7 +71,7 @@ static uint64_t parse_vlan_args(
 	if (arg_u16(p, "VLAN", &vlan->vlan_id) == 0)
 		set_attrs |= GR_VLAN_SET_VLAN;
 
-	if (eth_addr_parse(arg_str(p, "MAC"), &vlan->mac) == 0) {
+	if (arg_eth_addr(p, "MAC", &vlan->mac) == 0) {
 		set_attrs |= GR_VLAN_SET_MAC;
 	} else if (!update) {
 		const struct gr_iface_info_port *port;
