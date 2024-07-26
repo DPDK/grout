@@ -22,8 +22,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
-struct nexthop *nh_array;
-struct rte_hash *nh_hash;
+static struct nexthop *nh_array;
+static struct rte_hash *nh_hash;
 
 struct nexthop_key {
 	ip4_addr_t ip;

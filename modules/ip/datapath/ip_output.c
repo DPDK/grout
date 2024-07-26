@@ -147,7 +147,7 @@ next:
 	return sent;
 }
 
-struct rte_node_register output_node = {
+static struct rte_node_register output_node = {
 	.name = "ip_output",
 	.process = ip_output_process,
 	.nb_edges = EDGE_COUNT,
