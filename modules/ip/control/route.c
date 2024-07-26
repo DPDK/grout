@@ -302,30 +302,28 @@ static void route4_fini(struct event_base *) {
 }
 
 void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
+	uint8_t prefixlen, local_prefixlen;
 	struct rte_rib_node *rn = NULL;
 	struct rte_rib *rib;
 	ip4_addr_t local_ip;
-	uint8_t prefixlen;
 	uint64_t nh_idx;
 	ip4_addr_t ip;
-	uint32_t mask;
 
 	local_ip = nh->ip;
-	mask = rte_be_to_cpu_32(~(0xffffffff >> nh->prefixlen));
+	local_prefixlen = nh->prefixlen;
 
 	rib = rte_fib_get_rib(get_fib(vrf_id));
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		rte_rib_get_nh(rn, &nh_idx);
 		nh = ip4_nexthop_get(nh_idx);
 
-		if (nh && (nh->ip & mask) == (local_ip & mask)) {
+		if (nh && ip4_addr_same_subnet(nh->ip, local_ip, local_prefixlen)) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
-			ip = rte_be_to_cpu_32(ip);
+			ip = rte_cpu_to_be_32(ip);
 
 			LOG(DEBUG,
-			    "%s ip4_route_delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
-			    __func__,
+			    "delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
 			    IP4_ADDR_SPLIT(&ip),
 			    prefixlen,
 			    IP4_ADDR_SPLIT(&nh->ip));
@@ -339,14 +337,13 @@ void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
 		rte_rib_get_nh(rn, &nh_idx);
 		nh = ip4_nexthop_get(nh_idx);
 
-		if (nh && (nh->ip & mask) == (local_ip & mask)) {
+		if (nh && ip4_addr_same_subnet(nh->ip, local_ip, local_prefixlen)) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
-			ip = rte_be_to_cpu_32(ip);
+			ip = rte_cpu_to_be_32(ip);
 
 			LOG(DEBUG,
-			    "%s ip4_route_delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
-			    __func__,
+			    "delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
 			    IP4_ADDR_SPLIT(&ip),
 			    prefixlen,
 			    IP4_ADDR_SPLIT(&nh->ip));
