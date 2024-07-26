@@ -99,7 +99,7 @@ next_packet:
 }
 
 static void ip_input_register(void) {
-	gr_eth_input_add_type(rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4), "ip_input");
+	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
 }
 
 static struct rte_node_register input_node = {

@@ -46,7 +46,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			}
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
 			vlan->eth_proto = priv->ether_type;
-			priv->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN);
+			priv->ether_type = RTE_BE16(RTE_ETHER_TYPE_VLAN);
 			priv->iface = iface_from_id(sub->parent_id);
 			src_mac = &sub->mac;
 			port = (const struct iface_info_port *)priv->iface->info;

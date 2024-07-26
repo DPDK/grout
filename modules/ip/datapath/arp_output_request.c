@@ -68,10 +68,10 @@ static uint16_t arp_output_request_process(
 
 		// Set all ARP request fields. TODO: upstream this in dpdk.
 		arp = (struct rte_arp_hdr *)rte_pktmbuf_append(mbuf, sizeof(struct rte_arp_hdr));
-		arp->arp_hardware = rte_cpu_to_be_16(RTE_ARP_HRD_ETHER);
-		arp->arp_protocol = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REQUEST);
-		arp->arp_hlen = sizeof(struct eth_addr);
+		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
+		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REQUEST);
+		arp->arp_hlen = sizeof(struct rte_ether_addr);
 		arp->arp_plen = sizeof(ip4_addr_t);
 		if (iface_get_eth_addr(local->iface_id, &arp->arp_data.arp_sha) < 0) {
 			next = ERROR;
@@ -94,7 +94,7 @@ static uint16_t arp_output_request_process(
 			nh->bcast_probes++;
 		}
 		nh->last_request = now;
-		eth_data->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
+		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface_from_id(nh->iface_id);
 
 		ip4_nexthop_decref(nh);

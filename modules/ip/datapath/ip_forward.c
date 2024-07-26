@@ -30,7 +30,7 @@ ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			continue;
 		}
 		ip->time_to_live -= 1;
-		csum = ip->hdr_checksum + rte_cpu_to_be_16(0x0100);
+		csum = ip->hdr_checksum + RTE_BE16(0x0100);
 		csum += csum >= 0xffff;
 		ip->hdr_checksum = csum;
 		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
