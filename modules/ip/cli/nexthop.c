@@ -24,7 +24,7 @@ static cmd_status_t nh4_add(const struct gr_api_client *c, const struct ec_pnode
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
-	if (eth_addr_parse(arg_str(p, "MAC"), &req.nh.mac) < 0)
+	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
@@ -107,7 +107,7 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
 		scols_line_sprintf(line, 1, "%s", ip);
 		if (nh->flags & GR_IP4_NH_F_REACHABLE) {
-			scols_line_sprintf(line, 2, ETH_ADDR_FMT, ETH_BYTES_SPLIT(nh->mac.bytes));
+			scols_line_sprintf(line, 2, ETH_ADDR_FMT, ETH_ADDR_SPLIT(&nh->mac));
 			if (iface_from_id(c, nh->iface_id, &iface) == 0)
 				scols_line_sprintf(line, 3, "%s", iface.name);
 			else

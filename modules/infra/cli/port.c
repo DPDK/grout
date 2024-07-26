@@ -11,6 +11,7 @@
 
 #include <ecoli.h>
 #include <libsmartcols.h>
+#include <rte_ether.h>
 
 #include <errno.h>
 #include <sys/queue.h>
@@ -20,7 +21,7 @@ static void port_show(const struct gr_api_client *, const struct gr_iface *iface
 
 	printf("devargs: %s\n", port->devargs);
 	printf("driver:  %s\n", port->driver_name);
-	printf("mac: " ETH_ADDR_FMT "\n", ETH_BYTES_SPLIT(port->mac.bytes));
+	printf("mac: " ETH_ADDR_FMT "\n", ETH_ADDR_SPLIT(&port->mac));
 	printf("n_rxq: %u\n", port->n_rxq);
 	printf("n_txq: %u\n", port->n_txq);
 	printf("rxq_size: %u\n", port->rxq_size);
@@ -31,11 +32,7 @@ static void
 port_list_info(const struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
 	snprintf(
-		buf,
-		len,
-		"devargs=%s mac=" ETH_ADDR_FMT,
-		port->devargs,
-		ETH_BYTES_SPLIT(port->mac.bytes)
+		buf, len, "devargs=%s mac=" ETH_ADDR_FMT, port->devargs, ETH_ADDR_SPLIT(&port->mac)
 	);
 }
 
@@ -65,7 +62,7 @@ static uint64_t parse_port_args(
 		}
 		memccpy(port->devargs, devargs, 0, sizeof(port->devargs));
 	}
-	if (eth_addr_parse(arg_str(p, "MAC"), &port->mac) == 0)
+	if (arg_eth_addr(p, "MAC", &port->mac) == 0)
 		set_attrs |= GR_PORT_SET_MAC;
 
 	if (arg_u16(p, "N_RXQ", &port->n_rxq) == 0)

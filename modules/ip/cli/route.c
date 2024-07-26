@@ -113,7 +113,7 @@ static cmd_status_t route4_get(const struct gr_api_client *c, const struct ec_pn
 
 	resp = resp_ptr;
 	inet_ntop(AF_INET, &resp->nh.host, buf, sizeof(buf));
-	printf("%s via %s lladdr " ETH_ADDR_FMT, dest, buf, ETH_BYTES_SPLIT(resp->nh.mac.bytes));
+	printf("%s via %s lladdr " ETH_ADDR_FMT, dest, buf, ETH_ADDR_SPLIT(&resp->nh.mac));
 	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
 		printf("iface %s", iface.name);
 	else

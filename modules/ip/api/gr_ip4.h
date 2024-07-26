@@ -8,6 +8,8 @@
 #include <gr_bitops.h>
 #include <gr_net_types.h>
 
+#include <rte_ether.h>
+
 #include <stdint.h>
 
 struct gr_ip4_ifaddr {
@@ -51,7 +53,7 @@ static inline const char *gr_ip4_nh_f_name(const gr_ip4_nh_flags_t flag) {
 
 struct gr_ip4_nh {
 	ip4_addr_t host;
-	struct eth_addr mac;
+	struct rte_ether_addr mac;
 	uint16_t vrf_id;
 	uint16_t iface_id;
 	gr_ip4_nh_flags_t flags;

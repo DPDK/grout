@@ -298,7 +298,7 @@ int iface_port_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = vrf_id;
 
-	if ((set_attrs & GR_PORT_SET_MAC) && !eth_addr_is_zero(&api->mac)) {
+	if ((set_attrs & GR_PORT_SET_MAC) && !rte_is_zero_ether_addr(&api->mac)) {
 		struct rte_ether_addr mac;
 		memcpy(&mac, &api->mac, sizeof(mac));
 		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mac)) < 0)

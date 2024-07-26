@@ -15,43 +15,10 @@
 #include <string.h>
 
 #define ETH_ADDR_RE "^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$"
-#define ETH_ADDR_FMT "%02x:%02x:%02x:%02x:%02x:%02x"
-#define ETH_ADDR_SCAN "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%*c"
-#define ETH_BYTES_SPLIT(b) b[0], b[1], b[2], b[3], b[4], b[5]
-
-struct eth_addr {
-	uint8_t bytes[6];
-};
-
-static inline bool eth_addr_eq(const struct eth_addr *a, const struct eth_addr *b) {
-	return memcmp(a->bytes, b->bytes, sizeof(a->bytes)) == 0;
-}
-
-static inline bool eth_addr_is_zero(const struct eth_addr *mac) {
-	struct eth_addr zero = {0};
-	return eth_addr_eq(mac, &zero);
-}
-
-static inline int eth_addr_parse(const char *s, struct eth_addr *mac) {
-	if (s == NULL)
-		goto err;
-	int ret = sscanf(
-		s,
-		ETH_ADDR_SCAN,
-		&mac->bytes[0],
-		&mac->bytes[1],
-		&mac->bytes[2],
-		&mac->bytes[3],
-		&mac->bytes[4],
-		&mac->bytes[5]
-	);
-	if (ret != 6)
-		goto err;
-	return 0;
-err:
-	errno = EINVAL;
-	return -1;
-}
+#define ETH_ADDR_FMT "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
+#define ETH_ADDR_SPLIT(mac)                                                                        \
+	(mac)->addr_bytes[0], (mac)->addr_bytes[1], (mac)->addr_bytes[2], (mac)->addr_bytes[3],    \
+		(mac)->addr_bytes[4], (mac)->addr_bytes[5]
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
 #define __IPV4_RE IPV4_ATOM "(\\." IPV4_ATOM "){3}"

@@ -30,8 +30,8 @@ void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m)
 		buf + n,
 		sizeof(buf) - n,
 		ETH_ADDR_FMT " > " ETH_ADDR_FMT,
-		ETH_BYTES_SPLIT(eth->src_addr.addr_bytes),
-		ETH_BYTES_SPLIT(eth->dst_addr.addr_bytes)
+		ETH_ADDR_SPLIT(&eth->src_addr),
+		ETH_ADDR_SPLIT(&eth->dst_addr)
 	);
 
 	if (ether_type == RTE_ETHER_TYPE_VLAN) {
@@ -125,7 +125,7 @@ ipv4:
 				sizeof(buf) - n,
 				" / ARP reply %s is at " ETH_ADDR_FMT,
 				src,
-				ETH_BYTES_SPLIT(eth->src_addr.addr_bytes)
+				ETH_ADDR_SPLIT(&eth->src_addr)
 			);
 			break;
 		default:

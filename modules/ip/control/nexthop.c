@@ -113,7 +113,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (ip4_nexthop_lookup(req->nh.vrf_id, req->nh.host, &nh_idx, &nh) == 0) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && eth_addr_eq(&req->nh.mac, (void *)&nh->lladdr))
+		    && rte_is_same_ether_addr(&req->nh.mac, (void *)&nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
