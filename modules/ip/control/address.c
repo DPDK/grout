@@ -117,7 +117,7 @@ static struct api_out addr_list(const void *request, void **response) {
 	size_t len;
 
 	num = 0;
-	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
+	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		if (ip4_addr_get(iface_id) != NULL)
 			num++;
 	}
@@ -126,8 +126,7 @@ static struct api_out addr_list(const void *request, void **response) {
 	if ((resp = calloc(len, 1)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	num = 0;
-	for (iface_id = 0; iface_id < RTE_MAX_ETHPORTS; iface_id++) {
+	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		nh = ip4_addr_get(iface_id);
 		if (nh == NULL || nh->vrf_id != req->vrf_id)
 			continue;
