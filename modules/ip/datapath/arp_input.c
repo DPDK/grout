@@ -104,7 +104,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 
 		iface = eth_input_mbuf_data(mbuf)->iface;
-		local = ip4_addr_get(iface->id);
+		local = ip4_addr_get_default(iface->id);
 		sip = arp->arp_data.arp_sip;
 		remote = ip4_route_lookup(iface->vrf_id, sip);
 

@@ -26,20 +26,39 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct nexthop **addrs;
+static struct iface_addresses *iface_addrs;
 
-struct nexthop *ip4_addr_get(uint16_t iface_id) {
-	struct nexthop *nh = NULL;
-	if (iface_id < MAX_IFACES)
-		nh = addrs[iface_id];
-	if (nh == NULL)
-		errno = ENODEV;
-	return nh;
+struct nexthop *ip4_addr_get_default(uint16_t iface_id) {
+	struct iface_addresses *addrs;
+
+	if (iface_id >= MAX_IFACES)
+		return errno_set_null(ENODEV);
+
+	addrs = &iface_addrs[iface_id];
+	if (addrs->count == 0)
+		return errno_set_null(ENOENT);
+
+	return addrs->nh[0];
+}
+
+struct iface_addresses *ip4_addr_get_all(uint16_t iface_id) {
+	struct iface_addresses *addrs;
+
+	if (iface_id >= MAX_IFACES)
+		return errno_set_null(ENODEV);
+
+	addrs = &iface_addrs[iface_id];
+	if (addrs->count == 0)
+		return errno_set_null(ENOENT);
+
+	return addrs;
 }
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct gr_ip4_addr_add_req *req = request;
+	struct iface_addresses *ifaddrs;
 	const struct iface *iface;
+	unsigned addr_index;
 	struct nexthop *nh;
 	uint32_t nh_idx;
 	int ret;
@@ -50,12 +69,18 @@ static struct api_out addr_add(const void *request, void **response) {
 	if (iface == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip4_addr_get(req->addr.iface_id)) != NULL) {
+	ifaddrs = &iface_addrs[iface->id];
+
+	for (addr_index = 0; addr_index < ifaddrs->count; addr_index++) {
+		nh = ifaddrs->nh[addr_index];
 		if (req->exist_ok && req->addr.addr.ip == nh->ip
 		    && req->addr.addr.prefixlen == nh->prefixlen)
 			return api_out(0, 0);
-		return api_out(EEXIST, 0);
 	}
+
+	if (ifaddrs->count == IP4_MAX_IFACE_ADDRESSES)
+		return api_out(ENOSPC, 0);
+
 	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh) == 0)
 		return api_out(EADDRINUSE, 0);
 
@@ -72,38 +97,51 @@ static struct api_out addr_add(const void *request, void **response) {
 			return api_out(errno, 0);
 
 	ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh_idx, nh);
-	if (ret == 0)
-		addrs[nh->iface_id] = nh;
-	else
+	if (ret == 0) {
+		ifaddrs->nh[addr_index] = nh;
+		ifaddrs->count++;
+	} else {
 		ip4_nexthop_decref(nh);
+	}
 
 	return api_out(-ret, 0);
 }
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct gr_ip4_addr_del_req *req = request;
-	const struct iface *iface;
-	struct nexthop *nh;
+	struct iface_addresses *addrs;
+	struct nexthop *nh = NULL;
+	unsigned i;
 
 	(void)response;
 
-	if ((nh = ip4_addr_get(req->addr.iface_id)) == NULL) {
+	if ((addrs = ip4_addr_get_all(req->addr.iface_id)) == NULL)
+		return api_out(ENODEV, 0);
+
+	for (i = 0; i < addrs->count; i++) {
+		if (addrs->nh[i]->ip == req->addr.addr.ip
+		    && addrs->nh[i]->prefixlen != req->addr.addr.prefixlen) {
+			nh = addrs->nh[i];
+			break;
+		}
+	}
+	if (nh == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
 	}
-	if (nh->ip != req->addr.addr.ip || nh->prefixlen != req->addr.addr.prefixlen)
-		return api_out(ENOENT, 0);
 
 	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	iface = iface_from_id(req->addr.iface_id);
-	if (iface == NULL)
-		return api_out(errno, 0);
+	ip4_route_cleanup(nh->vrf_id, nh);
 
-	ip4_route_delete(iface->vrf_id, nh->ip, nh->prefixlen);
-	addrs[req->addr.iface_id] = NULL;
+	// shift the remaining addresses
+	for (; i < addrs->count; i++) {
+		if (i + 1 < addrs->count)
+			addrs->nh[i] = addrs->nh[i + 1];
+	}
+	addrs->count--;
 
 	return api_out(0, 0);
 }
@@ -111,15 +149,17 @@ static struct api_out addr_del(const void *request, void **response) {
 static struct api_out addr_list(const void *request, void **response) {
 	const struct gr_ip4_addr_list_req *req = request;
 	struct gr_ip4_addr_list_resp *resp = NULL;
+	const struct iface_addresses *addrs;
 	struct gr_ip4_ifaddr *addr;
-	const struct nexthop *nh;
 	uint16_t iface_id, num;
 	size_t len;
 
 	num = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		if (ip4_addr_get(iface_id) != NULL)
-			num++;
+		addrs = ip4_addr_get_all(iface_id);
+		if (addrs == NULL || addrs->count == 0 || addrs->nh[0]->vrf_id != req->vrf_id)
+			continue;
+		num += addrs->count;
 	}
 
 	len = sizeof(*resp) + num * sizeof(struct gr_ip4_ifaddr);
@@ -127,13 +167,15 @@ static struct api_out addr_list(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		nh = ip4_addr_get(iface_id);
-		if (nh == NULL || nh->vrf_id != req->vrf_id)
+		addrs = ip4_addr_get_all(iface_id);
+		if (addrs == NULL || addrs->count == 0 || addrs->nh[0]->vrf_id != req->vrf_id)
 			continue;
-		addr = &resp->addrs[resp->n_addrs++];
-		addr->addr.ip = nh->ip;
-		addr->addr.prefixlen = nh->prefixlen;
-		addr->iface_id = nh->iface_id;
+		for (unsigned i = 0; i < addrs->count; i++) {
+			addr = &resp->addrs[resp->n_addrs++];
+			addr->addr.ip = addrs->nh[i]->ip;
+			addr->addr.prefixlen = addrs->nh[i]->prefixlen;
+			addr->iface_id = iface_id;
+		}
 	}
 
 	*response = resp;
@@ -142,27 +184,29 @@ static struct api_out addr_list(const void *request, void **response) {
 }
 
 static void iface_event_handler(iface_event_t event, struct iface *iface) {
-	struct nexthop *nh;
+	struct iface_addresses *ifaddrs;
 
 	if (event != IFACE_EVENT_PRE_REMOVE)
 		return;
 
-	nh = ip4_addr_get(iface->id);
-	if (nh)
-		ip4_route_cleanup(iface->vrf_id, nh);
+	ifaddrs = ip4_addr_get_all(iface->id);
+	for (unsigned i = 0; i < ifaddrs->count; i++)
+		ip4_route_cleanup(iface->vrf_id, ifaddrs->nh[i]);
 
-	addrs[iface->id] = NULL;
+	memset(ifaddrs, 0, sizeof(*ifaddrs));
 }
 
 static void addr_init(struct event_base *) {
-	addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct nexthop *), RTE_CACHE_LINE_SIZE);
-	if (addrs == NULL)
+	iface_addrs = rte_calloc(
+		__func__, MAX_IFACES, sizeof(struct iface_addresses), RTE_CACHE_LINE_SIZE
+	);
+	if (iface_addrs == NULL)
 		ABORT("rte_calloc(addrs)");
 }
 
 static void addr_fini(struct event_base *) {
-	rte_free(addrs);
-	addrs = NULL;
+	rte_free(iface_addrs);
+	iface_addrs = NULL;
 }
 
 static struct gr_api_handler addr_add_handler = {

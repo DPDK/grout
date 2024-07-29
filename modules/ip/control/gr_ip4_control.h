@@ -60,5 +60,16 @@ struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh);
 
-struct nexthop *ip4_addr_get(uint16_t iface_id);
+#define IP4_MAX_IFACE_ADDRESSES 8
+
+struct iface_addresses {
+	struct nexthop *nh[IP4_MAX_IFACE_ADDRESSES];
+	unsigned count;
+};
+
+// get the default address for a given interface
+struct nexthop *ip4_addr_get_default(uint16_t iface_id);
+// get all addresses for a given interface
+struct iface_addresses *ip4_addr_get_all(uint16_t iface_id);
+
 #endif

@@ -60,7 +60,7 @@ static uint16_t arp_output_request_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
-		local = ip4_addr_get(nh->iface_id);
+		local = ip4_addr_get_default(nh->iface_id);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;
