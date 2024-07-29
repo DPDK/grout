@@ -16,6 +16,7 @@
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
+	NO_IP,
 	EDGE_COUNT,
 };
 
@@ -30,6 +31,7 @@ static uint16_t ip_forward_error_process(
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
+	struct nexthop *nh;
 	uint8_t icmp_type;
 	uint16_t vrf_id;
 
@@ -48,7 +50,11 @@ static uint16_t ip_forward_error_process(
 		// Get the local router IP address from the input iface
 		input_iface = ip_output_mbuf_data(mbuf)->input_iface;
 		vrf_id = input_iface->vrf_id;
-		ip4_addr_t local_ip = ip4_addr_get(input_iface->id)->ip;
+		if ((nh = ip4_addr_get(input_iface->id)) == NULL) {
+			rte_node_enqueue_x1(graph, node, NO_IP, mbuf);
+			continue;
+		}
+		ip4_addr_t local_ip = nh->ip;
 
 		ip_data = ip_local_mbuf_data(mbuf);
 		ip_data->vrf_id = vrf_id;
@@ -88,6 +94,7 @@ struct rte_node_register ip_forward_ttl_exceeded_node = {
 	.next_nodes = {
 		[ICMP_OUTPUT] = "icmp_output",
 		[NO_HEADROOM] = "error_no_headroom",
+		[NO_IP] = "error_no_local_ip",
 	},
 	.init = ttl_exceeded_init,
 };
@@ -99,6 +106,7 @@ static struct rte_node_register no_route_node = {
 	.next_nodes = {
 		[ICMP_OUTPUT] = "icmp_output",
 		[NO_HEADROOM] = "error_no_headroom",
+		[NO_IP] = "error_no_local_ip",
 	},
 	.init = no_route_init,
 };
@@ -113,3 +121,5 @@ static struct gr_node_info info_no_route = {
 
 GR_NODE_REGISTER(info_ttl_exceeded);
 GR_NODE_REGISTER(info_no_route);
+
+GR_DROP_REGISTER(error_no_local_ip);
