@@ -44,9 +44,9 @@ struct __rte_cache_aligned nexthop {
 #define IP4_NH_BCAST_PROBES 3
 
 // XXX: why not 1337, eh?
-#define MAX_NEXT_HOPS (1 << 16)
-#define MAX_ROUTES (1 << 16)
-#define MAX_VRFS 256
+#define IP4_MAX_NEXT_HOPS (1 << 16)
+#define IP4_MAX_ROUTES (1 << 16)
+#define IP4_MAX_VRFS 256
 
 struct nexthop *ip4_nexthop_get(uint32_t idx);
 int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);

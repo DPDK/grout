@@ -58,7 +58,7 @@ static int iface_ipip_reconfig(
 	int ret;
 
 	if (set_attrs & (GR_IFACE_SET_VRF | GR_IPIP_SET_LOCAL | GR_IPIP_SET_REMOTE)) {
-		if (vrf_id >= MAX_VRFS)
+		if (vrf_id >= IP4_MAX_VRFS)
 			return errno_set(EOVERFLOW);
 
 		if (rte_hash_lookup(ipip_hash, &next_key) >= 0)

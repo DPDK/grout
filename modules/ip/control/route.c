@@ -28,12 +28,12 @@
 #include <sys/queue.h>
 
 static struct rte_fib **vrf_fibs;
-#define BLACKHOLE (MAX_NEXT_HOPS + 1)
+#define BLACKHOLE (IP4_MAX_NEXT_HOPS + 1)
 
 static struct rte_fib_conf fib_conf = {
 	.type = RTE_FIB_DIR24_8,
 	.default_nh = BLACKHOLE,
-	.max_routes = MAX_ROUTES,
+	.max_routes = IP4_MAX_ROUTES,
 	.rib_ext_sz = 0,
 	.dir24_8 = {
 		.nh_sz = RTE_FIB_DIR24_8_4B,
@@ -44,7 +44,7 @@ static struct rte_fib_conf fib_conf = {
 static struct rte_fib *get_fib(uint16_t vrf_id) {
 	struct rte_fib *fib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= IP4_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -57,7 +57,7 @@ static struct rte_fib *get_fib(uint16_t vrf_id) {
 static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
 	struct rte_fib *fib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= IP4_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -287,13 +287,15 @@ static struct api_out route4_list(const void *request, void **response) {
 }
 
 static void route4_init(struct event_base *) {
-	vrf_fibs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE);
+	vrf_fibs = rte_calloc(
+		__func__, IP4_MAX_VRFS, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE
+	);
 	if (vrf_fibs == NULL)
 		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
 }
 
 static void route4_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < IP4_MAX_VRFS; vrf_id++) {
 		rte_fib_free(vrf_fibs[vrf_id]);
 		vrf_fibs[vrf_id] = NULL;
 	}

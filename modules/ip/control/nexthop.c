@@ -106,7 +106,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
-	if (req->nh.vrf_id >= MAX_VRFS)
+	if (req->nh.vrf_id >= IP4_MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
@@ -136,7 +136,7 @@ static struct api_out nh4_del(const void *request, void **response) {
 
 	(void)response;
 
-	if (req->vrf_id >= MAX_VRFS)
+	if (req->vrf_id >= IP4_MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
 	if (ip4_nexthop_lookup(req->vrf_id, req->host, &idx, &nh) < 0) {
@@ -268,7 +268,7 @@ static struct event *nh_gc_timer;
 static void nh4_init(struct event_base *ev_base) {
 	struct rte_hash_parameters params = {
 		.name = "ip4_nh",
-		.entries = MAX_NEXT_HOPS,
+		.entries = IP4_MAX_NEXT_HOPS,
 		.key_len = sizeof(struct nexthop_key),
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
 			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
