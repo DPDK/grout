@@ -73,6 +73,8 @@ static int iface_vlan_reconfig(
 	const struct gr_iface_info_vlan *next = api_info;
 	struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
 	struct vlan_key next_key = {next->parent_id, next->vlan_id};
+	struct iface *cur_parent = iface_from_id(cur->parent_id);
+	struct iface *next_parent = iface_from_id(next->parent_id);
 	uint16_t cur_port_id, next_port_id;
 	int ret;
 
@@ -87,6 +89,7 @@ static int iface_vlan_reconfig(
 
 		if (next->parent_id != cur->parent_id || next->vlan_id != cur->vlan_id) {
 			rte_hash_del_key(vlan_hash, &cur_key);
+			iface_del_subinterface(cur_parent, iface);
 			// remove previous vlan filter (ignore errors)
 			if ((ret = rte_eth_dev_vlan_filter(cur_port_id, cur->vlan_id, false)) < 0)
 				errno_log(-ret, "rte_eth_dev_vlan_filter disable");
@@ -99,6 +102,7 @@ static int iface_vlan_reconfig(
 		}
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
+		iface_add_subinterface(next_parent, iface);
 
 		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0)
 			return errno_log(-ret, "rte_hash_add_key_data");
@@ -136,6 +140,7 @@ static int iface_vlan_reconfig(
 
 static int iface_vlan_fini(struct iface *iface) {
 	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
+	struct iface *parent = iface_from_id(vlan->parent_id);
 	int ret, status = 0;
 	uint16_t port_id;
 
@@ -156,13 +161,12 @@ static int iface_vlan_fini(struct iface *iface) {
 			status = ret;
 	}
 
-	iface_from_id(vlan->parent_id)->subinterfaces--;
+	iface_del_subinterface(parent, iface);
 
 	return status;
 }
 
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
-	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	int ret;
 
 	ret = iface_vlan_reconfig(
@@ -172,8 +176,6 @@ static int iface_vlan_init(struct iface *iface, const void *api_info) {
 		iface_vlan_fini(iface);
 		errno = -ret;
 	}
-
-	iface_from_id(vlan->parent_id)->subinterfaces++;
 
 	return ret;
 }

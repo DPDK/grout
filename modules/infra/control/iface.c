@@ -6,6 +6,7 @@
 #include <gr_control.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_stb_ds.h>
 #include <gr_string.h>
 
 #include <event2/event.h>
@@ -196,6 +197,24 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	return type->get_eth_addr(iface, mac);
 }
 
+void iface_add_subinterface(struct iface *parent, const struct iface *sub) {
+	const struct iface **s;
+	arrforeach (s, parent->subinterfaces) {
+		if (*s == sub)
+			return;
+	}
+	arrpush(parent->subinterfaces, sub);
+}
+
+void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
+	for (int i = 0; i < arrlen(parent->subinterfaces); i++) {
+		if (parent->subinterfaces[i] == sub) {
+			arrdelswap(parent->subinterfaces, i);
+			return;
+		}
+	}
+}
+
 int iface_destroy(uint16_t ifid) {
 	struct iface *iface = iface_from_id(ifid);
 	struct iface_type *type;
@@ -204,7 +223,7 @@ int iface_destroy(uint16_t ifid) {
 	if (iface == NULL)
 		return -1;
 
-	if (iface->subinterfaces > 0)
+	if (arrlen(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
 	iface_event_notify(IFACE_EVENT_PRE_REMOVE, iface);
@@ -213,6 +232,7 @@ int iface_destroy(uint16_t ifid) {
 	type = iface_type_get(iface->type_id);
 	ret = type->fini(iface);
 	free(iface->name);
+	arrfree(iface->subinterfaces);
 	rte_free(iface);
 
 	return ret;
