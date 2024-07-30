@@ -20,7 +20,7 @@ struct __rte_cache_aligned iface {
 	uint16_t state;
 	uint16_t mtu;
 	uint16_t vrf_id; // L3 addressing and routing domain
-	uint8_t subinterfaces;
+	const struct iface **subinterfaces;
 	char *name;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
@@ -73,6 +73,8 @@ int iface_reconfig(
 );
 int iface_destroy(uint16_t ifid);
 struct iface *iface_from_id(uint16_t ifid);
+void iface_add_subinterface(struct iface *parent, const struct iface *sub);
+void iface_del_subinterface(struct iface *parent, const struct iface *sub);
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
 uint16_t ifaces_count(uint16_t type_id);
 struct iface *iface_next(uint16_t type_id, const struct iface *prev);
