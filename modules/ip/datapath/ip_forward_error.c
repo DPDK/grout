@@ -50,7 +50,7 @@ static uint16_t ip_forward_error_process(
 		// Get the local router IP address from the input iface
 		input_iface = ip_output_mbuf_data(mbuf)->input_iface;
 		vrf_id = input_iface->vrf_id;
-		if ((nh = ip4_addr_get_default(input_iface->id)) == NULL) {
+		if ((nh = ip4_addr_get_preferred(input_iface->id, ip->src_addr)) == NULL) {
 			rte_node_enqueue_x1(graph, node, NO_IP, mbuf);
 			continue;
 		}
