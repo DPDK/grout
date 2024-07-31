@@ -32,6 +32,13 @@ struct __rte_cache_aligned nexthop {
 	struct rte_mbuf *held_pkts_tail;
 };
 
+#define IP4_HOPLIST_MAX_SIZE 8
+
+struct hoplist {
+	unsigned count;
+	struct nexthop *nh[IP4_HOPLIST_MAX_SIZE];
+};
+
 // Max number of packets to hold per next hop waiting for resolution (default: 256).
 #define IP4_NH_MAX_HELD_PKTS 256
 // Reachable next hop lifetime after last ARP reply received (default: 20 min).
@@ -60,16 +67,9 @@ struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh);
 
-#define IP4_MAX_IFACE_ADDRESSES 8
-
-struct iface_addresses {
-	struct nexthop *nh[IP4_MAX_IFACE_ADDRESSES];
-	unsigned count;
-};
-
 // get the default address for a given interface
-struct nexthop *ip4_addr_get_default(uint16_t iface_id);
+struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
-struct iface_addresses *ip4_addr_get_all(uint16_t iface_id);
+struct hoplist *ip4_addr_get_all(uint16_t iface_id);
 
 #endif

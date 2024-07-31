@@ -26,10 +26,10 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct iface_addresses *iface_addrs;
+static struct hoplist *iface_addrs;
 
-struct nexthop *ip4_addr_get_default(uint16_t iface_id) {
-	struct iface_addresses *addrs;
+struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+	struct hoplist *addrs;
 
 	if (iface_id >= MAX_IFACES)
 		return errno_set_null(ENODEV);
@@ -38,11 +38,17 @@ struct nexthop *ip4_addr_get_default(uint16_t iface_id) {
 	if (addrs->count == 0)
 		return errno_set_null(ENOENT);
 
+	for (unsigned i = 0; i < addrs->count; i++) {
+		struct nexthop *nh = addrs->nh[i];
+		if (ip4_addr_same_subnet(dst, nh->ip, nh->prefixlen))
+			return nh;
+	}
+
 	return addrs->nh[0];
 }
 
-struct iface_addresses *ip4_addr_get_all(uint16_t iface_id) {
-	struct iface_addresses *addrs;
+struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
+	struct hoplist *addrs;
 
 	if (iface_id >= MAX_IFACES)
 		return errno_set_null(ENODEV);
@@ -56,7 +62,7 @@ struct iface_addresses *ip4_addr_get_all(uint16_t iface_id) {
 
 static struct api_out addr_add(const void *request, void **response) {
 	const struct gr_ip4_addr_add_req *req = request;
-	struct iface_addresses *ifaddrs;
+	struct hoplist *ifaddrs;
 	const struct iface *iface;
 	unsigned addr_index;
 	struct nexthop *nh;
@@ -78,7 +84,7 @@ static struct api_out addr_add(const void *request, void **response) {
 			return api_out(0, 0);
 	}
 
-	if (ifaddrs->count == IP4_MAX_IFACE_ADDRESSES)
+	if (ifaddrs->count == IP4_HOPLIST_MAX_SIZE)
 		return api_out(ENOSPC, 0);
 
 	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh) == 0)
@@ -109,7 +115,7 @@ static struct api_out addr_add(const void *request, void **response) {
 
 static struct api_out addr_del(const void *request, void **response) {
 	const struct gr_ip4_addr_del_req *req = request;
-	struct iface_addresses *addrs;
+	struct hoplist *addrs;
 	struct nexthop *nh = NULL;
 	unsigned i;
 
@@ -149,7 +155,7 @@ static struct api_out addr_del(const void *request, void **response) {
 static struct api_out addr_list(const void *request, void **response) {
 	const struct gr_ip4_addr_list_req *req = request;
 	struct gr_ip4_addr_list_resp *resp = NULL;
-	const struct iface_addresses *addrs;
+	const struct hoplist *addrs;
 	struct gr_ip4_ifaddr *addr;
 	uint16_t iface_id, num;
 	size_t len;
@@ -184,7 +190,7 @@ static struct api_out addr_list(const void *request, void **response) {
 }
 
 static void iface_event_handler(iface_event_t event, struct iface *iface) {
-	struct iface_addresses *ifaddrs;
+	struct hoplist *ifaddrs;
 
 	if (event != IFACE_EVENT_PRE_REMOVE)
 		return;
@@ -197,9 +203,7 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 }
 
 static void addr_init(struct event_base *) {
-	iface_addrs = rte_calloc(
-		__func__, MAX_IFACES, sizeof(struct iface_addresses), RTE_CACHE_LINE_SIZE
-	);
+	iface_addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct hoplist), RTE_CACHE_LINE_SIZE);
 	if (iface_addrs == NULL)
 		ABORT("rte_calloc(addrs)");
 }
