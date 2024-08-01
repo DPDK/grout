@@ -28,6 +28,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
+	struct nexthop *gw;
 	uint8_t icmp_type;
 	rte_edge_t edge;
 
@@ -45,11 +46,13 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// Get the local router IP address from the input iface
 		iface = ip_output_mbuf_data(mbuf)->input_iface;
-		if (iface == NULL) {
+		gw = ip4_route_lookup(iface->vrf_id, ip->src_addr);
+		if (gw == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
-		if ((nh = ip4_addr_get_preferred(iface->id, ip->src_addr)) == NULL) {
+
+		if ((nh = ip4_addr_get_preferred(iface->id, gw->ip)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
