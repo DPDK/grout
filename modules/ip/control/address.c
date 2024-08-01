@@ -66,7 +66,6 @@ static struct api_out addr_add(const void *request, void **response) {
 	const struct iface *iface;
 	unsigned addr_index;
 	struct nexthop *nh;
-	uint32_t nh_idx;
 	int ret;
 
 	(void)response;
@@ -87,30 +86,29 @@ static struct api_out addr_add(const void *request, void **response) {
 	if (ifaddrs->count == IP4_HOPLIST_MAX_SIZE)
 		return api_out(ENOSPC, 0);
 
-	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh) == 0)
+	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
 		return api_out(EADDRINUSE, 0);
 
-	if ((ret = ip4_nexthop_add(iface->vrf_id, req->addr.addr.ip, &nh_idx, &nh)) < 0)
-		return api_out(-ret, 0);
+	if ((nh = ip4_nexthop_new(iface->vrf_id, iface->id, req->addr.addr.ip)) == NULL)
+		return api_out(errno, 0);
 
-	nh->iface_id = req->addr.iface_id;
 	nh->prefixlen = req->addr.addr.prefixlen;
 	nh->flags = GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK | GR_IP4_NH_F_REACHABLE
 		| GR_IP4_NH_F_STATIC;
 
 	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP) {
+			ip4_nexthop_decref(nh);
 			return api_out(errno, 0);
+		}
 
-	ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh_idx, nh);
-	if (ret == 0) {
-		ifaddrs->nh[addr_index] = nh;
-		ifaddrs->count++;
-	} else {
-		ip4_nexthop_decref(nh);
-	}
+	if ((ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh)) < 0)
+		return api_out(-ret, 0);
 
-	return api_out(-ret, 0);
+	ifaddrs->nh[addr_index] = nh;
+	ifaddrs->count++;
+
+	return api_out(0, 0);
 }
 
 static struct api_out addr_del(const void *request, void **response) {
