@@ -23,11 +23,11 @@ enum edges {
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
+	struct nexthop *nh, *local;
 	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	uint8_t icmp_type;
 	rte_edge_t edge;
 
@@ -45,18 +45,19 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// Get the local router IP address from the input iface
 		iface = ip_output_mbuf_data(mbuf)->input_iface;
-		if (iface == NULL) {
+		if (iface == NULL || (nh = ip4_route_lookup(iface->vrf_id, ip->src_addr)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
-		if ((nh = ip4_addr_get_preferred(iface->id, ip->src_addr)) == NULL) {
+		// Select preferred source IP address to reply with
+		if ((local = ip4_addr_get_preferred(nh->iface_id, nh->ip)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
 
 		ip_data = ip_local_mbuf_data(mbuf);
 		ip_data->vrf_id = iface->vrf_id;
-		ip_data->src = nh->ip;
+		ip_data->src = local->ip;
 		ip_data->dst = ip->src_addr;
 
 		// RFC792 payload size: ip header + 64 bits of original datagram
