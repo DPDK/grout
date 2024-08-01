@@ -34,6 +34,8 @@
 #define GR_IFACE_SET_NAME GR_BIT64(2)
 #define GR_IFACE_SET_VRF GR_BIT64(3)
 
+#define GR_IFACE_ID_UNDEF 0
+
 // Generic struct for all network interfaces.
 struct gr_iface {
 	uint16_t id; // Interface unique index.

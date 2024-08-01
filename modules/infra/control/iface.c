@@ -34,10 +34,13 @@ void iface_type_register(struct iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
+#define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
+
+// the first slot is wasted by GR_IFACE_ID_UNDEF
 static struct iface **ifaces;
 
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = 0; i < MAX_IFACES; i++) {
+	for (uint16_t i = IFACE_ID_FIRST; i < MAX_IFACES; i++) {
 		if (ifaces[i] == NULL) {
 			*ifid = i;
 			return 0;
@@ -147,7 +150,7 @@ int iface_reconfig(
 uint16_t ifaces_count(uint16_t type_id) {
 	uint16_t count = 0;
 
-	for (uint16_t ifid = 0; ifid < MAX_IFACES; ifid++) {
+	for (uint16_t ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
 			count++;
@@ -160,7 +163,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 	uint16_t start_id;
 
 	if (prev == NULL)
-		start_id = 0;
+		start_id = IFACE_ID_FIRST;
 	else
 		start_id = prev->id + 1;
 
@@ -175,7 +178,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 
 struct iface *iface_from_id(uint16_t ifid) {
 	struct iface *iface = NULL;
-	if (ifid < MAX_IFACES)
+	if (ifid != GR_IFACE_ID_UNDEF && ifid < MAX_IFACES)
 		iface = ifaces[ifid];
 	if (iface == NULL)
 		errno = ENODEV;
@@ -276,7 +279,7 @@ static void iface_fini(struct event_base *) {
 	uint16_t ifid;
 
 	// Destroy all virtual interface first before removing DPDK ports.
-	for (ifid = 0; ifid < MAX_IFACES; ifid++) {
+	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type_id != GR_IFACE_TYPE_PORT) {
 			if (iface_destroy(ifid) < 0)
@@ -286,7 +289,7 @@ static void iface_fini(struct event_base *) {
 	}
 
 	// Finally, destroy DPDK ports.
-	for (ifid = 0; ifid < MAX_IFACES; ifid++) {
+	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface == NULL)
 			continue;

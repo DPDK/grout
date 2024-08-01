@@ -57,30 +57,43 @@ static int iface_vlan_reconfig(
 ) {
 	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
 	const struct gr_iface_info_vlan *next = api_info;
-	struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
-	struct vlan_key next_key = {next->parent_id, next->vlan_id};
-	struct iface *cur_parent = iface_from_id(cur->parent_id);
-	struct iface *next_parent = iface_from_id(next->parent_id);
-	uint16_t next_port_id = RTE_MAX_ETHPORTS;
-	uint16_t cur_port_id = RTE_MAX_ETHPORTS;
+	bool reconfig = set_attrs != IFACE_SET_ALL;
+	struct iface *cur_parent, *next_parent;
 	struct iface_type *parent_type;
 	int ret;
 
-	if (get_parent_port_id(cur->parent_id, &cur_port_id) < 0)
-		return -errno;
-	if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
+	if (reconfig) {
+		if ((cur_parent = iface_from_id(cur->parent_id)) == NULL)
+			return -errno;
+	} else {
+		cur_parent = NULL;
+	}
+	if ((next_parent = iface_from_id(next->parent_id)) == NULL)
 		return -errno;
 
 	parent_type = iface_type_get(next_parent->type_id);
 
 	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
+		struct vlan_key next_key = {next->parent_id, next->vlan_id};
+		uint16_t next_port_id = RTE_MAX_ETHPORTS;
+
+		if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
+			return -errno;
+
 		if (rte_hash_lookup(vlan_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
-		if (set_attrs != IFACE_SET_ALL) {
+		if (reconfig) {
 			// reconfig, *not initial config*
+			struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
+			uint16_t cur_port_id = RTE_MAX_ETHPORTS;
+
 			rte_hash_del_key(vlan_hash, &cur_key);
 			iface_del_subinterface(cur_parent, iface);
+
+			if (get_parent_port_id(cur->parent_id, &cur_port_id) < 0)
+				return -errno;
+
 			// remove previous vlan filter (ignore errors)
 			if ((ret = rte_eth_dev_vlan_filter(cur_port_id, cur->vlan_id, false)) < 0)
 				errno_log(-ret, "rte_eth_dev_vlan_filter disable");
@@ -100,7 +113,7 @@ static int iface_vlan_reconfig(
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
-		if (set_attrs != IFACE_SET_ALL) {
+		if (reconfig) {
 			// reconfig, *not initial config*
 			// remove previous mac filter (ignore errors)
 			parent_type->del_eth_addr(cur_parent, &cur->mac);
