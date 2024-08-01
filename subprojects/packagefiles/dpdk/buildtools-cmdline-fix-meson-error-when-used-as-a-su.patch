@@ -1,0 +1,34 @@
+From 866a6450368799505ab5661ebf0632eaae28f55d Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Thu, 1 Aug 2024 11:58:48 +0200
+Subject: [PATCH dpdk] buildtools/cmdline: fix meson error when used as a
+ subproject
+
+Fix the following error when using dpdk as a subproject:
+
+ subprojects/dpdk/buildtools/subproject/meson.build:28:56:
+ ERROR: Unknown function "file".
+
+This was obviously never tested in its submitted form.
+
+Cc: stable@dpdk.org
+Fixes: 7d8c608faa7f ("buildtools/cmdline: allow using script in subproject")
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ buildtools/subproject/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/buildtools/subproject/meson.build b/buildtools/subproject/meson.build
+index 9ba94671bd0e..8ae081e1698a 100644
+--- a/buildtools/subproject/meson.build
++++ b/buildtools/subproject/meson.build
+@@ -25,4 +25,4 @@ endif
+ 
+ libdpdk_dep = dpdk_dep
+ 
+-meson.override_find_program('dpdk-cmdline-gen.py', file('../dpdk-cmdline-gen.py'))
++meson.override_find_program('dpdk-cmdline-gen.py', files('../dpdk-cmdline-gen.py'))
+-- 
+2.45.2
+
