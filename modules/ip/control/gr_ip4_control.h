@@ -22,7 +22,7 @@ struct __rte_cache_aligned nexthop {
 	uint16_t iface_id;
 	ip4_addr_t ip;
 	uint64_t last_request, last_reply;
-	uint32_t ref_count;
+	uint32_t ref_count; // number of routes referencing this nexthop
 	uint8_t prefixlen;
 	uint8_t ucast_probes : 4, bcast_probes : 4;
 	rte_spinlock_t lock;
@@ -55,17 +55,16 @@ struct hoplist {
 #define IP4_MAX_ROUTES (1 << 16)
 #define IP4_MAX_VRFS 256
 
-struct nexthop *ip4_nexthop_get(uint32_t idx);
-int ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
-int ip4_nexthop_add(uint16_t vrf_id, ip4_addr_t ip, uint32_t *idx, struct nexthop **nh);
+struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip);
+struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
 void ip4_nexthop_incref(struct nexthop *);
 void ip4_nexthop_decref(struct nexthop *);
 
-int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, uint32_t nh_idx, struct nexthop *);
+int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
 int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
-void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh);
+void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *);
 
 // get the default address for a given interface
 struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst);

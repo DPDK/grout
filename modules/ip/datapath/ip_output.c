@@ -80,7 +80,6 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct nexthop *nh;
 	uint16_t i, sent;
 	rte_edge_t next;
-	uint32_t idx;
 
 	sent = 0;
 
@@ -109,13 +108,18 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /32 route so that next
 			// packets take it in priority with a single route lookup.
-			struct nexthop *remote;
-			if (ip4_nexthop_add(nh->vrf_id, ip->dst_addr, &idx, &remote) < 0) {
+			struct nexthop *remote = ip4_nexthop_new(
+				nh->vrf_id, nh->iface_id, ip->dst_addr
+			);
+			if (remote == NULL) {
 				next = ERROR;
 				goto next;
 			}
-			ip4_route_insert(nh->vrf_id, ip->dst_addr, 32, idx, remote);
-			remote->iface_id = nh->iface_id;
+			if (ip4_route_insert(nh->vrf_id, ip->dst_addr, 32, remote) < 0) {
+				next = ERROR;
+				goto next;
+			}
+
 			ip_output_mbuf_data(mbuf)->nh = remote;
 			nh = remote;
 		}

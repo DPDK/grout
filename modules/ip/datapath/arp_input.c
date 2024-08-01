@@ -73,7 +73,6 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_mbuf *mbuf;
 	rte_edge_t next;
 	ip4_addr_t sip;
-	uint32_t idx;
 	uint64_t now;
 
 	now = rte_get_tsc_cycles();
@@ -114,11 +113,14 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.
-			if (ip4_nexthop_add(iface->vrf_id, sip, &idx, &remote) < 0) {
+			if ((remote = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
 				next = ERROR;
 				goto next;
 			}
-			ip4_route_insert(iface->vrf_id, sip, 32, idx, remote);
+			if (ip4_route_insert(iface->vrf_id, sip, 32, remote) < 0) {
+				next = ERROR;
+				goto next;
+			}
 			update_nexthop(graph, node, remote, now, iface->id, arp);
 		} else {
 			next = DROP;

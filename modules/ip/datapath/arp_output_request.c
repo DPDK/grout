@@ -31,10 +31,8 @@ int arp_output_request_solicit(struct nexthop *nh) {
 	int ret;
 	if (nh == NULL)
 		return errno_set(EINVAL);
-	ip4_nexthop_incref(nh);
 	ret = post_to_stack(arp_solicit, nh);
 	if (ret < 0) {
-		ip4_nexthop_decref(nh);
 		return errno_set(-ret);
 	}
 	return 0;
@@ -97,7 +95,6 @@ static uint16_t arp_output_request_process(
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface_from_id(nh->iface_id);
 
-		ip4_nexthop_decref(nh);
 		next = OUTPUT;
 		sent++;
 next:
