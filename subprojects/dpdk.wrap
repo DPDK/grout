@@ -1,13 +1,11 @@
 [wrap-git]
 url = https://dpdk.org/git/dpdk
-revision = releases
+revision = v24.07
 depth = 1
 diff_files =
 	dpdk/mbuf-fix-strict-aliasing-error.patch,
-	dpdk/graph-enhance-export-to-graphviz.patch,
 	dpdk/graph-expose-node-context-as-pointers.patch,
-	dpdk/graph-avoid-accessing-graph-list-when-getting-stats.patch,
-	dpdk/graph-avoid-id-collisions.patch
+	dpdk/buildtools-cmdline-fix-meson-error-when-used-as-a-su.patch
 
 [provide]
 dependency_names = libdpdk
