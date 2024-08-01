@@ -196,6 +196,9 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 		return;
 
 	ifaddrs = ip4_addr_get_all(iface->id);
+	if (ifaddrs == NULL)
+		return;
+
 	for (unsigned i = 0; i < ifaddrs->count; i++)
 		ip4_route_cleanup(iface->vrf_id, ifaddrs->nh[i]);
 
