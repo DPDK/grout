@@ -38,23 +38,23 @@ int register_signals(struct event_base *base) {
 
 	ev_sigint = evsignal_new(base, SIGINT, signal_cb, base);
 	if (ev_sigint == NULL || event_add(ev_sigint, NULL) < 0)
-		return -1;
+		return errno_set(ENOMEM);
 
 	ev_sigterm = evsignal_new(base, SIGTERM, signal_cb, base);
 	if (ev_sigterm == NULL || event_add(ev_sigterm, NULL) < 0)
-		return -1;
+		return errno_set(ENOMEM);
 
 	ev_sigquit = evsignal_new(base, SIGQUIT, signal_cb, base);
 	if (ev_sigquit == NULL || event_add(ev_sigquit, NULL) < 0)
-		return -1;
+		return errno_set(ENOMEM);
 
 	ev_sigchld = evsignal_new(base, SIGCHLD, signal_cb, base);
 	if (ev_sigchld == NULL || event_add(ev_sigchld, NULL) < 0)
-		return -1;
+		return errno_set(ENOMEM);
 
 	ev_sigpipe = evsignal_new(base, SIGPIPE, signal_cb, base);
 	if (ev_sigpipe == NULL || event_add(ev_sigpipe, NULL) < 0)
-		return -1;
+		return errno_set(ENOMEM);
 
 	return 0;
 }

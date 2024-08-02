@@ -70,7 +70,7 @@ int print_cmd_status(exec_status_t status) {
 		errorf("fatal: %s", strerror(errno));
 		break;
 	}
-	return -1;
+	return -errno;
 }
 
 static const char *need_quote(const char *arg) {

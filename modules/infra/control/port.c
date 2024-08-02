@@ -403,14 +403,17 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 
 	port->port_id = port_id;
 	port->devargs = strndup(api->devargs, GR_PORT_DEVARGS_SIZE);
-	if (port->devargs == NULL)
+	if (port->devargs == NULL) {
+		ret = errno_set(ENOMEM);
 		goto fail;
+	}
 
 	ret = iface_port_reconfig(
 		iface, IFACE_SET_ALL, iface->flags, iface->mtu, iface->vrf_id, api_info
 	);
 	if (ret < 0) {
 		iface_port_fini(iface);
+		errno = -ret;
 		goto fail;
 	}
 	port_ifaces[port_id] = iface;
@@ -418,7 +421,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	return 0;
 fail:
 	free(port->devargs);
-	return -1;
+	return ret;
 }
 
 const struct iface *port_get_iface(uint16_t port_id) {

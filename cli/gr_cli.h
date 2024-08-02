@@ -5,6 +5,7 @@
 #define _GR_CLI
 
 #include <gr_api.h>
+#include <gr_errno.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>

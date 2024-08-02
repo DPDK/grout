@@ -84,80 +84,60 @@ end:
 
 const char *arg_str(const struct ec_pnode *p, const char *id) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL) {
-		errno = ENOENT;
-		return NULL;
-	}
+	if (n == NULL)
+		return errno_set_null(ENOENT);
+
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1) {
-		errno = EIO;
-		return NULL;
-	}
+	if (v == NULL || ec_strvec_len(v) != 1)
+		return errno_set_null(EIO);
+
 	return ec_strvec_val(v, 0);
 }
 
 int arg_i64(const struct ec_pnode *p, const char *id, int64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL) {
-		errno = ENOENT;
-		goto err;
-	}
+	if (n == NULL)
+		return errno_set(ENOENT);
+
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1) {
-		errno = EFAULT;
-		goto err;
-	}
+	if (v == NULL || ec_strvec_len(v) != 1)
+		return errno_set(EFAULT);
+
 	const char *str = ec_strvec_val(v, 0);
-	if (ec_node_int_getval(ec_pnode_get_node(n), str, val) < 0) {
-		if (errno == 0)
-			errno = EINVAL;
-		goto err;
-	}
+	if (ec_node_int_getval(ec_pnode_get_node(n), str, val) < 0)
+		return errno_set(EINVAL);
+
 	return 0;
-err:
-	return -1;
 }
 
 int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL) {
-		errno = ENOENT;
-		goto err;
-	}
+	if (n == NULL)
+		return errno_set(ENOENT);
+
 	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1) {
-		errno = EFAULT;
-		goto err;
-	}
+	if (v == NULL || ec_strvec_len(v) != 1)
+		return errno_set(EFAULT);
+
 	const char *str = ec_strvec_val(v, 0);
-	if (ec_node_uint_getval(ec_pnode_get_node(n), str, val) < 0) {
-		if (errno == 0)
-			errno = EINVAL;
-		goto err;
-	}
+	if (ec_node_uint_getval(ec_pnode_get_node(n), str, val) < 0)
+		return errno_set(EINVAL);
+
 	return 0;
-err:
-	return -1;
 }
 
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
-	if (n == NULL) {
-		errno = ENOENT;
-		goto err;
-	}
-	const struct ec_strvec *v = ec_pnode_get_strvec(n);
-	if (v == NULL || ec_strvec_len(v) != 1) {
-		errno = EFAULT;
-		goto err;
-	}
-	const char *str = ec_strvec_val(v, 0);
+	if (n == NULL)
+		return errno_set(ENOENT);
 
-	if (rte_ether_unformat_addr(str, val) < 0) {
-		errno = EINVAL;
-		goto err;
-	}
+	const struct ec_strvec *v = ec_pnode_get_strvec(n);
+	if (v == NULL || ec_strvec_len(v) != 1)
+		return errno_set(EFAULT);
+
+	const char *str = ec_strvec_val(v, 0);
+	if (rte_ether_unformat_addr(str, val) < 0)
+		return errno_set(EINVAL);
+
 	return 0;
-err:
-	return -1;
 }

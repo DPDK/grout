@@ -54,7 +54,7 @@ int complete_iface_types(
 		if (!ec_str_startswith(type->name, arg))
 			continue;
 		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, type->name))
-			return -1;
+			return -errno;
 	}
 	return 0;
 }
@@ -136,7 +136,7 @@ int iface_from_id(const struct gr_api_client *c, uint16_t iface_id, struct gr_if
 	void *resp_ptr = NULL;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return -1;
+		return -errno;
 
 	resp = resp_ptr;
 	memcpy(iface, &resp->iface, sizeof(*iface));

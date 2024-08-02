@@ -45,7 +45,7 @@ static cmd_cb_t *find_cmd_callback(struct ec_pnode *parsed) {
 			return cb;
 	}
 
-	return NULL;
+	return errno_set_null(EOPNOTSUPP);
 }
 
 static exec_status_t exec_strvec(

@@ -85,7 +85,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	ctx->stats = rte_graph_cluster_stats_create(&stats_param);
 	if (ctx->stats == NULL) {
 		LOG(ERR, "rte_graph_cluster_stats_create: %s", rte_strerror(rte_errno));
-		return -1;
+		return -rte_errno;
 	}
 
 	if (ctx->w_stats == NULL) {
@@ -95,7 +95,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 		);
 		if (ctx->w_stats == NULL) {
 			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
-			return -1;
+			return -rte_errno;
 		}
 		ctx->w_stats->n_stats = graph->nb_nodes;
 
