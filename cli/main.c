@@ -86,15 +86,15 @@ static int parse_args(int argc, char **argv) {
 		case ':':
 			usage(argv[0]);
 			errorf("-%c requires a value", optopt);
-			return -1;
+			return errno_set(EINVAL);
 		case '?':
 			usage(argv[0]);
 			errorf("-%c unknown option", optopt);
-			return -1;
+			return errno_set(EINVAL);
 		default:
 			usage(argv[0]);
 			errorf("invalid arguments");
-			return -1;
+			return errno_set(EINVAL);
 		}
 	}
 

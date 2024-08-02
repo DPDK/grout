@@ -114,7 +114,7 @@ int gr_api_client_send_recv(
 err:
 	free(req);
 	free(payload);
-	return -1;
+	return -errno;
 }
 
 #endif

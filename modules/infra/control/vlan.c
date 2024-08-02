@@ -37,7 +37,7 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 	const struct iface_info_port *port;
 
 	if (parent == NULL)
-		return -1;
+		return -errno;
 	if (parent->type_id != GR_IFACE_TYPE_PORT)
 		return errno_set(EMEDIUMTYPE);
 
@@ -61,14 +61,15 @@ static int iface_vlan_reconfig(
 	struct vlan_key next_key = {next->parent_id, next->vlan_id};
 	struct iface *cur_parent = iface_from_id(cur->parent_id);
 	struct iface *next_parent = iface_from_id(next->parent_id);
-	uint16_t cur_port_id, next_port_id;
+	uint16_t next_port_id = RTE_MAX_ETHPORTS;
+	uint16_t cur_port_id = RTE_MAX_ETHPORTS;
 	struct iface_type *parent_type;
 	int ret;
 
 	if (get_parent_port_id(cur->parent_id, &cur_port_id) < 0)
-		return -1;
+		return -errno;
 	if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
-		return -1;
+		return -errno;
 
 	parent_type = iface_type_get(next_parent->type_id);
 
@@ -88,7 +89,7 @@ static int iface_vlan_reconfig(
 		if ((ret = rte_eth_dev_vlan_filter(next_port_id, next->vlan_id, true)) < 0) {
 			errno_log(-ret, "rte_eth_dev_vlan_filter enable");
 			if (ret != -ENOTSUP && ret != -ENOSYS)
-				return ret;
+				return errno_set(-ret);
 		}
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
@@ -122,12 +123,12 @@ static int iface_vlan_reconfig(
 static int iface_vlan_fini(struct iface *iface) {
 	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	struct iface *parent = iface_from_id(vlan->parent_id);
+	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct iface_type *parent_type;
 	int ret, status = 0;
-	uint16_t port_id;
 
 	if (get_parent_port_id(vlan->parent_id, &port_id) < 0)
-		return -1;
+		return -errno;
 
 	parent_type = iface_type_get(parent->type_id);
 

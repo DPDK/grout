@@ -96,7 +96,7 @@ static int ec_node_dyn_complete(
 	if (client == NULL)
 		client = connect_client(comp);
 	if (client == NULL)
-		return -1;
+		return -errno;
 
 	return priv->cb(client, node, comp, ec_strvec_val(strvec, 0), priv->cb_arg);
 }

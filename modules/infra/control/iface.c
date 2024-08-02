@@ -43,8 +43,7 @@ static int next_ifid(uint16_t *ifid) {
 			return 0;
 		}
 	}
-	errno = ENOSPC;
-	return -1;
+	return errno_set(ENOSPC);
 }
 
 static STAILQ_HEAD(, iface_event_handler) event_handlers = STAILQ_HEAD_INITIALIZER(event_handlers);
@@ -124,10 +123,10 @@ int iface_reconfig(
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
 	if ((iface = iface_from_id(ifid)) == NULL)
-		return -1;
+		return -errno;
 	if (set_attrs & GR_IFACE_SET_NAME) {
 		if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
-			return -1;
+			return -errno;
 
 		const struct iface *i = NULL;
 		while ((i = iface_next(GR_IFACE_TYPE_UNDEF, i)) != NULL)
@@ -136,7 +135,7 @@ int iface_reconfig(
 
 		char *new_name = strndup(name, GR_IFACE_NAME_SIZE);
 		if (new_name == NULL)
-			return -1;
+			return errno_set(ENOMEM);
 		free(iface->name);
 		iface->name = new_name;
 	}
@@ -188,7 +187,7 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface_type *type;
 
 	if (iface == NULL)
-		return -1;
+		return -errno;
 
 	type = iface_type_get(iface->type_id);
 	if (type->get_eth_addr == NULL)
@@ -220,7 +219,7 @@ int iface_add_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface_type *type;
 
 	if (iface == NULL)
-		return -1;
+		return -errno;
 
 	type = iface_type_get(iface->type_id);
 	if (type->add_eth_addr == NULL)
@@ -234,7 +233,7 @@ int iface_del_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface_type *type;
 
 	if (iface == NULL)
-		return -1;
+		return -errno;
 
 	type = iface_type_get(iface->type_id);
 	if (type->del_eth_addr == NULL)
@@ -249,7 +248,7 @@ int iface_destroy(uint16_t ifid) {
 	int ret;
 
 	if (iface == NULL)
-		return -1;
+		return -errno;
 
 	if (arrlen(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);

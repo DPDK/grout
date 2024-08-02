@@ -4,6 +4,8 @@
 #ifndef _GR_NET_TYPES
 #define _GR_NET_TYPES
 
+#include "gr_errno.h"
+
 #include <arpa/inet.h>
 #include <endian.h>
 #include <errno.h>
@@ -74,7 +76,8 @@ static inline int ip4_net_format(const struct ip4_net *net, char *buf, size_t le
 	int n;
 
 	if ((tmp = inet_ntop(AF_INET, &net->ip, buf, len)) == NULL)
-		return -1;
+		return errno_set(EINVAL);
+
 	n = strlen(tmp);
 	return snprintf(buf + n, len - n, "/%u", net->prefixlen);
 }

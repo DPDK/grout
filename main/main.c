@@ -96,11 +96,11 @@ static int parse_args(int argc, char **argv) {
 		case ':':
 			usage(argv[0]);
 			fprintf(stderr, "error: -%c requires a value", optopt);
-			return -1;
+			return errno_set(EINVAL);
 		case '?':
 			usage(argv[0]);
 			fprintf(stderr, "error: -%c unknown option", optopt);
-			return -1;
+			return errno_set(EINVAL);
 		default:
 			goto end;
 		}
@@ -108,7 +108,7 @@ static int parse_args(int argc, char **argv) {
 end:
 	if (optind < argc) {
 		fputs("error: invalid arguments", stderr);
-		return -1;
+		return errno_set(EINVAL);
 	}
 
 	if (args.api_sock_path == NULL)
@@ -123,10 +123,8 @@ static void finalize_close_fd(struct event *ev, void *priv) {
 }
 
 static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp) {
-	if (resp == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
+	if (resp == NULL)
+		return errno_set(ENOMEM);
 
 	LOG(DEBUG,
 	    "for_id=%u len=%u status=%u %s",
@@ -310,7 +308,7 @@ static int listen_api_socket(void) {
 	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (fd == -1) {
 		LOG(ERR, "socket: %s", strerror(errno));
-		return -1;
+		return -errno;
 	}
 
 	addr.un.sun_family = AF_UNIX;
@@ -319,13 +317,13 @@ static int listen_api_socket(void) {
 	if (bind(fd, &addr.a, sizeof(addr.un)) < 0) {
 		LOG(ERR, "bind: %s: %s", args.api_sock_path, strerror(errno));
 		close(fd);
-		return -1;
+		return -errno;
 	}
 
 	if (listen(fd, BACKLOG) < 0) {
 		LOG(ERR, "listen: %s: %s", args.api_sock_path, strerror(errno));
 		close(fd);
-		return -1;
+		return -errno;
 	}
 
 	ev_listen = event_new(
@@ -338,7 +336,7 @@ static int listen_api_socket(void) {
 	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
 		close(fd);
 		LOG(ERR, "event_new: %s: %s", args.api_sock_path, strerror(errno));
-		return -1;
+		return -errno;
 	}
 
 	LOG(INFO, "listening on API socket %s", args.api_sock_path);
