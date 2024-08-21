@@ -38,7 +38,7 @@ char *astrcat(char *buf, const char *fmt, ...) {
 		ret = tmp;
 	}
 
-	return 0;
+	return ret;
 }
 
 int utf8_check(const char *buf, size_t maxlen) {
