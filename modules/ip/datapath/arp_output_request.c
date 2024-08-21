@@ -66,6 +66,10 @@ static uint16_t arp_output_request_process(
 
 		// Set all ARP request fields. TODO: upstream this in dpdk.
 		arp = (struct rte_arp_hdr *)rte_pktmbuf_append(mbuf, sizeof(struct rte_arp_hdr));
+		if (arp == NULL) {
+			next = ERROR;
+			goto next;
+		}
 		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
 		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REQUEST);

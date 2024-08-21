@@ -11,10 +11,10 @@ char *arrjoin(char **array, char *sep) {
 	char *out = NULL;
 
 	for (int i = 0; i < arrlen(array); i++) {
-		if (i > 0) {
-			out = astrcat(out, "%s%s", sep, array[i]);
-		} else {
+		if (out == NULL) {
 			out = strdup(array[i]);
+		} else {
+			out = astrcat(out, "%s%s", sep, array[i]);
 		}
 		if (out == NULL)
 			break;

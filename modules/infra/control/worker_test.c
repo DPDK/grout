@@ -128,6 +128,7 @@ static int setup(void **) {
 	for (int i = 0; i < 3; i++) {
 		struct iface_info_port *port;
 		struct iface *iface = calloc(1, sizeof(*iface) + sizeof(*port));
+		assert_non_null(iface);
 		port = (struct iface_info_port *)iface->info;
 		iface->id = i;
 		port->port_id = i;

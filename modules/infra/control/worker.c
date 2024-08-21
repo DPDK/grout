@@ -93,6 +93,7 @@ struct worker *worker_find(unsigned cpu_id) {
 		if (worker->cpu_id == cpu_id)
 			return worker;
 	}
+	errno = ENOENT;
 	return NULL;
 }
 
@@ -229,6 +230,8 @@ move:
 		dst_worker = worker_find(cpu_id);
 		reconfig = true;
 	}
+	if (dst_worker == NULL)
+		return errno_set(errno);
 
 	// assign to dst_worker *before* reconfiguring ports
 	// to avoid the dangling rxq to be assigned twice

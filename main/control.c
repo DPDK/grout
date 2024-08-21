@@ -59,6 +59,9 @@ void modules_init(struct event_base *ev_base) {
 	STAILQ_FOREACH (mod, &modules, entries)
 		arrpush(mods, mod); // NOLINT
 
+	if (mods == NULL)
+		ABORT("failed to alloc module array");
+
 	qsort(mods, arrlen(mods), sizeof(struct gr_module *), module_init_prio_order);
 
 	for (int i = 0; i < arrlen(mods); i++) {
@@ -83,6 +86,9 @@ void modules_fini(struct event_base *ev_base) {
 
 	STAILQ_FOREACH (mod, &modules, entries)
 		arrpush(mods, mod); // NOLINT
+
+	if (mods == NULL)
+		ABORT("failed to alloc module array");
 
 	qsort(mods, arrlen(mods), sizeof(struct gr_module *), module_fini_prio_order);
 

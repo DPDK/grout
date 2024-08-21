@@ -144,6 +144,7 @@ int iface_reconfig(
 	}
 
 	type = iface_type_get(iface->type_id);
+	assert(type != NULL);
 	return type->reconfig(iface, set_attrs, flags, mtu, vrf_id, api_info);
 }
 
@@ -193,6 +194,7 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 		return -errno;
 
 	type = iface_type_get(iface->type_id);
+	assert(type != NULL);
 	if (type->get_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
@@ -225,6 +227,7 @@ int iface_add_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 		return -errno;
 
 	type = iface_type_get(iface->type_id);
+	assert(type != NULL);
 	if (type->add_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
@@ -239,6 +242,7 @@ int iface_del_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 		return -errno;
 
 	type = iface_type_get(iface->type_id);
+	assert(type != NULL);
 	if (type->del_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
@@ -260,6 +264,7 @@ int iface_destroy(uint16_t ifid) {
 
 	ifaces[ifid] = NULL;
 	type = iface_type_get(iface->type_id);
+	assert(type != NULL);
 	ret = type->fini(iface);
 	free(iface->name);
 	arrfree(iface->subinterfaces);
