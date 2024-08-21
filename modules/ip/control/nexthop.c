@@ -179,7 +179,8 @@ static struct api_out nh4_list(const void *request, void **response) {
 	}
 
 	resp->n_nhs = arrlen(ctx.nh);
-	memcpy(&resp->nhs, ctx.nh, arrlen(ctx.nh) * sizeof(*ctx.nh));
+	if (ctx.nh != NULL)
+		memcpy(&resp->nhs, ctx.nh, arrlen(ctx.nh) * sizeof(*ctx.nh));
 	arrfree(ctx.nh);
 	*response = resp;
 
