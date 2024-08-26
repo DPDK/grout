@@ -28,25 +28,6 @@
 
 static struct hoplist *iface_addrs;
 
-struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
-	struct hoplist *addrs;
-
-	if (iface_id >= MAX_IFACES)
-		return errno_set_null(ENODEV);
-
-	addrs = &iface_addrs[iface_id];
-	if (addrs->count == 0)
-		return errno_set_null(ENOENT);
-
-	for (unsigned i = 0; i < addrs->count; i++) {
-		struct nexthop *nh = addrs->nh[i];
-		if (ip4_addr_same_subnet(dst, nh->ip, nh->prefixlen))
-			return nh;
-	}
-
-	return addrs->nh[0];
-}
-
 struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
@@ -58,6 +39,21 @@ struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
 		return errno_set_null(ENOENT);
 
 	return addrs;
+}
+
+struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+	struct hoplist *addrs = ip4_addr_get_all(iface_id);
+
+	if (addrs == NULL)
+		return NULL;
+
+	for (unsigned i = 0; i < addrs->count; i++) {
+		struct nexthop *nh = addrs->nh[i];
+		if (ip4_addr_same_subnet(dst, nh->ip, nh->prefixlen))
+			return nh;
+	}
+
+	return addrs->nh[0];
 }
 
 static struct api_out addr_add(const void *request, void **response) {
