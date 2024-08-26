@@ -28,14 +28,9 @@ enum {
 static control_input_t arp_solicit;
 
 int arp_output_request_solicit(struct nexthop *nh) {
-	int ret;
 	if (nh == NULL)
 		return errno_set(EINVAL);
-	ret = post_to_stack(arp_solicit, nh);
-	if (ret < 0) {
-		return errno_set(-ret);
-	}
-	return 0;
+	return post_to_stack(arp_solicit, nh);
 }
 
 static uint16_t arp_output_request_process(
