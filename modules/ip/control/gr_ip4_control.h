@@ -64,7 +64,7 @@ int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct n
 int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
-void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *);
+void ip4_route_cleanup(struct nexthop *);
 
 // get the default address for a given interface
 struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst);

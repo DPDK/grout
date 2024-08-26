@@ -234,8 +234,7 @@ static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
 
 		// this also does ip4_nexthop_decref(), freeing the next hop
 		// and buffered packets.
-		if (ip4_route_delete(nh->vrf_id, nh->ip, 32) < 0)
-			LOG(ERR, "ip4_route_delete: %s", strerror(errno));
+		ip4_route_cleanup(nh);
 	}
 }
 

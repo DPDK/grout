@@ -323,7 +323,7 @@ static void route4_fini(struct event_base *) {
 	vrf_fibs = NULL;
 }
 
-void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
+void ip4_route_cleanup(struct nexthop *nh) {
 	uint8_t prefixlen, local_prefixlen;
 	struct rte_rib_node *rn = NULL;
 	struct rte_rib *rib;
@@ -334,7 +334,7 @@ void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
 	local_ip = nh->ip;
 	local_prefixlen = nh->prefixlen;
 
-	rib = rte_fib_get_rib(get_fib(vrf_id));
+	rib = rte_fib_get_rib(get_fib(nh->vrf_id));
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
@@ -350,12 +350,12 @@ void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
 			    prefixlen,
 			    IP4_ADDR_SPLIT(&nh->ip));
 
-			ip4_route_delete(vrf_id, ip, prefixlen);
-			ip4_route_delete(vrf_id, ip, 32);
+			ip4_route_delete(nh->vrf_id, ip, prefixlen);
+			ip4_route_delete(nh->vrf_id, ip, 32);
 		}
 	}
 
-	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL || true) {
+	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
 
@@ -370,12 +370,12 @@ void ip4_route_cleanup(uint16_t vrf_id, struct nexthop *nh) {
 			    prefixlen,
 			    IP4_ADDR_SPLIT(&nh->ip));
 
-			ip4_route_delete(vrf_id, nh->ip, nh->prefixlen);
-			ip4_route_delete(vrf_id, nh->ip, 32);
+			ip4_route_delete(nh->vrf_id, nh->ip, nh->prefixlen);
+			ip4_route_delete(nh->vrf_id, nh->ip, 32);
 		}
 	}
 
-	ip4_route_delete(vrf_id, local_ip, 32);
+	ip4_route_delete(nh->vrf_id, local_ip, 32);
 }
 
 static struct gr_api_handler route4_add_handler = {
