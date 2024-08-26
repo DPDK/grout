@@ -134,13 +134,11 @@ static struct api_out addr_del(const void *request, void **response) {
 	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ip4_route_cleanup(nh->vrf_id, nh);
+	ip4_route_cleanup(nh);
 
 	// shift the remaining addresses
-	for (; i < addrs->count; i++) {
-		if (i + 1 < addrs->count)
-			addrs->nh[i] = addrs->nh[i + 1];
-	}
+	for (; i < addrs->count - 1; i++)
+		addrs->nh[i] = addrs->nh[i + 1];
 	addrs->count--;
 
 	return api_out(0, 0);
@@ -194,7 +192,7 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 		return;
 
 	for (unsigned i = 0; i < ifaddrs->count; i++)
-		ip4_route_cleanup(iface->vrf_id, ifaddrs->nh[i]);
+		ip4_route_cleanup(ifaddrs->nh[i]);
 
 	memset(ifaddrs, 0, sizeof(*ifaddrs));
 }
