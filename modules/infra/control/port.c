@@ -459,7 +459,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 
 	for (i = 0; i < filter->count; i++) {
 		if (rte_is_same_ether_addr(&filter->mac[i], mac)) {
-			LOG(INFO,
+			LOG(DEBUG,
 			    "%s: %s mac " ETH_ADDR_FMT " already filtered (refs=%u)",
 			    iface->name,
 			    mac_type,
@@ -475,7 +475,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	filter->refcnt[i] = 1;
 	filter->count++;
 
-	LOG(NOTICE,
+	LOG(INFO,
 	    "%s: enabling %s " ETH_ADDR_FMT " mac filter",
 	    iface->name,
 	    mac_type,
@@ -551,7 +551,7 @@ static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 
 found:
 	if (--filter->refcnt[i] > 0) {
-		LOG(INFO,
+		LOG(DEBUG,
 		    "%s: %s mac " ETH_ADDR_FMT " still filtered (refs=%u)",
 		    iface->name,
 		    mac_type,
@@ -560,7 +560,7 @@ found:
 		return 0;
 	}
 
-	LOG(NOTICE,
+	LOG(INFO,
 	    "%s: removing %s " ETH_ADDR_FMT " mac filter",
 	    iface->name,
 	    mac_type,
