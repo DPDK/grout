@@ -243,8 +243,10 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 	else
 		req.type = type->type_id;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		scols_unref_table(table);
 		return CMD_ERROR;
+	}
 
 	resp = resp_ptr;
 	qsort(resp->ifaces, resp->n_ifaces, sizeof(*resp->ifaces), iface_order);
