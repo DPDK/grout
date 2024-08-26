@@ -9,6 +9,7 @@
 #include <gr_api.h>
 #include <gr_control.h>
 #include <gr_log.h>
+#include <gr_macro.h>
 
 #include <event2/event.h>
 #include <rte_eal.h>
