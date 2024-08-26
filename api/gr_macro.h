@@ -6,5 +6,6 @@
 
 #define ARRAY_DIM(array) (sizeof(array) / sizeof(array[0]))
 #define MEMBER_SIZE(type, member) (sizeof(((type *)0)->member))
+#define PAYLOAD(header) ((void *)(header + 1))
 
 #endif
