@@ -120,7 +120,7 @@ static struct api_out addr_del(const void *request, void **response) {
 
 	for (i = 0; i < addrs->count; i++) {
 		if (addrs->nh[i]->ip == req->addr.addr.ip
-		    && addrs->nh[i]->prefixlen != req->addr.addr.prefixlen) {
+		    && addrs->nh[i]->prefixlen == req->addr.addr.prefixlen) {
 			nh = addrs->nh[i];
 			break;
 		}
