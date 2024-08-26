@@ -207,7 +207,7 @@ void iface_add_subinterface(struct iface *parent, const struct iface *sub) {
 		if (*s == sub)
 			return;
 	}
-	arrpush(parent->subinterfaces, sub);
+	arrpush(parent->subinterfaces, sub); // NOLINT
 }
 
 void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
