@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2024 Robin Jarry
+
+#ifndef _GR_CLI_IP
+#define _GR_CLI_IP
+
+#include <gr_cli.h>
+
+#define IP6_ADD_CTX(root) CLI_CONTEXT(root, CTX_ADD, CTX_ARG("ip6", "Create IPv6 stack elements."))
+#define IP6_DEL_CTX(root) CLI_CONTEXT(root, CTX_DEL, CTX_ARG("ip6", "Delete IPv6 stack elements."))
+#define IP6_SHOW_CTX(root) CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("ip6", "Show IPv6 stack details."))
+
+#endif

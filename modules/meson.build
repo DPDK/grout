@@ -3,4 +3,5 @@
 
 subdir('infra')
 subdir('ip')
+subdir('ip6')
 subdir('ipip')
