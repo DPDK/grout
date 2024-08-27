@@ -61,7 +61,7 @@ static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
 	if (fib == NULL) {
 		char name[64];
 
-		snprintf(name, sizeof(name), "vrf_%u", vrf_id);
+		snprintf(name, sizeof(name), "ip_vrf_%u", vrf_id);
 		fib = rte_fib_create(name, SOCKET_ID_ANY, &fib_conf);
 		if (fib == NULL)
 			return errno_set_null(rte_errno);
