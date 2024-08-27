@@ -46,7 +46,7 @@ int dpdk_init(struct gr_args *args) {
 		arrpush(eal_args, "--no-shconf");
 		arrpush(eal_args, "--no-huge");
 		arrpush(eal_args, "-m");
-		arrpush(eal_args, "1024");
+		arrpush(eal_args, "2048");
 	} else {
 		arrpush(eal_args, "--in-memory");
 	}
