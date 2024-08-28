@@ -30,3 +30,5 @@ ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:2::2
 ip netns exec $p2 ping6 -i0.01 -c3 fd00:ba4:1::2
 ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:1::1
 ip netns exec $p2 ping6 -i0.01 -c3 fd00:ba4:2::1
+ip netns exec $p1 traceroute6 -N1 fd00:ba4:2::2
+ip netns exec $p2 traceroute6 -N1 fd00:ba4:1::2

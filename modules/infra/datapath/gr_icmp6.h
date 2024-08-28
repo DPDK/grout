@@ -15,12 +15,18 @@
 
 // ICMP6 packet types
 typedef enum {
+	ICMP6_ERR_DEST_UNREACH = UINT8_C(1),
+	ICMP6_ERR_PKT_TOO_BIG = UINT8_C(2),
+	ICMP6_ERR_TTL_EXCEEDED = UINT8_C(3),
+	ICMP6_ERR_PARAM_PROBLEM = UINT8_C(4),
+
 	ICMP6_TYPE_ECHO_REQUEST = UINT8_C(128),
 	ICMP6_TYPE_ECHO_REPLY = UINT8_C(129),
 	ICMP6_TYPE_ROUTER_SOLICIT = UINT8_C(133),
 	ICMP6_TYPE_ROUTER_ADVERT = UINT8_C(134),
 	ICMP6_TYPE_NEIGH_SOLICIT = UINT8_C(135),
 	ICMP6_TYPE_NEIGH_ADVERT = UINT8_C(136),
+
 	_ICMP6_TYPE_MAX = UINT8_C(0xff),
 } __rte_packed icmp6_type_t;
 
@@ -29,6 +35,26 @@ struct icmp6 {
 	icmp6_type_t type;
 	uint8_t code;
 	rte_be16_t cksum;
+} __rte_packed;
+
+// ICMP6_ERR_DEST_UNREACH
+struct icmp6_err_dest_unreach {
+	uint32_t __unused;
+} __rte_packed;
+
+// ICMP6_ERR_PKT_TOO_BIG
+struct icmp6_err_pkt_too_big {
+	rte_be32_t mtu;
+} __rte_packed;
+
+// ICMP6_ERR_TTL_EXCEEDED
+struct icmp6_err_ttl_exceeded {
+	uint32_t __unused;
+} __rte_packed;
+
+// ICMP6_ERR_PARAM_PROBLEM
+struct icmp6_err_param_problem {
+	rte_be32_t offset;
 } __rte_packed;
 
 // ICMP6_TYPE_ECHO_REQUEST
