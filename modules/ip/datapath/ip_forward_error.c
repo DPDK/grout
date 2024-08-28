@@ -27,13 +27,13 @@ static uint16_t ip_forward_error_process(
 	uint16_t nb_objs
 ) {
 	struct ip_local_mbuf_data *ip_data;
-	const struct iface *input_iface;
+	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
 	uint8_t icmp_type;
-	uint16_t vrf_id;
+	rte_edge_t next;
 
 	icmp_type = node->ctx[0];
 
@@ -43,22 +43,24 @@ static uint16_t ip_forward_error_process(
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*icmp));
 		if (unlikely(icmp == NULL)) {
-			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
-			continue;
+			next = NO_HEADROOM;
+			goto next;
 		}
 
 		// Get the local router IP address from the input iface
-		input_iface = ip_output_mbuf_data(mbuf)->input_iface;
-		vrf_id = input_iface->vrf_id;
-		if ((nh = ip4_addr_get_preferred(input_iface->id, ip->src_addr)) == NULL) {
-			rte_node_enqueue_x1(graph, node, NO_IP, mbuf);
-			continue;
+		iface = ip_output_mbuf_data(mbuf)->input_iface;
+		if (iface == NULL) {
+			next = NO_IP;
+			goto next;
 		}
-		ip4_addr_t local_ip = nh->ip;
+		if ((nh = ip4_addr_get_preferred(iface->id, ip->src_addr)) == NULL) {
+			next = NO_IP;
+			goto next;
+		}
 
 		ip_data = ip_local_mbuf_data(mbuf);
-		ip_data->vrf_id = vrf_id;
-		ip_data->src = local_ip;
+		ip_data->vrf_id = iface->vrf_id;
+		ip_data->src = nh->ip;
 		ip_data->dst = ip->src_addr;
 
 		// RFC792 payload size: ip header + 64 bits of original datagram
@@ -71,7 +73,9 @@ static uint16_t ip_forward_error_process(
 		icmp->icmp_ident = 0;
 		icmp->icmp_seq_nb = 0;
 
-		rte_node_enqueue_x1(graph, node, ICMP_OUTPUT, mbuf);
+		next = ICMP_OUTPUT;
+next:
+		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
 	return nb_objs;

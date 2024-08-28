@@ -26,3 +26,7 @@ done
 
 ip netns exec $p0 ping -i0.01 -c3 172.16.1.2
 ip netns exec $p1 ping -i0.01 -c3 172.16.0.2
+ip netns exec $p0 ping -i0.01 -c3 172.16.0.1
+ip netns exec $p1 ping -i0.01 -c3 172.16.1.1
+ip netns exec $p0 traceroute -N1 172.16.1.2
+ip netns exec $p1 traceroute -N1 172.16.0.2
