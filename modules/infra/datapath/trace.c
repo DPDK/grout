@@ -228,6 +228,18 @@ static ssize_t trace_icmp6(
 	payload_len -= sizeof(*icmp6);
 
 	switch (icmp6->type) {
+	case ICMP6_ERR_DEST_UNREACH:
+		n += snprintf(buf + n, len - n, " destination unreachable");
+		break;
+	case ICMP6_ERR_PKT_TOO_BIG:
+		n += snprintf(buf + n, len - n, " packet too big");
+		break;
+	case ICMP6_ERR_TTL_EXCEEDED:
+		n += snprintf(buf + n, len - n, " ttl exceeded");
+		break;
+	case ICMP6_ERR_PARAM_PROBLEM:
+		n += snprintf(buf + n, len - n, " parameter problem");
+		break;
 	case ICMP6_TYPE_ECHO_REQUEST: {
 		const struct icmp6_echo_request *req = PAYLOAD(icmp6);
 		*offset += sizeof(*req);

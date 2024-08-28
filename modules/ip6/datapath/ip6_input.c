@@ -19,7 +19,7 @@
 enum edges {
 	FORWARD = 0,
 	LOCAL,
-	NO_ROUTE,
+	DEST_UNREACH,
 	NOT_MEMBER,
 	OTHER_HOST,
 	BAD_VERSION,
@@ -98,7 +98,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		nh = ip6_route_lookup(iface->vrf_id, &ip->dst_addr);
 		if (nh == NULL) {
-			edge = NO_ROUTE;
+			edge = DEST_UNREACH;
 			goto next;
 		}
 
@@ -131,7 +131,7 @@ static struct rte_node_register input_node = {
 	.next_nodes = {
 		[FORWARD] = "ip6_forward",
 		[LOCAL] = "ip6_input_local",
-		[NO_ROUTE] = "ip6_input_no_route",
+		[DEST_UNREACH] = "ip6_error_dest_unreach",
 		[NOT_MEMBER] = "ip6_input_not_member",
 		[OTHER_HOST] = "ip6_input_other_host",
 		[BAD_VERSION] = "ip6_input_bad_version",
@@ -147,7 +147,6 @@ static struct gr_node_info info = {
 
 GR_NODE_REGISTER(info);
 
-GR_DROP_REGISTER(ip6_input_no_route);
 GR_DROP_REGISTER(ip6_input_not_member);
 GR_DROP_REGISTER(ip6_input_other_host);
 GR_DROP_REGISTER(ip6_input_bad_version);

@@ -21,7 +21,7 @@
 
 enum {
 	ETH_OUTPUT = 0,
-	NO_ROUTE,
+	DEST_UNREACH,
 	ERROR,
 	QUEUE_FULL,
 	EDGE_COUNT,
@@ -90,7 +90,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		nh = ip6_output_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
-			edge = NO_ROUTE;
+			edge = DEST_UNREACH;
 			goto next;
 		}
 		iface = iface_from_id(nh->iface_id);
@@ -163,7 +163,7 @@ static struct rte_node_register output_node = {
 	.next_nodes = {
 		[ETH_OUTPUT] = "eth_output",
 		[ERROR] = "ip6_output_error",
-		[NO_ROUTE] = "ip6_output_no_route",
+		[DEST_UNREACH] = "ip6_error_dest_unreach",
 		[QUEUE_FULL] = "ndp_queue_full",
 	},
 };
@@ -175,5 +175,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_output_error);
-GR_DROP_REGISTER(ip6_output_no_route);
 GR_DROP_REGISTER(ndp_queue_full);

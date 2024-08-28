@@ -43,7 +43,7 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "ip6_output",
-		[TTL_EXCEEDED] = "ip6_forward_ttl_exceeded",
+		[TTL_EXCEEDED] = "ip6_error_ttl_exceeded",
 	},
 };
 
@@ -52,5 +52,3 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
-
-GR_DROP_REGISTER(ip6_forward_ttl_exceeded);
