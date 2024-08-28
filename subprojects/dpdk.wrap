@@ -6,6 +6,7 @@ diff_files =
 	dpdk/mbuf-fix-strict-aliasing-error.patch,
 	dpdk/graph-expose-node-context-as-pointers.patch,
 	dpdk/graph-make-graphviz-export-more-readable.patch,
+	dpdk/ipv6-use-structures.patch,
 	dpdk/buildtools-cmdline-fix-meson-error-when-used-as-a-su.patch
 
 [provide]
