@@ -38,6 +38,10 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
-	grout -tvx &
+	grout_flags="-tv"
+	if ! [ "$(basename $0)" = "config_test.sh" ]; then
+		grout_flags="$grout_flags -x"
+	fi
+	grout $grout_flags &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
