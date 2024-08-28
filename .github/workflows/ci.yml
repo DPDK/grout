@@ -49,7 +49,7 @@ jobs:
           set -xe
           sudo apt-get update -qy
           sudo NEEDRESTART_MODE=l apt-get install -qy \
-            git socat tcpdump \
+            git socat tcpdump traceroute \
             iproute2 iputils-ping libasan8 libedit2 \
             libevent-2.1-7t64 libsmartcols1 libnuma1
       - uses: actions/checkout@v4

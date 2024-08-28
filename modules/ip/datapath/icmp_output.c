@@ -17,6 +17,7 @@
 enum {
 	OUTPUT = 0,
 	NO_HEADROOM,
+	NO_ROUTE,
 	EDGE_COUNT,
 };
 
@@ -26,6 +27,8 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
+	struct nexthop *nh;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -37,14 +40,21 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
 		if (unlikely(ip == NULL)) {
-			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
-			continue;
+			edge = NO_HEADROOM;
+			goto next;
 		}
 		ip_set_fields(ip, local_data);
-		ip_output_mbuf_data(mbuf)->nh = ip4_route_lookup(
-			local_data->vrf_id, local_data->dst
-		);
-		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
+		if ((nh = ip4_route_lookup(local_data->vrf_id, local_data->dst)) == NULL) {
+			// Do not let packets go to ip_output from icmp_output
+			// with no available route to avoid loops of destination
+			// unreachable errors.
+			edge = NO_ROUTE;
+			goto next;
+		}
+		ip_output_mbuf_data(mbuf)->nh = nh;
+		edge = OUTPUT;
+next:
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
@@ -59,6 +69,7 @@ static struct rte_node_register icmp_output_node = {
 	.next_nodes = {
 		[OUTPUT] = "ip_output",
 		[NO_HEADROOM] = "error_no_headroom",
+		[NO_ROUTE] = "icmp_output_no_route",
 	},
 };
 
@@ -67,3 +78,5 @@ static struct gr_node_info icmp_output_info = {
 };
 
 GR_NODE_REGISTER(icmp_output_info);
+
+GR_DROP_REGISTER(icmp_output_no_route);
