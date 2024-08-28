@@ -123,7 +123,6 @@ static struct gr_node_info info = {
 
 GR_NODE_REGISTER(info);
 
-GR_DROP_REGISTER(ip6_input_local);
 GR_DROP_REGISTER(ip6_input_no_route);
 GR_DROP_REGISTER(ip6_input_other_host);
 GR_DROP_REGISTER(ip6_input_bad_version);
