@@ -32,7 +32,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	uint16_t last_vrf_id;
 	struct rte_mbuf *mbuf;
 	struct iface *ipip;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 	ipip = NULL;
 	last_src = 0;
@@ -51,7 +51,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			last_vrf_id = ip_data->vrf_id;
 		}
 		if (ipip == NULL) {
-			next = NO_TUNNEL;
+			edge = NO_TUNNEL;
 			goto next;
 		}
 		// The hw checksum offload only works on the outer IP.
@@ -59,9 +59,9 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
 		eth_data = eth_input_mbuf_data(mbuf);
 		eth_data->iface = ipip;
-		next = IP_INPUT;
+		edge = IP_INPUT;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

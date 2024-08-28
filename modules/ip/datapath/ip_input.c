@@ -27,11 +27,12 @@ enum edges {
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct ip_output_mbuf_data *d;
 	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
-	rte_edge_t next;
+	rte_edge_t edge;
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
@@ -52,13 +53,13 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
 			// if this is not checked in H/W, check it.
 			if (rte_ipv4_cksum(ip)) {
-				next = BAD_CHECKSUM;
-				goto next_packet;
+				edge = BAD_CHECKSUM;
+				goto next;
 			}
 			break;
 		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
-			next = BAD_CHECKSUM;
-			goto next_packet;
+			edge = BAD_CHECKSUM;
+			goto next;
 		}
 
 		// (3) The IP version number must be 4.  If the version number is not 4
@@ -72,27 +73,30 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		//     datagram header, whose length is specified in the IP header
 		//     length field.
 		if (rte_cpu_to_be_16(ip->total_length) < sizeof(struct rte_ipv4_hdr)) {
-			next = BAD_LENGTH;
-			goto next_packet;
+			edge = BAD_LENGTH;
+			goto next;
 		}
 
 		iface = eth_input_mbuf_data(mbuf)->iface;
 		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
-			next = NO_ROUTE;
-			goto next_packet;
+			edge = NO_ROUTE;
+			goto next;
 		}
+
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
 		if (nh->flags & GR_IP4_NH_F_LOCAL && ip->dst_addr == nh->ip)
-			next = LOCAL;
+			edge = LOCAL;
 		else
-			next = FORWARD;
+			edge = FORWARD;
+
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
-next_packet:
-		ip_output_mbuf_data(mbuf)->nh = nh;
-		ip_output_mbuf_data(mbuf)->input_iface = iface;
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		d = ip_output_mbuf_data(mbuf);
+		d->nh = nh;
+		d->input_iface = iface;
+next:
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

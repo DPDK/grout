@@ -35,7 +35,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_ipv4_hdr *outer;
 	const struct iface *iface;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -44,7 +44,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip_data = ip_output_mbuf_data(mbuf);
 		iface = iface_from_id(ip_data->nh->iface_id);
 		if (iface == NULL || iface->type_id != GR_IFACE_TYPE_IPIP) {
-			next = NO_TUNNEL;
+			edge = NO_TUNNEL;
 			goto next;
 		}
 		ipip = (const struct iface_info_ipip *)iface->info;
@@ -58,16 +58,16 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		tunnel.proto = IPPROTO_IPIP;
 		outer = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*outer));
 		if (unlikely(outer == NULL)) {
-			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
-			continue;
+			edge = NO_HEADROOM;
+			goto next;
 		}
 		ip_set_fields(outer, &tunnel);
 
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = ip4_route_lookup(iface->vrf_id, ipip->remote);
-		next = IP_OUTPUT;
+		edge = IP_OUTPUT;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

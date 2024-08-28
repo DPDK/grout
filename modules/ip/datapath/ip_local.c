@@ -28,14 +28,14 @@ static uint16_t ip_input_local_process(
 ) {
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
+	rte_edge_t edge;
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
-		next = edges[ip->next_proto_id];
-		if (next != UNKNOWN_PROTO) {
+		edge = edges[ip->next_proto_id];
+		if (edge != UNKNOWN_PROTO) {
 			struct ip_local_mbuf_data *data = ip_local_mbuf_data(mbuf);
 			uint16_t vrf_id = ip_output_mbuf_data(mbuf)->nh->vrf_id;
 			data->src = ip->src_addr;
@@ -45,7 +45,7 @@ static uint16_t ip_input_local_process(
 			data->proto = ip->next_proto_id;
 			rte_pktmbuf_adj(mbuf, sizeof(*ip));
 		}
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

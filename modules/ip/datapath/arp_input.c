@@ -71,7 +71,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
+	rte_edge_t edge;
 	ip4_addr_t sip;
 	uint64_t now;
 
@@ -83,22 +83,22 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// ARP protocol sanity checks.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		if (rte_be_to_cpu_16(arp->arp_hardware) != RTE_ARP_HRD_ETHER) {
-			next = PROTO_UNSUPP;
+			edge = PROTO_UNSUPP;
 			goto next;
 		}
 		if (rte_be_to_cpu_16(arp->arp_protocol) != RTE_ETHER_TYPE_IPV4) {
-			next = PROTO_UNSUPP;
+			edge = PROTO_UNSUPP;
 			goto next;
 		}
 		switch (rte_be_to_cpu_16(arp->arp_opcode)) {
 		case RTE_ARP_OP_REQUEST:
-			next = OP_REQUEST;
+			edge = OP_REQUEST;
 			break;
 		case RTE_ARP_OP_REPLY:
-			next = OP_REPLY;
+			edge = OP_REPLY;
 			break;
 		default:
-			next = OP_UNSUPP;
+			edge = OP_UNSUPP;
 			goto next;
 		}
 
@@ -114,23 +114,23 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.
 			if ((remote = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
-				next = ERROR;
+				edge = ERROR;
 				goto next;
 			}
 			if (ip4_route_insert(iface->vrf_id, sip, 32, remote) < 0) {
-				next = ERROR;
+				edge = ERROR;
 				goto next;
 			}
 			update_nexthop(graph, node, remote, now, iface->id, arp);
 		} else {
-			next = DROP;
+			edge = DROP;
 			goto next;
 		}
 		arp_data = arp_mbuf_data(mbuf);
 		arp_data->local = local;
 		arp_data->remote = remote;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

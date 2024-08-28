@@ -33,7 +33,7 @@ static uint16_t ip_forward_error_process(
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
 	uint8_t icmp_type;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 	icmp_type = node->ctx[0];
 
@@ -43,18 +43,18 @@ static uint16_t ip_forward_error_process(
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*icmp));
 		if (unlikely(icmp == NULL)) {
-			next = NO_HEADROOM;
+			edge = NO_HEADROOM;
 			goto next;
 		}
 
 		// Get the local router IP address from the input iface
 		iface = ip_output_mbuf_data(mbuf)->input_iface;
 		if (iface == NULL) {
-			next = NO_IP;
+			edge = NO_IP;
 			goto next;
 		}
 		if ((nh = ip4_addr_get_preferred(iface->id, ip->src_addr)) == NULL) {
-			next = NO_IP;
+			edge = NO_IP;
 			goto next;
 		}
 
@@ -73,9 +73,9 @@ static uint16_t ip_forward_error_process(
 		icmp->icmp_ident = 0;
 		icmp->icmp_seq_nb = 0;
 
-		next = ICMP_OUTPUT;
+		edge = ICMP_OUTPUT;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
