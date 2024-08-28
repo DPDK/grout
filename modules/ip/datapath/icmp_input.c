@@ -28,7 +28,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct ip_local_mbuf_data *ip_data;
 	struct rte_icmp_hdr *icmp;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
+	rte_edge_t edge;
 	ip4_addr_t ip;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -37,13 +37,13 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		ip_data = ip_local_mbuf_data(mbuf);
 
 		if (ip_data->len < ICMP_MIN_SIZE || (uint16_t)~rte_raw_cksum(icmp, ip_data->len)) {
-			next = INVALID;
+			edge = INVALID;
 			goto next;
 		}
 		switch (icmp->icmp_type) {
 		case RTE_IP_ICMP_ECHO_REQUEST:
 			if (icmp->icmp_code != 0) {
-				next = INVALID;
+				edge = INVALID;
 				goto next;
 			}
 			icmp->icmp_type = RTE_IP_ICMP_ECHO_REPLY;
@@ -52,12 +52,12 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			ip_data->src = ip;
 			break;
 		default:
-			next = UNSUPPORTED;
+			edge = UNSUPPORTED;
 			goto next;
 		}
-		next = OUTPUT;
+		edge = OUTPUT;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;

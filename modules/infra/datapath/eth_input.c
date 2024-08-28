@@ -37,7 +37,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct iface *vlan_iface;
 	rte_be16_t eth_type;
 	struct rte_mbuf *m;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 	vlan_iface = NULL;
 	last_iface_id = UINT16_MAX;
@@ -72,14 +72,14 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				last_vlan_id = vlan_id;
 			}
 			if (vlan_iface == NULL) {
-				next = UNKNOWN_VLAN;
+				edge = UNKNOWN_VLAN;
 				goto next;
 			}
 			eth_in->iface = vlan_iface;
 		}
-		next = l2l3_edges[eth_type];
+		edge = l2l3_edges[eth_type];
 next:
-		rte_node_enqueue_x1(graph, node, next, m);
+		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 	return nb_objs;
 }

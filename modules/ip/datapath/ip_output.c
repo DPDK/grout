@@ -79,7 +79,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
 	uint16_t i, sent;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 	sent = 0;
 
@@ -89,18 +89,18 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		nh = ip_output_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
-			next = NO_ROUTE;
+			edge = NO_ROUTE;
 			goto next;
 		}
 		iface = iface_from_id(nh->iface_id);
 		if (iface == NULL) {
-			next = ERROR;
+			edge = ERROR;
 			goto next;
 		}
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
-		next = edges[iface->type_id];
-		if (next != ETH_OUTPUT)
+		edge = edges[iface->type_id];
+		if (edge != ETH_OUTPUT)
 			goto next;
 
 		if (nh->flags & GR_IP4_NH_F_LINK && ip->dst_addr != nh->ip) {
@@ -112,11 +112,11 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				nh->vrf_id, nh->iface_id, ip->dst_addr
 			);
 			if (remote == NULL) {
-				next = ERROR;
+				edge = ERROR;
 				goto next;
 			}
 			if (ip4_route_insert(nh->vrf_id, ip->dst_addr, 32, remote) < 0) {
-				next = ERROR;
+				edge = ERROR;
 				goto next;
 			}
 
@@ -131,7 +131,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			continue;
 		case HOLD_QUEUE_FULL:
 			//
-			next = QUEUE_FULL;
+			edge = QUEUE_FULL;
 			goto next;
 		case OK_TO_SEND:
 			// Next hop is reachable.
@@ -145,7 +145,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_data->iface = iface;
 		sent++;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return sent;

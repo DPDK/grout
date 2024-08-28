@@ -31,7 +31,7 @@ static uint16_t arp_output_reply_process(
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
-	rte_edge_t next;
+	rte_edge_t edge;
 	uint16_t num;
 
 	num = 0;
@@ -41,13 +41,13 @@ static uint16_t arp_output_reply_process(
 		arp_data = arp_mbuf_data(mbuf);
 		if (arp_data->local == NULL || arp_data->remote == NULL) {
 			// mbuf is not an ARP request
-			next = ERROR;
+			edge = ERROR;
 			goto next;
 		}
 
 		iface = iface_from_id(arp_data->local->iface_id);
 		if (iface == NULL) {
-			next = ERROR;
+			edge = ERROR;
 			goto next;
 		}
 		// Reuse mbuf to craft an ARP reply.
@@ -57,7 +57,7 @@ static uint16_t arp_output_reply_process(
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
 		rte_ether_addr_copy(&arp_data->remote->lladdr, &arp->arp_data.arp_tha);
 		if (iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha) < 0) {
-			next = ERROR;
+			edge = ERROR;
 			goto next;
 		}
 		arp->arp_data.arp_tip = arp_data->remote->ip;
@@ -68,10 +68,10 @@ static uint16_t arp_output_reply_process(
 		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface;
-		next = OUTPUT;
+		edge = OUTPUT;
 		num++;
 next:
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return num;
