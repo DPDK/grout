@@ -33,6 +33,7 @@ cat > $tmp/cleanup <<EOF
 grcli show stats software
 grcli show interface all
 grcli show ip nexthop
+grcli show ip6 nexthop
 EOF
 
 set -x
