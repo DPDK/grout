@@ -61,6 +61,8 @@ struct gr_ip6_nh {
 	uint16_t vrf_id;
 	uint16_t iface_id;
 	gr_ip6_nh_flags_t flags;
+	uint16_t age; //<! number of seconds since last update
+	uint16_t held_pkts;
 };
 
 struct gr_ip6_route {

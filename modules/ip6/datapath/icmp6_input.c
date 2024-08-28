@@ -16,6 +16,8 @@
 
 enum {
 	ICMP6_OUTPUT = 0,
+	NEIGH_SOLICIT,
+	NEIGH_ADVERT,
 	BAD_CHECKSUM,
 	INVALID,
 	UNSUPPORTED,
@@ -48,6 +50,14 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			rte_ipv6_addr_cpy(&d->src, &tmp_ip);
 			next = ICMP6_OUTPUT;
 			break;
+		case ICMP6_TYPE_NEIGH_SOLICIT:
+			next = NEIGH_SOLICIT;
+			break;
+		case ICMP6_TYPE_NEIGH_ADVERT:
+			next = NEIGH_ADVERT;
+			break;
+		case ICMP6_TYPE_ROUTER_SOLICIT:
+		case ICMP6_TYPE_ROUTER_ADVERT:
 		default:
 			next = UNSUPPORTED;
 		}
@@ -70,6 +80,8 @@ static struct rte_node_register icmp6_input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ICMP6_OUTPUT] = "icmp6_output",
+		[NEIGH_SOLICIT] = "ndp_ns_input",
+		[NEIGH_ADVERT] = "ndp_na_input",
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
 		[UNSUPPORTED] = "icmp6_input_unsupported",

@@ -20,6 +20,7 @@ enum edges {
 	FORWARD = 0,
 	LOCAL,
 	NO_ROUTE,
+	NOT_MEMBER,
 	OTHER_HOST,
 	BAD_VERSION,
 	BAD_ADDR,
@@ -54,6 +55,28 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (rte_ipv6_addr_is_mcast(&ip->src_addr)
 		    || rte_ipv6_addr_is_unspec(&ip->dst_addr)) {
 			edge = BAD_ADDR;
+			goto next;
+		}
+
+		if (unlikely(rte_ipv6_addr_is_mcast(&ip->dst_addr))) {
+			switch (rte_ipv6_mc_scope(&ip->dst_addr)) {
+			case RTE_IPV6_MC_SCOPE_RESERVED:
+				// RFC4291 2.7:
+				// Nodes must not originate a packet to a multicast address
+				// whose scope field contains the reserved value 0; if such
+				// a packet is received, it must be silently dropped.
+			case RTE_IPV6_MC_SCOPE_IFACELOCAL:
+				// This should only happen if the input interface is a loopback
+				// interface. For now, we do not have support for these.
+				edge = BAD_ADDR;
+				break;
+			default:
+				nh = ip6_mcast_get_member(iface->id, &ip->dst_addr);
+				if (nh == NULL)
+					edge = NOT_MEMBER;
+				else
+					edge = LOCAL;
+			}
 			goto next;
 		}
 
@@ -109,6 +132,7 @@ static struct rte_node_register input_node = {
 		[FORWARD] = "ip6_forward",
 		[LOCAL] = "ip6_input_local",
 		[NO_ROUTE] = "ip6_input_no_route",
+		[NOT_MEMBER] = "ip6_input_not_member",
 		[OTHER_HOST] = "ip6_input_other_host",
 		[BAD_VERSION] = "ip6_input_bad_version",
 		[BAD_ADDR] = "ip6_input_bad_addr",
@@ -124,6 +148,7 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_input_no_route);
+GR_DROP_REGISTER(ip6_input_not_member);
 GR_DROP_REGISTER(ip6_input_other_host);
 GR_DROP_REGISTER(ip6_input_bad_version);
 GR_DROP_REGISTER(ip6_input_bad_addr);

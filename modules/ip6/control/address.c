@@ -27,7 +27,7 @@
 
 static struct hoplist6 *iface_addrs;
 
-static struct hoplist6 *ip6_addr_get_all(uint16_t iface_id) {
+struct hoplist6 *ip6_addr_get_all(uint16_t iface_id) {
 	struct hoplist6 *addrs;
 
 	if (iface_id >= MAX_IFACES)
@@ -38,6 +38,99 @@ static struct hoplist6 *ip6_addr_get_all(uint16_t iface_id) {
 		return errno_set_null(ENOENT);
 
 	return addrs;
+}
+
+struct nexthop6 *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
+	struct hoplist6 *addrs = ip6_addr_get_all(iface_id);
+	struct nexthop6 *pref = NULL;
+
+	if (addrs == NULL)
+		return NULL;
+
+	for (unsigned i = 0; i < addrs->count; i++) {
+		struct nexthop6 *nh = addrs->nh[i];
+		if (rte_ipv6_addr_eq_prefix(dst, &nh->ip, nh->prefixlen))
+			return nh;
+		if (pref == NULL && !rte_ipv6_addr_is_linklocal(&nh->ip))
+			pref = nh;
+	}
+
+	return pref;
+}
+
+static struct hoplist6 *iface_mcast_addrs;
+
+struct nexthop6 *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast) {
+	struct hoplist6 *maddrs;
+
+	if (iface_id >= MAX_IFACES)
+		return NULL;
+
+	maddrs = &iface_mcast_addrs[iface_id];
+	for (unsigned i = 0; i < maddrs->count; i++) {
+		struct nexthop6 *nh = maddrs->nh[i];
+		if (rte_ipv6_addr_eq(&nh->ip, mcast))
+			return nh;
+	}
+
+	return NULL;
+}
+
+static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *ip) {
+	struct hoplist6 *maddrs = &iface_mcast_addrs[iface->id];
+	struct nexthop6 *nh = NULL;
+	unsigned i;
+
+	LOG(INFO, "%s: joining multicast group " IPV6_ADDR_FMT, iface->name, IPV6_ADDR_SPLIT(ip));
+
+	for (i = 0; i < maddrs->count; i++)
+		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ip, ip))
+			return errno_set(EEXIST);
+
+	if (i == ARRAY_DIM(maddrs->nh))
+		return errno_set(ENOSPC);
+
+	if ((nh = ip6_nexthop_lookup(iface->vrf_id, ip)) == NULL) {
+		if ((nh = ip6_nexthop_new(iface->vrf_id, GR_IFACE_ID_UNDEF, ip)) == NULL)
+			return errno_set(-errno);
+		rte_ether_mcast_from_ipv6(&nh->lladdr, ip);
+	}
+
+	ip6_nexthop_incref(nh);
+	nh->flags = GR_IP6_NH_F_REACHABLE | GR_IP6_NH_F_STATIC | GR_IP6_NH_F_MCAST;
+	maddrs->nh[i] = nh;
+	maddrs->count++;
+
+	// add ethernet filter
+	return iface_add_eth_addr(iface->id, &nh->lladdr);
+}
+
+static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *ip) {
+	struct hoplist6 *maddrs = &iface_mcast_addrs[iface->id];
+	struct nexthop6 *nh = NULL;
+	unsigned i;
+	int ret;
+
+	LOG(INFO, "%s: leaving multicast group " IPV6_ADDR_FMT, iface->name, IPV6_ADDR_SPLIT(ip));
+
+	for (i = 0; i < maddrs->count; i++) {
+		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ip, ip)) {
+			nh = maddrs->nh[i];
+			break;
+		}
+	}
+	if (nh == NULL)
+		return errno_set(ENOENT);
+
+	// shift remaining addresses
+	for (; i < maddrs->count - 1; i++)
+		maddrs->nh[i] = maddrs->nh[i + 1];
+	maddrs->count--;
+
+	// remove ethernet filter
+	ret = iface_del_eth_addr(iface->id, &nh->lladdr);
+	ip6_nexthop_decref(nh);
+	return ret;
 }
 
 static int
@@ -88,6 +181,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 static struct api_out addr6_add(const void *request, void **response) {
 	const struct gr_ip6_addr_add_req *req = request;
+	struct rte_ipv6_addr solicited_node;
 	struct iface *iface;
 	int ret;
 
@@ -101,11 +195,17 @@ static struct api_out addr6_add(const void *request, void **response) {
 		if (ret != -EEXIST || !req->exist_ok)
 			return api_out(-ret, 0);
 
+	// join the solicited node multicast group
+	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
+	if (ip6_mcast_addr_add(iface, &solicited_node) < 0)
+		return api_out(errno, 0);
+
 	return api_out(0, 0);
 }
 
 static struct api_out addr6_del(const void *request, void **response) {
 	const struct gr_ip6_addr_del_req *req = request;
+	struct rte_ipv6_addr solicited_node;
 	struct nexthop6 *nh = NULL;
 	struct hoplist6 *addrs;
 	unsigned i;
@@ -137,6 +237,11 @@ static struct api_out addr6_del(const void *request, void **response) {
 	for (; i < addrs->count - 1; i++)
 		addrs->nh[i] = addrs->nh[i + 1];
 	addrs->count--;
+
+	// leave the solicited node multicast group
+	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
+	if (ip6_mcast_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
+		return api_out(errno, 0);
 
 	return api_out(0, 0);
 }
@@ -179,14 +284,55 @@ static struct api_out addr6_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+static const struct rte_ipv6_addr well_known_mcast_addrs[] = {
+	RTE_IPV6_ADDR_ALLNODES_IFACE_LOCAL,
+	RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL,
+	RTE_IPV6_ADDR_ALLROUTERS_IFACE_LOCAL,
+	RTE_IPV6_ADDR_ALLROUTERS_LINK_LOCAL,
+	RTE_IPV6_ADDR_ALLROUTERS_SITE_LOCAL,
+};
+
 static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
+	struct rte_ipv6_addr link_local, solicited_node;
+	struct rte_ether_addr mac;
 	unsigned i;
 
 	switch (event) {
+	case IFACE_EVENT_POST_ADD:
+		if (iface_get_eth_addr(iface->id, &mac) == 0) {
+			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
+			// Avoid address conflicts with VLAN interfaces (same mac address)
+			// Maybe we should do better than this and fallback on a pseudo random
+			// algorithm (such as SLAAC, RFC 7217).
+			link_local.a[11] = (iface->id >> 8) & 0xff;
+			link_local.a[12] = iface->id & 0xff;
+			if (iface6_addr_add(iface, &link_local, RTE_IPV6_MAX_DEPTH) < 0)
+				errno_log(errno, "iface_addr_add");
+
+			rte_ipv6_solnode_from_addr(&solicited_node, &link_local);
+			if (ip6_mcast_addr_add(iface, &solicited_node) < 0)
+				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
+
+			for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
+				if (ip6_mcast_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
+					LOG(INFO,
+					    "%s: mcast_addr_add: %s",
+					    iface->name,
+					    strerror(errno));
+			}
+		}
+		break;
 	case IFACE_EVENT_PRE_REMOVE:
 		struct hoplist6 *addrs = &iface_addrs[iface->id];
 		for (i = 0; i < addrs->count; i++)
 			ip6_route_cleanup(addrs->nh[i]);
+
+		memset(addrs, 0, sizeof(*addrs));
+
+		addrs = &iface_mcast_addrs[iface->id];
+		while (addrs->count > 0)
+			if (ip6_mcast_addr_del(iface, &addrs->nh[addrs->count - 1]->ip) < 0)
+				LOG(INFO, "%s: mcast_addr_del: %s", iface->name, strerror(errno));
 
 		memset(addrs, 0, sizeof(*addrs));
 		break;
@@ -201,11 +347,18 @@ static void addr6_init(struct event_base *) {
 	);
 	if (iface_addrs == NULL)
 		ABORT("rte_calloc(iface_addrs)");
+	iface_mcast_addrs = rte_calloc(
+		__func__, MAX_IFACES, sizeof(struct hoplist6), RTE_CACHE_LINE_SIZE
+	);
+	if (iface_mcast_addrs == NULL)
+		ABORT("rte_calloc(iface_mcast_addrs)");
 }
 
 static void addr6_fini(struct event_base *) {
 	rte_free(iface_addrs);
 	iface_addrs = NULL;
+	rte_free(iface_mcast_addrs);
+	iface_mcast_addrs = NULL;
 }
 
 static struct gr_api_handler addr6_add_handler = {

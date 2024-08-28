@@ -8,5 +8,8 @@ src += files(
   'ip6_input.c',
   'ip6_local.c',
   'ip6_output.c',
+  'ndp_na_input.c',
+  'ndp_ns_input.c',
+  'ndp_ns_output.c',
 )
 inc += include_directories('.')
