@@ -6,6 +6,8 @@
 
 #include "gr_errno.h"
 
+#include <rte_ip6.h>
+
 #include <arpa/inet.h>
 #include <endian.h>
 #include <errno.h>
@@ -78,6 +80,59 @@ static inline int ip4_net_format(const struct ip4_net *net, char *buf, size_t le
 	if ((tmp = inet_ntop(AF_INET, &net->ip, buf, len)) == NULL)
 		return errno_set(EINVAL);
 
+	n = strlen(tmp);
+	return snprintf(buf + n, len - n, "/%u", net->prefixlen);
+}
+
+#define IPV6_ATOM "([A-Fa-f0-9]{1,4})"
+#define __IPV6_RE "(" IPV6_ATOM "|::?){2,15}(:" IPV6_ATOM "(\\." IPV4_ATOM "){3})?"
+#define IPV6_RE "^" __IPV6_RE "$"
+#define IPV6_NET_RE "^" __IPV6_RE "/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$"
+#define IPV6_ADDR_FMT                                                                              \
+	"%02hhx%02hhx:%02hhx%02hhx:%02hhx%02hhx:%02hhx%02hhx:"                                     \
+	"%02hhx%02hhx:%02hhx%02hhx:%02hhx%02hhx:%02hhx%02hhx"
+#define IPV6_ADDR_SPLIT(ip)                                                                        \
+	(ip)->a[0], (ip)->a[1], (ip)->a[2], (ip)->a[3], (ip)->a[4], (ip)->a[5], (ip)->a[6],        \
+		(ip)->a[7], (ip)->a[8], (ip)->a[9], (ip)->a[10], (ip)->a[11], (ip)->a[12],         \
+		(ip)->a[13], (ip)->a[14], (ip)->a[15]
+
+struct ip6_net {
+	struct rte_ipv6_addr ip;
+	uint8_t prefixlen;
+};
+
+static inline int ip6_net_parse(const char *s, struct ip6_net *net, bool zero_mask) {
+	char *addr = NULL;
+	int ret = -1;
+
+	if (sscanf(s, "%m[A-Fa-f0-9:.]/%hhu%*c", &addr, &net->prefixlen) != 2) {
+		errno = EINVAL;
+		goto out;
+	}
+	if (net->prefixlen > RTE_IPV6_MAX_DEPTH) {
+		errno = EINVAL;
+		goto out;
+	}
+	if (inet_pton(AF_INET6, addr, &net->ip) != 1) {
+		errno = EINVAL;
+		goto out;
+	}
+	if (zero_mask) {
+		// mask non network bits to zero
+		rte_ipv6_addr_mask(&net->ip, net->prefixlen);
+	}
+	ret = 0;
+out:
+	free(addr);
+	return ret;
+}
+
+static inline int ip6_net_format(const struct ip6_net *net, char *buf, size_t len) {
+	const char *tmp;
+	int n;
+
+	if ((tmp = inet_ntop(AF_INET6, &net->ip, buf, len)) == NULL)
+		return -1;
 	n = strlen(tmp);
 	return snprintf(buf + n, len - n, "/%u", net->prefixlen);
 }
