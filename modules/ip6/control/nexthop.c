@@ -64,6 +64,15 @@ struct nexthop6 *ip6_nexthop_lookup(uint16_t vrf_id, const struct rte_ipv6_addr 
 
 void ip6_nexthop_decref(struct nexthop6 *nh) {
 	if (nh->ref_count <= 1) {
+		rte_spinlock_lock(&nh->lock);
+		// Flush all held packets.
+		struct rte_mbuf *m = nh->held_pkts_head;
+		while (m != NULL) {
+			struct rte_mbuf *next = queue_mbuf_data(m)->next;
+			rte_pktmbuf_free(m);
+			m = next;
+		}
+		rte_spinlock_unlock(&nh->lock);
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(nh_pool, nh);
 	} else {
@@ -150,6 +159,11 @@ static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) 
 	api_nh.vrf_id = nh->vrf_id;
 	rte_ether_addr_copy(&nh->lladdr, &api_nh.mac);
 	api_nh.flags = nh->flags;
+	if (nh->last_reply > 0)
+		api_nh.age = (rte_get_tsc_cycles() - nh->last_reply) / rte_get_tsc_hz();
+	else
+		api_nh.age = 0;
+	api_nh.held_pkts = nh->held_pkts_num;
 	arrpush(ctx->nh, api_nh);
 }
 
@@ -175,7 +189,61 @@ static struct api_out nh6_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh6_init(struct event_base *) {
+static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
+	uint64_t now = rte_get_tsc_cycles();
+	uint64_t reply_age, request_age;
+	unsigned probes, max_probes;
+	struct nexthop6 *nh = obj;
+
+	max_probes = IP6_NH_UCAST_PROBES + IP6_NH_MCAST_PROBES;
+
+	if (nh->ref_count == 0 || nh->flags & GR_IP6_NH_F_STATIC)
+		return;
+
+	reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
+	request_age = (now - nh->last_request) / rte_get_tsc_hz();
+	probes = nh->ucast_probes + nh->mcast_probes;
+
+	if (nh->flags & (GR_IP6_NH_F_PENDING | GR_IP6_NH_F_STALE) && request_age > probes) {
+		if (probes >= max_probes && !(nh->flags & GR_IP6_NH_F_GATEWAY)) {
+			LOG(DEBUG,
+			    IPV6_ADDR_FMT " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
+			    IPV6_ADDR_SPLIT(&nh->ip),
+			    nh->vrf_id,
+			    probes,
+			    nh->held_pkts_num,
+			    gr_ip6_nh_f_name(nh->flags & (GR_IP6_NH_F_PENDING | GR_IP6_NH_F_STALE))
+			);
+			nh->flags &= ~(GR_IP6_NH_F_PENDING | GR_IP6_NH_F_STALE);
+			nh->flags |= GR_IP6_NH_F_FAILED;
+		} else {
+			if (ip6_nexthop_solicit(nh) < 0)
+				LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
+		}
+	} else if (nh->flags & GR_IP6_NH_F_REACHABLE && reply_age > IP6_NH_LIFETIME_REACHABLE) {
+		nh->flags &= ~GR_IP6_NH_F_REACHABLE;
+		nh->flags |= GR_IP6_NH_F_STALE;
+	} else if (nh->flags & GR_IP6_NH_F_FAILED && request_age > IP6_NH_LIFETIME_UNREACHABLE) {
+		LOG(DEBUG,
+		    IPV6_ADDR_FMT " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
+		    IPV6_ADDR_SPLIT(&nh->ip),
+		    nh->vrf_id,
+		    probes,
+		    nh->held_pkts_num);
+
+		// this also does ip6_nexthop_decref(), freeing the next hop
+		// and buffered packets.
+		ip6_route_cleanup(nh);
+	}
+}
+
+static void nexthop_gc(evutil_socket_t, short, void *) {
+	rte_mempool_obj_iter(nh_pool, nh_gc_cb, NULL);
+}
+
+static struct event *nh_gc_timer;
+
+static void nh6_init(struct event_base *ev_base) {
 	nh_pool = rte_mempool_create(
 		"ip6_nh", // name
 		rte_align32pow2(IP6_MAX_NEXT_HOPS) - 1,
@@ -191,9 +259,18 @@ static void nh6_init(struct event_base *) {
 	);
 	if (nh_pool == NULL)
 		ABORT("rte_mempool_create(ip6_nh) failed");
+
+	nh_gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, nexthop_gc, NULL);
+	if (nh_gc_timer == NULL)
+		ABORT("event_new() failed");
+	struct timeval tv = {.tv_sec = 1};
+	if (event_add(nh_gc_timer, &tv) < 0)
+		ABORT("event_add() failed");
 }
 
 static void nh6_fini(struct event_base *) {
+	event_free(nh_gc_timer);
+	nh_gc_timer = NULL;
 	rte_mempool_free(nh_pool);
 	nh_pool = NULL;
 }

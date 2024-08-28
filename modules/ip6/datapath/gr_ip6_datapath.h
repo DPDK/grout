@@ -22,6 +22,11 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, {
 	struct nexthop6 *nh;
 });
 
+GR_MBUF_PRIV_DATA_TYPE(ndp_mbuf_data, {
+	struct nexthop6 *local;
+	struct nexthop6 *remote;
+});
+
 GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 	struct rte_ipv6_addr src;
 	struct rte_ipv6_addr dst;
@@ -32,6 +37,8 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 });
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
+void ip6_output_add_tunnel(uint16_t iface_type_id, const char *next_node);
+int ip6_nexthop_solicit(struct nexthop6 *nh);
 
 #define IP6_DEFAULT_HOP_LIMIT 255
 
@@ -49,5 +56,13 @@ static inline void ip6_set_fields(
 	rte_ipv6_addr_cpy(&ip->src_addr, src);
 	rte_ipv6_addr_cpy(&ip->dst_addr, dst);
 }
+
+void ndp_update_nexthop(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	struct nexthop6 *nh,
+	const struct iface *iface,
+	const struct rte_ether_addr *mac
+);
 
 #endif
