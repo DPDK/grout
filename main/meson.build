@@ -5,6 +5,7 @@ src += files(
   'control.c',
   'dpdk.c',
   'main.c',
+  'sd_notify.c',
   'signals.c',
 )
 
