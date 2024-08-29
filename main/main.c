@@ -4,6 +4,7 @@
 #include "control.h"
 #include "dpdk.h"
 #include "gr.h"
+#include "sd_notify.h"
 #include "signals.h"
 
 #include <gr_api.h>
@@ -353,6 +354,7 @@ static int ev_close(const struct event_base *, const struct event *ev, void *) {
 
 int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
+	int err = 0;
 
 	if (setlocale(LC_CTYPE, "C.UTF-8") == NULL) {
 		perror("setlocale(LC_CTYPE, C.UTF-8)");
@@ -364,25 +366,40 @@ int main(int argc, char **argv) {
 
 	LOG(INFO, "starting grout version %s", GROUT_VERSION);
 
-	if (dpdk_init(&args) < 0)
+	if (dpdk_init(&args) < 0) {
+		err = errno;
 		goto dpdk_stop;
+	}
 
 	if ((ev_base = event_base_new()) == NULL) {
 		LOG(ERR, "event_base_new: %s", strerror(errno));
+		err = errno;
 		goto shutdown;
 	}
 
 	modules_init(ev_base);
 
-	if (listen_api_socket() < 0)
+	if (listen_api_socket() < 0) {
+		err = errno;
 		goto shutdown;
+	}
 
-	if (register_signals(ev_base) < 0)
+	if (register_signals(ev_base) < 0) {
+		err = errno;
 		goto shutdown;
+	}
+
+	if (sd_notifyf(0, "READY=1\nSTATUS=grout version %s started", GROUT_VERSION) < 0)
+		LOG(ERR, "sd_notifyf: %s", strerror(errno));
 
 	// run until signal or fatal error
-	if (event_base_dispatch(ev_base) == 0)
+	if (event_base_dispatch(ev_base) == 0) {
 		ret = EXIT_SUCCESS;
+		if (sd_notifyf(0, "STOPPING=1\nSTATUS=shutting down...") < 0)
+			LOG(ERR, "sd_notifyf: %s", strerror(errno));
+	} else {
+		err = errno;
+	}
 
 shutdown:
 	unregister_signals();
@@ -398,6 +415,8 @@ shutdown:
 	libevent_global_shutdown();
 dpdk_stop:
 	dpdk_fini();
+	if (err != 0)
+		sd_notifyf(0, "ERRNO=%i", err);
 end:
 	return ret;
 }

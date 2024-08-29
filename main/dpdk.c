@@ -5,6 +5,7 @@
 #include "gr.h"
 
 #include <gr_api.h>
+#include <gr_errno.h>
 #include <gr_log.h>
 #include <gr_stb_ds.h>
 
@@ -22,7 +23,7 @@ int gr_rte_log_type;
 int dpdk_init(struct gr_args *args) {
 	char main_lcore[32] = {0};
 	char **eal_args = NULL;
-	int ret = -1;
+	int ret;
 
 	for (unsigned cpu = 0; cpu < numa_all_cpus_ptr->size; cpu++) {
 		if (numa_bitmask_isbitset(numa_all_cpus_ptr, cpu)) {
@@ -32,6 +33,7 @@ int dpdk_init(struct gr_args *args) {
 		}
 	}
 	if (main_lcore[0] == '\0') {
+		ret = ENOSPC;
 		LOG(ERR, "no CPU found as main lcore");
 		goto end;
 	}
@@ -62,20 +64,24 @@ int dpdk_init(struct gr_args *args) {
 	LOG(INFO, "%s", rte_version());
 
 	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_INFO);
-	if (gr_rte_log_type < 0)
+	if (gr_rte_log_type < 0) {
+		ret = -gr_rte_log_type;
 		goto end;
+	}
 
 	char *buf = arrjoin(eal_args, " ");
 	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
-	if (rte_eal_init(arrlen(eal_args), eal_args) < 0)
+	if ((ret = rte_eal_init(arrlen(eal_args), eal_args)) < 0) {
+		ret = -ret;
 		goto end;
+	}
 
 	ret = 0;
 end:
 	arrfree(eal_args);
-	return ret;
+	return errno_set(ret);
 }
 
 void dpdk_fini(void) {
