@@ -32,6 +32,7 @@ static inline void update_nexthop(
 	uint16_t iface_id,
 	const struct rte_arp_hdr *arp
 ) {
+	struct ip_output_mbuf_data *o;
 	struct rte_mbuf *m, *next;
 
 	// Static next hops never need updating.
@@ -53,7 +54,9 @@ static inline void update_nexthop(
 	m = nh->held_pkts_head;
 	while (m != NULL) {
 		next = queue_mbuf_data(m)->next;
-		ip_output_mbuf_data(m)->nh = nh;
+		o = ip_output_mbuf_data(m);
+		o->nh = nh;
+		o->input_iface = NULL;
 		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
 		m = next;
 	}

@@ -27,6 +27,7 @@ enum edges {
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct eth_input_mbuf_data *e;
 	struct ip_output_mbuf_data *d;
 	const struct iface *iface;
 	struct rte_ipv4_hdr *ip;
@@ -40,6 +41,9 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		nh = NULL;
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		e = eth_input_mbuf_data(mbuf);
+		d = ip_output_mbuf_data(mbuf);
+		iface = e->iface;
 
 		// RFC 1812 section 5.2.2 IP Header Validation
 		//
@@ -77,7 +81,6 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		iface = eth_input_mbuf_data(mbuf)->iface;
 		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
@@ -90,12 +93,10 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			edge = LOCAL;
 		else
 			edge = FORWARD;
-
+next:
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
-		d = ip_output_mbuf_data(mbuf);
 		d->nh = nh;
 		d->input_iface = iface;
-next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 

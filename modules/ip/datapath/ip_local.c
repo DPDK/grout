@@ -36,12 +36,12 @@ static uint16_t ip_input_local_process(
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		edge = edges[ip->next_proto_id];
 		if (edge != UNKNOWN_PROTO) {
+			const struct iface *iface = ip_output_mbuf_data(mbuf)->input_iface;
 			struct ip_local_mbuf_data *data = ip_local_mbuf_data(mbuf);
-			uint16_t vrf_id = ip_output_mbuf_data(mbuf)->nh->vrf_id;
 			data->src = ip->src_addr;
 			data->dst = ip->dst_addr;
 			data->len = rte_be_to_cpu_16(ip->total_length) - rte_ipv4_hdr_len(ip);
-			data->vrf_id = vrf_id;
+			data->vrf_id = iface->vrf_id;
 			data->proto = ip->next_proto_id;
 			rte_pktmbuf_adj(mbuf, sizeof(*ip));
 		}
