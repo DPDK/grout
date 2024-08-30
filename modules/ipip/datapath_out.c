@@ -47,6 +47,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			edge = NO_TUNNEL;
 			goto next;
 		}
+		ip_data->input_iface = iface;
 		ipip = (const struct iface_info_ipip *)iface->info;
 
 		// Encapsulate with another IPv4 header.
