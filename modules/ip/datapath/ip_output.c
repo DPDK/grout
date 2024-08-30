@@ -157,8 +157,8 @@ static struct rte_node_register output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ETH_OUTPUT] = "eth_output",
+		[NO_ROUTE] = "ip_error_dest_unreach",
 		[ERROR] = "ip_output_error",
-		[NO_ROUTE] = "ip_output_no_route",
 		[QUEUE_FULL] = "arp_queue_full",
 	},
 };
@@ -170,5 +170,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_output_error);
-GR_DROP_REGISTER(ip_output_no_route);
 GR_DROP_REGISTER(arp_queue_full);
