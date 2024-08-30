@@ -22,6 +22,7 @@ enum edges {
 	NO_ROUTE,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
+	OTHER_HOST,
 	EDGE_COUNT,
 };
 
@@ -81,6 +82,22 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
+		switch (e->eth_dst) {
+		case ETH_DST_LOCAL:
+			// Packet sent to our ethernet address.
+			break;
+		case ETH_DST_BROADCAST:
+		case ETH_DST_MULTICAST:
+			// Non unicast ethernet destination. No need for a route lookup.
+			edge = LOCAL;
+			goto next;
+		case ETH_DST_OTHER:
+		default:
+			// Drop all packets not sent to our ethernet address
+			edge = OTHER_HOST;
+			goto next;
+		}
+
 		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
@@ -119,6 +136,7 @@ static struct rte_node_register input_node = {
 		[NO_ROUTE] = "ip_input_no_route",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",
 		[BAD_LENGTH] = "ip_input_bad_length",
+		[OTHER_HOST] = "ip_input_other_host",
 	},
 };
 
@@ -131,3 +149,4 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
+GR_DROP_REGISTER(ip_input_other_host);
