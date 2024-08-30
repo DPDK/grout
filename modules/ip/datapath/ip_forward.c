@@ -47,7 +47,7 @@ static struct rte_node_register forward_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "ip_output",
-		[TTL_EXCEEDED] = "ip_forward_ttl_exceeded",
+		[TTL_EXCEEDED] = "ip_error_ttl_exceeded",
 	},
 };
 

@@ -20,12 +20,8 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static uint16_t ip_forward_error_process(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	void **objs,
-	uint16_t nb_objs
-) {
+static uint16_t
+ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
 	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
@@ -92,8 +88,8 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 }
 
 struct rte_node_register ip_forward_ttl_exceeded_node = {
-	.name = "ip_forward_ttl_exceeded",
-	.process = ip_forward_error_process,
+	.name = "ip_error_ttl_exceeded",
+	.process = ip_error_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ICMP_OUTPUT] = "icmp_output",
@@ -104,8 +100,8 @@ struct rte_node_register ip_forward_ttl_exceeded_node = {
 };
 
 static struct rte_node_register no_route_node = {
-	.name = "ip_input_no_route",
-	.process = ip_forward_error_process,
+	.name = "ip_error_dest_unreach",
+	.process = ip_error_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ICMP_OUTPUT] = "icmp_output",
