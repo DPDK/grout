@@ -32,11 +32,13 @@ also in scripts one command at a time, or by batches.
 * Multiple VRF domains
 * VLAN sub interfaces
 * IP in IP tunnels
+* IPv6 forwarding
+* NDP resolution/reply
 
 ### In Progress
 
-* IPv6 forwarding
-* NDP resolution/reply
+* RPM & DEB Packaging
+* `cloud-init` integration
 
 ### Planned Short Term
 
@@ -212,7 +214,7 @@ ip_forward  333675  22623757       67.8        691.8        10.2
 ## Packet graph
 
 ```console
-[root@dio grout]$ ./build/grcli show graph dot | dot -Tsvg > docs/graph.svg
+[root@dio grout]$ ./build/grcli show graph dot | grep -v darkorange | dot -Tsvg > docs/graph.svg
 ```
 
 ![docs/graph.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/graph.svg)
