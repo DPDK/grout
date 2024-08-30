@@ -35,6 +35,7 @@ struct rx_ctx {
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
 	const struct rx_ctx *ctx = node->ctx_ptr;
+	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	struct rx_port_queue q;
 	uint16_t rx;
@@ -54,7 +55,9 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			continue;
 		}
 		for (r = count; r < count + rx; r++) {
-			eth_input_mbuf_data(node->objs[r])->iface = iface;
+			d = eth_input_mbuf_data(node->objs[r]);
+			d->iface = iface;
+			d->eth_dst = ETH_DST_UNKNOWN;
 		}
 		if (unlikely(packet_trace_enabled)) {
 			for (r = count; r < count + rx; r++) {

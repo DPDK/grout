@@ -16,6 +16,7 @@
 enum {
 	UNKNOWN_ETHER_TYPE = 0,
 	UNKNOWN_VLAN,
+	INVALID_IFACE,
 	NB_EDGES,
 };
 
@@ -32,13 +33,16 @@ void gr_eth_input_add_type(rte_be16_t eth_type, const char *next_node) {
 static uint16_t
 eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t vlan_id, last_iface_id, last_vlan_id;
+	const struct iface *vlan_iface, *iface;
+	struct eth_input_mbuf_data *eth_in;
+	struct rte_ether_addr iface_mac;
 	struct rte_ether_hdr *eth;
 	struct rte_vlan_hdr *vlan;
-	struct iface *vlan_iface;
 	rte_be16_t eth_type;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
+	iface = NULL;
 	vlan_iface = NULL;
 	last_iface_id = UINT16_MAX;
 	last_vlan_id = UINT16_MAX;
@@ -46,6 +50,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
 
+		eth_in = eth_input_mbuf_data(m);
 		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		rte_pktmbuf_adj(m, sizeof(*eth));
 		eth_type = eth->ether_type;
@@ -64,8 +69,6 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			eth_type = vlan->eth_proto;
 		}
 		if (vlan_id != 0) {
-			struct eth_input_mbuf_data *eth_in = eth_input_mbuf_data(m);
-
 			if (eth_in->iface->id != last_iface_id || vlan_id != last_vlan_id) {
 				vlan_iface = vlan_get_iface(eth_in->iface->id, vlan_id);
 				last_iface_id = eth_in->iface->id;
@@ -78,6 +81,24 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			eth_in->iface = vlan_iface;
 		}
 		edge = l2l3_edges[eth_type];
+
+		if (iface == NULL || iface->id != eth_in->iface->id) {
+			if (iface_get_eth_addr(eth_in->iface->id, &iface_mac) < 0) {
+				edge = INVALID_IFACE;
+				goto next;
+			}
+			iface = eth_in->iface;
+		}
+		if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
+			if (rte_is_broadcast_ether_addr(&eth->dst_addr))
+				eth_in->eth_dst = ETH_DST_BROADCAST;
+			else
+				eth_in->eth_dst = ETH_DST_MULTICAST;
+		} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
+			eth_in->eth_dst = ETH_DST_LOCAL;
+		} else {
+			eth_in->eth_dst = ETH_DST_OTHER;
+		}
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
@@ -91,6 +112,7 @@ static struct rte_node_register node = {
 	.next_nodes = {
 		[UNKNOWN_ETHER_TYPE] = "eth_input_unknown_type",
 		[UNKNOWN_VLAN] = "eth_input_unknown_vlan",
+		[INVALID_IFACE] = "eth_input_invalid_iface",
 		// other edges are updated dynamically with gr_eth_input_add_type
 	},
 };
@@ -103,3 +125,4 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(eth_input_unknown_type);
 GR_DROP_REGISTER(eth_input_unknown_vlan);
+GR_DROP_REGISTER(eth_input_invalid_iface);

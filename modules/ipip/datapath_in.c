@@ -59,6 +59,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
 		eth_data = eth_input_mbuf_data(mbuf);
 		eth_data->iface = ipip;
+		eth_data->eth_dst = ETH_DST_LOCAL;
 		edge = IP_INPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
