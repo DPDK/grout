@@ -126,6 +126,27 @@ int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *val) {
 	return 0;
 }
 
+static int eth_addr_parse(const char *s, struct rte_ether_addr *mac) {
+	if (s == NULL)
+		goto err;
+	int ret = sscanf(
+		s,
+		"%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%*c",
+		&mac->addr_bytes[0],
+		&mac->addr_bytes[1],
+		&mac->addr_bytes[2],
+		&mac->addr_bytes[3],
+		&mac->addr_bytes[4],
+		&mac->addr_bytes[5]
+	);
+	if (ret != 6)
+		goto err;
+	return 0;
+err:
+	errno = EINVAL;
+	return -1;
+}
+
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr *val) {
 	const struct ec_pnode *n = ec_pnode_find(p, id);
 	if (n == NULL)
@@ -136,7 +157,7 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr
 		return errno_set(EFAULT);
 
 	const char *str = ec_strvec_val(v, 0);
-	if (rte_ether_unformat_addr(str, val) < 0)
+	if (eth_addr_parse(str, val) < 0)
 		return errno_set(EINVAL);
 
 	return 0;
