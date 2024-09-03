@@ -37,7 +37,7 @@ clean:
 
 .PHONY: install
 install: $(BUILDDIR)/build.ninja
-	$Q ninja -C $(BUILDDIR) install $(ninja_opts)
+	$Q meson install -C $(BUILDDIR) --skip-subprojects
 
 meson_opts := --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
 meson_opts += $(MESON_EXTRA_OPTS)
