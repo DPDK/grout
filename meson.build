@@ -67,13 +67,12 @@ subdir('main')
 subdir('modules')
 subdir('cli')
 
-install_headers(api_headers, subdir: 'grout')
-
 grout_exe = executable(
   'grout', src,
   include_directories: inc,
   dependencies: [dpdk_dep, event_dep, numa_dep, stb_dep],
   install: true,
+  install_dir: 'sbin',
 )
 
 grcli_exe = executable(
