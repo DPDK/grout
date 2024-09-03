@@ -1,0 +1,47 @@
+Source: grout
+Section: net
+Priority: optional
+Maintainer: Robin Jarry <robin@jarry.cc>
+Uploaders:
+ Robin Jarry <robin@jarry.cc>,
+Build-Depends:
+ debhelper-compat (= 13),
+ bash-completion,
+ git,
+ libcmocka-dev,
+ libedit-dev,
+ libevent-dev,
+ libnuma-dev,
+ libsmartcols-dev,
+ meson,
+ ninja-build,
+ patch,
+ pkg-config,
+ python3-pyelftools,
+ scdoc,
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/rjarry/grout
+Vcs-Browser: https://github.com/rjarry/grout
+Vcs-Git: https://github.com/rjarry/grout
+
+Package: grout
+Architecture: linux-any
+Depends:
+ driverctl,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Graph router based on DPDK
+ grout stands for Graph Router. In English, "grout" refers to thin mortar that
+ hardens to fill gaps between tiles.
+ .
+ grout is a DPDK based network processing application. It uses the rte_graph
+ library for data path processing.
+ .
+ Its main purpose is to simulate a network function or a physical router for
+ testing/replicating real (usually closed source) VNF/CNF behavior with an
+ opensource tool.
+ .
+ It comes with a client library to configure it over a standard UNIX socket and
+ a CLI that uses that library. The CLI can be used as an interactive shell, but
+ also in scripts one command at a time, or by batches.

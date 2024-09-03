@@ -45,9 +45,18 @@ meson_opts += $(MESON_EXTRA_OPTS)
 $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)
 
+debversion = $(shell git describe --long --abbrev=8 --dirty | sed 's/^v//;s/-/+/')
+
+.PHONY: deb
+deb:
+	dch --create --package grout --newversion $(debversion) -M Development snapshot.
+	dpkg-buildpackage -b
+	rm -f grout*.deb
+	mv ../grout*$(debversion)*.deb .
+
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
-licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:README.md' ':!:subprojects'
+licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:README.md' ':!:subprojects' ':!:debian'
 
 .PHONY: lint
 lint:
