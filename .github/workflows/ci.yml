@@ -100,3 +100,27 @@ jobs:
           name: deb-packages
           path: grout*.deb
           retention-days: 5
+
+  rpm:
+    runs-on: ubuntu-latest
+    container: "quay.io/centos/centos:stream9"
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          dnf --enablerepo=crb install -y \
+            https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+          dnf --enablerepo=crb install -y \
+            gcc git libedit-devel libevent-devel make meson \
+            ninja-build pkgconf python3-pyelftools systemd \
+            libcmocka-devel numactl-devel libsmartcols-devel rpm-build scdoc
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # force fetch all history
+      - run: git config --global --add safe.directory $PWD
+      - run: make rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-packages
+          path: grout*.rpm
+          retention-days: 5

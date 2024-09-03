@@ -54,6 +54,15 @@ deb:
 	rm -f grout*.deb
 	mv ../grout*$(debversion)*.deb .
 
+rpmversion = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v//;s/-.+//')
+rpmrelease = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v[0-9\.]+-//;s/-/./g').$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
+
+.PHONY: rpm
+rpm:
+	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
+	rm -f grout*.rpm
+	mv ~/rpmbuild/RPMS/x86_64/grout*$(rpmversion)-$(rpmrelease)*.rpm .
+
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
 licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:README.md' ':!:subprojects' ':!:debian'

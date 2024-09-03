@@ -2,7 +2,10 @@
 # Copyright (c) 2023 Robin Jarry
 
 /*.deb
+/*.list
+/*.rpm
 /.cache
 /build
 /debian/changelog
+/redhat-linux-build
 /subprojects/*/
