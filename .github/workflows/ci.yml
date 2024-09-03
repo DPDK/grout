@@ -124,3 +124,25 @@ jobs:
           name: rpm-packages
           path: grout*.rpm
           retention-days: 5
+
+  container:
+    runs-on: ubuntu-latest
+    needs: rpm
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: rpm-packages
+          merge-multiple: true
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          tags: "ghcr.io/rjarry/grout:latest"
+          push: true
