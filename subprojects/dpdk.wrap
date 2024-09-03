@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://dpdk.org/git/dpdk
+url = https://github.com/DPDK/dpdk
 revision = v24.07
 depth = 1
 diff_files =
