@@ -214,7 +214,7 @@ ip_forward  333675  22623757       67.8        691.8        10.2
 ## Packet graph
 
 ```console
-[root@dio grout]$ ./build/grcli show graph dot | grep -v darkorange | dot -Tsvg > docs/graph.svg
+[root@dio grout]$ ./build/grcli show graph dot | grep -vE 'darkorange|error' | dot -Tsvg > docs/graph.svg
 ```
 
 ![docs/graph.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/graph.svg)
