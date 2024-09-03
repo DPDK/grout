@@ -1,0 +1,41 @@
+#!/bin/bash
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024 Robin Jarry
+
+_grout() {
+	local cur prev words cword split
+	local o w opts
+	local -a all opt
+	_init_completion -s -n : || return
+
+	all=(
+"-h --help"
+"-p --poll-mode"
+"-t --test-mode"
+"-v --verbose"
+"-s --socket"
+"-x --trace-packets"
+)
+	case "$prev" in
+	-s|--socket)
+		_filedir
+		return
+		;;
+	esac
+
+	opts=""
+	for o in "${all[@]}"; do
+		opt=($o)
+		for w in "${words[@]}"; do
+			case "$w" in
+			"${opt[0]}"|"${opt[1]}")
+				continue 2
+				;;
+			esac
+		done
+		opts="$opts ${opt[*]}"
+	done
+
+	COMPREPLY=($(compgen -W "$opts" -- $cur))
+}
+complete -F _grout grout
