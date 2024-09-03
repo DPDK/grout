@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=Graph router daemon
+After=network.target basic.target
+
+[Service]
+Type=notify
+Restart=on-failure
+EnvironmentFile=-/etc/default/grout
+ExecStartPre=/usr/bin/udevadm settle
+ExecStart=/usr/sbin/grout $GROUT_OPTS
+ExecStartPost=-sh -c '/usr/bin/grcli -xe < /etc/grout.init'
+
+[Install]
+WantedBy=multi-user.target
