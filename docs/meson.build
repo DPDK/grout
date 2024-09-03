@@ -6,6 +6,7 @@ scdoc = find_program(scdoc_dep.get_variable(pkgconfig: 'scdoc'), native: true)
 mandir = get_option('mandir')
 
 man_src = [
+  'grcli.1.scd',
   'grout.8.scd',
 ]
 
