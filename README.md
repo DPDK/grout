@@ -75,17 +75,19 @@ also in scripts one command at a time, or by batches.
 ### Install system dependencies
 
 ```sh
-dnf install gcc git libcmocka-devel libedit-devel libevent-devel make meson \
-        ninja-build numactl-devel pkgconf python3-pyelftools scdoc \
-        libsmartcols-devel clang-tools-extra jq curl traceroute
+dnf install gcc git make meson ninja-build pkgconf scdoc python3-pyelftools \
+        libcmocka-devel libedit-devel libevent-devel numactl-devel \
+        libsmartcols-devel libarchive-devel rdma-core-devel \
+        clang-tools-extra jq curl traceroute
 ```
 
 or
 
 ```sh
-apt install git build-essential gcovr libcmocka-dev libedit-dev libevent-dev \
-        libnuma-dev meson ninja-build pkg-config python3-pyelftools scdoc \
-        libsmartcols-dev clang-format jq curl traceroute
+apt install git gcc make meson ninja-build pkgconf scdoc python3-pyelftools \
+        libcmocka-dev libedit-dev libevent-dev libnuma-dev \
+        libsmartcols-dev libarchive-dev libibverbs-dev \
+        clang-format jq curl traceroute
 ```
 
 ### Build

@@ -4,7 +4,6 @@
 %global _lto_cflags %nil
 %global branch main
 %global __meson_wrap_mode default
-%{!?_unitdir:%define _unitdir /usr/lib/systemd/system}
 
 Name: grout
 Summary: Graph router based on DPDK
@@ -15,9 +14,22 @@ Version: %{version}
 Release: %{release}
 Source0: https://github.com/rjarry/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
 
-BuildRequires: git gcc make meson ninja-build pkgconf scdoc
-BuildRequires: libcmocka-devel libedit-devel libevent-devel libsmartcols-devel
-BuildRequires: python3-pyelftools numactl-devel
+BuildRequires: gcc
+BuildRequires: git
+BuildRequires: libarchive-devel
+BuildRequires: libcmocka-devel
+BuildRequires: libedit-devel
+BuildRequires: libevent-devel
+BuildRequires: libsmartcols-devel
+BuildRequires: make
+BuildRequires: meson
+BuildRequires: ninja-build
+BuildRequires: numactl-devel
+BuildRequires: pkgconf
+BuildRequires: python3-pyelftools
+BuildRequires: rdma-core-devel
+BuildRequires: scdoc
+BuildRequires: systemd
 
 %description
 grout stands for Graph Router. In English, "grout" refers to thin mortar that
