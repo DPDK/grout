@@ -80,6 +80,7 @@ jobs:
   deb:
     runs-on: ubuntu-latest
     container: "debian:stable"
+    if: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: install system dependencies
         run: |
@@ -104,6 +105,7 @@ jobs:
   rpm:
     runs-on: ubuntu-latest
     container: "quay.io/centos/centos:stream9"
+    if: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: install system dependencies
         run: |
@@ -127,6 +129,7 @@ jobs:
 
   container:
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
     needs: rpm
     steps:
       - uses: actions/checkout@v4
@@ -139,3 +142,22 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: docker build --tag ghcr.io/rjarry/grout:`git describe --long --abbrev=8 --dirty` -f Containerfile .
       - run: docker push ghcr.io/rjarry/grout:`git describe --long --abbrev=8 --dirty`
+
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs:
+      - deb
+      - rpm
+      - container
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: pyTooling/Actions/releaser@r0
+        with:
+          token: ${{ github.token }}
+          tag: 'edge'
+          files: |
+            *.deb
+            *.rpm
