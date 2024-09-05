@@ -23,7 +23,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-e] [-h] [-s PATH] [-x] ...\n", prog);
+	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
 }
 
@@ -33,6 +33,7 @@ static void help(void) {
 	puts("");
 	puts("options:");
 	puts("  -e, --err-exit             Abort on first error.");
+	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
@@ -46,6 +47,7 @@ static void help(void) {
 
 struct gr_cli_opts {
 	const char *sock_path;
+	FILE *cmds_file;
 	bool err_exit;
 	bool trace_commands;
 };
@@ -55,9 +57,10 @@ struct gr_cli_opts opts;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":ehs:x"
+#define FLAGS ":ef:hs:x"
 	static struct option long_options[] = {
 		{"err-exit", no_argument, NULL, 'e'},
+		{"file", required_argument, NULL, 'f'},
 		{"help", no_argument, NULL, 'h'},
 		{"socket", required_argument, NULL, 's'},
 		{"trace-commands", no_argument, NULL, 'x'},
@@ -67,11 +70,19 @@ static int parse_args(int argc, char **argv) {
 	opterr = 0; // disable getopt default error reporting
 
 	opts.sock_path = getenv("GROUT_SOCK_PATH");
+	opts.cmds_file = stdin;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			opts.err_exit = true;
+			break;
+		case 'f':
+			opts.cmds_file = fopen(optarg, "r+");
+			if (opts.cmds_file == NULL) {
+				errorf("--file %s: %s", optarg, strerror(errno));
+				return -errno;
+			}
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -145,12 +156,12 @@ int main(int argc, char **argv) {
 		status = exec_args(client, cmdlist, argc, (const char *const *)argv);
 		if (print_cmd_status(status) < 0)
 			goto end;
-	} else if (is_tty(stdin)) {
+	} else if (is_tty(opts.cmds_file)) {
 		if (interact(client, cmdlist) < 0)
 			goto end;
 	} else {
 		char buf[BUFSIZ];
-		while (fgets(buf, sizeof(buf), stdin)) {
+		while (fgets(buf, sizeof(buf), opts.cmds_file)) {
 			if (opts.trace_commands)
 				trace_cmd(buf);
 			status = exec_line(client, cmdlist, buf);
@@ -167,5 +178,7 @@ end:
 		ret = EXIT_FAILURE;
 	}
 	ec_node_free(cmdlist);
+	if (opts.cmds_file != NULL)
+		fclose(opts.cmds_file);
 	return ret;
 }

@@ -14,12 +14,14 @@ Grout is a software router based on DPDK rte_graph.
 
 ; Please keep flags/options in alphabetical order.
 
-*grcli* [*-e*] [*-h*] [*-s* PATH] [*-x*] ...
+*grcli* [*-e*] [*-f* _PATH_] [*-h*] [*-s* _PATH_] [*-x*] ...
 
 # OPTIONS
 
 *-e*, *--err-exit*
 	Abort on first error.
+*-f* _PATH_, *--file* _PATH_
+	Read commands from _PATH_ instead of standard input.
 *-h*, *--help*
 	Show this help message and exit.
 *-s* _PATH_, *--socket* _PATH_
