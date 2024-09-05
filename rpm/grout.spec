@@ -72,15 +72,16 @@ rm -rf %{buildroot} %{_vpath_builddir}
 %systemd_preun %{name}.service
 
 %files
-%{_sysconfdir}/default/grout
-%{_sysconfdir}/grout.init
-%{_unitdir}/grout.service
-%{_datadir}/bash-completion/completions/grout
-%{_datadir}/bash-completion/completions/grcli
-%{_bindir}/grcli
-%{_sbindir}/grout
-%{_mandir}/man1/grcli.1*
-%{_mandir}/man8/grout.8*
+%doc README.md
+%config %{_sysconfdir}/default/grout
+%config %{_sysconfdir}/grout.init
+%attr(644, root, root) %{_unitdir}/grout.service
+%attr(644, root, root) %{_datadir}/bash-completion/completions/grout
+%attr(644, root, root) %{_datadir}/bash-completion/completions/grcli
+%attr(755, root, root) %{_bindir}/grcli
+%attr(755, root, root) %{_sbindir}/grout
+%attr(644, root, root) %{_mandir}/man1/grcli.1*
+%attr(644, root, root) %{_mandir}/man8/grout.8*
 
 %changelog
 * Mon Sep 02 2024 Robin Jarry <rjarry@redhat.com>
