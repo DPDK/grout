@@ -49,10 +49,13 @@ debversion = $(shell git describe --long --abbrev=8 --dirty | sed 's/^v//;s/-/+/
 
 .PHONY: deb
 deb:
-	dch --create --package grout --newversion $(debversion) -M Development snapshot.
+	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
 	dpkg-buildpackage -b
-	rm -f grout*.deb
-	mv ../grout*$(debversion)*.deb .
+	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
+	for name in grout grout-dbgsym; do \
+		mv -vf ../$${name}_$(debversion)_$$arch.deb \
+			$${name}_$$arch.deb || exit; \
+	done
 
 rpmversion = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v//;s/-.+//')
 rpmrelease = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v[0-9\.]+-//;s/-/./g').$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
@@ -60,8 +63,12 @@ rpmrelease = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v[0-9\.
 .PHONY: rpm
 rpm:
 	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
-	rm -f grout*.rpm
-	mv ~/rpmbuild/RPMS/x86_64/grout*$(rpmversion)-$(rpmrelease)*.rpm .
+	$Q arch=`rpm --eval '%{_arch}'` && \
+	version="$(rpmversion)-$(rpmrelease)" && \
+	for name in grout grout-debuginfo grout-debugsource; do \
+		mv -vf ~/rpmbuild/RPMS/$$arch/$$name-$$version.$$arch.rpm \
+			$$name.$$arch.rpm || exit; \
+	done
 
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
