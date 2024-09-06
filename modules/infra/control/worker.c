@@ -145,6 +145,12 @@ int port_unplug(uint16_t port_id) {
 int worker_ensure_default(int socket_id) {
 	unsigned main_lcore = rte_get_main_lcore();
 	struct worker *worker;
+	cpu_set_t affinity;
+	unsigned cpu_id;
+	int ret;
+
+	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)))
+		return errno_log(ret, "pthread_getaffinity_np");
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		if (socket_id == SOCKET_ID_ANY)
@@ -156,16 +162,29 @@ int worker_ensure_default(int socket_id) {
 	if (socket_id == SOCKET_ID_ANY)
 		socket_id = numa_preferred();
 
-	// never spawn workers on the main lcore
-	for (unsigned cpu_id = 0; cpu_id < numa_all_cpus_ptr->size; cpu_id++) {
+	// try to spawn the default worker on the correct socket excluding the main lcore
+	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
 		if (cpu_id == main_lcore)
 			continue;
-		if (!numa_bitmask_isbitset(numa_all_cpus_ptr, cpu_id))
+		if (!CPU_ISSET(cpu_id, &affinity))
 			continue;
 		if (socket_id != numa_node_of_cpu(cpu_id))
 			continue;
 		return worker_create(cpu_id);
 	}
+
+	// no available cpu found, fallback on whatever is left, even on the wrong socket
+	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
+		if (!CPU_ISSET(cpu_id, &affinity))
+			continue;
+		LOG(WARNING,
+		    "no ideal CPU found on socket %d for a new worker, falling back to CPU %u",
+		    socket_id,
+		    cpu_id);
+		return worker_create(cpu_id);
+	}
+
+	// should not happen as at least main_lcore should be usable
 	return errno_log(ERANGE, "socket_id");
 }
 
