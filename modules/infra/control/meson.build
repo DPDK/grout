@@ -17,6 +17,7 @@ tests += [
     'link_args': [
       '-Wl,--wrap=numa_bitmask_isbitset',
       '-Wl,--wrap=numa_node_of_cpu',
+      '-Wl,--wrap=pthread_cancel',
       '-Wl,--wrap=pthread_create',
       '-Wl,--wrap=pthread_join',
       '-Wl,--wrap=rte_dev_name',
