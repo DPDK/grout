@@ -9,13 +9,13 @@
 #include <gr_log.h>
 #include <gr_stb_ds.h>
 
-#include <numa.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
 #include <rte_log.h>
 #include <rte_mempool.h>
 #include <rte_version.h>
 
+#include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
 #include <syslog.h>
@@ -92,13 +92,56 @@ int dpdk_log_init(const struct gr_args *args) {
 	return 0;
 }
 
+// Returns human readable representation of a cpuset. The output format is
+// a list of CPUs with ranges (for example, "0,1,3-9").
+static int cpuset_format(char *buf, size_t len, cpu_set_t *set) {
+	ssize_t n, m;
+	unsigned i, j;
+
+	n = 0;
+
+	for (i = 0; i < CPU_SETSIZE; i++) {
+		if (CPU_ISSET(i, set)) {
+			for (j = i + 1; j < CPU_SETSIZE; j++)
+				if (!CPU_ISSET(j, set))
+					break;
+			j -= 1;
+
+			if (i == j)
+				m = snprintf(buf + n, len - n, "%u,", i);
+			else if (j - i == 1)
+				m = snprintf(buf + n, len - n, "%u,%u,", i, j);
+			else
+				m = snprintf(buf + n, len - n, "%u-%u,", i, j);
+			if (m < 0)
+				return errno_set(errno);
+
+			n += m;
+			i = j + 1;
+		}
+	}
+
+	if (n > 0) {
+		// strip trailing comma
+		buf[n - 1] = '\0';
+	}
+
+	return 0;
+}
+
 int dpdk_init(const struct gr_args *args) {
-	char main_lcore[32] = {0};
+	char affinity[BUFSIZ] = "";
+	char main_lcore[32] = "";
 	char **eal_args = NULL;
+	cpu_set_t cpus;
 	int ret;
 
-	for (unsigned cpu = 0; cpu < numa_all_cpus_ptr->size; cpu++) {
-		if (numa_bitmask_isbitset(numa_all_cpus_ptr, cpu)) {
+	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(cpus), &cpus)))
+		goto end;
+	cpuset_format(affinity, sizeof(affinity), &cpus);
+
+	for (unsigned cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+		if (CPU_ISSET(cpu, &cpus)) {
 			// use the first available CPU as main lcore
 			snprintf(main_lcore, sizeof(main_lcore), "%u", cpu);
 			break;
@@ -106,7 +149,7 @@ int dpdk_init(const struct gr_args *args) {
 	}
 	if (main_lcore[0] == '\0') {
 		ret = ENOSPC;
-		LOG(ERR, "no CPU found as main lcore");
+		LOG(ERR, "cannot determine main lcore from CPU affinity '%s'", affinity);
 		goto end;
 	}
 
@@ -133,6 +176,15 @@ int dpdk_init(const struct gr_args *args) {
 
 	if ((ret = rte_eal_init(arrlen(eal_args), eal_args)) < 0) {
 		ret = -ret;
+		goto end;
+	}
+
+	// rte_eal_init() will force an affinity to the main thread to only main_lcore.
+	// Restore the startup CPU affinity to allow control plane threads to be scheduled
+	// by the kernel.
+	LOG(INFO, "running control plane on CPUs %s", affinity);
+	if (!!(ret = pthread_setaffinity_np(pthread_self(), sizeof(cpus), &cpus))) {
+		rte_eal_cleanup();
 		goto end;
 	}
 

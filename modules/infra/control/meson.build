@@ -15,7 +15,6 @@ tests += [
   {
     'sources': files('worker_test.c', 'port.c', 'worker.c'),
     'link_args': [
-      '-Wl,--wrap=numa_bitmask_isbitset',
       '-Wl,--wrap=numa_node_of_cpu',
       '-Wl,--wrap=pthread_cancel',
       '-Wl,--wrap=pthread_create',
