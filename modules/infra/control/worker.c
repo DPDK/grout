@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdatomic.h>
 #include <sys/queue.h>
 #include <unistd.h>
@@ -34,6 +35,8 @@ struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
 int worker_create(unsigned cpu_id) {
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
+	pthread_attr_t attr;
+	cpu_set_t cpuset;
 	int ret;
 
 	if (worker == NULL)
@@ -42,10 +45,24 @@ int worker_create(unsigned cpu_id) {
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
 
-	if (!!(ret = pthread_create(&worker->thread, NULL, gr_datapath_loop, worker))) {
-		pthread_cancel(worker->thread);
+	if (!!(ret = pthread_attr_init(&attr))) {
 		rte_free(worker);
-		return errno_log(-ret, "pthread_create");
+		return errno_log(ret, "pthread_attr_init");
+	}
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(cpu_id, &cpuset);
+	if (!!(ret = pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset))) {
+		rte_free(worker);
+		pthread_attr_destroy(&attr);
+		return errno_log(ret, "pthread_attr_setaffinity_np");
+	}
+
+	if (!!(ret = pthread_create(&worker->thread, &attr, gr_datapath_loop, worker))) {
+		pthread_cancel(worker->thread);
+		pthread_attr_destroy(&attr);
+		rte_free(worker);
+		return errno_log(ret, "pthread_create");
 	}
 
 	STAILQ_INSERT_TAIL(&workers, worker, next);
@@ -54,6 +71,7 @@ int worker_create(unsigned cpu_id) {
 	while (!atomic_load_explicit(&worker->started, memory_order_acquire))
 		usleep(500);
 
+	pthread_attr_destroy(&attr);
 	LOG(INFO, "worker %u started", worker->cpu_id);
 	return 0;
 }
@@ -186,8 +204,6 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 
 	if (cpu_id == rte_get_main_lcore())
 		return errno_set(EBUSY);
-	if (!numa_bitmask_isbitset(numa_all_cpus_ptr, cpu_id))
-		return errno_set(ERANGE);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
 		arrforeach (qmap, src_worker->rxqs) {
@@ -206,6 +222,18 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 move:
 	reconfig = false;
 
+	// prepare destination worker
+	dst_worker = worker_find(cpu_id);
+	if (dst_worker == NULL) {
+		// no worker assigned to this cpu id yet, create one
+		if ((ret = worker_create(cpu_id)) < 0)
+			return ret;
+		dst_worker = worker_find(cpu_id);
+		reconfig = true;
+	}
+	if (dst_worker == NULL)
+		return errno_set(errno);
+
 	// unassign from src_worker
 	for (int i = 0; i < arrlen(src_worker->rxqs); i++) {
 		struct queue_map *qmap = &src_worker->rxqs[i];
@@ -221,17 +249,6 @@ move:
 			return ret;
 		reconfig = true;
 	}
-
-	dst_worker = worker_find(cpu_id);
-	if (dst_worker == NULL) {
-		// no worker assigned to this cpu id yet, create one
-		if ((ret = worker_create(cpu_id)) < 0)
-			return ret;
-		dst_worker = worker_find(cpu_id);
-		reconfig = true;
-	}
-	if (dst_worker == NULL)
-		return errno_set(errno);
 
 	// assign to dst_worker *before* reconfiguring ports
 	// to avoid the dangling rxq to be assigned twice

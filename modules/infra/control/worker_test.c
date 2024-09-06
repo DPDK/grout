@@ -82,6 +82,7 @@ mock_func(
 	int,
 	__wrap_rte_eth_dev_configure(uint16_t, uint16_t, uint16_t, const struct rte_eth_conf *)
 );
+mock_func(int, __wrap_pthread_cancel(pthread_t));
 mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
@@ -196,8 +197,12 @@ static void rxq_assign_main_lcore(void **) {
 }
 
 static void rxq_assign_invalid_cpu(void **) {
+	struct worker tmp;
 	will_return(__wrap_rte_get_main_lcore, 0);
-	will_return(__wrap_numa_bitmask_isbitset, 0);
+	will_return(__wrap_rte_zmalloc, &tmp);
+	will_return(__wrap_pthread_create, ERANGE);
+	will_return(__wrap_pthread_cancel, 0);
+	will_return(__wrap_rte_free, 0);
 	assert_int_equal(worker_rxq_assign(0, 0, 9999), -ERANGE);
 }
 

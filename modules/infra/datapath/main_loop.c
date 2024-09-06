@@ -120,7 +120,6 @@ void *gr_datapath_loop(void *priv) {
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
 	struct rte_graph *graph;
-	rte_cpuset_t cpuset;
 	unsigned cur, loop;
 	char name[16];
 
@@ -132,13 +131,6 @@ void *gr_datapath_loop(void *priv) {
 
 	if (rte_thread_register() < 0) {
 		log(ERR, "rte_thread_register: %s", rte_strerror(rte_errno));
-		return NULL;
-	}
-
-	CPU_ZERO(&cpuset);
-	CPU_SET(w->cpu_id, &cpuset);
-	if (rte_thread_set_affinity(&cpuset) < 0) {
-		log(ERR, "rte_thread_set_affinity: %s", rte_strerror(rte_errno));
 		return NULL;
 	}
 
