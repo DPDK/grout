@@ -72,8 +72,8 @@ int dpdk_init(struct gr_args *args) {
 	char **eal_args = NULL;
 	int ret;
 
-	if (getenv("JOURNAL_STREAM")) {
-		// executed by systemd with stderr redirected to journald
+	if (getenv("INVOCATION_ID")) {
+		// executed by systemd
 		log_syslog = true;
 		openlog("grout", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 	}
