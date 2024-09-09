@@ -66,11 +66,8 @@ static ssize_t log_write(void *, const char *buf, size_t size) {
 	return n;
 }
 
-int dpdk_init(struct gr_args *args) {
+int dpdk_log_init(const struct gr_args *args) {
 	cookie_io_functions_t log_functions = {.write = log_write};
-	char main_lcore[32] = {0};
-	char **eal_args = NULL;
-	int ret;
 
 	if (getenv("INVOCATION_ID")) {
 		// executed by systemd
@@ -78,13 +75,27 @@ int dpdk_init(struct gr_args *args) {
 		openlog("grout", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 	}
 
-	if ((log_stream = fopencookie(NULL, "w+", log_functions)) == NULL) {
-		ret = errno;
-		goto end;
-	}
-	rte_openlog_stream(log_stream);
+	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_NOTICE);
+	if (gr_rte_log_type < 0)
+		return errno_log(-gr_rte_log_type, "rte_log_register_type_and_pick_level");
 
-	LOG(INFO, "starting grout version %s", GROUT_VERSION);
+	if ((log_stream = fopencookie(NULL, "w+", log_functions)) == NULL)
+		return errno_log(errno, "fopencookie");
+
+	rte_openlog_stream(log_stream);
+	if (args->log_level >= RTE_LOG_DEBUG)
+		rte_log_set_level_pattern("*", RTE_LOG_DEBUG);
+	else
+		rte_log_set_level_pattern("*", RTE_LOG_NOTICE);
+	rte_log_set_level(gr_rte_log_type, args->log_level);
+
+	return 0;
+}
+
+int dpdk_init(const struct gr_args *args) {
+	char main_lcore[32] = {0};
+	char **eal_args = NULL;
+	int ret;
 
 	for (unsigned cpu = 0; cpu < numa_all_cpus_ptr->size; cpu++) {
 		if (numa_bitmask_isbitset(numa_all_cpus_ptr, cpu)) {
@@ -113,22 +124,8 @@ int dpdk_init(struct gr_args *args) {
 	} else {
 		arrpush(eal_args, "--in-memory");
 	}
-	arrpush(eal_args, "--log-level=*:notice");
-	if (args->log_level > RTE_LOG_DEBUG) {
-		arrpush(eal_args, "--log-level=*:debug");
-	} else if (args->log_level >= RTE_LOG_DEBUG) {
-		arrpush(eal_args, "--log-level=grout:debug");
-	} else if (args->log_level >= RTE_LOG_INFO) {
-		arrpush(eal_args, "--log-level=grout:info");
-	}
 
 	LOG(INFO, "%s", rte_version());
-
-	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_INFO);
-	if (gr_rte_log_type < 0) {
-		ret = -gr_rte_log_type;
-		goto end;
-	}
 
 	char *buf = arrjoin(eal_args, " ");
 	LOG(INFO, "EAL arguments:%s", buf);
