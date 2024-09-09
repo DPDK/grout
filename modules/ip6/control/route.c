@@ -260,6 +260,7 @@ static struct api_out route6_list(const void *request, void **response) {
 	struct gr_ip6_route_list_resp *resp = NULL;
 	struct rte_fib6 *fib = get_fib6(req->vrf_id);
 	struct rte_rib6_node *rn = NULL;
+	struct rte_ipv6_addr zero = {0};
 	struct gr_ip6_route *r;
 	struct rte_rib6 *rib;
 	size_t num, len;
@@ -273,17 +274,17 @@ static struct api_out route6_list(const void *request, void **response) {
 	rib = rte_fib6_get_rib(fib);
 
 	num = 0;
-	while ((rn = rte_rib6_get_nxt(rib, 0, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL)
+	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL)
 		num++;
 	// FIXME: remove this when rte_rib6_get_nxt returns a default route, if any is configured
-	if (rte_rib6_lookup_exact(rib, 0, 0) != NULL)
+	if (rte_rib6_lookup_exact(rib, &zero, 0) != NULL)
 		num++;
 
 	len = sizeof(*resp) + num * sizeof(struct gr_ip6_route);
 	if ((resp = calloc(1, len)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	while ((rn = rte_rib6_get_nxt(rib, 0, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
+	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
 		rte_rib6_get_ip(rn, &r->dest.ip);
@@ -291,7 +292,7 @@ static struct api_out route6_list(const void *request, void **response) {
 		rte_ipv6_addr_cpy(&r->nh, &nh_id_to_ptr(nh_id)->ip);
 	}
 	// FIXME: remove this when rte_rib6_get_nxt returns a default route, if any is configured
-	if ((rn = rte_rib6_lookup_exact(rib, 0, 0)) != NULL) {
+	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
