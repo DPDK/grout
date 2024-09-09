@@ -365,6 +365,13 @@ int main(int argc, char **argv) {
 	if (parse_args(argc, argv) < 0)
 		goto end;
 
+	if (dpdk_log_init(&args) < 0) {
+		err = errno;
+		goto end;
+	}
+
+	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
+
 	if (dpdk_init(&args) < 0) {
 		err = errno;
 		goto dpdk_stop;

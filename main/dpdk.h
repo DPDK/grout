@@ -6,7 +6,8 @@
 
 #include "gr.h"
 
-int dpdk_init(struct gr_args *);
+int dpdk_log_init(const struct gr_args *);
+int dpdk_init(const struct gr_args *);
 void dpdk_fini(void);
 
 #endif

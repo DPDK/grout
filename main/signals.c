@@ -15,7 +15,7 @@ static void signal_cb(evutil_socket_t sig, short what, void *priv) {
 
 	(void)what;
 
-	LOG(WARNING, "received signal SIG%s", sigabbrev_np(sig));
+	LOG(NOTICE, "received signal SIG%s", sigabbrev_np(sig));
 
 	switch (sig) {
 	case SIGPIPE:
