@@ -83,11 +83,11 @@ int dpdk_log_init(const struct gr_args *args) {
 		return errno_log(errno, "fopencookie");
 
 	rte_openlog_stream(log_stream);
-	if (args->log_level >= RTE_LOG_DEBUG)
+	if (args->log_level > RTE_LOG_DEBUG)
 		rte_log_set_level_pattern("*", RTE_LOG_DEBUG);
 	else
 		rte_log_set_level_pattern("*", RTE_LOG_NOTICE);
-	rte_log_set_level(gr_rte_log_type, args->log_level);
+	rte_log_set_level(gr_rte_log_type, RTE_MIN(args->log_level, RTE_LOG_MAX));
 
 	return 0;
 }
