@@ -158,7 +158,6 @@ static uint16_t ndp_ns_input_process(
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
 
-		local->last_reply = rte_get_tsc_cycles();
 		next = IP_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
