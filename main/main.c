@@ -13,6 +13,7 @@
 #include <gr_macro.h>
 
 #include <event2/event.h>
+#include <event2/thread.h>
 #include <rte_eal.h>
 #include <rte_log.h>
 #include <rte_mempool.h>
@@ -361,7 +362,11 @@ int main(int argc, char **argv) {
 		perror("setlocale(LC_CTYPE, C.UTF-8)");
 		goto end;
 	}
-
+	if (evthread_use_pthreads() < 0) {
+		errno = ENOSYS;
+		perror("evthread_use_pthreads");
+		goto end;
+	}
 	if (parse_args(argc, argv) < 0)
 		goto end;
 

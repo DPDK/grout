@@ -3,6 +3,7 @@
 
 #include "worker_priv.h"
 
+#include <gr.h>
 #include <gr_api.h>
 #include <gr_cmocka.h>
 #include <gr_control.h>
@@ -30,6 +31,15 @@ void iface_type_register(struct iface_type *) { }
 void iface_event_notify(iface_event_t, struct iface *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
+
+struct gr_args args;
+const struct gr_args *gr_args(void) {
+	return &args;
+}
+
+struct iface *iface_from_id(uint16_t ifid) {
+	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
+}
 
 struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
 	uint16_t ifid;

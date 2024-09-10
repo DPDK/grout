@@ -159,8 +159,7 @@ reconfig:
 		goto shutdown;
 
 	cur = atomic_load_explicit(&w->next_config, memory_order_acquire);
-	graph = w->config[cur].graph;
-	max_sleep_us = w->config[cur].max_sleep_us;
+	graph = w->graph[cur];
 	atomic_store_explicit(&w->cur_config, cur, memory_order_release);
 
 	if (graph == NULL) {
@@ -173,8 +172,6 @@ reconfig:
 	atomic_store(&w->stats, ctx.w_stats);
 
 	gr_modules_dp_init();
-
-	log(INFO, "reconfigured max_sleep=%uus", max_sleep_us);
 
 	loop = 0;
 	sleep = 0;
@@ -192,6 +189,7 @@ reconfig:
 			rte_graph_cluster_stats_get(ctx.stats, false);
 			timestamp_tmp = rte_rdtsc();
 			cycles = timestamp_tmp - timestamp;
+			max_sleep_us = atomic_load_explicit(&w->max_sleep_us, memory_order_relaxed);
 			if (ctx.last_count == 0 && max_sleep_us > 0) {
 				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);
