@@ -3,6 +3,8 @@
 
 #include "worker_priv.h"
 
+#include <gr.h>
+#include <gr_control.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -27,33 +29,19 @@
 
 #define ETHER_FRAME_GAP 20
 
-uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id) {
+static int queue_buffer_us(uint32_t link_speed, uint16_t queue_size) {
 	uint32_t frame_size, pkts_per_us;
-	struct rte_eth_rxq_info qinfo;
-	struct rte_eth_link link;
-	int ret;
-
-	if ((ret = rte_eth_link_get_nowait(port_id, &link)) < 0)
-		return 0;
-	switch (link.link_speed) {
-	case RTE_ETH_SPEED_NUM_NONE:
-	case RTE_ETH_SPEED_NUM_UNKNOWN:
-		return 0;
-	}
-
-	if (rte_eth_rx_queue_info_get(port_id, rxq_id, &qinfo) < 0)
-		return 0;
 
 	// minimum ethernet frame size on the wire
 	frame_size = (RTE_ETHER_MIN_LEN + ETHER_FRAME_GAP) * 8;
 
 	// reported speed by driver is in megabit/s and we need a result in micro seconds.
 	// we can use link_speed without any conversion: megabit/s is equivalent to bit/us
-	pkts_per_us = link.link_speed / frame_size;
+	pkts_per_us = link_speed / frame_size;
 	if (pkts_per_us == 0)
 		return 0;
 
-	return qinfo.nb_desc / pkts_per_us;
+	return queue_size / pkts_per_us;
 }
 
 static uint16_t get_rxq_size(struct iface_info_port *p, const struct rte_eth_dev_info *info) {
@@ -184,6 +172,9 @@ static int port_configure(struct iface_info_port *p) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 	conf.rxmode.offloads &= info.rx_offload_capa;
+	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
+		conf.intr_conf.lsc = 1;
+	}
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
@@ -276,14 +267,6 @@ int iface_port_reconfig(
 		}
 		if (ret < 0)
 			errno_log(-ret, "rte_eth_dev_set_link_{up,down}");
-
-		struct rte_eth_link link;
-		if (rte_eth_link_get(p->port_id, &link) == 0) {
-			if (link.link_status == RTE_ETH_LINK_UP)
-				iface->state |= GR_IFACE_S_RUNNING;
-			else
-				iface->state &= ~GR_IFACE_S_RUNNING;
-		}
 	}
 
 	if ((set_attrs & GR_IFACE_SET_MTU) && mtu != 0) {
@@ -626,6 +609,94 @@ static void port_to_api(void *info, const struct iface *iface) {
 	}
 }
 
+static struct event *link_event;
+
+static void link_event_cb(evutil_socket_t, short, void *) {
+	unsigned max_sleep_us, rx_buffer_us;
+	struct rte_eth_rxq_info qinfo;
+	struct rte_eth_link link;
+	struct queue_map *qmap;
+	struct worker *worker;
+	const struct iface *i;
+	struct iface *iface;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		if (gr_args()->poll_mode)
+			max_sleep_us = 0;
+		else
+			max_sleep_us = 1000; // unreasonably long maximum (1ms)
+
+		arrforeach (qmap, worker->rxqs) {
+			i = port_ifaces[qmap->port_id];
+			if (i == NULL)
+				continue;
+			iface = iface_from_id(i->id);
+			if (iface == NULL)
+				continue;
+
+			if (rte_eth_link_get(qmap->port_id, &link) < 0) {
+				LOG(INFO, "%s: link status down", iface->name);
+				iface->state &= ~GR_IFACE_S_RUNNING;
+				continue;
+			}
+			if (link.link_status == RTE_ETH_LINK_UP) {
+				if (!(iface->state & GR_IFACE_S_RUNNING)) {
+					LOG(INFO, "%s: link status up", iface->name);
+					iface->state |= GR_IFACE_S_RUNNING;
+				}
+			} else {
+				if (iface->state & GR_IFACE_S_RUNNING) {
+					LOG(INFO, "%s: link status down", iface->name);
+					iface->state &= ~GR_IFACE_S_RUNNING;
+				}
+				continue;
+			}
+			if (gr_args()->poll_mode)
+				continue;
+
+			switch (link.link_speed) {
+			case RTE_ETH_SPEED_NUM_NONE:
+			case RTE_ETH_SPEED_NUM_UNKNOWN:
+				continue;
+			}
+			if (rte_eth_rx_queue_info_get(qmap->port_id, qmap->queue_id, &qinfo) < 0)
+				continue;
+
+			rx_buffer_us = queue_buffer_us(link.link_speed, qinfo.nb_desc);
+			if (rx_buffer_us < max_sleep_us)
+				max_sleep_us = rx_buffer_us;
+		}
+		if (atomic_exchange(&worker->max_sleep_us, max_sleep_us) != max_sleep_us)
+			LOG(INFO, "[CPU %u] worker max sleep %uus", worker->cpu_id, max_sleep_us);
+	}
+}
+
+static int lsc_port_cb(uint16_t, enum rte_eth_event_type, void *, void *) {
+	// This callback may be executed from any dataplane or DPDK thread.
+	// In order to serialize the update of port status, propagate the callback
+	// event to the event loop running in the main lcore.
+	event_active(link_event, 0, 0);
+	return 0;
+}
+
+static void port_init(struct event_base *base) {
+	link_event = event_new(base, -1, EV_PERSIST | EV_FINALIZE, link_event_cb, NULL);
+	if (link_event == NULL)
+		ABORT("event_new() failed");
+	// Not all drivers support triggering link status change events.
+	// Ensure the link_event is triggered at least once every second.
+	struct timeval tv = {.tv_sec = 1};
+	if (event_add(link_event, &tv) < 0)
+		ABORT("event_add() failed");
+	rte_eth_dev_callback_register(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
+}
+
+static void port_fini(struct event_base *) {
+	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
+	event_free(link_event);
+	link_event = NULL;
+}
+
 static struct iface_type iface_type_port = {
 	.id = GR_IFACE_TYPE_PORT,
 	.name = "port",
@@ -639,6 +710,12 @@ static struct iface_type iface_type_port = {
 	.to_api = port_to_api,
 };
 
+static struct gr_module port_module = {
+	.init = port_init,
+	.fini = port_fini,
+};
+
 RTE_INIT(port_constructor) {
 	iface_type_register(&iface_type_port);
+	gr_register_module(&port_module);
 }

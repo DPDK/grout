@@ -3,7 +3,6 @@
 
 #include "graph_priv.h"
 
-#include <gr.h>
 #include <gr_control.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
@@ -122,17 +121,16 @@ static void node_data_reset(const char *graph) {
 void worker_graph_free(struct worker *worker) {
 	int ret;
 	for (int i = 0; i < 2; i++) {
-		if (worker->config[i].graph != NULL) {
-			node_data_reset(worker->config[i].graph->name);
-			if ((ret = rte_graph_destroy(worker->config[i].graph->id)) < 0)
+		if (worker->graph[i] != NULL) {
+			node_data_reset(worker->graph[i]->name);
+			if ((ret = rte_graph_destroy(worker->graph[i]->id)) < 0)
 				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
-			worker->config[i].graph = NULL;
+			worker->graph[i] = NULL;
 		}
 	}
 }
 
 static int worker_graph_new(struct worker *worker, uint8_t index) {
-	uint32_t max_sleep_us, rx_buffer_us;
 	struct rx_node_queues *rx = NULL;
 	struct tx_node_queues *tx = NULL;
 	char name[RTE_GRAPH_NAMESIZE];
@@ -148,7 +146,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 			n_rxqs++;
 	}
 	if (n_rxqs == 0) {
-		worker->config[index].graph = NULL;
+		worker->graph[index] = NULL;
 		return 0;
 	}
 
@@ -164,10 +162,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	n_rxqs = 0;
-	if (gr_args()->poll_mode)
-		max_sleep_us = 0;
-	else
-		max_sleep_us = 1000; // unreasonably long maximum (1ms)
 	arrforeach (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
@@ -178,13 +172,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		rx->queues[n_rxqs].port_id = qmap->port_id;
 		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
-		if (!gr_args()->poll_mode) {
-			// divide buffer size by two to take into account
-			// the time to wakeup from sleep
-			rx_buffer_us = port_get_rxq_buffer_us(qmap->port_id, qmap->queue_id) / 2;
-			if (rx_buffer_us < max_sleep_us)
-				max_sleep_us = rx_buffer_us;
-		}
 		n_rxqs++;
 	}
 	rx->n_queues = n_rxqs;
@@ -233,8 +220,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		ret = -rte_errno;
 		goto err;
 	}
-	worker->config[index].graph = rte_graph_lookup(name);
-	worker->config[index].max_sleep_us = max_sleep_us;
+	worker->graph[index] = rte_graph_lookup(name);
 
 	return 0;
 err:
@@ -263,11 +249,11 @@ int worker_graph_reload_all(void) {
 		// free old config
 		next = !next;
 
-		if (worker->config[next].graph != NULL) {
-			node_data_reset(worker->config[next].graph->name);
-			if ((ret = rte_graph_destroy(worker->config[next].graph->id)) < 0)
+		if (worker->graph[next] != NULL) {
+			node_data_reset(worker->graph[next]->name);
+			if ((ret = rte_graph_destroy(worker->graph[next]->id)) < 0)
 				errno_log(-ret, "rte_graph_destroy");
-			worker->config[next].graph = NULL;
+			worker->graph[next] = NULL;
 		}
 	}
 

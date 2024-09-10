@@ -26,8 +26,8 @@ static struct api_out graph_dump(const void *request, void **response) {
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		for (int i = 0; i < 2; i++) {
-			if (worker->config[i].graph != NULL) {
-				graph_name = worker->config[i].graph->name;
+			if (worker->graph[i] != NULL) {
+				graph_name = worker->graph[i]->name;
 				goto found;
 			}
 		}
