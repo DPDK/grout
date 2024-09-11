@@ -17,6 +17,7 @@
 #include <rte_eal.h>
 #include <rte_log.h>
 #include <rte_mempool.h>
+#include <rte_version.h>
 
 #include <fcntl.h>
 #include <getopt.h>
@@ -35,7 +36,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-p] [-s PATH] [-t] [-v] [-x]\n", prog);
+	printf("Usage: %s [-h] [-p] [-s PATH] [-t] [-v] [-v] [-x]\n", prog);
 	puts("");
 	printf("  Graph router version %s.\n", GROUT_VERSION);
 	puts("");
@@ -46,6 +47,7 @@ static void usage(const char *prog) {
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -t, --test-mode            Run in test mode (no hugepages).");
+	puts("  -V, --version              Print version and exit.");
 	puts("  -v, --verbose              Increase verbosity.");
 	puts("  -x, --trace-packets        Print all ingress/egress packets.");
 }
@@ -60,12 +62,13 @@ const struct gr_args *gr_args(void) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":hps:tvx"
+#define FLAGS ":hps:tVvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"test-mode", no_argument, NULL, 't'},
+		{"version", no_argument, NULL, 'V'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"trace-packets", no_argument, NULL, 'x'},
 		{0},
@@ -89,6 +92,10 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 't':
 			args.test_mode = true;
+			break;
+		case 'V':
+			printf("grout %s (%s)\n", GROUT_VERSION, rte_version());
+			exit(EXIT_SUCCESS);
 			break;
 		case 'v':
 			args.log_level++;

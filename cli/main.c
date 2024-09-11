@@ -23,7 +23,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-x] ...\n", prog);
+	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-V] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
 }
 
@@ -38,6 +38,7 @@ static void help(void) {
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
+	puts("  -V, --version              Print version and exit.");
 	puts("  -x, --trace-commands       Print executed commands.");
 	puts("");
 	puts("external completion:");
@@ -57,12 +58,13 @@ struct gr_cli_opts opts;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":ef:hs:x"
+#define FLAGS ":ef:hs:Vx"
 	static struct option long_options[] = {
 		{"err-exit", no_argument, NULL, 'e'},
 		{"file", required_argument, NULL, 'f'},
 		{"help", no_argument, NULL, 'h'},
 		{"socket", required_argument, NULL, 's'},
+		{"version", no_argument, NULL, 'V'},
 		{"trace-commands", no_argument, NULL, 'x'},
 		{0},
 	};
@@ -90,6 +92,10 @@ static int parse_args(int argc, char **argv) {
 			return -1;
 		case 's':
 			opts.sock_path = optarg;
+			break;
+		case 'V':
+			printf("grcli %s\n", GROUT_VERSION);
+			exit(EXIT_SUCCESS);
 			break;
 		case 'x':
 			opts.trace_commands = true;

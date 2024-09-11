@@ -14,7 +14,7 @@ Grout is a software router based on DPDK rte_graph.
 
 ; Please keep flags/options in alphabetical order.
 
-*grout* [*-h*] [*-p*] [*-s* _PATH_] [*-t*] [*-v*] [*-x*]
+*grout* [*-h*] [*-p*] [*-s* _PATH_] [*-t*] [*-V*] [*-v*] [*-x*]
 
 # OPTIONS
 
@@ -28,6 +28,8 @@ Grout is a software router based on DPDK rte_graph.
 	Default: *GROUT_SOCK_PATH* from environment or _/run/grout.sock_).
 *-t*, *--test-mode*
 	Run in test mode (no huge pages).
+*-V*, *--version*
+	Print version and exit.
 *-v*, *--verbose*
 	Increase verbosity. Can be specified multiple times.
 *-x*, *--trace-packets*
