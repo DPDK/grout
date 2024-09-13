@@ -61,6 +61,8 @@ static inline void stats_reset(struct worker_stats *stats) {
 		s->calls = 0;
 		s->cycles = 0;
 	}
+	stats->sleep_cycles = 0;
+	stats->n_sleeps = 0;
 }
 
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
@@ -193,6 +195,8 @@ reconfig:
 			if (ctx.last_count == 0 && max_sleep_us > 0) {
 				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);
+				ctx.w_stats->sleep_cycles += rte_rdtsc() - timestamp_tmp;
+				ctx.w_stats->n_sleeps += 1;
 			} else {
 				sleep = 0;
 				ctx.w_stats->busy_cycles += cycles;
