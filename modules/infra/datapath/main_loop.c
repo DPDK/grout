@@ -181,7 +181,7 @@ reconfig:
 	for (;;) {
 		rte_graph_walk(graph);
 
-		if (++loop == 32) {
+		if (++loop == 256) {
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
 				gr_modules_dp_fini();
 				goto reconfig;
