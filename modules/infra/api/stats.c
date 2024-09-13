@@ -41,12 +41,13 @@ static struct api_out stats_get(const void *request, void **response) {
 
 		STAILQ_FOREACH (worker, &workers, next) {
 			const struct worker_stats *w_stats = atomic_load(&worker->stats);
+			struct stat_entry *e;
 			if (w_stats == NULL)
 				continue;
 			for (unsigned i = 0; i < w_stats->n_stats; i++) {
 				const struct node_stats *s = &w_stats->stats[i];
 				const char *name = rte_node_id_to_name(s->node_id);
-				struct stat_entry *e = shgetp_null(smap, name);
+				e = shgetp_null(smap, name);
 				if (e != NULL) {
 					e->value.objs += s->objs;
 					e->value.calls += s->calls;
@@ -59,6 +60,18 @@ static struct api_out stats_get(const void *request, void **response) {
 					};
 					shput(smap, name, value);
 				}
+			}
+			e = shgetp_null(smap, "idle");
+			if (e != NULL) {
+				e->value.calls += w_stats->n_sleeps;
+				e->value.cycles += w_stats->sleep_cycles;
+			} else {
+				struct stat_value value = {
+					.objs = 0,
+					.calls = w_stats->n_sleeps,
+					.cycles = w_stats->sleep_cycles,
+				};
+				shput(smap, "idle", value);
 			}
 		}
 	}

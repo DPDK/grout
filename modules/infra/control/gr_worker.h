@@ -31,6 +31,8 @@ struct node_stats {
 struct worker_stats {
 	uint64_t total_cycles;
 	uint64_t busy_cycles;
+	uint64_t sleep_cycles;
+	uint64_t n_sleeps;
 	size_t n_stats;
 	struct node_stats stats[/* n_stats */];
 };
