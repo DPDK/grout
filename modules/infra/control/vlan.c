@@ -181,6 +181,24 @@ static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_a
 	return 0;
 }
 
+static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+
+	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
+		return errno_set(EINVAL);
+
+	return iface_add_eth_addr(vlan->parent_id, mac);
+}
+
+static int iface_vlan_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+
+	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
+		return errno_set(EINVAL);
+
+	return iface_del_eth_addr(vlan->parent_id, mac);
+}
+
 static void vlan_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
 	struct gr_iface_info_vlan *api = info;
@@ -198,6 +216,8 @@ static struct iface_type iface_type_vlan = {
 	.reconfig = iface_vlan_reconfig,
 	.fini = iface_vlan_fini,
 	.get_eth_addr = iface_vlan_get_eth_addr,
+	.add_eth_addr = iface_vlan_add_eth_addr,
+	.del_eth_addr = iface_vlan_del_eth_addr,
 	.to_api = vlan_to_api,
 };
 
