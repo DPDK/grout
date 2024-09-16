@@ -79,8 +79,8 @@ struct iface *iface_from_id(uint16_t ifid);
 void iface_add_subinterface(struct iface *parent, const struct iface *sub);
 void iface_del_subinterface(struct iface *parent, const struct iface *sub);
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
-int iface_add_eth_addr(uint16_t ifid, struct rte_ether_addr *);
-int iface_del_eth_addr(uint16_t ifid, struct rte_ether_addr *);
+int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
+int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
 uint16_t ifaces_count(uint16_t type_id);
 struct iface *iface_next(uint16_t type_id, const struct iface *prev);
 
