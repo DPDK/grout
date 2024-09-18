@@ -1,6 +1,6 @@
 # grout # a graph router based on DPDK
 
-![logo.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/logo.svg)
+![logo.svg](https://raw.githubusercontent.com/DPDK/grout/main/docs/logo.svg)
 
 `grout` stands for *Graph Router*. In English, *"grout"* refers to thin mortar
 that hardens to fill gaps between tiles.
@@ -37,18 +37,18 @@ also in scripts one command at a time, or by batches.
 Some nightly packages are available in the [edge] release. For quick
 installation on RPM and DEB based distributions.
 
-[edge]: https://github.com/rjarry/grout/releases/tag/edge
+[edge]: https://github.com/DPDK/grout/releases/tag/edge
 
 Example:
 
 ```sh
-dnf install https://github.com/rjarry/grout/releases/download/edge/grout.x86_64.rpm
+dnf install https://github.com/DPDK/grout/releases/download/edge/grout.x86_64.rpm
 ```
 
 or
 
 ```sh
-wget https://github.com/rjarry/grout/releases/download/edge/grout_amd64.deb
+wget https://github.com/DPDK/grout/releases/download/edge/grout_amd64.deb
 apt install ./grout_amd64.deb
 ```
 
@@ -228,7 +228,7 @@ image.
 [root@grout]$ grcli show graph dot | grep -vE 'darkorange|error' | dot -Tsvg > docs/graph.svg
 ```
 
-![docs/graph.svg](https://raw.githubusercontent.com/rjarry/grout/main/docs/graph.svg)
+![docs/graph.svg](https://raw.githubusercontent.com/DPDK/grout/main/docs/graph.svg)
 
 ## Build from source
 
@@ -253,7 +253,7 @@ apt install git gcc make meson ninja-build pkgconf scdoc python3-pyelftools \
 ### Build
 
 ```
-git clone https://github.com/rjarry/grout
+git clone https://github.com/DPDK/grout
 cd grout
 make
 ```

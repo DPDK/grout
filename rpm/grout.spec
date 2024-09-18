@@ -8,11 +8,11 @@
 Name: grout
 Summary: Graph router based on DPDK
 Group: System Environment/Daemons
-URL: https://github.com/rjarry/grout
+URL: https://github.com/DPDK/grout
 License: BSD-3-Clause
 Version: %{version}
 Release: %{release}
-Source0: https://github.com/rjarry/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
+Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
 
 BuildRequires: gcc
 BuildRequires: git

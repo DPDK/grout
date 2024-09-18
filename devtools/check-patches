@@ -33,7 +33,7 @@ Acked-by
 n=0
 title=
 fail=false
-repo=rjarry/grout
+repo=DPDK/grout
 repo_url=https://github.com/$repo
 api_url=https://api.github.com/repos/$repo
 

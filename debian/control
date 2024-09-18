@@ -23,9 +23,9 @@ Build-Depends:
  scdoc,
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
-Homepage: https://github.com/rjarry/grout
-Vcs-Browser: https://github.com/rjarry/grout
-Vcs-Git: https://github.com/rjarry/grout
+Homepage: https://github.com/DPDK/grout
+Vcs-Browser: https://github.com/DPDK/grout
+Vcs-Git: https://github.com/DPDK/grout
 
 Package: grout
 Architecture: linux-any

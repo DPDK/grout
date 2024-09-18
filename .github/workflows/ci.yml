@@ -152,7 +152,7 @@ jobs:
         with:
           context: .
           file: Containerfile
-          tags: "ghcr.io/rjarry/grout:edge"
+          tags: "ghcr.io/dpdk/grout:edge"
           push: true
       - uses: pyTooling/Actions/releaser@r0
         with:
