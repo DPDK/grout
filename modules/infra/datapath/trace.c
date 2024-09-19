@@ -44,7 +44,10 @@ void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m)
 		ETH_ADDR_SPLIT(&eth->dst_addr)
 	);
 
-	if (ether_type == RTE_ETHER_TYPE_VLAN) {
+	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+		uint16_t vlan_id = m->vlan_tci & 0xfff;
+		n += snprintf(buf + n, sizeof(buf) - n, " / VLAN id=%u", vlan_id);
+	} else if (ether_type == RTE_ETHER_TYPE_VLAN) {
 		const struct rte_vlan_hdr *vlan;
 		uint16_t vlan_id;
 
