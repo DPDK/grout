@@ -77,6 +77,12 @@ struct iface *iface_create(
 		goto fail;
 	if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		if (strcmp(name, iface->name) == 0) {
+			errno = EEXIST;
+			goto fail;
+		}
+	}
 
 	iface = rte_zmalloc(__func__, sizeof(*iface) + type->info_size, RTE_CACHE_LINE_SIZE);
 	if (iface == NULL) {
