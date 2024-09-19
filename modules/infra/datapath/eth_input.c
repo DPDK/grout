@@ -56,11 +56,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_type = eth->ether_type;
 		vlan_id = 0;
 
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN) {
-			if (!(m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED)) {
-				vlan = rte_pktmbuf_mtod(m, struct rte_vlan_hdr *);
-				rte_pktmbuf_adj(m, sizeof(*vlan));
-			}
+		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 			vlan_id = m->vlan_tci & 0xfff;
 		} else if (eth_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
 			vlan = rte_pktmbuf_mtod(m, struct rte_vlan_hdr *);
