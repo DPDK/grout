@@ -72,7 +72,7 @@ rpm:
 
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
-licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:README.md' ':!:subprojects' ':!:debian'
+licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:subprojects' ':!:debian'
 
 .PHONY: lint
 lint:
@@ -108,6 +108,12 @@ check-patches:
 
 .PHONY: git-config
 git-config:
+	git config format.subjectPrefix "PATCH grout"
+	git config sendemail.to "grout@dpdk.org"
+	git config format.notes true
+	git config format.coverFromDescription subject
+	git config notes.rewriteRef refs/notes/commits
+	git config notes.rewriteMode concatenate
 	@mkdir -p .git/hooks
 	@rm -f .git/hooks/commit-msg*
-	ln -s ../../contrib/commit-msg .git/hooks/commit-msg
+	ln -s ../../devtools/commit-msg .git/hooks/commit-msg
