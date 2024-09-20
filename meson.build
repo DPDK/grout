@@ -5,7 +5,7 @@ project(
   'grout',
   'c',
   version: run_command(
-    'sh', '-c', 'git describe --long --abbrev=8 --dirty 2>/dev/null || echo v0.1',
+    'sh', '-c', 'git describe --long --abbrev=8 --dirty 2>/dev/null || echo v0.2',
     check: false,
     capture: true,
   ).stdout().strip(),
