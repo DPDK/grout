@@ -123,3 +123,14 @@ git-config:
 	@mkdir -p .git/hooks
 	@rm -f .git/hooks/commit-msg*
 	ln -s ../../devtools/commit-msg .git/hooks/commit-msg
+
+.PHONY: tag-release
+tag-release:
+	@cur_version=`sed -En 's/.* \|\| echo v([0-9\.]+)\>.*$$/\1/p' meson.build` && \
+	next_version=`echo $$cur_version | awk -F. -v OFS=. '{$$(NF) += 1; print}'` && \
+	read -rp "next version ($$next_version)? " n && \
+	if [ -n "$$n" ]; then next_version="$$n"; fi && \
+	set -xe && \
+	sed -i "s/\<v$$cur_version\>/v$$next_version/" meson.build && \
+	git commit -sm "grout: release v$$next_version" -m "`devtools/git-stats v$$cur_version..`" meson.build && \
+	git tag -sm "v$$next_version" "v$$next_version"
