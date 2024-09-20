@@ -45,10 +45,16 @@ meson_opts += $(MESON_EXTRA_OPTS)
 $(BUILDDIR)/build.ninja:
 	meson setup $(BUILDDIR) $(meson_opts)
 
-debversion = $(shell git describe --long --abbrev=8 --dirty | sed 's/^v//;s/-/+/')
+empty :=
+space := $(empty) $(empty)
+version := $(shell { git describe --long --abbrev=8 --dirty 2>/dev/null || \
+	sed -En 's/.* \|\| echo (v[0-9\.]+)\>.*/\1-'`date +%Y%m%d%H%M%S`.`hostname`'/p' meson.build; } | \
+	sed 's/^v//;s/-/ /')
+debversion = $(subst $(space),+,$(version))
 
 .PHONY: deb
 deb:
+	$Q rm -f debian/changelog
 	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
 	dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
@@ -57,8 +63,8 @@ deb:
 			$${name}_$$arch.deb || exit; \
 	done
 
-rpmversion = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v//;s/-.+//')
-rpmrelease = $(shell git describe --long --abbrev=8 --dirty | sed -E 's/^v[0-9\.]+-//;s/-/./g').$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
+rpmversion = $(firstword $(version))
+rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
 
 .PHONY: rpm
 rpm:
