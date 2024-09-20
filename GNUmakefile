@@ -78,7 +78,7 @@ rpm:
 
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
-licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:subprojects' ':!:debian'
+licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian'
 
 .PHONY: lint
 lint:
