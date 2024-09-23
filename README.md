@@ -280,6 +280,11 @@ Use ? for help and <tab> for command completion.
 grout#
 ```
 
+## Contributing
+
+Anyone can contribute to `grout`. See
+[`CONTRIBUTING.md`](https://github.com/DPDK/grout/blob/main/CONTRIBUTING.md).
+
 ## Dependencies
 
 | Name | Type | License | Code |
