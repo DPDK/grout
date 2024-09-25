@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ethertypes_priv.h"
 #include "gr_datapath.h"
 #include "gr_eth_output.h"
 
@@ -8,6 +9,7 @@
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_port.h>
+#include <gr_trace.h>
 #include <gr_vlan.h>
 
 #include <rte_ether.h>
@@ -22,6 +24,31 @@ enum {
 	NB_EDGES,
 };
 
+struct trace_ether_data {
+	struct rte_ether_addr dst;
+	struct rte_ether_addr src;
+	rte_be16_t ether_type;
+	uint16_t vlan_id;
+	uint16_t iface_id;
+};
+
+static int format_eth_output(void *data, char *buf, size_t len) {
+	struct trace_ether_data *t = data;
+	struct iface *iface = iface_from_id(t->iface_id);
+	const char *ifname = iface ? iface->name : "[deleted]";
+
+	return snprintf(
+		buf,
+		len,
+		"%s " ETH_ADDR_FMT " -> " ETH_ADDR_FMT " iface %s vlan %d",
+		ETHERTYPE_STR[t->ether_type],
+		ETH_ADDR_SPLIT(&t->src),
+		ETH_ADDR_SPLIT(&t->dst),
+		ifname,
+		t->vlan_id
+	);
+}
+
 static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct rte_ether_addr *src_mac;
@@ -35,6 +62,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		priv = eth_output_mbuf_data(mbuf);
+		sub = NULL;
 
 		switch (priv->iface->type_id) {
 		case GR_IFACE_TYPE_VLAN:
@@ -71,6 +99,18 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->port = port->port_id;
 		if (unlikely(packet_trace_enabled))
 			trace_packet("tx", priv->iface->name, mbuf);
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ether_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			if (t) {
+				memcpy(&t->dst, &eth->dst_addr, sizeof(t->dst));
+				memcpy(&t->src, &eth->src_addr, sizeof(t->src));
+				t->ether_type = priv->ether_type;
+				t->iface_id = priv->iface->id;
+				t->vlan_id = sub ? sub->vlan_id : 0;
+			}
+		}
+
 		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 
@@ -92,6 +132,7 @@ static struct rte_node_register node= {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.format_trace = format_eth_output,
 };
 
 GR_NODE_REGISTER(info);

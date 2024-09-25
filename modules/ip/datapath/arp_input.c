@@ -7,6 +7,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -67,6 +68,18 @@ static inline void update_nexthop(
 	rte_spinlock_unlock(&nh->lock);
 }
 
+struct trace_arp_input_data {
+	uint16_t opcode;
+	ip4_addr_t sip;
+};
+
+static int format_arp_input(void *data, char *buf, size_t len) {
+	struct trace_arp_input_data *t = data;
+	return snprintf(
+		buf, len, "sip " IP4_ADDR_FMT " opcode %d", IP4_ADDR_SPLIT(&t->sip), t->opcode
+	);
+}
+
 static uint16_t
 arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct nexthop *remote, *local;
@@ -82,6 +95,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+		sip = 0;
 
 		// ARP protocol sanity checks.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
@@ -133,6 +147,14 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		arp_data->local = local;
 		arp_data->remote = remote;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_arp_input_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			if (t) {
+				t->opcode = rte_be_to_cpu_16(arp->arp_opcode);
+				t->sip = sip;
+			}
+		}
+
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -163,6 +185,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.register_callback = arp_input_register,
+	.format_trace = format_arp_input,
 };
 
 GR_NODE_REGISTER(info);

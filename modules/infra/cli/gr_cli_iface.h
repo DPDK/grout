@@ -46,12 +46,14 @@ int complete_iface_names(
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 
-#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(allmulti ALLMULTI),(mtu MTU),(vrf VRF)"
+#define IFACE_ATTRS_CMD                                                                            \
+	"(up|down),(promisc PROMISC),(allmulti ALLMULTI),(trace TRACE),(mtu MTU),(vrf VRF)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
 		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
 		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
+		with_help("Enable/disable packet tracing mode.", ec_node_re("TRACE", "on|off")),   \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
 			"Maximum transmision unit size.",                                          \

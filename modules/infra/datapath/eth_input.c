@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "ethertypes_priv.h"
 #include "gr_eth_input.h"
 
 #include <gr_graph.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 #include <gr_vlan.h>
 
 #include <rte_byteorder.h>
@@ -28,6 +30,31 @@ void gr_eth_input_add_type(rte_be16_t eth_type, const char *next_node) {
 		ABORT("next node already registered for ether type=0x%04x",
 		      rte_be_to_cpu_16(eth_type));
 	l2l3_edges[eth_type] = gr_node_attach_parent("eth_input", next_node);
+}
+
+struct trace_ether_data {
+	struct rte_ether_addr dst;
+	struct rte_ether_addr src;
+	rte_be16_t ether_type;
+	uint16_t vlan_id;
+	uint16_t iface_id;
+};
+
+static int format_eth_input(void *data, char *buf, size_t len) {
+	struct trace_ether_data *t = data;
+	struct iface *iface = iface_from_id(t->iface_id);
+	const char *ifname = iface ? iface->name : "[deleted]";
+
+	return snprintf(
+		buf,
+		len,
+		"%s " ETH_ADDR_FMT " -> " ETH_ADDR_FMT " iface %s vlan %d",
+		ETHERTYPE_STR[t->ether_type],
+		ETH_ADDR_SPLIT(&t->src),
+		ETH_ADDR_SPLIT(&t->dst),
+		ifname,
+		t->vlan_id
+	);
 }
 
 static uint16_t
@@ -96,6 +123,17 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			eth_in->eth_dst = ETH_DST_OTHER;
 		}
 next:
+		if (unlikely(gr_mbuf_trace_is_set(m))) {
+			struct trace_ether_data *t = gr_trace_add(node, m, sizeof(*t));
+			if (t) {
+				memcpy(&t->dst, &eth->dst_addr, sizeof(t->dst));
+				memcpy(&t->src, &eth->src_addr, sizeof(t->dst));
+				t->ether_type = eth_type;
+				t->vlan_id = vlan_id;
+				t->iface_id = eth_in->iface->id;
+			}
+		}
+
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 	return nb_objs;
@@ -115,6 +153,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.format_trace = format_eth_input,
 };
 
 GR_NODE_REGISTER(info);

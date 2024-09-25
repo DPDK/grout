@@ -4,6 +4,7 @@
 src += files(
   'graph.c',
   'iface.c',
+  'packet_trace.c',
   'rxq.c',
   'stats.c',
 )
