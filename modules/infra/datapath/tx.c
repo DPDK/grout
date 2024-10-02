@@ -78,8 +78,6 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	const struct tx_node_queues *data;
 	struct tx_ctx *ctx;
 
-	(void)graph;
-
 	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 
@@ -94,8 +92,7 @@ static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
 	return 0;
 }
 
-static void tx_fini(const struct rte_graph *graph, struct rte_node *node) {
-	(void)graph;
+static void tx_fini(const struct rte_graph *, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
 

@@ -103,9 +103,7 @@ fail:
 	return CMD_ERROR;
 }
 
-static cmd_status_t stats_reset(const struct gr_api_client *c, const struct ec_pnode *p) {
-	(void)p;
-
+static cmd_status_t stats_reset(const struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 

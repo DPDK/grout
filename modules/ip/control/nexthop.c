@@ -46,7 +46,7 @@ struct lookup_filter {
 	struct nexthop *nh;
 };
 
-static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) {
+static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct lookup_filter *filter = opaque;
 	struct nexthop *nh = obj;
 	if (filter->nh == NULL && nh->ref_count > 0 && nh->ip == filter->ip
@@ -82,12 +82,10 @@ void ip4_nexthop_incref(struct nexthop *nh) {
 	nh->ref_count++;
 }
 
-static struct api_out nh4_add(const void *request, void **response) {
+static struct api_out nh4_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_nh_add_req *req = request;
 	struct nexthop *nh;
 	int ret;
-
-	(void)response;
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
@@ -113,11 +111,9 @@ static struct api_out nh4_add(const void *request, void **response) {
 	return api_out(-ret, 0);
 }
 
-static struct api_out nh4_del(const void *request, void **response) {
+static struct api_out nh4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_nh_del_req *req = request;
 	struct nexthop *nh;
-
-	(void)response;
 
 	if (req->vrf_id >= IP4_MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
@@ -143,7 +139,7 @@ struct list_context {
 	struct gr_ip4_nh *nh;
 };
 
-static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) {
+static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct list_context *ctx = opaque;
 	struct nexthop *nh = obj;
 	struct gr_ip4_nh api_nh;
@@ -187,7 +183,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
+static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigned /*obj_idx*/) {
 	uint64_t now = rte_get_tsc_cycles();
 	uint64_t reply_age, request_age;
 	unsigned probes, max_probes;
@@ -238,7 +234,7 @@ static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
 	}
 }
 
-static void nexthop_gc(evutil_socket_t, short, void *) {
+static void nexthop_gc(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	rte_mempool_obj_iter(nh_pool, nh_gc_cb, NULL);
 }
 

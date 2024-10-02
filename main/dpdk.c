@@ -24,7 +24,7 @@ int gr_rte_log_type;
 static FILE *log_stream;
 static bool log_syslog;
 
-static ssize_t log_write(void *, const char *buf, size_t size) {
+static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 	ssize_t n;
 	if (log_syslog) {
 		// Syslog error levels are from 0 to 7, so subtract 1 to convert.

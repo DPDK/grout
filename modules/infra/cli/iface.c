@@ -39,16 +39,13 @@ const struct cli_iface_type *type_from_name(const char *name) {
 }
 
 int complete_iface_types(
-	const struct gr_api_client *c,
+	const struct gr_api_client *,
 	const struct ec_node *node,
 	struct ec_comp *comp,
 	const char *arg,
-	void *cb_arg
+	void * /*cb_arg*/
 ) {
 	const struct cli_iface_type *type;
-
-	(void)c;
-	(void)cb_arg;
 
 	STAILQ_FOREACH (type, &types, next) {
 		if (!ec_str_startswith(type->name, arg))

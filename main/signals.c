@@ -10,10 +10,8 @@
 #include <signal.h>
 #include <string.h>
 
-static void signal_cb(evutil_socket_t sig, short what, void *priv) {
+static void signal_cb(evutil_socket_t sig, short /*what*/, void *priv) {
 	struct event_base *base = priv;
-
-	(void)what;
 
 	LOG(NOTICE, "received signal SIG%s", sigabbrev_np(sig));
 

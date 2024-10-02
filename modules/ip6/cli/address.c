@@ -56,8 +56,6 @@ static cmd_status_t addr_list(const struct gr_api_client *c, const struct ec_pno
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 
-	(void)p;
-
 	if (table == NULL)
 		return CMD_ERROR;
 

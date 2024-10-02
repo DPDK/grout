@@ -54,8 +54,6 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
-	(void)p;
-
 	if (table == NULL)
 		return CMD_ERROR;
 

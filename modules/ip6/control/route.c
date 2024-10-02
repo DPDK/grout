@@ -175,13 +175,11 @@ int ip6_route_delete(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t pr
 	return 0;
 }
 
-static struct api_out route6_add(const void *request, void **response) {
+static struct api_out route6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_add_req *req = request;
 	struct rte_fib6 *fib6;
 	struct nexthop6 *nh;
 	int ret;
-
-	(void)response;
 
 	nh = ip6_route_lookup_exact(req->vrf_id, &req->dest.ip, req->dest.prefixlen);
 	if (nh != NULL) {
@@ -211,11 +209,9 @@ static struct api_out route6_add(const void *request, void **response) {
 	return api_out(0, 0);
 }
 
-static struct api_out route6_del(const void *request, void **response) {
+static struct api_out route6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_del_req *req = request;
 	struct nexthop6 *nh;
-
-	(void)response;
 
 	if ((nh = ip6_route_lookup_exact(req->vrf_id, &req->dest.ip, req->dest.prefixlen))
 	    == NULL) {
@@ -265,8 +261,6 @@ static struct api_out route6_list(const void *request, void **response) {
 	struct rte_rib6 *rib;
 	size_t num, len;
 	uintptr_t nh_id;
-
-	(void)request;
 
 	if (fib == NULL)
 		return api_out(errno, 0);

@@ -11,11 +11,9 @@
 
 #include <errno.h>
 
-static void ipip_show(const struct gr_api_client *c, const struct gr_iface *iface) {
+static void ipip_show(const struct gr_api_client *, const struct gr_iface *iface) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
 	char local[64], remote[64];
-
-	(void)c;
 
 	inet_ntop(AF_INET, &ipip->local, local, sizeof(local));
 	inet_ntop(AF_INET, &ipip->remote, remote, sizeof(remote));
@@ -24,11 +22,9 @@ static void ipip_show(const struct gr_api_client *c, const struct gr_iface *ifac
 }
 
 static void
-ipip_list_info(const struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
+ipip_list_info(const struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
 	char local[64], remote[64];
-
-	(void)c;
 
 	inet_ntop(AF_INET, &ipip->local, local, sizeof(local));
 	inet_ntop(AF_INET, &ipip->remote, remote, sizeof(remote));

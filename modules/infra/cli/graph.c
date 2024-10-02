@@ -11,11 +11,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static cmd_status_t graph_dump(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t graph_dump(const struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_infra_graph_dump_resp *resp;
 	void *resp_ptr = NULL;
-
-	(void)p;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_GRAPH_DUMP, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;

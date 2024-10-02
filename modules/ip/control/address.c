@@ -56,15 +56,13 @@ struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	return addrs->nh[0];
 }
 
-static struct api_out addr_add(const void *request, void **response) {
+static struct api_out addr_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_addr_add_req *req = request;
 	struct hoplist *ifaddrs;
 	const struct iface *iface;
 	unsigned addr_index;
 	struct nexthop *nh;
 	int ret;
-
-	(void)response;
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface == NULL)
@@ -107,13 +105,11 @@ static struct api_out addr_add(const void *request, void **response) {
 	return api_out(0, 0);
 }
 
-static struct api_out addr_del(const void *request, void **response) {
+static struct api_out addr_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_addr_del_req *req = request;
 	struct hoplist *addrs;
 	struct nexthop *nh = NULL;
 	unsigned i;
-
-	(void)response;
 
 	if ((addrs = ip4_addr_get_all(req->addr.iface_id)) == NULL)
 		return api_out(ENODEV, 0);

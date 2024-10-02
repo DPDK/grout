@@ -257,6 +257,62 @@ The code can be automatically formatted by running `gmake format`.
 
 If `gmake lint` accepts your code, it is most likely properly formatted.
 
+### Unused function parameters
+
+When a function definition has unused parameters because the implementation
+does not make any use of them, the compiler will produce warnings.
+
+The whole grout code base is compiled with `--std=gnu2x` which allows unnamed
+parameters even in function definitions. Make use of that to indicate unused
+parameters.
+
+When the parameter type is explicit (e.g. `struct rte_graph *`), simply remove
+the parameter name which is usually redundant, e.g.:
+
+```c
+void foo(struct rte_graph *, struct rte_node *node, void *priv) {
+        bar(node, priv);
+}
+```
+
+When the type is not explicit (e.g. `int` or `void *`), keep the parameter
+wrapped in a "block" style comment, e.g.:
+
+```c
+void foo(struct rte_graph *, struct rte_node *node, void * /*priv*/) {
+        baz(node);
+}
+```
+
+Do NOT use inline `(void)arg;` statements:
+
+```c
+void foo(struct rte_graph *graph, struct rte_node *node, void *priv) {
+        (void)graph;
+        (void)priv;
+        baz(node);
+}
+```
+
+Since it can be confusing in long functions and does not convey any meaning
+about the variables being unused parameters or local variables. Also, even if
+the parameters would become used in the future, the compiler will not warn
+about a useless warning suppression.
+
+Also AVOID `__attribute__((unused))` (or any macro wrapping it):
+
+```c
+void foo(
+        struct rte_graph *graph __attribute__((unused)),
+        struct rte_node *node,
+        void * priv __rte_unused
+) {
+        baz(node);
+}
+```
+
+It is overly verbose.
+
 ### Commenting
 
 Use C99 line comments:
@@ -276,6 +332,9 @@ Do NOT use block comments:
  */
 int foo(void);
 ```
+
+The only place where "block" style comments should be used is to identify
+unused function parameters (see previous section).
 
 ### Editor modelines
 

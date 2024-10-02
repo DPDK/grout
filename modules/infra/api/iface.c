@@ -52,11 +52,9 @@ static struct api_out iface_add(const void *request, void **response) {
 	return api_out(0, sizeof(*resp));
 }
 
-static struct api_out iface_del(const void *request, void **response) {
+static struct api_out iface_del(const void *request, void ** /*response*/) {
 	const struct gr_infra_iface_del_req *req = request;
 	int ret;
-
-	(void)response;
 
 	ret = iface_destroy(req->iface_id);
 
@@ -101,11 +99,9 @@ static struct api_out iface_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static struct api_out iface_set(const void *request, void **response) {
+static struct api_out iface_set(const void *request, void ** /*response*/) {
 	const struct gr_infra_iface_set_req *req = request;
 	int ret;
-
-	(void)response;
 
 	ret = iface_reconfig(
 		req->iface.id,

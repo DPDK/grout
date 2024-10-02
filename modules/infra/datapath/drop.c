@@ -7,11 +7,7 @@
 #include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
-uint16_t
-drop_packets(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	(void)node;
-	(void)graph;
-
+uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	if (unlikely(packet_trace_enabled)) {
 		LOG(NOTICE, "[%s] %u packets", node->name, nb_objs);
 	}

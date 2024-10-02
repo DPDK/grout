@@ -17,14 +17,8 @@ struct ec_node_dyn {
 	void *cb_arg;
 };
 
-static int ec_node_dyn_parse(
-	const struct ec_node *node,
-	struct ec_pnode *pstate,
-	const struct ec_strvec *strvec
-) {
-	(void)node;
-	(void)pstate;
-
+static int
+ec_node_dyn_parse(const struct ec_node *, struct ec_pnode *, const struct ec_strvec *strvec) {
 	if (ec_strvec_len(strvec) == 0)
 		return EC_PARSE_NOMATCH;
 

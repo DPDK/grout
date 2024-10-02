@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <sys/queue.h>
 
-static struct api_out graph_dump(const void *request, void **response) {
+static struct api_out graph_dump(const void * /*request*/, void **response) {
 	struct gr_infra_graph_dump_resp *resp;
 	size_t buf_len = 0, resp_len = 0;
 	const char *graph_name;
@@ -21,8 +21,6 @@ static struct api_out graph_dump(const void *request, void **response) {
 	FILE *stream = NULL;
 	char *buf = NULL;
 	int ret = 0;
-
-	(void)request;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		for (int i = 0; i < 2; i++) {

@@ -143,12 +143,10 @@ static int rxqs_order(const void *a, const void *b) {
 	return rxq_a->cpu_id - rxq_b->cpu_id;
 }
 
-static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnode *) {
 	struct libscols_table *table = scols_new_table();
 	struct gr_infra_rxq_list_resp *resp;
 	void *resp_ptr = NULL;
-
-	(void)p;
 
 	if (table == NULL)
 		return CMD_ERROR;

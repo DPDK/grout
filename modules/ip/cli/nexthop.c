@@ -61,8 +61,6 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 	void *resp_ptr = NULL;
 	ssize_t n;
 
-	(void)p;
-
 	if (table == NULL)
 		return CMD_ERROR;
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {

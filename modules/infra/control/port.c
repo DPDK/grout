@@ -610,7 +610,7 @@ static void port_to_api(void *info, const struct iface *iface) {
 
 static struct event *link_event;
 
-static void link_event_cb(evutil_socket_t, short, void *) {
+static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	unsigned max_sleep_us, rx_buffer_us;
 	struct rte_eth_rxq_info qinfo;
 	struct rte_eth_link link;
@@ -670,7 +670,12 @@ static void link_event_cb(evutil_socket_t, short, void *) {
 	}
 }
 
-static int lsc_port_cb(uint16_t, enum rte_eth_event_type, void *, void *) {
+static int lsc_port_cb(
+	uint16_t /*port_id*/,
+	enum rte_eth_event_type,
+	void * /*cb_arg*/,
+	void * /*ret_param*/
+) {
 	// This callback may be executed from any dataplane or DPDK thread.
 	// In order to serialize the update of port status, propagate the callback
 	// event to the event loop running in the main lcore.

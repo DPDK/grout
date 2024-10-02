@@ -45,9 +45,7 @@ out:
 	ec_editline_free_helps(sug, n);
 }
 
-static void sighandler(int signum) {
-	(void)signum;
-}
+static void sighandler(int) { }
 
 #if defined(__has_feature) && !defined(__SANITIZE_ADDRESS__)
 #if __has_feature(address_sanitizer)

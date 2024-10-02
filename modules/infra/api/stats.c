@@ -175,13 +175,10 @@ err:
 	return api_out(-ret, 0);
 }
 
-static struct api_out stats_reset(const void *request, void **response) {
+static struct api_out stats_reset(const void * /*request*/, void ** /*response*/) {
 	struct worker *worker;
 	struct iface *iface;
 	int ret;
-
-	(void)request;
-	(void)response;
 
 	STAILQ_FOREACH (worker, &workers, next)
 		atomic_store(&worker->stats_reset, true);

@@ -127,8 +127,7 @@ end:
 	return 0;
 }
 
-static void finalize_close_fd(struct event *ev, void *priv) {
-	(void)priv;
+static void finalize_close_fd(struct event *ev, void * /*priv*/) {
 	close(event_get_fd(ev));
 }
 
@@ -149,11 +148,9 @@ static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp)
 
 static struct event_base *ev_base;
 
-static void api_write_cb(evutil_socket_t sock, short what, void *priv) {
+static void api_write_cb(evutil_socket_t sock, short /*what*/, void *priv) {
 	struct event *ev = event_base_get_running_event(ev_base);
 	struct gr_api_response *resp = priv;
-
-	(void)what;
 
 	if (send_response(sock, resp) < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -175,7 +172,7 @@ free:
 		event_free(ev);
 }
 
-static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
+static void api_read_cb(evutil_socket_t sock, short what, void * /*ctx*/) {
 	struct event *ev = event_base_get_running_event(ev_base);
 	void *req_payload = NULL, *resp_payload = NULL;
 	struct gr_api_response *resp = NULL;
@@ -183,8 +180,6 @@ static void api_read_cb(evutil_socket_t sock, short what, void *ctx) {
 	struct event *write_ev;
 	struct api_out out;
 	ssize_t len;
-
-	(void)ctx;
 
 	if (what & EV_CLOSED)
 		goto close;
@@ -273,11 +268,9 @@ close:
 		event_free_finalize(0, ev, finalize_close_fd);
 }
 
-static void listen_cb(evutil_socket_t sock, short what, void *ctx) {
+static void listen_cb(evutil_socket_t sock, short what, void * /*ctx*/) {
 	struct event *ev;
 	int fd;
-
-	(void)ctx;
 
 	if (what & EV_CLOSED) {
 		ev = event_base_get_running_event(ev_base);
@@ -354,7 +347,7 @@ static int listen_api_socket(void) {
 	return 0;
 }
 
-static int ev_close(const struct event_base *, const struct event *ev, void *) {
+static int ev_close(const struct event_base *, const struct event *ev, void * /*priv*/) {
 	event_callback_fn cb = event_get_callback(ev);
 	if (cb == api_read_cb || cb == api_write_cb)
 		event_free_finalize(0, (struct event *)ev, finalize_close_fd);

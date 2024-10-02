@@ -48,7 +48,7 @@ struct lookup_filter {
 	struct nexthop6 *nh;
 };
 
-static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) {
+static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct lookup_filter *filter = opaque;
 	struct nexthop6 *nh = obj;
 	if (filter->nh == NULL && nh->ref_count > 0 && rte_ipv6_addr_eq(&nh->ip, filter->ip)
@@ -84,12 +84,10 @@ void ip6_nexthop_incref(struct nexthop6 *nh) {
 	nh->ref_count++;
 }
 
-static struct api_out nh6_add(const void *request, void **response) {
+static struct api_out nh6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_nh_add_req *req = request;
 	struct nexthop6 *nh;
 	int ret;
-
-	(void)response;
 
 	if (rte_ipv6_addr_is_unspec(&req->nh.host) || rte_ipv6_addr_is_mcast(&req->nh.host))
 		return api_out(EINVAL, 0);
@@ -115,11 +113,9 @@ static struct api_out nh6_add(const void *request, void **response) {
 	return api_out(-ret, 0);
 }
 
-static struct api_out nh6_del(const void *request, void **response) {
+static struct api_out nh6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_nh_del_req *req = request;
 	struct nexthop6 *nh;
-
-	(void)response;
 
 	if (req->vrf_id >= IP6_MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
@@ -145,7 +141,7 @@ struct list_context {
 	struct gr_ip6_nh *nh;
 };
 
-static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) {
+static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct list_context *ctx = opaque;
 	struct nexthop6 *nh = obj;
 	struct gr_ip6_nh api_nh;
@@ -189,7 +185,7 @@ static struct api_out nh6_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
+static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigned /*obj_idx*/) {
 	uint64_t now = rte_get_tsc_cycles();
 	uint64_t reply_age, request_age;
 	unsigned probes, max_probes;
@@ -237,7 +233,7 @@ static void nh_gc_cb(struct rte_mempool *, void *, void *obj, unsigned) {
 	}
 }
 
-static void nexthop_gc(evutil_socket_t, short, void *) {
+static void nexthop_gc(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	rte_mempool_obj_iter(nh_pool, nh_gc_cb, NULL);
 }
 

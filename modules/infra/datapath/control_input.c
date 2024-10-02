@@ -49,8 +49,12 @@ int post_to_stack(control_input_t type, void *data) {
 	return 0;
 }
 
-static uint16_t
-control_input_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+static uint16_t control_input_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void ** /*objs*/,
+	uint16_t /*nb_objs*/
+) {
 	struct gr_control_input_msg msg[RTE_GRAPH_BURST_SIZE];
 	struct rte_mempool *mp;
 	struct rte_mbuf *mbuf;
@@ -86,8 +90,7 @@ static int control_input_init(const struct rte_graph *graph, struct rte_node *no
 	return 0;
 }
 
-static void control_input_fini(const struct rte_graph *graph, struct rte_node *node) {
-	(void)graph;
+static void control_input_fini(const struct rte_graph *, struct rte_node *node) {
 	gr_pktmbuf_pool_release(node->ctx_ptr, RTE_GRAPH_BURST_SIZE);
 	node->ctx_ptr = NULL;
 }

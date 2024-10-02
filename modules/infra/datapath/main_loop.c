@@ -30,8 +30,8 @@ struct stats_context {
 };
 
 static int node_stats_callback(
-	bool is_first,
-	bool is_last,
+	bool /*is_first*/,
+	bool /*is_last*/,
 	void *cookie,
 	const struct rte_graph_cluster_node_stats *stats
 ) {
@@ -39,9 +39,6 @@ static int node_stats_callback(
 	struct node_stats *s;
 	uint64_t objs_incr;
 	uint8_t index;
-
-	(void)is_first;
-	(void)is_last;
 
 	objs_incr = stats->objs - stats->prev_objs;
 	ctx->last_count += objs_incr;

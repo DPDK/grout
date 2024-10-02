@@ -33,15 +33,13 @@ struct rx_ctx {
 };
 
 static uint16_t
-rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t count) {
+rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uint16_t count) {
 	const struct rx_ctx *ctx = node->ctx_ptr;
 	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	struct rx_port_queue q;
 	uint16_t rx;
 	unsigned r;
-
-	(void)objs;
 
 	count = 0;
 	for (int i = 0; i < ctx->n_queues; i++) {
@@ -77,8 +75,6 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	const struct rx_node_queues *data;
 	struct rx_ctx *ctx;
 
-	(void)graph;
-
 	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 
@@ -97,8 +93,7 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	return 0;
 }
 
-static void rx_fini(const struct rte_graph *graph, struct rte_node *node) {
-	(void)graph;
+static void rx_fini(const struct rte_graph *, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
 

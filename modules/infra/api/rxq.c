@@ -13,14 +13,12 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-static struct api_out rxq_list(const void *request, void **response) {
+static struct api_out rxq_list(const void * /*request*/, void **response) {
 	struct gr_infra_rxq_list_resp *resp = NULL;
 	struct queue_map *qmap;
 	struct worker *worker;
 	uint16_t n_rxqs = 0;
 	size_t len;
-
-	(void)request;
 
 	STAILQ_FOREACH (worker, &workers, next)
 		n_rxqs += arrlen(worker->rxqs);
@@ -48,12 +46,10 @@ static struct api_out rxq_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static struct api_out rxq_set(const void *request, void **response) {
+static struct api_out rxq_set(const void *request, void ** /*response*/) {
 	const struct gr_infra_rxq_set_req *req = request;
 	struct iface *iface = iface_from_id(req->iface_id);
 	struct iface_info_port *port;
-
-	(void)response;
 
 	if (iface == NULL)
 		return api_out(errno, 0);

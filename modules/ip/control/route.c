@@ -174,14 +174,12 @@ int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	return 0;
 }
 
-static struct api_out route4_add(const void *request, void **response) {
+static struct api_out route4_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_add_req *req = request;
 	uint32_t host_order_ip;
 	struct rte_fib *fib;
 	struct nexthop *nh;
 	int ret;
-
-	(void)response;
 
 	nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen);
 	if (nh != NULL) {
@@ -213,11 +211,9 @@ static struct api_out route4_add(const void *request, void **response) {
 	return api_out(0, 0);
 }
 
-static struct api_out route4_del(const void *request, void **response) {
+static struct api_out route4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_del_req *req = request;
 	struct nexthop *nh;
-
-	(void)response;
 
 	if ((nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen)) == NULL) {
 		if (req->missing_ok)
@@ -266,8 +262,6 @@ static struct api_out route4_list(const void *request, void **response) {
 	size_t num, len;
 	uintptr_t nh_id;
 	uint32_t ip;
-
-	(void)request;
 
 	if (fib == NULL)
 		return api_out(errno, 0);

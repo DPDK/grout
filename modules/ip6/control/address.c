@@ -179,13 +179,11 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	return 0;
 }
 
-static struct api_out addr6_add(const void *request, void **response) {
+static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_add_req *req = request;
 	struct rte_ipv6_addr solicited_node;
 	struct iface *iface;
 	int ret;
-
-	(void)response;
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface == NULL)
@@ -203,14 +201,12 @@ static struct api_out addr6_add(const void *request, void **response) {
 	return api_out(0, 0);
 }
 
-static struct api_out addr6_del(const void *request, void **response) {
+static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_del_req *req = request;
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop6 *nh = NULL;
 	struct hoplist6 *addrs;
 	unsigned i;
-
-	(void)response;
 
 	if ((addrs = ip6_addr_get_all(req->addr.iface_id)) == NULL)
 		return api_out(errno, 0);
