@@ -118,7 +118,7 @@ int iface_from_name(const struct gr_api_client *c, const char *name, struct gr_i
 	for (uint16_t i = 0; i < resp->n_ifaces; i++) {
 		const struct gr_iface *iter = &resp->ifaces[i];
 		if (strcmp(iter->name, name) == 0) {
-			memcpy(iface, iter, sizeof(*iface));
+			*iface = *iter;
 			ret = 0;
 			goto out;
 		}
@@ -139,7 +139,7 @@ int iface_from_id(const struct gr_api_client *c, uint16_t iface_id, struct gr_if
 		return -errno;
 
 	resp = resp_ptr;
-	memcpy(iface, &resp->iface, sizeof(*iface));
+	*iface = resp->iface;
 	free(resp_ptr);
 
 	return 0;

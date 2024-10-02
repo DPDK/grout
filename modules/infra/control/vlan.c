@@ -205,7 +205,7 @@ static void vlan_to_api(void *info, const struct iface *iface) {
 
 	api->parent_id = vlan->parent_id;
 	api->vlan_id = vlan->vlan_id;
-	memcpy(&api->mac, &vlan->mac, sizeof(api->mac));
+	api->mac = vlan->mac;
 }
 
 static struct iface_type iface_type_vlan = {

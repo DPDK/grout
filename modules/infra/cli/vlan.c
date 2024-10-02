@@ -82,7 +82,7 @@ static uint64_t parse_vlan_args(
 			return 0;
 		}
 		port = (const struct gr_iface_info_port *)parent.info;
-		memcpy(&vlan->mac, &port->mac, sizeof(vlan->mac));
+		vlan->mac = port->mac;
 		set_attrs |= GR_VLAN_SET_MAC;
 	}
 

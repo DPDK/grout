@@ -282,8 +282,7 @@ int iface_port_reconfig(
 		iface->vrf_id = vrf_id;
 
 	if ((set_attrs & GR_PORT_SET_MAC) && !rte_is_zero_ether_addr(&api->mac)) {
-		struct rte_ether_addr mac;
-		memcpy(&mac, &api->mac, sizeof(mac));
+		struct rte_ether_addr mac = api->mac;
 		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mac)) < 0)
 			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
 		p->mac = mac;
@@ -596,7 +595,7 @@ static void port_to_api(void *info, const struct iface *iface) {
 	struct rte_eth_dev_info dev_info;
 
 	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
-	memcpy(&api->mac, &port->mac, sizeof(api->mac));
+	api->mac = port->mac;
 	api->n_rxq = port->n_rxq;
 	api->n_txq = port->n_txq;
 	api->rxq_size = port->rxq_size;

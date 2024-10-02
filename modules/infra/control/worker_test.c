@@ -71,9 +71,7 @@ mock_func(
 );
 mock_func(void, __wrap_rte_mempool_free(struct rte_mempool *));
 mock_func(
-	int,
-	__wrap_rte_eth_dev_info_get(uint16_t, struct rte_eth_dev_info *info),
-	memcpy(info, &dev_info, sizeof(*info))
+	int, __wrap_rte_eth_dev_info_get(uint16_t, struct rte_eth_dev_info *info), *info = dev_info;
 );
 mock_func(int, __wrap_rte_eth_dev_get_mtu(uint16_t, uint16_t *));
 mock_func(int, __wrap_rte_eth_macaddr_get(uint16_t, struct rte_ether_addr *));
