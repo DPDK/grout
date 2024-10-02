@@ -53,8 +53,8 @@ static inline void ip6_set_fields(
 	ip->payload_len = rte_cpu_to_be_16(len);
 	ip->proto = proto;
 	ip->hop_limits = IP6_DEFAULT_HOP_LIMIT;
-	rte_ipv6_addr_cpy(&ip->src_addr, src);
-	rte_ipv6_addr_cpy(&ip->dst_addr, dst);
+	ip->src_addr = *src;
+	ip->dst_addr = *dst;
 }
 
 void ndp_update_nexthop(

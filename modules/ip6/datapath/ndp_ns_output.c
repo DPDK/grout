@@ -73,14 +73,14 @@ static uint16_t ndp_ns_output_process(
 		icmp6->code = 0;
 		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_append(mbuf, sizeof(*ns));
 		ns->__reserved = 0;
-		rte_ipv6_addr_cpy(&ns->target, &nh->ip);
+		ns->target = nh->ip;
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*lladdr));
 		lladdr->mac = local->lladdr;
 		if (nh->last_reply != 0 && nh->ucast_probes < IP6_NH_UCAST_PROBES) {
-			rte_ipv6_addr_cpy(&dst, &nh->ip);
+			dst = nh->ip;
 			nh->ucast_probes++;
 		} else {
 			rte_ipv6_solnode_from_addr(&dst, &nh->ip);

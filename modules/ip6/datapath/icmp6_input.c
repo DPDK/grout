@@ -45,9 +45,9 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			}
 			icmp6->type = ICMP6_TYPE_ECHO_REPLY;
 			// swap source/destination addresses
-			rte_ipv6_addr_cpy(&tmp_ip, &d->dst);
-			rte_ipv6_addr_cpy(&d->dst, &d->src);
-			rte_ipv6_addr_cpy(&d->src, &tmp_ip);
+			tmp_ip = d->dst;
+			d->dst = d->src;
+			d->src = tmp_ip;
 			next = ICMP6_OUTPUT;
 			break;
 		case ICMP6_TYPE_NEIGH_SOLICIT:

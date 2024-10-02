@@ -273,7 +273,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 		for (unsigned i = 0; i < addrs->count; i++) {
 			const struct nexthop6 *nh = addrs->nh[i];
 			addr = &resp->addrs[resp->n_addrs++];
-			rte_ipv6_addr_cpy(&addr->addr.ip, &nh->ip);
+			addr->addr.ip = nh->ip;
 			addr->addr.prefixlen = nh->prefixlen;
 			addr->iface_id = nh->iface_id;
 		}

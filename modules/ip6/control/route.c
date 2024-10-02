@@ -289,14 +289,14 @@ static struct api_out route6_list(const void *request, void **response) {
 		rte_rib6_get_nh(rn, &nh_id);
 		rte_rib6_get_ip(rn, &r->dest.ip);
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
-		rte_ipv6_addr_cpy(&r->nh, &nh_id_to_ptr(nh_id)->ip);
+		r->nh = nh_id_to_ptr(nh_id)->ip;
 	}
 	// FIXME: remove this when rte_rib6_get_nxt returns a default route, if any is configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
-		rte_ipv6_addr_cpy(&r->nh, &nh_id_to_ptr(nh_id)->ip);
+		r->nh = nh_id_to_ptr(nh_id)->ip;
 	}
 	*response = resp;
 

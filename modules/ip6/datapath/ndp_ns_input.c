@@ -58,8 +58,8 @@ static uint16_t ndp_ns_input_process(
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
 		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_adj(mbuf, sizeof(*icmp6));
 		iface = d->input_iface;
-		rte_ipv6_addr_cpy(&src, &d->src);
-		rte_ipv6_addr_cpy(&dst, &d->dst);
+		src = d->src;
+		dst = d->dst;
 
 		// Validation of Neighbor Solicitations
 		// https://www.rfc-editor.org/rfc/rfc4861.html#section-7.1.1
@@ -96,7 +96,7 @@ static uint16_t ndp_ns_input_process(
 		na = (struct icmp6_neigh_advert *)rte_pktmbuf_append(mbuf, sizeof(*na));
 		na->override = 1;
 		na->router = 1;
-		rte_ipv6_addr_cpy(&na->target, &local->ip);
+		na->target = local->ip;
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
@@ -120,7 +120,7 @@ static uint16_t ndp_ns_input_process(
 			// If the source of the solicitation is the unspecified address, the
 			// node MUST set the Solicited flag to zero and multicast the
 			// advertisement to the all-nodes address.
-			rte_ipv6_addr_cpy(&src, &RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL);
+			src = RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
 			na->solicited = 0;
 		} else {
 			if (lladdr_found) {

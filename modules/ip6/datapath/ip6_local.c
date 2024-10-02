@@ -49,8 +49,8 @@ static uint16_t ip6_input_local_process(
 		// prepare ip local data
 		iface = ip6_output_mbuf_data(m)->input_iface;
 		d = ip6_local_mbuf_data(m);
-		rte_ipv6_addr_cpy(&d->src, &ip->src_addr);
-		rte_ipv6_addr_cpy(&d->dst, &ip->dst_addr);
+		d->src = ip->src_addr;
+		d->dst = ip->dst_addr;
 		d->len = rte_be_to_cpu_16(ip->payload_len);
 		d->hop_limit = ip->hop_limits;
 		d->proto = ip->proto;

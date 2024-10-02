@@ -90,8 +90,8 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 		d = ip6_local_mbuf_data(mbuf);
-		rte_ipv6_addr_cpy(&d->src, &nh->ip);
-		rte_ipv6_addr_cpy(&d->dst, &ip->src_addr);
+		d->src = nh->ip;
+		d->dst = ip->src_addr;
 		d->len = rte_pktmbuf_pkt_len(mbuf);
 		d->input_iface = iface;
 		edge = ICMP_OUTPUT;

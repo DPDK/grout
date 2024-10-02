@@ -37,7 +37,7 @@ ip6_nexthop_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *
 	nh = data;
 	nh->vrf_id = vrf_id;
 	nh->iface_id = iface_id;
-	rte_ipv6_addr_cpy(&nh->ip, ip);
+	nh->ip = *ip;
 
 	return nh;
 }
