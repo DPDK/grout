@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'api.c',
   'control.c',
   'dpdk.c',
   'main.c',
