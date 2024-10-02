@@ -101,7 +101,7 @@ static uint16_t ndp_ns_input_process(
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
 		ll = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*ll));
-		rte_ether_addr_copy(&local->lladdr, &ll->mac);
+		ll->mac = local->lladdr;
 
 		// ip6_output needs a nexthop to know the output interface by
 		// default, set it to the interface that has the solicited

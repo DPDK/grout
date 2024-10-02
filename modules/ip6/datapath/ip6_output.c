@@ -145,7 +145,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
 			rte_ether_mcast_from_ipv6(&eth_data->dst, &ip->dst_addr);
 		else
-			rte_ether_addr_copy(&nh->lladdr, &eth_data->dst);
+			eth_data->dst = nh->lladdr;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 		eth_data->iface = iface;
 		sent++;

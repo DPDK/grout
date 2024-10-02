@@ -120,7 +120,7 @@ static int iface_vlan_reconfig(
 		}
 		if ((ret = parent_type->add_eth_addr(next_parent, &next->mac)) < 0)
 			return ret;
-		rte_ether_addr_copy(&next->mac, &cur->mac);
+		cur->mac = next->mac;
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
@@ -177,7 +177,7 @@ static int iface_vlan_init(struct iface *iface, const void *api_info) {
 
 static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
-	rte_ether_addr_copy(&vlan->mac, mac);
+	*mac = vlan->mac;
 	return 0;
 }
 

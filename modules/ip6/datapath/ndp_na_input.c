@@ -43,7 +43,7 @@ void ndp_update_nexthop(
 	nh->flags &= ~(GR_IP6_NH_F_STALE | GR_IP6_NH_F_PENDING | GR_IP6_NH_F_FAILED);
 	nh->ucast_probes = 0;
 	nh->mcast_probes = 0;
-	rte_ether_addr_copy(mac, &nh->lladdr);
+	nh->lladdr = *mac;
 
 	// Flush all held packets.
 	m = nh->held_pkts_head;

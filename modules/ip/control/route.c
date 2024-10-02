@@ -248,7 +248,7 @@ static struct api_out route4_get(const void *request, void **response) {
 
 	resp->nh.host = nh->ip;
 	resp->nh.iface_id = nh->iface_id;
-	rte_ether_addr_copy(&nh->lladdr, &resp->nh.mac);
+	resp->nh.mac = nh->lladdr;
 	resp->nh.flags = nh->flags;
 
 	*response = resp;

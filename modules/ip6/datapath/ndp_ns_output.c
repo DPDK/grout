@@ -78,7 +78,7 @@ static uint16_t ndp_ns_output_process(
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*lladdr));
-		rte_ether_addr_copy(&local->lladdr, &lladdr->mac);
+		lladdr->mac = local->lladdr;
 		if (nh->last_reply != 0 && nh->ucast_probes < IP6_NH_UCAST_PROBES) {
 			rte_ipv6_addr_cpy(&dst, &nh->ip);
 			nh->ucast_probes++;

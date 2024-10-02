@@ -106,7 +106,7 @@ static struct api_out nh4_add(const void *request, void **response) {
 	if ((nh = ip4_nexthop_new(req->nh.vrf_id, req->nh.iface_id, req->nh.host)) == NULL)
 		return api_out(errno, 0);
 
-	rte_ether_addr_copy(&req->nh.mac, &nh->lladdr);
+	nh->lladdr = req->nh.mac;
 	nh->flags = GR_IP4_NH_F_STATIC | GR_IP4_NH_F_REACHABLE;
 	ret = ip4_route_insert(nh->vrf_id, nh->ip, 32, nh);
 
@@ -154,7 +154,7 @@ static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned) 
 	api_nh.host = nh->ip;
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
-	rte_ether_addr_copy(&nh->lladdr, &api_nh.mac);
+	api_nh.mac = nh->lladdr;
 	api_nh.flags = nh->flags;
 	if (nh->last_reply > 0)
 		api_nh.age = (rte_get_tsc_cycles() - nh->last_reply) / rte_get_tsc_hz();

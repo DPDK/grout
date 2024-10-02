@@ -142,7 +142,7 @@ icmp6_get_opt(const struct icmp6_opt *opt, size_t ip6_len, uint8_t type, void *v
 		case ICMP6_OPT_TARGET_LLADDR:
 		case ICMP6_OPT_SRC_LLADDR:
 			struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
-			rte_ether_addr_copy(&ll->mac, (struct rte_ether_addr *)value);
+			*(struct rte_ether_addr *)value = ll->mac;
 			return true;
 		default:
 			break;

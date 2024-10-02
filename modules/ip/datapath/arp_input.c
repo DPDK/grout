@@ -48,7 +48,7 @@ static inline void update_nexthop(
 	nh->flags &= ~(GR_IP4_NH_F_STALE | GR_IP4_NH_F_PENDING | GR_IP4_NH_F_FAILED);
 	nh->ucast_probes = 0;
 	nh->bcast_probes = 0;
-	rte_ether_addr_copy(&arp->arp_data.arp_sha, &nh->lladdr);
+	nh->lladdr = arp->arp_data.arp_sha;
 
 	// Flush all held packets.
 	m = nh->held_pkts_head;

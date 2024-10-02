@@ -65,8 +65,8 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
 			continue;
 		}
-		rte_ether_addr_copy(&priv->dst, &eth->dst_addr);
-		rte_ether_addr_copy(src_mac, &eth->src_addr);
+		eth->dst_addr = priv->dst;
+		eth->src_addr = *src_mac;
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
 		if (unlikely(packet_trace_enabled))

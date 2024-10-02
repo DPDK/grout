@@ -286,7 +286,7 @@ int iface_port_reconfig(
 		memcpy(&mac, &api->mac, sizeof(mac));
 		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mac)) < 0)
 			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
-		rte_ether_addr_copy(&mac, &p->mac);
+		p->mac = mac;
 	} else {
 		if ((ret = rte_eth_macaddr_get(p->port_id, &p->mac)) < 0)
 			return errno_log(-ret, "rte_eth_macaddr_get");
@@ -413,7 +413,7 @@ const struct iface *port_get_iface(uint16_t port_id) {
 
 static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
-	rte_ether_addr_copy(&port->mac, mac);
+	*mac = port->mac;
 	return 0;
 }
 
@@ -454,7 +454,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	if (i == ARRAY_DIM(filter->mac))
 		return errno_log(ENOSPC, mac_type);
 
-	rte_ether_addr_copy(mac, &filter->mac[i]);
+	filter->mac[i] = *mac;
 	filter->refcnt[i] = 1;
 	filter->count++;
 

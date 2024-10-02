@@ -55,7 +55,7 @@ static uint16_t arp_output_reply_process(
 		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
 		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
-		rte_ether_addr_copy(&arp_data->remote->lladdr, &arp->arp_data.arp_tha);
+		arp->arp_data.arp_tha = arp_data->remote->lladdr;
 		if (iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha) < 0) {
 			edge = ERROR;
 			goto next;
@@ -65,7 +65,7 @@ static uint16_t arp_output_reply_process(
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+		eth_data->dst = arp->arp_data.arp_tha;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface;
 		edge = OUTPUT;

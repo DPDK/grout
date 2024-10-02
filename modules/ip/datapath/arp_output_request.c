@@ -76,7 +76,7 @@ static uint16_t arp_output_request_process(
 		}
 		arp->arp_data.arp_sip = local->ip;
 		if (nh->last_reply != 0)
-			rte_ether_addr_copy(&nh->lladdr, &arp->arp_data.arp_tha);
+			arp->arp_data.arp_tha = nh->lladdr;
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
 		arp->arp_data.arp_tip = nh->ip;
@@ -84,7 +84,7 @@ static uint16_t arp_output_request_process(
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		if (nh->ucast_probes < IP4_NH_UCAST_PROBES) {
-			rte_ether_addr_copy(&arp->arp_data.arp_tha, &eth_data->dst);
+			eth_data->dst = arp->arp_data.arp_tha;
 			nh->ucast_probes++;
 		} else {
 			memset(&eth_data->dst, 0xff, sizeof(eth_data->dst));
