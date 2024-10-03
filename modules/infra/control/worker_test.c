@@ -24,6 +24,7 @@ static struct worker w3 = {.cpu_id = 3, .started = true};
 static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
 
 // mocked types/functions
+extern int gr_rte_log_type;
 int gr_rte_log_type;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
@@ -32,7 +33,7 @@ void iface_event_notify(iface_event_t, struct iface *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 
-struct gr_args args;
+static struct gr_args args;
 const struct gr_args *gr_args(void) {
 	return &args;
 }

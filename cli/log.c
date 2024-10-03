@@ -10,9 +10,9 @@
 #include <errno.h>
 #include <unistd.h>
 
-bool stdin_isatty;
-bool stdout_isatty;
-bool stderr_isatty;
+static bool stdin_isatty;
+static bool stdout_isatty;
+static bool stderr_isatty;
 
 void tty_init(void) {
 	stdin_isatty = isatty(0);

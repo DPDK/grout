@@ -18,6 +18,7 @@ jobs:
       MESON_EXTRA_OPTS: "-Ddpdk:platform=generic"
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
+      CC: gcc-14
     steps:
       - name: install system dependencies
         run: |

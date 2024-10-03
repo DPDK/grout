@@ -87,7 +87,7 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 	return 0;
 }
 
-struct rte_node_register ip_forward_ttl_exceeded_node = {
+static struct rte_node_register ip_forward_ttl_exceeded_node = {
 	.name = "ip_error_ttl_exceeded",
 	.process = ip_error_process,
 	.nb_edges = EDGE_COUNT,

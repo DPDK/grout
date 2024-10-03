@@ -124,7 +124,7 @@ static struct rte_node_register dest_unreach_node = {
 	.init = no_route_init,
 };
 
-struct rte_node_register ttl_exceeded_node = {
+static struct rte_node_register ttl_exceeded_node = {
 	.name = "ip6_error_ttl_exceeded",
 	.process = ip6_error_process,
 	.nb_edges = EDGE_COUNT,

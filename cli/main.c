@@ -53,7 +53,7 @@ struct gr_cli_opts {
 	bool trace_commands;
 };
 
-struct gr_cli_opts opts;
+static struct gr_cli_opts opts;
 
 static int parse_args(int argc, char **argv) {
 	int c;
