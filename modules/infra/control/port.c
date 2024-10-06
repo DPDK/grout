@@ -76,11 +76,14 @@ static struct rte_eth_conf default_port_config = {
 };
 
 static void port_queue_assign(struct iface_info_port *p) {
-	int socket_id = rte_eth_dev_socket_id(p->port_id);
+	int socket_id = SOCKET_ID_ANY;
 	struct worker *worker, *default_worker = NULL;
 	// XXX: can we assume there will never be more than 64 rxqs per port?
 	uint64_t rxq_ids = 0;
 	uint16_t txq = 0;
+
+	if (numa_available() != -1)
+		socket_id = rte_eth_dev_socket_id(p->port_id);
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		struct queue_map tx_qmap = {
@@ -130,12 +133,15 @@ static void port_queue_assign(struct iface_info_port *p) {
 }
 
 static int port_configure(struct iface_info_port *p) {
-	int socket_id = rte_eth_dev_socket_id(p->port_id);
+	int socket_id = SOCKET_ID_ANY;
 	struct rte_eth_conf conf = default_port_config;
 	uint16_t rxq_size, txq_size;
 	struct rte_eth_dev_info info;
 	uint32_t mbuf_count;
 	int ret;
+
+	if (numa_available() != -1)
+		socket_id = rte_eth_dev_socket_id(p->port_id);
 
 	// ensure there is a datapath worker running on the socket where the port is
 	if ((ret = worker_ensure_default(socket_id)) < 0)
