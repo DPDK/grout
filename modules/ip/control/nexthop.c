@@ -169,7 +169,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	rte_mempool_obj_iter(nh_pool, nh_list_cb, &ctx);
 
 	len = sizeof(*resp) + arrlen(ctx.nh) * sizeof(*ctx.nh);
-	if ((resp = calloc(len, 1)) == NULL) {
+	if ((resp = calloc(1, len)) == NULL) {
 		arrfree(ctx.nh);
 		return api_out(ENOMEM, 0);
 	}

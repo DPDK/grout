@@ -30,6 +30,7 @@ add_project_arguments('-fstrict-aliasing', language: 'c')
 
 # optional project C flags (keep alpha sorted)
 optional_c_args = [
+  '-Wcalloc-transposed-args',
   '-Wmissing-variable-declarations',
 ]
 compiler = meson.get_compiler('c')

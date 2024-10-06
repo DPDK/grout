@@ -259,7 +259,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 	}
 
 	len = sizeof(*resp) + num * sizeof(struct gr_ip6_ifaddr);
-	if ((resp = calloc(len, 1)) == NULL)
+	if ((resp = calloc(1, len)) == NULL)
 		return api_out(ENOMEM, 0);
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
