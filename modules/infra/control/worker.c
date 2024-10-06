@@ -159,7 +159,7 @@ int worker_ensure_default(int socket_id) {
 			return 0;
 	}
 
-	if (socket_id == SOCKET_ID_ANY)
+	if (socket_id == SOCKET_ID_ANY && numa_available() != -1)
 		socket_id = numa_preferred();
 
 	// try to spawn the default worker on the correct socket excluding the main lcore
