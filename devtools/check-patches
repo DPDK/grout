@@ -47,7 +47,7 @@ check_issue() {
 		-H "Accept: application/vnd.github+json" \
 		-H "X-GitHub-Api-Version: 2022-11-28" \
 		"$api_url/issues/${1##*/}") || return 1
-	test "$(echo "$json" | jq -r .state)" = open
+	test "$(printf '%s\n' "$json" | jq -r .state)" = open
 }
 
 for rev in $revisions; do
