@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2024 Christophe Fontaine
+
+#include "gr_control_output.h"
+
+#include <gr_control.h>
+#include <gr_graph.h>
+#include <gr_log.h>
+#include <gr_mbuf.h>
+
+#include <rte_ether.h>
+#include <rte_graph_worker.h>
+
+#include <stdlib.h>
+
+enum {
+	NO_CALLBACK_ERROR,
+	ENQUEUE_ERROR,
+	EDGE_COUNT,
+};
+
+static uint16_t control_output_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t n_objs
+) {
+	for (unsigned i = 0; i < n_objs; i++) {
+		if (control_output_mbuf_data(objs[i])->callback == NULL) {
+			rte_node_enqueue_x1(graph, node, NO_CALLBACK_ERROR, objs[i]);
+			continue;
+		}
+
+		if (control_output_push(objs[i]) != 0) {
+			rte_node_enqueue_x1(graph, node, ENQUEUE_ERROR, objs[i]);
+		}
+	}
+
+	if (n_objs)
+		signal_control_ouput_message();
+
+	return n_objs;
+}
+
+static struct rte_node_register control_output_node = {
+	.name = "control_output",
+	.process = control_output_process,
+	.nb_edges = EDGE_COUNT,
+	.next_nodes = {
+		[NO_CALLBACK_ERROR] = "ctrl_out_no_callback",
+		[ENQUEUE_ERROR] = "ctrl_out_enqueue",
+	},
+};
+
+static struct gr_node_info info = {
+	.node = &control_output_node,
+};
+
+GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(ctrl_out_no_callback);
+GR_DROP_REGISTER(ctrl_out_enqueue);

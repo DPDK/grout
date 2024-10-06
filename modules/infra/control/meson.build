@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'control_output.c',
   'iface.c',
   'mempool.c',
   'port.c',
