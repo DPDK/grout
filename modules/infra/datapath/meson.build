@@ -3,6 +3,7 @@
 
 src += files(
   'control_input.c',
+  'control_output.c',
   'drop.c',
   'eth_input.c',
   'eth_output.c',
