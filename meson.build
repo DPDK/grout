@@ -19,17 +19,25 @@ project(
   ],
 )
 
-compiler = meson.get_compiler('c')
-add_project_arguments('-D_GNU_SOURCE', language: 'c')
+# additional project C flags (keep alpha sorted)
 add_project_arguments('-DALLOW_EXPERIMENTAL_API', language: 'c')
-add_project_arguments('-Wmissing-prototypes', language: 'c')
-if compiler.has_argument('-Wmissing-variable-declarations')
-  add_project_arguments('-Wmissing-variable-declarations', language: 'c')
-endif
-add_project_arguments('-fstrict-aliasing', language: 'c')
-add_project_arguments('-Wstrict-aliasing=2', language: 'c')
-add_project_arguments('-Wno-format-truncation', language: 'c')
 add_project_arguments('-DGROUT_VERSION="' + meson.project_version() + '"', language: 'c')
+add_project_arguments('-D_GNU_SOURCE', language: 'c')
+add_project_arguments('-Wmissing-prototypes', language: 'c')
+add_project_arguments('-Wno-format-truncation', language: 'c')
+add_project_arguments('-Wstrict-aliasing=2', language: 'c')
+add_project_arguments('-fstrict-aliasing', language: 'c')
+
+# optional project C flags (keep alpha sorted)
+optional_c_args = [
+  '-Wmissing-variable-declarations',
+]
+compiler = meson.get_compiler('c')
+foreach arg : optional_c_args
+  if compiler.has_argument(arg)
+    add_project_arguments(arg, language: 'c')
+  endif
+endforeach
 
 dpdk_dep = dependency(
   'libdpdk',
