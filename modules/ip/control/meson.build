@@ -3,6 +3,7 @@
 
 src += files(
   'address.c',
+  'icmp.c',
   'nexthop.c',
   'route.c',
 )
