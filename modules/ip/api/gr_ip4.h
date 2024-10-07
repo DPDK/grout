@@ -176,4 +176,38 @@ struct gr_ip4_addr_list_resp {
 	struct gr_ip4_ifaddr addrs[/* n_addrs */];
 };
 
+#define GR_IP4_ICMP_REQUEST REQUEST_TYPE(GR_IP4_MODULE, 0x0024)
+
+struct gr_ip4_ping_start_req {
+	struct ip4_net addr;
+	uint16_t vrf;
+	uint16_t sequence_number;
+	uint16_t ttl;
+};
+
+struct gr_ip4_ping_start_resp {
+	uint16_t id;
+};
+
+#define GR_IP4_ICMP_GET_REPLY REQUEST_TYPE(GR_IP4_MODULE, 0x0025)
+
+struct gr_ip4_icmp_get_reply_req {
+	uint16_t id;
+};
+
+struct gr_ip4_icmp_get_reply_resp {
+	bool answered;
+	uint16_t type;
+	uint16_t ident;
+	uint16_t code;
+	uint16_t sequence_number;
+	uint16_t ttl;
+	clock_t response_time;
+	uint8_t data[64];
+};
+
+// ICMP types not defined in rte_icmp.h
+#define GR_IP_ICMP_DEST_UNREACHABLE 3
+#define GR_IP_ICMP_TTL_EXCEEDED 11
+
 #endif
