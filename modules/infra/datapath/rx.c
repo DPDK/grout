@@ -9,6 +9,7 @@
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_port.h>
+#include <gr_trace.h>
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
@@ -32,6 +33,19 @@ struct rx_ctx {
 	struct rx_port_queue queues[/* n_queues */];
 };
 
+struct trace_rx_data {
+	uint16_t iface_id;
+	uint16_t port_id;
+	uint16_t queue_id;
+};
+
+static int format_rx_input(void *data, char *buf, size_t len) {
+	struct trace_rx_data *t = data;
+	struct iface *iface = iface_from_id(t->iface_id);
+	const char *ifname = iface ? iface->name : "[deleted]";
+	return snprintf(buf, len, "p%dq%d iface %s", t->port_id, t->queue_id, ifname);
+}
+
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uint16_t count) {
 	const struct rx_ctx *ctx = node->ctx_ptr;
@@ -48,15 +62,30 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
 		iface = port_get_iface(q.port_id);
+
 		if (rx > 0 && iface == NULL) {
 			rte_node_enqueue(graph, node, NO_IFACE, &node->objs[count], rx);
 			continue;
 		}
+
 		for (r = count; r < count + rx; r++) {
 			d = eth_input_mbuf_data(node->objs[r]);
 			d->iface = iface;
 			d->eth_dst = ETH_DST_UNKNOWN;
 		}
+
+		if (unlikely(iface && iface->flags & GR_IFACE_F_PACKET_TRACE)) {
+			struct trace_rx_data *t;
+			for (r = count; r < count + rx; r++) {
+				t = gr_trace_begin(node, node->objs[r], sizeof(*t));
+				if (t) {
+					t->port_id = q.port_id;
+					t->queue_id = q.rxq_id;
+					t->iface_id = iface->id;
+				}
+			}
+		}
+
 		if (unlikely(packet_trace_enabled)) {
 			for (r = count; r < count + rx; r++) {
 				trace_packet("rx", iface->name, node->objs[r]);
@@ -114,6 +143,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.format_trace = format_rx_input,
 };
 
 GR_NODE_REGISTER(info);

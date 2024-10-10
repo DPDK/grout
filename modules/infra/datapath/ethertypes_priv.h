@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2024 Christophe Fontaine
+
+#include <rte_ether.h>
+
+#ifndef _GR_INFRA_ETHTYPES_PRIV
+#define _GR_INFRA_ETHTYPES_PRIV
+
+static const char *ETHERTYPE_STR[UINT16_MAX] = {
+	[RTE_BE16(RTE_ETHER_TYPE_IPV4)] = "IP4",
+	[RTE_BE16(RTE_ETHER_TYPE_IPV6)] = "IP6",
+	[RTE_BE16(RTE_ETHER_TYPE_ARP)] = "ARP",
+	[RTE_BE16(RTE_ETHER_TYPE_VLAN)] = "VLAN",
+	[RTE_BE16(RTE_ETHER_TYPE_QINQ)] = "QINQ",
+	[RTE_BE16(RTE_ETHER_TYPE_SLOW)] = "LACP",
+	[RTE_BE16(RTE_ETHER_TYPE_LLDP)] = "LLDP",
+	[RTE_BE16(RTE_ETHER_TYPE_MPLS)] = "MPLS",
+	[RTE_BE16(RTE_ETHER_TYPE_1588)] = "PTP",
+};
+
+#endif

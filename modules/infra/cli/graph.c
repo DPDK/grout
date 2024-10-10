@@ -11,6 +11,30 @@
 #include <stdio.h>
 #include <unistd.h>
 
+static cmd_status_t trace_show(const struct gr_api_client *c, const struct ec_pnode *) {
+	const struct gr_infra_packet_trace_resp *resp;
+	void *resp_ptr = NULL;
+
+	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_SHOW, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	printf("resp->len: %d  \n", resp->len);
+	if (resp->len > 1) {
+		fwrite(resp->trace, 1, resp->len, stdout);
+	}
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t trace_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_CLEAR, 0, NULL, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t graph_dump(const struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_infra_graph_dump_resp *resp;
 	void *resp_ptr = NULL;
@@ -34,6 +58,16 @@ static int ctx_init(struct ec_node *root) {
 		"dot",
 		graph_dump,
 		"Dump the graph in DOT format."
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(CLI_CONTEXT(root, CTX_SHOW), "trace", trace_show, "Show traced packets.");
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_CLEAR), "trace", trace_clear, "Clear packet tracing."
 	);
 	if (ret < 0)
 		return ret;

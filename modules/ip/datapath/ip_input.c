@@ -6,6 +6,7 @@
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -25,6 +26,44 @@ enum edges {
 	OTHER_HOST,
 	EDGE_COUNT,
 };
+
+int format_ip_data(void *data, char *buf, size_t len) {
+	struct trace_ip_data *t = data;
+	const char *protos[UINT8_MAX] = {
+		[0] = "IPv6 Hop-by-Hop",
+		[1] = "ICMP",
+		[2] = "IGMP",
+		[4] = "IP in IP",
+		[6] = "TCP",
+		[17] = "UDP",
+		[27] = "Reliable Data Protocol",
+		[41] = "IPv6 Encapsulation",
+		[43] = "IPv6 Routing Header",
+		[44] = "IPv6 Fragment Header",
+		[47] = "GRE",
+		[50] = "ESP",
+		[51] = "Authentication Header",
+		[58] = "IPv6 ICMP",
+		[59] = "IPv6 No Next Header",
+		[60] = "IPv6 Destination Options",
+		[89] = "OSPF",
+		[112] = "VRRP",
+		[132] = "SCTP",
+		[136] = "UDP Lite",
+		[137] = "MPLS In IP",
+		[145] = "NSH",
+	};
+
+	return snprintf(
+		buf,
+		len,
+		IP4_ADDR_FMT " -> " IP4_ADDR_FMT " next proto: %s ttl %d",
+		IP4_ADDR_SPLIT(&t->src),
+		IP4_ADDR_SPLIT(&t->dst),
+		protos[t->proto],
+		t->ttl
+	);
+}
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -111,6 +150,13 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		else
 			edge = FORWARD;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->next_proto_id;
+			t->ttl = ip->time_to_live;
+		}
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
 		d->nh = nh;
 		d->input_iface = iface;
@@ -143,6 +189,7 @@ static struct rte_node_register input_node = {
 static struct gr_node_info info = {
 	.node = &input_node,
 	.register_callback = ip_input_register,
+	.format_trace = format_ip_data,
 };
 
 GR_NODE_REGISTER(info);

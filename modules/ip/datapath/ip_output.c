@@ -11,6 +11,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -86,8 +87,8 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
-
 		nh = ip_output_mbuf_data(mbuf)->nh;
+
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;
@@ -145,6 +146,13 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_data->iface = iface;
 		sent++;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->next_proto_id;
+			t->ttl = ip->time_to_live;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -165,6 +173,7 @@ static struct rte_node_register output_node = {
 
 static struct gr_node_info info = {
 	.node = &output_node,
+	.format_trace = format_ip_data,
 };
 
 GR_NODE_REGISTER(info);
