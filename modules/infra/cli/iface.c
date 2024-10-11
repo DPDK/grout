@@ -148,7 +148,7 @@ uint64_t parse_iface_args(
 	struct gr_iface *iface,
 	bool update
 ) {
-	const char *name, *promisc, *allmulti;
+	const char *name, *promisc, *allmulti, *trace;
 	uint64_t set_attrs = 0;
 
 	name = arg_str(p, "NAME");
@@ -189,6 +189,15 @@ uint64_t parse_iface_args(
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	} else if (allmulti != NULL && strcmp(allmulti, "off") == 0) {
 		iface->flags &= ~GR_IFACE_F_ALLMULTI;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	}
+
+	trace = arg_str(p, "TRACE");
+	if (trace != NULL && strcmp(trace, "on") == 0) {
+		iface->flags |= GR_IFACE_F_PACKET_TRACE;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	} else if (trace != NULL && strcmp(trace, "off") == 0) {
+		iface->flags &= ~GR_IFACE_F_PACKET_TRACE;
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	}
 
@@ -280,6 +289,8 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			n += snprintf(buf + n, sizeof(buf) - n, " promisc");
 		if (iface->flags & GR_IFACE_F_ALLMULTI)
 			n += snprintf(buf + n, sizeof(buf) - n, " allmulti");
+		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
+			n += snprintf(buf + n, sizeof(buf) - n, " tracing");
 		scols_line_set_data(line, 2, buf);
 
 		// vrf
@@ -332,6 +343,8 @@ static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pn
 		printf(" promisc");
 	if (iface.flags & GR_IFACE_F_ALLMULTI)
 		printf(" allmulti");
+	if (iface.flags & GR_IFACE_F_PACKET_TRACE)
+		printf(" tracing");
 	printf("\n");
 	printf("vrf: %u\n", iface.vrf_id);
 	printf("mtu: %u\n", iface.mtu);
