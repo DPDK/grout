@@ -2,6 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_graph.h>
+#include <gr_ip4_datapath.h>
+#include <gr_trace.h>
 
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
@@ -33,6 +35,15 @@ ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		csum = ip->hdr_checksum + RTE_BE16(0x0100);
 		csum += csum >= 0xffff;
 		ip->hdr_checksum = csum;
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->next_proto_id;
+			t->ttl = ip->time_to_live;
+		}
+
 		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
 	}
 
@@ -53,6 +64,7 @@ static struct rte_node_register forward_node = {
 
 static struct gr_node_info info = {
 	.node = &forward_node,
+	.ext_funcs.format_trace = format_ip_data,
 };
 
 GR_NODE_REGISTER(info);
