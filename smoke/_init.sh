@@ -36,6 +36,7 @@ grcli show ip nexthop
 grcli show ip route
 grcli show ip6 nexthop
 grcli show ip6 route
+grcli show trace
 EOF
 
 set -x
@@ -48,3 +49,5 @@ if [ "$run_grout" = true ]; then
 	grout $grout_flags &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
+
+grcli set trace all
