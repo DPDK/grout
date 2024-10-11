@@ -7,6 +7,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -63,6 +64,10 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = UNSUPPORTED;
 		}
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_icmp_hdr *d = gr_mbuf_trace_add(mbuf, node, sizeof(*d));
+			*d = *icmp;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -99,6 +104,7 @@ static struct rte_node_register icmp_input_node = {
 static struct gr_node_info icmp_input_info = {
 	.node = &icmp_input_node,
 	.register_callback = icmp_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp_format,
 };
 
 GR_NODE_REGISTER(icmp_input_info);
