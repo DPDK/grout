@@ -6,6 +6,7 @@
 #include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -110,6 +111,10 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = FORWARD;
 
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_ipv6_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *ip;
+		}
 		// Store the resolved next hop for ip6_output to avoid a second route lookup.
 		d->nh = nh;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
@@ -143,6 +148,7 @@ static struct rte_node_register input_node = {
 static struct gr_node_info info = {
 	.node = &input_node,
 	.register_callback = ip6_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_ip6_format,
 };
 
 GR_NODE_REGISTER(info);
