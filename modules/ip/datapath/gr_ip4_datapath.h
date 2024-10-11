@@ -57,4 +57,13 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 #define GR_IP_ICMP_DEST_UNREACHABLE 3
 #define GR_IP_ICMP_TTL_EXCEEDED 11
 
+struct trace_ip_data {
+	ip4_addr_t src;
+	ip4_addr_t dst;
+	uint8_t proto;
+	uint8_t ttl;
+};
+
+int format_ip_data(void *data, char *buf, size_t);
+
 #endif
