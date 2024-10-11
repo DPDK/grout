@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_common.h>
 #include <rte_graph_worker.h>
@@ -19,6 +20,20 @@ enum edges {
 	NO_IP,
 	EDGE_COUNT,
 };
+
+struct trace_ip6_error_data {
+	icmp6_type_t icmp_type;
+};
+
+static int format_ip6_error_data(void *data, char *buf, size_t len) {
+	struct trace_ip6_error_data *d = data;
+	static const char *icmp_error[UINT16_MAX] = {
+		[ICMP6_ERR_DEST_UNREACH] = "Destination unreachable",
+		[ICMP6_ERR_TTL_EXCEEDED] = "TTL exceeded",
+	};
+
+	return snprintf(buf, len, "%s", icmp_error[d->icmp_type]);
+}
 
 static uint16_t
 ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -69,6 +84,11 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		default:
 			ABORT("unexpected icmp_type value %hhu", icmp_type);
 			break;
+		}
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip6_error_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->icmp_type = icmp_type;
 		}
 
 		icmp6 = (struct icmp6 *)rte_pktmbuf_prepend(mbuf, sizeof(*icmp6));
@@ -138,10 +158,12 @@ static struct rte_node_register ttl_exceeded_node = {
 
 static struct gr_node_info dest_unreach_info = {
 	.node = &dest_unreach_node,
+	.ext_funcs.format_trace = format_ip6_error_data,
 };
 
 static struct gr_node_info ttl_exceeded_info = {
 	.node = &ttl_exceeded_node,
+	.ext_funcs.format_trace = format_ip6_error_data,
 };
 
 GR_NODE_REGISTER(dest_unreach_info);

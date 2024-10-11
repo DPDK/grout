@@ -11,6 +11,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -98,6 +99,8 @@ static uint16_t ndp_ns_output_process(
 		ip6_output_mbuf_data(mbuf)->nh = nh;
 		next = OUTPUT;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf)))
+			gr_trace_add(node, mbuf, 0);
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
