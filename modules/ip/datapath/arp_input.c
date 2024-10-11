@@ -7,6 +7,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -133,6 +134,10 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		arp_data->local = local;
 		arp_data->remote = remote;
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *arp;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -163,6 +168,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.register_callback = arp_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_arp_format,
 };
 
 GR_NODE_REGISTER(info);

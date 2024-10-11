@@ -9,6 +9,7 @@
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -54,6 +55,7 @@ static uint16_t arp_output_request_process(
 		mbuf = objs[i];
 		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
 		local = ip4_addr_get_preferred(nh->iface_id, nh->ip);
+
 		if (local == NULL) {
 			edge = ERROR;
 			goto next;
@@ -80,6 +82,10 @@ static uint16_t arp_output_request_process(
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
 		arp->arp_data.arp_tip = nh->ip;
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *arp;
+		}
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
@@ -120,6 +126,7 @@ static struct rte_node_register arp_output_request_node = {
 static struct gr_node_info arp_output_request_info = {
 	.node = &arp_output_request_node,
 	.register_callback = arp_output_request_register,
+	.trace_format = (gr_trace_format_cb_t)trace_arp_format,
 };
 
 GR_NODE_REGISTER(arp_output_request_info);
