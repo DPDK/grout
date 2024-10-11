@@ -4,6 +4,8 @@
 #ifndef _GR_INFRA_GRAPH
 #define _GR_INFRA_GRAPH
 
+#include <gr_trace.h>
+
 #include <rte_common.h>
 #include <rte_graph.h>
 
@@ -23,6 +25,7 @@ struct gr_node_info {
 	struct rte_node_register *node;
 	gr_node_register_cb_t register_callback;
 	gr_node_register_cb_t unregister_callback;
+	gr_trace_format_cb_t trace_format;
 	STAILQ_ENTRY(gr_node_info) next;
 };
 

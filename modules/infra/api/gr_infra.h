@@ -25,6 +25,7 @@
 #define GR_IFACE_F_UP GR_BIT16(0)
 #define GR_IFACE_F_PROMISC GR_BIT16(1)
 #define GR_IFACE_F_ALLMULTI GR_BIT16(2)
+#define GR_IFACE_F_PACKET_TRACE GR_BIT16(3)
 // Interface state flags
 #define GR_IFACE_S_RUNNING GR_BIT16(0)
 
