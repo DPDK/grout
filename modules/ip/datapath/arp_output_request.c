@@ -9,6 +9,7 @@
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
@@ -54,6 +55,11 @@ static uint16_t arp_output_request_process(
 		mbuf = objs[i];
 		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
 		local = ip4_addr_get_preferred(nh->iface_id, nh->ip);
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			gr_trace_add(node, mbuf, 0);
+		}
+
 		if (local == NULL) {
 			edge = ERROR;
 			goto next;
