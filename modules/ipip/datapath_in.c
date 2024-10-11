@@ -10,6 +10,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -23,6 +24,12 @@ enum {
 	NO_TUNNEL,
 	EDGE_COUNT,
 };
+
+int trace_ipip_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
+	const struct trace_ipip_data *t = data;
+	const struct iface *iface = iface_from_id(t->iface_id);
+	return snprintf(buf, len, "iface=%s", iface ? iface->name : "[deleted]");
+}
 
 static uint16_t
 ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -62,6 +69,10 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->eth_dst = ETH_DST_LOCAL;
 		edge = IP_INPUT;
 next:
+		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
+			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t->iface_id = ipip ? ipip->id : 0;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -87,6 +98,7 @@ static struct rte_node_register ipip_input_node = {
 static struct gr_node_info ipip_input_info = {
 	.node = &ipip_input_node,
 	.register_callback = ipip_input_register,
+	.trace_format = trace_ipip_format,
 };
 
 GR_NODE_REGISTER(ipip_input_info);
