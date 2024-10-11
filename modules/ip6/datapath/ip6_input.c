@@ -6,6 +6,7 @@
 #include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -27,6 +28,55 @@ enum edges {
 	BAD_LENGTH,
 	EDGE_COUNT,
 };
+
+int format_ip6_data(void *data, char *buf, size_t len) {
+	struct trace_ip6_data *t = data;
+	char src[INET6_ADDRSTRLEN];
+	char dst[INET6_ADDRSTRLEN];
+
+	static const char *protos[UINT8_MAX] = {
+		[0] = "IPv6 Hop-by-Hop",
+		[1] = "ICMP",
+		[2] = "IGMP",
+		[4] = "IP in IP",
+		[6] = "TCP",
+		[17] = "UDP",
+		[27] = "Reliable Data Protocol",
+		[41] = "IPv6 Encapsulation",
+		[43] = "IPv6 Routing Header",
+		[44] = "IPv6 Fragment Header",
+		[47] = "GRE",
+		[50] = "ESP",
+		[51] = "Authentication Header",
+		[58] = "IPv6 ICMP",
+		[59] = "IPv6 No Next Header",
+		[60] = "IPv6 Destination Options",
+		[89] = "OSPF",
+		[112] = "VRRP",
+		[132] = "SCTP",
+		[136] = "UDP Lite",
+		[137] = "MPLS In IP",
+		[145] = "NSH",
+	};
+
+	inet_ntop(AF_INET6, &t->src, src, sizeof(src));
+	inet_ntop(AF_INET6, &t->dst, dst, sizeof(dst));
+
+	if (protos[t->proto])
+		return snprintf(
+			buf,
+			len,
+			"%s -> %s next proto %s ttl %d",
+			src,
+			dst,
+			protos[t->proto],
+			t->hop_limits
+		);
+	else
+		return snprintf(
+			buf, len, "%s -> %s next proto %d ttl %d", src, dst, t->proto, t->hop_limits
+		);
+}
 
 static uint16_t
 ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -110,6 +160,13 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = FORWARD;
 
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip6_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->proto;
+			t->hop_limits = ip->hop_limits;
+		}
 		// Store the resolved next hop for ip6_output to avoid a second route lookup.
 		d->nh = nh;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
@@ -143,6 +200,7 @@ static struct rte_node_register input_node = {
 static struct gr_node_info info = {
 	.node = &input_node,
 	.register_callback = ip6_input_register,
+	.ext_funcs.format_trace = format_ip6_data,
 };
 
 GR_NODE_REGISTER(info);

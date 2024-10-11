@@ -6,6 +6,7 @@
 #include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_graph_worker.h>
 #include <rte_ip6.h>
@@ -81,6 +82,9 @@ static uint16_t ip6_input_local_process(
 			break;
 		}
 next:
+		if (unlikely(gr_mbuf_trace_is_set(m)))
+			gr_trace_add(node, m, 0);
+
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
