@@ -7,6 +7,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -26,6 +27,49 @@ enum {
 
 static control_output_cb_t icmp_cb[UINT8_MAX];
 
+struct trace_icmp_data {
+	uint16_t code;
+	uint16_t type;
+};
+
+static const char *icmp_to_str(uint8_t type, uint8_t code) {
+	const char *icmp_types[UINT8_MAX] = {
+		[RTE_ICMP_TYPE_ECHO_REPLY] = "Echo Reply",
+		[RTE_ICMP_TYPE_ECHO_REQUEST] = "Echo Request",
+		[RTE_ICMP_TYPE_REDIRECT] = "Redirect",
+		[RTE_ICMP_TYPE_DEST_UNREACHABLE] = "Destination Unreachable",
+		[RTE_ICMP_TYPE_TTL_EXCEEDED] = "Time to live Exceeded",
+	};
+
+	const char *ttl_exceeded[UINT8_MAX] = {
+		[RTE_ICMP_CODE_TTL_EXCEEDED] = "Time to Live exceeded in Transit",
+		[RTE_ICMP_CODE_TTL_FRAG] = "Fragment Reassembly Time Exceeded",
+	};
+
+	const char *dest_unreachable[UINT8_MAX] = {
+		[RTE_ICMP_CODE_UNREACH_NET] = "Network Unreachable",
+		[RTE_ICMP_CODE_UNREACH_HOST] = "Host Unreachable",
+		[RTE_ICMP_CODE_UNREACH_PROTO] = "Protocol Unreachable",
+		[RTE_ICMP_CODE_UNREACH_PORT] = "Port Unreachable",
+		[RTE_ICMP_CODE_UNREACH_FRAG] = "Fragmentation Needed and Don't Fragment was Set",
+		[RTE_ICMP_CODE_UNREACH_SRC] = "Source Route Failed",
+	};
+
+	switch (type) {
+	case RTE_ICMP_TYPE_DEST_UNREACHABLE:
+		return dest_unreachable[code];
+	case RTE_ICMP_TYPE_TTL_EXCEEDED:
+		return ttl_exceeded[code];
+	default:
+		return icmp_types[type];
+	}
+}
+
+static int format_icmp_input(void *data, char *buf, size_t len) {
+	struct trace_icmp_data *d = data;
+	return snprintf(buf, len, "%s", icmp_to_str(d->type, d->code));
+}
+
 static uint16_t
 icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
@@ -42,6 +86,14 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (ip_data->len < ICMP_MIN_SIZE || (uint16_t)~rte_raw_cksum(icmp, ip_data->len)) {
 			edge = INVALID;
 			goto next;
+		}
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_icmp_data *d = gr_trace_add(node, mbuf, sizeof(*d));
+			if (d) {
+				d->code = icmp->icmp_code;
+				d->type = icmp->icmp_type;
+			}
 		}
 
 		if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) {
@@ -99,6 +151,7 @@ static struct rte_node_register icmp_input_node = {
 static struct gr_node_info icmp_input_info = {
 	.node = &icmp_input_node,
 	.register_callback = icmp_input_register,
+	.ext_funcs.format_trace = format_icmp_input,
 };
 
 GR_NODE_REGISTER(icmp_input_info);
