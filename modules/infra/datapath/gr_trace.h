@@ -18,4 +18,6 @@ void gr_trace_aggregate(struct rte_mbuf *m);
 
 int trace_print(char *buf, size_t len);
 void trace_clear(void);
+
+bool gr_trace_enabled(void);
 #endif

@@ -8,9 +8,15 @@
 #include <gr_iface.h>
 #include <gr_trace.h>
 
+#include <stdatomic.h>
+
 #define TRACE_STR (6 * 1024) // 64 nodes, 80 cols per node: ~5120 bytes.
 
-static bool trace_enabled = true;
+static atomic_bool trace_enabled = false;
+
+bool gr_trace_enabled() {
+	return trace_enabled;
+}
 
 static void iface_callback(iface_event_t event, struct iface *iface) {
 	if (event == IFACE_EVENT_POST_ADD && trace_enabled)
@@ -31,7 +37,7 @@ static struct api_out set_trace(const void *request, void **) {
 			iface->flags &= ~GR_IFACE_F_PACKET_TRACE;
 
 	} else {
-		trace_enabled = req->enabled;
+		atomic_store(&trace_enabled, req->enabled);
 		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 			if (req->enabled)
 				iface->flags |= GR_IFACE_F_PACKET_TRACE;
