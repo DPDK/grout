@@ -5,6 +5,7 @@
 #include <gr_graph.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
@@ -34,6 +35,10 @@ static uint16_t ip_input_local_process(
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
+
 		edge = edges[ip->next_proto_id];
 		if (edge != UNKNOWN_PROTO) {
 			const struct iface *iface = ip_output_mbuf_data(mbuf)->input_iface;

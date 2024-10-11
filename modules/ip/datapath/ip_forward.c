@@ -2,6 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_graph.h>
+#include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_fib.h>
 #include <rte_graph_worker.h>
@@ -33,6 +35,10 @@ ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		csum = ip->hdr_checksum + RTE_BE16(0x0100);
 		csum += csum >= 0xffff;
 		ip->hdr_checksum = csum;
+
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
+
 		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
 	}
 
