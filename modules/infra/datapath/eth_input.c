@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "eth_trace_priv.h"
 #include "gr_eth_input.h"
 
 #include <gr_graph.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 #include <gr_vlan.h>
 
 #include <rte_byteorder.h>
@@ -96,6 +98,24 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			eth_in->eth_dst = ETH_DST_OTHER;
 		}
 next:
+		if (unlikely(gr_mbuf_trace_is_set(m))
+		    || (vlan_iface && vlan_iface->flags & GR_IFACE_F_PACKET_TRACE)) {
+			struct trace_ether_data *t;
+
+			if (gr_mbuf_trace_is_set(m))
+				t = gr_trace_add(node, m, sizeof(*t));
+			else
+				t = gr_trace_begin(node, m, sizeof(*t));
+
+			if (t) {
+				memcpy(&t->dst, &eth->dst_addr, sizeof(t->dst));
+				memcpy(&t->src, &eth->src_addr, sizeof(t->dst));
+				t->ether_type = eth_type;
+				t->vlan_id = vlan_id;
+				t->iface_id = eth_in->iface->id;
+			}
+		}
+
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 	return nb_objs;
@@ -115,6 +135,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.ext_funcs.format_trace = format_eth,
 };
 
 GR_NODE_REGISTER(info);
