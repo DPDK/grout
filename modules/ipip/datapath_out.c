@@ -11,6 +11,7 @@
 #include <gr_ipip.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -47,6 +48,10 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			edge = NO_TUNNEL;
 			goto next;
 		}
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t->iface_id = iface->id;
+		}
 		ip_data->input_iface = iface;
 		ipip = (const struct iface_info_ipip *)iface->info;
 
@@ -68,6 +73,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = ip4_route_lookup(iface->vrf_id, ipip->remote);
 		edge = IP_OUTPUT;
+
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
@@ -95,6 +101,7 @@ static struct rte_node_register ipip_output_node = {
 static struct gr_node_info ipip_output_info = {
 	.node = &ipip_output_node,
 	.register_callback = ipip_output_register,
+	.trace_format = trace_ipip_format,
 };
 
 GR_NODE_REGISTER(ipip_output_info);
