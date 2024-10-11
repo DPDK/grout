@@ -7,6 +7,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_common.h>
 #include <rte_graph_worker.h>
@@ -39,6 +40,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*icmp));
+
 		if (unlikely(icmp == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;
@@ -73,6 +75,9 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		edge = ICMP_OUTPUT;
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			gr_mbuf_trace_add(mbuf, node, 0);
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 

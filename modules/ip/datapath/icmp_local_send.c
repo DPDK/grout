@@ -106,6 +106,8 @@ static uint16_t icmp_local_send_process(
 
 		next = OUTPUT;
 
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 		free(msg);
 	}
