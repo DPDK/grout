@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_log.h>
+#include <gr_mbuf.h>
+#include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_trace.h>
 
@@ -10,11 +13,14 @@
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
+#include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
+#include <rte_mempool.h>
+#include <rte_ring.h>
 
 static ssize_t trace_icmp6(
 	char *buf,
@@ -338,4 +344,150 @@ static ssize_t trace_icmp6(
 	return n;
 err:
 	return -1;
+}
+
+#define PACKET_COUNT_MAX RTE_GRAPH_BURST_SIZE
+
+static struct rte_mempool *trace_pool;
+static struct rte_ring *traced_packets;
+
+static void free_trace(struct gr_trace_item *t) {
+	// free the whole chain of trace items
+	while (t != NULL) {
+		struct gr_trace_item *next = STAILQ_NEXT(t, next);
+		rte_mempool_put(trace_pool, t);
+		t = next;
+	}
+}
+
+void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_len) {
+	struct gr_trace_head *traces = gr_mbuf_traces(m);
+	struct gr_trace_item *trace;
+	void *data;
+
+	// XXX: should we always abort even if -DNDEBUG is defined?
+	assert(data_len <= GR_TRACE_ITEM_MAX_LEN);
+
+	while (rte_mempool_get(trace_pool, &data) < 0) {
+		void *oldest = NULL;
+		rte_ring_dequeue(traced_packets, &oldest);
+		free_trace(oldest);
+	}
+
+	trace = data;
+	trace->node_id = node->id;
+	trace->len = data_len;
+
+	if (STAILQ_EMPTY(traces)) {
+		clock_gettime(CLOCK_REALTIME_COARSE, &trace->ts);
+		trace->cpu_id = rte_lcore_id();
+		STAILQ_INSERT_HEAD(traces, trace, next);
+	} else {
+		STAILQ_INSERT_TAIL(traces, trace, next);
+	}
+
+	return trace->data;
+}
+
+void gr_mbuf_trace_finish(struct rte_mbuf *m) {
+	struct gr_trace_head *traces = gr_mbuf_traces(m);
+	struct gr_trace_item *trace = STAILQ_FIRST(traces);
+
+	if (trace == NULL)
+		return;
+
+	while (rte_ring_enqueue(traced_packets, trace) == -ENOBUFS) {
+		void *oldest = NULL;
+		rte_ring_dequeue(traced_packets, &oldest);
+		free_trace(oldest);
+	}
+
+	// Reset trace head to NULL to remove all references to the trace items.
+	// This is also to ensure that reusing this mbuf will find traces disabled.
+	STAILQ_INIT(traces);
+}
+
+int gr_trace_dump(char *buf, size_t len) {
+	const struct gr_node_info *info;
+	struct gr_trace_item *t, *head;
+	struct tm tm;
+	void *data;
+	int n = 0;
+
+	if (rte_ring_dequeue(traced_packets, &data) == 0) {
+		t = data;
+		head = t;
+
+		gmtime_r(&t->ts.tv_sec, &tm);
+		n += strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm);
+		SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
+		SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
+
+		while (t) {
+			SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
+			if ((info = gr_node_info_get(t->node_id)) != NULL && info->trace_format) {
+				SAFE_BUF(snprintf, len, " ");
+				n += info->trace_format(buf + n, len - n, t->data, t->len);
+			}
+			SAFE_BUF(snprintf, len, "\n");
+
+			t = STAILQ_NEXT(t, next);
+		}
+		free_trace(head);
+		// add empty line to separate packets
+		SAFE_BUF(snprintf, len, "\n");
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+void gr_trace_clear(void) {
+	void *trace;
+	while (rte_ring_dequeue(traced_packets, &trace) == 0)
+		free_trace(trace);
+}
+
+static void trace_init(struct event_base *) {
+	trace_pool = rte_mempool_create(
+		"trace_items", // name
+		rte_align32pow2(PACKET_COUNT_MAX * 128) - 1,
+		sizeof(struct gr_trace_item),
+		0, // cache size
+		0, // priv size
+		NULL, // mp_init
+		NULL, // mp_init_arg
+		NULL, // obj_init
+		NULL, // obj_init_arg
+		SOCKET_ID_ANY,
+		0 // flags
+	);
+	if (trace_pool == NULL)
+		ABORT("rte_mempool_create(trace_items) failed");
+	traced_packets = rte_ring_create(
+		"traced_packets",
+		PACKET_COUNT_MAX,
+		SOCKET_ID_ANY,
+		RING_F_MP_RTS_ENQ | RING_F_SC_DEQ // flags
+	);
+
+	if (traced_packets == NULL)
+		ABORT("rte_ring_create(traced_packets) failed");
+}
+
+static void trace_fini(struct event_base *) {
+	gr_trace_clear();
+	rte_mempool_free(trace_pool);
+	rte_ring_free(traced_packets);
+}
+
+static struct gr_module trace_module = {
+	.name = "trace",
+	.init = trace_init,
+	.fini = trace_fini,
+};
+
+RTE_INIT(trace_constructor) {
+	gr_register_module(&trace_module);
 }
