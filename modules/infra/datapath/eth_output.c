@@ -5,6 +5,7 @@
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
+#include <gr_net_types.h>
 #include <gr_port.h>
 #include <gr_trace.h>
 #include <gr_vlan.h>
@@ -34,6 +35,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		priv = eth_output_mbuf_data(mbuf);
+		vlan = NULL;
 
 		switch (priv->iface->type_id) {
 		case GR_IFACE_TYPE_VLAN:
@@ -70,6 +72,16 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->port = port->port_id;
 		if (unlikely(packet_trace_enabled))
 			trace_log_packet(mbuf, "tx", priv->iface->name);
+
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct eth_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t->eth.dst_addr = eth->dst_addr;
+			t->eth.src_addr = eth->src_addr;
+			t->eth.ether_type = vlan ? vlan->eth_proto : eth->ether_type;
+			t->vlan_id = rte_be_to_cpu_16(vlan ? vlan->vlan_tci : 0);
+			t->iface_id = priv->iface->id;
+		}
+
 		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 
@@ -91,6 +103,7 @@ static struct rte_node_register node= {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.trace_format = eth_trace_format,
 };
 
 GR_NODE_REGISTER(info);
