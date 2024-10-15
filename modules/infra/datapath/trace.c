@@ -82,9 +82,9 @@ ipv4:
 			icmp = rte_pktmbuf_mtod_offset(m, const struct rte_icmp_hdr *, offset);
 			n += snprintf(buf + n, sizeof(buf) - n, " / ICMP");
 
-			if (icmp->icmp_type == RTE_IP_ICMP_ECHO_REQUEST && icmp->icmp_code == 0) {
+			if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST && icmp->icmp_code == 0) {
 				n += snprintf(buf + n, sizeof(buf) - n, " echo request");
-			} else if (icmp->icmp_type == RTE_IP_ICMP_ECHO_REPLY
+			} else if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY
 				   && icmp->icmp_code == 0) {
 				n += snprintf(buf + n, sizeof(buf) - n, " echo reply");
 			} else {
