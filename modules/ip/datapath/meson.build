@@ -6,6 +6,7 @@ src += files(
   'arp_output_reply.c',
   'arp_output_request.c',
   'icmp_input.c',
+  'icmp_local_send.c',
   'icmp_output.c',
   'ip_error.c',
   'ip_forward.c',
