@@ -56,6 +56,15 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
 }
 
+int icmp_local_send(
+	uint16_t vrf_id,
+	ip4_addr_t dst,
+	struct nexthop *gw,
+	uint16_t ident,
+	uint16_t seq_num,
+	uint8_t ttl
+);
+
 void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
 
 #endif
