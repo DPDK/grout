@@ -19,6 +19,11 @@ cleanup() {
 	rm -rf -- "$tmp"
 }
 
+fail() {
+	echo "fail: $*" >&2
+	return 1
+}
+
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1?builddir}
