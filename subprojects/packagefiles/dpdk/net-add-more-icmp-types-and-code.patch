@@ -1,0 +1,96 @@
+From 0f6661a40ca40593ddf524ea60688a668fb3b935 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Tue, 15 Oct 2024 11:53:55 +0200
+Subject: [PATCH dpdk] net: add more icmp types and code
+
+Add more ICMP message types and codes based on RFC 792. Change the
+namespace prefix from RTE_IP_ICMP_ to RTE_ICMP_ to allow differentiation
+between types and codes.
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ app/test-pmd/icmpecho.c | 10 +++++-----
+ lib/net/rte_icmp.h      | 31 +++++++++++++++++++++++++++++--
+ 2 files changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/app/test-pmd/icmpecho.c b/app/test-pmd/icmpecho.c
+index 68524484e305..4ef23ae67ac4 100644
+--- a/app/test-pmd/icmpecho.c
++++ b/app/test-pmd/icmpecho.c
+@@ -416,7 +416,7 @@ reply_to_icmp_echo_rqsts(struct fwd_stream *fs)
+ 		icmp_h = (struct rte_icmp_hdr *) ((char *)ip_h +
+ 					      sizeof(struct rte_ipv4_hdr));
+ 		if (! ((ip_h->next_proto_id == IPPROTO_ICMP) &&
+-		       (icmp_h->icmp_type == RTE_IP_ICMP_ECHO_REQUEST) &&
++		       (icmp_h->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) &&
+ 		       (icmp_h->icmp_code == 0))) {
+ 			rte_pktmbuf_free(pkt);
+ 			continue;
+@@ -440,7 +440,7 @@ reply_to_icmp_echo_rqsts(struct fwd_stream *fs)
+ 		 *     - switch the request IP source and destination
+ 		 *       addresses in the reply IP header,
+ 		 *     - keep the IP header checksum unchanged.
+-		 * - set RTE_IP_ICMP_ECHO_REPLY in ICMP header.
++		 * - set RTE_ICMP_TYPE_ECHO_REPLY in ICMP header.
+ 		 * ICMP checksum is computed by assuming it is valid in the
+ 		 * echo request and not verified.
+ 		 */
+@@ -463,10 +463,10 @@ reply_to_icmp_echo_rqsts(struct fwd_stream *fs)
+ 			ip_h->src_addr = ip_h->dst_addr;
+ 			ip_h->dst_addr = ip_addr;
+ 		}
+-		icmp_h->icmp_type = RTE_IP_ICMP_ECHO_REPLY;
++		icmp_h->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
+ 		cksum = ~icmp_h->icmp_cksum & 0xffff;
+-		cksum += ~RTE_BE16(RTE_IP_ICMP_ECHO_REQUEST << 8) & 0xffff;
+-		cksum += RTE_BE16(RTE_IP_ICMP_ECHO_REPLY << 8);
++		cksum += ~RTE_BE16(RTE_ICMP_TYPE_ECHO_REQUEST << 8) & 0xffff;
++		cksum += RTE_BE16(RTE_ICMP_TYPE_ECHO_REPLY << 8);
+ 		cksum = (cksum & 0xffff) + (cksum >> 16);
+ 		cksum = (cksum & 0xffff) + (cksum >> 16);
+ 		icmp_h->icmp_cksum = ~cksum;
+diff --git a/lib/net/rte_icmp.h b/lib/net/rte_icmp.h
+index 7a33280aa1e4..46914800618c 100644
+--- a/lib/net/rte_icmp.h
++++ b/lib/net/rte_icmp.h
+@@ -50,8 +50,35 @@ struct rte_icmp_hdr {
+ } __rte_packed;
+ 
+ /* ICMP packet types */
+-#define RTE_IP_ICMP_ECHO_REPLY   0
+-#define RTE_IP_ICMP_ECHO_REQUEST 8
++#define RTE_ICMP_TYPE_ECHO_REPLY 0
++#define RTE_IP_ICMP_ECHO_REPLY RTE_ICMP_TYPE_ECHO_REPLY
++#define RTE_ICMP_TYPE_DEST_UNREACHABLE 3
++#define RTE_ICMP_TYPE_REDIRECT 5
++#define RTE_ICMP_TYPE_ECHO_REQUEST 8
++#define RTE_IP_ICMP_ECHO_REQUEST RTE_ICMP_TYPE_ECHO_REQUEST
++#define RTE_ICMP_TYPE_TTL_EXCEEDED 11
++#define RTE_ICMP_TYPE_PARAM_PROBLEM 12
++#define RTE_ICMP_TYPE_TIMESTAMP_REQUEST 13
++#define RTE_ICMP_TYPE_TIMESTAMP_REPLY 14
++
++/* Destination Unreachable codes */
++#define RTE_ICMP_CODE_UNREACH_NET 0
++#define RTE_ICMP_CODE_UNREACH_HOST 1
++#define RTE_ICMP_CODE_UNREACH_PROTO 2
++#define RTE_ICMP_CODE_UNREACH_PORT 3
++#define RTE_ICMP_CODE_UNREACH_FRAG 4
++#define RTE_ICMP_CODE_UNREACH_SRC 5
++
++/* Time Exceeded codes */
++#define RTE_ICMP_CODE_TTL_EXCEEDED 0
++#define RTE_ICMP_CODE_TTL_FRAG 1
++
++/* Redirect codes */
++#define RTE_ICMP_CODE_REDIRECT_NET 0
++#define RTE_ICMP_CODE_REDIRECT_HOST 1
++#define RTE_ICMP_CODE_REDIRECT_TOS_NET 2
++#define RTE_ICMP_CODE_REDIRECT_TOS_HOST 3
++
+ #define RTE_ICMP6_ECHO_REQUEST 128
+ #define RTE_ICMP6_ECHO_REPLY   129
+ 
+-- 
+2.47.0
+

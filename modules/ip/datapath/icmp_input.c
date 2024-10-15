@@ -41,12 +41,12 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 		switch (icmp->icmp_type) {
-		case RTE_IP_ICMP_ECHO_REQUEST:
+		case RTE_ICMP_TYPE_ECHO_REQUEST:
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
 				goto next;
 			}
-			icmp->icmp_type = RTE_IP_ICMP_ECHO_REPLY;
+			icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
 			ip = ip_data->dst;
 			ip_data->dst = ip_data->src;
 			ip_data->src = ip;

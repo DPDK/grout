@@ -23,15 +23,16 @@ enum edges {
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
+	uint8_t icmp_type, icmp_code;
 	struct nexthop *nh, *local;
 	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	uint8_t icmp_type;
 	rte_edge_t edge;
 
 	icmp_type = node->ctx[0];
+	icmp_code = node->ctx[1];
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -65,7 +66,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		ip_data->proto = IPPROTO_ICMP;
 
 		icmp->icmp_type = icmp_type;
-		icmp->icmp_code = 0; // time to live exceeded in transit
+		icmp->icmp_code = icmp_code;
 		icmp->icmp_cksum = 0;
 		icmp->icmp_ident = 0;
 		icmp->icmp_seq_nb = 0;
@@ -79,12 +80,14 @@ next:
 }
 
 static int ttl_exceeded_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = GR_IP_ICMP_TTL_EXCEEDED;
+	node->ctx[0] = RTE_ICMP_TYPE_TTL_EXCEEDED;
+	node->ctx[1] = RTE_ICMP_CODE_TTL_EXCEEDED;
 	return 0;
 }
 
 static int no_route_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = GR_IP_ICMP_DEST_UNREACHABLE;
+	node->ctx[0] = RTE_ICMP_TYPE_DEST_UNREACHABLE;
+	node->ctx[1] = RTE_ICMP_CODE_UNREACH_NET;
 	return 0;
 }
 
