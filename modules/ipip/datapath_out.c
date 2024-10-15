@@ -57,6 +57,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		tunnel.len = rte_be_to_cpu_16(inner->total_length);
 		tunnel.vrf_id = iface->vrf_id;
 		tunnel.proto = IPPROTO_IPIP;
+		tunnel.ttl = IPV4_DEFAULT_TTL;
 		outer = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*outer));
 		if (unlikely(outer == NULL)) {
 			edge = NO_HEADROOM;
