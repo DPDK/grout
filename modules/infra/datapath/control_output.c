@@ -42,6 +42,10 @@ static struct rte_node_register control_output_node = {
 	},
 };
 
-static struct gr_node_info info __attribute__((used)) = {
+static struct gr_node_info info = {
 	.node = &control_output_node,
 };
+
+GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(control_output_error);

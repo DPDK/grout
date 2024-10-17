@@ -4,6 +4,7 @@
 #ifndef _GR_IP4_DATAPATH_H
 #define _GR_IP4_DATAPATH_H
 
+#include <gr_control_output.h>
 #include <gr_iface.h>
 #include <gr_ip4_control.h>
 #include <gr_mbuf.h>
@@ -54,5 +55,7 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 	ip->hdr_checksum = 0;
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
 }
+
+void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
 
 #endif
