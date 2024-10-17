@@ -79,6 +79,7 @@ struct iface *iface_create(
 		goto fail;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		if (strcmp(name, iface->name) == 0) {
+			iface = NULL;
 			errno = EEXIST;
 			goto fail;
 		}
