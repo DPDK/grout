@@ -3,7 +3,10 @@
 
 #include "gr_datapath.h"
 #include "gr_icmp6.h"
+#include "gr_trace.h"
 
+#include <gr_control.h>
+#include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_net_types.h>
 
@@ -11,11 +14,14 @@
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
+#include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
+#include <rte_mempool.h>
+#include <rte_ring.h>
 
 static ssize_t trace_icmp6(
 	char *buf,
@@ -346,4 +352,158 @@ static ssize_t trace_icmp6(
 	}
 
 	return n;
+}
+
+#define PACKET_COUNT_MAX RTE_GRAPH_BURST_SIZE
+
+static struct rte_mempool *trace_pool;
+static struct rte_ring *traced_packets;
+
+void *gr_trace_begin(struct rte_node *node, struct rte_mbuf *m, uint16_t data_len) {
+	struct gr_mbuf *gm = gr_mbuf(m);
+	struct gr_trace_item *pt;
+	void *data;
+
+	if (rte_mempool_get(trace_pool, &data) < 0)
+		return NULL;
+
+	gm->flags |= GR_MBUF_F_PKT_TRACE;
+	STAILQ_INIT(&gm->traces);
+	pt = data;
+
+	clock_gettime(CLOCK_REALTIME_COARSE, &pt->ts);
+	pt->cpu_id = rte_lcore_id();
+
+	pt->node_id = node->id;
+	pt->len = data_len;
+
+	STAILQ_INSERT_HEAD(&gm->traces, pt, next);
+
+	return pt->data;
+}
+
+void *gr_trace_add(struct rte_node *node, struct rte_mbuf *m, uint16_t data_len) {
+	struct gr_mbuf *gm = gr_mbuf(m);
+	struct gr_trace_item *pt;
+	void *data;
+
+	if (rte_mempool_get(trace_pool, &data) < 0)
+		return NULL;
+
+	pt = data;
+	pt->node_id = node->id;
+	pt->len = data_len;
+
+	STAILQ_INSERT_TAIL(&gm->traces, pt, next);
+	return pt->data;
+}
+
+static void free_trace(struct gr_trace_item *t) {
+	struct gr_trace_item *next;
+	while (t != NULL) {
+		next = STAILQ_NEXT(t, next);
+		rte_mempool_put(trace_pool, t);
+		t = next;
+	}
+}
+
+void gr_trace_aggregate(struct rte_mbuf *mbuf) {
+	struct gr_trace_item *t = NULL;
+	struct gr_mbuf *gm = gr_mbuf(mbuf);
+
+	gm->flags &= ~GR_MBUF_F_PKT_TRACE;
+	if (rte_ring_full(traced_packets) == 1) {
+		rte_ring_dequeue(traced_packets, (void *)&t);
+		free_trace(t);
+	}
+
+	t = STAILQ_FIRST(&gm->traces);
+	rte_ring_enqueue(traced_packets, t);
+}
+
+int trace_print(char *buf, size_t len) {
+	struct gr_trace_item *t, *head;
+	struct tm tm;
+	size_t sz = 0;
+	int c;
+
+	if (rte_ring_dequeue(traced_packets, (void *)&t) == 0) {
+		head = t;
+
+		gmtime_r(&t->ts.tv_sec, &tm);
+		sz += strftime(&buf[sz], len - sz, "--------- %H:%M:%S.", &tm);
+		sz += snprintf(&buf[sz], len - sz, "%09luZ", t->ts.tv_nsec);
+		sz += snprintf(&buf[sz], len - sz, " cpu %d ---------\n", t->cpu_id);
+
+		while (t) {
+			if ((c = snprintf(
+				     &buf[sz], sz - len, "%s: ", rte_node_id_to_name(t->node_id)
+			     ))
+			    < 0)
+				break;
+			sz += c;
+			if (gr_get_node_ext_funcs(t->node_id)->format_trace)
+				c = gr_get_node_ext_funcs(t->node_id)
+					    ->format_trace(t->data, &buf[sz], sz - len);
+			if (c < 0)
+				break;
+			sz += c;
+			if ((c = snprintf(&buf[sz], len - sz, "\n")) < 0)
+				break;
+			sz += c;
+			t = STAILQ_NEXT(t, next);
+		}
+		free_trace(head);
+		sz += snprintf(&buf[sz], len - sz, "\n");
+	}
+	return sz;
+}
+
+void trace_clear() {
+	struct gr_trace_item *t;
+	while (rte_ring_dequeue(traced_packets, (void *)&t) == 0)
+		free_trace(t);
+}
+
+static void trace_init(struct event_base *) {
+	trace_pool = rte_mempool_create(
+		"trace", // name
+		rte_align32pow2(PACKET_COUNT_MAX * 128) - 1,
+		sizeof(struct gr_trace_item),
+		0, // cache size
+		0, // priv size
+		NULL, // mp_init
+		NULL, // mp_init_arg
+		NULL, // obj_init
+		NULL, // obj_init_arg
+		SOCKET_ID_ANY,
+		0 // flags
+	);
+	if (trace_pool == NULL)
+		ABORT("rte_mempool_create(trace_pool) failed");
+	traced_packets = rte_ring_create(
+		"traced_packets",
+		PACKET_COUNT_MAX,
+		SOCKET_ID_ANY,
+		RING_F_SC_DEQ // flags
+	);
+
+	if (traced_packets == NULL)
+		ABORT("rte_stack_create(traced_packets) failed");
+}
+
+static void trace_fini(struct event_base *) {
+	trace_clear();
+	rte_mempool_free(trace_pool);
+	rte_ring_free(traced_packets);
+}
+
+static struct gr_module trace_module = {
+	.name = "trace",
+	.init = trace_init,
+	.fini = trace_fini,
+};
+
+RTE_INIT(trace_constructor) {
+	gr_register_module(&trace_module);
 }

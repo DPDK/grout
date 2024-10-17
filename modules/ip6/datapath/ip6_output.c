@@ -11,6 +11,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -150,6 +151,13 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = iface;
 		sent++;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip6_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->proto;
+			t->hop_limits = ip->hop_limits;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -170,6 +178,7 @@ static struct rte_node_register output_node = {
 
 static struct gr_node_info info = {
 	.node = &output_node,
+	.ext_funcs.format_trace = format_ip6_data,
 };
 
 GR_NODE_REGISTER(info);

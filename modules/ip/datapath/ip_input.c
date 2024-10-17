@@ -6,6 +6,8 @@
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_net_types.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_errno.h>
@@ -25,6 +27,27 @@ enum edges {
 	OTHER_HOST,
 	EDGE_COUNT,
 };
+
+int format_ip_data(void *data, char *buf, size_t len) {
+	struct trace_ip_data *t = data;
+	int c, s;
+
+	if ((c = snprintf(
+		     buf,
+		     len,
+		     IP4_ADDR_FMT " -> " IP4_ADDR_FMT " ttl %d nextproto: ",
+		     IP4_ADDR_SPLIT(&t->src),
+		     IP4_ADDR_SPLIT(&t->dst),
+		     t->ttl
+	     ))
+	    < 0)
+		return c;
+
+	if ((s = nextproto_format(t->proto, buf + c, len - c)) < 0)
+		return s;
+
+	return c + s;
+}
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -111,6 +134,13 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		else
 			edge = FORWARD;
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ip_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->src = ip->src_addr;
+			t->dst = ip->dst_addr;
+			t->proto = ip->next_proto_id;
+			t->ttl = ip->time_to_live;
+		}
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
 		d->nh = nh;
 		d->input_iface = iface;
@@ -143,6 +173,7 @@ static struct rte_node_register input_node = {
 static struct gr_node_info info = {
 	.node = &input_node,
 	.register_callback = ip_input_register,
+	.ext_funcs.format_trace = format_ip_data,
 };
 
 GR_NODE_REGISTER(info);

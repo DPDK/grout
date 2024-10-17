@@ -137,4 +137,52 @@ static inline int ip6_net_format(const struct ip6_net *net, char *buf, size_t le
 	return snprintf(buf + n, len - n, "/%u", net->prefixlen);
 }
 
+static inline int ethertype_format(const rte_be16_t ethertype, char *buf, size_t len) {
+	static const char *ethertypes[UINT16_MAX + 1] = {
+		[RTE_BE16(RTE_ETHER_TYPE_IPV4)] = "IP",
+		[RTE_BE16(RTE_ETHER_TYPE_IPV6)] = "IP6",
+		[RTE_BE16(RTE_ETHER_TYPE_ARP)] = "ARP",
+		[RTE_BE16(RTE_ETHER_TYPE_VLAN)] = "VLAN",
+		[RTE_BE16(RTE_ETHER_TYPE_QINQ)] = "QINQ",
+		[RTE_BE16(RTE_ETHER_TYPE_SLOW)] = "LACP",
+		[RTE_BE16(RTE_ETHER_TYPE_LLDP)] = "LLDP",
+		[RTE_BE16(RTE_ETHER_TYPE_MPLS)] = "MPLS",
+		[RTE_BE16(RTE_ETHER_TYPE_1588)] = "PTP",
+	};
+	if (ethertypes[ethertype])
+		return snprintf(buf, len, "%s", ethertypes[ethertype]);
+	else
+		return snprintf(buf, len, "ethertype %#04x", rte_be_to_cpu_16(ethertype));
+}
+
+static inline int nextproto_format(const uint8_t proto, char *buf, size_t len) {
+	static const char *protos[UINT8_MAX + 1] = {
+		[IPPROTO_HOPOPTS] = "IPv6 Hop-by-Hop",
+		[IPPROTO_ICMP] = "ICMP",
+		[IPPROTO_IGMP] = "IGMP",
+		[IPPROTO_IPIP] = "IP in IP",
+		[IPPROTO_TCP] = "TCP",
+		[IPPROTO_UDP] = "UDP",
+		[IPPROTO_IPV6] = "IPv6 Header",
+		[IPPROTO_ROUTING] = "IPv6 Routing Header",
+		[IPPROTO_FRAGMENT] = "IPv6 Fragment Header",
+		[IPPROTO_GRE] = "GRE",
+		[IPPROTO_ESP] = "ESP",
+		[IPPROTO_AH] = "Authentication Header",
+		[IPPROTO_MTP] = "Multicast Transport Protocol",
+		[IPPROTO_ICMPV6] = "IPv6 ICMP",
+		[IPPROTO_NONE] = "IPv6 No Next Header",
+		[IPPROTO_DSTOPTS] = "IPv6 Destination Options",
+		[IPPROTO_SCTP] = "SCTP",
+		[IPPROTO_MH] = "IPv6 Mobility Header",
+		[IPPROTO_UDPLITE] = "UDP Lite",
+		[IPPROTO_MPLS] = "MPLS In IP",
+		[IPPROTO_ETHERNET] = "Ethernet-within-IPv6 Encapsulation",
+		[IPPROTO_RAW] = "Raw IP Packets",
+	};
+	if (protos[proto])
+		return snprintf(buf, len, "%s", protos[proto]);
+	else
+		return snprintf(buf, len, "%d", proto);
+}
 #endif
