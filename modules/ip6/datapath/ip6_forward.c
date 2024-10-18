@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_graph.h>
+#include <gr_trace.h>
 
 #include <rte_fib6.h>
 #include <rte_graph_worker.h>
@@ -23,6 +24,8 @@ ip6_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
+		if (unlikely(gr_mbuf_trace_is_set(mbuf)))
+			gr_trace_add(node, mbuf, 0);
 
 		if (ip->hop_limits <= 1) {
 			rte_node_enqueue_x1(graph, node, TTL_EXCEEDED, mbuf);

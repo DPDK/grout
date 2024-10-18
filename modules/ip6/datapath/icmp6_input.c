@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -24,6 +25,26 @@ enum {
 	EDGE_COUNT,
 };
 
+struct trace_icmp6_data {
+	uint16_t type;
+};
+
+static int format_icmp6_data(void *data, char *buf, size_t len) {
+	struct trace_icmp6_data *t = data;
+	static const char *ICMP6_STR[UINT16_MAX] = {
+		[ICMP6_TYPE_ECHO_REQUEST] = "Echo Request",
+		[ICMP6_TYPE_ECHO_REPLY] = "Echo Reply",
+		[ICMP6_TYPE_NEIGH_SOLICIT] = "Neighbor Solicitation",
+		[ICMP6_TYPE_NEIGH_ADVERT] = "Neighbor Advertisement",
+		[ICMP6_TYPE_ROUTER_SOLICIT] = "Router Solicitation",
+		[ICMP6_TYPE_ROUTER_ADVERT] = "Router Advertisement",
+	};
+	if (ICMP6_STR[t->type])
+		return snprintf(buf, len, "%s", ICMP6_STR[t->type]);
+	else
+		return snprintf(buf, len, "type: %d", t->type);
+}
+
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip6_local_mbuf_data *d;
@@ -36,6 +57,11 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		mbuf = objs[i];
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
 		d = ip6_local_mbuf_data(mbuf);
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_icmp6_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			t->type = icmp6->type;
+		}
 
 		switch (icmp6->type) {
 		case ICMP6_TYPE_ECHO_REQUEST:
@@ -91,6 +117,7 @@ static struct rte_node_register icmp6_input_node = {
 static struct gr_node_info icmp6_input_info = {
 	.node = &icmp6_input_node,
 	.register_callback = icmp6_input_register,
+	.ext_funcs.format_trace = format_icmp6_data,
 };
 
 GR_NODE_REGISTER(icmp6_input_info);

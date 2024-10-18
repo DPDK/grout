@@ -65,4 +65,13 @@ void ndp_update_nexthop(
 	const struct rte_ether_addr *mac
 );
 
+struct trace_ip6_data {
+	struct rte_ipv6_addr src;
+	struct rte_ipv6_addr dst;
+	uint8_t hop_limits;
+	uint8_t proto;
+};
+
+int format_ip6_data(void *data, char *buf, size_t len);
+
 #endif

@@ -10,6 +10,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -61,7 +62,14 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->eth_dst = ETH_DST_LOCAL;
 		edge = IP_INPUT;
+
 next:
+		// Even if ipip is not a source node, the user may want to trace
+		// packets from this tunnel interface
+		if (unlikely(ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE))
+			gr_trace_begin(node, mbuf, 0);
+		else if (unlikely(gr_mbuf_trace_is_set(mbuf)))
+			gr_trace_add(node, mbuf, 0);
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 

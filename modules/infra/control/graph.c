@@ -260,6 +260,11 @@ int worker_graph_reload_all(void) {
 	return 0;
 }
 
+static struct node_ext_funcs node_funcs[UINT16_MAX];
+struct node_ext_funcs *gr_get_node_ext_funcs(uint16_t node) {
+	return &node_funcs[node];
+}
+
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
@@ -274,6 +279,7 @@ static void graph_init(struct event_base *) {
 		if (reg->id == RTE_NODE_ID_INVALID)
 			ABORT("__rte_node_register(%s): %s", reg->name, rte_strerror(rte_errno));
 		arrpush(node_names, reg->name);
+		node_funcs[reg->id].format_trace = info->ext_funcs.format_trace;
 	}
 
 	// then, invoke all registration callbacks where applicable

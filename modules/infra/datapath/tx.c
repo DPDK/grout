@@ -5,6 +5,7 @@
 
 #include <gr_graph.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 #include <gr_worker.h>
 
 #include <rte_build_config.h>
@@ -23,6 +24,17 @@ struct tx_ctx {
 	uint16_t txq_ids[RTE_MAX_ETHPORTS];
 };
 
+struct trace_tx_data {
+	uint16_t iface_id;
+	uint16_t port_id;
+	uint16_t queue_id;
+};
+
+static int format_tx_output(void *data, char *buf, size_t len) {
+	struct trace_tx_data *t = data;
+	return snprintf(buf, len, "p%dq%d", t->port_id, t->queue_id);
+}
+
 static inline void tx_burst(
 	struct rte_graph *graph,
 	struct rte_node *node,
@@ -40,6 +52,16 @@ static inline void tx_burst(
 		tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
 		if (tx_ok < n)
 			rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
+		for (int i = 0; i < tx_ok; i++) {
+			if (unlikely(gr_mbuf_trace_is_set(mbufs[i]))) {
+				struct trace_tx_data *t = gr_trace_add(node, mbufs[i], sizeof(*t));
+				if (t) {
+					t->queue_id = txq_id;
+					t->port_id = port_id;
+				}
+				gr_trace_aggregate(mbufs[i]);
+			}
+		}
 	}
 }
 
@@ -111,6 +133,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.ext_funcs.format_trace = format_tx_output,
 };
 
 GR_NODE_REGISTER(info);

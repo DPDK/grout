@@ -4,6 +4,7 @@
 cli_src += files(
   'graph.c',
   'iface.c',
+  'trace.c',
   'port.c',
   'vlan.c',
   'stats.c',

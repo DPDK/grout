@@ -67,4 +67,13 @@ int icmp_local_send(
 
 void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
 
+struct trace_ip_data {
+	ip4_addr_t src;
+	ip4_addr_t dst;
+	uint8_t proto;
+	uint8_t ttl;
+};
+
+int format_ip_data(void *data, char *buf, size_t);
+
 #endif

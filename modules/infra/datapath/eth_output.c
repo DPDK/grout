@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "eth_trace_priv.h"
 #include "gr_datapath.h"
 #include "gr_eth_output.h"
 
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
+#include <gr_net_types.h>
 #include <gr_port.h>
+#include <gr_trace.h>
 #include <gr_vlan.h>
 
 #include <rte_ether.h>
@@ -22,6 +25,35 @@ enum {
 	NB_EDGES,
 };
 
+int format_eth(void *data, char *buf, size_t len) {
+	struct trace_ether_data *t = data;
+	const struct iface *iface = iface_from_id(t->iface_id);
+	const char *ifname = iface ? iface->name : "[deleted]";
+	int c, s;
+
+	if ((c = ethertype_format(t->ether_type, buf, len)) < 0)
+		return c;
+
+	if ((s = snprintf(
+		     buf + c,
+		     len - c,
+		     " " ETH_ADDR_FMT " -> " ETH_ADDR_FMT " iface %s",
+		     ETH_ADDR_SPLIT(&t->src),
+		     ETH_ADDR_SPLIT(&t->dst),
+		     ifname
+	     ))
+	    < 0)
+		return s;
+	c += s;
+
+	if (t->vlan_id != 0) {
+		if ((s = snprintf(buf + c, len - c, " vlan %d", t->vlan_id)) < 0)
+			return s;
+		c += s;
+	}
+	return c;
+}
+
 static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct rte_ether_addr *src_mac;
@@ -35,6 +67,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		priv = eth_output_mbuf_data(mbuf);
+		sub = NULL;
 
 		switch (priv->iface->type_id) {
 		case GR_IFACE_TYPE_VLAN:
@@ -71,6 +104,18 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->port = port->port_id;
 		if (unlikely(packet_trace_enabled))
 			trace_packet("tx", priv->iface->name, mbuf);
+
+		if (unlikely(gr_mbuf_trace_is_set(mbuf))) {
+			struct trace_ether_data *t = gr_trace_add(node, mbuf, sizeof(*t));
+			if (t) {
+				t->dst = eth->dst_addr;
+				t->src = eth->src_addr;
+				t->ether_type = eth->ether_type;
+				t->iface_id = priv->iface->id;
+				t->vlan_id = sub ? sub->vlan_id : 0;
+			}
+		}
+
 		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 
@@ -92,6 +137,7 @@ static struct rte_node_register node= {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.ext_funcs.format_trace = format_eth,
 };
 
 GR_NODE_REGISTER(info);

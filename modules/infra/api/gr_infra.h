@@ -25,6 +25,7 @@
 #define GR_IFACE_F_UP GR_BIT16(0)
 #define GR_IFACE_F_PROMISC GR_BIT16(1)
 #define GR_IFACE_F_ALLMULTI GR_BIT16(2)
+#define GR_IFACE_F_PACKET_TRACE GR_BIT16(3)
 // Interface state flags
 #define GR_IFACE_S_RUNNING GR_BIT16(0)
 
@@ -201,6 +202,29 @@ struct gr_infra_stats_get_resp {
 struct gr_infra_graph_dump_resp {
 	uint32_t len;
 	char dot[/* len */];
+};
+
+// packet tracing //////////////////////////////////////////////////////////////
+#define GR_INFRA_PACKET_TRACE_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0040)
+
+// struct gr_infra_trace_clear_req { };
+// struct gr_infra_trace_clear_resp { };
+
+#define GR_INFRA_PACKET_TRACE_SHOW REQUEST_TYPE(GR_INFRA_MODULE, 0x0041)
+
+// struct gr_infra_trace_dump_req { };
+
+struct gr_infra_packet_trace_resp {
+	uint32_t len;
+	char trace[/* len */];
+};
+
+#define GR_INFRA_PACKET_TRACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0042)
+
+struct gr_infra_packet_trace_set_req {
+	bool enabled;
+	bool all;
+	uint16_t iface_id;
 };
 
 #endif

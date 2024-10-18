@@ -11,6 +11,7 @@
 #include <gr_ipip.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -68,7 +69,10 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = ip4_route_lookup(iface->vrf_id, ipip->remote);
 		edge = IP_OUTPUT;
+
 next:
+		if (unlikely(gr_mbuf_trace_is_set(mbuf)))
+			gr_trace_add(node, mbuf, 0);
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
