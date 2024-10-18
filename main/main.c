@@ -10,6 +10,7 @@
 
 #include <gr_api.h>
 #include <gr_log.h>
+#include <gr_trace.h>
 #include <gr_vec.h>
 
 #include <event2/event.h>
@@ -52,7 +53,6 @@ static void usage(const char *prog) {
 }
 
 static struct gr_args args;
-bool packet_trace_enabled;
 
 const struct gr_args *gr_args(void) {
 	return &args;
@@ -117,7 +117,7 @@ static int parse_args(int argc, char **argv) {
 			gr_vec_add(args.eal_extra_args, optarg);
 			break;
 		case 'x':
-			packet_trace_enabled = true;
+			gr_packet_logging_set(true);
 			break;
 		case 'v':
 			args.log_level++;

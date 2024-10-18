@@ -9,10 +9,19 @@
 
 #include <stdatomic.h>
 
+static atomic_bool packet_log_enabled = false;
 static atomic_bool trace_enabled = false;
 
 bool gr_trace_all_enabled() {
 	return atomic_load(&trace_enabled);
+}
+
+bool gr_packet_logging_enabled() {
+	return atomic_load(&packet_log_enabled);
+}
+
+void gr_packet_logging_set(bool e) {
+	packet_log_enabled = e;
 }
 
 static void iface_callback(iface_event_t event, struct iface *iface) {
@@ -76,6 +85,16 @@ static struct api_out clear_trace(const void * /*request*/, void ** /*response*/
 	return api_out(0, 0);
 }
 
+static struct api_out packet_log_enable(const void * /*request */, void ** /*response*/) {
+	gr_packet_logging_set(true);
+	return api_out(0, 0);
+}
+
+static struct api_out packet_log_disable(const void * /*request */, void ** /*response*/) {
+	gr_packet_logging_set(false);
+	return api_out(0, 0);
+}
+
 static struct gr_api_handler set_trace_handler = {
 	.name = "trace set",
 	.request_type = GR_INFRA_PACKET_TRACE_SET,
@@ -94,6 +113,18 @@ static struct gr_api_handler clear_trace_handler = {
 	.callback = clear_trace,
 };
 
+static struct gr_api_handler set_packet_log_handler = {
+	.name = "set packet logging",
+	.request_type = GR_INFRA_PACKET_LOG_SET,
+	.callback = packet_log_enable,
+};
+
+static struct gr_api_handler clear_packet_log_handler = {
+	.name = "clear packet logging",
+	.request_type = GR_INFRA_PACKET_LOG_CLEAR,
+	.callback = packet_log_disable,
+};
+
 static struct iface_event_handler iface_event_trace_handler = {
 	.callback = iface_callback,
 };
@@ -102,5 +133,7 @@ RTE_INIT(trace_init) {
 	gr_register_api_handler(&set_trace_handler);
 	gr_register_api_handler(&dump_trace_handler);
 	gr_register_api_handler(&clear_trace_handler);
+	gr_register_api_handler(&set_packet_log_handler);
+	gr_register_api_handler(&clear_packet_log_handler);
 	iface_event_register_handler(&iface_event_trace_handler);
 }

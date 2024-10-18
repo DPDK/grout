@@ -40,6 +40,4 @@ static inline void *__errno_log_null(int errnum, const char *func, const char *w
 
 #define errno_log_null(err, what) __errno_log_null(err, __func__, what)
 
-extern bool packet_trace_enabled;
-
 #endif

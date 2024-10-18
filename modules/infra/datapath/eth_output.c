@@ -70,7 +70,8 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->src_addr = *src_mac;
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
-		if (unlikely(packet_trace_enabled))
+
+		if (gr_packet_logging_enabled())
 			trace_log_packet(mbuf, "tx", priv->iface->name);
 
 		if (gr_mbuf_is_traced(mbuf)) {

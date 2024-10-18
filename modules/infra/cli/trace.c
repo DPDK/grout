@@ -91,6 +91,20 @@ static cmd_status_t trace_clear(const struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t packet_logging_set(const struct gr_api_client *c, const struct ec_pnode *) {
+	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_SET, 0, NULL, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t packet_logging_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_CLEAR, 0, NULL, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
@@ -145,6 +159,24 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_CLEAR), "trace", trace_clear, "Clear packet tracing buffer.",
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SET),
+		"packet logging",
+		packet_logging_set,
+		"Dump packets on grout stdout.",
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_CLEAR),
+		"packet logging",
+		packet_logging_clear,
+		"Stop packet dump on grout stdout.",
 	);
 	if (ret < 0)
 		return ret;
