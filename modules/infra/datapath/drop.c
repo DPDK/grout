@@ -10,9 +10,9 @@
 #include <rte_mbuf.h>
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	if (unlikely(packet_trace_enabled)) {
+	if (unlikely(gr_packet_logging_enabled()))
 		LOG(NOTICE, "[%s] %u packets", node->name, nb_objs);
-	}
+
 	for (int i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
 		if (gr_mbuf_is_traced(mbuf)) {

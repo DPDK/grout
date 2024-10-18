@@ -236,4 +236,12 @@ struct gr_infra_packet_trace_set_req {
 
 // struct gr_infra_packet_trace_set_resp { };
 
+#define GR_INFRA_PACKET_LOG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0043)
+// struct gr_infra_packet_log_set_req { };
+// struct gr_infra_packet_log_set_resp { };
+
+#define GR_INFRA_PACKET_LOG_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0044)
+// struct gr_infra_packet_log_clear_req { };
+// struct gr_infra_packet_log_clear_resp { };
+
 #endif

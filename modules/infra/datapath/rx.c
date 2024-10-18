@@ -69,7 +69,8 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 				t->queue_id = q.rxq_id;
 			}
 		}
-		if (unlikely(packet_trace_enabled)) {
+
+		if (gr_packet_logging_enabled()) {
 			for (r = count; r < count + rx; r++) {
 				trace_log_packet(node->objs[r], "rx", iface->name);
 			}
