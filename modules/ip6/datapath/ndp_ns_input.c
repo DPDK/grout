@@ -120,7 +120,7 @@ static uint16_t ndp_ns_input_process(
 			// If the source of the solicitation is the unspecified address, the
 			// node MUST set the Solicited flag to zero and multicast the
 			// advertisement to the all-nodes address.
-			src = RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
+			src = (struct rte_ipv6_addr)RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
 			na->solicited = 0;
 		} else {
 			if (lladdr_found) {
