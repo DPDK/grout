@@ -49,7 +49,7 @@ static inline void ip6_set_fields(
 	struct rte_ipv6_addr *src,
 	struct rte_ipv6_addr *dst
 ) {
-	ip->vtc_flow = RTE_IPV6_VTC_FLOW_VERSION;
+	ip->vtc_flow = RTE_BE32(0x60000000);
 	ip->payload_len = rte_cpu_to_be_16(len);
 	ip->proto = proto;
 	ip->hop_limits = IP6_DEFAULT_HOP_LIMIT;

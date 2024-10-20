@@ -60,7 +60,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		if (unlikely(rte_ipv6_addr_is_mcast(&ip->dst_addr))) {
 			switch (rte_ipv6_mc_scope(&ip->dst_addr)) {
-			case RTE_IPV6_MC_SCOPE_RESERVED:
+			case RTE_IPV6_MC_SCOPE_NONE:
 				// RFC4291 2.7:
 				// Nodes must not originate a packet to a multicast address
 				// whose scope field contains the reserved value 0; if such
