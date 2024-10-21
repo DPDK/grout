@@ -3,7 +3,6 @@
 
 #include "gr_control_output.h"
 
-#include <gr_control.h>
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>

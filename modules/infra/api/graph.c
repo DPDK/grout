@@ -4,7 +4,7 @@
 #include "gr_infra.h"
 
 #include <gr_api.h>
-#include <gr_control.h>
+#include <gr_module.h>
 #include <gr_worker.h>
 
 #include <rte_graph_worker.h>

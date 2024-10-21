@@ -2,11 +2,11 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
-#include <gr_control.h>
 #include <gr_infra.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
 #include <gr_log.h>
+#include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
 

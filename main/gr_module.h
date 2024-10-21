@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CONTROL
-#define _GR_CONTROL
+#ifndef _GR_MODULE
+#define _GR_MODULE
 
 #include <event2/event.h>
 

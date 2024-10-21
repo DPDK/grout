@@ -3,9 +3,9 @@
 
 src += files(
   'api.c',
-  'control.c',
   'dpdk.c',
   'main.c',
+  'module.c',
   'sd_notify.c',
   'signals.c',
 )

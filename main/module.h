@@ -5,7 +5,7 @@
 #define _GR_CONTROL_PRIV
 
 #include <gr_api.h>
-#include <gr_control.h>
+#include <gr_module.h>
 
 #include <event2/event.h>
 

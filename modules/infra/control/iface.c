@@ -3,9 +3,9 @@
 
 #include "gr_iface.h"
 
-#include <gr_control.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_module.h>
 #include <gr_stb_ds.h>
 #include <gr_string.h>
 

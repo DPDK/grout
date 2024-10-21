@@ -2,9 +2,9 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "api.h"
-#include "control.h"
 #include "dpdk.h"
 #include "gr.h"
+#include "module.h"
 #include "sd_notify.h"
 #include "signals.h"
 

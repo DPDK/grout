@@ -4,11 +4,11 @@
 #include "gr_ipip.h"
 #include "ipip_priv.h"
 
-#include <gr_control.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip4_control.h>
 #include <gr_log.h>
+#include <gr_module.h>
 #include <gr_port.h>
 
 #include <event2/event.h>
