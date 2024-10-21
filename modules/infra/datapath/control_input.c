@@ -3,8 +3,7 @@
 
 #include "gr_control_input.h"
 
-#include <gr_eth_input.h>
-#include <gr_eth_output.h>
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>

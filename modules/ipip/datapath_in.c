@@ -4,7 +4,7 @@
 #include "ipip_priv.h"
 
 #include <gr_datapath.h>
-#include <gr_eth_input.h>
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
