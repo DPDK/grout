@@ -10,9 +10,8 @@
 #include <gr_log.h>
 #include <gr_port.h>
 #include <gr_queue.h>
-#include <gr_rx.h>
+#include <gr_rxtx.h>
 #include <gr_stb_ds.h>
-#include <gr_tx.h>
 #include <gr_worker.h>
 
 #include <event2/event.h>
