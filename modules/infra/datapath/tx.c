@@ -3,7 +3,9 @@
 
 #include <gr_graph.h>
 #include <gr_log.h>
+#include <gr_mbuf.h>
 #include <gr_rxtx.h>
+#include <gr_trace.h>
 #include <gr_worker.h>
 
 #include <rte_build_config.h>
@@ -39,6 +41,16 @@ static inline void tx_burst(
 		tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
 		if (tx_ok < n)
 			rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
+		for (int i = 0; i < tx_ok; i++) {
+			// FIXME racy: we are operating on mbufs already passed to driver
+			if (gr_mbuf_is_traced(mbufs[i])) {
+				struct rxtx_trace_data *t;
+				t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
+				t->queue_id = txq_id;
+				t->port_id = port_id;
+				gr_mbuf_trace_finish(mbufs[i]);
+			}
+		}
 	}
 }
 
@@ -110,6 +122,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.trace_format = rxtx_trace_format,
 };
 
 GR_NODE_REGISTER(info);
