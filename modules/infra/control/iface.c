@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "gr_iface.h"
-
+#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>

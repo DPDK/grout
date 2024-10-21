@@ -4,7 +4,7 @@
 #ifndef _GR_NET_TYPES
 #define _GR_NET_TYPES
 
-#include "gr_errno.h"
+#include <gr_errno.h>
 
 #include <rte_ip6.h>
 

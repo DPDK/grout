@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "gr_cli_iface.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 #include <gr_string.h>
