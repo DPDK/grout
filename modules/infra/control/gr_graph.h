@@ -18,6 +18,7 @@ int gr_node_data_set(const char *graph, const char *node, void *data);
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node);
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
+int drop_format(char *buf, size_t buf_len, const void *data, size_t data_len);
 
 typedef void (*gr_node_register_cb_t)(void);
 
@@ -46,6 +47,7 @@ extern struct node_infos node_infos;
 	};                                                                                         \
 	static struct gr_node_info drop_info_##node_name = {                                       \
 		.node = &drop_node_##node_name,                                                    \
+		.trace_format = drop_format,                                                       \
 	};                                                                                         \
 	RTE_INIT(gr_drop_register_##node_name) {                                                   \
 		STAILQ_INSERT_TAIL(&node_infos, &drop_info_##node_name, next);                     \

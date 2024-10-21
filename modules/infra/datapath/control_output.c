@@ -5,6 +5,7 @@
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_ether.h>
 #include <rte_graph_worker.h>
@@ -22,8 +23,14 @@ static uint16_t control_output_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		if (control_output_enqueue(objs[i]) < 0)
 			rte_node_enqueue_x1(graph, node, ERROR, objs[i]);
-		else
+		else {
 			sent++;
+			if (gr_mbuf_is_traced(objs[i])) {
+				// FIXME racy: we are operating on mbufs already enqueued in ring
+				gr_mbuf_trace_add(objs[i], node, 0);
+				gr_mbuf_trace_finish(objs[i]);
+			}
+		}
 	}
 	if (sent > 0)
 		control_output_done();

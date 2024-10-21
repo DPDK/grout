@@ -7,6 +7,7 @@
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_mempool.h>
+#include <gr_trace.h>
 
 #include <rte_ether.h>
 #include <rte_graph_worker.h>
@@ -71,6 +72,8 @@ static uint16_t control_input_process(
 	for (unsigned i = 0; i < n; i++) {
 		mbuf = rte_pktmbuf_alloc(mp);
 		if (mbuf) {
+			if (gr_trace_all_enabled())
+				gr_mbuf_trace_add(mbuf, node, 0); // no data
 			control_input_mbuf_data(mbuf)->data = msg[i].data;
 			rte_node_enqueue_x1(graph, node, control_input_edges[msg[i].type], mbuf);
 		}

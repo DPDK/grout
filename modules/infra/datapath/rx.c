@@ -31,6 +31,11 @@ struct rx_ctx {
 	struct rx_port_queue queues[/* n_queues */];
 };
 
+int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
+	const struct rxtx_trace_data *t = data;
+	return snprintf(buf, len, "port=%u queue=%u", t->port_id, t->queue_id);
+}
+
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uint16_t count) {
 	const struct rx_ctx *ctx = node->ctx_ptr;
@@ -55,6 +60,14 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 			d = eth_input_mbuf_data(node->objs[r]);
 			d->iface = iface;
 			d->eth_dst = ETH_DST_UNKNOWN;
+		}
+		if (unlikely(iface && iface->flags & GR_IFACE_F_PACKET_TRACE)) {
+			struct rxtx_trace_data *t;
+			for (r = count; r < count + rx; r++) {
+				t = gr_mbuf_trace_add(node->objs[r], node, sizeof(*t));
+				t->port_id = q.port_id;
+				t->queue_id = q.rxq_id;
+			}
 		}
 		if (unlikely(packet_trace_enabled)) {
 			for (r = count; r < count + rx; r++) {
@@ -113,6 +126,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.trace_format = rxtx_trace_format,
 };
 
 GR_NODE_REGISTER(info);
