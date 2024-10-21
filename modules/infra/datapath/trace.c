@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "gr_datapath.h"
 #include "gr_icmp6.h"
+#include "gr_trace.h"
 
 #include <gr_log.h>
 #include <gr_net_types.h>
@@ -25,7 +25,7 @@ static ssize_t trace_icmp6(
 	uint16_t payload_len
 );
 
-void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m) {
+void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
 	uint16_t ether_type;

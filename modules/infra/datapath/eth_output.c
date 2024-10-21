@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "gr_datapath.h"
 #include "gr_eth.h"
 
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_port.h>
+#include <gr_trace.h>
 #include <gr_vlan.h>
 
 #include <rte_ether.h>
@@ -70,7 +70,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
 		if (unlikely(packet_trace_enabled))
-			trace_packet("tx", priv->iface->name, mbuf);
+			trace_log_packet(mbuf, "tx", priv->iface->name);
 		rte_node_enqueue_x1(graph, node, TX, mbuf);
 	}
 
