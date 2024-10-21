@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "gr_datapath.h"
 #include "gr_eth.h"
 #include "gr_rxtx.h"
 
@@ -9,6 +8,7 @@
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_port.h>
+#include <gr_trace.h>
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
@@ -59,7 +59,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 		}
 		if (unlikely(packet_trace_enabled)) {
 			for (r = count; r < count + rx; r++) {
-				trace_packet("rx", iface->name, node->objs[r]);
+				trace_log_packet(node->objs[r], "rx", iface->name);
 			}
 		}
 

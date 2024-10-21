@@ -4,10 +4,6 @@
 #ifndef _GR_INFRA_DATAPATH
 #define _GR_INFRA_DATAPATH
 
-#include <rte_mbuf.h>
-
 void *gr_datapath_loop(void *priv);
-
-void trace_packet(const char *node, const char *iface, const struct rte_mbuf *m);
 
 #endif
