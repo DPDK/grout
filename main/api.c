@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "api.h"
-#include "control.h"
 #include "gr.h"
+#include "module.h"
 
 #include <gr_api.h>
 #include <gr_log.h>

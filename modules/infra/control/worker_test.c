@@ -6,9 +6,9 @@
 #include <gr.h>
 #include <gr_api.h>
 #include <gr_cmocka.h>
-#include <gr_control.h>
 #include <gr_infra.h>
 #include <gr_mempool.h>
+#include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_stb_ds.h>

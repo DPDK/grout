@@ -2,9 +2,9 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include <gr.h>
-#include <gr_control.h>
 #include <gr_datapath.h>
 #include <gr_log.h>
+#include <gr_module.h>
 #include <gr_worker.h>
 
 #include <rte_atomic.h>

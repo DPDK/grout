@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control.h>
 #include <gr_control_output.h>
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_mbuf.h>
+#include <gr_module.h>
 
 #include <event2/event.h>
 #include <rte_ether.h>
