@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_ETH_INPUT
-#define _GR_INFRA_ETH_INPUT
-
-#include "gr_mbuf.h"
+#ifndef _GR_INFRA_ETH
+#define _GR_INFRA_ETH
 
 #include <gr_iface.h>
+#include <gr_mbuf.h>
 
 #include <rte_byteorder.h>
+#include <rte_ether.h>
 #include <rte_graph.h>
 
 typedef enum {
@@ -23,6 +23,12 @@ GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, {
 	const struct iface *iface;
 	eth_dst_type_t eth_dst;
 })
+
+GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
+	const struct iface *iface;
+	struct rte_ether_addr dst;
+	rte_be16_t ether_type;
+});
 
 void gr_eth_input_add_type(rte_be16_t eth_type, const char *node_name);
 

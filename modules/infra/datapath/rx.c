@@ -2,7 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "gr_datapath.h"
-#include "gr_eth_input.h"
+#include "gr_eth.h"
 #include "gr_rxtx.h"
 
 #include <gr_graph.h>
