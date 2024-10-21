@@ -4,7 +4,7 @@
 #ifndef _GR_CONTROL_WORKER
 #define _GR_CONTROL_WORKER
 
-#include "gr_worker.h"
+#include <gr_worker.h>
 
 int port_unplug(uint16_t port_id);
 int port_plug(uint16_t port_id);

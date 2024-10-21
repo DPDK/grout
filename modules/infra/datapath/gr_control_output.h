@@ -4,9 +4,7 @@
 #ifndef _GR_CONTROL_OUTPUT_PATH
 #define _GR_CONTROL_OUTPUT_PATH
 
-#include "gr_mbuf.h"
-
-#include <rte_graph.h>
+#include <gr_mbuf.h>
 
 #include <time.h>
 

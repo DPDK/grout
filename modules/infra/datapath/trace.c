@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "gr_icmp6.h"
-#include "gr_trace.h"
-
+#include <gr_icmp6.h>
 #include <gr_log.h>
 #include <gr_net_types.h>
+#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>

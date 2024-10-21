@@ -2,7 +2,8 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "exec.h"
-#include "gr_cli.h"
+
+#include <gr_cli.h>
 
 #include <ecoli.h>
 #include <rte_ether.h>

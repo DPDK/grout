@@ -3,12 +3,12 @@
 
 #include "complete.h"
 #include "exec.h"
-#include "gr_cli.h"
 #include "interact.h"
 #include "log.h"
 
 #include <gr_api.h>
 #include <gr_api_client_impl.h>
+#include <gr_cli.h>
 
 #include <ecoli.h>
 

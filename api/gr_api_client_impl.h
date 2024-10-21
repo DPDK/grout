@@ -6,8 +6,8 @@
 #ifndef _GR_API_CLIENT_IMPL
 #define _GR_API_CLIENT_IMPL
 
-#include "gr_api.h"
-#include "gr_macro.h"
+#include <gr_api.h>
+#include <gr_macro.h>
 
 #include <errno.h>
 #include <getopt.h>

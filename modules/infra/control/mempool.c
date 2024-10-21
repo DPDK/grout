@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include "gr_mempool.h"
-
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_mempool.h>
 
 struct mempool_tracker {
 	struct rte_mempool *mp;

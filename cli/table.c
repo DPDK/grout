@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "gr_table.h"
+#include <gr_table.h>
 
 #include <libsmartcols.h>
 
