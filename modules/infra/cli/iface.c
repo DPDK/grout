@@ -279,6 +279,8 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			n += snprintf(buf + n, sizeof(buf) - n, " promisc");
 		if (iface->flags & GR_IFACE_F_ALLMULTI)
 			n += snprintf(buf + n, sizeof(buf) - n, " allmulti");
+		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
+			n += snprintf(buf + n, sizeof(buf) - n, " tracing");
 		scols_line_set_data(line, 2, buf);
 
 		// vrf
@@ -331,6 +333,8 @@ static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pn
 		printf(" promisc");
 	if (iface.flags & GR_IFACE_F_ALLMULTI)
 		printf(" allmulti");
+	if (iface.flags & GR_IFACE_F_PACKET_TRACE)
+		printf(" tracing");
 	printf("\n");
 	printf("vrf: %u\n", iface.vrf_id);
 	printf("mtu: %u\n", iface.mtu);
