@@ -7,6 +7,7 @@
 #include <gr_macro.h>
 
 #include <rte_byteorder.h>
+#include <rte_common.h>
 #include <rte_ether.h>
 #include <rte_ip6.h>
 
@@ -148,7 +149,7 @@ icmp6_get_opt(const struct icmp6_opt *opt, size_t ip6_len, uint8_t type, void *v
 		}
 next:
 		ip6_len -= opt->len * 8;
-		opt = (struct icmp6_opt *)((char *)opt + (opt->len * 8));
+		opt = RTE_PTR_ADD(opt, opt->len * 8);
 	}
 	return false;
 }
