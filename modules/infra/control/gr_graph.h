@@ -24,6 +24,8 @@ struct gr_node_info {
 	STAILQ_ENTRY(gr_node_info) next;
 };
 
+const struct gr_node_info *gr_node_info_get(rte_node_t node_id);
+
 STAILQ_HEAD(node_infos, gr_node_info);
 extern struct node_infos node_infos;
 
