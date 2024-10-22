@@ -77,7 +77,6 @@ struct icmp6_router_solicit {
 // ICMP6_TYPE_ROUTER_ADVERT
 struct icmp6_router_advert {
 	uint8_t cur_hoplim;
-	uint8_t flags;
 #if BYTE_ORDER == BIG_ENDIAN
 	uint8_t managed_addr : 1, other_config : 1, __unused_flags : 6;
 #else
