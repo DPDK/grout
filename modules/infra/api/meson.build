@@ -6,6 +6,7 @@ src += files(
   'iface.c',
   'rxq.c',
   'stats.c',
+  'trace.c',
 )
 
 api_headers += files('gr_infra.h')
