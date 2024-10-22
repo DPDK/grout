@@ -204,4 +204,29 @@ struct gr_infra_graph_dump_resp {
 	char dot[/* len */];
 };
 
+// packet tracing //////////////////////////////////////////////////////////////
+#define GR_INFRA_PACKET_TRACE_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0040)
+
+// struct gr_infra_trace_clear_req { };
+// struct gr_infra_trace_clear_resp { };
+
+#define GR_INFRA_PACKET_TRACE_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0041)
+
+// struct gr_infra_trace_dump_req { };
+
+struct gr_infra_packet_trace_dump_resp {
+	uint32_t len;
+	char trace[/* len */];
+};
+
+#define GR_INFRA_PACKET_TRACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0042)
+
+struct gr_infra_packet_trace_set_req {
+	bool enabled;
+	bool all;
+	uint16_t iface_id;
+};
+
+// struct gr_infra_packet_trace_set_resp { };
+
 #endif

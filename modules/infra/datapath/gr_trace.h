@@ -39,4 +39,7 @@ int gr_trace_dump(char *buf, size_t buf_len);
 // Empty the trace buffer.
 void gr_trace_clear(void);
 
+// Return true if trace is enabled for all interfaces.
+bool gr_trace_all_enabled(void);
+
 #endif
