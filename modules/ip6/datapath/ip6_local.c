@@ -66,6 +66,7 @@ static uint16_t ip6_input_local_process(
 			if (next_proto < 0)
 				break;
 			rte_pktmbuf_adj(m, ext_size);
+			d->len -= ext_size;
 			d->proto = next_proto;
 		};
 

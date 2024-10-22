@@ -152,6 +152,7 @@ ipv4:
 					ext_size
 				);
 			offset += ext_size;
+			payload_len -= ext_size;
 			proto = next_proto;
 		};
 
