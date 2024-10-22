@@ -259,6 +259,16 @@ int worker_graph_reload_all(void) {
 	return 0;
 }
 
+const struct gr_node_info *gr_node_info_get(rte_node_t node_id) {
+	const struct gr_node_info *info;
+
+	STAILQ_FOREACH (info, &node_infos, next)
+		if (info->node->id == node_id)
+			return info;
+
+	return errno_set_null(ENOENT);
+}
+
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
