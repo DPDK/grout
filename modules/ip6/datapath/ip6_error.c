@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_common.h>
 #include <rte_graph_worker.h>
@@ -37,6 +38,9 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
 
 		// Get the pointer to the start of the ipv6 header before
 		// prepending any data

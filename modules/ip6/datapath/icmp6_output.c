@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
@@ -51,6 +52,12 @@ static uint16_t icmp6_output_process(
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
 
+		if (gr_mbuf_is_traced(mbuf)) {
+			uint8_t trace_len = RTE_MIN(d->len, GR_TRACE_ITEM_MAX_LEN);
+			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
+			memcpy(t, icmp6, trace_len);
+		}
+
 		if ((nh = ip6_route_lookup(d->input_iface->vrf_id, &d->dst)) == NULL) {
 			edge = NO_ROUTE;
 			goto next;
@@ -82,6 +89,7 @@ static struct rte_node_register icmp6_output_node = {
 
 static struct gr_node_info icmp6_output_info = {
 	.node = &icmp6_output_node,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 
 GR_NODE_REGISTER(icmp6_output_info);

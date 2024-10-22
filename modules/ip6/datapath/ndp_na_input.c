@@ -7,6 +7,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -135,9 +136,16 @@ static uint16_t ndp_na_input_process(
 		ASSERT_NDP(lladdr_found);
 
 		ndp_update_nexthop(graph, node, remote, iface, &lladdr);
+
+		if (gr_mbuf_is_traced(mbuf)) {
+			gr_mbuf_trace_add(mbuf, node, 0);
+			gr_mbuf_trace_finish(mbuf);
+		}
 		rte_pktmbuf_free(mbuf);
 		continue;
 next:
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
