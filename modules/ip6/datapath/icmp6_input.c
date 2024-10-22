@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -36,6 +37,12 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		mbuf = objs[i];
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
 		d = ip6_local_mbuf_data(mbuf);
+
+		if (gr_mbuf_is_traced(mbuf)) {
+			uint8_t trace_len = RTE_MIN(d->len, GR_TRACE_ITEM_MAX_LEN);
+			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
+			memcpy(t, icmp6, trace_len);
+		}
 
 		switch (icmp6->type) {
 		case ICMP6_TYPE_ECHO_REQUEST:
@@ -91,6 +98,7 @@ static struct rte_node_register icmp6_input_node = {
 static struct gr_node_info icmp6_input_info = {
 	.node = &icmp6_input_node,
 	.register_callback = icmp6_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 
 GR_NODE_REGISTER(icmp6_input_info);

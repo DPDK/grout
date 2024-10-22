@@ -7,6 +7,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_trace.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -158,6 +159,11 @@ static uint16_t ndp_ns_input_process(
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
 
+		if (gr_mbuf_is_traced(mbuf)) {
+			uint8_t trace_len = RTE_MIN(payload_len, GR_TRACE_ITEM_MAX_LEN);
+			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
+			memcpy(t, icmp6, trace_len);
+		}
 		next = IP_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
@@ -182,6 +188,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 
 GR_NODE_REGISTER(info);
