@@ -5,8 +5,9 @@ cli_src += files(
   'graph.c',
   'iface.c',
   'port.c',
-  'vlan.c',
   'stats.c',
+  'trace.c',
+  'vlan.c',
 )
 
 cli_inc += include_directories('.')
