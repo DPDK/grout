@@ -17,10 +17,12 @@ rte_edge_t gr_node_attach_parent(const char *parent, const char *node);
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
+typedef void (*gr_node_register_cb_t)(void);
+
 struct gr_node_info {
 	struct rte_node_register *node;
-	void (*register_callback)(void);
-	void (*unregister_callback)(void);
+	gr_node_register_cb_t register_callback;
+	gr_node_register_cb_t unregister_callback;
 	STAILQ_ENTRY(gr_node_info) next;
 };
 
