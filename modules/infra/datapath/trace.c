@@ -83,6 +83,17 @@ int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_
 	return snprintf(buf, len, "opcode=%u", rte_be_to_cpu_16(arp->arp_opcode));
 }
 
+int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t /*data_len*/) {
+	return snprintf(
+		buf,
+		len,
+		IP4_ADDR_FMT " > " IP4_ADDR_FMT " ttl=%hhu",
+		IP4_ADDR_SPLIT(&ip->src_addr),
+		IP4_ADDR_SPLIT(&ip->dst_addr),
+		ip->time_to_live
+	);
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
@@ -123,11 +134,8 @@ ipv4:
 
 		ip = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, offset);
 		offset += sizeof(*ip);
-		inet_ntop(AF_INET, &ip->src_addr, src, sizeof(src));
-		inet_ntop(AF_INET, &ip->dst_addr, dst, sizeof(dst));
-		SAFE_BUF(
-			snprintf, sizeof(buf), " / IP %s > %s ttl=%hhu", src, dst, ip->time_to_live
-		);
+		SAFE_BUF(snprintf, sizeof(buf), " / IP ");
+		SAFE_BUF(trace_ip_format, sizeof(buf), ip, sizeof(*ip));
 
 		switch (ip->next_proto_id) {
 		case IPPROTO_ICMP: {
