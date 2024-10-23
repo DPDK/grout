@@ -94,11 +94,21 @@ int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t
 	);
 }
 
+int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *ip6, size_t /*data_len*/) {
+	char src[INET6_ADDRSTRLEN];
+	char dst[INET6_ADDRSTRLEN];
+
+	inet_ntop(AF_INET6, &ip6->src_addr, src, sizeof(src));
+	inet_ntop(AF_INET6, &ip6->dst_addr, dst, sizeof(dst));
+
+	return snprintf(buf, len, "%s > %s ttl=%hhu", src, dst, ip6->hop_limits);
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
-	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
 	rte_be16_t ether_type;
 	size_t offset = 0;
+	char buf[BUFSIZ];
 	size_t n = 0;
 
 	eth = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *, offset);
@@ -183,11 +193,8 @@ ipv4:
 
 		ip6 = rte_pktmbuf_mtod_offset(m, const struct rte_ipv6_hdr *, offset);
 		offset += sizeof(*ip6);
-		inet_ntop(AF_INET6, &ip6->src_addr, src, sizeof(src));
-		inet_ntop(AF_INET6, &ip6->dst_addr, dst, sizeof(dst));
-		SAFE_BUF(
-			snprintf, sizeof(buf), " / IPv6 %s > %s ttl=%hhu", src, dst, ip6->hop_limits
-		);
+		SAFE_BUF(snprintf, sizeof(buf), " / IPv6 ");
+		SAFE_BUF(trace_ip6_format, sizeof(buf), ip6, sizeof(*ip6));
 		payload_len = rte_be_to_cpu_16(ip6->payload_len);
 		proto = ip6->proto;
 
