@@ -164,6 +164,32 @@ err:
 	return -1;
 }
 
+int trace_icmp_format(
+	char *buf,
+	size_t len,
+	const struct rte_icmp_hdr *icmp,
+	size_t /*data_len*/
+) {
+	size_t n = 0;
+	if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST && icmp->icmp_code == 0) {
+		SAFE_BUF(snprintf, len, " echo request");
+	} else if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY && icmp->icmp_code == 0) {
+		SAFE_BUF(snprintf, len, " echo reply");
+	} else {
+		SAFE_BUF(snprintf, len, " type=%hhu code=%hhu", icmp->icmp_type, icmp->icmp_code);
+	}
+	SAFE_BUF(
+		snprintf,
+		len,
+		" id=%u seq=%u",
+		rte_be_to_cpu_16(icmp->icmp_ident),
+		rte_be_to_cpu_16(icmp->icmp_seq_nb)
+	);
+	return n;
+err:
+	return -1;
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	const struct rte_ether_hdr *eth;
 	rte_be16_t ether_type;
@@ -212,29 +238,7 @@ ipv4:
 			const struct rte_icmp_hdr *icmp;
 			icmp = rte_pktmbuf_mtod_offset(m, const struct rte_icmp_hdr *, offset);
 			SAFE_BUF(snprintf, sizeof(buf), " / ICMP");
-
-			if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST && icmp->icmp_code == 0) {
-				SAFE_BUF(snprintf, sizeof(buf), " echo request");
-			} else if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY
-				   && icmp->icmp_code == 0) {
-				SAFE_BUF(snprintf, sizeof(buf), " echo reply");
-			} else {
-				SAFE_BUF(
-					snprintf,
-					sizeof(buf),
-					" type=%hhu code=%hhu",
-					icmp->icmp_type,
-					icmp->icmp_code
-				);
-			}
-
-			SAFE_BUF(
-				snprintf,
-				sizeof(buf),
-				" id=%u seq=%u",
-				rte_be_to_cpu_16(icmp->icmp_ident),
-				rte_be_to_cpu_16(icmp->icmp_seq_nb)
-			);
+			SAFE_BUF(trace_icmp_format, sizeof(buf), icmp, sizeof(*icmp));
 			break;
 		}
 		case IPPROTO_IPIP:
