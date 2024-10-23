@@ -5,6 +5,7 @@
 #ifndef _GR_INFRA_PACKET_TRACE
 #define _GR_INFRA_PACKET_TRACE
 
+#include <rte_arp.h>
 #include <rte_graph.h>
 #include <rte_mbuf.h>
 
@@ -43,5 +44,7 @@ void gr_trace_clear(void);
 bool gr_trace_all_enabled(void);
 
 int eth_type_format(char *buf, size_t len, rte_be16_t type);
+
+int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *, size_t data_len);
 
 #endif
