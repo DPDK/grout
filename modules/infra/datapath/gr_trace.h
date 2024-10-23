@@ -42,4 +42,6 @@ void gr_trace_clear(void);
 // Return true if trace is enabled for all interfaces.
 bool gr_trace_all_enabled(void);
 
+int eth_type_format(char *buf, size_t len, rte_be16_t type);
+
 #endif
