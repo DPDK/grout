@@ -61,6 +61,28 @@ static ssize_t trace_icmp6(
 	uint16_t payload_len
 );
 
+int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_t /*data_len*/) {
+	switch (arp->arp_opcode) {
+	case RTE_BE16(RTE_ARP_OP_REQUEST):
+		return snprintf(
+			buf,
+			len,
+			"request who has " IP4_ADDR_FMT "? tell " IP4_ADDR_FMT,
+			IP4_ADDR_SPLIT(&arp->arp_data.arp_tip),
+			IP4_ADDR_SPLIT(&arp->arp_data.arp_sip)
+		);
+	case RTE_BE16(RTE_ARP_OP_REPLY):
+		return snprintf(
+			buf,
+			len,
+			"reply " IP4_ADDR_FMT " is at " ETH_ADDR_FMT,
+			IP4_ADDR_SPLIT(&arp->arp_data.arp_sip),
+			ETH_ADDR_SPLIT(&arp->arp_data.arp_sha)
+		);
+	}
+	return snprintf(buf, len, "opcode=%u", rte_be_to_cpu_16(arp->arp_opcode));
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
@@ -192,40 +214,9 @@ ipv4:
 	}
 	case RTE_BE16(RTE_ETHER_TYPE_ARP): {
 		const struct rte_arp_hdr *arp;
-
 		arp = rte_pktmbuf_mtod_offset(m, const struct rte_arp_hdr *, offset);
-
-		switch (rte_be_to_cpu_16(arp->arp_opcode)) {
-		case RTE_ARP_OP_REQUEST:
-			inet_ntop(AF_INET, &arp->arp_data.arp_sip, src, sizeof(src));
-			inet_ntop(AF_INET, &arp->arp_data.arp_tip, dst, sizeof(dst));
-			SAFE_BUF(
-				snprintf,
-				sizeof(buf),
-				" / ARP request who has %s? tell %s",
-				dst,
-				src
-			);
-			break;
-		case RTE_ARP_OP_REPLY:
-			inet_ntop(AF_INET, &arp->arp_data.arp_sip, src, sizeof(src));
-			SAFE_BUF(
-				snprintf,
-				sizeof(buf),
-				" / ARP reply %s is at " ETH_ADDR_FMT,
-				src,
-				ETH_ADDR_SPLIT(&eth->src_addr)
-			);
-			break;
-		default:
-			SAFE_BUF(
-				snprintf,
-				sizeof(buf),
-				" / ARP opcode=%u",
-				rte_be_to_cpu_16(arp->arp_opcode)
-			);
-			break;
-		}
+		SAFE_BUF(snprintf, sizeof(buf), " / ARP ");
+		SAFE_BUF(trace_arp_format, sizeof(buf), arp, sizeof(*arp));
 		break;
 	}
 	default:
