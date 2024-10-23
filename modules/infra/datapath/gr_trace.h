@@ -5,6 +5,8 @@
 #ifndef _GR_INFRA_PACKET_TRACE
 #define _GR_INFRA_PACKET_TRACE
 
+#include <gr_icmp6.h>
+
 #include <rte_arp.h>
 #include <rte_graph.h>
 #include <rte_icmp.h>
@@ -55,5 +57,7 @@ int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *, size_t d
 int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t data_len);
 
 int trace_icmp_format(char *buf, size_t len, const struct rte_icmp_hdr *, size_t data_len);
+
+int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *, size_t data_len);
 
 #endif

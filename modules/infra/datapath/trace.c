@@ -102,14 +102,6 @@ static int ip_proto_format(char *buf, size_t len, uint8_t proto) {
 	return snprintf(buf, len, "%d", proto);
 }
 
-static ssize_t trace_icmp6(
-	char *buf,
-	const size_t len,
-	const struct rte_mbuf *,
-	size_t *offset,
-	uint16_t payload_len
-);
-
 int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_t /*data_len*/) {
 	switch (arp->arp_opcode) {
 	case RTE_BE16(RTE_ARP_OP_REQUEST):
@@ -219,6 +211,126 @@ int trace_icmp_format(
 	return snprintf(buf, len, "type=%hhu code=%hhu", icmp->icmp_type, icmp->icmp_code);
 }
 
+int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *icmp6, size_t payload_len) {
+	const struct icmp6_opt *opt = NULL;
+	char dst[INET6_ADDRSTRLEN];
+	size_t n = 0;
+
+	switch (icmp6->type) {
+	case ICMP6_ERR_DEST_UNREACH:
+		SAFE_BUF(snprintf, len, "destination unreachable");
+		payload_len -= sizeof(struct icmp6_err_dest_unreach);
+		break;
+	case ICMP6_ERR_PKT_TOO_BIG:
+		SAFE_BUF(snprintf, len, "packet too big");
+		payload_len -= sizeof(struct icmp6_err_pkt_too_big);
+		break;
+	case ICMP6_ERR_TTL_EXCEEDED:
+		SAFE_BUF(snprintf, len, "ttl exceeded");
+		payload_len -= sizeof(struct icmp6_err_ttl_exceeded);
+		break;
+	case ICMP6_ERR_PARAM_PROBLEM:
+		SAFE_BUF(snprintf, len, "parameter problem");
+		payload_len -= sizeof(struct icmp6_err_param_problem);
+		break;
+	case ICMP6_TYPE_ECHO_REQUEST: {
+		const struct icmp6_echo_request *req = PAYLOAD(icmp6);
+		payload_len -= sizeof(*req);
+		SAFE_BUF(
+			snprintf,
+			len,
+			"echo request id=%u seq=%u",
+			rte_be_to_cpu_16(req->ident),
+			rte_be_to_cpu_16(req->seqnum)
+		);
+		break;
+	}
+	case ICMP6_TYPE_ECHO_REPLY: {
+		const struct icmp6_echo_reply *reply = PAYLOAD(icmp6);
+		payload_len -= sizeof(*reply);
+		SAFE_BUF(
+			snprintf,
+			len,
+			"echo reply id=%u seq=%u",
+			rte_be_to_cpu_16(reply->ident),
+			rte_be_to_cpu_16(reply->seqnum)
+		);
+		break;
+	}
+	case ICMP6_TYPE_ROUTER_SOLICIT:
+		SAFE_BUF(snprintf, len, "router solicit");
+		payload_len -= sizeof(struct icmp6_router_solicit);
+		opt = RTE_PTR_ADD(icmp6, sizeof(*icmp6) + sizeof(struct icmp6_router_solicit));
+		break;
+	case ICMP6_TYPE_ROUTER_ADVERT:
+		SAFE_BUF(snprintf, len, "router advert");
+		payload_len -= sizeof(struct icmp6_router_advert);
+		opt = RTE_PTR_ADD(icmp6, sizeof(*icmp6) + sizeof(struct icmp6_router_advert));
+		break;
+	case ICMP6_TYPE_NEIGH_SOLICIT: {
+		const struct icmp6_neigh_solicit *ns = PAYLOAD(icmp6);
+		payload_len -= sizeof(*ns);
+		inet_ntop(AF_INET6, &ns->target, dst, sizeof(dst));
+		SAFE_BUF(snprintf, len, "neigh solicit who has %s?", dst);
+		opt = PAYLOAD(ns);
+		break;
+	}
+	case ICMP6_TYPE_NEIGH_ADVERT: {
+		const struct icmp6_neigh_advert *na = PAYLOAD(icmp6);
+		payload_len -= sizeof(*na);
+		inet_ntop(AF_INET6, &na->target, dst, sizeof(dst));
+		SAFE_BUF(snprintf, len, "neigh advert %s is at", dst);
+		opt = PAYLOAD(na);
+		break;
+	}
+	default:
+		SAFE_BUF(snprintf, len, "type=%hhu code=%hhu", icmp6->type, icmp6->code);
+		payload_len = 0;
+		break;
+	}
+
+	while (payload_len >= 8 && opt != NULL) {
+		switch (opt->type) {
+		case ICMP6_OPT_SRC_LLADDR: {
+			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
+			SAFE_BUF(
+				snprintf,
+				len,
+				" / Option src_lladdr=" ETH_ADDR_FMT,
+				ETH_ADDR_SPLIT(&ll->mac)
+			);
+			break;
+		}
+		case ICMP6_OPT_TARGET_LLADDR: {
+			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
+			SAFE_BUF(
+				snprintf,
+				len,
+				" / Option target_lladdr=" ETH_ADDR_FMT,
+				ETH_ADDR_SPLIT(&ll->mac)
+			);
+			break;
+		}
+		default:
+			SAFE_BUF(
+				snprintf,
+				len,
+				" / Option type=%hhu len=%u(%u)",
+				opt->type,
+				opt->len * 8,
+				opt->len
+			);
+			break;
+		}
+		payload_len -= opt->len * 8;
+		opt = RTE_PTR_ADD(opt, opt->len * 8);
+	}
+
+	return n;
+err:
+	return -1;
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	const struct rte_ether_hdr *eth;
 	rte_be16_t ether_type;
@@ -308,10 +420,15 @@ ipv4:
 
 		switch (proto) {
 		case IPPROTO_ICMPV6:
-			SAFE_BUF(trace_icmp6, sizeof(buf), m, &offset, payload_len);
+			SAFE_BUF(snprintf, sizeof(buf), " / ICMPv6 ");
+			SAFE_BUF(
+				trace_icmp6_format,
+				sizeof(buf),
+				rte_pktmbuf_mtod_offset(m, const struct icmp6 *, offset),
+				payload_len
+			);
 			break;
 		}
-
 		break;
 	}
 	case RTE_BE16(RTE_ETHER_TYPE_ARP): {
@@ -332,143 +449,6 @@ ipv4:
 	return;
 err:
 	LOG(ERR, "[%s %s] snprintf failed: %s", node, iface, strerror(errno));
-}
-
-static ssize_t trace_icmp6(
-	char *buf,
-	const size_t len,
-	const struct rte_mbuf *m,
-	size_t *offset,
-	uint16_t payload_len
-) {
-	const struct icmp6 *icmp6;
-	const struct icmp6_opt *opt = NULL;
-	char dst[INET6_ADDRSTRLEN];
-	ssize_t n = 0;
-
-	SAFE_BUF(snprintf, len, " / ICMPv6");
-	icmp6 = rte_pktmbuf_mtod_offset(m, const struct icmp6 *, *offset);
-	*offset += sizeof(*icmp6);
-	payload_len -= sizeof(*icmp6);
-
-	switch (icmp6->type) {
-	case ICMP6_ERR_DEST_UNREACH:
-		SAFE_BUF(snprintf, len, " destination unreachable");
-		break;
-	case ICMP6_ERR_PKT_TOO_BIG:
-		SAFE_BUF(snprintf, len, " packet too big");
-		break;
-	case ICMP6_ERR_TTL_EXCEEDED:
-		SAFE_BUF(snprintf, len, " ttl exceeded");
-		break;
-	case ICMP6_ERR_PARAM_PROBLEM:
-		SAFE_BUF(snprintf, len, " parameter problem");
-		break;
-	case ICMP6_TYPE_ECHO_REQUEST: {
-		const struct icmp6_echo_request *req = PAYLOAD(icmp6);
-		*offset += sizeof(*req);
-		payload_len -= sizeof(*req);
-		SAFE_BUF(
-			snprintf,
-			len,
-			" echo request id=%u seq=%u",
-			rte_be_to_cpu_16(req->ident),
-			rte_be_to_cpu_16(req->seqnum)
-		);
-		break;
-	}
-	case ICMP6_TYPE_ECHO_REPLY: {
-		const struct icmp6_echo_reply *reply = PAYLOAD(icmp6);
-		*offset += sizeof(*reply);
-		payload_len -= sizeof(*reply);
-		SAFE_BUF(
-			snprintf,
-			len,
-			" echo reply id=%u seq=%u",
-			rte_be_to_cpu_16(reply->ident),
-			rte_be_to_cpu_16(reply->seqnum)
-		);
-		break;
-	}
-	case ICMP6_TYPE_ROUTER_SOLICIT:
-		const struct icmp6_router_solicit *rs = PAYLOAD(icmp6);
-		*offset += sizeof(*rs);
-		payload_len -= sizeof(*rs);
-		SAFE_BUF(snprintf, len, " router solicit");
-		opt = PAYLOAD(rs);
-		break;
-	case ICMP6_TYPE_ROUTER_ADVERT:
-		const struct icmp6_router_advert *ra = PAYLOAD(icmp6);
-		*offset += sizeof(*ra);
-		payload_len -= sizeof(*ra);
-		SAFE_BUF(snprintf, len, " router advert");
-		opt = PAYLOAD(ra);
-		break;
-	case ICMP6_TYPE_NEIGH_SOLICIT: {
-		const struct icmp6_neigh_solicit *ns = PAYLOAD(icmp6);
-		*offset += sizeof(*ns);
-		payload_len -= sizeof(*ns);
-		inet_ntop(AF_INET6, &ns->target, dst, sizeof(dst));
-		SAFE_BUF(snprintf, len, " neigh solicit who has %s?", dst);
-		opt = PAYLOAD(ns);
-		break;
-	}
-	case ICMP6_TYPE_NEIGH_ADVERT: {
-		const struct icmp6_neigh_advert *na = PAYLOAD(icmp6);
-		*offset += sizeof(*na);
-		payload_len -= sizeof(*na);
-		inet_ntop(AF_INET6, &na->target, dst, sizeof(dst));
-		SAFE_BUF(snprintf, len, " neigh advert %s is at", dst);
-		opt = PAYLOAD(na);
-		break;
-	}
-	default:
-		SAFE_BUF(snprintf, len, " type=%hhu code=%hhu", icmp6->type, icmp6->code);
-		payload_len = 0;
-		break;
-	}
-
-	while (payload_len >= 8 && opt != NULL) {
-		switch (opt->type) {
-		case ICMP6_OPT_SRC_LLADDR: {
-			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
-			SAFE_BUF(
-				snprintf,
-				len,
-				" / Option src_lladdr=" ETH_ADDR_FMT,
-				ETH_ADDR_SPLIT(&ll->mac)
-			);
-			break;
-		}
-		case ICMP6_OPT_TARGET_LLADDR: {
-			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
-			SAFE_BUF(
-				snprintf,
-				len,
-				" / Option target_lladdr=" ETH_ADDR_FMT,
-				ETH_ADDR_SPLIT(&ll->mac)
-			);
-			break;
-		}
-		default:
-			SAFE_BUF(
-				snprintf,
-				len,
-				" / Option type=%hhu len=%u(%u)",
-				opt->type,
-				opt->len * 8,
-				opt->len
-			);
-			break;
-		}
-		*offset += opt->len * 8;
-		payload_len -= opt->len * 8;
-		opt = rte_pktmbuf_mtod_offset(m, const struct icmp6_opt *, *offset);
-	}
-
-	return n;
-err:
-	return -1;
 }
 
 #define PACKET_COUNT_MAX RTE_GRAPH_BURST_SIZE
