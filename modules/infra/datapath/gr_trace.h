@@ -7,6 +7,7 @@
 
 #include <rte_arp.h>
 #include <rte_graph.h>
+#include <rte_icmp.h>
 #include <rte_ip4.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
@@ -52,5 +53,7 @@ int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *, size_t d
 int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *, size_t data_len);
 
 int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t data_len);
+
+int trace_icmp_format(char *buf, size_t len, const struct rte_icmp_hdr *, size_t data_len);
 
 #endif
