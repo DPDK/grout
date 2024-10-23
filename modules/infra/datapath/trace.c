@@ -22,6 +22,37 @@
 #include <rte_mempool.h>
 #include <rte_ring.h>
 
+static inline const char *eth_type_str(rte_be16_t type) {
+	switch (type) {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
+		return "IP";
+	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
+		return "IPv6";
+	case RTE_BE16(RTE_ETHER_TYPE_ARP):
+		return "ARP";
+	case RTE_BE16(RTE_ETHER_TYPE_VLAN):
+		return "VLAN";
+	case RTE_BE16(RTE_ETHER_TYPE_QINQ):
+		return "QinQ";
+	case RTE_BE16(RTE_ETHER_TYPE_SLOW):
+		return "LACP";
+	case RTE_BE16(RTE_ETHER_TYPE_LLDP):
+		return "LLDP";
+	case RTE_BE16(RTE_ETHER_TYPE_MPLS):
+		return "MPLS";
+	case RTE_BE16(RTE_ETHER_TYPE_1588):
+		return "PTP";
+	}
+	return NULL;
+}
+
+int eth_type_format(char *buf, size_t len, rte_be16_t type) {
+	const char *str = eth_type_str(type);
+	if (str)
+		return snprintf(buf, len, "%s(0x%04x)", str, rte_be_to_cpu_16(type));
+	return snprintf(buf, len, "0x%04x", rte_be_to_cpu_16(type));
+}
+
 static ssize_t trace_icmp6(
 	char *buf,
 	const size_t len,
@@ -33,13 +64,13 @@ static ssize_t trace_icmp6(
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	char buf[BUFSIZ], src[64], dst[64];
 	const struct rte_ether_hdr *eth;
-	uint16_t ether_type;
+	rte_be16_t ether_type;
 	size_t offset = 0;
 	size_t n = 0;
 
 	eth = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *, offset);
 	offset += sizeof(*eth);
-	ether_type = rte_be_to_cpu_16(eth->ether_type);
+	ether_type = eth->ether_type;
 
 	SAFE_BUF(
 		snprintf,
@@ -52,19 +83,19 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 		uint16_t vlan_id = m->vlan_tci & 0xfff;
 		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
-	} else if (ether_type == RTE_ETHER_TYPE_VLAN) {
+	} else if (ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
 		const struct rte_vlan_hdr *vlan;
 		uint16_t vlan_id;
 
 		vlan = rte_pktmbuf_mtod_offset(m, const struct rte_vlan_hdr *, offset);
 		offset += sizeof(*vlan);
 		vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
-		ether_type = rte_be_to_cpu_16(vlan->eth_proto);
+		ether_type = vlan->eth_proto;
 		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
 	}
 
 	switch (ether_type) {
-	case RTE_ETHER_TYPE_IPV4: {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV4): {
 ipv4:
 		const struct rte_ipv4_hdr *ip;
 
@@ -115,7 +146,7 @@ ipv4:
 
 		break;
 	}
-	case RTE_ETHER_TYPE_IPV6: {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV6): {
 		const struct rte_ipv6_hdr *ip6;
 		uint16_t payload_len;
 		int proto;
@@ -159,7 +190,7 @@ ipv4:
 
 		break;
 	}
-	case RTE_ETHER_TYPE_ARP: {
+	case RTE_BE16(RTE_ETHER_TYPE_ARP): {
 		const struct rte_arp_hdr *arp;
 
 		arp = rte_pktmbuf_mtod_offset(m, const struct rte_arp_hdr *, offset);
@@ -198,7 +229,8 @@ ipv4:
 		break;
 	}
 	default:
-		SAFE_BUF(snprintf, sizeof(buf), " type=0x%04x", ether_type);
+		SAFE_BUF(snprintf, sizeof(buf), " type=");
+		SAFE_BUF(eth_type_format, sizeof(buf), ether_type);
 		break;
 	}
 	SAFE_BUF(snprintf, sizeof(buf), ", (pkt_len=%u)", m->pkt_len);
