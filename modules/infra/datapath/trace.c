@@ -170,24 +170,53 @@ int trace_icmp_format(
 	const struct rte_icmp_hdr *icmp,
 	size_t /*data_len*/
 ) {
-	size_t n = 0;
-	if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST && icmp->icmp_code == 0) {
-		SAFE_BUF(snprintf, len, " echo request");
-	} else if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY && icmp->icmp_code == 0) {
-		SAFE_BUF(snprintf, len, " echo reply");
-	} else {
-		SAFE_BUF(snprintf, len, " type=%hhu code=%hhu", icmp->icmp_type, icmp->icmp_code);
+	switch (icmp->icmp_type) {
+	case RTE_ICMP_TYPE_ECHO_REQUEST:
+		if (icmp->icmp_code == 0)
+			return snprintf(
+				buf,
+				len,
+				"echo request id=%u seq=%u",
+				rte_be_to_cpu_16(icmp->icmp_ident),
+				rte_be_to_cpu_16(icmp->icmp_seq_nb)
+			);
+		break;
+	case RTE_ICMP_TYPE_ECHO_REPLY:
+		if (icmp->icmp_code == 0)
+			return snprintf(
+				buf,
+				len,
+				"echo reply id=%u seq=%u",
+				rte_be_to_cpu_16(icmp->icmp_ident),
+				rte_be_to_cpu_16(icmp->icmp_seq_nb)
+			);
+		break;
+	case RTE_ICMP_TYPE_DEST_UNREACHABLE:
+		switch (icmp->icmp_code) {
+		case RTE_ICMP_CODE_UNREACH_NET:
+			return snprintf(buf, len, "network unreachable");
+		case RTE_ICMP_CODE_UNREACH_HOST:
+			return snprintf(buf, len, "host unreachable");
+		case RTE_ICMP_CODE_UNREACH_PROTO:
+			return snprintf(buf, len, "protocol unreachable");
+		case RTE_ICMP_CODE_UNREACH_PORT:
+			return snprintf(buf, len, "port unreachable");
+		case RTE_ICMP_CODE_UNREACH_FRAG:
+			return snprintf(buf, len, "fragmentation needed and DF set");
+		case RTE_ICMP_CODE_UNREACH_SRC:
+			return snprintf(buf, len, "source route failed");
+		}
+		return snprintf(buf, len, "destination unreachable code=%hhu", icmp->icmp_code);
+	case RTE_ICMP_TYPE_TTL_EXCEEDED:
+		switch (icmp->icmp_code) {
+		case RTE_ICMP_CODE_TTL_EXCEEDED:
+			return snprintf(buf, len, "ttl exceeded in transit");
+		case RTE_ICMP_CODE_TTL_FRAG:
+			return snprintf(buf, len, "fragment reassembly time exceeded");
+		}
+		return snprintf(buf, len, "time exceeded code=%hhu", icmp->icmp_code);
 	}
-	SAFE_BUF(
-		snprintf,
-		len,
-		" id=%u seq=%u",
-		rte_be_to_cpu_16(icmp->icmp_ident),
-		rte_be_to_cpu_16(icmp->icmp_seq_nb)
-	);
-	return n;
-err:
-	return -1;
+	return snprintf(buf, len, "type=%hhu code=%hhu", icmp->icmp_type, icmp->icmp_code);
 }
 
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
