@@ -48,6 +48,14 @@ also in scripts one command at a time, or by batches.
 
 %debug_package
 
+%package devel
+Summary: Development headers for building %{name} API clients
+BuildArch: noarch
+Suggests: %{name}
+
+%description devel
+This package contains the development headers to build %{grout} API clients.
+
 %build
 %meson --buildtype=debugoptimized -Ddpdk:platform=generic
 %meson_build
@@ -73,6 +81,7 @@ rm -rf %{buildroot} %{_vpath_builddir}
 
 %files
 %doc README.md
+%license LICENSE
 %config %{_sysconfdir}/default/grout
 %config %{_sysconfdir}/grout.init
 %attr(644, root, root) %{_unitdir}/grout.service
@@ -82,6 +91,11 @@ rm -rf %{buildroot} %{_vpath_builddir}
 %attr(755, root, root) %{_sbindir}/grout
 %attr(644, root, root) %{_mandir}/man1/grcli.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
+
+%files devel
+%doc README.md
+%license LICENSE
+%{_includedir}/gr_*.h
 
 %changelog
 * Mon Sep 02 2024 Robin Jarry <rjarry@redhat.com>

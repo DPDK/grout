@@ -58,6 +58,7 @@ deb:
 	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
 	dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
+	mv -vf ../grout-dev_$(debversion)_all.deb grout-dev_all.deb && \
 	for name in grout grout-dbgsym; do \
 		mv -vf ../$${name}_$(debversion)_$$arch.deb \
 			$${name}_$$arch.deb || exit; \
@@ -71,6 +72,7 @@ rpm:
 	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
+	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
 	for name in grout grout-debuginfo grout-debugsource; do \
 		mv -vf ~/rpmbuild/RPMS/$$arch/$$name-$$version.$$arch.rpm \
 			$$name.$$arch.rpm || exit; \

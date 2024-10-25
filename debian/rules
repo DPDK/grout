@@ -16,9 +16,9 @@ override_dh_auto_configure:
 	dh_auto_configure -- $(meson_opts)
 
 override_dh_auto_install:
-	meson install -C debian/_build --skip-subprojects --destdir=$(CURDIR)/debian/grout
-	install -D -m 644 main/grout.default debian/grout/etc/default/grout
-	install -D -m 644 main/grout.init debian/grout/etc/grout.init
+	meson install -C debian/_build --skip-subprojects --destdir=$(CURDIR)/debian/tmp
+	install -D -m 644 main/grout.default debian/tmp/etc/default/grout
+	install -D -m 644 main/grout.init debian/tmp/etc/grout.init
 
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade

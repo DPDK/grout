@@ -161,7 +161,9 @@ jobs:
           tag: "edge"
           files: |
             grout.x86_64.rpm
+            grout-devel.noarch.rpm
             grout-debuginfo.x86_64.rpm
             grout-debugsource.x86_64.rpm
             grout_amd64.deb
+            grout-dev_all.deb
             grout-dbgsym_amd64.deb
