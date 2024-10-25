@@ -5,13 +5,10 @@ api_headers += files(
   'gr_api.h',
   'gr_api_client_impl.h',
   'gr_bitops.h',
+  'gr_errno.h',
+  'gr_macro.h',
+  'gr_net_compat.h',
   'gr_net_types.h',
 )
 
-src += files(
-  'stb_ds_impl.c',
-  'string.c',
-)
-
-inc += include_directories('.')
-cli_inc += include_directories('.')
+api_inc += include_directories('.')

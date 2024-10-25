@@ -68,6 +68,7 @@ smartcols_dep = dependency('smartcols')
 src = []
 inc = []
 
+api_inc = []
 api_headers = []
 
 cli_src = []
@@ -83,7 +84,7 @@ subdir('cli')
 
 grout_exe = executable(
   'grout', src,
-  include_directories: inc,
+  include_directories: inc + api_inc,
   dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, stb_dep],
   c_args: ['-D__GROUT_MAIN__'],
   install: true,
@@ -92,10 +93,12 @@ grout_exe = executable(
 
 grcli_exe = executable(
   'grcli', cli_src,
-  include_directories: cli_inc,
+  include_directories: cli_inc + api_inc,
   dependencies: [ecoli_dep, smartcols_dep],
   install: true,
 )
+
+install_headers(api_headers)
 
 fs = import('fs')
 cmocka_dep = dependency('cmocka')
@@ -103,8 +106,8 @@ cmocka_dep = dependency('cmocka')
 foreach t : tests
   name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
   t += {
-    'sources': t['sources'] + files('api/stb_ds_impl.c', 'api/string.c'),
-    'include_directories': inc + cli_inc,
+    'sources': t['sources'] + files('main/stb_ds_impl.c', 'main/string.c'),
+    'include_directories': inc + api_inc,
     'c_args': ['-coverage', '-D__GROUT_MAIN__'],
     'link_args': t['link_args'] + ['-lgcov'],
     'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],

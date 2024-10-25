@@ -2,5 +2,4 @@
 # Copyright (c) 2024 Robin Jarry
 
 api_headers += files('gr_ip4.h')
-inc += include_directories('.')
-cli_inc += include_directories('.')
+api_inc += include_directories('.')

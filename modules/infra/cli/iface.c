@@ -7,7 +7,6 @@
 #include <gr_infra.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
-#include <gr_string.h>
 #include <gr_table.h>
 
 #include <ecoli.h>
