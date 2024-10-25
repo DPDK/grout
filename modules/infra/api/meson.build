@@ -10,5 +10,4 @@ src += files(
 )
 
 api_headers += files('gr_infra.h')
-inc += include_directories('.')
-cli_inc += include_directories('.')
+api_inc += include_directories('.')
