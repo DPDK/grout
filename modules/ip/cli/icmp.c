@@ -7,8 +7,6 @@
 #include <gr_net_types.h>
 
 #include <ecoli.h>
-#include <rte_icmp.h>
-#include <rte_ip.h>
 
 #include <errno.h>
 #include <signal.h>

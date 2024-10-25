@@ -85,6 +85,7 @@ grout_exe = executable(
   'grout', src,
   include_directories: inc,
   dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, stb_dep],
+  c_args: ['-D__GROUT_MAIN__'],
   install: true,
   install_dir: 'sbin',
 )
@@ -92,7 +93,7 @@ grout_exe = executable(
 grcli_exe = executable(
   'grcli', cli_src,
   include_directories: cli_inc,
-  dependencies: [dpdk_dep.partial_dependency(includes: true), ecoli_dep, smartcols_dep],
+  dependencies: [ecoli_dep, smartcols_dep],
   install: true,
 )
 
@@ -104,7 +105,7 @@ foreach t : tests
   t += {
     'sources': t['sources'] + files('api/stb_ds_impl.c', 'api/string.c'),
     'include_directories': inc + cli_inc,
-    'c_args': ['-coverage'],
+    'c_args': ['-coverage', '-D__GROUT_MAIN__'],
     'link_args': t['link_args'] + ['-lgcov'],
     'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],
   }

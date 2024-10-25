@@ -9,8 +9,6 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
-#include <rte_ether.h>
-
 #include <assert.h>
 #include <sched.h>
 #include <stdint.h>

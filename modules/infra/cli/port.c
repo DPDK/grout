@@ -10,7 +10,6 @@
 
 #include <ecoli.h>
 #include <libsmartcols.h>
-#include <rte_ether.h>
 
 #include <errno.h>
 #include <sys/queue.h>

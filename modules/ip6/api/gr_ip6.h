@@ -8,9 +8,6 @@
 #include <gr_bitops.h>
 #include <gr_net_types.h>
 
-#include <rte_ether.h>
-#include <rte_ip6.h>
-
 #include <stdint.h>
 
 struct gr_ip6_ifaddr {
