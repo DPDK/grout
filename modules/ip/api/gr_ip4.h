@@ -8,8 +8,6 @@
 #include <gr_bitops.h>
 #include <gr_net_types.h>
 
-#include <rte_ether.h>
-
 #include <stdint.h>
 
 struct gr_ip4_ifaddr {

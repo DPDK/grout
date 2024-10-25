@@ -6,7 +6,6 @@
 #include <gr_cli.h>
 
 #include <ecoli.h>
-#include <rte_ether.h>
 
 #include <errno.h>
 #include <stdarg.h>

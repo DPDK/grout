@@ -9,7 +9,6 @@
 #include <gr_net_types.h>
 
 #include <ecoli.h>
-#include <rte_ether.h>
 
 #include <sys/queue.h>
 

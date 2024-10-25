@@ -6,8 +6,6 @@
 
 #include <gr_errno.h>
 
-#include <rte_ip6.h>
-
 #include <arpa/inet.h>
 #include <endian.h>
 #include <errno.h>
@@ -17,6 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __GROUT_MAIN__
+#include <rte_ether.h>
+#include <rte_ip6.h>
+#else
+#include <gr_net_compat.h>
+#endif
 
 #define ETH_ADDR_RE "^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$"
 #define ETH_ADDR_FMT "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
