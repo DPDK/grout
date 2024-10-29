@@ -48,6 +48,22 @@ err:
 	return errno_set_null(errno);
 }
 
+char *strjoin(char **array, size_t len, const char *sep) {
+	char *out = NULL;
+
+	for (size_t i = 0; i < len; i++) {
+		if (out == NULL)
+			out = strdup(array[i]);
+		else
+			out = astrcat(out, "%s%s", sep, array[i]);
+
+		if (out == NULL)
+			break;
+	}
+
+	return out;
+}
+
 int utf8_check(const char *buf, size_t maxlen) {
 	mbstate_t mb;
 	size_t len;

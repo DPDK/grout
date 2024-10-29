@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 char *astrcat(char *buf, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+char *strjoin(char **array, size_t len, const char *sep);
 int utf8_check(const char *buf, size_t maxlen);
 
 #endif

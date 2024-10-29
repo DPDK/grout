@@ -8,6 +8,7 @@
 #include <gr_errno.h>
 #include <gr_log.h>
 #include <gr_stb_ds.h>
+#include <gr_string.h>
 
 #include <rte_eal.h>
 #include <rte_errno.h>
@@ -170,7 +171,7 @@ int dpdk_init(const struct gr_args *args) {
 
 	LOG(INFO, "%s", rte_version());
 
-	char *buf = arrjoin(eal_args, " ");
+	char *buf = strjoin(eal_args, arrlen(eal_args), " ");
 	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
