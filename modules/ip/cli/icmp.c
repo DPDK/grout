@@ -196,6 +196,8 @@ static int ctx_init(struct ec_node *root) {
 		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
 		with_help("Delay in ms between icmp echo.", ec_node_uint("DELAY", 0, 10000, 10))
 	);
+	if (ret < 0)
+		return ret;
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("traceroute", "Discover IPv4 intermediate gateways.")),

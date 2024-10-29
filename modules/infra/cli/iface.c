@@ -385,7 +385,7 @@ static int ctx_init(struct ec_node *root) {
 		)
 	);
 
-	return 0;
+	return ret;
 }
 
 static struct gr_cli_context ctx = {
