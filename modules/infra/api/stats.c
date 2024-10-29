@@ -115,7 +115,9 @@ static struct api_out stats_get(const void *request, void **response) {
 			}
 free_xstat:
 			free(xstats);
+			xstats = NULL;
 			free(names);
+			names = NULL;
 			if (ret < 0)
 				goto err;
 		}
