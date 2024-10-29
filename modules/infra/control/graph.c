@@ -11,7 +11,7 @@
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_rxtx.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <event2/event.h>
@@ -140,7 +140,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	int ret;
 
 	n_rxqs = 0;
-	arrforeach (qmap, worker->rxqs) {
+	gr_vec_foreach_ref (qmap, worker->rxqs) {
 		if (qmap->enabled)
 			n_rxqs++;
 	}
@@ -161,7 +161,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		goto err;
 	}
 	n_rxqs = 0;
-	arrforeach (qmap, worker->rxqs) {
+	gr_vec_foreach_ref (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
 		LOG(DEBUG,
@@ -189,7 +189,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	}
 	// initialize all to invalid queue_ids
 	memset(tx, 0xff, sizeof(*tx));
-	arrforeach (qmap, worker->txqs) {
+	gr_vec_foreach_ref (qmap, worker->txqs) {
 		if (!qmap->enabled)
 			continue;
 		LOG(DEBUG,
@@ -210,7 +210,7 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	// graph init
 	struct rte_graph_param params = {
 		.socket_id = rte_lcore_to_socket_id(worker->lcore_id),
-		.nb_node_patterns = arrlen(node_names),
+		.nb_node_patterns = gr_vec_len(node_names),
 		.node_patterns = (const char **)node_names,
 	};
 	if (rte_graph_create(name, &params) == RTE_GRAPH_ID_INVALID) {
@@ -282,7 +282,7 @@ static void graph_init(struct event_base *) {
 		reg->id = __rte_node_register(reg);
 		if (reg->id == RTE_NODE_ID_INVALID)
 			ABORT("__rte_node_register(%s): %s", reg->name, rte_strerror(rte_errno));
-		arrpush(node_names, reg->name);
+		gr_vec_add(node_names, reg->name);
 	}
 
 	// then, invoke all registration callbacks where applicable
@@ -322,7 +322,7 @@ static void graph_fini(struct event_base *) {
 	rte_hash_free(hash);
 	hash = NULL;
 
-	arrfree(node_names);
+	gr_vec_free(node_names);
 	node_names = NULL;
 }
 

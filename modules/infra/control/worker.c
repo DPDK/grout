@@ -10,7 +10,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <event2/event.h>
@@ -87,8 +87,8 @@ int worker_destroy(unsigned cpu_id) {
 	atomic_store_explicit(&worker->shutdown, true, memory_order_release);
 	pthread_join(worker->thread, NULL);
 	worker_graph_free(worker);
-	arrfree(worker->rxqs);
-	arrfree(worker->txqs);
+	gr_vec_free(worker->rxqs);
+	gr_vec_free(worker->txqs);
 	rte_free(worker);
 
 	LOG(INFO, "worker %d destroyed", cpu_id);
@@ -121,13 +121,13 @@ int port_unplug(uint16_t port_id) {
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		arrforeach (qmap, worker->rxqs) {
+		gr_vec_foreach_ref (qmap, worker->rxqs) {
 			if (qmap->port_id == port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
 		}
-		arrforeach (qmap, worker->txqs) {
+		gr_vec_foreach_ref (qmap, worker->txqs) {
 			if (qmap->port_id == port_id) {
 				qmap->enabled = false;
 				changed++;
@@ -194,13 +194,13 @@ int port_plug(uint16_t port_id) {
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		arrforeach (qmap, worker->rxqs) {
+		gr_vec_foreach_ref (qmap, worker->rxqs) {
 			if (qmap->port_id == port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
 		}
-		arrforeach (qmap, worker->txqs) {
+		gr_vec_foreach_ref (qmap, worker->txqs) {
 			if (qmap->port_id == port_id) {
 				qmap->enabled = true;
 				changed++;
@@ -225,7 +225,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 		return errno_set(EBUSY);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
-		arrforeach (qmap, src_worker->rxqs) {
+		gr_vec_foreach_ref (qmap, src_worker->rxqs) {
 			if (qmap->port_id != port_id)
 				continue;
 			if (qmap->queue_id != rxq_id)
@@ -254,16 +254,16 @@ move:
 		return errno_set(errno);
 
 	// unassign from src_worker
-	for (int i = 0; i < arrlen(src_worker->rxqs); i++) {
+	for (size_t i = 0; i < gr_vec_len(src_worker->rxqs); i++) {
 		struct queue_map *qmap = &src_worker->rxqs[i];
 		if (qmap->port_id != port_id)
 			continue;
 		if (qmap->queue_id != rxq_id)
 			continue;
-		arrdelswap(src_worker->rxqs, i);
+		gr_vec_del_swap(src_worker->rxqs, i);
 		break;
 	}
-	if (arrlen(src_worker->rxqs) == 0) {
+	if (gr_vec_len(src_worker->rxqs) == 0) {
 		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
 			return ret;
 		reconfig = true;
@@ -276,7 +276,7 @@ move:
 		.queue_id = rxq_id,
 		.enabled = true,
 	};
-	arrpush(dst_worker->rxqs, rx_qmap);
+	gr_vec_add(dst_worker->rxqs, rx_qmap);
 
 	if (reconfig) {
 		// number of workers changed, adjust number of tx queues

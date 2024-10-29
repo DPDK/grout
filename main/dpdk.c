@@ -7,8 +7,8 @@
 #include <gr_api.h>
 #include <gr_errno.h>
 #include <gr_log.h>
-#include <gr_stb_ds.h>
 #include <gr_string.h>
+#include <gr_vec.h>
 
 #include <rte_eal.h>
 #include <rte_errno.h>
@@ -154,28 +154,28 @@ int dpdk_init(const struct gr_args *args) {
 		goto end;
 	}
 
-	arrpush(eal_args, "");
-	arrpush(eal_args, "-l");
-	arrpush(eal_args, main_lcore);
-	arrpush(eal_args, "-a");
-	arrpush(eal_args, "0000:00:00.0");
+	gr_vec_add(eal_args, "");
+	gr_vec_add(eal_args, "-l");
+	gr_vec_add(eal_args, main_lcore);
+	gr_vec_add(eal_args, "-a");
+	gr_vec_add(eal_args, "0000:00:00.0");
 
 	if (args->test_mode) {
-		arrpush(eal_args, "--no-shconf");
-		arrpush(eal_args, "--no-huge");
-		arrpush(eal_args, "-m");
-		arrpush(eal_args, "2048");
+		gr_vec_add(eal_args, "--no-shconf");
+		gr_vec_add(eal_args, "--no-huge");
+		gr_vec_add(eal_args, "-m");
+		gr_vec_add(eal_args, "2048");
 	} else {
-		arrpush(eal_args, "--in-memory");
+		gr_vec_add(eal_args, "--in-memory");
 	}
 
 	LOG(INFO, "%s", rte_version());
 
-	char *buf = strjoin(eal_args, arrlen(eal_args), " ");
+	char *buf = strjoin(eal_args, gr_vec_len(eal_args), " ");
 	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
-	if ((ret = rte_eal_init(arrlen(eal_args), eal_args)) < 0) {
+	if ((ret = rte_eal_init(gr_vec_len(eal_args), eal_args)) < 0) {
 		ret = -ret;
 		goto end;
 	}
@@ -191,7 +191,7 @@ int dpdk_init(const struct gr_args *args) {
 
 	ret = 0;
 end:
-	arrfree(eal_args);
+	gr_vec_free(eal_args);
 	return errno_set(ret);
 }
 

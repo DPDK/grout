@@ -15,7 +15,6 @@
 #include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_ring.h>
-#include <stb_ds.h>
 
 #include <time.h>
 

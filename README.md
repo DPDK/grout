@@ -292,7 +292,6 @@ Anyone can contribute to `grout`. See
 | DPDK | Build & Runtime | BSD-3-Clause | https://git.dpdk.org/dpdk/ |
 | libnuma | Build & Runtime | LGPL-2.1 | https://github.com/numactl/numactl |
 | libevent | Build & Runtime | BSD-3-Clause | https://github.com/libevent/libevent |
-| libstb | Build & Runtime | Public Domain | https://github.com/nothings/stb |
 | libecoli | Build & Runtime | BSD-3-Clause | https://git.sr.ht/~rjarry/libecoli |
 | libsmartcols | Build & Runtime | LGPL-2.1 | https://github.com/util-linux/util-linux/tree/master/libsmartcols |
 | cmocka | Build | Apache-2.0 | https://github.com/clibs/cmocka |

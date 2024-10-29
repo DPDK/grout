@@ -5,8 +5,8 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
-#include <gr_stb_ds.h>
 #include <gr_string.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_malloc.h>
@@ -209,17 +209,17 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 
 void iface_add_subinterface(struct iface *parent, const struct iface *sub) {
 	const struct iface **s;
-	arrforeach (s, parent->subinterfaces) {
+	gr_vec_foreach_ref (s, parent->subinterfaces) {
 		if (*s == sub)
 			return;
 	}
-	arrpush(parent->subinterfaces, sub); // NOLINT
+	gr_vec_add(parent->subinterfaces, sub);
 }
 
 void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
-	for (int i = 0; i < arrlen(parent->subinterfaces); i++) {
+	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
-			arrdelswap(parent->subinterfaces, i);
+			gr_vec_del_swap(parent->subinterfaces, i);
 			return;
 		}
 	}
@@ -263,7 +263,7 @@ int iface_destroy(uint16_t ifid) {
 	if (iface == NULL)
 		return -errno;
 
-	if (arrlen(iface->subinterfaces) != 0)
+	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
 	iface_event_notify(IFACE_EVENT_PRE_REMOVE, iface);
@@ -273,7 +273,7 @@ int iface_destroy(uint16_t ifid) {
 	assert(type != NULL);
 	ret = type->fini(iface);
 	free(iface->name);
-	arrfree(iface->subinterfaces);
+	gr_vec_free(iface->subinterfaces);
 	rte_free(iface);
 
 	return ret;
