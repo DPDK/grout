@@ -55,8 +55,10 @@ int icmp_local_send(
 	msg->ttl = ttl;
 	msg->dst = dst;
 
-	if ((local = ip4_addr_get_preferred(gw->iface_id, gw->ip)) == NULL)
+	if ((local = ip4_addr_get_preferred(gw->iface_id, gw->ip)) == NULL) {
+		free(msg);
 		return -errno;
+	}
 
 	msg->src = local->ip;
 
