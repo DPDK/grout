@@ -321,6 +321,7 @@ void ip6_route_cleanup(struct nexthop6 *nh) {
 	struct rte_rib6 *rib;
 	uintptr_t nh_id;
 
+	ip6_route_delete(nh->vrf_id, &nh->ip, RTE_IPV6_MAX_DEPTH);
 	local_ip = nh->ip;
 	local_depth = nh->prefixlen;
 
@@ -362,8 +363,6 @@ void ip6_route_cleanup(struct nexthop6 *nh) {
 			ip6_route_delete(nh->vrf_id, &nh->ip, RTE_IPV6_MAX_DEPTH);
 		}
 	}
-
-	ip6_route_delete(nh->vrf_id, &local_ip, RTE_IPV6_MAX_DEPTH);
 }
 
 static struct gr_api_handler route6_add_handler = {

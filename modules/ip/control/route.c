@@ -325,6 +325,7 @@ void ip4_route_cleanup(struct nexthop *nh) {
 	uintptr_t nh_id;
 	ip4_addr_t ip;
 
+	ip4_route_delete(nh->vrf_id, nh->ip, 32);
 	local_ip = nh->ip;
 	local_prefixlen = nh->prefixlen;
 
@@ -368,8 +369,6 @@ void ip4_route_cleanup(struct nexthop *nh) {
 			ip4_route_delete(nh->vrf_id, nh->ip, 32);
 		}
 	}
-
-	ip4_route_delete(nh->vrf_id, local_ip, 32);
 }
 
 static struct gr_api_handler route4_add_handler = {
