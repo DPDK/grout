@@ -21,9 +21,16 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 // to format each individual trace items.
 typedef int (*gr_trace_format_cb_t)(char *buf, size_t buf_len, const void *data, size_t data_len);
 
-// Format the buffered trace items and empty the buffer.
-// Return the number of bytes written to buffer or a negative value on error.
-int gr_trace_dump(char *buf, size_t buf_len);
+// Format the buffered trace items, emptying the trace ring of max_packets.
+// Set the number of written bytes to n_bytes and the number of dumped packets to n_packets.
+// Return 0 on success or a negative value on error.
+int gr_trace_dump(
+	char *buf,
+	size_t buf_len,
+	uint16_t max_packets,
+	uint32_t *n_bytes,
+	uint16_t *n_packets
+);
 
 // Empty the trace buffer.
 void gr_trace_clear(void);

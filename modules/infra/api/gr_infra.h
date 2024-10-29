@@ -205,6 +205,8 @@ struct gr_infra_graph_dump_resp {
 };
 
 // packet tracing //////////////////////////////////////////////////////////////
+#define GR_INFRA_PACKET_TRACE_BATCH 32
+
 #define GR_INFRA_PACKET_TRACE_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0040)
 
 // struct gr_infra_trace_clear_req { };
@@ -212,9 +214,12 @@ struct gr_infra_graph_dump_resp {
 
 #define GR_INFRA_PACKET_TRACE_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0041)
 
-// struct gr_infra_trace_dump_req { };
+struct gr_infra_packet_trace_dump_req {
+	uint16_t max_packets;
+};
 
 struct gr_infra_packet_trace_dump_resp {
+	uint16_t n_packets;
 	uint32_t len;
 	char trace[/* len */];
 };
