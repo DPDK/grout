@@ -95,6 +95,10 @@ int gr_api_client_send_recv(
 		errno = EBADMSG;
 		goto err;
 	}
+	if (resp.payload_len > GR_API_MAX_MSG_LEN) {
+		errno = EMSGSIZE;
+		goto err;
+	}
 	if (resp.payload_len > 0) {
 		// receive payload *before* checking response status to drain socket buffer
 		if ((payload = malloc(resp.payload_len)) == NULL)
