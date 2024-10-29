@@ -44,6 +44,8 @@ const struct gr_api_handler *lookup_api_handler(const struct gr_api_request *req
 static STAILQ_HEAD(, gr_module) modules = STAILQ_HEAD_INITIALIZER(modules);
 
 void gr_register_module(struct gr_module *mod) {
+	if (mod->name == NULL)
+		ABORT("module with no name: %p", mod);
 	STAILQ_INSERT_TAIL(&modules, mod, entries);
 }
 
