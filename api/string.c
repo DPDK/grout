@@ -16,20 +16,23 @@ char *astrcat(char *buf, const char *fmt, ...) {
 	va_list ap;
 	int n;
 
-	if (fmt == NULL)
-		return errno_set_null(EINVAL);
+	if (fmt == NULL) {
+		errno = EINVAL;
+		goto err;
+	}
 
 	va_start(ap, fmt);
-	if ((n = vasprintf(&ret, fmt, ap)) < 0)
-		return errno_set_null(errno);
+	n = vasprintf(&ret, fmt, ap);
 	va_end(ap);
+	if (n < 0)
+		goto err;
 
 	if (buf != NULL) {
 		int buf_len = strlen(buf);
 		char *tmp = malloc(buf_len + n + 1);
 		if (tmp == NULL) {
-			free(ret);
-			return errno_set_null(ENOMEM);
+			errno = ENOMEM;
+			goto err;
 		}
 		memcpy(tmp, buf, buf_len);
 		memcpy(tmp + buf_len, ret, n + 1);
@@ -39,6 +42,10 @@ char *astrcat(char *buf, const char *fmt, ...) {
 	}
 
 	return ret;
+err:
+	free(buf);
+	free(ret);
+	return errno_set_null(errno);
 }
 
 int utf8_check(const char *buf, size_t maxlen) {
