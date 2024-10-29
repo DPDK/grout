@@ -4,6 +4,8 @@
 #ifndef _GR_MACRO
 #define _GR_MACRO
 
+#include <errno.h>
+
 #define ARRAY_DIM(array) (sizeof(array) / sizeof(array[0]))
 #define MEMBER_SIZE(type, member) (sizeof(((type *)0)->member))
 #define PAYLOAD(header) ((void *)(header + 1))
@@ -22,6 +24,10 @@
 		int __s = func(buf + n, buf_size - n, __VA_ARGS__);                                \
 		if (__s < 0)                                                                       \
 			goto err;                                                                  \
+		if (__s >= (int)(buf_size - n)) {                                                  \
+			errno = ENOBUFS;                                                           \
+			goto err;                                                                  \
+		}                                                                                  \
 		n += __s;                                                                          \
 	} while (0)
 
