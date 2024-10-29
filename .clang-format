@@ -82,6 +82,8 @@ ForEachMacros:
   - TAILQ_FOREACH
   - TAILQ_FOREACH_SAFE
   - rte_graph_foreach_node
+  - gr_vec_foreach
+  - gr_vec_foreach_ref
   - stbds_arrforeach
   - arrforeach
 IfMacros:

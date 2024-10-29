@@ -13,3 +13,10 @@ src += files(
 )
 
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('vec_test.c'),
+    'link_args': [],
+  },
+]
