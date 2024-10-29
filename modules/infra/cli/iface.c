@@ -5,6 +5,7 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
+#include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_string.h>
 #include <gr_table.h>
@@ -270,17 +271,17 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 
 		// flags
 		if (iface->flags & GR_IFACE_F_UP)
-			n += snprintf(buf + n, sizeof(buf) - n, "up");
+			SAFE_BUF(snprintf, sizeof(buf), "up");
 		else
-			n += snprintf(buf + n, sizeof(buf) - n, "down");
+			SAFE_BUF(snprintf, sizeof(buf), "down");
 		if (iface->state & GR_IFACE_S_RUNNING)
-			n += snprintf(buf + n, sizeof(buf) - n, " running");
+			SAFE_BUF(snprintf, sizeof(buf), " running");
 		if (iface->flags & GR_IFACE_F_PROMISC)
-			n += snprintf(buf + n, sizeof(buf) - n, " promisc");
+			SAFE_BUF(snprintf, sizeof(buf), " promisc");
 		if (iface->flags & GR_IFACE_F_ALLMULTI)
-			n += snprintf(buf + n, sizeof(buf) - n, " allmulti");
+			SAFE_BUF(snprintf, sizeof(buf), " allmulti");
 		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
-			n += snprintf(buf + n, sizeof(buf) - n, " tracing");
+			SAFE_BUF(snprintf, sizeof(buf), " tracing");
 		scols_line_set_data(line, 2, buf);
 
 		// vrf
@@ -302,10 +303,14 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 
 	scols_print_table(table);
 	scols_unref_table(table);
-
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
+
+err:
+	scols_unref_table(table);
+	free(resp_ptr);
+	return CMD_ERROR;
 }
 
 static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pnode *p) {
