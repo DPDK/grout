@@ -514,18 +514,22 @@ void gr_mbuf_trace_finish(struct rte_mbuf *m) {
 }
 
 int gr_trace_dump(char *buf, size_t len) {
+	struct gr_trace_item *head = NULL;
 	const struct gr_node_info *info;
-	struct gr_trace_item *t, *head;
 	struct tm tm;
+	int n = 0, s;
 	void *data;
-	int n = 0;
 
 	if (rte_ring_dequeue(traced_packets, &data) == 0) {
-		t = data;
+		struct gr_trace_item *t = data;
 		head = t;
 
-		gmtime_r(&t->ts.tv_sec, &tm);
-		n += strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm);
+		if (localtime_r(&t->ts.tv_sec, &tm) == NULL)
+			goto err;
+
+		if ((s = strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm)) == 0)
+			goto err;
+		n += s;
 		SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
 		SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
 
@@ -533,20 +537,22 @@ int gr_trace_dump(char *buf, size_t len) {
 			SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
 			if ((info = gr_node_info_get(t->node_id)) != NULL && info->trace_format) {
 				SAFE_BUF(snprintf, len, " ");
-				n += info->trace_format(buf + n, len - n, t->data, t->len);
+				SAFE_BUF(info->trace_format, len, t->data, t->len);
 			}
 			SAFE_BUF(snprintf, len, "\n");
 
 			t = STAILQ_NEXT(t, next);
 		}
 		free_trace(head);
+		head = NULL;
 		// add empty line to separate packets
 		SAFE_BUF(snprintf, len, "\n");
 	}
 
 	return n;
 err:
-	return -1;
+	free_trace(head);
+	return errno ? -errno : errno_set(ENOBUFS);
 }
 
 void gr_trace_clear(void) {
