@@ -6,7 +6,7 @@
 #include <gr_api.h>
 #include <gr_log.h>
 #include <gr_module.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -59,22 +59,21 @@ void modules_init(struct event_base *ev_base) {
 	struct gr_module *mod, **mods = NULL;
 
 	STAILQ_FOREACH (mod, &modules, entries)
-		arrpush(mods, mod); // NOLINT
+		gr_vec_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	qsort(mods, arrlen(mods), sizeof(struct gr_module *), module_init_prio_order);
+	qsort(mods, gr_vec_len(mods), sizeof(struct gr_module *), module_init_prio_order);
 
-	for (int i = 0; i < arrlen(mods); i++) {
-		mod = mods[i];
+	gr_vec_foreach (mod, mods) {
 		if (mod->init != NULL) {
 			LOG(DEBUG, "%s prio %i", mod->name, mod->init_prio);
 			mod->init(ev_base);
 		}
 	}
 
-	arrfree(mods);
+	gr_vec_free(mods);
 }
 
 static int module_fini_prio_order(const void *a, const void *b) {
@@ -87,22 +86,21 @@ void modules_fini(struct event_base *ev_base) {
 	struct gr_module *mod, **mods = NULL;
 
 	STAILQ_FOREACH (mod, &modules, entries)
-		arrpush(mods, mod); // NOLINT
+		gr_vec_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	qsort(mods, arrlen(mods), sizeof(struct gr_module *), module_fini_prio_order);
+	qsort(mods, gr_vec_len(mods), sizeof(struct gr_module *), module_fini_prio_order);
 
-	for (int i = 0; i < arrlen(mods); i++) {
-		mod = mods[i];
+	gr_vec_foreach (mod, mods) {
 		if (mod->fini != NULL) {
 			LOG(DEBUG, "%s prio %i", mod->name, mod->fini_prio);
 			mod->fini(ev_base);
 		}
 	}
 
-	arrfree(mods);
+	gr_vec_free(mods);
 }
 
 void gr_modules_dp_init(void) {

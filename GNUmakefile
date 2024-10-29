@@ -28,7 +28,7 @@ smoke-tests: all
 coverage: test
 	$Q mkdir -p $(BUILDDIR)/coverage
 	$Q gcovr --html-details $(BUILDDIR)/coverage/index.html --txt \
-		-e '.*stb_ds.*' -e '.*_test.c' -ur . $(BUILDDIR)
+		-e '.*_test.c' -ur . $(BUILDDIR)
 	@echo Coverage data is present in $(BUILDDIR)/coverage/index.html
 
 .PHONY: all

@@ -6,7 +6,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <rte_common.h>
@@ -15,63 +15,68 @@
 
 #include <fnmatch.h>
 
-struct stat_value {
+struct stat {
+	char name[64];
 	uint64_t objs;
 	uint64_t calls;
 	uint64_t cycles;
 };
 
-struct stat_entry {
-	char *key;
-	struct stat_value value;
-};
+static struct stat *find_stat(struct stat *stats, const char *name) {
+	struct stat *s;
+
+	gr_vec_foreach_ref (s, stats) {
+		if (strncmp(s->name, name, sizeof(s->name)) == 0)
+			return s;
+	}
+
+	return errno_set_null(ENOENT);
+}
 
 static struct api_out stats_get(const void *request, void **response) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
-	struct stat_entry *smap = NULL;
+	struct stat *stats = NULL, *s;
 	size_t len, n_stats;
-	char name[64];
 	int ret;
-
-	sh_new_arena(smap);
 
 	if (req->flags & GR_INFRA_STAT_F_SW) {
 		struct worker *worker;
 
 		STAILQ_FOREACH (worker, &workers, next) {
 			const struct worker_stats *w_stats = atomic_load(&worker->stats);
-			struct stat_entry *e;
 			if (w_stats == NULL)
 				continue;
 			for (unsigned i = 0; i < w_stats->n_stats; i++) {
-				const struct node_stats *s = &w_stats->stats[i];
-				const char *name = rte_node_id_to_name(s->node_id);
-				e = shgetp_null(smap, name);
-				if (e != NULL) {
-					e->value.objs += s->objs;
-					e->value.calls += s->calls;
-					e->value.cycles += s->cycles;
+				const struct node_stats *n = &w_stats->stats[i];
+				const char *name = rte_node_id_to_name(n->node_id);
+				s = find_stat(stats, name);
+				if (s != NULL) {
+					s->objs += n->objs;
+					s->calls += n->calls;
+					s->cycles += n->cycles;
 				} else {
-					struct stat_value value = {
-						.objs = s->objs,
-						.calls = s->calls,
-						.cycles = s->cycles,
+					struct stat stat = {
+						.objs = n->objs,
+						.calls = n->calls,
+						.cycles = n->cycles,
 					};
-					shput(smap, name, value);
+					memccpy(stat.name, name, 0, sizeof(stat.name));
+					gr_vec_add(stats, stat);
 				}
 			}
-			e = shgetp_null(smap, "idle");
-			if (e != NULL) {
-				e->value.calls += w_stats->n_sleeps;
-				e->value.cycles += w_stats->sleep_cycles;
+			s = find_stat(stats, "idle");
+			if (s != NULL) {
+				s->calls += w_stats->n_sleeps;
+				s->cycles += w_stats->sleep_cycles;
 			} else {
-				struct stat_value value = {
+				struct stat stat = {
 					.objs = 0,
 					.calls = w_stats->n_sleeps,
 					.cycles = w_stats->sleep_cycles,
 				};
-				shput(smap, "idle", value);
+				memccpy(stat.name, "idle", 0, sizeof(stat.name));
+				gr_vec_add(stats, stat);
 			}
 		}
 	}
@@ -108,10 +113,20 @@ static struct api_out stats_get(const void *request, void **response) {
 
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
-				struct stat_value value = {.objs = xstats[i].value};
+				struct stat stat = {
+					.objs = xstats[i].value,
+					.calls = 0,
+					.cycles = 0,
+				};
 				// prefix each xstat name with interface name
-				snprintf(name, sizeof(name), "%s.%s", iface->name, names[i].name);
-				shput(smap, name, value);
+				snprintf(
+					stat.name,
+					sizeof(stat.name),
+					"%s.%s",
+					iface->name,
+					names[i].name
+				);
+				gr_vec_add(stats, stat);
 			}
 free_xstat:
 			free(xstats);
@@ -125,11 +140,10 @@ free_xstat:
 
 	// iterate once to determine the number of stats matching pattern
 	n_stats = 0;
-	for (unsigned i = 0; i < shlenu(smap); i++) {
-		struct stat_entry *e = &smap[i];
-		if (e->value.objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
+	gr_vec_foreach_ref (s, stats) {
+		if (s->objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
 			continue;
-		switch (fnmatch(req->pattern, e->key, 0)) {
+		switch (fnmatch(req->pattern, s->name, 0)) {
 		case 0:
 			n_stats++;
 		case FNM_NOMATCH:
@@ -148,18 +162,17 @@ free_xstat:
 	}
 
 	// fill in response
-	for (unsigned i = 0; i < shlenu(smap); i++) {
-		struct stat_entry *e = &smap[i];
-		struct gr_infra_stat *s;
-		if (e->value.objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
+	gr_vec_foreach_ref (s, stats) {
+		struct gr_infra_stat *i;
+		if (s->objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
 			continue;
-		switch (fnmatch(req->pattern, e->key, 0)) {
+		switch (fnmatch(req->pattern, s->name, 0)) {
 		case 0:
-			s = &resp->stats[resp->n_stats++];
-			memccpy(s->name, e->key, 0, sizeof(s->name));
-			s->objs = e->value.objs;
-			s->calls = e->value.calls;
-			s->cycles = e->value.cycles;
+			i = &resp->stats[resp->n_stats++];
+			memccpy(i->name, s->name, 0, sizeof(i->name));
+			i->objs = s->objs;
+			i->calls = s->calls;
+			i->cycles = s->cycles;
 		case FNM_NOMATCH:
 			continue;
 		default:
@@ -168,11 +181,11 @@ free_xstat:
 		}
 	}
 
-	shfree(smap);
+	gr_vec_free(stats);
 	*response = resp;
 	return api_out(0, len);
 err:
-	shfree(smap);
+	gr_vec_free(stats);
 	free(resp);
 	return api_out(-ret, 0);
 }

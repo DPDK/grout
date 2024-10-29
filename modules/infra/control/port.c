@@ -12,7 +12,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -91,18 +91,18 @@ static void port_queue_assign(struct iface_info_port *p) {
 			.queue_id = txq,
 			.enabled = false,
 		};
-		for (int i = 0; i < arrlen(worker->txqs); i++) {
+		for (size_t i = 0; i < gr_vec_len(worker->txqs); i++) {
 			if (worker->txqs[i].port_id == p->port_id) {
 				// ensure no duplicates
-				arrdelswap(worker->txqs, i);
+				gr_vec_del_swap(worker->txqs, i);
 				i--;
 			}
 		}
 		// assign one txq to every worker
-		arrpush(worker->txqs, tx_qmap);
+		gr_vec_add(worker->txqs, tx_qmap);
 		txq++;
 
-		for (int i = 0; i < arrlen(worker->rxqs); i++) {
+		for (size_t i = 0; i < gr_vec_len(worker->rxqs); i++) {
 			struct queue_map *qmap = &worker->rxqs[i];
 			if (qmap->port_id == p->port_id) {
 				if (qmap->queue_id < p->n_rxq) {
@@ -110,7 +110,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 					rxq_ids |= 1 << qmap->queue_id;
 				} else {
 					// remove extraneous rxq
-					arrdelswap(worker->rxqs, i);
+					gr_vec_del_swap(worker->rxqs, i);
 					i--;
 				}
 			}
@@ -128,7 +128,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 			.queue_id = rxq,
 			.enabled = false,
 		};
-		arrpush(default_worker->rxqs, rx_qmap);
+		gr_vec_add(default_worker->rxqs, rx_qmap);
 	}
 }
 
@@ -337,13 +337,13 @@ static int iface_port_fini(struct iface *iface) {
 
 	n_workers = worker_count();
 	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
-		for (int i = 0; i < arrlen(worker->rxqs); i++) {
+		for (size_t i = 0; i < gr_vec_len(worker->rxqs); i++) {
 			if (worker->rxqs[i].port_id == port->port_id) {
-				arrdelswap(worker->rxqs, i);
+				gr_vec_del_swap(worker->rxqs, i);
 				i--;
 			}
 		}
-		if (arrlen(worker->rxqs) == 0)
+		if (gr_vec_len(worker->rxqs) == 0)
 			worker_destroy(worker->cpu_id);
 	}
 	if (worker_count() != n_workers) {
@@ -631,7 +631,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		else
 			max_sleep_us = 1000; // unreasonably long maximum (1ms)
 
-		arrforeach (qmap, worker->rxqs) {
+		gr_vec_foreach_ref (qmap, worker->rxqs) {
 			i = port_ifaces[qmap->port_id];
 			if (i == NULL)
 				continue;

@@ -61,7 +61,6 @@ dpdk_dep = dependency(
 ev_core_dep = dependency('libevent_core')
 ev_thread_dep = dependency('libevent_pthreads')
 numa_dep = dependency('numa')
-stb_dep = dependency('stb', fallback: ['stb', 'stb_dep'])
 ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
 smartcols_dep = dependency('smartcols')
 
@@ -85,7 +84,7 @@ subdir('cli')
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, stb_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep],
   c_args: ['-D__GROUT_MAIN__'],
   install: true,
   install_dir: 'sbin',
@@ -106,11 +105,11 @@ cmocka_dep = dependency('cmocka')
 foreach t : tests
   name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
   t += {
-    'sources': t['sources'] + files('main/stb_ds_impl.c', 'main/string.c'),
+    'sources': t['sources'] + files('main/string.c'),
     'include_directories': inc + api_inc,
     'c_args': ['-coverage', '-D__GROUT_MAIN__'],
     'link_args': t['link_args'] + ['-lgcov'],
-    'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep, stb_dep],
+    'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
   }
   test(name, executable(name, kwargs: t), suite: 'unit')
 endforeach

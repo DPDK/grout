@@ -10,7 +10,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -157,7 +157,7 @@ static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /
 	else
 		api_nh.age = 0;
 	api_nh.held_pkts = nh->held_pkts_num;
-	arrpush(ctx->nh, api_nh);
+	gr_vec_add(ctx->nh, api_nh);
 }
 
 static struct api_out nh4_list(const void *request, void **response) {
@@ -168,16 +168,16 @@ static struct api_out nh4_list(const void *request, void **response) {
 
 	rte_mempool_obj_iter(nh_pool, nh_list_cb, &ctx);
 
-	len = sizeof(*resp) + arrlen(ctx.nh) * sizeof(*ctx.nh);
+	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
 	if ((resp = calloc(1, len)) == NULL) {
-		arrfree(ctx.nh);
+		gr_vec_free(ctx.nh);
 		return api_out(ENOMEM, 0);
 	}
 
-	resp->n_nhs = arrlen(ctx.nh);
+	resp->n_nhs = gr_vec_len(ctx.nh);
 	if (ctx.nh != NULL)
 		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
-	arrfree(ctx.nh);
+	gr_vec_free(ctx.nh);
 	*response = resp;
 
 	return api_out(0, len);

@@ -1,9 +1,0 @@
-[wrap-git]
-url = https://github.com/nothings/stb
-revision = master
-depth = 1
-diff_files =
-	stb/meson-add-dependency-definition.patch
-
-[provide]
-dependency_names = stb

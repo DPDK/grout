@@ -11,7 +11,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -99,13 +99,13 @@ mock_func(unsigned, __wrap_rte_get_main_lcore(void));
 #define assert_qmaps(qmaps, ...)                                                                   \
 	do {                                                                                       \
 		struct queue_map __expected[] = {__VA_ARGS__};                                     \
-		int __len = sizeof(__expected) / sizeof(struct queue_map);                         \
-		if (arrlen(qmaps) != __len)                                                        \
-			fail_msg("%s len %li expected %i", #qmaps, arrlen(qmaps), __len);          \
-		for (int __i = 0; __i < __len; __i++) {                                            \
+		size_t __len = sizeof(__expected) / sizeof(struct queue_map);                      \
+		if (gr_vec_len(qmaps) != __len)                                                    \
+			fail_msg("%s len %zu expected %zu", #qmaps, gr_vec_len(qmaps), __len);     \
+		for (unsigned __i = 0; __i < __len; __i++) {                                       \
 			struct queue_map *exp = &__expected[__i], *act;                            \
 			bool found = false;                                                        \
-			arrforeach (act, qmaps) {                                                  \
+			gr_vec_foreach_ref (act, qmaps) {                                          \
 				if (act->port_id != exp->port_id)                                  \
 					continue;                                                  \
 				if (act->queue_id != exp->queue_id)                                \
@@ -144,22 +144,22 @@ static int setup(void **) {
 		ifaces[i] = iface;
 	}
 	STAILQ_INSERT_TAIL(&workers, &w1, next);
-	arrpush(w1.rxqs, q(0, 0));
-	arrpush(w1.rxqs, q(0, 1));
-	arrpush(w1.rxqs, q(1, 0));
+	gr_vec_add(w1.rxqs, q(0, 0));
+	gr_vec_add(w1.rxqs, q(0, 1));
+	gr_vec_add(w1.rxqs, q(1, 0));
 
-	arrpush(w1.txqs, q(0, 0));
-	arrpush(w1.txqs, q(1, 0));
-	arrpush(w1.txqs, q(2, 0));
+	gr_vec_add(w1.txqs, q(0, 0));
+	gr_vec_add(w1.txqs, q(1, 0));
+	gr_vec_add(w1.txqs, q(2, 0));
 
 	STAILQ_INSERT_TAIL(&workers, &w2, next);
-	arrpush(w2.rxqs, q(1, 1));
-	arrpush(w2.rxqs, q(2, 0));
-	arrpush(w2.rxqs, q(2, 1));
+	gr_vec_add(w2.rxqs, q(1, 1));
+	gr_vec_add(w2.rxqs, q(2, 0));
+	gr_vec_add(w2.rxqs, q(2, 1));
 
-	arrpush(w2.txqs, q(0, 1));
-	arrpush(w2.txqs, q(1, 1));
-	arrpush(w2.txqs, q(2, 1));
+	gr_vec_add(w2.txqs, q(0, 1));
+	gr_vec_add(w2.txqs, q(1, 1));
+	gr_vec_add(w2.txqs, q(2, 1));
 
 	return 0;
 }
@@ -167,8 +167,8 @@ static int setup(void **) {
 static int teardown(void **) {
 	struct worker *w;
 	STAILQ_FOREACH (w, &workers, next) {
-		arrfree(w->rxqs);
-		arrfree(w->txqs);
+		gr_vec_free(w->rxqs);
+		gr_vec_free(w->txqs);
 	}
 	STAILQ_INIT(&workers);
 	for (int i = 0; i < 3; i++)

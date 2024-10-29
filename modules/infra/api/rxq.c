@@ -5,7 +5,7 @@
 #include <gr_infra.h>
 #include <gr_module.h>
 #include <gr_port.h>
-#include <gr_stb_ds.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <errno.h>
@@ -20,7 +20,7 @@ static struct api_out rxq_list(const void * /*request*/, void **response) {
 	size_t len;
 
 	STAILQ_FOREACH (worker, &workers, next)
-		n_rxqs += arrlen(worker->rxqs);
+		n_rxqs += gr_vec_len(worker->rxqs);
 
 	len = sizeof(*resp) + n_rxqs * sizeof(struct gr_port_rxq_map);
 	if ((resp = malloc(len)) == NULL)
@@ -30,7 +30,7 @@ static struct api_out rxq_list(const void * /*request*/, void **response) {
 
 	n_rxqs = 0;
 	STAILQ_FOREACH (worker, &workers, next) {
-		arrforeach (qmap, worker->rxqs) {
+		gr_vec_foreach_ref (qmap, worker->rxqs) {
 			struct gr_port_rxq_map *q = &resp->rxqs[n_rxqs];
 			q->iface_id = port_get_iface(qmap->port_id)->id;
 			q->rxq_id = qmap->queue_id;
