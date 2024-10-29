@@ -99,7 +99,7 @@ int gr_api_client_send_recv(
 		// receive payload *before* checking response status to drain socket buffer
 		if ((payload = malloc(resp.payload_len)) == NULL)
 			goto err;
-		if ((n = recv(client->sock_fd, payload, resp.payload_len, 0)) < 0)
+		if (recv(client->sock_fd, payload, resp.payload_len, 0) < 0)
 			goto err;
 	}
 	if (resp.status != 0) {

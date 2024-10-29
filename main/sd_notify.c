@@ -38,9 +38,9 @@ static void closefd(int *fd) {
 int sd_notifyf(int unset_environment, const char *format, ...) {
 	struct sockaddr_un sun = {.sun_family = AF_UNIX};
 	__attribute__((cleanup(closefd))) int fd = -1;
-	size_t path_len, msg_len;
 	const char *sock_path;
 	char msg[BUFSIZ];
+	size_t msg_len;
 	va_list ap;
 	ssize_t n;
 
@@ -64,7 +64,7 @@ int sd_notifyf(int unset_environment, const char *format, ...) {
 		return errno_set(EAFNOSUPPORT);
 
 	// Ensure there is room for NUL byte
-	if ((path_len = strlen(sock_path)) >= sizeof(sun.sun_path))
+	if (strlen(sock_path) >= sizeof(sun.sun_path))
 		return errno_set(E2BIG);
 
 	memccpy(sun.sun_path, sock_path, 0, sizeof(sun.sun_path));
