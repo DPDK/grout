@@ -90,6 +90,10 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		LOG(DEBUG, "client disconnected");
 		goto close;
 	}
+	if (req.payload_len > GR_API_MAX_MSG_LEN) {
+		LOG(ERR, "recv: %s", strerror(EMSGSIZE));
+		goto close;
+	}
 
 	if (req.payload_len > 0) {
 		req_payload = malloc(req.payload_len);
