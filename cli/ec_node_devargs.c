@@ -41,6 +41,7 @@ static int ec_node_devargs_complete(
 	struct dirent *de = NULL;
 	char buf[512], buf2[512];
 	DIR *dir = NULL;
+	int dir_fd = -1;
 	int ret = -1;
 	int fd = -1;
 	ssize_t n;
@@ -65,7 +66,9 @@ static int ec_node_devargs_complete(
 
 		// check for device class "Ethernet Controller" (0x020000)
 		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "class");
-		if ((fd = openat(dirfd(dir), buf, O_RDONLY)) < 0)
+		if ((dir_fd = dirfd(dir)) < 0)
+			continue;
+		if ((fd = openat(dir_fd, buf, O_RDONLY)) < 0)
 			continue;
 		if ((n = read(fd, buf, sizeof(buf))) < 0)
 			continue;
@@ -75,7 +78,7 @@ static int ec_node_devargs_complete(
 
 		// check if the bound driver is known to dpdk
 		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "driver");
-		if ((n = readlinkat(dirfd(dir), buf, buf2, sizeof(buf2))) < 0)
+		if ((n = readlinkat(dir_fd, buf, buf2, sizeof(buf2))) < 0)
 			continue;
 		buf2[n] = '\0';
 		driver = basename(buf2);
