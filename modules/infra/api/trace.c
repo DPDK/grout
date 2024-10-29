@@ -46,24 +46,29 @@ static struct api_out set_trace(const void *request, void ** /*response*/) {
 	return api_out(0, 0);
 }
 
-#define TRACE_MAX_LEN (6 * 1024) // 64 nodes, 80 cols per node: ~5120 bytes.
-
-static struct api_out dump_trace(const void * /*request*/, void **response) {
+static struct api_out dump_trace(const void *request, void **response) {
+	const struct gr_infra_packet_trace_dump_req *req = request;
 	struct gr_infra_packet_trace_dump_resp *resp;
-	int len = 0;
+	int ret;
 
-	if ((resp = calloc(1, sizeof(*resp) + TRACE_MAX_LEN)) == NULL)
+	if ((resp = malloc(GR_API_MAX_MSG_LEN)) == NULL)
 		return api_out(ENOMEM, 0);
 
-	if ((len = gr_trace_dump(resp->trace, TRACE_MAX_LEN)) < 0) {
+	ret = gr_trace_dump(
+		resp->trace,
+		GR_API_MAX_MSG_LEN - sizeof(*resp),
+		req->max_packets,
+		&resp->len,
+		&resp->n_packets
+	);
+	if (ret < 0) {
 		free(resp);
-		return api_out(-len, 0);
+		return api_out(-ret, 0);
 	}
 
-	resp->len = len;
 	*response = resp;
 
-	return api_out(0, sizeof(*resp) + len);
+	return api_out(0, sizeof(*resp) + resp->len);
 }
 
 static struct api_out clear_trace(const void * /*request*/, void ** /*response*/) {

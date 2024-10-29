@@ -41,7 +41,7 @@ grcli show ip nexthop
 grcli show ip route
 grcli show ip6 nexthop
 grcli show ip6 route
-grcli show trace
+grcli show trace count 50
 EOF
 
 set -x

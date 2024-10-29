@@ -49,22 +49,37 @@ static cmd_status_t trace_del(const struct gr_api_client *c, const struct ec_pno
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t trace_show(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t trace_show(const struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_packet_trace_dump_resp *resp = NULL;
+	struct gr_infra_packet_trace_dump_req req;
+	uint16_t max_packets = 10;
 	void *resp_ptr = NULL;
-	size_t len = 0;
+	int ret;
+
+	if (arg_u16(p, "COUNT", &max_packets) < 0)
+		return CMD_ERROR;
 
 	do {
-		if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_DUMP, 0, NULL, &resp_ptr) < 0)
+		req.max_packets = max_packets > GR_INFRA_PACKET_TRACE_BATCH ?
+			GR_INFRA_PACKET_TRACE_BATCH :
+			max_packets;
+		ret = gr_api_client_send_recv(
+			c, GR_INFRA_PACKET_TRACE_DUMP, sizeof(req), &req, &resp_ptr
+		);
+		if (ret < 0)
 			return CMD_ERROR;
 
 		resp = resp_ptr;
-		len = resp->len;
-		if (len > 1) {
+		if (resp->n_packets > 0)
+			max_packets -= resp->n_packets;
+		else
+			max_packets = 0;
+		if (resp->len > 1)
 			fwrite(resp->trace, 1, resp->len, stdout);
-		}
+
 		free(resp_ptr);
-	} while (len > 0);
+		resp_ptr = NULL;
+	} while (max_packets > 0);
 
 	return CMD_SUCCESS;
 }
@@ -115,7 +130,16 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 
-	ret = CLI_COMMAND(CLI_CONTEXT(root, CTX_SHOW), "trace", trace_show, "Show traced packets.");
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("trace", "Show traced packets.")),
+		"[count COUNT]",
+		trace_show,
+		"Show traced packets.",
+		with_help(
+			"Maximum number of packets to show (default 10).",
+			ec_node_uint("COUNT", 1, UINT16_MAX, 10)
+		)
+	);
 	if (ret < 0)
 		return ret;
 

@@ -513,14 +513,22 @@ void gr_mbuf_trace_finish(struct rte_mbuf *m) {
 	STAILQ_INIT(traces);
 }
 
-int gr_trace_dump(char *buf, size_t len) {
+int gr_trace_dump(
+	char *buf,
+	size_t len,
+	uint16_t max_packets,
+	uint32_t *n_bytes,
+	uint16_t *n_packets
+) {
 	struct gr_trace_item *head = NULL;
 	const struct gr_node_info *info;
+	uint32_t n = 0;
+	uint16_t p = 0;
 	struct tm tm;
-	int n = 0, s;
 	void *data;
+	int s;
 
-	if (rte_ring_dequeue(traced_packets, &data) == 0) {
+	while (rte_ring_dequeue(traced_packets, &data) == 0 && p < max_packets) {
 		struct gr_trace_item *t = data;
 		head = t;
 
@@ -547,9 +555,13 @@ int gr_trace_dump(char *buf, size_t len) {
 		head = NULL;
 		// add empty line to separate packets
 		SAFE_BUF(snprintf, len, "\n");
+		p += 1;
 	}
 
-	return n;
+	*n_bytes = n;
+	*n_packets = p;
+
+	return 0;
 err:
 	free_trace(head);
 	return errno ? -errno : errno_set(ENOBUFS);
