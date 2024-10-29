@@ -7,6 +7,7 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_ip4.h>
+#include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_table.h>
 
@@ -56,7 +57,7 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip4_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip4_nh_list_resp *resp;
-	char ip[BUFSIZ], state[BUFSIZ];
+	char ip[BUFSIZ], buf[BUFSIZ];
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	ssize_t n;
@@ -88,17 +89,14 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 		const struct gr_ip4_nh *nh = &resp->nhs[i];
 
 		n = 0;
-		state[0] = '\0';
+		buf[0] = '\0';
 		for (uint8_t i = 0; i < 16; i++) {
 			gr_ip4_nh_flags_t f = 1 << i;
-			if (f & nh->flags) {
-				n += snprintf(
-					state + n, sizeof(state) - n, "%s ", gr_ip4_nh_f_name(f)
-				);
-			}
+			if (f & nh->flags)
+				SAFE_BUF(snprintf, sizeof(buf), "%s ", gr_ip4_nh_f_name(f));
 		}
 		if (n > 0)
-			state[n - 1] = '\0';
+			buf[n - 1] = '\0';
 
 		inet_ntop(AF_INET, &nh->host, ip, sizeof(ip));
 
@@ -118,7 +116,7 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 			scols_line_sprintf(line, 4, "%u", nh->held_pkts);
 			scols_line_set_data(line, 5, "?");
 		}
-		scols_line_sprintf(line, 6, "%s", state);
+		scols_line_sprintf(line, 6, "%s", buf);
 	}
 
 	scols_print_table(table);
@@ -126,6 +124,10 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
+err:
+	scols_unref_table(table);
+	free(resp_ptr);
+	return CMD_ERROR;
 }
 
 static int ctx_init(struct ec_node *root) {

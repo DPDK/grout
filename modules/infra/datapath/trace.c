@@ -4,6 +4,7 @@
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_log.h>
+#include <gr_macro.h>
 #include <gr_mbuf.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
