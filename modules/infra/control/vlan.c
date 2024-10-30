@@ -148,12 +148,26 @@ static int iface_vlan_fini(struct iface *iface) {
 
 	if ((ret = rte_eth_dev_vlan_filter(port_id, vlan->vlan_id, false)) < 0)
 		errno_log(-ret, "rte_eth_dev_vlan_filter disable");
-	if (status == 0 && ret < 0)
-		status = ret;
+	if (status == 0 && ret < 0) {
+		switch (errno) {
+		case ENOSYS:
+		case EOPNOTSUPP:
+			break;
+		default:
+			status = ret;
+		}
+	}
 
 	ret = parent_type->del_eth_addr(parent, &vlan->mac);
-	if (status == 0 && ret < 0)
-		status = ret;
+	if (status == 0 && ret < 0) {
+		switch (errno) {
+		case ENOSYS:
+		case EOPNOTSUPP:
+			break;
+		default:
+			status = ret;
+		}
+	}
 
 	iface_del_subinterface(parent, iface);
 
