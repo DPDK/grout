@@ -12,6 +12,20 @@ fi
 cleanup() {
 	set +e
 	sh -x $tmp/cleanup
+
+	# delete all non-port interfaces first
+	grcli show interface all |
+	grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' |
+	while read -r name _; do
+		grcli del interface "$name"
+	done
+	# then delete all ports
+	grcli show interface all |
+	grep -v ^NAME |
+	while read -r name _; do
+		grcli del interface "$name"
+	done
+
 	if [ "$run_grout" = true ]; then
 		kill -INT %?grout
 		wait
