@@ -252,19 +252,15 @@ static struct api_out route4_get(const void *request, void **response) {
 	return api_out(0, sizeof(*resp));
 }
 
-static struct api_out route4_list(const void *request, void **response) {
-	const struct gr_ip4_route_list_req *req = request;
-	struct gr_ip4_route_list_resp *resp = NULL;
-	struct rte_fib *fib = get_fib(req->vrf_id);
+static int route4_count(uint16_t vrf_id) {
 	struct rte_rib_node *rn = NULL;
-	struct gr_ip4_route *r;
+	struct rte_fib *fib;
 	struct rte_rib *rib;
-	size_t num, len;
-	uintptr_t nh_id;
-	uint32_t ip;
+	int num;
 
+	fib = get_fib(vrf_id);
 	if (fib == NULL)
-		return api_out(errno, 0);
+		return -errno;
 
 	rib = rte_fib_get_rib(fib);
 
@@ -275,9 +271,20 @@ static struct api_out route4_list(const void *request, void **response) {
 	if (rte_rib_lookup_exact(rib, 0, 0) != NULL)
 		num++;
 
-	len = sizeof(*resp) + num * sizeof(struct gr_ip4_route);
-	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0);
+	return num;
+}
+
+static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_id) {
+	struct rte_rib_node *rn = NULL;
+	struct gr_ip4_route *r;
+	struct rte_fib *fib;
+	struct rte_rib *rib;
+	uintptr_t nh_id;
+	uint32_t ip;
+
+	fib = get_fib(vrf_id);
+	assert(fib != NULL);
+	rib = rte_fib_get_rib(fib);
 
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
@@ -286,6 +293,7 @@ static struct api_out route4_list(const void *request, void **response) {
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
 		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->vrf_id = vrf_id;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
@@ -294,7 +302,45 @@ static struct api_out route4_list(const void *request, void **response) {
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
 		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->vrf_id = vrf_id;
 	}
+}
+
+static struct api_out route4_list(const void *request, void **response) {
+	const struct gr_ip4_route_list_req *req = request;
+	struct gr_ip4_route_list_resp *resp = NULL;
+	size_t num, len;
+	int n;
+
+	if (req->vrf_id == UINT16_MAX) {
+		num = 0;
+		for (uint16_t v = 0; v < IP4_MAX_VRFS; v++) {
+			if (vrf_fibs[v] == NULL)
+				continue;
+			if ((n = route4_count(v)) < 0)
+				return api_out(errno, 0);
+			num += n;
+		}
+	} else {
+		if ((n = route4_count(req->vrf_id)) < 0)
+			return api_out(errno, 0);
+		num = n;
+	}
+
+	len = sizeof(*resp) + num * sizeof(struct gr_ip4_route);
+	if ((resp = calloc(1, len)) == NULL)
+		return api_out(ENOMEM, 0);
+
+	if (req->vrf_id == UINT16_MAX) {
+		for (uint16_t v = 0; v < IP4_MAX_VRFS; v++) {
+			if (vrf_fibs[v] == NULL)
+				continue;
+			route4_rib_to_api(resp, v);
+		}
+	} else {
+		route4_rib_to_api(resp, req->vrf_id);
+	}
+
 	*response = resp;
 
 	return api_out(0, len);

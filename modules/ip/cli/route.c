@@ -48,9 +48,9 @@ static cmd_status_t route4_del(const struct gr_api_client *c, const struct ec_pn
 }
 
 static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_route_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip4_route_list_resp *resp;
-	struct gr_ip4_route_list_req req = {0};
 	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
@@ -66,6 +66,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	}
 
 	resp = resp_ptr;
+	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
 	scols_table_set_column_separator(table, "  ");
@@ -75,8 +76,9 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 		const struct gr_ip4_route *route = &resp->routes[i];
 		ip4_net_format(&route->dest, dest, sizeof(dest));
 		inet_ntop(AF_INET, &route->nh, nh, sizeof(nh));
-		scols_line_set_data(line, 0, dest);
-		scols_line_set_data(line, 1, nh);
+		scols_line_sprintf(line, 0, "%u", route->vrf_id);
+		scols_line_set_data(line, 1, dest);
+		scols_line_set_data(line, 2, nh);
 	}
 
 	scols_print_table(table);
