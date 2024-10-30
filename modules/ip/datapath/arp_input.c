@@ -109,7 +109,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		sip = arp->arp_data.arp_sip;
 		iface = eth_input_mbuf_data(mbuf)->iface;
 		local = ip4_addr_get_preferred(iface->id, sip);
-		remote = ip4_route_lookup(iface->vrf_id, sip);
+		remote = ip4_nexthop_lookup(iface->vrf_id, sip);
 
 		if (remote != NULL && remote->ip == sip) {
 			update_nexthop(graph, node, remote, now, iface->id, arp);
