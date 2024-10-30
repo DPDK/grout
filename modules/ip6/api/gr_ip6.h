@@ -68,6 +68,7 @@ struct gr_ip6_nh {
 struct gr_ip6_route {
 	struct ip6_net dest;
 	struct rte_ipv6_addr nh;
+	uint16_t vrf_id;
 };
 
 #define GR_IP6_MODULE 0xfeed
