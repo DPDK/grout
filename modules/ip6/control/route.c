@@ -251,32 +251,40 @@ static struct api_out route6_get(const void *request, void **response) {
 	return api_out(0, sizeof(*resp));
 }
 
-static struct api_out route6_list(const void *request, void **response) {
-	const struct gr_ip6_route_list_req *req = request;
-	struct gr_ip6_route_list_resp *resp = NULL;
-	struct rte_fib6 *fib = get_fib6(req->vrf_id);
+static int route6_count(uint16_t vrf_id) {
+	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
 	struct rte_rib6_node *rn = NULL;
-	struct rte_ipv6_addr zero = {0};
-	struct gr_ip6_route *r;
+	struct rte_fib6 *fib;
 	struct rte_rib6 *rib;
-	size_t num, len;
-	uintptr_t nh_id;
+	int num;
 
+	fib = get_fib6(vrf_id);
 	if (fib == NULL)
-		return api_out(errno, 0);
+		return -errno;
 
 	rib = rte_fib6_get_rib(fib);
 
 	num = 0;
 	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL)
 		num++;
-	// FIXME: remove this when rte_rib6_get_nxt returns a default route, if any is configured
+	// check if there is a default route configured
 	if (rte_rib6_lookup_exact(rib, &zero, 0) != NULL)
 		num++;
 
-	len = sizeof(*resp) + num * sizeof(struct gr_ip6_route);
-	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0);
+	return num;
+}
+
+static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_id) {
+	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
+	struct rte_rib6_node *rn = NULL;
+	struct gr_ip6_route *r;
+	struct rte_fib6 *fib;
+	struct rte_rib6 *rib;
+	uintptr_t nh_id;
+
+	fib = get_fib6(vrf_id);
+	assert(fib != NULL);
+	rib = rte_fib6_get_rib(fib);
 
 	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
@@ -284,14 +292,53 @@ static struct api_out route6_list(const void *request, void **response) {
 		rte_rib6_get_ip(rn, &r->dest.ip);
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->vrf_id = vrf_id;
 	}
-	// FIXME: remove this when rte_rib6_get_nxt returns a default route, if any is configured
+	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
 		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->vrf_id = vrf_id;
 	}
+}
+
+static struct api_out route6_list(const void *request, void **response) {
+	const struct gr_ip6_route_list_req *req = request;
+	struct gr_ip6_route_list_resp *resp = NULL;
+	size_t num, len;
+	int n;
+
+	if (req->vrf_id == UINT16_MAX) {
+		num = 0;
+		for (uint16_t v = 0; v < IP6_MAX_VRFS; v++) {
+			if (vrf_fibs[v] == NULL)
+				continue;
+			if ((n = route6_count(v)) < 0)
+				return api_out(errno, 0);
+			num += n;
+		}
+	} else {
+		if ((n = route6_count(req->vrf_id)) < 0)
+			return api_out(errno, 0);
+		num = n;
+	}
+
+	len = sizeof(*resp) + num * sizeof(struct gr_ip6_route);
+	if ((resp = calloc(1, len)) == NULL)
+		return api_out(ENOMEM, 0);
+
+	if (req->vrf_id == UINT16_MAX) {
+		for (uint16_t v = 0; v < IP6_MAX_VRFS; v++) {
+			if (vrf_fibs[v] == NULL)
+				continue;
+			route6_rib_to_api(resp, v);
+		}
+	} else {
+		route6_rib_to_api(resp, req->vrf_id);
+	}
+
 	*response = resp;
 
 	return api_out(0, len);
