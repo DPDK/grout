@@ -27,14 +27,14 @@ extern int gr_rte_log_type;
 	} while (0)
 
 static inline int __errno_log(int errnum, const char *func, const char *what) {
-	RTE_LOG(ERR, GROUT, "%s: %s: %s\n", func, what, rte_strerror(errnum));
+	RTE_LOG(ERR, GROUT, "%s: %s: %s (%d)\n", func, what, rte_strerror(errnum), errnum);
 	return errno_set(errnum);
 }
 
 #define errno_log(err, what) __errno_log(err, __func__, what)
 
 static inline void *__errno_log_null(int errnum, const char *func, const char *what) {
-	RTE_LOG(ERR, GROUT, "%s: %s: %s\n", func, what, rte_strerror(errnum));
+	RTE_LOG(ERR, GROUT, "%s: %s: %s (%d)\n", func, what, rte_strerror(errnum), errnum);
 	return errno_set_null(errnum);
 }
 
