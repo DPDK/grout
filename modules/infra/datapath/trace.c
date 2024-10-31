@@ -593,7 +593,7 @@ static void trace_init(struct event_base *) {
 		"traced_packets",
 		PACKET_COUNT_MAX,
 		SOCKET_ID_ANY,
-		RING_F_MP_RTS_ENQ | RING_F_SC_DEQ // flags
+		RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ
 	);
 
 	if (traced_packets == NULL)
@@ -601,9 +601,8 @@ static void trace_init(struct event_base *) {
 }
 
 static void trace_fini(struct event_base *) {
-	gr_trace_clear();
-	rte_mempool_free(trace_pool);
 	rte_ring_free(traced_packets);
+	rte_mempool_free(trace_pool);
 }
 
 static struct gr_module trace_module = {
