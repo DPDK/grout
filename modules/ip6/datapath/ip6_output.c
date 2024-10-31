@@ -110,13 +110,19 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /128 route so that next
 			// packets take it in priority with a single route lookup.
-			struct nexthop6 *remote = ip6_nexthop_new(
-				nh->vrf_id, nh->iface_id, &ip->dst_addr
-			);
+			struct nexthop6 *remote = ip6_nexthop_lookup(nh->vrf_id, &ip->dst_addr);
+
+			if (remote == NULL)
+				remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, &ip->dst_addr);
+			else if (remote->flags & GR_IP6_NH_F_GATEWAY && remote->iface_id == 0)
+				remote->iface_id = nh->iface_id;
+
 			if (remote == NULL) {
 				edge = ERROR;
 				goto next;
 			}
+
+			assert(remote->iface_id == nh->iface_id);
 			if (ip6_route_insert(nh->vrf_id, &ip->dst_addr, RTE_IPV6_MAX_DEPTH, remote)
 			    < 0) {
 				edge = ERROR;
