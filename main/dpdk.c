@@ -133,7 +133,7 @@ static int cpuset_format(char *buf, size_t len, cpu_set_t *set) {
 int dpdk_init(const struct gr_args *args) {
 	char affinity[BUFSIZ] = "";
 	char main_lcore[32] = "";
-	char **eal_args = NULL;
+	char **eal_args = NULL, *arg;
 	cpu_set_t cpus;
 	int ret;
 
@@ -168,6 +168,9 @@ int dpdk_init(const struct gr_args *args) {
 	} else {
 		gr_vec_add(eal_args, "--in-memory");
 	}
+
+	gr_vec_foreach (arg, args->eal_extra_args)
+		gr_vec_add(eal_args, arg);
 
 	LOG(INFO, "%s", rte_version());
 

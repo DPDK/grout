@@ -11,6 +11,7 @@ struct gr_args {
 	unsigned log_level;
 	bool test_mode;
 	bool poll_mode;
+	char **eal_extra_args;
 };
 
 const struct gr_args *gr_args(void);
