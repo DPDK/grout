@@ -5,3 +5,8 @@ option(
   'docs', type: 'feature', value: 'auto',
   description: 'Build man pages. If set to "auto", only build if scdoc is found.',
 )
+
+option(
+  'tests', type: 'feature', value: 'auto',
+  description: 'Build unit-tests. If set to "auto", only build if cmocka is found.',
+)
