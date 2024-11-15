@@ -99,17 +99,18 @@ grcli_exe = executable(
 
 install_headers(api_headers)
 
-fs = import('fs')
-cmocka_dep = dependency('cmocka')
-
-foreach t : tests
-  name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
-  t += {
-    'sources': t['sources'] + files('main/string.c'),
-    'include_directories': inc + api_inc,
-    'c_args': ['-coverage', '-D__GROUT_MAIN__'],
-    'link_args': t['link_args'] + ['-lgcov'],
-    'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
-  }
-  test(name, executable(name, kwargs: t), suite: 'unit')
-endforeach
+cmocka_dep = dependency('cmocka', required: get_option('tests'))
+if cmocka_dep.found()
+  fs = import('fs')
+  foreach t : tests
+    name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
+    t += {
+      'sources': t['sources'] + files('main/string.c'),
+      'include_directories': inc + api_inc,
+      'c_args': ['-coverage', '-D__GROUT_MAIN__'],
+      'link_args': t['link_args'] + ['-lgcov'],
+      'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
+    }
+    test(name, executable(name, kwargs: t), suite: 'unit')
+  endforeach
+endif
