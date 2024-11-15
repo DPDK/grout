@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Robin Jarry
 
-scdoc_dep = dependency('scdoc', version: '>=1.9.2', native: true)
+scdoc_dep = dependency('scdoc', version: '>=1.9.2', native: true, required: get_option('docs'))
+if not scdoc_dep.found()
+  subdir_done()
+endif
 scdoc = find_program(scdoc_dep.get_variable(pkgconfig: 'scdoc'), native: true)
 mandir = get_option('mandir')
 

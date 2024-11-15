@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2024 Vincent Jardin
+
+option(
+  'docs', type: 'feature', value: 'auto',
+  description: 'Build man pages. If set to "auto", only build if scdoc is found.',
+)
