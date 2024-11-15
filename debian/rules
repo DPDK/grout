@@ -6,7 +6,6 @@ DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
 meson_opts := --wrap-mode=default
-meson_opts += --buildtype=release
 meson_opts += --auto-features=enabled
 meson_opts += -Ddpdk:platform=generic
 
