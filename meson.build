@@ -61,7 +61,17 @@ dpdk_dep = dependency(
 ev_core_dep = dependency('libevent_core')
 ev_thread_dep = dependency('libevent_pthreads')
 numa_dep = dependency('numa')
-ecoli_dep = dependency('libecoli', fallback: ['ecoli', 'libecoli_dep'])
+ecoli_dep = dependency(
+  'libecoli',
+  fallback: ['ecoli', 'libecoli_dep'],
+  default_options: [
+    'doc=disabled',
+    'editline=enabled',
+    'examples=disabled',
+    'tests=disabled',
+    'yaml=disabled',
+  ]
+)
 smartcols_dep = dependency('smartcols')
 
 src = []
