@@ -47,7 +47,7 @@ typedef enum {
 static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
 	hold_status_t status;
 
-	if (nh->flags & GR_IP4_NH_F_REACHABLE) {
+	if (nh->flags & GR_NH_F_REACHABLE) {
 		status = OK_TO_SEND;
 	} else if (nh->held_pkts_num < IP4_NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
@@ -59,9 +59,9 @@ static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbu
 		nh->held_pkts_tail = mbuf;
 		nh->held_pkts_num++;
 		rte_spinlock_unlock(&nh->lock);
-		if (!(nh->flags & GR_IP4_NH_F_PENDING)) {
+		if (!(nh->flags & GR_NH_F_PENDING)) {
 			arp_output_request_solicit(nh);
-			nh->flags |= GR_IP4_NH_F_PENDING;
+			nh->flags |= GR_NH_F_PENDING;
 		}
 		status = HELD;
 	} else {
@@ -105,7 +105,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		if (nh->flags & GR_IP4_NH_F_LINK && ip->dst_addr != nh->ip) {
+		if (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->ip) {
 			// The resolved next hop is associated with a "connected" route.
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /32 route so that next
@@ -114,7 +114,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 			if (remote == NULL)
 				remote = ip4_nexthop_new(nh->vrf_id, nh->iface_id, ip->dst_addr);
-			else if (remote->flags & GR_IP4_NH_F_GATEWAY && remote->iface_id == 0)
+			else if (remote->flags & GR_NH_F_GATEWAY && remote->iface_id == 0)
 				remote->iface_id = nh->iface_id;
 
 			if (remote == NULL) {

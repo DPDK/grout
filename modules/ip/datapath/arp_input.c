@@ -37,7 +37,7 @@ static inline void update_nexthop(
 	struct rte_mbuf *m, *next;
 
 	// Static next hops never need updating.
-	if (nh->flags & GR_IP4_NH_F_STATIC)
+	if (nh->flags & GR_NH_F_STATIC)
 		return;
 
 	rte_spinlock_lock(&nh->lock);
@@ -45,8 +45,8 @@ static inline void update_nexthop(
 	// Refresh all fields.
 	nh->last_reply = now;
 	nh->iface_id = iface_id;
-	nh->flags |= GR_IP4_NH_F_REACHABLE;
-	nh->flags &= ~(GR_IP4_NH_F_STALE | GR_IP4_NH_F_PENDING | GR_IP4_NH_F_FAILED);
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
 	nh->ucast_probes = 0;
 	nh->bcast_probes = 0;
 	nh->lladdr = arp->arp_data.arp_sha;

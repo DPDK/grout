@@ -87,25 +87,25 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	if (req->nh.host == 0)
+	if (req->nh.ipv4 == 0)
 		return api_out(EINVAL, 0);
 	if (req->nh.vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip4_nexthop_lookup(req->nh.vrf_id, req->nh.host)) != NULL) {
+	if ((nh = ip4_nexthop_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && rte_is_same_ether_addr(&req->nh.mac, &nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if ((nh = ip4_nexthop_new(req->nh.vrf_id, req->nh.iface_id, req->nh.host)) == NULL)
+	if ((nh = ip4_nexthop_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
 		return api_out(errno, 0);
 
 	nh->lladdr = req->nh.mac;
-	nh->flags = GR_IP4_NH_F_STATIC | GR_IP4_NH_F_REACHABLE;
+	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
 	ret = ip4_route_insert(nh->vrf_id, nh->ip, 32, nh);
 
 	return api_out(-ret, 0);
@@ -123,8 +123,7 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 			return api_out(0, 0);
 		return api_out(errno, 0);
 	}
-	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK | GR_IP4_NH_F_GATEWAY))
-	    || nh->ref_count > 1)
+	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	// this also does ip4_nexthop_decref(), freeing the next hop
@@ -136,18 +135,18 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 
 struct list_context {
 	uint16_t vrf_id;
-	struct gr_ip4_nh *nh;
+	struct gr_nexthop *nh;
 };
 
 static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct list_context *ctx = opaque;
 	struct nexthop *nh = obj;
-	struct gr_ip4_nh api_nh;
+	struct gr_nexthop api_nh;
 
 	if (nh->ref_count == 0 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
 		return;
 
-	api_nh.host = nh->ip;
+	api_nh.ipv4 = nh->ip;
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
 	api_nh.mac = nh->lladdr;
@@ -191,33 +190,33 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 
 	max_probes = IP4_NH_UCAST_PROBES + IP4_NH_BCAST_PROBES;
 
-	if (nh->ref_count == 0 || nh->flags & GR_IP4_NH_F_STATIC)
+	if (nh->ref_count == 0 || nh->flags & GR_NH_F_STATIC)
 		return;
 
 	reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
 	request_age = (now - nh->last_request) / rte_get_tsc_hz();
 	probes = nh->ucast_probes + nh->bcast_probes;
 
-	if (nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE) && request_age > probes) {
-		if (probes >= max_probes && !(nh->flags & GR_IP4_NH_F_GATEWAY)) {
+	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE) && request_age > probes) {
+		if (probes >= max_probes && !(nh->flags & GR_NH_F_GATEWAY)) {
 			LOG(DEBUG,
 			    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
 			    &nh->ip,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts_num,
-			    gr_ip4_nh_f_name(nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE))
-			);
-			nh->flags &= ~(GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE);
-			nh->flags |= GR_IP4_NH_F_FAILED;
+			    gr_nh_flag_name(nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)));
+
+			nh->flags &= ~(GR_NH_F_PENDING | GR_NH_F_STALE);
+			nh->flags |= GR_NH_F_FAILED;
 		} else {
 			if (arp_output_request_solicit(nh) < 0)
 				LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
 		}
-	} else if (nh->flags & GR_IP4_NH_F_REACHABLE && reply_age > IP4_NH_LIFETIME_REACHABLE) {
-		nh->flags &= ~GR_IP4_NH_F_REACHABLE;
-		nh->flags |= GR_IP4_NH_F_STALE;
-	} else if (nh->flags & GR_IP4_NH_F_FAILED && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
+	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > IP4_NH_LIFETIME_REACHABLE) {
+		nh->flags &= ~GR_NH_F_REACHABLE;
+		nh->flags |= GR_NH_F_STALE;
+	} else if (nh->flags & GR_NH_F_FAILED && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
 		LOG(DEBUG,
 		    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
 		    &nh->ip,

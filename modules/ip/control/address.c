@@ -87,8 +87,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		return api_out(errno, 0);
 
 	nh->prefixlen = req->addr.addr.prefixlen;
-	nh->flags = GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK | GR_IP4_NH_F_REACHABLE
-		| GR_IP4_NH_F_STATIC;
+	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
 
 	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
 		if (errno != EOPNOTSUPP) {
@@ -127,7 +126,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK)) || nh->ref_count > 1)
+	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ip4_route_cleanup(nh);

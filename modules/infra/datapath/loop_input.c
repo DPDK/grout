@@ -65,7 +65,7 @@ static uint16_t loopback_input_process(
 				d->nh = nh;
 				// If the resolved next hop is local and the destination IP is ourselves,
 				// send to ip_local.
-				if (nh->flags & GR_IP4_NH_F_LOCAL && ip->dst_addr == nh->ip)
+				if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ip)
 					edge = IP_LOCAL;
 				else
 					edge = IP_OUTPUT;
@@ -85,7 +85,7 @@ static uint16_t loopback_input_process(
 				d->nh = nh;
 				// If the resolved next hop is local and the destination IP is ourselves,
 				// send to ip6_local.
-				if (nh->flags & GR_IP6_NH_F_LOCAL
+				if (nh->flags & GR_NH_F_LOCAL
 				    && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ip))
 					edge = IP6_LOCAL;
 				else

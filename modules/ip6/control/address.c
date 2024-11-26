@@ -97,7 +97,7 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 	}
 
 	ip6_nexthop_incref(nh);
-	nh->flags = GR_IP6_NH_F_REACHABLE | GR_IP6_NH_F_STATIC | GR_IP6_NH_F_MCAST;
+	nh->flags = GR_NH_F_REACHABLE | GR_NH_F_STATIC | GR_NH_F_MCAST;
 	maddrs->nh[i] = nh;
 	maddrs->count++;
 
@@ -161,8 +161,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-errno);
 
 	nh->prefixlen = prefixlen;
-	nh->flags = GR_IP6_NH_F_LOCAL | GR_IP6_NH_F_LINK | GR_IP6_NH_F_REACHABLE
-		| GR_IP6_NH_F_STATIC;
+	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
 
 	if ((ret = iface_get_eth_addr(iface->id, &nh->lladdr)) < 0)
 		if (errno != EOPNOTSUPP) {
@@ -225,7 +224,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if ((nh->flags & (GR_IP6_NH_F_LOCAL | GR_IP6_NH_F_LINK)) || nh->ref_count > 1)
+	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ip6_route_cleanup(nh);
