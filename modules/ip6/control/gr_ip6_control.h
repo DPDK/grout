@@ -17,7 +17,7 @@
 #include <stdint.h>
 
 struct __rte_cache_aligned nexthop6 {
-	gr_ip6_nh_flags_t flags;
+	gr_nh_flags_t flags;
 	struct rte_ether_addr lladdr;
 	uint16_t vrf_id;
 	uint16_t iface_id;

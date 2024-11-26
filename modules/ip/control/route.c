@@ -207,7 +207,7 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	}
 
 	ip4_nexthop_incref(nh);
-	nh->flags |= GR_IP4_NH_F_GATEWAY;
+	nh->flags |= GR_NH_F_GATEWAY;
 
 	return api_out(0, 0);
 }
@@ -222,7 +222,7 @@ static struct api_out route4_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (!(nh->flags & GR_IP4_NH_F_GATEWAY))
+	if (!(nh->flags & GR_NH_F_GATEWAY))
 		return api_out(EBUSY, 0);
 
 	if (ip4_route_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen) < 0)
@@ -243,7 +243,7 @@ static struct api_out route4_get(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->nh.host = nh->ip;
+	resp->nh.ipv4 = nh->ip;
 	resp->nh.iface_id = nh->iface_id;
 	resp->nh.mac = nh->lladdr;
 	resp->nh.flags = nh->flags;
