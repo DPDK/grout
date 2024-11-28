@@ -32,6 +32,7 @@ static uint16_t arp_output_reply_process(
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
+	ip4_addr_t tmp_ip;
 	rte_edge_t edge;
 	uint16_t num;
 
@@ -61,8 +62,9 @@ static uint16_t arp_output_reply_process(
 			edge = ERROR;
 			goto next;
 		}
-		arp->arp_data.arp_tip = arp_data->remote->ip;
-		arp->arp_data.arp_sip = arp_data->local->ip;
+		tmp_ip = arp->arp_data.arp_tip;
+		arp->arp_data.arp_tip = arp->arp_data.arp_sip;
+		arp->arp_data.arp_sip = tmp_ip;
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
