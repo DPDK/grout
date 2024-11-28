@@ -86,7 +86,7 @@ struct iface *iface_next(uint16_t type_id, const struct iface *prev);
 
 #define IFACE_EVENTS                                                                               \
 	IFACE_EVENT(UNKNOWN), IFACE_EVENT(POST_ADD), IFACE_EVENT(PRE_REMOVE),                      \
-		IFACE_EVENT(PORT_POST_RECONFIG)
+		IFACE_EVENT(PORT_POST_RECONFIG), IFACE_EVENT(STATUS_UP), IFACE_EVENT(STATUS_DOWN)
 
 #define IFACE_EVENT(name) IFACE_EVENT_##name
 typedef enum {
