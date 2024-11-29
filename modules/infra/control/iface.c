@@ -294,7 +294,8 @@ static void iface_fini(struct event_base *) {
 	// Destroy all virtual interface first before removing DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface != NULL && iface->type_id != GR_IFACE_TYPE_PORT) {
+		if (iface != NULL && iface->type_id != GR_IFACE_TYPE_PORT
+		    && iface->type_id != GR_IFACE_TYPE_LOOPBACK) {
 			if (iface_destroy(ifid) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
@@ -304,7 +305,7 @@ static void iface_fini(struct event_base *) {
 	// Finally, destroy DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface == NULL)
+		if (iface == NULL || iface->type_id == GR_IFACE_TYPE_LOOPBACK)
 			continue;
 		if (iface_destroy(ifid) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));

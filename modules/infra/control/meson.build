@@ -10,6 +10,7 @@ src += files(
   'worker.c',
   'graph.c',
   'vlan.c',
+  'vrf.c',
 )
 inc += include_directories('.')
 
