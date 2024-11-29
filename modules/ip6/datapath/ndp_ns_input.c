@@ -78,7 +78,7 @@ static uint16_t ndp_ns_input_process(
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
 		local = ip6_addr_get_preferred(iface->id, &ns->target);
-		if (!rte_ipv6_addr_eq(&local->ip, &ns->target)) {
+		if (local == NULL || !rte_ipv6_addr_eq(&local->ip, &ns->target)) {
 			next = IGNORE;
 			goto next;
 		}
