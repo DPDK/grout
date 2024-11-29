@@ -18,6 +18,7 @@
 #define GR_IFACE_TYPE_UNDEF 0x00
 #define GR_IFACE_TYPE_PORT 0x01
 #define GR_IFACE_TYPE_VLAN 0x02
+#define GR_IFACE_TYPE_LOOPBACK 0xFF
 #define GR_IFACE_TYPE_MAX 256
 
 // Interface configure flags

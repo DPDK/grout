@@ -84,6 +84,10 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
 uint16_t ifaces_count(uint16_t type_id);
 struct iface *iface_next(uint16_t type_id, const struct iface *prev);
 
+struct iface *get_vrf_iface(uint16_t vrf_id);
+struct iface *iface_loopback_create(uint16_t vrf_id);
+int iface_loopback_delete(uint16_t vrf_id);
+
 #define IFACE_EVENTS                                                                               \
 	IFACE_EVENT(UNKNOWN), IFACE_EVENT(POST_ADD), IFACE_EVENT(PRE_REMOVE),                      \
 		IFACE_EVENT(POST_RECONFIG), IFACE_EVENT(STATUS_UP), IFACE_EVENT(STATUS_DOWN)
