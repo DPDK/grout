@@ -85,6 +85,8 @@ static int iface_ipip_reconfig(
 	if (set_attrs & GR_IFACE_SET_MTU)
 		iface->mtu = mtu;
 
+	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
+
 	return 0;
 }
 
