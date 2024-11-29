@@ -302,7 +302,7 @@ int iface_port_reconfig(
 	if (stopped && (ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
 
-	iface_event_notify(IFACE_EVENT_PORT_POST_RECONFIG, iface);
+	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
 
 	return port_plug(p->port_id);
 }

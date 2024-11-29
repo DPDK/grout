@@ -129,6 +129,8 @@ static int iface_vlan_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = vrf_id;
 
+	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
+
 	return 0;
 }
 
