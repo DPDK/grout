@@ -110,34 +110,34 @@ systemctl restart grout.service
 [root@grout]$ systemctl status -n40 grout.service
 ● grout.service - Graph router daemon
      Loaded: loaded (/usr/lib/systemd/system/grout.service; enabled; preset: disabled)
-     Active: active (running) since Mon 2024-09-09 10:31:40 CEST; 4s ago
+     Active: active (running) since Sat 2024-11-30 10:31:40 CEST; 4s ago
     Process: 31298 ExecStartPre=/usr/bin/udevadm settle (code=exited, status=0/SUCCESS)
     Process: 31302 ExecStartPost=/usr/bin/grcli -xef /etc/grout.init (code=exited, status=0/SUCCESS)
    Main PID: 31299 (grout)
-     Status: "grout version v0.1-108-gb46a80db started"
+     Status: "grout version v0.2-93-gf53240e3750a started"
       Tasks: 5 (limit: 195427)
      Memory: 6.6M
         CPU: 19.185s
      CGroup: /system.slice/grout.service
              └─31299 /usr/sbin/grout
 
-Sep 09 10:31:31 grout systemd[1]: Starting Graph router daemon...
-Sep 09 10:31:31 grout grout[31299]: GROUT: main: starting grout version v0.1-108-gb46a80db
-Sep 09 10:31:31 grout grout[31299]: GROUT: dpdk_init: DPDK 24.07.0
-Sep 09 10:31:31 grout grcli[31302]: + add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
-Sep 09 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] starting tid=31303
-Sep 09 10:31:40 grout grcli[31302]: Created interface 1
-Sep 09 10:31:32 grout grcli[31302]: + add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
-Sep 09 10:31:40 grout grcli[31302]: Created interface 2
-Sep 09 10:31:33 grout grcli[31302]: + set port qmap p0 rxq 0 cpu 2
-Sep 09 10:31:33 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31304
-Sep 09 10:31:38 grout grcli[31302]: + set port qmap p1 rxq 0 cpu 22
-Sep 09 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
-Sep 09 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] shutting down tid=31303
-Sep 09 10:31:40 grout grcli[31302]: + add ip address 172.16.0.2/24 iface p0
-Sep 09 10:31:40 grout grcli[31302]: + add ip address 172.16.1.2/24 iface p1
-Sep 09 10:31:40 grout grcli[31302]: + add ip route 0.0.0.0/0 via 172.16.1.183
-Sep 09 10:31:40 grout systemd[1]: Started Graph router daemon.
+Nov 30 10:31:31 grout systemd[1]: Starting Graph router daemon...
+Nov 30 10:31:31 grout grout[31299]: GROUT: main: starting grout version v0.2-93-gf53240e3750a
+Nov 30 10:31:31 grout grout[31299]: GROUT: dpdk_init: DPDK 24.11.0
+Nov 30 10:31:31 grout grcli[31302]: + add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
+Nov 30 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] starting tid=31303
+Nov 30 10:31:40 grout grcli[31302]: Created interface 1
+Nov 30 10:31:32 grout grcli[31302]: + add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
+Nov 30 10:31:40 grout grcli[31302]: Created interface 2
+Nov 30 10:31:33 grout grcli[31302]: + set port qmap p0 rxq 0 cpu 2
+Nov 30 10:31:33 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31304
+Nov 30 10:31:38 grout grcli[31302]: + set port qmap p1 rxq 0 cpu 22
+Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
+Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] shutting down tid=31303
+Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.0.2/24 iface p0
+Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.1.2/24 iface p1
+Nov 30 10:31:40 grout grcli[31302]: + add ip route 0.0.0.0/0 via 172.16.1.183
+Nov 30 10:31:40 grout systemd[1]: Started Graph router daemon.
 ```
 
 ### Interact with the CLI
@@ -264,8 +264,8 @@ The binaries are located in the build directory:
 
 ```console
 [root@dev grout]$ taskset --cpu-list 0,2,22 ./build/grout -v -s grout.sock
-INFO: GROUT: dpdk_init: starting grout version v0.1-103.g39e42d1e
-INFO: GROUT: dpdk_init: DPDK 24.07.0
+INFO: GROUT: dpdk_init: starting grout version v0.2-93-gf53240e3750a
+INFO: GROUT: dpdk_init: DPDK 24.11.0
 INFO: GROUT: dpdk_init: EAL arguments: -l 0 -a 0000:00:00.0 --log-level=*:notice --log-level=grout:info
 ...
 INFO: GROUT: listen_api_socket: listening on API socket grout.sock
