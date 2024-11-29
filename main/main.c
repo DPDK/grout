@@ -61,7 +61,7 @@ const struct gr_args *gr_args(void) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:Vhps:t:vx"
+#define FLAGS ":B:D:L:M:T:Vhps:tvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"log-level", required_argument, NULL, 'L'},
@@ -128,11 +128,11 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case ':':
 			usage(argv[0]);
-			fprintf(stderr, "error: -%c requires a value", optopt);
+			fprintf(stderr, "error: -%c requires a value\n", optopt);
 			return errno_set(EINVAL);
 		case '?':
 			usage(argv[0]);
-			fprintf(stderr, "error: -%c unknown option", optopt);
+			fprintf(stderr, "error: -%c unknown option\n", optopt);
 			return errno_set(EINVAL);
 		default:
 			goto end;
