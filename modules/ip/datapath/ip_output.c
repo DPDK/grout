@@ -100,6 +100,8 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
 		edge = edges[iface->type_id];
+		mbuf_data(mbuf)->iface = iface;
+
 		if (edge != ETH_OUTPUT)
 			goto next;
 
@@ -148,7 +150,6 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_data = eth_output_mbuf_data(mbuf);
 		eth_data->dst = nh->lladdr;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
-		eth_data->iface = iface;
 		sent++;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
