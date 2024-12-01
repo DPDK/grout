@@ -55,12 +55,12 @@ int icmp_local_send(
 	msg->ttl = ttl;
 	msg->dst = dst;
 
-	if ((local = ip4_addr_get_preferred(gw->iface_id, gw->ip)) == NULL) {
+	if ((local = ip4_addr_get_preferred(gw->iface_id, gw->ipv4)) == NULL) {
 		free(msg);
 		return -errno;
 	}
 
-	msg->src = local->ip;
+	msg->src = local->ipv4;
 
 	if ((ret = post_to_stack(ip4_icmp_request, msg)) < 0) {
 		free(msg);

@@ -49,7 +49,7 @@ static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbu
 
 	if (nh->flags & GR_NH_F_REACHABLE) {
 		status = OK_TO_SEND;
-	} else if (nh->held_pkts_num < IP4_NH_MAX_HELD_PKTS) {
+	} else if (nh->held_pkts_num < NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
 		rte_spinlock_lock(&nh->lock);
 		if (nh->held_pkts_head == NULL)
@@ -105,7 +105,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		if (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->ip) {
+		if (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->ipv4) {
 			// The resolved next hop is associated with a "connected" route.
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /32 route so that next

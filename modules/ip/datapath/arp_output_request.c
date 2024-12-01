@@ -54,7 +54,7 @@ static uint16_t arp_output_request_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
-		local = ip4_addr_get_preferred(nh->iface_id, nh->ip);
+		local = ip4_addr_get_preferred(nh->iface_id, nh->ipv4);
 
 		if (local == NULL) {
 			edge = ERROR;
@@ -76,12 +76,12 @@ static uint16_t arp_output_request_process(
 			edge = ERROR;
 			goto next;
 		}
-		arp->arp_data.arp_sip = local->ip;
+		arp->arp_data.arp_sip = local->ipv4;
 		if (nh->last_reply != 0)
 			arp->arp_data.arp_tha = nh->lladdr;
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
-		arp->arp_data.arp_tip = nh->ip;
+		arp->arp_data.arp_tip = nh->ipv4;
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *arp;
@@ -89,7 +89,7 @@ static uint16_t arp_output_request_process(
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		if (nh->ucast_probes < IP4_NH_UCAST_PROBES) {
+		if (nh->ucast_probes < NH_UCAST_PROBES) {
 			eth_data->dst = arp->arp_data.arp_tha;
 			nh->ucast_probes++;
 		} else {

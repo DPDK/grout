@@ -31,7 +31,7 @@ enum {
 
 static control_input_t ndp_solicit;
 
-int ip6_nexthop_solicit(struct nexthop6 *nh) {
+int ip6_nexthop_solicit(struct nexthop *nh) {
 	if (nh == NULL)
 		return errno_set(EINVAL);
 	return post_to_stack(ndp_solicit, nh);
@@ -45,7 +45,7 @@ static uint16_t ndp_ns_output_process(
 ) {
 	struct icmp6_opt_lladdr *lladdr;
 	struct icmp6_neigh_solicit *ns;
-	struct nexthop6 *local, *nh;
+	struct nexthop *local, *nh;
 	struct rte_ipv6_addr dst;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
@@ -62,7 +62,7 @@ static uint16_t ndp_ns_output_process(
 			next = ERROR;
 			goto next;
 		}
-		local = ip6_addr_get_preferred(nh->iface_id, &nh->ip);
+		local = ip6_addr_get_preferred(nh->iface_id, &nh->ipv6);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;
@@ -74,23 +74,23 @@ static uint16_t ndp_ns_output_process(
 		icmp6->code = 0;
 		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_append(mbuf, sizeof(*ns));
 		ns->__reserved = 0;
-		ns->target = nh->ip;
+		ns->target = nh->ipv6;
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*lladdr));
 		lladdr->mac = local->lladdr;
-		if (nh->last_reply != 0 && nh->ucast_probes < IP6_NH_UCAST_PROBES) {
-			dst = nh->ip;
+		if (nh->last_reply != 0 && nh->ucast_probes < NH_UCAST_PROBES) {
+			dst = nh->ipv6;
 			nh->ucast_probes++;
 		} else {
-			rte_ipv6_solnode_from_addr(&dst, &nh->ip);
-			nh->mcast_probes++;
+			rte_ipv6_solnode_from_addr(&dst, &nh->ipv6);
+			nh->bcast_probes++;
 		}
 		// Fill IPv6 layer
 		payload_len = rte_pktmbuf_pkt_len(mbuf);
 		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ip, &dst);
+		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ipv6, &dst);
 		// Compute ICMP6 checksum with pseudo header
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);

@@ -24,7 +24,7 @@ enum {
 void ndp_update_nexthop(
 	struct rte_graph *graph,
 	struct rte_node *node,
-	struct nexthop6 *nh,
+	struct nexthop *nh,
 	const struct iface *iface,
 	const struct rte_ether_addr *mac
 ) {
@@ -43,7 +43,7 @@ void ndp_update_nexthop(
 	nh->flags |= GR_NH_F_REACHABLE;
 	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
 	nh->ucast_probes = 0;
-	nh->mcast_probes = 0;
+	nh->bcast_probes = 0;
 	nh->lladdr = *mac;
 
 	// Flush all held packets.
@@ -74,7 +74,7 @@ static uint16_t ndp_na_input_process(
 	struct ip6_local_mbuf_data *d;
 	struct rte_ether_addr lladdr;
 	const struct iface *iface;
-	struct nexthop6 *remote;
+	struct nexthop *remote;
 	struct icmp6_opt *opt;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;

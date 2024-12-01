@@ -17,11 +17,11 @@
 
 #include <stdint.h>
 
-GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { struct nexthop6 *nh; });
+GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(ndp_mbuf_data, {
-	struct nexthop6 *local;
-	struct nexthop6 *remote;
+	struct nexthop *local;
+	struct nexthop *remote;
 });
 
 GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
@@ -34,7 +34,7 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node);
-int ip6_nexthop_solicit(struct nexthop6 *nh);
+int ip6_nexthop_solicit(struct nexthop *nh);
 
 #define IP6_DEFAULT_HOP_LIMIT 255
 
@@ -56,7 +56,7 @@ static inline void ip6_set_fields(
 void ndp_update_nexthop(
 	struct rte_graph *graph,
 	struct rte_node *node,
-	struct nexthop6 *nh,
+	struct nexthop *nh,
 	const struct iface *iface,
 	const struct rte_ether_addr *mac
 );

@@ -184,7 +184,7 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 
 	nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen);
 	if (nh != NULL) {
-		if (req->nh == nh->ip && req->exist_ok)
+		if (req->nh == nh->ipv4 && req->exist_ok)
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
@@ -243,7 +243,7 @@ static struct api_out route4_get(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->nh.ipv4 = nh->ip;
+	resp->nh.ipv4 = nh->ipv4;
 	resp->nh.iface_id = nh->iface_id;
 	resp->nh.mac = nh->lladdr;
 	resp->nh.flags = nh->flags;
@@ -293,7 +293,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		rte_rib_get_ip(rn, &ip);
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
-		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->nh = nh_id_to_ptr(nh_id)->ipv4;
 		r->vrf_id = vrf_id;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
@@ -302,7 +302,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		rte_rib_get_nh(rn, &nh_id);
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
-		r->nh = nh_id_to_ptr(nh_id)->ip;
+		r->nh = nh_id_to_ptr(nh_id)->ipv4;
 		r->vrf_id = vrf_id;
 	}
 }
@@ -370,8 +370,8 @@ void ip4_route_cleanup(struct nexthop *nh) {
 	uintptr_t nh_id;
 	ip4_addr_t ip;
 
-	ip4_route_delete(nh->vrf_id, nh->ip, 32);
-	local_ip = nh->ip;
+	ip4_route_delete(nh->vrf_id, nh->ipv4, 32);
+	local_ip = nh->ipv4;
 	local_prefixlen = nh->prefixlen;
 
 	rib = rte_fib_get_rib(get_fib(nh->vrf_id));
@@ -379,12 +379,12 @@ void ip4_route_cleanup(struct nexthop *nh) {
 		rte_rib_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
 
-		if (nh && ip4_addr_same_subnet(nh->ip, local_ip, local_prefixlen)) {
+		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ip);
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
 
 			ip4_route_delete(nh->vrf_id, ip, prefixlen);
 			ip4_route_delete(nh->vrf_id, ip, 32);
@@ -395,15 +395,15 @@ void ip4_route_cleanup(struct nexthop *nh) {
 		rte_rib_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
 
-		if (nh && ip4_addr_same_subnet(nh->ip, local_ip, local_prefixlen)) {
+		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ip);
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
 
-			ip4_route_delete(nh->vrf_id, nh->ip, nh->prefixlen);
-			ip4_route_delete(nh->vrf_id, nh->ip, 32);
+			ip4_route_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
+			ip4_route_delete(nh->vrf_id, nh->ipv4, 32);
 		}
 	}
 }

@@ -33,7 +33,7 @@ static uint16_t icmp6_output_process(
 	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop6 *nh;
+	struct nexthop *nh;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
 
