@@ -19,13 +19,9 @@ typedef enum {
 	ETH_DST_OTHER, // destination is *not* the input interface mac
 } eth_dst_type_t;
 
-GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, {
-	const struct iface *iface;
-	eth_dst_type_t eth_dst;
-})
+GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { eth_dst_type_t eth_dst; })
 
 GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
-	const struct iface *iface;
 	struct rte_ether_addr dst;
 	rte_be16_t ether_type;
 });

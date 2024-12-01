@@ -58,7 +58,7 @@ static uint16_t ndp_ns_input_process(
 		d = ip6_local_mbuf_data(mbuf);
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
 		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_adj(mbuf, sizeof(*icmp6));
-		iface = d->input_iface;
+		iface = d->iface;
 		src = d->src;
 		dst = d->dst;
 

@@ -41,7 +41,7 @@ static uint16_t ip_input_local_process(
 
 		edge = edges[ip->next_proto_id];
 		if (edge != UNKNOWN_PROTO) {
-			const struct iface *iface = ip_output_mbuf_data(mbuf)->input_iface;
+			const struct iface *iface = ip_output_mbuf_data(mbuf)->iface;
 			struct ip_local_mbuf_data *data = ip_local_mbuf_data(mbuf);
 			data->src = ip->src_addr;
 			data->dst = ip->dst_addr;

@@ -58,14 +58,14 @@ static uint16_t icmp6_output_process(
 			memcpy(t, icmp6, trace_len);
 		}
 
-		if ((nh = ip6_route_lookup(d->input_iface->vrf_id, &d->dst)) == NULL) {
+		if ((nh = ip6_route_lookup(d->iface->vrf_id, &d->dst)) == NULL) {
 			edge = NO_ROUTE;
 			goto next;
 		}
 		o = ip6_output_mbuf_data(mbuf);
-		iface = d->input_iface;
+		iface = d->iface;
 		o->nh = nh;
-		o->input_iface = iface;
+		o->iface = iface;
 		edge = OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);

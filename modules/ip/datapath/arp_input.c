@@ -57,7 +57,7 @@ static inline void update_nexthop(
 		next = queue_mbuf_data(m)->next;
 		o = ip_output_mbuf_data(m);
 		o->nh = nh;
-		o->input_iface = NULL;
+		o->iface = NULL;
 		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
 		m = next;
 	}
