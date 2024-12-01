@@ -52,7 +52,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			t->iface_id = iface->id;
 		}
-		ip_data->input_iface = iface;
+		ip_data->iface = iface;
 		ipip = (const struct iface_info_ipip *)iface->info;
 
 		// Encapsulate with another IPv4 header.

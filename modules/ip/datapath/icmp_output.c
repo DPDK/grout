@@ -54,7 +54,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		o = ip_output_mbuf_data(mbuf);
 		o->nh = nh;
-		o->input_iface = NULL;
+		o->iface = NULL;
 		edge = OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);

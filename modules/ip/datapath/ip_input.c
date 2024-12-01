@@ -118,7 +118,7 @@ next:
 		}
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
 		d->nh = nh;
-		d->input_iface = iface;
+		d->iface = iface;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 

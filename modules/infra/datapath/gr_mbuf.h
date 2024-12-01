@@ -23,10 +23,13 @@ struct gr_trace_item {
 
 STAILQ_HEAD(gr_trace_head, gr_trace_item);
 
-#define GR_MBUF_PRIV_MAX_SIZE RTE_CACHE_LINE_MIN_SIZE
+#define GR_MBUF_PRIV_MAX_SIZE RTE_CACHE_LINE_MIN_SIZE * 2
 
 #define GR_MBUF_PRIV_DATA_TYPE(type_name, fields)                                                  \
-	struct type_name fields;                                                                   \
+	struct type_name {                                                                         \
+		const struct iface *iface;                                                         \
+		struct fields;                                                                     \
+	};                                                                                         \
 	struct __##type_name {                                                                     \
 		struct gr_trace_head traces;                                                       \
 		struct type_name data;                                                             \
@@ -37,6 +40,7 @@ STAILQ_HEAD(gr_trace_head, gr_trace_item);
 		return &priv->data;                                                                \
 	}
 
+GR_MBUF_PRIV_DATA_TYPE(mbuf_data, {});
 GR_MBUF_PRIV_DATA_TYPE(queue_mbuf_data, { struct rte_mbuf *next; });
 
 // Get the head of trace items from an mbuf.

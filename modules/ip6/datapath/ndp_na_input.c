@@ -52,7 +52,7 @@ void ndp_update_nexthop(
 		next = queue_mbuf_data(m)->next;
 		d = ip6_output_mbuf_data(m);
 		d->nh = nh;
-		d->input_iface = NULL;
+		d->iface = NULL;
 		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
 		m = next;
 	}
@@ -94,7 +94,7 @@ static uint16_t ndp_na_input_process(
 
 		d = ip6_local_mbuf_data(mbuf);
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
-		iface = d->input_iface;
+		iface = d->iface;
 		na = (struct icmp6_neigh_advert *)rte_pktmbuf_adj(mbuf, sizeof(*icmp6));
 
 		// Validation of Neighbor Advertisements
