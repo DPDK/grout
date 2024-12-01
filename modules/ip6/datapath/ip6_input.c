@@ -36,7 +36,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop6 *nh;
+	struct nexthop *nh;
 	rte_edge_t edge;
 	uint16_t i;
 
@@ -105,7 +105,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip6_local.
-		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ip))
+		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
 			edge = LOCAL;
 		else
 			edge = FORWARD;

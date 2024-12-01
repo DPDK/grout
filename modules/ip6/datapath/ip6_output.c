@@ -44,13 +44,13 @@ typedef enum {
 	HOLD_QUEUE_FULL,
 } hold_status_t;
 
-static inline hold_status_t maybe_hold_packet(struct nexthop6 *nh, struct rte_mbuf *mbuf) {
+static inline hold_status_t maybe_hold_packet(struct nexthop *nh, struct rte_mbuf *mbuf) {
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
 	hold_status_t status;
 
 	if (nh->flags & GR_NH_F_REACHABLE || rte_ipv6_addr_is_mcast(&ip->dst_addr)) {
 		status = OK_TO_SEND;
-	} else if (nh->held_pkts_num < IP6_NH_MAX_HELD_PKTS) {
+	} else if (nh->held_pkts_num < NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(mbuf)->next = NULL;
 		rte_spinlock_lock(&nh->lock);
 		if (nh->held_pkts_head == NULL)
@@ -78,7 +78,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop6 *nh;
+	struct nexthop *nh;
 	uint16_t i, sent;
 	rte_edge_t edge;
 
@@ -106,12 +106,12 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 
 		if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_is_mcast(&ip->dst_addr)
-		    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ip)) {
+		    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)) {
 			// The resolved next hop is associated with a "connected" route.
 			// We currently do not have an explicit entry for this destination IP.
 			// Create a new next hop and its associated /128 route so that next
 			// packets take it in priority with a single route lookup.
-			struct nexthop6 *remote = ip6_nexthop_lookup(nh->vrf_id, &ip->dst_addr);
+			struct nexthop *remote = ip6_nexthop_lookup(nh->vrf_id, &ip->dst_addr);
 
 			if (remote == NULL)
 				remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, &ip->dst_addr);

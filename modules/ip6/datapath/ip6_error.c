@@ -30,7 +30,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_ipv6_hdr *ip;
 	icmp6_type_t icmp_type;
 	struct rte_mbuf *mbuf;
-	struct nexthop6 *nh;
+	struct nexthop *nh;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
 
@@ -94,7 +94,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 		d = ip6_local_mbuf_data(mbuf);
-		d->src = nh->ip;
+		d->src = nh->ipv6;
 		d->dst = ip->src_addr;
 		d->len = rte_pktmbuf_pkt_len(mbuf);
 		d->iface = iface;

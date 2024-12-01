@@ -37,6 +37,7 @@ static uint16_t loopback_input_process(
 	uint16_t nb_objs
 ) {
 	struct rte_mbuf *mbuf;
+	struct nexthop *nh;
 	struct tun_pi *pi;
 	rte_edge_t edge;
 
@@ -54,7 +55,6 @@ static uint16_t loopback_input_process(
 		if (pi->proto == RTE_BE16(RTE_ETHER_TYPE_IPV4)) {
 			struct ip_output_mbuf_data *d;
 			struct rte_ipv4_hdr *ip;
-			struct nexthop *nh;
 
 			d = ip_output_mbuf_data(mbuf);
 			ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
@@ -63,9 +63,9 @@ static uint16_t loopback_input_process(
 				edge = IP_NO_ROUTE;
 			} else {
 				d->nh = nh;
-				// If the resolved next hop is local and the destination IP is ourselves,
-				// send to ip_local.
-				if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ip)
+				// If the resolved next hop is local and the destination IP is
+				// ourselves, send to ip_local.
+				if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
 					edge = IP_LOCAL;
 				else
 					edge = IP_OUTPUT;
@@ -73,7 +73,6 @@ static uint16_t loopback_input_process(
 		} else if (pi->proto == RTE_BE16(RTE_ETHER_TYPE_IPV6)) {
 			struct ip6_output_mbuf_data *d;
 			struct rte_ipv6_hdr *ip;
-			struct nexthop6 *nh;
 
 			d = ip6_output_mbuf_data(mbuf);
 			ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
@@ -83,10 +82,10 @@ static uint16_t loopback_input_process(
 				edge = IP6_NO_ROUTE;
 			} else {
 				d->nh = nh;
-				// If the resolved next hop is local and the destination IP is ourselves,
-				// send to ip6_local.
+				// If the resolved next hop is local and the destination IP is
+				// ourselves, send to ip6_local.
 				if (nh->flags & GR_NH_F_LOCAL
-				    && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ip))
+				    && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
 					edge = IP6_LOCAL;
 				else
 					edge = IP6_OUTPUT;

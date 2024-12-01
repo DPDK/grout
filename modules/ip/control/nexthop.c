@@ -35,7 +35,7 @@ struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t i
 	nh = data;
 	nh->vrf_id = vrf_id;
 	nh->iface_id = iface_id;
-	nh->ip = ip;
+	nh->ipv4 = ip;
 
 	return nh;
 }
@@ -49,7 +49,7 @@ struct lookup_filter {
 static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
 	struct lookup_filter *filter = opaque;
 	struct nexthop *nh = obj;
-	if (filter->nh == NULL && nh->ref_count > 0 && nh->ip == filter->ip
+	if (filter->nh == NULL && nh->ref_count > 0 && nh->ipv4 == filter->ip
 	    && nh->vrf_id == filter->vrf_id)
 		filter->nh = nh;
 }
@@ -106,7 +106,7 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 
 	nh->lladdr = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = ip4_route_insert(nh->vrf_id, nh->ip, 32, nh);
+	ret = ip4_route_insert(nh->vrf_id, nh->ipv4, 32, nh);
 
 	return api_out(-ret, 0);
 }
@@ -146,7 +146,7 @@ static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /
 	if (nh->ref_count == 0 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
 		return;
 
-	api_nh.ipv4 = nh->ip;
+	api_nh.ipv4 = nh->ipv4;
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
 	api_nh.mac = nh->lladdr;
@@ -188,7 +188,7 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 	unsigned probes, max_probes;
 	struct nexthop *nh = obj;
 
-	max_probes = IP4_NH_UCAST_PROBES + IP4_NH_BCAST_PROBES;
+	max_probes = NH_UCAST_PROBES + NH_BCAST_PROBES;
 
 	if (nh->ref_count == 0 || nh->flags & GR_NH_F_STATIC)
 		return;
@@ -201,7 +201,7 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 		if (probes >= max_probes && !(nh->flags & GR_NH_F_GATEWAY)) {
 			LOG(DEBUG,
 			    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    &nh->ip,
+			    &nh->ipv4,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts_num,
@@ -213,13 +213,13 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 			if (arp_output_request_solicit(nh) < 0)
 				LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
 		}
-	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > IP4_NH_LIFETIME_REACHABLE) {
+	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > NH_LIFETIME_REACHABLE) {
 		nh->flags &= ~GR_NH_F_REACHABLE;
 		nh->flags |= GR_NH_F_STALE;
-	} else if (nh->flags & GR_NH_F_FAILED && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
+	} else if (nh->flags & GR_NH_F_FAILED && request_age > NH_LIFETIME_UNREACHABLE) {
 		LOG(DEBUG,
 		    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    &nh->ip,
+		    &nh->ipv4,
 		    nh->vrf_id,
 		    probes,
 		    nh->held_pkts_num);
