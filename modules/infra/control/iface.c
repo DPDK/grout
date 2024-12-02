@@ -323,15 +323,29 @@ static struct gr_module iface_module = {
 };
 
 static void iface_event_debug(iface_event_t event, struct iface *iface) {
-	const char *str = "IFACE_EVENT_UNKNOWN";
-#define IFACE_EVENT(name) #name
-	const char *evt_to_str[] = {IFACE_EVENTS};
-#undef IFACE_EVENT
+	char *str = "";
+	switch (event) {
+	case IFACE_EVENT_POST_ADD:
+		str = "POST_ADD";
+		break;
+	case IFACE_EVENT_PRE_REMOVE:
+		str = "PRE_REMOVE";
+		break;
+	case IFACE_EVENT_POST_RECONFIG:
+		str = "POST_RECONFIG";
+		break;
+	case IFACE_EVENT_STATUS_UP:
+		str = "STATUS_UP";
+		break;
+	case IFACE_EVENT_STATUS_DOWN:
+		str = "STATUS_DOWN";
+		break;
+	case IFACE_EVENT_UNKNOWN:
+		str = "IFACE_EVENT_UNKNOWN";
+		break;
+	}
 
-	if (event < (sizeof(evt_to_str) / sizeof(evt_to_str[0])))
-		str = evt_to_str[event];
-
-	LOG(DEBUG, "iface event [%d] %s triggered for iface %s.", event, str, iface->name);
+	LOG(DEBUG, "iface event [%x] %s triggered for iface %s.", event, str, iface->name);
 }
 
 static struct iface_event_handler iface_event_debug_handler = {
