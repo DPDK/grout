@@ -53,7 +53,16 @@ static struct api_out iface_add(const void *request, void **response) {
 
 static struct api_out iface_del(const void *request, void ** /*response*/) {
 	const struct gr_infra_iface_del_req *req = request;
+	struct iface *iface;
 	int ret;
+
+	// Loopback interfaces are special, and are deleted
+	// when the last interface of a VRF is destroyed.
+	if ((iface = iface_from_id(req->iface_id)) == NULL)
+		return api_out(ENODEV, 0);
+
+	if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
+		return api_out(EINVAL, 0);
 
 	ret = iface_destroy(req->iface_id);
 
