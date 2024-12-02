@@ -44,4 +44,18 @@ int gr_api_client_send_recv(
 	void **rx_data
 );
 
+#define GR_MAIN_ENABLE_NOTIFICATIONS REQUEST_TYPE(0xCAFE, 0xCAFE)
+#define GR_MAIN_DISABLE_NOTIFICATIONS REQUEST_TYPE(0xCAFE, 0xCAFF)
+
+struct gr_api_notification {
+	uint32_t type;
+	size_t payload_len;
+};
+
+int gr_api_client_enable_notifications(const struct gr_api_client *client);
+int gr_api_client_disable_notifications(const struct gr_api_client *client);
+int gr_api_client_recv_notification(const struct gr_api_client *, struct gr_api_notification **);
+
+void gr_api_push_notification(uint32_t event, size_t len, const void *data);
+
 #endif
