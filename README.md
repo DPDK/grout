@@ -1,6 +1,6 @@
 # grout # a graph router based on DPDK
 
-![logo.svg](https://raw.githubusercontent.com/DPDK/grout/main/docs/logo.svg)
+![logo.svg](/docs/logo.svg)
 
 `grout` stands for *Graph Router*. In English, *"grout"* refers to thin mortar
 that hardens to fill gaps between tiles.
@@ -228,7 +228,7 @@ image.
 [root@grout]$ grcli show graph dot | grep -vE 'darkorange|error' | dot -Tsvg > docs/graph.svg
 ```
 
-![docs/graph.svg](https://raw.githubusercontent.com/DPDK/grout/main/docs/graph.svg)
+![docs/graph.svg](/docs/graph.svg)
 
 ## Build from source
 
@@ -282,8 +282,7 @@ grout#
 
 ## Contributing
 
-Anyone can contribute to `grout`. See
-[`CONTRIBUTING.md`](https://github.com/DPDK/grout/blob/main/CONTRIBUTING.md).
+Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 
 ## Dependencies
 
