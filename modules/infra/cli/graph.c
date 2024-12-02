@@ -19,8 +19,7 @@ static cmd_status_t graph_dump(const struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	// strip the trailing NUL byte
-	fwrite(resp->dot, 1, resp->len - 1, stdout);
+	fwrite(resp->dot, 1, resp->len, stdout);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

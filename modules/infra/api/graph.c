@@ -37,15 +37,15 @@ found:
 	if ((ret = rte_graph_export(graph_name, stream)) < 0)
 		goto end;
 	fflush(stream);
-	resp_len = sizeof(*resp) + buf_len + 1;
+	resp_len = sizeof(*resp) + buf_len;
 	if ((resp = calloc(1, resp_len)) == NULL) {
 		ret = -ENOMEM;
 		resp_len = 0;
 		goto end;
 	}
 
-	resp->len = buf_len + 1;
-	memccpy(resp->dot, buf, 0, buf_len + 1);
+	resp->len = buf_len;
+	memccpy(resp->dot, buf, 0, buf_len);
 	*response = resp;
 end:
 	fclose(stream);
