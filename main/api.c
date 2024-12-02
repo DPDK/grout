@@ -19,6 +19,22 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+static evutil_socket_t *notification_sockets;
+
+void gr_api_push_notification(struct gr_api_notification *n) {
+	size_t len = sizeof(n) + n->payload_len;
+	struct gr_api_response r = {
+		.for_id = -1,
+		.status = 0,
+		.payload_len = len,
+	};
+	evutil_socket_t s;
+	gr_vec_foreach (s, notification_sockets) {
+		send(s, &r, sizeof(r), MSG_DONTWAIT | MSG_NOSIGNAL);
+		send(s, n, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+	}
+}
+
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
 	if (fd >= 0)
@@ -111,6 +127,13 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		}
 	}
 
+	if (req.type == GR_MAIN_ENABLE_NOTIFICATIONS) {
+		out.status = 0;
+		out.len = 0;
+		gr_vec_add(notification_sockets, sock);
+		goto send;
+	}
+
 	const struct gr_api_handler *handler = lookup_api_handler(&req);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
@@ -167,6 +190,12 @@ close:
 	free(resp);
 	if (ev != NULL)
 		event_free_finalize(0, ev, finalize_fd);
+	for (size_t i = 0; i < gr_vec_len(notification_sockets); i++) {
+		if (notification_sockets[i] == sock) {
+			gr_vec_del_swap(notification_sockets, i);
+			break;
+		}
+	}
 }
 
 static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
