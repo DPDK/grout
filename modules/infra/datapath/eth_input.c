@@ -116,13 +116,7 @@ int eth_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*
 	const char *ifname = iface ? iface->name : "[deleted]";
 	size_t n = 0;
 
-	SAFE_BUF(
-		snprintf,
-		len,
-		ETH_ADDR_FMT " > " ETH_ADDR_FMT " type=",
-		ETH_ADDR_SPLIT(&t->eth.src_addr),
-		ETH_ADDR_SPLIT(&t->eth.dst_addr)
-	);
+	SAFE_BUF(snprintf, len, ETH_F " > " ETH_F " type=", &t->eth.src_addr, &t->eth.dst_addr);
 	SAFE_BUF(eth_type_format, len, t->eth.ether_type);
 
 	if (t->vlan_id != 0)

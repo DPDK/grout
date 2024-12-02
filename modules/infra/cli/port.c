@@ -19,7 +19,7 @@ static void port_show(const struct gr_api_client *, const struct gr_iface *iface
 
 	printf("devargs: %s\n", port->devargs);
 	printf("driver:  %s\n", port->driver_name);
-	printf("mac: " ETH_ADDR_FMT "\n", ETH_ADDR_SPLIT(&port->mac));
+	printf("mac: " ETH_F "\n", &port->mac);
 	printf("n_rxq: %u\n", port->n_rxq);
 	printf("n_txq: %u\n", port->n_txq);
 	printf("rxq_size: %u\n", port->rxq_size);
@@ -29,9 +29,7 @@ static void port_show(const struct gr_api_client *, const struct gr_iface *iface
 static void
 port_list_info(const struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
-	snprintf(
-		buf, len, "devargs=%s mac=" ETH_ADDR_FMT, port->devargs, ETH_ADDR_SPLIT(&port->mac)
-	);
+	snprintf(buf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
 }
 
 static struct cli_iface_type port_type = {

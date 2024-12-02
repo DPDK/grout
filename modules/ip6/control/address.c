@@ -81,7 +81,7 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 	struct nexthop6 *nh = NULL;
 	unsigned i;
 
-	LOG(INFO, "%s: joining multicast group " IPV6_ADDR_FMT, iface->name, IPV6_ADDR_SPLIT(ip));
+	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
 	for (i = 0; i < maddrs->count; i++)
 		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ip, ip))
@@ -111,7 +111,7 @@ static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *i
 	unsigned i;
 	int ret;
 
-	LOG(INFO, "%s: leaving multicast group " IPV6_ADDR_FMT, iface->name, IPV6_ADDR_SPLIT(ip));
+	LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
 
 	for (i = 0; i < maddrs->count; i++) {
 		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ip, ip)) {

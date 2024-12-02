@@ -385,11 +385,7 @@ void ip4_route_cleanup(struct nexthop *nh) {
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG,
-			    "delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
-			    IP4_ADDR_SPLIT(&ip),
-			    prefixlen,
-			    IP4_ADDR_SPLIT(&nh->ip));
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ip);
 
 			ip4_route_delete(nh->vrf_id, ip, prefixlen);
 			ip4_route_delete(nh->vrf_id, ip, 32);
@@ -405,11 +401,7 @@ void ip4_route_cleanup(struct nexthop *nh) {
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG,
-			    "delete " IP4_ADDR_FMT "/%d via " IP4_ADDR_FMT,
-			    IP4_ADDR_SPLIT(&ip),
-			    prefixlen,
-			    IP4_ADDR_SPLIT(&nh->ip));
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ip);
 
 			ip4_route_delete(nh->vrf_id, nh->ip, nh->prefixlen);
 			ip4_route_delete(nh->vrf_id, nh->ip, 32);

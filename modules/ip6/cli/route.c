@@ -51,7 +51,6 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 	struct gr_ip6_route_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip6_route_list_resp *resp;
-	char dest[BUFSIZ], nh[BUFSIZ];
 	void *resp_ptr = NULL;
 
 	if (table == NULL)
@@ -74,11 +73,9 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip6_route *route = &resp->routes[i];
-		ip6_net_format(&route->dest, dest, sizeof(dest));
-		inet_ntop(AF_INET6, &route->nh, nh, sizeof(nh));
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
-		scols_line_set_data(line, 1, dest);
-		scols_line_set_data(line, 2, nh);
+		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
+		scols_line_sprintf(line, 2, IP6_F, &route->nh);
 	}
 
 	scols_print_table(table);
@@ -93,7 +90,6 @@ static cmd_status_t route6_get(const struct gr_api_client *c, const struct ec_pn
 	struct gr_ip6_route_get_req req = {0};
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
-	char buf[BUFSIZ];
 	const char *dest = arg_str(p, "DEST");
 
 	if (dest == NULL) {
@@ -112,12 +108,11 @@ static cmd_status_t route6_get(const struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	inet_ntop(AF_INET6, &resp->nh.host, buf, sizeof(buf));
-	printf("%s via %s lladdr " ETH_ADDR_FMT, dest, buf, ETH_ADDR_SPLIT(&resp->nh.mac));
+	printf("%s via " IP6_F " lladdr " ETH_F, dest, &resp->nh.host, &resp->nh.mac);
 	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
-		printf("iface %s", iface.name);
+		printf(" iface %s", iface.name);
 	else
-		printf("iface %u", resp->nh.iface_id);
+		printf(" iface %u", resp->nh.iface_id);
 	printf("\n");
 	free(resp_ptr);
 

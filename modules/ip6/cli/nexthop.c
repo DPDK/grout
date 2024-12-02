@@ -56,7 +56,7 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip6_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip6_nh_list_resp *resp;
-	char ip[INET6_ADDRSTRLEN], state[128];
+	char state[128];
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	ssize_t n;
@@ -100,12 +100,10 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 		if (n > 0)
 			state[n - 1] = '\0';
 
-		inet_ntop(AF_INET6, &nh->host, ip, sizeof(ip));
-
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
-		scols_line_sprintf(line, 1, "%s", ip);
+		scols_line_sprintf(line, 1, IP6_F, &nh->host);
 		if (nh->flags & GR_IP6_NH_F_REACHABLE) {
-			scols_line_sprintf(line, 2, ETH_ADDR_FMT, ETH_ADDR_SPLIT(&nh->mac));
+			scols_line_sprintf(line, 2, ETH_F, &nh->mac);
 			if (iface_from_id(c, nh->iface_id, &iface) == 0)
 				scols_line_sprintf(line, 3, "%s", iface.name);
 			else

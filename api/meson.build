@@ -11,4 +11,14 @@ api_headers += files(
   'gr_net_types.h',
 )
 
+src += files('printf.c')
+cli_src += files('printf.c')
+
 api_inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('printf_test.c', 'printf.c'),
+    'link_args': [],
+  },
+]
