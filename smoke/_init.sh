@@ -62,9 +62,12 @@ set -x
 
 if [ "$run_grout" = true ]; then
 	grout_flags="-tv"
-	if ! [ "$(basename $0)" = "config_test.sh" ]; then
+	case "$(basename $0)" in
+	config_test.sh|graph_svg_test.sh)
+		;;
+	*)
 		grout_flags="$grout_flags -x"
-	fi
+	esac
 	grout $grout_flags &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
