@@ -12,7 +12,8 @@
 #include <stdio.h>
 #include <sys/queue.h>
 
-static struct api_out graph_dump(const void * /*request*/, void **response) {
+static struct api_out graph_dump(const void *request, void **response) {
+	const struct gr_infra_graph_dump_req *req = request;
 	struct gr_infra_graph_dump_resp *resp;
 	size_t buf_len = 0, resp_len = 0;
 	const char *graph_name;
@@ -20,6 +21,9 @@ static struct api_out graph_dump(const void * /*request*/, void **response) {
 	FILE *stream = NULL;
 	char *buf = NULL;
 	int ret = 0;
+
+	if (req->flags & ~GR_INFRA_GRAPH_DUMP_F_ERRORS)
+		return api_out(EINVAL, 0);
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		for (int i = 0; i < 2; i++) {
@@ -44,8 +48,27 @@ found:
 		goto end;
 	}
 
+	if (!(req->flags & GR_INFRA_GRAPH_DUMP_F_ERRORS)) {
+		char *copy = resp->dot;
+		char *line = buf;
+		char *eol;
+
+		while ((eol = strchr(line, '\n')) != NULL) {
+			*eol = '\0';
+			// Remove sink nodes from the output. They all have a "darkorange" color.
+			// Also remove non-sink nodes that contain "error" in their name.
+			if (!strstr(line, "darkorange") && !strstr(line, "error")) {
+				*eol = '\n'; // restore newline char
+				copy = memccpy(copy, line, '\n', eol - line + 1);
+			}
+			line = eol + 1;
+		}
+		buf_len = copy - resp->dot;
+	} else {
+		memccpy(resp->dot, buf, 0, buf_len);
+	}
+
 	resp->len = buf_len;
-	memccpy(resp->dot, buf, 0, buf_len);
 	*response = resp;
 end:
 	fclose(stream);

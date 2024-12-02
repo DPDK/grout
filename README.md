@@ -225,7 +225,7 @@ Dump the packet graph (excluding all error nodes) and convert it to an SVG
 image.
 
 ```console
-[root@grout]$ grcli show graph dot | grep -vE 'darkorange|error' | dot -Tsvg > docs/graph.svg
+[root@grout]$ grcli show graph brief | dot -Tsvg > docs/graph.svg
 ```
 
 ![docs/graph.svg](/docs/graph.svg)

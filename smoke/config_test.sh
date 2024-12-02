@@ -17,6 +17,6 @@ grcli show ip route
 grcli show ip nexthop
 grcli show ip6 route
 grcli show ip6 nexthop
-grcli show graph dot
+grcli show graph full
 grcli show stats software
 grcli show stats hardware
