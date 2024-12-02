@@ -29,10 +29,10 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("graph", "Show packet processing graph info.")),
-		"dot",
+		CLI_CONTEXT(root, CTX_SHOW),
+		"graph dot",
 		graph_dump,
-		"Dump the graph in DOT format."
+		"Show packet processing graph info (requires interfaces to be configured)."
 	);
 	if (ret < 0)
 		return ret;
