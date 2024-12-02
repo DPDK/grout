@@ -10,6 +10,7 @@
 #include <signal.h>
 
 static cmd_status_t notifications_dump(const struct gr_api_client *c, const struct ec_pnode *) {
+	struct gr_infra_iface_get_resp *p;
 	struct gr_api_notification *n;
 
 	if (gr_api_client_enable_notifications(c) < 0)
@@ -17,6 +18,31 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 
 	while (gr_api_client_recv_notification(c, &n) == 0) {
 		switch (n->type) {
+		case IFACE_EVENT_POST_ADD:
+			assert(n->payload_len == sizeof(*p));
+			p = PAYLOAD(n);
+			printf("Iface added: %s\n", p->iface.name);
+			break;
+		case IFACE_EVENT_PRE_REMOVE:
+			assert(n->payload_len == sizeof(*p));
+			p = PAYLOAD(n);
+			printf("Iface deleted: %s\n", p->iface.name);
+			break;
+		case IFACE_EVENT_STATUS_UP:
+			assert(n->payload_len == sizeof(*p));
+			p = PAYLOAD(n);
+			printf("Iface status UP: %s\n", p->iface.name);
+			break;
+		case IFACE_EVENT_STATUS_DOWN:
+			assert(n->payload_len == sizeof(*p));
+			p = PAYLOAD(n);
+			printf("Iface status DOWN: %s\n", p->iface.name);
+			break;
+		case IFACE_EVENT_POST_RECONFIG:
+			assert(n->payload_len == sizeof(*p));
+			p = PAYLOAD(n);
+			printf("Iface reconfigured: %s\n", p->iface.name);
+			break;
 		default:
 			printf("Unknown notification 0x%x received\n", n->type);
 			break;
