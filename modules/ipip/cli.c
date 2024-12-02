@@ -13,22 +13,16 @@
 
 static void ipip_show(const struct gr_api_client *, const struct gr_iface *iface) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
-	char local[64], remote[64];
 
-	inet_ntop(AF_INET, &ipip->local, local, sizeof(local));
-	inet_ntop(AF_INET, &ipip->remote, remote, sizeof(remote));
-	printf("local: %s\n", local);
-	printf("remote: %s\n", remote);
+	printf("local: " IP4_F "\n", &ipip->local);
+	printf("remote: " IP4_F "\n", &ipip->remote);
 }
 
 static void
 ipip_list_info(const struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
-	char local[64], remote[64];
 
-	inet_ntop(AF_INET, &ipip->local, local, sizeof(local));
-	inet_ntop(AF_INET, &ipip->remote, remote, sizeof(remote));
-	snprintf(buf, len, "local=%s remote=%s", local, remote);
+	snprintf(buf, len, "local=" IP4_F " remote=" IP4_F, &ipip->local, &ipip->remote);
 }
 
 static struct cli_iface_type ipip_type = {

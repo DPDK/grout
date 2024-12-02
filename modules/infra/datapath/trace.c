@@ -104,37 +104,24 @@ static int ip_proto_format(char *buf, size_t len, uint8_t proto) {
 }
 
 int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_t /*data_len*/) {
+	struct rte_ether_addr sha = arp->arp_data.arp_sha;
+	ip4_addr_t sip = arp->arp_data.arp_sip;
+	ip4_addr_t tip = arp->arp_data.arp_tip;
+
 	switch (arp->arp_opcode) {
 	case RTE_BE16(RTE_ARP_OP_REQUEST):
-		return snprintf(
-			buf,
-			len,
-			"request who has " IP4_ADDR_FMT "? tell " IP4_ADDR_FMT,
-			IP4_ADDR_SPLIT(&arp->arp_data.arp_tip),
-			IP4_ADDR_SPLIT(&arp->arp_data.arp_sip)
-		);
+		return snprintf(buf, len, "request who has " IP4_F "? tell " IP4_F, &tip, &sip);
 	case RTE_BE16(RTE_ARP_OP_REPLY):
-		return snprintf(
-			buf,
-			len,
-			"reply " IP4_ADDR_FMT " is at " ETH_ADDR_FMT,
-			IP4_ADDR_SPLIT(&arp->arp_data.arp_sip),
-			ETH_ADDR_SPLIT(&arp->arp_data.arp_sha)
-		);
+		return snprintf(buf, len, "reply " IP4_F " is at " ETH_F, &sip, &sha);
 	}
 	return snprintf(buf, len, "opcode=%u", rte_be_to_cpu_16(arp->arp_opcode));
 }
 
 int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t /*data_len*/) {
+	ip4_addr_t src = ip->src_addr;
+	ip4_addr_t dst = ip->dst_addr;
 	size_t n = 0;
-	SAFE_BUF(
-		snprintf,
-		len,
-		IP4_ADDR_FMT " > " IP4_ADDR_FMT " ttl=%hhu proto=",
-		IP4_ADDR_SPLIT(&ip->src_addr),
-		IP4_ADDR_SPLIT(&ip->dst_addr),
-		ip->time_to_live
-	);
+	SAFE_BUF(snprintf, len, IP4_F " > " IP4_F " ttl=%hhu proto=", &src, &dst, ip->time_to_live);
 	SAFE_BUF(ip_proto_format, len, ip->next_proto_id);
 	return n;
 err:
@@ -142,14 +129,11 @@ err:
 }
 
 int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *ip6, size_t /*data_len*/) {
-	char src[INET6_ADDRSTRLEN];
-	char dst[INET6_ADDRSTRLEN];
+	struct rte_ipv6_addr src = ip6->src_addr;
+	struct rte_ipv6_addr dst = ip6->dst_addr;
 	size_t n = 0;
 
-	inet_ntop(AF_INET6, &ip6->src_addr, src, sizeof(src));
-	inet_ntop(AF_INET6, &ip6->dst_addr, dst, sizeof(dst));
-
-	SAFE_BUF(snprintf, len, "%s > %s ttl=%hhu proto=", src, dst, ip6->hop_limits);
+	SAFE_BUF(snprintf, len, IP6_F " > " IP6_F " ttl=%hhu proto=", &src, &dst, ip6->hop_limits);
 	SAFE_BUF(ip_proto_format, len, ip6->proto);
 
 	return n;
@@ -294,22 +278,14 @@ int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *icmp6, size_t 
 		switch (opt->type) {
 		case ICMP6_OPT_SRC_LLADDR: {
 			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
-			SAFE_BUF(
-				snprintf,
-				len,
-				" / Option src_lladdr=" ETH_ADDR_FMT,
-				ETH_ADDR_SPLIT(&ll->mac)
-			);
+			const struct rte_ether_addr mac = ll->mac;
+			SAFE_BUF(snprintf, len, " / Option src_lladdr=" ETH_F, &mac);
 			break;
 		}
 		case ICMP6_OPT_TARGET_LLADDR: {
 			const struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
-			SAFE_BUF(
-				snprintf,
-				len,
-				" / Option target_lladdr=" ETH_ADDR_FMT,
-				ETH_ADDR_SPLIT(&ll->mac)
-			);
+			const struct rte_ether_addr mac = ll->mac;
+			SAFE_BUF(snprintf, len, " / Option target_lladdr=" ETH_F, &mac);
 			break;
 		}
 		default:
@@ -334,6 +310,7 @@ err:
 
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	const struct rte_ether_hdr *eth;
+	struct rte_ether_addr src, dst;
 	rte_be16_t ether_type;
 	size_t offset = 0;
 	char buf[BUFSIZ];
@@ -342,14 +319,10 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 	eth = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *, offset);
 	offset += sizeof(*eth);
 	ether_type = eth->ether_type;
+	dst = eth->dst_addr;
+	src = eth->src_addr;
 
-	SAFE_BUF(
-		snprintf,
-		sizeof(buf),
-		ETH_ADDR_FMT " > " ETH_ADDR_FMT,
-		ETH_ADDR_SPLIT(&eth->src_addr),
-		ETH_ADDR_SPLIT(&eth->dst_addr)
-	);
+	SAFE_BUF(snprintf, sizeof(buf), ETH_F " > " ETH_F, &src, &dst);
 
 	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 		uint16_t vlan_id = m->vlan_tci & 0xfff;

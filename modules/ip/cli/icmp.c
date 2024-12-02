@@ -83,17 +83,17 @@ static cmd_status_t icmp_send(
 			switch (reply_resp->type) {
 			case RTE_ICMP_TYPE_ECHO_REPLY:
 				if (mode_traceroute) {
-					printf("%2d  " IP4_ADDR_FMT " time=%.3f ms\n",
+					printf("%2d  " IP4_F " time=%.3f ms\n",
 					       i,
-					       IP4_ADDR_SPLIT(&reply_resp->src_addr),
+					       &reply_resp->src_addr,
 					       reply_resp->response_time / 1000.);
 					stop = true;
 					errors = 0;
 					errno = 0;
 				} else {
-					printf("reply from " IP4_ADDR_FMT ": icmp_seq=%d ttl=%d "
+					printf("reply from " IP4_F ": icmp_seq=%d ttl=%d "
 					       "time=%.3f ms\n",
-					       IP4_ADDR_SPLIT(&reply_resp->src_addr),
+					       &reply_resp->src_addr,
 					       reply_resp->seq_num,
 					       reply_resp->ttl,
 					       reply_resp->response_time / 1000.);
@@ -102,8 +102,8 @@ static cmd_status_t icmp_send(
 			case RTE_ICMP_TYPE_DEST_UNREACHABLE:
 				errors++;
 				errno = EHOSTUNREACH;
-				printf("reply from " IP4_ADDR_FMT ": icmp_seq=%d ttl=%d: %s\n",
-				       IP4_ADDR_SPLIT(&reply_resp->src_addr),
+				printf("reply from " IP4_F ": icmp_seq=%d ttl=%d: %s\n",
+				       &reply_resp->src_addr,
 				       reply_resp->seq_num,
 				       reply_resp->ttl,
 				       icmp_dest_unreachable[reply_resp->code]);
@@ -111,9 +111,9 @@ static cmd_status_t icmp_send(
 			case RTE_ICMP_TYPE_TTL_EXCEEDED:
 				errors++;
 				errno = ETIMEDOUT;
-				printf("%2d  " IP4_ADDR_FMT " time=%.3f ms\n",
+				printf("%2d  " IP4_F " time=%.3f ms\n",
 				       i,
-				       IP4_ADDR_SPLIT(&reply_resp->src_addr),
+				       &reply_resp->src_addr,
 				       reply_resp->response_time / 1000.);
 				break;
 			}

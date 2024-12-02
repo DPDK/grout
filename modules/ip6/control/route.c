@@ -381,11 +381,7 @@ void ip6_route_cleanup(struct nexthop6 *nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
 
-			LOG(DEBUG,
-			    "delete " IPV6_ADDR_FMT "/%d via " IPV6_ADDR_FMT,
-			    IPV6_ADDR_SPLIT(&ip),
-			    depth,
-			    IPV6_ADDR_SPLIT(&nh->ip));
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ip);
 
 			ip6_route_delete(nh->vrf_id, &ip, depth);
 			ip6_route_delete(nh->vrf_id, &ip, RTE_IPV6_MAX_DEPTH);
@@ -400,11 +396,7 @@ void ip6_route_cleanup(struct nexthop6 *nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
 
-			LOG(DEBUG,
-			    "delete " IPV6_ADDR_FMT "/%d via " IPV6_ADDR_FMT,
-			    IPV6_ADDR_SPLIT(&ip),
-			    depth,
-			    IPV6_ADDR_SPLIT(&nh->ip));
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ip);
 
 			ip6_route_delete(nh->vrf_id, &nh->ip, nh->prefixlen);
 			ip6_route_delete(nh->vrf_id, &nh->ip, RTE_IPV6_MAX_DEPTH);

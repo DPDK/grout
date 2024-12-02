@@ -187,7 +187,6 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 	uint64_t now = rte_get_tsc_cycles();
 	uint64_t reply_age, request_age;
 	unsigned probes, max_probes;
-	char buf[INET_ADDRSTRLEN];
 	struct nexthop *nh = obj;
 
 	max_probes = IP4_NH_UCAST_PROBES + IP4_NH_BCAST_PROBES;
@@ -201,10 +200,9 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 
 	if (nh->flags & (GR_IP4_NH_F_PENDING | GR_IP4_NH_F_STALE) && request_age > probes) {
 		if (probes >= max_probes && !(nh->flags & GR_IP4_NH_F_GATEWAY)) {
-			inet_ntop(AF_INET, &nh->ip, buf, sizeof(buf));
 			LOG(DEBUG,
-			    "%s vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    buf,
+			    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
+			    &nh->ip,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts_num,
@@ -220,10 +218,9 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 		nh->flags &= ~GR_IP4_NH_F_REACHABLE;
 		nh->flags |= GR_IP4_NH_F_STALE;
 	} else if (nh->flags & GR_IP4_NH_F_FAILED && request_age > IP4_NH_LIFETIME_UNREACHABLE) {
-		inet_ntop(AF_INET, &nh->ip, buf, sizeof(buf));
 		LOG(DEBUG,
-		    "%s vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    buf,
+		    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
+		    &nh->ip,
 		    nh->vrf_id,
 		    probes,
 		    nh->held_pkts_num);

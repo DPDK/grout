@@ -52,9 +52,7 @@ static cmd_status_t addr_list(const struct gr_api_client *c, const struct ec_pno
 	const struct gr_ip6_addr_list_resp *resp;
 	struct gr_ip6_addr_list_req req = {0};
 	struct gr_iface iface;
-
 	void *resp_ptr = NULL;
-	char buf[BUFSIZ];
 
 	if (table == NULL)
 		return CMD_ERROR;
@@ -78,12 +76,11 @@ static cmd_status_t addr_list(const struct gr_api_client *c, const struct ec_pno
 	for (size_t i = 0; i < resp->n_addrs; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip6_ifaddr *addr = &resp->addrs[i];
-		ip6_net_format(&addr->addr, buf, sizeof(buf));
 		if (iface_from_id(c, addr->iface_id, &iface) == 0)
 			scols_line_sprintf(line, 0, "%s", iface.name);
 		else
 			scols_line_sprintf(line, 0, "%u", addr->iface_id);
-		scols_line_sprintf(line, 1, "%s", buf);
+		scols_line_sprintf(line, 1, IP6_F "/%hhu", &addr->addr, addr->addr.prefixlen);
 	}
 
 	scols_print_table(table);

@@ -204,8 +204,8 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 	if (nh->flags & (GR_IP6_NH_F_PENDING | GR_IP6_NH_F_STALE) && request_age > probes) {
 		if (probes >= max_probes && !(nh->flags & GR_IP6_NH_F_GATEWAY)) {
 			LOG(DEBUG,
-			    IPV6_ADDR_FMT " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    IPV6_ADDR_SPLIT(&nh->ip),
+			    IP6_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
+			    &nh->ip,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts_num,
@@ -222,8 +222,8 @@ static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigne
 		nh->flags |= GR_IP6_NH_F_STALE;
 	} else if (nh->flags & GR_IP6_NH_F_FAILED && request_age > IP6_NH_LIFETIME_UNREACHABLE) {
 		LOG(DEBUG,
-		    IPV6_ADDR_FMT " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    IPV6_ADDR_SPLIT(&nh->ip),
+		    IP6_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
+		    &nh->ip,
 		    nh->vrf_id,
 		    probes,
 		    nh->held_pkts_num);
