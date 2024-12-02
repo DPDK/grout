@@ -238,7 +238,7 @@ image.
 dnf install gcc git make meson ninja-build pkgconf scdoc python3-pyelftools \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
         libsmartcols-devel libarchive-devel rdma-core-devel \
-        clang-tools-extra jq curl traceroute
+        clang-tools-extra jq curl traceroute graphviz
 ```
 
 or
@@ -247,7 +247,7 @@ or
 apt install git gcc make meson ninja-build pkgconf scdoc python3-pyelftools \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev \
         libsmartcols-dev libarchive-dev libibverbs-dev \
-        clang-format jq curl traceroute
+        clang-format jq curl traceroute graphviz
 ```
 
 ### Build

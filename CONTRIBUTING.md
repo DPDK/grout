@@ -21,6 +21,12 @@ that you did not break anything.
 - If applicable, update unit/smoke tests.
 - If adding a new feature, please consider adding new tests.
 - Do not forget to update the docs, if applicable.
+- If adding new nodes, or updating the packet graph, make sure to update the
+  reference graph image:
+
+  ```sh
+  ./build/grcli -s grout.sock show graph | dot -Tsvg > docs/graph.svg
+  ```
 - Run the linters using `gmake lint`.
 - Run unit tests using `gmake unit-tests`.
 - Run smoke tests using `sudo gmake smoke-tests`.
