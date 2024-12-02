@@ -48,7 +48,7 @@ $(BUILDDIR)/build.ninja:
 empty :=
 space := $(empty) $(empty)
 version := $(shell { git describe --long --abbrev=8 --dirty 2>/dev/null || \
-	sed -En 's/.* \|\| echo (v[0-9\.]+)\>.*/\1-'`date +%Y%m%d%H%M%S`.`hostname`'/p' meson.build; } | \
+	sed -En 's/.* \|\| echo (v[0-9\.]+)\>.*/\1-'`date +%Y%m%d%H%M%S.local`'/p' meson.build; } | \
 	sed 's/^v//;s/-/ /')
 debversion = $(subst $(space),+,$(version))
 
