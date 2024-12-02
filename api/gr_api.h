@@ -26,6 +26,7 @@ struct gr_api_response {
 #define GR_API_MAX_MSG_LEN (128 * 1024)
 
 #define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
+#define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 
 #define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
 

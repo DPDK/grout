@@ -88,16 +88,6 @@ struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
 int iface_loopback_delete(uint16_t vrf_id);
 
-#define IFACE_EVENTS                                                                               \
-	IFACE_EVENT(UNKNOWN), IFACE_EVENT(POST_ADD), IFACE_EVENT(PRE_REMOVE),                      \
-		IFACE_EVENT(POST_RECONFIG), IFACE_EVENT(STATUS_UP), IFACE_EVENT(STATUS_DOWN)
-
-#define IFACE_EVENT(name) IFACE_EVENT_##name
-typedef enum {
-	IFACE_EVENTS
-} iface_event_t;
-#undef IFACE_EVENT
-
 typedef void (*iface_event_cb_t)(iface_event_t event, struct iface *iface);
 struct iface_event_handler {
 	iface_event_cb_t callback;
