@@ -91,7 +91,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 
 	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
 		if (errno != EOPNOTSUPP) {
-			ip4_nexthop_decref(nh);
+			nexthop_decref(nh);
 			return api_out(errno, 0);
 		}
 

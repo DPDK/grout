@@ -96,7 +96,7 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 		rte_ether_mcast_from_ipv6(&nh->lladdr, ip);
 	}
 
-	ip6_nexthop_incref(nh);
+	nexthop_incref(nh);
 	nh->flags = GR_NH_F_REACHABLE | GR_NH_F_STATIC | GR_NH_F_MCAST;
 	maddrs->nh[i] = nh;
 	maddrs->count++;
@@ -129,7 +129,7 @@ static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *i
 
 	// remove ethernet filter
 	ret = iface_del_eth_addr(iface->id, &nh->lladdr);
-	ip6_nexthop_decref(nh);
+	nexthop_decref(nh);
 
 	return ret;
 }
@@ -166,7 +166,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	if ((ret = iface_get_eth_addr(iface->id, &nh->lladdr)) < 0)
 		if (errno != EOPNOTSUPP) {
-			ip6_nexthop_decref(nh);
+			nexthop_decref(nh);
 			return errno_set(-ret);
 		}
 
