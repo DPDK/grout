@@ -134,7 +134,7 @@ int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct n
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	int ret;
 
-	ip4_nexthop_incref(nh);
+	nexthop_incref(nh);
 
 	if (fib == NULL) {
 		ret = -errno;
@@ -149,7 +149,7 @@ int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct n
 
 	return 0;
 fail:
-	ip4_nexthop_decref(nh);
+	nexthop_decref(nh);
 	return errno_set(-ret);
 }
 
@@ -169,7 +169,7 @@ int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	if ((ret = rte_fib_delete(fib, host_order_ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
-	ip4_nexthop_decref(nh);
+	nexthop_decref(nh);
 
 	return 0;
 }
@@ -201,11 +201,11 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	host_order_ip = ntohl(req->dest.ip);
 
 	if ((ret = rte_fib_add(fib, host_order_ip, req->dest.prefixlen, nh_ptr_to_id(nh))) < 0) {
-		ip4_nexthop_decref(nh);
+		nexthop_decref(nh);
 		return api_out(-ret, 0);
 	}
 
-	ip4_nexthop_incref(nh);
+	nexthop_incref(nh);
 	nh->flags |= GR_NH_F_GATEWAY;
 
 	return api_out(0, 0);

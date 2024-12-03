@@ -23,8 +23,6 @@
 
 struct nexthop *ip6_nexthop_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *);
 struct nexthop *ip6_nexthop_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);
-void ip6_nexthop_incref(struct nexthop *);
-void ip6_nexthop_decref(struct nexthop *);
 
 int ip6_route_insert(uint16_t vrf_id, const struct rte_ipv6_addr *, uint8_t prefixlen, struct nexthop *);
 int ip6_route_delete(uint16_t vrf_id, const struct rte_ipv6_addr *, uint8_t prefixlen);

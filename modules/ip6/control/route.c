@@ -136,7 +136,7 @@ int ip6_route_insert(
 	struct rte_fib6 *fib = get_or_create_fib6(vrf_id);
 	int ret;
 
-	ip6_nexthop_incref(nh);
+	nexthop_incref(nh);
 
 	if (fib == NULL) {
 		ret = -errno;
@@ -151,7 +151,7 @@ int ip6_route_insert(
 
 	return 0;
 fail:
-	ip6_nexthop_decref(nh);
+	nexthop_decref(nh);
 	return errno_set(-ret);
 }
 
@@ -170,7 +170,7 @@ int ip6_route_delete(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t pr
 	if ((ret = rte_fib6_delete(fib, ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
-	ip6_nexthop_decref(nh);
+	nexthop_decref(nh);
 
 	return 0;
 }
@@ -199,11 +199,11 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 			return api_out(errno, 0);
 
 	if ((ret = rte_fib6_add(fib6, &req->dest.ip, req->dest.prefixlen, nh_ptr_to_id(nh))) < 0) {
-		ip6_nexthop_decref(nh);
+		nexthop_decref(nh);
 		return api_out(-ret, 0);
 	}
 
-	ip6_nexthop_incref(nh);
+	nexthop_incref(nh);
 	nh->flags |= GR_NH_F_GATEWAY;
 
 	return api_out(0, 0);

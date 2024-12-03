@@ -22,64 +22,14 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_mempool *nh_pool;
+static struct nh_pool *nh_pool;
 
 struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip) {
-	struct nexthop *nh;
-	void *data;
-	int ret;
-
-	if ((ret = rte_mempool_get(nh_pool, &data)) < 0)
-		return errno_set_null(-ret);
-
-	nh = data;
-	nh->vrf_id = vrf_id;
-	nh->iface_id = iface_id;
-	nh->ipv4 = ip;
-
-	return nh;
-}
-
-struct lookup_filter {
-	uint16_t vrf_id;
-	ip4_addr_t ip;
-	struct nexthop *nh;
-};
-
-static void nh_lookup_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
-	struct lookup_filter *filter = opaque;
-	struct nexthop *nh = obj;
-	if (filter->nh == NULL && nh->ref_count > 0 && nh->ipv4 == filter->ip
-	    && nh->vrf_id == filter->vrf_id)
-		filter->nh = nh;
+	return nexthop_new(nh_pool, vrf_id, iface_id, &ip);
 }
 
 struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip) {
-	struct lookup_filter filter = {.vrf_id = vrf_id, .ip = ip};
-	rte_mempool_obj_iter(nh_pool, nh_lookup_cb, &filter);
-	return filter.nh ?: errno_set_null(ENOENT);
-}
-
-void ip4_nexthop_decref(struct nexthop *nh) {
-	if (nh->ref_count <= 1) {
-		rte_spinlock_lock(&nh->lock);
-		// Flush all held packets.
-		struct rte_mbuf *m = nh->held_pkts_head;
-		while (m != NULL) {
-			struct rte_mbuf *next = queue_mbuf_data(m)->next;
-			rte_pktmbuf_free(m);
-			m = next;
-		}
-		rte_spinlock_unlock(&nh->lock);
-		memset(nh, 0, sizeof(*nh));
-		rte_mempool_put(nh_pool, nh);
-	} else {
-		nh->ref_count--;
-	}
-}
-
-void ip4_nexthop_incref(struct nexthop *nh) {
-	nh->ref_count++;
+	return nexthop_lookup(nh_pool, vrf_id, &ip);
 }
 
 static struct api_out nh4_add(const void *request, void ** /*response*/) {
@@ -138,12 +88,11 @@ struct list_context {
 	struct gr_nexthop *nh;
 };
 
-static void nh_list_cb(struct rte_mempool *, void *opaque, void *obj, unsigned /*obj_idx*/) {
-	struct list_context *ctx = opaque;
-	struct nexthop *nh = obj;
+static void nh_list_cb(struct nexthop *nh, void *priv) {
+	struct list_context *ctx = priv;
 	struct gr_nexthop api_nh;
 
-	if (nh->ref_count == 0 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
+	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
 		return;
 
 	api_nh.ipv4 = nh->ipv4;
@@ -165,7 +114,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	struct gr_ip4_nh_list_resp *resp = NULL;
 	size_t len;
 
-	rte_mempool_obj_iter(nh_pool, nh_list_cb, &ctx);
+	nh_pool_iter(nh_pool, nh_list_cb, &ctx);
 
 	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
 	if ((resp = calloc(1, len)) == NULL) {
@@ -182,90 +131,19 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh_gc_cb(struct rte_mempool *, void * /*opaque*/, void *obj, unsigned /*obj_idx*/) {
-	uint64_t now = rte_get_tsc_cycles();
-	uint64_t reply_age, request_age;
-	unsigned probes, max_probes;
-	struct nexthop *nh = obj;
-
-	max_probes = NH_UCAST_PROBES + NH_BCAST_PROBES;
-
-	if (nh->ref_count == 0 || nh->flags & GR_NH_F_STATIC)
-		return;
-
-	reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
-	request_age = (now - nh->last_request) / rte_get_tsc_hz();
-	probes = nh->ucast_probes + nh->bcast_probes;
-
-	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE) && request_age > probes) {
-		if (probes >= max_probes && !(nh->flags & GR_NH_F_GATEWAY)) {
-			LOG(DEBUG,
-			    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    &nh->ipv4,
-			    nh->vrf_id,
-			    probes,
-			    nh->held_pkts_num,
-			    gr_nh_flag_name(nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)));
-
-			nh->flags &= ~(GR_NH_F_PENDING | GR_NH_F_STALE);
-			nh->flags |= GR_NH_F_FAILED;
-		} else {
-			if (arp_output_request_solicit(nh) < 0)
-				LOG(ERR, "arp_output_request_solicit: %s", strerror(errno));
-		}
-	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > NH_LIFETIME_REACHABLE) {
-		nh->flags &= ~GR_NH_F_REACHABLE;
-		nh->flags |= GR_NH_F_STALE;
-	} else if (nh->flags & GR_NH_F_FAILED && request_age > NH_LIFETIME_UNREACHABLE) {
-		LOG(DEBUG,
-		    IP4_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    &nh->ipv4,
-		    nh->vrf_id,
-		    probes,
-		    nh->held_pkts_num);
-
-		// this also does ip4_nexthop_decref(), freeing the next hop
-		// and buffered packets.
-		ip4_route_cleanup(nh);
-	}
-}
-
-static void nexthop_gc(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	rte_mempool_obj_iter(nh_pool, nh_gc_cb, NULL);
-}
-
-static struct event *nh_gc_timer;
-
 static void nh4_init(struct event_base *ev_base) {
-	nh_pool = rte_mempool_create(
-		"ip4_nh", // name
-		rte_align32pow2(IP4_MAX_NEXT_HOPS) - 1,
-		sizeof(struct nexthop),
-		0, // cache size
-		0, // priv size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		0 // flags
-	);
+	struct nh_pool_opts opts = {
+		.solicit_nh = arp_output_request_solicit,
+		.free_nh = ip4_route_cleanup,
+		.num_nexthops = IP4_MAX_NEXT_HOPS,
+	};
+	nh_pool = nh_pool_new(AF_INET, ev_base, &opts);
 	if (nh_pool == NULL)
-		ABORT("rte_mempool_create(ip4_nh) failed");
-
-	nh_gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, nexthop_gc, NULL);
-	if (nh_gc_timer == NULL)
-		ABORT("event_new() failed");
-	struct timeval tv = {.tv_sec = 1};
-	if (event_add(nh_gc_timer, &tv) < 0)
-		ABORT("event_add() failed");
+		ABORT("nh_pool_new(AF_INET) failed");
 }
 
 static void nh4_fini(struct event_base *) {
-	event_free(nh_gc_timer);
-	nh_gc_timer = NULL;
-	rte_mempool_free(nh_pool);
-	nh_pool = NULL;
+	nh_pool_free(nh_pool);
 }
 
 static struct gr_api_handler nh4_add_handler = {
