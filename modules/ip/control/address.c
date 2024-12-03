@@ -29,6 +29,19 @@
 
 static struct hoplist *iface_addrs;
 
+static void ip4_push_notification(ip_event_t id, struct nexthop *nh) {
+	struct gr_nexthop api_nh = {
+		.family = nh->family,
+		.ipv4 = nh->ipv4,
+		.iface_id = nh->iface_id,
+		.vrf_id = nh->vrf_id,
+		.mac = nh->lladdr,
+		.flags = nh->flags,
+	};
+
+	gr_api_push_notification(id, sizeof(api_nh), &api_nh);
+}
+
 struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
@@ -96,6 +109,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 
 	gr_vec_add(ifaddrs->nh, nh);
 
+	ip4_push_notification(IP_EVENT_ADDR_ADD, nh);
 	return api_out(0, 0);
 }
 
@@ -128,6 +142,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 
 	gr_vec_del(addrs->nh, i);
 
+	ip4_push_notification(IP_EVENT_ADDR_DEL, nh);
 	return api_out(0, 0);
 }
 
