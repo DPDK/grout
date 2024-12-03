@@ -25,10 +25,10 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct hoplist6 *iface_addrs;
+static struct hoplist *iface_addrs;
 
-struct hoplist6 *ip6_addr_get_all(uint16_t iface_id) {
-	struct hoplist6 *addrs;
+struct hoplist *ip6_addr_get_all(uint16_t iface_id) {
+	struct hoplist *addrs;
 
 	if (iface_id >= MAX_IFACES)
 		return errno_set_null(ENODEV);
@@ -41,7 +41,7 @@ struct hoplist6 *ip6_addr_get_all(uint16_t iface_id) {
 }
 
 struct nexthop *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
-	struct hoplist6 *addrs = ip6_addr_get_all(iface_id);
+	struct hoplist *addrs = ip6_addr_get_all(iface_id);
 	struct nexthop *pref = NULL;
 
 	if (addrs == NULL)
@@ -58,10 +58,10 @@ struct nexthop *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_
 	return pref;
 }
 
-static struct hoplist6 *iface_mcast_addrs;
+static struct hoplist *iface_mcast_addrs;
 
 struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast) {
-	struct hoplist6 *maddrs;
+	struct hoplist *maddrs;
 
 	if (iface_id >= MAX_IFACES)
 		return NULL;
@@ -77,7 +77,7 @@ struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_ad
 }
 
 static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *ip) {
-	struct hoplist6 *maddrs = &iface_mcast_addrs[iface->id];
+	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
 	unsigned i;
 
@@ -106,7 +106,7 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 }
 
 static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *ip) {
-	struct hoplist6 *maddrs = &iface_mcast_addrs[iface->id];
+	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
 	unsigned i;
 	int ret;
@@ -136,7 +136,7 @@ static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *i
 
 static int
 iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
-	struct hoplist6 *addrs;
+	struct hoplist *addrs;
 	unsigned addr_index;
 	struct nexthop *nh;
 	int ret;
@@ -152,7 +152,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 			return errno_set(EEXIST);
 	}
 
-	if (addrs->count == IP6_HOPLIST_MAX_SIZE)
+	if (addrs->count == ARRAY_DIM(addrs->nh))
 		return errno_set(ENOSPC);
 
 	if (ip6_nexthop_lookup(iface->vrf_id, ip) != NULL)
@@ -206,7 +206,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_del_req *req = request;
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop *nh = NULL;
-	struct hoplist6 *addrs;
+	struct hoplist *addrs;
 	unsigned i;
 
 	if ((addrs = ip6_addr_get_all(req->addr.iface_id)) == NULL)
@@ -246,7 +246,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 static struct api_out addr6_list(const void *request, void **response) {
 	const struct gr_ip6_addr_list_req *req = request;
 	struct gr_ip6_addr_list_resp *resp = NULL;
-	const struct hoplist6 *addrs;
+	const struct hoplist *addrs;
 	struct gr_ip6_ifaddr *addr;
 	uint16_t iface_id, num;
 	size_t len;
@@ -320,7 +320,7 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 		}
 		break;
 	case IFACE_EVENT_PRE_REMOVE:
-		struct hoplist6 *addrs = &iface_addrs[iface->id];
+		struct hoplist *addrs = &iface_addrs[iface->id];
 		for (i = 0; i < addrs->count; i++)
 			ip6_route_cleanup(addrs->nh[i]);
 
@@ -339,13 +339,11 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 }
 
 static void addr6_init(struct event_base *) {
-	iface_addrs = rte_calloc(
-		__func__, MAX_IFACES, sizeof(struct hoplist6), RTE_CACHE_LINE_SIZE
-	);
+	iface_addrs = rte_calloc(__func__, MAX_IFACES, sizeof(*iface_addrs), RTE_CACHE_LINE_SIZE);
 	if (iface_addrs == NULL)
 		ABORT("rte_calloc(iface_addrs)");
 	iface_mcast_addrs = rte_calloc(
-		__func__, MAX_IFACES, sizeof(struct hoplist6), RTE_CACHE_LINE_SIZE
+		__func__, MAX_IFACES, sizeof(*iface_mcast_addrs), RTE_CACHE_LINE_SIZE
 	);
 	if (iface_mcast_addrs == NULL)
 		ABORT("rte_calloc(iface_mcast_addrs)");
