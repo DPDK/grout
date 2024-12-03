@@ -29,7 +29,7 @@ enum {
 
 static rte_edge_t edges[128] = {ETH_OUTPUT};
 
-void ip6_output_add_tunnel(uint16_t iface_type_id, const char *next_node) {
+void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node) {
 	LOG(DEBUG, "ip6_output: iface_type=%u -> %s", iface_type_id, next_node);
 	if (iface_type_id == GR_IFACE_TYPE_UNDEF || iface_type_id >= ARRAY_DIM(edges))
 		ABORT("invalid iface type=%u", iface_type_id);
