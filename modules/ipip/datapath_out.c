@@ -82,7 +82,7 @@ next:
 }
 
 static void ipip_output_register(void) {
-	ip_output_add_tunnel(GR_IFACE_TYPE_IPIP, "ipip_output");
+	ip_output_register_interface(GR_IFACE_TYPE_IPIP, "ipip_output");
 }
 
 static struct rte_node_register ipip_output_node = {

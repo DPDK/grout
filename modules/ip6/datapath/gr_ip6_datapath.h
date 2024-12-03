@@ -33,7 +33,7 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 });
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
-void ip6_output_add_tunnel(uint16_t iface_type_id, const char *next_node);
+void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node);
 int ip6_nexthop_solicit(struct nexthop6 *nh);
 
 #define IP6_DEFAULT_HOP_LIMIT 255
