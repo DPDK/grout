@@ -163,4 +163,10 @@ struct gr_ip4_icmp_recv_resp {
 	clock_t response_time;
 };
 
+typedef enum {
+	IP_EVENT_ADDR_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0001),
+	IP_EVENT_ADDR_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0002),
+	IP_EVENT_ROUTE_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0003),
+	IP_EVENT_ROUTE_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0004),
+} ip_event_t;
 #endif

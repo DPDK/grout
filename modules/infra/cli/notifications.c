@@ -4,11 +4,15 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_infra.h>
+#include <gr_ip4.h>
+#include <gr_ip6.h>
 #include <gr_net_types.h>
 
 static cmd_status_t notifications_dump(const struct gr_api_client *c, const struct ec_pnode *) {
-	struct gr_api_notification *n;
 	struct gr_infra_iface_get_resp *p;
+	struct gr_api_notification *n;
+	struct gr_ip4_route *r4;
+	struct gr_nexthop *nh;
 
 	if (gr_api_client_enable_notifications(c) < 0)
 		return CMD_ERROR;
@@ -41,6 +45,42 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			break;
 		case IFACE_EVENT_POST_RECONFIG:
 			break;
+
+		case IP_EVENT_ADDR_ADD:
+			if (n->payload_len == sizeof(*nh)) {
+				nh = (struct gr_nexthop *)&n[1];
+				printf("IP address add: iface[%d] %4p\n", nh->iface_id, &nh->ipv4);
+			}
+			break;
+		case IP_EVENT_ADDR_DEL:
+			if (n->payload_len == sizeof(*nh)) {
+				nh = (struct gr_nexthop *)&n[1];
+				printf("IP address del:  iface[%d] %4p\n", nh->iface_id, &nh->ipv4);
+			}
+			break;
+			}
+			break;
+		case IP_EVENT_ROUTE_ADD:
+			if (n->payload_len == sizeof(*r4)) {
+				r4 = (struct gr_ip4_route *)&n[1];
+				printf("IP route add: %4p/%d via %4p\n",
+				       &r4->dest.ip,
+				       r4->dest.prefixlen,
+				       &r4->nh);
+			}
+			break;
+		case IP_EVENT_ROUTE_DEL:
+			if (n->payload_len == sizeof(*r4)) {
+				r4 = (struct gr_ip4_route *)&n[1];
+				printf("IP route del: %4p/%d via %4p\n",
+				       &r4->dest.ip,
+				       r4->dest.prefixlen,
+				       &r4->nh);
+			}
+			break;
+			}
+			break;
+
 		default:
 			printf("Unknown notification 0x%x received\n", n->type);
 			break;
