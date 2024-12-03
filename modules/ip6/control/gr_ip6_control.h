@@ -17,13 +17,6 @@
 
 #include <stdint.h>
 
-#define IP6_HOPLIST_MAX_SIZE 16
-
-struct hoplist6 {
-	unsigned count;
-	struct nexthop *nh[IP6_HOPLIST_MAX_SIZE];
-};
-
 // XXX: why not 1337, eh?
 #define IP6_MAX_NEXT_HOPS (1 << 16)
 #define IP6_MAX_ROUTES (1 << 16)
@@ -43,7 +36,7 @@ ip6_route_lookup_exact(uint16_t vrf_id, const struct rte_ipv6_addr *, uint8_t pr
 // get the default address for a given interface
 struct nexthop *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);
 // get all addresses for a given interface
-struct hoplist6 *ip6_addr_get_all(uint16_t iface_id);
+struct hoplist *ip6_addr_get_all(uint16_t iface_id);
 // determine if the given interface is member of the provided multicast address group
 struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast);
 

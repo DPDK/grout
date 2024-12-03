@@ -47,4 +47,12 @@ struct __rte_cache_aligned nexthop {
 	struct rte_mbuf *held_pkts_tail;
 };
 
+#define HOPLIST_MAX_SIZE 8
+
+// TODO: replace with dynamic list (gr_vec).
+struct hoplist {
+	unsigned count;
+	struct nexthop *nh[HOPLIST_MAX_SIZE];
+};
+
 #endif

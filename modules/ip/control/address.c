@@ -77,7 +77,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 			return api_out(0, 0);
 	}
 
-	if (ifaddrs->count == IP4_HOPLIST_MAX_SIZE)
+	if (ifaddrs->count == ARRAY_DIM(ifaddrs->nh))
 		return api_out(ENOSPC, 0);
 
 	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)

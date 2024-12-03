@@ -16,13 +16,6 @@
 
 #include <stdint.h>
 
-#define IP4_HOPLIST_MAX_SIZE 8
-
-struct hoplist {
-	unsigned count;
-	struct nexthop *nh[IP4_HOPLIST_MAX_SIZE];
-};
-
 // XXX: why not 1337, eh?
 #define IP4_MAX_NEXT_HOPS (1 << 16)
 #define IP4_MAX_ROUTES (1 << 16)
