@@ -295,6 +295,7 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			// type
 			scols_line_set_data(line, 4, type->name);
 			// info
+			buf[0] = 0;
 			type->list_info(c, iface, buf, sizeof(buf));
 			scols_line_set_data(line, 5, buf);
 		}
