@@ -165,7 +165,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		| GR_IP6_NH_F_STATIC;
 
 	if ((ret = iface_get_eth_addr(iface->id, &nh->lladdr)) < 0)
-		if (ret != EOPNOTSUPP) {
+		if (errno != EOPNOTSUPP) {
 			ip6_nexthop_decref(nh);
 			return errno_set(-ret);
 		}
@@ -175,7 +175,6 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	addrs->nh[addr_index] = nh;
 	addrs->count++;
-
 	return 0;
 }
 
@@ -195,8 +194,10 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 
 	// join the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
-	if (ip6_mcast_addr_add(iface, &solicited_node) < 0)
-		return api_out(errno, 0);
+	if (ip6_mcast_addr_add(iface, &solicited_node) < 0) {
+		if (errno != EOPNOTSUPP)
+			return api_out(errno, 0);
+	}
 
 	return api_out(0, 0);
 }
