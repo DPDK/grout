@@ -111,7 +111,7 @@ next:
 }
 
 static void ndp_output_solicit_register(void) {
-	ndp_solicit = gr_control_input_register_handler("ndp_ns_output");
+	ndp_solicit = gr_control_input_register_handler("ndp_ns_output", false);
 }
 
 static struct rte_node_register node = {

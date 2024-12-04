@@ -110,7 +110,7 @@ next:
 }
 
 static void arp_output_request_register(void) {
-	arp_solicit = gr_control_input_register_handler("arp_output_request");
+	arp_solicit = gr_control_input_register_handler("arp_output_request", false);
 }
 
 static struct rte_node_register arp_output_request_node = {

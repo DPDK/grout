@@ -118,7 +118,7 @@ static uint16_t icmp_local_send_process(
 }
 
 static void icmp_local_send_register(void) {
-	ip4_icmp_request = gr_control_input_register_handler("icmp_local_send");
+	ip4_icmp_request = gr_control_input_register_handler("icmp_local_send", false);
 }
 
 static struct rte_node_register icmp_local_send_node = {

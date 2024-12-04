@@ -24,16 +24,22 @@ struct gr_control_input_msg {
 	void *data;
 };
 
+struct control_input_edge {
+	rte_edge_t edge;
+	bool data_is_mbuf;
+};
+
 static struct rte_ring *control_input_ring;
 
 static control_input_t next_id = 0;
-static rte_edge_t control_input_edges[1 << 8] = {UNKNOWN_CONTROL_INPUT_TYPE};
+static struct control_input_edge control_input_edges[1 << 8];
 
-control_input_t gr_control_input_register_handler(const char *node_name) {
+control_input_t gr_control_input_register_handler(const char *node_name, bool data_is_mbuf) {
 	if (next_id == 0xff)
 		ABORT("control_input: max number of handlers reached");
 	LOG(DEBUG, "control_input: type=%hhu -> %s", next_id, node_name);
-	control_input_edges[next_id] = gr_node_attach_parent("control_input", node_name);
+	control_input_edges[next_id].edge = gr_node_attach_parent("control_input", node_name);
+	control_input_edges[next_id].data_is_mbuf = data_is_mbuf;
 	return next_id++;
 }
 
@@ -57,6 +63,7 @@ static uint16_t control_input_process(
 	struct gr_control_input_msg msg[RTE_GRAPH_BURST_SIZE];
 	struct rte_mempool *mp;
 	struct rte_mbuf *mbuf;
+	rte_edge_t edge;
 	uint16_t n;
 
 	n = rte_ring_dequeue_burst_elem(
@@ -70,13 +77,21 @@ static uint16_t control_input_process(
 	mp = node->ctx_ptr;
 
 	for (unsigned i = 0; i < n; i++) {
-		mbuf = rte_pktmbuf_alloc(mp);
-		if (mbuf) {
-			if (gr_trace_all_enabled())
-				gr_mbuf_trace_add(mbuf, node, 0); // no data
+		if (control_input_edges[msg[i].type].data_is_mbuf) {
+			mbuf = msg[i].data;
+		} else {
+			mbuf = rte_pktmbuf_alloc(mp);
+			if (!mbuf) {
+				LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
+				continue;
+			}
 			control_input_mbuf_data(mbuf)->data = msg[i].data;
-			rte_node_enqueue_x1(graph, node, control_input_edges[msg[i].type], mbuf);
 		}
+
+		if (gr_trace_all_enabled())
+			gr_mbuf_trace_add(mbuf, node, 0); // no data
+		edge = control_input_edges[msg[i].type].edge;
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return n;
