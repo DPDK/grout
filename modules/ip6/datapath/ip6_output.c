@@ -27,7 +27,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static rte_edge_t edges[128] = {ETH_OUTPUT};
+static rte_edge_t edges[GR_IFACE_TYPE_MAX] = {ETH_OUTPUT};
 
 void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node) {
 	LOG(DEBUG, "ip6_output: iface_type=%u -> %s", iface_type_id, next_node);
