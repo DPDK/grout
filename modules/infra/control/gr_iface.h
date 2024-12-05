@@ -107,5 +107,6 @@ void iface_event_register_handler(struct iface_event_handler *handler);
 void iface_event_notify(iface_event_t event, struct iface *iface);
 
 #define MAX_IFACES 1024
+#define MAX_VRFS 256
 
 #endif

@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
@@ -40,7 +41,7 @@ static struct rte_fib6_conf fib6_conf = {
 static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 	struct rte_fib6 *fib;
 
-	if (vrf_id >= IP6_MAX_VRFS)
+	if (vrf_id >= MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -53,7 +54,7 @@ static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 static struct rte_fib6 *get_or_create_fib6(uint16_t vrf_id) {
 	struct rte_fib6 *fib;
 
-	if (vrf_id >= IP6_MAX_VRFS)
+	if (vrf_id >= MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -312,7 +313,7 @@ static struct api_out route6_list(const void *request, void **response) {
 
 	if (req->vrf_id == UINT16_MAX) {
 		num = 0;
-		for (uint16_t v = 0; v < IP6_MAX_VRFS; v++) {
+		for (uint16_t v = 0; v < MAX_VRFS; v++) {
 			if (vrf_fibs[v] == NULL)
 				continue;
 			if ((n = route6_count(v)) < 0)
@@ -330,7 +331,7 @@ static struct api_out route6_list(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	if (req->vrf_id == UINT16_MAX) {
-		for (uint16_t v = 0; v < IP6_MAX_VRFS; v++) {
+		for (uint16_t v = 0; v < MAX_VRFS; v++) {
 			if (vrf_fibs[v] == NULL)
 				continue;
 			route6_rib_to_api(resp, v);
@@ -345,15 +346,13 @@ static struct api_out route6_list(const void *request, void **response) {
 }
 
 static void route6_init(struct event_base *) {
-	vrf_fibs = rte_calloc(
-		__func__, IP6_MAX_VRFS, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE
-	);
+	vrf_fibs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE);
 	if (vrf_fibs == NULL)
 		ABORT("rte_calloc(vrf_fib6s): %s", rte_strerror(rte_errno));
 }
 
 static void route6_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < IP6_MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
 		rte_fib6_free(vrf_fibs[vrf_id]);
 		vrf_fibs[vrf_id] = NULL;
 	}

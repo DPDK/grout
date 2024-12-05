@@ -91,7 +91,7 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 
 	if (rte_ipv6_addr_is_unspec(&req->nh.host) || rte_ipv6_addr_is_mcast(&req->nh.host))
 		return api_out(EINVAL, 0);
-	if (req->nh.vrf_id >= IP6_MAX_VRFS)
+	if (req->nh.vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
@@ -117,7 +117,7 @@ static struct api_out nh6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_nh_del_req *req = request;
 	struct nexthop6 *nh;
 
-	if (req->vrf_id >= IP6_MAX_VRFS)
+	if (req->vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
 	if ((nh = ip6_nexthop_lookup(req->vrf_id, &req->host)) == NULL) {
