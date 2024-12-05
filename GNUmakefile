@@ -16,6 +16,11 @@ endif
 all: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) $(ninja_opts)
 
+.PHONY: debug
+debug: BUILDTYPE = debug
+debug: SANITIZE = address
+debug: all
+
 .PHONY: unit-tests
 unit-tests: $(BUILDDIR)/build.ninja
 	$Q ninja -C $(BUILDDIR) test $(ninja_opts)
@@ -49,7 +54,7 @@ clean:
 install: $(BUILDDIR)/build.ninja
 	$Q meson install -C $(BUILDDIR) --skip-subprojects
 
-meson_opts := --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
+meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
 meson_opts += $(MESON_EXTRA_OPTS)
 
 $(BUILDDIR)/build.ninja:
