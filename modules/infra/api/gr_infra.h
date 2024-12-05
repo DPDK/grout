@@ -15,9 +15,10 @@
 #include <sys/types.h>
 
 // Value for gr_iface.type
-#define GR_IFACE_TYPE_UNDEF 0x0000
-#define GR_IFACE_TYPE_PORT 0x0001
-#define GR_IFACE_TYPE_VLAN 0x0002
+#define GR_IFACE_TYPE_UNDEF 0x00
+#define GR_IFACE_TYPE_PORT 0x01
+#define GR_IFACE_TYPE_VLAN 0x02
+#define GR_IFACE_TYPE_MAX 256
 
 // Interface configure flags
 #define GR_IFACE_F_UP GR_BIT16(0)

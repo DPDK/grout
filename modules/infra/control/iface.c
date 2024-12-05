@@ -30,6 +30,8 @@ struct iface_type *iface_type_get(uint16_t type_id) {
 void iface_type_register(struct iface_type *type) {
 	if (iface_type_get(type->id) != NULL)
 		ABORT("duplicate iface type id: %u", type->id);
+	if (type->id >= GR_IFACE_TYPE_MAX)
+		ABORT("invalid iface type id: %u", type->id);
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
