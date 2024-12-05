@@ -34,6 +34,8 @@
 // Either ETH_F, IP4 or IP6 depending on the width argument
 #define ADDR_F "%*p"
 
+#define ADDR_W(family) (family == AF_INET ? 4 : (family == AF_INET6 ? 6 : 0))
+
 #define ETH_ADDR_RE "^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$"
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
