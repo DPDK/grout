@@ -72,4 +72,10 @@ if [ "$run_grout" = true ]; then
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
-grcli set trace all
+case "$(basename $0)" in
+config_test.sh|graph_svg_test.sh)
+	;;
+*)
+	grcli set trace all
+	;;
+esac
