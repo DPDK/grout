@@ -54,7 +54,6 @@ struct hoplist6 {
 // XXX: why not 1337, eh?
 #define IP6_MAX_NEXT_HOPS (1 << 16)
 #define IP6_MAX_ROUTES (1 << 16)
-#define IP6_MAX_VRFS 256
 
 struct nexthop6 *ip6_nexthop_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *);
 struct nexthop6 *ip6_nexthop_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);

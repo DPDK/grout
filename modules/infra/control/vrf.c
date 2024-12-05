@@ -2,7 +2,6 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_iface.h>
-#include <gr_ip4_control.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
@@ -15,14 +14,14 @@ struct vrf_info {
 };
 
 // we have the same number of VRFs for IP4 and IP6
-static struct vrf_info vrfs[IP4_MAX_VRFS];
+static struct vrf_info vrfs[MAX_VRFS];
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return vrfs[vrf_id].iface;
 }
 
 static void iface_event_vrf(iface_event_t event, struct iface *iface) {
-	int ifaces_per_vrf[IP4_MAX_VRFS] = {0};
+	int ifaces_per_vrf[ARRAY_DIM(vrfs)] = {0};
 
 	if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
 		return;
@@ -45,7 +44,7 @@ static void iface_event_vrf(iface_event_t event, struct iface *iface) {
 				continue;
 			ifaces_per_vrf[iface->vrf_id]++;
 		}
-		for (int i = 0; i < IP4_MAX_VRFS; i++) {
+		for (unsigned i = 0; i < ARRAY_DIM(vrfs); i++) {
 			if (vrfs[i].ref_count > ifaces_per_vrf[i]) {
 				vrfs[i].ref_count = ifaces_per_vrf[i];
 				if (vrfs[i].ref_count == 0) {

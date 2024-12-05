@@ -89,7 +89,7 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 
 	if (req->nh.host == 0)
 		return api_out(EINVAL, 0);
-	if (req->nh.vrf_id >= IP4_MAX_VRFS)
+	if (req->nh.vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
@@ -115,7 +115,7 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_nh_del_req *req = request;
 	struct nexthop *nh;
 
-	if (req->vrf_id >= IP4_MAX_VRFS)
+	if (req->vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
 	if ((nh = ip4_nexthop_lookup(req->vrf_id, req->host)) == NULL) {

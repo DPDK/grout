@@ -53,7 +53,6 @@ struct hoplist {
 // XXX: why not 1337, eh?
 #define IP4_MAX_NEXT_HOPS (1 << 16)
 #define IP4_MAX_ROUTES (1 << 16)
-#define IP4_MAX_VRFS 256
 
 struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
