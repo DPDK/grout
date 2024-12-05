@@ -25,11 +25,10 @@
 #include <sys/queue.h>
 
 static struct rte_fib6 **vrf_fibs;
-#define BLACKHOLE (IP6_MAX_NEXT_HOPS + 1)
 
 static struct rte_fib6_conf fib6_conf = {
 	.type = RTE_FIB6_TRIE,
-	.default_nh = BLACKHOLE,
+	.default_nh = 0,
 	.max_routes = IP6_MAX_ROUTES,
 	.rib_ext_sz = 0,
 	.trie = {
@@ -103,7 +102,7 @@ struct nexthop *ip6_route_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *ip
 		return NULL;
 
 	rte_fib6_lookup_bulk(fib6, ip, &nh_id, 1);
-	if (nh_id == BLACKHOLE)
+	if (nh_id == 0)
 		return errno_set_null(EHOSTUNREACH);
 
 	return nh_id_to_ptr(nh_id);

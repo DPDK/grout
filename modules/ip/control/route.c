@@ -26,11 +26,10 @@
 #include <sys/queue.h>
 
 static struct rte_fib **vrf_fibs;
-#define BLACKHOLE (IP4_MAX_NEXT_HOPS + 1)
 
 static struct rte_fib_conf fib_conf = {
 	.type = RTE_FIB_DIR24_8,
-	.default_nh = BLACKHOLE,
+	.default_nh = 0,
 	.max_routes = IP4_MAX_ROUTES,
 	.rib_ext_sz = 0,
 	.dir24_8 = {
@@ -105,7 +104,7 @@ struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 		return NULL;
 
 	rte_fib_lookup_bulk(fib, &host_order_ip, &nh_id, 1);
-	if (nh_id == BLACKHOLE)
+	if (nh_id == 0)
 		return errno_set_null(EHOSTUNREACH);
 
 	return nh_id_to_ptr(nh_id);
