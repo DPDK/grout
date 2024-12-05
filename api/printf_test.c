@@ -34,10 +34,10 @@ static void ipv4(void **) {
 	snprintf(buf, sizeof(buf), IP4_F, NULL);
 	assert_string_equal(buf, "(nil)");
 	buf[0] = 0;
-	snprintf(buf, sizeof(buf), ADDR_F, 4, &ip4);
+	snprintf(buf, sizeof(buf), ADDR_F, ADDR_W(AF_INET), &ip4);
 	assert_string_equal(buf, "1.2.3.4");
 	buf[0] = 0;
-	snprintf(buf, sizeof(buf), ADDR_F, 4, NULL);
+	snprintf(buf, sizeof(buf), ADDR_F, ADDR_W(AF_INET), NULL);
 	assert_string_equal(buf, "(nil)");
 }
 
@@ -53,10 +53,10 @@ static void ipv6(void **) {
 	snprintf(buf, sizeof(buf), IP6_F, NULL);
 	assert_string_equal(buf, "(nil)");
 	buf[0] = 0;
-	snprintf(buf, sizeof(buf), ADDR_F, 6, &ip6);
+	snprintf(buf, sizeof(buf), ADDR_F, ADDR_W(AF_INET6), &ip6);
 	assert_string_equal(buf, "fe80::2e8b:352e:66bf:3ad8");
 	buf[0] = 0;
-	snprintf(buf, sizeof(buf), ADDR_F, 6, NULL);
+	snprintf(buf, sizeof(buf), ADDR_F, ADDR_W(AF_INET6), NULL);
 	assert_string_equal(buf, "(nil)");
 }
 
