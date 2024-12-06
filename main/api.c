@@ -8,6 +8,7 @@
 #include <gr_api.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 
@@ -168,13 +169,6 @@ close:
 		event_free_finalize(0, ev, finalize_fd);
 }
 
-static int close_connections(const struct event_base *, const struct event *ev, void * /*priv*/) {
-	event_callback_fn cb = event_get_callback(ev);
-	if (cb == read_cb || cb == write_cb)
-		event_free_finalize(0, (struct event *)ev, finalize_fd);
-	return 0;
-}
-
 static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 	struct event *ev;
 	int fd;
@@ -246,9 +240,23 @@ int api_socket_start(struct event_base *base) {
 	return 0;
 }
 
+static int collect_clients(const struct event_base *, const struct event *ev, void *priv) {
+	struct event ***events = priv;
+	event_callback_fn cb = event_get_callback(ev);
+	if (cb == read_cb || cb == write_cb)
+		gr_vec_add(*events, (struct event *)ev);
+	return 0;
+}
+
 void api_socket_stop(struct event_base *) {
+	struct event **events = NULL;
+	struct event *ev;
+
 	if (ev_listen != NULL)
 		event_free_finalize(0, ev_listen, finalize_fd);
 
-	event_base_foreach_event(ev_base, close_connections, NULL);
+	event_base_foreach_event(ev_base, collect_clients, &events);
+	gr_vec_foreach (ev, events)
+		event_free_finalize(0, ev, finalize_fd);
+	gr_vec_free(events);
 }
