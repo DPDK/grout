@@ -28,7 +28,7 @@ static uint16_t ndp_ns_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct nexthop6 *remote, *local;
+	struct nexthop *remote, *local;
 	struct icmp6_neigh_solicit *ns;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
@@ -78,7 +78,7 @@ static uint16_t ndp_ns_input_process(
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
 		local = ip6_addr_get_preferred(iface->id, &ns->target);
-		if (local == NULL || !rte_ipv6_addr_eq(&local->ip, &ns->target)) {
+		if (local == NULL || !rte_ipv6_addr_eq(&local->ipv6, &ns->target)) {
 			next = IGNORE;
 			goto next;
 		}
@@ -97,7 +97,7 @@ static uint16_t ndp_ns_input_process(
 		na = (struct icmp6_neigh_advert *)rte_pktmbuf_append(mbuf, sizeof(*na));
 		na->override = 1;
 		na->router = 1;
-		na->target = local->ip;
+		na->target = local->ipv6;
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
@@ -154,7 +154,7 @@ static uint16_t ndp_ns_input_process(
 		// Fill IPv6 layer
 		payload_len = rte_pktmbuf_pkt_len(mbuf);
 		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ip, &src);
+		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ipv6, &src);
 		// Compute ICMP6 checksum with pseudo header
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);

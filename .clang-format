@@ -84,6 +84,7 @@ ForEachMacros:
   - rte_graph_foreach_node
   - gr_vec_foreach
   - gr_vec_foreach_ref
+  - gr_nh_flags_foreach
 IfMacros:
   - KJ_IF_MAYBE
 IncludeBlocks: Regroup

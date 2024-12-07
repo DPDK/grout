@@ -53,14 +53,14 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 		// Select preferred source IP address to reply with
-		if ((local = ip4_addr_get_preferred(nh->iface_id, nh->ip)) == NULL) {
+		if ((local = ip4_addr_get_preferred(nh->iface_id, nh->ipv4)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
 
 		ip_data = ip_local_mbuf_data(mbuf);
 		ip_data->vrf_id = iface->vrf_id;
-		ip_data->src = local->ip;
+		ip_data->src = local->ipv4;
 		ip_data->dst = ip->src_addr;
 
 		// RFC792 payload size: ip header + 64 bits of original datagram

@@ -37,6 +37,8 @@
 
 #define GR_IFACE_ID_UNDEF 0
 
+#define GR_VRF_ID_ALL UINT16_MAX
+
 // Generic struct for all network interfaces.
 struct gr_iface {
 	uint16_t id; // Interface unique index.

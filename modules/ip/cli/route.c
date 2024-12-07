@@ -108,7 +108,7 @@ static cmd_status_t route4_get(const struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("%s via " IP4_F " lladdr " ETH_F, dest, &resp->nh.host, &resp->nh.mac);
+	printf("%s via " IP4_F " lladdr " ETH_F, dest, &resp->nh.ipv4, &resp->nh.mac);
 	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
 		printf(" iface %s", iface.name);
 	else

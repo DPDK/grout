@@ -49,7 +49,7 @@ struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 
 	for (unsigned i = 0; i < addrs->count; i++) {
 		struct nexthop *nh = addrs->nh[i];
-		if (ip4_addr_same_subnet(dst, nh->ip, nh->prefixlen))
+		if (ip4_addr_same_subnet(dst, nh->ipv4, nh->prefixlen))
 			return nh;
 	}
 
@@ -72,12 +72,12 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 
 	for (addr_index = 0; addr_index < ifaddrs->count; addr_index++) {
 		nh = ifaddrs->nh[addr_index];
-		if (req->exist_ok && req->addr.addr.ip == nh->ip
+		if (req->exist_ok && req->addr.addr.ip == nh->ipv4
 		    && req->addr.addr.prefixlen == nh->prefixlen)
 			return api_out(0, 0);
 	}
 
-	if (ifaddrs->count == IP4_HOPLIST_MAX_SIZE)
+	if (ifaddrs->count == ARRAY_DIM(ifaddrs->nh))
 		return api_out(ENOSPC, 0);
 
 	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
@@ -87,16 +87,15 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		return api_out(errno, 0);
 
 	nh->prefixlen = req->addr.addr.prefixlen;
-	nh->flags = GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK | GR_IP4_NH_F_REACHABLE
-		| GR_IP4_NH_F_STATIC;
+	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
 
 	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
 		if (errno != EOPNOTSUPP) {
-			ip4_nexthop_decref(nh);
+			nexthop_decref(nh);
 			return api_out(errno, 0);
 		}
 
-	if ((ret = ip4_route_insert(iface->vrf_id, nh->ip, nh->prefixlen, nh)) < 0)
+	if ((ret = ip4_route_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
 		return api_out(-ret, 0);
 
 	ifaddrs->nh[addr_index] = nh;
@@ -115,7 +114,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENODEV, 0);
 
 	for (i = 0; i < addrs->count; i++) {
-		if (addrs->nh[i]->ip == req->addr.addr.ip
+		if (addrs->nh[i]->ipv4 == req->addr.addr.ip
 		    && addrs->nh[i]->prefixlen == req->addr.addr.prefixlen) {
 			nh = addrs->nh[i];
 			break;
@@ -127,7 +126,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if ((nh->flags & (GR_IP4_NH_F_LOCAL | GR_IP4_NH_F_LINK)) || nh->ref_count > 1)
+	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ip4_route_cleanup(nh);
@@ -166,7 +165,7 @@ static struct api_out addr_list(const void *request, void **response) {
 			continue;
 		for (unsigned i = 0; i < addrs->count; i++) {
 			addr = &resp->addrs[resp->n_addrs++];
-			addr->addr.ip = addrs->nh[i]->ip;
+			addr->addr.ip = addrs->nh[i]->ipv4;
 			addr->addr.prefixlen = addrs->nh[i]->prefixlen;
 			addr->iface_id = iface_id;
 		}

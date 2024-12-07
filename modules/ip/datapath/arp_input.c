@@ -37,7 +37,7 @@ static inline void update_nexthop(
 	struct rte_mbuf *m, *next;
 
 	// Static next hops never need updating.
-	if (nh->flags & GR_IP4_NH_F_STATIC)
+	if (nh->flags & GR_NH_F_STATIC)
 		return;
 
 	rte_spinlock_lock(&nh->lock);
@@ -45,8 +45,8 @@ static inline void update_nexthop(
 	// Refresh all fields.
 	nh->last_reply = now;
 	nh->iface_id = iface_id;
-	nh->flags |= GR_IP4_NH_F_REACHABLE;
-	nh->flags &= ~(GR_IP4_NH_F_STALE | GR_IP4_NH_F_PENDING | GR_IP4_NH_F_FAILED);
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
 	nh->ucast_probes = 0;
 	nh->bcast_probes = 0;
 	nh->lladdr = arp->arp_data.arp_sha;
@@ -111,9 +111,9 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		local = ip4_addr_get_preferred(iface->id, sip);
 		remote = ip4_nexthop_lookup(iface->vrf_id, sip);
 
-		if (remote != NULL && remote->ip == sip) {
+		if (remote != NULL && remote->ipv4 == sip) {
 			update_nexthop(graph, node, remote, now, iface->id, arp);
-		} else if (local != NULL && local->ip == arp->arp_data.arp_tip) {
+		} else if (local != NULL && local->ipv4 == arp->arp_data.arp_tip) {
 			// Request/reply to our address but no next hop entry exists.
 			// Create a new next hop and its associated /32 route to allow
 			// faster lookups for next packets.

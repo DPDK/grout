@@ -6,6 +6,7 @@ src += files(
   'iface.c',
   'loopback.c',
   'mempool.c',
+  'nexthop.c',
   'port.c',
   'worker.c',
   'graph.c',

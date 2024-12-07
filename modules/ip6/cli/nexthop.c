@@ -20,7 +20,7 @@ static cmd_status_t nh6_add(const struct gr_api_client *c, const struct ec_pnode
 	struct gr_ip6_nh_add_req req = {0};
 	struct gr_iface iface;
 
-	if (inet_pton(AF_INET6, arg_str(p, "IP"), &req.nh.host) != 1) {
+	if (inet_pton(AF_INET6, arg_str(p, "IP"), &req.nh.ipv6) != 1) {
 		errno = EINVAL;
 		return CMD_ERROR;
 	}
@@ -56,9 +56,9 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip6_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip6_nh_list_resp *resp;
-	char state[128];
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
+	char buf[128];
 	ssize_t n;
 
 	if (table == NULL)
@@ -85,24 +85,18 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 
 	for (size_t i = 0; i < resp->n_nhs; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_ip6_nh *nh = &resp->nhs[i];
+		const struct gr_nexthop *nh = &resp->nhs[i];
 
 		n = 0;
-		state[0] = '\0';
-		for (uint8_t i = 0; i < 16; i++) {
-			gr_ip6_nh_flags_t f = 1 << i;
-			if (f & nh->flags) {
-				n += snprintf(
-					state + n, sizeof(state) - n, "%s ", gr_ip6_nh_f_name(f)
-				);
-			}
-		}
+		buf[0] = '\0';
+		gr_nh_flags_foreach (f, nh->flags)
+			SAFE_BUF(snprintf, sizeof(buf), "%s ", gr_nh_flag_name(f));
 		if (n > 0)
-			state[n - 1] = '\0';
+			buf[n - 1] = '\0';
 
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
-		scols_line_sprintf(line, 1, IP6_F, &nh->host);
-		if (nh->flags & GR_IP6_NH_F_REACHABLE) {
+		scols_line_sprintf(line, 1, IP6_F, &nh->ipv6);
+		if (nh->flags & GR_NH_F_REACHABLE) {
 			scols_line_sprintf(line, 2, ETH_F, &nh->mac);
 			if (iface_from_id(c, nh->iface_id, &iface) == 0)
 				scols_line_sprintf(line, 3, "%s", iface.name);
@@ -116,7 +110,7 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 			scols_line_sprintf(line, 4, "%u", nh->held_pkts);
 			scols_line_set_data(line, 5, "?");
 		}
-		scols_line_sprintf(line, 6, "%s", state);
+		scols_line_sprintf(line, 6, "%s", buf);
 	}
 
 	scols_print_table(table);
@@ -124,6 +118,11 @@ static cmd_status_t nh6_list(const struct gr_api_client *c, const struct ec_pnod
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
+err:
+	scols_unref_table(table);
+	free(resp_ptr);
+
+	return CMD_ERROR;
 }
 
 static int ctx_init(struct ec_node *root) {

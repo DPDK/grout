@@ -15,13 +15,13 @@ cleanup() {
 
 	# delete all non-port interfaces first
 	grcli show interface all |
-	grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' |
+	grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<loopback\>' |
 	while read -r name _; do
 		grcli del interface "$name"
 	done
 	# then delete all ports
 	grcli show interface all |
-	grep -v ^NAME |
+	grep -ve ^NAME -e '\<loopback\>' |
 	while read -r name _; do
 		grcli del interface "$name"
 	done
@@ -72,4 +72,10 @@ if [ "$run_grout" = true ]; then
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
-grcli set trace all
+case "$(basename $0)" in
+config_test.sh|graph_svg_test.sh)
+	;;
+*)
+	grcli set trace all
+	;;
+esac
