@@ -15,7 +15,7 @@
 #include <rte_graph_worker.h>
 
 enum {
-	IP_OUTPUT = 0,
+	CONTROL = 0,
 	REPLY,
 	DROP,
 	ERROR,
@@ -28,13 +28,13 @@ static uint16_t arp_input_request_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct nexthop *remote, *local;
+	struct control_output_mbuf_data *ctrl_data;
 	struct arp_reply_mbuf_data *d;
+	struct rte_mbuf *mbuf, *copy;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
-	struct rte_mbuf *mbuf;
+	struct nexthop *local;
 	rte_edge_t edge;
-	ip4_addr_t sip;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -48,25 +48,17 @@ static uint16_t arp_input_request_process(
 			goto next;
 		}
 
-		sip = arp->arp_data.arp_sip;
-		remote = ip4_nexthop_lookup(iface->vrf_id, sip);
-		if (remote == NULL) {
-			// We don't have an entry for the ARP request sender address yet.
-			//
-			// Create one now. If the sender has requested our mac address,
-			// they will certainly contact us soon and it will save us an
-			// ARP request.
-			if ((remote = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
-				edge = ERROR;
-				goto next;
-			}
-			// Add an internal /32 route to reference the newly created nexthop.
-			if (ip4_route_insert(iface->vrf_id, sip, 32, remote) < 0) {
-				edge = ERROR;
-				goto next;
-			}
+		copy = rte_pktmbuf_copy(mbuf, mbuf->pool, 0, UINT32_MAX);
+		if (copy == NULL) {
+			edge = ERROR;
+			goto next;
 		}
-		arp_update_nexthop(graph, node, remote, iface, &arp->arp_data.arp_sha);
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(copy, node, 0);
+		ctrl_data = control_output_mbuf_data(copy);
+		ctrl_data->callback = arp_probe_input_cb;
+		ctrl_data->iface = iface;
+		rte_node_enqueue_x1(graph, node, CONTROL, copy);
 
 		edge = REPLY;
 		d = arp_reply_mbuf_data(mbuf);
@@ -87,7 +79,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[IP_OUTPUT] = "ip_output",
+		[CONTROL] = "control_output",
 		[REPLY] = "arp_output_reply",
 		[DROP] = "arp_input_request_drop",
 		[ERROR] = "arp_input_request_error",

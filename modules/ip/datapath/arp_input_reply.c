@@ -15,53 +15,10 @@
 #include <rte_graph_worker.h>
 
 enum {
-	IP_OUTPUT = 0,
+	CONTROL = 0,
 	DROP,
 	EDGE_COUNT,
 };
-
-// Declaration in gr_ip4_datapath.h. This function is shared with arp_input_request.
-void arp_update_nexthop(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	struct nexthop *nh,
-	const struct iface *iface,
-	const struct rte_ether_addr *mac
-) {
-	struct ip_output_mbuf_data *o;
-	struct rte_mbuf *m, *next;
-
-	// Static next hops never need updating.
-	if (nh->flags & GR_NH_F_STATIC)
-		return;
-
-	rte_spinlock_lock(&nh->lock);
-
-	// Refresh all fields.
-	nh->last_reply = rte_get_tsc_cycles();
-	nh->iface_id = iface->id;
-	nh->flags |= GR_NH_F_REACHABLE;
-	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
-	nh->ucast_probes = 0;
-	nh->bcast_probes = 0;
-	nh->lladdr = *mac;
-
-	// Flush all held packets.
-	m = nh->held_pkts_head;
-	while (m != NULL) {
-		next = queue_mbuf_data(m)->next;
-		o = ip_output_mbuf_data(m);
-		o->nh = nh;
-		o->iface = NULL;
-		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
-		m = next;
-	}
-	nh->held_pkts_head = NULL;
-	nh->held_pkts_tail = NULL;
-	nh->held_pkts_num = 0;
-
-	rte_spinlock_unlock(&nh->lock);
-}
 
 static uint16_t arp_input_reply_process(
 	struct rte_graph *graph,
@@ -85,10 +42,10 @@ static uint16_t arp_input_reply_process(
 			gr_mbuf_trace_add(mbuf, node, 0);
 
 		if (remote != NULL) {
-			arp_update_nexthop(graph, node, remote, iface, &arp->arp_data.arp_sha);
-			if (gr_mbuf_is_traced(mbuf))
-				gr_mbuf_trace_finish(mbuf);
-			rte_pktmbuf_free(mbuf);
+			struct control_output_mbuf_data *d = control_output_mbuf_data(mbuf);
+			d->callback = arp_probe_input_cb;
+			d->iface = iface;
+			rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
 		} else {
 			rte_node_enqueue_x1(graph, node, DROP, mbuf);
 		}
@@ -104,7 +61,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[IP_OUTPUT] = "ip_output",
+		[CONTROL] = "control_output",
 		[DROP] = "arp_input_reply_drop",
 	},
 };

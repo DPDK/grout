@@ -24,7 +24,7 @@ enum {
 
 static uint16_t
 arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_arp_hdr *arp;
+	struct rte_arp_hdr *arp, *t;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 
@@ -54,7 +54,7 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
-			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *arp;
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
