@@ -23,6 +23,8 @@
 struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
 
+void ip4_nexthop_unreachable_cb(struct rte_mbuf *m);
+
 int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
 int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);

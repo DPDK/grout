@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { struct nexthop *nh; });
+GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { const struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(arp_mbuf_data, {
 	struct nexthop *local;
@@ -56,7 +56,7 @@ static inline void ip_set_fields(struct rte_ipv4_hdr *ip, struct ip_local_mbuf_d
 int icmp_local_send(
 	uint16_t vrf_id,
 	ip4_addr_t dst,
-	struct nexthop *gw,
+	const struct nexthop *gw,
 	uint16_t ident,
 	uint16_t seq_num,
 	uint8_t ttl
