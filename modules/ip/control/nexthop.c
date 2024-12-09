@@ -14,6 +14,7 @@
 #include <gr_vec.h>
 
 #include <event2/event.h>
+#include <rte_arp.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_mempool.h>
@@ -103,6 +104,69 @@ void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	} else {
 		LOG(DEBUG, IP4_F " hold queue full", &dst);
 	}
+free:
+	rte_pktmbuf_free(m);
+}
+
+void arp_probe_input_cb(struct rte_mbuf *m) {
+	const struct iface *iface;
+	struct rte_arp_hdr *arp;
+	struct rte_mbuf *held;
+	struct nexthop *nh;
+	ip4_addr_t sip;
+
+	arp = rte_pktmbuf_mtod(m, struct rte_arp_hdr *);
+	iface = mbuf_data(m)->iface;
+
+	sip = arp->arp_data.arp_sip;
+	nh = ip4_nexthop_lookup(iface->vrf_id, sip);
+	if (nh == NULL) {
+		// We don't have an entry for the ARP request sender address yet.
+		//
+		// Create one now. If the sender has requested our mac address,
+		// they will certainly contact us soon and it will save us an
+		// ARP request.
+		if ((nh = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
+			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
+			goto free;
+		}
+		// Add an internal /32 route to reference the newly created nexthop.
+		if (ip4_route_insert(iface->vrf_id, sip, 32, nh) < 0) {
+			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
+			goto free;
+		}
+	}
+
+	// static next hops never need updating
+	if (nh->flags & GR_NH_F_STATIC)
+		goto free;
+
+	// Refresh all fields.
+	nh->last_reply = rte_get_tsc_cycles();
+	nh->iface_id = iface->id;
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+	nh->ucast_probes = 0;
+	nh->bcast_probes = 0;
+	nh->lladdr = arp->arp_data.arp_sha;
+
+	// Flush all held packets.
+	held = nh->held_pkts_head;
+	while (held != NULL) {
+		struct ip_output_mbuf_data *o;
+		struct rte_mbuf *next;
+
+		next = queue_mbuf_data(held)->next;
+		o = ip_output_mbuf_data(held);
+		o->nh = nh;
+		o->iface = NULL;
+		post_to_stack(ip_output_node, held);
+		held = next;
+	}
+	nh->held_pkts_head = NULL;
+	nh->held_pkts_tail = NULL;
+	nh->held_pkts_num = 0;
+
 free:
 	rte_pktmbuf_free(m);
 }
