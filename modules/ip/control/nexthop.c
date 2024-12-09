@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_control_input.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -30,6 +31,80 @@ struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t i
 
 struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nexthop_lookup(nh_pool, vrf_id, &ip);
+}
+
+static control_input_t ip_output_node;
+
+void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
+	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
+	ip4_addr_t dst = ip->dst_addr;
+	struct nexthop *nh;
+
+	nh = ip4_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
+	if (nh == NULL)
+		goto free; // route to dst has disappeared
+
+	if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
+		// The resolved nexthop is associated with a "connected" route.
+		// We currently do not have an explicit route entry for this
+		// destination IP.
+		struct nexthop *remote = ip4_nexthop_lookup(nh->vrf_id, dst);
+
+		if (remote == NULL) {
+			// No existing nexthop for this IP, create one.
+			remote = ip4_nexthop_new(nh->vrf_id, nh->iface_id, dst);
+		} else if (remote->flags & GR_NH_F_GATEWAY && remote->iface_id == 0) {
+			// Gateway route with uninitialized destination.
+			// Now, we can at least know what is the output interface.
+			remote->iface_id = nh->iface_id;
+		}
+
+		if (remote == NULL) {
+			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+			goto free;
+		}
+		if (remote->iface_id != nh->iface_id)
+			ABORT(IP4_F " nexthop lookup gives wrong interface", &ip);
+
+		// Create an associated /32 route so that next packets take it
+		// in priority with a single route lookup.
+		if (ip4_route_insert(nh->vrf_id, dst, 32, remote) < 0) {
+			LOG(ERR, "failed to insert route: %s", strerror(errno));
+			goto free;
+		}
+		nh = remote;
+	}
+
+	if (nh->flags & GR_NH_F_REACHABLE) {
+		// The nexthop may have become reachable while the packet was
+		// passed from the datapath to here. Re-send it to datapath.
+		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
+		d->nh = nh;
+		if (post_to_stack(ip_output_node, m) < 0) {
+			LOG(ERR, "post_to_stack: %s", strerror(errno));
+			goto free;
+		}
+		return;
+	}
+
+	if (nh->held_pkts_num < NH_MAX_HELD_PKTS) {
+		queue_mbuf_data(m)->next = NULL;
+		if (nh->held_pkts_head == NULL)
+			nh->held_pkts_head = m;
+		else
+			queue_mbuf_data(nh->held_pkts_tail)->next = m;
+		nh->held_pkts_tail = m;
+		nh->held_pkts_num++;
+		if (!(nh->flags & GR_NH_F_PENDING)) {
+			arp_output_request_solicit(nh);
+			nh->flags |= GR_NH_F_PENDING;
+		}
+		return;
+	} else {
+		LOG(DEBUG, IP4_F " hold queue full", &dst);
+	}
+free:
+	rte_pktmbuf_free(m);
 }
 
 static struct api_out nh4_add(const void *request, void ** /*response*/) {
@@ -140,6 +215,8 @@ static void nh4_init(struct event_base *ev_base) {
 	nh_pool = nh_pool_new(AF_INET, ev_base, &opts);
 	if (nh_pool == NULL)
 		ABORT("nh_pool_new(AF_INET) failed");
+
+	ip_output_node = gr_control_input_register_handler("ip_output", true);
 }
 
 static void nh4_fini(struct event_base *) {
