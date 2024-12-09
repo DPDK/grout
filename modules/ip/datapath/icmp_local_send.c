@@ -37,13 +37,13 @@ static control_input_t ip4_icmp_request;
 int icmp_local_send(
 	uint16_t vrf_id,
 	ip4_addr_t dst,
-	struct nexthop *gw,
+	const struct nexthop *gw,
 	uint16_t ident,
 	uint16_t seq_num,
 	uint8_t ttl
 ) {
 	struct ctl_to_stack *msg;
-	struct nexthop *local;
+	const struct nexthop *local;
 	int ret;
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
