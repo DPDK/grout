@@ -14,6 +14,7 @@
 #include <gr_vec.h>
 
 #include <event2/event.h>
+#include <rte_arp.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_mempool.h>
@@ -102,6 +103,79 @@ void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
 		return;
 	} else {
 		LOG(DEBUG, IP4_F " hold queue full", &dst);
+	}
+free:
+	rte_pktmbuf_free(m);
+}
+
+static inline void
+nexthop_arp_update(struct nexthop *nh, uint16_t iface_id, const struct rte_arp_hdr *arp) {
+	// Static next hops never need updating.
+	if (nh->flags & GR_NH_F_STATIC)
+		return;
+
+	// Refresh all fields.
+	nh->last_reply = rte_get_tsc_cycles();
+	nh->iface_id = iface_id;
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+	nh->ucast_probes = 0;
+	nh->bcast_probes = 0;
+	nh->lladdr = arp->arp_data.arp_sha;
+
+	// Flush all held packets.
+	struct rte_mbuf *m = nh->held_pkts_head;
+	while (m != NULL) {
+		struct ip_output_mbuf_data *o;
+		struct rte_mbuf *next;
+
+		next = queue_mbuf_data(m)->next;
+		o = ip_output_mbuf_data(m);
+		o->nh = nh;
+		o->iface = NULL;
+		post_to_stack(ip_output_node, m);
+		m = next;
+	}
+	nh->held_pkts_head = NULL;
+	nh->held_pkts_tail = NULL;
+	nh->held_pkts_num = 0;
+}
+
+void arp_probe_input_cb(struct rte_mbuf *m) {
+	struct nexthop *local, *remote;
+	const struct iface *iface;
+	struct rte_arp_hdr *arp;
+	ip4_addr_t sip, tip;
+
+	arp = rte_pktmbuf_mtod(m, struct rte_arp_hdr *);
+
+	sip = arp->arp_data.arp_sip;
+	tip = arp->arp_data.arp_tip;
+	iface = mbuf_data(m)->iface;
+	local = ip4_addr_get_preferred(iface->id, sip);
+	remote = ip4_nexthop_lookup(iface->vrf_id, sip);
+
+	if (remote != NULL && remote->ipv4 == sip) {
+		nexthop_arp_update(remote, iface->id, arp);
+	} else if (local != NULL && local->ipv4 == tip) {
+		// Request/reply to our address but no next hop entry exists.
+		// Create a new next hop and its associated /32 route to allow
+		// faster lookups for next packets.
+		if ((remote = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
+			LOG(ERR, "ip4_nexthop_new failed: %s", strerror(errno));
+			goto free;
+		}
+		if (ip4_route_insert(iface->vrf_id, sip, 32, remote) < 0) {
+			LOG(ERR, "ip4_route_insert failed: %s", strerror(errno));
+			goto free;
+		}
+		nexthop_arp_update(remote, iface->id, arp);
+	} else {
+		LOG(DEBUG,
+		    "unsollicited ARP %s packet source=" IP4_F " target=" IP4_F,
+		    arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST) ? "request" : "reply",
+		    &sip,
+		    &tip);
 	}
 free:
 	rte_pktmbuf_free(m);
