@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
+#include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
@@ -106,6 +107,95 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	} else {
 		LOG(DEBUG, IP4_F " hold queue full", &dst);
 	}
+free:
+	rte_pktmbuf_free(m);
+}
+
+void ndp_probe_input_cb(struct rte_mbuf *m) {
+	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
+	const struct iface *iface = mbuf_data(m)->iface;
+	const struct icmp6_neigh_solicit *ns;
+	const struct icmp6_neigh_advert *na;
+	struct rte_ipv6_addr target;
+	struct rte_ether_addr mac;
+	struct nexthop *nh;
+	bool lladdr_found;
+
+	switch (icmp6->type) {
+	case ICMP6_TYPE_NEIGH_SOLICIT:
+		ns = PAYLOAD(icmp6);
+		// HACK: the target IP contains the *SOURCE* address of the NS sender. It was
+		// replaced in ndp_ns_input_process to avoid copying the whole IPv6 header.
+		target = ns->target;
+		lladdr_found = icmp6_get_opt(
+			PAYLOAD(ns),
+			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
+			ICMP6_OPT_SRC_LLADDR,
+			&mac
+		);
+		break;
+	case ICMP6_TYPE_NEIGH_ADVERT:
+		na = PAYLOAD(icmp6);
+		target = na->target;
+		lladdr_found = icmp6_get_opt(
+			PAYLOAD(na),
+			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
+			ICMP6_OPT_TARGET_LLADDR,
+			&mac
+		);
+		break;
+	default:
+		goto free;
+	}
+	if (!lladdr_found)
+		goto free;
+
+	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
+	if (nh == NULL) {
+		// We don't have an entry for the probe sender address yet.
+		//
+		// Create one now. If the sender has requested our mac address, they
+		// will certainly contact us soon and it will save us an NDP solicitation.
+		if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, &target)) == NULL) {
+			LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
+			goto free;
+		}
+		// Add an internal /128 route to reference the newly created nexthop.
+		if (ip6_route_insert(iface->vrf_id, &target, RTE_IPV6_MAX_DEPTH, nh) < 0) {
+			LOG(ERR, "ip6_route_insert: %s", strerror(errno));
+			goto free;
+		}
+	}
+
+	// Static next hops never need updating.
+	if (nh->flags & GR_NH_F_STATIC)
+		goto free;
+
+	// Refresh all fields.
+	nh->last_reply = rte_get_tsc_cycles();
+	nh->iface_id = iface->id;
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+	nh->ucast_probes = 0;
+	nh->bcast_probes = 0;
+	nh->lladdr = mac;
+
+	// Flush all held packets.
+	struct rte_mbuf *held = nh->held_pkts_head;
+	while (held != NULL) {
+		struct ip6_output_mbuf_data *o;
+		struct rte_mbuf *next;
+
+		next = queue_mbuf_data(held)->next;
+		o = ip6_output_mbuf_data(held);
+		o->nh = nh;
+		o->iface = NULL;
+		post_to_stack(ip6_output_node, held);
+		held = next;
+	}
+	nh->held_pkts_head = NULL;
+	nh->held_pkts_tail = NULL;
+	nh->held_pkts_num = 0;
 free:
 	rte_pktmbuf_free(m);
 }

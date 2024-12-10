@@ -19,11 +19,6 @@
 
 GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { const struct nexthop *nh; });
 
-GR_MBUF_PRIV_DATA_TYPE(ndp_mbuf_data, {
-	struct nexthop *local;
-	struct nexthop *remote;
-});
-
 GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 	struct rte_ipv6_addr src;
 	struct rte_ipv6_addr dst;
@@ -42,8 +37,8 @@ static inline void ip6_set_fields(
 	struct rte_ipv6_hdr *ip,
 	uint16_t len,
 	uint8_t proto,
-	struct rte_ipv6_addr *src,
-	struct rte_ipv6_addr *dst
+	const struct rte_ipv6_addr *src,
+	const struct rte_ipv6_addr *dst
 ) {
 	ip->vtc_flow = RTE_BE32(0x60000000);
 	ip->payload_len = rte_cpu_to_be_16(len);
