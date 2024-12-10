@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_output.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_ip6_control.h>
@@ -15,53 +16,10 @@
 #include <rte_ip6.h>
 
 enum {
-	IP_OUTPUT = 0,
+	CONTROL = 0,
 	INVAL,
 	EDGE_COUNT,
 };
-
-// Declaration in gr_ip6_datapath.h. This function is shared with ndp_ns_input.
-void ndp_update_nexthop(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	struct nexthop *nh,
-	const struct iface *iface,
-	const struct rte_ether_addr *mac
-) {
-	struct ip6_output_mbuf_data *d;
-	struct rte_mbuf *m, *next;
-
-	// Static next hops never need updating.
-	if (nh->flags & GR_NH_F_STATIC)
-		return;
-
-	rte_spinlock_lock(&nh->lock);
-
-	// Refresh all fields.
-	nh->last_reply = rte_get_tsc_cycles();
-	nh->iface_id = iface->id;
-	nh->flags |= GR_NH_F_REACHABLE;
-	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
-	nh->ucast_probes = 0;
-	nh->bcast_probes = 0;
-	nh->lladdr = *mac;
-
-	// Flush all held packets.
-	m = nh->held_pkts_head;
-	while (m != NULL) {
-		next = queue_mbuf_data(m)->next;
-		d = ip6_output_mbuf_data(m);
-		d->nh = nh;
-		d->iface = NULL;
-		rte_node_enqueue_x1(graph, node, IP_OUTPUT, m);
-		m = next;
-	}
-	nh->held_pkts_head = NULL;
-	nh->held_pkts_tail = NULL;
-	nh->held_pkts_num = 0;
-
-	rte_spinlock_unlock(&nh->lock);
-}
 
 static uint16_t ndp_na_input_process(
 	struct rte_graph *graph,
@@ -69,22 +27,21 @@ static uint16_t ndp_na_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct icmp6_neigh_solicit *ns;
+	struct control_output_mbuf_data *ctrl_data;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
 	struct rte_ether_addr lladdr;
+	const struct nexthop *remote;
 	const struct iface *iface;
-	struct nexthop *remote;
-	struct icmp6_opt *opt;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
 	bool lladdr_found;
-	rte_edge_t next;
+	rte_edge_t edge;
 
 #define ASSERT_NDP(condition)                                                                      \
 	do {                                                                                       \
 		if (!(condition)) {                                                                \
-			next = INVAL;                                                              \
+			edge = INVAL;                                                              \
 			goto next;                                                                 \
 		}                                                                                  \
 	} while (0)
@@ -95,7 +52,7 @@ static uint16_t ndp_na_input_process(
 		d = ip6_local_mbuf_data(mbuf);
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
 		iface = d->iface;
-		na = (struct icmp6_neigh_advert *)rte_pktmbuf_adj(mbuf, sizeof(*icmp6));
+		na = PAYLOAD(icmp6);
 
 		// Validation of Neighbor Advertisements
 		// https://www.rfc-editor.org/rfc/rfc4861.html#section-7.1.2
@@ -126,27 +83,22 @@ static uint16_t ndp_na_input_process(
 		remote = ip6_nexthop_lookup(iface->vrf_id, &na->target);
 		ASSERT_NDP(remote != NULL);
 
-		opt = (struct icmp6_opt *)rte_pktmbuf_adj(mbuf, sizeof(*ns));
 		lladdr_found = icmp6_get_opt(
-			opt, rte_pktmbuf_pkt_len(mbuf), ICMP6_OPT_TARGET_LLADDR, &lladdr
+			PAYLOAD(na), rte_pktmbuf_pkt_len(mbuf), ICMP6_OPT_TARGET_LLADDR, &lladdr
 		);
 		// If the link layer has addresses and no Target Link-Layer Address
 		// option is included, the receiving node SHOULD silently discard the
 		// received advertisement.
 		ASSERT_NDP(lladdr_found);
 
-		ndp_update_nexthop(graph, node, remote, iface, &lladdr);
-
-		if (gr_mbuf_is_traced(mbuf)) {
-			gr_mbuf_trace_add(mbuf, node, 0);
-			gr_mbuf_trace_finish(mbuf);
-		}
-		rte_pktmbuf_free(mbuf);
-		continue;
+		ctrl_data = control_output_mbuf_data(mbuf);
+		ctrl_data->iface = iface;
+		ctrl_data->callback = ndp_probe_input_cb;
+		edge = CONTROL;
 next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
-		rte_node_enqueue_x1(graph, node, next, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
@@ -159,7 +111,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[IP_OUTPUT] = "ip6_output",
+		[CONTROL] = "control_output",
 		[INVAL] = "ndp_na_input_inval",
 	},
 };
