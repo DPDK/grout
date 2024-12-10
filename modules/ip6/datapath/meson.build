@@ -6,6 +6,7 @@ src += files(
   'icmp6_output.c',
   'ip6_error.c',
   'ip6_forward.c',
+  'ip6_hold.c',
   'ip6_input.c',
   'ip6_local.c',
   'ip6_output.c',
