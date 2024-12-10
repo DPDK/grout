@@ -31,6 +31,15 @@ static control_input_t arp_solicit;
 int arp_output_request_solicit(struct nexthop *nh) {
 	if (nh == NULL)
 		return errno_set(EINVAL);
+
+	// This function is called by the control plane main thread.
+	// It is OK to modify the nexthop here.
+	nh->last_request = rte_get_tsc_cycles();
+	if (nh->ucast_probes < NH_UCAST_PROBES)
+		nh->ucast_probes++;
+	else
+		nh->bcast_probes++;
+
 	return post_to_stack(arp_solicit, nh);
 }
 
@@ -41,19 +50,17 @@ static uint16_t arp_output_request_process(
 	uint16_t n_objs
 ) {
 	struct eth_output_mbuf_data *eth_data;
-	struct nexthop *local, *nh;
+	const struct nexthop *local, *nh;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t sent;
-	uint64_t now;
 
-	now = rte_get_tsc_cycles();
 	sent = 0;
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
-		nh = (struct nexthop *)control_input_mbuf_data(mbuf)->data;
+		nh = control_input_mbuf_data(mbuf)->data;
 		local = ip4_addr_get_preferred(nh->iface_id, nh->ipv4);
 
 		if (local == NULL) {
@@ -89,14 +96,10 @@ static uint16_t arp_output_request_process(
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		if (nh->ucast_probes < NH_UCAST_PROBES) {
+		if (nh->ucast_probes <= NH_UCAST_PROBES)
 			eth_data->dst = arp->arp_data.arp_tha;
-			nh->ucast_probes++;
-		} else {
+		else
 			memset(&eth_data->dst, 0xff, sizeof(eth_data->dst));
-			nh->bcast_probes++;
-		}
-		nh->last_request = now;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
 		eth_data->iface = iface_from_id(nh->iface_id);
 
