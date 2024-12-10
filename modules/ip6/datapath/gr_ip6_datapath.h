@@ -20,8 +20,8 @@
 GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { const struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(ndp_mbuf_data, {
-	struct nexthop *local;
-	struct nexthop *remote;
+	const struct nexthop *local;
+	const struct nexthop *remote;
 });
 
 GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {

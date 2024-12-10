@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
+#include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
@@ -106,6 +107,94 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	} else {
 		LOG(DEBUG, IP4_F " hold queue full", &dst);
 	}
+free:
+	rte_pktmbuf_free(m);
+}
+
+static inline void
+nexthop_ndp_update(struct nexthop *nh, uint16_t iface_id, const struct rte_ether_addr *mac) {
+	// Static next hops never need updating.
+	if (nh->flags & GR_NH_F_STATIC)
+		return;
+
+	// Refresh all fields.
+	nh->last_reply = rte_get_tsc_cycles();
+	nh->iface_id = iface_id;
+	nh->flags |= GR_NH_F_REACHABLE;
+	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+	nh->ucast_probes = 0;
+	nh->bcast_probes = 0;
+	nh->lladdr = *mac;
+
+	// Flush all held packets.
+	struct rte_mbuf *m = nh->held_pkts_head;
+	while (m != NULL) {
+		struct ip6_output_mbuf_data *o;
+		struct rte_mbuf *next;
+
+		next = queue_mbuf_data(m)->next;
+		o = ip6_output_mbuf_data(m);
+		o->nh = nh;
+		o->iface = NULL;
+		post_to_stack(ip6_output_node, m);
+		m = next;
+	}
+	nh->held_pkts_head = NULL;
+	nh->held_pkts_tail = NULL;
+	nh->held_pkts_num = 0;
+}
+
+void ndp_probe_input_cb(struct rte_mbuf *m) {
+	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
+	const struct iface *iface = mbuf_data(m)->iface;
+	const struct icmp6_neigh_solicit *ns;
+	const struct icmp6_neigh_advert *na;
+	struct rte_ipv6_addr target;
+	struct rte_ether_addr mac;
+	struct nexthop *nh;
+	bool lladdr_found;
+
+	switch (icmp6->type) {
+	case ICMP6_TYPE_NEIGH_SOLICIT:
+		ns = PAYLOAD(icmp6);
+		target = ns->target;
+		lladdr_found = icmp6_get_opt(
+			PAYLOAD(ns),
+			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
+			ICMP6_OPT_SRC_LLADDR,
+			&mac
+		);
+		break;
+	case ICMP6_TYPE_NEIGH_ADVERT:
+		na = PAYLOAD(icmp6);
+		target = na->target;
+		lladdr_found = icmp6_get_opt(
+			PAYLOAD(na),
+			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
+			ICMP6_OPT_TARGET_LLADDR,
+			&mac
+		);
+		break;
+	default:
+		goto free;
+	}
+	if (!lladdr_found)
+		goto free;
+
+	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
+	if (nh == NULL) {
+		nh = ip6_nexthop_new(iface->vrf_id, iface->id, &target);
+		if (nh == NULL) {
+			LOG(ERR, "failed to allocate nexthop: %s", strerror(errno));
+			goto free;
+		}
+		if (ip6_route_insert(iface->vrf_id, &target, RTE_IPV6_MAX_DEPTH, nh) < 0) {
+			LOG(ERR, "failed to insert route: %s", strerror(errno));
+			goto free;
+		}
+	}
+
+	nexthop_ndp_update(nh, iface->id, &mac);
 free:
 	rte_pktmbuf_free(m);
 }
