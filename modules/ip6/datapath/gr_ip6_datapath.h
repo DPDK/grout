@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { struct nexthop *nh; });
+GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { const struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(ndp_mbuf_data, {
 	struct nexthop *local;
