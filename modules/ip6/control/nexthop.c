@@ -2,6 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_control_input.h>
+#include <gr_control_output.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
@@ -32,6 +34,80 @@ ip6_nexthop_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *
 
 struct nexthop *ip6_nexthop_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *ip) {
 	return nexthop_lookup(nh_pool, vrf_id, ip);
+}
+
+static control_input_t ip6_output_node;
+
+void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
+	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
+	struct rte_ipv6_addr dst = ip->dst_addr;
+	struct nexthop *nh;
+
+	nh = ip6_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, &dst);
+	if (nh == NULL)
+		goto free; // route to dst has disappeared
+
+	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&dst, &nh->ipv6)) {
+		// The resolved nexthop is associated with a "connected" route.
+		// We currently do not have an explicit route entry for this
+		// destination IP.
+		struct nexthop *remote = ip6_nexthop_lookup(nh->vrf_id, &ip->dst_addr);
+
+		if (remote == NULL) {
+			// No existing nexthop for this IP, create one.
+			remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, &ip->dst_addr);
+		} else if (remote->flags & GR_NH_F_GATEWAY && remote->iface_id == 0) {
+			// Gateway route with uninitialized destination.
+			// Now, we can at least know what is the output interface.
+			remote->iface_id = nh->iface_id;
+		}
+
+		if (remote == NULL) {
+			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+			goto free;
+		}
+		if (remote->iface_id != nh->iface_id)
+			ABORT(IP6_F " nexthop lookup gives wrong interface", &ip);
+
+		// Create an associated /128 route so that next packets take it
+		// in priority with a single route lookup.
+		if (ip6_route_insert(nh->vrf_id, &ip->dst_addr, RTE_IPV6_MAX_DEPTH, remote) < 0) {
+			LOG(ERR, "failed to insert route: %s", strerror(errno));
+			goto free;
+		}
+		nh = remote;
+	}
+
+	if (nh->flags & GR_NH_F_REACHABLE) {
+		// The nexthop may have become reachable while the packet was
+		// passed from the datapath to here. Re-send it to datapath.
+		struct ip6_output_mbuf_data *d = ip6_output_mbuf_data(m);
+		d->nh = nh;
+		if (post_to_stack(ip6_output_node, m) < 0) {
+			LOG(ERR, "post_to_stack: %s", strerror(errno));
+			goto free;
+		}
+		return;
+	}
+
+	if (nh->held_pkts_num < NH_MAX_HELD_PKTS) {
+		queue_mbuf_data(m)->next = NULL;
+		if (nh->held_pkts_head == NULL)
+			nh->held_pkts_head = m;
+		else
+			queue_mbuf_data(nh->held_pkts_tail)->next = m;
+		nh->held_pkts_tail = m;
+		nh->held_pkts_num++;
+		if (!(nh->flags & GR_NH_F_PENDING)) {
+			ip6_nexthop_solicit(nh);
+			nh->flags |= GR_NH_F_PENDING;
+		}
+		return;
+	} else {
+		LOG(DEBUG, IP4_F " hold queue full", &dst);
+	}
+free:
+	rte_pktmbuf_free(m);
 }
 
 static struct api_out nh6_add(const void *request, void ** /*response*/) {
@@ -143,6 +219,8 @@ static void nh6_init(struct event_base *ev_base) {
 	nh_pool = nh_pool_new(AF_INET6, ev_base, &opts);
 	if (nh_pool == NULL)
 		ABORT("nh_pool_new(AF_INET6) failed");
+
+	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 }
 
 static void nh6_fini(struct event_base *) {
