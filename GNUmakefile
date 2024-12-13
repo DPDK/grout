@@ -24,6 +24,16 @@ unit-tests: $(BUILDDIR)/build.ninja
 smoke-tests: all
 	./smoke/run.sh $(BUILDDIR)
 
+.PHONY: update-graph
+update-graph: all
+	$Q set -xe; tmp=`mktemp -d`; \
+	trap "killall grout; wait; rm -rf $$tmp" EXIT; \
+	export GROUT_SOCK_PATH="$$tmp/sock"; \
+	$(BUILDDIR)/grout -t & \
+	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
+	$(BUILDDIR)/grcli add interface port p0 devargs net_null && \
+	$(BUILDDIR)/grcli show graph brief | dot -Tsvg > docs/graph.svg
+
 .PHONY: coverage
 coverage: test
 	$Q mkdir -p $(BUILDDIR)/coverage
