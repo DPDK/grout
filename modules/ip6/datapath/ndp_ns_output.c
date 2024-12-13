@@ -21,7 +21,6 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 #include <rte_ring.h>
-#include <rte_spinlock.h>
 
 enum {
 	OUTPUT = 0,

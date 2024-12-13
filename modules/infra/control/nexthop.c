@@ -182,7 +182,6 @@ struct nexthop *nexthop_lookup(struct nh_pool *nhp, uint16_t vrf_id, const void 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		struct nh_pool *nhp = nh->pool;
-		rte_spinlock_lock(&nh->lock);
 		// Flush all held packets.
 		struct rte_mbuf *m = nh->held_pkts_head;
 		while (m != NULL) {
@@ -192,7 +191,6 @@ void nexthop_decref(struct nexthop *nh) {
 		}
 		rte_mempool_put(nhp->mp, nh);
 		memset(nh, 0, sizeof(*nh));
-		rte_spinlock_unlock(&nh->lock);
 	} else {
 		nh->ref_count--;
 	}
