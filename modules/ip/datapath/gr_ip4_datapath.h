@@ -32,6 +32,7 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface(uint16_t iface_type_id, const char *next_node);
 int arp_output_request_solicit(struct nexthop *nh);
+void arp_update_nexthop(struct rte_graph *, struct rte_node *, struct nexthop *, const struct iface *, const struct rte_ether_addr *);
 
 #define IPV4_VERSION_IHL 0x45
 #define IPV4_DEFAULT_TTL 64

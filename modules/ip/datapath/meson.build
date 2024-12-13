@@ -3,6 +3,8 @@
 
 src += files(
   'arp_input.c',
+  'arp_input_reply.c',
+  'arp_input_request.c',
   'arp_output_reply.c',
   'arp_output_request.c',
   'icmp_input.c',
