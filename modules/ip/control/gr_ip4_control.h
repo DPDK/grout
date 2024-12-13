@@ -12,7 +12,6 @@
 #include <rte_fib.h>
 #include <rte_hash.h>
 #include <rte_rcu_qsbr.h>
-#include <rte_spinlock.h>
 
 #include <stdint.h>
 

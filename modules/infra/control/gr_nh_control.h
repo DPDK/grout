@@ -9,7 +9,6 @@
 
 #include <event2/event.h>
 #include <rte_mbuf.h>
-#include <rte_spinlock.h>
 
 // Forward declaration
 struct nexthop;
@@ -80,7 +79,6 @@ struct __rte_cache_aligned nexthop {
 	uint64_t last_reply;
 
 	// packets waiting for address resolution
-	rte_spinlock_t lock;
 	uint16_t held_pkts_num;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
