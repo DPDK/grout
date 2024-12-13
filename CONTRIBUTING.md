@@ -25,7 +25,7 @@ that you did not break anything.
   reference graph image:
 
   ```sh
-  ./build/grcli -s grout.sock show graph | dot -Tsvg > docs/graph.svg
+  make update-graph
   ```
 - Run the linters using `gmake lint`.
 - Run unit tests using `gmake unit-tests`.
