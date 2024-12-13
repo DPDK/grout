@@ -77,8 +77,8 @@ static uint16_t ndp_ns_input_process(
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
-		local = ip6_addr_get_preferred(iface->id, &ns->target);
-		if (local == NULL || !rte_ipv6_addr_eq(&local->ipv6, &ns->target)) {
+		local = ip6_nexthop_lookup(iface->vrf_id, &ns->target);
+		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = IGNORE;
 			goto next;
 		}
