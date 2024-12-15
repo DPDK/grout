@@ -132,4 +132,15 @@ struct gr_ip6_addr_list_resp {
 	struct gr_ip6_ifaddr addrs[/* n_addrs */];
 };
 
+#define GR_IP6_IFACE_RA_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0030)
+struct gr_ip6_ra_set_req {
+	uint16_t iface_id;
+};
+// struct gr_ip6_ra_set_resp { };
+
+#define GR_IP6_IFACE_RA_CLEAR REQUEST_TYPE(GR_IP6_MODULE, 0x0031)
+struct gr_ip6_ra_clear_req {
+	uint16_t iface_id;
+};
+// struct gr_ip6_ra_clear_resp { };
 #endif
