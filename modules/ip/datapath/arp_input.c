@@ -86,19 +86,19 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		// ARP protocol sanity checks.
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
-		if (rte_be_to_cpu_16(arp->arp_hardware) != RTE_ARP_HRD_ETHER) {
+		if (arp->arp_hardware != RTE_BE16(RTE_ARP_HRD_ETHER)) {
 			edge = PROTO_UNSUPP;
 			goto next;
 		}
-		if (rte_be_to_cpu_16(arp->arp_protocol) != RTE_ETHER_TYPE_IPV4) {
+		if (arp->arp_protocol != RTE_BE16(RTE_ETHER_TYPE_IPV4)) {
 			edge = PROTO_UNSUPP;
 			goto next;
 		}
-		switch (rte_be_to_cpu_16(arp->arp_opcode)) {
-		case RTE_ARP_OP_REQUEST:
+		switch (arp->arp_opcode) {
+		case RTE_BE16(RTE_ARP_OP_REQUEST):
 			edge = OP_REQUEST;
 			break;
-		case RTE_ARP_OP_REPLY:
+		case RTE_BE16(RTE_ARP_OP_REPLY):
 			edge = OP_REPLY;
 			break;
 		default:
