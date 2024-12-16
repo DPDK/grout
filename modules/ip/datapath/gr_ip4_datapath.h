@@ -18,10 +18,7 @@
 
 GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { const struct nexthop *nh; });
 
-GR_MBUF_PRIV_DATA_TYPE(arp_mbuf_data, {
-	struct nexthop *local;
-	struct nexthop *remote;
-});
+GR_MBUF_PRIV_DATA_TYPE(arp_reply_mbuf_data, { const struct nexthop *local; });
 
 GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	ip4_addr_t src;

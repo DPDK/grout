@@ -70,8 +70,8 @@ static inline void update_nexthop(
 
 static uint16_t
 arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct arp_reply_mbuf_data *arp_data;
 	struct nexthop *remote, *local;
-	struct arp_mbuf_data *arp_data;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
@@ -108,15 +108,16 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		sip = arp->arp_data.arp_sip;
 		iface = eth_input_mbuf_data(mbuf)->iface;
-		local = ip4_addr_get_preferred(iface->id, sip);
+		local = ip4_nexthop_lookup(iface->vrf_id, arp->arp_data.arp_tip);
 		remote = ip4_nexthop_lookup(iface->vrf_id, sip);
 
-		if (remote != NULL && remote->ipv4 == sip) {
+		if (remote != NULL) {
+			// ARP reply.
 			update_nexthop(graph, node, remote, now, iface->id, arp);
-		} else if (local != NULL && local->ipv4 == arp->arp_data.arp_tip) {
-			// Request/reply to our address but no next hop entry exists.
-			// Create a new next hop and its associated /32 route to allow
-			// faster lookups for next packets.
+		} else if (local != NULL && local->flags & GR_NH_F_LOCAL) {
+			// Request to one of our local addresses but no nexthop entry exists
+			// for the remote source. Create a new next hop and its associated
+			// /32 route to allow faster lookups for next packets.
 			if ((remote = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
 				edge = ERROR;
 				goto next;
@@ -130,9 +131,8 @@ arp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = DROP;
 			goto next;
 		}
-		arp_data = arp_mbuf_data(mbuf);
+		arp_data = arp_reply_mbuf_data(mbuf);
 		arp_data->local = local;
-		arp_data->remote = remote;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
