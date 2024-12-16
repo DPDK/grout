@@ -28,11 +28,10 @@ static uint16_t arp_output_reply_process(
 	uint16_t nb_objs
 ) {
 	struct eth_output_mbuf_data *eth_data;
-	struct arp_mbuf_data *arp_data;
+	const struct nexthop *local;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
-	ip4_addr_t tmp_ip;
 	rte_edge_t edge;
 	uint16_t num;
 
@@ -40,15 +39,10 @@ static uint16_t arp_output_reply_process(
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		arp_data = arp_mbuf_data(mbuf);
-		if (arp_data->local == NULL || arp_data->remote == NULL) {
-			// mbuf is not an ARP request
-			edge = ERROR;
-			goto next;
-		}
 
-		iface = iface_from_id(arp_data->local->iface_id);
-		if (iface == NULL) {
+		iface = mbuf_data(mbuf)->iface;
+		local = arp_reply_mbuf_data(mbuf)->local;
+		if (iface == NULL || local == NULL) {
 			edge = ERROR;
 			goto next;
 		}
@@ -57,14 +51,10 @@ static uint16_t arp_output_reply_process(
 		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
 		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
-		arp->arp_data.arp_tha = arp_data->remote->lladdr;
-		if (iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha) < 0) {
-			edge = ERROR;
-			goto next;
-		}
-		tmp_ip = arp->arp_data.arp_tip;
+		arp->arp_data.arp_tha = arp->arp_data.arp_sha;
+		arp->arp_data.arp_sha = local->lladdr;
 		arp->arp_data.arp_tip = arp->arp_data.arp_sip;
-		arp->arp_data.arp_sip = tmp_ip;
+		arp->arp_data.arp_sip = local->ipv4;
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
