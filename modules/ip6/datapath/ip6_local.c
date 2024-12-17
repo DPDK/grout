@@ -43,10 +43,6 @@ static uint16_t ip6_input_local_process(
 		m = objs[i];
 		ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 
-		edge = edges[ip->proto];
-		if (edge == UNKNOWN_PROTO)
-			goto next;
-
 		// prepare ip local data
 		iface = ip6_output_mbuf_data(m)->iface;
 		d = ip6_local_mbuf_data(m);
@@ -70,6 +66,10 @@ static uint16_t ip6_input_local_process(
 			d->len -= ext_size;
 			d->proto = next_proto;
 		};
+
+		edge = edges[d->proto];
+		if (edge == UNKNOWN_PROTO)
+			goto next;
 
 		// verify checksum if not already checked by hardware
 		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
