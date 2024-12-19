@@ -279,6 +279,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 			const struct nexthop *nh = addrs->nh[i];
 			addr = &resp->addrs[resp->n_addrs++];
 			addr->addr.ip = nh->ipv6;
+			ip6_addr_linklocal_unscope(&addr->addr.ip);
 			addr->addr.prefixlen = nh->prefixlen;
 			addr->iface_id = nh->iface_id;
 		}
