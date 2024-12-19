@@ -43,6 +43,11 @@ static struct api_out iface_ra_clear(const void *request, void ** /*response*/) 
 	return api_out(0, 0);
 }
 
+void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {
+	rte_pktmbuf_free(m);
+	event_active(ra_ctx.timer, 0, 0);
+}
+
 static void build_ra_packet(struct rte_mbuf *m, struct rte_ipv6_addr *srcv6) {
 	struct rte_ipv6_addr dst = RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
 	struct rte_ipv6_addr src = *srcv6;
