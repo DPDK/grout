@@ -97,6 +97,8 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
+		ip6_addr_linklocal_scope(&ip->src_addr, iface->id);
+		ip6_addr_linklocal_scope(&ip->dst_addr, iface->id);
 		nh = ip6_route_lookup(iface->vrf_id, &ip->dst_addr);
 		if (nh == NULL) {
 			edge = DEST_UNREACH;

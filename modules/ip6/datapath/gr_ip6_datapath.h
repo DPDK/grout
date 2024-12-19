@@ -46,6 +46,8 @@ static inline void ip6_set_fields(
 	ip->hop_limits = IP6_DEFAULT_HOP_LIMIT;
 	ip->src_addr = *src;
 	ip->dst_addr = *dst;
+	ip6_addr_linklocal_unscope(&ip->src_addr);
+	ip6_addr_linklocal_unscope(&ip->dst_addr);
 }
 
 void ndp_update_nexthop(

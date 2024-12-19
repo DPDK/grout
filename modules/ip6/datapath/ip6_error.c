@@ -27,6 +27,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct icmp6_err_ttl_exceeded *te;
 	struct ip6_local_mbuf_data *d;
 	const struct iface *iface;
+	struct rte_ipv6_addr src;
 	struct rte_ipv6_hdr *ip;
 	icmp6_type_t icmp_type;
 	struct rte_mbuf *mbuf;
@@ -89,7 +90,9 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = NO_IP;
 			goto next;
 		}
-		if ((nh = ip6_addr_get_preferred(iface->id, &ip->src_addr)) == NULL) {
+		src = ip->src_addr;
+		ip6_addr_linklocal_scope(&src, iface->id);
+		if ((nh = ip6_addr_get_preferred(iface->id, &src)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}

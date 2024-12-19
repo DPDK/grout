@@ -41,8 +41,11 @@ static control_input_t ip6_output_node;
 
 void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-	struct rte_ipv6_addr dst = ip->dst_addr;
+	struct rte_ipv6_addr dst;
 	struct nexthop *nh;
+
+	ip6_addr_linklocal_scope(&ip->dst_addr, mbuf_data(m)->iface->id);
+	dst = ip->dst_addr;
 
 	nh = ip6_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, &dst);
 	if (nh == NULL)
@@ -150,6 +153,9 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (!lladdr_found)
 		goto free;
 
+	// Scoped link local neighbor: encode iface id in the address
+	ip6_addr_linklocal_scope(&target, iface->id);
+
 	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
 	if (nh == NULL) {
 		// We don't have an entry for the probe sender address yet.
@@ -202,6 +208,7 @@ free:
 
 static struct api_out nh6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_nh_add_req *req = request;
+	struct rte_ipv6_addr ip = req->nh.ipv6;
 	struct nexthop *nh;
 	int ret;
 
@@ -212,14 +219,15 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip6_nexthop_lookup(req->nh.vrf_id, &req->nh.ipv6)) != NULL) {
+	ip6_addr_linklocal_scope(&ip, req->nh.iface_id);
+	if ((nh = ip6_nexthop_lookup(req->nh.vrf_id, &ip)) != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && rte_is_same_ether_addr(&req->nh.mac, &nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if ((nh = ip6_nexthop_new(req->nh.vrf_id, req->nh.iface_id, &req->nh.ipv6)) == NULL)
+	if ((nh = ip6_nexthop_new(req->nh.vrf_id, req->nh.iface_id, &ip)) == NULL)
 		return api_out(errno, 0);
 
 	nh->lladdr = req->nh.mac;
