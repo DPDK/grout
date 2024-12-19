@@ -209,7 +209,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 
 static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_del_req *req = request;
-	struct rte_ipv6_addr solicited_node;
+	struct rte_ipv6_addr solicited_node, scoped;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i;
@@ -279,6 +279,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 			const struct nexthop *nh = addrs->nh[i];
 			addr = &resp->addrs[resp->n_addrs++];
 			addr->addr.ip = nh->ipv6;
+			ip6_addr_linklocal_unscope(&addr->addr.ip);
 			addr->addr.prefixlen = nh->prefixlen;
 			addr->iface_id = nh->iface_id;
 		}
