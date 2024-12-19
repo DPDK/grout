@@ -305,6 +305,7 @@ static int route6_count(uint16_t vrf_id) {
 static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_id) {
 	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
 	struct rte_rib6_node *rn = NULL;
+	struct rte_ipv6_addr tmp;
 	struct gr_ip6_route *r;
 	struct rte_fib6 *fib;
 	struct rte_rib6 *rib;
@@ -321,6 +322,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
 		r->vrf_id = vrf_id;
+		r->dest.ip = *ip6_addr_linklocal_unscope(&r->dest.ip, &tmp);
 	}
 	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
