@@ -80,6 +80,10 @@ static uint16_t ndp_ns_input_process(
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
+		ip6_addr_linklocal_scope(&d->src, iface->id);
+		ip6_addr_linklocal_scope(&src, iface->id);
+		ip6_addr_linklocal_scope(&ns->target, iface->id);
+
 		local = ip6_nexthop_lookup(iface->vrf_id, &ns->target);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = IGNORE;
@@ -146,6 +150,7 @@ static uint16_t ndp_ns_input_process(
 		na->router = 1;
 		na->solicited = solicited;
 		na->target = local->ipv6;
+		ip6_addr_linklocal_unscope(&na->target);
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));

@@ -69,12 +69,16 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
-		    && (!(nh->flags & GR_NH_F_REACHABLE)
-			|| (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
-		    )) {
-			edge = HOLD;
-			goto next;
+		ip6_addr_linklocal_scope(&ip->dst_addr, iface->id);
+		if (rte_ipv6_addr_is_mcast(&ip->dst_addr) == 0) {
+			if ((nh->flags & GR_NH_F_REACHABLE) == 0) {
+				if (nh->flags & GR_NH_F_LINK) {
+					if (!rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)) {
+						edge = HOLD;
+						goto next;
+					}
+				}
+			}
 		}
 
 		// Prepare ethernet layer info.
@@ -86,6 +90,8 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 		sent++;
 next:
+		ip6_addr_linklocal_unscope(&ip->src_addr);
+		ip6_addr_linklocal_unscope(&ip->dst_addr);
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_ipv6_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *ip;

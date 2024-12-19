@@ -40,4 +40,18 @@ struct hoplist *ip6_addr_get_all(uint16_t iface_id);
 // determine if the given interface is member of the provided multicast address group
 struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast);
 
+static inline int ip6_addr_linklocal_scope(struct rte_ipv6_addr *ip, uint16_t iface_id) {
+	if (!rte_ipv6_addr_is_linklocal(ip))
+		return errno_set(EFAULT);
+	((uint16_t *)ip->a)[1] = iface_id;
+	return 0;
+}
+
+static inline int ip6_addr_linklocal_unscope(struct rte_ipv6_addr *ip) {
+	if (!rte_ipv6_addr_is_linklocal(ip))
+		return errno_set(EFAULT);
+	((uint16_t *)ip->a)[1] = 0;
+	return 0;
+}
+
 #endif

@@ -76,24 +76,25 @@ struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_ad
 	return NULL;
 }
 
-static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *ip) {
+static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *ipv6) {
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
+	struct rte_ipv6_addr ip = *ipv6;
 	unsigned i;
 
-	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
+	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, &ip);
 
 	for (i = 0; i < maddrs->count; i++)
-		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ipv6, ip))
+		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ipv6, &ip))
 			return errno_set(EEXIST);
 
 	if (i == ARRAY_DIM(maddrs->nh))
 		return errno_set(ENOSPC);
 
-	if ((nh = ip6_nexthop_lookup(iface->vrf_id, ip)) == NULL) {
-		if ((nh = ip6_nexthop_new(iface->vrf_id, GR_IFACE_ID_UNDEF, ip)) == NULL)
+	if ((nh = ip6_nexthop_lookup(iface->vrf_id, &ip)) == NULL) {
+		if ((nh = ip6_nexthop_new(iface->vrf_id, GR_IFACE_ID_UNDEF, &ip)) == NULL)
 			return errno_set(-errno);
-		rte_ether_mcast_from_ipv6(&nh->lladdr, ip);
+		rte_ether_mcast_from_ipv6(&nh->lladdr, &ip);
 	}
 
 	nexthop_incref(nh);
@@ -135,9 +136,10 @@ static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *i
 }
 
 static int
-iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ipv6, uint8_t prefixlen) {
 	struct hoplist *addrs;
 	unsigned addr_index;
+	struct rte_ipv6_addr *ip = (struct rte_ipv6_addr *)ipv6;
 	struct nexthop *nh;
 	int ret;
 
@@ -155,6 +157,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (addrs->count == ARRAY_DIM(addrs->nh))
 		return errno_set(ENOSPC);
 
+	ip6_addr_linklocal_scope(ip, iface->id);
 	if (ip6_nexthop_lookup(iface->vrf_id, ip) != NULL)
 		return errno_set(EADDRINUSE);
 
@@ -180,15 +183,17 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_add_req *req = request;
-	struct rte_ipv6_addr solicited_node;
+	struct rte_ipv6_addr solicited_node, ip;
 	struct iface *iface;
 	int ret;
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface == NULL)
 		return api_out(errno, 0);
+	ip = req->addr.addr.ip;
 
-	if ((ret = iface6_addr_add(iface, &req->addr.addr.ip, req->addr.addr.prefixlen)) < 0)
+	ip6_addr_linklocal_scope(&ip, req->addr.iface_id);
+	if ((ret = iface6_addr_add(iface, &ip, req->addr.addr.prefixlen)) < 0)
 		if (ret != -EEXIST || !req->exist_ok)
 			return api_out(-ret, 0);
 
@@ -204,7 +209,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 
 static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_del_req *req = request;
-	struct rte_ipv6_addr solicited_node;
+	struct rte_ipv6_addr solicited_node, scoped;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i;
@@ -212,8 +217,11 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	if ((addrs = ip6_addr_get_all(req->addr.iface_id)) == NULL)
 		return api_out(errno, 0);
 
+	scoped = req->addr.addr.ip;
+	ip6_addr_linklocal_scope(&scoped, req->addr.iface_id);
+
 	for (i = 0; i < addrs->count; i++) {
-		if (rte_ipv6_addr_eq(&addrs->nh[i]->ipv6, &req->addr.addr.ip)
+		if (rte_ipv6_addr_eq(&addrs->nh[i]->ipv6, &scoped)
 		    && addrs->nh[i]->prefixlen == req->addr.addr.prefixlen) {
 			nh = addrs->nh[i];
 			break;
@@ -271,6 +279,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 			const struct nexthop *nh = addrs->nh[i];
 			addr = &resp->addrs[resp->n_addrs++];
 			addr->addr.ip = nh->ipv6;
+			ip6_addr_linklocal_unscope(&addr->addr.ip);
 			addr->addr.prefixlen = nh->prefixlen;
 			addr->iface_id = nh->iface_id;
 		}
