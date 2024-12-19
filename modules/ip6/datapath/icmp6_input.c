@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
@@ -19,6 +20,7 @@ enum {
 	ICMP6_OUTPUT = 0,
 	NEIGH_SOLICIT,
 	NEIGH_ADVERT,
+	ROUTER_SOLICIT,
 	BAD_CHECKSUM,
 	INVALID,
 	UNSUPPORTED,
@@ -64,6 +66,8 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			next = NEIGH_ADVERT;
 			break;
 		case ICMP6_TYPE_ROUTER_SOLICIT:
+			next = ROUTER_SOLICIT;
+			break;
 		case ICMP6_TYPE_ROUTER_ADVERT:
 		default:
 			next = UNSUPPORTED;
@@ -89,6 +93,7 @@ static struct rte_node_register icmp6_input_node = {
 		[ICMP6_OUTPUT] = "icmp6_output",
 		[NEIGH_SOLICIT] = "ndp_ns_input",
 		[NEIGH_ADVERT] = "ndp_na_input",
+		[ROUTER_SOLICIT] = "ndp_rs_input",
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
 		[UNSUPPORTED] = "icmp6_input_unsupported",

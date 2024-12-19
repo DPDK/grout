@@ -237,8 +237,7 @@ image.
 ```sh
 dnf install gcc git make meson ninja-build pkgconf scdoc python3-pyelftools \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
-        libsmartcols-devel libarchive-devel rdma-core-devel \
-        clang-tools-extra jq curl traceroute graphviz
+        libsmartcols-devel libarchive-devel rdma-core-devel
 ```
 
 or
@@ -246,8 +245,20 @@ or
 ```sh
 apt install git gcc make meson ninja-build pkgconf scdoc python3-pyelftools \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev \
-        libsmartcols-dev libarchive-dev libibverbs-dev \
-        clang-format jq curl traceroute graphviz
+        libsmartcols-dev libarchive-dev libibverbs-dev
+```
+
+### Install optional dependencies
+In order to run "make smoke-test" and "make update-graph", you'll need additional packages:
+
+```sh
+dnf install clang-tools-extra jq curl traceroute graphviz ndisc6
+```
+
+or
+
+```sh
+apt install clang-format jq curl traceroute graphviz ndisc6
 ```
 
 ### Build

@@ -13,5 +13,6 @@ src += files(
   'ndp_na_input.c',
   'ndp_ns_input.c',
   'ndp_ns_output.c',
+  'ndp_rs_input.c',
 )
 inc += include_directories('.')
