@@ -2,6 +2,7 @@
 # Copyright (c) 2024 Christophe Fontaine
 
 src += files(
-  'l4_redirect_loopback.c',
+  'l4_input_local.c',
+  'l4_loopback_output.c',
 )
 inc += include_directories('.')
