@@ -16,6 +16,7 @@
 enum edges {
 	REDIRECT = 0,
 	NO_IFACE,
+	BAD_PROTO,
 	EDGE_COUNT,
 };
 
@@ -25,89 +26,66 @@ static uint16_t redirect_loopback_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct mbuf_data *d;
-	int edge = NO_IFACE;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+		edge = REDIRECT;
+
 		d = mbuf_data(mbuf);
 		d->iface = get_vrf_iface(d->iface->vrf_id);
-		if (d->iface)
-			edge = REDIRECT;
-		rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+		if (!d->iface) {
+			edge = NO_IFACE;
+			goto next;
+		}
+
+		if (mbuf->packet_type & RTE_PTYPE_L3_IPV4) {
+			struct ip_local_mbuf_data *d = ip_local_mbuf_data(mbuf);
+			struct rte_ipv4_hdr *ip;
+			ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+			ip->src_addr = d->src;
+			ip->dst_addr = d->dst;
+			ip->total_length = rte_cpu_to_be_16(d->len) + sizeof(*ip);
+			ip->next_proto_id = d->proto;
+		} else if (mbuf->packet_type & RTE_PTYPE_L3_IPV6) {
+			struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(mbuf);
+			struct rte_ipv6_hdr *ip;
+			ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+			ip->src_addr = d->src;
+			ip->dst_addr = d->dst;
+			ip->payload_len = rte_cpu_to_be_16(d->len);
+			ip->hop_limits = d->hop_limit;
+			ip->proto = d->proto;
+		} else {
+			edge = BAD_PROTO;
+		}
+
+next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			gr_mbuf_trace_add(mbuf, node, 0);
 		}
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
-	rte_node_enqueue(graph, node, edge, objs, nb_objs);
 	return nb_objs;
 }
 
-static struct rte_node_register tcp_redirect_loopback_node = {
-	.name = "tcp_redirect_loopback",
+static struct rte_node_register redirect_loopback_node = {
+	.name = "l4_redirect_loopback",
 	.process = redirect_loopback_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[REDIRECT] = "loopback_output",
 		[NO_IFACE] = "no_loop_iface",
+		[BAD_PROTO] = "l4_bad_proto",
 	},
 };
 
-static struct rte_node_register udp_redirect_loopback_node = {
-	.name = "udp_redirect_loopback",
-	.process = redirect_loopback_process,
-	.nb_edges = EDGE_COUNT,
-	.next_nodes = {
-		[REDIRECT] = "loopback_output",
-		[NO_IFACE] = "no_loop_iface",
-	},
+static struct gr_node_info info = {
+	.node = &redirect_loopback_node,
 };
-
-static struct rte_node_register sctp_redirect_loopback_node = {
-	.name = "sctp_redirect_loopback",
-	.process = redirect_loopback_process,
-	.nb_edges = EDGE_COUNT,
-	.next_nodes = {
-		[REDIRECT] = "loopback_output",
-		[NO_IFACE] = "no_loop_iface",
-	},
-};
-
-static void tcp_redirect_loopback_register(void) {
-	ip_input_local_add_proto(IPPROTO_TCP, "tcp_redirect_loopback");
-	ip6_input_local_add_proto(IPPROTO_TCP, "tcp_redirect_loopback");
-}
-
-static void udp_redirect_loopback_register(void) {
-	ip_input_local_add_proto(IPPROTO_UDP, "udp_redirect_loopback");
-	ip6_input_local_add_proto(IPPROTO_UDP, "udp_redirect_loopback");
-}
-
-static void sctp_redirect_loopback_register(void) {
-	ip_input_local_add_proto(IPPROTO_SCTP, "sctp_redirect_loopback");
-	ip6_input_local_add_proto(IPPROTO_SCTP, "sctp_redirect_loopback");
-}
-
-static struct gr_node_info info_tcp_redirect = {
-	.node = &tcp_redirect_loopback_node,
-	.register_callback = tcp_redirect_loopback_register,
-};
-
-static struct gr_node_info info_udp_redirect = {
-	.node = &udp_redirect_loopback_node,
-	.register_callback = udp_redirect_loopback_register,
-};
-
-static struct gr_node_info info_sctp_redirect = {
-	.node = &sctp_redirect_loopback_node,
-	.register_callback = sctp_redirect_loopback_register,
-};
-
-GR_NODE_REGISTER(info_tcp_redirect);
-GR_NODE_REGISTER(info_udp_redirect);
-GR_NODE_REGISTER(info_sctp_redirect);
+GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(no_loop_iface);

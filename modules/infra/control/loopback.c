@@ -134,6 +134,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	// packet sent from linux tun iface, no need to compute checksum;
 	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+	mbuf->packet_type = data[0] == 6 ? RTE_PTYPE_L3_IPV6 : RTE_PTYPE_L3_IPV4;
 	// Emulate ethernet input, required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
 	e->iface = iface;
