@@ -132,9 +132,11 @@ struct icmp6_opt_lladdr {
 	struct rte_ether_addr mac;
 } __rte_aligned(2) __rte_packed;
 
-static inline bool
-icmp6_get_opt(const struct icmp6_opt *opt, size_t ip6_len, uint8_t type, void *value) {
-	while (ip6_len >= 8 && opt != NULL) {
+static inline bool icmp6_get_opt(struct rte_mbuf *mbuf, size_t offset, uint8_t type, void *value) {
+	const struct icmp6_opt *opt;
+	struct icmp6_opt popt;
+
+	while ((opt = rte_pktmbuf_read(mbuf, offset, sizeof(*opt), &popt)) != NULL) {
 		if (opt->type != type)
 			goto next;
 
@@ -148,8 +150,7 @@ icmp6_get_opt(const struct icmp6_opt *opt, size_t ip6_len, uint8_t type, void *v
 			break;
 		}
 next:
-		ip6_len -= opt->len * 8;
-		opt = RTE_PTR_ADD(opt, opt->len * 8);
+		offset += opt->len * 8;
 	}
 	return false;
 }

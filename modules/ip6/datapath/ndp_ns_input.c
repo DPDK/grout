@@ -87,7 +87,7 @@ static uint16_t ndp_ns_input_process(
 		}
 
 		lladdr_found = icmp6_get_opt(
-			PAYLOAD(ns), rte_pktmbuf_pkt_len(mbuf), ICMP6_OPT_SRC_LLADDR, &lladdr
+			mbuf, sizeof(*icmp6) + sizeof(*ns), ICMP6_OPT_SRC_LLADDR, &lladdr
 		);
 
 		if (rte_ipv6_addr_is_unspec(&src)) {

@@ -84,7 +84,7 @@ static uint16_t ndp_na_input_process(
 		ASSERT_NDP(remote != NULL);
 
 		lladdr_found = icmp6_get_opt(
-			PAYLOAD(na), rte_pktmbuf_pkt_len(mbuf), ICMP6_OPT_TARGET_LLADDR, &lladdr
+			mbuf, sizeof(*icmp6) + sizeof(*na), ICMP6_OPT_TARGET_LLADDR, &lladdr
 		);
 		// If the link layer has addresses and no Target Link-Layer Address
 		// option is included, the receiving node SHOULD silently discard the
