@@ -128,20 +128,14 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		// replaced in ndp_ns_input_process to avoid copying the whole IPv6 header.
 		target = ns->target;
 		lladdr_found = icmp6_get_opt(
-			PAYLOAD(ns),
-			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
-			ICMP6_OPT_SRC_LLADDR,
-			&mac
+			m, sizeof(*icmp6) + sizeof(*ns), ICMP6_OPT_SRC_LLADDR, &mac
 		);
 		break;
 	case ICMP6_TYPE_NEIGH_ADVERT:
 		na = PAYLOAD(icmp6);
 		target = na->target;
 		lladdr_found = icmp6_get_opt(
-			PAYLOAD(na),
-			rte_pktmbuf_pkt_len(m) - sizeof(*ns),
-			ICMP6_OPT_TARGET_LLADDR,
-			&mac
+			m, sizeof(*icmp6) + sizeof(*na), ICMP6_OPT_TARGET_LLADDR, &mac
 		);
 		break;
 	default:
