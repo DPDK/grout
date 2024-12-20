@@ -132,9 +132,15 @@ struct gr_ip6_addr_list_resp {
 	struct gr_ip6_ifaddr addrs[/* n_addrs */];
 };
 
+// router advertisement ////////////////////////////////////////////////////////
 #define GR_IP6_IFACE_RA_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0030)
 struct gr_ip6_ra_set_req {
 	uint16_t iface_id;
+	uint16_t set_interval : 1;
+	uint16_t set_lifetime : 1;
+
+	uint16_t interval;
+	uint16_t lifetime;
 };
 // struct gr_ip6_ra_set_resp { };
 
@@ -143,4 +149,21 @@ struct gr_ip6_ra_clear_req {
 	uint16_t iface_id;
 };
 // struct gr_ip6_ra_clear_resp { };
+
+#define GR_IP6_IFACE_RA_SHOW REQUEST_TYPE(GR_IP6_MODULE, 0x0032)
+struct gr_ip6_ra_show_req {
+	uint16_t iface_id;
+};
+
+struct gr_ip6_ra_conf {
+	bool enabled;
+	uint16_t iface_id;
+	uint16_t interval;
+	uint16_t lifetime;
+};
+
+struct gr_ip6_ra_show_resp {
+	uint16_t n_ras;
+	struct gr_ip6_ra_conf ras[];
+};
 #endif
