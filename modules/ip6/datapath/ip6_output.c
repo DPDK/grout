@@ -57,7 +57,12 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = DEST_UNREACH;
 			goto next;
 		}
-		iface = iface_from_id(nh->iface_id);
+
+		// For multicast destination, nh->iface will be NULL
+		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
+			iface = mbuf_data(mbuf)->iface;
+		else
+			iface = iface_from_id(nh->iface_id);
 		if (iface == NULL) {
 			edge = ERROR;
 			goto next;
