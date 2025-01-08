@@ -280,6 +280,11 @@ Use ? for help and <tab> for command completion.
 grout#
 ```
 
+## Contact
+
+* Mailing list: grout@dpdk.org ([archives](http://mails.dpdk.org/archives/grout/))
+* Slack channel: [#grout @ dpdkproject.slack.com](https://dpdkproject.slack.com/archives/C07NAFWE1MG)
+
 ## Contributing
 
 Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).

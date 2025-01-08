@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+name: Feature Request
+description: Request for a new feature.
+labels: ["feature", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thanks for taking the time to request a new feature!
+        Make sure to check if a similar feature wasn't already requested and/or
+        implemented by searching through existing issues and pull requests
+        (including closed ones).
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: >
+        Please describe what feature is missing. You can include as much detail
+        as you want, including code snippets and external links.
+      placeholder: Feature description...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and Use Cases
+      description: >
+        Explain why you need this feature and how it will be used.
+      placeholder: Context and use-cases...
+    validations:
+      required: true

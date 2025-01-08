@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+blank_issues_enabled: false
+contact_links:
+  - name: Mailing List
+    url: https://mails.dpdk.org/archives/grout/
+    about: |
+      Please ask and answer questions on grout@dpdk.org (subscription not required).
+  - name: Slack Channel
+    url: https://dpdkproject.slack.com/archives/C07NAFWE1MG
+    about: "Join us on #grout @ slack.dpdkproject.org"
