@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+blank_issues_enabled: false
+contact_links:
+  - name: Mailing List
+    url: mailto:grout@dpdk.org
+    about: Please ask and answer questions here (subscription not required).
+  - name: Mailing List Archives
+    url: https://mails.dpdk.org/archives/grout/
+    about: Browse through previous discussions.
