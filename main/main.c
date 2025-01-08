@@ -147,6 +147,8 @@ end:
 	return 0;
 }
 
+#define EXIT_ALREADY_RUNNING 2
+
 int main(int argc, char **argv) {
 	struct event_base *ev_base = NULL;
 	int ret = EXIT_FAILURE;
@@ -183,6 +185,8 @@ int main(int argc, char **argv) {
 	modules_init(ev_base);
 
 	if (api_socket_start(ev_base) < 0) {
+		if (errno == EADDRINUSE)
+			ret = EXIT_ALREADY_RUNNING;
 		err = errno;
 		goto shutdown;
 	}
@@ -211,7 +215,8 @@ shutdown:
 		modules_fini(ev_base);
 		event_base_free(ev_base);
 	}
-	unlink(args.api_sock_path);
+	if (ret != EXIT_ALREADY_RUNNING)
+		unlink(args.api_sock_path);
 	libevent_global_shutdown();
 dpdk_stop:
 	dpdk_fini();

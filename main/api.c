@@ -206,6 +206,7 @@ int api_socket_start(struct event_base *base) {
 		struct sockaddr_un un;
 		struct sockaddr a;
 	} addr;
+	int ret;
 	int fd;
 
 	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -215,7 +216,24 @@ int api_socket_start(struct event_base *base) {
 	addr.un.sun_family = AF_UNIX;
 	memccpy(addr.un.sun_path, path, 0, sizeof(addr.un.sun_path) - 1);
 
-	if (bind(fd, &addr.a, sizeof(addr.un)) < 0) {
+	ret = bind(fd, &addr.a, sizeof(addr.un));
+	if (ret < 0 && errno == EADDRINUSE) {
+		// unix socket file exists, check if there is a process
+		// listening on the other side.
+		ret = connect(fd, &addr.a, sizeof(addr.un));
+		if (ret == 0) {
+			LOG(ERR, "grout already running on API socket %s, exiting", path);
+			close(fd);
+			return errno_set(EADDRINUSE);
+		}
+		if (ret < 0 && errno != ECONNREFUSED)
+			return errno_log(errno, "connect");
+		// remove socket file, and try to bind again
+		if (unlink(addr.un.sun_path) < 0)
+			return errno_log(errno, "unlink");
+		ret = bind(fd, &addr.a, sizeof(addr.un));
+	}
+	if (ret < 0) {
 		close(fd);
 		return errno_log(errno, "bind");
 	}
