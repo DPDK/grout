@@ -83,6 +83,8 @@ static uint16_t ndp_ns_input_process(
 		local = ip6_nexthop_lookup(iface->vrf_id, &ns->target);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = IGNORE;
+			if (gr_mbuf_is_traced(mbuf))
+				gr_mbuf_trace_add(mbuf, node, 0);
 			goto next;
 		}
 
@@ -116,6 +118,8 @@ static uint16_t ndp_ns_input_process(
 				);
 				if (copy == NULL) {
 					next = ERROR;
+					if (gr_mbuf_is_traced(mbuf))
+						gr_mbuf_trace_add(mbuf, node, 0);
 					goto next;
 				}
 				if (gr_mbuf_is_traced(mbuf))
