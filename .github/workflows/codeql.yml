@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+name: CodeQL
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: '44 21 * * 5'
+
+jobs:
+  analyze:
+    permissions:
+      security-events: write
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Github Actions
+            language: actions
+            build-mode: none
+          - name: C Code
+            language: c-cpp
+            build-mode: manual
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build
+        if: matrix.build-mode == 'manual'
+        run: |
+          set -xe
+          sudo apt-get update -qy
+          sudo apt-get install -qy --no-install-recommends \
+            make gcc ninja-build meson git scdoc libibverbs-dev \
+            libasan8 libcmocka-dev libedit-dev libarchive-dev \
+            libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
+          make
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
