@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2023 Robin Jarry
+---
+name: Check
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      actions: write
+    runs-on: ubuntu-24.04
+    env:
+      SANITIZE: address
+      BUILDTYPE: debugoptimized
+      MESON_EXTRA_OPTS: "-Ddpdk:platform=generic"
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
+      CC: gcc-14
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          sudo apt-get update -qy
+          sudo apt-get install -qy --no-install-recommends \
+            make gcc ninja-build meson git scdoc libibverbs-dev \
+            libasan8 libcmocka-dev libedit-dev libarchive-dev \
+            libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: make
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-binaries
+          path: |
+            build/grout
+            build/grcli
+          retention-days: 5
+      - run: make unit-tests
+
+  smoke:
+    permissions:
+      actions: read
+    runs-on: ubuntu-24.04
+    needs: build
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          sudo apt-get update -qy
+          sudo NEEDRESTART_MODE=l apt-get install -qy --no-install-recommends \
+            git socat tcpdump traceroute graphviz \
+            iproute2 iputils-ping libasan8 libedit2 \
+            libevent-2.1-7t64 libsmartcols1 libnuma1
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: debug-binaries
+          path: build
+          merge-multiple: true
+      - run: chmod -c a+x build/gr*
+      - run: sudo smoke/run.sh build
+
+  lint:
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - run: dnf install -y make clang-tools-extra git jq curl
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # force fetch all history
+      - run: git config --global --add safe.directory $PWD
+      - run: make lint
+
+  commits:
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
+    container: fedora:latest
+    env:
+      REVISION_RANGE: "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+    steps:
+      - run: dnf install -y make git jq curl
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # force fetch all history
+      - run: git config --global --add safe.directory $PWD
+      - run: make check-patches
