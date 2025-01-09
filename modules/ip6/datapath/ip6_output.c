@@ -77,6 +77,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
+		ip6_addr_linklocal_unscope(&ip->src_addr);
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))

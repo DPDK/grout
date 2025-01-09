@@ -31,6 +31,7 @@ enum edges {
 
 static uint16_t
 ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct rte_ipv6_addr scoped_dst;
 	struct ip6_output_mbuf_data *d;
 	struct eth_input_mbuf_data *e;
 	const struct iface *iface;
@@ -97,7 +98,9 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
-		nh = ip6_route_lookup(iface->vrf_id, &ip->dst_addr);
+		scoped_dst = ip->dst_addr;
+		ip6_addr_linklocal_scope(&scoped_dst, iface->id);
+		nh = ip6_route_lookup(iface->vrf_id, &scoped_dst);
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;
@@ -105,7 +108,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip6_local.
-		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
+		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&scoped_dst, &nh->ipv6))
 			edge = LOCAL;
 		else
 			edge = FORWARD;
