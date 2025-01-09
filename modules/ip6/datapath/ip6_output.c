@@ -39,6 +39,7 @@ void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node
 static uint16_t
 ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
+	struct rte_ipv6_addr unscoped;
 	const struct iface *iface;
 	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
@@ -69,9 +70,11 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge != ETH_OUTPUT)
 			goto next;
 
+		unscoped = nh->ipv6;
+		ip6_addr_linklocal_unscope(&unscoped);
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
 		    && (!(nh->flags & GR_NH_F_REACHABLE)
-			|| (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
+			|| (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&ip->dst_addr, &unscoped))
 		    )) {
 			edge = HOLD;
 			goto next;

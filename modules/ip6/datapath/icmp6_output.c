@@ -28,6 +28,7 @@ static uint16_t icmp6_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	struct rte_ipv6_addr scoped_ip;
 	struct ip6_output_mbuf_data *o;
 	struct ip6_local_mbuf_data *d;
 	const struct iface *iface;
@@ -57,8 +58,9 @@ static uint16_t icmp6_output_process(
 			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
 			memcpy(t, icmp6, trace_len);
 		}
-
-		if ((nh = ip6_route_lookup(d->iface->vrf_id, &d->dst)) == NULL) {
+		scoped_ip = d->dst;
+		ip6_addr_linklocal_scope(&scoped_ip, d->iface->id);
+		if ((nh = ip6_route_lookup(d->iface->vrf_id, &scoped_ip)) == NULL) {
 			edge = NO_ROUTE;
 			goto next;
 		}

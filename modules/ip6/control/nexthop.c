@@ -44,6 +44,7 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv6_addr dst = ip->dst_addr;
 	struct nexthop *nh;
 
+	ip6_addr_linklocal_scope(&dst, mbuf_data(m)->iface->id);
 	nh = ip6_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, &dst);
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
@@ -144,6 +145,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (!lladdr_found)
 		goto free;
 
+	ip6_addr_linklocal_scope(&target, iface->id);
 	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
 	if (nh == NULL) {
 		// We don't have an entry for the probe sender address yet.
