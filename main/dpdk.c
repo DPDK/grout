@@ -200,6 +200,8 @@ end:
 
 void dpdk_fini(void) {
 	rte_eal_cleanup();
+#if RTE_VERSION >= RTE_VERSION_NUM(24, 11, 2, 0)
 	if (log_stream != NULL)
 		fclose(log_stream);
+#endif
 }

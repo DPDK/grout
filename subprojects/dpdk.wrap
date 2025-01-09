@@ -1,7 +1,6 @@
 [wrap-git]
-url = https://github.com/DPDK/dpdk
-revision = v24.11
-diff_files = log-fix-double-free-on-cleanup.patch
+url = https://github.com/DPDK/dpdk-stable
+revision = v24.11.1
 depth = 1
 
 [provide]
