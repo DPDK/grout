@@ -31,7 +31,8 @@ struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t i
 }
 
 struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip) {
-	return nexthop_lookup(nh_pool, vrf_id, &ip);
+	// XXX: should we scope ip4 nh lookup based on rfc3927 ?
+	return nexthop_lookup(nh_pool, vrf_id, GR_IFACE_ID_UNDEF, &ip);
 }
 
 static control_input_t ip_output_node;

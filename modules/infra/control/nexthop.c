@@ -150,6 +150,7 @@ void nh_pool_iter(struct nh_pool *nhp, nh_iter_cb_t nh_cb, void *priv) {
 
 struct lookup_filter {
 	uint16_t vrf_id;
+	uint16_t iface_id;
 	uint8_t family;
 	const void *addr;
 	struct nexthop *nh;
@@ -167,14 +168,20 @@ static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 			filter->nh = nh;
 		break;
 	case AF_INET6:
-		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr))
-			filter->nh = nh;
+		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
+			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
+			if (!is_linklocal || nh->iface_id == filter->iface_id)
+				filter->nh = nh;
+		}
 		break;
 	}
 }
 
-struct nexthop *nexthop_lookup(struct nh_pool *nhp, uint16_t vrf_id, const void *addr) {
-	struct lookup_filter filter = {.family = nhp->family, .vrf_id = vrf_id, .addr = addr};
+struct nexthop *
+nexthop_lookup(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+	struct lookup_filter filter = {
+		.family = nhp->family, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
+	};
 	nh_pool_iter(nhp, nh_lookup_cb, &filter);
 	return filter.nh ?: errno_set_null(ENOENT);
 }

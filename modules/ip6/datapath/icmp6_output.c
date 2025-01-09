@@ -57,8 +57,7 @@ static uint16_t icmp6_output_process(
 			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
 			memcpy(t, icmp6, trace_len);
 		}
-
-		if ((nh = ip6_route_lookup(d->iface->vrf_id, &d->dst)) == NULL) {
+		if ((nh = ip6_route_lookup(d->iface->vrf_id, d->iface->id, &d->dst)) == NULL) {
 			edge = NO_ROUTE;
 			goto next;
 		}

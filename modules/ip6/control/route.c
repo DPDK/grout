@@ -94,32 +94,43 @@ static inline struct nexthop *nh_id_to_ptr(uintptr_t id) {
 	return (struct nexthop *)id;
 }
 
-struct nexthop *ip6_route_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *ip) {
+struct nexthop *
+ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
 	struct rte_fib6 *fib6 = get_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
+	struct rte_ipv6_addr tmp;
 	uintptr_t nh_id;
 
 	if (fib6 == NULL)
 		return NULL;
 
-	rte_fib6_lookup_bulk(fib6, ip, &nh_id, 1);
+	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	rte_fib6_lookup_bulk(fib6, scoped_ip, &nh_id, 1);
 	if (nh_id == 0)
 		return errno_set_null(EHOSTUNREACH);
 
 	return nh_id_to_ptr(nh_id);
 }
 
-struct nexthop *
-ip6_route_lookup_exact(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+struct nexthop *ip6_route_lookup_exact(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen
+) {
 	struct rte_fib6 *fib = get_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
 	struct rte_rib6_node *rn;
+	struct rte_ipv6_addr tmp;
 	struct rte_rib6 *rib6;
 	uintptr_t nh_id;
 
 	if (fib == NULL)
 		return NULL;
 
+	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
 	rib6 = rte_fib6_get_rib(fib);
-	rn = rte_rib6_lookup_exact(rib6, ip, prefixlen);
+	rn = rte_rib6_lookup_exact(rib6, scoped_ip, prefixlen);
 	if (rn == NULL)
 		return errno_set_null(ENETUNREACH);
 
@@ -129,11 +140,14 @@ ip6_route_lookup_exact(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t 
 
 int ip6_route_insert(
 	uint16_t vrf_id,
+	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
 	uint8_t prefixlen,
 	struct nexthop *nh
 ) {
 	struct rte_fib6 *fib = get_or_create_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
+	struct rte_ipv6_addr tmp;
 	int ret;
 
 	nexthop_incref(nh);
@@ -142,11 +156,13 @@ int ip6_route_insert(
 		ret = -errno;
 		goto fail;
 	}
-	if (ip6_route_lookup_exact(vrf_id, ip, prefixlen) != NULL) {
+	if (ip6_route_lookup_exact(vrf_id, iface_id, ip, prefixlen) != NULL) {
 		ret = -EEXIST;
 		goto fail;
 	}
-	if ((ret = rte_fib6_add(fib, ip, prefixlen, nh_ptr_to_id(nh))) < 0)
+
+	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	if ((ret = rte_fib6_add(fib, scoped_ip, prefixlen, nh_ptr_to_id(nh))) < 0)
 		goto fail;
 
 	return 0;
@@ -155,19 +171,27 @@ fail:
 	return errno_set(-ret);
 }
 
-int ip6_route_delete(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+int ip6_route_delete(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen
+) {
 	struct rte_fib6 *fib = get_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
+	struct rte_ipv6_addr tmp;
 	struct nexthop *nh;
 	int ret;
 
 	if (fib == NULL)
 		return -errno;
 
-	nh = ip6_route_lookup_exact(vrf_id, ip, prefixlen);
+	nh = ip6_route_lookup_exact(vrf_id, iface_id, ip, prefixlen);
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	if ((ret = rte_fib6_delete(fib, ip, prefixlen)) < 0)
+	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	if ((ret = rte_fib6_delete(fib, scoped_ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
 	nexthop_decref(nh);
@@ -181,20 +205,22 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	nh = ip6_route_lookup_exact(req->vrf_id, &req->dest.ip, req->dest.prefixlen);
+	nh = ip6_route_lookup_exact(
+		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen
+	);
 	if (nh != NULL) {
 		if (rte_ipv6_addr_eq(&req->nh, &nh->ipv6) && req->exist_ok)
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if (ip6_route_lookup(req->vrf_id, &req->nh) == NULL)
+	if (ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
 	if ((fib6 = get_or_create_fib6(req->vrf_id)) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip6_nexthop_lookup(req->vrf_id, &req->nh)) == NULL)
+	if ((nh = ip6_nexthop_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 		if ((nh = ip6_nexthop_new(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 			return api_out(errno, 0);
 
@@ -213,7 +239,9 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_del_req *req = request;
 	struct nexthop *nh;
 
-	if ((nh = ip6_route_lookup_exact(req->vrf_id, &req->dest.ip, req->dest.prefixlen))
+	if ((nh = ip6_route_lookup_exact(
+		     req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen
+	     ))
 	    == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
@@ -223,7 +251,7 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 	if (!(nh->flags & GR_NH_F_GATEWAY))
 		return api_out(EBUSY, 0);
 
-	if (ip6_route_delete(req->vrf_id, &req->dest.ip, req->dest.prefixlen) < 0)
+	if (ip6_route_delete(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);
@@ -234,7 +262,7 @@ static struct api_out route6_get(const void *request, void **response) {
 	struct gr_ip6_route_get_resp *resp = NULL;
 	struct nexthop *nh = NULL;
 
-	nh = ip6_route_lookup(req->vrf_id, &req->dest);
+	nh = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest);
 	if (nh == NULL)
 		return api_out(ENETUNREACH, 0);
 
@@ -366,7 +394,7 @@ void ip6_route_cleanup(struct nexthop *nh) {
 	struct rte_rib6 *rib;
 	uintptr_t nh_id;
 
-	ip6_route_delete(nh->vrf_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+	ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 	local_ip = nh->ipv6;
 	local_depth = nh->prefixlen;
 
@@ -381,8 +409,8 @@ void ip6_route_cleanup(struct nexthop *nh) {
 
 			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
 
-			ip6_route_delete(nh->vrf_id, &ip, depth);
-			ip6_route_delete(nh->vrf_id, &ip, RTE_IPV6_MAX_DEPTH);
+			ip6_route_delete(nh->vrf_id, nh->iface_id, &ip, depth);
+			ip6_route_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH);
 		}
 	}
 
@@ -396,8 +424,8 @@ void ip6_route_cleanup(struct nexthop *nh) {
 
 			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
 
-			ip6_route_delete(nh->vrf_id, &nh->ipv6, nh->prefixlen);
-			ip6_route_delete(nh->vrf_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+			ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
+			ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 		}
 	}
 }

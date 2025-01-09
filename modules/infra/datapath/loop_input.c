@@ -75,7 +75,7 @@ static uint16_t loopback_input_process(
 
 			d = ip6_output_mbuf_data(mbuf);
 			ip = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv6_hdr *, sizeof(*pi));
-			nh = ip6_route_lookup(d->iface->vrf_id, &ip->dst_addr);
+			nh = ip6_route_lookup(d->iface->vrf_id, d->iface->id, &ip->dst_addr);
 
 			if (nh == NULL) {
 				edge = IP6_NO_ROUTE;
