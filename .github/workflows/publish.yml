@@ -90,17 +90,6 @@ jobs:
         with:
           pattern: "*-packages"
           merge-multiple: true
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Containerfile
-          tags: "ghcr.io/dpdk/grout:edge"
-          push: true
       - uses: pyTooling/Actions/releaser@r0
         with:
           token: ${{ github.token }}
