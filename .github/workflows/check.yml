@@ -78,6 +78,28 @@ jobs:
       - run: chmod -c a+x build/gr*
       - run: sudo smoke/run.sh build
 
+  build-cross-aarch64:
+    runs-on: ubuntu-24.04
+    container: debian:testing
+    env:
+      MESON_EXTRA_OPTS: --cross-file=devtools/cross/aarch64.ini
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          dpkg --add-architecture arm64
+          apt update -qy
+          apt install -qy --no-install-recommends \
+            make gcc git meson scdoc python3-pyelftools ca-certificates pkg-config \
+            crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
+            libevent-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: make
+
   lint:
     runs-on: ubuntu-24.04
     container: fedora:latest
