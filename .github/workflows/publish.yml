@@ -1,91 +1,29 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2023 Robin Jarry
 ---
-name: CI
+name: Publish
+
+permissions:
+  contents: read
 
 on:
   push:
     branches:
       - main
-  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04
-    env:
-      SANITIZE: address
-      BUILDTYPE: debugoptimized
-      MESON_EXTRA_OPTS: "-Ddpdk:platform=generic"
-      DEBIAN_FRONTEND: noninteractive
-      NEEDRESTART_MODE: l
-      CC: gcc-14
-    steps:
-      - name: install system dependencies
-        run: |
-          set -xe
-          sudo apt-get update -qy
-          sudo apt-get install -qy --no-install-recommends \
-            make gcc ninja-build meson git scdoc libibverbs-dev \
-            libasan8 libcmocka-dev libedit-dev libarchive-dev \
-            libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools
-      - uses: actions/checkout@v4
-      - run: make
-      - uses: actions/upload-artifact@v4
-        with:
-          name: debug-binaries
-          path: |
-            build/grout
-            build/grcli
-          retention-days: 5
-      - run: make unit-tests
-
-  smoke:
-    runs-on: ubuntu-24.04
-    needs: build
-    env:
-      DEBIAN_FRONTEND: noninteractive
-      NEEDRESTART_MODE: l
-    steps:
-      - name: install system dependencies
-        run: |
-          set -xe
-          sudo apt-get update -qy
-          sudo NEEDRESTART_MODE=l apt-get install -qy --no-install-recommends \
-            git socat tcpdump traceroute graphviz \
-            iproute2 iputils-ping libasan8 libedit2 \
-            libevent-2.1-7t64 libsmartcols1 libnuma1
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: debug-binaries
-          path: build
-          merge-multiple: true
-      - run: chmod -c a+x build/gr*
-      - run: sudo smoke/run.sh build
-
-  lint:
-    runs-on: ubuntu-latest
-    container: fedora:latest
-    env:
-      REVISION_RANGE: "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
-    steps:
-      - run: dnf install -y make clang-tools-extra git jq curl
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # force fetch all history
-      - run: git config --global --add safe.directory $PWD
-      - run: make lint
-      - run: make check-patches
-        if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
+  check:
+    uses: ./.github/workflows/check.yml
 
   deb:
-    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    runs-on: ubuntu-24.04
     container: "debian:stable"
-    if: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: install system dependencies
         run: |
@@ -99,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
+          persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: make deb
       - uses: actions/upload-artifact@v4
@@ -108,9 +47,10 @@ jobs:
           retention-days: 5
 
   rpm:
-    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    runs-on: ubuntu-24.04
     container: "quay.io/centos/centos:stream9"
-    if: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: install system dependencies
         run: |
@@ -125,6 +65,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
+          persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: make rpm
       - uses: actions/upload-artifact@v4
@@ -133,17 +74,20 @@ jobs:
           path: grout*.rpm
           retention-days: 5
 
-  publish:
-    runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' }}
+  upload:
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
     needs:
       - deb
       - rpm
       - smoke
       - lint
-    permissions: write-all
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: "*-packages"
