@@ -80,10 +80,9 @@ jobs:
       contents: write
     runs-on: ubuntu-24.04
     needs:
+      - check
       - deb
       - rpm
-      - smoke
-      - lint
     steps:
       - uses: actions/checkout@v4
         with:
