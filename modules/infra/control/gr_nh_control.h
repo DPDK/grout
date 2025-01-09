@@ -95,7 +95,8 @@ struct hoplist {
 	struct nexthop *nh[HOPLIST_MAX_SIZE];
 };
 
-struct nexthop *nexthop_lookup(struct nh_pool *, uint16_t vrf_id, const void *addr);
+struct nexthop *
+nexthop_lookup(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 struct nexthop *nexthop_new(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
 void nexthop_incref(struct nexthop *);

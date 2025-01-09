@@ -33,30 +33,33 @@ ip6_nexthop_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *
 	return nexthop_new(nh_pool, vrf_id, iface_id, ip);
 }
 
-struct nexthop *ip6_nexthop_lookup(uint16_t vrf_id, const struct rte_ipv6_addr *ip) {
-	return nexthop_lookup(nh_pool, vrf_id, ip);
+struct nexthop *
+ip6_nexthop_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
+	return nexthop_lookup(nh_pool, vrf_id, iface_id, ip);
 }
 
 static control_input_t ip6_output_node;
 
 void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-	struct rte_ipv6_addr dst = ip->dst_addr;
+	const struct rte_ipv6_addr *dst = &ip->dst_addr;
 	struct nexthop *nh;
 
-	nh = ip6_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, &dst);
+	nh = ip6_route_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
 
-	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&dst, &nh->ipv6)) {
+	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
-		struct nexthop *remote = ip6_nexthop_lookup(nh->vrf_id, &ip->dst_addr);
+		struct nexthop *remote = ip6_nexthop_lookup(
+			nh->vrf_id, mbuf_data(m)->iface->id, dst
+		);
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, &ip->dst_addr);
+			remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, dst);
 		} else if (remote->flags & GR_NH_F_GATEWAY && remote->iface_id == 0) {
 			// Gateway route with uninitialized destination.
 			// Now, we can at least know what is the output interface.
@@ -72,7 +75,8 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /128 route so that next packets take it
 		// in priority with a single route lookup.
-		if (ip6_route_insert(nh->vrf_id, &ip->dst_addr, RTE_IPV6_MAX_DEPTH, remote) < 0) {
+		if (ip6_route_insert(nh->vrf_id, nh->iface_id, dst, RTE_IPV6_MAX_DEPTH, remote)
+		    < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
@@ -116,7 +120,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	const struct iface *iface = mbuf_data(m)->iface;
 	const struct icmp6_neigh_solicit *ns;
 	const struct icmp6_neigh_advert *na;
-	struct rte_ipv6_addr target;
+	const struct rte_ipv6_addr *target;
 	struct rte_ether_addr mac;
 	struct nexthop *nh;
 	bool lladdr_found;
@@ -126,14 +130,14 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		ns = PAYLOAD(icmp6);
 		// HACK: the target IP contains the *SOURCE* address of the NS sender. It was
 		// replaced in ndp_ns_input_process to avoid copying the whole IPv6 header.
-		target = ns->target;
+		target = &ns->target;
 		lladdr_found = icmp6_get_opt(
 			m, sizeof(*icmp6) + sizeof(*ns), ICMP6_OPT_SRC_LLADDR, &mac
 		);
 		break;
 	case ICMP6_TYPE_NEIGH_ADVERT:
 		na = PAYLOAD(icmp6);
-		target = na->target;
+		target = &na->target;
 		lladdr_found = icmp6_get_opt(
 			m, sizeof(*icmp6) + sizeof(*na), ICMP6_OPT_TARGET_LLADDR, &mac
 		);
@@ -144,18 +148,20 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (!lladdr_found)
 		goto free;
 
-	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
+	nh = ip6_nexthop_lookup(iface->vrf_id, iface->id, target);
 	if (nh == NULL) {
 		// We don't have an entry for the probe sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address, they
 		// will certainly contact us soon and it will save us an NDP solicitation.
-		if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, &target)) == NULL) {
+		if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, target)) == NULL) {
 			LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
 			goto free;
 		}
+
 		// Add an internal /128 route to reference the newly created nexthop.
-		if (ip6_route_insert(iface->vrf_id, &target, RTE_IPV6_MAX_DEPTH, nh) < 0) {
+		if (ip6_route_insert(iface->vrf_id, iface->id, target, RTE_IPV6_MAX_DEPTH, nh)
+		    < 0) {
 			LOG(ERR, "ip6_route_insert: %s", strerror(errno));
 			goto free;
 		}
@@ -206,7 +212,7 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip6_nexthop_lookup(req->nh.vrf_id, &req->nh.ipv6)) != NULL) {
+	if ((nh = ip6_nexthop_lookup(req->nh.vrf_id, req->nh.iface_id, &req->nh.ipv6)) != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && rte_is_same_ether_addr(&req->nh.mac, &nh->lladdr))
 			return api_out(0, 0);
@@ -218,7 +224,7 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 
 	nh->lladdr = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = ip6_route_insert(nh->vrf_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh);
+	ret = ip6_route_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh);
 
 	return api_out(-ret, 0);
 }
@@ -230,7 +236,7 @@ static struct api_out nh6_del(const void *request, void ** /*response*/) {
 	if (req->vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
-	if ((nh = ip6_nexthop_lookup(req->vrf_id, &req->host)) == NULL) {
+	if ((nh = ip6_nexthop_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->host)) == NULL) {
 		if (errno == ENOENT && req->missing_ok)
 			return api_out(0, 0);
 		return api_out(errno, 0);
@@ -239,7 +245,7 @@ static struct api_out nh6_del(const void *request, void ** /*response*/) {
 		return api_out(EBUSY, 0);
 
 	// this also does ip6_nexthop_decref(), freeing the next hop
-	if (ip6_route_delete(req->vrf_id, &req->host, RTE_IPV6_MAX_DEPTH) < 0)
+	if (ip6_route_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->host, RTE_IPV6_MAX_DEPTH) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);

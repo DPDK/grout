@@ -80,7 +80,7 @@ static uint16_t ndp_na_input_process(
 		// There is no need to create an entry if none exists, since the
 		// recipient has apparently not initiated any communication with the
 		// target.
-		remote = ip6_nexthop_lookup(iface->vrf_id, &na->target);
+		remote = ip6_nexthop_lookup(iface->vrf_id, iface->id, &na->target);
 		ASSERT_NDP(remote != NULL);
 
 		lladdr_found = icmp6_get_opt(

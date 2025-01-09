@@ -90,8 +90,8 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 	if (i == ARRAY_DIM(maddrs->nh))
 		return errno_set(ENOSPC);
 
-	if ((nh = ip6_nexthop_lookup(iface->vrf_id, ip)) == NULL) {
-		if ((nh = ip6_nexthop_new(iface->vrf_id, GR_IFACE_ID_UNDEF, ip)) == NULL)
+	if ((nh = ip6_nexthop_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
+		if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, ip)) == NULL)
 			return errno_set(-errno);
 		rte_ether_mcast_from_ipv6(&nh->lladdr, ip);
 	}
@@ -155,7 +155,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (addrs->count == ARRAY_DIM(addrs->nh))
 		return errno_set(ENOSPC);
 
-	if (ip6_nexthop_lookup(iface->vrf_id, ip) != NULL)
+	if (ip6_nexthop_lookup(iface->vrf_id, iface->id, ip) != NULL)
 		return errno_set(EADDRINUSE);
 
 	if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, ip)) == NULL)
@@ -170,7 +170,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 			return errno_set(-ret);
 		}
 
-	if ((ret = ip6_route_insert(iface->vrf_id, &nh->ipv6, nh->prefixlen, nh)) < 0)
+	if ((ret = ip6_route_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, nh)) < 0)
 		return errno_set(-ret);
 
 	addrs->nh[addr_index] = nh;

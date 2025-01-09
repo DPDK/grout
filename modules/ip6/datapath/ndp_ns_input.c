@@ -80,7 +80,7 @@ static uint16_t ndp_ns_input_process(
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
-		local = ip6_nexthop_lookup(iface->vrf_id, &ns->target);
+		local = ip6_nexthop_lookup(iface->vrf_id, iface->id, &ns->target);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = IGNORE;
 			if (gr_mbuf_is_traced(mbuf))
@@ -109,7 +109,7 @@ static uint16_t ndp_ns_input_process(
 			// Otherwise, the node MUST set the Solicited flag to one and unicast the
 			// advertisement to the Source Address of the solicitation.
 			solicited = true;
-			remote = ip6_nexthop_lookup(iface->vrf_id, &src);
+			remote = ip6_nexthop_lookup(iface->vrf_id, iface->id, &src);
 
 			if (lladdr_found) {
 				// Copy the NS probe and send it to control plane for processing.
@@ -150,6 +150,7 @@ static uint16_t ndp_ns_input_process(
 		na->router = 1;
 		na->solicited = solicited;
 		na->target = local->ipv6;
+
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
@@ -166,7 +167,7 @@ static uint16_t ndp_ns_input_process(
 		// Fill IPv6 layer
 		payload_len = rte_pktmbuf_pkt_len(mbuf);
 		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ipv6, &src);
+		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &na->target, &src);
 		// Compute ICMP6 checksum with pseudo header
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
