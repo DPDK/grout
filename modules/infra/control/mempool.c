@@ -5,6 +5,8 @@
 #include <gr_mbuf.h>
 #include <gr_mempool.h>
 
+#include <stdlib.h>
+
 struct mempool_tracker {
 	struct rte_mempool *mp;
 	uint32_t reserved;
