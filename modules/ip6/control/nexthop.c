@@ -44,6 +44,7 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv6_addr dst = ip->dst_addr;
 	struct nexthop *nh;
 
+	ip6_addr_linklocal_scope(&dst, mbuf_data(m)->iface->id);
 	nh = ip6_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, &dst);
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
@@ -144,6 +145,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (!lladdr_found)
 		goto free;
 
+	ip6_addr_linklocal_scope(&target, iface->id);
 	nh = ip6_nexthop_lookup(iface->vrf_id, &target);
 	if (nh == NULL) {
 		// We don't have an entry for the probe sender address yet.
@@ -259,6 +261,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 		return;
 
 	api_nh.ipv6 = nh->ipv6;
+	ip6_addr_linklocal_unscope(&api_nh.ipv6);
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
 	api_nh.mac = nh->lladdr;
@@ -288,6 +291,8 @@ static struct api_out nh6_list(const void *request, void **response) {
 	resp->n_nhs = gr_vec_len(ctx.nh);
 	if (ctx.nh != NULL)
 		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
+	for (int i = 0; i < resp->n_nhs; i++)
+		ip6_addr_linklocal_unscope(&resp->nhs[i].ipv6);
 	gr_vec_free(ctx.nh);
 	*response = resp;
 

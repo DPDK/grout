@@ -74,6 +74,7 @@ static uint16_t ndp_ns_output_process(
 		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_append(mbuf, sizeof(*ns));
 		ns->__reserved = 0;
 		ns->target = nh->ipv6;
+		ip6_addr_linklocal_unscope(&ns->target);
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));

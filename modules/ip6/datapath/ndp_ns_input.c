@@ -31,6 +31,7 @@ static uint16_t ndp_ns_input_process(
 	uint16_t nb_objs
 ) {
 	const struct nexthop *local, *remote;
+	struct rte_ipv6_addr scoped_target;
 	struct icmp6_neigh_solicit *ns;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
@@ -80,9 +81,14 @@ static uint16_t ndp_ns_input_process(
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
-		local = ip6_nexthop_lookup(iface->vrf_id, &ns->target);
+		scoped_target = ns->target;
+		ip6_addr_linklocal_scope(&scoped_target, iface->id);
+
+		local = ip6_nexthop_lookup(iface->vrf_id, &scoped_target);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = IGNORE;
+			if (gr_mbuf_is_traced(mbuf))
+				gr_mbuf_trace_add(mbuf, node, 0);
 			goto next;
 		}
 
@@ -116,6 +122,8 @@ static uint16_t ndp_ns_input_process(
 				);
 				if (copy == NULL) {
 					next = ERROR;
+					if (gr_mbuf_is_traced(mbuf))
+						gr_mbuf_trace_add(mbuf, node, 0);
 					goto next;
 				}
 				if (gr_mbuf_is_traced(mbuf))
@@ -146,6 +154,8 @@ static uint16_t ndp_ns_input_process(
 		na->router = 1;
 		na->solicited = solicited;
 		na->target = local->ipv6;
+		ip6_addr_linklocal_unscope(&na->target);
+
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
@@ -162,7 +172,7 @@ static uint16_t ndp_ns_input_process(
 		// Fill IPv6 layer
 		payload_len = rte_pktmbuf_pkt_len(mbuf);
 		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ipv6, &src);
+		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &na->target, &src);
 		// Compute ICMP6 checksum with pseudo header
 		icmp6->cksum = 0;
 		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);

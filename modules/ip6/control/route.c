@@ -242,6 +242,7 @@ static struct api_out route6_get(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	resp->nh.ipv6 = nh->ipv6;
+	ip6_addr_linklocal_unscope(&resp->nh.ipv6);
 	resp->nh.iface_id = nh->iface_id;
 	resp->nh.mac = nh->lladdr;
 	resp->nh.flags = nh->flags;
@@ -293,6 +294,8 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
 		r->vrf_id = vrf_id;
+		ip6_addr_linklocal_unscope(&r->dest.ip);
+		ip6_addr_linklocal_unscope(&r->nh);
 	}
 	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
@@ -301,6 +304,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		memset(&r->dest, 0, sizeof(r->dest));
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
 		r->vrf_id = vrf_id;
+		ip6_addr_linklocal_unscope(&r->nh);
 	}
 }
 

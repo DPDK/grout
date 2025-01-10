@@ -181,6 +181,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_add_req *req = request;
 	struct rte_ipv6_addr solicited_node;
+	struct rte_ipv6_addr scoped_ip;
 	struct iface *iface;
 	int ret;
 
@@ -188,7 +189,10 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	if (iface == NULL)
 		return api_out(errno, 0);
 
-	if ((ret = iface6_addr_add(iface, &req->addr.addr.ip, req->addr.addr.prefixlen)) < 0)
+	scoped_ip = req->addr.addr.ip;
+	ip6_addr_linklocal_scope(&scoped_ip, iface->id);
+
+	if ((ret = iface6_addr_add(iface, &scoped_ip, req->addr.addr.prefixlen)) < 0)
 		if (ret != -EEXIST || !req->exist_ok)
 			return api_out(-ret, 0);
 
@@ -205,6 +209,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_addr_del_req *req = request;
 	struct rte_ipv6_addr solicited_node;
+	struct rte_ipv6_addr scoped_ip;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i;
@@ -212,8 +217,11 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	if ((addrs = ip6_addr_get_all(req->addr.iface_id)) == NULL)
 		return api_out(errno, 0);
 
+	scoped_ip = req->addr.addr.ip;
+	ip6_addr_linklocal_scope(&scoped_ip, req->addr.iface_id);
+
 	for (i = 0; i < addrs->count; i++) {
-		if (rte_ipv6_addr_eq(&addrs->nh[i]->ipv6, &req->addr.addr.ip)
+		if (rte_ipv6_addr_eq(&addrs->nh[i]->ipv6, &scoped_ip)
 		    && addrs->nh[i]->prefixlen == req->addr.addr.prefixlen) {
 			nh = addrs->nh[i];
 			break;
@@ -271,6 +279,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 			const struct nexthop *nh = addrs->nh[i];
 			addr = &resp->addrs[resp->n_addrs++];
 			addr->addr.ip = nh->ipv6;
+			ip6_addr_linklocal_unscope(&addr->addr.ip);
 			addr->addr.prefixlen = nh->prefixlen;
 			addr->iface_id = nh->iface_id;
 		}
@@ -298,11 +307,7 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 	case IFACE_EVENT_POST_ADD:
 		if (iface_get_eth_addr(iface->id, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
-			// Avoid address conflicts with VLAN interfaces (same mac address)
-			// Maybe we should do better than this and fallback on a pseudo random
-			// algorithm (such as SLAAC, RFC 7217).
-			link_local.a[11] = (iface->id >> 8) & 0xff;
-			link_local.a[12] = iface->id & 0xff;
+			ip6_addr_linklocal_scope(&link_local, iface->id);
 			if (iface6_addr_add(iface, &link_local, RTE_IPV6_MAX_DEPTH) < 0)
 				errno_log(errno, "iface_addr_add");
 

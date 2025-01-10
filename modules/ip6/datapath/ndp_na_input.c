@@ -80,6 +80,7 @@ static uint16_t ndp_na_input_process(
 		// There is no need to create an entry if none exists, since the
 		// recipient has apparently not initiated any communication with the
 		// target.
+		ip6_addr_linklocal_scope(&na->target, iface->id);
 		remote = ip6_nexthop_lookup(iface->vrf_id, &na->target);
 		ASSERT_NDP(remote != NULL);
 
