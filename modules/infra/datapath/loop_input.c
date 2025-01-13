@@ -50,14 +50,13 @@ static uint16_t loopback_input_process(
 		}
 
 		pi = rte_pktmbuf_mtod(mbuf, struct tun_pi *);
-		rte_pktmbuf_adj(mbuf, sizeof(*pi));
 
 		if (pi->proto == RTE_BE16(RTE_ETHER_TYPE_IPV4)) {
 			struct ip_output_mbuf_data *d;
 			struct rte_ipv4_hdr *ip;
 
 			d = ip_output_mbuf_data(mbuf);
-			ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+			ip = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv4_hdr *, sizeof(*pi));
 			nh = ip4_route_lookup(d->iface->vrf_id, ip->dst_addr);
 			if (nh == NULL) {
 				edge = IP_NO_ROUTE;
@@ -75,7 +74,7 @@ static uint16_t loopback_input_process(
 			struct rte_ipv6_hdr *ip;
 
 			d = ip6_output_mbuf_data(mbuf);
-			ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
+			ip = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv6_hdr *, sizeof(*pi));
 			nh = ip6_route_lookup(d->iface->vrf_id, &ip->dst_addr);
 
 			if (nh == NULL) {
@@ -93,6 +92,7 @@ static uint16_t loopback_input_process(
 		} else {
 			edge = BAD_PROTO;
 		}
+		rte_pktmbuf_adj(mbuf, sizeof(*pi));
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 	return nb_objs;
