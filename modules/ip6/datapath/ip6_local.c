@@ -36,6 +36,7 @@ static uint16_t ip6_input_local_process(
 	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *m;
+	size_t l3_hdr_size;
 	rte_edge_t edge;
 	uint16_t i;
 
@@ -52,17 +53,22 @@ static uint16_t ip6_input_local_process(
 		d->hop_limit = ip->hop_limits;
 		d->proto = ip->proto;
 		d->iface = iface;
-		rte_pktmbuf_adj(m, sizeof(*ip));
+		l3_hdr_size = sizeof(*ip);
 
 		// strip IPv6 extension headers
-		while (rte_pktmbuf_pkt_len(m) > 0) {
+		while (true) {
 			size_t ext_size = 0;
-			int next_proto = rte_ipv6_get_next_ext(
-				rte_pktmbuf_mtod(m, uint8_t *), d->proto, &ext_size
-			);
+			const uint8_t *ext;
+			int next_proto;
+			uint8_t _ext[4];
+
+			ext = rte_pktmbuf_read(m, l3_hdr_size, sizeof(&_ext), &_ext);
+			if (ext == NULL)
+				break;
+			next_proto = rte_ipv6_get_next_ext(ext, d->proto, &ext_size);
 			if (next_proto < 0)
 				break;
-			rte_pktmbuf_adj(m, ext_size);
+			l3_hdr_size += ext_size;
 			d->len -= ext_size;
 			d->proto = next_proto;
 		};
@@ -75,7 +81,9 @@ static uint16_t ip6_input_local_process(
 		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
 		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
 		case RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN:
-			if (rte_ipv6_udptcp_cksum_verify(ip, rte_pktmbuf_mtod(m, void *)))
+			if (rte_ipv6_udptcp_cksum_verify(
+				    ip, rte_pktmbuf_mtod_offset(m, void *, l3_hdr_size)
+			    ))
 				edge = BAD_CHECKSUM;
 			break;
 		case RTE_MBUF_F_RX_L4_CKSUM_BAD:
@@ -86,6 +94,7 @@ next:
 		if (gr_mbuf_is_traced(m))
 			gr_mbuf_trace_add(m, node, 0);
 
+		rte_pktmbuf_adj(m, l3_hdr_size);
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
