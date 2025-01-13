@@ -40,6 +40,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_vlan_hdr *vlan;
 	rte_be16_t eth_type;
 	struct rte_mbuf *m;
+	size_t l2_hdr_size;
 	rte_edge_t edge;
 
 	iface = NULL;
@@ -52,15 +53,15 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		eth_in = eth_input_mbuf_data(m);
 		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-		rte_pktmbuf_adj(m, sizeof(*eth));
+		l2_hdr_size = sizeof(*eth);
 		eth_type = eth->ether_type;
 		vlan_id = 0;
 
 		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 			vlan_id = m->vlan_tci & 0xfff;
 		} else if (eth_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
-			vlan = rte_pktmbuf_mtod(m, struct rte_vlan_hdr *);
-			rte_pktmbuf_adj(m, sizeof(*vlan));
+			vlan = rte_pktmbuf_mtod_offset(m, struct rte_vlan_hdr *, l2_hdr_size);
+			l2_hdr_size += sizeof(*vlan);
 			vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
 			eth_type = vlan->eth_proto;
 		}
@@ -105,6 +106,7 @@ next:
 			t->vlan_id = vlan_id;
 			t->iface_id = eth_in->iface->id;
 		}
+		rte_pktmbuf_adj(m, l2_hdr_size);
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 	return nb_objs;
