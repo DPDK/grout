@@ -28,9 +28,9 @@ done
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 ping6 -i0.01 -c3 fe80::d2f0:c00:1ba:a411
-ip netns exec $p2 ping6 -i0.01 -c3 fe80::d2f0:c00:1ba:a412
-ip netns exec $p1 ping6 -i0.01 -c3 fe80::d2f0:c00:1ba:a411 && fail "Unexpected answer from foreign link local address"
+ip netns exec $p1 ping6 -i0.01 -c3 fe80::d2f0:cff:feba:a411
+ip netns exec $p2 ping6 -i0.01 -c3 fe80::d2f0:cff:feba:a412
+ip netns exec $p1 ping6 -i0.01 -c3 fe80::d2f0:cff:feba:a412 && fail "Unexpected answer from foreign link local address"
 ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:2::2
 ip netns exec $p2 ping6 -i0.01 -c3 fd00:ba4:1::2
 ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:1::1
