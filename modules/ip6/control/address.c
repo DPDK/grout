@@ -298,12 +298,7 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 	case IFACE_EVENT_POST_ADD:
 		if (iface_get_eth_addr(iface->id, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
-			// Avoid address conflicts with VLAN interfaces (same mac address)
-			// Maybe we should do better than this and fallback on a pseudo random
-			// algorithm (such as SLAAC, RFC 7217).
-			link_local.a[11] = (iface->id >> 8) & 0xff;
-			link_local.a[12] = iface->id & 0xff;
-			if (iface6_addr_add(iface, &link_local, RTE_IPV6_MAX_DEPTH) < 0)
+			if (iface6_addr_add(iface, &link_local, 64) < 0)
 				errno_log(errno, "iface_addr_add");
 
 			rte_ipv6_solnode_from_addr(&solicited_node, &link_local);
