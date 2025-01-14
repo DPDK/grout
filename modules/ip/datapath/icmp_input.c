@@ -33,14 +33,16 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct rte_icmp_hdr *icmp;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
+	uint16_t cksum;
 	ip4_addr_t ip;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		icmp = rte_pktmbuf_mtod(mbuf, struct rte_icmp_hdr *);
 		ip_data = ip_local_mbuf_data(mbuf);
+		cksum = ~rte_raw_cksum(icmp, ip_data->len);
 
-		if (ip_data->len < ICMP_MIN_SIZE || (uint16_t)~rte_raw_cksum(icmp, ip_data->len)) {
+		if (ip_data->len < ICMP_MIN_SIZE || cksum) {
 			edge = INVALID;
 			goto next;
 		}
