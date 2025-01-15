@@ -6,6 +6,7 @@
 #include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
+#include <gr_loopback.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -19,6 +20,7 @@
 
 enum edges {
 	FORWARD = 0,
+	OUTPUT,
 	LOCAL,
 	DEST_UNREACH,
 	NOT_MEMBER,
@@ -82,6 +84,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 
 		switch (e->domain) {
+		case ETH_DOMAIN_LOOPBACK:
 		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
 			break;
@@ -107,6 +110,8 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// send to ip6_local.
 		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
 			edge = LOCAL;
+		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+			edge = OUTPUT;
 		else
 			edge = FORWARD;
 
@@ -125,6 +130,7 @@ next:
 
 static void ip6_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
+	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
 }
 
 static struct rte_node_register input_node = {
@@ -135,6 +141,7 @@ static struct rte_node_register input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[FORWARD] = "ip6_forward",
+		[OUTPUT] = "ip6_output",
 		[LOCAL] = "ip6_input_local",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
 		[NOT_MEMBER] = "ip6_input_not_member",

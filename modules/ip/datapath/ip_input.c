@@ -6,6 +6,7 @@
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
+#include <gr_loopback.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -19,6 +20,7 @@
 
 enum edges {
 	FORWARD = 0,
+	OUTPUT,
 	LOCAL,
 	NO_ROUTE,
 	BAD_CHECKSUM,
@@ -84,6 +86,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		switch (e->domain) {
+		case ETH_DOMAIN_LOOPBACK:
 		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
 			break;
@@ -109,6 +112,8 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		// send to ip_local.
 		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
 			edge = LOCAL;
+		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+			edge = OUTPUT;
 		else
 			edge = FORWARD;
 next:
@@ -127,6 +132,7 @@ next:
 
 static void ip_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
+	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
 }
 
 static struct rte_node_register input_node = {
@@ -137,6 +143,7 @@ static struct rte_node_register input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[FORWARD] = "ip_forward",
+		[OUTPUT] = "ip_output",
 		[LOCAL] = "ip_input_local",
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",

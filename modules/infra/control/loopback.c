@@ -140,10 +140,10 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	// the information we need instead.
 	mbuf->packet_type = data[0] == 6 ? RTE_PTYPE_L3_IPV6 : RTE_PTYPE_L3_IPV4;
 
-	// Emulate ethernet input, required by ip(6)_input
+	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
 	e->iface = iface;
-	e->domain = ETH_DOMAIN_LOCAL;
+	e->domain = ETH_DOMAIN_LOOPBACK;
 
 	post_to_stack(loopback_get_control_id(), mbuf);
 	return;
