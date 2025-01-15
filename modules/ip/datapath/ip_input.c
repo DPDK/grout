@@ -83,17 +83,17 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		switch (e->eth_dst) {
-		case ETH_DST_LOCAL:
+		switch (e->domain) {
+		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
 			break;
-		case ETH_DST_BROADCAST:
-		case ETH_DST_MULTICAST:
+		case ETH_DOMAIN_BROADCAST:
+		case ETH_DOMAIN_MULTICAST:
 			// Non unicast ethernet destination. No need for a route lookup.
 			edge = LOCAL;
 			goto next;
-		case ETH_DST_OTHER:
-		default:
+		case ETH_DOMAIN_OTHER:
+		case ETH_DOMAIN_UNKNOWN:
 			// Drop all packets not sent to our ethernet address
 			edge = OTHER_HOST;
 			goto next;

@@ -12,14 +12,14 @@
 #include <rte_graph.h>
 
 typedef enum {
-	ETH_DST_UNKNOWN = 0,
-	ETH_DST_LOCAL, // destination is the input interface mac
-	ETH_DST_BROADCAST, // destination is ff:ff:ff:ff:ff:ff
-	ETH_DST_MULTICAST, // destination is a multicast ethernet address
-	ETH_DST_OTHER, // destination is *not* the input interface mac
-} eth_dst_type_t;
+	ETH_DOMAIN_UNKNOWN = 0,
+	ETH_DOMAIN_LOCAL, // destination is the input interface mac
+	ETH_DOMAIN_BROADCAST, // destination is ff:ff:ff:ff:ff:ff
+	ETH_DOMAIN_MULTICAST, // destination is a multicast ethernet address
+	ETH_DOMAIN_OTHER, // destination is *not* the input interface mac
+} eth_domain_t;
 
-GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { eth_dst_type_t eth_dst; })
+GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { eth_domain_t domain; })
 
 GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
 	struct rte_ether_addr dst;
