@@ -4,9 +4,10 @@
 #include <gr.h>
 #include <gr_control_input.h>
 #include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_datapath.h>
+#include <gr_iface.h>
+#include <gr_log.h>
 #include <gr_loopback.h>
+#include <gr_mbuf.h>
 #include <gr_trace.h>
 
 #include <rte_graph_worker.h>
@@ -20,15 +21,19 @@ control_input_t loopback_get_control_id(void) {
 }
 
 enum {
-	IP_LOCAL,
-	IP_OUTPUT,
-	IP6_LOCAL,
-	IP6_OUTPUT,
-	IP_NO_ROUTE,
-	IP6_NO_ROUTE,
-	BAD_PROTO,
+	UNKNOWN_PROTO = 0,
 	EDGE_COUNT,
 };
+
+static rte_edge_t l3_edges[1 << 16] = {UNKNOWN_PROTO};
+
+void loopback_input_add_type(rte_be16_t eth_type, const char *next_node) {
+	LOG(DEBUG, "loopback_input: type=0x%04x -> %s", rte_be_to_cpu_16(eth_type), next_node);
+	if (l3_edges[eth_type] != UNKNOWN_PROTO)
+		ABORT("next node already registered for ether type=0x%04x",
+		      rte_be_to_cpu_16(eth_type));
+	l3_edges[eth_type] = gr_node_attach_parent("loopback_input", next_node);
+}
 
 static uint16_t loopback_input_process(
 	struct rte_graph *graph,
@@ -37,8 +42,7 @@ static uint16_t loopback_input_process(
 	uint16_t nb_objs
 ) {
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
-	struct tun_pi *pi;
+	rte_be16_t eth_type;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -49,50 +53,9 @@ static uint16_t loopback_input_process(
 			gr_mbuf_trace_add(mbuf, node, 0);
 		}
 
-		pi = rte_pktmbuf_mtod(mbuf, struct tun_pi *);
-
-		if (pi->proto == RTE_BE16(RTE_ETHER_TYPE_IPV4)) {
-			struct ip_output_mbuf_data *d;
-			struct rte_ipv4_hdr *ip;
-
-			d = ip_output_mbuf_data(mbuf);
-			ip = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv4_hdr *, sizeof(*pi));
-			nh = ip4_route_lookup(d->iface->vrf_id, ip->dst_addr);
-			if (nh == NULL) {
-				edge = IP_NO_ROUTE;
-			} else {
-				d->nh = nh;
-				// If the resolved next hop is local and the destination IP is
-				// ourselves, send to ip_local.
-				if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
-					edge = IP_LOCAL;
-				else
-					edge = IP_OUTPUT;
-			}
-		} else if (pi->proto == RTE_BE16(RTE_ETHER_TYPE_IPV6)) {
-			struct ip6_output_mbuf_data *d;
-			struct rte_ipv6_hdr *ip;
-
-			d = ip6_output_mbuf_data(mbuf);
-			ip = rte_pktmbuf_mtod_offset(mbuf, struct rte_ipv6_hdr *, sizeof(*pi));
-			nh = ip6_route_lookup(d->iface->vrf_id, d->iface->id, &ip->dst_addr);
-
-			if (nh == NULL) {
-				edge = IP6_NO_ROUTE;
-			} else {
-				d->nh = nh;
-				// If the resolved next hop is local and the destination IP is
-				// ourselves, send to ip6_local.
-				if (nh->flags & GR_NH_F_LOCAL
-				    && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
-					edge = IP6_LOCAL;
-				else
-					edge = IP6_OUTPUT;
-			}
-		} else {
-			edge = BAD_PROTO;
-		}
-		rte_pktmbuf_adj(mbuf, sizeof(*pi));
+		eth_type = rte_pktmbuf_mtod(mbuf, struct tun_pi *)->proto;
+		rte_pktmbuf_adj(mbuf, sizeof(struct tun_pi));
+		edge = l3_edges[eth_type];
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 	return nb_objs;
@@ -103,13 +66,7 @@ static struct rte_node_register loopback_input_node = {
 	.process = loopback_input_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[IP_LOCAL] = "ip_input_local",
-		[IP_OUTPUT] = "ip_output",
-		[IP6_LOCAL] = "ip6_input_local",
-		[IP6_OUTPUT] = "ip6_output",
-		[IP_NO_ROUTE] = "ip_error_dest_unreach",
-		[IP6_NO_ROUTE] = "ip6_error_dest_unreach",
-		[BAD_PROTO] = "loopback_error_bad_proto",
+		[UNKNOWN_PROTO] = "loopback_unknown_proto",
 	},
 };
 
@@ -123,4 +80,4 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
-GR_DROP_REGISTER(loopback_error_bad_proto);
+GR_DROP_REGISTER(loopback_unknown_proto);
