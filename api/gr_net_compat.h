@@ -59,4 +59,12 @@ struct __attribute__((aligned(2))) rte_ether_addr {
 #define RTE_ICMP_CODE_REDIRECT_TOS_NET 2
 #define RTE_ICMP_CODE_REDIRECT_TOS_HOST 3
 
+/* ICMPv6 packet types */
+#define ICMP6_TYPE_ERR_DEST_UNREACH 1
+#define ICMP6_TYPE_ERR_PKT_TOO_BIG 2
+#define ICMP6_TYPE_ERR_TTL_EXCEEDED 3
+#define ICMP6_TYPE_ERR_PARAM_PROBLEM 4
+#define ICMP6_TYPE_ECHO_REQUEST 128
+#define ICMP6_TYPE_ECHO_REPLY 129
+
 #endif

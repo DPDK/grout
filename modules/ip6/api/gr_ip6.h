@@ -133,6 +133,7 @@ struct gr_ip6_addr_list_resp {
 };
 
 // router advertisement ////////////////////////////////////////////////////////
+
 #define GR_IP6_IFACE_RA_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0030)
 struct gr_ip6_ra_set_req {
 	uint16_t iface_id;
@@ -166,4 +167,36 @@ struct gr_ip6_ra_show_resp {
 	uint16_t n_ras;
 	struct gr_ip6_ra_conf ras[];
 };
+
+// icmpv6 ////////////////////////////////////////////////////////////////////////
+
+#define GR_IP6_ICMP6_SEND REQUEST_TYPE(GR_IP6_MODULE, 0x0041)
+
+struct gr_ip6_icmp_send_req {
+	struct rte_ipv6_addr addr;
+	uint16_t vrf;
+	uint16_t id;
+	uint16_t seq_num;
+	uint8_t ttl;
+};
+
+/* struct gr_ip6_icmp_send_resp { } */
+
+#define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
+
+struct gr_ip6_icmp_recv_req {
+	uint16_t id;
+	uint16_t seq_num;
+};
+
+struct gr_ip6_icmp_recv_resp {
+	uint8_t type;
+	uint8_t code;
+	uint8_t ttl;
+	uint16_t ident;
+	uint16_t seq_num;
+	struct rte_ipv6_addr src_addr;
+	clock_t response_time;
+};
+
 #endif

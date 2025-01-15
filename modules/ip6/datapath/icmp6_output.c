@@ -30,7 +30,6 @@ static uint16_t icmp6_output_process(
 ) {
 	struct ip6_output_mbuf_data *o;
 	struct ip6_local_mbuf_data *d;
-	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
 	struct nexthop *nh;
@@ -62,9 +61,8 @@ static uint16_t icmp6_output_process(
 			goto next;
 		}
 		o = ip6_output_mbuf_data(mbuf);
-		iface = d->iface;
 		o->nh = nh;
-		o->iface = iface;
+		o->iface = d->iface;
 		edge = OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);

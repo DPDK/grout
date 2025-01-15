@@ -18,6 +18,7 @@ typedef void (*control_output_cb_t)(struct rte_mbuf *);
 GR_MBUF_PRIV_DATA_TYPE(control_output_mbuf_data, {
 	control_output_cb_t callback;
 	clock_t timestamp;
+	uint8_t cb_data[GR_MBUF_PRIV_MAX_SIZE - 6 * sizeof(size_t)];
 });
 
 // Enqueue a packet from data plane to a control plane ring.

@@ -21,11 +21,14 @@ enum {
 	NEIGH_SOLICIT,
 	NEIGH_ADVERT,
 	ROUTER_SOLICIT,
+	CONTROL,
 	BAD_CHECKSUM,
 	INVALID,
 	UNSUPPORTED,
 	EDGE_COUNT,
 };
+
+static control_output_cb_t icmp6_cb[UINT8_MAX];
 
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -70,13 +73,31 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			break;
 		case ICMP6_TYPE_ROUTER_ADVERT:
 		default:
-			next = UNSUPPORTED;
+			if (icmp6_cb[icmp6->type] != NULL) {
+				struct control_output_mbuf_data *c;
+				c = control_output_mbuf_data(mbuf);
+				memmove(c->cb_data, d, sizeof(*d));
+				c->callback = icmp6_cb[icmp6->type];
+				c->timestamp = clock();
+				next = CONTROL;
+			} else {
+				next = UNSUPPORTED;
+			}
 		}
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
 	return nb_objs;
+}
+
+void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb) {
+	if (icmp6_type == ICMP6_TYPE_ECHO_REQUEST)
+		ABORT("cannot register callback for echo request");
+	if (icmp6_cb[icmp6_type])
+		ABORT("callback already registered for %d", icmp6_type);
+
+	icmp6_cb[icmp6_type] = cb;
 }
 
 static void icmp6_input_register(void) {
@@ -94,6 +115,7 @@ static struct rte_node_register icmp6_input_node = {
 		[NEIGH_SOLICIT] = "ndp_ns_input",
 		[NEIGH_ADVERT] = "ndp_na_input",
 		[ROUTER_SOLICIT] = "ndp_rs_input",
+		[CONTROL] = "control_output",
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
 		[UNSUPPORTED] = "icmp6_input_unsupported",
