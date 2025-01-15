@@ -88,13 +88,13 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 		if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
 			if (rte_is_broadcast_ether_addr(&eth->dst_addr))
-				eth_in->eth_dst = ETH_DST_BROADCAST;
+				eth_in->domain = ETH_DOMAIN_BROADCAST;
 			else
-				eth_in->eth_dst = ETH_DST_MULTICAST;
+				eth_in->domain = ETH_DOMAIN_MULTICAST;
 		} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
-			eth_in->eth_dst = ETH_DST_LOCAL;
+			eth_in->domain = ETH_DOMAIN_LOCAL;
 		} else {
-			eth_in->eth_dst = ETH_DST_OTHER;
+			eth_in->domain = ETH_DOMAIN_OTHER;
 		}
 next:
 		if (gr_mbuf_is_traced(m)

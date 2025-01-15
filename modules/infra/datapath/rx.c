@@ -59,7 +59,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 		for (r = count; r < count + rx; r++) {
 			d = eth_input_mbuf_data(node->objs[r]);
 			d->iface = iface;
-			d->eth_dst = ETH_DST_UNKNOWN;
+			d->domain = ETH_DOMAIN_UNKNOWN;
 		}
 		if (unlikely(iface && iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct rxtx_trace_data *t;

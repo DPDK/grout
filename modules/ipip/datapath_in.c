@@ -66,7 +66,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
 		eth_data = eth_input_mbuf_data(mbuf);
 		eth_data->iface = ipip;
-		eth_data->eth_dst = ETH_DST_LOCAL;
+		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
