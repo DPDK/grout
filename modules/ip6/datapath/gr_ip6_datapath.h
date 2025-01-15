@@ -4,6 +4,7 @@
 #ifndef _GR_IP6_DATAPATH_H
 #define _GR_IP6_DATAPATH_H
 
+#include <gr_control_output.h>
 #include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6_control.h>
@@ -55,5 +56,15 @@ void ndp_update_nexthop(
 	const struct iface *iface,
 	const struct rte_ether_addr *mac
 );
+
+int icmp6_local_send(
+	const struct rte_ipv6_addr *dst,
+	const struct nexthop *gw,
+	uint16_t ident,
+	uint16_t seq_num,
+	uint8_t hop_limit
+);
+
+void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb);
 
 #endif

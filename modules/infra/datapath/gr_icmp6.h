@@ -31,6 +31,8 @@ typedef enum {
 	_ICMP6_TYPE_MAX = UINT8_C(0xff),
 } __rte_packed icmp6_type_t;
 
+#define GR_ICMP6_HDR_LEN 8
+
 // ICMP6 preamble
 struct icmp6 {
 	icmp6_type_t type;
