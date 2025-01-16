@@ -14,12 +14,12 @@
 
 static struct api_out graph_dump(const void *request, void **response) {
 	const struct gr_infra_graph_dump_req *req = request;
+	char *buf = NULL, *copy, *line, *prev_line, *eol;
 	struct gr_infra_graph_dump_resp *resp;
 	size_t buf_len = 0, resp_len = 0;
 	const char *graph_name;
 	struct worker *worker;
 	FILE *stream = NULL;
-	char *buf = NULL;
 	int ret = 0;
 
 	if (req->flags & ~GR_INFRA_GRAPH_DUMP_F_ERRORS)
@@ -48,27 +48,27 @@ found:
 		goto end;
 	}
 
-	if (!(req->flags & GR_INFRA_GRAPH_DUMP_F_ERRORS)) {
-		char *copy = resp->dot;
-		char *line = buf;
-		char *eol;
+	copy = resp->dot;
+	prev_line = NULL;
+	line = buf;
 
-		while ((eol = strchr(line, '\n')) != NULL) {
-			*eol = '\0';
-			// Remove sink nodes from the output. They all have a "darkorange" color.
-			// Also remove non-sink nodes that contain "error" in their name.
-			if (!strstr(line, "darkorange") && !strstr(line, "error")) {
-				*eol = '\n'; // restore newline char
-				copy = memccpy(copy, line, '\n', eol - line + 1);
-			}
-			line = eol + 1;
+	while ((eol = strchr(line, '\n')) != NULL) {
+		*eol = '\0';
+		// Remove sink nodes from the output. They all have a "darkorange" color.
+		// Also remove non-sink nodes that contain "error" in their name.
+		bool is_err = strstr(line, "darkorange") || strstr(line, "error");
+		// Remove duplicate lines.
+		bool is_dup = prev_line != NULL && strncmp(line, prev_line, strlen(line)) == 0;
+		if (!is_dup && (req->flags & GR_INFRA_GRAPH_DUMP_F_ERRORS || !is_err)) {
+			*eol = '\n'; // restore newline char
+			copy = memccpy(copy, line, '\n', eol - line + 1);
 		}
-		buf_len = copy - resp->dot;
-	} else {
-		memccpy(resp->dot, buf, 0, buf_len);
+		prev_line = line;
+		line = eol + 1;
 	}
 
-	resp->len = buf_len;
+	resp->len = copy - resp->dot;
+	resp_len = sizeof(*resp) + resp->len;
 	*response = resp;
 end:
 	fclose(stream);
