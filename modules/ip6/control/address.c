@@ -9,6 +9,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -34,7 +35,7 @@ struct hoplist *ip6_addr_get_all(uint16_t iface_id) {
 		return errno_set_null(ENODEV);
 
 	addrs = &iface_addrs[iface_id];
-	if (addrs->count == 0)
+	if (gr_vec_len(addrs->nh) == 0)
 		return errno_set_null(ENOENT);
 
 	return addrs;
@@ -42,13 +43,12 @@ struct hoplist *ip6_addr_get_all(uint16_t iface_id) {
 
 struct nexthop *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
 	struct hoplist *addrs = ip6_addr_get_all(iface_id);
-	struct nexthop *pref = NULL;
+	struct nexthop *pref = NULL, *nh;
 
 	if (addrs == NULL)
 		return NULL;
 
-	for (unsigned i = 0; i < addrs->count; i++) {
-		struct nexthop *nh = addrs->nh[i];
+	gr_vec_foreach (nh, addrs->nh) {
 		if (rte_ipv6_addr_eq_prefix(dst, &nh->ipv6, nh->prefixlen))
 			return nh;
 		if (pref == NULL && !rte_ipv6_addr_is_linklocal(&nh->ipv6))
@@ -62,13 +62,13 @@ static struct hoplist *iface_mcast_addrs;
 
 struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast) {
 	struct hoplist *maddrs;
+	struct nexthop *nh;
 
 	if (iface_id >= MAX_IFACES)
 		return NULL;
 
 	maddrs = &iface_mcast_addrs[iface_id];
-	for (unsigned i = 0; i < maddrs->count; i++) {
-		struct nexthop *nh = maddrs->nh[i];
+	gr_vec_foreach (nh, maddrs->nh) {
 		if (rte_ipv6_addr_eq(&nh->ipv6, mcast))
 			return nh;
 	}
@@ -78,17 +78,14 @@ struct nexthop *ip6_mcast_get_member(uint16_t iface_id, const struct rte_ipv6_ad
 
 static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *ip) {
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
-	struct nexthop *nh = NULL;
-	unsigned i;
+	struct nexthop *nh;
 
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
-	for (i = 0; i < maddrs->count; i++)
-		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ipv6, ip))
+	gr_vec_foreach (nh, maddrs->nh) {
+		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
 			return errno_set(EEXIST);
-
-	if (i == ARRAY_DIM(maddrs->nh))
-		return errno_set(ENOSPC);
+	}
 
 	if ((nh = ip6_nexthop_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
 		if ((nh = ip6_nexthop_new(iface->vrf_id, iface->id, ip)) == NULL)
@@ -98,8 +95,7 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 
 	nexthop_incref(nh);
 	nh->flags = GR_NH_F_REACHABLE | GR_NH_F_STATIC | GR_NH_F_MCAST;
-	maddrs->nh[i] = nh;
-	maddrs->count++;
+	gr_vec_add(maddrs->nh, nh);
 
 	// add ethernet filter
 	return iface_add_eth_addr(iface->id, &nh->lladdr);
@@ -108,24 +104,22 @@ static int ip6_mcast_addr_add(struct iface *iface, const struct rte_ipv6_addr *i
 static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *ip) {
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
-	unsigned i;
+	unsigned i = 0;
 	int ret;
 
 	LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
 
-	for (i = 0; i < maddrs->count; i++) {
-		if (rte_ipv6_addr_eq(&maddrs->nh[i]->ipv6, ip)) {
-			nh = maddrs->nh[i];
+	gr_vec_foreach (nh, maddrs->nh) {
+		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
 			break;
-		}
+		nh = NULL;
+		i++;
 	}
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
 	// shift remaining addresses
-	for (; i < maddrs->count - 1; i++)
-		maddrs->nh[i] = maddrs->nh[i + 1];
-	maddrs->count--;
+	gr_vec_del(maddrs->nh, i);
 
 	// remove ethernet filter
 	ret = iface_del_eth_addr(iface->id, &nh->lladdr);
@@ -137,7 +131,6 @@ static int ip6_mcast_addr_del(struct iface *iface, const struct rte_ipv6_addr *i
 static int
 iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct hoplist *addrs;
-	unsigned addr_index;
 	struct nexthop *nh;
 	int ret;
 
@@ -146,14 +139,10 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	addrs = &iface_addrs[iface->id];
 
-	for (addr_index = 0; addr_index < addrs->count; addr_index++) {
-		nh = addrs->nh[addr_index];
+	gr_vec_foreach (nh, addrs->nh) {
 		if (prefixlen == nh->prefixlen && rte_ipv6_addr_eq(&nh->ipv6, ip))
 			return errno_set(EEXIST);
 	}
-
-	if (addrs->count == ARRAY_DIM(addrs->nh))
-		return errno_set(ENOSPC);
 
 	if (ip6_nexthop_lookup(iface->vrf_id, iface->id, ip) != NULL)
 		return errno_set(EADDRINUSE);
@@ -173,8 +162,8 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if ((ret = ip6_route_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, nh)) < 0)
 		return errno_set(-ret);
 
-	addrs->nh[addr_index] = nh;
-	addrs->count++;
+	gr_vec_add(addrs->nh, nh);
+
 	return 0;
 }
 
@@ -207,17 +196,18 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
-	unsigned i;
+	unsigned i = 0;
 
 	if ((addrs = ip6_addr_get_all(req->addr.iface_id)) == NULL)
 		return api_out(errno, 0);
 
-	for (i = 0; i < addrs->count; i++) {
-		if (rte_ipv6_addr_eq(&addrs->nh[i]->ipv6, &req->addr.addr.ip)
-		    && addrs->nh[i]->prefixlen == req->addr.addr.prefixlen) {
-			nh = addrs->nh[i];
+	gr_vec_foreach (nh, addrs->nh) {
+		if (rte_ipv6_addr_eq(&nh->ipv6, &req->addr.addr.ip)
+		    && nh->prefixlen == req->addr.addr.prefixlen) {
 			break;
 		}
+		nh = NULL;
+		i++;
 	}
 	if (nh == NULL) {
 		if (req->missing_ok)
@@ -231,9 +221,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	ip6_route_cleanup(nh);
 
 	// shift the remaining addresses
-	for (; i < addrs->count - 1; i++)
-		addrs->nh[i] = addrs->nh[i + 1];
-	addrs->count--;
+	gr_vec_del(addrs->nh, i);
 
 	// leave the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
@@ -248,15 +236,17 @@ static struct api_out addr6_list(const void *request, void **response) {
 	struct gr_ip6_addr_list_resp *resp = NULL;
 	const struct hoplist *addrs;
 	struct gr_ip6_ifaddr *addr;
+	const struct nexthop *nh;
 	uint16_t iface_id, num;
 	size_t len;
 
 	num = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = ip6_addr_get_all(iface_id);
-		if (addrs == NULL || addrs->count == 0 || addrs->nh[0]->vrf_id != req->vrf_id)
+		if (addrs == NULL || gr_vec_len(addrs->nh) == 0
+		    || addrs->nh[0]->vrf_id != req->vrf_id)
 			continue;
-		num += addrs->count;
+		num += gr_vec_len(addrs->nh);
 	}
 
 	len = sizeof(*resp) + num * sizeof(struct gr_ip6_ifaddr);
@@ -265,10 +255,11 @@ static struct api_out addr6_list(const void *request, void **response) {
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = ip6_addr_get_all(iface_id);
-		if (addrs == NULL || addrs->count == 0 || addrs->nh[0]->vrf_id != req->vrf_id)
+		if (addrs == NULL)
 			continue;
-		for (unsigned i = 0; i < addrs->count; i++) {
-			const struct nexthop *nh = addrs->nh[i];
+		gr_vec_foreach (nh, addrs->nh) {
+			if (nh->vrf_id != req->vrf_id)
+				continue;
 			addr = &resp->addrs[resp->n_addrs++];
 			addr->addr.ip = nh->ipv6;
 			addr->addr.prefixlen = nh->prefixlen;
@@ -292,6 +283,7 @@ static const struct rte_ipv6_addr well_known_mcast_addrs[] = {
 static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 	struct rte_ipv6_addr link_local, solicited_node;
 	struct rte_ether_addr mac;
+	struct nexthop *nh;
 	unsigned i;
 
 	switch (event) {
@@ -316,17 +308,19 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 		break;
 	case IFACE_EVENT_PRE_REMOVE:
 		struct hoplist *addrs = &iface_addrs[iface->id];
-		for (i = 0; i < addrs->count; i++)
-			ip6_route_cleanup(addrs->nh[i]);
 
-		memset(addrs, 0, sizeof(*addrs));
+		gr_vec_foreach (nh, addrs->nh)
+			ip6_route_cleanup(nh);
+		gr_vec_free(addrs->nh);
 
 		addrs = &iface_mcast_addrs[iface->id];
-		while (addrs->count > 0)
-			if (ip6_mcast_addr_del(iface, &addrs->nh[addrs->count - 1]->ipv6) < 0)
+		gr_vec_foreach (nh, addrs->nh) {
+			// remove ethernet filter
+			if (iface_del_eth_addr(iface->id, &nh->lladdr) < 0)
 				LOG(INFO, "%s: mcast_addr_del: %s", iface->name, strerror(errno));
-
-		memset(addrs, 0, sizeof(*addrs));
+			nexthop_decref(nh);
+		}
+		gr_vec_free(addrs->nh);
 		break;
 	default:
 		break;
