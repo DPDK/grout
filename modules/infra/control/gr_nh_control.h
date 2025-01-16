@@ -87,12 +87,9 @@ struct __rte_cache_aligned nexthop {
 	struct nh_pool *pool;
 };
 
-#define HOPLIST_MAX_SIZE 8
-
-// TODO: replace with dynamic list (gr_vec).
 struct hoplist {
-	unsigned count;
-	struct nexthop *nh[HOPLIST_MAX_SIZE];
+	// list managed with gr_vec_*
+	struct nexthop **nh;
 };
 
 struct nexthop *
