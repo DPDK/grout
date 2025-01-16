@@ -296,14 +296,10 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 			rte_ipv6_solnode_from_addr(&solicited_node, &link_local);
 			if (ip6_mcast_addr_add(iface, &solicited_node) < 0)
 				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
-
-			for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
-				if (ip6_mcast_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
-					LOG(INFO,
-					    "%s: mcast_addr_add: %s",
-					    iface->name,
-					    strerror(errno));
-			}
+		}
+		for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
+			if (ip6_mcast_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
+				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
 		}
 		break;
 	case IFACE_EVENT_PRE_REMOVE:
