@@ -127,7 +127,7 @@ ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr 
 	return nh_id_to_ptr(nh_id);
 }
 
-struct nexthop *ip6_route_lookup_exact(
+static struct nexthop *ip6_route_lookup_exact(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,

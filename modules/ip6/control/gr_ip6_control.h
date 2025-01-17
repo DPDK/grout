@@ -37,12 +37,6 @@ int ip6_route_delete(
 );
 void ip6_route_cleanup(struct nexthop *);
 struct nexthop *ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);
-struct nexthop *ip6_route_lookup_exact(
-	uint16_t vrf_id,
-	uint16_t iface_id,
-	const struct rte_ipv6_addr *,
-	uint8_t prefixlen
-);
 
 // get the default address for a given interface
 struct nexthop *ip6_addr_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);
