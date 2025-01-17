@@ -26,6 +26,7 @@ struct gr_api_response {
 #define GR_API_MAX_MSG_LEN (128 * 1024)
 
 #define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
+#define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 
 #define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
 
@@ -43,4 +44,14 @@ int gr_api_client_send_recv(
 	void **rx_data
 );
 
+#define GR_MAIN_ENABLE_NOTIFICATIONS REQUEST_TYPE(0xCAFE, 0xCAFE)
+struct gr_api_notification {
+	uint32_t type;
+	uint32_t payload_len;
+};
+
+int gr_api_client_enable_notifications(const struct gr_api_client *client);
+int gr_api_client_recv_notification(const struct gr_api_client *, struct gr_api_notification **);
+
+void gr_api_push_notification(struct gr_api_notification *);
 #endif

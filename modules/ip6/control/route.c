@@ -37,6 +37,33 @@ static struct rte_fib6_conf fib6_conf = {
 	},
 };
 
+static void route_push_notification(
+	ip6_event_t id,
+	const struct rte_ipv6_addr *ip,
+	const int prefixlen,
+	const struct nexthop *nh
+) {
+	struct gr_api_notification *n;
+	struct gr_ip6_route *api_route;
+
+	n = calloc(1, sizeof(*n) + sizeof(*api_route));
+	if (n == NULL) {
+		LOG(ERR, "calloc %s", strerror(errno));
+		return;
+	}
+
+	n->type = id;
+	n->payload_len = sizeof(*api_route);
+	api_route = (struct gr_ip6_route *)&n[1];
+
+	api_route->dest.ip = *ip;
+	api_route->dest.prefixlen = prefixlen;
+	api_route->nh = nh->ipv6;
+
+	gr_api_push_notification(n);
+	free(n);
+}
+
 static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 	struct rte_fib6 *fib;
 
@@ -165,6 +192,7 @@ int ip6_route_insert(
 	if ((ret = rte_fib6_add(fib, scoped_ip, prefixlen, nh_ptr_to_id(nh))) < 0)
 		goto fail;
 
+	route_push_notification(IP6_EVENT_ROUTE_ADD, ip, prefixlen, nh);
 	return 0;
 fail:
 	nexthop_decref(nh);
@@ -194,6 +222,7 @@ int ip6_route_delete(
 	if ((ret = rte_fib6_delete(fib, scoped_ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
+	route_push_notification(IP6_EVENT_ROUTE_DEL, ip, prefixlen, nh);
 	nexthop_decref(nh);
 
 	return 0;
@@ -231,6 +260,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 
 	nexthop_incref(nh);
 	nh->flags |= GR_NH_F_GATEWAY;
+	route_push_notification(IP6_EVENT_ROUTE_ADD, &req->dest.ip, req->dest.prefixlen, nh);
 
 	return api_out(0, 0);
 }

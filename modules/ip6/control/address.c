@@ -28,6 +28,30 @@
 
 static struct hoplist *iface_addrs;
 
+static void ip6_push_notification(ip6_event_t id, struct nexthop *nh) {
+	struct gr_api_notification *n;
+	struct gr_nexthop *api_nh;
+
+	n = calloc(1, sizeof(*n) + sizeof(*api_nh));
+	if (n == NULL) {
+		LOG(ERR, "calloc %s", strerror(errno));
+		return;
+	}
+
+	n->type = id;
+	n->payload_len = sizeof(*api_nh);
+	api_nh = (struct gr_nexthop *)&n[1];
+
+	api_nh->ipv6 = nh->ipv6;
+	api_nh->iface_id = nh->iface_id;
+	api_nh->vrf_id = nh->vrf_id;
+	api_nh->mac = nh->lladdr;
+	api_nh->flags = nh->flags;
+
+	gr_api_push_notification(n);
+	free(n);
+}
+
 struct hoplist *ip6_addr_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
@@ -163,6 +187,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);
+	ip6_push_notification(IP6_EVENT_ADDR_ADD, nh);
 
 	return 0;
 }
@@ -228,6 +253,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	if (ip6_mcast_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
 		return api_out(errno, 0);
 
+	ip6_push_notification(IP6_EVENT_ADDR_DEL, nh);
 	return api_out(0, 0);
 }
 

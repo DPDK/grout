@@ -126,6 +126,28 @@ static struct api_out iface_set(const void *request, void ** /*response*/) {
 	return api_out(0, 0);
 }
 
+static void broadcast_iface_event(iface_event_t event, struct iface *iface) {
+	struct gr_infra_iface_get_resp *r;
+	struct gr_api_notification *n;
+
+	n = calloc(1, sizeof(*n) + sizeof(*r));
+	if (n == NULL) {
+		LOG(ERR, "broadcast_iface_event %s", strerror(errno));
+		return;
+	}
+	n->type = (uint32_t)event;
+	n->payload_len = sizeof(*r);
+	r = (struct gr_infra_iface_get_resp *)&n[1];
+
+	iface_to_api(&r->iface, iface);
+	gr_api_push_notification(n);
+	free(n);
+}
+
+static struct iface_event_handler iface_event_broadcast_handler = {
+	.callback = broadcast_iface_event,
+};
+
 static struct gr_api_handler iface_add_handler = {
 	.name = "iface add",
 	.request_type = GR_INFRA_IFACE_ADD,
@@ -158,4 +180,5 @@ RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_get_handler);
 	gr_register_api_handler(&iface_list_handler);
 	gr_register_api_handler(&iface_set_handler);
+	iface_event_register_handler(&iface_event_broadcast_handler);
 }

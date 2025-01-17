@@ -247,5 +247,14 @@ struct gr_infra_packet_trace_set_req {
 #define GR_INFRA_PACKET_LOG_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0044)
 // struct gr_infra_packet_log_clear_req { };
 // struct gr_infra_packet_log_clear_resp { };
+//
+typedef enum {
+	IFACE_EVENT_UNKNOWN = EVENT_TYPE(GR_INFRA_MODULE, 0),
+	IFACE_EVENT_POST_ADD = EVENT_TYPE(GR_INFRA_MODULE, 1),
+	IFACE_EVENT_PRE_REMOVE = EVENT_TYPE(GR_INFRA_MODULE, 2),
+	IFACE_EVENT_POST_RECONFIG = EVENT_TYPE(GR_INFRA_MODULE, 3),
+	IFACE_EVENT_STATUS_UP = EVENT_TYPE(GR_INFRA_MODULE, 4),
+	IFACE_EVENT_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 5),
+} iface_event_t;
 
 #endif

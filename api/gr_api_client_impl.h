@@ -122,4 +122,43 @@ err:
 	return -errno;
 }
 
+int gr_api_client_enable_notifications(const struct gr_api_client *client) {
+	return gr_api_client_send_recv(client, GR_MAIN_ENABLE_NOTIFICATIONS, 0, NULL, NULL);
+}
+
+int gr_api_client_recv_notification(
+	const struct gr_api_client *c,
+	struct gr_api_notification **rx_data
+) {
+	struct gr_api_response resp;
+	void *payload = NULL;
+	ssize_t n;
+
+	if ((n = recv(c->sock_fd, &resp, sizeof(resp), 0)) < 0)
+		goto err;
+
+	if (resp.payload_len > GR_API_MAX_MSG_LEN) {
+		errno = EMSGSIZE;
+		goto err;
+	}
+	if (n != sizeof(resp)) {
+		errno = EBADMSG;
+		goto err;
+	}
+	if (resp.payload_len > 0) {
+		// receive payload *before* checking response status to drain socket buffer
+		if ((payload = malloc(resp.payload_len)) == NULL)
+			goto err;
+		if (recv(c->sock_fd, payload, resp.payload_len, 0) < 0)
+			goto err;
+	}
+	if (payload != NULL && rx_data != NULL)
+		*rx_data = payload;
+	return 0;
+
+err:
+	free(payload);
+	return -errno;
+}
+
 #endif
