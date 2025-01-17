@@ -189,40 +189,29 @@ int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 
 static struct api_out route4_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_add_req *req = request;
-	struct nexthop *nh, *via;
-	uint32_t host_order_ip;
-	struct rte_fib *fib;
+	struct nexthop *nh;
 	int ret;
 
-	nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen);
-	if (nh != NULL) {
-		if (req->nh == nh->ipv4 && req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
-	if ((via = ip4_route_lookup(req->vrf_id, req->nh)) == NULL)
+	// ensure route gateway is reachable
+	if ((nh = ip4_route_lookup(req->vrf_id, req->nh)) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
-	if ((fib = get_or_create_fib(req->vrf_id)) == NULL)
-		return api_out(errno, 0);
-
-	if ((nh = ip4_nexthop_lookup(req->vrf_id, req->nh)) == NULL)
-		if ((nh = ip4_nexthop_new(req->vrf_id, via->iface_id, req->nh)) == NULL)
+	// if the route gateway is reachable via a prefix route,
+	// create a new unresolved nexthop
+	if (nh->ipv4 != req->nh) {
+		if ((nh = ip4_nexthop_new(req->vrf_id, nh->iface_id, req->nh)) == NULL)
 			return api_out(errno, 0);
-
-	host_order_ip = ntohl(req->dest.ip);
-
-	if ((ret = rte_fib_add(fib, host_order_ip, req->dest.prefixlen, nh_ptr_to_id(nh))) < 0) {
-		nexthop_decref(nh);
-		return api_out(-ret, 0);
+		nh->flags |= GR_NH_F_GATEWAY;
 	}
 
-	nexthop_incref(nh);
-	nh->flags |= GR_NH_F_GATEWAY;
-	route_push_notification(IP_EVENT_ROUTE_ADD, req->dest.ip, req->dest.prefixlen, nh);
+	// if route insert fails, the created nexthop will be freed
+	ret = ip4_route_insert(req->vrf_id, req->dest.ip, req->dest.prefixlen, nh);
+	if (ret == -EEXIST && req->exist_ok)
+		ret = 0;
+	if (ret == 0)
+		route_push_notification(IP_EVENT_ROUTE_ADD, req->dest.ip, req->dest.prefixlen, nh);
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out route4_del(const void *request, void ** /*response*/) {
