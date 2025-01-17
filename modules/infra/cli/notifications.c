@@ -12,6 +12,7 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 	struct gr_infra_iface_get_resp *p;
 	struct gr_api_notification *n;
 	struct gr_ip4_route *r4;
+	struct gr_ip6_route *r6;
 	struct gr_nexthop *nh;
 
 	if (gr_api_client_enable_notifications(c) < 0)
@@ -58,6 +59,16 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 				printf("IP address del:  iface[%d] %4p\n", nh->iface_id, &nh->ipv4);
 			}
 			break;
+		case IP6_EVENT_ADDR_ADD:
+			if (n->payload_len == sizeof(*nh)) {
+				nh = (struct gr_nexthop *)&n[1];
+				printf("IP address add: iface[%d] %6p\n", nh->iface_id, &nh->ipv6);
+			}
+			break;
+		case IP6_EVENT_ADDR_DEL:
+			if (n->payload_len == sizeof(*nh)) {
+				nh = (struct gr_nexthop *)&n[1];
+				printf("IP address del:  iface[%d] %6p\n", nh->iface_id, &nh->ipv6);
 			}
 			break;
 		case IP_EVENT_ROUTE_ADD:
@@ -78,6 +89,22 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 				       &r4->nh);
 			}
 			break;
+		case IP6_EVENT_ROUTE_ADD:
+			if (n->payload_len == sizeof(*r6)) {
+				r6 = (struct gr_ip6_route *)&n[1];
+				printf("IP route add: %6p/%d via %6p\n",
+				       &r6->dest.ip,
+				       r6->dest.prefixlen,
+				       &r6->nh);
+			}
+			break;
+		case IP6_EVENT_ROUTE_DEL:
+			if (n->payload_len == sizeof(*r6)) {
+				r6 = (struct gr_ip6_route *)&n[1];
+				printf("IP route del: %6p/%d via %6p\n",
+				       &r6->dest.ip,
+				       r6->dest.prefixlen,
+				       &r6->nh);
 			}
 			break;
 
