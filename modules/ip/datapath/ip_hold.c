@@ -26,7 +26,7 @@ ip_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		// the packet into it so that the datapath mbuf can be freed and
 		// returned to the stack for hardware RX.
 		d = control_output_mbuf_data(mbuf);
-		d->callback = ip4_nexthop_unreachable_cb;
+		d->callback = nh4_unreachable_cb;
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, CONTROL, mbuf);

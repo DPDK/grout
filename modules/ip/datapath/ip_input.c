@@ -102,7 +102,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
+		nh = fib4_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;

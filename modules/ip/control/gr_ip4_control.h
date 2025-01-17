@@ -19,20 +19,20 @@
 #define IP4_MAX_NEXT_HOPS (1 << 16)
 #define IP4_MAX_ROUTES (1 << 16)
 
-struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip);
-struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
+struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip);
+struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
 
-void ip4_nexthop_unreachable_cb(struct rte_mbuf *m);
+void nh4_unreachable_cb(struct rte_mbuf *m);
 void arp_probe_input_cb(struct rte_mbuf *m);
 
-int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
-int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
-struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip);
-void ip4_route_cleanup(struct nexthop *);
+int fib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
+int fib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
+struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
+void fib4_cleanup(struct nexthop *);
 
 // get the default address for a given interface
-struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst);
+struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
-struct hoplist *ip4_addr_get_all(uint16_t iface_id);
+struct hoplist *addr4_get_all(uint16_t iface_id);
 
 #endif
