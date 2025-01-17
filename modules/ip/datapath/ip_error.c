@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_datapath.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
-#include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -24,8 +24,8 @@ enum edges {
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
+	const struct nexthop *nh, *local;
 	uint8_t icmp_type, icmp_code;
-	struct nexthop *nh, *local;
 	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;

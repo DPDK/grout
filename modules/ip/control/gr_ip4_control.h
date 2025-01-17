@@ -15,9 +15,8 @@
 
 #include <stdint.h>
 
-// XXX: why not 1337, eh?
+// TODO: make this configurable
 #define IP4_MAX_NEXT_HOPS (1 << 16)
-#define IP4_MAX_ROUTES (1 << 16)
 
 struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
@@ -25,10 +24,10 @@ struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
 void nh4_unreachable_cb(struct rte_mbuf *m);
 void arp_probe_input_cb(struct rte_mbuf *m);
 
-int fib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
-int fib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
-struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
-void fib4_cleanup(struct nexthop *);
+struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
+int rib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
+int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
+void rib4_cleanup(struct nexthop *);
 
 // get the default address for a given interface
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
