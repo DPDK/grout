@@ -121,7 +121,7 @@ struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nh_id_to_ptr(nh_id);
 }
 
-struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+static struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	struct rte_fib *fib = get_fib(vrf_id);
 	struct rte_rib_node *rn;
