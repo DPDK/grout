@@ -2,6 +2,7 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
+  'fib6.c',
   'icmp6_input.c',
   'icmp6_output.c',
   'icmp6_local_send.c',

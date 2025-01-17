@@ -172,7 +172,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 			return errno_set(-ret);
 		}
 
-	if ((ret = fib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, nh)) < 0)
+	if ((ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, nh)) < 0)
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);
@@ -232,7 +232,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	fib6_cleanup(nh);
+	rib6_cleanup(nh);
 
 	// shift the remaining addresses
 	gr_vec_del(addrs->nh, i);
@@ -321,7 +321,7 @@ static void ip6_iface_event_handler(iface_event_t event, struct iface *iface) {
 		struct hoplist *addrs = &iface_addrs[iface->id];
 
 		gr_vec_foreach (nh, addrs->nh)
-			fib6_cleanup(nh);
+			rib6_cleanup(nh);
 		gr_vec_free(addrs->nh);
 
 		addrs = &iface_mcast_addrs[iface->id];

@@ -6,7 +6,6 @@
 #include <gr_control_output.h>
 #include <gr_icmp6.h>
 #include <gr_ip6.h>
-#include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
@@ -92,11 +91,11 @@ free_and_skip:
 
 static struct api_out icmp6_send(const void *request, void ** /* response */) {
 	const struct gr_ip6_icmp_send_req *req = request;
-	struct nexthop *nh;
+	const struct nexthop *nh;
 	int ret;
 
 	// XXX won't be able to ping linklocal addresses.
-	if ((nh = fib6_lookup(req->vrf, GR_IFACE_ID_UNDEF, &req->addr)) == NULL)
+	if ((nh = rib6_lookup(req->vrf, GR_IFACE_ID_UNDEF, &req->addr)) == NULL)
 		return api_out(errno, 0);
 
 	ret = icmp6_local_send(&req->addr, nh, req->id, req->seq_num, req->ttl);
