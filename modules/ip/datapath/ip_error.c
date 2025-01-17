@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_datapath.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
-#include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -48,12 +48,12 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// Get the local router IP address from the input iface
 		iface = ip_output_mbuf_data(mbuf)->iface;
-		if (iface == NULL || (nh = ip4_route_lookup(iface->vrf_id, ip->src_addr)) == NULL) {
+		if (iface == NULL || (nh = fib4_lookup(iface->vrf_id, ip->src_addr)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
 		// Select preferred source IP address to reply with
-		if ((local = ip4_addr_get_preferred(nh->iface_id, nh->ipv4)) == NULL) {
+		if ((local = addr4_get_preferred(nh->iface_id, nh->ipv4)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}

@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_eth.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
@@ -12,7 +13,6 @@
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
-#include <rte_fib.h>
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
@@ -102,7 +102,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		nh = ip4_route_lookup(iface->vrf_id, ip->dst_addr);
+		nh = fib4_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;

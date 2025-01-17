@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
+#include <gr_fib4.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
@@ -100,7 +101,7 @@ static struct api_out icmp_send(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	if ((nh = ip4_route_lookup(req->vrf, req->addr)) == NULL) {
+	if ((nh = fib4_lookup(req->vrf, req->addr)) == NULL) {
 		ret = -errno;
 		goto fail;
 	}

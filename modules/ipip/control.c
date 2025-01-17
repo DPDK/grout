@@ -3,9 +3,9 @@
 
 #include "ipip_priv.h"
 
+#include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
-#include <gr_ip4_control.h>
 #include <gr_ipip.h>
 #include <gr_log.h>
 #include <gr_module.h>
@@ -64,9 +64,9 @@ static int iface_ipip_reconfig(
 		if (rte_hash_lookup(ipip_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
-		if (ip4_route_lookup(vrf_id, next->local) == NULL)
+		if (fib4_lookup(vrf_id, next->local) == NULL)
 			return -errno;
-		if (ip4_route_lookup(vrf_id, next->remote) == NULL)
+		if (fib4_lookup(vrf_id, next->remote) == NULL)
 			return -errno;
 
 		if (memcmp(&cur_key, &next_key, sizeof(cur_key)) != 0)
