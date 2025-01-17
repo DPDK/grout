@@ -199,4 +199,11 @@ struct gr_ip6_icmp_recv_resp {
 	clock_t response_time;
 };
 
+typedef enum {
+	IP6_EVENT_ADDR_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0001),
+	IP6_EVENT_ADDR_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0002),
+	IP6_EVENT_ROUTE_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0003),
+	IP6_EVENT_ROUTE_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0004),
+} ip6_event_t;
+
 #endif
