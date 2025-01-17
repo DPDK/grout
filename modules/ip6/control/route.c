@@ -218,39 +218,31 @@ int ip6_route_delete(
 
 static struct api_out route6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_add_req *req = request;
-	struct nexthop *nh, *via;
-	struct rte_fib6 *fib6;
+	struct nexthop *nh;
 	int ret;
 
-	nh = ip6_route_lookup_exact(
-		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen
-	);
-	if (nh != NULL) {
-		if (rte_ipv6_addr_eq(&req->nh, &nh->ipv6) && req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
-	if ((via = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
+	// ensure route gateway is reachable
+	if ((nh = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
-	if ((fib6 = get_or_create_fib6(req->vrf_id)) == NULL)
-		return api_out(errno, 0);
-
-	if ((nh = ip6_nexthop_lookup(req->vrf_id, via->iface_id, &req->nh)) == NULL)
-		if ((nh = ip6_nexthop_new(req->vrf_id, via->iface_id, &req->nh)) == NULL)
+	// if the route gateway is reachable via a prefix route,
+	// create a new unresolved nexthop
+	if (!rte_ipv6_addr_eq(&nh->ipv6, &req->nh)) {
+		if ((nh = ip6_nexthop_new(req->vrf_id, nh->iface_id, &req->nh)) == NULL)
 			return api_out(errno, 0);
-
-	if ((ret = rte_fib6_add(fib6, &req->dest.ip, req->dest.prefixlen, nh_ptr_to_id(nh))) < 0) {
-		nexthop_decref(nh);
-		return api_out(-ret, 0);
+		nh->flags |= GR_NH_F_GATEWAY;
 	}
 
-	nexthop_incref(nh);
-	nh->flags |= GR_NH_F_GATEWAY;
-	route_push_notification(IP6_EVENT_ROUTE_ADD, &req->dest.ip, req->dest.prefixlen, nh);
+	// if route insert fails, the created nexthop will be freed
+	ret = ip6_route_insert(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, nh);
+	if (ret == 0)
+		route_push_notification(
+			IP6_EVENT_ROUTE_ADD, &req->dest.ip, req->dest.prefixlen, nh
+		);
+	if (ret == -EEXIST && req->exist_ok)
+		ret = 0;
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out route6_del(const void *request, void ** /*response*/) {
