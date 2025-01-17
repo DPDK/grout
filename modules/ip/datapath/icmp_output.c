@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_datapath.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
-#include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -26,9 +26,9 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct ip_local_mbuf_data *local_data;
 	struct ip_output_mbuf_data *o;
 	struct rte_icmp_hdr *icmp;
+	const struct nexthop *nh;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {

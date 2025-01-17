@@ -7,6 +7,7 @@ src += files(
   'arp_input_request.c',
   'arp_output_reply.c',
   'arp_output_request.c',
+  'fib4.c',
   'icmp_input.c',
   'icmp_local_send.c',
   'icmp_output.c',

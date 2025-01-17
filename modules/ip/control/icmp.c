@@ -94,13 +94,13 @@ static rte_atomic16_t icmp_ident = RTE_ATOMIC16_INIT(0);
 static struct api_out icmp_send(const void *request, void **response) {
 	const struct gr_ip4_icmp_send_req *req = request;
 	struct gr_ip4_icmp_send_resp *resp = NULL;
-	struct nexthop *nh;
+	const struct nexthop *nh;
 	int ret;
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	if ((nh = fib4_lookup(req->vrf, req->addr)) == NULL) {
+	if ((nh = rib4_lookup(req->vrf, req->addr)) == NULL) {
 		ret = -errno;
 		goto fail;
 	}

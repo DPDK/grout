@@ -150,6 +150,8 @@ static void nh_pool_iter_cb(struct rte_mempool *, void *priv, void *obj, unsigne
 	struct nexthop *nh = obj;
 	if (nh->ref_count != 0)
 		it->user_cb(nh, it->priv);
+	else
+		assert(rte_ipv6_addr_is_unspec(&nh->ipv6));
 }
 
 void nh_pool_iter(struct nh_pool *nhp, nh_iter_cb_t nh_cb, void *priv) {

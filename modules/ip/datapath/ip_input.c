@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_eth.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
@@ -12,7 +13,6 @@
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
-#include <rte_fib.h>
 #include <rte_graph_worker.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
@@ -34,9 +34,9 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct eth_input_mbuf_data *e;
 	struct ip_output_mbuf_data *d;
 	const struct iface *iface;
+	const struct nexthop *nh;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	rte_edge_t edge;
 	uint16_t i;
 
