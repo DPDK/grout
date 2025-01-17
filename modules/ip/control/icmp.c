@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
+#include <gr_fib4.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>

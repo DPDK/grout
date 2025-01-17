@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_control_input.h>
+#include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -70,7 +71,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /32 route so that next packets take it
 		// in priority with a single route lookup.
-		if (fib4_insert(nh->vrf_id, dst, 32, remote) < 0) {
+		if (rib4_insert(nh->vrf_id, dst, 32, remote) < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
@@ -132,7 +133,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 			goto free;
 		}
 		// Add an internal /32 route to reference the newly created nexthop.
-		if (fib4_insert(iface->vrf_id, sip, 32, nh) < 0) {
+		if (rib4_insert(iface->vrf_id, sip, 32, nh) < 0) {
 			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
 			goto free;
 		}
@@ -196,7 +197,7 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 
 	nh->lladdr = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = fib4_insert(nh->vrf_id, nh->ipv4, 32, nh);
+	ret = rib4_insert(nh->vrf_id, nh->ipv4, 32, nh);
 
 	return api_out(-ret, 0);
 }
@@ -217,7 +218,7 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 		return api_out(EBUSY, 0);
 
 	// this also does ip4_nexthop_decref(), freeing the next hop
-	if (fib4_delete(req->vrf_id, req->host, 32) < 0)
+	if (rib4_delete(req->vrf_id, req->host, 32) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);
@@ -274,7 +275,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 static void nh4_init(struct event_base *ev_base) {
 	struct nh_pool_opts opts = {
 		.solicit_nh = arp_output_request_solicit,
-		.free_nh = fib4_cleanup,
+		.free_nh = rib4_cleanup,
 		.num_nexthops = IP4_MAX_NEXT_HOPS,
 	};
 	nh_pool = nh_pool_new(AF_INET, ev_base, &opts);

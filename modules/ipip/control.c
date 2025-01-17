@@ -3,9 +3,9 @@
 
 #include "ipip_priv.h"
 
+#include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
-#include <gr_ip4_control.h>
 #include <gr_ipip.h>
 #include <gr_log.h>
 #include <gr_module.h>

@@ -91,7 +91,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 			return api_out(errno, 0);
 		}
 
-	if ((ret = fib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
+	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);
@@ -124,7 +124,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	fib4_cleanup(nh);
+	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
 
@@ -183,7 +183,7 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 		return;
 
 	gr_vec_foreach (nh, ifaddrs->nh)
-		fib4_cleanup(nh);
+		rib4_cleanup(nh);
 
 	gr_vec_free(ifaddrs->nh);
 }
