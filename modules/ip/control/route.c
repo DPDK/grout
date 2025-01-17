@@ -110,7 +110,7 @@ struct nexthop *ip4_route_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nh_id_to_ptr(nh_id);
 }
 
-struct nexthop *ip4_route_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+static struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	struct rte_fib *fib = get_fib(vrf_id);
 	struct rte_rib_node *rn;
@@ -140,7 +140,7 @@ int ip4_route_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct n
 		ret = -errno;
 		goto fail;
 	}
-	if (ip4_route_lookup_exact(vrf_id, ip, prefixlen) != NULL) {
+	if (rib4_lookup_exact(vrf_id, ip, prefixlen) != NULL) {
 		ret = -EEXIST;
 		goto fail;
 	}
@@ -162,7 +162,7 @@ int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	if (fib == NULL)
 		return -errno;
 
-	nh = ip4_route_lookup_exact(vrf_id, ip, prefixlen);
+	nh = rib4_lookup_exact(vrf_id, ip, prefixlen);
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
@@ -201,7 +201,7 @@ static struct api_out route4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_del_req *req = request;
 	struct nexthop *nh;
 
-	if ((nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen)) == NULL) {
+	if ((nh = rib4_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen)) == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
