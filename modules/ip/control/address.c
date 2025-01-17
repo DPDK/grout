@@ -185,7 +185,7 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 	gr_vec_foreach (nh, ifaddrs->nh)
 		ip4_route_cleanup(nh);
 
-	memset(ifaddrs, 0, sizeof(*ifaddrs));
+	gr_vec_free(ifaddrs->nh);
 }
 
 static void addr_init(struct event_base *) {
