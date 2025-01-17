@@ -43,7 +43,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 	const struct rte_ipv6_addr *dst = &ip->dst_addr;
 	struct nexthop *nh;
 
-	nh = fib6_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
+	nh = rib6_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
 
@@ -67,7 +67,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /128 route so that next packets take it
 		// in priority with a single route lookup.
-		if (fib6_insert(nh->vrf_id, nh->iface_id, dst, RTE_IPV6_MAX_DEPTH, remote) < 0) {
+		if (rib6_insert(nh->vrf_id, nh->iface_id, dst, RTE_IPV6_MAX_DEPTH, remote) < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
@@ -156,7 +156,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 			}
 
 			// Add an internal /128 route to reference the newly created nexthop.
-			if (fib6_insert(iface->vrf_id, iface->id, remote, RTE_IPV6_MAX_DEPTH, nh)
+			if (rib6_insert(iface->vrf_id, iface->id, remote, RTE_IPV6_MAX_DEPTH, nh)
 			    < 0) {
 				LOG(ERR, "ip6_route_insert: %s", strerror(errno));
 				goto free;
@@ -234,7 +234,7 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 
 	nh->lladdr = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = fib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh);
+	ret = rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh);
 
 	return api_out(-ret, 0);
 }
@@ -255,7 +255,7 @@ static struct api_out nh6_del(const void *request, void ** /*response*/) {
 		return api_out(EBUSY, 0);
 
 	// this also does nh6_decref(), freeing the next hop
-	if (fib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->host, RTE_IPV6_MAX_DEPTH) < 0)
+	if (rib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->host, RTE_IPV6_MAX_DEPTH) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);
@@ -314,7 +314,7 @@ static struct api_out nh6_list(const void *request, void **response) {
 static void nh6_init(struct event_base *ev_base) {
 	struct nh_pool_opts opts = {
 		.solicit_nh = nh6_solicit,
-		.free_nh = fib6_cleanup,
+		.free_nh = rib6_cleanup,
 		.num_nexthops = IP6_MAX_NEXT_HOPS,
 	};
 	nh_pool = nh_pool_new(AF_INET6, ev_base, &opts);

@@ -2,8 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_eth.h>
+#include <gr_fib6.h>
 #include <gr_graph.h>
-#include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_loopback.h>
@@ -36,9 +36,9 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct ip6_output_mbuf_data *d;
 	struct eth_input_mbuf_data *e;
 	const struct iface *iface;
+	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	rte_edge_t edge;
 	uint16_t i;
 

@@ -2,9 +2,9 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_datapath.h>
+#include <gr_fib6.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
-#include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -30,9 +30,9 @@ static uint16_t icmp6_output_process(
 ) {
 	struct ip6_output_mbuf_data *o;
 	struct ip6_local_mbuf_data *d;
+	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
 
