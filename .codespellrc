@@ -1,0 +1,8 @@
+# ex: ft=dosini
+
+[codespell]
+quiet-level = 35
+skip =
+	subprojects/*,
+ignore-words-list =
+	te,
