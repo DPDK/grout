@@ -248,8 +248,10 @@ apt install git gcc make meson ninja-build pkgconf scdoc python3-pyelftools \
         libsmartcols-dev libarchive-dev libibverbs-dev
 ```
 
-### Install optional dependencies
-In order to run "make smoke-test" and "make update-graph", you'll need additional packages:
+### Install development dependencies
+
+In order to run the `smoke-tests`, `lint`, `check-patches` and `update-graph`
+targets, you'll need additional packages:
 
 ```sh
 dnf install clang-tools-extra jq curl traceroute graphviz ndisc6
