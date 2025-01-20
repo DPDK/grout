@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:
-      - run: dnf install -y make clang-tools-extra git jq curl
+      - run: dnf install -y make clang-tools-extra git jq curl codespell
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -95,7 +95,7 @@ jobs:
     env:
       REVISION_RANGE: "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
     steps:
-      - run: dnf install -y make git jq curl
+      - run: dnf install -y make git jq curl codespell
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
