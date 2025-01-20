@@ -23,7 +23,7 @@ GR_MBUF_PRIV_DATA_TYPE(control_output_mbuf_data, {
 
 // Enqueue a packet from data plane to a control plane ring.
 //
-// NB: control_output_done() must be called explcitly to wake up the control plane event loop.
+// NB: control_output_done() must be called explicitly to wake up the control plane event loop.
 int control_output_enqueue(struct rte_mbuf *m);
 
 // Wake up the control plane event loop so that it processes the pending packets.

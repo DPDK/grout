@@ -54,7 +54,7 @@ int complete_iface_names(
 		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
-			"Maximum transmision unit size.",                                          \
+			"Maximum transmission unit size.",                                         \
 			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
 		),                                                                                 \
 		with_help(                                                                         \
