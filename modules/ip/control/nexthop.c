@@ -146,6 +146,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	nh->ucast_probes = 0;
 	nh->bcast_probes = 0;
 	nh->lladdr = arp->arp_data.arp_sha;
+	nexthop_push_notification(NEXTHOP_EVENT_UPDATE, nh);
 
 	// Flush all held packets.
 	held = nh->held_pkts_head;
