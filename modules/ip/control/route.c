@@ -176,9 +176,9 @@ int ip4_route_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 
 static struct api_out route4_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_add_req *req = request;
+	struct nexthop *nh, *via;
 	uint32_t host_order_ip;
 	struct rte_fib *fib;
-	struct nexthop *nh;
 	int ret;
 
 	nh = ip4_route_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen);
@@ -188,14 +188,14 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 		return api_out(EEXIST, 0);
 	}
 
-	if (ip4_route_lookup(req->vrf_id, req->nh) == NULL)
+	if ((via = ip4_route_lookup(req->vrf_id, req->nh)) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
 	if ((fib = get_or_create_fib(req->vrf_id)) == NULL)
 		return api_out(errno, 0);
 
 	if ((nh = ip4_nexthop_lookup(req->vrf_id, req->nh)) == NULL)
-		if ((nh = ip4_nexthop_new(req->vrf_id, GR_IFACE_ID_UNDEF, req->nh)) == NULL)
+		if ((nh = ip4_nexthop_new(req->vrf_id, via->iface_id, req->nh)) == NULL)
 			return api_out(errno, 0);
 
 	host_order_ip = ntohl(req->dest.ip);
