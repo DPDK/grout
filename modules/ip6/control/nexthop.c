@@ -60,10 +60,6 @@ void ip6_nexthop_unreachable_cb(struct rte_mbuf *m) {
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
 			remote = ip6_nexthop_new(nh->vrf_id, nh->iface_id, dst);
-		} else if (remote->flags & GR_NH_F_GATEWAY && remote->iface_id == 0) {
-			// Gateway route with uninitialized destination.
-			// Now, we can at least know what is the output interface.
-			remote->iface_id = nh->iface_id;
 		}
 
 		if (remote == NULL) {
