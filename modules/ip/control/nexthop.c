@@ -231,6 +231,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
 		return;
 
+	api_nh.family = nh->family;
 	api_nh.ipv4 = nh->ipv4;
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
