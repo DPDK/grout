@@ -98,6 +98,36 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			       r6->dest.prefixlen,
 			       &r6->nh);
 			break;
+		case NEXTHOP_EVENT_NEW:
+			assert(n->payload_len == sizeof(*nh));
+			nh = PAYLOAD(n);
+			printf("NH new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			       nh->iface_id,
+			       nh->vrf_id,
+			       ADDR_W(nh->family),
+			       &nh->addr,
+			       &nh->mac);
+			break;
+		case NEXTHOP_EVENT_DELETE:
+			assert(n->payload_len == sizeof(*nh));
+			nh = PAYLOAD(n);
+			printf("NH new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			       nh->iface_id,
+			       nh->vrf_id,
+			       ADDR_W(nh->family),
+			       &nh->addr,
+			       &nh->mac);
+			break;
+		case NEXTHOP_EVENT_UPDATE:
+			assert(n->payload_len == sizeof(*nh));
+			nh = PAYLOAD(n);
+			printf("NH update: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			       nh->iface_id,
+			       nh->vrf_id,
+			       ADDR_W(nh->family),
+			       &nh->addr,
+			       &nh->mac);
+			break;
 		default:
 			printf("Unknown notification 0x%x received\n", n->type);
 			break;

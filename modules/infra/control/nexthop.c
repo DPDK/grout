@@ -21,6 +21,18 @@ struct nh_pool {
 
 static void nh_pool_do_ageing(evutil_socket_t, short, void *);
 
+void nexthop_push_notification(nexthop_event_t id, struct nexthop *nh) {
+	struct gr_nexthop api_nh = {
+		.family = nh->family,
+		.vrf_id = nh->vrf_id,
+		.iface_id = nh->iface_id,
+		.ipv6 = nh->ipv6,
+		.mac = nh->lladdr,
+	};
+
+	gr_api_push_notification(id, sizeof(api_nh), &api_nh);
+}
+
 struct nh_pool *
 nh_pool_new(uint8_t family, struct event_base *ev_base, const struct nh_pool_opts *opts) {
 	struct nh_pool *nhp;
@@ -123,6 +135,7 @@ nexthop_new(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void 
 	}
 	nh->pool = nhp;
 
+	nexthop_push_notification(NEXTHOP_EVENT_NEW, nh);
 	return nh;
 }
 
@@ -196,6 +209,7 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
+		nexthop_push_notification(NEXTHOP_EVENT_DELETE, nh);
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	} else {
