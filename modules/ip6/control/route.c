@@ -201,8 +201,8 @@ int ip6_route_delete(
 
 static struct api_out route6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_add_req *req = request;
+	struct nexthop *nh, *via;
 	struct rte_fib6 *fib6;
-	struct nexthop *nh;
 	int ret;
 
 	nh = ip6_route_lookup_exact(
@@ -214,14 +214,14 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 		return api_out(EEXIST, 0);
 	}
 
-	if (ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh) == NULL)
+	if ((via = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
 	if ((fib6 = get_or_create_fib6(req->vrf_id)) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip6_nexthop_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
-		if ((nh = ip6_nexthop_new(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
+	if ((nh = ip6_nexthop_lookup(req->vrf_id, via->iface_id, &req->nh)) == NULL)
+		if ((nh = ip6_nexthop_new(req->vrf_id, via->iface_id, &req->nh)) == NULL)
 			return api_out(errno, 0);
 
 	if ((ret = rte_fib6_add(fib6, &req->dest.ip, req->dest.prefixlen, nh_ptr_to_id(nh))) < 0) {
