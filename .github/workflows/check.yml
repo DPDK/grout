@@ -40,11 +40,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
-      - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "${{ github.event.pull_request.base.sha }}"
-        if: ${{ github.event.pull_request.base.sha }}
+      - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "HEAD~${{ github.event.pull_request.commits }}"
+        if: ${{ github.event.pull_request.commits }}
       - run: make all unit-tests && sudo smoke/run.sh build
-        if: ${{ ! github.event.pull_request.base.sha }}
+        if: ${{ ! github.event.pull_request.commits }}
 
   build-cross-aarch64:
     runs-on: ubuntu-24.04
@@ -67,11 +68,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
-      - run: git rebase -x "git --no-pager log --oneline -1 && make" "${{ github.event.pull_request.base.sha }}"
-        if: ${{ github.event.pull_request.base.sha }}
+      - run: git rebase -x "git --no-pager log --oneline -1 && make" "HEAD~${{ github.event.pull_request.commits }}"
+        if: ${{ github.event.pull_request.commits }}
       - run: make
-        if: ${{ ! github.event.pull_request.base.sha }}
+        if: ${{ ! github.event.pull_request.commits }}
 
   lint:
     runs-on: ubuntu-24.04
@@ -82,23 +84,25 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
-      - run: git rebase -x "git --no-pager log --oneline -1 && make lint" "${{ github.event.pull_request.base.sha }}"
-        if: ${{ github.event.pull_request.base.sha }}
+      - run: git rebase -x "git --no-pager log --oneline -1 && make lint" "HEAD~${{ github.event.pull_request.commits }}"
+        if: ${{ github.event.pull_request.commits }}
       - run: make lint
-        if: ${{ ! github.event.pull_request.base.sha }}
+        if: ${{ ! github.event.pull_request.commits }}
 
   commits:
     runs-on: ubuntu-24.04
-    if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
+    if: ${{ github.event.pull_request.commits }}
     container: fedora:latest
     env:
-      REVISION_RANGE: "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      REVISION_RANGE: "HEAD~${{ github.event.pull_request.commits }}.."
     steps:
       - run: dnf install -y make git jq curl codespell
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
       - run: make check-patches
