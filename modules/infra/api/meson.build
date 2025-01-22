@@ -9,5 +9,8 @@ src += files(
   'trace.c',
 )
 
-api_headers += files('gr_infra.h')
+api_headers += files(
+  'gr_infra.h',
+  'gr_nexthop.h',
+)
 api_inc += include_directories('.')
