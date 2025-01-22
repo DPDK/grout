@@ -63,6 +63,7 @@ int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
 	int flags = EC_EDITLINE_DEFAULT_SIGHANDLER;
 	struct ec_editline *edit = NULL;
 	struct ec_node *shlex = NULL;
+	struct sigaction sa = {0};
 	char *line = NULL;
 	int ret = -1;
 
@@ -85,7 +86,8 @@ int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
 	wordfree(&w);
 
 	// Don't ignore SIGINT, we want it to interrupt the current command.
-	if (signal(SIGINT, sighandler) == SIG_ERR) {
+	sa.sa_handler = sighandler;
+	if (sigaction(SIGINT, &sa, NULL) < 0) {
 		errorf("signal(SIGINT): %s", strerror(errno));
 		goto end;
 	}
