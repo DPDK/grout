@@ -18,6 +18,7 @@
 enum {
 	CONTROL = 0,
 	INVAL,
+	DROP,
 	EDGE_COUNT,
 };
 
@@ -81,7 +82,10 @@ static uint16_t ndp_na_input_process(
 		// recipient has apparently not initiated any communication with the
 		// target.
 		remote = ip6_nexthop_lookup(iface->vrf_id, iface->id, &na->target);
-		ASSERT_NDP(remote != NULL);
+		if (remote == NULL) {
+			edge = DROP;
+			goto next;
+		}
 
 		lladdr_found = icmp6_get_opt(
 			mbuf, sizeof(*icmp6) + sizeof(*na), ICMP6_OPT_TARGET_LLADDR, &lladdr
@@ -113,6 +117,7 @@ static struct rte_node_register node = {
 	.next_nodes = {
 		[CONTROL] = "control_output",
 		[INVAL] = "ndp_na_input_inval",
+		[DROP] = "ndp_na_input_drop",
 	},
 };
 
@@ -123,3 +128,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ndp_na_input_inval);
+GR_DROP_REGISTER(ndp_na_input_drop);
