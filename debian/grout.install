@@ -1,6 +1,6 @@
 /etc/default/grout
 /etc/grout.init
 /usr/bin/grcli
-/usr/sbin/grout
+/usr/bin/grout
 /usr/share/man/man1/grcli.1
 /usr/share/man/man8/grout.8

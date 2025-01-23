@@ -7,4 +7,4 @@ RUN rm -f /tmp/grout-debug*.rpm
 RUN dnf -y install --nodocs --setopt=install_weak_deps=0 /tmp/grout*.rpm
 RUN dnf -y --enablerepo='*' clean all
 RUN rm -f /tmp/grout*.rpm
-CMD ["/usr/sbin/grout"]
+CMD ["/usr/bin/grout"]

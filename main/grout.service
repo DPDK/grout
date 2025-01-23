@@ -11,7 +11,7 @@ Type=notify
 Restart=on-failure
 EnvironmentFile=-/etc/default/grout
 ExecStartPre=/usr/bin/udevadm settle
-ExecStart=/usr/sbin/grout $GROUT_OPTS
+ExecStart=/usr/bin/grout $GROUT_OPTS
 ExecStartPost=/usr/bin/grcli -xef /etc/grout.init
 
 [Install]

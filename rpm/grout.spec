@@ -88,7 +88,7 @@ rm -rf %{buildroot} %{_vpath_builddir}
 %attr(644, root, root) %{_datadir}/bash-completion/completions/grout
 %attr(644, root, root) %{_datadir}/bash-completion/completions/grcli
 %attr(755, root, root) %{_bindir}/grcli
-%attr(755, root, root) %{_sbindir}/grout
+%attr(755, root, root) %{_bindir}/grout
 %attr(644, root, root) %{_mandir}/man1/grcli.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 

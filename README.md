@@ -119,7 +119,7 @@ systemctl restart grout.service
      Memory: 6.6M
         CPU: 19.185s
      CGroup: /system.slice/grout.service
-             └─31299 /usr/sbin/grout
+             └─31299 /usr/bin/grout
 
 Nov 30 10:31:31 grout systemd[1]: Starting Graph router daemon...
 Nov 30 10:31:31 grout grout[31299]: GROUT: main: starting grout version v0.2-93-gf53240e3750a
