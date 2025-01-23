@@ -100,6 +100,7 @@ static uint16_t ndp_ns_output_process(
 			memcpy(t, icmp6, trace_len);
 		}
 		nh->last_request = rte_get_tsc_cycles();
+		ip6_output_mbuf_data(mbuf)->iface = iface_from_id(nh->iface_id);
 		ip6_output_mbuf_data(mbuf)->nh = nh;
 		next = OUTPUT;
 next:
