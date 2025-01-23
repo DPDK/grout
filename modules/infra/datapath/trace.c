@@ -352,7 +352,7 @@ ipv4:
 		case IPPROTO_ICMP: {
 			const struct rte_icmp_hdr *icmp;
 			icmp = rte_pktmbuf_mtod_offset(m, const struct rte_icmp_hdr *, offset);
-			SAFE_BUF(snprintf, sizeof(buf), " / ICMP");
+			SAFE_BUF(snprintf, sizeof(buf), " / ICMP ");
 			SAFE_BUF(trace_icmp_format, sizeof(buf), icmp, sizeof(*icmp));
 			break;
 		}
