@@ -97,7 +97,6 @@ grout_exe = executable(
   dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep],
   c_args: ['-D__GROUT_MAIN__'],
   install: true,
-  install_dir: 'sbin',
 )
 
 grcli_exe = executable(

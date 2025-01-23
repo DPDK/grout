@@ -6,7 +6,16 @@
 /*.rpm
 /.cache
 /build
+/debian/*.debhelper
+/debian/*.debhelper.log
+/debian/*.substvars
+/debian/.*
 /debian/changelog
+/debian/debhelper*
+/debian/files
+/debian/grout-dev/
+/debian/grout/
+/debian/tmp/
 /redhat-linux-build
 /subprojects/dpdk
 /subprojects/ecoli
