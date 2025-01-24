@@ -54,8 +54,7 @@ static uint16_t ndp_ns_output_process(
 	const struct nexthop *local, *nh;
 	struct icmp6_opt_lladdr *lladdr;
 	struct icmp6_neigh_solicit *ns;
-	struct rte_ipv6_addr dst;
-	struct rte_ipv6_hdr *ip;
+	struct ip6_local_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 	struct icmp6_opt *opt;
 	uint16_t payload_len;
@@ -77,38 +76,41 @@ static uint16_t ndp_ns_output_process(
 		}
 
 		// Fill ICMP6 layer.
-		icmp6 = (struct icmp6 *)rte_pktmbuf_append(mbuf, sizeof(*icmp6));
+		payload_len = sizeof(*icmp6) + sizeof(*ns) + sizeof(*opt) + sizeof(*lladdr);
+		icmp6 = (struct icmp6 *)rte_pktmbuf_append(mbuf, payload_len);
 		icmp6->type = ICMP6_TYPE_NEIGH_SOLICIT;
 		icmp6->code = 0;
-		ns = (struct icmp6_neigh_solicit *)rte_pktmbuf_append(mbuf, sizeof(*ns));
+		ns = PAYLOAD(icmp6);
 		ns->__reserved = 0;
 		ns->target = nh->ipv6;
-		opt = (struct icmp6_opt *)rte_pktmbuf_append(mbuf, sizeof(*opt));
+		opt = PAYLOAD(ns);
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
-		lladdr = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*lladdr));
+		lladdr = PAYLOAD(opt);
 		lladdr->mac = local->lladdr;
-		if (nh->last_reply != 0 && nh->ucast_probes <= NH_UCAST_PROBES)
-			dst = nh->ipv6;
-		else
-			rte_ipv6_solnode_from_addr(&dst, &nh->ipv6);
-		// Fill IPv6 layer
-		payload_len = rte_pktmbuf_pkt_len(mbuf);
-		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
-		ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &local->ipv6, &dst);
-		// Compute ICMP6 checksum with pseudo header
-		icmp6->cksum = 0;
-		icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
 
-		if (gr_mbuf_is_traced(mbuf)) {
-			uint8_t trace_len = RTE_MIN(payload_len, GR_TRACE_ITEM_MAX_LEN);
-			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
-			memcpy(t, icmp6, trace_len);
-		}
-		ip6_output_mbuf_data(mbuf)->iface = iface_from_id(nh->iface_id);
-		ip6_output_mbuf_data(mbuf)->nh = nh;
+		// Fill in IP local data
+		d = ip6_local_mbuf_data(mbuf);
+		d->iface = iface_from_id(local->iface_id);
+		d->src = local->ipv6;
+		if (nh->last_reply != 0 && nh->ucast_probes <= NH_UCAST_PROBES)
+			d->dst = nh->ipv6;
+		else
+			rte_ipv6_solnode_from_addr(&d->dst, &nh->ipv6);
+		d->len = payload_len;
+		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;
+		d->proto = IPPROTO_ICMPV6;
 		next = OUTPUT;
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			if (next == ERROR) {
+				gr_mbuf_trace_add(mbuf, node, 0);
+			} else {
+				uint8_t trace_len = RTE_MIN(payload_len, GR_TRACE_ITEM_MAX_LEN);
+				struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
+				memcpy(t, icmp6, trace_len);
+			}
+		}
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 	}
 
@@ -124,7 +126,7 @@ static struct rte_node_register node = {
 	.process = ndp_ns_output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[OUTPUT] = "ip6_output",
+		[OUTPUT] = "icmp6_output",
 		[ERROR] = "ndp_ns_output_error",
 	},
 };
