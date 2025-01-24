@@ -33,6 +33,15 @@ static control_input_t ndp_solicit;
 int ip6_nexthop_solicit(struct nexthop *nh) {
 	if (nh == NULL)
 		return errno_set(EINVAL);
+
+	// This function is called by the control plane main thread.
+	// It is OK to modify the nexthop here.
+	nh->last_request = rte_get_tsc_cycles();
+	if (nh->ucast_probes < NH_UCAST_PROBES)
+		nh->ucast_probes++;
+	else
+		nh->bcast_probes++;
+
 	return post_to_stack(ndp_solicit, nh);
 }
 
@@ -42,9 +51,9 @@ static uint16_t ndp_ns_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	const struct nexthop *local, *nh;
 	struct icmp6_opt_lladdr *lladdr;
 	struct icmp6_neigh_solicit *ns;
-	struct nexthop *local, *nh;
 	struct rte_ipv6_addr dst;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *mbuf;
@@ -79,13 +88,10 @@ static uint16_t ndp_ns_output_process(
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = (struct icmp6_opt_lladdr *)rte_pktmbuf_append(mbuf, sizeof(*lladdr));
 		lladdr->mac = local->lladdr;
-		if (nh->last_reply != 0 && nh->ucast_probes < NH_UCAST_PROBES) {
+		if (nh->last_reply != 0 && nh->ucast_probes <= NH_UCAST_PROBES)
 			dst = nh->ipv6;
-			nh->ucast_probes++;
-		} else {
+		else
 			rte_ipv6_solnode_from_addr(&dst, &nh->ipv6);
-			nh->bcast_probes++;
-		}
 		// Fill IPv6 layer
 		payload_len = rte_pktmbuf_pkt_len(mbuf);
 		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
@@ -99,7 +105,6 @@ static uint16_t ndp_ns_output_process(
 			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
 			memcpy(t, icmp6, trace_len);
 		}
-		nh->last_request = rte_get_tsc_cycles();
 		ip6_output_mbuf_data(mbuf)->iface = iface_from_id(nh->iface_id);
 		ip6_output_mbuf_data(mbuf)->nh = nh;
 		next = OUTPUT;
