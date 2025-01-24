@@ -105,6 +105,8 @@ free:
 	rte_pktmbuf_free(m);
 }
 
+static control_input_t arp_output_reply_node;
+
 void arp_probe_input_cb(struct rte_mbuf *m) {
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
@@ -135,18 +137,31 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	}
 
 	// static next hops never need updating
-	if (nh->flags & GR_NH_F_STATIC)
-		goto free;
+	if (!(nh->flags & GR_NH_F_STATIC)) {
+		// Refresh all fields.
+		nh->last_reply = rte_get_tsc_cycles();
+		nh->iface_id = iface->id;
+		nh->flags |= GR_NH_F_REACHABLE;
+		nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		nh->ucast_probes = 0;
+		nh->bcast_probes = 0;
+		nh->lladdr = arp->arp_data.arp_sha;
+		nexthop_push_notification(NEXTHOP_EVENT_UPDATE, nh);
+	}
 
-	// Refresh all fields.
-	nh->last_reply = rte_get_tsc_cycles();
-	nh->iface_id = iface->id;
-	nh->flags |= GR_NH_F_REACHABLE;
-	nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
-	nh->ucast_probes = 0;
-	nh->bcast_probes = 0;
-	nh->lladdr = arp->arp_data.arp_sha;
-	nexthop_push_notification(NEXTHOP_EVENT_UPDATE, nh);
+	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
+		// send a reply for our local ip
+		struct nexthop *local = ip4_nexthop_lookup(iface->vrf_id, arp->arp_data.arp_tip);
+		struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
+		d->local = local;
+		d->iface = iface;
+		if (post_to_stack(arp_output_reply_node, m) < 0) {
+			LOG(ERR, "post_to_stack: %s", strerror(errno));
+			goto free;
+		}
+		// prevent double free, mbuf has been re-consumed by datapath
+		m = NULL;
+	}
 
 	// Flush all held packets.
 	held = nh->held_pkts_head;
@@ -280,6 +295,7 @@ static void nh4_init(struct event_base *ev_base) {
 		ABORT("nh_pool_new(AF_INET) failed");
 
 	ip_output_node = gr_control_input_register_handler("ip_output", true);
+	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
 }
 
 static void nh4_fini(struct event_base *) {

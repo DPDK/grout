@@ -16,7 +16,6 @@
 
 enum {
 	CONTROL = 0,
-	REPLY,
 	DROP,
 	ERROR,
 	EDGE_COUNT,
@@ -29,11 +28,10 @@ static uint16_t arp_input_request_process(
 	uint16_t nb_objs
 ) {
 	struct control_output_mbuf_data *ctrl_data;
-	struct arp_reply_mbuf_data *d;
-	struct rte_mbuf *mbuf, *copy;
+	const struct nexthop *local;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
-	struct nexthop *local;
+	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -48,21 +46,10 @@ static uint16_t arp_input_request_process(
 			goto next;
 		}
 
-		copy = rte_pktmbuf_copy(mbuf, mbuf->pool, 0, UINT32_MAX);
-		if (copy == NULL) {
-			edge = ERROR;
-			goto next;
-		}
-		if (gr_mbuf_is_traced(mbuf))
-			gr_mbuf_trace_add(copy, node, 0);
-		ctrl_data = control_output_mbuf_data(copy);
+		ctrl_data = control_output_mbuf_data(mbuf);
 		ctrl_data->callback = arp_probe_input_cb;
 		ctrl_data->iface = iface;
-		rte_node_enqueue_x1(graph, node, CONTROL, copy);
-
-		edge = REPLY;
-		d = arp_reply_mbuf_data(mbuf);
-		d->local = local;
+		edge = CONTROL;
 next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
@@ -80,7 +67,6 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[CONTROL] = "control_output",
-		[REPLY] = "arp_output_reply",
 		[DROP] = "arp_input_request_drop",
 		[ERROR] = "arp_input_request_error",
 	},

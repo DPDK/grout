@@ -46,8 +46,10 @@ static uint16_t arp_output_reply_process(
 			edge = ERROR;
 			goto next;
 		}
+
 		// Reuse mbuf to craft an ARP reply.
-		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
+		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
+		arp = (struct rte_arp_hdr *)rte_pktmbuf_append(mbuf, sizeof(*arp));
 		arp->arp_hardware = RTE_BE16(RTE_ARP_HRD_ETHER);
 		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
