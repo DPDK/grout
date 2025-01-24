@@ -8,6 +8,7 @@ Build-Depends:
  debhelper-compat (= 13),
  bash-completion,
  git,
+ go-md2man,
  libarchive-dev,
  libcmocka-dev,
  libedit-dev,
@@ -20,7 +21,6 @@ Build-Depends:
  patch,
  pkg-config,
  python3-pyelftools,
- scdoc,
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/DPDK/grout

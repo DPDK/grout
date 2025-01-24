@@ -32,7 +32,7 @@ jobs:
           set -xe
           sudo apt-get update -qy
           sudo apt-get install -qy --no-install-recommends \
-            make gcc ninja-build meson git scdoc libibverbs-dev \
+            make gcc ninja-build meson git go-md2man libibverbs-dev \
             libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6
@@ -61,7 +61,7 @@ jobs:
           dpkg --add-architecture arm64
           apt update -qy
           apt install -qy --no-install-recommends \
-            make gcc git meson scdoc python3-pyelftools ca-certificates pkg-config \
+            make gcc git meson go-md2man python3-pyelftools ca-certificates pkg-config \
             crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
             libevent-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64
       - uses: actions/checkout@v4

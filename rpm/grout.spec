@@ -28,7 +28,7 @@ BuildRequires: numactl-devel
 BuildRequires: pkgconf
 BuildRequires: python3-pyelftools
 BuildRequires: rdma-core-devel
-BuildRequires: scdoc
+BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: systemd
 
 %description

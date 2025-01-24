@@ -3,7 +3,7 @@
 
 option(
   'docs', type: 'feature', value: 'auto',
-  description: 'Build man pages. If set to "auto", only build if scdoc is found.',
+  description: 'Build man pages. If set to "auto", only build if go-md2man is found.',
 )
 
 option(

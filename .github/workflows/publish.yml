@@ -29,7 +29,7 @@ jobs:
           set -xe
           apt-get update -qy
           NEEDRESTART_MODE=l apt-get install -qy --no-install-recommends \
-            git build-essential meson ninja-build pkgconf scdoc python3-pyelftools \
+            git build-essential meson ninja-build pkgconf go-md2man python3-pyelftools \
             libcmocka-dev libedit-dev libevent-dev libnuma-dev \
             libsmartcols-dev libarchive-dev libibverbs-dev \
             bash-completion devscripts debhelper
@@ -57,7 +57,8 @@ jobs:
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
             https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
-            gcc git make meson ninja-build pkgconf scdoc python3-pyelftools \
+            gcc git make meson ninja-build pkgconf python3-pyelftools \
+            golang-github-cpuguy83-md2man \
             libcmocka-devel libedit-devel libevent-devel numactl-devel \
             libsmartcols-devel libarchive-devel rdma-core-devel \
             rpm-build systemd
