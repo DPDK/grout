@@ -28,6 +28,11 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 	uint8_t proto;
 });
 
+GR_MBUF_PRIV_DATA_TYPE(ndp_na_output_mbuf_data, {
+	const struct nexthop *local;
+	const struct nexthop *remote;
+});
+
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip6_output_register_interface(uint16_t iface_type_id, const char *next_node);
 int ip6_nexthop_solicit(struct nexthop *nh);
