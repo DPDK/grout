@@ -30,15 +30,15 @@ done
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 ping6 -i0.01 -c3 fe80::d2f0:cff:feba:a411
-ip netns exec $p2 ping6 -i0.01 -c3 fe80::d2f0:cff:feba:a412
-ip netns exec $p1 ping6 -i0.01 -c3 fd00:f00:2::2
-ip netns exec $p2 ping6 -i0.01 -c3 fd00:f00:1::2
-ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:2::2
-ip netns exec $p2 ping6 -i0.01 -c3 fd00:ba4:1::2
-ip netns exec $p1 ping6 -i0.01 -c3 fd00:ba4:1::1
-ip netns exec $p2 ping6 -i0.01 -c3 fd00:ba4:2::1
-ip netns exec $p1 traceroute -N1 fd00:ba4:2::2
-ip netns exec $p2 traceroute -N1 fd00:ba4:1::2
-ip netns exec $p1 traceroute -N1 fd00:f00:2::2
-ip netns exec $p2 traceroute -N1 fd00:f00:1::2
+ip netns exec $p1 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a411
+ip netns exec $p2 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a412
+ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:f00:2::2
+ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:f00:1::2
+ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
+ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
+ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:1::1
+ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:ba4:2::1
+ip netns exec $p1 traceroute -N1 -n fd00:ba4:2::2
+ip netns exec $p2 traceroute -N1 -n fd00:ba4:1::2
+ip netns exec $p1 traceroute -N1 -n fd00:f00:2::2
+ip netns exec $p2 traceroute -N1 -n fd00:f00:1::2

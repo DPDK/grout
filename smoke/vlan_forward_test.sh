@@ -31,5 +31,5 @@ for n in 0 1; do
 	ip -n $p addr show
 done
 
-ip netns exec $p0 ping -i0.01 -c3 172.16.1.2
-ip netns exec $p1 ping -i0.01 -c3 172.16.0.2
+ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
+ip netns exec $p1 ping -i0.01 -c3 -n 172.16.0.2

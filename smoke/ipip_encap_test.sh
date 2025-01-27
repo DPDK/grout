@@ -36,5 +36,5 @@ ip -n $p1 addr add 10.98.0.2/24 dev $iptun
 ip -n $p1 route add default via 10.98.0.1
 ip -n $p1 addr show
 
-ip netns exec $p0 ping -i0.01 -c3 10.98.0.2
-ip netns exec $p1 ping -i0.01 -c3 10.99.0.2
+ip netns exec $p0 ping -i0.01 -c3 -n 10.98.0.2
+ip netns exec $p1 ping -i0.01 -c3 -n 10.99.0.2
