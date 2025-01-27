@@ -22,4 +22,4 @@ done
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 rdisc6 $p1
+ip netns exec $p1 rdisc6 -n $p1
