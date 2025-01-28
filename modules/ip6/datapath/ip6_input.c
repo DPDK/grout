@@ -74,7 +74,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				edge = BAD_ADDR;
 				break;
 			default:
-				nh = ip6_mcast_get_member(iface->id, &ip->dst_addr);
+				nh = mcast6_get_member(iface->id, &ip->dst_addr);
 				if (nh == NULL)
 					edge = NOT_MEMBER;
 				else
@@ -100,7 +100,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
-		nh = ip6_route_lookup(iface->vrf_id, iface->id, &ip->dst_addr);
+		nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr);
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;

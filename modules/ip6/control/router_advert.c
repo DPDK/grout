@@ -85,7 +85,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 
 	n_ras = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = ip6_addr_get_all(iface_id);
+		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
@@ -100,7 +100,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	resp->n_ras = n_ras;
 	n_ras = 0;
 	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = ip6_addr_get_all(iface_id);
+		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
@@ -140,7 +140,7 @@ static void build_ra_packet(struct rte_mbuf *m, struct rte_ipv6_addr *srcv6) {
 
 	vrf_id = mbuf_data(m)->iface->vrf_id;
 	iface_id = mbuf_data(m)->iface->id;
-	ip6_output_mbuf_data(m)->nh = ip6_nexthop_lookup(vrf_id, iface_id, &dst);
+	ip6_output_mbuf_data(m)->nh = nh6_lookup(vrf_id, iface_id, &dst);
 	ip = (struct rte_ipv6_hdr *)rte_pktmbuf_append(m, sizeof(*ip));
 	icmp6 = (struct icmp6 *)rte_pktmbuf_append(m, sizeof(*icmp6));
 	icmp6->type = ICMP6_TYPE_ROUTER_ADVERT;
@@ -175,7 +175,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 	struct nexthop *nh;
 	struct rte_mbuf *m;
 
-	if ((hl = ip6_addr_get_all(iface->id)) == NULL)
+	if ((hl = addr6_get_all(iface->id)) == NULL)
 		return;
 
 	gr_vec_foreach (nh, hl->nh) {

@@ -109,8 +109,7 @@ static inline struct nexthop *nh_id_to_ptr(uintptr_t id) {
 	return (struct nexthop *)id;
 }
 
-struct nexthop *
-ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
+struct nexthop *fib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
 	struct rte_fib6 *fib6 = get_fib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
 	struct rte_ipv6_addr tmp;
@@ -119,7 +118,7 @@ ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr 
 	if (fib6 == NULL)
 		return NULL;
 
-	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 	rte_fib6_lookup_bulk(fib6, scoped_ip, &nh_id, 1);
 	if (nh_id == 0)
 		return errno_set_null(EHOSTUNREACH);
@@ -127,7 +126,7 @@ ip6_route_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr 
 	return nh_id_to_ptr(nh_id);
 }
 
-static struct nexthop *ip6_route_lookup_exact(
+static struct nexthop *rib6_lookup_exact(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
@@ -143,7 +142,7 @@ static struct nexthop *ip6_route_lookup_exact(
 	if (fib == NULL)
 		return NULL;
 
-	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 	rib6 = rte_fib6_get_rib(fib);
 	rn = rte_rib6_lookup_exact(rib6, scoped_ip, prefixlen);
 	if (rn == NULL)
@@ -153,7 +152,7 @@ static struct nexthop *ip6_route_lookup_exact(
 	return nh_id_to_ptr(nh_id);
 }
 
-int ip6_route_insert(
+int fib6_insert(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
@@ -171,12 +170,12 @@ int ip6_route_insert(
 		ret = -errno;
 		goto fail;
 	}
-	if (ip6_route_lookup_exact(vrf_id, iface_id, ip, prefixlen) != NULL) {
+	if (rib6_lookup_exact(vrf_id, iface_id, ip, prefixlen) != NULL) {
 		ret = -EEXIST;
 		goto fail;
 	}
 
-	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 	if ((ret = rte_fib6_add(fib, scoped_ip, prefixlen, nh_ptr_to_id(nh))) < 0)
 		goto fail;
 
@@ -187,7 +186,7 @@ fail:
 	return errno_set(-ret);
 }
 
-int ip6_route_delete(
+int fib6_delete(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
@@ -202,11 +201,11 @@ int ip6_route_delete(
 	if (fib == NULL)
 		return -errno;
 
-	nh = ip6_route_lookup_exact(vrf_id, iface_id, ip, prefixlen);
+	nh = rib6_lookup_exact(vrf_id, iface_id, ip, prefixlen);
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	scoped_ip = ip6_addr_linklocal_scope(ip, &tmp, iface_id);
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 	if ((ret = rte_fib6_delete(fib, scoped_ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
@@ -222,19 +221,19 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	int ret;
 
 	// ensure route gateway is reachable
-	if ((nh = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
+	if ((nh = fib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 		return api_out(EHOSTUNREACH, 0);
 
 	// if the route gateway is reachable via a prefix route,
 	// create a new unresolved nexthop
 	if (!rte_ipv6_addr_eq(&nh->ipv6, &req->nh)) {
-		if ((nh = ip6_nexthop_new(req->vrf_id, nh->iface_id, &req->nh)) == NULL)
+		if ((nh = nh6_new(req->vrf_id, nh->iface_id, &req->nh)) == NULL)
 			return api_out(errno, 0);
 		nh->flags |= GR_NH_F_GATEWAY;
 	}
 
 	// if route insert fails, the created nexthop will be freed
-	ret = ip6_route_insert(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, nh);
+	ret = fib6_insert(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, nh);
 	if (ret == 0)
 		route_push_notification(
 			IP6_EVENT_ROUTE_ADD, &req->dest.ip, req->dest.prefixlen, nh
@@ -249,7 +248,7 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_del_req *req = request;
 	struct nexthop *nh;
 
-	if ((nh = ip6_route_lookup_exact(
+	if ((nh = rib6_lookup_exact(
 		     req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen
 	     ))
 	    == NULL) {
@@ -261,7 +260,7 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 	if (!(nh->flags & GR_NH_F_GATEWAY))
 		return api_out(EBUSY, 0);
 
-	if (ip6_route_delete(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen) < 0)
+	if (fib6_delete(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);
@@ -272,7 +271,7 @@ static struct api_out route6_get(const void *request, void **response) {
 	struct gr_ip6_route_get_resp *resp = NULL;
 	struct nexthop *nh = NULL;
 
-	nh = ip6_route_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest);
+	nh = fib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest);
 	if (nh == NULL)
 		return api_out(ENETUNREACH, 0);
 
@@ -332,7 +331,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
 		r->vrf_id = vrf_id;
-		r->dest.ip = *ip6_addr_linklocal_unscope(&r->dest.ip, &tmp);
+		r->dest.ip = *addr6_linklocal_unscope(&r->dest.ip, &tmp);
 	}
 	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
@@ -399,14 +398,14 @@ static void route6_fini(struct event_base *) {
 	vrf_fibs = NULL;
 }
 
-void ip6_route_cleanup(struct nexthop *nh) {
+void fib6_cleanup(struct nexthop *nh) {
 	struct rte_ipv6_addr local_ip, ip;
 	struct rte_rib6_node *rn = NULL;
 	uint8_t depth, local_depth;
 	struct rte_rib6 *rib;
 	uintptr_t nh_id;
 
-	ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+	fib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 	local_ip = nh->ipv6;
 	local_depth = nh->prefixlen;
 
@@ -421,8 +420,8 @@ void ip6_route_cleanup(struct nexthop *nh) {
 
 			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
 
-			ip6_route_delete(nh->vrf_id, nh->iface_id, &ip, depth);
-			ip6_route_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH);
+			fib6_delete(nh->vrf_id, nh->iface_id, &ip, depth);
+			fib6_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH);
 		}
 	}
 
@@ -436,8 +435,8 @@ void ip6_route_cleanup(struct nexthop *nh) {
 
 			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
 
-			ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
-			ip6_route_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+			fib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
+			fib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 		}
 	}
 }

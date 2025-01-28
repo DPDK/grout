@@ -47,7 +47,7 @@ int icmp6_local_send(
 	const struct nexthop *local;
 	int ret;
 
-	if ((local = ip6_addr_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
+	if ((local = addr6_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
 		return -errno;
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))))
