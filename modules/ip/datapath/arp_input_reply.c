@@ -36,7 +36,7 @@ static uint16_t arp_input_reply_process(
 
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		iface = mbuf_data(mbuf)->iface;
-		remote = ip4_nexthop_lookup(iface->vrf_id, arp->arp_data.arp_sip);
+		remote = nh4_lookup(iface->vrf_id, arp->arp_data.arp_sip);
 
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);

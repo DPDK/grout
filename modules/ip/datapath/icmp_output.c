@@ -45,7 +45,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 		ip_set_fields(ip, local_data);
-		if ((nh = ip4_route_lookup(local_data->vrf_id, local_data->dst)) == NULL) {
+		if ((nh = fib4_lookup(local_data->vrf_id, local_data->dst)) == NULL) {
 			// Do not let packets go to ip_output from icmp_output
 			// with no available route to avoid loops of destination
 			// unreachable errors.

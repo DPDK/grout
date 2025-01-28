@@ -26,23 +26,23 @@
 
 static struct nh_pool *nh_pool;
 
-struct nexthop *ip4_nexthop_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip) {
+struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip) {
 	return nexthop_new(nh_pool, vrf_id, iface_id, &ip);
 }
 
-struct nexthop *ip4_nexthop_lookup(uint16_t vrf_id, ip4_addr_t ip) {
+struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	// XXX: should we scope ip4 nh lookup based on rfc3927 ?
 	return nexthop_lookup(nh_pool, vrf_id, GR_IFACE_ID_UNDEF, &ip);
 }
 
 static control_input_t ip_output_node;
 
-void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
+void nh4_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 	ip4_addr_t dst = ip->dst_addr;
 	struct nexthop *nh;
 
-	nh = ip4_route_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
+	nh = fib4_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
 
@@ -50,11 +50,11 @@ void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
-		struct nexthop *remote = ip4_nexthop_lookup(nh->vrf_id, dst);
+		struct nexthop *remote = nh4_lookup(nh->vrf_id, dst);
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = ip4_nexthop_new(nh->vrf_id, nh->iface_id, dst);
+			remote = nh4_new(nh->vrf_id, nh->iface_id, dst);
 		}
 
 		if (remote == NULL) {
@@ -66,7 +66,7 @@ void ip4_nexthop_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /32 route so that next packets take it
 		// in priority with a single route lookup.
-		if (ip4_route_insert(nh->vrf_id, dst, 32, remote) < 0) {
+		if (fib4_insert(nh->vrf_id, dst, 32, remote) < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
@@ -118,19 +118,19 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	iface = mbuf_data(m)->iface;
 
 	sip = arp->arp_data.arp_sip;
-	nh = ip4_nexthop_lookup(iface->vrf_id, sip);
+	nh = nh4_lookup(iface->vrf_id, sip);
 	if (nh == NULL) {
 		// We don't have an entry for the ARP request sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address,
 		// they will certainly contact us soon and it will save us an
 		// ARP request.
-		if ((nh = ip4_nexthop_new(iface->vrf_id, iface->id, sip)) == NULL) {
+		if ((nh = nh4_new(iface->vrf_id, iface->id, sip)) == NULL) {
 			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
 			goto free;
 		}
 		// Add an internal /32 route to reference the newly created nexthop.
-		if (ip4_route_insert(iface->vrf_id, sip, 32, nh) < 0) {
+		if (fib4_insert(iface->vrf_id, sip, 32, nh) < 0) {
 			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
 			goto free;
 		}
@@ -151,7 +151,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
 		// send a reply for our local ip
-		struct nexthop *local = ip4_nexthop_lookup(iface->vrf_id, arp->arp_data.arp_tip);
+		struct nexthop *local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
 		struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
 		d->local = local;
 		d->iface = iface;
@@ -196,19 +196,19 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if ((nh = ip4_nexthop_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
+	if ((nh = nh4_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && rte_is_same_ether_addr(&req->nh.mac, &nh->lladdr))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	if ((nh = ip4_nexthop_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
+	if ((nh = nh4_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
 		return api_out(errno, 0);
 
 	nh->lladdr = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = ip4_route_insert(nh->vrf_id, nh->ipv4, 32, nh);
+	ret = fib4_insert(nh->vrf_id, nh->ipv4, 32, nh);
 
 	return api_out(-ret, 0);
 }
@@ -220,7 +220,7 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 	if (req->vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
-	if ((nh = ip4_nexthop_lookup(req->vrf_id, req->host)) == NULL) {
+	if ((nh = nh4_lookup(req->vrf_id, req->host)) == NULL) {
 		if (errno == ENOENT && req->missing_ok)
 			return api_out(0, 0);
 		return api_out(errno, 0);
@@ -229,7 +229,7 @@ static struct api_out nh4_del(const void *request, void ** /*response*/) {
 		return api_out(EBUSY, 0);
 
 	// this also does ip4_nexthop_decref(), freeing the next hop
-	if (ip4_route_delete(req->vrf_id, req->host, 32) < 0)
+	if (fib4_delete(req->vrf_id, req->host, 32) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);
@@ -287,7 +287,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 static void nh4_init(struct event_base *ev_base) {
 	struct nh_pool_opts opts = {
 		.solicit_nh = arp_output_request_solicit,
-		.free_nh = ip4_route_cleanup,
+		.free_nh = fib4_cleanup,
 		.num_nexthops = IP4_MAX_NEXT_HOPS,
 	};
 	nh_pool = nh_pool_new(AF_INET, ev_base, &opts);
