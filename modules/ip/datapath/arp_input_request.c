@@ -39,7 +39,7 @@ static uint16_t arp_input_request_process(
 
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		iface = mbuf_data(mbuf)->iface;
-		local = ip4_nexthop_lookup(iface->vrf_id, arp->arp_data.arp_tip);
+		local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			// ARP request not for us
 			edge = DROP;

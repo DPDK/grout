@@ -100,7 +100,7 @@ static struct api_out icmp_send(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	if ((nh = ip4_route_lookup(req->vrf, req->addr)) == NULL) {
+	if ((nh = fib4_lookup(req->vrf, req->addr)) == NULL) {
 		ret = -errno;
 		goto fail;
 	}

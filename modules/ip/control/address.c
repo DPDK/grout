@@ -42,7 +42,7 @@ static void ip4_push_notification(ip_event_t id, struct nexthop *nh) {
 	gr_api_push_notification(id, sizeof(api_nh), &api_nh);
 }
 
-struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
+struct hoplist *addr4_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
 	if (iface_id >= MAX_IFACES)
@@ -55,8 +55,8 @@ struct hoplist *ip4_addr_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
-struct nexthop *ip4_addr_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
-	struct hoplist *addrs = ip4_addr_get_all(iface_id);
+struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+	struct hoplist *addrs = addr4_get_all(iface_id);
 	struct nexthop *nh;
 
 	if (addrs == NULL)
@@ -89,10 +89,10 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 			return api_out(0, 0);
 	}
 
-	if (ip4_nexthop_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
+	if (nh4_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
 		return api_out(EADDRINUSE, 0);
 
-	if ((nh = ip4_nexthop_new(iface->vrf_id, iface->id, req->addr.addr.ip)) == NULL)
+	if ((nh = nh4_new(iface->vrf_id, iface->id, req->addr.addr.ip)) == NULL)
 		return api_out(errno, 0);
 
 	nh->prefixlen = req->addr.addr.prefixlen;
@@ -104,7 +104,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 			return api_out(errno, 0);
 		}
 
-	if ((ret = ip4_route_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
+	if ((ret = fib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);
@@ -119,7 +119,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	unsigned i = 0;
 
-	if ((addrs = ip4_addr_get_all(req->addr.iface_id)) == NULL)
+	if ((addrs = addr4_get_all(req->addr.iface_id)) == NULL)
 		return api_out(ENODEV, 0);
 
 	gr_vec_foreach (nh, addrs->nh) {
@@ -138,7 +138,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ip4_route_cleanup(nh);
+	fib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
 
@@ -157,7 +157,7 @@ static struct api_out addr_list(const void *request, void **response) {
 
 	num = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = ip4_addr_get_all(iface_id);
+		addrs = addr4_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs->nh) == 0
 		    || addrs->nh[0]->vrf_id != req->vrf_id)
 			continue;
@@ -169,7 +169,7 @@ static struct api_out addr_list(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = ip4_addr_get_all(iface_id);
+		addrs = addr4_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs->nh) == 0
 		    || addrs->nh[0]->vrf_id != req->vrf_id)
 			continue;
@@ -193,12 +193,12 @@ static void iface_event_handler(iface_event_t event, struct iface *iface) {
 	if (event != IFACE_EVENT_PRE_REMOVE)
 		return;
 
-	ifaddrs = ip4_addr_get_all(iface->id);
+	ifaddrs = addr4_get_all(iface->id);
 	if (ifaddrs == NULL)
 		return;
 
 	gr_vec_foreach (nh, ifaddrs->nh)
-		ip4_route_cleanup(nh);
+		fib4_cleanup(nh);
 
 	gr_vec_free(ifaddrs->nh);
 }

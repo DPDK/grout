@@ -61,7 +61,7 @@ static uint16_t arp_output_request_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		nh = control_input_mbuf_data(mbuf)->data;
-		local = ip4_addr_get_preferred(nh->iface_id, nh->ipv4);
+		local = addr4_get_preferred(nh->iface_id, nh->ipv4);
 
 		if (local == NULL) {
 			edge = ERROR;

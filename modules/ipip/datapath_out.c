@@ -71,7 +71,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip_set_fields(outer, &tunnel);
 
 		// Resolve nexthop for the encapsulated packet.
-		ip_data->nh = ip4_route_lookup(iface->vrf_id, ipip->remote);
+		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);
 		edge = IP_OUTPUT;
 
 next:
