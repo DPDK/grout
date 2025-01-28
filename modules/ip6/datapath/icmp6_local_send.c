@@ -50,7 +50,7 @@ int icmp6_local_send(
 	if ((local = ip6_addr_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
 		return -errno;
 
-	if ((msg = calloc(1, sizeof(struct ctl_to_stack))))
+	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
 	msg->iface_id = gw->iface_id;
 	msg->seq_num = seq_num;
