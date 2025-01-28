@@ -30,7 +30,7 @@ enum {
 
 static control_input_t ndp_solicit;
 
-int ip6_nexthop_solicit(struct nexthop *nh) {
+int nh6_solicit(struct nexthop *nh) {
 	if (nh == NULL)
 		return errno_set(EINVAL);
 
@@ -69,7 +69,7 @@ static uint16_t ndp_ns_output_process(
 			next = ERROR;
 			goto next;
 		}
-		local = ip6_addr_get_preferred(nh->iface_id, &nh->ipv6);
+		local = addr6_get_preferred(nh->iface_id, &nh->ipv6);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;

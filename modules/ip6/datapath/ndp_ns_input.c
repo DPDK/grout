@@ -68,7 +68,7 @@ static uint16_t ndp_ns_input_process(
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
-		local = ip6_nexthop_lookup(d.iface->vrf_id, d.iface->id, &ns->target);
+		local = nh6_lookup(d.iface->vrf_id, d.iface->id, &ns->target);
 		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
 			next = DROP;
 			if (gr_mbuf_is_traced(mbuf))

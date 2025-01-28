@@ -89,7 +89,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = NO_IP;
 			goto next;
 		}
-		if ((nh = ip6_addr_get_preferred(iface->id, &ip->src_addr)) == NULL) {
+		if ((nh = addr6_get_preferred(iface->id, &ip->src_addr)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}

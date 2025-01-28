@@ -22,7 +22,7 @@ ip6_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		d = control_output_mbuf_data(mbuf);
-		d->callback = ip6_nexthop_unreachable_cb;
+		d->callback = nh6_unreachable_cb;
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
