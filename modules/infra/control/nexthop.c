@@ -115,6 +115,9 @@ nexthop_new(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void 
 	void *data;
 	int ret;
 
+	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
+		ABORT("nexthop created from datapath thread");
+
 	if (nhp == NULL)
 		ABORT("nhp == NULL");
 
