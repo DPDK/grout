@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_ip6.h>
 #include <gr_net_types.h>
 
@@ -140,10 +141,12 @@ static cmd_status_t icmp_send(
 }
 
 static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_icmp_send_req req = {.seq_num = 0, .vrf = 0};
+	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_ERROR;
 	uint16_t count = UINT16_MAX;
 	uint16_t msdelay = 1000;
+	struct gr_iface iface;
+	const char *str;
 
 	if (inet_pton(AF_INET6, arg_str(p, "DEST"), &req.addr) != 1) {
 		errno = EINVAL;
@@ -155,6 +158,11 @@ static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "DELAY", &msdelay)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
+	if ((str = arg_str(p, "IFACE")) != NULL) {
+		if (iface_from_name(c, str, &iface) < 0)
+			return CMD_ERROR;
+		req.iface = iface.id;
+	}
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
 	if (prev_handler == SIG_ERR)
@@ -168,8 +176,10 @@ static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t traceroute(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_icmp_send_req req = {.seq_num = 0, .vrf = 0};
+	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
+	struct gr_iface iface;
+	const char *str;
 
 	if (inet_pton(AF_INET6, arg_str(p, "DEST"), &req.addr) != 1) {
 		errno = EINVAL;
@@ -177,6 +187,11 @@ static cmd_status_t traceroute(const struct gr_api_client *c, const struct ec_pn
 	}
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
+	if ((str = arg_str(p, "IFACE")) != NULL) {
+		if (iface_from_name(c, str, &iface) < 0)
+			return CMD_ERROR;
+		req.iface = iface.id;
+	}
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
 	if (prev_handler == SIG_ERR)
@@ -196,10 +211,14 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(
 			root, CTX_ARG("ping", "Send ICMPv6 echo requests and wait for replies.")
 		),
-		"DEST [vrf VRF] [count COUNT] [delay DELAY]",
+		"DEST [vrf VRF] [count COUNT] [delay DELAY] [iface IFACE]",
 		ping,
 		"Send ICMPv6 echo requests and wait for replies.",
 		with_help("IPv6 destination address.", ec_node_re("DEST", IPV6_RE)),
+		with_help(
+			"Output interface name.",
+			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
+		),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
 		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
 		with_help("Delay in ms between icmp6 echo.", ec_node_uint("DELAY", 0, 10000, 10))
@@ -209,11 +228,15 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("traceroute", "Discover IPv6 intermediate gateways.")),
-		"DEST [vrf VRF]",
+		"DEST [vrf VRF] [iface IFACE]",
 		traceroute,
 		"Discover IPv6 intermediate gateways.",
 		with_help("IPv6 destination address.", ec_node_re("DEST", IPV6_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help(
+			"Output interface name.",
+			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
+		)
 	);
 
 	return ret;

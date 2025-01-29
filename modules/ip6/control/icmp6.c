@@ -94,8 +94,7 @@ static struct api_out icmp6_send(const void *request, void ** /* response */) {
 	const struct nexthop *nh;
 	int ret;
 
-	// XXX won't be able to ping linklocal addresses.
-	if ((nh = rib6_lookup(req->vrf, GR_IFACE_ID_UNDEF, &req->addr)) == NULL)
+	if ((nh = rib6_lookup(req->vrf, req->iface, &req->addr)) == NULL)
 		return api_out(errno, 0);
 
 	ret = icmp6_local_send(&req->addr, nh, req->id, req->seq_num, req->ttl);

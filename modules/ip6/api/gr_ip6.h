@@ -174,6 +174,7 @@ struct gr_ip6_ra_show_resp {
 
 struct gr_ip6_icmp_send_req {
 	struct rte_ipv6_addr addr;
+	uint16_t iface;
 	uint16_t vrf;
 	uint16_t id;
 	uint16_t seq_num;
