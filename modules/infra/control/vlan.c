@@ -277,8 +277,10 @@ static void port_event(iface_event_t event, struct iface *iface) {
 		if (info->parent_id == iface->id) {
 			if (event == IFACE_EVENT_STATUS_UP) {
 				vlan->flags |= GR_IFACE_F_UP;
+				vlan->state |= GR_IFACE_S_RUNNING;
 			} else {
 				vlan->flags &= ~GR_IFACE_F_UP;
+				vlan->state &= ~GR_IFACE_S_RUNNING;
 			}
 			iface_event_notify(event, vlan);
 		}
