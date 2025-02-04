@@ -122,22 +122,11 @@ err:
 	return -errno;
 }
 
-int gr_api_client_enable_notifications(const struct gr_api_client *client) {
-	return gr_api_client_send_recv(client, GR_MAIN_ENABLE_NOTIFICATIONS, 0, NULL, NULL);
-}
-
-int gr_api_client_disable_notifications(const struct gr_api_client *client) {
-	return gr_api_client_send_recv(client, GR_MAIN_DISABLE_NOTIFICATIONS, 0, NULL, NULL);
-}
-
-int gr_api_client_recv_notification(
-	const struct gr_api_client *c,
-	struct gr_api_notification **notif
-) {
-	struct gr_api_notification header;
+int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event **event) {
+	struct gr_api_event header;
 	ssize_t n;
 
-	*notif = NULL;
+	*event = NULL;
 	if ((n = recv(c->sock_fd, &header, sizeof(header), 0)) < 0) {
 		goto err;
 	}
@@ -151,17 +140,18 @@ int gr_api_client_recv_notification(
 		goto err;
 	}
 	if (header.payload_len > 0) {
-		if ((*notif = malloc(sizeof(header) + header.payload_len)) == NULL)
+		if ((*event = malloc(sizeof(header) + header.payload_len)) == NULL)
 			goto err;
-		(*notif)->type = header.type;
-		(*notif)->payload_len = header.payload_len;
-		if (recv(c->sock_fd, PAYLOAD(*notif), header.payload_len, 0) < 0)
+		(*event)->ev_type = header.ev_type;
+		(*event)->payload_len = header.payload_len;
+		if (recv(c->sock_fd, PAYLOAD(*event), header.payload_len, 0) < 0)
 			goto err;
 	}
 	return 0;
 
 err:
-	free(*notif);
+	free(*event);
+	*event = NULL;
 	return -errno;
 }
 

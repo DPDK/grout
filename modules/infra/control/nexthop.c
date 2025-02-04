@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_event.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_nh_control.h>
@@ -30,7 +31,7 @@ void nexthop_push_notification(nexthop_event_t id, struct nexthop *nh) {
 		.mac = nh->lladdr,
 	};
 
-	gr_api_push_notification(id, sizeof(api_nh), &api_nh);
+	gr_event_push(id, sizeof(api_nh), &api_nh);
 }
 
 struct nh_pool *

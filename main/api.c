@@ -6,6 +6,7 @@
 #include "module.h"
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_vec.h>
@@ -19,16 +20,16 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-static evutil_socket_t *notification_sockets;
+static evutil_socket_t *event_subscribers;
 
-void gr_api_push_notification(uint32_t evt, size_t len, const void *data) {
-	struct gr_api_notification n;
+void gr_event_push(uint32_t evt, size_t len, const void *data) {
+	struct gr_api_event e;
 	evutil_socket_t s;
-	n.type = evt;
-	n.payload_len = len;
+	e.ev_type = evt;
+	e.payload_len = len;
 
-	gr_vec_foreach (s, notification_sockets) {
-		send(s, &n, sizeof(n), MSG_DONTWAIT | MSG_NOSIGNAL);
+	gr_vec_foreach (s, event_subscribers) {
+		send(s, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
 		send(s, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}
 }
@@ -125,17 +126,17 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		}
 	}
 
-	if (req.type == GR_MAIN_ENABLE_NOTIFICATIONS) {
+	if (req.type == GR_MAIN_EVENT_SUBSCRIBE) {
 		out.status = 0;
 		out.len = 0;
-		gr_vec_add(notification_sockets, sock);
+		gr_vec_add(event_subscribers, sock);
 		goto send;
-	} else if (req.type == GR_MAIN_DISABLE_NOTIFICATIONS) {
+	} else if (req.type == GR_MAIN_EVENT_UNSUBSCRIBE) {
 		out.status = 0;
 		out.len = 0;
-		for (size_t i = 0; i < gr_vec_len(notification_sockets); i++) {
-			if (notification_sockets[i] == sock) {
-				gr_vec_del_swap(notification_sockets, i);
+		for (size_t i = 0; i < gr_vec_len(event_subscribers); i++) {
+			if (event_subscribers[i] == sock) {
+				gr_vec_del_swap(event_subscribers, i);
 				goto send;
 			}
 		}
@@ -199,9 +200,9 @@ close:
 	free(resp);
 	if (ev != NULL)
 		event_free_finalize(0, ev, finalize_fd);
-	for (size_t i = 0; i < gr_vec_len(notification_sockets); i++) {
-		if (notification_sockets[i] == sock) {
-			gr_vec_del_swap(notification_sockets, i);
+	for (size_t i = 0; i < gr_vec_len(event_subscribers); i++) {
+		if (event_subscribers[i] == sock) {
+			gr_vec_del_swap(event_subscribers, i);
 			break;
 		}
 	}

@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -39,7 +40,7 @@ route_push_notification(ip_event_t id, uint32_t ip, int prefixlen, const struct 
 		.nh = nh->ipv4,
 	};
 
-	gr_api_push_notification(id, sizeof(api_route), &api_route);
+	gr_event_push(id, sizeof(api_route), &api_route);
 }
 
 static struct rte_rib *get_rib(uint16_t vrf_id) {

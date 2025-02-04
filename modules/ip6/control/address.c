@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
@@ -38,7 +39,7 @@ static void ip6_push_notification(ip6_event_t id, struct nexthop *nh) {
 		.flags = nh->flags,
 	};
 
-	gr_api_push_notification(id, sizeof(api_nh), &api_nh);
+	gr_event_push(id, sizeof(api_nh), &api_nh);
 }
 
 struct hoplist *addr6_get_all(uint16_t iface_id) {
