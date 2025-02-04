@@ -2,10 +2,10 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'events.c',
   'graph.c',
   'iface.c',
   'loopback.c',
-  'notifications.c',
   'port.c',
   'stats.c',
   'trace.c',

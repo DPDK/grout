@@ -44,18 +44,19 @@ int gr_api_client_send_recv(
 	void **rx_data
 );
 
-#define GR_MAIN_ENABLE_NOTIFICATIONS REQUEST_TYPE(0xCAFE, 0xCAFE)
-#define GR_MAIN_DISABLE_NOTIFICATIONS REQUEST_TYPE(0xCAFE, 0xCAFF)
+#define GR_MAIN_MODULE 0xcafe
+#define GR_MAIN_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
+// struct gr_event_subscribe_req { };
+// struct gr_event_subscribe_resp { };
+#define GR_MAIN_EVENT_UNSUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcaff)
+// struct gr_event_unsubscribe_req { };
+// struct gr_event_unsubscribe_resp { };
 
-struct gr_api_notification {
-	uint32_t type;
+struct gr_api_event {
+	uint32_t ev_type;
 	size_t payload_len;
 };
 
-int gr_api_client_enable_notifications(const struct gr_api_client *client);
-int gr_api_client_disable_notifications(const struct gr_api_client *client);
-int gr_api_client_recv_notification(const struct gr_api_client *, struct gr_api_notification **);
-
-void gr_api_push_notification(uint32_t event, size_t len, const void *data);
+int gr_api_client_event_recv(const struct gr_api_client *, struct gr_api_event **);
 
 #endif

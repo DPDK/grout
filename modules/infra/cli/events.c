@@ -8,50 +8,47 @@
 #include <gr_ip6.h>
 #include <gr_net_types.h>
 
-#include <pthread.h>
-#include <signal.h>
-
-static cmd_status_t notifications_dump(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_pnode *) {
 	struct gr_infra_iface_get_resp *p;
-	struct gr_api_notification *n;
+	struct gr_api_event *e = NULL;
 	struct gr_ip4_route *r4;
 	struct gr_ip6_route *r6;
 	struct gr_nexthop *nh;
 
-	if (gr_api_client_enable_notifications(c) < 0)
+	if (gr_api_client_send_recv(c, GR_MAIN_EVENT_SUBSCRIBE, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
-	while (gr_api_client_recv_notification(c, &n) == 0) {
-		switch (n->type) {
+	while (gr_api_client_event_recv(c, &e) == 0) {
+		switch (e->ev_type) {
 		case IFACE_EVENT_POST_ADD:
-			assert(n->payload_len == sizeof(*p));
-			p = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*p));
+			p = PAYLOAD(e);
 			printf("Iface added: %s\n", p->iface.name);
 			break;
 		case IFACE_EVENT_PRE_REMOVE:
-			assert(n->payload_len == sizeof(*p));
-			p = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*p));
+			p = PAYLOAD(e);
 			printf("Iface deleted: %s\n", p->iface.name);
 			break;
 		case IFACE_EVENT_STATUS_UP:
-			assert(n->payload_len == sizeof(*p));
-			p = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*p));
+			p = PAYLOAD(e);
 			printf("Iface status UP: %s\n", p->iface.name);
 			break;
 		case IFACE_EVENT_STATUS_DOWN:
-			assert(n->payload_len == sizeof(*p));
-			p = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*p));
+			p = PAYLOAD(e);
 			printf("Iface status DOWN: %s\n", p->iface.name);
 			break;
 		case IFACE_EVENT_POST_RECONFIG:
-			assert(n->payload_len == sizeof(*p));
-			p = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*p));
+			p = PAYLOAD(e);
 			printf("Iface reconfigured: %s\n", p->iface.name);
 			break;
 		case IP_EVENT_ADDR_ADD:
 		case IP6_EVENT_ADDR_ADD:
-			assert(n->payload_len == sizeof(*nh));
-			nh = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*nh));
+			nh = PAYLOAD(e);
 			printf("IP address add: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
 			       ADDR_W(nh->family),
@@ -59,48 +56,48 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			break;
 		case IP_EVENT_ADDR_DEL:
 		case IP6_EVENT_ADDR_DEL:
-			assert(n->payload_len == sizeof(*nh));
-			nh = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*nh));
+			nh = PAYLOAD(e);
 			printf("IP address del: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
 			       ADDR_W(nh->family),
 			       &nh->addr);
 			break;
 		case IP_EVENT_ROUTE_ADD:
-			assert(n->payload_len == sizeof(*r4));
-			r4 = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*r4));
+			r4 = PAYLOAD(e);
 			printf("IP route add: %4p/%d via %4p\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
 			       &r4->nh);
 			break;
 		case IP_EVENT_ROUTE_DEL:
-			assert(n->payload_len == sizeof(*r4));
-			r4 = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*r4));
+			r4 = PAYLOAD(e);
 			printf("IP route del: %4p/%d via %4p\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
 			       &r4->nh);
 			break;
 		case IP6_EVENT_ROUTE_ADD:
-			assert(n->payload_len == sizeof(*r6));
-			r6 = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*r6));
+			r6 = PAYLOAD(e);
 			printf("IP route add: %6p/%d via %6p\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
 			       &r6->nh);
 			break;
 		case IP6_EVENT_ROUTE_DEL:
-			assert(n->payload_len == sizeof(*r6));
-			r6 = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*r6));
+			r6 = PAYLOAD(e);
 			printf("IP route del: %6p/%d via %6p\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
 			       &r6->nh);
 			break;
 		case NEXTHOP_EVENT_NEW:
-			assert(n->payload_len == sizeof(*nh));
-			nh = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*nh));
+			nh = PAYLOAD(e);
 			printf("NH new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
@@ -109,9 +106,9 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			       &nh->mac);
 			break;
 		case NEXTHOP_EVENT_DELETE:
-			assert(n->payload_len == sizeof(*nh));
-			nh = PAYLOAD(n);
-			printf("NH new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			assert(e->payload_len == sizeof(*nh));
+			nh = PAYLOAD(e);
+			printf("NH del: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
 			       ADDR_W(nh->family),
@@ -119,8 +116,8 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			       &nh->mac);
 			break;
 		case NEXTHOP_EVENT_UPDATE:
-			assert(n->payload_len == sizeof(*nh));
-			nh = PAYLOAD(n);
+			assert(e->payload_len == sizeof(*nh));
+			nh = PAYLOAD(e);
 			printf("NH update: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
@@ -129,13 +126,14 @@ static cmd_status_t notifications_dump(const struct gr_api_client *c, const stru
 			       &nh->mac);
 			break;
 		default:
-			printf("Unknown notification 0x%x received\n", n->type);
+			printf("Unknown event 0x%x received\n", e->ev_type);
 			break;
 		}
-		free(n);
+		free(e);
 	}
 
-	gr_api_client_disable_notifications(c);
+	gr_api_client_send_recv(c, GR_MAIN_EVENT_UNSUBSCRIBE, 0, NULL, NULL);
+
 	return 0;
 }
 
@@ -144,9 +142,9 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW),
-		"notifications",
-		notifications_dump,
-		"Display all notifications"
+		"events",
+		events_show,
+		"Subscribe to all events and dump them in real time"
 	);
 
 	if (ret < 0)
@@ -156,7 +154,7 @@ static int ctx_init(struct ec_node *root) {
 }
 
 static struct gr_cli_context ctx = {
-	.name = "notifications",
+	.name = "events",
 	.init = ctx_init,
 };
 

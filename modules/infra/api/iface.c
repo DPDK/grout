@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -130,7 +131,7 @@ static void broadcast_iface_event(iface_event_t event, struct iface *iface) {
 	struct gr_infra_iface_get_resp r;
 
 	iface_to_api(&r.iface, iface);
-	gr_api_push_notification(event, sizeof(r), &r);
+	gr_event_push(event, sizeof(r), &r);
 }
 
 static struct iface_event_handler iface_event_broadcast_handler = {
