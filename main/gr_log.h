@@ -9,6 +9,8 @@
 #include <rte_errno.h>
 #include <rte_log.h>
 
+#include <stdlib.h>
+
 extern int gr_rte_log_type;
 #define RTE_LOGTYPE_GROUT gr_rte_log_type
 
