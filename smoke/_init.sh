@@ -26,9 +26,12 @@ cleanup() {
 		grcli del interface "$name"
 	done
 
+	kill %?grcli
+	wait %?grcli
+
 	if [ "$run_grout" = true ]; then
-		kill -INT %?grout
-		wait
+		kill %?grout
+		wait %?grout
 	fi
 	rm -rf -- "$tmp"
 }
@@ -79,3 +82,5 @@ config_test.sh|graph_svg_test.sh)
 	grcli set trace all
 	;;
 esac
+
+grcli show events &
