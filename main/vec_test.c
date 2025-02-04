@@ -33,8 +33,8 @@ static void int_vec(void **) {
 	assert_int_equal(gr_vec_pop(vec), 4);
 	assert_int_equal(gr_vec_pop(vec), 1);
 	assert_int_equal(gr_vec_pop(vec), 42);
-	assert_int_equal(gr_vec_pop(vec), 0);
 
+	gr_vec_del_swap(vec, 0);
 	assert_int_equal(gr_vec_len(vec), 0);
 
 	gr_vec_free(vec);
