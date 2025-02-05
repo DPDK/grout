@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
@@ -50,18 +51,6 @@ static int next_ifid(uint16_t *ifid) {
 	return errno_set(ENOSPC);
 }
 
-static STAILQ_HEAD(, iface_event_handler) event_handlers = STAILQ_HEAD_INITIALIZER(event_handlers);
-
-void iface_event_register_handler(struct iface_event_handler *cb) {
-	STAILQ_INSERT_TAIL(&event_handlers, cb, next);
-}
-
-void iface_event_notify(iface_event_t event, struct iface *iface) {
-	struct iface_event_handler *iface_event_handler;
-	STAILQ_FOREACH (iface_event_handler, &event_handlers, next)
-		iface_event_handler->callback(event, iface);
-}
-
 struct iface *iface_create(
 	uint16_t type_id,
 	uint16_t flags,
@@ -109,7 +98,7 @@ struct iface *iface_create(
 
 	ifaces[ifid] = iface;
 
-	iface_event_notify(IFACE_EVENT_POST_ADD, iface);
+	gr_event_push(IFACE_EVENT_POST_ADD, iface);
 
 	return iface;
 fail:
@@ -268,7 +257,7 @@ int iface_destroy(uint16_t ifid) {
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
-	iface_event_notify(IFACE_EVENT_PRE_REMOVE, iface);
+	gr_event_push(IFACE_EVENT_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
 	type = iface_type_get(iface->type_id);
@@ -322,7 +311,8 @@ static struct gr_module iface_module = {
 	.fini_prio = 1000,
 };
 
-static void iface_event_debug(iface_event_t event, struct iface *iface) {
+static void iface_event_debug(uint32_t event, const void *obj) {
+	const struct iface *iface = obj;
 	char *str = "";
 	switch (event) {
 	case IFACE_EVENT_POST_ADD:
@@ -340,19 +330,26 @@ static void iface_event_debug(iface_event_t event, struct iface *iface) {
 	case IFACE_EVENT_STATUS_DOWN:
 		str = "STATUS_DOWN";
 		break;
-	case IFACE_EVENT_UNKNOWN:
-		str = "IFACE_EVENT_UNKNOWN";
+	default:
+		str = "?";
 		break;
 	}
-
-	LOG(DEBUG, "iface event [%x] %s triggered for iface %s.", event, str, iface->name);
+	LOG(DEBUG, "iface event [0x%08x] %s triggered for iface %s.", event, str, iface->name);
 }
 
-static struct iface_event_handler iface_event_debug_handler = {
+static struct gr_event_subscription iface_event_debug_handler = {
 	.callback = iface_event_debug,
+	.ev_count = 5,
+	.ev_types = {
+		IFACE_EVENT_POST_ADD,
+		IFACE_EVENT_PRE_REMOVE,
+		IFACE_EVENT_POST_RECONFIG,
+		IFACE_EVENT_STATUS_UP,
+		IFACE_EVENT_STATUS_DOWN,
+	},
 };
 
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
-	iface_event_register_handler(&iface_event_debug_handler);
+	gr_event_subscribe(&iface_event_debug_handler);
 }

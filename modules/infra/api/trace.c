@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_module.h>
@@ -24,9 +25,10 @@ void gr_packet_logging_set(bool e) {
 	packet_log_enabled = e;
 }
 
-static void iface_callback(iface_event_t event, struct iface *iface) {
-	if (event == IFACE_EVENT_POST_ADD && trace_enabled)
-		iface->flags |= GR_IFACE_F_PACKET_TRACE;
+static void iface_add_callback(uint32_t /*event*/, const void *obj) {
+	const struct iface *iface = obj;
+	if (trace_enabled)
+		iface_from_id(iface->id)->flags |= GR_IFACE_F_PACKET_TRACE;
 }
 
 static struct api_out set_trace(const void *request, void ** /*response*/) {
@@ -125,8 +127,10 @@ static struct gr_api_handler clear_packet_log_handler = {
 	.callback = packet_log_disable,
 };
 
-static struct iface_event_handler iface_event_trace_handler = {
-	.callback = iface_callback,
+static struct gr_event_subscription iface_add_sub = {
+	.callback = iface_add_callback,
+	.ev_count = 1,
+	.ev_types = {IFACE_EVENT_POST_ADD},
 };
 
 RTE_INIT(trace_init) {
@@ -135,5 +139,5 @@ RTE_INIT(trace_init) {
 	gr_register_api_handler(&clear_trace_handler);
 	gr_register_api_handler(&set_packet_log_handler);
 	gr_register_api_handler(&clear_packet_log_handler);
-	iface_event_register_handler(&iface_event_trace_handler);
+	gr_event_subscribe(&iface_add_sub);
 }

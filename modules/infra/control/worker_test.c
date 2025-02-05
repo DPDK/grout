@@ -6,6 +6,7 @@
 #include <gr.h>
 #include <gr_api.h>
 #include <gr_cmocka.h>
+#include <gr_event.h>
 #include <gr_infra.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
@@ -29,7 +30,7 @@ int gr_rte_log_type;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
-void iface_event_notify(iface_event_t, struct iface *) { }
+void gr_event_push(uint32_t, const void *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 

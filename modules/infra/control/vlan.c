@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -129,7 +130,7 @@ static int iface_vlan_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = vrf_id;
 
-	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
+	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
 	return 0;
 }
@@ -262,14 +263,12 @@ static struct gr_module vlan_module = {
 	.fini_prio = 1000,
 };
 
-static void port_event(iface_event_t event, struct iface *iface) {
-	struct iface *vlan = NULL;
+static void port_event(uint32_t event, const void *obj) {
+	const struct iface *iface = obj;
 	struct iface_info_vlan *info;
+	struct iface *vlan = NULL;
 
 	if (iface->type_id != GR_IFACE_TYPE_PORT)
-		return;
-
-	if (event != IFACE_EVENT_STATUS_UP && event != IFACE_EVENT_STATUS_DOWN)
 		return;
 
 	while ((vlan = iface_next(GR_IFACE_TYPE_VLAN, vlan)) != NULL) {
@@ -282,17 +281,19 @@ static void port_event(iface_event_t event, struct iface *iface) {
 				vlan->flags &= ~GR_IFACE_F_UP;
 				vlan->state &= ~GR_IFACE_S_RUNNING;
 			}
-			iface_event_notify(event, vlan);
+			gr_event_push(event, vlan);
 		}
 	}
 }
 
-static struct iface_event_handler port_event_handler = {
+static struct gr_event_subscription port_event_sub = {
 	.callback = port_event,
+	.ev_count = 2,
+	.ev_types = {IFACE_EVENT_STATUS_UP, IFACE_EVENT_STATUS_DOWN},
 };
 
 RTE_INIT(vlan_constructor) {
 	gr_register_module(&vlan_module);
 	iface_type_register(&iface_type_vlan);
-	iface_event_register_handler(&port_event_handler);
+	gr_event_subscribe(&port_event_sub);
 }
