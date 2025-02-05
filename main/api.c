@@ -34,6 +34,21 @@ void gr_event_push(uint32_t evt, size_t len, const void *data) {
 	}
 }
 
+static struct api_out subscribe(evutil_socket_t sock) {
+	gr_vec_add(event_subscribers, sock);
+	return api_out(0, 0);
+}
+
+static struct api_out unsubscribe(evutil_socket_t sock) {
+	for (unsigned i = 0; i < gr_vec_len(event_subscribers); i++) {
+		if (event_subscribers[i] == sock) {
+			gr_vec_del_swap(event_subscribers, i);
+			return api_out(0, 0);
+		}
+	}
+	return api_out(ENOTCONN, 0);
+}
+
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
 	if (fd >= 0)
@@ -45,7 +60,8 @@ static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp)
 		return errno_set(ENOMEM);
 
 	LOG(DEBUG,
-	    "for_id=%u len=%u status=%u %s",
+	    "fd=%d for_id=%u len=%u status=%u %s",
+	    sock,
 	    resp->for_id,
 	    resp->payload_len,
 	    resp->status,
@@ -126,21 +142,14 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		}
 	}
 
-	if (req.type == GR_MAIN_EVENT_SUBSCRIBE) {
-		out.status = 0;
-		out.len = 0;
-		gr_vec_add(event_subscribers, sock);
+	LOG(DEBUG, "fd=%d id=%u req_type=0x%08x len=%u", sock, req.id, req.type, req.payload_len);
+
+	switch (req.type) {
+	case GR_MAIN_EVENT_SUBSCRIBE:
+		out = subscribe(sock);
 		goto send;
-	} else if (req.type == GR_MAIN_EVENT_UNSUBSCRIBE) {
-		out.status = 0;
-		out.len = 0;
-		for (size_t i = 0; i < gr_vec_len(event_subscribers); i++) {
-			if (event_subscribers[i] == sock) {
-				gr_vec_del_swap(event_subscribers, i);
-				goto send;
-			}
-		}
-		out.status = ENOTCONN;
+	case GR_MAIN_EVENT_UNSUBSCRIBE:
+		out = unsubscribe(sock);
 		goto send;
 	}
 
@@ -150,13 +159,6 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		out.len = 0;
 		goto send;
 	}
-
-	LOG(DEBUG,
-	    "request: id=%u type=0x%08x '%s' len=%u",
-	    req.id,
-	    req.type,
-	    handler->name,
-	    req.payload_len);
 
 	out = handler->callback(req_payload, &resp_payload);
 
@@ -198,14 +200,9 @@ retry_send:
 close:
 	free(req_payload);
 	free(resp);
+	unsubscribe(sock);
 	if (ev != NULL)
 		event_free_finalize(0, ev, finalize_fd);
-	for (size_t i = 0; i < gr_vec_len(event_subscribers); i++) {
-		if (event_subscribers[i] == sock) {
-			gr_vec_del_swap(event_subscribers, i);
-			break;
-		}
-	}
 }
 
 static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
@@ -225,7 +222,7 @@ static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		return;
 	}
 
-	LOG(DEBUG, "new connection");
+	LOG(DEBUG, "new connection fd=%d", fd);
 
 	ev = event_new(ev_base, fd, EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE, read_cb, NULL);
 	if (ev == NULL || event_add(ev, NULL) < 0) {
