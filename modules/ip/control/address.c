@@ -30,19 +30,6 @@
 
 static struct hoplist *iface_addrs;
 
-static void ip4_push_notification(ip_event_t id, struct nexthop *nh) {
-	struct gr_nexthop api_nh = {
-		.family = nh->family,
-		.ipv4 = nh->ipv4,
-		.iface_id = nh->iface_id,
-		.vrf_id = nh->vrf_id,
-		.mac = nh->lladdr,
-		.flags = nh->flags,
-	};
-
-	gr_event_push(id, sizeof(api_nh), &api_nh);
-}
-
 struct hoplist *addr4_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
@@ -109,8 +96,8 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);
+	gr_event_push(IP_EVENT_ADDR_ADD, nh);
 
-	ip4_push_notification(IP_EVENT_ADDR_ADD, nh);
 	return api_out(0, 0);
 }
 
@@ -142,8 +129,8 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
+	gr_event_push(IP_EVENT_ADDR_DEL, nh);
 
-	ip4_push_notification(IP_EVENT_ADDR_DEL, nh);
 	return api_out(0, 0);
 }
 
@@ -240,6 +227,11 @@ static struct gr_module addr_module = {
 static struct iface_event_handler iface_event_address_handler = {
 	.callback = iface_event_handler,
 };
+static struct gr_event_serializer iface_addr_serializer = {
+	.callback = nexthop_serialize,
+	.ev_count = 2,
+	.ev_types = {IP_EVENT_ADDR_ADD, IP_EVENT_ADDR_DEL},
+};
 
 RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_add_handler);
@@ -247,4 +239,5 @@ RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_list_handler);
 	gr_register_module(&addr_module);
 	iface_event_register_handler(&iface_event_address_handler);
+	gr_event_register_serializer(&iface_addr_serializer);
 }

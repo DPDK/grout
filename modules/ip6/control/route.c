@@ -31,21 +31,6 @@ static struct rte_rib6_conf rib6_conf = {
 	.max_nodes = IP6_MAX_ROUTES,
 };
 
-static void route_push_notification(
-	ip6_event_t id,
-	const struct rte_ipv6_addr *ip,
-	const int prefixlen,
-	const struct nexthop *nh
-) {
-	struct gr_ip6_route api_route = {
-		.dest.ip = *ip,
-		.dest.prefixlen = prefixlen,
-		.nh = nh->ipv6,
-	};
-
-	gr_event_push(id, sizeof(api_route), &api_route);
-}
-
 static struct rte_rib6 *get_rib6(uint16_t vrf_id) {
 	struct rte_rib6 *rib;
 
@@ -178,8 +163,15 @@ int rib6_insert(
 
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
+	gr_event_push(
+		IP6_EVENT_ROUTE_ADD,
+		&(struct gr_ip6_route) {
+			{*ip, prefixlen},
+			nh->ipv6,
+			vrf_id,
+		}
+	);
 
-	route_push_notification(IP6_EVENT_ROUTE_ADD, ip, prefixlen, nh);
 	return 0;
 fail:
 	nexthop_decref(nh);
@@ -207,7 +199,14 @@ int rib6_delete(
 	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 	rte_rib6_remove(rib, scoped_ip, prefixlen);
 
-	route_push_notification(IP6_EVENT_ROUTE_DEL, ip, prefixlen, nh);
+	gr_event_push(
+		IP6_EVENT_ROUTE_DEL,
+		&(struct gr_ip6_route) {
+			{*ip, prefixlen},
+			nh->ipv6,
+			vrf_id,
+		}
+	);
 	nexthop_decref(nh);
 
 	return 0;
@@ -451,6 +450,12 @@ static struct gr_api_handler route6_list_handler = {
 	.callback = route6_list,
 };
 
+static struct gr_event_serializer route6_serializer = {
+	.size = sizeof(struct gr_ip6_route),
+	.ev_count = 2,
+	.ev_types = {IP6_EVENT_ROUTE_ADD, IP6_EVENT_ROUTE_DEL},
+};
+
 static struct gr_module route6_module = {
 	.name = "ipv6 route",
 	.init = route6_init,
@@ -463,5 +468,6 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route6_del_handler);
 	gr_register_api_handler(&route6_get_handler);
 	gr_register_api_handler(&route6_list_handler);
+	gr_event_register_serializer(&route6_serializer);
 	gr_register_module(&route6_module);
 }

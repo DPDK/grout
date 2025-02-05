@@ -4,6 +4,7 @@
 src += files(
   'api.c',
   'dpdk.c',
+  'event.c',
   'main.c',
   'module.c',
   'sd_notify.c',

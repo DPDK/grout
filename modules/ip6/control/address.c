@@ -29,19 +29,6 @@
 
 static struct hoplist *iface_addrs;
 
-static void ip6_push_notification(ip6_event_t id, struct nexthop *nh) {
-	struct gr_nexthop api_nh = {
-		.family = nh->family,
-		.ipv6 = nh->ipv6,
-		.iface_id = nh->iface_id,
-		.vrf_id = nh->vrf_id,
-		.mac = nh->lladdr,
-		.flags = nh->flags,
-	};
-
-	gr_event_push(id, sizeof(api_nh), &api_nh);
-}
-
 struct hoplist *addr6_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
@@ -177,7 +164,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);
-	ip6_push_notification(IP6_EVENT_ADDR_ADD, nh);
+	gr_event_push(IP6_EVENT_ADDR_ADD, nh);
 
 	return 0;
 }
@@ -243,7 +230,8 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	if (mcast6_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
 		return api_out(errno, 0);
 
-	ip6_push_notification(IP6_EVENT_ADDR_DEL, nh);
+	gr_event_push(IP6_EVENT_ADDR_DEL, nh);
+
 	return api_out(0, 0);
 }
 
@@ -382,6 +370,14 @@ static struct gr_module addr6_module = {
 static struct iface_event_handler iface_event_address_handler = {
 	.callback = ip6_iface_event_handler,
 };
+static struct gr_event_serializer iface_addr_serializer = {
+	.callback = nexthop_serialize,
+	.ev_count = 2,
+	.ev_types = {
+		IP6_EVENT_ADDR_ADD,
+		IP6_EVENT_ADDR_DEL,
+	},
+};
 
 RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr6_add_handler);
@@ -389,4 +385,5 @@ RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr6_list_handler);
 	gr_register_module(&addr6_module);
 	iface_event_register_handler(&iface_event_address_handler);
+	gr_event_register_serializer(&iface_addr_serializer);
 }

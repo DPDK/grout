@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_control_input.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -146,7 +147,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->lladdr = arp->arp_data.arp_sha;
-		nexthop_push_notification(NEXTHOP_EVENT_UPDATE, nh);
+		gr_event_push(NEXTHOP_EVENT_UPDATE, nh);
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
