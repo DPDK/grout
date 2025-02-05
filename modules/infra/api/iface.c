@@ -128,10 +128,7 @@ static struct api_out iface_set(const void *request, void ** /*response*/) {
 }
 
 static void broadcast_iface_event(iface_event_t event, struct iface *iface) {
-	struct gr_infra_iface_get_resp r;
-
-	iface_to_api(&r.iface, iface);
-	gr_event_push(event, sizeof(r), &r);
+	gr_event_push(event, iface);
 }
 
 static struct iface_event_handler iface_event_broadcast_handler = {
@@ -164,6 +161,29 @@ static struct gr_api_handler iface_set_handler = {
 	.callback = iface_set,
 };
 
+static int iface_event_serialize(const void *obj, void **buf) {
+	struct gr_iface *api_iface = calloc(1, sizeof(*api_iface));
+	if (api_iface == NULL)
+		return errno_set(ENOMEM);
+
+	iface_to_api(api_iface, obj);
+	*buf = api_iface;
+
+	return sizeof(*api_iface);
+}
+
+static struct gr_event_serializer iface_serializer = {
+	.callback = iface_event_serialize,
+	.ev_count = 5,
+	.ev_types = {
+		IFACE_EVENT_POST_ADD,
+		IFACE_EVENT_PRE_REMOVE,
+		IFACE_EVENT_POST_RECONFIG,
+		IFACE_EVENT_STATUS_UP,
+		IFACE_EVENT_STATUS_DOWN,
+	},
+};
+
 RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_add_handler);
 	gr_register_api_handler(&iface_del_handler);
@@ -171,4 +191,5 @@ RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_list_handler);
 	gr_register_api_handler(&iface_set_handler);
 	iface_event_register_handler(&iface_event_broadcast_handler);
+	gr_event_register_serializer(&iface_serializer);
 }

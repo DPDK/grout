@@ -32,17 +32,6 @@ static struct rte_rib_conf rib_conf = {
 	.max_nodes = IP4_MAX_ROUTES,
 };
 
-static void
-route_push_notification(ip_event_t id, uint32_t ip, int prefixlen, const struct nexthop *nh) {
-	struct gr_ip4_route api_route = {
-		.dest.ip = ip,
-		.dest.prefixlen = prefixlen,
-		.nh = nh->ipv4,
-	};
-
-	gr_event_push(id, sizeof(api_route), &api_route);
-}
-
 static struct rte_rib *get_rib(uint16_t vrf_id) {
 	struct rte_rib *rib;
 
@@ -155,8 +144,10 @@ int rib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nextho
 
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	fib4_insert(vrf_id, ip, prefixlen, nh);
+	gr_event_push(
+		IP_EVENT_ROUTE_ADD, &(struct gr_ip4_route) {{ip, prefixlen}, nh->ipv4, nh->vrf_id}
+	);
 
-	route_push_notification(IP_EVENT_ROUTE_ADD, ip, prefixlen, nh);
 	return 0;
 fail:
 	nexthop_decref(nh);
@@ -177,7 +168,9 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	rte_rib_remove(rib, rte_be_to_cpu_32(ip), prefixlen);
 	fib4_remove(vrf_id, ip, prefixlen);
 
-	route_push_notification(IP_EVENT_ROUTE_DEL, ip, prefixlen, nh);
+	gr_event_push(
+		IP_EVENT_ROUTE_DEL, &(struct gr_ip4_route) {{ip, prefixlen}, nh->ipv4, nh->vrf_id}
+	);
 	nexthop_decref(nh);
 
 	return 0;
@@ -420,6 +413,12 @@ static struct gr_api_handler route4_list_handler = {
 	.callback = route4_list,
 };
 
+static struct gr_event_serializer route_serializer = {
+	.size = sizeof(struct gr_ip4_route),
+	.ev_count = 2,
+	.ev_types = {IP_EVENT_ROUTE_ADD, IP_EVENT_ROUTE_DEL},
+};
+
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
 	.init = route4_init,
@@ -432,5 +431,6 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_del_handler);
 	gr_register_api_handler(&route4_get_handler);
 	gr_register_api_handler(&route4_list_handler);
+	gr_event_register_serializer(&route_serializer);
 	gr_register_module(&route4_module);
 }

@@ -22,18 +22,6 @@ struct nh_pool {
 
 static void nh_pool_do_ageing(evutil_socket_t, short, void *);
 
-void nexthop_push_notification(nexthop_event_t id, struct nexthop *nh) {
-	struct gr_nexthop api_nh = {
-		.family = nh->family,
-		.vrf_id = nh->vrf_id,
-		.iface_id = nh->iface_id,
-		.ipv6 = nh->ipv6,
-		.mac = nh->lladdr,
-	};
-
-	gr_event_push(id, sizeof(api_nh), &api_nh);
-}
-
 struct nh_pool *
 nh_pool_new(uint8_t family, struct event_base *ev_base, const struct nh_pool_opts *opts) {
 	struct nh_pool *nhp;
@@ -139,7 +127,8 @@ nexthop_new(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void 
 	}
 	nh->pool = nhp;
 
-	nexthop_push_notification(NEXTHOP_EVENT_NEW, nh);
+	gr_event_push(NEXTHOP_EVENT_NEW, nh);
+
 	return nh;
 }
 
@@ -216,7 +205,7 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		nexthop_push_notification(NEXTHOP_EVENT_DELETE, nh);
+		gr_event_push(NEXTHOP_EVENT_DELETE, nh);
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	} else {
@@ -282,4 +271,35 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 static void nh_pool_do_ageing(evutil_socket_t, short /*what*/, void *priv) {
 	struct nh_pool *nhp = priv;
 	nh_pool_iter(nhp, nexthop_ageing_cb, nhp);
+}
+
+int nexthop_serialize(const void *obj, void **buf) {
+	struct gr_nexthop *api_nh = calloc(1, sizeof(*api_nh));
+	const struct nexthop *nh = obj;
+
+	if (api_nh == NULL)
+		return errno_set(ENOMEM);
+
+	api_nh->family = nh->family;
+	api_nh->vrf_id = nh->vrf_id;
+	api_nh->iface_id = nh->iface_id;
+	api_nh->ipv6 = nh->ipv6;
+	api_nh->mac = nh->lladdr;
+	*buf = api_nh;
+
+	return sizeof(*api_nh);
+}
+
+static struct gr_event_serializer nh_serializer = {
+	.callback = nexthop_serialize,
+	.ev_count = 3,
+	.ev_types = {
+		NEXTHOP_EVENT_NEW,
+		NEXTHOP_EVENT_DELETE,
+		NEXTHOP_EVENT_UPDATE,
+	},
+};
+
+RTE_INIT(init) {
+	gr_event_register_serializer(&nh_serializer);
 }
