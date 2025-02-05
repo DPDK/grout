@@ -27,6 +27,7 @@ struct gr_api_response {
 
 #define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 #define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
+#define EVENT_TYPE_ALL UINT32_C(0xffffffff)
 
 #define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
 
@@ -46,7 +47,9 @@ int gr_api_client_send_recv(
 
 #define GR_MAIN_MODULE 0xcafe
 #define GR_MAIN_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
-// struct gr_event_subscribe_req { };
+struct gr_event_subscribe_req {
+	uint32_t ev_type;
+};
 // struct gr_event_subscribe_resp { };
 #define GR_MAIN_EVENT_UNSUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcaff)
 // struct gr_event_unsubscribe_req { };
