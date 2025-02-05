@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
@@ -20,7 +21,8 @@ struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return vrfs[vrf_id].iface;
 }
 
-static void iface_event_vrf(iface_event_t event, struct iface *iface) {
+static void iface_event_vrf(uint32_t event, const void *obj) {
+	const struct iface *iface = obj;
 	int ifaces_per_vrf[ARRAY_DIM(vrfs)] = {0};
 
 	if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
@@ -58,15 +60,19 @@ static void iface_event_vrf(iface_event_t event, struct iface *iface) {
 			}
 		}
 		break;
-	default:
-		break;
 	}
 }
 
-static struct iface_event_handler iface_event_vrf_handler = {
+static struct gr_event_subscription iface_event_vrf_sub = {
 	.callback = iface_event_vrf,
+	.ev_count = 3,
+	.ev_types = {
+		IFACE_EVENT_POST_ADD,
+		IFACE_EVENT_PRE_REMOVE,
+		IFACE_EVENT_POST_RECONFIG,
+	},
 };
 
 RTE_INIT(vrf_constructor) {
-	iface_event_register_handler(&iface_event_vrf_handler);
+	gr_event_subscribe(&iface_event_vrf_sub);
 }

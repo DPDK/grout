@@ -3,6 +3,7 @@
 
 #include "ipip_priv.h"
 
+#include <gr_event.h>
 #include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -85,7 +86,7 @@ static int iface_ipip_reconfig(
 	if (set_attrs & GR_IFACE_SET_MTU)
 		iface->mtu = mtu;
 
-	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
+	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
 	return 0;
 }

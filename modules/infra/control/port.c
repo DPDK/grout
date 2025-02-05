@@ -4,6 +4,7 @@
 #include "worker_priv.h"
 
 #include <gr.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -267,11 +268,11 @@ int iface_port_reconfig(
 		if (flags & GR_IFACE_F_UP) {
 			ret = rte_eth_dev_set_link_up(p->port_id);
 			iface->flags |= GR_IFACE_F_UP;
-			iface_event_notify(IFACE_EVENT_STATUS_UP, iface);
+			gr_event_push(IFACE_EVENT_STATUS_UP, iface);
 		} else {
 			ret = rte_eth_dev_set_link_down(p->port_id);
 			iface->flags &= ~GR_IFACE_F_UP;
-			iface_event_notify(IFACE_EVENT_STATUS_DOWN, iface);
+			gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
 		}
 		if (ret < 0)
 			errno_log(-ret, "rte_eth_dev_set_link_{up,down}");
@@ -302,7 +303,7 @@ int iface_port_reconfig(
 	if (stopped && (ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
 
-	iface_event_notify(IFACE_EVENT_POST_RECONFIG, iface);
+	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
 	return port_plug(p->port_id);
 }
@@ -636,20 +637,20 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
 				LOG(INFO, "%s: link status down", iface->name);
 				iface->state &= ~GR_IFACE_S_RUNNING;
-				iface_event_notify(IFACE_EVENT_STATUS_DOWN, iface);
+				gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
 				continue;
 			}
 			if (link.link_status == RTE_ETH_LINK_UP) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
 					LOG(INFO, "%s: link status up", iface->name);
 					iface->state |= GR_IFACE_S_RUNNING;
-					iface_event_notify(IFACE_EVENT_STATUS_UP, iface);
+					gr_event_push(IFACE_EVENT_STATUS_UP, iface);
 				}
 			} else {
 				if (iface->state & GR_IFACE_S_RUNNING) {
 					LOG(INFO, "%s: link status down", iface->name);
 					iface->state &= ~GR_IFACE_S_RUNNING;
-					iface_event_notify(IFACE_EVENT_STATUS_DOWN, iface);
+					gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
 				}
 				continue;
 			}

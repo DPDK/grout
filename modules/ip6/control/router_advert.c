@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_control_input.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_datapath.h>
@@ -232,20 +233,28 @@ static struct gr_api_handler ra_show_handler = {
 	.callback = iface_ra_show,
 };
 
-static void iface_event_handler(iface_event_t event, struct iface *iface) {
-	if (event == IFACE_EVENT_POST_ADD) {
+static void iface_event_handler(uint32_t event, const void *obj) {
+	const struct iface *iface = obj;
+
+	switch (event) {
+	case IFACE_EVENT_POST_ADD:
 		ra_conf[iface->id].interval = RA_DEFAULT_INTERVAL;
 		ra_conf[iface->id].lifetime = RA_DEFAULT_LIFETIME;
-
-		ra_conf[iface->id].timer = event_new(ev_base, -1, EV_PERSIST, send_ra_cb, iface);
-	} else if (event == IFACE_EVENT_PRE_REMOVE) {
+		ra_conf[iface->id].timer = event_new(
+			ev_base, -1, EV_PERSIST, send_ra_cb, (void *)iface
+		);
+		break;
+	case IFACE_EVENT_PRE_REMOVE:
 		event_free(ra_conf[iface->id].timer);
 		ra_conf[iface->id].timer = NULL;
+		break;
 	}
 }
 
-static struct iface_event_handler iface_event_address_handler = {
+static struct gr_event_subscription iface_event_sub = {
 	.callback = iface_event_handler,
+	.ev_count = 2,
+	.ev_types = {IFACE_EVENT_POST_ADD, IFACE_EVENT_PRE_REMOVE},
 };
 
 RTE_INIT(router_advertisement_init) {
@@ -253,5 +262,5 @@ RTE_INIT(router_advertisement_init) {
 	gr_register_api_handler(&ra_set_handler);
 	gr_register_api_handler(&ra_clear_handler);
 	gr_register_api_handler(&ra_show_handler);
-	iface_event_register_handler(&iface_event_address_handler);
+	gr_event_subscribe(&iface_event_sub);
 }

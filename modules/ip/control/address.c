@@ -174,12 +174,10 @@ static struct api_out addr_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void iface_event_handler(iface_event_t event, struct iface *iface) {
+static void iface_pre_remove_cb(uint32_t /*event*/, const void *obj) {
+	const struct iface *iface = obj;
 	struct hoplist *ifaddrs;
 	struct nexthop *nh;
-
-	if (event != IFACE_EVENT_PRE_REMOVE)
-		return;
 
 	ifaddrs = addr4_get_all(iface->id);
 	if (ifaddrs == NULL)
@@ -224,8 +222,10 @@ static struct gr_module addr_module = {
 	.fini_prio = 2000,
 };
 
-static struct iface_event_handler iface_event_address_handler = {
-	.callback = iface_event_handler,
+static struct gr_event_subscription iface_pre_rm_subscription = {
+	.callback = iface_pre_remove_cb,
+	.ev_count = 1,
+	.ev_types = {IFACE_EVENT_PRE_REMOVE},
 };
 static struct gr_event_serializer iface_addr_serializer = {
 	.callback = nexthop_serialize,
@@ -238,6 +238,6 @@ RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_del_handler);
 	gr_register_api_handler(&addr_list_handler);
 	gr_register_module(&addr_module);
-	iface_event_register_handler(&iface_event_address_handler);
+	gr_event_subscribe(&iface_pre_rm_subscription);
 	gr_event_register_serializer(&iface_addr_serializer);
 }

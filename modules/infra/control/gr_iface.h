@@ -88,14 +88,6 @@ struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
 int iface_loopback_delete(uint16_t vrf_id);
 
-typedef void (*iface_event_cb_t)(iface_event_t event, struct iface *iface);
-struct iface_event_handler {
-	iface_event_cb_t callback;
-	STAILQ_ENTRY(iface_event_handler) next;
-};
-void iface_event_register_handler(struct iface_event_handler *handler);
-void iface_event_notify(iface_event_t event, struct iface *iface);
-
 #define MAX_IFACES 1024
 #define MAX_VRFS 256
 
