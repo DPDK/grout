@@ -231,10 +231,6 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 
 	// if route insert fails, the created nexthop will be freed
 	ret = rib6_insert(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, nh);
-	if (ret == 0)
-		route_push_notification(
-			IP6_EVENT_ROUTE_ADD, &req->dest.ip, req->dest.prefixlen, nh
-		);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 

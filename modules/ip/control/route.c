@@ -203,8 +203,6 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	ret = rib4_insert(req->vrf_id, req->dest.ip, req->dest.prefixlen, nh);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
-	if (ret == 0)
-		route_push_notification(IP_EVENT_ROUTE_ADD, req->dest.ip, req->dest.prefixlen, nh);
 
 	return api_out(-ret, 0);
 }
