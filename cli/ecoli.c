@@ -162,3 +162,46 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr
 
 	return 0;
 }
+
+static int arg_ip(const struct ec_pnode *p, const char *id, void *addr, int family) {
+	const char *str = arg_str(p, id);
+	if (str == NULL)
+		return -errno;
+
+	if (inet_pton(family, str, addr) != 1)
+		return errno_set(EINVAL);
+
+	return 0;
+}
+
+int arg_ip4(const struct ec_pnode *p, const char *id, ip4_addr_t *addr) {
+	return arg_ip(p, id, addr, AF_INET);
+}
+
+int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr) {
+	return arg_ip(p, id, addr, AF_INET6);
+}
+
+static int
+arg_ip_net(const struct ec_pnode *p, const char *id, void *net, bool zero_mask, int family) {
+	const char *str = arg_str(p, id);
+	if (str == NULL)
+		return -errno;
+
+	switch (family) {
+	case AF_INET:
+		return ip4_net_parse(str, net, zero_mask);
+	case AF_INET6:
+		return ip6_net_parse(str, net, zero_mask);
+	default:
+		return errno_set(EINVAL);
+	}
+}
+
+int arg_ip4_net(const struct ec_pnode *p, const char *id, struct ip4_net *net, bool zero_mask) {
+	return arg_ip_net(p, id, net, zero_mask, AF_INET);
+}
+
+int arg_ip6_net(const struct ec_pnode *p, const char *id, struct ip6_net *net, bool zero_mask) {
+	return arg_ip_net(p, id, net, zero_mask, AF_INET6);
+}

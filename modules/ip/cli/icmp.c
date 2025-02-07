@@ -135,10 +135,8 @@ static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p
 	uint16_t count = UINT16_MAX;
 	uint16_t msdelay = 1000;
 
-	if (inet_pton(AF_INET, arg_str(p, "IP"), &req.addr) != 1) {
-		errno = EINVAL;
+	if (arg_ip4(p, "IP", &req.addr) < 0)
 		return CMD_ERROR;
-	}
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "COUNT", &count)) < 0 && ret != ENOENT)
@@ -161,10 +159,8 @@ static cmd_status_t traceroute(const struct gr_api_client *c, const struct ec_pn
 	struct gr_ip4_icmp_send_req req = {.seq_num = 0, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
 
-	if (inet_pton(AF_INET, arg_str(p, "IP"), &req.addr) != 1) {
-		errno = EINVAL;
+	if (arg_ip4(p, "IP", &req.addr) < 0)
 		return CMD_ERROR;
-	}
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 

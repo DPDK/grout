@@ -18,12 +18,10 @@
 static cmd_status_t route6_add(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_route_add_req req = {.exist_ok = true};
 
-	if (ip6_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
-	if (inet_pton(AF_INET6, arg_str(p, "NH"), &req.nh) != 1) {
-		errno = EINVAL;
+	if (arg_ip6(p, "NH", &req.nh) < 0)
 		return CMD_ERROR;
-	}
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -36,7 +34,7 @@ static cmd_status_t route6_add(const struct gr_api_client *c, const struct ec_pn
 static cmd_status_t route6_del(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_route_del_req req = {.missing_ok = true};
 
-	if (ip6_net_parse(arg_str(p, "DEST"), &req.dest, true) < 0)
+	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -90,17 +88,13 @@ static cmd_status_t route6_get(const struct gr_api_client *c, const struct ec_pn
 	struct gr_ip6_route_get_req req = {0};
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
-	const char *dest = arg_str(p, "DEST");
 
-	if (dest == NULL) {
+	if (arg_ip6(p, "DEST", &req.dest) < 0) {
 		if (errno == ENOENT)
 			return route6_list(c, p);
 		return CMD_ERROR;
 	}
-	if (inet_pton(AF_INET6, dest, &req.dest) != 1) {
-		errno = EINVAL;
-		return CMD_ERROR;
-	}
+
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -108,7 +102,7 @@ static cmd_status_t route6_get(const struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("%s via " IP6_F " lladdr " ETH_F, dest, &resp->nh.ipv6, &resp->nh.mac);
+	printf(IP6_F " via " IP6_F " lladdr " ETH_F, &req.dest, &resp->nh.ipv6, &resp->nh.mac);
 	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
 		printf(" iface %s", iface.name);
 	else

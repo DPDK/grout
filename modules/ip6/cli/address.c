@@ -19,7 +19,7 @@ static cmd_status_t addr_add(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip6_addr_add_req req = {.exist_ok = true};
 	struct gr_iface iface;
 
-	if (ip6_net_parse(arg_str(p, "IP6_NET"), &req.addr.addr, false) < 0)
+	if (arg_ip6_net(p, "IP6_NET", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
@@ -35,7 +35,7 @@ static cmd_status_t addr_del(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_ip6_addr_del_req req = {.missing_ok = true};
 	struct gr_iface iface;
 
-	if (ip6_net_parse(arg_str(p, "IP6_NET"), &req.addr.addr, false) < 0)
+	if (arg_ip6_net(p, "IP6_NET", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;

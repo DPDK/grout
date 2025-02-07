@@ -21,10 +21,8 @@ static cmd_status_t nh6_add(const struct gr_api_client *c, const struct ec_pnode
 	struct gr_ip6_nh_add_req req = {0};
 	struct gr_iface iface;
 
-	if (inet_pton(AF_INET6, arg_str(p, "IP"), &req.nh.ipv6) != 1) {
-		errno = EINVAL;
+	if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
 		return CMD_ERROR;
-	}
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0)
 		return CMD_ERROR;
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
@@ -40,10 +38,8 @@ static cmd_status_t nh6_add(const struct gr_api_client *c, const struct ec_pnode
 static cmd_status_t nh6_del(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_nh_del_req req = {.missing_ok = true};
 
-	if (inet_pton(AF_INET6, arg_str(p, "IP"), &req.host) != 1) {
-		errno = EINVAL;
+	if (arg_ip6(p, "IP", &req.host) < 0)
 		return CMD_ERROR;
-	}
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
