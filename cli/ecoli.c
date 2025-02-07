@@ -162,3 +162,20 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr
 
 	return 0;
 }
+
+int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr) {
+	const struct ec_pnode *n = ec_pnode_find(p, id);
+	if (n == NULL)
+		return errno_set(ENOENT);
+
+	const struct ec_strvec *v = ec_pnode_get_strvec(n);
+	if (v == NULL || ec_strvec_len(v) != 1)
+		return errno_set(EFAULT);
+
+	const char *str = ec_strvec_val(v, 0);
+	if (inet_pton(AF_INET6, str, addr) != 1) {
+		return errno_set(EINVAL);
+	}
+
+	return 0;
+}
