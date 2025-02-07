@@ -8,6 +8,7 @@
 
 #include <gr_api.h>
 #include <gr_macro.h>
+#include <gr_version.h>
 
 #include <errno.h>
 #include <getopt.h>
@@ -43,10 +44,16 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 	if (connect(client->sock_fd, &addr.a, sizeof(addr.un)) < 0)
 		goto err;
 
+	struct gr_hello_req hello = {.version = GROUT_VERSION};
+	if (gr_api_client_send_recv(client, GR_MAIN_HELLO, sizeof(hello), &hello, NULL) < 0)
+		goto err;
+
 	return client;
 
 err:
-	free(client);
+	int errsave = errno;
+	gr_api_client_disconnect(client);
+	errno = errsave;
 	return NULL;
 }
 

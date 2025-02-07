@@ -21,7 +21,6 @@ project(
 
 # additional project C flags (keep alpha sorted)
 add_project_arguments('-DALLOW_EXPERIMENTAL_API', language: 'c')
-add_project_arguments('-DGROUT_VERSION="' + meson.project_version() + '"', language: 'c')
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
 add_project_arguments('-Wno-format-truncation', language: 'c')

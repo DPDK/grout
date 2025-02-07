@@ -12,6 +12,7 @@
 #include <gr_log.h>
 #include <gr_trace.h>
 #include <gr_vec.h>
+#include <gr_version.h>
 
 #include <event2/event.h>
 #include <event2/thread.h>

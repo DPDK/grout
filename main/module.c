@@ -22,6 +22,7 @@ void gr_register_api_handler(struct gr_api_handler *handler) {
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
 	switch (handler->request_type) {
+	case GR_MAIN_HELLO:
 	case GR_MAIN_EVENT_SUBSCRIBE:
 	case GR_MAIN_EVENT_UNSUBSCRIBE:
 		goto duplicate;
