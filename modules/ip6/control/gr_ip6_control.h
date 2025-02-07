@@ -39,6 +39,12 @@ int rib6_delete(
 );
 void rib6_cleanup(struct nexthop *);
 struct nexthop *rib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);
+struct nexthop *rib6_lookup_exact(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen
+);
 
 // get the default address for a given interface
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);
