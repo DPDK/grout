@@ -234,7 +234,7 @@ static struct api_out route4_get(const void *request, void **response) {
 
 	resp->nh.ipv4 = nh->ipv4;
 	resp->nh.iface_id = nh->iface_id;
-	resp->nh.mac = nh->lladdr;
+	resp->nh.mac = nh->mac;
 	resp->nh.flags = nh->flags;
 
 	*response = resp;

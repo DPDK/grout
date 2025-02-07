@@ -273,7 +273,7 @@ static struct api_out route6_get(const void *request, void **response) {
 
 	resp->nh.ipv6 = nh->ipv6;
 	resp->nh.iface_id = nh->iface_id;
-	resp->nh.mac = nh->lladdr;
+	resp->nh.mac = nh->mac;
 	resp->nh.flags = nh->flags;
 
 	*response = resp;

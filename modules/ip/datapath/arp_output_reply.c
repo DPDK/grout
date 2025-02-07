@@ -54,7 +54,7 @@ static uint16_t arp_output_reply_process(
 		arp->arp_protocol = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REPLY);
 		arp->arp_data.arp_tha = arp->arp_data.arp_sha;
-		arp->arp_data.arp_sha = local->lladdr;
+		arp->arp_data.arp_sha = local->mac;
 		arp->arp_data.arp_tip = arp->arp_data.arp_sip;
 		arp->arp_data.arp_sip = local->ipv4;
 

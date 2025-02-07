@@ -91,7 +91,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	if ((nh = nh6_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
 		if ((nh = nh6_new(iface->vrf_id, iface->id, ip)) == NULL)
 			return errno_set(-errno);
-		rte_ether_mcast_from_ipv6(&nh->lladdr, ip);
+		rte_ether_mcast_from_ipv6(&nh->mac, ip);
 	}
 
 	nexthop_incref(nh);
@@ -99,7 +99,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	gr_vec_add(maddrs->nh, nh);
 
 	// add ethernet filter
-	return iface_add_eth_addr(iface->id, &nh->lladdr);
+	return iface_add_eth_addr(iface->id, &nh->mac);
 }
 
 static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip) {
@@ -123,7 +123,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	gr_vec_del(maddrs->nh, i);
 
 	// remove ethernet filter
-	ret = iface_del_eth_addr(iface->id, &nh->lladdr);
+	ret = iface_del_eth_addr(iface->id, &nh->mac);
 	nexthop_decref(nh);
 
 	return ret;
@@ -154,7 +154,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	nh->prefixlen = prefixlen;
 	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
 
-	if ((ret = iface_get_eth_addr(iface->id, &nh->lladdr)) < 0)
+	if ((ret = iface_get_eth_addr(iface->id, &nh->mac)) < 0)
 		if (errno != EOPNOTSUPP) {
 			nexthop_decref(nh);
 			return errno_set(-ret);
@@ -317,7 +317,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		addrs = &iface_mcast_addrs[iface->id];
 		gr_vec_foreach (nh, addrs->nh) {
 			// remove ethernet filter
-			if (iface_del_eth_addr(iface->id, &nh->lladdr) < 0)
+			if (iface_del_eth_addr(iface->id, &nh->mac) < 0)
 				LOG(INFO, "%s: mcast_addr_del: %s", iface->name, strerror(errno));
 			nexthop_decref(nh);
 		}

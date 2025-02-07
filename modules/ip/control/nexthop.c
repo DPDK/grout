@@ -87,14 +87,14 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		return;
 	}
 
-	if (nh->held_pkts_num < NH_MAX_HELD_PKTS) {
+	if (nh->held_pkts < NH_MAX_HELD_PKTS) {
 		queue_mbuf_data(m)->next = NULL;
 		if (nh->held_pkts_head == NULL)
 			nh->held_pkts_head = m;
 		else
 			queue_mbuf_data(nh->held_pkts_tail)->next = m;
 		nh->held_pkts_tail = m;
-		nh->held_pkts_num++;
+		nh->held_pkts++;
 		if (!(nh->flags & GR_NH_F_PENDING)) {
 			arp_output_request_solicit(nh);
 			nh->flags |= GR_NH_F_PENDING;
@@ -147,7 +147,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
-		nh->lladdr = arp->arp_data.arp_sha;
+		nh->mac = arp->arp_data.arp_sha;
 		gr_event_push(NEXTHOP_EVENT_UPDATE, nh);
 	}
 
@@ -180,7 +180,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	}
 	nh->held_pkts_head = NULL;
 	nh->held_pkts_tail = NULL;
-	nh->held_pkts_num = 0;
+	nh->held_pkts = 0;
 
 free:
 	rte_pktmbuf_free(m);
@@ -200,7 +200,7 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 
 	if ((nh = nh4_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && rte_is_same_ether_addr(&req->nh.mac, &nh->lladdr))
+		    && rte_is_same_ether_addr(&req->nh.mac, &nh->mac))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
@@ -208,7 +208,7 @@ static struct api_out nh4_add(const void *request, void ** /*response*/) {
 	if ((nh = nh4_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
 		return api_out(errno, 0);
 
-	nh->lladdr = req->nh.mac;
+	nh->mac = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
 	ret = rib4_insert(nh->vrf_id, nh->ipv4, 32, nh);
 
@@ -253,10 +253,10 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	api_nh.ipv4 = nh->ipv4;
 	api_nh.iface_id = nh->iface_id;
 	api_nh.vrf_id = nh->vrf_id;
-	api_nh.mac = nh->lladdr;
+	api_nh.mac = nh->mac;
 	api_nh.flags = nh->flags;
 	api_nh.last_reply = nh->last_reply;
-	api_nh.held_pkts = nh->held_pkts_num;
+	api_nh.held_pkts = nh->held_pkts;
 	api_nh.prefixlen = nh->prefixlen;
 	gr_vec_add(ctx->nh, api_nh);
 }
