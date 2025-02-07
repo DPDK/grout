@@ -26,6 +26,8 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_NH_IPV4 = 1,
 	GR_NH_IPV6,
+	GR_NH_SR6_IPV4,
+	GR_NH_SR6_IPV6,
 	GR_NH_TYPE_COUNT
 } gr_nh_type_t;
 
@@ -82,8 +84,10 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 	switch (nh->type) {
 	case GR_NH_IPV4:
+	case GR_NH_SR6_IPV4:
 		return AF_INET;
 	case GR_NH_IPV6:
+	case GR_NH_SR6_IPV6:
 		return AF_INET6;
 	case GR_NH_TYPE_COUNT:
 		break;
