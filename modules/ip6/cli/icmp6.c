@@ -148,10 +148,8 @@ static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p
 	struct gr_iface iface;
 	const char *str;
 
-	if (inet_pton(AF_INET6, arg_str(p, "DEST"), &req.addr) != 1) {
-		errno = EINVAL;
+	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
-	}
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "COUNT", &count)) < 0 && ret != ENOENT)
@@ -181,10 +179,8 @@ static cmd_status_t traceroute(const struct gr_api_client *c, const struct ec_pn
 	struct gr_iface iface;
 	const char *str;
 
-	if (inet_pton(AF_INET6, arg_str(p, "DEST"), &req.addr) != 1) {
-		errno = EINVAL;
+	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
-	}
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((str = arg_str(p, "IFACE")) != NULL) {

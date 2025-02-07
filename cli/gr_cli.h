@@ -47,6 +47,10 @@ const char *arg_str(const struct ec_pnode *p, const char *id);
 int arg_i64(const struct ec_pnode *p, const char *id, int64_t *);
 int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *);
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr *);
+int arg_ip4(const struct ec_pnode *p, const char *id, ip4_addr_t *addr);
+int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr);
+int arg_ip4_net(const struct ec_pnode *p, const char *id, struct ip4_net *net, bool zero_mask);
+int arg_ip6_net(const struct ec_pnode *p, const char *id, struct ip6_net *net, bool zero_mask);
 
 static inline int arg_u16(const struct ec_pnode *p, const char *id, uint16_t *val) {
 	uint64_t v;

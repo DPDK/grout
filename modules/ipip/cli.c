@@ -40,26 +40,23 @@ static uint64_t parse_ipip_args(
 ) {
 	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
 	struct gr_iface_info_ipip *ipip;
-	const char *local, *remote;
 
 	ipip = (struct gr_iface_info_ipip *)iface->info;
 
-	local = arg_str(p, "LOCAL");
-	if (local != NULL) {
-		if (inet_pton(AF_INET, local, &ipip->local) != 1) {
-			errno = EINVAL;
+	if (arg_ip4(p, "LOCAL", &ipip->local) < 0) {
+		if (errno != ENOENT)
 			return 0;
-		}
+	} else {
 		set_attrs |= GR_IPIP_SET_LOCAL;
 	}
-	remote = arg_str(p, "REMOTE");
-	if (remote != NULL) {
-		if (inet_pton(AF_INET, remote, &ipip->remote) != 1) {
-			errno = EINVAL;
+
+	if (arg_ip4(p, "REMOTE", &ipip->remote) < 0) {
+		if (errno != ENOENT)
 			return 0;
-		}
+	} else {
 		set_attrs |= GR_IPIP_SET_REMOTE;
 	}
+
 	if (ipip->local == ipip->remote) {
 		errno = EADDRINUSE;
 		return 0;
