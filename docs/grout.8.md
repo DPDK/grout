@@ -18,6 +18,7 @@ Grout is a software router based on DPDK __rte_graph__.
 [**-L** _TYPE_:_LEVEL_]
 [**-M** _MODE_]
 [**-p**]
+[**-S**]
 [**-s** _PATH_]
 [**-t**]
 [**-T** _REGEXP_]
@@ -79,6 +80,10 @@ Default mode is _overwrite_ and parameter must be specified once only.
 #### **-p**, **--poll-mode**
 
 Disable automatic micro-sleep.
+
+#### **-S**, **--syslog**
+
+Redirect logs to syslog.
 
 #### **-s**, **--socket** _PATH_
 

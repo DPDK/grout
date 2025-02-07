@@ -11,6 +11,7 @@ struct gr_args {
 	unsigned log_level;
 	bool test_mode;
 	bool poll_mode;
+	bool log_syslog;
 	char **eal_extra_args;
 };
 
