@@ -105,7 +105,7 @@ struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nh_id_to_ptr(nh_id);
 }
 
-static struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	struct rte_rib *rib = get_rib(vrf_id);
 	struct rte_rib_node *rn;
 	uintptr_t nh_id;
