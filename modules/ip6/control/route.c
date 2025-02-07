@@ -107,7 +107,7 @@ struct nexthop *rib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte
 	return nh_id_to_ptr(nh_id);
 }
 
-static struct nexthop *rib6_lookup_exact(
+struct nexthop *rib6_lookup_exact(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
