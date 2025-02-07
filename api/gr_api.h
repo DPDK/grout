@@ -7,10 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef GROUT_VERSION
-#define GROUT_VERSION "v0.1"
-#endif
-
 struct gr_api_request {
 	uint32_t id;
 	uint32_t type;
@@ -46,6 +42,13 @@ int gr_api_client_send_recv(
 );
 
 #define GR_MAIN_MODULE 0xcafe
+
+#define GR_MAIN_HELLO REQUEST_TYPE(GR_MAIN_MODULE, 0x1981)
+struct gr_hello_req {
+	char version[128];
+};
+// struct gr_hello_resp { };
+
 #define GR_MAIN_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
 struct gr_event_subscribe_req {
 	uint32_t ev_type;

@@ -10,6 +10,7 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_vec.h>
+#include <gr_version.h>
 
 #include <event2/event.h>
 
@@ -160,6 +161,15 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 	return api_out(0, 0);
 }
 
+static struct api_out hello(const void *request) {
+	const struct gr_hello_req *req = request;
+
+	if (strncmp(req->version, GROUT_VERSION, sizeof(req->version)) != 0)
+		return api_out(EPROTO, 0);
+
+	return api_out(0, 0);
+}
+
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
 	if (fd >= 0)
@@ -256,6 +266,9 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 	LOG(DEBUG, "fd=%d id=%u req_type=0x%08x len=%u", sock, req.id, req.type, req.payload_len);
 
 	switch (req.type) {
+	case GR_MAIN_HELLO:
+		out = hello(req_payload);
+		goto send;
 	case GR_MAIN_EVENT_SUBSCRIBE:
 		out = subscribe(sock, req_payload);
 		goto send;

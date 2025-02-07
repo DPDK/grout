@@ -10,6 +10,12 @@ api_headers += files(
   'gr_net_compat.h',
   'gr_net_types.h',
 )
+api_headers += configure_file(
+  output: 'gr_version.h',
+  configuration: configuration_data({
+    'GROUT_VERSION': '"' + meson.project_version() + '"',
+  }),
+)
 
 src += files('printf.c')
 cli_src += files('printf.c')

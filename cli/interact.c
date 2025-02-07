@@ -6,6 +6,7 @@
 #include "log.h"
 
 #include <gr_cli.h>
+#include <gr_version.h>
 
 #include <ecoli.h>
 
