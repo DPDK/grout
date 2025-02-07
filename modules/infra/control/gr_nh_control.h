@@ -88,7 +88,7 @@ struct nexthop *
 nexthop_lookup(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 struct nexthop *nexthop_new(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
-void nexthop_incref(struct nexthop *);
+struct nexthop *nexthop_incref(struct nexthop *);
 void nexthop_decref(struct nexthop *);
 
 #endif

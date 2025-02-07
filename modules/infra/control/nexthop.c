@@ -215,8 +215,9 @@ void nexthop_decref(struct nexthop *nh) {
 	}
 }
 
-void nexthop_incref(struct nexthop *nh) {
+struct nexthop *nexthop_incref(struct nexthop *nh) {
 	nh->ref_count++;
+	return nh;
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
