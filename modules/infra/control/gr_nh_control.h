@@ -9,6 +9,7 @@
 #include <gr_nexthop.h>
 
 #include <event2/event.h>
+#include <rte_graph.h>
 #include <rte_mbuf.h>
 
 // Forward declaration
@@ -70,6 +71,9 @@ struct __rte_cache_aligned nexthop {
 	// packets waiting for address resolution
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
+
+	// custom node to visit on packet input
+	rte_edge_t input_node;
 
 	// internal
 	struct nh_pool *pool;
