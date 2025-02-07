@@ -3,4 +3,4 @@
 # vim: ft=sh
 
 # Add grout command line flags here and restart grout.service.
-GROUT_OPTS=''
+GROUT_OPTS='--syslog'

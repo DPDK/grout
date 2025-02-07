@@ -39,6 +39,7 @@ static void usage(const char *prog) {
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -L, --log-level <type>:<lvl>   Specify log level for a specific component.");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
+	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -s, --socket <path>            Path the control plane API socket.");
 	puts("                                 Default: GROUT_SOCK_PATH from env or");
 	printf("                                 %s).\n", GR_DEFAULT_SOCK_PATH);
@@ -61,11 +62,12 @@ const struct gr_args *gr_args(void) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:Vhps:tvx"
+#define FLAGS ":B:D:L:M:T:VhpSs:tvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"log-level", required_argument, NULL, 'L'},
 		{"poll-mode", no_argument, NULL, 'p'},
+		{"syslog", no_argument, NULL, 'S'},
 		{"socket", required_argument, NULL, 's'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"trace", required_argument, NULL, 'T'},
@@ -97,6 +99,9 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'p':
 			args.poll_mode = true;
+			break;
+		case 'S':
+			args.log_syslog = true;
 			break;
 		case 's':
 			args.api_sock_path = optarg;

@@ -23,11 +23,10 @@
 
 int gr_rte_log_type;
 static FILE *log_stream;
-static bool log_syslog;
 
 static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 	ssize_t n;
-	if (log_syslog) {
+	if (gr_args()->log_syslog) {
 		// Syslog error levels are from 0 to 7, so subtract 1 to convert.
 		syslog(rte_log_cur_msg_loglevel() - 1, "%.*s", (int)size, buf);
 		n = size;
@@ -70,11 +69,8 @@ static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 int dpdk_log_init(const struct gr_args *args) {
 	cookie_io_functions_t log_functions = {.write = log_write};
 
-	if (getenv("INVOCATION_ID")) {
-		// executed by systemd
-		log_syslog = true;
+	if (args->log_syslog)
 		openlog("grout", LOG_PID | LOG_ODELAY, LOG_DAEMON);
-	}
 
 	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_NOTICE);
 	if (gr_rte_log_type < 0)
