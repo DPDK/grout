@@ -86,7 +86,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 	nh->prefixlen = req->addr.addr.prefixlen;
 	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
 
-	if (iface_get_eth_addr(iface->id, &nh->lladdr) < 0)
+	if (iface_get_eth_addr(iface->id, &nh->mac) < 0)
 		if (errno != EOPNOTSUPP) {
 			nexthop_decref(nh);
 			return api_out(errno, 0);

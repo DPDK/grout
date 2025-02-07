@@ -57,7 +57,7 @@ static uint16_t ndp_na_output_process(
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
 		ll = PAYLOAD(opt);
-		ll->mac = local->lladdr;
+		ll->mac = local->mac;
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);

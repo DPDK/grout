@@ -240,7 +240,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 			    &nh->addr,
 			    nh->vrf_id,
 			    probes,
-			    nh->held_pkts_num,
+			    nh->held_pkts,
 			    gr_nh_flag_name(nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)));
 
 			nh->flags &= ~(GR_NH_F_PENDING | GR_NH_F_STALE);
@@ -264,7 +264,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 		    &nh->addr,
 		    nh->vrf_id,
 		    probes,
-		    nh->held_pkts_num);
+		    nh->held_pkts);
 		nhp->free_nh(nh);
 	}
 }
@@ -285,7 +285,7 @@ int nexthop_serialize(const void *obj, void **buf) {
 	api_nh->vrf_id = nh->vrf_id;
 	api_nh->iface_id = nh->iface_id;
 	api_nh->ipv6 = nh->ipv6;
-	api_nh->mac = nh->lladdr;
+	api_nh->mac = nh->mac;
 	api_nh->prefixlen = nh->prefixlen;
 	*buf = api_nh;
 

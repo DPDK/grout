@@ -59,7 +59,7 @@ void nh_pool_iter(struct nh_pool *, nh_iter_cb_t nh_cb, void *priv);
 
 struct __rte_cache_aligned nexthop {
 	gr_nh_flags_t flags;
-	struct rte_ether_addr lladdr;
+	struct rte_ether_addr mac;
 	uint16_t vrf_id;
 	uint16_t iface_id;
 
@@ -79,7 +79,7 @@ struct __rte_cache_aligned nexthop {
 	clock_t last_reply;
 
 	// packets waiting for address resolution
-	uint16_t held_pkts_num;
+	uint16_t held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
 

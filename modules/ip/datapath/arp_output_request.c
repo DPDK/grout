@@ -86,7 +86,7 @@ static uint16_t arp_output_request_process(
 		}
 		arp->arp_data.arp_sip = local->ipv4;
 		if (nh->last_reply != 0)
-			arp->arp_data.arp_tha = nh->lladdr;
+			arp->arp_data.arp_tha = nh->mac;
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
 		arp->arp_data.arp_tip = nh->ipv4;
