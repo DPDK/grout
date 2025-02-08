@@ -5,6 +5,7 @@ api_headers += files(
   'gr_api.h',
   'gr_api_client_impl.h',
   'gr_bitops.h',
+  'gr_clock.h',
   'gr_errno.h',
   'gr_macro.h',
   'gr_net_compat.h',

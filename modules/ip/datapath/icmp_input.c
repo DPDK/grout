@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_clock.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
@@ -60,7 +61,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		} else if (icmp_cb[icmp->icmp_type]) {
 			struct control_output_mbuf_data *c = control_output_mbuf_data(mbuf);
 			c->callback = icmp_cb[icmp->icmp_type];
-			c->timestamp = clock();
+			c->timestamp = gr_clock_us();
 			edge = CONTROL;
 		} else {
 			edge = UNSUPPORTED;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include <gr_clock.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_datapath.h>
@@ -16,7 +17,6 @@
 
 #include <netinet/in.h>
 #include <stdatomic.h>
-#include <time.h>
 
 enum {
 	OUTPUT = 0,
@@ -90,7 +90,7 @@ static uint16_t icmp_local_send_process(
 			rte_pktmbuf_append(mbuf, sizeof(*icmp) + sizeof(clock_t));
 
 		payload = rte_pktmbuf_mtod_offset(mbuf, clock_t *, sizeof(*icmp));
-		*payload = clock();
+		*payload = gr_clock_us();
 
 		// Build ICMP packet
 		icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REQUEST;

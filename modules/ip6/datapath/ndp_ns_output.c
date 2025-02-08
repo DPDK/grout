@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_clock.h>
 #include <gr_control_input.h>
 #include <gr_datapath.h>
 #include <gr_eth.h>
@@ -36,7 +37,7 @@ int nh6_solicit(struct nexthop *nh) {
 
 	// This function is called by the control plane main thread.
 	// It is OK to modify the nexthop here.
-	nh->last_request = rte_get_tsc_cycles();
+	nh->last_request = gr_clock_us();
 	if (nh->ucast_probes < NH_UCAST_PROBES)
 		nh->ucast_probes++;
 	else
