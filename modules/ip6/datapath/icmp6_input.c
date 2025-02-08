@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_clock.h>
 #include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
@@ -78,7 +79,7 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 				c = control_output_mbuf_data(mbuf);
 				memmove(c->cb_data, d, sizeof(*d));
 				c->callback = icmp6_cb[icmp6->type];
-				c->timestamp = clock();
+				c->timestamp = gr_clock_us();
 				next = CONTROL;
 			} else {
 				next = UNSUPPORTED;

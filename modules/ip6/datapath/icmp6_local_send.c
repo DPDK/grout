@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include <gr_clock.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_datapath.h>
@@ -16,7 +17,6 @@
 
 #include <netinet/in.h>
 #include <stdatomic.h>
-#include <time.h>
 
 enum {
 	OUTPUT = 0,
@@ -96,7 +96,7 @@ static uint16_t icmp6_local_send_process(
 		icmp6_echo->seqnum = rte_cpu_to_be_16(msg->seq_num);
 
 		payload = PAYLOAD(icmp6_echo);
-		*payload = clock();
+		*payload = gr_clock_us();
 
 		data = ip6_local_mbuf_data(mbuf);
 		data->iface = iface_from_id(msg->iface_id);

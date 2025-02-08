@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_clock.h>
 #include <gr_control_input.h>
 #include <gr_event.h>
 #include <gr_iface.h>
@@ -140,7 +141,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	// static next hops never need updating
 	if (!(nh->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
-		nh->last_reply = rte_get_tsc_cycles();
+		nh->last_reply = gr_clock_us();
 		nh->iface_id = iface->id;
 		nh->flags |= GR_NH_F_REACHABLE;
 		nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
@@ -255,7 +256,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	api_nh.mac = nh->lladdr;
 	api_nh.flags = nh->flags;
 	if (nh->last_reply > 0)
-		api_nh.age = (rte_get_tsc_cycles() - nh->last_reply) / rte_get_tsc_hz();
+		api_nh.age = (gr_clock_us() - nh->last_reply) / CLOCKS_PER_SEC;
 	else
 		api_nh.age = 0;
 	api_nh.held_pkts = nh->held_pkts_num;

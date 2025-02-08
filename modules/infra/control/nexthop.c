@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_clock.h>
 #include <gr_event.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -218,16 +219,16 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
-	uint64_t now = rte_get_tsc_cycles();
-	uint64_t reply_age, request_age;
+	clock_t now = gr_clock_us();
+	time_t reply_age, request_age;
 	unsigned probes, max_probes;
 	struct nh_pool *nhp = priv;
 
 	if (nh->flags & GR_NH_F_STATIC)
 		return;
 
-	reply_age = (now - nh->last_reply) / rte_get_tsc_hz();
-	request_age = (now - nh->last_request) / rte_get_tsc_hz();
+	reply_age = (now - nh->last_reply) / CLOCKS_PER_SEC;
+	request_age = (now - nh->last_request) / CLOCKS_PER_SEC;
 	max_probes = NH_UCAST_PROBES + NH_BCAST_PROBES;
 	probes = nh->ucast_probes + nh->bcast_probes;
 

@@ -75,8 +75,8 @@ struct __rte_cache_aligned nexthop {
 	uint8_t ucast_probes;
 	uint8_t bcast_probes;
 	uint32_t ref_count; // number of routes referencing this nexthop
-	uint64_t last_request;
-	uint64_t last_reply;
+	clock_t last_request;
+	clock_t last_reply;
 
 	// packets waiting for address resolution
 	uint16_t held_pkts_num;
