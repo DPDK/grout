@@ -23,22 +23,22 @@
 
 typedef uint16_t gr_nh_flags_t;
 
-// Nexthop structure exposed to the API.
+//! Nexthop structure exposed to the API.
 struct gr_nexthop {
-	gr_nh_flags_t flags; // bit mask of GR_NH_F_*
-	uint16_t vrf_id;
-	uint16_t iface_id;
-	struct rte_ether_addr mac;
+	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
+	uint16_t vrf_id; //!< L3 VRF domain
+	uint16_t iface_id; //!< interface associated with this nexthop
+	struct rte_ether_addr mac; //!< link-layer address
 	union {
 		struct {
 		} addr;
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
-	uint8_t family;
-	uint8_t prefixlen;
-	uint16_t held_pkts;
-	clock_t last_reply;
+	uint8_t family; //!< AF_INET, AF_INET6, ...
+	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
+	uint16_t held_pkts; //!< number of packets waiting for resolution
+	clock_t last_reply; //!< timestamp when last update was received
 };
 
 #define gr_nh_flags_foreach(f, flags)                                                              \
