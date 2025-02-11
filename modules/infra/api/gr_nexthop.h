@@ -5,6 +5,7 @@
 #define _GR_NEXTHOP
 
 #include <gr_bitops.h>
+#include <gr_clock.h>
 #include <gr_infra.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -35,8 +36,8 @@ struct gr_nexthop {
 	uint16_t iface_id;
 	struct rte_ether_addr mac;
 	uint16_t vrf_id;
-	uint16_t age; // number of seconds since last update
 	uint16_t held_pkts;
+	clock_t last_reply;
 };
 
 #define gr_nh_flags_foreach(f, flags)                                                              \

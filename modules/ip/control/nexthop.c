@@ -255,10 +255,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	api_nh.vrf_id = nh->vrf_id;
 	api_nh.mac = nh->lladdr;
 	api_nh.flags = nh->flags;
-	if (nh->last_reply > 0)
-		api_nh.age = (gr_clock_us() - nh->last_reply) / CLOCKS_PER_SEC;
-	else
-		api_nh.age = 0;
+	api_nh.last_reply = nh->last_reply;
 	api_nh.held_pkts = nh->held_pkts_num;
 	gr_vec_add(ctx->nh, api_nh);
 }
