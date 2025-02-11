@@ -6,6 +6,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_clock.h>
 #include <gr_ip4.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -60,6 +61,7 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
+	clock_t now;
 	ssize_t n;
 
 	if (table == NULL)
@@ -74,6 +76,7 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 	}
 
 	resp = resp_ptr;
+	now = gr_clock_us();
 
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "IP", 0, 0);
@@ -104,7 +107,12 @@ static cmd_status_t nh4_list(const struct gr_api_client *c, const struct ec_pnod
 			else
 				scols_line_sprintf(line, 3, "%u", nh->iface_id);
 			scols_line_sprintf(line, 4, "%u", nh->held_pkts);
-			scols_line_sprintf(line, 5, "%u", nh->age);
+			if (nh->flags & GR_NH_F_STATIC)
+				scols_line_set_data(line, 5, "-");
+			else
+				scols_line_sprintf(
+					line, 5, "%ld", (now - nh->last_reply) / CLOCKS_PER_SEC
+				);
 		} else {
 			scols_line_set_data(line, 2, "??:??:??:??:??:??");
 			scols_line_set_data(line, 3, "?");
