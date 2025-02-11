@@ -286,6 +286,7 @@ int nexthop_serialize(const void *obj, void **buf) {
 	api_nh->iface_id = nh->iface_id;
 	api_nh->ipv6 = nh->ipv6;
 	api_nh->mac = nh->lladdr;
+	api_nh->prefixlen = nh->prefixlen;
 	*buf = api_nh;
 
 	return sizeof(*api_nh);
