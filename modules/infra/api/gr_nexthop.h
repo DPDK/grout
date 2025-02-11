@@ -36,6 +36,7 @@ struct gr_nexthop {
 	uint16_t iface_id;
 	struct rte_ether_addr mac;
 	uint16_t vrf_id;
+	uint8_t prefixlen;
 	uint16_t held_pkts;
 	clock_t last_reply;
 };

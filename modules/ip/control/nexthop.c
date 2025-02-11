@@ -257,6 +257,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	api_nh.flags = nh->flags;
 	api_nh.last_reply = nh->last_reply;
 	api_nh.held_pkts = nh->held_pkts_num;
+	api_nh.prefixlen = nh->prefixlen;
 	gr_vec_add(ctx->nh, api_nh);
 }
 
