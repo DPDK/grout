@@ -377,7 +377,7 @@ static struct gr_event_subscription iface_event_subscription = {
 	},
 };
 static struct gr_event_serializer iface_addr_serializer = {
-	.callback = nexthop_serialize,
+	.size = sizeof(struct gr_nexthop),
 	.ev_count = 2,
 	.ev_types = {
 		IP6_EVENT_ADDR_ADD,

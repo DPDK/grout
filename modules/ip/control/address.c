@@ -228,7 +228,7 @@ static struct gr_event_subscription iface_pre_rm_subscription = {
 	.ev_types = {IFACE_EVENT_PRE_REMOVE},
 };
 static struct gr_event_serializer iface_addr_serializer = {
-	.callback = nexthop_serialize,
+	.size = sizeof(struct gr_nexthop),
 	.ev_count = 2,
 	.ev_types = {IP_EVENT_ADDR_ADD, IP_EVENT_ADDR_DEL},
 };

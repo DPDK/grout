@@ -10,6 +10,13 @@
 #define MEMBER_SIZE(type, member) (sizeof(((type *)0)->member))
 #define PAYLOAD(header) ((void *)(header + 1))
 
+// Define a structure as a base for another one using anonymous tagged structure extension.
+#define BASE(typename)                                                                             \
+	union {                                                                                    \
+		struct typename base;                                                              \
+		struct typename;                                                                   \
+	}
+
 // Call a function writing on a buffer called 'buf'.
 //
 // The offset at which to write is expected to be named 'n'.
