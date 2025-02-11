@@ -270,22 +270,12 @@ struct list_context {
 
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
-	struct gr_nexthop api_nh;
 
 	if ((nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
 	    || rte_ipv6_addr_is_mcast(&nh->ipv6))
 		return;
 
-	api_nh.family = nh->family;
-	api_nh.ipv6 = nh->ipv6;
-	api_nh.iface_id = nh->iface_id;
-	api_nh.vrf_id = nh->vrf_id;
-	api_nh.mac = nh->mac;
-	api_nh.flags = nh->flags;
-	api_nh.last_reply = nh->last_reply;
-	api_nh.held_pkts = nh->held_pkts;
-	api_nh.prefixlen = nh->prefixlen;
-	gr_vec_add(ctx->nh, api_nh);
+	gr_vec_add(ctx->nh, nh->base);
 }
 
 static struct api_out nh6_list(const void *request, void **response) {

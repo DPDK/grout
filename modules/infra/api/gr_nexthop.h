@@ -26,6 +26,9 @@ typedef uint16_t gr_nh_flags_t;
 // Nexthop structure exposed to the API.
 struct gr_nexthop {
 	gr_nh_flags_t flags; // bit mask of GR_NH_F_*
+	uint16_t vrf_id;
+	uint16_t iface_id;
+	struct rte_ether_addr mac;
 	union {
 		struct {
 		} addr;
@@ -33,9 +36,6 @@ struct gr_nexthop {
 		struct rte_ipv6_addr ipv6;
 	};
 	uint8_t family;
-	uint16_t iface_id;
-	struct rte_ether_addr mac;
-	uint16_t vrf_id;
 	uint8_t prefixlen;
 	uint16_t held_pkts;
 	clock_t last_reply;

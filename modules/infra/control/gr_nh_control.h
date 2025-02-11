@@ -4,6 +4,7 @@
 #ifndef _GR_INFRA_NH_CONTROL
 #define _GR_INFRA_NH_CONTROL
 
+#include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
 
@@ -58,28 +59,15 @@ void nh_pool_iter(struct nh_pool *, nh_iter_cb_t nh_cb, void *priv);
 #define NH_BCAST_PROBES 3
 
 struct __rte_cache_aligned nexthop {
-	gr_nh_flags_t flags;
-	struct rte_ether_addr mac;
-	uint16_t vrf_id;
-	uint16_t iface_id;
+	BASE(gr_nexthop);
 
-	union {
-		struct {
-		} addr;
-		ip4_addr_t ipv4;
-		struct rte_ipv6_addr ipv6;
-	};
-	uint8_t prefixlen;
-	uint8_t family; // AF_INET, AF_INET6, ...
+	clock_t last_request;
 
 	uint8_t ucast_probes;
 	uint8_t bcast_probes;
 	uint32_t ref_count; // number of routes referencing this nexthop
-	clock_t last_request;
-	clock_t last_reply;
 
 	// packets waiting for address resolution
-	uint16_t held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
 
@@ -98,6 +86,5 @@ struct nexthop *nexthop_new(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id
 
 void nexthop_incref(struct nexthop *);
 void nexthop_decref(struct nexthop *);
-int nexthop_serialize(const void *, void **);
 
 #endif

@@ -232,11 +232,7 @@ static struct api_out route4_get(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->nh.ipv4 = nh->ipv4;
-	resp->nh.iface_id = nh->iface_id;
-	resp->nh.mac = nh->mac;
-	resp->nh.flags = nh->flags;
-
+	resp->nh = nh->base;
 	*response = resp;
 
 	return api_out(0, sizeof(*resp));

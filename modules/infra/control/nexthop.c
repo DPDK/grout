@@ -274,26 +274,8 @@ static void nh_pool_do_ageing(evutil_socket_t, short /*what*/, void *priv) {
 	nh_pool_iter(nhp, nexthop_ageing_cb, nhp);
 }
 
-int nexthop_serialize(const void *obj, void **buf) {
-	struct gr_nexthop *api_nh = calloc(1, sizeof(*api_nh));
-	const struct nexthop *nh = obj;
-
-	if (api_nh == NULL)
-		return errno_set(ENOMEM);
-
-	api_nh->family = nh->family;
-	api_nh->vrf_id = nh->vrf_id;
-	api_nh->iface_id = nh->iface_id;
-	api_nh->ipv6 = nh->ipv6;
-	api_nh->mac = nh->mac;
-	api_nh->prefixlen = nh->prefixlen;
-	*buf = api_nh;
-
-	return sizeof(*api_nh);
-}
-
 static struct gr_event_serializer nh_serializer = {
-	.callback = nexthop_serialize,
+	.size = sizeof(struct gr_nexthop),
 	.ev_count = 3,
 	.ev_types = {
 		NEXTHOP_EVENT_NEW,
