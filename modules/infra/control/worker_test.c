@@ -43,7 +43,7 @@ struct iface *iface_from_id(uint16_t ifid) {
 	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
 }
 
-struct iface *iface_next(uint16_t /*type_id*/, const struct iface *prev) {
+struct iface *iface_next(gr_iface_type_t /*type_id*/, const struct iface *prev) {
 	uint16_t ifid;
 	if (prev == NULL)
 		ifid = 0;

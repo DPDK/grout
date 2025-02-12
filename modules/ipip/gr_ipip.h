@@ -10,8 +10,6 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
-#define GR_IFACE_TYPE_IPIP 0x03
-
 // IPIP reconfig attributes
 #define GR_IPIP_SET_LOCAL GR_BIT64(32)
 #define GR_IPIP_SET_REMOTE GR_BIT64(33)

@@ -14,20 +14,27 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-// Value for gr_iface.type
-#define GR_IFACE_TYPE_UNDEF 0x00
-#define GR_IFACE_TYPE_PORT 0x01
-#define GR_IFACE_TYPE_VLAN 0x02
-#define GR_IFACE_TYPE_LOOPBACK 0xFF
-#define GR_IFACE_TYPE_MAX 256
+typedef enum {
+	GR_IFACE_TYPE_UNDEF = 0x00,
+	GR_IFACE_TYPE_PORT = 0x01,
+	GR_IFACE_TYPE_VLAN = 0x02,
+	GR_IFACE_TYPE_IPIP = 0x03,
+	GR_IFACE_TYPE_LOOPBACK = 0xff,
+	GR_IFACE_TYPE_MAX = 256
+} __attribute__((mode(HI))) gr_iface_type_t;
 
 // Interface configure flags
-#define GR_IFACE_F_UP GR_BIT16(0)
-#define GR_IFACE_F_PROMISC GR_BIT16(1)
-#define GR_IFACE_F_ALLMULTI GR_BIT16(2)
-#define GR_IFACE_F_PACKET_TRACE GR_BIT16(3)
+typedef enum {
+	GR_IFACE_F_UP = GR_BIT16(0),
+	GR_IFACE_F_PROMISC = GR_BIT16(1),
+	GR_IFACE_F_ALLMULTI = GR_BIT16(2),
+	GR_IFACE_F_PACKET_TRACE = GR_BIT16(3),
+} __attribute__((mode(HI))) gr_iface_flags_t;
+
 // Interface state flags
-#define GR_IFACE_S_RUNNING GR_BIT16(0)
+typedef enum {
+	GR_IFACE_S_RUNNING = GR_BIT16(0),
+} __attribute__((mode(HI))) gr_iface_state_t;
 
 // Interface reconfig attributes
 #define GR_IFACE_SET_FLAGS GR_BIT64(0)
@@ -42,9 +49,9 @@
 // Generic struct for all network interfaces.
 struct gr_iface {
 	uint16_t id; // Interface unique index.
-	uint16_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
-	uint16_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
-	uint16_t state; // Interface state. Bit mask of GR_IFACE_S_*.
+	gr_iface_type_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
+	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
+	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
 	uint16_t vrf_id; // L3 addressing and routing domain
 #define GR_IFACE_NAME_SIZE 64
@@ -136,7 +143,7 @@ struct gr_infra_iface_get_resp {
 #define GR_INFRA_IFACE_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0004)
 
 struct gr_infra_iface_list_req {
-	uint16_t type; // use GR_IFACE_TYPE_UNDEF for all
+	gr_iface_type_t type; // use GR_IFACE_TYPE_UNDEF for all
 };
 
 struct gr_infra_iface_list_resp {

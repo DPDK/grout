@@ -19,7 +19,7 @@
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
-struct iface_type *iface_type_get(uint16_t type_id) {
+struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
 	STAILQ_FOREACH (t, &types, next)
 		if (t->id == type_id)
@@ -52,8 +52,8 @@ static int next_ifid(uint16_t *ifid) {
 }
 
 struct iface *iface_create(
-	uint16_t type_id,
-	uint16_t flags,
+	gr_iface_type_t type_id,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -111,7 +111,7 @@ fail:
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -145,7 +145,7 @@ int iface_reconfig(
 	return type->reconfig(iface, set_attrs, flags, mtu, vrf_id, api_info);
 }
 
-uint16_t ifaces_count(uint16_t type_id) {
+uint16_t ifaces_count(gr_iface_type_t type_id) {
 	uint16_t count = 0;
 
 	for (uint16_t ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
@@ -157,7 +157,7 @@ uint16_t ifaces_count(uint16_t type_id) {
 	return count;
 }
 
-struct iface *iface_next(uint16_t type_id, const struct iface *prev) {
+struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 	uint16_t start_id;
 
 	if (prev == NULL)

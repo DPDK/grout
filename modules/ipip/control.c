@@ -47,7 +47,7 @@ struct iface *ipip_get_iface(ip4_addr_t local, ip4_addr_t remote, uint16_t vrf_i
 static int iface_ipip_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const void *api_info

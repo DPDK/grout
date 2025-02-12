@@ -15,9 +15,9 @@
 
 struct __rte_cache_aligned iface {
 	uint16_t id;
-	uint16_t type_id;
-	uint16_t flags;
-	uint16_t state;
+	gr_iface_type_t type_id;
+	gr_iface_flags_t flags;
+	gr_iface_state_t state;
 	uint16_t mtu;
 	uint16_t vrf_id; // L3 addressing and routing domain
 	const struct iface **subinterfaces;
@@ -31,7 +31,7 @@ typedef int (*iface_init_t)(struct iface *, const void *api_info);
 typedef int (*iface_reconfig_t)(
 	struct iface *,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const void *api_info
@@ -56,10 +56,10 @@ struct iface_type {
 };
 
 void iface_type_register(struct iface_type *);
-struct iface_type *iface_type_get(uint16_t type_id);
+struct iface_type *iface_type_get(gr_iface_type_t type_id);
 struct iface *iface_create(
-	uint16_t type_id,
-	uint16_t flags,
+	gr_iface_type_t type_id,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -68,7 +68,7 @@ struct iface *iface_create(
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const char *name,
@@ -81,8 +81,8 @@ void iface_del_subinterface(struct iface *parent, const struct iface *sub);
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
 int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
 int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
-uint16_t ifaces_count(uint16_t type_id);
-struct iface *iface_next(uint16_t type_id, const struct iface *prev);
+uint16_t ifaces_count(gr_iface_type_t type_id);
+struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
 struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
