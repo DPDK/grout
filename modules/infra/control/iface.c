@@ -76,6 +76,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (next_ifid(&ifid) < 0)
 		goto fail;
 
+	iface->mode = GR_IFACE_MODE_L3;
 	iface->id = ifid;
 	iface->type_id = conf->type;
 	iface->flags = conf->flags;

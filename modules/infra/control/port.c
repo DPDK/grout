@@ -353,7 +353,10 @@ static int iface_port_fini(struct iface *iface) {
 		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 			struct iface_info_port p = {.n_txq = 0};
 			struct gr_iface conf = {
-				.flags = iface->flags, .mtu = iface->mtu, .vrf_id = iface->vrf_id
+				.flags = iface->flags,
+				.mtu = iface->mtu,
+				.mode = iface->mode,
+				.vrf_id = iface->vrf_id
 			};
 			ret = iface_port_reconfig(iface, GR_PORT_SET_N_TXQS, &conf, &p);
 			if (ret < 0)
@@ -397,6 +400,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	conf.flags = iface->flags;
 	conf.mtu = iface->mtu;
 	conf.vrf_id = iface->vrf_id;
+	conf.mode = iface->mode;
 	ret = iface_port_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
 	if (ret < 0) {
 		iface_port_fini(iface);

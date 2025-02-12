@@ -20,7 +20,7 @@
 #include <sys/queue.h>
 
 enum {
-	ETH_IN = 0,
+	IFACE_MODE_UNKNOWN = 0,
 	NO_IFACE,
 	NB_EDGES,
 };
@@ -34,6 +34,14 @@ struct rx_ctx {
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
 	const struct rxtx_trace_data *t = data;
 	return snprintf(buf, len, "port=%u queue=%u", t->port_id, t->queue_id);
+}
+
+static rte_edge_t edges[GR_IFACE_MODE_COUNT] = {IFACE_MODE_UNKNOWN};
+
+void register_interface_mode(gr_iface_mode_t mode, const char *next_node) {
+	if (edges[mode] != IFACE_MODE_UNKNOWN)
+		ABORT("next node already registered for interface mode %u", mode);
+	edges[mode] = gr_node_attach_parent("port_rx", next_node);
 }
 
 static uint16_t
@@ -51,8 +59,11 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 		rx = rte_eth_rx_burst(
 			q.port_id, q.rxq_id, (struct rte_mbuf **)&node->objs[count], ctx->burst_size
 		);
+		if (unlikely(rx == 0))
+			continue;
+
 		iface = port_get_iface(q.port_id);
-		if (rx > 0 && iface == NULL) {
+		if (unlikely(iface == NULL)) {
 			rte_node_enqueue(graph, node, NO_IFACE, &node->objs[count], rx);
 			continue;
 		}
@@ -75,11 +86,10 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 				trace_log_packet(node->objs[r], "rx", iface->name);
 			}
 		}
+		rte_node_enqueue(graph, node, edges[iface->mode], &node->objs[count], rx);
 
 		count += rx;
 	}
-
-	rte_node_enqueue(graph, node, ETH_IN, node->objs, count);
 
 	return count;
 }
@@ -120,8 +130,8 @@ static struct rte_node_register node = {
 
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
-		[ETH_IN] = "eth_input",
 		[NO_IFACE] = "port_rx_no_iface",
+		[IFACE_MODE_UNKNOWN] = "port_rx_iface_mode_unknown",
 	},
 };
 
@@ -133,3 +143,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(port_rx_no_iface);
+GR_DROP_REGISTER(port_rx_iface_mode_unknown);

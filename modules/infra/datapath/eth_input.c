@@ -143,9 +143,14 @@ static struct rte_node_register node = {
 	},
 };
 
+static void eth_input_register(void) {
+	register_interface_mode(GR_IFACE_MODE_L3, "eth_input");
+}
+
 static struct gr_node_info info = {
 	.node = &node,
 	.trace_format = eth_trace_format,
+	.register_callback = eth_input_register,
 };
 
 GR_NODE_REGISTER(info);

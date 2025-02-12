@@ -21,6 +21,7 @@ static void iface_to_api(struct gr_iface *to, const struct iface *from) {
 	to->state = from->state;
 	to->mtu = from->mtu;
 	to->vrf_id = from->vrf_id;
+	to->mode = from->mode;
 	memccpy(to->name, from->name, 0, sizeof(to->name));
 	type->to_api(to->info, from);
 }
