@@ -54,7 +54,7 @@ int complete_iface_types(
 	}
 	return 0;
 }
-const struct cli_iface_type *type_from_id(uint16_t type_id) {
+const struct cli_iface_type *type_from_id(gr_iface_type_t type_id) {
 	const struct cli_iface_type *type;
 
 	STAILQ_FOREACH (type, &types, next) {

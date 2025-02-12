@@ -50,7 +50,7 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 static int iface_vlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const void *api_info

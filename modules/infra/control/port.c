@@ -208,7 +208,7 @@ static int port_configure(struct iface_info_port *p) {
 int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	uint16_t flags,
+	gr_iface_flags_t flags,
 	uint16_t mtu,
 	uint16_t vrf_id,
 	const void *api_info

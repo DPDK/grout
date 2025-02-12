@@ -30,7 +30,7 @@ enum {
 
 static rte_edge_t edges[GR_IFACE_TYPE_MAX] = {ETH_OUTPUT};
 
-void ip_output_register_interface(uint16_t iface_type_id, const char *next_node) {
+void ip_output_register_interface(gr_iface_type_t iface_type_id, const char *next_node) {
 	LOG(DEBUG, "ip_output: iface_type=%u -> %s", iface_type_id, next_node);
 	if (iface_type_id == GR_IFACE_TYPE_UNDEF || iface_type_id >= ARRAY_DIM(edges))
 		ABORT("invalid iface type=%u", iface_type_id);
