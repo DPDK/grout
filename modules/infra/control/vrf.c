@@ -44,7 +44,8 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 			if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
 				continue;
-			ifaces_per_vrf[iface->vrf_id]++;
+			if (iface->mode == GR_IFACE_MODE_L3)
+				ifaces_per_vrf[iface->vrf_id]++;
 		}
 		for (unsigned i = 0; i < ARRAY_DIM(vrfs); i++) {
 			if (vrfs[i].ref_count > ifaces_per_vrf[i]) {

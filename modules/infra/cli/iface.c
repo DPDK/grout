@@ -250,7 +250,8 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 	scols_table_new_column(table, "NAME", 0, 0);
 	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_new_column(table, "FLAGS", 0, 0);
-	scols_table_new_column(table, "VRF", 0, 0);
+	scols_table_new_column(table, "MODE", 0, 0);
+	scols_table_new_column(table, "DOMAIN", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
@@ -283,21 +284,24 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			SAFE_BUF(snprintf, sizeof(buf), " tracing");
 		scols_line_set_data(line, 2, buf);
 
+		// mode
+		scols_line_set_data(line, 3, iface->mode == GR_IFACE_MODE_L3 ? "L3" : "UNKNOWN");
+
 		// vrf
-		scols_line_sprintf(line, 3, "%u", iface->vrf_id);
+		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
 
 		if (type == NULL) {
 			// type
-			scols_line_sprintf(line, 4, "%u", iface->type);
+			scols_line_sprintf(line, 5, "%u", iface->type);
 			// info
-			scols_line_set_data(line, 5, "");
+			scols_line_set_data(line, 6, "");
 		} else {
 			// type
-			scols_line_set_data(line, 4, type->name);
+			scols_line_set_data(line, 5, type->name);
 			// info
 			buf[0] = 0;
 			type->list_info(c, iface, buf, sizeof(buf));
-			scols_line_set_data(line, 5, buf);
+			scols_line_set_data(line, 6, buf);
 		}
 	}
 

@@ -46,6 +46,11 @@ typedef enum {
 
 #define GR_VRF_ID_ALL UINT16_MAX
 
+typedef enum gr_iface_mode {
+	GR_IFACE_MODE_L3 = 0,
+	GR_IFACE_MODE_COUNT
+} __attribute__((mode(QI))) gr_iface_mode_t;
+
 // Generic struct for all network interfaces.
 struct gr_iface {
 	uint16_t id; // Interface unique index.
@@ -53,11 +58,17 @@ struct gr_iface {
 	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	uint16_t vrf_id; // L3 addressing and routing domain
+	gr_iface_mode_t mode;
+	union {
+		uint16_t vrf_id; // L3 addressing and routing domain
+		uint16_t domain_id; // L2 xconnect peer interface id
+	};
 #define GR_IFACE_NAME_SIZE 64
 	char name[GR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
 	uint8_t info[256]; // Type specific interface info.
 };
+
+void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
 
 // Port reconfig attributes
 #define GR_PORT_SET_N_RXQS GR_BIT64(32)
