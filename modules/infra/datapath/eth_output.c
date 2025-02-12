@@ -71,9 +71,6 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
 
-		if (gr_packet_logging_enabled())
-			trace_log_packet(mbuf, "tx", priv->iface->name);
-
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct eth_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			t->eth.dst_addr = eth->dst_addr;
