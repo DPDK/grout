@@ -285,7 +285,17 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 		scols_line_set_data(line, 2, buf);
 
 		// mode
-		scols_line_set_data(line, 3, iface->mode == GR_IFACE_MODE_L3 ? "L3" : "UNKNOWN");
+		switch (iface->mode) {
+		case GR_IFACE_MODE_L1_XC:
+			scols_line_set_data(line, 3, "XC");
+			break;
+		case GR_IFACE_MODE_L3:
+			scols_line_set_data(line, 3, "L3");
+			break;
+		default:
+			scols_line_sprintf(line, 3, "%u", iface->mode);
+			break;
+		}
 
 		// vrf
 		scols_line_sprintf(line, 4, "%u", iface->vrf_id);

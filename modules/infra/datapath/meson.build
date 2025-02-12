@@ -7,6 +7,7 @@ src += files(
   'drop.c',
   'eth_input.c',
   'eth_output.c',
+  'l1_xconnect.c',
   'loop_input.c',
   'loop_output.c',
   'main_loop.c',
