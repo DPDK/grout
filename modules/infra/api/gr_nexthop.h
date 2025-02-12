@@ -11,17 +11,17 @@
 #include <gr_net_types.h>
 
 // Supported flags on a nexthop.
-#define GR_NH_F_PENDING GR_BIT16(0) // Probe sent
-#define GR_NH_F_REACHABLE GR_BIT16(1) // Probe reply received
-#define GR_NH_F_STALE GR_BIT16(2) // Reachable lifetime expired, need refresh
-#define GR_NH_F_FAILED GR_BIT16(3) // All probes sent without reply
-#define GR_NH_F_STATIC GR_BIT16(4) // Configured by user
-#define GR_NH_F_LOCAL GR_BIT16(5) // Local address
-#define GR_NH_F_GATEWAY GR_BIT16(6) // Gateway route
-#define GR_NH_F_LINK GR_BIT16(7) // Connected link route
-#define GR_NH_F_MCAST GR_BIT16(8) // Multicast address
-
-typedef uint16_t gr_nh_flags_t;
+typedef enum {
+	GR_NH_F_PENDING = GR_BIT16(0), // Probe sent
+	GR_NH_F_REACHABLE = GR_BIT16(1), // Probe reply received
+	GR_NH_F_STALE = GR_BIT16(2), // Reachable lifetime expired, need refresh
+	GR_NH_F_FAILED = GR_BIT16(3), // All probes sent without reply
+	GR_NH_F_STATIC = GR_BIT16(4), // Configured by user
+	GR_NH_F_LOCAL = GR_BIT16(5), // Local address
+	GR_NH_F_GATEWAY = GR_BIT16(6), // Gateway route
+	GR_NH_F_LINK = GR_BIT16(7), // Connected link route
+	GR_NH_F_MCAST = GR_BIT16(8), // Multicast address
+} __attribute__((mode(HI))) gr_nh_flags_t;
 
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
