@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include <gr_graph.h>
+#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_rxtx.h>
@@ -63,6 +64,9 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
+
+		if (gr_packet_logging_enabled())
+			trace_log_packet(mbuf, "tx", (mbuf_data(mbuf)->iface)->name);
 
 		if (mbuf->port != port_id) {
 			if (burst_start != i) {
