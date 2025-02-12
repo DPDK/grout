@@ -285,8 +285,14 @@ int iface_port_reconfig(
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
 	}
 
+	if (set_attrs & GR_IFACE_SET_MODE)
+		iface->mode = conf->mode;
+
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
+
+	if (set_attrs & GR_IFACE_SET_DOMAIN)
+		iface->domain_id = conf->domain_id;
 
 	if ((set_attrs & GR_PORT_SET_MAC) && !rte_is_zero_ether_addr(&api->mac)) {
 		struct rte_ether_addr mac = api->mac;

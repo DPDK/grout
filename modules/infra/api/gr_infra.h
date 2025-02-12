@@ -40,7 +40,9 @@ typedef enum {
 #define GR_IFACE_SET_FLAGS GR_BIT64(0)
 #define GR_IFACE_SET_MTU GR_BIT64(1)
 #define GR_IFACE_SET_NAME GR_BIT64(2)
-#define GR_IFACE_SET_VRF GR_BIT64(3)
+#define GR_IFACE_SET_MODE GR_BIT64(3)
+#define GR_IFACE_SET_VRF GR_BIT64(4)
+#define GR_IFACE_SET_DOMAIN GR_BIT64(4) // Domain and VRF are aliases
 
 #define GR_IFACE_ID_UNDEF 0
 
@@ -48,6 +50,7 @@ typedef enum {
 
 typedef enum gr_iface_mode {
 	GR_IFACE_MODE_L3 = 0,
+	GR_IFACE_MODE_L1_XC,
 	GR_IFACE_MODE_COUNT
 } __attribute__((mode(QI))) gr_iface_mode_t;
 
