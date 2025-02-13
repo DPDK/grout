@@ -39,6 +39,17 @@ void ip_output_register_interface_type(gr_iface_type_t type, const char *next_no
 	iface_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
 }
 
+static rte_edge_t nh_type_edges[GR_NH_TYPE_COUNT] = {ETH_OUTPUT};
+
+void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
+	LOG(DEBUG, "ip_output: nexthop type=%u -> %s", type, next_node);
+	if (type == 0 || type >= ARRAY_DIM(nh_type_edges))
+		ABORT("invalid nexthop type=%u", type);
+	if (nh_type_edges[type] != ETH_OUTPUT)
+		ABORT("next node already registered for nexthop type=%u", type);
+	nh_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
+}
+
 static uint16_t
 ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
@@ -60,6 +71,11 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = NO_ROUTE;
 			goto next;
 		}
+
+		edge = nh_type_edges[nh->type];
+		if (edge != ETH_OUTPUT)
+			goto next;
+
 		iface = iface_from_id(nh->iface_id);
 		if (iface == NULL) {
 			edge = ERROR;

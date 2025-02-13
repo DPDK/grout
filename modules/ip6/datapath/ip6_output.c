@@ -36,6 +36,17 @@ void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_n
 	iface_type_edges[type] = gr_node_attach_parent("ip6_output", next_node);
 }
 
+static rte_edge_t nh_type_edges[GR_NH_TYPE_COUNT] = {ETH_OUTPUT};
+
+void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
+	LOG(DEBUG, "ip6_output: nexthop type=%u -> %s", type, next_node);
+	if (type == 0 || type >= ARRAY_DIM(nh_type_edges))
+		ABORT("invalid nexthop type=%u", type);
+	if (nh_type_edges[type] != ETH_OUTPUT)
+		ABORT("next node already registered for nexthop type=%u", type);
+	nh_type_edges[type] = gr_node_attach_parent("ip6_output", next_node);
+}
+
 static uint16_t
 ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
@@ -57,6 +68,10 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = DEST_UNREACH;
 			goto next;
 		}
+
+		edge = nh_type_edges[nh->type];
+		if (edge != ETH_OUTPUT)
+			goto next;
 
 		// For multicast destination, nh->iface will be NULL
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
