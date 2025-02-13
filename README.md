@@ -96,8 +96,8 @@ cat > /etc/grout.init <<EOF
 add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
 add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
 # remap rxqs to isolated cpus
-set port qmap p0 rxq 0 cpu 2
-set port qmap p1 rxq 0 cpu 22
+set worker qmap p0 rxq 0 cpu 2
+set worker qmap p1 rxq 0 cpu 22
 add ip address 1.2.3.4/24 iface p0
 add ip address 4.3.2.1/24 iface p1
 add ip route 0.0.0.0/0 via 1.2.3.254

@@ -9,10 +9,10 @@
 #add interface port p1 devargs 0000:4b:00.1 rxqs 2
 
 # Physical queue mapping
-#set port qmap p0 rxq 0 cpu 2
-#set port qmap p0 rxq 1 cpu 22
-#set port qmap p1 rxq 0 cpu 4
-#set port qmap p1 rxq 1 cpu 24
+#set worker qmap p0 rxq 0 cpu 2
+#set worker qmap p0 rxq 1 cpu 22
+#set worker qmap p1 rxq 0 cpu 4
+#set worker qmap p1 rxq 1 cpu 24
 
 # Interface addresses
 #add ip address 1.2.3.4/24 iface p0

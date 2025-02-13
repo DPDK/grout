@@ -216,7 +216,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("port", "Set DPDK port queue mapping.")),
+		CLI_CONTEXT(root, CTX_SET, CTX_ARG("worker", "Set DPDK port queue mapping.")),
 		"qmap NAME rxq RXQ cpu CPU",
 		rxq_set,
 		"Set DPDK port queue mapping.",
@@ -230,7 +230,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("port", "Display DPDK port information.")),
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("worker", "Display DPDK port information.")),
 		"qmap",
 		rxq_list,
 		"Display DPDK port RXQ assignment."
