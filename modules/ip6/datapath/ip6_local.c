@@ -15,6 +15,7 @@
 enum {
 	UNKNOWN_PROTO = 0,
 	BAD_CHECKSUM,
+	ERROR,
 	EDGE_COUNT,
 };
 static rte_edge_t edges[256] = {UNKNOWN_PROTO};
@@ -44,6 +45,9 @@ static uint16_t ip6_input_local_process(
 		m = objs[i];
 		ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_add(m, node, 0);
+
 		// prepare ip local data
 		iface = ip6_output_mbuf_data(m)->iface;
 		d = ip6_local_mbuf_data(m);
@@ -63,8 +67,10 @@ static uint16_t ip6_input_local_process(
 			int next_proto;
 
 			ext = rte_pktmbuf_read(m, l3_hdr_size, sizeof(_ext), _ext);
-			if (ext == NULL)
-				break;
+			if (ext == NULL) {
+				edge = ERROR;
+				goto next;
+			}
 			next_proto = rte_ipv6_get_next_ext(ext, d->proto, &ext_size);
 			if (next_proto < 0)
 				break;
@@ -90,11 +96,8 @@ static uint16_t ip6_input_local_process(
 			edge = BAD_CHECKSUM;
 			break;
 		}
-next:
-		if (gr_mbuf_is_traced(m))
-			gr_mbuf_trace_add(m, node, 0);
-
 		rte_pktmbuf_adj(m, l3_hdr_size);
+next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
@@ -108,6 +111,7 @@ static struct rte_node_register input_node = {
 	.next_nodes = {
 		[UNKNOWN_PROTO] = "ip6_input_local_unknown_proto",
 		[BAD_CHECKSUM] = "ip6_input_local_bad_checksum",
+		[ERROR] = "ip6_input_local_error",
 	},
 };
 
@@ -119,3 +123,4 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_input_local_unknown_proto);
 GR_DROP_REGISTER(ip6_input_local_bad_checksum);
+GR_DROP_REGISTER(ip6_input_local_error);
