@@ -30,14 +30,7 @@ static struct api_out iface_add(const void *request, void **response) {
 	struct gr_infra_iface_add_resp *resp;
 	struct iface *iface;
 
-	iface = iface_create(
-		req->iface.type,
-		req->iface.flags,
-		req->iface.mtu,
-		req->iface.vrf_id,
-		req->iface.name,
-		req->iface.info
-	);
+	iface = iface_create(&req->iface, req->iface.info);
 	if (iface == NULL)
 		return api_out(errno, 0);
 
@@ -112,15 +105,7 @@ static struct api_out iface_set(const void *request, void ** /*response*/) {
 	const struct gr_infra_iface_set_req *req = request;
 	int ret;
 
-	ret = iface_reconfig(
-		req->iface.id,
-		req->set_attrs,
-		req->iface.flags,
-		req->iface.mtu,
-		req->iface.vrf_id,
-		req->iface.name,
-		req->iface.info
-	);
+	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, NULL);
 	if (ret < 0)
 		return api_out(errno, 0);
 

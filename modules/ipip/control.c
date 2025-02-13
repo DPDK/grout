@@ -47,27 +47,25 @@ struct iface *ipip_get_iface(ip4_addr_t local, ip4_addr_t remote, uint16_t vrf_i
 static int iface_ipip_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
+	const struct gr_iface *conf,
 	const void *api_info
 ) {
 	struct iface_info_ipip *cur = (struct iface_info_ipip *)iface->info;
 	const struct gr_iface_info_ipip *next = api_info;
 	struct ipip_key cur_key = {cur->local, cur->remote, iface->vrf_id};
-	struct ipip_key next_key = {next->local, next->remote, vrf_id};
+	struct ipip_key next_key = {next->local, next->remote, conf->vrf_id};
 	int ret;
 
 	if (set_attrs & (GR_IFACE_SET_VRF | GR_IPIP_SET_LOCAL | GR_IPIP_SET_REMOTE)) {
-		if (vrf_id >= MAX_VRFS)
+		if (conf->vrf_id >= MAX_VRFS)
 			return errno_set(EOVERFLOW);
 
 		if (rte_hash_lookup(ipip_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
-		if (fib4_lookup(vrf_id, next->local) == NULL)
+		if (fib4_lookup(conf->vrf_id, next->local) == NULL)
 			return -errno;
-		if (fib4_lookup(vrf_id, next->remote) == NULL)
+		if (fib4_lookup(conf->vrf_id, next->remote) == NULL)
 			return -errno;
 
 		if (memcmp(&cur_key, &next_key, sizeof(cur_key)) != 0)
@@ -78,13 +76,13 @@ static int iface_ipip_reconfig(
 
 		cur->local = next->local;
 		cur->remote = next->remote;
-		iface->vrf_id = vrf_id;
+		iface->vrf_id = conf->vrf_id;
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
-		iface->flags = flags;
+		iface->flags = conf->flags;
 	if (set_attrs & GR_IFACE_SET_MTU)
-		iface->mtu = mtu;
+		iface->mtu = conf->mtu;
 
 	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
@@ -101,11 +99,12 @@ static int iface_ipip_fini(struct iface *iface) {
 }
 
 static int iface_ipip_init(struct iface *iface, const void *api_info) {
+	const struct gr_iface conf = {
+		.flags = iface->flags, .mtu = iface->mtu, .vrf_id = iface->vrf_id
+	};
 	int ret;
 
-	ret = iface_ipip_reconfig(
-		iface, IFACE_SET_ALL, iface->flags, iface->mtu, iface->vrf_id, api_info
-	);
+	ret = iface_ipip_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
 	if (ret < 0) {
 		iface_ipip_fini(iface);
 		errno = -ret;

@@ -50,9 +50,7 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 static int iface_vlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
+	const struct gr_iface *conf,
 	const void *api_info
 ) {
 	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
@@ -124,11 +122,11 @@ static int iface_vlan_reconfig(
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
-		iface->flags = flags;
+		iface->flags = conf->flags;
 	if (set_attrs & GR_IFACE_SET_MTU)
-		iface->mtu = mtu ? mtu : iface_from_id(cur->parent_id)->mtu;
+		iface->mtu = conf->mtu ? conf->mtu : iface_from_id(cur->parent_id)->mtu;
 	if (set_attrs & GR_IFACE_SET_VRF)
-		iface->vrf_id = vrf_id;
+		iface->vrf_id = conf->vrf_id;
 
 	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
@@ -178,11 +176,12 @@ static int iface_vlan_fini(struct iface *iface) {
 }
 
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
+	const struct gr_iface conf = {
+		.flags = iface->flags, .mtu = iface->mtu, .vrf_id = iface->vrf_id
+	};
 	int ret;
 
-	ret = iface_vlan_reconfig(
-		iface, IFACE_SET_ALL, iface->flags, iface->mtu, iface->vrf_id, api_info
-	);
+	ret = iface_vlan_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
 	if (ret < 0) {
 		iface_vlan_fini(iface);
 		errno = -ret;
