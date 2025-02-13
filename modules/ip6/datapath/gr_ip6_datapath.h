@@ -24,6 +24,7 @@ GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 	struct rte_ipv6_addr src;
 	struct rte_ipv6_addr dst;
 	uint16_t len;
+	uint16_t ext_offset;
 	uint8_t hop_limit;
 	uint8_t proto;
 });

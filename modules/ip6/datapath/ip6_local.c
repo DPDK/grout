@@ -37,7 +37,6 @@ static uint16_t ip6_input_local_process(
 	const struct iface *iface;
 	struct rte_ipv6_hdr *ip;
 	struct rte_mbuf *m;
-	size_t l3_hdr_size;
 	rte_edge_t edge;
 	uint16_t i;
 
@@ -57,46 +56,59 @@ static uint16_t ip6_input_local_process(
 		d->hop_limit = ip->hop_limits;
 		d->proto = ip->proto;
 		d->iface = iface;
-		l3_hdr_size = sizeof(*ip);
+		d->ext_offset = sizeof(*ip);
 
-		// strip IPv6 extension headers
-		while (true) {
+		// advance through IPv6 extension headers until we find a registered handler
+		while ((edge = edges[d->proto]) == UNKNOWN_PROTO) {
 			size_t ext_size = 0;
 			const uint8_t *ext;
 			uint8_t _ext[2];
 			int next_proto;
 
-			ext = rte_pktmbuf_read(m, l3_hdr_size, sizeof(_ext), _ext);
+			ext = rte_pktmbuf_read(m, d->ext_offset, sizeof(_ext), _ext);
 			if (ext == NULL) {
 				edge = ERROR;
 				goto next;
 			}
 			next_proto = rte_ipv6_get_next_ext(ext, d->proto, &ext_size);
 			if (next_proto < 0)
-				break;
-			l3_hdr_size += ext_size;
+				break; // end of extension headers
+			d->ext_offset += ext_size;
 			d->len -= ext_size;
 			d->proto = next_proto;
 		};
 
-		edge = edges[d->proto];
 		if (edge == UNKNOWN_PROTO)
 			goto next;
+
+		switch (d->proto) {
+		case IPPROTO_AH:
+		case IPPROTO_HOPOPTS:
+		case IPPROTO_ROUTING:
+		case IPPROTO_DSTOPTS:
+		case IPPROTO_FRAGMENT:
+			// IPv6 extensions are L3 and need the IPv6 header.
+			goto next;
+		}
 
 		// verify checksum if not already checked by hardware
 		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
 		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
 		case RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN:
 			if (rte_ipv6_udptcp_cksum_verify(
-				    ip, rte_pktmbuf_mtod_offset(m, void *, l3_hdr_size)
-			    ))
+				    ip, rte_pktmbuf_mtod_offset(m, void *, d->ext_offset)
+			    )) {
 				edge = BAD_CHECKSUM;
+				goto next;
+			}
 			break;
 		case RTE_MBUF_F_RX_L4_CKSUM_BAD:
 			edge = BAD_CHECKSUM;
-			break;
+			goto next;
 		}
-		rte_pktmbuf_adj(m, l3_hdr_size);
+
+		rte_pktmbuf_adj(m, d->ext_offset);
+		d->ext_offset = 0;
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
