@@ -29,7 +29,7 @@ typedef enum {
 	ICMP6_TYPE_NEIGH_ADVERT = UINT8_C(136),
 
 	_ICMP6_TYPE_MAX = UINT8_C(0xff),
-} __rte_packed icmp6_type_t;
+} __attribute__((mode(QI))) icmp6_type_t;
 
 #define GR_ICMP6_HDR_LEN 8
 
@@ -118,7 +118,7 @@ typedef enum {
 	ICMP6_OPT_REDIRECT = UINT8_C(4),
 	ICMP6_OPT_MTU = UINT8_C(5),
 	_ICMP6_OPT_MAX = UINT8_C(0xff),
-} __rte_packed icmp6_opt_t;
+} __attribute__((mode(QI))) icmp6_opt_t;
 
 struct icmp6_opt {
 	icmp6_opt_t type;
