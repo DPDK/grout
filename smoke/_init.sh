@@ -14,13 +14,13 @@ cleanup() {
 	sh -x $tmp/cleanup
 
 	# delete all non-port interfaces first
-	grcli show interface all |
+	grcli show interface |
 	grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<loopback\>' |
 	while read -r name _; do
 		grcli del interface "$name"
 	done
 	# then delete all ports
-	grcli show interface all |
+	grcli show interface |
 	grep -ve ^NAME -e '\<loopback\>' |
 	while read -r name _; do
 		grcli del interface "$name"
@@ -53,7 +53,7 @@ export PATH=$builddir:$PATH
 
 cat > $tmp/cleanup <<EOF
 grcli show stats software
-grcli show interface all
+grcli show interface
 grcli show ip nexthop
 grcli show ip route
 grcli show ip6 nexthop

@@ -317,7 +317,7 @@ static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pn
 	const struct cli_iface_type *type;
 	struct gr_iface iface;
 
-	if (arg_str(p, "all") != NULL || arg_str(p, "TYPE") != NULL)
+	if (arg_str(p, "NAME") == NULL || arg_str(p, "TYPE") != NULL)
 		return iface_list(c, p);
 
 	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
@@ -371,10 +371,9 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("interface", "Display interface details.")),
-		"all|(name NAME)|(type TYPE)",
+		"[(name NAME)|(type TYPE)]",
 		iface_show,
 		"Show interface details.",
-		with_help("Show all interfaces.", ec_node_str("all", "all")),
 		with_help(
 			"Show only this interface.",
 			ec_node_dyn("NAME", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))

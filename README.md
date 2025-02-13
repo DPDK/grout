@@ -155,7 +155,7 @@ del                  Delete objects from the configuration.
 show                 Display information about the configuration.
 clear                Clear counters or temporary entries.
 set                  Modify existing objects in the configuration.
-grout# show interface all
+grout# show interface
 NAME  ID  FLAGS       VRF  TYPE  INFO
 p0    1   up running  0    port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
 p1    2   up running  0    port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
