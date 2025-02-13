@@ -51,24 +51,17 @@ static int next_ifid(uint16_t *ifid) {
 	return errno_set(ENOSPC);
 }
 
-struct iface *iface_create(
-	gr_iface_type_t type_id,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
-	const char *name,
-	const void *api_info
-) {
-	struct iface_type *type = iface_type_get(type_id);
+struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
+	struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
 	uint16_t ifid;
 
 	if (type == NULL)
 		goto fail;
-	if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
+	if (utf8_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		if (strcmp(name, iface->name) == 0) {
+		if (strcmp(conf->name, iface->name) == 0) {
 			iface = NULL;
 			errno = EEXIST;
 			goto fail;
@@ -84,12 +77,12 @@ struct iface *iface_create(
 		goto fail;
 
 	iface->id = ifid;
-	iface->type_id = type_id;
-	iface->flags = flags;
-	iface->mtu = mtu;
-	iface->vrf_id = vrf_id;
+	iface->type_id = conf->type;
+	iface->flags = conf->flags;
+	iface->mtu = conf->mtu;
+	iface->vrf_id = conf->vrf_id;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
-	iface->name = strndup(name, GR_IFACE_NAME_SIZE);
+	iface->name = strndup(conf->name, GR_IFACE_NAME_SIZE);
 	if (iface->name == NULL)
 		goto fail;
 
@@ -111,10 +104,7 @@ fail:
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
-	const char *name,
+	const struct gr_iface *conf,
 	const void *api_info
 ) {
 	struct iface_type *type;
@@ -125,15 +115,15 @@ int iface_reconfig(
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -errno;
 	if (set_attrs & GR_IFACE_SET_NAME) {
-		if (utf8_check(name, GR_IFACE_NAME_SIZE) < 0)
+		if (utf8_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 			return -errno;
 
 		const struct iface *i = NULL;
 		while ((i = iface_next(GR_IFACE_TYPE_UNDEF, i)) != NULL)
-			if (i != iface && strcmp(name, i->name) == 0)
+			if (i != iface && strcmp(conf->name, i->name) == 0)
 				return errno_set(EEXIST);
 
-		char *new_name = strndup(name, GR_IFACE_NAME_SIZE);
+		char *new_name = strndup(conf->name, GR_IFACE_NAME_SIZE);
 		if (new_name == NULL)
 			return errno_set(ENOMEM);
 		free(iface->name);
@@ -142,7 +132,7 @@ int iface_reconfig(
 
 	type = iface_type_get(iface->type_id);
 	assert(type != NULL);
-	return type->reconfig(iface, set_attrs, flags, mtu, vrf_id, api_info);
+	return type->reconfig(iface, set_attrs, conf, api_info);
 }
 
 uint16_t ifaces_count(gr_iface_type_t type_id) {

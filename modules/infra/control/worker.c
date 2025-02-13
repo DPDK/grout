@@ -284,14 +284,10 @@ move:
 		struct iface *iface = NULL;
 
 		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-			ret = iface_port_reconfig(
-				iface,
-				GR_PORT_SET_N_TXQS,
-				iface->flags,
-				iface->mtu,
-				iface->vrf_id,
-				&p
-			);
+			struct gr_iface conf = {
+				.flags = iface->flags, .mtu = iface->mtu, .vrf_id = iface->vrf_id
+			};
+			ret = iface_port_reconfig(iface, GR_PORT_SET_N_TXQS, &conf, &p);
 			if (ret < 0)
 				return ret;
 		}

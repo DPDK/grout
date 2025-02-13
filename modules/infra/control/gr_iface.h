@@ -31,9 +31,7 @@ typedef int (*iface_init_t)(struct iface *, const void *api_info);
 typedef int (*iface_reconfig_t)(
 	struct iface *,
 	uint64_t set_attrs,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
+	const struct gr_iface *,
 	const void *api_info
 );
 typedef int (*iface_fini_t)(struct iface *);
@@ -57,21 +55,11 @@ struct iface_type {
 
 void iface_type_register(struct iface_type *);
 struct iface_type *iface_type_get(gr_iface_type_t type_id);
-struct iface *iface_create(
-	gr_iface_type_t type_id,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
-	const char *name,
-	const void *api_info
-);
+struct iface *iface_create(const struct gr_iface *conf, const void *api_info);
 int iface_reconfig(
 	uint16_t ifid,
 	uint64_t set_attrs,
-	gr_iface_flags_t flags,
-	uint16_t mtu,
-	uint16_t vrf_id,
-	const char *name,
+	const struct gr_iface *conf,
 	const void *api_info
 );
 int iface_destroy(uint16_t ifid);

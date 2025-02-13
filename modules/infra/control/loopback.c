@@ -153,9 +153,9 @@ err:
 }
 
 struct iface *iface_loopback_create(uint16_t vrf_id) {
-	char ifname[64];
-	snprintf(ifname, sizeof(ifname), "gr-loop%d", vrf_id);
-	return iface_create(GR_IFACE_TYPE_LOOPBACK, 0, 1500, vrf_id, ifname, NULL);
+	struct gr_iface conf = {.type = GR_IFACE_TYPE_LOOPBACK, .mtu = 1500, .vrf_id = vrf_id};
+	snprintf(conf.name, sizeof(conf.name), "gr-loop%d", vrf_id);
+	return iface_create(&conf, NULL);
 }
 
 int iface_loopback_delete(uint16_t vrf_id) {
