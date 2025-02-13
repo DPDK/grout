@@ -36,6 +36,7 @@ GR_MBUF_PRIV_DATA_TYPE(ndp_na_output_mbuf_data, {
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_node);
+void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 int nh6_solicit(struct nexthop *nh);
 
 #define IP6_DEFAULT_HOP_LIMIT 255
