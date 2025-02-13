@@ -59,10 +59,10 @@ static uint16_t ip6_input_local_process(
 		while (true) {
 			size_t ext_size = 0;
 			const uint8_t *ext;
+			uint8_t _ext[2];
 			int next_proto;
-			uint8_t _ext[4];
 
-			ext = rte_pktmbuf_read(m, l3_hdr_size, sizeof(&_ext), &_ext);
+			ext = rte_pktmbuf_read(m, l3_hdr_size, sizeof(_ext), _ext);
 			if (ext == NULL)
 				break;
 			next_proto = rte_ipv6_get_next_ext(ext, d->proto, &ext_size);
