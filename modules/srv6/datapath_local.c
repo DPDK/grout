@@ -22,7 +22,7 @@
 //
 // rfc8986
 //
-// take trafic when da = localsid.
+// take traffic when da = localsid.
 //
 
 enum {
@@ -83,7 +83,7 @@ static int process_behav_end(
 		ip6->dst_addr = *dst;
 
 	} else {
-		// won't decapsulate trafic
+		// won't decapsulate traffic
 		return INVALID_PACKET;
 	}
 
