@@ -25,15 +25,15 @@ enum {
 	EDGE_COUNT,
 };
 
-static rte_edge_t edges[GR_IFACE_TYPE_COUNT] = {ETH_OUTPUT};
+static rte_edge_t iface_type_edges[GR_IFACE_TYPE_COUNT] = {ETH_OUTPUT};
 
-void ip6_output_register_interface(gr_iface_type_t iface_type_id, const char *next_node) {
-	LOG(DEBUG, "ip6_output: iface_type=%u -> %s", iface_type_id, next_node);
-	if (iface_type_id == GR_IFACE_TYPE_UNDEF || iface_type_id >= ARRAY_DIM(edges))
-		ABORT("invalid iface type=%u", iface_type_id);
-	if (edges[iface_type_id] != ETH_OUTPUT)
-		ABORT("next node already registered for iface type=%u", iface_type_id);
-	edges[iface_type_id] = gr_node_attach_parent("ip6_output", next_node);
+void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_node) {
+	LOG(DEBUG, "ip6_output: iface type=%u -> %s", type, next_node);
+	if (type == GR_IFACE_TYPE_UNDEF || type >= ARRAY_DIM(iface_type_edges))
+		ABORT("invalid iface type=%u", type);
+	if (iface_type_edges[type] != ETH_OUTPUT)
+		ABORT("next node already registered for iface type=%u", type);
+	iface_type_edges[type] = gr_node_attach_parent("ip6_output", next_node);
 }
 
 static uint16_t
@@ -69,7 +69,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
-		edge = edges[iface->type_id];
+		edge = iface_type_edges[iface->type_id];
 		mbuf_data(mbuf)->iface = iface;
 		if (edge != ETH_OUTPUT)
 			goto next;
