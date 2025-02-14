@@ -28,16 +28,6 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct nh_pool *nh_pool;
-
-struct nexthop *nh6_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
-	return nexthop_new(nh_pool, vrf_id, iface_id, ip);
-}
-
-struct nexthop *nh6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
-	return nexthop_lookup(nh_pool, vrf_id, iface_id, ip);
-}
-
 static control_input_t ip6_output_node;
 
 void nh6_unreachable_cb(struct rte_mbuf *m) {
@@ -271,7 +261,7 @@ struct list_context {
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 
-	if ((nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
+	if (nh->type != GR_NH_IPV6 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
 	    || rte_ipv6_addr_is_mcast(&nh->ipv6))
 		return;
 
@@ -284,7 +274,7 @@ static struct api_out nh6_list(const void *request, void **response) {
 	struct gr_ip6_nh_list_resp *resp = NULL;
 	size_t len;
 
-	nh_pool_iter(nh_pool, nh_list_cb, &ctx);
+	nexthop_iter(nh_list_cb, &ctx);
 
 	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
 	if ((resp = calloc(1, len)) == NULL) {
@@ -301,22 +291,9 @@ static struct api_out nh6_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh6_init(struct event_base *ev_base) {
-	struct nh_pool_opts opts = {
-		.solicit_nh = nh6_solicit,
-		.free_nh = rib6_cleanup,
-		.num_nexthops = IP6_MAX_NEXT_HOPS,
-	};
-	nh_pool = nh_pool_new(GR_NH_IPV6, ev_base, &opts);
-	if (nh_pool == NULL)
-		ABORT("nh_pool_new(GR_NH_IPV6) failed");
-
+static void nh6_init(struct event_base *) {
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 	ndp_na_output_node = gr_control_input_register_handler("ndp_na_output", true);
-}
-
-static void nh6_fini(struct event_base *) {
-	nh_pool_free(nh_pool);
 }
 
 static struct gr_api_handler nh6_add_handler = {
@@ -338,8 +315,11 @@ static struct gr_api_handler nh6_list_handler = {
 static struct gr_module nh6_module = {
 	.name = "ipv6 nexthop",
 	.init = nh6_init,
-	.fini = nh6_fini,
-	.fini_prio = 20000,
+};
+
+static struct nexthop_ops nh_ops = {
+	.solicit = nh6_solicit,
+	.free = rib6_cleanup,
 };
 
 RTE_INIT(control_ip_init) {
@@ -347,4 +327,5 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&nh6_del_handler);
 	gr_register_api_handler(&nh6_list_handler);
 	gr_register_module(&nh6_module);
+	nexthop_ops_register(GR_NH_IPV6, &nh_ops);
 }

@@ -11,52 +11,18 @@
 #include <event2/event.h>
 #include <rte_mbuf.h>
 
-// Forward declaration
-struct nexthop;
-
-// Nexthop pool. Only one should be needed per L3 address family.
-struct nh_pool;
-
-// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
-typedef int (*nh_solicit_cb_t)(struct nexthop *);
-
-// Callback that will be invoked when all nexthop probes failed and it needs to be freed.
-typedef void (*nh_free_cb_t)(struct nexthop *);
-
-// Nexthop pool options.
-struct nh_pool_opts {
-	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
-	nh_solicit_cb_t solicit_nh;
-	// Callback that will be invoked when all nexthop probes failed and it needs to be freed.
-	nh_free_cb_t free_nh;
-	// The number of nexthops allocated in this pool.
-	unsigned num_nexthops;
-};
-
-// Allocate a new nexthop pool with the provided options.
-// If any field left to 0 in opts the default values will be used.
-struct nh_pool *
-nh_pool_new(gr_nh_type_t type, struct event_base *base, const struct nh_pool_opts *opts);
-
-// Free a nexthop pool previously allocated with nh_pool_new().
-void nh_pool_free(struct nh_pool *);
-
-// nh_pool_iter callback.
-typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
-
-// Iterate over a nexthop pool and invoke a callback for each active nexthop.
-void nh_pool_iter(struct nh_pool *, nh_iter_cb_t nh_cb, void *priv);
-
-// Max number of packets to hold per next hop waiting for resolution (default: 256).
+//! Max number of packets to hold per next hop waiting for resolution (default: 256).
 #define NH_MAX_HELD_PKTS 256
-// Reachable next hop lifetime after last probe reply received (default: 20 min).
+//! Reachable next hop lifetime after last probe reply received (default: 20 min).
 #define NH_LIFETIME_REACHABLE (20 * 60)
-// Unreachable next hop lifetime after last unreplied probe was sent (default: 1 min).
+//! Unreachable next hop lifetime after last unreplied probe was sent (default: 1 min).
 #define NH_LIFETIME_UNREACHABLE 60
-// Max number of unicast probes to send after NH_LIFETIME_REACHABLE.
+//! Max number of unicast probes to send after NH_LIFETIME_REACHABLE.
 #define NH_UCAST_PROBES 3
-// Max number of multicast/broadcast probes to send after unicast probes failed.
+//! Max number of multicast/broadcast probes to send after unicast probes failed.
 #define NH_BCAST_PROBES 3
+//! Maximum number of nexthops (TODO: make this configurable)
+#define NH_MAX_COUNT (1 << 17)
 
 struct __rte_cache_aligned nexthop {
 	BASE(gr_nexthop);
@@ -70,9 +36,6 @@ struct __rte_cache_aligned nexthop {
 	// packets waiting for address resolution
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
-
-	// internal
-	struct nh_pool *pool;
 };
 
 struct hoplist {
@@ -80,11 +43,34 @@ struct hoplist {
 	struct nexthop **nh;
 };
 
+// Lookup a nexthop from the global pool that matches the specified criteria.
 struct nexthop *
-nexthop_lookup(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
-struct nexthop *nexthop_new(struct nh_pool *, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
+// Allocate a new nexthop from the global pool with the provided initial values.
+struct nexthop *
+nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+
+// Increment the reference counter of a nexthop.
 void nexthop_incref(struct nexthop *);
+
+// Decrement the reference counter of a nexthop.
+// When the counter drops to 0, the nexthop is marked as available in the global pool.
 void nexthop_decref(struct nexthop *);
+
+// Callback for nh_iter().
+typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
+
+// Iterate over all nexthops and invoke a callback for each active nexthop.
+void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
+
+struct nexthop_ops {
+	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
+	int (*solicit)(struct nexthop *);
+	// Callback that will be invoked when all nexthop probes failed and it needs to be freed.
+	void (*free)(struct nexthop *);
+};
+
+void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *);
 
 #endif
