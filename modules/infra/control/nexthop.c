@@ -127,6 +127,7 @@ nexthop_new(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void 
 		break;
 	}
 	nh->pool = nhp;
+	nh->input_node = RTE_EDGE_ID_INVALID;
 
 	gr_event_push(NEXTHOP_EVENT_NEW, nh);
 
@@ -214,8 +215,9 @@ void nexthop_decref(struct nexthop *nh) {
 	}
 }
 
-void nexthop_incref(struct nexthop *nh) {
+struct nexthop *nexthop_incref(struct nexthop *nh) {
 	nh->ref_count++;
+	return nh;
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {

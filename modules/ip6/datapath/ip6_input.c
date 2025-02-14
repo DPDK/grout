@@ -112,6 +112,8 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = LOCAL;
 		else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;
+		else if (nh->input_node != RTE_EDGE_ID_INVALID)
+			edge = nh->input_node;
 		else
 			edge = FORWARD;
 
