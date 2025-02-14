@@ -19,9 +19,9 @@ typedef enum {
 	GR_IFACE_TYPE_PORT = 0x01,
 	GR_IFACE_TYPE_VLAN = 0x02,
 	GR_IFACE_TYPE_IPIP = 0x03,
-	GR_IFACE_TYPE_LOOPBACK = 0xff,
-	GR_IFACE_TYPE_MAX = 256
-} __attribute__((mode(HI))) gr_iface_type_t;
+	GR_IFACE_TYPE_LOOPBACK = 0xfe,
+	GR_IFACE_TYPE_MAX = 255
+} __attribute__((mode(QI))) gr_iface_type_t;
 
 // Interface configure flags
 typedef enum {
@@ -55,10 +55,10 @@ typedef enum gr_iface_mode {
 struct gr_iface {
 	uint16_t id; // Interface unique index.
 	gr_iface_type_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
+	gr_iface_mode_t mode;
 	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	gr_iface_mode_t mode;
 	union {
 		uint16_t vrf_id; // L3 addressing and routing domain
 		uint16_t domain_id; // L2 xconnect peer interface id
