@@ -307,9 +307,9 @@ static void nh6_init(struct event_base *ev_base) {
 		.free_nh = rib6_cleanup,
 		.num_nexthops = IP6_MAX_NEXT_HOPS,
 	};
-	nh_pool = nh_pool_new(AF_INET6, ev_base, &opts);
+	nh_pool = nh_pool_new(GR_NH_IPV6, ev_base, &opts);
 	if (nh_pool == NULL)
-		ABORT("nh_pool_new(AF_INET6) failed");
+		ABORT("nh_pool_new(GR_NH_IPV6) failed");
 
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 	ndp_na_output_node = gr_control_input_register_handler("ndp_na_output", true);

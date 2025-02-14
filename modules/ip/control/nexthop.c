@@ -280,9 +280,9 @@ static void nh4_init(struct event_base *ev_base) {
 		.free_nh = rib4_cleanup,
 		.num_nexthops = IP4_MAX_NEXT_HOPS,
 	};
-	nh_pool = nh_pool_new(AF_INET, ev_base, &opts);
+	nh_pool = nh_pool_new(GR_NH_IPV4, ev_base, &opts);
 	if (nh_pool == NULL)
-		ABORT("nh_pool_new(AF_INET) failed");
+		ABORT("nh_pool_new(GR_NH_IPV4) failed");
 
 	ip_output_node = gr_control_input_register_handler("ip_output", true);
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
