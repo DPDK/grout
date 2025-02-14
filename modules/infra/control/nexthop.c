@@ -18,13 +18,13 @@ struct nh_pool {
 	nh_solicit_cb_t solicit_nh;
 	nh_free_cb_t free_nh;
 	unsigned num_nexthops;
-	uint8_t family;
+	gr_nh_type_t type;
 };
 
 static void nh_pool_do_ageing(evutil_socket_t, short, void *);
 
 struct nh_pool *
-nh_pool_new(uint8_t family, struct event_base *ev_base, const struct nh_pool_opts *opts) {
+nh_pool_new(gr_nh_type_t type, struct event_base *ev_base, const struct nh_pool_opts *opts) {
 	struct nh_pool *nhp;
 	const char *name;
 
@@ -32,15 +32,15 @@ nh_pool_new(uint8_t family, struct event_base *ev_base, const struct nh_pool_opt
 	    || opts->solicit_nh == NULL)
 		ABORT("invalid arguments");
 
-	switch (family) {
-	case AF_INET:
+	switch (type) {
+	case GR_NH_IPV4:
 		name = "ipv4-nexthops";
 		break;
-	case AF_INET6:
+	case GR_NH_IPV6:
 		name = "ipv6-nexthops";
 		break;
 	default:
-		ABORT("unsupported address family: %hhu", family);
+		ABORT("invalid nexthop type: %hhu", type);
 	}
 
 	nhp = rte_zmalloc(name, sizeof(*nhp), alignof(struct nh_pool));
@@ -49,7 +49,7 @@ nh_pool_new(uint8_t family, struct event_base *ev_base, const struct nh_pool_opt
 		return errno_set_null(ENOMEM);
 	}
 
-	nhp->family = family;
+	nhp->type = type;
 	nhp->free_nh = opts->free_nh;
 	nhp->solicit_nh = opts->solicit_nh;
 	nhp->num_nexthops = rte_align32pow2(opts->num_nexthops) - 1;
@@ -117,14 +117,16 @@ nexthop_new(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void 
 	nh = data;
 	nh->vrf_id = vrf_id;
 	nh->iface_id = iface_id;
-	nh->family = nhp->family;
-	switch (nhp->family) {
-	case AF_INET:
+	nh->type = nhp->type;
+	switch (nhp->type) {
+	case GR_NH_IPV4:
 		nh->ipv4 = *(ip4_addr_t *)addr;
 		break;
-	case AF_INET6:
+	case GR_NH_IPV6:
 		nh->ipv6 = *(struct rte_ipv6_addr *)addr;
 		break;
+	default:
+		ABORT("invalid nexthop type: %hhu", nhp->type);
 	}
 	nh->pool = nhp;
 
@@ -159,9 +161,9 @@ void nh_pool_iter(struct nh_pool *nhp, nh_iter_cb_t nh_cb, void *priv) {
 }
 
 struct lookup_filter {
+	gr_nh_type_t type;
 	uint16_t vrf_id;
 	uint16_t iface_id;
-	uint8_t family;
 	const void *addr;
 	struct nexthop *nh;
 };
@@ -172,17 +174,19 @@ static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 	if (filter->nh != NULL || nh->vrf_id != filter->vrf_id)
 		return;
 
-	switch (filter->family) {
-	case AF_INET:
+	switch (filter->type) {
+	case GR_NH_IPV4:
 		if (nh->ipv4 == *(ip4_addr_t *)filter->addr)
 			filter->nh = nh;
 		break;
-	case AF_INET6:
+	case GR_NH_IPV6:
 		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
 			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
 			if (!is_linklocal || nh->iface_id == filter->iface_id)
 				filter->nh = nh;
 		}
+		break;
+	case _GR_NH_TYPE_MAX:
 		break;
 	}
 }
@@ -190,7 +194,7 @@ static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 struct nexthop *
 nexthop_lookup(struct nh_pool *nhp, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct lookup_filter filter = {
-		.family = nhp->family, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
+		.type = nhp->type, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
 	};
 	nh_pool_iter(nhp, nh_lookup_cb, &filter);
 	return filter.nh ?: errno_set_null(ENOENT);
@@ -236,7 +240,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 		if (probes >= max_probes && !(nh->flags & GR_NH_F_GATEWAY)) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    ADDR_W(nh->family),
+			    ADDR_W(nh_af(&nh->base)),
 			    &nh->addr,
 			    nh->vrf_id,
 			    probes,
@@ -249,7 +253,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 			if (nhp->solicit_nh(nh) < 0)
 				LOG(ERR,
 				    ADDR_F " vrf=%u solicit failed: %s",
-				    ADDR_W(nh->family),
+				    ADDR_W(nh_af(&nh->base)),
 				    &nh->addr,
 				    nh->vrf_id,
 				    strerror(errno));
@@ -260,7 +264,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *priv) {
 	} else if (nh->flags & GR_NH_F_FAILED && request_age > NH_LIFETIME_UNREACHABLE) {
 		LOG(DEBUG,
 		    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    ADDR_W(nh->family),
+		    ADDR_W(nh_af(&nh->base)),
 		    &nh->addr,
 		    nh->vrf_id,
 		    probes,
