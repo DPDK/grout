@@ -26,17 +26,6 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct nh_pool *nh_pool;
-
-struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip) {
-	return nexthop_new(nh_pool, vrf_id, iface_id, &ip);
-}
-
-struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
-	// XXX: should we scope ip4 nh lookup based on rfc3927 ?
-	return nexthop_lookup(nh_pool, vrf_id, GR_IFACE_ID_UNDEF, &ip);
-}
-
 static control_input_t ip_output_node;
 
 void nh4_unreachable_cb(struct rte_mbuf *m) {
@@ -245,7 +234,7 @@ struct list_context {
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 
-	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
+	if (nh->type != GR_NH_IPV4 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
 		return;
 
 	gr_vec_add(ctx->nh, nh->base);
@@ -257,7 +246,7 @@ static struct api_out nh4_list(const void *request, void **response) {
 	struct gr_ip4_nh_list_resp *resp = NULL;
 	size_t len;
 
-	nh_pool_iter(nh_pool, nh_list_cb, &ctx);
+	nexthop_iter(nh_list_cb, &ctx);
 
 	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
 	if ((resp = calloc(1, len)) == NULL) {
@@ -274,22 +263,9 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-static void nh4_init(struct event_base *ev_base) {
-	struct nh_pool_opts opts = {
-		.solicit_nh = arp_output_request_solicit,
-		.free_nh = rib4_cleanup,
-		.num_nexthops = IP4_MAX_NEXT_HOPS,
-	};
-	nh_pool = nh_pool_new(GR_NH_IPV4, ev_base, &opts);
-	if (nh_pool == NULL)
-		ABORT("nh_pool_new(GR_NH_IPV4) failed");
-
+static void nh4_init(struct event_base *) {
 	ip_output_node = gr_control_input_register_handler("ip_output", true);
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
-}
-
-static void nh4_fini(struct event_base *) {
-	nh_pool_free(nh_pool);
 }
 
 static struct gr_api_handler nh4_add_handler = {
@@ -311,8 +287,11 @@ static struct gr_api_handler nh4_list_handler = {
 static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.init = nh4_init,
-	.fini = nh4_fini,
-	.fini_prio = 20000,
+};
+
+static struct nexthop_ops nh_ops = {
+	.solicit = arp_output_request_solicit,
+	.free = rib4_cleanup,
 };
 
 RTE_INIT(control_ip_init) {
@@ -320,4 +299,5 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&nh4_del_handler);
 	gr_register_api_handler(&nh4_list_handler);
 	gr_register_module(&nh4_module);
+	nexthop_ops_register(GR_NH_IPV4, &nh_ops);
 }
