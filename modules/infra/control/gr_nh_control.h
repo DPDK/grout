@@ -36,7 +36,7 @@ struct nh_pool_opts {
 // Allocate a new nexthop pool with the provided options.
 // If any field left to 0 in opts the default values will be used.
 struct nh_pool *
-nh_pool_new(uint8_t family, struct event_base *base, const struct nh_pool_opts *opts);
+nh_pool_new(gr_nh_type_t type, struct event_base *base, const struct nh_pool_opts *opts);
 
 // Free a nexthop pool previously allocated with nh_pool_new().
 void nh_pool_free(struct nh_pool *);
