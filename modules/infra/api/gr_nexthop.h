@@ -23,6 +23,12 @@ typedef enum {
 	GR_NH_F_MCAST = GR_BIT16(8), // Multicast address
 } __attribute__((mode(HI))) gr_nh_flags_t;
 
+typedef enum {
+	GR_NH_IPV4 = 1,
+	GR_NH_IPV6,
+	_GR_NH_TYPE_MAX,
+} __attribute__((mode(QI))) gr_nh_type_t;
+
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
@@ -35,7 +41,7 @@ struct gr_nexthop {
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
-	uint8_t family; //!< AF_INET, AF_INET6, ...
+	gr_nh_type_t type; //!< nexthop type
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
 	uint16_t held_pkts; //!< number of packets waiting for resolution
 	clock_t last_reply; //!< timestamp when last update was received
@@ -70,6 +76,19 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "multicast";
 	}
 	return "";
+}
+
+// Get the address family value from a nexthop.
+static inline uint8_t nh_af(const struct gr_nexthop *nh) {
+	switch (nh->type) {
+	case GR_NH_IPV4:
+		return AF_INET;
+	case GR_NH_IPV6:
+		return AF_INET6;
+	case _GR_NH_TYPE_MAX:
+		break;
+	}
+	return 0;
 }
 
 #endif

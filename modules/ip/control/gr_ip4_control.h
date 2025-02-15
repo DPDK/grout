@@ -15,11 +15,14 @@
 
 #include <stdint.h>
 
-// TODO: make this configurable
-#define IP4_MAX_NEXT_HOPS (1 << 16)
+static inline struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip) {
+	return nexthop_new(GR_NH_IPV4, vrf_id, iface_id, &ip);
+}
 
-struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip);
-struct nexthop *nh4_new(uint16_t vrf_id, uint16_t iface_id, ip4_addr_t ip);
+static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
+	// XXX: should we scope ip4 nh lookup based on rfc3927 ?
+	return nexthop_lookup(GR_NH_IPV4, vrf_id, GR_IFACE_ID_UNDEF, &ip);
+}
 
 void nh4_unreachable_cb(struct rte_mbuf *m);
 void arp_probe_input_cb(struct rte_mbuf *m);
