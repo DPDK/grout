@@ -24,11 +24,12 @@ enum edges {
 static rte_edge_t udp_edges[65536] = {MANAGEMENT};
 
 void l4_input_register_port(uint8_t proto, rte_be16_t port, const char *next_node) {
-	LOG(DEBUG, "l4_input_register_port: proto=%hhu port=%hu-> %s", proto, port, next_node);
+	uint16_t p = rte_be_to_cpu_16(port);
+	LOG(DEBUG, "l4_input_register_port: proto=%hhu port=%hu -> %s", proto, p, next_node);
 	switch (proto) {
 	case IPPROTO_UDP:
 		if (udp_edges[port] != MANAGEMENT)
-			ABORT("next node already registered for udp port=%hhu", port);
+			ABORT("next node already registered for udp port=%hu", p);
 		udp_edges[proto] = gr_node_attach_parent("ip_input_local", next_node);
 		gr_node_attach_parent("ip6_input_local", next_node);
 		break;
