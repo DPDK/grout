@@ -15,6 +15,7 @@
 #include <rte_log.h>
 #include <rte_mempool.h>
 #include <rte_version.h>
+#include <rte_vfio.h>
 
 #include <pthread.h>
 #include <sched.h>
@@ -164,6 +165,9 @@ int dpdk_init(const struct gr_args *args) {
 	} else {
 		gr_vec_add(eal_args, "--in-memory");
 	}
+
+	if (rte_vfio_noiommu_is_enabled())
+		gr_vec_add(eal_args, "--iova-mode=pa");
 
 	gr_vec_foreach (arg, args->eal_extra_args)
 		gr_vec_add(eal_args, arg);
