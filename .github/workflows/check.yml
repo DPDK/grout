@@ -25,14 +25,14 @@ jobs:
       MESON_EXTRA_OPTS: "-Ddpdk:platform=generic"
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
-      CC: gcc-14
+      CC: ccache gcc-14
     steps:
       - name: install system dependencies
         run: |
           set -xe
           sudo apt-get update -qy
           sudo apt-get install -qy --no-install-recommends \
-            make gcc ninja-build meson git go-md2man libibverbs-dev \
+            make gcc ccache ninja-build meson git go-md2man libibverbs-dev \
             libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6
@@ -42,10 +42,20 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: ccache -p | sed -En 's/.* cache_dir = (.*)/CCACHE_DIR=\1/p' >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-x86_64-${{ github.ref }}
+          restore-keys: |
+            ccache-x86_64-refs/heads/main
+            ccache-x86_64-
+      - run: ccache -sv
       - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
       - run: make all unit-tests && sudo smoke/run.sh build
         if: ${{ ! github.event.pull_request.commits }}
+      - run: ccache -sv
 
   build-cross-aarch64:
     runs-on: ubuntu-24.04
@@ -61,7 +71,7 @@ jobs:
           dpkg --add-architecture arm64
           apt update -qy
           apt install -qy --no-install-recommends \
-            make gcc git meson go-md2man python3-pyelftools ca-certificates pkg-config \
+            make gcc ccache git meson go-md2man python3-pyelftools ca-certificates pkg-config \
             crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
             libevent-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64
       - uses: actions/checkout@v4
@@ -70,10 +80,20 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: ccache -p | sed -En 's/.* cache_dir = (.*)/CCACHE_DIR=\1/p' >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-aarch64-${{ github.ref }}
+          restore-keys: |
+            ccache-aarch64-refs/heads/main
+            ccache-aarch64-
+      - run: ccache -sv
       - run: git rebase -x "git --no-pager log --oneline -1 && make" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
       - run: make
         if: ${{ ! github.event.pull_request.commits }}
+      - run: ccache -sv
 
   lint:
     runs-on: ubuntu-24.04
