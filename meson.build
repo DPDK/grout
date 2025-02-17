@@ -23,7 +23,6 @@ project(
 add_project_arguments('-DALLOW_EXPERIMENTAL_API', language: 'c')
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
-add_project_arguments('-Wno-format-truncation', language: 'c')
 add_project_arguments('-Wno-microsoft', language: 'c')
 add_project_arguments('-Wstrict-aliasing=2', language: 'c')
 add_project_arguments('-fms-extensions', language: 'c')
@@ -33,6 +32,7 @@ add_project_arguments('-fstrict-aliasing', language: 'c')
 optional_c_args = [
   '-Wcalloc-transposed-args',
   '-Wmissing-variable-declarations',
+  '-Wno-format-truncation',
 ]
 compiler = meson.get_compiler('c')
 foreach arg : optional_c_args
@@ -112,13 +112,19 @@ install_headers(api_headers)
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()
   fs = import('fs')
+  coverage_c_args = []
+  coverage_link_args = []
+  if compiler.get_id() == 'gcc'
+    coverage_c_args += ['-coverage']
+    coverage_link_args += ['-lgcov']
+  endif
   foreach t : tests
     name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
     t += {
       'sources': t['sources'] + files('main/string.c'),
       'include_directories': inc + api_inc,
-      'c_args': ['-coverage', '-D__GROUT_MAIN__'],
-      'link_args': t['link_args'] + ['-lgcov'],
+      'c_args': ['-D__GROUT_MAIN__'] + coverage_c_args,
+      'link_args': t['link_args'] + coverage_link_args,
       'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
     }
     test(name, executable(name, kwargs: t), suite: 'unit')
