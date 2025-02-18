@@ -27,8 +27,6 @@ typedef enum : uint8_t {
 	ICMP6_TYPE_ROUTER_ADVERT = UINT8_C(134),
 	ICMP6_TYPE_NEIGH_SOLICIT = UINT8_C(135),
 	ICMP6_TYPE_NEIGH_ADVERT = UINT8_C(136),
-
-	_ICMP6_TYPE_MAX = UINT8_C(0xff),
 } icmp6_type_t;
 
 #define GR_ICMP6_HDR_LEN 8
@@ -116,8 +114,7 @@ typedef enum : uint8_t {
 	ICMP6_OPT_TARGET_LLADDR = UINT8_C(2),
 	ICMP6_OPT_PREFIX = UINT8_C(3),
 	ICMP6_OPT_REDIRECT = UINT8_C(4),
-	ICMP6_OPT_MTU = UINT8_C(5),
-	_ICMP6_OPT_MAX = UINT8_C(0xff),
+	ICMP6_OPT_MTU = UINT8_C(5)
 } icmp6_opt_t;
 
 struct icmp6_opt {

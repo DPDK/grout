@@ -15,12 +15,12 @@
 #include <sys/types.h>
 
 typedef enum : uint8_t {
-	GR_IFACE_TYPE_UNDEF = 0x00,
-	GR_IFACE_TYPE_PORT = 0x01,
-	GR_IFACE_TYPE_VLAN = 0x02,
-	GR_IFACE_TYPE_IPIP = 0x03,
-	GR_IFACE_TYPE_LOOPBACK = 0xfe,
-	GR_IFACE_TYPE_MAX = 255
+	GR_IFACE_TYPE_UNDEF = 0,
+	GR_IFACE_TYPE_LOOPBACK,
+	GR_IFACE_TYPE_PORT,
+	GR_IFACE_TYPE_VLAN,
+	GR_IFACE_TYPE_IPIP,
+	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
 // Interface configure flags

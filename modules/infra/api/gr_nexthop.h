@@ -26,7 +26,7 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_NH_IPV4 = 1,
 	GR_NH_IPV6,
-	_GR_NH_TYPE_MAX,
+	GR_NH_TYPE_COUNT
 } gr_nh_type_t;
 
 //! Nexthop structure exposed to the API.
@@ -85,7 +85,7 @@ static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 		return AF_INET;
 	case GR_NH_IPV6:
 		return AF_INET6;
-	case _GR_NH_TYPE_MAX:
+	case GR_NH_TYPE_COUNT:
 		break;
 	}
 	return 0;
