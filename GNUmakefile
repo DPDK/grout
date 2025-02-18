@@ -74,10 +74,8 @@ deb:
 	dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
 	mv -vf ../grout-dev_$(debversion)_all.deb grout-dev_all.deb && \
-	for name in grout grout-dbgsym; do \
-		mv -vf ../$${name}_$(debversion)_$$arch.deb \
-			$${name}_$$arch.deb || exit; \
-	done
+	mv -vf ../grout_$(debversion)_$$arch.deb grout_$$arch.deb && \
+	mv -vf ../grout-dbgsym_$(debversion)_$$arch.ddeb grout-dbgsym_$$arch.ddeb
 
 rpmversion = $(firstword $(version))
 rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
