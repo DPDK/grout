@@ -22,13 +22,12 @@ jobs:
     permissions:
       actions: write
     runs-on: ubuntu-24.04
-    container: "debian:stable"
     steps:
       - name: install system dependencies
         run: |
           set -xe
-          apt-get update -qy
-          NEEDRESTART_MODE=l apt-get install -qy --no-install-recommends \
+          sudo apt-get update -qy
+          sudo apt-get install -qy --no-install-recommends \
             git build-essential meson ninja-build pkgconf go-md2man python3-pyelftools \
             libcmocka-dev libedit-dev libevent-dev libnuma-dev \
             libsmartcols-dev libarchive-dev libibverbs-dev \
