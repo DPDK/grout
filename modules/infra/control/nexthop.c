@@ -15,7 +15,7 @@
 
 static struct rte_mempool *pool;
 static struct event *ageing_timer;
-static const struct nexthop_ops *nh_ops[_GR_NH_TYPE_MAX];
+static const struct nexthop_ops *nh_ops[GR_NH_TYPE_COUNT];
 
 void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
 	switch (type) {
@@ -111,7 +111,7 @@ static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 				filter->nh = nh;
 		}
 		break;
-	case _GR_NH_TYPE_MAX:
+	case GR_NH_TYPE_COUNT:
 		break;
 	}
 }
