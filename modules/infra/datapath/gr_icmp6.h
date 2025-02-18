@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 // ICMP6 packet types
-typedef enum {
+typedef enum : uint8_t {
 	ICMP6_ERR_DEST_UNREACH = UINT8_C(1),
 	ICMP6_ERR_PKT_TOO_BIG = UINT8_C(2),
 	ICMP6_ERR_TTL_EXCEEDED = UINT8_C(3),
@@ -29,7 +29,7 @@ typedef enum {
 	ICMP6_TYPE_NEIGH_ADVERT = UINT8_C(136),
 
 	_ICMP6_TYPE_MAX = UINT8_C(0xff),
-} __attribute__((mode(QI))) icmp6_type_t;
+} icmp6_type_t;
 
 #define GR_ICMP6_HDR_LEN 8
 
@@ -111,14 +111,14 @@ struct icmp6_neigh_advert {
 // ICMP6 options
 
 // option types
-typedef enum {
+typedef enum : uint8_t {
 	ICMP6_OPT_SRC_LLADDR = UINT8_C(1),
 	ICMP6_OPT_TARGET_LLADDR = UINT8_C(2),
 	ICMP6_OPT_PREFIX = UINT8_C(3),
 	ICMP6_OPT_REDIRECT = UINT8_C(4),
 	ICMP6_OPT_MTU = UINT8_C(5),
 	_ICMP6_OPT_MAX = UINT8_C(0xff),
-} __attribute__((mode(QI))) icmp6_opt_t;
+} icmp6_opt_t;
 
 struct icmp6_opt {
 	icmp6_opt_t type;

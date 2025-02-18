@@ -11,7 +11,7 @@
 #include <gr_net_types.h>
 
 // Supported flags on a nexthop.
-typedef enum {
+typedef enum : uint16_t {
 	GR_NH_F_PENDING = GR_BIT16(0), // Probe sent
 	GR_NH_F_REACHABLE = GR_BIT16(1), // Probe reply received
 	GR_NH_F_STALE = GR_BIT16(2), // Reachable lifetime expired, need refresh
@@ -21,13 +21,13 @@ typedef enum {
 	GR_NH_F_GATEWAY = GR_BIT16(6), // Gateway route
 	GR_NH_F_LINK = GR_BIT16(7), // Connected link route
 	GR_NH_F_MCAST = GR_BIT16(8), // Multicast address
-} __attribute__((mode(HI))) gr_nh_flags_t;
+} gr_nh_flags_t;
 
-typedef enum {
+typedef enum : uint8_t {
 	GR_NH_IPV4 = 1,
 	GR_NH_IPV6,
 	_GR_NH_TYPE_MAX,
-} __attribute__((mode(QI))) gr_nh_type_t;
+} gr_nh_type_t;
 
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
