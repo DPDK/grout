@@ -55,8 +55,8 @@ jobs:
         run: |
           set -xe
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
-            gcc git make meson ninja-build pkgconf python3-pyelftools \
-            golang-github-cpuguy83-md2man \
+            git make meson ninja-build pkgconf python3-pyelftools \
+            gcc-toolset-13 scl-utils golang-github-cpuguy83-md2man \
             libcmocka-devel libedit-devel libevent-devel numactl-devel \
             libsmartcols-devel libarchive-devel rdma-core-devel \
             rpm-build systemd
@@ -65,7 +65,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
-      - run: make rpm
+      - run: make rpm RPMBUILD_OPTS="-D 'toolset gcc-toolset-13'"
       - uses: actions/upload-artifact@v4
         with:
           name: rpm-packages
