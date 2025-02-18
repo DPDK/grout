@@ -3,7 +3,8 @@
 ---
 name: Feature Request
 description: Request for a new feature.
-labels: ["feature", "triage"]
+type: Feature
+labels: ["triage"]
 body:
   - type: markdown
     attributes:
