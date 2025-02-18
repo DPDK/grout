@@ -14,27 +14,27 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-typedef enum {
+typedef enum : uint8_t {
 	GR_IFACE_TYPE_UNDEF = 0x00,
 	GR_IFACE_TYPE_PORT = 0x01,
 	GR_IFACE_TYPE_VLAN = 0x02,
 	GR_IFACE_TYPE_IPIP = 0x03,
 	GR_IFACE_TYPE_LOOPBACK = 0xfe,
 	GR_IFACE_TYPE_MAX = 255
-} __attribute__((mode(QI))) gr_iface_type_t;
+} gr_iface_type_t;
 
 // Interface configure flags
-typedef enum {
+typedef enum : uint16_t {
 	GR_IFACE_F_UP = GR_BIT16(0),
 	GR_IFACE_F_PROMISC = GR_BIT16(1),
 	GR_IFACE_F_ALLMULTI = GR_BIT16(2),
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(3),
-} __attribute__((mode(HI))) gr_iface_flags_t;
+} gr_iface_flags_t;
 
 // Interface state flags
-typedef enum {
+typedef enum : uint16_t {
 	GR_IFACE_S_RUNNING = GR_BIT16(0),
-} __attribute__((mode(HI))) gr_iface_state_t;
+} gr_iface_state_t;
 
 // Interface reconfig attributes
 #define GR_IFACE_SET_FLAGS GR_BIT64(0)
@@ -48,11 +48,11 @@ typedef enum {
 
 #define GR_VRF_ID_ALL UINT16_MAX
 
-typedef enum gr_iface_mode {
+typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
 	GR_IFACE_MODE_L1_XC,
 	GR_IFACE_MODE_COUNT
-} __attribute__((mode(QI))) gr_iface_mode_t;
+} gr_iface_mode_t;
 
 // Generic struct for all network interfaces.
 struct gr_iface {
