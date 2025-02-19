@@ -176,6 +176,7 @@ int main(int argc, char **argv) {
 		goto end;
 
 	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
+	LOG(NOTICE, "License available at https://git.dpdk.org/apps/grout/plain/LICENSE");
 
 	if (dpdk_init(&args) < 0) {
 		err = errno;
