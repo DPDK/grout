@@ -365,7 +365,7 @@ ipv4:
 	case RTE_BE16(RTE_ETHER_TYPE_IPV6): {
 		const struct rte_ipv6_hdr *ip6;
 		uint16_t payload_len;
-		int proto;
+		uint8_t proto;
 
 		ip6 = rte_pktmbuf_mtod_offset(m, const struct rte_ipv6_hdr *, offset);
 		offset += sizeof(*ip6);
