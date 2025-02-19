@@ -25,16 +25,24 @@ jobs:
           - compiler: gcc-13
             sanitize: none
             buildtype: debugoptimized
+            os: ubuntu-24.04
           - compiler: gcc-14
             sanitize: address
             buildtype: debug
+            os: ubuntu-24.04
+          - compiler: clang-15
+            sanitize: none
+            buildtype: debugoptimized
+            os: ubuntu-22.04
           - compiler: clang-16
             sanitize: none
             buildtype: debugoptimized
+            os: ubuntu-24.04
           - compiler: clang-18
             sanitize: none
             buildtype: debugoptimized
-    runs-on: ubuntu-24.04
+            os: ubuntu-24.04
+    runs-on: ${{ matrix.conf.os }}
     env:
       SANITIZE: ${{ matrix.conf.sanitize }}
       BUILDTYPE: ${{ matrix.conf.buildtype }}
@@ -51,6 +59,10 @@ jobs:
             libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6
+          if printf '%s\n0.63.0\n' "$(meson --version)" | sort -V -C ; then
+            sudo apt install -y python3-pip
+            pip3 install --user -U meson~=0.63.0
+          fi
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
