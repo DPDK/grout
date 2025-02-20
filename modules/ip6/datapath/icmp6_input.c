@@ -26,6 +26,7 @@ enum {
 	BAD_CHECKSUM,
 	INVALID,
 	UNSUPPORTED,
+	NO_LOCAL_ADDR,
 	EDGE_COUNT,
 };
 
@@ -57,8 +58,19 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 				goto next;
 			}
 			icmp6->type = ICMP6_TYPE_ECHO_REPLY;
-			// swap source/destination addresses
-			tmp_ip = d->dst;
+			if (rte_ipv6_addr_is_mcast(&d->dst)) {
+				struct nexthop *local = addr6_get_linklocal(
+					mbuf_data(mbuf)->iface->id
+				);
+				if (local == NULL) {
+					next = NO_LOCAL_ADDR;
+					goto next;
+				}
+				tmp_ip = local->ipv6;
+			} else {
+				// swap source/destination addresses
+				tmp_ip = d->dst;
+			}
 			d->dst = d->src;
 			d->src = tmp_ip;
 			next = ICMP6_OUTPUT;
@@ -120,6 +132,7 @@ static struct rte_node_register icmp6_input_node = {
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
 		[UNSUPPORTED] = "icmp6_input_unsupported",
+		[NO_LOCAL_ADDR] = "icmp6_input_no_local_addr",
 	},
 };
 
@@ -134,3 +147,4 @@ GR_NODE_REGISTER(icmp6_input_info);
 GR_DROP_REGISTER(icmp6_input_bad_checksum);
 GR_DROP_REGISTER(icmp6_input_invalid);
 GR_DROP_REGISTER(icmp6_input_unsupported);
+GR_DROP_REGISTER(icmp6_input_no_local_addr);

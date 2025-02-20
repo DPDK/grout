@@ -59,6 +59,21 @@ struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_add
 	return pref;
 }
 
+struct nexthop *addr6_get_linklocal(uint16_t iface_id) {
+	struct hoplist *addrs = addr6_get_all(iface_id);
+	struct nexthop *nh;
+
+	if (addrs == NULL)
+		return NULL;
+
+	gr_vec_foreach (nh, addrs->nh) {
+		if (rte_ipv6_addr_is_linklocal(&nh->ipv6))
+			return nh;
+	}
+
+	return errno_set_null(EADDRNOTAVAIL);
+}
+
 static struct hoplist *iface_mcast_addrs;
 
 struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast) {
