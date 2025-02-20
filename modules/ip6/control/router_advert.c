@@ -87,7 +87,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	n_ras = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
-		if (addrs == NULL || gr_vec_len(addrs) == 0)
+		if (addrs == NULL || gr_vec_len(addrs->nh) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
 			continue;
@@ -102,7 +102,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	n_ras = 0;
 	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
-		if (addrs == NULL || gr_vec_len(addrs) == 0)
+		if (addrs == NULL || gr_vec_len(addrs->nh) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
 			continue;
