@@ -42,6 +42,8 @@ struct nexthop *rib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte
 
 // get the default address for a given interface
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);
+// get the link-local address for a given interface
+struct nexthop *addr6_get_linklocal(uint16_t iface_id);
 // get all addresses for a given interface
 struct hoplist *addr6_get_all(uint16_t iface_id);
 // determine if the given interface is member of the provided multicast address group
