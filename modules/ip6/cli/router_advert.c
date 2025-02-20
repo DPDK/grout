@@ -13,10 +13,7 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
-#include <errno.h>
-
 static cmd_status_t ra_show(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct libscols_table *table = scols_new_table();
 	struct gr_ip6_ra_show_resp *resp;
 	struct gr_ip6_ra_show_req req;
 	struct gr_iface iface;
@@ -31,6 +28,7 @@ static cmd_status_t ra_show(const struct gr_api_client *c, const struct ec_pnode
 		return CMD_ERROR;
 	resp = resp_ptr;
 
+	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "RA", 0, 0);
 	scols_table_new_column(table, "interval", 0, 0);
