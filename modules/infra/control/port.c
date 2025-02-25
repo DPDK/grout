@@ -3,7 +3,7 @@
 
 #include "worker_priv.h"
 
-#include <gr.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -639,7 +639,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	struct iface *iface;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		if (gr_args()->poll_mode)
+		if (gr_config.poll_mode)
 			max_sleep_us = 0;
 		else
 			max_sleep_us = 1000; // unreasonably long maximum (1ms)
@@ -672,7 +672,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				}
 				continue;
 			}
-			if (gr_args()->poll_mode)
+			if (gr_config.poll_mode)
 				continue;
 
 			switch (link.link_speed) {
