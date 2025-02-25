@@ -33,7 +33,6 @@ tests += [
       '-Wl,--wrap=rte_eth_rx_queue_setup',
       '-Wl,--wrap=rte_eth_tx_queue_setup',
       '-Wl,--wrap=rte_free',
-      '-Wl,--wrap=rte_get_main_lcore',
       '-Wl,--wrap=rte_mempool_free',
       '-Wl,--wrap=rte_pktmbuf_pool_create',
       '-Wl,--wrap=rte_zmalloc',
