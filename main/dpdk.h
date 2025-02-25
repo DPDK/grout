@@ -4,10 +4,8 @@
 #ifndef _GR_CORE_DPDK
 #define _GR_CORE_DPDK
 
-#include "gr.h"
-
-int dpdk_log_init(const struct gr_args *);
-int dpdk_init(const struct gr_args *);
+int dpdk_log_init(void);
+int dpdk_init(void);
 void dpdk_fini(void);
 
 #endif

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR
-#define _GR
+#ifndef _GR_CONFIG
+#define _GR_CONFIG
 
 #include <stdbool.h>
 
-struct gr_args {
+struct gr_config {
 	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;
@@ -15,6 +15,6 @@ struct gr_args {
 	char **eal_extra_args;
 };
 
-const struct gr_args *gr_args(void);
+extern struct gr_config gr_config;
 
 #endif

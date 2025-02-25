@@ -2,9 +2,9 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "dpdk.h"
-#include "gr.h"
 
 #include <gr_api.h>
+#include <gr_config.h>
 #include <gr_errno.h>
 #include <gr_log.h>
 #include <gr_string.h>
@@ -27,7 +27,7 @@ static FILE *log_stream;
 
 static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 	ssize_t n;
-	if (gr_args()->log_syslog) {
+	if (gr_config.log_syslog) {
 		// Syslog error levels are from 0 to 7, so subtract 1 to convert.
 		syslog(rte_log_cur_msg_loglevel() - 1, "%.*s", (int)size, buf);
 		n = size;
@@ -67,10 +67,10 @@ static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 	return n;
 }
 
-int dpdk_log_init(const struct gr_args *args) {
+int dpdk_log_init(void) {
 	cookie_io_functions_t log_functions = {.write = log_write};
 
-	if (args->log_syslog)
+	if (gr_config.log_syslog)
 		openlog("grout", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 
 	gr_rte_log_type = rte_log_register_type_and_pick_level("grout", RTE_LOG_NOTICE);
@@ -81,16 +81,16 @@ int dpdk_log_init(const struct gr_args *args) {
 		return errno_log(errno, "fopencookie");
 
 	rte_openlog_stream(log_stream);
-	if (args->log_level > RTE_LOG_DEBUG)
+	if (gr_config.log_level > RTE_LOG_DEBUG)
 		rte_log_set_level_pattern("*", RTE_LOG_DEBUG);
 	else
 		rte_log_set_level_pattern("*", RTE_LOG_NOTICE);
-	rte_log_set_level(gr_rte_log_type, RTE_MIN(args->log_level, RTE_LOG_MAX));
+	rte_log_set_level(gr_rte_log_type, RTE_MIN(gr_config.log_level, RTE_LOG_MAX));
 
 	return 0;
 }
 
-int dpdk_init(const struct gr_args *args) {
+int dpdk_init(void) {
 	char affinity[BUFSIZ] = "";
 	char main_lcore[32] = "";
 	char **eal_args = NULL, *arg;
@@ -120,7 +120,7 @@ int dpdk_init(const struct gr_args *args) {
 	gr_vec_add(eal_args, "-a");
 	gr_vec_add(eal_args, "0000:00:00.0");
 
-	if (args->test_mode) {
+	if (gr_config.test_mode) {
 		gr_vec_add(eal_args, "--no-shconf");
 		gr_vec_add(eal_args, "--no-huge");
 		gr_vec_add(eal_args, "-m");
@@ -132,7 +132,7 @@ int dpdk_init(const struct gr_args *args) {
 	if (rte_vfio_noiommu_is_enabled())
 		gr_vec_add(eal_args, "--iova-mode=pa");
 
-	gr_vec_foreach (arg, args->eal_extra_args)
+	gr_vec_foreach (arg, gr_config.eal_extra_args)
 		gr_vec_add(eal_args, arg);
 
 	LOG(INFO, "%s", rte_version());
