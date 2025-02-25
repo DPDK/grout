@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <gr_config.h>
 #include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
@@ -79,7 +80,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 			}
 		}
 
-		if (gr_packet_logging_enabled()) {
+		if (gr_config.log_packets) {
 			for (r = count; r < count + rx; r++) {
 				trace_log_packet(node->objs[r], "rx", iface->name);
 			}

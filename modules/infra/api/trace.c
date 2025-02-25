@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_api.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -10,19 +11,10 @@
 
 #include <stdatomic.h>
 
-static atomic_bool packet_log_enabled = false;
 static atomic_bool trace_enabled = false;
 
 bool gr_trace_all_enabled() {
 	return atomic_load(&trace_enabled);
-}
-
-bool gr_packet_logging_enabled() {
-	return atomic_load(&packet_log_enabled);
-}
-
-void gr_packet_logging_set(bool e) {
-	packet_log_enabled = e;
 }
 
 static void iface_add_callback(uint32_t /*event*/, const void *obj) {
@@ -88,12 +80,12 @@ static struct api_out clear_trace(const void * /*request*/, void ** /*response*/
 }
 
 static struct api_out packet_log_enable(const void * /*request */, void ** /*response*/) {
-	gr_packet_logging_set(true);
+	gr_config.log_packets = true;
 	return api_out(0, 0);
 }
 
 static struct api_out packet_log_disable(const void * /*request */, void ** /*response*/) {
-	gr_packet_logging_set(false);
+	gr_config.log_packets = false;
 	return api_out(0, 0);
 }
 

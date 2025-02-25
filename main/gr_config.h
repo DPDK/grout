@@ -12,6 +12,7 @@ struct gr_config {
 	bool test_mode;
 	bool poll_mode;
 	bool log_syslog;
+	bool log_packets;
 	char **eal_extra_args;
 };
 
