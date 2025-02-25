@@ -9,7 +9,6 @@ src += files(
   'module.c',
   'sd_notify.c',
   'signals.c',
-  'string.c',
 )
 
 inc += include_directories('.')
