@@ -121,7 +121,7 @@ if cmocka_dep.found()
   foreach t : tests
     name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
     t += {
-      'sources': t['sources'] + files('main/string.c'),
+      'sources': t['sources'] + files('api/string.c'),
       'include_directories': inc + api_inc,
       'c_args': ['-D__GROUT_MAIN__'] + coverage_c_args,
       'link_args': t['link_args'] + coverage_link_args,

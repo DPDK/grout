@@ -18,8 +18,12 @@ api_headers += configure_file(
   }),
 )
 
-src += files('printf.c')
-cli_src += files('printf.c')
+api_src = files(
+  'printf.c',
+  'string.c',
+)
+src += api_src
+cli_src += api_src
 
 api_inc += include_directories('.')
 
