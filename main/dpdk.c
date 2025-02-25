@@ -91,28 +91,46 @@ int dpdk_log_init(void) {
 }
 
 int dpdk_init(void) {
-	char affinity[BUFSIZ] = "";
-	char main_lcore[32] = "";
 	char **eal_args = NULL, *arg;
-	cpu_set_t cpus;
+	char main_lcore[32] = "";
 	int ret;
 
-	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(cpus), &cpus)))
+	CPU_ZERO(&gr_config.control_cpus);
+	ret = pthread_getaffinity_np(
+		pthread_self(), sizeof(gr_config.datapath_cpus), &gr_config.datapath_cpus
+	);
+	if (ret != 0)
 		goto end;
-	cpuset_format(affinity, sizeof(affinity), &cpus);
 
 	for (unsigned cpu = 0; cpu < CPU_SETSIZE; cpu++) {
-		if (CPU_ISSET(cpu, &cpus)) {
+		if (CPU_ISSET(cpu, &gr_config.datapath_cpus)) {
 			// use the first available CPU as main lcore
 			snprintf(main_lcore, sizeof(main_lcore), "%u", cpu);
+			CPU_SET(cpu, &gr_config.control_cpus);
+			// use all remaining CPUs for datapath workers
+			CPU_CLR(cpu, &gr_config.datapath_cpus);
 			break;
 		}
 	}
-	if (main_lcore[0] == '\0') {
+	if (CPU_COUNT(&gr_config.control_cpus) == 0) {
 		ret = ENOSPC;
-		LOG(ERR, "cannot determine main lcore from CPU affinity '%s'", affinity);
+		LOG(ERR, "empty CPU affinity");
 		goto end;
 	}
+	if (CPU_COUNT(&gr_config.datapath_cpus) == 0) {
+		LOG(WARNING, "running control and datapath on the same CPU");
+		gr_config.datapath_cpus = gr_config.control_cpus;
+	}
+
+	// Restrict the affinity to **only the main lcore** to force DPDK control
+	// plane threads (telemetry, interrupts) to also run on that CPU.
+	// Otherwise, DPDK would set their affinity to overspill on grout datapath
+	// workers affinity.
+	ret = pthread_setaffinity_np(
+		pthread_self(), sizeof(gr_config.control_cpus), &gr_config.control_cpus
+	);
+	if (ret != 0)
+		goto end;
 
 	gr_vec_add(eal_args, "");
 	gr_vec_add(eal_args, "-l");
@@ -146,14 +164,11 @@ int dpdk_init(void) {
 		goto end;
 	}
 
-	// rte_eal_init() will force an affinity to the main thread to only main_lcore.
-	// Restore the startup CPU affinity to allow control plane threads to be scheduled
-	// by the kernel.
-	LOG(INFO, "running control plane on CPUs %s", affinity);
-	if (!!(ret = pthread_setaffinity_np(pthread_self(), sizeof(cpus), &cpus))) {
-		rte_eal_cleanup();
-		goto end;
-	}
+	char affinity[BUFSIZ];
+	cpuset_format(affinity, sizeof(affinity), &gr_config.control_cpus);
+	LOG(INFO, "running control plane on CPU %s", affinity);
+	cpuset_format(affinity, sizeof(affinity), &gr_config.datapath_cpus);
+	LOG(INFO, "datapath workers allowed on CPUs %s", affinity);
 
 	ret = 0;
 end:

@@ -79,7 +79,7 @@ if [ "$run_grout" = true ]; then
 	*)
 		grout_flags="$grout_flags -x"
 	esac
-	grout $grout_flags &
+	taskset -c 0,1 grout $grout_flags &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
