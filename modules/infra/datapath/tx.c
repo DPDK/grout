@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <gr_config.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
@@ -64,7 +65,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	for (i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
 
-		if (gr_packet_logging_enabled())
+		if (gr_config.log_packets)
 			trace_log_packet(mbuf, "tx", (mbuf_data(mbuf)->iface)->name);
 
 		if (mbuf->port != port_id) {

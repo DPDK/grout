@@ -119,7 +119,7 @@ static int parse_args(int argc, char **argv) {
 			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'x':
-			gr_packet_logging_set(true);
+			gr_config.log_packets = true;
 			break;
 		case 'v':
 			gr_config.log_level++;

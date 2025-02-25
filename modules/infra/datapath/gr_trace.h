@@ -13,8 +13,6 @@
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
 
-void gr_packet_logging_set(bool);
-bool gr_packet_logging_enabled(void);
 // Write a log message with detailed packet information.
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface);
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_config.h>
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -9,7 +10,7 @@
 #include <rte_mbuf.h>
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	if (unlikely(gr_packet_logging_enabled()))
+	if (unlikely(gr_config.log_packets))
 		LOG(NOTICE, "[%s] %u packets", node->name, nb_objs);
 
 	for (int i = 0; i < nb_objs; i++) {
