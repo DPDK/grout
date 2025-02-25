@@ -92,7 +92,6 @@ mock_func(int, __wrap_pthread_cancel(pthread_t));
 mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
-mock_func(unsigned, __wrap_rte_get_main_lcore(void));
 
 #define assert_qmaps(qmaps, ...)                                                                   \
 	do {                                                                                       \
@@ -190,24 +189,29 @@ static void common_mocks(void) {
 	will_return_maybe(__wrap_rte_free, 0);
 	will_return_maybe(__wrap_rte_eth_dev_get_mtu, 0);
 	will_return_maybe(__wrap_rte_eth_macaddr_get, 0);
-	will_return_maybe(__wrap_rte_get_main_lcore, 0);
 	will_return_maybe(__wrap_rte_mempool_free, 0);
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);
 	will_return_maybe(gr_pktmbuf_pool_get, 1);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(0, &gr_config.control_cpus);
+	CPU_ZERO(&gr_config.datapath_cpus);
+	CPU_SET(1, &gr_config.datapath_cpus);
 }
 
 static void rxq_assign_main_lcore(void **) {
-	will_return(__wrap_rte_get_main_lcore, 4);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(4, &gr_config.control_cpus);
 	assert_int_equal(worker_rxq_assign(0, 0, 4), -EBUSY);
 }
 
 static void rxq_assign_invalid_cpu(void **) {
 	struct worker tmp;
-	will_return(__wrap_rte_get_main_lcore, 0);
 	will_return(__wrap_rte_zmalloc, &tmp);
 	will_return(__wrap_pthread_create, ERANGE);
 	will_return(__wrap_pthread_cancel, 0);
 	will_return(__wrap_rte_free, 0);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(0, &gr_config.control_cpus);
 	assert_int_equal(worker_rxq_assign(0, 0, 9999), -ERANGE);
 }
 
