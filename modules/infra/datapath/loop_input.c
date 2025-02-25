@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr.h>
 #include <gr_control_input.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
