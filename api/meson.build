@@ -32,4 +32,8 @@ tests += [
     'sources': files('printf_test.c', 'printf.c'),
     'link_args': [],
   },
+  {
+    'sources': files('string_test.c', 'string.c'),
+    'link_args': [],
+  },
 ]
