@@ -4,6 +4,7 @@
 #include "graph_priv.h"
 #include "worker_priv.h"
 
+#include <gr_config.h>
 #include <gr_datapath.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -141,14 +142,8 @@ int port_unplug(uint16_t port_id) {
 }
 
 int worker_ensure_default(int socket_id) {
-	unsigned main_lcore = rte_get_main_lcore();
 	struct worker *worker;
-	cpu_set_t affinity;
 	unsigned cpu_id;
-	int ret;
-
-	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)))
-		return errno_log(ret, "pthread_getaffinity_np");
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		if (socket_id == SOCKET_ID_ANY)
@@ -160,20 +155,20 @@ int worker_ensure_default(int socket_id) {
 	if (socket_id == SOCKET_ID_ANY && numa_available() != -1)
 		socket_id = numa_preferred();
 
-	// try to spawn the default worker on the correct socket excluding the main lcore
+	// try to spawn the default worker using the first available datapath cpu
+	// on the correct socket
 	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (cpu_id == main_lcore)
-			continue;
-		if (!CPU_ISSET(cpu_id, &affinity))
+		if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
 			continue;
 		if (socket_id != numa_node_of_cpu(cpu_id))
 			continue;
 		return worker_create(cpu_id);
 	}
 
-	// no available cpu found, fallback on whatever is left, even on the wrong socket
+	// no available cpu found on the requested socket, fallback on whatever
+	// datapath cpu is available
 	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (!CPU_ISSET(cpu_id, &affinity))
+		if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
 			continue;
 		LOG(WARNING,
 		    "no ideal CPU found on socket %d for a new worker, falling back to CPU %u",
@@ -182,7 +177,7 @@ int worker_ensure_default(int socket_id) {
 		return worker_create(cpu_id);
 	}
 
-	// should not happen as at least main_lcore should be usable
+	// should never happen
 	return errno_log(ERANGE, "socket_id");
 }
 
@@ -219,7 +214,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	struct queue_map *qmap;
 	int ret;
 
-	if (cpu_id == rte_get_main_lcore())
+	if (CPU_ISSET(cpu_id, &gr_config.control_cpus))
 		return errno_set(EBUSY);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
