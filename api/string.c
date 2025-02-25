@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_errno.h>
+#include <gr_macro.h>
 #include <gr_string.h>
 
 #include <errno.h>
@@ -77,4 +78,41 @@ int utf8_check(const char *buf, size_t maxlen) {
 		return errno_set(EILSEQ);
 
 	return 0;
+}
+
+int cpuset_format(char *buf, size_t len, const cpu_set_t *set) {
+	unsigned i, j;
+	size_t n = 0;
+
+	if (buf == NULL || set == NULL || len <= 1)
+		return errno_set(EINVAL);
+
+	buf[0] = '\0';
+
+	for (i = 0; i < CPU_SETSIZE; i++) {
+		if (CPU_ISSET(i, set)) {
+			for (j = i + 1; j < CPU_SETSIZE; j++)
+				if (!CPU_ISSET(j, set))
+					break;
+			j -= 1;
+
+			if (i == j)
+				SAFE_BUF(snprintf, len, "%u,", i);
+			else if (j - i == 1)
+				SAFE_BUF(snprintf, len, "%u,%u,", i, j);
+			else
+				SAFE_BUF(snprintf, len, "%u-%u,", i, j);
+
+			i = j + 1;
+		}
+	}
+
+	if (n > 0) {
+		// strip trailing comma
+		buf[n - 1] = '\0';
+	}
+
+	return 0;
+err:
+	return errno_set(errno);
 }

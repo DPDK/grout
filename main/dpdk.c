@@ -90,43 +90,6 @@ int dpdk_log_init(const struct gr_args *args) {
 	return 0;
 }
 
-// Returns human readable representation of a cpuset. The output format is
-// a list of CPUs with ranges (for example, "0,1,3-9").
-static int cpuset_format(char *buf, size_t len, cpu_set_t *set) {
-	ssize_t n, m;
-	unsigned i, j;
-
-	n = 0;
-
-	for (i = 0; i < CPU_SETSIZE; i++) {
-		if (CPU_ISSET(i, set)) {
-			for (j = i + 1; j < CPU_SETSIZE; j++)
-				if (!CPU_ISSET(j, set))
-					break;
-			j -= 1;
-
-			if (i == j)
-				m = snprintf(buf + n, len - n, "%u,", i);
-			else if (j - i == 1)
-				m = snprintf(buf + n, len - n, "%u,%u,", i, j);
-			else
-				m = snprintf(buf + n, len - n, "%u-%u,", i, j);
-			if (m < 0)
-				return errno_set(errno);
-
-			n += m;
-			i = j + 1;
-		}
-	}
-
-	if (n > 0) {
-		// strip trailing comma
-		buf[n - 1] = '\0';
-	}
-
-	return 0;
-}
-
 int dpdk_init(const struct gr_args *args) {
 	char affinity[BUFSIZ] = "";
 	char main_lcore[32] = "";
