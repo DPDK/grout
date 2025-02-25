@@ -3,12 +3,12 @@
 
 #include "api.h"
 #include "dpdk.h"
-#include "gr.h"
 #include "module.h"
 #include "sd_notify.h"
 #include "signals.h"
 
 #include <gr_api.h>
+#include <gr_config.h>
 #include <gr_log.h>
 #include <gr_trace.h>
 #include <gr_vec.h>
@@ -54,11 +54,7 @@ static void usage(const char *prog) {
 	puts("  -V, --version                  Print version and exit.");
 }
 
-static struct gr_args args;
-
-const struct gr_args *gr_args(void) {
-	return &args;
-}
+struct gr_config gr_config;
 
 static int parse_args(int argc, char **argv) {
 	int c;
@@ -83,11 +79,11 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	args.api_sock_path = getenv("GROUT_SOCK_PATH");
-	if (args.api_sock_path == NULL)
-		args.api_sock_path = GR_DEFAULT_SOCK_PATH;
-	args.log_level = RTE_LOG_NOTICE;
-	args.eal_extra_args = NULL;
+	gr_config.api_sock_path = getenv("GROUT_SOCK_PATH");
+	if (gr_config.api_sock_path == NULL)
+		gr_config.api_sock_path = GR_DEFAULT_SOCK_PATH;
+	gr_config.log_level = RTE_LOG_NOTICE;
+	gr_config.eal_extra_args = NULL;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
@@ -95,38 +91,38 @@ static int parse_args(int argc, char **argv) {
 			usage(argv[0]);
 			return -1;
 		case 'L':
-			gr_vec_add(args.eal_extra_args, "--log-level");
-			gr_vec_add(args.eal_extra_args, optarg);
+			gr_vec_add(gr_config.eal_extra_args, "--log-level");
+			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'p':
-			args.poll_mode = true;
+			gr_config.poll_mode = true;
 			break;
 		case 'S':
-			args.log_syslog = true;
+			gr_config.log_syslog = true;
 			break;
 		case 's':
-			args.api_sock_path = optarg;
+			gr_config.api_sock_path = optarg;
 			break;
 		case 't':
-			args.test_mode = true;
+			gr_config.test_mode = true;
 			break;
 		case 'T':
-			gr_vec_add(args.eal_extra_args, "--trace");
-			gr_vec_add(args.eal_extra_args, optarg);
+			gr_vec_add(gr_config.eal_extra_args, "--trace");
+			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'D':
-			gr_vec_add(args.eal_extra_args, "--trace-dir");
-			gr_vec_add(args.eal_extra_args, optarg);
+			gr_vec_add(gr_config.eal_extra_args, "--trace-dir");
+			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'M':
-			gr_vec_add(args.eal_extra_args, "--trace-mode");
-			gr_vec_add(args.eal_extra_args, optarg);
+			gr_vec_add(gr_config.eal_extra_args, "--trace-mode");
+			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'x':
 			gr_packet_logging_set(true);
 			break;
 		case 'v':
-			args.log_level++;
+			gr_config.log_level++;
 			break;
 		case 'V':
 			printf("grout %s (%s)\n", GROUT_VERSION, rte_version());
@@ -172,13 +168,13 @@ int main(int argc, char **argv) {
 	if (parse_args(argc, argv) < 0)
 		goto end;
 
-	if (dpdk_log_init(&args) < 0)
+	if (dpdk_log_init() < 0)
 		goto end;
 
 	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
 	LOG(NOTICE, "License available at https://git.dpdk.org/apps/grout/plain/LICENSE");
 
-	if (dpdk_init(&args) < 0) {
+	if (dpdk_init() < 0) {
 		err = errno;
 		goto dpdk_stop;
 	}
@@ -223,13 +219,13 @@ shutdown:
 		event_base_free(ev_base);
 	}
 	if (ret != EXIT_ALREADY_RUNNING)
-		unlink(args.api_sock_path);
+		unlink(gr_config.api_sock_path);
 	libevent_global_shutdown();
 dpdk_stop:
 	dpdk_fini();
 	if (err != 0)
 		sd_notifyf(0, "ERRNO=%i", err);
 end:
-	gr_vec_free(args.eal_extra_args);
+	gr_vec_free(gr_config.eal_extra_args);
 	return ret;
 }

@@ -3,11 +3,12 @@
 
 #include "worker_priv.h"
 
-#include <gr.h>
 #include <gr_api.h>
 #include <gr_cmocka.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_infra.h>
+#include <gr_log.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
 #include <gr_port.h>
@@ -25,19 +26,14 @@ static struct worker w3 = {.cpu_id = 3, .started = true};
 static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
-extern int gr_rte_log_type;
 int gr_rte_log_type;
+struct gr_config gr_config;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
-
-static struct gr_args args;
-const struct gr_args *gr_args(void) {
-	return &args;
-}
 
 struct iface *iface_from_id(uint16_t ifid) {
 	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
