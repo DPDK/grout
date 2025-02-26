@@ -69,6 +69,8 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
+		mbuf->packet_type |= RTE_PTYPE_L3_IPV6;
+
 		edge = nh_type_edges[nh->type];
 		if (edge != ETH_OUTPUT)
 			goto next;
