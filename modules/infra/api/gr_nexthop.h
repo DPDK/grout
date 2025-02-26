@@ -49,6 +49,13 @@ struct gr_nexthop {
 	clock_t last_reply; //!< timestamp when last update was received
 };
 
+//! Nexthop events.
+typedef enum {
+	NEXTHOP_EVENT_NEW = EVENT_TYPE(GR_INFRA_MODULE, 0x0100),
+	NEXTHOP_EVENT_DELETE = EVENT_TYPE(GR_INFRA_MODULE, 0x0101),
+	NEXTHOP_EVENT_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
+} nexthop_event_t;
+
 #define gr_nh_flags_foreach(f, flags)                                                              \
 	for (gr_nh_flags_t __i = 0, f = GR_BIT16(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;       \
 	     f = GR_BIT16(++__i))                                                                  \

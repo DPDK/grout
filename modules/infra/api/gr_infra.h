@@ -124,6 +124,16 @@ struct gr_infra_stat {
 
 #define GR_INFRA_MODULE 0xacdc
 
+//! Interface events.
+typedef enum {
+	IFACE_EVENT_UNKNOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0000),
+	IFACE_EVENT_POST_ADD = EVENT_TYPE(GR_INFRA_MODULE, 0x0001),
+	IFACE_EVENT_PRE_REMOVE = EVENT_TYPE(GR_INFRA_MODULE, 0x0002),
+	IFACE_EVENT_POST_RECONFIG = EVENT_TYPE(GR_INFRA_MODULE, 0x0003),
+	IFACE_EVENT_STATUS_UP = EVENT_TYPE(GR_INFRA_MODULE, 0x0004),
+	IFACE_EVENT_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0005),
+} iface_event_t;
+
 // ifaces ///////////////////////////////////////////////////////////////////////
 #define GR_INFRA_IFACE_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0001)
 
@@ -174,7 +184,7 @@ struct gr_infra_iface_set_req {
 
 // struct gr_infra_iface_set_resp { };
 
-// iface rxqs ///////////////////////////////////////////////////////////////////
+// port rxqs ///////////////////////////////////////////////////////////////////
 #define GR_INFRA_RXQ_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0010)
 
 // struct gr_infra_rxq_list_req { };
@@ -268,20 +278,5 @@ struct gr_infra_packet_trace_set_req {
 #define GR_INFRA_PACKET_LOG_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0044)
 // struct gr_infra_packet_log_clear_req { };
 // struct gr_infra_packet_log_clear_resp { };
-//
-typedef enum {
-	IFACE_EVENT_UNKNOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0000),
-	IFACE_EVENT_POST_ADD = EVENT_TYPE(GR_INFRA_MODULE, 0x0001),
-	IFACE_EVENT_PRE_REMOVE = EVENT_TYPE(GR_INFRA_MODULE, 0x0002),
-	IFACE_EVENT_POST_RECONFIG = EVENT_TYPE(GR_INFRA_MODULE, 0x0003),
-	IFACE_EVENT_STATUS_UP = EVENT_TYPE(GR_INFRA_MODULE, 0x0004),
-	IFACE_EVENT_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0005),
-} iface_event_t;
-
-typedef enum {
-	NEXTHOP_EVENT_NEW = EVENT_TYPE(GR_INFRA_MODULE, 0x0100),
-	NEXTHOP_EVENT_DELETE = EVENT_TYPE(GR_INFRA_MODULE, 0x0101),
-	NEXTHOP_EVENT_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
-} nexthop_event_t;
 
 #endif
