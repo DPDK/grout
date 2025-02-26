@@ -89,6 +89,15 @@ static uint16_t ip6_input_local_process(
 		case IPPROTO_FRAGMENT:
 			// IPv6 extensions are L3 and need the IPv6 header.
 			goto next;
+		case IPPROTO_UDP:
+		case IPPROTO_TCP:
+		case IPPROTO_SCTP:
+		case IPPROTO_DCCP:
+			// These protocols have checksum fields to be verified.
+			break;
+		default:
+			// No checksum to verify.
+			goto adj_next;
 		}
 
 		// verify checksum if not already checked by hardware
@@ -107,6 +116,7 @@ static uint16_t ip6_input_local_process(
 			goto next;
 		}
 
+adj_next:
 		rte_pktmbuf_adj(m, d->ext_offset);
 		d->ext_offset = 0;
 next:
