@@ -46,7 +46,7 @@ static void icmp6_input_cb(struct rte_mbuf *m) {
 }
 
 static struct rte_mbuf *
-get_icmp6_echo_reply(uint16_t id, uint16_t seq_num, struct icmp6 **out_icmp6) {
+get_icmp6_echo_reply(uint16_t ident, uint16_t seq_num, struct icmp6 **out_icmp6) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
@@ -75,7 +75,7 @@ get_icmp6_echo_reply(uint16_t id, uint16_t seq_num, struct icmp6 **out_icmp6) {
 				goto free_and_skip;
 		}
 
-		if (rte_be_to_cpu_16(icmp6_echo->ident) == id
+		if (rte_be_to_cpu_16(icmp6_echo->ident) == ident
 		    && rte_be_to_cpu_16(icmp6_echo->seqnum) == seq_num) {
 			icmp6_queue_pop(i, false);
 			*out_icmp6 = icmp6;
@@ -97,7 +97,7 @@ static struct api_out icmp6_send(const void *request, void ** /* response */) {
 	if ((nh = rib6_lookup(req->vrf, req->iface, &req->addr)) == NULL)
 		return api_out(errno, 0);
 
-	ret = icmp6_local_send(&req->addr, nh, req->id, req->seq_num, req->ttl);
+	ret = icmp6_local_send(&req->addr, nh, req->ident, req->seq_num, req->ttl);
 	return api_out(ret, 0);
 }
 
@@ -112,7 +112,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 	struct rte_mbuf *m;
 	int ret = 0;
 
-	m = get_icmp6_echo_reply(recvreq->id, recvreq->seq_num, &icmp6);
+	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6);
 	if (m == NULL)
 		return api_out(0, 0);
 
