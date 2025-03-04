@@ -37,27 +37,26 @@ static cmd_status_t icmp_send(
 ) {
 	struct gr_ip4_icmp_recv_resp *reply_resp;
 	struct gr_ip4_icmp_recv_req reply_req;
-	struct gr_ip4_icmp_send_resp *start_resp;
 	int timeout, ret, errors;
 	void *resp_ptr = NULL;
+	uint16_t ping_id;
 
 	stop = false;
 	errors = 0;
 	errno = 0;
+	ping_id = random();
 
 	for (int i = mode_traceroute; i < count && stop == false; i++) {
 		req->ttl = mode_traceroute ? i : 64;
+		req->ident = ping_id;
 		req->seq_num = i;
 
-		ret = gr_api_client_send_recv(c, GR_IP4_ICMP_SEND, sizeof(*req), req, &resp_ptr);
+		ret = gr_api_client_send_recv(c, GR_IP4_ICMP_SEND, sizeof(*req), req, NULL);
 		if (ret < 0)
 			return CMD_ERROR;
 
-		start_resp = resp_ptr;
-		reply_req.ident = start_resp->ident;
-		free(resp_ptr);
-		resp_ptr = NULL;
-
+		reply_req.ident = ping_id;
+		reply_req.seq_num = i;
 		timeout = 50;
 		do {
 			usleep(10000);
