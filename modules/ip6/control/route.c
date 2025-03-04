@@ -393,9 +393,13 @@ void rib6_cleanup(struct nexthop *nh) {
 	struct rte_rib6 *rib;
 	uintptr_t nh_id;
 
-	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 	local_ip = nh->ipv6;
 	local_depth = nh->prefixlen;
+
+	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
+		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
+	else
+		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 
 	rib = get_rib6(nh->vrf_id);
 	while ((rn = rte_rib6_get_nxt(rib, 0, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
