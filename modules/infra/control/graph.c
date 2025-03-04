@@ -229,31 +229,38 @@ err:
 	return errno_set(-ret);
 }
 
+int worker_graph_reload(struct worker *worker) {
+	unsigned next = !atomic_load(&worker->cur_config);
+	int ret;
+
+	if ((ret = worker_graph_new(worker, next)) < 0)
+		return errno_log(-ret, "worker_graph_new");
+
+	// wait for datapath worker to pickup the config update
+	atomic_store_explicit(&worker->next_config, next, memory_order_release);
+	while (atomic_load_explicit(&worker->cur_config, memory_order_acquire) != next)
+		usleep(500);
+
+	// free old config
+	next = !next;
+
+	if (worker->graph[next] != NULL) {
+		node_data_reset(worker->graph[next]->name);
+		if ((ret = rte_graph_destroy(worker->graph[next]->id)) < 0)
+			errno_log(-ret, "rte_graph_destroy");
+		worker->graph[next] = NULL;
+	}
+
+	return 0;
+}
+
 int worker_graph_reload_all(void) {
 	struct worker *worker;
-	unsigned next;
 	int ret;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		next = !atomic_load(&worker->cur_config);
-
-		if ((ret = worker_graph_new(worker, next)) < 0)
-			return errno_log(-ret, "worker_graph_new");
-
-		// wait for datapath worker to pickup the config update
-		atomic_store_explicit(&worker->next_config, next, memory_order_release);
-		while (atomic_load_explicit(&worker->cur_config, memory_order_acquire) != next)
-			usleep(500);
-
-		// free old config
-		next = !next;
-
-		if (worker->graph[next] != NULL) {
-			node_data_reset(worker->graph[next]->name);
-			if ((ret = rte_graph_destroy(worker->graph[next]->id)) < 0)
-				errno_log(-ret, "rte_graph_destroy");
-			worker->graph[next] = NULL;
-		}
+		if ((ret = worker_graph_reload(worker)) < 0)
+			return ret;
 	}
 
 	return 0;

@@ -6,6 +6,7 @@
 
 #include <gr_worker.h>
 
+int worker_graph_reload(struct worker *);
 int worker_graph_reload_all(void);
 void worker_graph_free(struct worker *);
 
