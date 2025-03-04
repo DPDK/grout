@@ -139,18 +139,18 @@ struct gr_ip4_addr_list_resp {
 struct gr_ip4_icmp_send_req {
 	ip4_addr_t addr;
 	uint16_t vrf;
+	uint16_t ident;
 	uint16_t seq_num;
 	uint8_t ttl;
 };
 
-struct gr_ip4_icmp_send_resp {
-	uint16_t ident;
-};
+// struct gr_ip4_icmp_send_resp { };
 
 #define GR_IP4_ICMP_RECV REQUEST_TYPE(GR_IP4_MODULE, 0x0025)
 
 struct gr_ip4_icmp_recv_req {
 	uint16_t ident;
+	uint16_t seq_num;
 };
 
 struct gr_ip4_icmp_recv_resp {

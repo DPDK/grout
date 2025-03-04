@@ -11,7 +11,6 @@
 #include <gr_module.h>
 #include <gr_queue.h>
 
-#include <rte_atomic.h>
 #include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_ring.h>
@@ -49,7 +48,7 @@ static void icmp_input_cb(struct rte_mbuf *m) {
 
 // Search for the oldest ICMP response matching the given identifier.
 // If found, the packet is removed from the queue.
-static struct rte_mbuf *get_icmp_response(uint16_t ident) {
+static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf = NULL;
 
@@ -78,7 +77,8 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident) {
 			}
 		}
 
-		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident) {
+		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident
+		    && rte_be_to_cpu_16(icmp->icmp_seq_nb) == seq_num) {
 			mbuf = i->mbuf;
 			icmp_queue_pop(i, false);
 			break;
@@ -88,33 +88,18 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident) {
 	return mbuf;
 }
 
-// Global id which is used to differentiate between api clients
-static rte_atomic16_t icmp_ident = RTE_ATOMIC16_INIT(0);
-
-static struct api_out icmp_send(const void *request, void **response) {
+static struct api_out icmp_send(const void *request, void ** /*response*/) {
 	const struct gr_ip4_icmp_send_req *req = request;
-	struct gr_ip4_icmp_send_resp *resp = NULL;
 	const struct nexthop *nh;
-	int ret;
-
-	if ((resp = calloc(1, sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0);
+	int ret = 0;
 
 	if ((nh = rib4_lookup(req->vrf, req->addr)) == NULL) {
 		ret = -errno;
-		goto fail;
+		goto out;
 	}
 
-	resp->ident = rte_atomic16_add_return(&icmp_ident, 1);
-	ret = icmp_local_send(req->vrf, req->addr, nh, resp->ident, req->seq_num, req->ttl);
-	if (ret < 0)
-		goto fail;
-
-	*response = resp;
-
-	return api_out(0, sizeof(*resp));
-fail:
-	free(resp);
+	ret = icmp_local_send(req->vrf, req->addr, nh, req->ident, req->seq_num, req->ttl);
+out:
 	return api_out(-ret, 0);
 }
 
@@ -128,7 +113,7 @@ static struct api_out icmp_recv(const void *request, void **response) {
 	size_t len = 0;
 	int ret = 0;
 
-	m = get_icmp_response(icmp_req->ident);
+	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num);
 	if (m == NULL)
 		return api_out(0, 0);
 
