@@ -6,6 +6,7 @@
 
 #include <gr_mbuf.h>
 
+#include <sched.h>
 #include <time.h>
 
 // Callback definition when a packet is sent from the data plane to the control plane.
@@ -28,5 +29,8 @@ int control_output_enqueue(struct rte_mbuf *m);
 
 // Wake up the control plane event loop so that it processes the pending packets.
 void control_output_done(void);
+
+// Change the thread affinity of the control output thread.
+int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity);
 
 #endif
