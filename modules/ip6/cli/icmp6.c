@@ -44,11 +44,9 @@ static cmd_status_t icmp_send(
 		req->seq_num = i;
 		req->ttl = mode_traceroute ? i : 64;
 
-		ret = gr_api_client_send_recv(c, GR_IP6_ICMP6_SEND, sizeof(*req), req, &resp_ptr);
+		ret = gr_api_client_send_recv(c, GR_IP6_ICMP6_SEND, sizeof(*req), req, NULL);
 		if (ret < 0)
 			return CMD_ERROR;
-		free(resp_ptr);
-		resp_ptr = NULL;
 
 		reply_req.ident = ping_id;
 		reply_req.seq_num = i;

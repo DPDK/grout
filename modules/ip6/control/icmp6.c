@@ -11,7 +11,6 @@
 #include <gr_module.h>
 #include <gr_queue.h>
 
-#include <rte_atomic.h>
 #include <rte_ip.h>
 #include <rte_ring.h>
 
