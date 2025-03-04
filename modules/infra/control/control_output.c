@@ -46,6 +46,10 @@ void control_output_done(void) {
 	pthread_cond_signal(&cond);
 }
 
+int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity) {
+	return pthread_setaffinity_np(thread_id, set_size, affinity);
+}
+
 static void *cond_wait_to_event(void *) {
 	pthread_setname_np(pthread_self(), "gr:ctrl-output");
 
