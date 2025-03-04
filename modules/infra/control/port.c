@@ -77,8 +77,8 @@ static struct rte_eth_conf default_port_config = {
 };
 
 static void port_queue_assign(struct iface_info_port *p) {
-	int socket_id = SOCKET_ID_ANY;
 	struct worker *worker, *default_worker = NULL;
+	int socket_id = SOCKET_ID_ANY;
 	// XXX: can we assume there will never be more than 64 rxqs per port?
 	uint64_t rxq_ids = 0;
 	uint16_t txq = 0;
@@ -108,7 +108,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 			if (qmap->port_id == p->port_id) {
 				if (qmap->queue_id < p->n_rxq) {
 					// rxq already assigned to a worker
-					rxq_ids |= 1 << qmap->queue_id;
+					rxq_ids |= GR_BIT64(qmap->queue_id);
 				} else {
 					// remove extraneous rxq
 					gr_vec_del_swap(worker->rxqs, i);
@@ -122,7 +122,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 	}
 	assert(default_worker != NULL);
 	for (uint16_t rxq = 0; rxq < p->n_rxq; rxq++) {
-		if (rxq_ids & (1 << rxq))
+		if (rxq_ids & GR_BIT64(rxq))
 			continue;
 		struct queue_map rx_qmap = {
 			.port_id = p->port_id,
