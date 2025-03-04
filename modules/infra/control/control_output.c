@@ -87,7 +87,8 @@ static void control_output_init(struct event_base *ev_base) {
 	if (ctrlout_ev == NULL)
 		ABORT("event_new() failed");
 
-	pthread_create(&thread_id, &attr, cond_wait_to_event, NULL);
+	if (pthread_create(&thread_id, &attr, cond_wait_to_event, NULL))
+		ABORT("pthread_create() failed");
 }
 
 static void control_output_fini(struct event_base *) {
