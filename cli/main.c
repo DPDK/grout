@@ -9,6 +9,7 @@
 #include <gr_api.h>
 #include <gr_api_client_impl.h>
 #include <gr_cli.h>
+#include <gr_clock.h>
 #include <gr_version.h>
 
 #include <ecoli.h>
@@ -134,6 +135,9 @@ int main(int argc, char **argv) {
 		goto end;
 	}
 	tty_init();
+
+	// initialize a non-constant seed for random() calls
+	srandom(gr_clock_us());
 
 	if (ec_init() < 0) {
 		errorf("ec_init: %s", strerror(errno));
