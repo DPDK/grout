@@ -237,8 +237,8 @@ int worker_graph_reload(struct worker *worker) {
 		return errno_log(-ret, "worker_graph_new");
 
 	// wait for datapath worker to pickup the config update
-	atomic_store_explicit(&worker->next_config, next, memory_order_release);
-	while (atomic_load_explicit(&worker->cur_config, memory_order_acquire) != next)
+	atomic_store(&worker->next_config, next);
+	while (atomic_load(&worker->cur_config) != next)
 		usleep(500);
 
 	// free old config
