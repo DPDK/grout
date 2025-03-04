@@ -7,7 +7,6 @@
 #include <gr_module.h>
 #include <gr_worker.h>
 
-#include <rte_atomic.h>
 #include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
@@ -151,15 +150,15 @@ void *gr_datapath_loop(void *priv) {
 	static_assert(atomic_is_lock_free(&w->shutdown));
 	static_assert(atomic_is_lock_free(&w->cur_config));
 	static_assert(atomic_is_lock_free(&w->stats_reset));
-	atomic_store_explicit(&w->started, true, memory_order_release);
+	atomic_store(&w->started, true);
 
 reconfig:
-	if (w->shutdown)
+	if (atomic_load(&w->shutdown))
 		goto shutdown;
 
-	cur = atomic_load_explicit(&w->next_config, memory_order_acquire);
+	cur = atomic_load(&w->next_config);
 	graph = w->graph[cur];
-	atomic_store_explicit(&w->cur_config, cur, memory_order_release);
+	atomic_store(&w->cur_config, cur);
 
 	if (graph == NULL) {
 		usleep(1000);
@@ -188,7 +187,7 @@ reconfig:
 			rte_graph_cluster_stats_get(ctx.stats, false);
 			timestamp_tmp = rte_rdtsc();
 			cycles = timestamp_tmp - timestamp;
-			max_sleep_us = atomic_load_explicit(&w->max_sleep_us, memory_order_relaxed);
+			max_sleep_us = atomic_load(&w->max_sleep_us);
 			if (ctx.last_count == 0 && max_sleep_us > 0) {
 				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
 				usleep(sleep);

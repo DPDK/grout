@@ -15,7 +15,6 @@
 
 #include <event2/event.h>
 #include <numa.h>
-#include <rte_atomic.h>
 #include <rte_build_config.h>
 #include <rte_common.h>
 #include <rte_ethdev.h>
@@ -68,7 +67,7 @@ int worker_create(unsigned cpu_id) {
 	STAILQ_INSERT_TAIL(&workers, worker, next);
 
 	// wait until thread has initialized lcore_id
-	while (!atomic_load_explicit(&worker->started, memory_order_acquire))
+	while (!atomic_load(&worker->started))
 		usleep(500);
 
 	pthread_attr_destroy(&attr);
@@ -84,7 +83,7 @@ int worker_destroy(unsigned cpu_id) {
 
 	STAILQ_REMOVE(&workers, worker, worker, next);
 
-	atomic_store_explicit(&worker->shutdown, true, memory_order_release);
+	atomic_store(&worker->shutdown, true);
 	pthread_join(worker->thread, NULL);
 	worker_graph_free(worker);
 	gr_vec_free(worker->rxqs);
