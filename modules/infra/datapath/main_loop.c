@@ -210,7 +210,8 @@ reconfig:
 shutdown:
 	log(NOTICE, "shutting down tid=%d", w->tid);
 	atomic_store(&w->stats, NULL);
-	rte_graph_cluster_stats_destroy(ctx.stats);
+	if (ctx.stats)
+		rte_graph_cluster_stats_destroy(ctx.stats);
 	rte_free(ctx.w_stats);
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
