@@ -49,7 +49,7 @@ static void icmp_input_cb(struct rte_mbuf *m) {
 
 // Search for the oldest ICMP response matching the given identifier.
 // If found, the packet is removed from the queue.
-static struct rte_mbuf *get_icmp_response(uint16_t id) {
+static struct rte_mbuf *get_icmp_response(uint16_t ident) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf = NULL;
 
@@ -78,7 +78,7 @@ static struct rte_mbuf *get_icmp_response(uint16_t id) {
 			}
 		}
 
-		if (rte_be_to_cpu_16(icmp->icmp_ident) == id) {
+		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident) {
 			mbuf = i->mbuf;
 			icmp_queue_pop(i, false);
 			break;
@@ -105,8 +105,8 @@ static struct api_out icmp_send(const void *request, void **response) {
 		goto fail;
 	}
 
-	resp->id = rte_atomic16_add_return(&icmp_ident, 1);
-	ret = icmp_local_send(req->vrf, req->addr, nh, resp->id, req->seq_num, req->ttl);
+	resp->ident = rte_atomic16_add_return(&icmp_ident, 1);
+	ret = icmp_local_send(req->vrf, req->addr, nh, resp->ident, req->seq_num, req->ttl);
 	if (ret < 0)
 		goto fail;
 
@@ -128,7 +128,7 @@ static struct api_out icmp_recv(const void *request, void **response) {
 	size_t len = 0;
 	int ret = 0;
 
-	m = get_icmp_response(icmp_req->id);
+	m = get_icmp_response(icmp_req->ident);
 	if (m == NULL)
 		return api_out(0, 0);
 

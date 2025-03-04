@@ -54,7 +54,7 @@ static cmd_status_t icmp_send(
 			return CMD_ERROR;
 
 		start_resp = resp_ptr;
-		reply_req.id = start_resp->id;
+		reply_req.ident = start_resp->ident;
 		free(resp_ptr);
 		resp_ptr = NULL;
 

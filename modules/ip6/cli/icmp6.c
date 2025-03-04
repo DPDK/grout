@@ -40,7 +40,7 @@ static cmd_status_t icmp_send(
 	ping_id = random();
 
 	for (i = !!mode_traceroute; i < count && stop == false; i++) {
-		req->id = ping_id;
+		req->ident = ping_id;
 		req->seq_num = i;
 		req->ttl = mode_traceroute ? i : 64;
 
@@ -50,7 +50,7 @@ static cmd_status_t icmp_send(
 		free(resp_ptr);
 		resp_ptr = NULL;
 
-		reply_req.id = ping_id;
+		reply_req.ident = ping_id;
 		reply_req.seq_num = i;
 		timeout = 50;
 		do {

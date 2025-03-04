@@ -176,7 +176,7 @@ struct gr_ip6_icmp_send_req {
 	struct rte_ipv6_addr addr;
 	uint16_t iface;
 	uint16_t vrf;
-	uint16_t id;
+	uint16_t ident;
 	uint16_t seq_num;
 	uint8_t ttl;
 };
@@ -186,7 +186,7 @@ struct gr_ip6_icmp_send_req {
 #define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
 
 struct gr_ip6_icmp_recv_req {
-	uint16_t id;
+	uint16_t ident;
 	uint16_t seq_num;
 };
 
