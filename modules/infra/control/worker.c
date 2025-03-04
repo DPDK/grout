@@ -217,8 +217,8 @@ int port_plug(uint16_t port_id) {
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	struct worker *src_worker, *dst_worker;
+	bool num_workers_changed;
 	struct queue_map *qmap;
-	bool reconfig;
 	int ret;
 
 	if (cpu_id == rte_get_main_lcore())
@@ -239,7 +239,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	}
 	return errno_set(ENODEV);
 move:
-	reconfig = false;
+	num_workers_changed = false;
 
 	// prepare destination worker
 	dst_worker = worker_find(cpu_id);
@@ -248,7 +248,7 @@ move:
 		if ((ret = worker_create(cpu_id)) < 0)
 			return ret;
 		dst_worker = worker_find(cpu_id);
-		reconfig = true;
+		num_workers_changed = true;
 	}
 	if (dst_worker == NULL)
 		return errno_set(errno);
@@ -266,11 +266,14 @@ move:
 	if (gr_vec_len(src_worker->rxqs) == 0) {
 		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
 			return ret;
-		reconfig = true;
+		num_workers_changed = true;
+	} else {
+		// ensure source worker has released the rxq
+		if ((ret = worker_graph_reload(src_worker)) < 0)
+			return ret;
 	}
 
-	// assign to dst_worker *before* reconfiguring ports
-	// to avoid the dangling rxq to be assigned twice
+	// now it is safe to assign rxq to dst_worker
 	struct queue_map rx_qmap = {
 		.port_id = port_id,
 		.queue_id = rxq_id,
@@ -278,8 +281,8 @@ move:
 	};
 	gr_vec_add(dst_worker->rxqs, rx_qmap);
 
-	if (reconfig) {
-		// number of workers changed, adjust number of tx queues
+	if (num_workers_changed) {
+		// adjust number of tx queues
 		struct gr_iface_info_port p = {0};
 		struct iface *iface = NULL;
 
@@ -294,9 +297,11 @@ move:
 			if (ret < 0)
 				return ret;
 		}
+		// all workers were reloaded already
+		return 0;
 	}
 
-	return worker_graph_reload_all();
+	return worker_graph_reload(dst_worker);
 }
 
 static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {
