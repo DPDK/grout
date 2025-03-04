@@ -97,6 +97,10 @@ static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
 	const struct rx_node_queues *data;
 	struct rx_ctx *ctx;
 
+	// run init only for dataplane graph
+	if (strstr(graph->name, "-dplane") == NULL)
+		return 0;
+
 	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
 		return -1;
 

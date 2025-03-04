@@ -62,6 +62,10 @@ struct worker {
 	pthread_t thread;
 	struct queue_map *rxqs;
 	struct queue_map *txqs;
+
+	struct rte_graph *base[2]; // Base graph, not walked
+	struct rte_graph *ctl_graph[2]; // graph used to process ctl packets
+
 	STAILQ_ENTRY(worker) next;
 } __rte_cache_aligned;
 

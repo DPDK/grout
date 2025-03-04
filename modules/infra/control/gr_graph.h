@@ -10,6 +10,8 @@
 
 #include <sys/queue.h>
 
+#define RTE_GRAPH_MODEL_SELECT RTE_GRAPH_MODEL_MCORE_DISPATCH
+
 #ifdef __GROUT_UNIT_TEST__
 #include <gr_cmocka.h>
 
@@ -39,6 +41,8 @@ int drop_format(char *buf, size_t buf_len, const void *data, size_t data_len);
 typedef void (*gr_node_register_cb_t)(void);
 
 struct gr_node_info {
+// Flag used in node->flags to specify that a node is running on a control plane thread
+#define GR_NODE_FLAG_CONTROL_PLANE (1 << 31)
 	struct rte_node_register *node;
 	gr_node_register_cb_t register_callback;
 	gr_node_register_cb_t unregister_callback;
