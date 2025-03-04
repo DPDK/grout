@@ -4,8 +4,8 @@
 
 . $(dirname $0)/_init.sh
 
-grcli add interface port p0 devargs net_null0
-grcli add interface port p1 devargs net_null1
+grcli add interface port p0 devargs net_null0,no-rx=1
+grcli add interface port p1 devargs net_null1,no-rx=1
 grcli add ip address 10.0.0.1/24 iface p0
 grcli add ip address 10.1.0.1/24 iface p1
 grcli add ip route 0.0.0.0/0 via 10.0.0.2
