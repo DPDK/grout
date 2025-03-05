@@ -79,9 +79,11 @@ static struct rte_eth_conf default_port_config = {
 static void port_queue_assign(struct iface_info_port *p) {
 	struct worker *worker, *default_worker = NULL;
 	int socket_id = SOCKET_ID_ANY;
-	// XXX: can we assume there will never be more than 64 rxqs per port?
 	uint64_t rxq_ids = 0;
 	uint16_t txq = 0;
+
+	// XXX: can we assume there will never be more than 64 rxqs per port?
+	assert(p->n_rxq <= 64);
 
 	if (numa_available() != -1)
 		socket_id = rte_eth_dev_socket_id(p->port_id);
@@ -92,34 +94,39 @@ static void port_queue_assign(struct iface_info_port *p) {
 			.queue_id = txq,
 			.enabled = false,
 		};
+		// remove the existing txq assigned to this worker, if any
 		for (size_t i = 0; i < gr_vec_len(worker->txqs); i++) {
 			if (worker->txqs[i].port_id == p->port_id) {
-				// ensure no duplicates
 				gr_vec_del_swap(worker->txqs, i);
 				i--;
 			}
 		}
-		// assign one txq to every worker
+		// assign one (dedicated) txq to every worker
 		gr_vec_add(worker->txqs, tx_qmap);
 		txq++;
 
+		// walk through all assigned rxqs for this worker
 		for (size_t i = 0; i < gr_vec_len(worker->rxqs); i++) {
 			struct queue_map *qmap = &worker->rxqs[i];
 			if (qmap->port_id == p->port_id) {
 				if (qmap->queue_id < p->n_rxq) {
-					// rxq already assigned to a worker
+					// memorize that this rxq is already assigned
 					rxq_ids |= GR_BIT64(qmap->queue_id);
 				} else {
-					// remove extraneous rxq
+					// number of rxqs was reduced for this port
+					// remove the now invalid rxq from this worker
 					gr_vec_del_swap(worker->rxqs, i);
 					i--;
 				}
 			}
 		}
+		// get an handle on the default worker for unassigned rxqs
 		if (socket_id == SOCKET_ID_ANY || socket_id == numa_node_of_cpu(worker->cpu_id)) {
 			default_worker = worker;
 		}
 	}
+
+	// assign unassigned rxqs to the default worker, if any
 	assert(default_worker != NULL);
 	for (uint16_t rxq = 0; rxq < p->n_rxq; rxq++) {
 		if (rxq_ids & GR_BIT64(rxq))
@@ -134,10 +141,10 @@ static void port_queue_assign(struct iface_info_port *p) {
 }
 
 static int port_configure(struct iface_info_port *p) {
-	int socket_id = SOCKET_ID_ANY;
 	struct rte_eth_conf conf = default_port_config;
-	uint16_t rxq_size, txq_size;
+	int socket_id = SOCKET_ID_ANY;
 	struct rte_eth_dev_info info;
+	uint16_t rxq_size, txq_size;
 	uint32_t mbuf_count;
 	int ret;
 
