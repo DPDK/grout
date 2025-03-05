@@ -350,9 +350,13 @@ void rib4_cleanup(struct nexthop *nh) {
 	uintptr_t nh_id;
 	ip4_addr_t ip;
 
-	rib4_delete(nh->vrf_id, nh->ipv4, 32);
 	local_ip = nh->ipv4;
 	local_prefixlen = nh->prefixlen;
+
+	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
+		rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
+	else
+		rib4_delete(nh->vrf_id, nh->ipv4, 32);
 
 	rib = get_rib(nh->vrf_id);
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
