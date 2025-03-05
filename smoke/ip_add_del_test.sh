@@ -12,3 +12,5 @@ grcli add ip address 172.16.0.1/24 iface $p0
 grcli show ip address
 grcli del ip address 172.16.0.1/24 iface $p0
 grcli show ip address
+grcli add ip address 172.16.0.1/24 iface $p0
+grcli show ip address
