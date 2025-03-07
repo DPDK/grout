@@ -41,6 +41,14 @@ fail() {
 	return 1
 }
 
+netns_add() {
+	ip netns add "$1"
+	cat >> $tmp/cleanup <<EOF
+ip netns pids "$1" | xargs -r kill --timeout 500 KILL
+ip netns del "$1"
+EOF
+}
+
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1?builddir}

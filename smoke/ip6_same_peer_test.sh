@@ -15,8 +15,7 @@ grcli add ip6 address fd00:ba4:2::1/64 iface $p2
 
 for n in 1 2; do
 	p=$run_id$n
-	ip netns add $p
-	echo ip netns del $p >> $tmp/cleanup
+	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p address d2:ad:ca:ca:a4:1
 	ip -n $p link set $p up

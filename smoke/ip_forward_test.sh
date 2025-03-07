@@ -17,8 +17,7 @@ grcli add ip route 16.1.0.0/16 via 172.16.1.2
 
 for n in 0 1; do
 	p=$run_id$n
-	ip netns add $p
-	echo ip netns del $p >> $tmp/cleanup
+	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p address ba:d0:ca:ca:00:0$n
 	ip -n $p link set $p up

@@ -19,8 +19,7 @@ grcli add ip address 172.16.1.1/24 iface $v1
 for n in 0 1; do
 	p=$run_id$n
 	v=$p.$((n+42))
-	ip netns add $p
-	echo ip netns del $p >> $tmp/cleanup
+	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link add $v link $p type vlan id $((n+42))
 	ip -n $p link set $p address ba:d0:ca:ca:00:0$n
