@@ -7,10 +7,10 @@
 p0=${run_id}0
 p1=${run_id}1
 
-ip netns del $p0 2> /dev/null || true
-ip netns del $p1 2> /dev/null || true
 ip netns add $p0
+echo ip netns del $p0 >> $tmp/cleanup
 ip netns add $p1
+echo ip netns del $p1 >> $tmp/cleanup
 
 # setup ports and connected
 grcli add interface port $p0 devargs net_tap0,iface=$p0 mac d2:f0:0c:ba:a5:10
