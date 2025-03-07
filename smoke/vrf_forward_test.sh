@@ -20,8 +20,7 @@ grcli add ip address 172.16.1.1/24 iface $p3
 
 for n in 0 1; do
 	p=$run_id$n
-	ip netns add $p
-	echo ip netns del $p >> $tmp/cleanup
+	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p address ba:d0:ca:ca:01:0$n
 	ip -n $p link set $p up
@@ -33,8 +32,7 @@ ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
 
 for n in 2 3; do
 	p=$run_id$n
-	ip netns add $p
-	echo ip netns del $p >> $tmp/cleanup
+	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p address ba:d0:ca:ca:02:0$n
 	ip -n $p link set $p up
