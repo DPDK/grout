@@ -25,6 +25,7 @@ enum edges {
 	NO_ROUTE,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
+	BAD_VERSION,
 	OTHER_HOST,
 	EDGE_COUNT,
 };
@@ -53,7 +54,14 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		//
 		// (1) The packet length reported by the Link Layer must be large
 		//     enough to hold the minimum length legal IP datagram (20 bytes).
-		// XXX: already checked by hardware
+		if (rte_pktmbuf_data_len(mbuf) < sizeof(struct rte_ipv4_hdr)) {
+			// XXX: call rte_pktmuf_data_len is used to ensure that the IPv4 header
+			// is located on the first segment. IPv4 headers located on the second,
+			// third or subsequent segments, as well spanning segment boundaries, are
+			// not currently handled.
+			edge = BAD_LENGTH;
+			goto next;
+		}
 
 		// (2) The IP checksum must be correct.
 		switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
@@ -73,9 +81,17 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		// (3) The IP version number must be 4.  If the version number is not 4
 		//     then the packet may be another version of IP, such as IPng or
 		//     ST-II.
+		if (ip->version != IPVERSION) {
+			edge = BAD_VERSION;
+			goto next;
+		}
+
 		// (4) The IP header length field must be large enough to hold the
 		//     minimum length legal IP datagram (20 bytes = 5 words).
-		// XXX: already checked by hardware
+		if (rte_ipv4_hdr_len(ip) < sizeof(struct rte_ipv4_hdr)) {
+			edge = BAD_LENGTH;
+			goto next;
+		}
 
 		// (5) The IP total length field must be large enough to hold the IP
 		//     datagram header, whose length is specified in the IP header
@@ -148,6 +164,7 @@ static struct rte_node_register input_node = {
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",
 		[BAD_LENGTH] = "ip_input_bad_length",
+		[BAD_VERSION] = "ip_input_bad_version",
 		[OTHER_HOST] = "ip_input_other_host",
 	},
 };
@@ -162,4 +179,5 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
+GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
