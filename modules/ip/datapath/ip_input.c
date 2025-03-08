@@ -25,9 +25,81 @@ enum edges {
 	NO_ROUTE,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
+	BAD_VERSION,
 	OTHER_HOST,
 	EDGE_COUNT,
 };
+
+// Retrieves a pointer to the IP header from a mbuf.
+// The IP header is validated according to RFC 1812 section 5.2.2.
+//
+// @param mbuf
+//   A pointer to the mbuf. The IP header must be at the beginning (offset 0) and
+//   in the first segment of the mbuf.
+// @param edge
+//   If the IPv4 header does not comply with RFC 1812, this is set to one of the error codes:
+//   BAD_LENGTH, BAD_VERSION, or BAD_CHECKSUM. If the header is valid, it is set to 0.
+// @return
+//   A pointer to the IP header if it is valid; otherwise, returns NULL.
+static struct rte_ipv4_hdr *get_valid_ip_header(const struct rte_mbuf *mbuf, rte_edge_t *edge) {
+	struct rte_ipv4_hdr *ip;
+	uint8_t ptype_l3;
+
+	ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+
+	// RFC 1812 section 5.2.2 IP Header Validation
+	//
+	// (1) The packet length reported by the Link Layer must be large
+	//     enough to hold the minimum length legal IP datagram (20 bytes).
+	if (unlikely(rte_pktmbuf_data_len(mbuf) < sizeof(struct rte_ipv4_hdr))) {
+		// XXX: call rte_pktmbuf_linearize ?
+		*edge = BAD_LENGTH;
+		return NULL;
+	}
+
+	// (2) The IP checksum must be correct.
+	switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
+	case RTE_MBUF_F_RX_IP_CKSUM_NONE:
+	case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
+		// if this is not checked in H/W, check it.
+		if (rte_ipv4_cksum(ip)) {
+			*edge = BAD_CHECKSUM;
+			return NULL;
+		}
+		break;
+	case RTE_MBUF_F_RX_IP_CKSUM_BAD:
+		*edge = BAD_CHECKSUM;
+		return NULL;
+	}
+
+	ptype_l3 = (mbuf->packet_type & RTE_PTYPE_L3_MASK);
+	if (unlikely(ptype_l3 != RTE_PTYPE_L3_IPV4 && ptype_l3 != RTE_PTYPE_L3_IPV4_EXT)) {
+		// (3) The IP version number must be 4.  If the version number is not 4
+		//     then the packet may be another version of IP, such as IPng or
+		//     ST-II.
+		if (unlikely(ip->version != IPVERSION)) {
+			*edge = BAD_VERSION;
+			return NULL;
+		}
+
+		// (4) The IP header length field must be large enough to hold the
+		//     minimum length legal IP datagram (20 bytes = 5 words).
+		if (unlikely(rte_ipv4_hdr_len(ip) < sizeof(struct rte_ipv4_hdr))) {
+			*edge = BAD_LENGTH;
+			return NULL;
+		}
+	}
+
+	// (5) The IP total length field must be large enough to hold the IP
+	//     datagram header, whose length is specified in the IP header
+	//     length field.
+	if (unlikely(rte_cpu_to_be_16(ip->total_length) < sizeof(struct rte_ipv4_hdr))) {
+		*edge = BAD_LENGTH;
+		return NULL;
+	}
+
+	return ip;
+}
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -44,46 +116,13 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		iface = NULL;
 		nh = NULL;
 		mbuf = objs[i];
-		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		e = eth_input_mbuf_data(mbuf);
 		d = ip_output_mbuf_data(mbuf);
 		iface = e->iface;
 
-		// RFC 1812 section 5.2.2 IP Header Validation
-		//
-		// (1) The packet length reported by the Link Layer must be large
-		//     enough to hold the minimum length legal IP datagram (20 bytes).
-		// XXX: already checked by hardware
-
-		// (2) The IP checksum must be correct.
-		switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
-		case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
-			// if this is not checked in H/W, check it.
-			if (rte_ipv4_cksum(ip)) {
-				edge = BAD_CHECKSUM;
-				goto next;
-			}
-			break;
-		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
-			edge = BAD_CHECKSUM;
+		ip = get_valid_ip_header(mbuf, &edge);
+		if (ip == NULL)
 			goto next;
-		}
-
-		// (3) The IP version number must be 4.  If the version number is not 4
-		//     then the packet may be another version of IP, such as IPng or
-		//     ST-II.
-		// (4) The IP header length field must be large enough to hold the
-		//     minimum length legal IP datagram (20 bytes = 5 words).
-		// XXX: already checked by hardware
-
-		// (5) The IP total length field must be large enough to hold the IP
-		//     datagram header, whose length is specified in the IP header
-		//     length field.
-		if (rte_cpu_to_be_16(ip->total_length) < sizeof(struct rte_ipv4_hdr)) {
-			edge = BAD_LENGTH;
-			goto next;
-		}
 
 		switch (e->domain) {
 		case ETH_DOMAIN_LOOPBACK:
@@ -148,6 +187,7 @@ static struct rte_node_register input_node = {
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",
 		[BAD_LENGTH] = "ip_input_bad_length",
+		[BAD_VERSION] = "ip_input_bad_version",
 		[OTHER_HOST] = "ip_input_other_host",
 	},
 };
@@ -162,4 +202,5 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
+GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
