@@ -9,7 +9,7 @@
 int port_unplug(uint16_t port_id);
 int port_plug(uint16_t port_id);
 
-size_t worker_count(void);
+unsigned worker_count(void);
 int worker_create(unsigned cpu_id);
 struct worker *worker_find(unsigned cpu_id);
 int worker_destroy(unsigned cpu_id);
