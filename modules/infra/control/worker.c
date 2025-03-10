@@ -93,9 +93,9 @@ int worker_destroy(unsigned cpu_id) {
 	return 0;
 }
 
-size_t worker_count(void) {
+unsigned worker_count(void) {
 	struct worker *worker;
-	size_t count = 0;
+	unsigned count = 0;
 
 	STAILQ_FOREACH (worker, &workers, next)
 		count++;
