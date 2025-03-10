@@ -330,7 +330,7 @@ static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
 	struct rte_eth_dev_info info;
 	struct worker *worker, *tmp;
-	size_t n_workers;
+	unsigned n_workers;
 	int ret;
 
 	port_unplug(port->port_id);
