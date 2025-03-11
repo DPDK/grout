@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'affinity.c',
   'events.c',
   'graph.c',
   'iface.c',
