@@ -96,8 +96,8 @@ cat > /etc/grout.init <<EOF
 add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
 add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
 # remap rxqs to isolated cpus
-set worker qmap p0 rxq 0 cpu 2
-set worker qmap p1 rxq 0 cpu 22
+set affinity qmap p0 rxq 0 cpu 2
+set affinity qmap p1 rxq 0 cpu 22
 add ip address 1.2.3.4/24 iface p0
 add ip address 4.3.2.1/24 iface p1
 add ip route 0.0.0.0/0 via 1.2.3.254
@@ -129,9 +129,9 @@ Nov 30 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] starting ti
 Nov 30 10:31:40 grout grcli[31302]: Created interface 1
 Nov 30 10:31:32 grout grcli[31302]: + add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
 Nov 30 10:31:40 grout grcli[31302]: Created interface 2
-Nov 30 10:31:33 grout grcli[31302]: + set port qmap p0 rxq 0 cpu 2
+Nov 30 10:31:33 grout grcli[31302]: + set affinity qmap p0 rxq 0 cpu 2
 Nov 30 10:31:33 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31304
-Nov 30 10:31:38 grout grcli[31302]: + set port qmap p1 rxq 0 cpu 22
+Nov 30 10:31:38 grout grcli[31302]: + set affinity qmap p1 rxq 0 cpu 22
 Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
 Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] shutting down tid=31303
 Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.0.2/24 iface p0
@@ -159,7 +159,7 @@ grout# show interface
 NAME  ID  FLAGS       VRF  TYPE  INFO
 p0    1   up running  0    port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
 p1    2   up running  0    port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
-grout# show port qmap
+grout# show affinity qmap
 IFACE  RXQ_ID  CPU_ID  ENABLED
 p0     0       2       1
 p1     0       22      1

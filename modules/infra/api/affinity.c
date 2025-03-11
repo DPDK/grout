@@ -61,17 +61,17 @@ static struct api_out rxq_set(const void *request, void ** /*response*/) {
 }
 
 static struct gr_api_handler rxq_list_handler = {
-	.name = "rxq list",
+	.name = "qmap list",
 	.request_type = GR_INFRA_RXQ_LIST,
 	.callback = rxq_list,
 };
 static struct gr_api_handler rxq_set_handler = {
-	.name = "rxq set",
+	.name = "qmap set",
 	.request_type = GR_INFRA_RXQ_SET,
 	.callback = rxq_set,
 };
 
-RTE_INIT(rxq_init) {
+RTE_INIT(_init) {
 	gr_register_api_handler(&rxq_list_handler);
 	gr_register_api_handler(&rxq_set_handler);
 }
