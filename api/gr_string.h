@@ -15,4 +15,7 @@ int utf8_check(const char *buf, size_t maxlen);
 // a list of CPUs with ranges (for example, "0,1,3-9").
 int cpuset_format(char *buf, size_t len, const cpu_set_t *set);
 
+// Parse a list of CPUs (e.g. "0,1,3-9") to a cpu_set_t object.
+int cpuset_parse(cpu_set_t *set, const char *buf);
+
 #endif

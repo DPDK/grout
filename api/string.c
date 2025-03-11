@@ -116,3 +116,50 @@ int cpuset_format(char *buf, size_t len, const cpu_set_t *set) {
 err:
 	return errno_set(errno);
 }
+
+static const char *parse_number(const char *buf, unsigned *num) {
+	char *next = NULL;
+	errno = 0;
+	*num = strtoul(buf, &next, 10);
+	if (errno != 0)
+		return errno_set_null(errno);
+	if (buf == next)
+		return errno_set_null(EINVAL);
+	return next;
+}
+
+int cpuset_parse(cpu_set_t *set, const char *buf) {
+	if (set == NULL || buf == NULL || *buf == '\0')
+		return errno_set(EINVAL);
+
+	CPU_ZERO(set);
+
+	while (*buf) {
+		unsigned start, end;
+
+		while (*buf == ',')
+			buf++;
+
+		buf = parse_number(buf, &start);
+		if (buf == NULL)
+			return errno_set(errno);
+
+		if (*buf == '-') {
+			buf = parse_number(++buf, &end);
+			if (buf == NULL)
+				return errno_set(errno);
+		} else {
+			end = start;
+		}
+
+		if (start > end)
+			return errno_set(ERANGE);
+		for (; start <= end; start++) {
+			if (start >= CPU_SETSIZE)
+				return errno_set(EOVERFLOW);
+			CPU_SET(start, set);
+		}
+	}
+
+	return 0;
+}
