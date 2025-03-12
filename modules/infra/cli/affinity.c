@@ -34,13 +34,13 @@ static cmd_status_t rxq_set(const struct gr_api_client *c, const struct ec_pnode
 static int rxqs_order(const void *a, const void *b) {
 	const struct gr_port_rxq_map *rxq_a = a;
 	const struct gr_port_rxq_map *rxq_b = b;
-	int v = rxq_a->iface_id - rxq_b->iface_id;
+	int v = rxq_a->cpu_id - rxq_b->cpu_id;
 	if (v != 0)
 		return v;
-	v = rxq_a->rxq_id - rxq_b->rxq_id;
+	v = rxq_a->iface_id - rxq_b->iface_id;
 	if (v != 0)
 		return v;
-	return rxq_a->cpu_id - rxq_b->cpu_id;
+	return rxq_a->rxq_id - rxq_b->rxq_id;
 }
 
 static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnode *) {
@@ -57,9 +57,9 @@ static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnod
 	resp = resp_ptr;
 	qsort(resp->rxqs, resp->n_rxqs, sizeof(*resp->rxqs), rxqs_order);
 
+	scols_table_new_column(table, "CPU_ID", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "RXQ_ID", 0, 0);
-	scols_table_new_column(table, "CPU_ID", 0, 0);
 	scols_table_new_column(table, "ENABLED", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
@@ -68,12 +68,12 @@ static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnod
 		const struct gr_port_rxq_map *q = &resp->rxqs[i];
 		struct gr_iface iface;
 
+		scols_line_sprintf(line, 0, "%u", q->cpu_id);
 		if (iface_from_id(c, q->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 0, "%s", iface.name);
+			scols_line_sprintf(line, 1, "%s", iface.name);
 		else
-			scols_line_sprintf(line, 0, "%u", q->iface_id);
-		scols_line_sprintf(line, 1, "%u", q->rxq_id);
-		scols_line_sprintf(line, 2, "%u", q->cpu_id);
+			scols_line_sprintf(line, 1, "%u", q->iface_id);
+		scols_line_sprintf(line, 2, "%u", q->rxq_id);
 		scols_line_sprintf(line, 3, "%u", q->enabled);
 	}
 
