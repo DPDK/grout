@@ -2,6 +2,8 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_config.h>
+#include <gr_control_output.h>
 #include <gr_infra.h>
 #include <gr_module.h>
 #include <gr_port.h>
@@ -11,6 +13,47 @@
 #include <errno.h>
 #include <sys/queue.h>
 #include <unistd.h>
+
+static struct api_out affinity_get(const void * /*request*/, void **response) {
+	struct gr_infra_cpu_affinity_get_resp *resp = calloc(1, sizeof(*resp));
+
+	if (resp == NULL)
+		return api_out(ENOMEM, 0);
+
+	resp->control_cpus = gr_config.control_cpus;
+	resp->datapath_cpus = gr_config.datapath_cpus;
+
+	*response = resp;
+
+	return api_out(0, sizeof(*resp));
+}
+
+static struct api_out affinity_set(const void *request, void ** /*response*/) {
+	const struct gr_infra_cpu_affinity_set_req *req = request;
+	int ret = 0;
+
+	if (CPU_COUNT(&req->control_cpus) > 0) {
+		ret = pthread_setaffinity_np(pthread_self(), CPU_SETSIZE, &req->control_cpus);
+		if (ret != 0)
+			goto out;
+
+		ret = control_output_set_affinity(CPU_SETSIZE, &req->control_cpus);
+		if (ret != 0)
+			goto out;
+
+		gr_config.control_cpus = req->control_cpus;
+	}
+	if (CPU_COUNT(&req->datapath_cpus) > 0) {
+		ret = worker_set_affinity(&req->datapath_cpus);
+		if (ret != 0)
+			goto out;
+
+		gr_config.datapath_cpus = req->datapath_cpus;
+	}
+
+out:
+	return api_out(ret, 0);
+}
 
 static struct api_out rxq_list(const void * /*request*/, void **response) {
 	struct gr_infra_rxq_list_resp *resp = NULL;
@@ -60,6 +103,16 @@ static struct api_out rxq_set(const void *request, void ** /*response*/) {
 	return api_out(0, 0);
 }
 
+static struct gr_api_handler affinity_get_handler = {
+	.name = "affinity get",
+	.request_type = GR_INFRA_CPU_AFFINITY_GET,
+	.callback = affinity_get,
+};
+static struct gr_api_handler affinity_set_handler = {
+	.name = "affinity set",
+	.request_type = GR_INFRA_CPU_AFFINITY_SET,
+	.callback = affinity_set,
+};
 static struct gr_api_handler rxq_list_handler = {
 	.name = "rxq list",
 	.request_type = GR_INFRA_RXQ_LIST,
@@ -71,7 +124,9 @@ static struct gr_api_handler rxq_set_handler = {
 	.callback = rxq_set,
 };
 
-RTE_INIT(rxq_init) {
+RTE_INIT(_init) {
 	gr_register_api_handler(&rxq_list_handler);
 	gr_register_api_handler(&rxq_set_handler);
+	gr_register_api_handler(&affinity_get_handler);
+	gr_register_api_handler(&affinity_set_handler);
 }

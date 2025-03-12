@@ -11,6 +11,49 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
+static cmd_status_t affinity_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_infra_cpu_affinity_set_req req = {0};
+	const char *arg;
+
+	if ((arg = arg_str(p, "CONTROL")) != NULL) {
+		if (cpuset_parse(&req.control_cpus, arg) < 0)
+			return CMD_ERROR;
+	}
+	if ((arg = arg_str(p, "DATAPATH")) != NULL) {
+		if (cpuset_parse(&req.datapath_cpus, arg) < 0)
+			return CMD_ERROR;
+	}
+
+	if (gr_api_client_send_recv(c, GR_INFRA_CPU_AFFINITY_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t affinity_show(const struct gr_api_client *c, const struct ec_pnode *) {
+	struct gr_infra_cpu_affinity_get_resp resp;
+	void *resp_ptr = NULL;
+	char buf[BUFSIZ];
+
+	if (gr_api_client_send_recv(c, GR_INFRA_CPU_AFFINITY_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	memcpy(&resp, resp_ptr, sizeof(resp));
+	free(resp_ptr);
+
+	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) < 0)
+		return CMD_ERROR;
+
+	printf("control-cpus %s\n", buf);
+
+	if (cpuset_format(buf, sizeof(buf), &resp.datapath_cpus) < 0)
+		return CMD_ERROR;
+
+	printf("datapath-cpus %s\n", buf);
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t rxq_set(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_rxq_set_req req;
 	struct gr_iface iface;
@@ -84,9 +127,35 @@ static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
+#define CPU_LIST_RE "^[0-9,-]+$"
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SET, CTX_ARG("affinity", "Configure CPU affinity.")),
+		"cpus (control CONTROL),(datapath DATAPATH)",
+		affinity_set,
+		"Change the CPU affinity lists.",
+		with_help(
+			"CPUs reserved for control plane threads.",
+			ec_node_re("CONTROL", CPU_LIST_RE)
+		),
+		with_help(
+			"CPUs reserved for datapath worker threads.",
+			ec_node_re("DATAPATH", CPU_LIST_RE)
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("affinity", "Display CPU affinity.")),
+		"cpus",
+		affinity_show,
+		"Display CPU affinity lists."
+	);
+	if (ret < 0)
+		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SET, CTX_ARG("affinity", "Configure CPU affinity.")),
 		"qmap NAME rxq RXQ cpu CPU",
