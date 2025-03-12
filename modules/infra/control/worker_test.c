@@ -23,6 +23,8 @@ static struct iface *ifaces[] = {NULL, NULL, NULL};
 static struct worker w1 = {.cpu_id = 1, .started = true};
 static struct worker w2 = {.cpu_id = 2, .started = true};
 static struct worker w3 = {.cpu_id = 3, .started = true};
+static struct worker w4 = {.cpu_id = 4, .started = true};
+static struct worker w5 = {.cpu_id = 5, .started = true};
 static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
@@ -81,7 +83,9 @@ mock_func(
 	int,
 	__wrap_rte_eth_tx_queue_setup(uint16_t, uint16_t, uint16_t, unsigned int, const struct rte_eth_txconf *)
 );
+mock_func(int, __wrap_numa_available(int));
 mock_func(int, __wrap_numa_node_of_cpu(int));
+mock_func(int, __wrap_rte_eth_dev_socket_id(uint16_t));
 mock_func(int, __wrap_rte_eth_dev_start(uint16_t));
 mock_func(const char *, __wrap_rte_dev_name(struct rte_device *));
 mock_func(
@@ -178,18 +182,21 @@ static void common_mocks(void) {
 	will_return_maybe(worker_graph_free, 0);
 	will_return_maybe(worker_graph_reload, 0);
 	will_return_maybe(worker_graph_reload_all, 0);
+	will_return_maybe(__wrap_numa_available, 0);
+	will_return_maybe(__wrap_numa_node_of_cpu, 0);
 	will_return_maybe(__wrap_pthread_create, 0);
 	will_return_maybe(__wrap_pthread_join, 0);
 	will_return_maybe(__wrap_rte_dev_name, "");
 	will_return_maybe(__wrap_rte_eth_dev_configure, 0);
+	will_return_maybe(__wrap_rte_eth_dev_get_mtu, 0);
 	will_return_maybe(__wrap_rte_eth_dev_info_get, 0);
+	will_return_maybe(__wrap_rte_eth_dev_socket_id, 0);
 	will_return_maybe(__wrap_rte_eth_dev_start, 0);
 	will_return_maybe(__wrap_rte_eth_dev_stop, 0);
+	will_return_maybe(__wrap_rte_eth_macaddr_get, 0);
 	will_return_maybe(__wrap_rte_eth_rx_queue_setup, 0);
 	will_return_maybe(__wrap_rte_eth_tx_queue_setup, 0);
 	will_return_maybe(__wrap_rte_free, 0);
-	will_return_maybe(__wrap_rte_eth_dev_get_mtu, 0);
-	will_return_maybe(__wrap_rte_eth_macaddr_get, 0);
 	will_return_maybe(__wrap_rte_mempool_free, 0);
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);
 	will_return_maybe(gr_pktmbuf_pool_get, 1);
@@ -304,6 +311,78 @@ static void rxq_assign_new_worker2(void **) {
 	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
+static void queue_distribute_reduce(void **) {
+	common_mocks();
+
+	cpu_set_t affinity;
+	CPU_ZERO(&affinity);
+	CPU_SET(4, &affinity);
+	CPU_SET(5, &affinity);
+	struct iface_info_port **ports = NULL;
+	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
+		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
+
+	will_return(__wrap_rte_zmalloc, &w4);
+	will_return(__wrap_rte_zmalloc, &w5);
+	assert_int_equal(worker_queue_distribute(&affinity, ports), 0);
+	gr_vec_free(ports);
+	assert_int_equal(worker_count(), 2);
+
+	assert_qmaps(w1.rxqs);
+	assert_qmaps(w2.rxqs);
+	assert_qmaps(w3.rxqs);
+	assert_qmaps(w4.rxqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w5.rxqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w1.txqs);
+	assert_qmaps(w2.txqs);
+	assert_qmaps(w3.txqs);
+	assert_qmaps(w4.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
+
+	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
+		struct iface_info_port *p = (struct iface_info_port *)ifaces[i]->info;
+		assert_int_equal(p->n_txq, CPU_COUNT(&affinity));
+	}
+}
+
+static void queue_distribute_increase(void **) {
+	common_mocks();
+
+	cpu_set_t affinity;
+	CPU_ZERO(&affinity);
+	CPU_SET(1, &affinity);
+	CPU_SET(2, &affinity);
+	CPU_SET(3, &affinity);
+	CPU_SET(4, &affinity);
+	CPU_SET(5, &affinity);
+	struct iface_info_port **ports = NULL;
+	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
+		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
+
+	will_return(__wrap_rte_zmalloc, &w1);
+	will_return(__wrap_rte_zmalloc, &w2);
+	will_return(__wrap_rte_zmalloc, &w3);
+	assert_int_equal(worker_queue_distribute(&affinity, ports), 0);
+	gr_vec_free(ports);
+	assert_int_equal(worker_count(), 5);
+
+	assert_qmaps(w1.rxqs, q(0, 0), q(2, 1));
+	assert_qmaps(w2.rxqs, q(0, 1));
+	assert_qmaps(w3.rxqs, q(1, 0));
+	assert_qmaps(w4.rxqs, q(1, 1));
+	assert_qmaps(w5.rxqs, q(2, 0));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w4.txqs, q(0, 3), q(1, 3), q(2, 3));
+	assert_qmaps(w5.txqs, q(0, 4), q(1, 4), q(2, 4));
+
+	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
+		struct iface_info_port *p = (struct iface_info_port *)ifaces[i]->info;
+		assert_int_equal(p->n_txq, CPU_COUNT(&affinity));
+	}
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(rxq_assign_main_lcore),
@@ -316,6 +395,8 @@ int main(void) {
 		cmocka_unit_test(rxq_assign_new_worker),
 		cmocka_unit_test(rxq_assign_new_worker_destroy),
 		cmocka_unit_test(rxq_assign_new_worker2),
+		cmocka_unit_test(queue_distribute_reduce),
+		cmocka_unit_test(queue_distribute_increase),
 	};
 	return cmocka_run_group_tests(tests, setup, teardown);
 }
