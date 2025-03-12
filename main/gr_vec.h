@@ -15,21 +15,21 @@ struct __gr_vec_hdr {
 };
 
 // (internal) get a pointer the vector header
-static inline struct __gr_vec_hdr *__gr_vec_hdr(void *vec) {
+static inline struct __gr_vec_hdr *__gr_vec_hdr(const void *vec) {
 	if (vec == NULL)
 		return NULL;
 	return ((struct __gr_vec_hdr *)vec) - 1;
 }
 
 // (internal) get the current capacity of a vector
-static inline size_t __gr_vec_cap(void *vec) {
+static inline size_t __gr_vec_cap(const void *vec) {
 	if (vec == NULL)
 		return 0;
 	return __gr_vec_hdr(vec)->cap;
 }
 
 // get the size of a vector
-static inline size_t gr_vec_len(void *vec) {
+static inline size_t gr_vec_len(const void *vec) {
 	if (vec == NULL)
 		return 0;
 	return __gr_vec_hdr(vec)->len;
