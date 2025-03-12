@@ -22,7 +22,7 @@ static struct iface *ifaces[] = {NULL, NULL, NULL};
 static struct worker w1 = {.cpu_id = 1, .started = true};
 static struct worker w2 = {.cpu_id = 2, .started = true};
 static struct worker w3 = {.cpu_id = 3, .started = true};
-static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
+static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
 extern int gr_rte_log_type;
