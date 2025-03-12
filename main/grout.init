@@ -4,15 +4,12 @@
 # This file is piped into 'grcli -xe' after grout has started successfully.
 # Uncomment the examples below and/or add your own commands.
 
+# Datapath CPU affinity
+#set affinity cpus control 0,1 datapath 2,22,4,24
+
 # Physical ports creation
 #add interface port p0 devargs 0000:4b:00.0 rxqs 2
 #add interface port p1 devargs 0000:4b:00.1 rxqs 2
-
-# Physical queue mapping
-#set affinity qmap p0 rxq 0 cpu 2
-#set affinity qmap p0 rxq 1 cpu 22
-#set affinity qmap p1 rxq 0 cpu 4
-#set affinity qmap p1 rxq 1 cpu 24
 
 # Interface addresses
 #add ip address 1.2.3.4/24 iface p0

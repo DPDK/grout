@@ -93,11 +93,9 @@ See DPDK documentation for more details:
 ```sh
 # Startup configuration.
 cat > /etc/grout.init <<EOF
+set affinity cpus control 0,1,20,21 datapath 2,22
 add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
 add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
-# remap rxqs to isolated cpus
-set affinity qmap p0 rxq 0 cpu 2
-set affinity qmap p1 rxq 0 cpu 22
 add ip address 1.2.3.4/24 iface p0
 add ip address 4.3.2.1/24 iface p1
 add ip route 0.0.0.0/0 via 1.2.3.254
@@ -125,15 +123,11 @@ Nov 30 10:31:31 grout systemd[1]: Starting Graph router daemon...
 Nov 30 10:31:31 grout grout[31299]: GROUT: main: starting grout version v0.2-93-gf53240e3750a
 Nov 30 10:31:31 grout grout[31299]: GROUT: dpdk_init: DPDK 24.11.0
 Nov 30 10:31:31 grout grcli[31302]: + add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
-Nov 30 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] starting tid=31303
+Nov 30 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31303
 Nov 30 10:31:40 grout grcli[31302]: Created interface 1
 Nov 30 10:31:32 grout grcli[31302]: + add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
+Nov 30 10:31:34 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
 Nov 30 10:31:40 grout grcli[31302]: Created interface 2
-Nov 30 10:31:33 grout grcli[31302]: + set affinity qmap p0 rxq 0 cpu 2
-Nov 30 10:31:33 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31304
-Nov 30 10:31:38 grout grcli[31302]: + set affinity qmap p1 rxq 0 cpu 22
-Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
-Nov 30 10:31:38 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 1] shutting down tid=31303
 Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.0.2/24 iface p0
 Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.1.2/24 iface p1
 Nov 30 10:31:40 grout grcli[31302]: + add ip route 0.0.0.0/0 via 172.16.1.183
@@ -280,7 +274,7 @@ make
 The binaries are located in the build directory:
 
 ```console
-[root@dev grout]$ taskset --cpu-list 0,2,22 ./build/grout -v -s grout.sock
+[root@dev grout]$ ./build/grout -v -s grout.sock
 INFO: GROUT: dpdk_init: starting grout version v0.2-93-gf53240e3750a
 INFO: GROUT: dpdk_init: DPDK 24.11.0
 INFO: GROUT: dpdk_init: EAL arguments: -l 0 -a 0000:00:00.0 --log-level=*:notice --log-level=grout:info
