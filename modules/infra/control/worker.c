@@ -304,6 +304,26 @@ int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **
 		if (numa_available() != -1)
 			socket_id = rte_eth_dev_socket_id(port->port_id);
 
+		if (CPU_COUNT(affinity) != CPU_COUNT(&gr_config.datapath_cpus)) {
+			// Affinity was changed and contains a different number of CPUs.
+			// The number of TXQs must be adjusted accordingly.
+			bool was_started = port->started;
+			if (port->started && (ret = rte_eth_dev_stop(port->port_id)) < 0) {
+				errno_log(-ret, "rte_eth_dev_stop");
+				goto end;
+			}
+			port->started = false;
+			if ((ret = port_configure(port, CPU_COUNT(affinity))) < 0) {
+				errno_log(-ret, "port_configure");
+				goto end;
+			}
+			if (was_started && (ret = rte_eth_dev_start(port->port_id)) < 0) {
+				errno_log(-ret, "rte_eth_dev_start");
+				goto end;
+			}
+			port->started = was_started;
+		}
+
 		for (uint16_t rxq = 0; rxq < port->n_rxq; rxq++) {
 			// find CPU in the affinity where to assign RXQ
 			unsigned j = 0;
