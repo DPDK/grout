@@ -279,4 +279,23 @@ struct gr_infra_packet_trace_set_req {
 // struct gr_infra_packet_log_clear_req { };
 // struct gr_infra_packet_log_clear_resp { };
 
+// cpu affinities //////////////////////////////////////////////////////////////
+#define GR_INFRA_CPU_AFFINITY_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0050)
+
+// struct gr_infra_cpu_affinity_get_req { };
+
+struct gr_infra_cpu_affinity_get_resp {
+	cpu_set_t control_cpus;
+	cpu_set_t datapath_cpus;
+};
+
+#define GR_INFRA_CPU_AFFINITY_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0051)
+
+struct gr_infra_cpu_affinity_set_req {
+	cpu_set_t control_cpus;
+	cpu_set_t datapath_cpus;
+};
+
+// struct gr_infra_cpu_affinity_set_resp { };
+
 #endif
