@@ -163,6 +163,11 @@ static int port_configure(struct iface_info_port *p) {
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return errno_log(-ret, "rte_eth_dev_info_get");
 
+	if (strcmp(info.driver_name, "net_tap") == 0) {
+		p->n_txq = RTE_MAX(p->n_txq, p->n_rxq);
+		p->n_rxq = p->n_txq;
+	}
+
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
 
