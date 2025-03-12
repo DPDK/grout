@@ -100,8 +100,28 @@ static inline void *__gr_vec_shift_range(void *vec, size_t item_size, size_t sta
 	return vec;
 }
 
+// (internal) clone a vector
+static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
+	struct __gr_vec_hdr *hdr;
+
+	if (gr_vec_len(vec) == 0)
+		return NULL;
+
+	hdr = malloc(sizeof(*hdr) + (gr_vec_len(vec) * item_size));
+	if (hdr == NULL)
+		abort();
+
+	hdr->len = hdr->cap = gr_vec_len(vec);
+	memcpy(hdr + 1, vec, gr_vec_len(vec) * item_size);
+
+	return hdr + 1;
+}
+
 // free a previously allocated vector
 #define gr_vec_free(v) ((v) ? free(__gr_vec_hdr(v)) : (void)0, (v) = NULL)
+
+// clone a vector into a new one
+#define gr_vec_clone(v) __gr_vec_clone(v, sizeof(*(v)))
 
 // force a vector with a specified min capacity
 #define gr_vec_cap_set(v, c) ((v) = __gr_vec_grow((v), sizeof(*(v)), 0, (c)))
