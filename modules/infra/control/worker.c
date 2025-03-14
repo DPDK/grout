@@ -217,6 +217,9 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	if (CPU_ISSET(cpu_id, &gr_config.control_cpus))
 		return errno_set(EBUSY);
 
+	if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
+		return errno_set(ERANGE);
+
 	STAILQ_FOREACH (src_worker, &workers, next) {
 		gr_vec_foreach_ref (qmap, src_worker->rxqs) {
 			if (qmap->port_id != port_id)

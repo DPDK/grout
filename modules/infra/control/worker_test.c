@@ -196,6 +196,8 @@ static void common_mocks(void) {
 	CPU_SET(0, &gr_config.control_cpus);
 	CPU_ZERO(&gr_config.datapath_cpus);
 	CPU_SET(1, &gr_config.datapath_cpus);
+	CPU_SET(2, &gr_config.datapath_cpus);
+	CPU_SET(3, &gr_config.datapath_cpus);
 }
 
 static void rxq_assign_main_lcore(void **) {
@@ -205,11 +207,6 @@ static void rxq_assign_main_lcore(void **) {
 }
 
 static void rxq_assign_invalid_cpu(void **) {
-	struct worker tmp;
-	will_return(__wrap_rte_zmalloc, &tmp);
-	will_return(__wrap_pthread_create, ERANGE);
-	will_return(__wrap_pthread_cancel, 0);
-	will_return(__wrap_rte_free, 0);
 	CPU_ZERO(&gr_config.control_cpus);
 	CPU_SET(0, &gr_config.control_cpus);
 	assert_int_equal(worker_rxq_assign(0, 0, 9999), -ERANGE);
