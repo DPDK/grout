@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <gr.h>
+#include <gr_config.h>
 #include <gr_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
@@ -133,12 +133,12 @@ void *gr_datapath_loop(void *priv) {
 	}
 
 	w->lcore_id = rte_lcore_id();
-	snprintf(name, 15, "gr:loop-c%d", w->cpu_id);
+	snprintf(name, 15, "gr:worker-c%d", w->cpu_id);
 	if (pthread_setname_np(pthread_self(), name)) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
 		return NULL;
 	}
-	if (!gr_args()->poll_mode) {
+	if (!gr_config.poll_mode) {
 		if (prctl(PR_SET_TIMERSLACK, SLEEP_RESOLUTION_NS) < 0) {
 			log(ERR, "prctl(PR_SET_TIMERSLACK): %s", strerror(errno));
 			return NULL;

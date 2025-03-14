@@ -3,7 +3,7 @@
 
 #include "worker_priv.h"
 
-#include <gr.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -162,6 +162,11 @@ static int port_configure(struct iface_info_port *p) {
 
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return errno_log(-ret, "rte_eth_dev_info_get");
+
+	if (strcmp(info.driver_name, "net_tap") == 0) {
+		p->n_txq = RTE_MAX(p->n_txq, p->n_rxq);
+		p->n_rxq = p->n_txq;
+	}
 
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
@@ -325,7 +330,7 @@ static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
 	struct rte_eth_dev_info info;
 	struct worker *worker, *tmp;
-	size_t n_workers;
+	unsigned n_workers;
 	int ret;
 
 	port_unplug(port->port_id);
@@ -634,7 +639,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	struct iface *iface;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		if (gr_args()->poll_mode)
+		if (gr_config.poll_mode)
 			max_sleep_us = 0;
 		else
 			max_sleep_us = 1000; // unreasonably long maximum (1ms)
@@ -667,7 +672,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				}
 				continue;
 			}
-			if (gr_args()->poll_mode)
+			if (gr_config.poll_mode)
 				continue;
 
 			switch (link.link_speed) {

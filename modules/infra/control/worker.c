@@ -4,12 +4,14 @@
 #include "graph_priv.h"
 #include "worker_priv.h"
 
+#include <gr_config.h>
 #include <gr_datapath.h>
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
 
@@ -94,9 +96,9 @@ int worker_destroy(unsigned cpu_id) {
 	return 0;
 }
 
-size_t worker_count(void) {
+unsigned worker_count(void) {
 	struct worker *worker;
-	size_t count = 0;
+	unsigned count = 0;
 
 	STAILQ_FOREACH (worker, &workers, next)
 		count++;
@@ -142,14 +144,8 @@ int port_unplug(uint16_t port_id) {
 }
 
 int worker_ensure_default(int socket_id) {
-	unsigned main_lcore = rte_get_main_lcore();
 	struct worker *worker;
-	cpu_set_t affinity;
 	unsigned cpu_id;
-	int ret;
-
-	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)))
-		return errno_log(ret, "pthread_getaffinity_np");
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		if (socket_id == SOCKET_ID_ANY)
@@ -161,20 +157,20 @@ int worker_ensure_default(int socket_id) {
 	if (socket_id == SOCKET_ID_ANY && numa_available() != -1)
 		socket_id = numa_preferred();
 
-	// try to spawn the default worker on the correct socket excluding the main lcore
+	// try to spawn the default worker using the first available datapath cpu
+	// on the correct socket
 	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (cpu_id == main_lcore)
-			continue;
-		if (!CPU_ISSET(cpu_id, &affinity))
+		if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
 			continue;
 		if (socket_id != numa_node_of_cpu(cpu_id))
 			continue;
 		return worker_create(cpu_id);
 	}
 
-	// no available cpu found, fallback on whatever is left, even on the wrong socket
+	// no available cpu found on the requested socket, fallback on whatever
+	// datapath cpu is available
 	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (!CPU_ISSET(cpu_id, &affinity))
+		if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
 			continue;
 		LOG(WARNING,
 		    "no ideal CPU found on socket %d for a new worker, falling back to CPU %u",
@@ -183,7 +179,7 @@ int worker_ensure_default(int socket_id) {
 		return worker_create(cpu_id);
 	}
 
-	// should not happen as at least main_lcore should be usable
+	// should never happen
 	return errno_log(ERANGE, "socket_id");
 }
 
@@ -220,7 +216,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	struct queue_map *qmap;
 	int ret;
 
-	if (cpu_id == rte_get_main_lcore())
+	if (CPU_ISSET(cpu_id, &gr_config.control_cpus))
 		return errno_set(EBUSY);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
@@ -301,6 +297,116 @@ move:
 	}
 
 	return worker_graph_reload(dst_worker);
+}
+
+int worker_set_affinity(const cpu_set_t *affinity) {
+	struct queue_map *orphan_rxqs = NULL;
+	cpu_set_t available_cpus = *affinity;
+	struct worker *worker, *tmp;
+	char buf[BUFSIZ];
+	int ret = 0;
+
+	if (cpuset_format(buf, sizeof(buf), affinity) < 0) {
+		LOG(WARNING, "failed to format new cpu affinity: %s", strerror(errno));
+		buf[sizeof(buf) - 1] = '\0';
+	}
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		if (CPU_ISSET(worker->cpu_id, &available_cpus))
+			CPU_CLR(worker->cpu_id, &available_cpus);
+	}
+
+	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
+		if (CPU_ISSET(worker->cpu_id, affinity))
+			continue;
+
+		LOG(INFO, "worker on CPU %u outside of new affinity %s", worker->cpu_id, buf);
+
+		struct queue_map *rxq;
+		if (CPU_COUNT(&available_cpus) == 0) {
+			LOG(WARNING,
+			    "no remaining free CPUs, RXQs assigned to CPU %u will be "
+			    "redistributed among existing workers",
+			    worker->cpu_id);
+			gr_vec_foreach_ref (rxq, worker->rxqs)
+				gr_vec_add(orphan_rxqs, *rxq);
+			worker_destroy(worker->cpu_id);
+			continue;
+		}
+
+		// Find first unused CPU in new affinity and same NUMA socket.
+		int socket_id = SOCKET_ID_ANY;
+		if (numa_available() != -1)
+			socket_id = numa_node_of_cpu(worker->cpu_id);
+
+		unsigned cpu;
+		for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+			if (!CPU_ISSET(cpu, &available_cpus))
+				continue;
+			if (socket_id == SOCKET_ID_ANY || numa_node_of_cpu(cpu) == socket_id)
+				break;
+		}
+		if (cpu == CPU_SETSIZE) {
+			// No available CPU in the correct socket.
+			// Fallback on whatever is available.
+			LOG(WARNING, "no available CPU in socket %d with new affinity", socket_id);
+			for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+				if (CPU_ISSET(cpu, &available_cpus))
+					break;
+			}
+		}
+
+		assert(cpu != CPU_SETSIZE);
+
+		// Copy worker rxqs to a temp vector since the worker will be freed.
+		struct queue_map *rxqs = gr_vec_clone(worker->rxqs);
+
+		// Move all RXQs to a new worker on the selected CPU.
+		gr_vec_foreach_ref (rxq, rxqs) {
+			LOG(INFO,
+			    "assigning port %u RXQ %u to CPU %u",
+			    rxq->port_id,
+			    rxq->queue_id,
+			    cpu);
+			if ((ret = worker_rxq_assign(rxq->port_id, rxq->queue_id, cpu)) < 0) {
+				LOG(ERR, "worker_rxq_assign: %s", strerror(errno));
+				gr_vec_free(rxqs);
+				goto end;
+			}
+		}
+
+		gr_vec_free(rxqs);
+		CPU_CLR(cpu, &available_cpus);
+	}
+
+	// Redistribute orphan RXQs among existing workers.
+	worker = NULL;
+	while (gr_vec_len(orphan_rxqs) > 0) {
+		struct queue_map q = gr_vec_pop(orphan_rxqs);
+
+		if (worker == NULL) {
+			worker = STAILQ_FIRST(&workers);
+		} else {
+			worker = STAILQ_NEXT(worker, next);
+			if (worker == NULL)
+				worker = STAILQ_FIRST(&workers);
+		}
+
+		LOG(INFO,
+		    "redistributing port %u RXQ %u to CPU %u",
+		    q.port_id,
+		    q.queue_id,
+		    worker->cpu_id);
+		gr_vec_add(worker->rxqs, q);
+		if ((ret = worker_graph_reload(worker)) < 0) {
+			LOG(ERR, "worker_graph_reload: %s", strerror(errno));
+			goto end;
+		}
+	}
+
+end:
+	gr_vec_free(orphan_rxqs);
+	return ret;
 }
 
 static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {

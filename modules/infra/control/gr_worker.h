@@ -66,5 +66,6 @@ STAILQ_HEAD(workers, worker);
 extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
+int worker_set_affinity(const cpu_set_t *affinity);
 
 #endif

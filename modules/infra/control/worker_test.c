@@ -3,11 +3,12 @@
 
 #include "worker_priv.h"
 
-#include <gr.h>
 #include <gr_api.h>
 #include <gr_cmocka.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_infra.h>
+#include <gr_log.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
 #include <gr_port.h>
@@ -22,22 +23,17 @@ static struct iface *ifaces[] = {NULL, NULL, NULL};
 static struct worker w1 = {.cpu_id = 1, .started = true};
 static struct worker w2 = {.cpu_id = 2, .started = true};
 static struct worker w3 = {.cpu_id = 3, .started = true};
-static struct rte_eth_dev_info dev_info = {.nb_rx_queues = 2};
+static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
-extern int gr_rte_log_type;
 int gr_rte_log_type;
+struct gr_config gr_config;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
-
-static struct gr_args args;
-const struct gr_args *gr_args(void) {
-	return &args;
-}
 
 struct iface *iface_from_id(uint16_t ifid) {
 	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
@@ -96,7 +92,6 @@ mock_func(int, __wrap_pthread_cancel(pthread_t));
 mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
-mock_func(unsigned, __wrap_rte_get_main_lcore(void));
 
 #define assert_qmaps(qmaps, ...)                                                                   \
 	do {                                                                                       \
@@ -194,24 +189,29 @@ static void common_mocks(void) {
 	will_return_maybe(__wrap_rte_free, 0);
 	will_return_maybe(__wrap_rte_eth_dev_get_mtu, 0);
 	will_return_maybe(__wrap_rte_eth_macaddr_get, 0);
-	will_return_maybe(__wrap_rte_get_main_lcore, 0);
 	will_return_maybe(__wrap_rte_mempool_free, 0);
 	will_return_maybe(__wrap_rte_pktmbuf_pool_create, 1);
 	will_return_maybe(gr_pktmbuf_pool_get, 1);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(0, &gr_config.control_cpus);
+	CPU_ZERO(&gr_config.datapath_cpus);
+	CPU_SET(1, &gr_config.datapath_cpus);
 }
 
 static void rxq_assign_main_lcore(void **) {
-	will_return(__wrap_rte_get_main_lcore, 4);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(4, &gr_config.control_cpus);
 	assert_int_equal(worker_rxq_assign(0, 0, 4), -EBUSY);
 }
 
 static void rxq_assign_invalid_cpu(void **) {
 	struct worker tmp;
-	will_return(__wrap_rte_get_main_lcore, 0);
 	will_return(__wrap_rte_zmalloc, &tmp);
 	will_return(__wrap_pthread_create, ERANGE);
 	will_return(__wrap_pthread_cancel, 0);
 	will_return(__wrap_rte_free, 0);
+	CPU_ZERO(&gr_config.control_cpus);
+	CPU_SET(0, &gr_config.control_cpus);
 	assert_int_equal(worker_rxq_assign(0, 0, 9999), -ERANGE);
 }
 
