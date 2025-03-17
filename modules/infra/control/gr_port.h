@@ -32,7 +32,7 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 	uint16_t port_id;
 	uint8_t n_rxq;
 	uint8_t n_txq;
-	bool configured;
+	bool started;
 	uint16_t rxq_size;
 	uint16_t txq_size;
 	struct rte_ether_addr mac;

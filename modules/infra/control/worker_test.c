@@ -136,6 +136,7 @@ static int setup(void **) {
 		assert_non_null(iface);
 		port = (struct iface_info_port *)iface->info;
 		iface->id = i;
+		port->started = true;
 		port->port_id = i;
 		port->n_rxq = 2;
 		ifaces[i] = iface;
