@@ -76,71 +76,7 @@ static struct rte_eth_conf default_port_config = {
 	},
 };
 
-static void port_queue_assign(struct iface_info_port *p) {
-	struct worker *worker, *default_worker = NULL;
-	int socket_id = SOCKET_ID_ANY;
-	uint64_t rxq_ids = 0;
-	uint16_t txq = 0;
-
-	// XXX: can we assume there will never be more than 64 rxqs per port?
-	assert(p->n_rxq <= 64);
-
-	if (numa_available() != -1)
-		socket_id = rte_eth_dev_socket_id(p->port_id);
-
-	STAILQ_FOREACH (worker, &workers, next) {
-		struct queue_map tx_qmap = {
-			.port_id = p->port_id,
-			.queue_id = txq,
-			.enabled = p->started,
-		};
-		// remove the existing txq assigned to this worker, if any
-		for (size_t i = 0; i < gr_vec_len(worker->txqs); i++) {
-			if (worker->txqs[i].port_id == p->port_id) {
-				gr_vec_del_swap(worker->txqs, i);
-				i--;
-			}
-		}
-		// assign one (dedicated) txq to every worker
-		gr_vec_add(worker->txqs, tx_qmap);
-		txq++;
-
-		// walk through all assigned rxqs for this worker
-		for (size_t i = 0; i < gr_vec_len(worker->rxqs); i++) {
-			struct queue_map *qmap = &worker->rxqs[i];
-			if (qmap->port_id == p->port_id) {
-				if (qmap->queue_id < p->n_rxq) {
-					// memorize that this rxq is already assigned
-					rxq_ids |= GR_BIT64(qmap->queue_id);
-				} else {
-					// number of rxqs was reduced for this port
-					// remove the now invalid rxq from this worker
-					gr_vec_del_swap(worker->rxqs, i);
-					i--;
-				}
-			}
-		}
-		// get an handle on the default worker for unassigned rxqs
-		if (socket_id == SOCKET_ID_ANY || socket_id == numa_node_of_cpu(worker->cpu_id)) {
-			default_worker = worker;
-		}
-	}
-
-	// assign unassigned rxqs to the default worker, if any
-	assert(default_worker != NULL);
-	for (uint16_t rxq = 0; rxq < p->n_rxq; rxq++) {
-		if (rxq_ids & GR_BIT64(rxq))
-			continue;
-		struct queue_map rx_qmap = {
-			.port_id = p->port_id,
-			.queue_id = rxq,
-			.enabled = p->started,
-		};
-		gr_vec_add(default_worker->rxqs, rx_qmap);
-	}
-}
-
-static int port_configure(struct iface_info_port *p) {
+int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	struct rte_eth_conf conf = default_port_config;
 	int socket_id = SOCKET_ID_ANY;
 	struct rte_eth_dev_info info;
@@ -151,12 +87,8 @@ static int port_configure(struct iface_info_port *p) {
 	if (numa_available() != -1)
 		socket_id = rte_eth_dev_socket_id(p->port_id);
 
-	// ensure there is a datapath worker running on the socket where the port is
-	if ((ret = worker_ensure_default(socket_id)) < 0)
-		return ret;
-
 	// FIXME: deal with drivers that do not support more than 1 (or N) tx queues
-	p->n_txq = worker_count();
+	p->n_txq = n_txq_min;
 	if (p->n_rxq == 0)
 		p->n_rxq = 1;
 
@@ -210,12 +142,10 @@ static int port_configure(struct iface_info_port *p) {
 			return errno_log(-ret, "rte_eth_tx_queue_setup");
 	}
 
-	port_queue_assign(p);
-
 	return 0;
 }
 
-int iface_port_reconfig(
+static int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
 	const struct gr_iface *conf,
@@ -248,8 +178,30 @@ int iface_port_reconfig(
 			return errno_log(-ret, "rte_eth_dev_stop");
 		p->started = false;
 	}
-	if (needs_configure && (ret = port_configure(p)) < 0)
-		return ret;
+
+	if (needs_configure) {
+		if ((ret = port_configure(p, CPU_COUNT(&gr_config.datapath_cpus))) < 0)
+			return ret;
+
+		// generate a list of ports including the one being configured/created
+		struct iface_info_port **ports = NULL;
+		struct iface *i = NULL;
+		bool found = false;
+		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
+			struct iface_info_port *port = (struct iface_info_port *)i->info;
+			if (port == p)
+				found = true;
+			gr_vec_add(ports, port);
+		}
+		if (!found) {
+			// port is being created, not present in the global list yet
+			gr_vec_add(ports, p);
+		}
+		ret = worker_queue_distribute(&gr_config.datapath_cpus, ports);
+		gr_vec_free(ports);
+		if (ret < 0)
+			return ret;
+	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
 		if (conf->flags & GR_IFACE_F_PROMISC)
@@ -329,12 +281,23 @@ static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
 
 static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port **ports = NULL;
 	struct rte_eth_dev_info info;
-	struct worker *worker, *tmp;
-	unsigned n_workers;
+	struct iface *i = NULL;
 	int ret;
 
-	port_unplug(port->port_id);
+	if (worker_count() > 0) {
+		// unplug port from all workers
+		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
+			struct iface_info_port *p = (struct iface_info_port *)i->info;
+			if (p != port)
+				gr_vec_add(ports, p);
+		}
+		ret = worker_queue_distribute(&gr_config.datapath_cpus, ports);
+		gr_vec_free(ports);
+		if (ret < 0)
+			return errno_log(-ret, "worker_queue_reassign");
+	}
 
 	port_ifaces[port->port_id] = NULL;
 
@@ -355,34 +318,6 @@ static int iface_port_fini(struct iface *iface) {
 
 	LOG(INFO, "port %u destroyed", port->port_id);
 
-	n_workers = worker_count();
-	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
-		for (size_t i = 0; i < gr_vec_len(worker->rxqs); i++) {
-			if (worker->rxqs[i].port_id == port->port_id) {
-				gr_vec_del_swap(worker->rxqs, i);
-				i--;
-			}
-		}
-		if (gr_vec_len(worker->rxqs) == 0)
-			worker_destroy(worker->cpu_id);
-	}
-	if (worker_count() != n_workers) {
-		// update the number of tx queues for all ports
-		struct iface *iface = NULL;
-		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-			struct iface_info_port p = {.n_txq = 0};
-			struct gr_iface conf = {
-				.flags = iface->flags,
-				.mtu = iface->mtu,
-				.mode = iface->mode,
-				.vrf_id = iface->vrf_id
-			};
-			ret = iface_port_reconfig(iface, GR_PORT_SET_N_TXQS, &conf, &p);
-			if (ret < 0)
-				goto out;
-		}
-	}
-out:
 	return ret;
 }
 

@@ -287,7 +287,7 @@ static void rxq_assign_new_worker_destroy(void **) {
 	assert_qmaps(w3.rxqs, q(2, 1));
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs);
-	assert_qmaps(w3.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 static void rxq_assign_new_worker2(void **) {
@@ -300,8 +300,8 @@ static void rxq_assign_new_worker2(void **) {
 	assert_qmaps(w2.rxqs, q(2, 0));
 	assert_qmaps(w3.rxqs, q(2, 1));
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
-	assert_qmaps(w2.txqs, q(0, 2), q(1, 2), q(2, 2));
-	assert_qmaps(w3.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 int main(void) {
