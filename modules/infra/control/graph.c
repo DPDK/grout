@@ -231,6 +231,9 @@ int worker_graph_reload(struct worker *worker) {
 	unsigned next = !atomic_load(&worker->cur_config);
 	int ret;
 
+	if (hash == NULL)
+		return errno_set(EIO);
+
 	if ((ret = worker_graph_new(worker, next)) < 0)
 		return errno_log(-ret, "worker_graph_new");
 

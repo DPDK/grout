@@ -44,11 +44,6 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 };
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
-int iface_port_reconfig(
-	struct iface *iface,
-	uint64_t set_attrs,
-	const struct gr_iface *conf,
-	const void *api_info
-);
 const struct iface *port_get_iface(uint16_t port_id);
+
 #endif
