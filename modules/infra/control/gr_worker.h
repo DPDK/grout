@@ -5,6 +5,7 @@
 #define _GR_INFRA_WORKER
 
 #include <gr_graph.h>
+#include <gr_port.h>
 
 #include <rte_common.h>
 #include <rte_os.h>
@@ -67,5 +68,6 @@ STAILQ_HEAD(workers, worker);
 extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
+int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports);
 
 #endif
