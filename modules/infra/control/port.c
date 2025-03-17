@@ -92,7 +92,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 		struct queue_map tx_qmap = {
 			.port_id = p->port_id,
 			.queue_id = txq,
-			.enabled = false,
+			.enabled = p->started,
 		};
 		// remove the existing txq assigned to this worker, if any
 		for (size_t i = 0; i < gr_vec_len(worker->txqs); i++) {
@@ -134,7 +134,7 @@ static void port_queue_assign(struct iface_info_port *p) {
 		struct queue_map rx_qmap = {
 			.port_id = p->port_id,
 			.queue_id = rxq,
-			.enabled = false,
+			.enabled = p->started,
 		};
 		gr_vec_add(default_worker->rxqs, rx_qmap);
 	}
@@ -212,8 +212,6 @@ static int port_configure(struct iface_info_port *p) {
 
 	port_queue_assign(p);
 
-	p->configured = true;
-
 	return 0;
 }
 
@@ -225,13 +223,15 @@ int iface_port_reconfig(
 ) {
 	struct iface_info_port *p = (struct iface_info_port *)iface->info;
 	const struct gr_iface_info_port *api = api_info;
-	bool stopped = false;
+	bool needs_configure = false;
 	int ret;
 
 	if ((ret = port_unplug(p->port_id)) < 0)
 		return ret;
 
-	if (set_attrs & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE)) {
+	if (set_attrs
+	    & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_IFACE_SET_FLAGS
+	       | GR_IFACE_SET_MTU | GR_PORT_SET_MAC)) {
 		if (set_attrs & GR_PORT_SET_N_RXQS)
 			p->n_rxq = api->n_rxq;
 		if (set_attrs & GR_PORT_SET_N_TXQS)
@@ -240,16 +240,15 @@ int iface_port_reconfig(
 			p->rxq_size = api->rxq_size;
 			p->txq_size = api->rxq_size;
 		}
-		p->configured = false;
+		needs_configure = true;
 	}
 
-	if (!p->configured
-	    || (set_attrs & (GR_IFACE_SET_FLAGS | GR_IFACE_SET_MTU | GR_PORT_SET_MAC))) {
+	if (p->started && needs_configure) {
 		if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
 			return errno_log(-ret, "rte_eth_dev_stop");
-		stopped = true;
+		p->started = false;
 	}
-	if (!p->configured && (ret = port_configure(p)) < 0)
+	if (needs_configure && (ret = port_configure(p)) < 0)
 		return ret;
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
@@ -316,8 +315,10 @@ int iface_port_reconfig(
 			return errno_log(-ret, "rte_eth_macaddr_get");
 	}
 
-	if (stopped && (ret = rte_eth_dev_start(p->port_id)) < 0)
+	if (!p->started && (ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
+
+	p->started = true;
 
 	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
 
