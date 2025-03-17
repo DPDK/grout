@@ -19,3 +19,10 @@ src += files(
   'ip_output.c',
 )
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('ip_input.c'),
+    'link_args': [],
+  }
+]
