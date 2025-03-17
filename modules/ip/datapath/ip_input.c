@@ -18,6 +18,19 @@
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
 
+#ifdef __GROUT_UNIT_TEST__
+#include <gr_cmocka.h>
+
+// The function is defined as static inline in the original code, so it cannot be wrapped directly
+// using CMocka's function wrapping mechanism.
+static inline void
+__wrap_rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void *) {
+	check_expected(next);
+}
+
+#define rte_node_enqueue_x1 __wrap_rte_node_enqueue_x1
+#endif
+
 enum edges {
 	FORWARD = 0,
 	OUTPUT,
@@ -181,3 +194,119 @@ GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
 GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
+
+#ifdef __GROUT_UNIT_TEST__
+#include <gr_cmocka.h>
+
+struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
+mock_func(const struct nexthop *, fib4_lookup(uint16_t, ip4_addr_t));
+mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
+mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
+mock_func(int, drop_format(char *, size_t, const void *, size_t));
+mock_func(int, trace_ip_format(char *, size_t, const struct rte_ipv4_hdr *, size_t));
+mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
+mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+
+struct fake_mbuf {
+	struct rte_ipv4_hdr ipv4_hdr;
+	struct rte_mbuf mbuf;
+	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
+};
+
+static void ipv4_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
+	memset(fake_mbuf, 0, sizeof(struct fake_mbuf));
+	fake_mbuf->ipv4_hdr.ihl = 5;
+	fake_mbuf->ipv4_hdr.version = 4;
+	fake_mbuf->ipv4_hdr.total_length = rte_cpu_to_be_16(sizeof(struct rte_ipv4_hdr));
+	fake_mbuf->ipv4_hdr.type_of_service = 0;
+	fake_mbuf->ipv4_hdr.packet_id = 1;
+	fake_mbuf->ipv4_hdr.fragment_offset = 0;
+	fake_mbuf->ipv4_hdr.time_to_live = 64;
+	fake_mbuf->ipv4_hdr.next_proto_id = IPPROTO_RAW;
+	fake_mbuf->ipv4_hdr.hdr_checksum = 0;
+	fake_mbuf->ipv4_hdr.src_addr = RTE_IPV4(0, 3, 0, 1);
+	fake_mbuf->ipv4_hdr.dst_addr = RTE_IPV4(1, 9, 8, 6);
+
+	fake_mbuf->mbuf.buf_addr = &fake_mbuf->ipv4_hdr;
+	fake_mbuf->mbuf.data_len = sizeof(struct rte_ipv4_hdr);
+	fake_mbuf->mbuf.pkt_len = sizeof(struct rte_ipv4_hdr);
+	fake_mbuf->mbuf.next = NULL;
+	fake_mbuf->mbuf.nb_segs = 1;
+	fake_mbuf->mbuf.ol_flags = 0;
+	fake_mbuf->mbuf.packet_type = RTE_PTYPE_L3_IPV4;
+
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_OTHER;
+}
+
+static void ip_input_invalid_mbuf_len(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
+	fake_mbuf.mbuf.data_len = sizeof(struct rte_ipv4_hdr) / 2;
+	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_LENGTH);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip_input_invalid_cksum(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv4_hdr.hdr_checksum = 0x666;
+	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip_input_invalid_version(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv4_hdr.version = 5;
+	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
+	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_VERSION);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip_input_invalid_ihl(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv4_hdr.version = 3;
+	fake_mbuf.ipv4_hdr.hdr_checksum = rte_raw_cksum(
+		&fake_mbuf.ipv4_hdr, sizeof(struct rte_ipv4_hdr)
+	);
+	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip_input_invalid_total_length(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv4_hdr.total_length = rte_cpu_to_be_16(sizeof(struct rte_ipv4_hdr) / 2);
+	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
+	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_LENGTH);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
+int main(void) {
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(ip_input_invalid_mbuf_len),
+		cmocka_unit_test(ip_input_invalid_cksum),
+		cmocka_unit_test(ip_input_invalid_version),
+		cmocka_unit_test(ip_input_invalid_ihl),
+		cmocka_unit_test(ip_input_invalid_total_length),
+	};
+	return cmocka_run_group_tests(tests, NULL, NULL);
+}
+#endif

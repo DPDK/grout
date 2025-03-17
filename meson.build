@@ -123,7 +123,7 @@ if cmocka_dep.found()
     t += {
       'sources': t['sources'] + files('api/string.c'),
       'include_directories': inc + api_inc,
-      'c_args': ['-D__GROUT_MAIN__'] + coverage_c_args,
+      'c_args': ['-D__GROUT_MAIN__', '-D__GROUT_UNIT_TEST__'] + coverage_c_args,
       'link_args': t['link_args'] + coverage_link_args,
       'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
     }
