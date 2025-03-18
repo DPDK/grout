@@ -72,14 +72,7 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
-	grout_flags="-tv"
-	case "$(basename $0)" in
-	config_test.sh|graph_svg_test.sh)
-		;;
-	*)
-		grout_flags="$grout_flags -x"
-	esac
-	taskset -c 0,1 grout $grout_flags &
+	taskset -c 0,1 grout -tvx &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
