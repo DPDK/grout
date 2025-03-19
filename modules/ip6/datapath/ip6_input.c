@@ -45,7 +45,6 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
 		e = eth_input_mbuf_data(mbuf);
-		d = ip6_output_mbuf_data(mbuf);
 		iface = e->iface;
 		nh = NULL;
 
@@ -120,6 +119,7 @@ next:
 			*t = *ip;
 		}
 		// Store the resolved next hop for ip6_output to avoid a second route lookup.
+		d = ip6_output_mbuf_data(mbuf);
 		d->nh = nh;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
