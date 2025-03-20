@@ -17,19 +17,6 @@
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
 
-#ifdef __GROUT_UNIT_TEST__
-#include <gr_cmocka.h>
-
-// The function is defined as static inline in the original code, so it cannot be wrapped directly
-// using CMocka's function wrapping mechanism.
-static inline void
-__wrap_rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void *) {
-	check_expected(next);
-}
-
-#define rte_node_enqueue_x1 __wrap_rte_node_enqueue_x1
-#endif
-
 enum edges {
 	FORWARD = 0,
 	OUTPUT,
@@ -245,7 +232,7 @@ static void ip_input_invalid_mbuf_len(void **) {
 
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
 	fake_mbuf.mbuf.data_len = sizeof(struct rte_ipv4_hdr) / 2;
-	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_LENGTH);
+	expect_value(rte_node_enqueue_x1, next, BAD_LENGTH);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -256,7 +243,7 @@ static void ip_input_invalid_cksum(void **) {
 	ipv4_init_default_mbuf(&fake_mbuf);
 
 	fake_mbuf.ipv4_hdr.hdr_checksum = 0x666;
-	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	expect_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -268,7 +255,7 @@ static void ip_input_invalid_version(void **) {
 
 	fake_mbuf.ipv4_hdr.version = 5;
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
-	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_VERSION);
+	expect_value(rte_node_enqueue_x1, next, BAD_VERSION);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -282,7 +269,7 @@ static void ip_input_invalid_ihl(void **) {
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_raw_cksum(
 		&fake_mbuf.ipv4_hdr, sizeof(struct rte_ipv4_hdr)
 	);
-	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	expect_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -294,7 +281,7 @@ static void ip_input_invalid_total_length(void **) {
 
 	fake_mbuf.ipv4_hdr.total_length = rte_cpu_to_be_16(sizeof(struct rte_ipv4_hdr) / 2);
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
-	expect_value(__wrap_rte_node_enqueue_x1, next, BAD_LENGTH);
+	expect_value(rte_node_enqueue_x1, next, BAD_LENGTH);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 

@@ -8,9 +8,25 @@
 
 #include <rte_common.h>
 #include <rte_graph.h>
-#include <rte_graph_worker.h>
 
 #include <sys/queue.h>
+
+#ifdef __GROUT_UNIT_TEST__
+#include <gr_cmocka.h>
+
+// The function is defined as static inline in the original code, so it cannot be wrapped directly
+// using CMocka's function wrapping mechanism.
+#define rte_node_enqueue_x1 rte_node_enqueue_x1_real // Rename before including
+#include <rte_graph_worker.h>
+#undef rte_node_enqueue_x1
+
+static inline void
+rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void *) {
+	check_expected(next);
+}
+#else
+#include <rte_graph_worker.h>
+#endif
 
 void *gr_node_data_get(const char *graph, const char *node);
 
