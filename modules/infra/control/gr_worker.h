@@ -4,8 +4,9 @@
 #ifndef _GR_INFRA_WORKER
 #define _GR_INFRA_WORKER
 
+#include <gr_graph.h>
+
 #include <rte_common.h>
-#include <rte_graph.h>
 #include <rte_os.h>
 
 #include <pthread.h>

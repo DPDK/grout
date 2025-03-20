@@ -8,7 +8,6 @@
 #include <gr_icmp6.h>
 
 #include <rte_arp.h>
-#include <rte_graph.h>
 #include <rte_icmp.h>
 #include <rte_ip4.h>
 #include <rte_ip6.h>

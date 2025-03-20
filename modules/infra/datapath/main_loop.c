@@ -3,6 +3,7 @@
 
 #include <gr.h>
 #include <gr_datapath.h>
+#include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_worker.h>
@@ -10,7 +11,6 @@
 #include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
-#include <rte_graph.h>
 #include <rte_graph_worker.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>

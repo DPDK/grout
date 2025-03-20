@@ -4,8 +4,9 @@
 #ifndef _GR_MBUF
 #define _GR_MBUF
 
+#include <gr_graph.h>
+
 #include <rte_build_config.h>
-#include <rte_graph.h>
 #include <rte_mbuf.h>
 
 #include <sys/queue.h>
