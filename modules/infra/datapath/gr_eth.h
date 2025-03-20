@@ -4,12 +4,12 @@
 #ifndef _GR_INFRA_ETH
 #define _GR_INFRA_ETH
 
+#include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_mbuf.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
-#include <rte_graph.h>
 
 typedef enum {
 	ETH_DOMAIN_UNKNOWN = 0,

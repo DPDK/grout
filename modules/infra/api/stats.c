@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_module.h>
@@ -11,7 +12,6 @@
 
 #include <rte_common.h>
 #include <rte_ethdev.h>
-#include <rte_graph.h>
 
 #include <fnmatch.h>
 
