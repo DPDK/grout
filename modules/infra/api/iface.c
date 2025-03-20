@@ -106,7 +106,7 @@ static struct api_out iface_set(const void *request, void ** /*response*/) {
 	const struct gr_infra_iface_set_req *req = request;
 	int ret;
 
-	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, NULL);
+	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, req->iface.info);
 	if (ret < 0)
 		return api_out(errno, 0);
 

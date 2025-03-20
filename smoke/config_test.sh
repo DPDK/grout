@@ -12,6 +12,8 @@ grcli add ip route 0.0.0.0/0 via 10.0.0.2
 grcli add ip6 address 2345::1/24 iface p0
 grcli add ip6 address 2346::1/24 iface p1
 grcli add ip6 route ::/0 via 2345::2
+grcli set interface port p0 rxqs 2
+grcli set interface port p1 rxqs 2
 grcli show interface
 grcli show ip route
 grcli show ip nexthop
