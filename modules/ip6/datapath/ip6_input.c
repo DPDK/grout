@@ -164,3 +164,108 @@ GR_DROP_REGISTER(ip6_input_other_host);
 GR_DROP_REGISTER(ip6_input_bad_version);
 GR_DROP_REGISTER(ip6_input_bad_addr);
 GR_DROP_REGISTER(ip6_input_bad_length);
+
+#ifdef __GROUT_UNIT_TEST__
+#include <gr_cmocka.h>
+
+struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
+
+mock_func(const struct nexthop *, fib6_lookup(uint16_t, uint16_t, const struct rte_ipv6_addr *));
+mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
+mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
+mock_func(int, drop_format(char *, size_t, const void *, size_t));
+mock_func(int, trace_ip6_format(char *, size_t, const struct rte_ipv6_hdr *, size_t));
+mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
+mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+mock_func(struct nexthop *, mcast6_get_member(uint16_t, const struct rte_ipv6_addr *));
+
+struct fake_mbuf {
+	struct rte_ipv6_hdr ipv6_hdr;
+	struct rte_mbuf mbuf;
+	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
+};
+
+static void ipv6_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
+	memset(fake_mbuf, 0, sizeof(struct fake_mbuf));
+
+	fake_mbuf->ipv6_hdr.vtc_flow = rte_cpu_to_be_32(6 << 28);
+	fake_mbuf->ipv6_hdr.payload_len = rte_cpu_to_be_16(0);
+	fake_mbuf->ipv6_hdr.proto = IPPROTO_NONE;
+	fake_mbuf->ipv6_hdr.hop_limits = 64;
+	fake_mbuf->ipv6_hdr.src_addr = (struct rte_ipv6_addr)RTE_IPV6(0, 3, 0, 3, 1, 9, 8, 8);
+	fake_mbuf->ipv6_hdr.dst_addr = (struct rte_ipv6_addr)RTE_IPV6(0, 3, 0, 5, 2, 0, 2, 4);
+
+	fake_mbuf->mbuf.buf_addr = &fake_mbuf->ipv6_hdr;
+	fake_mbuf->mbuf.data_len = sizeof(struct rte_ipv6_hdr);
+	fake_mbuf->mbuf.pkt_len = sizeof(struct rte_ipv6_hdr);
+	fake_mbuf->mbuf.next = NULL;
+	fake_mbuf->mbuf.ol_flags = 0;
+	fake_mbuf->mbuf.packet_type = RTE_PTYPE_L3_IPV6;
+
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_OTHER;
+}
+
+static void ip6_input_invalid_version(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv6_hdr.vtc_flow = rte_cpu_to_be_32(5 << 28);
+	expect_value(rte_node_enqueue_x1, next, BAD_VERSION);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip6_input_invalid_src_mcast_addr(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv6_hdr.src_addr = (struct rte_ipv6_addr
+	)RTE_IPV6(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
+	expect_value(rte_node_enqueue_x1, next, BAD_ADDR);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip6_input_invalid_dst_unspec_addr(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv6_hdr.dst_addr = (struct rte_ipv6_addr
+	)RTE_IPV6(0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0);
+	expect_value(rte_node_enqueue_x1, next, BAD_ADDR);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
+static void ip6_input_invalid_dst_mcast_addr(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	// Multicast scope none
+	fake_mbuf.ipv6_hdr.dst_addr = (struct rte_ipv6_addr
+	)RTE_IPV6(0xff00, 0x00, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1);
+	expect_value(rte_node_enqueue_x1, next, BAD_ADDR);
+	ip6_input_process(NULL, NULL, &obj, 1);
+
+	// Multicast iface local
+	fake_mbuf.ipv6_hdr.dst_addr = (struct rte_ipv6_addr
+	)RTE_IPV6(0xff00, 0x01, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1);
+	expect_value(rte_node_enqueue_x1, next, BAD_ADDR);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
+int main(void) {
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(ip6_input_invalid_version),
+		cmocka_unit_test(ip6_input_invalid_src_mcast_addr),
+		cmocka_unit_test(ip6_input_invalid_dst_unspec_addr),
+		cmocka_unit_test(ip6_input_invalid_dst_mcast_addr),
+	};
+	return cmocka_run_group_tests(tests, NULL, NULL);
+}
+#endif

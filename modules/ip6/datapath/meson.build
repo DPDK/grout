@@ -19,3 +19,10 @@ src += files(
   'ndp_rs_input.c',
 )
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('ip6_input.c'),
+    'link_args': [],
+  }
+]
