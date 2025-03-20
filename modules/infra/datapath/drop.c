@@ -6,7 +6,6 @@
 #include <gr_mbuf.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {

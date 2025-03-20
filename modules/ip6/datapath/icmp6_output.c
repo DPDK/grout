@@ -10,7 +10,6 @@
 #include <gr_mbuf.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
 #include <rte_ip.h>
 
 #include <netinet/in.h>

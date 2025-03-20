@@ -13,7 +13,6 @@
 #include <rte_byteorder.h>
 #include <rte_errno.h>
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>

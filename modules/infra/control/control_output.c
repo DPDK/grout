@@ -10,7 +10,6 @@
 
 #include <event2/event.h>
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 
 #include <pthread.h>
 #include <stdatomic.h>

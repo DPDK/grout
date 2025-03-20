@@ -12,7 +12,6 @@
 #include <gr_log.h>
 #include <gr_mbuf.h>
 
-#include <rte_graph_worker.h>
 #include <rte_ip6.h>
 
 #include <netinet/in.h>

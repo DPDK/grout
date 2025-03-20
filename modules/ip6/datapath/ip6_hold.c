@@ -6,7 +6,6 @@
 #include <gr_ip6_control.h>
 #include <gr_mbuf.h>
 
-#include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
 enum {

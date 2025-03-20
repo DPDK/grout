@@ -10,7 +10,6 @@
 #include <gr_trace.h>
 
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 #include <rte_malloc.h>
 #include <rte_version.h>
 

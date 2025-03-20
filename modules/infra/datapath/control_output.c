@@ -8,7 +8,6 @@
 #include <gr_trace.h>
 
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 
 #define ERROR 0
 

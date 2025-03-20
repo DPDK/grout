@@ -11,8 +11,6 @@
 #include <gr_trace.h>
 #include <gr_worker.h>
 
-#include <rte_graph_worker.h>
-
 enum edges {
 	TX = 0,
 	NO_PORT,

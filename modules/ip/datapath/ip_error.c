@@ -10,7 +10,6 @@
 #include <gr_trace.h>
 
 #include <rte_common.h>
-#include <rte_graph_worker.h>
 #include <rte_icmp.h>
 #include <rte_ip.h>
 
