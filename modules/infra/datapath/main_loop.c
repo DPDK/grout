@@ -11,7 +11,6 @@
 #include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
-#include <rte_graph_worker.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 

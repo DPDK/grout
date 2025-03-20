@@ -12,7 +12,6 @@
 #include <rte_arp.h>
 #include <rte_byteorder.h>
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 
 enum {
 	CONTROL = 0,

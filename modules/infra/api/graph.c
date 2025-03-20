@@ -2,11 +2,10 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_module.h>
 #include <gr_worker.h>
-
-#include <rte_graph_worker.h>
 
 #include <errno.h>
 #include <stdio.h>

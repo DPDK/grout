@@ -7,7 +7,6 @@
 #include <gr_mbuf.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
 #include <rte_mbuf.h>
 
 enum {

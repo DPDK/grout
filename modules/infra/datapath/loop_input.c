@@ -10,8 +10,6 @@
 #include <gr_mbuf.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
-
 #include <linux/if_tun.h>
 
 static control_input_t control_to_loopback_input;

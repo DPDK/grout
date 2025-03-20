@@ -13,7 +13,6 @@
 #include <rte_byteorder.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 
 enum {
 	OUTPUT = 0,

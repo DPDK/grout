@@ -19,7 +19,6 @@
 #include <rte_common.h>
 #include <rte_ethdev.h>
 #include <rte_graph.h>
-#include <rte_graph_worker.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 

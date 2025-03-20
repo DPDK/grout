@@ -10,8 +10,6 @@
 #include <gr_loopback.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
-
 enum {
 	CONTROL_OUTPUT,
 	EDGE_COUNT,

@@ -8,6 +8,7 @@
 
 #include <rte_common.h>
 #include <rte_graph.h>
+#include <rte_graph_worker.h>
 
 #include <sys/queue.h>
 

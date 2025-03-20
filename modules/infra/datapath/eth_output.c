@@ -11,7 +11,6 @@
 #include <gr_vlan.h>
 
 #include <rte_ether.h>
-#include <rte_graph_worker.h>
 
 #include <stdint.h>
 

@@ -8,7 +8,6 @@
 #include <gr_log.h>
 #include <gr_trace.h>
 
-#include <rte_graph_worker.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
 

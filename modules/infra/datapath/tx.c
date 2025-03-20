@@ -11,7 +11,6 @@
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
-#include <rte_graph_worker.h>
 #include <rte_malloc.h>
 
 #include <stdint.h>
