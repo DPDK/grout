@@ -250,6 +250,8 @@ apt install git gcc make meson ninja-build pkgconf \
         libsmartcols-dev libarchive-dev libibverbs-dev
 ```
 
+Important: `grout` requires at least `gcc` 13 or `clang` 15.
+
 ### Install development dependencies
 
 In order to run the `smoke-tests`, `lint`, `check-patches` and `update-graph`

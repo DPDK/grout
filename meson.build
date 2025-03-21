@@ -41,6 +41,21 @@ foreach arg : optional_c_args
   endif
 endforeach
 
+if not compiler.compiles('''
+  #include <stdint.h>
+  enum foo : uint16_t { X = 0, A = 2, B = 8 };
+  int main(void) { return X; }
+  ''', name: 'C23 enum underlying types')
+  error(compiler.get_id(), compiler.version(), 'does not support C23 enum underlying types')
+endif
+
+if not compiler.compiles('''
+  #define FOO(x, ...) (x __VA_OPT__(,) __VA_ARGS__)
+  int main(void) { return FOO(0); }
+  ''', name: 'C23 __VA_OPT__ macro')
+  error(compiler.get_id(), compiler.version(), 'does not support C23 __VA_OPT__ macro')
+endif
+
 dpdk_dep = dependency(
   'libdpdk',
   fallback: ['dpdk', 'dpdk_dep'],
