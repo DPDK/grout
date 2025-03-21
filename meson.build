@@ -58,6 +58,7 @@ endif
 
 dpdk_dep = dependency(
   'libdpdk',
+  version : '>= 24.11.1',
   fallback: ['dpdk', 'dpdk_dep'],
   default_options: [
     'buildtype=release',
@@ -79,6 +80,7 @@ ev_thread_dep = dependency('libevent_pthreads')
 numa_dep = dependency('numa')
 ecoli_dep = dependency(
   'libecoli',
+  version: '>= 0.5.0',
   fallback: ['ecoli', 'libecoli_dep'],
   default_options: [
     'doc=disabled',
