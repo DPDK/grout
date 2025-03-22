@@ -2,9 +2,9 @@
 # Copyright (c) 2024 Robin Jarry
 
 src += files(
+  'affinity.c',
   'graph.c',
   'iface.c',
-  'rxq.c',
   'stats.c',
   'trace.c',
 )

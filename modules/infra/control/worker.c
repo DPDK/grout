@@ -4,12 +4,14 @@
 #include "graph_priv.h"
 #include "worker_priv.h"
 
+#include <gr_config.h>
 #include <gr_datapath.h>
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
 
@@ -93,9 +95,9 @@ int worker_destroy(unsigned cpu_id) {
 	return 0;
 }
 
-size_t worker_count(void) {
+unsigned worker_count(void) {
 	struct worker *worker;
-	size_t count = 0;
+	unsigned count = 0;
 
 	STAILQ_FOREACH (worker, &workers, next)
 		count++;
@@ -140,52 +142,6 @@ int port_unplug(uint16_t port_id) {
 	return worker_graph_reload_all();
 }
 
-int worker_ensure_default(int socket_id) {
-	unsigned main_lcore = rte_get_main_lcore();
-	struct worker *worker;
-	cpu_set_t affinity;
-	unsigned cpu_id;
-	int ret;
-
-	if (!!(ret = pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)))
-		return errno_log(ret, "pthread_getaffinity_np");
-
-	STAILQ_FOREACH (worker, &workers, next) {
-		if (socket_id == SOCKET_ID_ANY)
-			return 0;
-		if (socket_id == numa_node_of_cpu(worker->cpu_id))
-			return 0;
-	}
-
-	if (socket_id == SOCKET_ID_ANY && numa_available() != -1)
-		socket_id = numa_preferred();
-
-	// try to spawn the default worker on the correct socket excluding the main lcore
-	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (cpu_id == main_lcore)
-			continue;
-		if (!CPU_ISSET(cpu_id, &affinity))
-			continue;
-		if (socket_id != numa_node_of_cpu(cpu_id))
-			continue;
-		return worker_create(cpu_id);
-	}
-
-	// no available cpu found, fallback on whatever is left, even on the wrong socket
-	for (cpu_id = 0; cpu_id < CPU_SETSIZE; cpu_id++) {
-		if (!CPU_ISSET(cpu_id, &affinity))
-			continue;
-		LOG(WARNING,
-		    "no ideal CPU found on socket %d for a new worker, falling back to CPU %u",
-		    socket_id,
-		    cpu_id);
-		return worker_create(cpu_id);
-	}
-
-	// should not happen as at least main_lcore should be usable
-	return errno_log(ERANGE, "socket_id");
-}
-
 int port_plug(uint16_t port_id) {
 	struct queue_map *qmap;
 	struct worker *worker;
@@ -213,14 +169,28 @@ int port_plug(uint16_t port_id) {
 	return worker_graph_reload_all();
 }
 
+static uint16_t worker_txq_id(const cpu_set_t *affinity, unsigned cpu_id) {
+	uint16_t txq = 0;
+	for (unsigned cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+		if (CPU_ISSET(cpu, affinity)) {
+			if (cpu == cpu_id)
+				break;
+			txq++;
+		}
+	}
+	return txq;
+}
+
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	struct worker *src_worker, *dst_worker;
-	bool num_workers_changed;
 	struct queue_map *qmap;
 	int ret;
 
-	if (cpu_id == rte_get_main_lcore())
+	if (CPU_ISSET(cpu_id, &gr_config.control_cpus))
 		return errno_set(EBUSY);
+
+	if (!CPU_ISSET(cpu_id, &gr_config.datapath_cpus))
+		return errno_set(ERANGE);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
 		gr_vec_foreach_ref (qmap, src_worker->rxqs) {
@@ -237,8 +207,6 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 	}
 	return errno_set(ENODEV);
 move:
-	num_workers_changed = false;
-
 	// prepare destination worker
 	dst_worker = worker_find(cpu_id);
 	if (dst_worker == NULL) {
@@ -246,10 +214,21 @@ move:
 		if ((ret = worker_create(cpu_id)) < 0)
 			return ret;
 		dst_worker = worker_find(cpu_id);
-		num_workers_changed = true;
+		if (dst_worker == NULL)
+			return errno_set(errno);
+
+		// assign one txq of each port to this new worker
+		struct iface *iface = NULL;
+		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+			struct iface_info_port *p = (struct iface_info_port *)iface->info;
+			struct queue_map tx_qmap = {
+				.port_id = p->port_id,
+				.queue_id = worker_txq_id(&gr_config.datapath_cpus, cpu_id),
+				.enabled = true,
+			};
+			gr_vec_add(dst_worker->txqs, tx_qmap);
+		}
 	}
-	if (dst_worker == NULL)
-		return errno_set(errno);
 
 	// unassign from src_worker
 	for (size_t i = 0; i < gr_vec_len(src_worker->rxqs); i++) {
@@ -264,7 +243,6 @@ move:
 	if (gr_vec_len(src_worker->rxqs) == 0) {
 		if ((ret = worker_destroy(src_worker->cpu_id)) < 0)
 			return ret;
-		num_workers_changed = true;
 	} else {
 		// ensure source worker has released the rxq
 		if ((ret = worker_graph_reload(src_worker)) < 0)
@@ -279,27 +257,137 @@ move:
 	};
 	gr_vec_add(dst_worker->rxqs, rx_qmap);
 
-	if (num_workers_changed) {
-		// adjust number of tx queues
-		struct gr_iface_info_port p = {0};
-		struct iface *iface = NULL;
+	return worker_graph_reload(dst_worker);
+}
 
-		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-			struct gr_iface conf = {
-				.flags = iface->flags,
-				.mtu = iface->mtu,
-				.mode = iface->mode,
-				.vrf_id = iface->vrf_id
-			};
-			ret = iface_port_reconfig(iface, GR_PORT_SET_N_TXQS, &conf, &p);
-			if (ret < 0)
-				return ret;
-		}
-		// all workers were reloaded already
-		return 0;
+int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports) {
+	struct iface_info_port *port;
+	struct worker *worker, *tmp;
+	unsigned *cpus = NULL;
+	char buf[BUFSIZ];
+	int ret = 0;
+	unsigned i;
+
+	if (cpuset_format(buf, sizeof(buf), affinity) < 0) {
+		LOG(WARNING, "failed to format new cpu affinity: %s", strerror(errno));
+		buf[sizeof(buf) - 1] = '\0';
 	}
 
-	return worker_graph_reload(dst_worker);
+	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
+		if (CPU_ISSET(worker->cpu_id, affinity)) {
+			// Remove all RXQ/TXQ from that worker to have a clean slate.
+			gr_vec_free(worker->rxqs);
+			gr_vec_free(worker->txqs);
+			if ((ret = worker_graph_reload(worker)) < 0) {
+				errno_log(errno, "worker_graph_reload");
+				goto end;
+			}
+		} else {
+			// This CPU is out of the affinity mask.
+			if ((ret = worker_destroy(worker->cpu_id)) < 0) {
+				errno_log(errno, "worker_destroy");
+				goto end;
+			}
+		}
+	}
+
+	for (unsigned cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+		if (CPU_ISSET(cpu, affinity))
+			gr_vec_add(cpus, cpu);
+	}
+
+	// assign all rxqs to new workers in the new affinity mask
+	i = 0;
+	gr_vec_foreach (port, ports) {
+		int socket_id = SOCKET_ID_ANY;
+
+		if (numa_available() != -1)
+			socket_id = rte_eth_dev_socket_id(port->port_id);
+
+		if (CPU_COUNT(affinity) != CPU_COUNT(&gr_config.datapath_cpus)) {
+			// number of TXQs must be adjusted
+			bool was_started = port->started;
+			if (port->started && (ret = rte_eth_dev_stop(port->port_id)) < 0) {
+				errno_log(-ret, "rte_eth_dev_stop");
+				goto end;
+			}
+			port->started = false;
+			if ((ret = port_configure(port, CPU_COUNT(affinity))) < 0) {
+				errno_log(-ret, "port_configure");
+				goto end;
+			}
+			if (was_started && (ret = rte_eth_dev_start(port->port_id)) < 0) {
+				errno_log(-ret, "rte_eth_dev_start");
+				goto end;
+			}
+			port->started = was_started;
+		}
+
+		for (uint16_t rxq = 0; rxq < port->n_rxq; rxq++) {
+			// find CPU in the affinity where to assign RXQ
+			unsigned j = 0;
+			while (socket_id != SOCKET_ID_ANY && socket_id != numa_node_of_cpu(cpus[i])
+			       && j < gr_vec_len(cpus)) {
+				if (++i >= gr_vec_len(cpus))
+					i = 0;
+				j++;
+			}
+			if (j == gr_vec_len(cpus)) {
+				LOG(WARNING,
+				    "no socket %d CPU found in new affinity %s for port %d",
+				    socket_id,
+				    buf,
+				    port->port_id);
+			}
+
+			worker = worker_find(cpus[i]);
+			if (worker == NULL) {
+				if ((ret = worker_create(cpus[i])) < 0) {
+					errno_log(-ret, "worker_create");
+					goto end;
+				}
+				worker = worker_find(cpus[i]);
+			}
+
+			struct queue_map q = {
+				.port_id = port->port_id,
+				.queue_id = rxq,
+				.enabled = port->started,
+			};
+			gr_vec_add(worker->rxqs, q);
+
+			if (++i >= gr_vec_len(cpus))
+				i = 0;
+		}
+	}
+
+	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
+		if (gr_vec_len(worker->rxqs) == 0) {
+			// the worker was not reused
+			if ((ret = worker_destroy(worker->cpu_id)) < 0) {
+				errno_log(errno, "worker_destroy");
+				goto end;
+			}
+		}
+	}
+
+	// Assign one txq of each port to each worker.
+	// Must be done in a separate loop after all workers have been created.
+	gr_vec_foreach (port, ports) {
+		STAILQ_FOREACH (worker, &workers, next) {
+			struct queue_map txq = {
+				.port_id = port->port_id,
+				.queue_id = worker_txq_id(affinity, worker->cpu_id),
+				.enabled = port->started,
+			};
+			gr_vec_add(worker->txqs, txq);
+		}
+	}
+
+	ret = worker_graph_reload_all();
+end:
+	gr_vec_free(cpus);
+	return ret;
 }
 
 static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {

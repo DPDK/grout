@@ -2,10 +2,10 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "api.h"
-#include "gr.h"
 #include "module.h"
 
 #include <gr_api.h>
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_log.h>
 #include <gr_macro.h>
@@ -361,7 +361,7 @@ static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 static struct event *ev_listen;
 
 int api_socket_start(struct event_base *base) {
-	const char *path = gr_args()->api_sock_path;
+	const char *path = gr_config.api_sock_path;
 	union {
 		struct sockaddr_un un;
 		struct sockaddr a;
