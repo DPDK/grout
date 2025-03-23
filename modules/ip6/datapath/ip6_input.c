@@ -48,6 +48,15 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		iface = e->iface;
 		nh = NULL;
 
+		if (rte_pktmbuf_data_len(mbuf) < sizeof(struct rte_ipv6_hdr)) {
+			// XXX: call rte_pktmuf_data_len is used to ensure that the IPv6 header
+			// is located on the first segment. IPv6 headers located on the second,
+			// third or subsequent segments, as well spanning segment boundaries, are
+			// not currently handled.
+			edge = BAD_LENGTH;
+			goto next;
+		}
+
 		if (rte_ipv6_check_version(ip)) {
 			edge = BAD_VERSION;
 			goto next;
@@ -259,12 +268,24 @@ static void ip6_input_invalid_dst_mcast_addr(void **) {
 	ip6_input_process(NULL, NULL, &obj, 1);
 }
 
+static void ip6_input_invalid_mbuf_len(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.mbuf.data_len = sizeof(struct rte_ipv6_hdr) / 2;
+	expect_value(rte_node_enqueue_x1, next, BAD_LENGTH);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(ip6_input_invalid_version),
 		cmocka_unit_test(ip6_input_invalid_src_mcast_addr),
 		cmocka_unit_test(ip6_input_invalid_dst_unspec_addr),
 		cmocka_unit_test(ip6_input_invalid_dst_mcast_addr),
+		cmocka_unit_test(ip6_input_invalid_mbuf_len),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
