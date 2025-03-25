@@ -93,7 +93,7 @@ static uint16_t ndp_ns_output_process(
 		d = ip6_local_mbuf_data(mbuf);
 		d->iface = iface_from_id(local->iface_id);
 		d->src = local->ipv6;
-		if (nh->last_reply != 0 && nh->ucast_probes <= NH_UCAST_PROBES)
+		if (nh->last_reply != 0 && nh->bcast_probes == 0)
 			d->dst = nh->ipv6;
 		else
 			rte_ipv6_solnode_from_addr(&d->dst, &nh->ipv6);
