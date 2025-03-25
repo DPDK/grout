@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
-      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
+      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: make deb
       - uses: actions/upload-artifact@v4
         with:
@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
-      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
+      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: make rpm RPMBUILD_OPTS="-D 'toolset gcc-toolset-13'"
       - uses: actions/upload-artifact@v4
         with:
