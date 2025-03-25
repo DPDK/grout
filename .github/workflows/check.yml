@@ -69,6 +69,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
       - uses: actions/cache@v4
         with:
@@ -107,6 +108,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
       - uses: actions/cache@v4
         with:
@@ -133,6 +135,7 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
       - run: git rebase -x "git --no-pager log --oneline -1 && make lint" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
       - run: make lint
@@ -152,4 +155,5 @@ jobs:
           fetch-depth: 0 # force fetch all history
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
+      - run: git fetch origin 'refs/tags/v*:refs/tags/v*'
       - run: make check-patches
