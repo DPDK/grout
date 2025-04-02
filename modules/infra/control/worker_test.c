@@ -20,11 +20,11 @@
 #include <rte_ethdev.h>
 
 static struct iface *ifaces[] = {NULL, NULL, NULL};
-static struct worker w1 = {.cpu_id = 1, .started = true};
-static struct worker w2 = {.cpu_id = 2, .started = true};
-static struct worker w3 = {.cpu_id = 3, .started = true};
-static struct worker w4 = {.cpu_id = 4, .started = true};
-static struct worker w5 = {.cpu_id = 5, .started = true};
+static struct worker w1 = {.cpu_id = 1};
+static struct worker w2 = {.cpu_id = 2};
+static struct worker w3 = {.cpu_id = 3};
+static struct worker w4 = {.cpu_id = 4};
+static struct worker w5 = {.cpu_id = 5};
 static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
@@ -107,6 +107,11 @@ mock_func(
 );
 mock_func(int, __wrap_pthread_cancel(pthread_t));
 mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
+mock_func(int, __wrap_pthread_cond_wait(pthread_cond_t *, pthread_mutex_t *));
+mock_func(
+	int,
+	__wrap_pthread_cond_timedwait(pthread_cond_t *, pthread_mutex_t *, struct timespec *)
+);
 mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
 
@@ -197,6 +202,8 @@ static void common_mocks(void) {
 	will_return_maybe(worker_graph_reload_all, 0);
 	will_return_maybe(__wrap_numa_available, 0);
 	will_return_maybe(__wrap_numa_node_of_cpu, 0);
+	will_return_maybe(__wrap_pthread_cond_wait, 0);
+	will_return_maybe(__wrap_pthread_cond_timedwait, 0);
 	will_return_maybe(__wrap_pthread_create, 0);
 	will_return_maybe(__wrap_pthread_join, 0);
 	will_return_maybe(__wrap_rte_dev_name, "");

@@ -40,7 +40,6 @@ struct worker_stats {
 };
 
 struct worker {
-	atomic_bool started; // dataplane: wo, ctlplane: ro
 	atomic_bool shutdown; // dataplane: ro, ctlplane: wo
 	atomic_uint next_config; // dataplane: ro, ctlplane: rw
 	atomic_uint cur_config; // dataplane: wo, ctlplane: ro
@@ -57,6 +56,9 @@ struct worker {
 	unsigned lcore_id;
 	pid_t tid;
 
+	pthread_mutex_t lock;
+	pthread_cond_t ready;
+
 	// private for control plane only
 	pthread_t thread;
 	struct queue_map *rxqs;
@@ -69,5 +71,7 @@ extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
 int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports);
+void worker_wait_ready(struct worker *);
+void worker_signal_ready(struct worker *);
 
 #endif
