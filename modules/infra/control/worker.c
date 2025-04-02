@@ -37,43 +37,54 @@ int worker_create(unsigned cpu_id) {
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
 	pthread_attr_t attr;
 	cpu_set_t cpuset;
-	int ret;
+	int ret = ENOMEM;
 
 	if (worker == NULL)
-		return errno_log(ENOMEM, "rte_zmalloc");
+		goto end;
 
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
-
-	if (!!(ret = pthread_attr_init(&attr))) {
-		rte_free(worker);
-		return errno_log(ret, "pthread_attr_init");
-	}
+	pthread_mutex_init(&worker->lock, NULL);
+	pthread_mutex_lock(&worker->lock);
+	pthread_cond_init(&worker->ready, NULL);
 
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu_id, &cpuset);
-	if (!!(ret = pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset))) {
-		rte_free(worker);
-		pthread_attr_destroy(&attr);
-		return errno_log(ret, "pthread_attr_setaffinity_np");
-	}
+	pthread_attr_init(&attr);
+	if (!!(ret = pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset)))
+		goto end;
 
-	if (!!(ret = pthread_create(&worker->thread, &attr, gr_datapath_loop, worker))) {
-		pthread_cancel(worker->thread);
-		pthread_attr_destroy(&attr);
-		rte_free(worker);
-		return errno_log(ret, "pthread_create");
-	}
+	if (!!(ret = pthread_create(&worker->thread, &attr, gr_datapath_loop, worker)))
+		goto end;
 
 	STAILQ_INSERT_TAIL(&workers, worker, next);
 
 	// wait until thread has initialized lcore_id
-	while (!atomic_load(&worker->started))
-		usleep(500);
+	struct timespec timeout;
+	clock_gettime(CLOCK_REALTIME, &timeout);
+	timeout.tv_sec += 1;
+	do
+		ret = pthread_cond_timedwait(&worker->ready, &worker->lock, &timeout);
+	while (ret == EAGAIN || ret == EINTR);
 
+end:
 	pthread_attr_destroy(&attr);
-	LOG(INFO, "worker %u started", worker->cpu_id);
-	return 0;
+	if (worker != NULL)
+		pthread_mutex_unlock(&worker->lock);
+
+	if (ret == 0) {
+		LOG(INFO, "worker %u started", cpu_id);
+	} else {
+		if (worker != NULL) {
+			pthread_cancel(worker->thread);
+			pthread_cond_destroy(&worker->ready);
+			pthread_mutex_destroy(&worker->lock);
+			rte_free(worker);
+		}
+		LOG(ERR, "worker %u start failed: %s", cpu_id, strerror(ret));
+	}
+
+	return errno_set(ret);
 }
 
 int worker_destroy(unsigned cpu_id) {
@@ -85,6 +96,7 @@ int worker_destroy(unsigned cpu_id) {
 	STAILQ_REMOVE(&workers, worker, worker, next);
 
 	atomic_store(&worker->shutdown, true);
+	worker_signal_ready(worker);
 	pthread_join(worker->thread, NULL);
 	worker_graph_free(worker);
 	gr_vec_free(worker->rxqs);
@@ -93,6 +105,21 @@ int worker_destroy(unsigned cpu_id) {
 
 	LOG(INFO, "worker %d destroyed", cpu_id);
 	return 0;
+}
+
+void worker_wait_ready(struct worker *w) {
+	int ret;
+	pthread_mutex_lock(&w->lock);
+	do
+		ret = pthread_cond_wait(&w->ready, &w->lock);
+	while (ret == EAGAIN || ret == EINTR);
+	pthread_mutex_unlock(&w->lock);
+}
+
+void worker_signal_ready(struct worker *w) {
+	pthread_mutex_lock(&w->lock);
+	pthread_cond_signal(&w->ready);
+	pthread_mutex_unlock(&w->lock);
 }
 
 unsigned worker_count(void) {
