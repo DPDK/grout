@@ -263,6 +263,14 @@ static struct api_out nh4_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+static void nh4_free(struct nexthop *nh) {
+	rib4_delete(nh->vrf_id, nh->ipv4, 32);
+	if (nh->ref_count > 0) {
+		nh->flags &= ~(GR_NH_F_REACHABLE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		memset(&nh->mac, 0, sizeof(nh->mac));
+	}
+}
+
 static void nh4_init(struct event_base *) {
 	ip_output_node = gr_control_input_register_handler("ip_output", true);
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
@@ -291,7 +299,7 @@ static struct gr_module nh4_module = {
 
 static struct nexthop_ops nh_ops = {
 	.solicit = arp_output_request_solicit,
-	.free = rib4_cleanup,
+	.free = nh4_free,
 };
 
 RTE_INIT(control_ip_init) {

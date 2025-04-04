@@ -164,8 +164,8 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 	max_probes = NH_UCAST_PROBES + NH_BCAST_PROBES;
 	probes = nh->ucast_probes + nh->bcast_probes;
 
-	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE) && request_age > probes) {
-		if (probes >= max_probes && !(nh->flags & GR_NH_F_GATEWAY)) {
+	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)) {
+		if (probes >= max_probes) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
 			    ADDR_W(nh_af(&nh->base)),

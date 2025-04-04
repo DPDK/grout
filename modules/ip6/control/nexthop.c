@@ -291,6 +291,14 @@ static struct api_out nh6_list(const void *request, void **response) {
 	return api_out(0, len);
 }
 
+static void nh6_free(struct nexthop *nh) {
+	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+	if (nh->ref_count > 0) {
+		nh->flags &= ~(GR_NH_F_REACHABLE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		memset(&nh->mac, 0, sizeof(nh->mac));
+	}
+}
+
 static void nh6_init(struct event_base *) {
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 	ndp_na_output_node = gr_control_input_register_handler("ndp_na_output", true);
@@ -319,7 +327,7 @@ static struct gr_module nh6_module = {
 
 static struct nexthop_ops nh_ops = {
 	.solicit = nh6_solicit,
-	.free = rib6_cleanup,
+	.free = nh6_free,
 };
 
 RTE_INIT(control_ip_init) {
