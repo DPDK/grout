@@ -51,7 +51,7 @@ int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity) {
 }
 
 static void *cond_wait_to_event(void *) {
-	pthread_setname_np(pthread_self(), "gr:ctrl-output");
+	pthread_setname_np(pthread_self(), "grout:ctrl");
 
 	while (!atomic_load(&thread_shutdown)) {
 		pthread_mutex_lock(&mutex);
