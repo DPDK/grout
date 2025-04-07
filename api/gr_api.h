@@ -25,11 +25,11 @@ struct gr_api_response {
 #define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 #define EVENT_TYPE_ALL UINT32_C(0xffffffff)
 
-#define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
+#define GR_DEFAULT_SOCK_NAME "grout.sock"
 
 struct gr_api_client;
 
-struct gr_api_client *gr_api_client_connect(const char *sock_path);
+struct gr_api_client *gr_api_client_connect(const char *sock_name);
 
 int gr_api_client_disconnect(struct gr_api_client *);
 
