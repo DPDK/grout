@@ -102,4 +102,37 @@ static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 	return 0;
 }
 
+struct gr_nexthop_config {
+	//! Maximum number of nexthops for all address families (default: 128K).
+	uint32_t max_count;
+	//! Reachable next hop lifetime after last probe reply received (default: 20 min).
+	uint32_t lifetime_reachable_sec;
+	//! Unreachable next hop lifetime after last unreplied probe was sent (default: 1 min).
+	uint32_t lifetime_unreachable_sec;
+	//! Max number of packets to hold per next hop waiting for resolution (default: 256).
+	uint16_t max_held_pkts;
+	//! Max number of unicast probes to send after NH_LIFETIME_REACHABLE.
+	uint8_t max_ucast_probes;
+	//! Max number of multicast/broadcast probes to send after unicast probes failed.
+	uint8_t max_bcast_probes;
+};
+
+// nexthop config //////////////////////////////////////////////////////////////
+#define GR_INFRA_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
+
+// struct gr_infra_nh_config_get_req { };
+
+struct gr_infra_nh_config_get_resp {
+	BASE(gr_nexthop_config);
+	uint32_t used_count;
+};
+
+#define GR_INFRA_NH_CONFIG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0061)
+
+struct gr_infra_nh_config_set_req {
+	BASE(gr_nexthop_config);
+};
+
+// struct gr_infra_nh_config_set_resp { };
+
 #endif

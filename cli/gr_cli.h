@@ -52,7 +52,23 @@ int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr
 int arg_ip4_net(const struct ec_pnode *p, const char *id, struct ip4_net *net, bool zero_mask);
 int arg_ip6_net(const struct ec_pnode *p, const char *id, struct ip6_net *net, bool zero_mask);
 
+static inline int arg_u8(const struct ec_pnode *p, const char *id, uint8_t *val) {
+	uint64_t v;
+	int ret = arg_u64(p, id, &v);
+	if (ret == 0)
+		*val = v;
+	return ret;
+}
+
 static inline int arg_u16(const struct ec_pnode *p, const char *id, uint16_t *val) {
+	uint64_t v;
+	int ret = arg_u64(p, id, &v);
+	if (ret == 0)
+		*val = v;
+	return ret;
+}
+
+static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *val) {
 	uint64_t v;
 	int ret = arg_u64(p, id, &v);
 	if (ret == 0)

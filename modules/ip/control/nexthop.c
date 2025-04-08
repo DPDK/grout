@@ -76,7 +76,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		return;
 	}
 
-	if (nh->held_pkts < NH_MAX_HELD_PKTS) {
+	if (nh->held_pkts < nh_conf.max_held_pkts) {
 		queue_mbuf_data(m)->next = NULL;
 		if (nh->held_pkts_head == NULL)
 			nh->held_pkts_head = m;
