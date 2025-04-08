@@ -13,9 +13,24 @@
 
 #include <stdint.h>
 
+#define DEFAULT_MAX_COUNT (1 << 17)
+#define DEFAULT_MAX_HELD_PKTS 256
+#define DEFAULT_LIFETIME_REACHABLE (20 * 60)
+#define DEFAULT_LIFETIME_UNREACHABLE 60
+#define DEFAULT_UCAST_PROBES 3
+#define DEFAULT_BCAST_PROBES 3
+
 static struct rte_mempool *pool;
 static struct event *ageing_timer;
 static const struct nexthop_ops *nh_ops[GR_NH_TYPE_COUNT];
+struct gr_nexthop_config nh_conf = {
+	.max_count = DEFAULT_MAX_COUNT,
+	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
+	.lifetime_unreachable_sec = DEFAULT_LIFETIME_UNREACHABLE,
+	.max_held_pkts = DEFAULT_MAX_HELD_PKTS,
+	.max_ucast_probes = DEFAULT_UCAST_PROBES,
+	.max_bcast_probes = DEFAULT_BCAST_PROBES,
+};
 
 void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
 	switch (type) {
@@ -161,7 +176,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 
 	reply_age = (now - nh->last_reply) / CLOCKS_PER_SEC;
 	request_age = (now - nh->last_request) / CLOCKS_PER_SEC;
-	max_probes = NH_UCAST_PROBES + NH_BCAST_PROBES;
+	max_probes = nh_conf.max_ucast_probes + nh_conf.max_bcast_probes;
 	probes = nh->ucast_probes + nh->bcast_probes;
 
 	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)) {
@@ -186,10 +201,10 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 				    nh->vrf_id,
 				    strerror(errno));
 		}
-	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > NH_LIFETIME_REACHABLE) {
+	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > nh_conf.lifetime_reachable_sec) {
 		nh->flags &= ~GR_NH_F_REACHABLE;
 		nh->flags |= GR_NH_F_STALE;
-	} else if (nh->flags & GR_NH_F_FAILED && request_age > NH_LIFETIME_UNREACHABLE) {
+	} else if (nh->flags & GR_NH_F_FAILED && request_age > nh_conf.lifetime_unreachable_sec) {
 		LOG(DEBUG,
 		    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
 		    ADDR_W(nh_af(&nh->base)),
@@ -208,7 +223,7 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 static void nh_init(struct event_base *ev_base) {
 	pool = rte_mempool_create(
 		"nexthops",
-		rte_align32pow2(NH_MAX_COUNT) - 1,
+		rte_align32pow2(nh_conf.max_count) - 1,
 		sizeof(struct nexthop),
 		0, // cache size
 		0, // priv size

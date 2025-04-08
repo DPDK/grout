@@ -11,18 +11,7 @@
 #include <event2/event.h>
 #include <rte_mbuf.h>
 
-//! Max number of packets to hold per next hop waiting for resolution (default: 256).
-#define NH_MAX_HELD_PKTS 256
-//! Reachable next hop lifetime after last probe reply received (default: 20 min).
-#define NH_LIFETIME_REACHABLE (20 * 60)
-//! Unreachable next hop lifetime after last unreplied probe was sent (default: 1 min).
-#define NH_LIFETIME_UNREACHABLE 60
-//! Max number of unicast probes to send after NH_LIFETIME_REACHABLE.
-#define NH_UCAST_PROBES 3
-//! Max number of multicast/broadcast probes to send after unicast probes failed.
-#define NH_BCAST_PROBES 3
-//! Maximum number of nexthops (TODO: make this configurable)
-#define NH_MAX_COUNT (1 << 17)
+extern struct gr_nexthop_config nh_conf;
 
 struct __rte_cache_aligned nexthop {
 	BASE(gr_nexthop);
