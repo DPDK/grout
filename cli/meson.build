@@ -11,7 +11,15 @@ cli_src += files(
   'log.c',
   'main.c',
   'quit.c',
-  'table.c',
 )
+
+if not compiler.has_function(
+  'scols_line_sprintf',
+  prefix: '#include <libsmartcols.h>',
+  dependencies: [smartcols_dep],
+)
+  cli_src += files('table.c')
+  cli_cflags += ['-DNEED_SCOLS_LINE_SPRINTF']
+endif
 
 cli_inc += include_directories('.')

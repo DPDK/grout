@@ -100,6 +100,7 @@ api_headers = []
 
 cli_src = []
 cli_inc = []
+cli_cflags = []
 
 tests = []
 
@@ -121,6 +122,7 @@ grcli_exe = executable(
   'grcli', cli_src,
   include_directories: cli_inc + api_inc,
   dependencies: [ecoli_dep, smartcols_dep],
+  c_args: cli_cflags,
   install: true,
 )
 
