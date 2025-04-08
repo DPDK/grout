@@ -7,6 +7,7 @@ cli_src += files(
   'graph.c',
   'iface.c',
   'loopback.c',
+  'nexthop.c',
   'port.c',
   'stats.c',
   'trace.c',

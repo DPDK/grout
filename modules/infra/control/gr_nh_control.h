@@ -13,6 +13,9 @@
 
 extern struct gr_nexthop_config nh_conf;
 
+int nexthop_config_set(const struct gr_nexthop_config *);
+unsigned nexthop_used_count(void);
+
 struct __rte_cache_aligned nexthop {
 	BASE(gr_nexthop);
 

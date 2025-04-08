@@ -117,4 +117,22 @@ struct gr_nexthop_config {
 	uint8_t max_bcast_probes;
 };
 
+// nexthop config //////////////////////////////////////////////////////////////
+#define GR_INFRA_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
+
+// struct gr_infra_nh_config_get_req { };
+
+struct gr_infra_nh_config_get_resp {
+	BASE(gr_nexthop_config);
+	uint32_t used_count;
+};
+
+#define GR_INFRA_NH_CONFIG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0061)
+
+struct gr_infra_nh_config_set_req {
+	BASE(gr_nexthop_config);
+};
+
+// struct gr_infra_nh_config_set_resp { };
+
 #endif

@@ -32,6 +32,64 @@ struct gr_nexthop_config nh_conf = {
 	.max_bcast_probes = DEFAULT_BCAST_PROBES,
 };
 
+static void count_nexthops(struct nexthop *, void *priv) {
+	unsigned *count = priv;
+	*count = *count + 1;
+}
+
+unsigned nexthop_used_count(void) {
+	unsigned count = 0;
+	nexthop_iter(count_nexthops, &count);
+	return count;
+}
+
+static struct rte_mempool *create_mempool(const struct gr_nexthop_config *c) {
+	if (pool != NULL && nexthop_used_count() > 0)
+		return errno_set_null(EBUSY);
+
+	char name[128];
+	snprintf(name, sizeof(name), "nexthops-%u", c->max_count);
+	struct rte_mempool *p = rte_mempool_create(
+		name,
+		rte_align32pow2(c->max_count) - 1,
+		sizeof(struct nexthop),
+		0, // cache size
+		0, // priv size
+		NULL, // mp_init
+		NULL, // mp_init_arg
+		NULL, // obj_init
+		NULL, // obj_init_arg
+		SOCKET_ID_ANY,
+		0 // flags
+	);
+	if (p == NULL)
+		return errno_log_null(rte_errno, "rte_mempool_create");
+	return p;
+}
+
+int nexthop_config_set(const struct gr_nexthop_config *c) {
+	if (c->max_count != 0 && c->max_count != nh_conf.max_count) {
+		struct rte_mempool *p = create_mempool(c);
+		if (p == NULL)
+			return -errno;
+		rte_mempool_free(pool);
+		pool = p;
+		nh_conf.max_count = c->max_count;
+	}
+	if (c->lifetime_reachable_sec != 0)
+		nh_conf.lifetime_reachable_sec = c->lifetime_reachable_sec;
+	if (c->lifetime_unreachable_sec != 0)
+		nh_conf.lifetime_unreachable_sec = c->lifetime_unreachable_sec;
+	if (c->max_held_pkts != 0)
+		nh_conf.max_held_pkts = c->max_held_pkts;
+	if (c->max_ucast_probes != 0)
+		nh_conf.max_ucast_probes = c->max_ucast_probes;
+	if (c->max_bcast_probes != 0)
+		nh_conf.max_bcast_probes = c->max_bcast_probes;
+
+	return 0;
+}
+
 void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
 	switch (type) {
 	case GR_NH_IPV4:
@@ -221,19 +279,7 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 }
 
 static void nh_init(struct event_base *ev_base) {
-	pool = rte_mempool_create(
-		"nexthops",
-		rte_align32pow2(nh_conf.max_count) - 1,
-		sizeof(struct nexthop),
-		0, // cache size
-		0, // priv size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		0 // flags
-	);
+	pool = create_mempool(&nh_conf);
 	if (pool == NULL)
 		ABORT("rte_mempool_create(nexthops) failed");
 
