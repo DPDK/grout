@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/capability.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -171,8 +172,10 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 }
 
 static int check_permission(int fd) {
+	cap_flag_value_t has_cap = CAP_CLEAR;
 	struct ucred cred;
 	socklen_t len;
+	cap_t caps;
 
 	len = sizeof(cred);
 	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
@@ -182,7 +185,21 @@ static int check_permission(int fd) {
 	if (cred.uid == 0 || cred.uid == getuid())
 		return 0;
 
-	return errno_set(EPERM);
+	// check if peer process has CAP_NET_ADMIN
+	caps = cap_get_pid(cred.pid);
+	if (caps == NULL)
+		return errno_log(errno, "cat_get_pid");
+
+	if (cap_get_flag(caps, CAP_NET_ADMIN, CAP_EFFECTIVE, &has_cap) == -1)
+		return errno_log(errno, "cat_get_flags");
+	cap_free(caps);
+
+	if (has_cap != CAP_SET) {
+		LOG(ERR, "unauthorized peer (pid=%d, uid=%d)", cred.pid, cred.uid);
+		return errno_set(EPERM);
+	}
+
+	return 0;
 }
 
 static struct api_out hello(const void *request) {

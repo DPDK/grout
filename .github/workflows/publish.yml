@@ -33,7 +33,7 @@ jobs:
             git build-essential meson ninja-build pkgconf go-md2man python3-pyelftools \
             libcmocka-dev libedit-dev libevent-dev libnuma-dev \
             libsmartcols-dev libarchive-dev libibverbs-dev \
-            bash-completion devscripts debhelper
+            bash-completion devscripts debhelper libcap-dev
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
@@ -63,7 +63,7 @@ jobs:
             gcc-toolset-13 scl-utils golang-github-cpuguy83-md2man \
             libcmocka-devel libedit-devel libevent-devel numactl-devel \
             libsmartcols-devel libarchive-devel rdma-core-devel \
-            rpm-build systemd
+            rpm-build systemd libcap-devel
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
