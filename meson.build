@@ -91,6 +91,7 @@ ecoli_dep = dependency(
   ]
 )
 smartcols_dep = dependency('smartcols')
+libcap_dep = dependency('libcap')
 
 src = []
 inc = []
@@ -113,7 +114,7 @@ subdir('cli')
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, libcap_dep, numa_dep],
   c_args: ['-D__GROUT_MAIN__'],
   install: true,
 )
