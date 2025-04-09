@@ -24,7 +24,7 @@ struct gr_api_client {
 	int sock_fd;
 };
 
-struct gr_api_client *gr_api_client_connect(const char *sock_path) {
+struct gr_api_client *gr_api_client_connect(const char *sock_name) {
 	union {
 		struct sockaddr_un un;
 		struct sockaddr a;
@@ -39,9 +39,13 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 		goto err;
 
 	addr.un.sun_family = AF_UNIX;
-	memccpy(addr.un.sun_path, sock_path, 0, sizeof(addr.un.sun_path) - 1);
+	addr.un.sun_path[0] = '\0';
+	memccpy(addr.un.sun_path + 1, sock_name, 0, sizeof(addr.un.sun_path) - 2);
 
-	if (connect(client->sock_fd, &addr.a, sizeof(addr.un)) < 0)
+	if (connect(client->sock_fd,
+		    &addr.a,
+		    offsetof(struct sockaddr_un, sun_path) + strlen(sock_name) + 1)
+	    < 0)
 		goto err;
 
 	struct gr_hello_req hello = {.version = GROUT_VERSION};

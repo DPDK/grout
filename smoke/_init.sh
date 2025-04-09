@@ -3,7 +3,7 @@
 
 set -e
 
-if [ -S "$GROUT_SOCK_PATH" ]; then
+if [ -n "$GROUT_SOCK_NAME" ]; then
 	run_grout=false
 else
 	run_grout=true
@@ -55,7 +55,7 @@ builddir=${1?builddir}
 run_id=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1)
 
 if [ "$run_grout" = true ]; then
-	export GROUT_SOCK_PATH=$tmp/grout.sock
+	export GROUT_SOCK_NAME=$run_id-grout.sock
 fi
 export PATH=$builddir:$PATH
 
@@ -74,7 +74,7 @@ set -x
 if [ "$run_grout" = true ]; then
 	taskset -c 0,1 grout -tvx &
 fi
-socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
+socat FILE:/dev/null ABSTRACT-CONNECT:$GROUT_SOCK_NAME,retry=10
 
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh)

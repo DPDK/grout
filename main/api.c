@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/capability.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -57,6 +58,15 @@ struct module_subscribers {
 	evutil_socket_t *ev_subs[UINT16_MAX];
 };
 static struct module_subscribers *mod_subs[UINT16_MAX];
+
+typedef enum {
+	CLIENT_CTX_F_NONE = 0,
+	CLIENT_CTX_PERMISSION_CHECKED,
+} client_ctx_flags_t;
+
+struct client_ctx {
+	client_ctx_flags_t flags;
+};
 
 static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct module_subscribers *subs;
@@ -161,6 +171,37 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 	return api_out(0, 0);
 }
 
+static int check_permission(int fd) {
+	cap_flag_value_t has_cap = CAP_CLEAR;
+	struct ucred cred;
+	socklen_t len;
+	cap_t caps;
+
+	len = sizeof(cred);
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
+		return errno_log(errno, "getsockopt(SO_PEERCRED)");
+
+	// peer user is root or with same uid that grout, allowed
+	if (cred.uid == 0 || cred.uid == getuid())
+		return 0;
+
+	// check if peer process has CAP_NET_ADMIN
+	caps = cap_get_pid(cred.pid);
+	if (caps == NULL)
+		return errno_log(errno, "cat_get_pid");
+
+	if (cap_get_flag(caps, CAP_NET_ADMIN, CAP_EFFECTIVE, &has_cap) == -1)
+		return errno_log(errno, "cat_get_flags");
+	cap_free(caps);
+
+	if (has_cap != CAP_SET) {
+		LOG(ERR, "unauthorized peer (pid=%d, uid=%d)", cred.pid, cred.uid);
+		return errno_set(EPERM);
+	}
+
+	return 0;
+}
+
 static struct api_out hello(const void *request) {
 	const struct gr_hello_req *req = request;
 
@@ -170,10 +211,12 @@ static struct api_out hello(const void *request) {
 	return api_out(0, 0);
 }
 
-static void finalize_fd(struct event *ev, void * /*priv*/) {
+static void finalize_fd(struct event *ev, void *ctx) {
 	int fd = event_get_fd(ev);
 	if (fd >= 0)
 		close(fd);
+	if (ctx)
+		free(ctx);
 }
 
 static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp) {
@@ -221,10 +264,11 @@ free:
 		event_free(ev);
 }
 
-static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
+static void read_cb(evutil_socket_t sock, short what, void *_ctx) {
 	struct event *ev = event_base_get_running_event(ev_base);
 	void *req_payload = NULL, *resp_payload = NULL;
 	struct gr_api_response *resp = NULL;
+	struct client_ctx *ctx = _ctx;
 	struct gr_api_request req;
 	struct event *write_ev;
 	struct api_out out;
@@ -261,6 +305,15 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 			LOG(DEBUG, "client disconnected");
 			goto close;
 		}
+	}
+
+	if (!(ctx->flags & CLIENT_CTX_PERMISSION_CHECKED)) {
+		if (check_permission(sock) < 0) {
+			out = api_out(EPERM, 0);
+			goto send;
+		}
+
+		ctx->flags |= CLIENT_CTX_PERMISSION_CHECKED;
 	}
 
 	LOG(DEBUG, "fd=%d id=%u req_type=0x%08x len=%u", sock, req.id, req.type, req.payload_len);
@@ -330,6 +383,7 @@ close:
 }
 
 static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
+	struct client_ctx *ctx;
 	struct event *ev;
 	int fd;
 
@@ -346,9 +400,16 @@ static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		return;
 	}
 
+	ctx = calloc(1, sizeof(struct client_ctx));
+	if (ctx == NULL) {
+		LOG(ERR, "client ctx allocation for new connection failed");
+		close(fd);
+		return;
+	}
+
 	LOG(DEBUG, "new connection fd=%d", fd);
 
-	ev = event_new(ev_base, fd, EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE, read_cb, NULL);
+	ev = event_new(ev_base, fd, EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE, read_cb, ctx);
 	if (ev == NULL || event_add(ev, NULL) < 0) {
 		LOG(ERR, "failed to add event to loop");
 		if (ev != NULL)
@@ -361,7 +422,7 @@ static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 static struct event *ev_listen;
 
 int api_socket_start(struct event_base *base) {
-	const char *path = gr_config.api_sock_path;
+	const char *sock_name = gr_config.api_sock_name;
 	union {
 		struct sockaddr_un un;
 		struct sockaddr a;
@@ -374,25 +435,10 @@ int api_socket_start(struct event_base *base) {
 		return errno_log(errno, "socket");
 
 	addr.un.sun_family = AF_UNIX;
-	memccpy(addr.un.sun_path, path, 0, sizeof(addr.un.sun_path) - 1);
+	addr.un.sun_path[0] = '\0';
+	memccpy(addr.un.sun_path + 1, sock_name, 0, sizeof(addr.un.sun_path) - 2);
 
-	ret = bind(fd, &addr.a, sizeof(addr.un));
-	if (ret < 0 && errno == EADDRINUSE) {
-		// unix socket file exists, check if there is a process
-		// listening on the other side.
-		ret = connect(fd, &addr.a, sizeof(addr.un));
-		if (ret == 0) {
-			LOG(ERR, "grout already running on API socket %s, exiting", path);
-			close(fd);
-			return errno_set(EADDRINUSE);
-		}
-		if (ret < 0 && errno != ECONNREFUSED)
-			return errno_log(errno, "connect");
-		// remove socket file, and try to bind again
-		if (unlink(addr.un.sun_path) < 0)
-			return errno_log(errno, "unlink");
-		ret = bind(fd, &addr.a, sizeof(addr.un));
-	}
+	ret = bind(fd, &addr.a, offsetof(struct sockaddr_un, sun_path) + strlen(sock_name) + 1);
 	if (ret < 0) {
 		close(fd);
 		return errno_log(errno, "bind");
@@ -413,7 +459,7 @@ int api_socket_start(struct event_base *base) {
 	// keep a reference for callbacks
 	ev_base = base;
 
-	LOG(INFO, "listening on API socket %s", path);
+	LOG(INFO, "listening on API socket %s", sock_name);
 
 	return 0;
 }

@@ -30,24 +30,24 @@ static void disconnect_client(void *ptr) {
 
 static struct gr_api_client *connect_client(struct ec_comp *comp) {
 	const struct ec_pnode *pstate = ec_comp_get_cur_pstate(comp);
-	const char *sock_path = NULL;
+	const char *sock_name = NULL;
 	struct gr_api_client *client;
 
 	// find the root of the parsed tree
 	while (ec_pnode_get_parent(pstate) != NULL)
 		pstate = ec_pnode_get_parent(pstate);
 
-	// find a parsed -s or --sock-path argument value
-	pstate = ec_pnode_find(pstate, SOCK_PATH_ID);
+	// find a parsed -s or --sock-name argument value
+	pstate = ec_pnode_find(pstate, SOCK_NAME_ID);
 	if (pstate != NULL) {
 		const struct ec_strvec *vec = ec_pnode_get_strvec(pstate);
 		if (ec_strvec_len(vec) == 1)
-			sock_path = ec_strvec_val(vec, 0);
+			sock_name = ec_strvec_val(vec, 0);
 	}
-	if (sock_path == NULL)
-		sock_path = GR_DEFAULT_SOCK_PATH; // not specified, use default
+	if (sock_name == NULL)
+		sock_name = GR_DEFAULT_SOCK_NAME; // not specified, use default
 
-	client = gr_api_client_connect(sock_path);
+	client = gr_api_client_connect(sock_name);
 	if (client != NULL) {
 		// attach the connected client to the complete tree so that it is
 		// automatically disconnected when the tree is freed.
