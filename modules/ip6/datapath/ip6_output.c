@@ -85,7 +85,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
-		edge = iface_type_edges[iface->type_id];
+		edge = iface_type_edges[iface->type];
 		mbuf_data(mbuf)->iface = iface;
 		if (edge != ETH_OUTPUT)
 			goto next;

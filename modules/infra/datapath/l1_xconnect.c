@@ -28,7 +28,7 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		mbuf = objs[i];
 		iface = mbuf_data(mbuf)->iface;
 		peer = iface_from_id(iface->domain_id);
-		if (peer->type_id == GR_IFACE_TYPE_PORT) {
+		if (peer->type == GR_IFACE_TYPE_PORT) {
 			port = (const struct iface_info_port *)peer->info;
 			mbuf->port = port->port_id;
 			edge = TX;

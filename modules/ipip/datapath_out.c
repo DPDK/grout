@@ -43,7 +43,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Resolve the IPIP interface from the nexthop provided by ip_output.
 		ip_data = ip_output_mbuf_data(mbuf);
 		iface = iface_from_id(ip_data->nh->iface_id);
-		if (iface == NULL || iface->type_id != GR_IFACE_TYPE_IPIP) {
+		if (iface == NULL || iface->type != GR_IFACE_TYPE_IPIP) {
 			edge = NO_TUNNEL;
 			goto next;
 		}

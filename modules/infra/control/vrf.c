@@ -25,7 +25,7 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	int ifaces_per_vrf[ARRAY_DIM(vrfs)] = {0};
 
-	if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
+	if (iface->type == GR_IFACE_TYPE_LOOPBACK)
 		return;
 
 	switch (event) {
@@ -42,7 +42,7 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 	case IFACE_EVENT_POST_RECONFIG:
 		iface = NULL;
 		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-			if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
+			if (iface->type == GR_IFACE_TYPE_LOOPBACK)
 				continue;
 			if (iface->mode == GR_IFACE_MODE_L3)
 				ifaces_per_vrf[iface->vrf_id]++;

@@ -36,7 +36,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		priv = eth_output_mbuf_data(mbuf);
 		vlan = NULL;
 
-		switch (priv->iface->type_id) {
+		switch (priv->iface->type) {
 		case GR_IFACE_TYPE_VLAN:
 			sub = (struct iface_info_vlan *)priv->iface->info;
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
