@@ -239,7 +239,6 @@ err:
 	if (ioctl_sock > 0)
 		close(ioctl_sock);
 	return errno_set(err_save);
-	;
 }
 
 static int iface_loopback_fini(struct iface *iface) {
