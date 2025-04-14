@@ -15,13 +15,7 @@
 
 static void iface_to_api(struct gr_iface *to, const struct iface *from) {
 	struct iface_type *type = iface_type_get(from->type);
-	to->id = from->id;
-	to->type = from->type;
-	to->flags = from->flags;
-	to->state = from->state;
-	to->mtu = from->mtu;
-	to->vrf_id = from->vrf_id;
-	to->mode = from->mode;
+	to->base = from->base;
 	memccpy(to->name, from->name, 0, sizeof(to->name));
 	type->to_api(to->info, from);
 }

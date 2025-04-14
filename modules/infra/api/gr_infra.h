@@ -55,7 +55,7 @@ typedef enum : uint8_t {
 } gr_iface_mode_t;
 
 // Generic struct for all network interfaces.
-struct gr_iface {
+struct __gr_iface_base {
 	uint16_t id; // Interface unique index.
 	gr_iface_type_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
 	gr_iface_mode_t mode;
@@ -66,6 +66,11 @@ struct gr_iface {
 		uint16_t vrf_id; // L3 addressing and routing domain
 		uint16_t domain_id; // L2 xconnect peer interface id
 	};
+};
+
+struct gr_iface {
+	BASE(__gr_iface_base);
+
 #define GR_IFACE_NAME_SIZE 64
 	char name[GR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
 	uint8_t info[256]; // Type specific interface info.
@@ -80,16 +85,21 @@ void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
 #define GR_PORT_SET_MAC GR_BIT64(35)
 
 // Info for GR_IFACE_TYPE_PORT interfaces
-struct gr_iface_info_port {
-#define GR_PORT_DEVARGS_SIZE 64
-	char devargs[GR_PORT_DEVARGS_SIZE];
-#define GR_PORT_DRIVER_NAME_SIZE 32
-	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
+struct __gr_iface_info_port_base {
 	uint16_t n_rxq;
 	uint16_t n_txq;
 	uint16_t rxq_size;
 	uint16_t txq_size;
 	struct rte_ether_addr mac;
+};
+
+struct gr_iface_info_port {
+	BASE(__gr_iface_info_port_base);
+
+#define GR_PORT_DEVARGS_SIZE 64
+	char devargs[GR_PORT_DEVARGS_SIZE];
+#define GR_PORT_DRIVER_NAME_SIZE 32
+	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
 };
 
 static_assert(sizeof(struct gr_iface_info_port) <= MEMBER_SIZE(struct gr_iface, info));
