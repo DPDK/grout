@@ -304,6 +304,7 @@ static void graph_init(struct event_base *) {
 		.name = "node_data",
 		.entries = 1024,
 		.key_len = sizeof(struct node_data_key),
+		.socket_id = SOCKET_ID_ANY,
 	};
 	hash = rte_hash_create(&params);
 	if (hash == NULL)
