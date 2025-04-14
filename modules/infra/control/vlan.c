@@ -38,7 +38,7 @@ static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
 
 	if (parent == NULL)
 		return -errno;
-	if (parent->type_id != GR_IFACE_TYPE_PORT)
+	if (parent->type != GR_IFACE_TYPE_PORT)
 		return errno_set(EMEDIUMTYPE);
 
 	port = (const struct iface_info_port *)parent->info;
@@ -69,7 +69,7 @@ static int iface_vlan_reconfig(
 	if ((next_parent = iface_from_id(next->parent_id)) == NULL)
 		return -errno;
 
-	parent_type = iface_type_get(next_parent->type_id);
+	parent_type = iface_type_get(next_parent->type);
 
 	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
 		struct vlan_key next_key = {next->parent_id, next->vlan_id};
@@ -143,7 +143,7 @@ static int iface_vlan_fini(struct iface *iface) {
 	if (get_parent_port_id(vlan->parent_id, &port_id) < 0)
 		return -errno;
 
-	parent_type = iface_type_get(parent->type_id);
+	parent_type = iface_type_get(parent->type);
 
 	rte_hash_del_key(vlan_hash, &(struct vlan_key) {vlan->parent_id, vlan->vlan_id});
 
@@ -267,7 +267,7 @@ static void port_event(uint32_t event, const void *obj) {
 	struct iface_info_vlan *info;
 	struct iface *vlan = NULL;
 
-	if (iface->type_id != GR_IFACE_TYPE_PORT)
+	if (iface->type != GR_IFACE_TYPE_PORT)
 		return;
 
 	while ((vlan = iface_next(GR_IFACE_TYPE_VLAN, vlan)) != NULL) {

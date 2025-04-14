@@ -78,7 +78,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	iface->mode = GR_IFACE_MODE_L3;
 	iface->id = ifid;
-	iface->type_id = conf->type;
+	iface->type = conf->type;
 	iface->flags = conf->flags;
 	iface->mtu = conf->mtu;
 	iface->vrf_id = conf->vrf_id;
@@ -131,7 +131,7 @@ int iface_reconfig(
 		iface->name = new_name;
 	}
 
-	type = iface_type_get(iface->type_id);
+	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	return type->reconfig(iface, set_attrs, conf, api_info);
 }
@@ -141,7 +141,7 @@ uint16_t ifaces_count(gr_iface_type_t type_id) {
 
 	for (uint16_t ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			count++;
 	}
 
@@ -158,7 +158,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 
 	for (uint16_t ifid = start_id; ifid < MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
-		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type_id == type_id))
+		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			return iface;
 	}
 
@@ -181,7 +181,7 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	if (iface == NULL)
 		return -errno;
 
-	type = iface_type_get(iface->type_id);
+	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	if (type->get_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
@@ -214,7 +214,7 @@ int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	if (iface == NULL)
 		return -errno;
 
-	type = iface_type_get(iface->type_id);
+	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	if (type->add_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
@@ -229,7 +229,7 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	if (iface == NULL)
 		return -errno;
 
-	type = iface_type_get(iface->type_id);
+	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	if (type->del_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
@@ -251,7 +251,7 @@ int iface_destroy(uint16_t ifid) {
 	gr_event_push(IFACE_EVENT_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
-	type = iface_type_get(iface->type_id);
+	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	ret = type->fini(iface);
 	free(iface->name);
@@ -274,8 +274,8 @@ static void iface_fini(struct event_base *) {
 	// Destroy all virtual interface first before removing DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface != NULL && iface->type_id != GR_IFACE_TYPE_PORT
-		    && iface->type_id != GR_IFACE_TYPE_LOOPBACK) {
+		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
+		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
 			if (iface_destroy(ifid) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
@@ -285,7 +285,7 @@ static void iface_fini(struct event_base *) {
 	// Finally, destroy DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface == NULL || iface->type_id == GR_IFACE_TYPE_LOOPBACK)
+		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
 			continue;
 		if (iface_destroy(ifid) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));

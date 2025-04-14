@@ -14,9 +14,9 @@
 #include <rte_ether.h>
 
 static void iface_to_api(struct gr_iface *to, const struct iface *from) {
-	struct iface_type *type = iface_type_get(from->type_id);
+	struct iface_type *type = iface_type_get(from->type);
 	to->id = from->id;
-	to->type = from->type_id;
+	to->type = from->type;
 	to->flags = from->flags;
 	to->state = from->state;
 	to->mtu = from->mtu;
@@ -56,7 +56,7 @@ static struct api_out iface_del(const void *request, void ** /*response*/) {
 	if ((iface = iface_from_id(req->iface_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if (iface->type_id == GR_IFACE_TYPE_LOOPBACK)
+	if (iface->type == GR_IFACE_TYPE_LOOPBACK)
 		return api_out(EINVAL, 0);
 
 	ret = iface_destroy(req->iface_id);

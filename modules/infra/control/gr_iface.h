@@ -15,7 +15,7 @@
 
 struct __rte_cache_aligned iface {
 	uint16_t id;
-	gr_iface_type_t type_id;
+	gr_iface_type_t type;
 	gr_iface_flags_t flags;
 	gr_iface_state_t state;
 	uint16_t mtu;
