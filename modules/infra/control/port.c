@@ -589,9 +589,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				continue;
 
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
-				LOG(INFO, "%s: link status down", iface->name);
-				iface->state &= ~GR_IFACE_S_RUNNING;
-				gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
+				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));
 				continue;
 			}
 			if (link.link_status == RTE_ETH_LINK_UP) {
