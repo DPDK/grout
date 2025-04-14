@@ -13,9 +13,7 @@
 #include <sys/queue.h>
 
 struct __rte_aligned(alignof(void *)) iface_info_vlan {
-	uint16_t parent_id;
-	uint16_t vlan_id;
-	struct rte_ether_addr mac;
+	BASE(gr_iface_info_vlan);
 };
 
 struct iface *vlan_get_iface(uint16_t port_id, uint16_t vlan_id);

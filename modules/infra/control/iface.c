@@ -76,12 +76,8 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (next_ifid(&ifid) < 0)
 		goto fail;
 
-	iface->mode = GR_IFACE_MODE_L3;
+	iface->base = conf->base;
 	iface->id = ifid;
-	iface->type = conf->type;
-	iface->flags = conf->flags;
-	iface->mtu = conf->mtu;
-	iface->vrf_id = conf->vrf_id;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
 	iface->name = strndup(conf->name, GR_IFACE_NAME_SIZE);
 	if (iface->name == NULL)

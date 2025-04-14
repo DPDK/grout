@@ -14,16 +14,8 @@
 #include <sys/queue.h>
 
 struct __rte_cache_aligned iface {
-	uint16_t id;
-	gr_iface_type_t type;
-	gr_iface_flags_t flags;
-	gr_iface_state_t state;
-	uint16_t mtu;
-	union {
-		uint16_t vrf_id; // L3 addressing and routing domain
-		uint16_t domain_id;
-	};
-	gr_iface_mode_t mode;
+	BASE(__gr_iface_base);
+
 	const struct iface **subinterfaces;
 	char *name;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];

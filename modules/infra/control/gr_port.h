@@ -29,13 +29,10 @@ struct mac_filter {
 };
 
 struct __rte_aligned(alignof(void *)) iface_info_port {
+	BASE(__gr_iface_info_port_base);
+
 	uint16_t port_id;
-	uint8_t n_rxq;
-	uint8_t n_txq;
 	bool started;
-	uint16_t rxq_size;
-	uint16_t txq_size;
-	struct rte_ether_addr mac;
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;
