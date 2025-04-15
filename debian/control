@@ -10,6 +10,7 @@ Build-Depends:
  git,
  go-md2man,
  libarchive-dev,
+ libcap-dev,
  libcmocka-dev,
  libedit-dev,
  libevent-dev,
