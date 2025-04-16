@@ -16,7 +16,7 @@
 #include <errno.h>
 
 static cmd_status_t route6_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_route_add_req req = {.exist_ok = true};
+	struct gr_ip6_route_add_req req = {.exist_ok = true, .origin = GR_RT_ORIGIN_USER};
 
 	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
@@ -66,6 +66,7 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
+	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_routes; i++) {
@@ -74,6 +75,7 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, IP6_F, &route->nh);
+		scols_line_sprintf(line, 3, "%s", gr_rt_origin_name(route->origin));
 	}
 
 	scols_print_table(table);

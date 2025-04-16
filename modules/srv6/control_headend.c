@@ -242,6 +242,7 @@ static struct api_out srv6_steer_add(const void *request, void ** /*response*/) 
 			    GR_IFACE_ID_UNDEF,
 			    &req->l3.dest6.ip,
 			    req->l3.dest6.prefixlen,
+			    GR_RT_ORIGIN_LINK,
 			    nh
 		    )
 		    < 0)

@@ -59,7 +59,15 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /128 route so that next packets take it
 		// in priority with a single route lookup.
-		if (rib6_insert(nh->vrf_id, nh->iface_id, dst, RTE_IPV6_MAX_DEPTH, remote) < 0) {
+		int ret = rib6_insert(
+			nh->vrf_id,
+			nh->iface_id,
+			dst,
+			RTE_IPV6_MAX_DEPTH,
+			GR_RT_ORIGIN_INTERNAL,
+			remote
+		);
+		if (ret < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
@@ -148,8 +156,15 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 			}
 
 			// Add an internal /128 route to reference the newly created nexthop.
-			if (rib6_insert(iface->vrf_id, iface->id, remote, RTE_IPV6_MAX_DEPTH, nh)
-			    < 0) {
+			int ret = rib6_insert(
+				iface->vrf_id,
+				iface->id,
+				remote,
+				RTE_IPV6_MAX_DEPTH,
+				GR_RT_ORIGIN_INTERNAL,
+				nh
+			);
+			if (ret < 0) {
 				LOG(ERR, "ip6_route_insert: %s", strerror(errno));
 				goto free;
 			}
@@ -226,7 +241,9 @@ static struct api_out nh6_add(const void *request, void ** /*response*/) {
 
 	nh->mac = req->nh.mac;
 	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh);
+	ret = rib6_insert(
+		nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, GR_RT_ORIGIN_LINK, nh
+	);
 
 	return api_out(-ret, 0);
 }

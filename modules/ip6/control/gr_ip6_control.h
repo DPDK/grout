@@ -35,6 +35,7 @@ int rib6_insert(
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *,
 	uint8_t prefixlen,
+	gr_rt_origin_t origin,
 	struct nexthop *nh
 );
 int rib6_delete(
