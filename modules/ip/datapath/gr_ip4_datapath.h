@@ -32,7 +32,13 @@ void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node);
 void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 int arp_output_request_solicit(struct nexthop *nh);
-void arp_update_nexthop(struct rte_graph *, struct rte_node *, struct nexthop *, const struct iface *, const struct rte_ether_addr *);
+void arp_update_nexthop(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	struct nexthop *nh,
+	const struct iface *iface,
+	const struct rte_ether_addr *mac
+);
 
 #define IPV4_VERSION_IHL 0x45
 #define IPV4_DEFAULT_TTL 64

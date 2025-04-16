@@ -54,16 +54,20 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		switch (icmp_type) {
 		case ICMP6_ERR_DEST_UNREACH:
+			// clang-format off
 			du = (struct icmp6_err_dest_unreach *)
 				rte_pktmbuf_prepend(mbuf, sizeof(*du));
+			// clang-format on
 			if (unlikely(du == NULL)) {
 				edge = NO_HEADROOM;
 				goto next;
 			}
 			break;
 		case ICMP6_ERR_TTL_EXCEEDED:
+			// clang-format off
 			te = (struct icmp6_err_ttl_exceeded *)
 				rte_pktmbuf_prepend(mbuf, sizeof(*du));
+			// clang-format on
 			if (unlikely(te == NULL)) {
 				edge = NO_HEADROOM;
 				goto next;

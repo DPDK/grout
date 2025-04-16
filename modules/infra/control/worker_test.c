@@ -77,11 +77,24 @@ mock_func(int, __wrap_rte_eth_dev_get_mtu(uint16_t, uint16_t *));
 mock_func(int, __wrap_rte_eth_macaddr_get(uint16_t, struct rte_ether_addr *));
 mock_func(
 	int,
-	__wrap_rte_eth_rx_queue_setup(uint16_t, uint16_t, uint16_t, unsigned int, const struct rte_eth_rxconf *, struct rte_mempool *)
+	__wrap_rte_eth_rx_queue_setup(
+		uint16_t,
+		uint16_t,
+		uint16_t,
+		unsigned int,
+		const struct rte_eth_rxconf *,
+		struct rte_mempool * /*pool*/
+	)
 );
 mock_func(
 	int,
-	__wrap_rte_eth_tx_queue_setup(uint16_t, uint16_t, uint16_t, unsigned int, const struct rte_eth_txconf *)
+	__wrap_rte_eth_tx_queue_setup(
+		uint16_t,
+		uint16_t,
+		uint16_t,
+		unsigned int,
+		const struct rte_eth_txconf * /*conf*/
+	)
 );
 mock_func(int, __wrap_numa_available(int));
 mock_func(int, __wrap_numa_node_of_cpu(int));

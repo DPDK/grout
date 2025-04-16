@@ -44,6 +44,9 @@ static void icmp6_input_cb(struct rte_mbuf *m) {
 	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
 }
 
+#define ICMP6_ERROR_PKT_LEN                                                                        \
+	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(clock_t))
+
 static struct rte_mbuf *
 get_icmp6_echo_reply(uint16_t ident, uint16_t seq_num, struct icmp6 **out_icmp6) {
 	struct icmp_queue_item *i, *tmp;
@@ -67,8 +70,7 @@ get_icmp6_echo_reply(uint16_t ident, uint16_t seq_num, struct icmp6 **out_icmp6)
 			ip6 = PAYLOAD(icmp6_echo);
 			icmp6 = PAYLOAD(ip6);
 			icmp6_echo = PAYLOAD(icmp6);
-			if (rte_pktmbuf_pkt_len(mbuf
-			    ) < GR_ICMP6_HDR_LEN + sizeof(*ip6) + GR_ICMP6_HDR_LEN + sizeof(clock_t)
+			if (rte_pktmbuf_pkt_len(mbuf) < ICMP6_ERROR_PKT_LEN
 			    || ip6->proto != IPPROTO_ICMPV6
 			    || icmp6->type != ICMP6_TYPE_ECHO_REQUEST)
 				goto free_and_skip;

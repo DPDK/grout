@@ -85,7 +85,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	return nb_objs;
 }
 
-static struct rte_node_register node= {
+static struct rte_node_register node = {
 	.name = "eth_output",
 
 	.process = eth_output_process,
