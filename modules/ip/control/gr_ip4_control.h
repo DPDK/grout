@@ -29,7 +29,13 @@ void arp_probe_input_cb(struct rte_mbuf *m);
 
 struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
-int rib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, struct nexthop *);
+int rib4_insert(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_rt_origin_t origin,
+	struct nexthop *nh
+);
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);
 void rib4_cleanup(struct nexthop *);
 

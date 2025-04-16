@@ -20,6 +20,7 @@ struct gr_ip4_route {
 	struct ip4_net dest;
 	ip4_addr_t nh;
 	uint16_t vrf_id;
+	gr_rt_origin_t origin;
 };
 
 #define GR_IP4_MODULE 0xf00d
@@ -64,6 +65,7 @@ struct gr_ip4_route_add_req {
 	uint16_t vrf_id;
 	struct ip4_net dest;
 	ip4_addr_t nh;
+	gr_rt_origin_t origin;
 	uint8_t exist_ok;
 };
 
