@@ -102,6 +102,37 @@ static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 	return 0;
 }
 
+// Route install origin values shared by IPv4 and IPv6.
+// See NH_ORIGIN_* in sys/route/nhop.h (BSD) and RTPROT_* in zebra/rt_netlink.h (FRR).
+typedef enum : uint8_t {
+	GR_RT_ORIGIN_UNSPEC = 0, //!< (NH_ORIGIN_UNSPEC).
+	GR_RT_ORIGIN_REDIRECT = 1, //!< Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
+	GR_RT_ORIGIN_LINK = 2, //!< Installed implicitly for local addresses (NH_ORIGIN_KERNEL).
+	GR_RT_ORIGIN_BOOT = 3, //!< Installed at boot?? (NH_ORIGIN_BOOT).
+	GR_RT_ORIGIN_USER = 4, //!< Installed explicitly by user (NH_ORIGIN_STATIC).
+	// Values 5 to 254 are allowed and are used by routing daemons.
+	GR_RT_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
+} gr_rt_origin_t;
+
+static inline const char *gr_rt_origin_name(gr_rt_origin_t origin) {
+	switch (origin) {
+	case GR_RT_ORIGIN_UNSPEC:
+		return "unspec";
+	case GR_RT_ORIGIN_REDIRECT:
+		return "redirect";
+	case GR_RT_ORIGIN_LINK:
+		return "link";
+	case GR_RT_ORIGIN_BOOT:
+		return "boot";
+	case GR_RT_ORIGIN_USER:
+		return "user";
+	case GR_RT_ORIGIN_INTERNAL:
+		return "INTERNAL";
+	}
+	return "?";
+}
+
+// nexthop config //////////////////////////////////////////////////////////////
 struct gr_nexthop_config {
 	//! Maximum number of nexthops for all address families (default: 128K).
 	uint32_t max_count;
@@ -117,7 +148,6 @@ struct gr_nexthop_config {
 	uint8_t max_bcast_probes;
 };
 
-// nexthop config //////////////////////////////////////////////////////////////
 #define GR_INFRA_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
 
 // struct gr_infra_nh_config_get_req { };
