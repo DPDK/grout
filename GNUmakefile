@@ -92,6 +92,7 @@ rpm:
 			$$name.$$arch.rpm || exit; \
 	done
 
+CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
 licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian' ':!:.*'
@@ -100,7 +101,7 @@ licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:*.asc' ':!:s
 lint:
 	@echo '[clang-format]'
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
-		clang-format --files="$$tmp" --dry-run --Werror
+		$(CLANG_FORMAT) --files="$$tmp" --dry-run --Werror
 	@echo '[license-check]'
 	$Q ! $(licensed_files) | while read -r f; do \
 		if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
@@ -122,7 +123,7 @@ lint:
 format:
 	@echo '[clang-format]'
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
-		clang-format --files="$$tmp" -i --verbose
+		$(CLANG_FORMAT) --files="$$tmp" -i --verbose
 
 REVISION_RANGE ?= origin/main..
 
