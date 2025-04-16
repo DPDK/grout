@@ -175,7 +175,8 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 			return errno_set(-ret);
 		}
 
-	if ((ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, nh)) < 0)
+	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_RT_ORIGIN_LINK, nh);
+	if (ret < 0)
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);

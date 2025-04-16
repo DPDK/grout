@@ -41,7 +41,7 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 		return api_out(errno, 0);
 	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC | GR_NH_F_REACHABLE;
 
-	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, nh);
+	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, GR_RT_ORIGIN_LINK, nh);
 	if (r < 0)
 		return api_out(-r, 0);
 
