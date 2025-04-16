@@ -92,7 +92,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 			return api_out(errno, 0);
 		}
 
-	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, nh)) < 0)
+	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, GR_RT_ORIGIN_LINK, nh)) < 0)
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);

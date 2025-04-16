@@ -260,7 +260,14 @@ static struct api_out srv6_steer_add(const void *request, void ** /*response*/) 
 			return api_out(errno, 0);
 		nh->prefixlen = req->l3.dest4.prefixlen;
 
-		if (rib4_insert(req->l3.vrf_id, req->l3.dest4.ip, req->l3.dest4.prefixlen, nh) < 0)
+		if (rib4_insert(
+			    req->l3.vrf_id,
+			    req->l3.dest4.ip,
+			    req->l3.dest4.prefixlen,
+			    GR_RT_ORIGIN_LINK,
+			    nh
+		    )
+		    < 0)
 			return api_out(errno, 0);
 	}
 	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC | GR_NH_F_REACHABLE;

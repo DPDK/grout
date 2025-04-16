@@ -67,18 +67,20 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 		case IP_EVENT_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r4));
 			r4 = PAYLOAD(e);
-			printf("> route add: %4p/%d via %4p\n",
+			printf("> route add: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh);
+			       &r4->nh,
+			       gr_rt_origin_name(r4->origin));
 			break;
 		case IP_EVENT_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r4));
 			r4 = PAYLOAD(e);
-			printf("> route del: %4p/%d via %4p\n",
+			printf("> route del: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh);
+			       &r4->nh,
+			       gr_rt_origin_name(r4->origin));
 			break;
 		case IP6_EVENT_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r6));
