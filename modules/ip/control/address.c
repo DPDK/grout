@@ -123,9 +123,6 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (nh->ref_count > 1)
-		return api_out(EBUSY, 0);
-
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
