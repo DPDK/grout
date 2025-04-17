@@ -123,10 +123,11 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
+	gr_event_push(IP_EVENT_ADDR_DEL, nh);
+
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
-	gr_event_push(IP_EVENT_ADDR_DEL, nh);
 
 	return api_out(0, 0);
 }
