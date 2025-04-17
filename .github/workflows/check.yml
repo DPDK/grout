@@ -129,7 +129,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:
-      - run: dnf install -y make clang-tools-extra git jq curl codespell
+      - run: dnf install -y gawk make clang-tools-extra git jq curl codespell
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
