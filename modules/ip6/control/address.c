@@ -233,6 +233,8 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
+	gr_event_push(IP6_EVENT_ADDR_DEL, nh);
+
 	rib6_cleanup(nh);
 
 	// shift the remaining addresses
@@ -242,8 +244,6 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
 	if (mcast6_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
 		return api_out(errno, 0);
-
-	gr_event_push(IP6_EVENT_ADDR_DEL, nh);
 
 	return api_out(0, 0);
 }
