@@ -233,9 +233,6 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (nh->ref_count > 1)
-		return api_out(EBUSY, 0);
-
 	rib6_cleanup(nh);
 
 	// shift the remaining addresses
