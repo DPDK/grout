@@ -339,6 +339,7 @@ static void graph_fini(struct event_base *) {
 static struct gr_module graph_module = {
 	.name = "graph",
 	.init = graph_init,
+	.init_prio = 0,
 	.fini = graph_fini,
 	.fini_prio = -999,
 };

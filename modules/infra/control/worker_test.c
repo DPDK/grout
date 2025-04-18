@@ -181,6 +181,8 @@ static int setup(void **) {
 	gr_vec_add(w2.txqs, q(1, 1));
 	gr_vec_add(w2.txqs, q(2, 1));
 
+	STAILQ_INSERT_TAIL(&workers, &w3, next);
+
 	return 0;
 }
 
@@ -258,7 +260,7 @@ static void rxq_assign_already_set(void **) {
 static void rxq_assign_existing_worker(void **) {
 	common_mocks();
 	assert_int_equal(worker_rxq_assign(1, 1, 1), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
 	assert_qmaps(w2.rxqs, q(2, 1), q(2, 0));
 	assert_qmaps(w3.rxqs);
@@ -271,7 +273,7 @@ static void rxq_assign_existing_worker_destroy(void **) {
 	common_mocks();
 
 	assert_int_equal(worker_rxq_assign(2, 0, 1), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
 	assert_qmaps(w3.rxqs);
@@ -280,7 +282,7 @@ static void rxq_assign_existing_worker_destroy(void **) {
 	assert_qmaps(w3.txqs);
 
 	assert_int_equal(worker_rxq_assign(2, 1, 1), 0);
-	assert_int_equal(worker_count(), 1);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0), q(2, 1));
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs);
@@ -292,9 +294,8 @@ static void rxq_assign_existing_worker_destroy(void **) {
 static void rxq_assign_new_worker(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w2);
 	assert_int_equal(worker_rxq_assign(2, 1, 2), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
 	assert_qmaps(w3.rxqs);
@@ -306,9 +307,8 @@ static void rxq_assign_new_worker(void **) {
 static void rxq_assign_new_worker_destroy(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w3);
 	assert_int_equal(worker_rxq_assign(2, 1, 3), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs, q(2, 1));
@@ -320,7 +320,6 @@ static void rxq_assign_new_worker_destroy(void **) {
 static void rxq_assign_new_worker2(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w2);
 	assert_int_equal(worker_rxq_assign(2, 0, 2), 0);
 	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
