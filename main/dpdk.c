@@ -95,6 +95,7 @@ int dpdk_init(void) {
 	char main_lcore[32] = "";
 	int ret;
 
+	pthread_setname_np(pthread_self(), "grout:main");
 	CPU_ZERO(&gr_config.control_cpus);
 	ret = pthread_getaffinity_np(
 		pthread_self(), sizeof(gr_config.datapath_cpus), &gr_config.datapath_cpus

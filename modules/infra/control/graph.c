@@ -239,6 +239,7 @@ int worker_graph_reload(struct worker *worker) {
 
 	// wait for datapath worker to pickup the config update
 	atomic_store(&worker->next_config, next);
+	worker_signal_ready(worker);
 	while (atomic_load(&worker->cur_config) != next)
 		usleep(500);
 
@@ -338,6 +339,7 @@ static void graph_fini(struct event_base *) {
 static struct gr_module graph_module = {
 	.name = "graph",
 	.init = graph_init,
+	.init_prio = 0,
 	.fini = graph_fini,
 	.fini_prio = -999,
 };
