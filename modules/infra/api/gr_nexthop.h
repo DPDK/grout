@@ -128,7 +128,15 @@ typedef enum : uint8_t {
 	GR_RT_ORIGIN_ISIS = 187, // (RTPROT_ISIS)
 	GR_RT_ORIGIN_OSPF = 188, // (RTPROT_OSPF)
 	GR_RT_ORIGIN_RIP = 189, // (RTPROT_RIP)
+	GR_RT_ORIGIN_RIPNG = 190, // (RTPROT_RIPNG from zebra)
+	GR_RT_ORIGIN_NHRP = 191, // (RTPROT_NHRP from zebra)
 	GR_RT_ORIGIN_EIGRP = 192, // (RTPROT_EIGRP)
+	GR_RT_ORIGIN_LDP = 193, // (RTPROT_LDP from zebra)
+	GR_RT_ORIGIN_SHARP = 194, // (RTPROT_SHARP from zebra)
+	GR_RT_ORIGIN_PBR = 195, // (RTPROT_PBR from zebra)
+	GR_RT_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
+	GR_RT_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
+	GR_RT_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
 	GR_RT_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
 } gr_rt_origin_t;
 
@@ -178,8 +186,24 @@ static inline const char *gr_rt_origin_name(gr_rt_origin_t origin) {
 		return "ospf";
 	case GR_RT_ORIGIN_RIP:
 		return "rip";
+	case GR_RT_ORIGIN_RIPNG:
+		return "ripng";
+	case GR_RT_ORIGIN_NHRP:
+		return "nhrp";
 	case GR_RT_ORIGIN_EIGRP:
 		return "eigrp";
+	case GR_RT_ORIGIN_LDP:
+		return "ldp";
+	case GR_RT_ORIGIN_SHARP:
+		return "sharp";
+	case GR_RT_ORIGIN_PBR:
+		return "pbr";
+	case GR_RT_ORIGIN_ZSTATIC:
+		return "zebra_static";
+	case GR_RT_ORIGIN_OPENFABRIC:
+		return "openfabric";
+	case GR_RT_ORIGIN_SRTE:
+		return "srte";
 	case GR_RT_ORIGIN_INTERNAL:
 		return "INTERNAL";
 	}
