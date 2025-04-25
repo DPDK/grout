@@ -244,6 +244,11 @@ int iface_destroy(uint16_t ifid) {
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
+	/* interface is still up, send status down */
+	if (iface->flags & GR_IFACE_F_UP) {
+		iface->flags &= ~GR_IFACE_F_UP;
+		gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
+	}
 	gr_event_push(IFACE_EVENT_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
