@@ -4,6 +4,27 @@
 
 . $(dirname $0)/_init.sh
 
+check_nexthop() {
+	local ip="$1"
+	local expect_reacheable="$2"
+	local timeout=5
+	for i in $(seq 1 $timeout); do
+		grcli show ip nexthop | grep -qE "$ip.+reachable";
+		local result=$?
+
+		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
+			return 0
+		fi
+		if [ "$expect_reacheable" = "false" ] && [ "$result" -ne 0 ]; then
+			return 0
+		fi
+
+		sleep 1
+	done
+
+	return 1
+}
+
 p0=${run_id}0
 p1=${run_id}1
 
@@ -38,8 +59,9 @@ show ip address
 EOF
 
 # ensure that nexthops are still reachable
-grcli show ip nexthop | grep -E '172\.16\.0\.2.+reachable' || fail "nexthop should be reachable"
-grcli show ip nexthop | grep -E '172\.16\.1\.2.+reachable' || fail "nexthop should be reachable"
+check_nexthop '172\.16\.0\.2' true || fail "nexthop 172.16.0.2 should be reachable"
+check_nexthop '172\.16\.1\.2' true || fail "nexthop 172.16.1.2 should be reachable"
+
 # ensure addresses were not destroyed
 grcli show ip address | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
 grcli show ip address | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
@@ -52,8 +74,9 @@ ip -n $p1 link set $p1 down
 sleep 3
 
 # ensure that nexthops have been aged out and destroyed
-! grcli show ip nexthop | grep -q '172\.16\.0\.2.*reachable' || fail "nexthop should be destroyed"
-! grcli show ip nexthop | grep -q '172\.16\.1\.2.*reachable' || fail "nexthop should be destroyed"
+check_nexthop '172\.16\.0\.2' false || fail "nexthop 172.16.0.2 should be destroyed"
+check_nexthop '172\.16\.1\.2' false || fail "nexthop 172.16.1.2 should be destroyed"
+
 # ensure addresses were not destroyed
 grcli show ip address | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
 grcli show ip address | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
