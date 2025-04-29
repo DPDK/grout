@@ -398,6 +398,11 @@ int api_socket_start(struct event_base *base) {
 		return errno_log(errno, "bind");
 	}
 
+	if (chown(path, gr_config.api_sock_uid, gr_config.api_sock_gid) < 0) {
+		close(fd);
+		return errno_log(errno, "API socket ownership can not be set");
+	}
+
 	if (listen(fd, SOCKET_LISTEN_BACKLOG) < 0) {
 		close(fd);
 		return errno_log(errno, "listen");

@@ -17,6 +17,7 @@ Grout is a software router based on DPDK __rte_graph__.
 [**-h**]
 [**-L** _TYPE_:_LEVEL_]
 [**-M** _MODE_]
+[**-o** _USER_:_GROUP_]
 [**-p**]
 [**-S**]
 [**-s** _PATH_]
@@ -76,6 +77,13 @@ wrapped or discarded when file size reaches its maximum limit. For example:
 ```
 
 Default mode is _overwrite_ and parameter must be specified once only.
+
+#### **-o**, **--socket-owner** _USER_:_GROUP_
+
+Change the owner of the API socket file after creating it. Symbolic names and
+numeric IDs are supported.
+
+Default: current user and current group.
 
 #### **-p**, **--poll-mode**
 
