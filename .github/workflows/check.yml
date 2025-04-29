@@ -58,8 +58,7 @@ jobs:
             make gcc ccache ninja-build meson git go-md2man libibverbs-dev \
             libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
-            socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 \
-            libcap-dev
+            socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6
           if printf '%s\n0.63.0\n' "$(meson --version)" | sort -V -C ; then
             sudo apt install -y python3-pip
             pip3 install --user -U meson~=0.63.0
@@ -102,7 +101,7 @@ jobs:
           apt install -qy --no-install-recommends \
             make gcc ccache git meson go-md2man python3-pyelftools ca-certificates pkg-config \
             crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
-            libevent-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64 libcap-dev:arm64
+            libevent-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
