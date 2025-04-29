@@ -232,8 +232,7 @@ image.
 dnf install git gcc make meson ninja-build pkgconf \
         python3-pyelftools golang-github-cpuguy83-md2man \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
-        libsmartcols-devel libarchive-devel rdma-core-devel \
-        libcap-devel
+        libsmartcols-devel libarchive-devel rdma-core-devel
 ```
 
 or
@@ -242,8 +241,7 @@ or
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools go-md2man \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev \
-        libsmartcols-dev libarchive-dev libibverbs-dev \
-        libcap-dev
+        libsmartcols-dev libarchive-dev libibverbs-dev
 ```
 
 Important: `grout` requires at least `gcc` 13 or `clang` 15.
