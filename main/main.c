@@ -41,9 +41,9 @@ static void usage(const char *prog) {
 	puts("  -L, --log-level <type>:<lvl>   Specify log level for a specific component.");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
-	puts("  -s, --socket <name>            Name of the control plane API socket.");
-	puts("                                 Default: GROUT_SOCK_NAME from env or");
-	printf("                                 %s).\n", GR_DEFAULT_SOCK_NAME);
+	puts("  -s, --socket <path>            Path the control plane API socket.");
+	puts("                                 Default: GROUT_SOCK_PATH from env or");
+	printf("                                 %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -t, --test-mode                Run in test mode (no hugepages).");
 	puts("  -T, --trace <regexp>           Enable trace matching the regular expression.");
 	puts("  -B, --trace-bufsz <size>       Maximum size of allocated memory for trace output.");
@@ -79,9 +79,9 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	gr_config.api_sock_name = getenv("GROUT_SOCK_NAME");
-	if (gr_config.api_sock_name == NULL)
-		gr_config.api_sock_name = GR_DEFAULT_SOCK_NAME;
+	gr_config.api_sock_path = getenv("GROUT_SOCK_PATH");
+	if (gr_config.api_sock_path == NULL)
+		gr_config.api_sock_path = GR_DEFAULT_SOCK_PATH;
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
 
@@ -101,7 +101,7 @@ static int parse_args(int argc, char **argv) {
 			gr_config.log_syslog = true;
 			break;
 		case 's':
-			gr_config.api_sock_name = optarg;
+			gr_config.api_sock_path = optarg;
 			break;
 		case 't':
 			gr_config.test_mode = true;
@@ -218,6 +218,8 @@ shutdown:
 		modules_fini(ev_base);
 		event_base_free(ev_base);
 	}
+	if (ret != EXIT_ALREADY_RUNNING)
+		unlink(gr_config.api_sock_path);
 	libevent_global_shutdown();
 dpdk_stop:
 	dpdk_fini();

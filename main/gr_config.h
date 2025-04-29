@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 struct gr_config {
-	const char *api_sock_name;
+	const char *api_sock_path;
 	unsigned log_level;
 	bool test_mode;
 	bool poll_mode;

@@ -37,9 +37,9 @@ static void help(void) {
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
-	puts("  -s NAME, --socket NAME     Name of the control plane API socket.");
-	puts("                             Default: GROUT_SOCK_NAME from env or");
-	printf("                             %s).\n", GR_DEFAULT_SOCK_NAME);
+	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
+	puts("                             Default: GROUT_SOCK_PATH from env or");
+	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -V, --version              Print version and exit.");
 	puts("  -x, --trace-commands       Print executed commands.");
 	puts("");
@@ -49,7 +49,7 @@ static void help(void) {
 }
 
 struct gr_cli_opts {
-	const char *sock_name;
+	const char *sock_path;
 	FILE *cmds_file;
 	bool err_exit;
 	bool trace_commands;
@@ -73,7 +73,7 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	opts.sock_name = getenv("GROUT_SOCK_NAME");
+	opts.sock_path = getenv("GROUT_SOCK_PATH");
 	opts.cmds_file = stdin;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
@@ -93,7 +93,7 @@ static int parse_args(int argc, char **argv) {
 			help();
 			return -1;
 		case 's':
-			opts.sock_name = optarg;
+			opts.sock_path = optarg;
 			break;
 		case 'V':
 			printf("grcli %s\n", GROUT_VERSION);
@@ -117,8 +117,8 @@ static int parse_args(int argc, char **argv) {
 		}
 	}
 
-	if (opts.sock_name == NULL)
-		opts.sock_name = GR_DEFAULT_SOCK_NAME;
+	if (opts.sock_path == NULL)
+		opts.sock_path = GR_DEFAULT_SOCK_PATH;
 
 	return optind;
 }
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 	argc -= c;
 	argv += c;
 
-	if ((client = gr_api_client_connect(opts.sock_name)) == NULL) {
+	if ((client = gr_api_client_connect(opts.sock_path)) == NULL) {
 		errorf("gr_connect: %s", strerror(errno));
 		goto end;
 	}
