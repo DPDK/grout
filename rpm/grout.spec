@@ -25,7 +25,6 @@ BuildRequires: scl-utils
 %endif
 BuildRequires: git
 BuildRequires: libarchive-devel
-BuildRequires: libcap-devel
 BuildRequires: libcmocka-devel
 BuildRequires: libedit-devel
 BuildRequires: libevent-devel
