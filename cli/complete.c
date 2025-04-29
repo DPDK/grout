@@ -22,9 +22,9 @@ static struct ec_node *add_flags(struct ec_node *cmdlist) {
 			EC_NODE_SUBSET(
 				EC_NO_ID,
 				FLAG("-h|--help", "Show usage help and exit."),
-				OPT("-s|--socket " SOCK_NAME_ID,
-				    "Name of the control plane API socket.",
-				    ec_node("file", SOCK_NAME_ID)),
+				OPT("-s|--socket " SOCK_PATH_ID,
+				    "Path to the control plane API socket.",
+				    ec_node("file", SOCK_PATH_ID)),
 				FLAG("-e|--err-exit", "Abort on first error."),
 				FLAG("-x|--trace-commands", "Print executed commands.")
 			)

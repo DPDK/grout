@@ -31,12 +31,11 @@ smoke-tests: all
 
 .PHONY: update-graph
 update-graph: all
-	$Q set -xe; \
-	tmp=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1) \
-	trap "killall grout; wait" EXIT; \
-	export GROUT_SOCK_NAME="$$tmp.sock"; \
+	$Q set -xe; tmp=`mktemp -d`; \
+	trap "killall grout; wait; rm -rf $$tmp" EXIT; \
+	export GROUT_SOCK_PATH="$$tmp/sock"; \
 	$(BUILDDIR)/grout -t & \
-	socat FILE:/dev/null ABSTRACT-CONNECT:$$GROUT_SOCK_NAME,retry=10 && \
+	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
 	$(BUILDDIR)/grcli add interface port p0 devargs net_null,no-rx=1 && \
 	$(BUILDDIR)/grcli show graph brief | dot -Tsvg > docs/graph.svg
 
