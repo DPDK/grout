@@ -19,7 +19,9 @@
 #include <rte_version.h>
 
 #include <getopt.h>
+#include <grp.h>
 #include <locale.h>
+#include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +41,8 @@ static void usage(const char *prog) {
 	puts("options:");
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -L, --log-level <type>:<lvl>   Specify log level for a specific component.");
+	puts("  -o, --socket-owner <user>:<group>  API socket file ownership");
+	puts("                                 (Default: getuid():getgid()).");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -s, --socket <path>            Path the control plane API socket.");
@@ -56,16 +60,66 @@ static void usage(const char *prog) {
 
 struct gr_config gr_config;
 
+static int parse_sock_owner(char *user_group_str) {
+	char *group_str, *user_str = user_group_str;
+	struct passwd *pw;
+	char *colon, *end;
+	unsigned long val;
+	struct group *gr;
+
+	colon = strchr(user_group_str, ':');
+	if (!colon) {
+		fprintf(stderr, "error: -%c requires ':'\n", optopt);
+		return -1;
+	}
+
+	*colon = '\0';
+	group_str = colon + 1;
+
+	pw = getpwnam(user_str);
+	if (!pw) {
+		errno = 0;
+		val = strtoul(user_str, &end, 10);
+
+		if (errno || *end != '\0' || val > (uid_t)-1) {
+			fprintf(stderr, "error: invalid user '%s'\n", user_str);
+			return -1;
+		}
+
+		gr_config.api_sock_uid = (uid_t)val;
+	} else {
+		gr_config.api_sock_uid = pw->pw_uid;
+	}
+
+	gr = getgrnam(group_str);
+	if (!gr) {
+		errno = 0;
+		val = strtoul(group_str, &end, 10);
+
+		if (errno || *end != '\0' || val > (gid_t)-1) {
+			fprintf(stderr, "error: invalid group %s\n", group_str);
+			return -1;
+		}
+
+		gr_config.api_sock_gid = (gid_t)val;
+	} else {
+		gr_config.api_sock_gid = gr->gr_gid;
+	}
+
+	return 0;
+}
+
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:VhpSs:tvx"
+#define FLAGS ":B:D:L:M:T:Vho:pSs:tvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"log-level", required_argument, NULL, 'L'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"syslog", no_argument, NULL, 'S'},
 		{"socket", required_argument, NULL, 's'},
+		{"socket-owner", required_argument, NULL, 'o'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"trace", required_argument, NULL, 'T'},
 		{"trace-bufsz", required_argument, NULL, 'B'},
@@ -82,6 +136,8 @@ static int parse_args(int argc, char **argv) {
 	gr_config.api_sock_path = getenv("GROUT_SOCK_PATH");
 	if (gr_config.api_sock_path == NULL)
 		gr_config.api_sock_path = GR_DEFAULT_SOCK_PATH;
+	gr_config.api_sock_uid = getuid();
+	gr_config.api_sock_gid = getgid();
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
 
@@ -93,6 +149,10 @@ static int parse_args(int argc, char **argv) {
 		case 'L':
 			gr_vec_add(gr_config.eal_extra_args, "--log-level");
 			gr_vec_add(gr_config.eal_extra_args, optarg);
+			break;
+		case 'o':
+			if (parse_sock_owner(optarg) < 0)
+				return errno_set(EINVAL);
 			break;
 		case 'p':
 			gr_config.poll_mode = true;
