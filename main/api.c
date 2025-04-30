@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -401,6 +402,11 @@ int api_socket_start(struct event_base *base) {
 	if (chown(path, gr_config.api_sock_uid, gr_config.api_sock_gid) < 0) {
 		close(fd);
 		return errno_log(errno, "API socket ownership can not be set");
+	}
+
+	if (chmod(path, gr_config.api_sock_mode) < 0) {
+		close(fd);
+		return errno_log(errno, "API socket permission can not be set");
 	}
 
 	if (listen(fd, SOCKET_LISTEN_BACKLOG) < 0) {

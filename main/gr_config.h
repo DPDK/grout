@@ -6,12 +6,14 @@
 
 #include <sched.h>
 #include <stdbool.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 struct gr_config {
 	const char *api_sock_path;
 	uid_t api_sock_uid;
 	gid_t api_sock_gid;
+	mode_t api_sock_mode;
 	unsigned log_level;
 	bool test_mode;
 	bool poll_mode;

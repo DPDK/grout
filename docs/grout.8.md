@@ -17,6 +17,7 @@ Grout is a software router based on DPDK __rte_graph__.
 [**-h**]
 [**-L** _TYPE_:_LEVEL_]
 [**-M** _MODE_]
+[**-m** _PERMISSIONS_]
 [**-o** _USER_:_GROUP_]
 [**-p**]
 [**-S**]
@@ -77,6 +78,13 @@ wrapped or discarded when file size reaches its maximum limit. For example:
 ```
 
 Default mode is _overwrite_ and parameter must be specified once only.
+
+#### **-m**, **--socket-mode** _PERMISSIONS_
+
+Change the API socket file permissions after creating it. Only octal values are
+supported.
+
+Default: _0660_.
 
 #### **-o**, **--socket-owner** _USER_:_GROUP_
 
