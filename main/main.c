@@ -41,6 +41,7 @@ static void usage(const char *prog) {
 	puts("options:");
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -L, --log-level <type>:<lvl>   Specify log level for a specific component.");
+	puts("  -m, --socket-mode <mode>       API socket file permissions (Default: 0660).");
 	puts("  -o, --socket-owner <user>:<group>  API socket file ownership");
 	puts("                                 (Default: getuid():getgid()).");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
@@ -109,16 +110,34 @@ static int parse_sock_owner(char *user_group_str) {
 	return 0;
 }
 
+static int parse_sock_mode(const char *perm_str) {
+	unsigned long val;
+	char *endptr;
+
+	errno = 0;
+	val = strtoul(perm_str, &endptr, 8);
+
+	if (errno != 0 || *endptr != '\0' || val > 07777) {
+		fprintf(stderr, "error: invalid permissions '%s'\n", perm_str);
+		return -1;
+	}
+
+	gr_config.api_sock_mode = (mode_t)val;
+
+	return 0;
+}
+
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:Vho:pSs:tvx"
+#define FLAGS ":B:D:L:M:T:Vhm:o:pSs:tvx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"log-level", required_argument, NULL, 'L'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"syslog", no_argument, NULL, 'S'},
 		{"socket", required_argument, NULL, 's'},
+		{"socket-mode", required_argument, NULL, 'm'},
 		{"socket-owner", required_argument, NULL, 'o'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"trace", required_argument, NULL, 'T'},
@@ -138,6 +157,7 @@ static int parse_args(int argc, char **argv) {
 		gr_config.api_sock_path = GR_DEFAULT_SOCK_PATH;
 	gr_config.api_sock_uid = getuid();
 	gr_config.api_sock_gid = getgid();
+	gr_config.api_sock_mode = 0660;
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
 
@@ -149,6 +169,10 @@ static int parse_args(int argc, char **argv) {
 		case 'L':
 			gr_vec_add(gr_config.eal_extra_args, "--log-level");
 			gr_vec_add(gr_config.eal_extra_args, optarg);
+			break;
+		case 'm':
+			if (parse_sock_mode(optarg) < 0)
+				return errno_set(EINVAL);
 			break;
 		case 'o':
 			if (parse_sock_owner(optarg) < 0)
