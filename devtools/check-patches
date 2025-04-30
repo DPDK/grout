@@ -55,17 +55,19 @@ for rev in $revisions; do
 	title=$(git log --format='%s' -1 "$rev")
 	fail=false
 
-	if [ "$(echo "$title" | wc -m)" -gt 72 ]; then
-		err "title is longer than 72 characters, please make it shorter"
-	fi
-	if ! echo "$title" | grep -qE '^[a-z0-9,{}/_-]+: '; then
-		err "title lacks a lowercase topic prefix (e.g. 'ipv6:')"
-	fi
-	if echo "$title" | grep -qE '^[a-z0-9,{}/_-]+: [A-Z][a-z]'; then
-		err "title starts with an capital letter, please use lower case"
-	fi
-	if ! echo "$title" | grep -qE '[A-Za-z0-9]$'; then
-		err "title ends with punctuation, please remove it"
+	if ! echo "$title" | grep -qE '^Revert ".+"$'; then
+		if [ "$(echo "$title" | wc -m)" -gt 72 ]; then
+			err "title is longer than 72 characters, please make it shorter"
+		fi
+		if ! echo "$title" | grep -qE '^[a-z0-9,{}/_-]+: '; then
+			err "title lacks a lowercase topic prefix (e.g. 'ipv6:')"
+		fi
+		if echo "$title" | grep -qE '^[a-z0-9,{}/_-]+: [A-Z][a-z]'; then
+			err "title starts with an capital letter, please use lower case"
+		fi
+		if ! echo "$title" | grep -qE '[A-Za-z0-9]$'; then
+			err "title ends with punctuation, please remove it"
+		fi
 	fi
 
 	author=$(git log --format='%an <%ae>' -1 "$rev")
