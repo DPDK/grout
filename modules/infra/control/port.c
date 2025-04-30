@@ -229,11 +229,11 @@ static int iface_port_reconfig(
 		if (conf->flags & GR_IFACE_F_UP) {
 			ret = rte_eth_dev_set_link_up(p->port_id);
 			iface->flags |= GR_IFACE_F_UP;
-			gr_event_push(IFACE_EVENT_STATUS_UP, iface);
+			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 		} else {
 			ret = rte_eth_dev_set_link_down(p->port_id);
 			iface->flags &= ~GR_IFACE_F_UP;
-			gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
+			gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 		}
 		if (ret < 0)
 			errno_log(-ret, "rte_eth_dev_set_link_{up,down}");
@@ -272,7 +272,7 @@ static int iface_port_reconfig(
 
 	p->started = true;
 
-	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
+	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return port_plug(p->port_id);
 }
@@ -601,13 +601,13 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
 					LOG(INFO, "%s: link status up", iface->name);
 					iface->state |= GR_IFACE_S_RUNNING;
-					gr_event_push(IFACE_EVENT_STATUS_UP, iface);
+					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 				}
 			} else {
 				if (iface->state & GR_IFACE_S_RUNNING) {
 					LOG(INFO, "%s: link status down", iface->name);
 					iface->state &= ~GR_IFACE_S_RUNNING;
-					gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
+					gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 				}
 				continue;
 			}

@@ -170,7 +170,7 @@ int rib6_insert(
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
 	if (origin != GR_RT_ORIGIN_INTERNAL) {
 		gr_event_push(
-			IP6_EVENT_ROUTE_ADD,
+			GR_EVENT_IP6_ROUTE_ADD,
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->ipv6,
@@ -217,7 +217,7 @@ int rib6_delete(
 
 	if (origin != GR_RT_ORIGIN_INTERNAL) {
 		gr_event_push(
-			IP6_EVENT_ROUTE_DEL,
+			GR_EVENT_IP6_ROUTE_DEL,
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->ipv6,
@@ -497,7 +497,7 @@ static struct gr_api_handler route6_list_handler = {
 static struct gr_event_serializer route6_serializer = {
 	.size = sizeof(struct gr_ip6_route),
 	.ev_count = 2,
-	.ev_types = {IP6_EVENT_ROUTE_ADD, IP6_EVENT_ROUTE_DEL},
+	.ev_types = {GR_EVENT_IP6_ROUTE_ADD, GR_EVENT_IP6_ROUTE_DEL},
 };
 
 static struct gr_module route6_module = {

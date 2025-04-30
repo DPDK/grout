@@ -128,7 +128,7 @@ static int iface_vlan_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
 
-	gr_event_push(IFACE_EVENT_POST_RECONFIG, iface);
+	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return 0;
 }
@@ -273,7 +273,7 @@ static void port_event(uint32_t event, const void *obj) {
 	while ((vlan = iface_next(GR_IFACE_TYPE_VLAN, vlan)) != NULL) {
 		info = (struct iface_info_vlan *)vlan->info;
 		if (info->parent_id == iface->id) {
-			if (event == IFACE_EVENT_STATUS_UP) {
+			if (event == GR_EVENT_IFACE_STATUS_UP) {
 				vlan->flags |= GR_IFACE_F_UP;
 				vlan->state |= GR_IFACE_S_RUNNING;
 			} else {
@@ -288,7 +288,7 @@ static void port_event(uint32_t event, const void *obj) {
 static struct gr_event_subscription port_event_sub = {
 	.callback = port_event,
 	.ev_count = 2,
-	.ev_types = {IFACE_EVENT_STATUS_UP, IFACE_EVENT_STATUS_DOWN},
+	.ev_types = {GR_EVENT_IFACE_STATUS_UP, GR_EVENT_IFACE_STATUS_DOWN},
 };
 
 RTE_INIT(vlan_constructor) {

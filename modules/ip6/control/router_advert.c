@@ -237,14 +237,14 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 
 	switch (event) {
-	case IFACE_EVENT_POST_ADD:
+	case GR_EVENT_IFACE_POST_ADD:
 		ra_conf[iface->id].interval = RA_DEFAULT_INTERVAL;
 		ra_conf[iface->id].lifetime = RA_DEFAULT_LIFETIME;
 		ra_conf[iface->id].timer = event_new(
 			ev_base, -1, EV_PERSIST, send_ra_cb, (void *)iface
 		);
 		break;
-	case IFACE_EVENT_PRE_REMOVE:
+	case GR_EVENT_IFACE_PRE_REMOVE:
 		event_free(ra_conf[iface->id].timer);
 		ra_conf[iface->id].timer = NULL;
 		break;
@@ -254,7 +254,7 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 static struct gr_event_subscription iface_event_sub = {
 	.callback = iface_event_handler,
 	.ev_count = 2,
-	.ev_types = {IFACE_EVENT_POST_ADD, IFACE_EVENT_PRE_REMOVE},
+	.ev_types = {GR_EVENT_IFACE_POST_ADD, GR_EVENT_IFACE_PRE_REMOVE},
 };
 
 RTE_INIT(router_advertisement_init) {

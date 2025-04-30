@@ -88,7 +88,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	ifaces[ifid] = iface;
 
-	gr_event_push(IFACE_EVENT_POST_ADD, iface);
+	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
 	return iface;
 fail:
@@ -247,9 +247,9 @@ int iface_destroy(uint16_t ifid) {
 	/* interface is still up, send status down */
 	if (iface->flags & GR_IFACE_F_UP) {
 		iface->flags &= ~GR_IFACE_F_UP;
-		gr_event_push(IFACE_EVENT_STATUS_DOWN, iface);
+		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
-	gr_event_push(IFACE_EVENT_PRE_REMOVE, iface);
+	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
 	type = iface_type_get(iface->type);
@@ -307,19 +307,19 @@ static void iface_event_debug(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	char *str = "";
 	switch (event) {
-	case IFACE_EVENT_POST_ADD:
+	case GR_EVENT_IFACE_POST_ADD:
 		str = "POST_ADD";
 		break;
-	case IFACE_EVENT_PRE_REMOVE:
+	case GR_EVENT_IFACE_PRE_REMOVE:
 		str = "PRE_REMOVE";
 		break;
-	case IFACE_EVENT_POST_RECONFIG:
+	case GR_EVENT_IFACE_POST_RECONFIG:
 		str = "POST_RECONFIG";
 		break;
-	case IFACE_EVENT_STATUS_UP:
+	case GR_EVENT_IFACE_STATUS_UP:
 		str = "STATUS_UP";
 		break;
-	case IFACE_EVENT_STATUS_DOWN:
+	case GR_EVENT_IFACE_STATUS_DOWN:
 		str = "STATUS_DOWN";
 		break;
 	default:
@@ -333,11 +333,11 @@ static struct gr_event_subscription iface_event_debug_handler = {
 	.callback = iface_event_debug,
 	.ev_count = 5,
 	.ev_types = {
-		IFACE_EVENT_POST_ADD,
-		IFACE_EVENT_PRE_REMOVE,
-		IFACE_EVENT_POST_RECONFIG,
-		IFACE_EVENT_STATUS_UP,
-		IFACE_EVENT_STATUS_DOWN,
+		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_POST_RECONFIG,
+		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_STATUS_DOWN,
 	},
 };
 

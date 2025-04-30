@@ -29,17 +29,17 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 		return;
 
 	switch (event) {
-	case IFACE_EVENT_POST_ADD:
+	case GR_EVENT_IFACE_POST_ADD:
 		if (++vrfs[iface->vrf_id].ref_count == 1)
 			vrfs[iface->vrf_id].iface = iface_loopback_create(iface->vrf_id);
 		break;
-	case IFACE_EVENT_PRE_REMOVE:
+	case GR_EVENT_IFACE_PRE_REMOVE:
 		if (--vrfs[iface->vrf_id].ref_count == 0) {
 			iface_loopback_delete(iface->vrf_id);
 			vrfs[iface->vrf_id].iface = NULL;
 		}
 		break;
-	case IFACE_EVENT_POST_RECONFIG:
+	case GR_EVENT_IFACE_POST_RECONFIG:
 		iface = NULL;
 		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 			if (iface->type == GR_IFACE_TYPE_LOOPBACK)
@@ -68,9 +68,9 @@ static struct gr_event_subscription iface_event_vrf_sub = {
 	.callback = iface_event_vrf,
 	.ev_count = 3,
 	.ev_types = {
-		IFACE_EVENT_POST_ADD,
-		IFACE_EVENT_PRE_REMOVE,
-		IFACE_EVENT_POST_RECONFIG,
+		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_POST_RECONFIG,
 	},
 };
 
