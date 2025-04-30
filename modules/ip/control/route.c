@@ -162,6 +162,7 @@ int rib4_insert(
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
 				nh->ipv4,
+				nh->iface_id,
 				nh->vrf_id,
 				origin,
 			}
@@ -202,6 +203,7 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
 				nh->ipv4,
+				nh->iface_id,
 				nh->vrf_id,
 				origin,
 			}
@@ -215,19 +217,28 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 static struct api_out route4_add(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_add_req *req = request;
 	struct nexthop *nh;
+	ip4_addr_t nh_ipv4;
+	uint16_t iface_id;
 	int ret;
 
 	if (req->origin == GR_RT_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0);
 
 	// ensure route gateway is reachable
-	if ((nh = rib4_lookup(req->vrf_id, req->nh)) == NULL)
+	if (req->nh)
+		nh = rib4_lookup(req->vrf_id, req->nh);
+	else
+		nh = addr4_get_preferred(req->iface_id, req->nh);
+	if (nh == NULL)
 		return api_out(EHOSTUNREACH, 0);
+
+	nh_ipv4 = req->nh ? req->nh : nh->ipv4;
+	iface_id = req->iface_id != GR_IFACE_ID_UNDEF ? req->iface_id : nh->iface_id;
 
 	// if the route gateway is reachable via a prefix route,
 	// create a new unresolved nexthop
-	if (nh->ipv4 != req->nh) {
-		if ((nh = nh4_new(req->vrf_id, nh->iface_id, req->nh)) == NULL)
+	if (nh->ipv4 != nh_ipv4 || nh->iface_id != iface_id) {
+		if ((nh = nh4_new(req->vrf_id, iface_id, nh_ipv4)) == NULL)
 			return api_out(errno, 0);
 		nh->flags |= GR_NH_F_GATEWAY;
 	}
@@ -321,6 +332,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
 		r->nh = nh_id_to_ptr(nh_id)->ipv4;
+		r->iface_id = nh_id_to_ptr(nh_id)->iface_id;
 		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
@@ -334,6 +346,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
 		r->nh = nh_id_to_ptr(nh_id)->ipv4;
+		r->iface_id = nh_id_to_ptr(nh_id)->iface_id;
 		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
