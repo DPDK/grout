@@ -122,7 +122,7 @@ static struct gr_api_handler clear_packet_log_handler = {
 static struct gr_event_subscription iface_add_sub = {
 	.callback = iface_add_callback,
 	.ev_count = 1,
-	.ev_types = {IFACE_EVENT_POST_ADD},
+	.ev_types = {GR_EVENT_IFACE_POST_ADD},
 };
 
 RTE_INIT(trace_init) {

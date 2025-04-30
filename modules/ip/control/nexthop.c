@@ -137,7 +137,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = arp->arp_data.arp_sha;
-		gr_event_push(NEXTHOP_EVENT_UPDATE, nh);
+		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {

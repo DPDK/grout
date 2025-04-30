@@ -21,33 +21,33 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 
 	while (gr_api_client_event_recv(c, &e) == 0) {
 		switch (e->ev_type) {
-		case IFACE_EVENT_POST_ADD:
+		case GR_EVENT_IFACE_POST_ADD:
 			assert(e->payload_len == sizeof(*p));
 			p = PAYLOAD(e);
 			printf("> iface add: %s\n", p->iface.name);
 			break;
-		case IFACE_EVENT_PRE_REMOVE:
+		case GR_EVENT_IFACE_PRE_REMOVE:
 			assert(e->payload_len == sizeof(*p));
 			p = PAYLOAD(e);
 			printf("> iface del: %s\n", p->iface.name);
 			break;
-		case IFACE_EVENT_STATUS_UP:
+		case GR_EVENT_IFACE_STATUS_UP:
 			assert(e->payload_len == sizeof(*p));
 			p = PAYLOAD(e);
 			printf("> iface up: %s\n", p->iface.name);
 			break;
-		case IFACE_EVENT_STATUS_DOWN:
+		case GR_EVENT_IFACE_STATUS_DOWN:
 			assert(e->payload_len == sizeof(*p));
 			p = PAYLOAD(e);
 			printf("> iface down: %s\n", p->iface.name);
 			break;
-		case IFACE_EVENT_POST_RECONFIG:
+		case GR_EVENT_IFACE_POST_RECONFIG:
 			assert(e->payload_len == sizeof(*p));
 			p = PAYLOAD(e);
 			printf("> iface reconf: %s\n", p->iface.name);
 			break;
-		case IP_EVENT_ADDR_ADD:
-		case IP6_EVENT_ADDR_ADD:
+		case GR_EVENT_IP_ADDR_ADD:
+		case GR_EVENT_IP6_ADDR_ADD:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> addr add: iface[%d] " ADDR_F "\n",
@@ -55,8 +55,8 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       ADDR_W(nh_af(nh)),
 			       &nh->addr);
 			break;
-		case IP_EVENT_ADDR_DEL:
-		case IP6_EVENT_ADDR_DEL:
+		case GR_EVENT_IP_ADDR_DEL:
+		case GR_EVENT_IP6_ADDR_DEL:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> addr del: iface[%d] " ADDR_F "\n",
@@ -64,7 +64,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       ADDR_W(nh_af(nh)),
 			       &nh->addr);
 			break;
-		case IP_EVENT_ROUTE_ADD:
+		case GR_EVENT_IP_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r4));
 			r4 = PAYLOAD(e);
 			printf("> route add: %4p/%d via %4p origin %s\n",
@@ -73,7 +73,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r4->nh,
 			       gr_rt_origin_name(r4->origin));
 			break;
-		case IP_EVENT_ROUTE_DEL:
+		case GR_EVENT_IP_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r4));
 			r4 = PAYLOAD(e);
 			printf("> route del: %4p/%d via %4p origin %s\n",
@@ -82,7 +82,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r4->nh,
 			       gr_rt_origin_name(r4->origin));
 			break;
-		case IP6_EVENT_ROUTE_ADD:
+		case GR_EVENT_IP6_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r6));
 			r6 = PAYLOAD(e);
 			printf("> route add: %6p/%d via %6p origin %s\n",
@@ -91,7 +91,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r6->nh,
 			       gr_rt_origin_name(r6->origin));
 			break;
-		case IP6_EVENT_ROUTE_DEL:
+		case GR_EVENT_IP6_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r6));
 			r6 = PAYLOAD(e);
 			printf("> route del: %6p/%d via %6p origin %s\n",
@@ -100,7 +100,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r6->nh,
 			       gr_rt_origin_name(r6->origin));
 			break;
-		case NEXTHOP_EVENT_NEW:
+		case GR_EVENT_NEXTHOP_NEW:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
@@ -110,7 +110,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &nh->addr,
 			       &nh->mac);
 			break;
-		case NEXTHOP_EVENT_DELETE:
+		case GR_EVENT_NEXTHOP_DELETE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "\n",
@@ -120,7 +120,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &nh->addr,
 			       &nh->mac);
 			break;
-		case NEXTHOP_EVENT_UPDATE:
+		case GR_EVENT_NEXTHOP_UPDATE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F "\n",

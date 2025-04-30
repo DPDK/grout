@@ -156,7 +156,7 @@ int rib4_insert(
 	fib4_insert(vrf_id, ip, prefixlen, nh);
 	if (origin != GR_RT_ORIGIN_INTERNAL) {
 		gr_event_push(
-			IP_EVENT_ROUTE_ADD,
+			GR_EVENT_IP_ROUTE_ADD,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
 				nh->ipv4,
@@ -196,7 +196,7 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 
 	if (origin != GR_RT_ORIGIN_INTERNAL) {
 		gr_event_push(
-			IP_EVENT_ROUTE_DEL,
+			GR_EVENT_IP_ROUTE_DEL,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
 				nh->ipv4,
@@ -469,7 +469,7 @@ static struct gr_api_handler route4_list_handler = {
 static struct gr_event_serializer route_serializer = {
 	.size = sizeof(struct gr_ip4_route),
 	.ev_count = 2,
-	.ev_types = {IP_EVENT_ROUTE_ADD, IP_EVENT_ROUTE_DEL},
+	.ev_types = {GR_EVENT_IP_ROUTE_ADD, GR_EVENT_IP_ROUTE_DEL},
 };
 
 static struct gr_module route4_module = {

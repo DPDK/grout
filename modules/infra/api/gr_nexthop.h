@@ -51,10 +51,10 @@ struct gr_nexthop {
 
 //! Nexthop events.
 typedef enum {
-	NEXTHOP_EVENT_NEW = EVENT_TYPE(GR_INFRA_MODULE, 0x0100),
-	NEXTHOP_EVENT_DELETE = EVENT_TYPE(GR_INFRA_MODULE, 0x0101),
-	NEXTHOP_EVENT_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
-} nexthop_event_t;
+	GR_EVENT_NEXTHOP_NEW = EVENT_TYPE(GR_INFRA_MODULE, 0x0100),
+	GR_EVENT_NEXTHOP_DELETE = EVENT_TYPE(GR_INFRA_MODULE, 0x0101),
+	GR_EVENT_NEXTHOP_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
+} gr_event_nexthop_t;
 
 #define gr_nh_flags_foreach(f, flags)                                                              \
 	for (gr_nh_flags_t __i = 0, f = GR_BIT16(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;       \

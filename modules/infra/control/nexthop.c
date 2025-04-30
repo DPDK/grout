@@ -132,7 +132,7 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 		ABORT("invalid nexthop type %hhu", type);
 	}
 
-	gr_event_push(NEXTHOP_EVENT_NEW, nh);
+	gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
 	return nh;
 }
@@ -211,7 +211,7 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		gr_event_push(NEXTHOP_EVENT_DELETE, nh);
+		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	} else {
@@ -301,9 +301,9 @@ static struct gr_event_serializer nh_serializer = {
 	.size = sizeof(struct gr_nexthop),
 	.ev_count = 3,
 	.ev_types = {
-		NEXTHOP_EVENT_NEW,
-		NEXTHOP_EVENT_DELETE,
-		NEXTHOP_EVENT_UPDATE,
+		GR_EVENT_NEXTHOP_NEW,
+		GR_EVENT_NEXTHOP_DELETE,
+		GR_EVENT_NEXTHOP_UPDATE,
 	},
 };
 

@@ -148,11 +148,11 @@ static struct gr_event_serializer iface_serializer = {
 	.callback = iface_event_serialize,
 	.ev_count = 5,
 	.ev_types = {
-		IFACE_EVENT_POST_ADD,
-		IFACE_EVENT_PRE_REMOVE,
-		IFACE_EVENT_POST_RECONFIG,
-		IFACE_EVENT_STATUS_UP,
-		IFACE_EVENT_STATUS_DOWN,
+		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_POST_RECONFIG,
+		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_STATUS_DOWN,
 	},
 };
 

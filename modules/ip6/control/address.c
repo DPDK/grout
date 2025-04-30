@@ -180,7 +180,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);
-	gr_event_push(IP6_EVENT_ADDR_ADD, nh);
+	gr_event_push(GR_EVENT_IP6_ADDR_ADD, nh);
 
 	return 0;
 }
@@ -233,7 +233,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	gr_event_push(IP6_EVENT_ADDR_DEL, nh);
+	gr_event_push(GR_EVENT_IP6_ADDR_DEL, nh);
 
 	rib6_cleanup(nh);
 
@@ -305,7 +305,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	unsigned i;
 
 	switch (event) {
-	case IFACE_EVENT_POST_ADD:
+	case GR_EVENT_IFACE_POST_ADD:
 		if (iface_get_eth_addr(iface->id, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
 			if (iface6_addr_add(iface, &link_local, 64) < 0)
@@ -320,7 +320,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
 		}
 		break;
-	case IFACE_EVENT_PRE_REMOVE:
+	case GR_EVENT_IFACE_PRE_REMOVE:
 		struct hoplist *addrs = &iface_addrs[iface->id];
 
 		gr_vec_foreach (nh, addrs->nh)
@@ -385,16 +385,16 @@ static struct gr_event_subscription iface_event_subscription = {
 	.callback = ip6_iface_event_handler,
 	.ev_count = 2,
 	.ev_types = {
-		IFACE_EVENT_POST_ADD,
-		IFACE_EVENT_PRE_REMOVE,
+		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_PRE_REMOVE,
 	},
 };
 static struct gr_event_serializer iface_addr_serializer = {
 	.size = sizeof(struct gr_nexthop),
 	.ev_count = 2,
 	.ev_types = {
-		IP6_EVENT_ADDR_ADD,
-		IP6_EVENT_ADDR_DEL,
+		GR_EVENT_IP6_ADDR_ADD,
+		GR_EVENT_IP6_ADDR_DEL,
 	},
 };
 

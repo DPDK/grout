@@ -39,13 +39,13 @@ static evutil_socket_t *all_events_subs;
 //                      struct module_subscribers
 //                              sockets
 //                             +--------+
-//      IFACE_EVENT_UNKNOWN    | 0x0000 |
+//  GR_EVENT_IFACE_UNKNOWN     | 0x0000 |
 //                             |--------|
-//     IFACE_EVENT_POST_ADD    | 0x0001 |
+//  GR_EVENT_IFACE_POST_ADD    | 0x0001 |
 //                             |--------|
 //                             | ...... |
 //                             |--------|
-//     NEXTHOP_EVENT_UPDATE -> | 0x0102 | -> gr_vec of evutil_socket_t
+//  GR_EVENT_NEXTHOP_UPDATE -> | 0x0102 | -> gr_vec of evutil_socket_t
 //                             |--------|
 //                             | ...... |
 //                             |--------|

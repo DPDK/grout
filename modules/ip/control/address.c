@@ -96,7 +96,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);
-	gr_event_push(IP_EVENT_ADDR_ADD, nh);
+	gr_event_push(GR_EVENT_IP_ADDR_ADD, nh);
 
 	return api_out(0, 0);
 }
@@ -123,7 +123,7 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	gr_event_push(IP_EVENT_ADDR_DEL, nh);
+	gr_event_push(GR_EVENT_IP_ADDR_DEL, nh);
 
 	rib4_cleanup(nh);
 
@@ -223,12 +223,12 @@ static struct gr_module addr_module = {
 static struct gr_event_subscription iface_pre_rm_subscription = {
 	.callback = iface_pre_remove_cb,
 	.ev_count = 1,
-	.ev_types = {IFACE_EVENT_PRE_REMOVE},
+	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
 };
 static struct gr_event_serializer iface_addr_serializer = {
 	.size = sizeof(struct gr_nexthop),
 	.ev_count = 2,
-	.ev_types = {IP_EVENT_ADDR_ADD, IP_EVENT_ADDR_DEL},
+	.ev_types = {GR_EVENT_IP_ADDR_ADD, GR_EVENT_IP_ADDR_DEL},
 };
 
 RTE_INIT(address_constructor) {

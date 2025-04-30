@@ -180,7 +180,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = mac;
-		gr_event_push(NEXTHOP_EVENT_UPDATE, nh);
+		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
