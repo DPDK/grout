@@ -131,6 +131,7 @@ int rib4_insert(
 ) {
 	struct rte_rib *rib = get_or_create_rib(vrf_id);
 	struct rte_rib_node *rn;
+	struct nexthop *_nh;
 	gr_rt_origin_t *o;
 	int ret;
 
@@ -140,8 +141,9 @@ int rib4_insert(
 		ret = -errno;
 		goto fail;
 	}
-	if (rib4_lookup_exact(vrf_id, ip, prefixlen) != NULL) {
-		ret = -EEXIST;
+	_nh = rib4_lookup_exact(vrf_id, ip, prefixlen);
+	if (_nh != NULL) {
+		ret = nexthop_equal(nh, _nh) ? -EEXIST : -EBUSY;
 		goto fail;
 	}
 
