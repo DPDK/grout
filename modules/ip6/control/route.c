@@ -176,6 +176,7 @@ int rib6_insert(
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->ipv6,
+				nh->iface_id,
 				vrf_id,
 				origin,
 			}
@@ -223,6 +224,7 @@ int rib6_delete(
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->ipv6,
+				nh->iface_id,
 				vrf_id,
 				origin,
 			}
@@ -235,20 +237,29 @@ int rib6_delete(
 
 static struct api_out route6_add(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_add_req *req = request;
+	const struct rte_ipv6_addr *nh_ipv6;
 	struct nexthop *nh;
+	uint16_t iface_id;
 	int ret;
 
 	if (req->origin == GR_RT_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0);
 
 	// ensure route gateway is reachable
-	if ((nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
+	if (!rte_ipv6_addr_is_unspec(&req->nh))
+		nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh);
+	else
+		nh = addr6_get_linklocal(req->iface_id); // XX: TO CHECK if correct
+	if (nh == NULL)
 		return api_out(EHOSTUNREACH, 0);
+
+	nh_ipv6 = !rte_ipv6_addr_is_unspec(&req->nh) ? &req->nh : &nh->ipv6;
+	iface_id = req->iface_id != GR_IFACE_ID_UNDEF ? req->iface_id : nh->iface_id;
 
 	// if the route gateway is reachable via a prefix route,
 	// create a new unresolved nexthop
-	if (!rte_ipv6_addr_eq(&nh->ipv6, &req->nh)) {
-		if ((nh = nh6_new(req->vrf_id, nh->iface_id, &req->nh)) == NULL)
+	if (!rte_ipv6_addr_eq(&nh->ipv6, nh_ipv6) || nh->iface_id != iface_id) {
+		if ((nh = nh6_new(req->vrf_id, iface_id, nh_ipv6)) == NULL)
 			return api_out(errno, 0);
 		nh->flags |= GR_NH_F_GATEWAY;
 	}
@@ -352,6 +363,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_ip(rn, &r->dest.ip);
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
+		r->iface_id = nh_id_to_ptr(nh_id)->iface_id;
 		r->vrf_id = vrf_id;
 		r->dest.ip = *addr6_linklocal_unscope(&r->dest.ip, &tmp);
 		r->origin = *origin;
@@ -365,6 +377,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
 		r->nh = nh_id_to_ptr(nh_id)->ipv6;
+		r->iface_id = nh_id_to_ptr(nh_id)->iface_id;
 		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
