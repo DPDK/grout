@@ -144,6 +144,7 @@ int rib6_insert(
 	const struct rte_ipv6_addr *scoped_ip;
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
+	struct nexthop *existing;
 	gr_rt_origin_t *o;
 	int ret;
 
@@ -153,8 +154,9 @@ int rib6_insert(
 		ret = -errno;
 		goto fail;
 	}
-	if (rib6_lookup_exact(vrf_id, iface_id, ip, prefixlen) != NULL) {
-		ret = -EEXIST;
+	existing = rib6_lookup_exact(vrf_id, iface_id, ip, prefixlen);
+	if (existing != NULL) {
+		ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
 		goto fail;
 	}
 
