@@ -39,6 +39,9 @@ struct hoplist {
 struct nexthop *
 nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
+// Compare two nexthops, return True if the same, else False
+bool nexthop_equal(const struct nexthop *, const struct nexthop *);
+
 // Allocate a new nexthop from the global pool with the provided initial values.
 struct nexthop *
 nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
