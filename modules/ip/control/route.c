@@ -250,9 +250,6 @@ static struct api_out route4_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (!(nh->flags & GR_NH_F_GATEWAY))
-		return api_out(EBUSY, 0);
-
 	if (rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen) < 0)
 		return api_out(errno, 0);
 

@@ -276,9 +276,6 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (!(nh->flags & GR_NH_F_GATEWAY))
-		return api_out(EBUSY, 0);
-
 	if (rib6_delete(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen) < 0)
 		return api_out(errno, 0);
 
