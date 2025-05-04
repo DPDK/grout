@@ -128,6 +128,15 @@ grcli_exe = executable(
 
 install_headers(api_headers)
 
+# generate grout.pc for those headers
+import('pkgconfig').generate(
+  name: 'grout',
+  description: 'Helpers for grout integration and management',
+  version: meson.project_version(),
+  url: 'https://github.com/DPDK/grout',
+  subdirs: 'grout',  # provides -I${includedir}/grout
+)
+
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()
   fs = import('fs')
