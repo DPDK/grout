@@ -22,6 +22,7 @@ ec_node_devargs_parse(const struct ec_node *, struct ec_pnode *, const struct ec
 	return 1;
 }
 
+#define SYS_FSL_MC_DEVICES "/sys/bus/fsl-mc/devices"
 #define SYS_PCI_DEVICES "/sys/bus/pci/devices"
 #define PCI_CLASS_ETH "0x020000"
 static const char *const dpdk_vdevs[] = {
@@ -53,7 +54,7 @@ static int ec_node_devargs_complete(
 
 	dir = opendir(SYS_PCI_DEVICES);
 	if (dir == NULL)
-		goto out; // sysfs not mounted.
+		goto skip_pci;
 
 	while ((de = readdir(dir)) != NULL) {
 		if (fd != -1)
@@ -88,7 +89,52 @@ static int ec_node_devargs_complete(
 		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, word, de->d_name))
 			goto fail;
 	}
+	closedir(dir);
+	dir = NULL;
 
+skip_pci:
+	/* see dpdk fsml_bus.c:rte_fslmc_scan() without rte_ specific code */
+	char fslmc_dirpath[PATH_MAX];
+	const char *group_name;
+
+	group_name = getenv("DPRC");
+	if (!group_name)
+		goto skip_fslmc;
+
+	snprintf(fslmc_dirpath, sizeof(fslmc_dirpath), "%s/%s", SYS_FSL_MC_DEVICES, group_name);
+	dir = opendir(fslmc_dirpath);
+	if (!dir)
+		goto skip_fslmc;
+
+	while ((de = readdir(dir)) != NULL) {
+		if (de->d_name[0] == '.' || de->d_type != DT_DIR)
+			continue;
+		snprintf(buf2, sizeof(buf2), "fslmc:%s", de->d_name); // devarg = "fslmc:dpni.X"
+		if (!ec_str_startswith(buf2, word))
+			continue;
+
+		/* Parse the device name, ignore ID */
+		if (strncmp("dpni.", de->d_name, 5))
+			continue;
+		/* dev_type is DPAA2_ETH, but driver shall be vfio-fsl-mc */
+		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "driver");
+		if ((dir_fd = dirfd(dir)) < 0)
+			continue;
+		if ((n = readlinkat(dir_fd, buf, buf2, sizeof(buf2))) < 0)
+			continue;
+		buf2[n] = '\0';
+		driver = basename(buf2);
+		if (strcmp(driver, "vfio-fsl-mc") != 0)
+			continue;
+
+		snprintf(buf2, sizeof(buf2), "fslmc:%s", de->d_name); // devarg = "fslmc:dpni.X"
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, word, buf2))
+			goto fail;
+	}
+	closedir(dir);
+	dir = NULL;
+
+skip_fslmc:
 	for (unsigned i = 0; i < ARRAY_DIM(dpdk_vdevs); i++) {
 		if (!ec_str_startswith(dpdk_vdevs[i], word))
 			continue;

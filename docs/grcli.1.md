@@ -48,6 +48,17 @@ Print version and exit.
 
 Print executed commands.
 
+# ENVIRONMENT
+
+#### **DPRC**
+
+Set the DPRC - Datapath Resource Container: This value should match the
+one used by DPDK during the scan of the fslmc bus. It is recommended to
+set this on any NXP QorIQ targets. This serves as the entry point for
+grcli to enable autocompletion of fslmc devices manageable by grout.
+While grcli can configure grout without this environment setting,
+autocompletion of the devargs will not be available.
+
 # SEE ALSO
 
 **grout**(8)
