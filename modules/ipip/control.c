@@ -120,8 +120,7 @@ static void ipip_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_ipip *ipip = (const struct iface_info_ipip *)iface->info;
 	struct gr_iface_info_ipip *api = info;
 
-	api->local = ipip->local;
-	api->remote = ipip->remote;
+	*api = ipip->base;
 }
 
 static struct iface_type iface_type_ipip = {

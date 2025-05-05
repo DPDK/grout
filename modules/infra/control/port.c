@@ -559,12 +559,8 @@ static void port_to_api(void *info, const struct iface *iface) {
 	struct gr_iface_info_port *api = info;
 	struct rte_eth_dev_info dev_info;
 
+	api->base = port->base;
 	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
-	api->mac = port->mac;
-	api->n_rxq = port->n_rxq;
-	api->n_txq = port->n_txq;
-	api->rxq_size = port->rxq_size;
-	api->txq_size = port->txq_size;
 
 	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0) {
 		memccpy(api->driver_name, dev_info.driver_name, 0, sizeof(api->driver_name));
