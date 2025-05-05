@@ -605,7 +605,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));
 				continue;
 			}
-			port->link_speed = (uint16_t)link.link_speed;
+			port->link_speed = link.link_speed;
 
 			if (link.link_status == RTE_ETH_LINK_UP) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
