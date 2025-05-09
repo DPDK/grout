@@ -132,7 +132,7 @@ void *gr_datapath_loop(void *priv) {
 	}
 
 	w->lcore_id = rte_lcore_id();
-	snprintf(name, 15, "gr:worker-c%d", w->cpu_id);
+	snprintf(name, 15, "grout:w%d", w->cpu_id);
 	if (pthread_setname_np(pthread_self(), name)) {
 		log(ERR, "pthread_setname_np: %s", rte_strerror(rte_errno));
 		return NULL;
@@ -149,7 +149,7 @@ void *gr_datapath_loop(void *priv) {
 	static_assert(atomic_is_lock_free(&w->shutdown));
 	static_assert(atomic_is_lock_free(&w->cur_config));
 	static_assert(atomic_is_lock_free(&w->stats_reset));
-	atomic_store(&w->started, true);
+	worker_signal_ready(w);
 
 reconfig:
 	if (atomic_load(&w->shutdown))
@@ -160,7 +160,7 @@ reconfig:
 	atomic_store(&w->cur_config, cur);
 
 	if (graph == NULL) {
-		usleep(1000);
+		worker_wait_ready(w);
 		goto reconfig;
 	}
 
