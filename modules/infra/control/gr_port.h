@@ -33,6 +33,7 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 
 	uint16_t port_id;
 	bool started;
+	bool hotplugged;
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;
