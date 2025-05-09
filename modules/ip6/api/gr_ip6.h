@@ -19,6 +19,7 @@ struct gr_ip6_ifaddr {
 struct gr_ip6_route {
 	struct ip6_net dest;
 	struct rte_ipv6_addr nh;
+	uint16_t iface_id;
 	uint16_t vrf_id;
 	gr_rt_origin_t origin;
 };
@@ -65,6 +66,7 @@ struct gr_ip6_route_add_req {
 	uint16_t vrf_id;
 	struct ip6_net dest;
 	struct rte_ipv6_addr nh;
+	uint16_t iface_id;
 	gr_rt_origin_t origin;
 	uint8_t exist_ok;
 };
