@@ -94,7 +94,7 @@ rpm:
 CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
-licensed_files = git ls-files ':!:*.svg' ':!:LICENSE' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian' ':!:.*'
+licensed_files = git ls-files ':!:*.svg' ':!:licenses' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian' ':!:.*'
 
 .PHONY: lint
 lint:
@@ -103,8 +103,14 @@ lint:
 		$(CLANG_FORMAT) --files="$$tmp" --dry-run --Werror
 	@echo '[license-check]'
 	$Q ! $(licensed_files) | while read -r f; do \
-		if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
-			echo $$f; \
+		if echo "$$f" | grep -q '^frr/'; then \
+			if ! grep -qF 'SPDX-License-Identifier: GPL-2.0-or-later' "$$f"; then \
+				echo "$$f"; \
+			fi; \
+		else \
+			if ! grep -qF 'SPDX-License-Identifier: BSD-3-Clause' $$f; then \
+				echo $$f; \
+			fi; \
 		fi; \
 		if ! grep -q 'Copyright .* [0-9]\{4\} .*' $$f; then \
 			echo $$f; \

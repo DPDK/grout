@@ -3,6 +3,14 @@
 
 set -e
 
+: "${test_frr:=false}"
+
+if [ -n "$ZEBRA_DEBUG_DPLANE_GROUT" ]; then
+	run_frr=false
+else
+	run_frr=true
+fi
+
 if [ -S "$GROUT_SOCK_PATH" ]; then
 	run_grout=false
 else
@@ -29,6 +37,18 @@ cleanup() {
 	kill %?grcli
 	wait %?grcli
 
+	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+		frrinit.sh stop
+		sleep 1
+
+		# should be already stopped
+		for daemon in watchfrr.sh zebra staticd mgmtd vtysh; do
+			pids=$(pgrep -f "$builddir/frr_install/.*/$daemon")
+			if [ -n "$pids" ]; then
+				echo "$pids" | xargs -r kill -9
+			fi
+		done
+	fi
 	if [ "$run_grout" = true ]; then
 		kill %?grout
 		wait %?grout
@@ -59,6 +79,14 @@ if [ "$run_grout" = true ]; then
 fi
 export PATH=$builddir:$PATH
 
+grout_extra_options=""
+if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	chmod 0755 $tmp # to access on tmp
+	grout_extra_options+="-m 0666"
+	export ZEBRA_DEBUG_DPLANE_GROUT=1
+	export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+fi
+
 cat > $tmp/cleanup <<EOF
 grcli show stats software
 grcli show interface
@@ -72,7 +100,7 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
-	taskset -c 0,1 grout -tvx &
+	taskset -c 0,1 grout -tvx $grout_extra_options &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
@@ -85,3 +113,20 @@ config_test.sh|graph_svg_test.sh)
 esac
 
 grcli show events &
+
+if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	frrinit.sh start
+	timeout=15
+	elapsed=0
+	zlog="$builddir/frr_install/var/log/frr/zebra.log"
+
+	# wait that zebra_dplane_grout get iface event from grout
+	while ! grep -q "GROUT:.*iface/ip events" "$zlog" 2>/dev/null; do
+		if [ "$elapsed" -ge "$timeout" ]; then
+			echo "Zebra is not listening grout event after ${timeout} seconds."
+			exit 1
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+fi

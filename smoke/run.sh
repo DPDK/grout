@@ -20,8 +20,21 @@ run() {
 	return $res
 }
 
+test_frr=false
+if jq -e \
+  '.[] | select(.name == "frr" and .value == "enabled")' \
+  "$builddir/meson-info/intro-buildoptions.json" >/dev/null 2>&1; then
+	test_frr=true
+fi
+
 for script in $here/*_test.sh; do
 	name=$(basename $script)
+	case "$name" in
+	*_frr_test.sh)
+		[ "$test_frr" = true ] || continue
+		;;
+	esac
+
 	printf "%s ... " "$name"
 	start=$(date +%s)
 	res=OK
