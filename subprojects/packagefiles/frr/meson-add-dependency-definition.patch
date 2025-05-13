@@ -1,0 +1,143 @@
+From 567fc4fe322a8a88e6a520d06d024f2dfbab96f6 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 23 May 2025 17:44:02 +0200
+Subject: [PATCH] meson add dependency definition
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ frr_install.sh | 35 ++++++++++++++++++++++
+ meson.build    | 80 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 115 insertions(+)
+ create mode 100644 frr_install.sh
+ create mode 100644 meson.build
+
+diff --git a/frr_install.sh b/frr_install.sh
+new file mode 100644
+index 0000000..1e40167
+--- /dev/null
++++ b/frr_install.sh
+@@ -0,0 +1,35 @@
++#!/bin/sh
++set -e
++
++frr_srcdir=${1?frr srcdir}
++frr_installdir=${2?frr installdir}
++
++# Create config dir
++mkdir -p "$frr_installdir/etc/frr"
++mkdir -p "$frr_installdir/var/lib/frr"
++
++mkdir -m 0755 -p "$frr_installdir/var/log/frr"
++mkdir -m 0700 -p "$frr_installdir/var/lib/frr"
++
++# Copy main config files
++cp "$frr_srcdir/tools/etc/frr/frr.conf" "$frr_installdir/etc/frr/"
++cp "$frr_srcdir/tools/etc/frr/daemons" "$frr_installdir/etc/frr/"
++
++# Optional: also copy vtysh.conf (used to control integrated config)
++if [ -f "$frr_srcdir/tools/etc/frr/vtysh.conf" ]; then
++    cp "$frr_srcdir/tools/etc/frr/vtysh.conf" "$frr_installdir/etc/frr/"
++fi
++
++# Optional: watchfrr.conf (used by watchfrr daemon if present)
++if [ -f "$frr_srcdir/tools/etc/frr/watchfrr.conf" ]; then
++    cp "$frr_srcdir/tools/etc/frr/watchfrr.conf" "$frr_installdir/etc/frr/"
++fi
++
++# Add a log file for zebra
++log_path="$frr_installdir/var/log/frr/zebra.log"
++conf_file="$frr_installdir/etc/frr/daemons"
++
++sed -i -e "/^zebra_options=/{
++    /--log[[:space:]]*$(printf '%s' "file:$log_path" | sed 's/[\/&]/\\&/g')/! \
++        s|\"$| --log file:$log_path\"|
++}" "$conf_file"
+diff --git a/meson.build b/meson.build
+new file mode 100644
+index 0000000..5518634
+--- /dev/null
++++ b/meson.build
+@@ -0,0 +1,80 @@
++# SPDX-License-Identifier: BSD-3-Clause
++# Copyright (c) 2025 Maxime Leroy, Free Mobile
++
++project('frr', 'c', version: '10.3', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
++
++srcdir = meson.current_source_dir()
++builddir = meson.current_build_dir()
++libdir = builddir / 'lib' / '.libs'
++prefix = meson.global_build_root()  / 'frr_install'
++
++# make sure the out-of-tree build directory exists
++run_command('mkdir', '-p', builddir, check: true)
++
++bootstrap = custom_target(
++  'bootstrap',
++  output: '.bootstrap-stamp',
++  command: [
++    'sh', '-c',
++    'autoreconf -is -Wall,no-override "' + srcdir + '" && touch "@OUTPUT@"'
++  ],
++)
++alias_target('bootstrap', bootstrap)
++
++configure_stamp = '.configure-stamp'
++moduledir = prefix / get_option('libdir') / 'frr/modules'
++
++user_name  = run_command('id', '-un', check: true).stdout().strip()
++group_name = run_command('id', '-gn', check: true).stdout().strip()
++extra_configure_option = '--enable-user=' + user_name + ' ' + '--enable-group=' + group_name
++
++configure = custom_target(
++  'configure',
++  output: configure_stamp,
++  command: [
++    'sh', '-c',
++    'cd "' + builddir + '" && ' +
++    '"' + srcdir + '/configure" ' +
++    '--prefix="' + prefix + '" ' +
++    '--with-moduledir="' + moduledir + '" ' +
++    '--disable-doc ' +
++    '--disable-ripd --disable-ripngd --disable-ospfd --disable-ospf6d ' +
++    '--disable-ldpd --disable-nhrpd --disable-eigrpd --disable-babeld  ' +
++    '--disable-isisd --disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
++    '--disable-vrrpd --disable-pathd --disable-ospfapi --disable-ospfclient ' +
++    '--disable-bfdd --disable-python-runtime ' + extra_configure_option + ' ' +
++    '&&  touch "' + configure_stamp + '"'
++  ],
++  depends: bootstrap,
++)
++alias_target('configure', configure)
++
++build_stamp = '.build-stamp'
++install_cmd = 'make install && sh -x ' + srcdir + '/frr_install.sh ' + srcdir + ' ' + prefix + ' && '
++build_cmd = 'cd "' + builddir + '" && make -j && ' + install_cmd + 'touch "' + build_stamp + '"'
++
++build = custom_target(
++  'build',
++  output: build_stamp,
++  command: [ 'sh', '-c', build_cmd ],
++  depends: configure,
++  build_by_default: true,
++)
++alias_target('build', build)
++
++frr_dep = declare_dependency(
++  include_directories: include_directories('.', 'lib', 'zebra'),
++  compile_args: [
++    '-DHAVE_CONFIG_H',
++    '-D_GNU_SOURCE',
++    '-fms-extensions',
++    '-Wno-missing-field-initializers',
++    '-Wno-implicit-fallthrough',
++    '-Wno-unused-parameter',
++  ],
++  sources: [build],
++  variables: {
++    'moduledir': moduledir,
++    'prefix': prefix,
++  }
++)
+-- 
+2.43.0
+

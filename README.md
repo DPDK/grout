@@ -21,6 +21,7 @@ also in scripts one command at a time, or by batches.
 ## License
 
 [BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html)
+[GPL-2.0-or-later](https://spdx.org/licenses/GPL-2.0-or-later.html) — only for `frr`
 
 ## Features
 
@@ -315,3 +316,9 @@ Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 | go-md2man | Build | MIT | https://github.com/cpuguy83/go-md2man |
 | libasan | Dev | MIT+BSD | https://github.com/gcc-mirror/gcc/tree/master/libsanitizer |
 | clang-format | Dev | MIT+BSD | https://clang.llvm.org/docs/ClangFormat.html |
+
+Optional (compiled with `-Dfrr=enabled`):
+
+| Name | Type | License | Code |
+|------|------|---------|------|
+| FRR  | Build & Runtime | GPL-2.0-or-later | https://github.com/FRRouting/frr |

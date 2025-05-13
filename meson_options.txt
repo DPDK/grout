@@ -7,6 +7,11 @@ option(
 )
 
 option(
+  'frr', type: 'feature', value: 'disabled',
+  description: 'Build FRR plugin. If set to "auto", only build if FRR headers are found.',
+)
+
+option(
   'tests', type: 'feature', value: 'auto',
   description: 'Build unit-tests. If set to "auto", only build if cmocka is found.',
 )

@@ -9,7 +9,7 @@ project(
     check: false,
     capture: true,
   ).stdout().strip(),
-  license: 'BSD-3-Clause',
+  license: 'BSD-3-Clause AND GPL-2.0-or-later',
   meson_version: '>= 0.63.0',
   default_options: [
     'buildtype=release',
@@ -109,6 +109,7 @@ subdir('api')
 subdir('main')
 subdir('modules')
 subdir('cli')
+subdir('frr')
 
 grout_exe = executable(
   'grout', src,

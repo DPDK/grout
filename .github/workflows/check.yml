@@ -26,22 +26,27 @@ jobs:
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
+            extra_opts: -Dfrr=enabled
           - compiler: gcc-14
             sanitize: address
             buildtype: debug
             os: ubuntu-24.04
+            extra_opts:
           - compiler: clang-15
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-22.04
+            extra_opts:
           - compiler: clang-16
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
+            extra_opts:
           - compiler: clang-18
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
+            extra_opts:
     runs-on: ${{ matrix.conf.os }}
     env:
       SANITIZE: ${{ matrix.conf.sanitize }}
@@ -49,6 +54,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
+      MESON_EXTRA_OPTS: ${{ matrix.conf.extra_opts }}
     steps:
       - name: install system dependencies
         run: |
@@ -58,7 +64,18 @@ jobs:
             make gcc ccache ninja-build meson git go-md2man libibverbs-dev \
             libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
-            socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6
+            socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq
+          if echo $MESON_EXTRA_OPTS | grep -q frr=enabled ; then
+            sudo apt-get install -qy --no-install-recommends \
+              libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
+              libreadline-dev libcap-dev
+            sudo mkdir -p /etc/apt/keyrings
+            sudo curl -s -o /etc/apt/keyrings/frrouting.gpg https://deb.frrouting.org/frr/keys.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/frrouting.gpg] https://deb.frrouting.org/frr \
+              $(lsb_release -s -c) frr-stable" | sudo tee /etc/apt/sources.list.d/frr.list > /dev/null
+            sudo apt-get update -qy
+            sudo apt-get install -qy librtr-dev libyang2-dev libyang2-tools
+          fi
           if printf '%s\n0.63.0\n' "$(meson --version)" | sort -V -C ; then
             sudo apt install -y python3-pip
             pip3 install --user -U meson~=0.63.0
