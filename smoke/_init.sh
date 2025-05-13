@@ -3,6 +3,14 @@
 
 set -e
 
+: "${test_frr:=false}"
+
+if [ -S "$ZEBRA_DEBUG_DPLANE_GROUT" ]; then
+	run_frr=false
+else
+	run_frr=true
+fi
+
 if [ -S "$GROUT_SOCK_PATH" ]; then
 	run_grout=false
 else
@@ -29,6 +37,9 @@ cleanup() {
 	kill %?grcli
 	wait %?grcli
 
+	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+		frrinit.sh stop
+	fi
 	if [ "$run_grout" = true ]; then
 		kill %?grout
 		wait %?grout
@@ -59,6 +70,11 @@ if [ "$run_grout" = true ]; then
 fi
 export PATH=$builddir:$PATH
 
+if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	export ZEBRA_DEBUG_DPLANE_GROUT=1
+	export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+fi
+
 cat > $tmp/cleanup <<EOF
 grcli show stats software
 grcli show interface
@@ -85,3 +101,7 @@ config_test.sh|graph_svg_test.sh)
 esac
 
 grcli show events &
+
+if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	frrinit.sh start
+fi
