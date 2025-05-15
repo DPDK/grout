@@ -4,6 +4,7 @@
 #ifndef _GR_IP4_CONTROL
 #define _GR_IP4_CONTROL
 
+#include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
 #include <gr_nh_control.h>
@@ -26,6 +27,9 @@ static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 
 void nh4_unreachable_cb(struct rte_mbuf *m);
 void arp_probe_input_cb(struct rte_mbuf *m);
+
+int snat44_rule_add(struct iface *, ip4_addr_t match, ip4_addr_t replace);
+int snat44_rule_del(struct iface *, ip4_addr_t match);
 
 struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);

@@ -282,6 +282,8 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			SAFE_BUF(snprintf, sizeof(buf), " allmulti");
 		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
 			SAFE_BUF(snprintf, sizeof(buf), " tracing");
+		if (iface->flags & GR_IFACE_F_SNAT)
+			SAFE_BUF(snprintf, sizeof(buf), " snat");
 		scols_line_set_data(line, 2, buf);
 
 		// mode

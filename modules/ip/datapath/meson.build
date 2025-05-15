@@ -7,6 +7,7 @@ src += files(
   'arp_input_request.c',
   'arp_output_reply.c',
   'arp_output_request.c',
+  'dnat44.c',
   'fib4.c',
   'icmp_input.c',
   'icmp_local_send.c',
@@ -17,6 +18,7 @@ src += files(
   'ip_input.c',
   'ip_local.c',
   'ip_output.c',
+  'snat44.c',
 )
 inc += include_directories('.')
 
