@@ -83,4 +83,6 @@ fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
 	return rte_cpu_to_be_16(~sum & 0xffff);
 }
 
+void snat44_process(const struct iface *, struct rte_ipv4_hdr *);
+
 #endif
