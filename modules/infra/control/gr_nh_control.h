@@ -28,7 +28,16 @@ struct __rte_cache_aligned nexthop {
 	// packets waiting for address resolution
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
+
+	uint8_t priv[16] __rte_aligned(alignof(void *));
 };
+
+#define GR_NH_PRIV_DATA_TYPE(type, fields)                                                         \
+	struct type fields __attribute__((__may_alias__, aligned(alignof(void *))));               \
+	static inline struct type *type(const struct nexthop *nh) {                                \
+		return (struct type *)&nh->priv;                                                   \
+	}                                                                                          \
+	static_assert(sizeof(struct type) <= MEMBER_SIZE(struct nexthop, priv))
 
 struct hoplist {
 	// list managed with gr_vec_*
