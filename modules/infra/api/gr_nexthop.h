@@ -30,6 +30,7 @@ typedef enum : uint8_t {
 	GR_NH_T_L3 = 0, // Default value
 	GR_NH_T_SR6,
 	GR_NH_T_SR6_LOCAL,
+	GR_NH_T_DNAT,
 } gr_nh_type_t;
 
 //! Nexthop structure exposed to the API.
@@ -105,6 +106,8 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 		return "SRv6";
 	case GR_NH_T_SR6_LOCAL:
 		return "SRv6-local";
+	case GR_NH_T_DNAT:
+		return "DNAT";
 	}
 	return "?";
 }

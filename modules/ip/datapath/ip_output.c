@@ -4,6 +4,7 @@
 #include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_eth.h>
+#include <gr_fib4.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
@@ -86,6 +87,9 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// By default, it will be eth_output unless another output node was registered.
 		edge = iface_type_edges[iface->type];
 		mbuf_data(mbuf)->iface = iface;
+
+		if (iface->flags & GR_IFACE_F_SNAT)
+			snat44_process(iface, ip);
 
 		if (edge != ETH_OUTPUT)
 			goto next;

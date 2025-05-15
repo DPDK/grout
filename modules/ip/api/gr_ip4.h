@@ -133,10 +133,49 @@ struct gr_ip4_icmp_recv_resp {
 	clock_t response_time;
 };
 
+// events //////////////////////////////////////////////////////////////////////
 typedef enum {
 	GR_EVENT_IP_ADDR_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0001),
 	GR_EVENT_IP_ADDR_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0002),
 	GR_EVENT_IP_ROUTE_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0003),
 	GR_EVENT_IP_ROUTE_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0004),
 } gr_event_ip_t;
+
+// dnat44 //////////////////////////////////////////////////////////////////////
+
+struct gr_dnat44_rule {
+	uint16_t iface_id;
+	ip4_addr_t match;
+	ip4_addr_t replace;
+};
+
+#define GR_DNAT44_ADD REQUEST_TYPE(GR_IP4_MODULE, 0x0031)
+
+struct gr_dnat44_add_req {
+	struct gr_dnat44_rule rule;
+	bool exist_ok;
+};
+
+// struct gr_dnat44_add_resp { };
+
+#define GR_DNAT44_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0032)
+
+struct gr_dnat44_del_req {
+	struct gr_dnat44_rule rule;
+	bool missing_ok;
+};
+
+// struct gr_dnat44_del_resp { };
+
+#define GR_DNAT44_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0033)
+
+struct gr_dnat44_list_req {
+	uint16_t vrf_id;
+};
+
+struct gr_dnat44_list_resp {
+	uint16_t n_rules;
+	struct gr_dnat44_rule rules[/* n_rules */];
+};
+
 #endif

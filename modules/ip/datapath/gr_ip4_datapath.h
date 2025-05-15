@@ -28,6 +28,8 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint8_t ttl;
 });
 
+GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
+
 void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node);
@@ -83,5 +85,7 @@ fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
 	sum += (sum >> 16);
 	return rte_cpu_to_be_16(~sum & 0xffff);
 }
+
+void snat44_process(const struct iface *, struct rte_ipv4_hdr *);
 
 #endif

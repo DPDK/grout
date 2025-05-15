@@ -3,6 +3,7 @@
 
 cli_src += files(
   'address.c',
-  'route.c',
+  'dnat44.c',
   'icmp.c',
+  'route.c',
 )
