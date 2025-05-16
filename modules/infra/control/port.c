@@ -307,15 +307,11 @@ static int iface_port_fini(struct iface *iface) {
 		LOG(ERR, "rte_eth_dev_info_get: %s", rte_strerror(-ret));
 	if ((ret = rte_eth_dev_stop(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
-	// XXX DPDK bus/fslmc VFIO constraint for dpaa2
-	if (strcmp(info.driver_name, "net_dpaa2") == 0)
-		goto fini;
 	if ((ret = rte_eth_dev_close(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_close: %s", rte_strerror(-ret));
-	if (info.device != NULL && (ret = rte_dev_remove(info.device)) < 0)
+	if (port->hotplugged && info.device != NULL && (ret = rte_dev_remove(info.device)) < 0)
 		LOG(ERR, "rte_dev_remove: %s", rte_strerror(-ret));
 
-fini:
 	if (port->pool != NULL) {
 		gr_pktmbuf_pool_release(port->pool, port->pool_size);
 		port->pool = NULL;
@@ -331,6 +327,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	const struct gr_iface_info_port *api = api_info;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
+	bool hotplugged = false;
 	const struct iface *i;
 	struct gr_iface conf;
 	int ret;
@@ -352,6 +349,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 			return errno_set(-ret);
 		RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
 			rte_eth_iterator_cleanup(&iterator);
+			hotplugged = true;
 			break;
 		}
 	}
@@ -360,6 +358,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		return errno_set(EIDRM);
 
 	port->port_id = port_id;
+	port->hotplugged = hotplugged;
 	port->devargs = strndup(api->devargs, GR_PORT_DEVARGS_SIZE);
 	if (port->devargs == NULL) {
 		ret = errno_set(ENOMEM);
