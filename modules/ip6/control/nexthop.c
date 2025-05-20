@@ -339,6 +339,7 @@ static struct gr_api_handler nh6_list_handler = {
 
 static struct gr_module nh6_module = {
 	.name = "ipv6 nexthop",
+	.depends_on = "graph",
 	.init = nh6_init,
 };
 

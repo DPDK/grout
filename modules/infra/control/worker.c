@@ -421,9 +421,9 @@ static void worker_fini(struct event_base *) {
 
 static struct gr_module worker_module = {
 	.name = "worker",
+	.depends_on = "control_output",
 	.init = worker_init,
 	.fini = worker_fini,
-	.fini_prio = -1000,
 };
 
 RTE_INIT(control_infra_init) {

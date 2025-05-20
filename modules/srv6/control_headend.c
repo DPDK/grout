@@ -512,7 +512,6 @@ static struct gr_module srv6_headend_module = {
 	.name = "srv6_headend",
 	.init = srv6_init,
 	.fini = srv6_fini,
-	.fini_prio = 1000,
 };
 
 RTE_INIT(srv6_constructor) {

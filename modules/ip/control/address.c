@@ -217,7 +217,6 @@ static struct gr_module addr_module = {
 	.name = "ipv4 address",
 	.init = addr_init,
 	.fini = addr_fini,
-	.fini_prio = 2000,
 };
 
 static struct gr_event_subscription iface_pre_rm_subscription = {

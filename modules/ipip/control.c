@@ -156,7 +156,6 @@ static struct gr_module ipip_module = {
 	.name = "ipip",
 	.init = ipip_init,
 	.fini = ipip_fini,
-	.fini_prio = 1000,
 };
 
 RTE_INIT(ipip_constructor) {

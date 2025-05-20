@@ -257,7 +257,6 @@ static struct gr_module vlan_module = {
 	.name = "vlan",
 	.init = vlan_init,
 	.fini = vlan_fini,
-	.fini_prio = 1000,
 };
 
 static void port_event(uint32_t event, const void *obj) {

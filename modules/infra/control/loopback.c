@@ -273,7 +273,6 @@ static struct gr_module loopback_module = {
 	.name = "iface loopback",
 	.init = loopback_module_init,
 	.fini = loopback_module_fini,
-	.fini_prio = 1000,
 };
 
 RTE_INIT(loopback_constructor) {

@@ -338,10 +338,9 @@ static void graph_fini(struct event_base *) {
 
 static struct gr_module graph_module = {
 	.name = "graph",
+	.depends_on = "iface",
 	.init = graph_init,
-	.init_prio = -999,
 	.fini = graph_fini,
-	.fini_prio = -999,
 };
 
 RTE_INIT(control_graph_init) {
