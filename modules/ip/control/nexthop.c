@@ -294,6 +294,7 @@ static struct gr_api_handler nh4_list_handler = {
 
 static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
+	.depends_on = "graph",
 	.init = nh4_init,
 };
 

@@ -210,9 +210,9 @@ static void ra_fini(struct event_base * /*ev_base*/) {
 
 static struct gr_module ra_module = {
 	.name = "ipv6 router advertisement",
+	.depends_on = "graph",
 	.init = ra_init,
 	.fini = ra_fini,
-	.fini_prio = 20000,
 };
 
 static struct gr_api_handler ra_set_handler = {

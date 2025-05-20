@@ -155,7 +155,6 @@ static struct gr_module module = {
 	.name = "fib4",
 	.init = fib4_init,
 	.fini = fib4_fini,
-	.fini_prio = 10000,
 };
 
 RTE_INIT(init) {
