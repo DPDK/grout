@@ -65,7 +65,7 @@ char *strjoin(char **array, size_t len, const char *sep) {
 	return out;
 }
 
-int utf8_check(const char *buf, size_t maxlen) {
+int charset_check(const char *buf, size_t maxlen) {
 	mbstate_t mb;
 	size_t len;
 

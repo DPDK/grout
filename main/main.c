@@ -240,8 +240,8 @@ int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
 	int err = 0;
 
-	if (setlocale(LC_CTYPE, "C.UTF-8") == NULL) {
-		perror("setlocale(LC_CTYPE, C.UTF-8)");
+	if (setlocale(LC_ALL, "") == NULL) {
+		perror("setlocale(LC_ALL)");
 		goto end;
 	}
 	if (evthread_use_pthreads() < 0) {
