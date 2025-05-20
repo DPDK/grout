@@ -58,7 +58,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	if (type == NULL)
 		goto fail;
-	if (utf8_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		if (strcmp(conf->name, iface->name) == 0) {
@@ -112,7 +112,7 @@ int iface_reconfig(
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -errno;
 	if (set_attrs & GR_IFACE_SET_NAME) {
-		if (utf8_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+		if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 			return -errno;
 
 		const struct iface *i = NULL;
