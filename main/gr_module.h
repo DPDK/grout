@@ -32,9 +32,8 @@ void gr_register_api_handler(struct gr_api_handler *);
 
 struct gr_module {
 	const char *name;
-	int init_prio;
+	const char *depends_on;
 	void (*init)(struct event_base *);
-	int fini_prio;
 	void (*fini)(struct event_base *);
 	void (*init_dp)(void);
 	void (*fini_dp)(void);

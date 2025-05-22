@@ -476,7 +476,6 @@ static struct gr_module route4_module = {
 	.name = "ipv4 route",
 	.init = route4_init,
 	.fini = route4_fini,
-	.fini_prio = 10000,
 };
 
 RTE_INIT(control_ip_init) {

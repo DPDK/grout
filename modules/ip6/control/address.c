@@ -378,7 +378,6 @@ static struct gr_module addr6_module = {
 	.name = "ipv6 address",
 	.init = addr6_init,
 	.fini = addr6_fini,
-	.fini_prio = 2000,
 };
 
 static struct gr_event_subscription iface_event_subscription = {

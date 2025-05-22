@@ -298,9 +298,9 @@ static void iface_fini(struct event_base *) {
 
 static struct gr_module iface_module = {
 	.name = "iface",
+	.depends_on = "iface port",
 	.init = iface_init,
 	.fini = iface_fini,
-	.fini_prio = 1000,
 };
 
 static void iface_event_debug(uint32_t event, const void *obj) {

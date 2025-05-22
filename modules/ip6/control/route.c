@@ -504,7 +504,6 @@ static struct gr_module route6_module = {
 	.name = "ipv6 route",
 	.init = route6_init,
 	.fini = route6_fini,
-	.fini_prio = 10000,
 };
 
 RTE_INIT(control_ip_init) {

@@ -311,7 +311,6 @@ static struct gr_module module = {
 	.name = "nexthop",
 	.init = nh_init,
 	.fini = nh_fini,
-	.fini_prio = 20000,
 };
 
 RTE_INIT(init) {
