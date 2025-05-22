@@ -131,11 +131,20 @@ struct icmp6_opt_lladdr {
 	struct rte_ether_addr mac;
 } __rte_aligned(2) __rte_packed;
 
-static inline bool icmp6_get_opt(struct rte_mbuf *mbuf, size_t offset, uint8_t type, void *value) {
+typedef enum {
+	ICMP6_OPT_INVAL = -1,
+	ICMP6_OPT_NOT_FOUND = 0,
+	ICMP6_OPT_FOUND = 1,
+} icmp6_opt_found_t;
+
+static inline icmp6_opt_found_t
+icmp6_get_opt(struct rte_mbuf *mbuf, size_t offset, uint8_t type, void *value) {
 	const struct icmp6_opt *opt;
 	struct icmp6_opt popt;
 
 	while ((opt = rte_pktmbuf_read(mbuf, offset, sizeof(*opt), &popt)) != NULL) {
+		if (opt->len == 0)
+			return ICMP6_OPT_INVAL;
 		if (opt->type != type)
 			goto next;
 
@@ -144,14 +153,14 @@ static inline bool icmp6_get_opt(struct rte_mbuf *mbuf, size_t offset, uint8_t t
 		case ICMP6_OPT_SRC_LLADDR:
 			struct icmp6_opt_lladdr *ll = PAYLOAD(opt);
 			*(struct rte_ether_addr *)value = ll->mac;
-			return true;
+			return ICMP6_OPT_FOUND;
 		default:
 			break;
 		}
 next:
 		offset += opt->len * 8;
 	}
-	return false;
+	return ICMP6_OPT_NOT_FOUND;
 }
 
 #endif

@@ -28,13 +28,13 @@ static uint16_t ndp_ns_input_process(
 	uint16_t nb_objs
 ) {
 	struct control_output_mbuf_data *c;
+	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_solicit *ns;
 	struct ip6_local_mbuf_data d;
 	struct rte_ether_addr lladdr;
 	const struct nexthop *local;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
-	bool lladdr_found;
 	rte_edge_t next;
 
 #define ASSERT_NDP(condition)                                                                      \
@@ -84,7 +84,7 @@ static uint16_t ndp_ns_input_process(
 			lladdr_found = icmp6_get_opt(
 				mbuf, sizeof(*icmp6) + sizeof(*ns), ICMP6_OPT_SRC_LLADDR, &lladdr
 			);
-			ASSERT_NDP(!lladdr_found);
+			ASSERT_NDP(lladdr_found == ICMP6_OPT_NOT_FOUND);
 		}
 
 		c = control_output_mbuf_data(mbuf);
