@@ -28,6 +28,7 @@ static uint16_t ndp_na_input_process(
 	uint16_t nb_objs
 ) {
 	struct control_output_mbuf_data *ctrl_data;
+	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
 	struct rte_ether_addr lladdr;
@@ -35,7 +36,6 @@ static uint16_t ndp_na_input_process(
 	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
-	bool lladdr_found;
 	rte_edge_t edge;
 
 #define ASSERT_NDP(condition)                                                                      \
@@ -92,7 +92,7 @@ static uint16_t ndp_na_input_process(
 		// If the link layer has addresses and no Target Link-Layer Address
 		// option is included, the receiving node SHOULD silently discard the
 		// received advertisement.
-		ASSERT_NDP(lladdr_found);
+		ASSERT_NDP(lladdr_found == ICMP6_OPT_FOUND);
 
 		ctrl_data = control_output_mbuf_data(mbuf);
 		ctrl_data->iface = iface;

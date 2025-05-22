@@ -114,10 +114,10 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	const struct ip6_local_mbuf_data *d;
 	const struct icmp6_neigh_solicit *ns;
 	const struct icmp6_neigh_advert *na;
+	icmp6_opt_found_t lladdr_found;
 	const struct iface *iface;
 	struct rte_ether_addr mac;
 	struct nexthop *nh = NULL;
-	bool lladdr_found;
 
 	d = (const struct ip6_local_mbuf_data *)control_output_mbuf_data(m)->cb_data;
 	iface = control_output_mbuf_data(m)->iface;
@@ -142,6 +142,9 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	default:
 		goto free;
 	}
+
+	if (lladdr_found == ICMP6_OPT_INVAL)
+		goto free;
 
 	if (!rte_ipv6_addr_is_unspec(remote) && !rte_ipv6_addr_is_mcast(remote)) {
 		nh = nh6_lookup(iface->vrf_id, iface->id, remote);
@@ -171,7 +174,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		}
 	}
 
-	if (nh && !(nh->flags & GR_NH_F_STATIC) && lladdr_found) {
+	if (nh && !(nh->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
 		nh->iface_id = iface->id;
