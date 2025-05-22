@@ -20,11 +20,11 @@
 #include <rte_ethdev.h>
 
 static struct iface *ifaces[] = {NULL, NULL, NULL};
-static struct worker w1 = {.cpu_id = 1, .started = true};
-static struct worker w2 = {.cpu_id = 2, .started = true};
-static struct worker w3 = {.cpu_id = 3, .started = true};
-static struct worker w4 = {.cpu_id = 4, .started = true};
-static struct worker w5 = {.cpu_id = 5, .started = true};
+static struct worker w1 = {.cpu_id = 1};
+static struct worker w2 = {.cpu_id = 2};
+static struct worker w3 = {.cpu_id = 3};
+static struct worker w4 = {.cpu_id = 4};
+static struct worker w5 = {.cpu_id = 5};
 static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
 
 // mocked types/functions
@@ -107,6 +107,11 @@ mock_func(
 );
 mock_func(int, __wrap_pthread_cancel(pthread_t));
 mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
+mock_func(int, __wrap_pthread_cond_wait(pthread_cond_t *, pthread_mutex_t *));
+mock_func(
+	int,
+	__wrap_pthread_cond_timedwait(pthread_cond_t *, pthread_mutex_t *, struct timespec *)
+);
 mock_func(int, __wrap_pthread_join(pthread_t *, const pthread_attr_t *, void *(void *), void *));
 mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
 
@@ -176,6 +181,11 @@ static int setup(void **) {
 	gr_vec_add(w2.txqs, q(1, 1));
 	gr_vec_add(w2.txqs, q(2, 1));
 
+	STAILQ_INSERT_TAIL(&workers, &w3, next);
+	gr_vec_add(w3.txqs, q(0, 2));
+	gr_vec_add(w3.txqs, q(1, 2));
+	gr_vec_add(w3.txqs, q(2, 2));
+
 	return 0;
 }
 
@@ -197,6 +207,8 @@ static void common_mocks(void) {
 	will_return_maybe(worker_graph_reload_all, 0);
 	will_return_maybe(__wrap_numa_available, 0);
 	will_return_maybe(__wrap_numa_node_of_cpu, 0);
+	will_return_maybe(__wrap_pthread_cond_wait, 0);
+	will_return_maybe(__wrap_pthread_cond_timedwait, 0);
 	will_return_maybe(__wrap_pthread_create, 0);
 	will_return_maybe(__wrap_pthread_join, 0);
 	will_return_maybe(__wrap_rte_dev_name, "");
@@ -251,69 +263,66 @@ static void rxq_assign_already_set(void **) {
 static void rxq_assign_existing_worker(void **) {
 	common_mocks();
 	assert_int_equal(worker_rxq_assign(1, 1, 1), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));
 	assert_qmaps(w2.rxqs, q(2, 1), q(2, 0));
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs);
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 static void rxq_assign_existing_worker_destroy(void **) {
 	common_mocks();
 
 	assert_int_equal(worker_rxq_assign(2, 0, 1), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs);
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 
 	assert_int_equal(worker_rxq_assign(2, 1, 1), 0);
-	assert_int_equal(worker_count(), 1);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0), q(2, 1));
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(1, 0), q(2, 0), q(0, 0));
-	assert_qmaps(w2.txqs);
-	assert_qmaps(w3.txqs);
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 static void rxq_assign_new_worker(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w2);
 	assert_int_equal(worker_rxq_assign(2, 1, 2), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs, q(2, 1));
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs);
+	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 static void rxq_assign_new_worker_destroy(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w3);
 	assert_int_equal(worker_rxq_assign(2, 1, 3), 0);
-	assert_int_equal(worker_count(), 2);
+	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1), q(2, 0));
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs, q(2, 1));
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
-	assert_qmaps(w2.txqs);
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
 	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
 }
 
 static void rxq_assign_new_worker2(void **) {
 	common_mocks();
 
-	will_return(__wrap_rte_zmalloc, &w2);
 	assert_int_equal(worker_rxq_assign(2, 0, 2), 0);
 	assert_int_equal(worker_count(), 3);
 	assert_qmaps(w1.rxqs, q(0, 0), q(0, 1), q(1, 0), q(1, 1));

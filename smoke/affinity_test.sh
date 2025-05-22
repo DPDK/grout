@@ -15,14 +15,14 @@ grcli show affinity qmap
 grcli set affinity qmap p0 rxq 0 cpu 666 && fail "qmap to CPU 666 should fail"
 grcli set affinity qmap p0 rxq 0 cpu 2 && fail "qmap to CPU 2 should fail"
 
-grcli set affinity cpus datapath 2,3,4
+grcli set affinity cpus datapath 1,2,3
 grcli show affinity qmap
 
-grcli set affinity qmap p0 rxq 0 cpu 2
-grcli set affinity qmap p0 rxq 1 cpu 2
-grcli set affinity qmap p1 rxq 0 cpu 3
-grcli set affinity qmap p1 rxq 1 cpu 3
+grcli set affinity qmap p0 rxq 0 cpu 1
+grcli set affinity qmap p0 rxq 1 cpu 1
+grcli set affinity qmap p1 rxq 0 cpu 2
+grcli set affinity qmap p1 rxq 1 cpu 2
 grcli show affinity qmap
 
-grcli set affinity cpus datapath 3,4
+grcli set affinity cpus datapath 2,3
 grcli show affinity qmap

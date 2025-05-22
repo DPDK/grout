@@ -239,6 +239,7 @@ int worker_graph_reload(struct worker *worker) {
 
 	// wait for datapath worker to pickup the config update
 	atomic_store(&worker->next_config, next);
+	worker_signal_ready(worker);
 	while (atomic_load(&worker->cur_config) != next)
 		usleep(500);
 
