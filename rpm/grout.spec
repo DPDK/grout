@@ -4,8 +4,8 @@
 %global _lto_cflags %nil
 %global branch main
 %global __meson_wrap_mode default
-%if "%toolset" != ""
-%global __meson /usr/bin/scl run %toolset -- /usr/bin/meson
+%if %{defined toolset}
+%global __meson /usr/bin/scl run %{toolset} -- /usr/bin/meson
 %endif
 
 Name: grout
@@ -17,11 +17,11 @@ Version: %{version}
 Release: %{release}
 Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
 
-%if "%toolset" == ""
-BuildRequires: gcc >= 13
-%else
-BuildRequires: %toolset
+%if %{defined toolset}
+BuildRequires: %{toolset}
 BuildRequires: scl-utils
+%else
+BuildRequires: gcc >= 13
 %endif
 BuildRequires: git
 BuildRequires: libarchive-devel
@@ -54,7 +54,9 @@ It comes with a client library to configure it over a standard UNIX socket and
 a CLI that uses that library. The CLI can be used as an interactive shell, but
 also in scripts one command at a time, or by batches.
 
+%if %{undefined _enable_debug_packages}
 %debug_package
+%endif
 
 %package devel
 Summary: Development headers for building %{name} API clients
