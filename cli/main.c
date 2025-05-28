@@ -130,8 +130,8 @@ int main(int argc, char **argv) {
 	int ret, c;
 
 	ret = EXIT_FAILURE;
-	if (setlocale(LC_CTYPE, "C.UTF-8") == NULL) {
-		perror("setlocale(LC_CTYPE, C.UTF-8)");
+	if (setlocale(LC_ALL, "") == NULL) {
+		perror("setlocale(LC_ALL)");
 		goto end;
 	}
 	tty_init();
