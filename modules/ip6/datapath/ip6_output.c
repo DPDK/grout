@@ -90,13 +90,15 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge != ETH_OUTPUT)
 			goto next;
 
+		// clang-format off
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
 		    && (!(nh->flags & GR_NH_F_REACHABLE)
-			|| (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
-		    )) {
+			|| (nh->flags & GR_NH_F_LINK
+			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)))) {
 			edge = HOLD;
 			goto next;
 		}
+		// clang-format on
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
