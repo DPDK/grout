@@ -137,6 +137,24 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 	return nh;
 }
 
+bool nexthop_equal(struct nexthop *nh1, struct nexthop *nh2) {
+	if (nh1->vrf_id != nh2->vrf_id || nh1->iface_id != nh2->iface_id || nh1->type != nh2->type)
+		return false;
+
+	switch (nh1->type) {
+	case GR_NH_IPV4:
+	case GR_NH_SR6_IPV4:
+		return (memcmp(&nh1->ipv4, &nh2->ipv4, sizeof(nh1->ipv4)) == 0);
+	case GR_NH_IPV6:
+	case GR_NH_SR6_IPV6:
+		return (memcmp(&nh1->ipv6, &nh2->ipv6, sizeof(nh1->ipv6)) == 0);
+	default:
+		ABORT("invalid nexthop type %hhu", nh1->type);
+	}
+
+	return false;
+}
+
 struct pool_iterator {
 	nh_iter_cb_t user_cb;
 	void *priv;
