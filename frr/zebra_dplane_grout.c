@@ -435,8 +435,11 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 }
 
 static int zd_grout_finish(struct zebra_dplane_provider *prov, bool early) {
-	event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
-	event_cancel(&grout_ctx.dg_t_zebra_update);
+	if (early) {
+		event_cancel(&grout_ctx.dg_t_zebra_update);
+		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
+		return 0;
+	}
 
 	gr_api_client_disconnect(grout_ctx.client);
 	gr_api_client_disconnect(grout_ctx.dplane_notifs);
