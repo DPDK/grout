@@ -381,8 +381,10 @@ static struct api_out srv6_steer_list(const void *request, void **response) {
 		if (req->vrf_id == UINT16_MAX || req->vrf_id == nh->vrf_id) {
 			gr_vec_add(nh_list, nh);
 			gr_vec_add(d_listlist, data_ptr);
-			len += sizeof(struct gr_srv6_steer_entry
-			       ) + gr_vec_len(d_list) * sizeof(struct rte_ipv6_addr);
+			// clang-format off
+			len += sizeof(struct gr_srv6_steer_entry)
+				+ gr_vec_len(d_list) * sizeof(struct rte_ipv6_addr);
+			// clang-format on
 		}
 	}
 	if ((resp = calloc(1, len)) == NULL) {
