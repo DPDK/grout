@@ -115,10 +115,12 @@ esac
 grcli show events &
 
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	zlog="$builddir/frr_install/var/log/frr/zebra.log"
+	rm -f "$zlog"
+	touch "$zlog"
 	frrinit.sh start
 	timeout=15
 	elapsed=0
-	zlog="$builddir/frr_install/var/log/frr/zebra.log"
 
 	# wait that zebra_dplane_grout get iface event from grout
 	while ! grep -q "GROUT:.*iface/ip events" "$zlog" 2>/dev/null; do
