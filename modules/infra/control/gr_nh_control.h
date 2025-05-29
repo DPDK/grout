@@ -28,6 +28,12 @@ struct __rte_cache_aligned nexthop {
 	// packets waiting for address resolution
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
+
+	union {
+		void *ptr;
+		ip4_addr_t ipv4;
+		struct rte_ipv6_addr ipv6;
+	} priv;
 };
 
 struct hoplist {
