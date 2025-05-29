@@ -20,8 +20,9 @@ also in scripts one command at a time, or by batches.
 
 ## License
 
-[BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html)
-[GPL-2.0-or-later](https://spdx.org/licenses/GPL-2.0-or-later.html) — only for `frr`
+* [BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html)
+* [GPL-2.0-or-later](https://spdx.org/licenses/GPL-2.0-or-later.html) — only
+  for the `frr` plugin.
 
 ## Features
 

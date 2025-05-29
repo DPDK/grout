@@ -89,7 +89,7 @@ rm -rf %{buildroot} %{_vpath_builddir}
 
 %files
 %doc README.md
-%license LICENSE
+%license licenses/BSD-3-clause.txt
 %config %{_sysconfdir}/default/grout
 %config %{_sysconfdir}/grout.init
 %attr(644, root, root) %{_unitdir}/grout.service
@@ -102,7 +102,7 @@ rm -rf %{buildroot} %{_vpath_builddir}
 
 %files devel
 %doc README.md
-%license LICENSE
+%license licenses/BSD-3-clause.txt
 %{_includedir}/gr_*.h
 
 %changelog

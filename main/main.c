@@ -256,7 +256,8 @@ int main(int argc, char **argv) {
 		goto end;
 
 	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
-	LOG(NOTICE, "License available at https://git.dpdk.org/apps/grout/plain/LICENSE");
+	LOG(NOTICE,
+	    "License available at https://git.dpdk.org/apps/grout/plain/licenses/BSD-3-clause.txt");
 
 	if (dpdk_init() < 0) {
 		err = errno;
