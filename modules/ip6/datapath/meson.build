@@ -22,7 +22,18 @@ inc += include_directories('.')
 
 tests += [
   {
-    'sources': files('ip6_input.c'),
+    'sources': files(
+      'ip6_input.c',
+      ),
+    'link_args': [],
+  }
+]
+
+tests += [
+  {
+    'sources': files(
+      'ndp_na_input.c',
+      ),
     'link_args': [],
   }
 ]
