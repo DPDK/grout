@@ -71,20 +71,24 @@ EOF
 
 tmp=$(mktemp -d)
 trap cleanup EXIT
-builddir=${1?builddir}
+builddir=${1-}
 run_id=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1)
 
 if [ "$run_grout" = true ]; then
 	export GROUT_SOCK_PATH=$tmp/grout.sock
 fi
-export PATH=$builddir:$PATH
+if [ -n "${builddir}" ]; then
+	export PATH=$builddir:$PATH
+fi
 
 grout_extra_options=""
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	chmod 0755 $tmp # to access on tmp
 	grout_extra_options+="-m 0666"
 	export ZEBRA_DEBUG_DPLANE_GROUT=1
-	export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+	if [ -n "${builddir}" ]; then
+		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+	fi
 fi
 
 cat > $tmp/cleanup <<EOF
