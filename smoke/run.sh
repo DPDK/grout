@@ -10,7 +10,7 @@ if [ "$1" = "--coredump" ]; then
 	sysctl -qw kernel.core_pattern=/tmp/grout-core.%e.%p
 	shift
 fi
-builddir=${1?build dir}
+builddir=${1-}
 log=$(mktemp)
 result=0
 
@@ -21,9 +21,10 @@ run() {
 }
 
 test_frr=false
-if jq -e \
-  '.[] | select(.name == "frr" and .value == "enabled")' \
-  "$builddir/meson-info/intro-buildoptions.json" >/dev/null 2>&1; then
+# running test frr is only supported when grout is built, not installed
+if [ -n "${builddir+x}" ] && \
+	   jq -e '.[] | select(.name == "frr" and .value == "enabled")' \
+	      "$builddir/meson-info/intro-buildoptions.json" >/dev/null 2>&1; then
 	test_frr=true
 fi
 
