@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-set -e
-
 test_frr=true
 
 . $(dirname $0)/_init.sh
