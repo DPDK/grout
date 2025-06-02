@@ -33,16 +33,28 @@ set_ip_address() {
 	local max_tries=5
 	local count=0
 
+	if echo "$ip_cidr" | grep -q ':'; then
+		# IPv6
+		local frr_ip="ipv6"
+		local gr_ip="ip6"
+	else
+		# IPv4
+		local frr_ip="ip"
+		local gr_ip="ip"
+	fi
+
+	local grep_pattern="^${p}[[:space:]]\+${ip_cidr}$"
+
 	vtysh <<-EOF
 	configure terminal
 	interface ${p}
-	ip address ${ip_cidr}
+	${frr_ip} address ${ip_cidr}
 	exit
 EOF
 
-	while ! grcli show ip address | grep -q "^${p}[[:space:]]\+${ip_cidr}$"; do
+	while ! grcli show ${gr_ip} address | grep -q "$grep_pattern"; do
 		if [ "$count" -ge "$max_tries" ]; then
-			echo "Ip address $ip_cidr not set after $max_tries attempts."
+			echo "IP address $ip_cidr not set after $max_tries attempts."
 			exit 1
 		fi
 		sleep 1
@@ -56,13 +68,25 @@ set_ip_route() {
 	local max_tries=5
 	local count=0
 
+	if echo "$prefix" | grep -q ':'; then
+		# IPv6
+		local frr_ip="ipv6"
+		local gr_ip="ip6"
+	else
+		# IPv4
+		local frr_ip="ip"
+		local gr_ip="ip"
+	fi
+
+	local grep_pattern="^0[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"
+
 	vtysh <<-EOF
 	configure terminal
-	ip route ${prefix} ${next_hop}
+	${frr_ip} route ${prefix} ${next_hop}
 	exit
 EOF
 
-	while ! grcli show ip route | grep -q "^0[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"; do
+	while ! grcli show ${gr_ip} route | grep -q "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
