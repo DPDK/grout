@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2025 Maxime Leroy
+# Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 set -e
 
