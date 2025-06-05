@@ -41,10 +41,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
-		iface = NULL;
-		nh = NULL;
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		e = eth_input_mbuf_data(mbuf);
+		iface = e->iface;
+		nh = NULL;
 
 		// RFC 1812 section 5.2.2 IP Header Validation
 		//
@@ -97,7 +98,6 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		e = eth_input_mbuf_data(mbuf);
 		switch (e->domain) {
 		case ETH_DOMAIN_LOOPBACK:
 		case ETH_DOMAIN_LOCAL:
@@ -115,7 +115,6 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		iface = e->iface;
 		nh = fib4_lookup(iface->vrf_id, ip->dst_addr);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
@@ -138,7 +137,6 @@ next:
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
 		d = ip_output_mbuf_data(mbuf);
 		d->nh = nh;
-		d->iface = iface;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
