@@ -182,25 +182,3 @@ void modules_fini(struct event_base *ev_base) {
 
 	gr_vec_free(mods);
 }
-
-void gr_modules_dp_init(void) {
-	struct gr_module *mod;
-
-	STAILQ_FOREACH (mod, &modules, entries) {
-		if (mod->init_dp != NULL) {
-			LOG(DEBUG, "%s", mod->name);
-			mod->init_dp();
-		}
-	}
-}
-
-void gr_modules_dp_fini(void) {
-	struct gr_module *mod;
-
-	STAILQ_FOREACH (mod, &modules, entries) {
-		if (mod->fini_dp != NULL) {
-			LOG(DEBUG, "%s", mod->name);
-			mod->fini_dp();
-		}
-	}
-}
