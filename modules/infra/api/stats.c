@@ -12,6 +12,7 @@
 
 #include <rte_common.h>
 #include <rte_ethdev.h>
+#include <rte_telemetry.h>
 
 #include <fnmatch.h>
 
@@ -210,6 +211,73 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 	return api_out(0, 0);
 }
 
+static int
+telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	struct stat *stats = NULL, *s;
+	struct worker *worker;
+
+	rte_tel_data_start_dict(d);
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		const struct worker_stats *w_stats = atomic_load(&worker->stats);
+		if (w_stats == NULL)
+			continue;
+		for (unsigned i = 0; i < w_stats->n_stats; i++) {
+			const struct node_stats *n = &w_stats->stats[i];
+			const char *name = rte_node_id_to_name(n->node_id);
+			s = find_stat(stats, name);
+			if (s != NULL) {
+				s->objs += n->objs;
+				s->calls += n->calls;
+				s->cycles += n->cycles;
+			} else {
+				struct stat stat = {
+					.objs = n->objs,
+					.calls = n->calls,
+					.cycles = n->cycles,
+				};
+				memccpy(stat.name, name, 0, sizeof(stat.name));
+				gr_vec_add(stats, stat);
+			}
+		}
+		s = find_stat(stats, "idle");
+		if (s != NULL) {
+			s->calls += w_stats->n_sleeps;
+			s->cycles += w_stats->sleep_cycles;
+		} else {
+			struct stat stat = {
+				.objs = 0,
+				.calls = w_stats->n_sleeps,
+				.cycles = w_stats->sleep_cycles,
+			};
+			memccpy(stat.name, "idle", 0, sizeof(stat.name));
+			gr_vec_add(stats, stat);
+		}
+	}
+	gr_vec_foreach_ref (s, stats) {
+		if (s->calls > 0) {
+			struct rte_tel_data *val = rte_tel_data_alloc();
+			if (val == NULL) {
+				goto err;
+			}
+			rte_tel_data_start_dict(val);
+			rte_tel_data_add_dict_uint(val, "packets", s->objs);
+			rte_tel_data_add_dict_uint(val, "calls", s->calls);
+			rte_tel_data_add_dict_uint(val, "cycles", s->cycles);
+			if (rte_tel_data_add_dict_container(d, s->name, val, 0) != 0) {
+				rte_tel_data_free(val);
+				goto err;
+			}
+		}
+	}
+
+	gr_vec_free(stats);
+	return 0;
+err:
+	gr_vec_free(stats);
+	return -1;
+}
+
 static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
 	.request_type = GR_INFRA_STATS_GET,
@@ -225,4 +293,9 @@ static struct gr_api_handler stats_reset_handler = {
 RTE_INIT(infra_stats_init) {
 	gr_register_api_handler(&stats_get_handler);
 	gr_register_api_handler(&stats_reset_handler);
+	rte_telemetry_register_cmd(
+		"/grout/stats/graph",
+		telemetry_sw_stats_get,
+		"Returns statistics of each graph node. No parameters"
+	);
 }
