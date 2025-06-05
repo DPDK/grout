@@ -168,8 +168,6 @@ reconfig:
 		goto shutdown;
 	atomic_store(&w->stats, ctx.w_stats);
 
-	gr_modules_dp_init();
-
 	loop = 0;
 	sleep = 0;
 	timestamp = rte_rdtsc();
@@ -178,7 +176,6 @@ reconfig:
 
 		if (++loop == 256) {
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
-				gr_modules_dp_fini();
 				goto reconfig;
 			}
 
