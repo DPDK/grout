@@ -7,6 +7,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
+#include <gr_rcu.h>
 #include <gr_vlan.h>
 
 #include <event2/event.h>
@@ -246,6 +247,11 @@ static void vlan_init(struct event_base *) {
 	vlan_hash = rte_hash_create(&params);
 	if (vlan_hash == NULL)
 		ABORT("rte_hash_create(vlan)");
+
+	struct rte_hash_rcu_config rcu_config = {
+		.v = gr_datapath_rcu(), .mode = RTE_HASH_QSBR_MODE_SYNC
+	};
+	rte_hash_rcu_qsbr_add(vlan_hash, &rcu_config);
 }
 
 static void vlan_fini(struct event_base *) {
@@ -255,6 +261,7 @@ static void vlan_fini(struct event_base *) {
 
 static struct gr_module vlan_module = {
 	.name = "vlan",
+	.depends_on = "rcu",
 	.init = vlan_init,
 	.fini = vlan_fini,
 };
