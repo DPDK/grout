@@ -7,6 +7,7 @@
 #include <gr_mbuf.h>
 #include <gr_module.h>
 #include <gr_nh_control.h>
+#include <gr_rcu.h>
 
 #include <rte_malloc.h>
 #include <rte_mempool.h>
@@ -222,6 +223,8 @@ nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void
 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
 		// Flush all held packets.
 		struct rte_mbuf *m = nh->held_pkts_head;
 		while (m != NULL) {
