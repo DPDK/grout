@@ -6,6 +6,7 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
+#include <gr_rcu.h>
 #include <gr_string.h>
 #include <gr_vec.h>
 
@@ -252,6 +253,9 @@ int iface_destroy(uint16_t ifid) {
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 
 	ifaces[ifid] = NULL;
+
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	ret = type->fini(iface);
