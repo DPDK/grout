@@ -35,15 +35,9 @@ struct gr_module {
 	const char *depends_on;
 	void (*init)(struct event_base *);
 	void (*fini)(struct event_base *);
-	void (*init_dp)(void);
-	void (*fini_dp)(void);
 	STAILQ_ENTRY(gr_module) entries;
 };
 
 void gr_register_module(struct gr_module *);
-
-void gr_modules_dp_init(void);
-
-void gr_modules_dp_fini(void);
 
 #endif
