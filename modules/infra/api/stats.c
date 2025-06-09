@@ -278,6 +278,67 @@ err:
 	return -1;
 }
 
+static int
+telemetry_xstats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	struct rte_eth_xstat_name *names = NULL;
+	struct rte_eth_xstat *xstats = NULL;
+	struct iface *iface = NULL;
+	unsigned num;
+	int ret;
+
+	rte_tel_data_start_dict(d);
+
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+		struct iface_info_port *port = (struct iface_info_port *)iface->info;
+		ret = rte_eth_xstats_get_names(port->port_id, NULL, 0);
+		if (ret <= 0) {
+			continue;
+		}
+		num = ret;
+
+		names = calloc(num, sizeof(*names));
+		xstats = calloc(num, sizeof(*xstats));
+		if (names == NULL || xstats == NULL) {
+			goto err;
+		}
+
+		if (rte_eth_xstats_get_names(port->port_id, names, num) < 0
+		    || rte_eth_xstats_get(port->port_id, xstats, num) < 0) {
+			free(names);
+			free(xstats);
+			continue;
+		}
+
+		struct rte_tel_data *iface_container = rte_tel_data_alloc();
+		if (iface_container == NULL) {
+			goto err;
+		}
+		rte_tel_data_start_dict(iface_container);
+
+		for (unsigned i = 0; i < num; i++) {
+			if (xstats[i].value > 0) {
+				rte_tel_data_add_dict_uint(
+					iface_container, names[i].name, xstats[i].value
+				);
+			}
+		}
+
+		if (rte_tel_data_add_dict_container(d, iface->name, iface_container, 0) != 0) {
+			rte_tel_data_free(iface_container);
+			goto err;
+		}
+
+		free(names);
+		free(xstats);
+	}
+	return 0;
+
+err:
+	free(names);
+	free(xstats);
+	return -1;
+}
+
 static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
 	.request_type = GR_INFRA_STATS_GET,
@@ -297,5 +358,10 @@ RTE_INIT(infra_stats_init) {
 		"/grout/stats/graph",
 		telemetry_sw_stats_get,
 		"Returns statistics of each graph node. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/stats/xstats",
+		telemetry_xstats_get,
+		"Returns extended statistics per physical port. No parameters"
 	);
 }
