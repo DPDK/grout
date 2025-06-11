@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Christophe Fontaine
+# dummy change
 
 FROM registry.access.redhat.com/ubi9 as ubi-builder
 COPY grout.*.rpm /tmp
