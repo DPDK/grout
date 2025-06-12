@@ -501,6 +501,7 @@ static struct gr_event_serializer route6_serializer = {
 
 static struct gr_module route6_module = {
 	.name = "ipv6 route",
+	.depends_on = "fib6",
 	.init = route6_init,
 	.fini = route6_fini,
 };

@@ -473,6 +473,7 @@ static struct gr_event_serializer route_serializer = {
 
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
+	.depends_on = "fib4",
 	.init = route4_init,
 	.fini = route4_fini,
 };
