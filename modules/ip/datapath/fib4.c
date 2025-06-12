@@ -153,6 +153,7 @@ static void fib4_fini(struct event_base *) {
 
 static struct gr_module module = {
 	.name = "fib4",
+	.depends_on = "nexthop",
 	.init = fib4_init,
 	.fini = fib4_fini,
 };
