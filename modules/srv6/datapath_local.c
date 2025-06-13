@@ -56,32 +56,43 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 		);
 }
 
+// Remove ipv6 headers and extension
+static inline int decap_outer(struct rte_mbuf *m) {
+	struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(m);
+	size_t ext_len;
+	int next_proto;
+	void *p_cur;
+
+	// remove ip6 hdr with its extension header
+	p_cur = rte_pktmbuf_mtod_offset(m, void *, d->ext_offset);
+	while ((next_proto = rte_ipv6_get_next_ext(p_cur, d->proto, &ext_len)) > 0) {
+		if (d->ext_offset + ext_len > m->data_len)
+			return -1;
+		d->proto = next_proto;
+		d->ext_offset += ext_len;
+		d->len -= ext_len;
+		p_cur += ext_len;
+	}
+
+	rte_pktmbuf_adj(m, d->ext_offset);
+	d->ext_offset = 0;
+	return 0;
+}
+
 //
 // 4.1.1. Upper-Layer Header
 //
 // The USP flavor (4.16.2) is always enabled, by design.
 //
-static int process_upper_layer(struct rte_mbuf *m, struct rte_ipv6_hdr *ip6) {
+static int process_upper_layer(struct rte_mbuf *m) {
 	struct ip6_local_mbuf_data *d;
-	size_t ext_len;
-	int next_proto;
-	void *p_cur;
+	struct rte_ipv6_hdr *ip6;
 
 	d = ip6_local_mbuf_data(m);
 
-	if (ip6 != NULL) {
-		// remove ip6 hdr with its extension header
-		p_cur = rte_pktmbuf_mtod_offset(m, void *, d->ext_offset);
-		while ((next_proto = rte_ipv6_get_next_ext(p_cur, d->proto, &ext_len)) > 0) {
-			if (d->ext_offset + ext_len > m->data_len)
-				return INVALID_PACKET;
-			d->proto = next_proto;
-			d->ext_offset += ext_len;
-			d->len -= ext_len;
-			p_cur += ext_len;
-		}
-		rte_pktmbuf_adj(m, d->ext_offset);
-	}
+	/* if not already decap */
+	if (d->ext_offset && decap_outer(m) < 0)
+		return INVALID_PACKET;
 
 	// avoid ip6_input_local <-> sr6_local loop
 	if (d->proto == IPPROTO_IPIP || d->proto == IPPROTO_IPV6)
@@ -101,16 +112,12 @@ static int process_upper_layer(struct rte_mbuf *m, struct rte_ipv6_hdr *ip6) {
 static int process_behav_decap(
 	struct rte_mbuf *m,
 	struct srv6_localsid_data *sr_d,
-	struct rte_ipv6_routing_ext *sr,
-	struct rte_ipv6_hdr *ip6
+	struct rte_ipv6_routing_ext *sr
 ) {
 	struct eth_input_mbuf_data *id;
 	struct ip6_local_mbuf_data *d;
 	const struct iface *iface;
 	rte_edge_t edge;
-	size_t ext_len;
-	int next_proto;
-	void *p_cur;
 
 	// transit is not allowed
 	if (sr != NULL && sr->segments_left > 0)
@@ -119,16 +126,8 @@ static int process_behav_decap(
 	d = ip6_local_mbuf_data(m);
 
 	// remove tunnel ipv6 + ext headers
-	if (sr != NULL) {
-		p_cur = sr;
-		while ((next_proto = rte_ipv6_get_next_ext(p_cur, d->proto, &ext_len)) > 0) {
-			if (p_cur - (void *)ip6 + ext_len > m->data_len)
-				return INVALID_PACKET;
-			p_cur += ext_len;
-			d->proto = next_proto;
-		}
-		rte_pktmbuf_adj(m, p_cur - (void *)ip6);
-	}
+	if (d->ext_offset && decap_outer(m) < 0)
+		return INVALID_PACKET;
 
 	switch (d->proto) {
 	case IPPROTO_IPV6:
@@ -144,7 +143,7 @@ static int process_behav_decap(
 		break;
 
 	default:
-		return process_upper_layer(m, ip6);
+		return process_upper_layer(m);
 	}
 
 	id = eth_input_mbuf_data(m);
@@ -176,10 +175,10 @@ static int process_behav_end(
 		// 4.16.3 USD
 		// this packet could be decapsulated and forwarded
 		if ((sr_d->flags & GR_SR_FL_FLAVOR_USD))
-			return process_behav_decap(m, sr_d, sr, ip6);
+			return process_behav_decap(m, sr_d, sr);
 
 		// process locally
-		return process_upper_layer(m, ip6);
+		return process_upper_layer(m);
 	}
 
 	// transit
@@ -228,7 +227,7 @@ static inline rte_edge_t srv6_local_process_pkt(
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT6:
 	case SR_BEHAVIOR_END_DT46:
-		return process_behav_decap(m, sr_d, sr, ip6);
+		return process_behav_decap(m, sr_d, sr);
 
 	default:
 		return INVALID_PACKET;
