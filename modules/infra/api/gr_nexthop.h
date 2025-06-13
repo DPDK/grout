@@ -21,6 +21,7 @@ typedef enum : uint16_t {
 	GR_NH_F_GATEWAY = GR_BIT16(6), // Gateway route
 	GR_NH_F_LINK = GR_BIT16(7), // Connected link route
 	GR_NH_F_MCAST = GR_BIT16(8), // Multicast address
+	GR_NH_F_DNAT = GR_BIT16(9), // Destination NAT
 } gr_nh_flags_t;
 
 typedef enum : uint8_t {
@@ -83,6 +84,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "link";
 	case GR_NH_F_MCAST:
 		return "multicast";
+	case GR_NH_F_DNAT:
+		return "dnat";
 	}
 	return "";
 }

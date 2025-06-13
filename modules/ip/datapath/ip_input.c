@@ -21,6 +21,7 @@ enum edges {
 	FORWARD = 0,
 	OUTPUT,
 	LOCAL,
+	DNAT,
 	NO_ROUTE,
 	BAD_CHECKSUM,
 	BAD_LENGTH,
@@ -123,7 +124,9 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
+		if (nh->flags & GR_NH_F_DNAT)
+			edge = DNAT;
+		else if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
 			edge = LOCAL;
 		else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;
@@ -158,6 +161,7 @@ static struct rte_node_register input_node = {
 		[FORWARD] = "ip_forward",
 		[OUTPUT] = "ip_output",
 		[LOCAL] = "ip_input_local",
+		[DNAT] = "dnat44",
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",
 		[BAD_LENGTH] = "ip_input_bad_length",
