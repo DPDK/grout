@@ -16,12 +16,30 @@
 #include <errno.h>
 
 static cmd_status_t route4_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip4_route_add_req req = {.exist_ok = true, .origin = GR_RT_ORIGIN_USER};
+	struct gr_ip4_route_add_req req = {
+		.exist_ok = true, .origin = GR_RT_ORIGIN_USER, .iface_id = GR_IFACE_ID_UNDEF
+	};
+	int ret;
 
 	if (arg_ip4_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
-	if (arg_ip4(p, "NH", &req.nh) < 0)
+
+	ret = arg_ip4(p, "NH", &req.nh);
+	if (ret < 0 && errno != ENOENT)
 		return CMD_ERROR;
+
+	if (arg_str(p, "IFACE")) {
+		struct gr_iface iface;
+
+		ret = iface_from_name(c, arg_str(p, "IFACE"), &iface);
+		if (ret < 0)
+			return CMD_ERROR;
+		req.iface_id = iface.id;
+	}
+
+	if (!req.nh && req.iface_id == GR_IFACE_ID_UNDEF)
+		return CMD_ERROR;
+
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -49,6 +67,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	struct gr_ip4_route_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_ip4_route_list_resp *resp;
+	struct gr_iface iface;
 	void *resp_ptr = NULL;
 
 	if (table == NULL)
@@ -66,6 +85,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
+	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
@@ -75,7 +95,13 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, IP4_F, &route->nh);
-		scols_line_sprintf(line, 3, "%s", gr_rt_origin_name(route->origin));
+		if (route->iface_id == GR_IFACE_ID_UNDEF)
+			scols_line_sprintf(line, 3, "any");
+		else if (iface_from_id(c, route->iface_id, &iface) == 0)
+			scols_line_sprintf(line, 3, "%s", iface.name);
+		else
+			scols_line_sprintf(line, 3, "%u", route->iface_id);
+		scols_line_sprintf(line, 4, "%s", gr_rt_origin_name(route->origin));
 	}
 
 	scols_print_table(table);
@@ -119,11 +145,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP_ADD_CTX(root),
-		"route DEST via NH [vrf VRF]",
+		"route DEST [(via NH),(dev IFACE)][vrf VRF]",
 		route4_add,
 		"Add a new route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
 		with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE)),
+		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
