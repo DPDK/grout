@@ -40,8 +40,9 @@
 
 #define IPV4_ATOM "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"
 #define __IPV4_RE IPV4_ATOM "(\\." IPV4_ATOM "){3}"
+#define __IPV4_PREFIX_RE "/(3[0-2]|[12][0-9]|[0-9])"
 #define IPV4_RE "^" __IPV4_RE "$"
-#define IPV4_NET_RE "^" __IPV4_RE "/(3[0-2]|[12][0-9]|[0-9])$"
+#define IPV4_NET_RE "^" __IPV4_RE __IPV4_PREFIX_RE "$"
 
 typedef uint32_t ip4_addr_t;
 
@@ -83,8 +84,9 @@ out:
 
 #define IPV6_ATOM "([A-Fa-f0-9]{1,4})"
 #define __IPV6_RE "(" IPV6_ATOM "|::?){2,15}(:" IPV6_ATOM "(\\." IPV4_ATOM "){3})?"
+#define __IPV6_PREFIX_RE "/(12[0-8]|1[01][0-9]|[1-9]?[0-9])"
 #define IPV6_RE "^" __IPV6_RE "$"
-#define IPV6_NET_RE "^" __IPV6_RE "/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$"
+#define IPV6_NET_RE "^" __IPV6_RE __IPV6_PREFIX_RE "$"
 
 struct ip6_net {
 	struct rte_ipv6_addr ip;
@@ -116,5 +118,8 @@ out:
 	free(addr);
 	return ret;
 }
+
+#define IP_ANY_RE "^(" __IPV4_RE "|" __IPV6_RE ")$"
+#define IP_ANY_NET_RE "^(" __IPV4_RE __IPV4_PREFIX_RE "|" __IPV6_RE __IPV6_PREFIX_RE "$"
 
 #endif
