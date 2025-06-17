@@ -72,6 +72,8 @@ typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 
 struct nexthop_ops {
+	// Callback that will be invoked creating a new nexthop.
+	int (*add)(struct nexthop *);
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked when all nexthop probes failed and it needs to be freed.

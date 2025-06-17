@@ -175,92 +175,8 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static struct api_out nh4_add(const void *request, void ** /*response*/) {
-	const struct gr_ip4_nh_add_req *req = request;
-	struct nexthop *nh;
-	int ret;
-
-	if (req->nh.ipv4 == 0)
-		return api_out(EINVAL, 0);
-	if (req->nh.vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
-	if (iface_from_id(req->nh.iface_id) == NULL)
-		return api_out(errno, 0);
-
-	if ((nh = nh4_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
-		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && rte_is_same_ether_addr(&req->nh.mac, &nh->mac))
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
-	if ((nh = nh4_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
-		return api_out(errno, 0);
-
-	nh->mac = req->nh.mac;
-	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_LINK, nh);
-
-	return api_out(-ret, 0);
-}
-
-static struct api_out nh4_del(const void *request, void ** /*response*/) {
-	const struct gr_ip4_nh_del_req *req = request;
-	struct nexthop *nh;
-
-	if (req->vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
-
-	if ((nh = nh4_lookup(req->vrf_id, req->host)) == NULL) {
-		if (errno == ENOENT && req->missing_ok)
-			return api_out(0, 0);
-		return api_out(errno, 0);
-	}
-	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
-		return api_out(EBUSY, 0);
-
-	// this also does ip4_nexthop_decref(), freeing the next hop
-	if (rib4_delete(req->vrf_id, req->host, 32) < 0)
-		return api_out(errno, 0);
-
-	return api_out(0, 0);
-}
-
-struct list_context {
-	uint16_t vrf_id;
-	struct gr_nexthop *nh;
-};
-
-static void nh_list_cb(struct nexthop *nh, void *priv) {
-	struct list_context *ctx = priv;
-
-	if (nh->type != GR_NH_IPV4 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
-		return;
-
-	gr_vec_add(ctx->nh, nh->base);
-}
-
-static struct api_out nh4_list(const void *request, void **response) {
-	const struct gr_ip4_nh_list_req *req = request;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .nh = NULL};
-	struct gr_ip4_nh_list_resp *resp = NULL;
-	size_t len;
-
-	nexthop_iter(nh_list_cb, &ctx);
-
-	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(ctx.nh);
-		return api_out(ENOMEM, 0);
-	}
-
-	resp->n_nhs = gr_vec_len(ctx.nh);
-	if (ctx.nh != NULL)
-		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
-	gr_vec_free(ctx.nh);
-	*response = resp;
-
-	return api_out(0, len);
+static int nh4_add(struct nexthop *nh) {
+	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_LINK, nh);
 }
 
 static void nh4_free(struct nexthop *nh) {
@@ -276,22 +192,6 @@ static void nh4_init(struct event_base *) {
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
 }
 
-static struct gr_api_handler nh4_add_handler = {
-	.name = "ipv4 nexthop add",
-	.request_type = GR_IP4_NH_ADD,
-	.callback = nh4_add,
-};
-static struct gr_api_handler nh4_del_handler = {
-	.name = "ipv4 nexthop del",
-	.request_type = GR_IP4_NH_DEL,
-	.callback = nh4_del,
-};
-static struct gr_api_handler nh4_list_handler = {
-	.name = "ipv4 nexthop list",
-	.request_type = GR_IP4_NH_LIST,
-	.callback = nh4_list,
-};
-
 static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.depends_on = "graph",
@@ -299,14 +199,12 @@ static struct gr_module nh4_module = {
 };
 
 static struct nexthop_ops nh_ops = {
+	.add = nh4_add,
 	.solicit = arp_output_request_solicit,
 	.free = nh4_free,
 };
 
 RTE_INIT(control_ip_init) {
-	gr_register_api_handler(&nh4_add_handler);
-	gr_register_api_handler(&nh4_del_handler);
-	gr_register_api_handler(&nh4_list_handler);
 	gr_register_module(&nh4_module);
 	nexthop_ops_register(GR_NH_IPV4, &nh_ops);
 }

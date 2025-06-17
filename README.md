@@ -168,7 +168,7 @@ DESTINATION    NEXT_HOP
 172.16.0.0/24  172.16.0.2
 172.16.1.0/24  172.16.1.2
 0.0.0.0/0      172.16.1.183
-grout# show ip nexthop
+grout# show nexthop
 VRF  IP            MAC                IFACE  QUEUE  AGE  STATE
 0    172.16.0.2    30:3e:a7:0b:eb:c0  p0     0      0    reachable static local link
 0    172.16.1.2    30:3e:a7:0b:eb:c1  p1     0      0    reachable static local link
