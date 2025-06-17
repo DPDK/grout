@@ -79,7 +79,7 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	req.nh.iface_id = iface.id;
 	req.nh.vrf_id = iface.vrf_id;
 
-	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0)
+	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
@@ -154,25 +154,23 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		scols_line_sprintf(line, 1, "%s", nh_type_name(nh));
 		scols_line_sprintf(line, 2, ADDR_F, ADDR_W(nh_af(nh)), &nh->addr);
 
-		if (nh->flags & GR_NH_F_REACHABLE) {
+		if (nh->flags & GR_NH_F_REACHABLE)
 			scols_line_sprintf(line, 3, ETH_F, &nh->mac);
-			if (iface_from_id(c, nh->iface_id, &iface) == 0)
-				scols_line_sprintf(line, 4, "%s", iface.name);
-			else
-				scols_line_sprintf(line, 4, "%u", nh->iface_id);
-			scols_line_sprintf(line, 5, "%u", nh->held_pkts);
-			if (nh->flags & GR_NH_F_STATIC)
-				scols_line_set_data(line, 6, "-");
-			else
-				scols_line_sprintf(
-					line, 6, "%ld", (now - nh->last_reply) / CLOCKS_PER_SEC
-				);
-		} else {
+		else
 			scols_line_set_data(line, 3, "??:??:??:??:??:??");
+
+		if (iface_from_id(c, nh->iface_id, &iface) == 0)
+			scols_line_sprintf(line, 4, "%s", iface.name);
+		else
 			scols_line_set_data(line, 4, "?");
-			scols_line_sprintf(line, 5, "%u", nh->held_pkts);
+
+		scols_line_sprintf(line, 5, "%u", nh->held_pkts);
+		if (nh->flags & GR_NH_F_STATIC)
+			scols_line_set_data(line, 6, "-");
+		else if (nh->last_reply == 0)
 			scols_line_set_data(line, 6, "?");
-		}
+		else
+			scols_line_sprintf(line, 6, "%ld", (now - nh->last_reply) / CLOCKS_PER_SEC);
 
 		n = 0;
 		buf[0] = '\0';
@@ -246,7 +244,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop IP iface IFACE mac MAC",
+		"nexthop IP iface IFACE [mac MAC]",
 		nh_add,
 		"Add a new next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
