@@ -263,4 +263,35 @@ struct gr_infra_nh_config_set_req {
 
 // struct gr_infra_nh_config_set_resp { };
 
+// next hops ///////////////////////////////////////////////////////////////////
+
+#define GR_NH_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0071)
+
+struct gr_nh_add_req {
+	struct gr_nexthop nh;
+	uint8_t exist_ok;
+};
+
+// struct gr_nh_add_resp { };
+
+#define GR_NH_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0072)
+
+struct gr_nh_del_req {
+	struct gr_nexthop nh;
+	uint8_t missing_ok;
+};
+
+// struct gr_nh_del_resp { };
+
+#define GR_NH_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0073)
+
+struct gr_nh_list_req {
+	uint16_t vrf_id;
+};
+
+struct gr_nh_list_resp {
+	uint16_t n_nhs;
+	struct gr_nexthop nhs[/* n_nhs */];
+};
+
 #endif

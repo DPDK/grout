@@ -3,7 +3,6 @@
 
 cli_src += files(
   'address.c',
-  'nexthop.c',
   'route.c',
   'router_advert.c',
   'icmp6.c',

@@ -6,6 +6,8 @@
 
 grcli add interface port p0 devargs net_null0,no-rx=1
 grcli add interface port p1 devargs net_null1,no-rx=1
+grcli add nexthop ba4:f00::1 iface p0 mac ba:d0:ca:ca:00:02
+grcli add nexthop 4.3.2.1 iface p1 mac ba:d0:ca:ca:00:01
 grcli add ip address 10.0.0.1/24 iface p0
 grcli add ip address 10.1.0.1/24 iface p1
 grcli add ip route 0.0.0.0/0 via 10.0.0.2
@@ -16,9 +18,8 @@ grcli set interface port p0 rxqs 2
 grcli set interface port p1 rxqs 2
 grcli show interface
 grcli show ip route
-grcli show ip nexthop
 grcli show ip6 route
-grcli show ip6 nexthop
+grcli show nexthop
 grcli show graph full
 grcli show stats software
 grcli show stats hardware
