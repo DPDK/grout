@@ -104,6 +104,24 @@ static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 	return 0;
 }
 
+static inline const char *nh_type_name(const struct gr_nexthop *nh) {
+	switch (nh->type) {
+	case GR_NH_IPV4:
+		return "IPv4";
+	case GR_NH_SR6_IPV4:
+		return "SRv6-IPv4";
+	case GR_NH_IPV6:
+		return "IPv6";
+	case GR_NH_SR6_IPV6:
+		return "SRv6-IPv6";
+	case GR_NH_SR6_LOCAL:
+		return "SRv6-local";
+	case GR_NH_TYPE_COUNT:
+		break;
+	}
+	return "";
+}
+
 // Route install origin values shared by IPv4 and IPv6.
 // See NH_ORIGIN_* in sys/route/nhop.h (BSD) and RTPROT_* in zebra/rt_netlink.h (FRR).
 typedef enum : uint8_t {
