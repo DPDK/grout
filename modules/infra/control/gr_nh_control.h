@@ -79,5 +79,6 @@ struct nexthop_ops {
 };
 
 void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *);
+const struct nexthop_ops *nexthop_ops_get(gr_nh_type_t type);
 
 #endif

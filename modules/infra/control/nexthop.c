@@ -104,6 +104,10 @@ void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
 	nh_ops[type] = ops;
 }
 
+const struct nexthop_ops *nexthop_ops_get(gr_nh_type_t type) {
+	return nh_ops[type];
+}
+
 struct nexthop *
 nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct nexthop *nh;
