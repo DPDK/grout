@@ -75,8 +75,10 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		return api_out(errno, 0);
 
 	nh->mac = req->nh.mac;
-	if (!rte_is_zero_ether_addr(&nh->mac))
-		nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
+	if (!rte_is_zero_ether_addr(&nh->mac)) {
+		nh->flags = GR_NH_F_STATIC;
+		nh->state = GR_NH_S_REACHABLE;
+	}
 
 	ops = nexthop_ops_get(req->nh.type);
 	assert(ops != NULL);

@@ -278,7 +278,11 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 	max_probes = nh_conf.max_ucast_probes + nh_conf.max_bcast_probes;
 	probes = nh->ucast_probes + nh->bcast_probes;
 
-	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)) {
+	switch (nh->state) {
+	case GR_NH_S_NEW:
+		break;
+	case GR_NH_S_PENDING:
+	case GR_NH_S_STALE:
 		if (probes >= max_probes) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
@@ -287,10 +291,9 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts,
-			    gr_nh_flag_name(nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)));
+			    gr_nh_state_name(&nh->base));
 
-			nh->flags &= ~(GR_NH_F_PENDING | GR_NH_F_STALE);
-			nh->flags |= GR_NH_F_FAILED;
+			nh->state = GR_NH_S_FAILED;
 		} else {
 			if (ops->solicit(nh) < 0)
 				LOG(ERR,
@@ -300,18 +303,22 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 				    nh->vrf_id,
 				    strerror(errno));
 		}
-	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > nh_conf.lifetime_reachable_sec) {
-		nh->flags &= ~GR_NH_F_REACHABLE;
-		nh->flags |= GR_NH_F_STALE;
-	} else if (nh->flags & GR_NH_F_FAILED && request_age > nh_conf.lifetime_unreachable_sec) {
-		LOG(DEBUG,
-		    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    ADDR_W(nh_af(&nh->base)),
-		    &nh->addr,
-		    nh->vrf_id,
-		    probes,
-		    nh->held_pkts);
-		ops->free(nh);
+		break;
+	case GR_NH_S_REACHABLE:
+		if (reply_age > nh_conf.lifetime_reachable_sec)
+			nh->state = GR_NH_S_STALE;
+		break;
+	case GR_NH_S_FAILED:
+		if (request_age > nh_conf.lifetime_unreachable_sec) {
+			LOG(DEBUG,
+			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
+			    ADDR_W(nh_af(&nh->base)),
+			    &nh->addr,
+			    nh->vrf_id,
+			    probes,
+			    nh->held_pkts);
+			ops->free(nh);
+		}
 	}
 }
 

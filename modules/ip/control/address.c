@@ -84,7 +84,8 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		return api_out(errno, 0);
 
 	nh->prefixlen = req->addr.addr.prefixlen;
-	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
+	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC;
+	nh->state = GR_NH_S_REACHABLE;
 
 	if (iface_get_eth_addr(iface->id, &nh->mac) < 0)
 		if (errno != EOPNOTSUPP) {
