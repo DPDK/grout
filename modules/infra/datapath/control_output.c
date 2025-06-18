@@ -38,6 +38,7 @@ static uint16_t control_output_process(
 }
 
 static struct rte_node_register control_output_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
 	.name = "control_output",
 	.process = control_output_process,
 	.nb_edges = 1,

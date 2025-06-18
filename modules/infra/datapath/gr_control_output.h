@@ -28,6 +28,3 @@ int control_output_enqueue(struct rte_mbuf *m);
 
 // Wake up the control plane event loop so that it processes the pending packets.
 void control_output_done(void);
-
-// Change the thread affinity of the control output thread.
-int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity);

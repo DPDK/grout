@@ -36,47 +36,13 @@ static void control_output_poll(evutil_socket_t, short, void *) {
 	}
 }
 
-static atomic_bool thread_shutdown;
-static pthread_t thread_id;
-static pthread_cond_t cond;
-static pthread_mutex_t mutex;
 static struct event *ctrlout_ev;
 
 void control_output_done(void) {
-	pthread_cond_signal(&cond);
+	evuser_trigger(ctrlout_ev);
 }
-
-int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity) {
-	return pthread_setaffinity_np(thread_id, set_size, affinity);
-}
-
-static void *cond_wait_to_event(void *) {
-	pthread_setname_np(pthread_self(), "grout:ctrl");
-
-	while (!atomic_load(&thread_shutdown)) {
-		pthread_mutex_lock(&mutex);
-		if (pthread_cond_wait(&cond, &mutex) == 0)
-			evuser_trigger(ctrlout_ev);
-		pthread_mutex_unlock(&mutex);
-	}
-
-	return NULL;
-}
-
-static pthread_attr_t attr;
 
 static void control_output_init(struct event_base *ev_base) {
-	atomic_init(&thread_shutdown, false);
-
-	if (pthread_attr_init(&attr))
-		ABORT("pthread_attr_init");
-
-	if (pthread_mutex_init(&mutex, NULL))
-		ABORT("pthread_mutex_init failed");
-
-	if (pthread_cond_init(&cond, NULL))
-		ABORT("pthread_cond_init failed");
-
 	ctrlout_ring = rte_ring_create(
 		"control_output",
 		RTE_GRAPH_BURST_SIZE * 4,
@@ -89,20 +55,12 @@ static void control_output_init(struct event_base *ev_base) {
 	ctrlout_ev = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, control_output_poll, NULL);
 	if (ctrlout_ev == NULL)
 		ABORT("event_new() failed");
-
-	if (pthread_create(&thread_id, &attr, cond_wait_to_event, NULL))
-		ABORT("pthread_create() failed");
 }
 
 static void control_output_fini(struct event_base *) {
-	atomic_store(&thread_shutdown, true);
 	control_output_done();
-	pthread_join(thread_id, NULL);
-	pthread_attr_destroy(&attr);
-	pthread_cond_destroy(&cond);
 	event_free(ctrlout_ev);
 	rte_ring_free(ctrlout_ring);
-	pthread_mutex_destroy(&mutex);
 }
 
 static struct gr_module control_output_module = {
