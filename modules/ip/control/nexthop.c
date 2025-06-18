@@ -64,7 +64,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		nh = remote;
 	}
 
-	if (nh->flags & GR_NH_F_REACHABLE) {
+	if (nh->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
 		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
@@ -84,9 +84,9 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 			queue_mbuf_data(nh->held_pkts_tail)->next = m;
 		nh->held_pkts_tail = m;
 		nh->held_pkts++;
-		if (!(nh->flags & GR_NH_F_PENDING)) {
+		if (nh->state != GR_NH_S_PENDING) {
 			arp_output_request_solicit(nh);
-			nh->flags |= GR_NH_F_PENDING;
+			nh->state = GR_NH_S_PENDING;
 		}
 		return;
 	} else {
@@ -132,8 +132,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
 		nh->iface_id = iface->id;
-		nh->flags |= GR_NH_F_REACHABLE;
-		nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = arp->arp_data.arp_sha;
@@ -182,7 +181,7 @@ static int nh4_add(struct nexthop *nh) {
 static void nh4_free(struct nexthop *nh) {
 	rib4_delete(nh->vrf_id, nh->ipv4, 32);
 	if (nh->ref_count > 0) {
-		nh->flags &= ~(GR_NH_F_REACHABLE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));
 	}
 }

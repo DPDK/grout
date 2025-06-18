@@ -140,6 +140,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "STATE", 0, 0);
+	scols_table_new_column(table, "FLAGS", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_nhs; i++) {
@@ -150,7 +151,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		scols_line_sprintf(line, 1, "%s", nh_type_name(nh));
 		scols_line_sprintf(line, 2, ADDR_F, ADDR_W(nh_af(nh)), &nh->addr);
 
-		if (nh->flags & GR_NH_F_REACHABLE)
+		if (nh->state == GR_NH_S_REACHABLE)
 			scols_line_sprintf(line, 3, ETH_F, &nh->mac);
 		else
 			scols_line_set_data(line, 3, "??:??:??:??:??:??");
@@ -160,6 +161,8 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		else
 			scols_line_set_data(line, 4, "?");
 
+		scols_line_sprintf(line, 5, "%s", gr_nh_state_name(nh));
+
 		n = 0;
 		buf[0] = '\0';
 		gr_nh_flags_foreach (f, nh->flags)
@@ -167,7 +170,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		if (n > 0)
 			buf[n - 1] = '\0';
 
-		scols_line_sprintf(line, 5, "%s", buf);
+		scols_line_sprintf(line, 6, "%s", buf);
 	}
 
 	scols_print_table(table);

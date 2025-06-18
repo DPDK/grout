@@ -90,7 +90,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		if (!(nh->flags & GR_NH_F_REACHABLE)
+		if (nh->state != GR_NH_S_REACHABLE
 		    || (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->ipv4)) {
 			// The nexthop needs ARP resolution or it is associated with
 			// a "connected" route (i.e. matching an address/prefix on

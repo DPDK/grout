@@ -10,17 +10,20 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
-// Supported flags on a nexthop.
-typedef enum : uint16_t {
-	GR_NH_F_PENDING = GR_BIT16(0), // Probe sent
-	GR_NH_F_REACHABLE = GR_BIT16(1), // Probe reply received
-	GR_NH_F_STALE = GR_BIT16(2), // Reachable lifetime expired, need refresh
-	GR_NH_F_FAILED = GR_BIT16(3), // All probes sent without reply
-	GR_NH_F_STATIC = GR_BIT16(4), // Configured by user
-	GR_NH_F_LOCAL = GR_BIT16(5), // Local address
-	GR_NH_F_GATEWAY = GR_BIT16(6), // Gateway route
-	GR_NH_F_LINK = GR_BIT16(7), // Connected link route
-	GR_NH_F_MCAST = GR_BIT16(8), // Multicast address
+typedef enum : uint8_t {
+	GR_NH_S_NEW = 0, // Initial state
+	GR_NH_S_PENDING, // Probe sent
+	GR_NH_S_REACHABLE, // Probe reply received
+	GR_NH_S_STALE, // Reachable lifetime expired, need refresh
+	GR_NH_S_FAILED, // All probes sent without reply
+} gr_nh_state_t;
+
+typedef enum : uint8_t {
+	GR_NH_F_STATIC = GR_BIT8(0), // Configured by user
+	GR_NH_F_LOCAL = GR_BIT8(1), // Local address
+	GR_NH_F_GATEWAY = GR_BIT8(2), // Gateway route
+	GR_NH_F_LINK = GR_BIT8(3), // Connected link route
+	GR_NH_F_MCAST = GR_BIT8(4), // Multicast address
 } gr_nh_flags_t;
 
 typedef enum : uint8_t {
@@ -34,6 +37,7 @@ typedef enum : uint8_t {
 
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
+	gr_nh_state_t state;
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
 	uint16_t vrf_id; //!< L3 VRF domain
 	uint16_t iface_id; //!< interface associated with this nexthop
@@ -56,22 +60,31 @@ typedef enum {
 } gr_event_nexthop_t;
 
 #define gr_nh_flags_foreach(f, flags)                                                              \
-	for (gr_nh_flags_t __i = 0, f = GR_BIT16(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;       \
-	     f = GR_BIT16(++__i))                                                                  \
+	for (gr_nh_flags_t __i = 0, f = GR_BIT8(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;        \
+	     f = GR_BIT8(++__i))                                                                   \
 		if (flags & f)
+
+// Return the name of a given nexthop state.
+static inline const char *gr_nh_state_name(const struct gr_nexthop *nh) {
+	switch (nh->state) {
+	case GR_NH_S_NEW:
+		return "new";
+	case GR_NH_S_PENDING:
+		return "pending";
+	case GR_NH_S_REACHABLE:
+		return "reachable";
+	case GR_NH_S_STALE:
+		return "stale";
+	case GR_NH_S_FAILED:
+		return "failed";
+	}
+	return "?";
+}
 
 // Return the name of a given flag value.
 // When working with flag masks, each individual flags must be iterated upon.
 static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	switch (flag) {
-	case GR_NH_F_PENDING:
-		return "pending";
-	case GR_NH_F_REACHABLE:
-		return "reachable";
-	case GR_NH_F_STALE:
-		return "stale";
-	case GR_NH_F_FAILED:
-		return "failed";
 	case GR_NH_F_STATIC:
 		return "static";
 	case GR_NH_F_LOCAL:
@@ -83,7 +96,7 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	case GR_NH_F_MCAST:
 		return "multicast";
 	}
-	return "";
+	return "?";
 }
 
 // Get the address family value from a nexthop.

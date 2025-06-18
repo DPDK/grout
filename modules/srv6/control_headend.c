@@ -148,7 +148,8 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			return api_out(errno, 0);
 		nh->prefixlen = req->r.key.dest4.prefixlen;
 	}
-	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC | GR_NH_F_REACHABLE;
+	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC;
+	nh->state = GR_NH_S_REACHABLE;
 
 	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist, &d);
 	if (ret < 0) {

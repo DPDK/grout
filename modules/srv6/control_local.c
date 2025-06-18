@@ -21,7 +21,8 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	nh = nexthop_new(GR_NH_SR6_LOCAL, req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid);
 	if (nh == NULL)
 		return api_out(errno, 0);
-	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC | GR_NH_F_REACHABLE;
+	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC;
+	nh->state = GR_NH_S_REACHABLE;
 
 	data = srv6_localsid_nh_priv(nh);
 	data->behavior = req->l.behavior;

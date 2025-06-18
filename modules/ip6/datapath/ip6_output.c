@@ -92,7 +92,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		// clang-format off
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
-		    && (!(nh->flags & GR_NH_F_REACHABLE)
+		    && (nh->state != GR_NH_S_REACHABLE
 			|| (nh->flags & GR_NH_F_LINK
 			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)))) {
 			edge = HOLD;
