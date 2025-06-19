@@ -22,17 +22,12 @@ GR_NH_PRIV_DATA_TYPE(srv6_localsid_nh_priv, {
 //
 // XXX it is racy by design. do something before it goes into production
 //
-struct srv6_policy_data {
-	// nexthops that resolves to this policy. uses gr_vec
-	struct nexthop **nhlist;
-
-	struct rte_ipv6_addr bsid;
+struct srv6_encap_data {
 	gr_srv6_encap_behavior_t encap;
-	uint16_t weight;
 	uint16_t n_seglist;
 	struct rte_ipv6_addr seglist[];
 };
 
-struct srv6_policy_data **srv6_steer_get(const struct nexthop *nh);
+struct srv6_encap_data *srv6_encap_data_get(const struct nexthop *nh);
 
 #endif

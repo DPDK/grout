@@ -48,9 +48,9 @@ static uint16_t srv6_headend_process(
 ) {
 	struct rte_ipv6_hdr *inner_ip6 = NULL, *outer_ip6;
 	struct rte_ipv4_hdr *inner_ip4 = NULL;
-	struct srv6_policy_data **d_list, *d;
 	struct rte_ipv6_routing_ext *srh;
 	struct trace_srv6_data *t = NULL;
+	struct srv6_encap_data *d;
 	const struct nexthop *nh;
 	uint32_t hdrlen, k, plen;
 	struct rte_mbuf *m;
@@ -90,12 +90,11 @@ static uint16_t srv6_headend_process(
 			goto next;
 		}
 
-		d_list = srv6_steer_get(nh);
-		if (gr_vec_len(d_list) < 1) {
+		d = srv6_encap_data_get(nh);
+		if (d == NULL) {
 			edge = INVALID;
 			goto next;
 		}
-		d = d_list[0]; // XXX use flow/weight to select a sr policy from this list
 
 		// Encapsulate with another IPv6 header
 		hdrlen = sizeof(*outer_ip6);
