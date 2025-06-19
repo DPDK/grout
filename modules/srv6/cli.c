@@ -223,7 +223,7 @@ static cmd_status_t srv6_steer_show(const struct gr_api_client *c, const struct 
 			);
 		else
 			scols_line_sprintf(
-				line, 1, IP4_F "/%hhu", &e->l3.dest4.ip, e->l3.dest6.prefixlen
+				line, 1, IP4_F "/%hhu", &e->l3.dest4.ip, e->l3.dest4.prefixlen
 			);
 
 		scols_line_sprintf(line, 2, IP6_F, &e->bsid[0]);
