@@ -65,16 +65,6 @@ struct gr_srv6_policy_del_req {
 	struct rte_ipv6_addr bsid;
 };
 
-#define GR_SRV6_POLICY_GET REQUEST_TYPE(GR_SRV6_MODULE, 0x0003)
-
-struct gr_srv6_policy_get_req {
-	struct rte_ipv6_addr bsid;
-};
-
-struct gr_srv6_policy_get_resp {
-	struct gr_srv6_policy p;
-};
-
 #define GR_SRV6_POLICY_LIST REQUEST_TYPE(GR_SRV6_MODULE, 0x0004)
 
 /* struct gr_srv6_policy_list_req { }; */
