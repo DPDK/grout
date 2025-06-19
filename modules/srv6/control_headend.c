@@ -95,30 +95,6 @@ static struct api_out srv6_policy_del(const void *request, void ** /*response*/)
 	return api_out(0, 0);
 }
 
-static struct api_out srv6_policy_get_api(const void *request, void **response) {
-	const struct gr_srv6_policy_get_req *req = request;
-	struct gr_srv6_policy_get_resp *resp;
-	struct srv6_policy_data *d;
-	size_t len;
-
-	d = srv6_policy_get(&req->bsid);
-	if (d == NULL)
-		return api_out(ENOENT, 0);
-
-	len = sizeof(*resp) + sizeof(struct gr_srv6_policy) + d->n_seglist * sizeof(d->seglist[0]);
-	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0);
-
-	resp->p.bsid = d->bsid;
-	resp->p.weight = d->weight;
-	resp->p.encap_behavior = d->encap;
-	resp->p.n_seglist = d->n_seglist;
-	memcpy(resp->p.seglist, d->seglist, d->n_seglist * sizeof(d->seglist[0]));
-
-	*response = resp;
-	return api_out(0, len);
-}
-
 static struct api_out srv6_policy_list(const void * /* request */, void **response) {
 	struct srv6_policy_data **d_list = NULL;
 	struct gr_srv6_policy_list_resp *resp;
@@ -481,11 +457,6 @@ static struct gr_api_handler srv6_policy_del_handler = {
 	.request_type = GR_SRV6_POLICY_DEL,
 	.callback = srv6_policy_del,
 };
-static struct gr_api_handler srv6_policy_get_handler = {
-	.name = "sr policy get",
-	.request_type = GR_SRV6_POLICY_GET,
-	.callback = srv6_policy_get_api,
-};
 static struct gr_api_handler srv6_policy_list_handler = {
 	.name = "sr policy list",
 	.request_type = GR_SRV6_POLICY_LIST,
@@ -517,7 +488,6 @@ static struct gr_module srv6_headend_module = {
 RTE_INIT(srv6_constructor) {
 	gr_register_api_handler(&srv6_policy_add_handler);
 	gr_register_api_handler(&srv6_policy_del_handler);
-	gr_register_api_handler(&srv6_policy_get_handler);
 	gr_register_api_handler(&srv6_policy_list_handler);
 	gr_register_api_handler(&srv6_steer_add_handler);
 	gr_register_api_handler(&srv6_steer_del_handler);
