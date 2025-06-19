@@ -44,12 +44,12 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	switch (req->nh.type) {
-	case GR_NH_IPV4:
+	switch (req->nh.af) {
+	case GR_AF_IP4:
 		if (req->nh.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
 		break;
-	case GR_NH_IPV6:
+	case GR_AF_IP6:
 		if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
 			return api_out(EDESTADDRREQ, 0);
 		break;
@@ -62,7 +62,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(req->nh.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	nh = nexthop_lookup(req->nh.type, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+	nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
 	if (nh != NULL) {
 		if (req->exist_ok && req->nh.iface_id == nh->iface_id
 		    && rte_is_same_ether_addr(&req->nh.mac, &nh->mac))
@@ -70,7 +70,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		return api_out(EEXIST, 0);
 	}
 
-	nh = nexthop_new(req->nh.type, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+	nh = nexthop_new(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
 	if (nh == NULL)
 		return api_out(errno, 0);
 
@@ -80,7 +80,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		nh->state = GR_NH_S_REACHABLE;
 	}
 
-	ops = nexthop_ops_get(req->nh.type);
+	ops = nexthop_ops_get(req->nh.af);
 	assert(ops != NULL);
 	ret = ops->add(nh);
 
@@ -98,12 +98,12 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	const struct nexthop_ops *ops;
 	struct nexthop *nh;
 
-	switch (req->nh.type) {
-	case GR_NH_IPV4:
+	switch (req->nh.af) {
+	case GR_AF_IP4:
 		if (req->nh.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
 		break;
-	case GR_NH_IPV6:
+	case GR_AF_IP6:
 		if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
 			return api_out(EDESTADDRREQ, 0);
 		break;
@@ -113,7 +113,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	if (req->nh.vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
-	nh = nexthop_lookup(req->nh.type, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+	nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
 	if (nh == NULL) {
 		if (errno == ENOENT && req->missing_ok)
 			return api_out(0, 0);
@@ -122,7 +122,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ops = nexthop_ops_get(req->nh.type);
+	ops = nexthop_ops_get(req->nh.af);
 	assert(ops != NULL);
 	ops->free(nh);
 

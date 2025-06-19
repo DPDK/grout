@@ -181,7 +181,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 
 	gr_vec_foreach (nh, hl->nh) {
 		struct rte_ipv6_addr ip = nh->ipv6;
-		if (nh->type != GR_NH_IPV6)
+		if (nh->af != GR_AF_IP6)
 			continue;
 		if (!rte_ipv6_addr_is_linklocal(&ip))
 			continue;

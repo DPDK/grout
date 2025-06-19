@@ -48,14 +48,13 @@ struct hoplist {
 
 // Lookup a nexthop from the global pool that matches the specified criteria.
 struct nexthop *
-nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
 // Compare two nexthops, return True if the same, else False
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 
 // Allocate a new nexthop from the global pool with the provided initial values.
-struct nexthop *
-nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+struct nexthop *nexthop_new(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
 // Clean all next hop related to an interface.
 void nexthop_cleanup(uint16_t iface_id);
@@ -82,7 +81,7 @@ struct nexthop_ops {
 	void (*free)(struct nexthop *);
 };
 
-void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *);
-const struct nexthop_ops *nexthop_ops_get(gr_nh_type_t type);
+void nexthop_ops_register(addr_family_t af, const struct nexthop_ops *);
+const struct nexthop_ops *nexthop_ops_get(addr_family_t af);
 
 #endif

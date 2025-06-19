@@ -170,12 +170,15 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 
 	// Convert addr to prefix
 	p.prefixlen = gr_nh->prefixlen;
-	if (gr_nh->type == GR_NH_IPV4) {
+	switch (gr_nh->af) {
+	case GR_AF_IP4:
 		p.family = AF_INET;
 		p.u.prefix4.s_addr = gr_nh->ipv4;
-	} else {
+		break;
+	case GR_AF_IP6:
 		p.family = AF_INET6;
 		memcpy(&p.u.prefix6, &gr_nh->ipv6, sizeof(p.u.prefix6));
+		break;
 	}
 	dplane_ctx_set_intf_addr(ctx, &p);
 	dplane_ctx_set_intf_metric(ctx, METRIC_MAX);
