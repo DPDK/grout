@@ -259,20 +259,24 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IP6_ADDR_DEL:
 		gr_nh = PAYLOAD(gr_e);
 
-		if (gr_nh->type == GR_NH_IPV4)
+		switch (gr_nh->af) {
+		case GR_AF_IP4:
 			gr_log_debug(
 				"%s addr %pI4 notification (%s)",
 				new ? "add" : "del",
 				&gr_nh->ipv4,
 				gr_evt_to_str(gr_e->ev_type)
 			);
-		else
+			break;
+		case GR_AF_IP6:
 			gr_log_debug(
 				"%s addr %pI6 notification (%s)",
 				new ? "add" : "del",
 				&gr_nh->ipv6,
 				gr_evt_to_str(gr_e->ev_type)
 			);
+			break;
+		}
 
 		grout_interface_addr_dplane(gr_nh, new);
 		break;

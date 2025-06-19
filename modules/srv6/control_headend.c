@@ -100,7 +100,7 @@ static void srv6_encap_data_release(void) {
 struct srv6_encap_data *srv6_encap_data_get(const struct nexthop *nh) {
 	void *data;
 
-	if (nh == NULL || (nh->type != GR_NH_SR6_IPV6 && nh->type != GR_NH_SR6_IPV4)
+	if (nh == NULL || nh->type != GR_NH_T_SR6
 	    || rte_hash_lookup_data(srv6_encap_hash, &nh, &data) < 0)
 		return NULL;
 	return data;
@@ -127,7 +127,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			return api_out(-EEXIST, 0);
 
 		nh = nexthop_new(
-			GR_NH_SR6_IPV6, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest6.ip
+			GR_AF_IP6, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest6.ip
 		);
 		if (nh == NULL)
 			return api_out(errno, 0);
@@ -142,12 +142,13 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			return api_out(-EEXIST, 0);
 
 		nh = nexthop_new(
-			GR_NH_SR6_IPV4, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest4.ip
+			GR_AF_IP4, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest4.ip
 		);
 		if (nh == NULL)
 			return api_out(errno, 0);
 		nh->prefixlen = req->r.key.dest4.prefixlen;
 	}
+	nh->type = GR_NH_T_SR6;
 	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC;
 	nh->state = GR_NH_S_REACHABLE;
 
@@ -264,16 +265,19 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 		d = d_list[i];
 
 		r->key.vrf_id = nh->vrf_id;
-		if (nh->type == GR_NH_SR6_IPV6) {
+		switch (nh->af) {
+		case GR_AF_IP6:
 			r->key.is_dest6 = true;
 			r->key.dest6.ip = nh->ipv6;
 			r->key.dest6.prefixlen = nh->prefixlen;
-		} else {
-			assert(nh->type == GR_NH_SR6_IPV4);
-
+			break;
+		case GR_AF_IP4:
 			r->key.is_dest6 = false;
 			r->key.dest4.ip = nh->ipv4;
 			r->key.dest4.prefixlen = nh->prefixlen;
+			break;
+		default:
+			abort();
 		}
 
 		r->encap_behavior = d->encap;

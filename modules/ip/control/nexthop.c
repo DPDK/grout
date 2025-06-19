@@ -205,5 +205,5 @@ static struct nexthop_ops nh_ops = {
 
 RTE_INIT(control_ip_init) {
 	gr_register_module(&nh4_module);
-	nexthop_ops_register(GR_NH_IPV4, &nh_ops);
+	nexthop_ops_register(GR_AF_IP4, &nh_ops);
 }

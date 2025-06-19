@@ -64,12 +64,12 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
 	case 0:
-		req.nh.type = GR_NH_IPV4;
+		req.nh.af = GR_AF_IP4;
 		break;
 	case -EINVAL:
 		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
 			return CMD_ERROR;
-		req.nh.type = GR_NH_IPV6;
+		req.nh.af = GR_AF_IP6;
 		break;
 	default:
 		return CMD_ERROR;
@@ -93,12 +93,12 @@ static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode 
 
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
 	case 0:
-		req.nh.type = GR_NH_IPV4;
+		req.nh.af = GR_AF_IP4;
 		break;
 	case -EINVAL:
 		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
 			return CMD_ERROR;
-		req.nh.type = GR_NH_IPV6;
+		req.nh.af = GR_AF_IP6;
 		break;
 	default:
 		return CMD_ERROR;
@@ -136,6 +136,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
+	scols_table_new_column(table, "FAMILY", 0, 0);
 	scols_table_new_column(table, "IP", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
@@ -148,20 +149,21 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		const struct gr_nexthop *nh = &resp->nhs[i];
 
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
-		scols_line_sprintf(line, 1, "%s", nh_type_name(nh));
-		scols_line_sprintf(line, 2, ADDR_F, ADDR_W(nh_af(nh)), &nh->addr);
+		scols_line_sprintf(line, 1, "%s", gr_nh_type_name(nh));
+		scols_line_sprintf(line, 2, "%s", gr_af_name(nh->af));
+		scols_line_sprintf(line, 3, ADDR_F, ADDR_W(nh->af), &nh->addr);
 
 		if (nh->state == GR_NH_S_REACHABLE)
-			scols_line_sprintf(line, 3, ETH_F, &nh->mac);
+			scols_line_sprintf(line, 4, ETH_F, &nh->mac);
 		else
-			scols_line_set_data(line, 3, "??:??:??:??:??:??");
+			scols_line_set_data(line, 4, "??:??:??:??:??:??");
 
 		if (iface_from_id(c, nh->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 4, "%s", iface.name);
+			scols_line_sprintf(line, 5, "%s", iface.name);
 		else
-			scols_line_set_data(line, 4, "?");
+			scols_line_set_data(line, 5, "?");
 
-		scols_line_sprintf(line, 5, "%s", gr_nh_state_name(nh));
+		scols_line_sprintf(line, 6, "%s", gr_nh_state_name(nh));
 
 		n = 0;
 		buf[0] = '\0';
@@ -170,7 +172,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		if (n > 0)
 			buf[n - 1] = '\0';
 
-		scols_line_sprintf(line, 6, "%s", buf);
+		scols_line_sprintf(line, 7, "%s", buf);
 	}
 
 	scols_print_table(table);

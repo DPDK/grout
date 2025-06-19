@@ -27,16 +27,15 @@ typedef enum : uint8_t {
 } gr_nh_flags_t;
 
 typedef enum : uint8_t {
-	GR_NH_IPV4 = 1,
-	GR_NH_IPV6,
-	GR_NH_SR6_IPV4,
-	GR_NH_SR6_IPV6,
-	GR_NH_SR6_LOCAL,
-	GR_NH_TYPE_COUNT
+	GR_NH_T_L3 = 0, // Default value
+	GR_NH_T_SR6,
+	GR_NH_T_SR6_LOCAL,
 } gr_nh_type_t;
 
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
+	gr_nh_type_t type;
+	addr_family_t af;
 	gr_nh_state_t state;
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
 	uint16_t vrf_id; //!< L3 VRF domain
@@ -48,7 +47,6 @@ struct gr_nexthop {
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
-	gr_nh_type_t type; //!< nexthop type
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
 };
 
@@ -99,38 +97,16 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	return "?";
 }
 
-// Get the address family value from a nexthop.
-static inline uint8_t nh_af(const struct gr_nexthop *nh) {
+static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 	switch (nh->type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
-		return AF_INET;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-	case GR_NH_SR6_LOCAL:
-		return AF_INET6;
-	case GR_NH_TYPE_COUNT:
-		break;
-	}
-	return 0;
-}
-
-static inline const char *nh_type_name(const struct gr_nexthop *nh) {
-	switch (nh->type) {
-	case GR_NH_IPV4:
-		return "IPv4";
-	case GR_NH_SR6_IPV4:
-		return "SRv6-IPv4";
-	case GR_NH_IPV6:
-		return "IPv6";
-	case GR_NH_SR6_IPV6:
-		return "SRv6-IPv6";
-	case GR_NH_SR6_LOCAL:
+	case GR_NH_T_L3:
+		return "L3";
+	case GR_NH_T_SR6:
+		return "SRv6";
+	case GR_NH_T_SR6_LOCAL:
 		return "SRv6-local";
-	case GR_NH_TYPE_COUNT:
-		break;
 	}
-	return "";
+	return "?";
 }
 
 // Route install origin values shared by IPv4 and IPv6.
