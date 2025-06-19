@@ -50,7 +50,17 @@ static struct api_out stats_get(const void *request, void **response) {
 				continue;
 			for (unsigned i = 0; i < w_stats->n_stats; i++) {
 				const struct node_stats *n = &w_stats->stats[i];
-				const char *name = rte_node_id_to_name(n->node_id);
+				const struct rte_node_register *nr = gr_node_info_get(n->node_id)
+									     ->node;
+				char name[RTE_NODE_NAMESIZE];
+				snprintf(
+					name,
+					RTE_NODE_NAMESIZE,
+					"%s%c",
+					rte_node_id_to_name(n->node_id),
+					nr->flags & GR_NODE_FLAG_CONTROL_PLANE ? '*' : '\0'
+				);
+
 				s = find_stat(stats, name);
 				if (s != NULL) {
 					s->objs += n->objs;
@@ -66,6 +76,39 @@ static struct api_out stats_get(const void *request, void **response) {
 					gr_vec_add(stats, stat);
 				}
 			}
+
+			if (worker->stats_ctl)
+				for (unsigned i = 0; i < worker->stats_ctl->n_stats; i++) {
+					const struct node_stats *n = &w_stats->stats[i];
+					const struct rte_node_register *nr = gr_node_info_get(
+										     n->node_id
+					)
+										     ->node;
+					char name[RTE_NODE_NAMESIZE];
+					snprintf(
+						name,
+						RTE_NODE_NAMESIZE,
+						"%s%c",
+						rte_node_id_to_name(n->node_id),
+						nr->flags & GR_NODE_FLAG_CONTROL_PLANE ? '*' : '\0'
+					);
+
+					s = find_stat(stats, name);
+					if (s != NULL) {
+						s->objs += n->objs;
+						s->calls += n->calls;
+						s->cycles += n->cycles;
+					} else {
+						struct stat stat = {
+							.objs = n->objs,
+							.calls = n->calls,
+							.cycles = n->cycles,
+						};
+						memccpy(stat.name, name, 0, sizeof(stat.name));
+						gr_vec_add(stats, stat);
+					}
+				}
+
 			s = find_stat(stats, "idle");
 			if (s != NULL) {
 				s->calls += w_stats->n_sleeps;

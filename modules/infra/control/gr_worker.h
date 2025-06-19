@@ -65,6 +65,7 @@ struct worker {
 
 	struct rte_graph *base[2]; // Base graph, not walked
 	struct rte_graph *ctl_graph[2]; // graph used to process ctl packets
+	_Atomic(const struct worker_stats *) stats_ctl;
 
 	STAILQ_ENTRY(worker) next;
 } __rte_cache_aligned;

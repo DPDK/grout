@@ -61,9 +61,13 @@ static inline void stats_reset(struct worker_stats *stats) {
 	stats->n_sleeps = 0;
 }
 
-static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
+static int stats_reload(
+	const struct rte_graph *graph,
+	const struct rte_graph *ctl_graph,
+	struct stats_context *ctx
+) {
 	struct rte_graph_cluster_stats_param stats_param;
-	const char *graph_names[1];
+	const char *graph_names[2];
 
 	assert(graph != NULL);
 
@@ -73,9 +77,10 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	}
 
 	graph_names[0] = graph->name;
+	graph_names[1] = ctl_graph->name;
 	memset(&stats_param, 0, sizeof(stats_param));
 	stats_param.socket_id = graph->socket;
-	stats_param.nb_graph_patterns = 1;
+	stats_param.nb_graph_patterns = 2;
 	stats_param.graph_patterns = graph_names;
 	stats_param.cookie = ctx;
 	stats_param.fn = node_stats_callback;
@@ -117,9 +122,9 @@ static struct rte_rcu_qsbr *rcu;
 void *gr_datapath_loop(void *priv) {
 	struct stats_context ctx = {.last_count = 0};
 	uint64_t timestamp, timestamp_tmp, cycles;
+	struct rte_graph *graph, *ctl_graph;
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
-	struct rte_graph *graph;
 	unsigned cur, loop;
 	char name[16];
 
@@ -162,6 +167,7 @@ reconfig:
 
 	cur = atomic_load(&w->next_config);
 	graph = w->graph[cur];
+	ctl_graph = w->ctl_graph[cur];
 	atomic_store(&w->cur_config, cur);
 
 	if (graph == NULL) {
@@ -171,7 +177,7 @@ reconfig:
 		goto reconfig;
 	}
 
-	if (stats_reload(graph, &ctx) < 0)
+	if (stats_reload(graph, ctl_graph, &ctx) < 0)
 		goto shutdown;
 	atomic_store(&w->stats, ctx.w_stats);
 
