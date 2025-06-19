@@ -46,6 +46,7 @@ struct ip6_info {
 	uint16_t ext_offset;
 	uint8_t hop_limit;
 	uint8_t proto;
+	uint8_t *p_proto;
 	struct rte_ipv6_hdr *ip6_hdr;
 	struct rte_ipv6_routing_ext *sr;
 };
@@ -67,6 +68,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->len = rte_be_to_cpu_16(ip6->payload_len);
 	ip6_info->hop_limit = ip6->hop_limits;
 	ip6_info->proto = ip6->proto;
+	ip6_info->p_proto = &ip6->proto;
 	ip6_info->ext_offset = sizeof(*ip6);
 
 	// advance through IPv6 extension headers until we find a proto supported by SRv6
@@ -86,6 +88,8 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 		ip6_info->ext_offset += ext_size;
 		ip6_info->len -= ext_size;
 		ip6_info->proto = next_proto;
+		// next header is always the first field of any extension
+		ip6_info->p_proto = (uint8_t *)ext;
 	}
 
 	if (ip6_info->proto == IPPROTO_ROUTING)
@@ -127,7 +131,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	// 4.16.1 PSP
 	// remove this SRH
 	adj_len = (sr->hdr_len + 1) << 3;
-	ip6->proto = sr->next_hdr; // XXX if ext.hdr sits between ip6 and sr
+	*ip6_info->p_proto = sr->next_hdr;
 	memmove((void *)ip6 + adj_len, ip6, (void *)sr - (void *)ip6);
 	rte_pktmbuf_adj(m, adj_len);
 	ip6 = (void *)ip6 + adj_len;
