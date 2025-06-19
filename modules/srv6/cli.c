@@ -14,8 +14,8 @@
 
 // sr policy ////////////////////////////////////////////////////////////////
 
-static cmd_status_t srv6_policy_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_policy_add_req *req;
+static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_srv6_route_add_req *req;
 	const struct ec_strvec *v;
 	const struct ec_pnode *n;
 	const char *str;
@@ -28,179 +28,75 @@ static cmd_status_t srv6_policy_add(const struct gr_api_client *c, const struct 
 		return CMD_ERROR;
 	if (ec_pnode_len(n) > GR_SRV6_POLICY_SEGLIST_COUNT_MAX)
 		return CMD_ERROR;
-	len = sizeof(*req) + sizeof(req->p.seglist[0]) * ec_pnode_len(n);
+	len = sizeof(*req) + sizeof(req->r.seglist[0]) * ec_pnode_len(n);
 	if ((req = calloc(1, len)) == NULL)
 		return CMD_ERROR;
-	req->p.n_seglist = ec_pnode_len(n);
+	req->r.n_seglist = ec_pnode_len(n);
 
 	// parse SEGLIST list.
 	for (n = ec_pnode_get_first_child(n), i = 0; n != NULL; n = ec_pnode_next(n), i++) {
 		v = ec_pnode_get_strvec(n);
 		str = ec_strvec_val(v, 0);
-		if (inet_pton(AF_INET6, str, &req->p.seglist[i]) != 1) {
+		if (inet_pton(AF_INET6, str, &req->r.seglist[i]) != 1) {
 			free(req);
 			return CMD_ERROR;
 		}
 	}
 
-	if (arg_ip6(p, "BSID", &req->p.bsid) < 0) {
-		free(req);
-		return CMD_ERROR;
-	}
-
-	req->p.weight = 1;
-	if (arg_u16(p, "WEIGHT", &req->p.weight) < 0 && errno != ENOENT) {
-		free(req);
-		return CMD_ERROR;
-	}
-
-	req->p.encap_behavior = SR_H_ENCAPS;
+	req->r.encap_behavior = SR_H_ENCAPS;
 	if (ec_pnode_find(p, "h.encaps.red") != NULL)
-		req->p.encap_behavior = SR_H_ENCAPS_RED;
+		req->r.encap_behavior = SR_H_ENCAPS_RED;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_POLICY_ADD, len, req, NULL);
+	if (arg_ip6_net(p, "DEST6", &req->r.key.dest6, true) >= 0)
+		req->r.key.is_dest6 = true;
+	else if (arg_ip4_net(p, "DEST4", &req->r.key.dest4, true) >= 0)
+		req->r.key.is_dest6 = false;
+	else
+		return CMD_ERROR;
+
+	if (arg_u16(p, "VRF", &req->r.key.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	ret = gr_api_client_send_recv(c, GR_SRV6_ROUTE_ADD, len, req, NULL);
 	free(req);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_policy_del(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_policy_del_req req = {};
+static cmd_status_t srv6_route_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_srv6_route_del_req req = {};
 
-	if (arg_ip6(p, "BSID", &req.bsid) < 0)
+	if (arg_ip6_net(p, "DEST6", &req.key.dest6, true) >= 0)
+		req.key.is_dest6 = true;
+	else if (arg_ip4_net(p, "DEST4", &req.key.dest4, true) >= 0)
+		req.key.is_dest6 = false;
+	else
 		return CMD_ERROR;
 
-	if (gr_api_client_send_recv(c, GR_SRV6_POLICY_DEL, sizeof(req), &req, NULL) < 0)
+	if (arg_u16(p, "VRF", &req.key.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_SRV6_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t
-srv6_policy_show(const struct gr_api_client *c, const struct ec_pnode * /* p */) {
+static cmd_status_t srv6_route_show(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
-	struct gr_srv6_policy_list_resp *resp;
+	struct gr_srv6_route_list_req req = {};
+	struct gr_srv6_route_list_resp *resp;
 	void *ptr, *resp_ptr = NULL;
 	struct libscols_line *line;
-	struct gr_srv6_policy *d;
+	struct gr_srv6_route *r;
 	uint32_t j, cur, n;
 	char buf[80];
 	int i, ret;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_POLICY_LIST, 0, NULL, &resp_ptr);
-	if (ret < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-
-	scols_table_new_column(table, "bsid", 0, 0);
-	scols_table_new_column(table, "encap", 0, 0);
-	scols_table_new_column(table, "weight", 0, 0);
-	scols_table_new_column(table, "segment list", 0, 0);
-	scols_table_set_column_separator(table, "  ");
-
-	ptr = resp->policy;
-	for (i = 0; i < resp->n_policy; i++) {
-		line = scols_table_new_line(table, NULL);
-		d = ptr;
-
-		scols_line_sprintf(line, 0, IP6_F, &d->bsid);
-		scols_line_sprintf(
-			line,
-			1,
-			"%s",
-			d->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encap"
-		);
-		scols_line_sprintf(line, 2, "%d", d->weight);
-
-		cur = 0;
-		buf[0] = 0;
-		for (j = 0; j < d->n_seglist; j++) {
-			n = snprintf(buf + cur, sizeof(buf) - cur - 20, IP6_F " ", &d->seglist[j]);
-			if (n > sizeof(buf) - cur - 20) {
-				sprintf(buf + sizeof(buf) - 21, "...");
-				if (j + 1 < d->n_seglist)
-					snprintf(
-						buf + sizeof(buf) - 18,
-						18,
-						" (%d more)",
-						d->n_seglist - j - 1
-					);
-				break;
-			}
-			cur += n;
-		}
-		scols_line_set_data(line, 3, buf);
-
-		ptr += sizeof(*d) + d->n_seglist * sizeof(d->seglist[0]);
-	}
-
-	scols_print_table(table);
-	scols_unref_table(table);
-	free(resp_ptr);
-
-	return CMD_SUCCESS;
-}
-
-// steer rules ////////////////////////////////////////////////////////////////
-
-static cmd_status_t srv6_steer_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_steer_add_req req = {};
-
-	if (arg_ip6(p, "BSID", &req.bsid) < 0)
-		return CMD_ERROR;
-
-	if (arg_ip6_net(p, "DEST6", &req.l3.dest6, true) >= 0)
-		req.l3.is_dest6 = true;
-	else if (arg_ip4_net(p, "DEST4", &req.l3.dest4, true) >= 0)
-		req.l3.is_dest6 = false;
-	else
-		return CMD_ERROR;
-
-	if (arg_u16(p, "VRF", &req.l3.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	if (gr_api_client_send_recv(c, GR_SRV6_STEER_ADD, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t srv6_steer_del(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_steer_del_req req = {};
-
-	if (arg_ip6(p, "BSID", &req.bsid) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	if (arg_ip6_net(p, "DEST6", &req.l3.dest6, true) >= 0)
-		req.l3.is_dest6 = true;
-	else if (arg_ip4_net(p, "DEST4", &req.l3.dest4, true) >= 0)
-		req.l3.is_dest6 = false;
-	else
-		return CMD_ERROR;
-
-	if (arg_u16(p, "VRF", &req.l3.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	if (gr_api_client_send_recv(c, GR_SRV6_STEER_DEL, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t srv6_steer_show(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_steer_list_req req = {.vrf_id = UINT16_MAX};
-	struct libscols_table *table = scols_new_table();
-	struct gr_srv6_steer_list_resp *resp;
-	struct gr_srv6_steer_entry *e;
-	struct libscols_line *line;
-	void *ptr, *resp_ptr = NULL;
-	int i, j, ret;
-
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_STEER_LIST, sizeof(req), &req, &resp_ptr);
+	ret = gr_api_client_send_recv(c, GR_SRV6_ROUTE_LIST, sizeof(req), &req, &resp_ptr);
 	if (ret < 0)
 		return CMD_ERROR;
 
@@ -208,31 +104,52 @@ static cmd_status_t srv6_steer_show(const struct gr_api_client *c, const struct 
 
 	scols_table_new_column(table, "vrf", 0, 0);
 	scols_table_new_column(table, "match", 0, 0);
-	scols_table_new_column(table, "bsid", 0, 0);
+	scols_table_new_column(table, "encap", 0, 0);
+	scols_table_new_column(table, "segment list", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	ptr = resp->steer;
-	for (i = 0; i < resp->n_steer; i++) {
+	ptr = resp->route;
+	for (i = 0; i < resp->n_route; i++) {
 		line = scols_table_new_line(table, NULL);
-		e = ptr;
+		r = ptr;
 
-		scols_line_sprintf(line, 0, "%u", e->l3.vrf_id);
-		if (e->l3.is_dest6)
+		scols_line_sprintf(line, 0, "%u", r->key.vrf_id);
+		if (r->key.is_dest6)
 			scols_line_sprintf(
-				line, 1, IP6_F "/%hhu", &e->l3.dest6.ip, e->l3.dest6.prefixlen
+				line, 1, IP6_F "/%hhu", &r->key.dest6.ip, r->key.dest6.prefixlen
 			);
 		else
 			scols_line_sprintf(
-				line, 1, IP4_F "/%hhu", &e->l3.dest4.ip, e->l3.dest4.prefixlen
+				line, 1, IP4_F "/%hhu", &r->key.dest4.ip, r->key.dest4.prefixlen
 			);
 
-		scols_line_sprintf(line, 2, IP6_F, &e->bsid[0]);
-		for (j = 1; j < e->n_bsid; j++) {
-			line = scols_table_new_line(table, NULL);
-			scols_line_sprintf(line, 2, IP6_F, &e->bsid[j]);
-		}
+		scols_line_sprintf(
+			line,
+			2,
+			"%s",
+			r->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encap"
+		);
 
-		ptr += sizeof(*e) + e->n_bsid * sizeof(e->bsid[0]);
+		cur = 0;
+		buf[0] = 0;
+		for (j = 0; j < r->n_seglist; j++) {
+			n = snprintf(buf + cur, sizeof(buf) - cur - 20, IP6_F " ", &r->seglist[j]);
+			if (n > sizeof(buf) - cur - 20) {
+				sprintf(buf + sizeof(buf) - 21, "...");
+				if (j + 1 < r->n_seglist)
+					snprintf(
+						buf + sizeof(buf) - 18,
+						18,
+						" (%d more)",
+						r->n_seglist - j - 1
+					);
+				break;
+			}
+			cur += n;
+		}
+		scols_line_set_data(line, 3, buf);
+
+		ptr += sizeof(*r) + r->n_seglist * sizeof(r->seglist[0]);
 	}
 
 	scols_print_table(table);
@@ -399,65 +316,37 @@ static int ctx_init(struct ec_node *root) {
 	// policy commands
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("sr", "Create srv6 stack elements.")),
-		"policy bsid BSID seglist SEGLIST+ [encap (h.encaps|h.encaps.red)] [weight WEIGHT]",
-		srv6_policy_add,
-		"Add SR policy rule.",
-		with_help("Policy weight.", ec_node_uint("WEIGHT", 1, UINT16_MAX, 10)),
+		"route DEST4|DEST6 seglist SEGLIST+ [encap (h.encaps|h.encaps.red)] [vrf VRF]",
+		srv6_route_add,
+		"Add SR route.",
+		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
+		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
 		with_help("Encaps.", ec_node_str("h.encaps", "h.encaps")),
 		with_help("Encaps Reduced.", ec_node_str("h.encaps.red", "h.encaps.red")),
-		with_help("Binding SID.", ec_node_re("BSID", IPV6_RE)),
-		with_help("Next SID to visit.", ec_node_re("SEGLIST", IPV6_RE))
+		with_help("Next SID to visit.", ec_node_re("SEGLIST", IPV6_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("sr", "Delete srv6 stack elements.")),
-		"policy bsid BSID",
-		srv6_policy_del,
-		"Delete SR policy rule.",
-		with_help("Binding SID.", ec_node_re("BSID", IPV6_RE))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
-		"policy",
-		srv6_policy_show,
-		"View all SR policy rules"
-	);
-	if (ret < 0)
-		return ret;
+		"route DEST4|DEST6 [vrf VRF]",
+		srv6_route_del,
+		"Delete SR route.",
+		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
+		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 
-	// steer commands
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("sr", "Create srv6 stack elements.")),
-		"steer DEST4|DEST6 bsid BSID [vrf VRF]",
-		srv6_steer_add,
-		"Add rule to encap traffic from ipv4/ipv6 prefix (tunnel entry).",
-		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
-		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
-		with_help("Binding SID.", ec_node_re("BSID", IPV6_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("sr", "Delete srv6 stack elements.")),
-		"steer DEST4|DEST6 [vrf VRF]",
-		srv6_steer_del,
-		"Delete an encap rule.",
-		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
-		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
-		"steer [vrf VRF]",
-		srv6_steer_show,
-		"View all encap rules",
+		"route [vrf VRF]",
+		srv6_route_show,
+		"View all SR route",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+
 	);
 	if (ret < 0)
 		return ret;

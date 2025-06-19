@@ -48,8 +48,7 @@ ip netns exec $p1 sysctl -w net.ipv6.conf.$p1.forwarding=1
 ip -n $p0 route add default via 192.168.61.1 dev $p0
 
 # (2)
-grcli add sr policy bsid fd00:202::200 seglist fd00:202::2
-grcli add sr steer 192.168.0.0/16 bsid fd00:202::200
+grcli add sr route 192.168.0.0/16 seglist fd00:202::2
 grcli add ip6 route fd00:202::/64 via fd00:102::2
 
 # (3)
