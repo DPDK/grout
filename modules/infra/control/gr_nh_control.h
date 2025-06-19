@@ -19,6 +19,7 @@ unsigned nexthop_used_count(void);
 struct __rte_cache_aligned nexthop {
 	BASE(gr_nexthop);
 
+	clock_t last_reply; //!< timestamp when last update was received
 	clock_t last_request;
 
 	uint8_t ucast_probes;
@@ -26,6 +27,7 @@ struct __rte_cache_aligned nexthop {
 	uint32_t ref_count; // number of routes referencing this nexthop
 
 	// packets waiting for address resolution
+	uint16_t held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
 

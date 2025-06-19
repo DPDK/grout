@@ -119,7 +119,6 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 	struct gr_iface iface;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
-	clock_t now;
 	ssize_t n;
 
 	if (table == NULL)
@@ -134,15 +133,12 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 	}
 
 	resp = resp_ptr;
-	now = gr_clock_us();
 
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "IP", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "QUEUE", 0, 0);
-	scols_table_new_column(table, "AGE", 0, 0);
 	scols_table_new_column(table, "STATE", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
@@ -164,14 +160,6 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		else
 			scols_line_set_data(line, 4, "?");
 
-		scols_line_sprintf(line, 5, "%u", nh->held_pkts);
-		if (nh->flags & GR_NH_F_STATIC)
-			scols_line_set_data(line, 6, "-");
-		else if (nh->last_reply == 0)
-			scols_line_set_data(line, 6, "?");
-		else
-			scols_line_sprintf(line, 6, "%ld", (now - nh->last_reply) / CLOCKS_PER_SEC);
-
 		n = 0;
 		buf[0] = '\0';
 		gr_nh_flags_foreach (f, nh->flags)
@@ -179,7 +167,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		if (n > 0)
 			buf[n - 1] = '\0';
 
-		scols_line_sprintf(line, 7, "%s", buf);
+		scols_line_sprintf(line, 5, "%s", buf);
 	}
 
 	scols_print_table(table);

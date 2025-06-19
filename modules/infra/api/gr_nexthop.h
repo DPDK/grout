@@ -46,8 +46,6 @@ struct gr_nexthop {
 	};
 	gr_nh_type_t type; //!< nexthop type
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
-	uint16_t held_pkts; //!< number of packets waiting for resolution
-	clock_t last_reply; //!< timestamp when last update was received
 };
 
 //! Nexthop events.
