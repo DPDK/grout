@@ -196,8 +196,10 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 	struct iface *iface;
 	int ret;
 
-	STAILQ_FOREACH (worker, &workers, next)
+	STAILQ_FOREACH (worker, &workers, next) {
 		atomic_store(&worker->stats_reset, true);
+		worker_signal_ready(worker);
+	}
 
 	iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
