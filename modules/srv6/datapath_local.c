@@ -115,6 +115,28 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 		);
 }
 
+// Decap srv6 header
+static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
+	struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
+	uint32_t adj_len;
+
+	// set last sid as DA
+	ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[0];
+
+	// 4.16.1 PSP
+	// remove this SRH
+	adj_len = (sr->hdr_len + 1) << 3;
+	ip6->proto = sr->next_hdr; // XXX if ext.hdr sits between ip6 and sr
+	memmove((void *)ip6 + adj_len, ip6, (void *)sr - (void *)ip6);
+	rte_pktmbuf_adj(m, adj_len);
+	ip6 = (void *)ip6 + adj_len;
+	ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
+
+	ip6_info->sr = NULL;
+	ip6_info->ext_offset = 0;
+}
+
 // Remove ipv6 headers and extension
 static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	size_t ext_len;
@@ -148,17 +170,23 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_hdr *ip6;
 
 	/* if not already decap */
-	if (ip6_info->ext_offset && decap_outer(m, ip6_info) < 0)
-		return INVALID_PACKET;
+	if (ip6_info->ext_offset) {
+		if (ip6_info->sr)
+			decap_srv6(m, ip6_info);
+		else if (decap_outer(m, ip6_info) < 0)
+			return INVALID_PACKET;
+	}
 
 	// avoid ip6_input_local <-> sr6_local loop
 	if (ip6_info->proto == IPPROTO_IPIP || ip6_info->proto == IPPROTO_IPV6)
 		return UNEXPECTED_UPPER;
 
 	// prepend ipv6 header without any ext, before entering ip6_input_local again.
-	ip6 = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(m, sizeof(*ip6));
-	ip6_set_fields(ip6, ip6_info->len, ip6_info->proto, &ip6_info->src, &ip6_info->dst);
-	ip6->hop_limits = ip6_info->hop_limit;
+	if (!ip6_info->ip6_hdr) {
+		ip6 = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(m, sizeof(*ip6));
+		ip6_set_fields(ip6, ip6_info->len, ip6_info->proto, &ip6_info->src, &ip6_info->dst);
+		ip6->hop_limits = ip6_info->hop_limit;
+	}
 
 	return IP6_LOCAL;
 }
@@ -223,7 +251,6 @@ static int process_behav_end(
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	const struct iface *iface;
-	uint32_t adj_len;
 
 	// at the end of the tunnel
 	if (sr == NULL || sr->segments_left == 0) {
@@ -238,19 +265,7 @@ static int process_behav_end(
 
 	// transit
 	if (sr->segments_left == 1 && (sr_d->flags & GR_SR_FL_FLAVOR_PSP)) {
-		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
-
-		// set last sid as DA
-		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[0];
-
-		// 4.16.1 PSP
-		// remove this SRH
-		adj_len = (sr->hdr_len + 1) << 3;
-		ip6->proto = sr->next_hdr; // XXX if ext.hdr sits between ip6 and sr
-		memmove((void *)ip6 + adj_len, ip6, (void *)sr - (void *)ip6);
-		rte_pktmbuf_adj(m, adj_len);
-		ip6 = (void *)ip6 + adj_len;
-		ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
+		decap_srv6(m, ip6_info);
 	} else {
 		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
 
