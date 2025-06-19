@@ -38,11 +38,11 @@ void ip_output_register_interface_type(gr_iface_type_t type, const char *next_no
 	iface_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
 }
 
-static rte_edge_t nh_type_edges[GR_NH_TYPE_COUNT] = {ETH_OUTPUT};
+static rte_edge_t nh_type_edges[256] = {ETH_OUTPUT};
 
 void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 	LOG(DEBUG, "ip_output: nexthop type=%u -> %s", type, next_node);
-	if (type == 0 || type >= ARRAY_DIM(nh_type_edges))
+	if (type == 0)
 		ABORT("invalid nexthop type=%u", type);
 	if (nh_type_edges[type] != ETH_OUTPUT)
 		ABORT("next node already registered for nexthop type=%u", type);

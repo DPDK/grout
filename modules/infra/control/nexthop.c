@@ -23,7 +23,7 @@
 
 static struct rte_mempool *pool;
 static struct event *ageing_timer;
-static const struct nexthop_ops *nh_ops[GR_NH_TYPE_COUNT];
+static const struct nexthop_ops *nh_ops[256];
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
@@ -91,25 +91,25 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 	return 0;
 }
 
-void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
-	switch (type) {
-	case GR_NH_IPV4:
-	case GR_NH_IPV6:
+void nexthop_ops_register(addr_family_t af, const struct nexthop_ops *ops) {
+	switch (af) {
+	case GR_AF_IP4:
+	case GR_AF_IP6:
 		break;
 	default:
-		ABORT("invalid nexthop type %hhu", type);
+		ABORT("invalid nexthop family %hhu", af);
 	}
 	if (ops == NULL || ops->free == NULL || ops->solicit == NULL)
 		ABORT("invalid ops");
-	nh_ops[type] = ops;
+	nh_ops[af] = ops;
 }
 
-const struct nexthop_ops *nexthop_ops_get(gr_nh_type_t type) {
-	return nh_ops[type];
+const struct nexthop_ops *nexthop_ops_get(addr_family_t af) {
+	return nh_ops[af];
 }
 
 struct nexthop *
-nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+nexthop_new(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct nexthop *nh;
 	void *data;
 	int ret;
@@ -123,19 +123,16 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 	nh = data;
 	nh->vrf_id = vrf_id;
 	nh->iface_id = iface_id;
-	nh->type = type;
-	switch (type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
+	nh->af = af;
+	switch (af) {
+	case GR_AF_IP4:
 		nh->ipv4 = *(ip4_addr_t *)addr;
 		break;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-	case GR_NH_SR6_LOCAL:
+	case GR_AF_IP6:
 		nh->ipv6 = *(struct rte_ipv6_addr *)addr;
 		break;
 	default:
-		ABORT("invalid nexthop type %hhu", type);
+		ABORT("invalid nexthop family %hhu", af);
 	}
 
 	gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
@@ -144,19 +141,16 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 }
 
 bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
-	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->type != b->type)
+	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->af != b->af)
 		return false;
 
-	switch (a->type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
+	switch (a->af) {
+	case GR_AF_IP4:
 		return memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)) == 0;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-	case GR_NH_SR6_LOCAL:
+	case GR_AF_IP6:
 		return memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)) == 0;
 	default:
-		ABORT("invalid nexthop type %hhu", a->type);
+		ABORT("invalid nexthop family %hhu", a->af);
 	}
 
 	return false;
@@ -186,7 +180,7 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
 }
 
 struct lookup_filter {
-	gr_nh_type_t type;
+	addr_family_t af;
 	uint16_t vrf_id;
 	uint16_t iface_id;
 	const void *addr;
@@ -196,33 +190,28 @@ struct lookup_filter {
 static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
 
-	if (filter->nh != NULL || nh->type != filter->type || nh->vrf_id != filter->vrf_id)
+	if (filter->nh != NULL || nh->af != filter->af || nh->vrf_id != filter->vrf_id)
 		return;
 
-	switch (filter->type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
+	switch (filter->af) {
+	case GR_AF_IP4:
 		if (nh->ipv4 == *(ip4_addr_t *)filter->addr)
 			filter->nh = nh;
 		break;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-	case GR_NH_SR6_LOCAL:
+	case GR_AF_IP6:
 		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
 			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
 			if (!is_linklocal || nh->iface_id == filter->iface_id)
 				filter->nh = nh;
 		}
 		break;
-	case GR_NH_TYPE_COUNT:
-		break;
 	}
 }
 
 struct nexthop *
-nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct lookup_filter filter = {
-		.type = type, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
+		.af = af, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
 	};
 	nexthop_iter(nh_lookup_cb, &filter);
 	return filter.nh ?: errno_set_null(ENOENT);
@@ -265,7 +254,7 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *) {
-	const struct nexthop_ops *ops = nh_ops[nh->type];
+	const struct nexthop_ops *ops = nh_ops[nh->af];
 	clock_t now = gr_clock_us();
 	time_t reply_age, request_age;
 	unsigned probes, max_probes;
@@ -286,7 +275,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 		if (probes >= max_probes) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    ADDR_W(nh_af(&nh->base)),
+			    ADDR_W(nh->af),
 			    &nh->addr,
 			    nh->vrf_id,
 			    probes,
@@ -298,7 +287,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			if (ops->solicit(nh) < 0)
 				LOG(ERR,
 				    ADDR_F " vrf=%u solicit failed: %s",
-				    ADDR_W(nh_af(&nh->base)),
+				    ADDR_W(nh->af),
 				    &nh->addr,
 				    nh->vrf_id,
 				    strerror(errno));
@@ -312,7 +301,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 		if (request_age > nh_conf.lifetime_unreachable_sec) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-			    ADDR_W(nh_af(&nh->base)),
+			    ADDR_W(nh->af),
 			    &nh->addr,
 			    nh->vrf_id,
 			    probes,

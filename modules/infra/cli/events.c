@@ -52,7 +52,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			nh = PAYLOAD(e);
 			printf("> addr add: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr);
 			break;
 		case GR_EVENT_IP_ADDR_DEL:
@@ -61,7 +61,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			nh = PAYLOAD(e);
 			printf("> addr del: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr);
 			break;
 		case GR_EVENT_IP_ROUTE_ADD:
@@ -106,7 +106,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
 			       &nh->mac);
 			break;
@@ -116,7 +116,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
 			       &nh->mac);
 			break;
@@ -126,7 +126,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F "\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
 			       &nh->mac);
 			break;
