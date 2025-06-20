@@ -241,7 +241,7 @@ static struct gr_module nh6_module = {
 	.init = nh6_init,
 };
 
-static struct nexthop_ops nh_ops = {
+static struct nexthop_af_ops nh_ops = {
 	.add = nh6_add,
 	.solicit = nh6_solicit,
 	.free = nh6_free,
@@ -249,5 +249,5 @@ static struct nexthop_ops nh_ops = {
 
 RTE_INIT(control_ip_init) {
 	gr_register_module(&nh6_module);
-	nexthop_ops_register(GR_AF_IP6, &nh_ops);
+	nexthop_af_ops_register(GR_AF_IP6, &nh_ops);
 }

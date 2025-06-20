@@ -23,7 +23,7 @@
 
 static struct rte_mempool *pool;
 static struct event *ageing_timer;
-static const struct nexthop_ops *nh_ops[256];
+static const struct nexthop_af_ops *af_ops[256];
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
@@ -91,21 +91,22 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 	return 0;
 }
 
-void nexthop_ops_register(addr_family_t af, const struct nexthop_ops *ops) {
+void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
 	switch (af) {
 	case GR_AF_IP4:
 	case GR_AF_IP6:
-		break;
-	default:
-		ABORT("invalid nexthop family %hhu", af);
+		if (ops == NULL || ops->free == NULL || ops->solicit == NULL)
+			ABORT("invalid af ops");
+		if (af_ops[af] != NULL)
+			ABORT("duplicate af ops %hhu", af);
+		af_ops[af] = ops;
+		return;
 	}
-	if (ops == NULL || ops->free == NULL || ops->solicit == NULL)
-		ABORT("invalid ops");
-	nh_ops[af] = ops;
+	ABORT("invalid nexthop family %hhu", af);
 }
 
-const struct nexthop_ops *nexthop_ops_get(addr_family_t af) {
-	return nh_ops[af];
+const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af) {
+	return af_ops[af];
 }
 
 struct nexthop *
@@ -254,7 +255,7 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *) {
-	const struct nexthop_ops *ops = nh_ops[nh->af];
+	const struct nexthop_af_ops *ops = af_ops[nh->af];
 	clock_t now = gr_clock_us();
 	time_t reply_age, request_age;
 	unsigned probes, max_probes;

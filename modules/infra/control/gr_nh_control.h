@@ -72,7 +72,7 @@ typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
 // Iterate over all nexthops and invoke a callback for each active nexthop.
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 
-struct nexthop_ops {
+struct nexthop_af_ops {
 	// Callback that will be invoked creating a new nexthop.
 	int (*add)(struct nexthop *);
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
@@ -81,7 +81,7 @@ struct nexthop_ops {
 	void (*free)(struct nexthop *);
 };
 
-void nexthop_ops_register(addr_family_t af, const struct nexthop_ops *);
-const struct nexthop_ops *nexthop_ops_get(addr_family_t af);
+void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
+const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af);
 
 #endif
