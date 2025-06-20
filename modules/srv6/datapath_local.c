@@ -275,7 +275,10 @@ static uint16_t srv6_local_srh_process(
 		// check SRH correctness
 		ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 		sr = rte_pktmbuf_mtod_offset(m, struct rte_ipv6_routing_ext *, d->ext_offset);
-		rte_ipv6_get_next_ext((const uint8_t *)sr, d->proto, &ext_len);
+		if (rte_ipv6_get_next_ext((const uint8_t *)sr, d->proto, &ext_len) < 0) {
+			edge = INVALID_PACKET;
+			goto next;
+		}
 		if ((size_t)((sr->hdr_len + 1) << 3) != ext_len || sr->last_entry > ext_len / 2 - 1
 		    || sr->segments_left > sr->last_entry + 1
 		    || sr->type != RTE_IPV6_SRCRT_TYPE_4) {
