@@ -27,89 +27,144 @@
 #include <sys/queue.h>
 
 static control_input_t ip6_output_node;
+enum {
+	NH6_SINK = 0,
+	NH6_IP6_OUTPUT,
+	INVALID_ROUTE,
+	ERR_NH_ALLOC,
+	ERR_ROUTE_INSERT,
+	DROP_QUEUE_FULL,
+	NH6_EDGE_COUNT,
+};
 
-void nh6_unreachable_cb(struct rte_mbuf *m) {
-	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-	const struct rte_ipv6_addr *dst = &ip->dst_addr;
+static uint16_t nh6_unreachable_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t nb_objs
+) {
+	struct rte_mbuf *m;
 	struct nexthop *nh;
+	rte_edge_t edge;
 
-	nh = rib6_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
-	if (nh == NULL)
-		goto free; // route to dst has disappeared
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		m = objs[i];
+		struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
+		const struct rte_ipv6_addr *dst = &ip->dst_addr;
+		edge = NH6_SINK;
 
-	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
-		// The resolved nexthop is associated with a "connected" route.
-		// We currently do not have an explicit route entry for this
-		// destination IP.
-		struct nexthop *remote = nh6_lookup(nh->vrf_id, mbuf_data(m)->iface->id, dst);
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_add(m, node, 0);
 
-		if (remote == NULL) {
-			// No existing nexthop for this IP, create one.
-			remote = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
-				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv6 = *dst,
-				.origin = GR_NH_ORIGIN_INTERNAL,
-			});
+		nh = rib6_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
+		if (nh == NULL) {
+			edge = INVALID_ROUTE;
+			goto next; // route to dst has disappeared
+		}
+		if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
+			// The resolved nexthop is associated with a "connected" route.
+			// We currently do not have an explicit route entry for this
+			// destination IP.
+			struct nexthop *remote = nh6_lookup(
+				nh->vrf_id, mbuf_data(m)->iface->id, dst
+			);
+
+			if (remote == NULL) {
+				// No existing nexthop for this IP, create one.
+				remote = nexthop_new(&(struct gr_nexthop) {
+					.type = GR_NH_T_L3,
+					.af = GR_AF_IP6,
+					.vrf_id = nh->vrf_id,
+					.iface_id = nh->iface_id,
+					.ipv6 = *dst,
+					.origin = GR_NH_ORIGIN_INTERNAL,
+				});
+			}
+
+			if (remote == NULL) {
+				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				edge = ERR_NH_ALLOC;
+				goto next;
+			}
+			if (remote->iface_id != nh->iface_id)
+				ABORT(IP6_F " nexthop lookup gives wrong interface", &ip);
+
+			// Create an associated /128 route so that next packets take it
+			// in priority with a single route lookup.
+			int ret = rib6_insert(
+				nh->vrf_id,
+				nh->iface_id,
+				dst,
+				RTE_IPV6_MAX_DEPTH,
+				GR_NH_ORIGIN_INTERNAL,
+				remote
+			);
+			if (ret < 0) {
+				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				edge = ERR_ROUTE_INSERT;
+				goto next;
+			}
+			nh = remote;
 		}
 
-		if (remote == NULL) {
-			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
-			goto free;
+		if (nh->state == GR_NH_S_REACHABLE) {
+			// The nexthop may have become reachable while the packet was
+			// passed from the datapath to here. Re-send it to datapath.
+			struct ip6_output_mbuf_data *d = ip6_output_mbuf_data(m);
+			d->nh = nh;
+			edge = NH6_IP6_OUTPUT;
+			goto next;
 		}
-		if (remote->iface_id != nh->iface_id)
-			ABORT(IP6_F " nexthop lookup gives wrong interface", &ip);
 
-		// Create an associated /128 route so that next packets take it
-		// in priority with a single route lookup.
-		int ret = rib6_insert(
-			nh->vrf_id,
-			nh->iface_id,
-			dst,
-			RTE_IPV6_MAX_DEPTH,
-			GR_NH_ORIGIN_INTERNAL,
-			remote
-		);
-		if (ret < 0) {
-			LOG(ERR, "failed to insert route: %s", strerror(errno));
-			goto free;
+		if (nh->held_pkts < nh_conf.max_held_pkts) {
+			queue_mbuf_data(m)->next = NULL;
+			if (nh->held_pkts_head == NULL)
+				nh->held_pkts_head = m;
+			else
+				queue_mbuf_data(nh->held_pkts_tail)->next = m;
+			nh->held_pkts_tail = m;
+			nh->held_pkts++;
+			if (nh->state != GR_NH_S_PENDING) {
+				nh6_solicit(nh);
+				nh->state = GR_NH_S_PENDING;
+			}
+			continue; // Do NOT enqueue the packet, it will be sent later
+		} else {
+			LOG(DEBUG, IP6_F " hold queue full", &dst);
+			edge = DROP_QUEUE_FULL;
 		}
-		nh = remote;
+next:
+		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	if (nh->state == GR_NH_S_REACHABLE) {
-		// The nexthop may have become reachable while the packet was
-		// passed from the datapath to here. Re-send it to datapath.
-		struct ip6_output_mbuf_data *d = ip6_output_mbuf_data(m);
-		d->nh = nh;
-		if (post_to_stack(ip6_output_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
-			goto free;
-		}
-		return;
-	}
-
-	if (nh->held_pkts < nh_conf.max_held_pkts) {
-		queue_mbuf_data(m)->next = NULL;
-		if (nh->held_pkts_head == NULL)
-			nh->held_pkts_head = m;
-		else
-			queue_mbuf_data(nh->held_pkts_tail)->next = m;
-		nh->held_pkts_tail = m;
-		nh->held_pkts++;
-		if (nh->state != GR_NH_S_PENDING) {
-			nh6_solicit(nh);
-			nh->state = GR_NH_S_PENDING;
-		}
-		return;
-	} else {
-		LOG(DEBUG, IP4_F " hold queue full", &dst);
-	}
-free:
-	rte_pktmbuf_free(m);
+	return nb_objs;
 }
+
+static struct rte_node_register nh6_unreachable_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "nh6_unreachable",
+	.process = nh6_unreachable_process,
+	.nb_edges = NH6_EDGE_COUNT,
+	.next_nodes = {
+		[NH6_SINK] = "ctlplane_sink",
+		[NH6_IP6_OUTPUT] = "ip6_output",
+		[INVALID_ROUTE] = "nh6_invalid_route",
+		[ERR_NH_ALLOC] = "nh6_nh_alloc",
+		[ERR_ROUTE_INSERT] = "nh6_route_insert",
+		[DROP_QUEUE_FULL] = "nh6_queue_full",
+	},
+};
+
+static struct gr_node_info nh6_unreachable_info = {
+	.node = &nh6_unreachable_node,
+};
+
+GR_NODE_REGISTER(nh6_unreachable_info);
+
+GR_DROP_REGISTER(nh6_invalid_route);
+GR_DROP_REGISTER(nh6_nh_alloc);
+GR_DROP_REGISTER(nh6_route_insert);
+GR_DROP_REGISTER(nh6_queue_full);
 
 static control_input_t ndp_na_output_node;
 
