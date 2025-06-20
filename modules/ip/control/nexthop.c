@@ -27,80 +27,117 @@
 
 static control_input_t ip_output_node;
 
-void nh4_unreachable_cb(struct rte_mbuf *m) {
-	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
-	ip4_addr_t dst = ip->dst_addr;
-	struct nexthop *nh;
+enum {
+	NH4_IP_OUTPUT = 0,
+	SINK,
+	NH4_EDGE_COUNT,
+};
 
-	nh = rib4_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
-	if (nh == NULL)
-		goto free; // route to dst has disappeared
+static uint16_t nh4_unreachable_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t nb_objs
+) {
+	struct rte_mbuf *m;
+	rte_edge_t edge;
 
-	if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
-		// The resolved nexthop is associated with a "connected" route.
-		// We currently do not have an explicit route entry for this
-		// destination IP.
-		struct nexthop *remote = nh4_lookup(nh->vrf_id, dst);
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		m = objs[i];
+		struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
+		ip4_addr_t dst = ip->dst_addr;
+		struct nexthop *nh;
+		edge = SINK;
 
-		if (remote == NULL) {
-			// No existing nexthop for this IP, create one.
-			remote = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP4,
-				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv4 = dst,
-				.origin = GR_NH_ORIGIN_INTERNAL,
-			});
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_add(m, node, 0);
+
+		nh = rib4_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
+		if (nh == NULL)
+			goto next; // route to dst has disappeared
+
+		if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
+			// The resolved nexthop is associated with a "connected" route.
+			// We currently do not have an explicit route entry for this
+			// destination IP.
+			struct nexthop *remote = nh4_lookup(nh->vrf_id, dst);
+
+			if (remote == NULL) {
+				// No existing nexthop for this IP, create one.
+				remote = nexthop_new(&(struct gr_nexthop) {
+					.type = GR_NH_T_L3,
+					.af = GR_AF_IP4,
+					.vrf_id = nh->vrf_id,
+					.iface_id = nh->iface_id,
+					.ipv4 = dst,
+					.origin = GR_NH_ORIGIN_INTERNAL,
+				});
+			}
+
+			if (remote == NULL) {
+				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				goto next;
+			}
+			if (remote->iface_id != nh->iface_id)
+				ABORT(IP4_F " nexthop lookup gives wrong interface", &ip);
+
+			// Create an associated /32 route so that next packets take it
+			// in priority with a single route lookup.
+			if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
+				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				goto next;
+			}
+			nh = remote;
 		}
 
-		if (remote == NULL) {
-			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
-			goto free;
+		if (nh->state & GR_NH_S_REACHABLE) {
+			// The nexthop may have become reachable while the packet was
+			// passed from the datapath to here. Re-send it to datapath.
+			struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
+			d->nh = nh;
+			edge = NH4_IP_OUTPUT;
+			goto next;
 		}
-		if (remote->iface_id != nh->iface_id)
-			ABORT(IP4_F " nexthop lookup gives wrong interface", &ip);
 
-		// Create an associated /32 route so that next packets take it
-		// in priority with a single route lookup.
-		if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
-			LOG(ERR, "failed to insert route: %s", strerror(errno));
-			goto free;
+		if (nh->held_pkts < nh_conf.max_held_pkts) {
+			queue_mbuf_data(m)->next = NULL;
+			if (nh->held_pkts_head == NULL)
+				nh->held_pkts_head = m;
+			else
+				queue_mbuf_data(nh->held_pkts_tail)->next = m;
+			nh->held_pkts_tail = m;
+			nh->held_pkts++;
+			if (nh->state != GR_NH_S_PENDING) {
+				arp_output_request_solicit(nh);
+				nh->state = GR_NH_S_PENDING;
+			}
+			continue;
+		} else {
+			LOG(DEBUG, IP4_F " hold queue full", &dst);
 		}
-		nh = remote;
+next:
+		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	if (nh->state == GR_NH_S_REACHABLE) {
-		// The nexthop may have become reachable while the packet was
-		// passed from the datapath to here. Re-send it to datapath.
-		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
-		d->nh = nh;
-		if (post_to_stack(ip_output_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
-			goto free;
-		}
-		return;
-	}
-
-	if (nh->held_pkts < nh_conf.max_held_pkts) {
-		queue_mbuf_data(m)->next = NULL;
-		if (nh->held_pkts_head == NULL)
-			nh->held_pkts_head = m;
-		else
-			queue_mbuf_data(nh->held_pkts_tail)->next = m;
-		nh->held_pkts_tail = m;
-		nh->held_pkts++;
-		if (nh->state != GR_NH_S_PENDING) {
-			arp_output_request_solicit(nh);
-			nh->state = GR_NH_S_PENDING;
-		}
-		return;
-	} else {
-		LOG(DEBUG, IP4_F " hold queue full", &dst);
-	}
-free:
-	rte_pktmbuf_free(m);
+	return nb_objs;
 }
+
+static struct rte_node_register nh4_unreachable_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "nh4_unreachable",
+	.process = nh4_unreachable_process,
+	.nb_edges = NH4_EDGE_COUNT,
+	.next_nodes = {
+		[NH4_IP_OUTPUT] = "ip_output",
+		[SINK] = "ctlplane_sink",
+	},
+};
+
+static struct gr_node_info nh4_unreachable_info = {
+	.node = &nh4_unreachable_node,
+};
+
+GR_NODE_REGISTER(nh4_unreachable_info);
 
 static control_input_t arp_output_reply_node;
 

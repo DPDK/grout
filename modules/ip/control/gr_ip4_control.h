@@ -20,7 +20,6 @@ static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nexthop_lookup(GR_AF_IP4, vrf_id, GR_IFACE_ID_UNDEF, &ip);
 }
 
-void nh4_unreachable_cb(struct rte_mbuf *m);
 void arp_probe_input_cb(struct rte_mbuf *m);
 
 int snat44_static_rule_add(struct iface *, ip4_addr_t match, ip4_addr_t replace);
