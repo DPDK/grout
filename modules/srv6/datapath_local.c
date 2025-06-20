@@ -168,7 +168,7 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 //
 static int process_behav_decap(
 	struct rte_mbuf *m,
-	struct srv6_localsid_data *sr_d,
+	struct srv6_localsid_nh_priv *sr_d,
 	struct ip6_info *ip6_info
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
@@ -216,8 +216,11 @@ static int process_behav_decap(
 //
 // End behavior
 //
-static int
-process_behav_end(struct rte_mbuf *m, struct srv6_localsid_data *sr_d, struct ip6_info *ip6_info) {
+static int process_behav_end(
+	struct rte_mbuf *m,
+	struct srv6_localsid_nh_priv *sr_d,
+	struct ip6_info *ip6_info
+) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	const struct iface *iface;
 	uint32_t adj_len;
@@ -270,7 +273,7 @@ process_behav_end(struct rte_mbuf *m, struct srv6_localsid_data *sr_d, struct ip
 
 static inline rte_edge_t srv6_local_process_pkt(
 	struct rte_mbuf *m,
-	struct srv6_localsid_data *sr_d,
+	struct srv6_localsid_nh_priv *sr_d,
 	struct ip6_info *ip6_info
 ) {
 	switch (sr_d->behavior) {
@@ -291,10 +294,9 @@ static inline rte_edge_t srv6_local_process_pkt(
 // called from 'ip6_input' node
 static uint16_t
 srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct srv6_localsid_data *sr_d;
+	struct srv6_localsid_nh_priv *sr_d;
 	struct trace_srv6_data *t;
 	struct ip6_info ip6_info;
-	const struct iface *iface;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 	int ret;
@@ -312,14 +314,8 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		// retrieve lsid data. should always succeed as long as
-		// localdata is in sync with fib.
-		iface = ip6_output_mbuf_data(m)->iface;
-		sr_d = srv6_localsid_get(&ip6_info.dst, iface->vrf_id);
-		if (sr_d == NULL) {
-			edge = INVALID_PACKET;
-			goto next;
-		}
+		sr_d = srv6_localsid_nh_priv(ip6_output_mbuf_data(m)->nh);
+		assert(sr_d != NULL);
 
 		if (gr_mbuf_is_traced(m)) {
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));
