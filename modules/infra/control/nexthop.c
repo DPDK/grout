@@ -127,6 +127,7 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 		break;
 	case GR_NH_IPV6:
 	case GR_NH_SR6_IPV6:
+	case GR_NH_SR6_LOCAL:
 		nh->ipv6 = *(struct rte_ipv6_addr *)addr;
 		break;
 	default:
@@ -148,6 +149,7 @@ bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
 		return memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)) == 0;
 	case GR_NH_IPV6:
 	case GR_NH_SR6_IPV6:
+	case GR_NH_SR6_LOCAL:
 		return memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)) == 0;
 	default:
 		ABORT("invalid nexthop type %hhu", a->type);
@@ -201,6 +203,7 @@ static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 		break;
 	case GR_NH_IPV6:
 	case GR_NH_SR6_IPV6:
+	case GR_NH_SR6_LOCAL:
 		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
 			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
 			if (!is_linklocal || nh->iface_id == filter->iface_id)

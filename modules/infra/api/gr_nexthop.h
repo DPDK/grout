@@ -28,6 +28,7 @@ typedef enum : uint8_t {
 	GR_NH_IPV6,
 	GR_NH_SR6_IPV4,
 	GR_NH_SR6_IPV6,
+	GR_NH_SR6_LOCAL,
 	GR_NH_TYPE_COUNT
 } gr_nh_type_t;
 
@@ -95,6 +96,7 @@ static inline uint8_t nh_af(const struct gr_nexthop *nh) {
 		return AF_INET;
 	case GR_NH_IPV6:
 	case GR_NH_SR6_IPV6:
+	case GR_NH_SR6_LOCAL:
 		return AF_INET6;
 	case GR_NH_TYPE_COUNT:
 		break;
