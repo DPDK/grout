@@ -138,7 +138,7 @@ struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
-mock_func(struct nexthop *, nexthop_lookup(gr_nh_type_t, uint16_t, uint16_t, const void *));
+mock_func(struct nexthop *, nexthop_lookup(addr_family_t, uint16_t, uint16_t, const void *));
 mock_func(void, ndp_probe_input_cb(struct rte_mbuf *));
 
 struct fake_ndp_na_mbuf {

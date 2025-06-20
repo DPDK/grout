@@ -18,12 +18,12 @@
 
 static inline struct nexthop *
 nh6_new(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
-	return nexthop_new(GR_NH_IPV6, vrf_id, iface_id, ip);
+	return nexthop_new(GR_AF_IP6, vrf_id, iface_id, ip);
 }
 
 static inline struct nexthop *
 nh6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
-	return nexthop_lookup(GR_NH_IPV6, vrf_id, iface_id, ip);
+	return nexthop_lookup(GR_AF_IP6, vrf_id, iface_id, ip);
 }
 
 void nh6_unreachable_cb(struct rte_mbuf *m);

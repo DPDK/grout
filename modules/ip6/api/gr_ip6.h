@@ -25,38 +25,6 @@ struct gr_ip6_route {
 
 #define GR_IP6_MODULE 0xfeed
 
-// next hops ///////////////////////////////////////////////////////////////////
-
-#define GR_IP6_NH_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0001)
-
-struct gr_ip6_nh_add_req {
-	struct gr_nexthop nh;
-	uint8_t exist_ok;
-};
-
-// struct gr_ip6_nh_add_resp { };
-
-#define GR_IP6_NH_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0002)
-
-struct gr_ip6_nh_del_req {
-	uint16_t vrf_id;
-	struct rte_ipv6_addr host;
-	uint8_t missing_ok;
-};
-
-// struct gr_ip6_nh_del_resp { };
-
-#define GR_IP6_NH_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0003)
-
-struct gr_ip6_nh_list_req {
-	uint16_t vrf_id;
-};
-
-struct gr_ip6_nh_list_resp {
-	uint16_t n_nhs;
-	struct gr_nexthop nhs[/* n_nhs */];
-};
-
 // routes //////////////////////////////////////////////////////////////////////
 
 #define GR_IP6_ROUTE_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0010)

@@ -30,11 +30,11 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static rte_edge_t nh_type_edges[GR_NH_TYPE_COUNT] = {FORWARD};
+static rte_edge_t nh_type_edges[256] = {FORWARD};
 
 void ip6_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 	LOG(DEBUG, "ip6_input: nexthop type=%u -> %s", type, next_node);
-	if (type == 0 || type >= ARRAY_DIM(nh_type_edges))
+	if (type == 0)
 		ABORT("invalid nexthop type=%u", type);
 	if (nh_type_edges[type] != FORWARD)
 		ABORT("next node already registered for nexthop type=%u", type);

@@ -18,10 +18,12 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	struct nexthop *nh;
 	int r;
 
-	nh = nexthop_new(GR_NH_SR6_LOCAL, req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid);
+	nh = nexthop_new(GR_AF_IP6, req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid);
 	if (nh == NULL)
 		return api_out(errno, 0);
-	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC | GR_NH_F_REACHABLE;
+	nh->type = GR_NH_T_SR6_LOCAL;
+	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC;
+	nh->state = GR_NH_S_REACHABLE;
 
 	data = srv6_localsid_nh_priv(nh);
 	data->behavior = req->l.behavior;
@@ -57,7 +59,7 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 	struct gr_srv6_localsid ldata;
 
-	if ((nh->type != GR_NH_SR6_LOCAL)
+	if ((nh->type != GR_NH_T_SR6_LOCAL)
 	    || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
 		return;
 

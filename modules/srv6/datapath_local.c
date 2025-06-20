@@ -378,7 +378,7 @@ next:
 }
 
 static void srv6_node_init(void) {
-	ip6_input_register_nexthop_type(GR_NH_SR6_LOCAL, "sr6_local");
+	ip6_input_register_nexthop_type(GR_NH_T_SR6_LOCAL, "sr6_local");
 };
 
 static struct rte_node_register srv6_local_node = {

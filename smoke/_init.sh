@@ -94,9 +94,8 @@ fi
 cat > $tmp/cleanup <<EOF
 grcli show stats software
 grcli show interface
-grcli show ip nexthop
+grcli show nexthop
 grcli show ip route
-grcli show ip6 nexthop
 grcli show ip6 route
 grcli show trace count 50
 EOF
