@@ -197,7 +197,7 @@ static struct gr_module nh4_module = {
 	.init = nh4_init,
 };
 
-static struct nexthop_ops nh_ops = {
+static struct nexthop_af_ops nh_ops = {
 	.add = nh4_add,
 	.solicit = arp_output_request_solicit,
 	.free = nh4_free,
@@ -205,5 +205,5 @@ static struct nexthop_ops nh_ops = {
 
 RTE_INIT(control_ip_init) {
 	gr_register_module(&nh4_module);
-	nexthop_ops_register(GR_AF_IP4, &nh_ops);
+	nexthop_af_ops_register(GR_AF_IP4, &nh_ops);
 }

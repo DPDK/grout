@@ -40,7 +40,7 @@ static struct gr_api_handler config_set_handler = {
 
 static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
-	const struct nexthop_ops *ops;
+	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 	int ret;
 
@@ -80,7 +80,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		nh->state = GR_NH_S_REACHABLE;
 	}
 
-	ops = nexthop_ops_get(req->nh.af);
+	ops = nexthop_af_ops_get(req->nh.af);
 	assert(ops != NULL);
 	ret = ops->add(nh);
 
@@ -95,7 +95,7 @@ static struct gr_api_handler nh_add_handler = {
 
 static struct api_out nh_del(const void *request, void ** /*response*/) {
 	const struct gr_nh_del_req *req = request;
-	const struct nexthop_ops *ops;
+	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 
 	switch (req->nh.af) {
@@ -122,7 +122,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ops = nexthop_ops_get(req->nh.af);
+	ops = nexthop_af_ops_get(req->nh.af);
 	assert(ops != NULL);
 	ops->free(nh);
 
