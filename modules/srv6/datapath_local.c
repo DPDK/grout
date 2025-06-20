@@ -46,6 +46,8 @@ struct ip6_info {
 	uint16_t ext_offset;
 	uint8_t hop_limit;
 	uint8_t proto;
+	struct rte_ipv6_hdr *ip6_hdr;
+	struct rte_ipv6_routing_ext *sr;
 };
 
 static uint8_t proto_supported[256] = {
@@ -54,8 +56,12 @@ static uint8_t proto_supported[256] = {
 	[IPPROTO_ROUTING] = 1,
 };
 
-static int
-ip6_fill_infos(const struct rte_ipv6_hdr *ip6, struct rte_mbuf *m, struct ip6_info *ip6_info) {
+static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+	struct rte_ipv6_hdr *ip6;
+
+	ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
+	ip6_info->ip6_hdr = ip6;
+
 	ip6_info->src = ip6->src_addr;
 	ip6_info->dst = ip6->dst_addr;
 	ip6_info->len = rte_be_to_cpu_16(ip6->payload_len);
@@ -81,6 +87,13 @@ ip6_fill_infos(const struct rte_ipv6_hdr *ip6, struct rte_mbuf *m, struct ip6_in
 		ip6_info->len -= ext_size;
 		ip6_info->proto = next_proto;
 	}
+
+	if (ip6_info->proto == IPPROTO_ROUTING)
+		ip6_info->sr = rte_pktmbuf_mtod_offset(
+			m, struct rte_ipv6_routing_ext *, ip6_info->ext_offset
+		);
+	else
+		ip6_info->sr = NULL;
 
 	return 0;
 }
@@ -121,6 +134,8 @@ static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 	rte_pktmbuf_adj(m, ip6_info->ext_offset);
 	ip6_info->ext_offset = 0;
+	ip6_info->ip6_hdr = NULL;
+	ip6_info->sr = NULL;
 	return 0;
 }
 
@@ -154,9 +169,9 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 static int process_behav_decap(
 	struct rte_mbuf *m,
 	struct srv6_localsid_data *sr_d,
-	struct rte_ipv6_routing_ext *sr,
 	struct ip6_info *ip6_info
 ) {
+	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	struct eth_input_mbuf_data *id;
 	const struct iface *iface;
 	rte_edge_t edge;
@@ -201,13 +216,9 @@ static int process_behav_decap(
 //
 // End behavior
 //
-static int process_behav_end(
-	struct rte_mbuf *m,
-	struct srv6_localsid_data *sr_d,
-	struct rte_ipv6_routing_ext *sr,
-	struct rte_ipv6_hdr *ip6,
-	struct ip6_info *ip6_info
-) {
+static int
+process_behav_end(struct rte_mbuf *m, struct srv6_localsid_data *sr_d, struct ip6_info *ip6_info) {
+	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	const struct iface *iface;
 	uint32_t adj_len;
 
@@ -216,7 +227,7 @@ static int process_behav_end(
 		// 4.16.3 USD
 		// this packet could be decapsulated and forwarded
 		if ((sr_d->flags & GR_SR_FL_FLAVOR_USD))
-			return process_behav_decap(m, sr_d, sr, ip6_info);
+			return process_behav_decap(m, sr_d, ip6_info);
 
 		// process locally
 		return process_upper_layer(m, ip6_info);
@@ -224,6 +235,8 @@ static int process_behav_end(
 
 	// transit
 	if (sr->segments_left == 1 && (sr_d->flags & GR_SR_FL_FLAVOR_PSP)) {
+		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
+
 		// set last sid as DA
 		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[0];
 
@@ -235,8 +248,9 @@ static int process_behav_end(
 		rte_pktmbuf_adj(m, adj_len);
 		ip6 = (void *)ip6 + adj_len;
 		ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
-
 	} else {
+		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
+
 		// use next sid in list
 		--sr->segments_left;
 		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[sr->segments_left];
@@ -257,19 +271,17 @@ static int process_behav_end(
 static inline rte_edge_t srv6_local_process_pkt(
 	struct rte_mbuf *m,
 	struct srv6_localsid_data *sr_d,
-	struct rte_ipv6_routing_ext *sr,
-	struct rte_ipv6_hdr *ip6,
 	struct ip6_info *ip6_info
 ) {
 	switch (sr_d->behavior) {
 	case SR_BEHAVIOR_END:
 	case SR_BEHAVIOR_END_T:
-		return process_behav_end(m, sr_d, sr, ip6, ip6_info);
+		return process_behav_end(m, sr_d, ip6_info);
 
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT6:
 	case SR_BEHAVIOR_END_DT46:
-		return process_behav_decap(m, sr_d, sr, ip6_info);
+		return process_behav_decap(m, sr_d, ip6_info);
 
 	default:
 		return INVALID_PACKET;
@@ -279,21 +291,17 @@ static inline rte_edge_t srv6_local_process_pkt(
 // called from 'ip6_input' node
 static uint16_t
 srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct rte_ipv6_routing_ext *sr = NULL;
 	struct srv6_localsid_data *sr_d;
 	struct trace_srv6_data *t;
 	struct ip6_info ip6_info;
 	const struct iface *iface;
-	struct rte_ipv6_hdr *ip6;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 	int ret;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
-		ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-
-		ret = ip6_fill_infos(ip6, m, &ip6_info);
+		ret = ip6_fill_infos(m, &ip6_info);
 		if (ret < 0) {
 			edge = INVALID_PACKET;
 			goto next;
@@ -322,17 +330,16 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 
 		// check SRH correctness
-		if (ip6_info.proto == IPPROTO_ROUTING) {
+		if (ip6_info.sr) {
+			struct rte_ipv6_routing_ext *sr = ip6_info.sr;
 			size_t ext_len;
 
-			sr = rte_pktmbuf_mtod_offset(
-				m, struct rte_ipv6_routing_ext *, ip6_info.ext_offset
-			);
 			if (rte_ipv6_get_next_ext((const uint8_t *)sr, ip6_info.proto, &ext_len)
 			    < 0) {
 				edge = INVALID_PACKET;
 				goto next;
 			}
+
 			if ((size_t)((sr->hdr_len + 1) << 3) != ext_len
 			    || sr->last_entry > ext_len / 2 - 1
 			    || sr->segments_left > sr->last_entry + 1
@@ -346,7 +353,7 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 				t->segleft = sr->segments_left;
 		}
 
-		edge = srv6_local_process_pkt(m, sr_d, sr, ip6, &ip6_info);
+		edge = srv6_local_process_pkt(m, sr_d, &ip6_info);
 
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
