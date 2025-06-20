@@ -84,4 +84,12 @@ struct nexthop_af_ops {
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
 const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af);
 
+struct nexthop_type_ops {
+	// Callback that will be invoked the nexthop refcount reaches zero.
+	void (*free)(struct nexthop *);
+};
+
+void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
+const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type);
+
 #endif
