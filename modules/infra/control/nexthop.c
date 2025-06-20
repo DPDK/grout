@@ -24,6 +24,7 @@
 static struct rte_mempool *pool;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
+static const struct nexthop_type_ops *type_ops[256];
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
@@ -107,6 +108,25 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 
 const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af) {
 	return af_ops[af];
+}
+
+void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
+	switch (type) {
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6:
+	case GR_NH_T_SR6_LOCAL:
+		if (ops == NULL || ops->free)
+			ABORT("invalid type ops");
+		if (type_ops[type] != NULL)
+			ABORT("duplicate type ops %hhu", type);
+		type_ops[type] = ops;
+		return;
+	}
+	ABORT("invalid nexthop type %hhu", type);
+}
+
+const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type) {
+	return type_ops[type];
 }
 
 struct nexthop *
@@ -243,6 +263,10 @@ void nexthop_decref(struct nexthop *nh) {
 			m = next;
 		}
 		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+		const struct nexthop_type_ops *ops = type_ops[nh->type];
+		if (ops != NULL && ops->free != NULL)
+			ops->free(nh);
+
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	} else {
