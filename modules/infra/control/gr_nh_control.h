@@ -46,6 +46,9 @@ bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 struct nexthop *
 nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
+// Clean all next hop related to an interface.
+void nexthop_cleanup(uint16_t iface_id);
+
 // Increment the reference counter of a nexthop.
 void nexthop_incref(struct nexthop *);
 
