@@ -221,6 +221,19 @@ nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void
 	return filter.nh ?: errno_set_null(ENOENT);
 }
 
+static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
+	struct lookup_filter *filter = priv;
+	if (nh->iface_id == filter->iface_id) {
+		while (nh->ref_count)
+			nexthop_decref(nh);
+	}
+}
+
+void nexthop_cleanup(uint16_t iface_id) {
+	struct lookup_filter filter = {.iface_id = iface_id};
+	nexthop_iter(nh_cleanup_interface_cb, &filter);
+}
+
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);

@@ -6,6 +6,7 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
+#include <gr_nh_control.h>
 #include <gr_rcu.h>
 #include <gr_string.h>
 #include <gr_vec.h>
@@ -251,6 +252,7 @@ int iface_destroy(uint16_t ifid) {
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	nexthop_cleanup(ifid);
 
 	ifaces[ifid] = NULL;
 
