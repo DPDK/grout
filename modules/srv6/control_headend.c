@@ -118,7 +118,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 		d = srv6_encap_data_get(nh);
 		if (d != NULL)
-			return api_out(-EEXIST, 0);
+			return api_out(EEXIST, 0);
 
 		nh = nexthop_new(
 			GR_AF_IP6, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest6.ip
@@ -133,7 +133,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		);
 		d = srv6_encap_data_get(nh);
 		if (d != NULL)
-			return api_out(-EEXIST, 0);
+			return api_out(EEXIST, 0);
 
 		nh = nexthop_new(
 			GR_AF_IP4, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest4.ip
@@ -197,7 +197,7 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 
 	d = srv6_encap_data_get(nh);
 	if (d != NULL)
-		return api_out(-EEXIST, 0);
+		return api_out(EEXIST, 0);
 
 	if (req->key.is_dest6)
 		rib6_delete(
