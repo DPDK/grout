@@ -46,16 +46,15 @@ static uint16_t srv6_headend_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct rte_ipv6_hdr *inner_ip6 = NULL, *outer_ip6;
-	struct rte_ipv4_hdr *inner_ip4 = NULL;
-	struct rte_ipv6_routing_ext *srh;
 	struct trace_srv6_data *t = NULL;
+	struct rte_ipv6_routing_ext *srh;
+	struct rte_ipv6_hdr *outer_ip6;
 	struct srv6_encap_data *d;
 	const struct nexthop *nh;
-	uint32_t hdrlen, k, plen;
+	uint32_t hdrlen, plen;
 	struct rte_mbuf *m;
+	uint8_t proto, reduc;
 	rte_edge_t edge;
-	int proto, reduc;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -64,6 +63,8 @@ static uint16_t srv6_headend_process(
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));
 
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
+			struct rte_ipv4_hdr *inner_ip4;
+
 			nh = ip_output_mbuf_data(m)->nh;
 			if (t != NULL) {
 				t->dest4.ip = nh->ipv4;
@@ -75,6 +76,8 @@ static uint16_t srv6_headend_process(
 			proto = IPPROTO_IPIP;
 
 		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
+			struct rte_ipv6_hdr *inner_ip6;
+
 			nh = ip6_output_mbuf_data(m)->nh;
 			if (t != NULL) {
 				t->dest6.ip = nh->ipv6;
@@ -109,6 +112,9 @@ static uint16_t srv6_headend_process(
 		}
 
 		if (d->n_seglist > reduc) {
+			struct rte_ipv6_addr *segments;
+			uint16_t k;
+
 			srh = (struct rte_ipv6_routing_ext *)(outer_ip6 + 1);
 			srh->next_hdr = proto;
 			srh->hdr_len = (hdrlen - sizeof(*outer_ip6)) / 8 - 1;
@@ -117,7 +123,8 @@ static uint16_t srv6_headend_process(
 			srh->last_entry = d->n_seglist - 1;
 			srh->flags = 0;
 			srh->tag = 0;
-			struct rte_ipv6_addr *segments = (struct rte_ipv6_addr *)(srh + 1);
+
+			segments = (struct rte_ipv6_addr *)(srh + 1);
 			for (k = reduc; k < d->n_seglist; k++)
 				segments[d->n_seglist - k - 1] = d->seglist[k];
 			proto = IPPROTO_ROUTING;
