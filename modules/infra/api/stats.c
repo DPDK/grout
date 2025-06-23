@@ -278,6 +278,131 @@ err:
 	return -1;
 }
 
+static int
+telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	struct iface *iface = NULL;
+
+	rte_tel_data_start_dict(d);
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		if (iface->type != GR_IFACE_TYPE_LOOPBACK) {
+			struct rte_tel_data *iface_container = rte_tel_data_alloc();
+			if (iface_container == NULL) {
+				goto err;
+			}
+			rte_tel_data_start_dict(iface_container);
+
+			rte_tel_data_add_dict_string(iface_container, "name", iface->name);
+			rte_tel_data_add_dict_uint(iface_container, "id", iface->id);
+			rte_tel_data_add_dict_string(
+				iface_container, "type", iface_type_to_str(iface->type)
+			);
+			rte_tel_data_add_dict_uint(iface_container, "mtu", iface->mtu);
+
+			struct rte_tel_data *flags_array = rte_tel_data_alloc();
+			if (flags_array == NULL) {
+				rte_tel_data_free(iface_container);
+				goto err;
+			}
+			rte_tel_data_start_array(flags_array, RTE_TEL_STRING_VAL);
+			if (iface->flags & GR_IFACE_F_UP)
+				rte_tel_data_add_array_string(flags_array, "up");
+			if (iface->state & GR_IFACE_S_RUNNING)
+				rte_tel_data_add_array_string(flags_array, "running");
+			rte_tel_data_add_dict_container(iface_container, "flags", flags_array, 0);
+
+			rte_tel_data_add_dict_string(
+				iface_container, "mode", iface_mode_to_str(iface->mode)
+			);
+			rte_tel_data_add_dict_uint(iface_container, "vrf_id", iface->vrf_id);
+
+			struct rte_tel_data *stats_container = rte_tel_data_alloc();
+			if (stats_container == NULL) {
+				rte_tel_data_free(iface_container);
+				goto err;
+			}
+			rte_tel_data_start_dict(stats_container);
+
+			// Software stats
+			struct iface_stats *sw_stats = iface_get_stats(iface->id);
+			if (sw_stats != NULL) {
+				uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
+				for (int i = 0; i < RTE_MAX_LCORE; i++) {
+					rx_pkts += sw_stats->rx_packets[i];
+					rx_bytes += sw_stats->rx_bytes[i];
+					tx_pkts += sw_stats->tx_packets[i];
+					tx_bytes += sw_stats->tx_bytes[i];
+				}
+				rte_tel_data_add_dict_uint(stats_container, "rx_packets", rx_pkts);
+				rte_tel_data_add_dict_uint(stats_container, "rx_bytes", rx_bytes);
+				rte_tel_data_add_dict_uint(stats_container, "tx_packets", tx_pkts);
+				rte_tel_data_add_dict_uint(stats_container, "tx_bytes", tx_bytes);
+			}
+
+			// Get hardware stats for physical ports.
+			if (iface->type == GR_IFACE_TYPE_PORT) {
+				struct iface_info_port *port = (struct
+								iface_info_port *)iface->info;
+
+				struct rte_eth_stats eth_stats;
+				if (rte_eth_stats_get(port->port_id, &eth_stats) == 0) {
+					rte_tel_data_add_dict_uint(
+						stats_container, "rx_missed", eth_stats.imissed
+					);
+					rte_tel_data_add_dict_uint(
+						stats_container, "tx_errors", eth_stats.oerrors
+					);
+				}
+
+				int ret = rte_eth_xstats_get(port->port_id, NULL, 0);
+				if (ret > 0) {
+					unsigned num = ret;
+					struct rte_eth_xstat *xstats = calloc(num, sizeof(*xstats));
+					struct rte_eth_xstat_name *names = calloc(
+						num, sizeof(*names)
+					);
+					if (xstats != NULL && names != NULL
+					    && rte_eth_xstats_get_names(port->port_id, names, num)
+						    == (int)num
+					    && rte_eth_xstats_get(port->port_id, xstats, num)
+						    == (int)num) {
+						for (unsigned i = 0; i < num; i++) {
+							if (xstats[i].value > 0) {
+								rte_tel_data_add_dict_uint(
+									stats_container,
+									names[i].name,
+									xstats[i].value
+								);
+							}
+						}
+					}
+					free(xstats);
+					free(names);
+				}
+
+				if (rte_tel_data_add_dict_container(
+					    iface_container, "statistics", stats_container, 0
+				    )
+				    != 0) {
+					rte_tel_data_free(stats_container);
+					rte_tel_data_free(iface_container);
+					goto err;
+				}
+			}
+
+			if (rte_tel_data_add_dict_container(d, iface->name, iface_container, 0)
+			    != 0) {
+				rte_tel_data_free(iface_container);
+				goto err;
+			}
+		}
+	}
+	return 0;
+
+err:
+	return -1;
+}
+
 static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
 	.request_type = GR_INFRA_STATS_GET,
@@ -297,5 +422,10 @@ RTE_INIT(infra_stats_init) {
 		"/grout/stats/graph",
 		telemetry_sw_stats_get,
 		"Returns statistics of each graph node. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/iface",
+		telemetry_ifaces_info_get,
+		"Returns information per interface. No parameters"
 	);
 }
