@@ -196,8 +196,8 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 		);
 
 	d = srv6_encap_data_get(nh);
-	if (d != NULL)
-		return api_out(EEXIST, 0);
+	if (d == NULL)
+		return api_out(ENOENT, 0);
 
 	if (req->key.is_dest6)
 		rib6_delete(
