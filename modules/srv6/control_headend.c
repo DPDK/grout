@@ -79,7 +79,6 @@ static void srv6_encap_data_init(void) {
 }
 
 static void srv6_encap_data_release(void) {
-	//struct srv6_encap_data *d;
 	const void *key = NULL;
 	void *data = NULL;
 	uint32_t iter;
@@ -87,11 +86,6 @@ static void srv6_encap_data_release(void) {
 	iter = 0;
 	while (rte_hash_iterate(srv6_encap_hash, &key, &data, &iter) >= 0) {
 		srv6_encap_data_del((struct nexthop *)key, (struct srv6_encap_data *)data);
-		/*
-		rte_hash_del_key(srv6_encap_hash, key);
-		d = data;
-		free(d);
-		*/
 	}
 	rte_hash_free(srv6_encap_hash);
 	srv6_encap_hash = NULL;
