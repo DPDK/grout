@@ -28,6 +28,7 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint8_t ttl;
 });
 
+void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node);
 void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
