@@ -69,6 +69,10 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip_set_fields(outer, &tunnel);
 
+		struct iface_stats *stats = iface_get_stats(iface->id);
+		stats->tx_packets[rte_lcore_id()] += 1;
+		stats->tx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
+
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);
 		edge = IP_OUTPUT;

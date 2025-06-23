@@ -172,6 +172,12 @@ struct iface *iface_from_id(uint16_t ifid) {
 	return iface;
 }
 
+static struct iface_stats stats[MAX_IFACES];
+
+struct iface_stats *iface_get_stats(uint16_t ifid) {
+	return &stats[ifid];
+}
+
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
 	struct iface_type *type;
