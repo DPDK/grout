@@ -27,6 +27,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	const struct iface_info_port *port;
 	struct eth_output_mbuf_data *priv;
 	struct iface_info_vlan *sub;
+	const struct iface *iface;
 	struct rte_vlan_hdr *vlan;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *mbuf;
@@ -34,6 +35,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		priv = eth_output_mbuf_data(mbuf);
+		iface = priv->iface;
 		vlan = NULL;
 
 		switch (priv->iface->type) {
@@ -69,6 +71,10 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->src_addr = *src_mac;
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
+
+		struct iface_stats *stats = iface_get_stats(iface->id);
+		stats->tx_packets[rte_lcore_id()] += 1;
+		stats->tx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
 
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct eth_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));

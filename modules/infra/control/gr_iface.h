@@ -72,6 +72,15 @@ struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
 int iface_loopback_delete(uint16_t vrf_id);
 
+struct __rte_cache_aligned iface_stats {
+	uint64_t rx_packets[RTE_MAX_LCORE];
+	uint64_t rx_bytes[RTE_MAX_LCORE];
+	uint64_t tx_packets[RTE_MAX_LCORE];
+	uint64_t tx_bytes[RTE_MAX_LCORE];
+};
+
+struct iface_stats *iface_get_stats(uint16_t ifid);
+
 #define MAX_IFACES 1024
 #define MAX_VRFS 256
 
