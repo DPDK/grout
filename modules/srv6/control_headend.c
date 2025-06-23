@@ -38,7 +38,7 @@ static int srv6_encap_data_add(
 		return -EEXIST;
 
 	_d = calloc(1, sizeof(*_d) + sizeof(_d->seglist[0]) * n_seglist);
-	if (d == NULL)
+	if (_d == NULL)
 		return -ENOMEM;
 
 	_d->encap = encap_behavior;
