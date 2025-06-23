@@ -309,4 +309,36 @@ struct gr_infra_cpu_affinity_set_req {
 
 // struct gr_infra_cpu_affinity_set_resp { };
 
+// Helper function to convert iface type enum to string
+static inline const char *iface_type_to_str(gr_iface_type_t type) {
+	switch (type) {
+	case GR_IFACE_TYPE_UNDEF:
+		return "undef";
+	case GR_IFACE_TYPE_LOOPBACK:
+		return "loopback";
+	case GR_IFACE_TYPE_PORT:
+		return "port";
+	case GR_IFACE_TYPE_VLAN:
+		return "vlan";
+	case GR_IFACE_TYPE_IPIP:
+		return "ipip";
+	case GR_IFACE_TYPE_COUNT:
+		break;
+	}
+	return "?";
+}
+
+// Helper function to convert iface mode enum to string
+static inline const char *iface_mode_to_str(gr_iface_mode_t mode) {
+	switch (mode) {
+	case GR_IFACE_MODE_L3:
+		return "l3";
+	case GR_IFACE_MODE_L1_XC:
+		return "l1-xc";
+	case GR_IFACE_MODE_COUNT:
+		break;
+	}
+	return "?";
+}
+
 #endif
