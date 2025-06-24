@@ -315,10 +315,10 @@ void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
 void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 	grout_route_change(
 		new,
-		gr_r6->vrf_id,
+		gr_r6->nh.vrf_id,
 		gr_r6->origin,
 		AF_INET6,
-		(void *)&gr_r6->nh,
+		&gr_r6->nh.ipv6,
 		(void *)&gr_r6->dest.ip,
 		gr_r6->dest.prefixlen
 	);
