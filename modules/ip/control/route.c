@@ -161,8 +161,7 @@ int rib4_insert(
 			GR_EVENT_IP_ROUTE_ADD,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
-				nh->ipv4,
-				nh->vrf_id,
+				nh->base,
 				origin,
 			}
 		);
@@ -201,8 +200,7 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 			GR_EVENT_IP_ROUTE_DEL,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
-				nh->ipv4,
-				nh->vrf_id,
+				nh->base,
 				origin,
 			}
 		);
@@ -327,8 +325,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		rte_rib_get_ip(rn, &ip);
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
-		r->nh = nh_id_to_ptr(nh_id)->ipv4;
-		r->vrf_id = vrf_id;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->origin = *origin;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
@@ -340,8 +337,7 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 		rte_rib_get_nh(rn, &nh_id);
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
-		r->nh = nh_id_to_ptr(nh_id)->ipv4;
-		r->vrf_id = vrf_id;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->origin = *origin;
 	}
 }

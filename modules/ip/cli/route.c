@@ -72,9 +72,9 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip4_route *route = &resp->routes[i];
-		scols_line_sprintf(line, 0, "%u", route->vrf_id);
+		scols_line_sprintf(line, 0, "%u", route->nh.vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		scols_line_sprintf(line, 2, IP4_F, &route->nh);
+		scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
 		scols_line_sprintf(line, 3, "%s", gr_rt_origin_name(route->origin));
 	}
 
