@@ -271,7 +271,7 @@ int iface_destroy(uint16_t ifid) {
 static void iface_init(struct event_base *) {
 	ifaces = rte_calloc(__func__, MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
 	if (ifaces == NULL)
-		ABORT("rte_zmalloc(ifaces)");
+		ABORT("rte_calloc(ifaces)");
 }
 
 static void iface_fini(struct event_base *) {
