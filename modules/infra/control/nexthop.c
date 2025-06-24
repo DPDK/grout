@@ -116,7 +116,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_SR6:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
-		if (ops == NULL || ops->free)
+		if (ops == NULL || ops->free == NULL)
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
 			ABORT("duplicate type ops %hhu", type);
