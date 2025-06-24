@@ -11,6 +11,8 @@
 #include <gr_srv6.h>
 #include <gr_vec.h>
 
+#include <rte_malloc.h>
+
 // routes ////////////////////////////////////////////////////////////////
 
 static int srv6_encap_data_add(
@@ -24,7 +26,9 @@ static int srv6_encap_data_add(
 	if (srv6_encap_nh_priv(nh)->d != NULL)
 		return -EEXIST;
 
-	d = calloc(1, sizeof(*d) + sizeof(d->seglist[0]) * n_seglist);
+	d = rte_calloc(
+		__func__, 1, sizeof(*d) + sizeof(d->seglist[0]) * n_seglist, RTE_CACHE_LINE_SIZE
+	);
 	if (d == NULL)
 		return -ENOMEM;
 
@@ -40,7 +44,7 @@ static int srv6_encap_data_add(
 
 static void srv6_encap_data_del(struct nexthop *nh) {
 	nh->type = GR_NH_T_L3;
-	free(srv6_encap_nh_priv(nh)->d);
+	rte_free(srv6_encap_nh_priv(nh)->d);
 	srv6_encap_nh_priv(nh)->d = NULL;
 }
 
