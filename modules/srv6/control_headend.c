@@ -15,7 +15,7 @@ static struct rte_hash *srv6_encap_hash;
 
 // routes ////////////////////////////////////////////////////////////////
 
-static struct srv6_policy_data *srv6_encap_get(const struct nexthop *nh) {
+static struct srv6_encap_data *srv6_encap_get(const struct nexthop *nh) {
 	void *data;
 
 	if (nh == NULL || rte_hash_lookup_data(srv6_encap_hash, &nh, &data) < 0)
