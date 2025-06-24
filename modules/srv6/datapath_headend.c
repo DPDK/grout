@@ -93,7 +93,7 @@ static uint16_t srv6_headend_process(
 			goto next;
 		}
 
-		d = srv6_encap_data_get(nh);
+		d = srv6_encap_nh_priv(nh)->d;
 		if (d == NULL) {
 			edge = INVALID;
 			goto next;
