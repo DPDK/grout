@@ -20,7 +20,9 @@ static cmd_status_t route6_add(const struct gr_api_client *c, const struct ec_pn
 
 	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
-	if (arg_ip6(p, "NH", &req.nh) < 0)
+	if (arg_ip6(p, "NH", &req.nh) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+	if (arg_u32(p, "ID", &req.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -67,6 +69,7 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
 	scols_table_new_column(table, "ORIGIN", 0, 0);
+	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_routes; i++) {
@@ -76,6 +79,10 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, IP6_F, &route->nh.ipv6);
 		scols_line_sprintf(line, 3, "%s", gr_rt_origin_name(route->origin));
+		if (route->nh.nh_id != GR_NH_ID_UNSET)
+			scols_line_sprintf(line, 4, "%u", route->nh.nh_id);
+		else
+			scols_line_set_data(line, 4, "");
 	}
 
 	scols_print_table(table);
@@ -105,6 +112,8 @@ static cmd_status_t route6_get(const struct gr_api_client *c, const struct ec_pn
 
 	resp = resp_ptr;
 	printf(IP6_F " via " IP6_F " lladdr " ETH_F, &req.dest, &resp->nh.ipv6, &resp->nh.mac);
+	if (resp->nh.nh_id != GR_NH_ID_UNSET)
+		printf(" id %u", resp->nh.nh_id);
 	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
 		printf(" iface %s", iface.name);
 	else
@@ -120,11 +129,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP6_ADD_CTX(root),
-		"route DEST via NH [vrf VRF]",
+		"route DEST via (id ID)|(NH [vrf VRF])",
 		route6_add,
 		"Add a new route.",
 		with_help("IPv6 destination prefix.", ec_node_re("DEST", IPV6_NET_RE)),
 		with_help("IPv6 next hop address.", ec_node_re("NH", IPV6_RE)),
+		with_help("Next hop user ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)

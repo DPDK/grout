@@ -32,6 +32,7 @@ struct gr_ip6_route_add_req {
 	uint16_t vrf_id;
 	struct ip6_net dest;
 	struct rte_ipv6_addr nh;
+	uint32_t nh_id;
 	gr_rt_origin_t origin;
 	uint8_t exist_ok;
 };
