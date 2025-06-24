@@ -218,23 +218,29 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	if (req->origin == GR_RT_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0);
 
-	// ensure route gateway is reachable
-	if ((nh = rib4_lookup(req->vrf_id, req->nh)) == NULL)
-		return api_out(EHOSTUNREACH, 0);
-
-	// if the route gateway is reachable via a prefix route,
-	// create a new unresolved nexthop
-	if (nh->ipv4 != req->nh) {
-		nh = nexthop_new(&(struct gr_nexthop) {
-			.type = GR_NH_T_L3,
-			.af = GR_AF_IP4,
-			.flags = GR_NH_F_GATEWAY,
-			.vrf_id = req->vrf_id,
-			.iface_id = nh->iface_id,
-			.ipv4 = req->nh,
-		});
+	if (req->nh_id != GR_NH_ID_UNSET) {
+		nh = nexthop_lookup_by_id(req->nh_id);
 		if (nh == NULL)
-			return api_out(errno, 0);
+			return api_out(ENOENT, 0);
+	} else {
+		// ensure route gateway is reachable
+		if ((nh = rib4_lookup(req->vrf_id, req->nh)) == NULL)
+			return api_out(EHOSTUNREACH, 0);
+
+		// if the route gateway is reachable via a prefix route,
+		// create a new unresolved nexthop
+		if (nh->ipv4 != req->nh) {
+			nh = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP4,
+				.flags = GR_NH_F_GATEWAY,
+				.vrf_id = req->vrf_id,
+				.iface_id = nh->iface_id,
+				.ipv4 = req->nh,
+			});
+			if (nh == NULL)
+				return api_out(errno, 0);
+		}
 	}
 
 	// if route insert fails, the created nexthop will be freed
