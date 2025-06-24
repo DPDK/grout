@@ -11,9 +11,9 @@
 
 // sr routes //////////////////////////////////////////////////////
 
-#define GR_SRV6_POLICY_SEGLIST_COUNT_MAX 60
+#define GR_SRV6_ROUTE_SEGLIST_COUNT_MAX 60
 
-// SRv6 Policy Headend Behaviors Signaling (rfc8986 8.4)
+// SRv6 Route Headend Behaviors Signaling (rfc8986 8.4)
 typedef enum : uint8_t {
 	SR_H_ENCAPS,
 	SR_H_ENCAPS_RED,

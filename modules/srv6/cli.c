@@ -12,7 +12,7 @@
 
 #include <errno.h>
 
-// sr policy ////////////////////////////////////////////////////////////////
+// sr route ////////////////////////////////////////////////////////////////
 
 static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_route_add_req *req;
@@ -26,7 +26,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 	n = ec_pnode_find(p, "SEGLIST");
 	if (n == NULL || (n = ec_pnode_get_parent(n)) == NULL || ec_pnode_len(n) < 1)
 		return CMD_ERROR;
-	if (ec_pnode_len(n) > GR_SRV6_POLICY_SEGLIST_COUNT_MAX)
+	if (ec_pnode_len(n) > GR_SRV6_ROUTE_SEGLIST_COUNT_MAX)
 		return CMD_ERROR;
 	len = sizeof(*req) + sizeof(req->r.seglist[0]) * ec_pnode_len(n);
 	if ((req = calloc(1, len)) == NULL)
@@ -313,7 +313,7 @@ static int ctx_init(struct ec_node *root) {
 	struct ec_node *beh_node, *flavor_node;
 	int ret;
 
-	// policy commands
+	// route commands
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("sr", "Create srv6 stack elements.")),
 		"route DEST4|DEST6 seglist SEGLIST+ [encap (h.encaps|h.encaps.red)] [vrf VRF]",
