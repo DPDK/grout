@@ -79,6 +79,9 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	req.nh.iface_id = iface.id;
 	req.nh.vrf_id = iface.vrf_id;
 
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -101,7 +104,8 @@ static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode 
 		req.nh.af = GR_AF_IP6;
 		break;
 	default:
-		return CMD_ERROR;
+		if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
+			return CMD_ERROR;
 	}
 	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -135,6 +139,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 	resp = resp_ptr;
 
 	scols_table_new_column(table, "VRF", 0, 0);
+	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "FAMILY", 0, 0);
 	scols_table_new_column(table, "IP", 0, 0);
@@ -149,21 +154,25 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		const struct gr_nexthop *nh = &resp->nhs[i];
 
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
-		scols_line_sprintf(line, 1, "%s", gr_nh_type_name(nh));
-		scols_line_sprintf(line, 2, "%s", gr_af_name(nh->af));
-		scols_line_sprintf(line, 3, ADDR_F, ADDR_W(nh->af), &nh->addr);
+		if (nh->nh_id != GR_NH_ID_UNSET)
+			scols_line_sprintf(line, 1, "%u", nh->nh_id);
+		else
+			scols_line_set_data(line, 1, "");
+		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
+		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
+		scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
 
 		if (nh->state == GR_NH_S_REACHABLE)
-			scols_line_sprintf(line, 4, ETH_F, &nh->mac);
+			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
 		else
-			scols_line_set_data(line, 4, "??:??:??:??:??:??");
+			scols_line_set_data(line, 5, "??:??:??:??:??:??");
 
 		if (iface_from_id(c, nh->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 5, "%s", iface.name);
+			scols_line_sprintf(line, 6, "%s", iface.name);
 		else
-			scols_line_set_data(line, 5, "?");
+			scols_line_set_data(line, 6, "?");
 
-		scols_line_sprintf(line, 6, "%s", gr_nh_state_name(nh));
+		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh));
 
 		n = 0;
 		buf[0] = '\0';
@@ -172,7 +181,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		if (n > 0)
 			buf[n - 1] = '\0';
 
-		scols_line_sprintf(line, 7, "%s", buf);
+		scols_line_sprintf(line, 8, "%s", buf);
 	}
 
 	scols_print_table(table);
@@ -237,21 +246,23 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop IP iface IFACE [mac MAC]",
+		"nexthop IP iface IFACE [id ID] [mac MAC]",
 		nh_add,
 		"Add a new next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_DEL),
-		"nexthop IP [vrf VRF]",
+		"nexthop (id ID)|IP [vrf VRF]",
 		nh_del,
 		"Delete a next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)

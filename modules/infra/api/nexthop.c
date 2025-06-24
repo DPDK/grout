@@ -64,6 +64,12 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(base.iface_id) == NULL)
 		return api_out(errno, 0);
 
+	if (base.nh_id != GR_NH_ID_UNSET && nexthop_lookup_by_id(base.nh_id) != NULL) {
+		if (req->exist_ok)
+			return api_out(0, 0);
+		return api_out(EEXIST, 0);
+	}
+
 	nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
 	if (nh != NULL) {
 		if (req->exist_ok && base.iface_id == nh->iface_id
@@ -102,31 +108,41 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 
-	switch (req->nh.af) {
-	case GR_AF_IP4:
-		if (req->nh.ipv4 == 0)
-			return api_out(EDESTADDRREQ, 0);
-		break;
-	case GR_AF_IP6:
-		if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
-			return api_out(EDESTADDRREQ, 0);
-		break;
-	default:
-		return api_out(ENOPROTOOPT, 0);
-	}
-	if (req->nh.vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
+	if (req->nh.nh_id != GR_NH_ID_UNSET) {
+		nh = nexthop_lookup_by_id(req->nh.nh_id);
+		if (nh == NULL) {
+			if (req->missing_ok)
+				return api_out(0, 0);
+			return api_out(ENOENT, 0);
+		}
+	} else {
+		switch (req->nh.af) {
+		case GR_AF_IP4:
+			if (req->nh.ipv4 == 0)
+				return api_out(EDESTADDRREQ, 0);
+			break;
+		case GR_AF_IP6:
+			if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
+				return api_out(EDESTADDRREQ, 0);
+			break;
+		default:
+			return api_out(ENOPROTOOPT, 0);
+		}
+		if (req->nh.vrf_id >= MAX_VRFS)
+			return api_out(EOVERFLOW, 0);
 
-	nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
-	if (nh == NULL) {
-		if (errno == ENOENT && req->missing_ok)
-			return api_out(0, 0);
-		return api_out(errno, 0);
+		nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+		if (nh == NULL) {
+			if (errno == ENOENT && req->missing_ok)
+				return api_out(0, 0);
+			return api_out(errno, 0);
+		}
 	}
+
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ops = nexthop_af_ops_get(req->nh.af);
+	ops = nexthop_af_ops_get(nh->af);
 	assert(ops != NULL);
 	ops->free(nh);
 

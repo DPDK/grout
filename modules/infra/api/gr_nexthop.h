@@ -33,12 +33,15 @@ typedef enum : uint8_t {
 	GR_NH_T_DNAT,
 } gr_nh_type_t;
 
+#define GR_NH_ID_UNSET UINT32_C(0)
+
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
 	gr_nh_type_t type;
 	addr_family_t af;
 	gr_nh_state_t state;
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
+	uint32_t nh_id; //!< Arbitrary ID set by user. Zero means "unset".
 	uint16_t vrf_id; //!< L3 VRF domain
 	uint16_t iface_id; //!< interface associated with this nexthop
 	struct rte_ether_addr mac; //!< link-layer address

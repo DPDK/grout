@@ -50,6 +50,9 @@ struct hoplist {
 struct nexthop *
 nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
+// Lookup a nexthop from the global pool from its user provided ID.
+struct nexthop *nexthop_lookup_by_id(uint32_t nh_id);
+
 // Compare two nexthops, return True if the same, else False
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 
