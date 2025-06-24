@@ -11,99 +11,42 @@
 #include <gr_srv6.h>
 #include <gr_vec.h>
 
-static struct rte_hash *srv6_encap_hash;
-
 // routes ////////////////////////////////////////////////////////////////
-
-static struct srv6_encap_data *srv6_encap_get(const struct nexthop *nh) {
-	void *data;
-
-	if (nh == NULL || rte_hash_lookup_data(srv6_encap_hash, &nh, &data) < 0)
-		return NULL;
-
-	return data;
-}
 
 static int srv6_encap_data_add(
 	struct nexthop *nh,
 	gr_srv6_encap_behavior_t encap_behavior,
 	uint8_t n_seglist,
-	const struct rte_ipv6_addr *seglist,
-	struct srv6_encap_data **d
+	const struct rte_ipv6_addr *seglist
 ) {
-	struct srv6_encap_data *_d;
-	int ret;
+	struct srv6_encap_data *d;
 
-	if (srv6_encap_get(nh))
+	if (srv6_encap_nh_priv(nh)->d != NULL)
 		return -EEXIST;
 
-	_d = calloc(1, sizeof(*_d) + sizeof(_d->seglist[0]) * n_seglist);
-	if (_d == NULL)
+	d = calloc(1, sizeof(*d) + sizeof(d->seglist[0]) * n_seglist);
+	if (d == NULL)
 		return -ENOMEM;
 
-	_d->encap = encap_behavior;
-	_d->n_seglist = n_seglist;
-	memcpy(_d->seglist, seglist, sizeof(_d->seglist[0]) * n_seglist);
+	d->encap = encap_behavior;
+	d->n_seglist = n_seglist;
+	memcpy(d->seglist, seglist, sizeof(d->seglist[0]) * n_seglist);
 
-	ret = rte_hash_add_key_data(srv6_encap_hash, &nh, _d);
-	if (ret < 0) {
-		free(_d);
-		return -EEXIST;
-	}
+	srv6_encap_nh_priv(nh)->d = d;
+	nh->type = GR_NH_T_SR6;
 
-	nexthop_incref(nh);
-	*d = _d;
 	return 0;
 }
 
-static int srv6_encap_data_del(struct nexthop *nh, struct srv6_encap_data *d) {
-	rte_hash_del_key(srv6_encap_hash, &nh);
-	nexthop_decref(nh);
-	free(d);
-	return 0;
-}
-
-static void srv6_encap_data_init(void) {
-	// store srv6 encap data, index by nh
-	struct rte_hash_parameters params = {
-		.name = "srv6_encap",
-		.entries = 4096,
-		.key_len = sizeof(struct nexthop *),
-		.socket_id = SOCKET_ID_ANY,
-		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
-			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
-	};
-	srv6_encap_hash = rte_hash_create(&params);
-	if (srv6_encap_hash == NULL)
-		ABORT("rte_hash_create(srv6_encap)");
-}
-
-static void srv6_encap_data_release(void) {
-	const void *key = NULL;
-	void *data = NULL;
-	uint32_t iter;
-
-	iter = 0;
-	while (rte_hash_iterate(srv6_encap_hash, &key, &data, &iter) >= 0) {
-		srv6_encap_data_del((struct nexthop *)key, (struct srv6_encap_data *)data);
-	}
-	rte_hash_free(srv6_encap_hash);
-	srv6_encap_hash = NULL;
-}
-
-struct srv6_encap_data *srv6_encap_data_get(const struct nexthop *nh) {
-	void *data;
-
-	if (nh == NULL || nh->type != GR_NH_T_SR6
-	    || rte_hash_lookup_data(srv6_encap_hash, &nh, &data) < 0)
-		return NULL;
-	return data;
+static void srv6_encap_data_del(struct nexthop *nh) {
+	nh->type = GR_NH_T_L3;
+	free(srv6_encap_nh_priv(nh)->d);
+	srv6_encap_nh_priv(nh)->d = NULL;
 }
 
 // srv6 route ////////////////////////////////////////////////////////////////
 static struct api_out srv6_route_add(const void *request, void ** /*response*/) {
 	const struct gr_srv6_route_add_req *req = request;
-	struct srv6_encap_data *d;
 	struct nexthop *nh;
 	int ret;
 
@@ -116,8 +59,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			req->r.key.dest6.prefixlen
 		);
 
-		d = srv6_encap_data_get(nh);
-		if (d != NULL)
+		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
 			return api_out(EEXIST, 0);
 
 		nh = nexthop_new(
@@ -131,8 +73,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		nh = rib4_lookup_exact(
 			req->r.key.vrf_id, req->r.key.dest4.ip, req->r.key.dest4.prefixlen
 		);
-		d = srv6_encap_data_get(nh);
-		if (d != NULL)
+		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
 			return api_out(EEXIST, 0);
 
 		nh = nexthop_new(
@@ -142,11 +83,10 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			return api_out(errno, 0);
 		nh->prefixlen = req->r.key.dest4.prefixlen;
 	}
-	nh->type = GR_NH_T_SR6;
 	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC;
 	nh->state = GR_NH_S_REACHABLE;
 
-	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist, &d);
+	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist);
 	if (ret < 0) {
 		nexthop_decref(nh);
 		return api_out(-ret, 0);
@@ -170,17 +110,14 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			nh
 		);
 
-	if (ret < 0) {
-		srv6_encap_data_del(nh, d);
+	if (ret < 0)
 		return api_out(-ret, 0);
-	}
 
 	return api_out(0, 0);
 }
 
 static struct api_out srv6_route_del(const void *request, void ** /*response*/) {
 	const struct gr_srv6_route_del_req *req = request;
-	struct srv6_encap_data *d;
 	struct nexthop *nh;
 
 	if (req->key.is_dest6)
@@ -195,8 +132,7 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 			req->key.vrf_id, req->key.dest4.ip, req->key.dest4.prefixlen
 		);
 
-	d = srv6_encap_data_get(nh);
-	if (d == NULL)
+	if (nh == NULL || nh->type != GR_NH_T_SR6)
 		return api_out(ENOENT, 0);
 
 	if (req->key.is_dest6)
@@ -210,53 +146,50 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 	else
 		rib4_delete(req->key.vrf_id, req->key.dest4.ip, req->key.dest4.prefixlen);
 
-	srv6_encap_data_del(nh, d);
 	return api_out(0, 0);
+}
+
+struct list_context {
+	uint16_t vrf_id;
+	struct nexthop **nhs;
+	ssize_t len;
+};
+
+static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
+	struct list_context *ctx = priv;
+	struct srv6_encap_data *d;
+
+	if ((nh->type != GR_NH_T_SR6) || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
+		return;
+
+	d = srv6_encap_nh_priv(nh)->d;
+	if (d == NULL)
+		return;
+
+	ctx->len += sizeof(struct gr_srv6_route) + d->n_seglist * sizeof(d->seglist[0]);
+	gr_vec_add(ctx->nhs, nh);
 }
 
 static struct api_out srv6_route_list(const void *request, void **response) {
 	const struct gr_srv6_route_list_req *req = request;
-
-	struct srv6_encap_data **d_list = NULL;
-	const struct nexthop **nh_list = NULL;
 	struct gr_srv6_route_list_resp *resp;
+	struct list_context ctx = {.vrf_id = req->vrf_id, .nhs = NULL, .len = sizeof(*resp)};
 	struct srv6_encap_data *d;
-	ssize_t len = sizeof(*resp);
 	struct gr_srv6_route *r;
 	const struct nexthop *nh;
-	void *data_ptr, *ptr;
-	const void *key_ptr;
-	uint32_t iter, i;
+	void *ptr;
 
-	iter = 0;
-	key_ptr = NULL;
-	while (rte_hash_iterate(srv6_encap_hash, &key_ptr, &data_ptr, &iter) >= 0) {
-		nh = *(const struct nexthop **)key_ptr;
-		d = data_ptr;
+	nexthop_iter(nh_srv6_list_cb, &ctx);
 
-		if (req->vrf_id == UINT16_MAX || req->vrf_id == nh->vrf_id) {
-			gr_vec_add(nh_list, nh);
-			gr_vec_add(d_list, d);
-			len += sizeof(struct gr_srv6_route) + d->n_seglist * sizeof(d->seglist[0]);
-		}
-	}
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(nh_list);
-		gr_vec_free(d_list);
+	if ((resp = calloc(1, ctx.len)) == NULL) {
 		return api_out(ENOMEM, 0);
 	}
+	resp->n_route = 0;
 
-	if (nh_list == NULL) {
-		*response = resp;
-		return api_out(0, len);
-	}
-
-	resp->n_route = gr_vec_len(nh_list);
 	ptr = resp->route;
-	for (i = 0; i < resp->n_route; i++) {
+	gr_vec_foreach (nh, ctx.nhs) {
 		r = ptr;
-		nh = nh_list[i];
-		d = d_list[i];
+		d = srv6_encap_nh_priv(nh)->d;
 
 		r->key.vrf_id = nh->vrf_id;
 		switch (nh->af) {
@@ -271,32 +204,25 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 			r->key.dest4.prefixlen = nh->prefixlen;
 			break;
 		default:
-			abort();
+			// should never happen
+			continue;
 		}
 
 		r->encap_behavior = d->encap;
 		r->n_seglist = d->n_seglist;
 		memcpy(r->seglist, d->seglist, r->n_seglist * sizeof(r->seglist[0]));
 		ptr += sizeof(*r) + r->n_seglist * sizeof(r->seglist[0]);
+		resp->n_route++;
 	}
-	assert(ptr - (void *)resp <= len);
-	gr_vec_free(nh_list);
-	gr_vec_free(d_list);
+	assert(ptr - (void *)resp <= ctx.len);
+	gr_vec_free(ctx.nhs);
 
 	*response = resp;
 
-	return api_out(0, len);
+	return api_out(0, ctx.len);
 }
 
 // srv6 headend module /////////////////////////////////////////////////////
-
-static void srv6_init(struct event_base *) {
-	srv6_encap_data_init();
-}
-
-static void srv6_fini(struct event_base *) {
-	srv6_encap_data_release();
-}
 
 static struct gr_api_handler srv6_route_add_handler = {
 	.name = "sr route add",
@@ -314,15 +240,13 @@ static struct gr_api_handler srv6_route_list_handler = {
 	.callback = srv6_route_list,
 };
 
-static struct gr_module srv6_headend_module = {
-	.name = "srv6_headend",
-	.init = srv6_init,
-	.fini = srv6_fini,
+static struct nexthop_type_ops nh_ops = {
+	.free = srv6_encap_data_del,
 };
 
 RTE_INIT(srv6_constructor) {
 	gr_register_api_handler(&srv6_route_add_handler);
 	gr_register_api_handler(&srv6_route_del_handler);
 	gr_register_api_handler(&srv6_route_list_handler);
-	gr_register_module(&srv6_headend_module);
+	nexthop_type_ops_register(GR_NH_T_SR6, &nh_ops);
 }
