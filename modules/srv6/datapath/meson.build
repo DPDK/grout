@@ -3,6 +3,6 @@
 
 src += files(
   'srv6_local.c',
-  'srv6_headend.c',
+  'srv6_output.c',
 )
 inc += include_directories('.')
