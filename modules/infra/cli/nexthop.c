@@ -165,7 +165,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		if (nh->state == GR_NH_S_REACHABLE)
 			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
 		else
-			scols_line_set_data(line, 5, "??:??:??:??:??:??");
+			scols_line_set_data(line, 5, "?");
 
 		if (iface_from_id(c, nh->iface_id, &iface) == 0)
 			scols_line_sprintf(line, 6, "%s", iface.name);
