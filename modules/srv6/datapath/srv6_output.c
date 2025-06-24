@@ -154,8 +154,8 @@ next:
 }
 
 static void srv6_output_register(void) {
-	ip_output_register_nexthop_type(GR_NH_T_SR6, "sr6_output");
-	ip6_output_register_nexthop_type(GR_NH_T_SR6, "sr6_output");
+	ip_output_register_nexthop_type(GR_NH_T_SR6_OUTPUT, "sr6_output");
+	ip6_output_register_nexthop_type(GR_NH_T_SR6_OUTPUT, "sr6_output");
 }
 
 static struct rte_node_register srv6_output_node = {

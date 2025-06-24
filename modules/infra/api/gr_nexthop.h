@@ -28,7 +28,7 @@ typedef enum : uint8_t {
 
 typedef enum : uint8_t {
 	GR_NH_T_L3 = 0, // Default value
-	GR_NH_T_SR6,
+	GR_NH_T_SR6_OUTPUT,
 	GR_NH_T_SR6_LOCAL,
 	GR_NH_T_DNAT,
 } gr_nh_type_t;
@@ -102,7 +102,7 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 	switch (nh->type) {
 	case GR_NH_T_L3:
 		return "L3";
-	case GR_NH_T_SR6:
+	case GR_NH_T_SR6_OUTPUT:
 		return "SRv6";
 	case GR_NH_T_SR6_LOCAL:
 		return "SRv6-local";
