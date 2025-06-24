@@ -161,7 +161,8 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	nh = data;
 	nh->base = *base;
 
-	gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
+	if (!(nh->flags & GR_NH_F_MCAST))
+		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
 	return nh;
 }
@@ -282,7 +283,8 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+		if (!(nh->flags & GR_NH_F_MCAST))
+			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 		const struct nexthop_type_ops *ops = type_ops[nh->type];
 		if (ops != NULL && ops->free != NULL)
 			ops->free(nh);
