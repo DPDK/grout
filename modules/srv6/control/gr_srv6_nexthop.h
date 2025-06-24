@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#ifndef _GR_SRV6_PRIV
-#define _GR_SRV6_PRIV
-
-#include "gr_srv6.h"
+#ifndef _GR_SRV6_NEXTHOP
+#define _GR_SRV6_NEXTHOP
 
 #include <gr_nh_control.h>
+#include <gr_srv6.h>
 
 //
 // srv6 local data stored in nexthop priv
