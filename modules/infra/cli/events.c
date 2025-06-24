@@ -88,7 +88,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route add: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh,
+			       &r6->nh.ipv6,
 			       gr_rt_origin_name(r6->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_DEL:
@@ -97,7 +97,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route del: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh,
+			       &r6->nh.ipv6,
 			       gr_rt_origin_name(r6->origin));
 			break;
 		case GR_EVENT_NEXTHOP_NEW:

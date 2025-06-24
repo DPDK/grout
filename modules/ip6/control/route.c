@@ -175,8 +175,7 @@ int rib6_insert(
 			GR_EVENT_IP6_ROUTE_ADD,
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
-				nh->ipv6,
-				vrf_id,
+				nh->base,
 				origin,
 			}
 		);
@@ -222,8 +221,7 @@ int rib6_delete(
 			GR_EVENT_IP6_ROUTE_DEL,
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
-				nh->ipv6,
-				vrf_id,
+				nh->base,
 				origin,
 			}
 		);
@@ -358,8 +356,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_nh(rn, &nh_id);
 		rte_rib6_get_ip(rn, &r->dest.ip);
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
-		r->nh = nh_id_to_ptr(nh_id)->ipv6;
-		r->vrf_id = vrf_id;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->dest.ip = *addr6_linklocal_unscope(&r->dest.ip, &tmp);
 		r->origin = *origin;
 	}
@@ -371,8 +368,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
-		r->nh = nh_id_to_ptr(nh_id)->ipv6;
-		r->vrf_id = vrf_id;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->origin = *origin;
 	}
 }
