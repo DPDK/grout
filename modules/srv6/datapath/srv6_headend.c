@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#include "srv6_priv.h"
-
 #include <gr_fib6.h>
 #include <gr_graph.h>
 #include <gr_ip4_datapath.h>
 #include <gr_ip6_datapath.h>
 #include <gr_srv6.h>
+#include <gr_srv6_nexthop.h>
 #include <gr_trace.h>
 #include <gr_vec.h>
 
