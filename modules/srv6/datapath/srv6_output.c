@@ -39,12 +39,8 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 }
 
 // called from 'ip6_output' or 'ip_output' node
-static uint16_t srv6_headend_process(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	void **objs,
-	uint16_t nb_objs
-) {
+static uint16_t
+srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct trace_srv6_data *t = NULL;
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
@@ -157,15 +153,15 @@ next:
 	return nb_objs;
 }
 
-static void srv6_source_register(void) {
-	ip_output_register_nexthop_type(GR_NH_T_SR6, "sr6_headend");
-	ip6_output_register_nexthop_type(GR_NH_T_SR6, "sr6_headend");
+static void srv6_output_register(void) {
+	ip_output_register_nexthop_type(GR_NH_T_SR6, "sr6_output");
+	ip6_output_register_nexthop_type(GR_NH_T_SR6, "sr6_output");
 }
 
-static struct rte_node_register srv6_source_node = {
-	.name = "sr6_headend",
+static struct rte_node_register srv6_output_node = {
+	.name = "sr6_output",
 
-	.process = srv6_headend_process,
+	.process = srv6_output_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
@@ -176,13 +172,13 @@ static struct rte_node_register srv6_source_node = {
 	},
 };
 
-static struct gr_node_info srv6_source_info = {
-	.node = &srv6_source_node,
+static struct gr_node_info srv6_output_info = {
+	.node = &srv6_output_node,
 	.trace_format = trace_srv6_format,
-	.register_callback = srv6_source_register,
+	.register_callback = srv6_output_register,
 };
 
-GR_NODE_REGISTER(srv6_source_info);
+GR_NODE_REGISTER(srv6_output_info);
 
 GR_DROP_REGISTER(sr6_pkt_invalid);
 GR_DROP_REGISTER(sr6_source_no_route);
