@@ -163,6 +163,8 @@ struct list_context {
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 
+	if (nh->flags & GR_NH_F_MCAST)
+		return;
 	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
 		return;
 
