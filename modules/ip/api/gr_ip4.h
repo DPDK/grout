@@ -18,8 +18,7 @@ struct gr_ip4_ifaddr {
 
 struct gr_ip4_route {
 	struct ip4_net dest;
-	ip4_addr_t nh;
-	uint16_t vrf_id;
+	struct gr_nexthop nh;
 	gr_rt_origin_t origin;
 };
 

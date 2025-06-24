@@ -303,10 +303,10 @@ static void grout_route_change(
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
 	grout_route_change(
 		new,
-		gr_r4->vrf_id,
+		gr_r4->nh.vrf_id,
 		gr_r4->origin,
 		AF_INET,
-		(void *)&gr_r4->nh,
+		&gr_r4->nh.ipv4,
 		(void *)&gr_r4->dest.ip,
 		gr_r4->dest.prefixlen
 	);
