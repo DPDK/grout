@@ -209,6 +209,7 @@ struct lookup_filter {
 	addr_family_t af;
 	uint16_t vrf_id;
 	uint16_t iface_id;
+	uint32_t nh_id;
 	const void *addr;
 	struct nexthop *nh;
 };
@@ -216,7 +217,15 @@ struct lookup_filter {
 static void nh_lookup_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
 
-	if (filter->nh != NULL || nh->af != filter->af || nh->vrf_id != filter->vrf_id)
+	if (filter->nh != NULL)
+		return;
+
+	if (filter->nh_id != GR_NH_ID_UNSET && filter->nh_id == nh->nh_id) {
+		filter->nh = nh;
+		return;
+	}
+
+	if (nh->af != filter->af || nh->vrf_id != filter->vrf_id)
 		return;
 
 	switch (filter->af) {
@@ -239,6 +248,12 @@ nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void 
 	struct lookup_filter filter = {
 		.af = af, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
 	};
+	nexthop_iter(nh_lookup_cb, &filter);
+	return filter.nh ?: errno_set_null(ENOENT);
+}
+
+struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
+	struct lookup_filter filter = {.nh_id = nh_id};
 	nexthop_iter(nh_lookup_cb, &filter);
 	return filter.nh ?: errno_set_null(ENOENT);
 }
