@@ -113,7 +113,7 @@ const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af) {
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
 	switch (type) {
 	case GR_NH_T_L3:
-	case GR_NH_T_SR6:
+	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
 		if (ops == NULL || ops->free == NULL)
