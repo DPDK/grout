@@ -172,7 +172,7 @@ static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_hdr *ip6;
 
-	/* if not already decap */
+	// if not already decap
 	if (ip6_info->ext_offset) {
 		if (ip6_info->sr)
 			decap_srv6(m, ip6_info);
