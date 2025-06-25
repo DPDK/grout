@@ -25,7 +25,7 @@ struct grout_ctx_t {
 	struct gr_api_client *dplane_notifs;
 	struct gr_api_client *zebra_notifs;
 
-	/* Event/'thread' pointer for queued updates */
+	// Event/'thread' pointer for queued updates
 	struct event *dg_t_zebra_update;
 	struct event *dg_t_dplane_update;
 };
@@ -367,7 +367,7 @@ static void zebra_read_notifications(struct event *event) {
 	);
 }
 
-/* Grout provider callback. */
+// Grout provider callback.
 static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx *ctx) {
 	switch (dplane_ctx_get_op(ctx)) {
 	case DPLANE_OP_ADDR_INSTALL:

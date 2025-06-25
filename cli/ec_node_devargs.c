@@ -93,7 +93,7 @@ static int ec_node_devargs_complete(
 	dir = NULL;
 
 skip_pci:
-	/* see dpdk fsml_bus.c:rte_fslmc_scan() without rte_ specific code */
+	// see dpdk fsml_bus.c:rte_fslmc_scan() without rte_ specific code
 	char fslmc_dirpath[PATH_MAX];
 	const char *group_name;
 
@@ -113,10 +113,10 @@ skip_pci:
 		if (!ec_str_startswith(buf2, word))
 			continue;
 
-		/* Parse the device name, ignore ID */
+		// Parse the device name, ignore ID
 		if (strncmp("dpni.", de->d_name, 5))
 			continue;
-		/* dev_type is DPAA2_ETH, but driver shall be vfio-fsl-mc */
+		// dev_type is DPAA2_ETH, but driver shall be vfio-fsl-mc
 		snprintf(buf, sizeof(buf), "%s/%s", de->d_name, "driver");
 		if ((dir_fd = dirfd(dir)) < 0)
 			continue;
