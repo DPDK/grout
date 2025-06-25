@@ -3,6 +3,7 @@
 [codespell]
 quiet-level = 35
 skip =
+	build/*,
 	subprojects/*,
 ignore-words-list =
 	te,
