@@ -121,6 +121,8 @@ lint:
 	}
 	@echo '[white-space]'
 	$Q $(all_files) | xargs devtools/check-whitespace
+	@echo '[comments]'
+	$Q $(c_src) | xargs devtools/check-comments
 	@echo '[codespell]'
 	$Q codespell *
 
