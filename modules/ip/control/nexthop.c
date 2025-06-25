@@ -45,7 +45,13 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = nh4_new(nh->vrf_id, nh->iface_id, dst);
+			remote = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP4,
+				.vrf_id = nh->vrf_id,
+				.iface_id = nh->iface_id,
+				.ipv4 = dst,
+			});
 		}
 
 		if (remote == NULL) {
@@ -116,7 +122,14 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		// Create one now. If the sender has requested our mac address,
 		// they will certainly contact us soon and it will save us an
 		// ARP request.
-		if ((nh = nh4_new(iface->vrf_id, iface->id, sip)) == NULL) {
+		nh = nexthop_new(&(struct gr_nexthop) {
+			.type = GR_NH_T_L3,
+			.af = GR_AF_IP4,
+			.vrf_id = iface->vrf_id,
+			.iface_id = iface->id,
+			.ipv4 = sip,
+		});
+		if (nh == NULL) {
 			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
 			goto free;
 		}

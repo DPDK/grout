@@ -248,9 +248,16 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	// if the route gateway is reachable via a prefix route,
 	// create a new unresolved nexthop
 	if (!rte_ipv6_addr_eq(&nh->ipv6, &req->nh)) {
-		if ((nh = nh6_new(req->vrf_id, nh->iface_id, &req->nh)) == NULL)
+		nh = nexthop_new(&(struct gr_nexthop) {
+			.type = GR_NH_T_L3,
+			.af = GR_AF_IP6,
+			.flags = GR_NH_F_GATEWAY,
+			.vrf_id = nh->vrf_id,
+			.iface_id = nh->iface_id,
+			.ipv6 = req->nh,
+		});
+		if (nh == NULL)
 			return api_out(errno, 0);
-		nh->flags |= GR_NH_F_GATEWAY;
 	}
 
 	// if route insert fails, the created nexthop will be freed

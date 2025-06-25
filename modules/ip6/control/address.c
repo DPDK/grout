@@ -104,14 +104,22 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	}
 
 	if ((nh = nh6_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
-		if ((nh = nh6_new(iface->vrf_id, iface->id, ip)) == NULL)
+		struct gr_nexthop base = {
+			.type = GR_NH_T_L3,
+			.af = GR_AF_IP6,
+			.state = GR_NH_S_REACHABLE,
+			.flags = GR_NH_F_STATIC | GR_NH_F_MCAST,
+			.vrf_id = iface->vrf_id,
+			.iface_id = iface->id,
+			.ipv6 = *ip,
+		};
+		rte_ether_mcast_from_ipv6(&base.mac, ip);
+
+		if ((nh = nexthop_new(&base)) == NULL)
 			return errno_set(-errno);
-		rte_ether_mcast_from_ipv6(&nh->mac, ip);
 	}
 
 	nexthop_incref(nh);
-	nh->flags = GR_NH_F_STATIC | GR_NH_F_MCAST;
-	nh->state = GR_NH_S_REACHABLE;
 	gr_vec_add(maddrs->nh, nh);
 
 	// add ethernet filter
@@ -164,18 +172,21 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (nh6_lookup(iface->vrf_id, iface->id, ip) != NULL)
 		return errno_set(EADDRINUSE);
 
-	if ((nh = nh6_new(iface->vrf_id, iface->id, ip)) == NULL)
+	struct gr_nexthop base = {
+		.type = GR_NH_T_L3,
+		.af = GR_AF_IP6,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = iface->vrf_id,
+		.iface_id = iface->id,
+		.ipv6 = *ip,
+		.prefixlen = prefixlen,
+	};
+	if ((ret = iface_get_eth_addr(iface->id, &base.mac)) < 0 && errno != EOPNOTSUPP)
+		return errno_set(-ret);
+
+	if ((nh = nexthop_new(&base)) == NULL)
 		return errno_set(-errno);
-
-	nh->prefixlen = prefixlen;
-	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC;
-	nh->state = GR_NH_S_REACHABLE;
-
-	if ((ret = iface_get_eth_addr(iface->id, &nh->mac)) < 0)
-		if (errno != EOPNOTSUPP) {
-			nexthop_decref(nh);
-			return errno_set(-ret);
-		}
 
 	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_RT_ORIGIN_LINK, nh);
 	if (ret < 0)

@@ -130,11 +130,27 @@ const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type) {
 	return type_ops[type];
 }
 
-struct nexthop *
-nexthop_new(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	struct nexthop *nh;
 	void *data;
 	int ret;
+
+	switch (base->type) {
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6_OUTPUT:
+	case GR_NH_T_SR6_LOCAL:
+	case GR_NH_T_DNAT:
+		break;
+	default:
+		ABORT("invalid nexthop type %hhu", base->type);
+	}
+	switch (base->af) {
+	case GR_AF_IP4:
+	case GR_AF_IP6:
+		break;
+	default:
+		ABORT("invalid nexthop family %hhu", base->af);
+	}
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("nexthop created from datapath thread");
@@ -143,19 +159,7 @@ nexthop_new(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *ad
 		return errno_set_null(-ret);
 
 	nh = data;
-	nh->vrf_id = vrf_id;
-	nh->iface_id = iface_id;
-	nh->af = af;
-	switch (af) {
-	case GR_AF_IP4:
-		nh->ipv4 = *(ip4_addr_t *)addr;
-		break;
-	case GR_AF_IP6:
-		nh->ipv6 = *(struct rte_ipv6_addr *)addr;
-		break;
-	default:
-		ABORT("invalid nexthop family %hhu", af);
-	}
+	nh->base = *base;
 
 	gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 

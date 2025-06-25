@@ -54,7 +54,7 @@ nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void 
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 
 // Allocate a new nexthop from the global pool with the provided initial values.
-struct nexthop *nexthop_new(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+struct nexthop *nexthop_new(const struct gr_nexthop *);
 
 // Clean all next hop related to an interface.
 void nexthop_cleanup(uint16_t iface_id);
