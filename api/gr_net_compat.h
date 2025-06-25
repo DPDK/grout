@@ -31,7 +31,7 @@ struct __attribute__((aligned(2))) rte_ether_addr {
 	uint8_t addr_bytes[RTE_ETHER_ADDR_LEN];
 };
 
-/* ICMP packet types */
+// ICMP packet types
 #define RTE_ICMP_TYPE_ECHO_REPLY 0
 #define RTE_ICMP_TYPE_DEST_UNREACHABLE 3
 #define RTE_ICMP_TYPE_REDIRECT 5
@@ -41,7 +41,7 @@ struct __attribute__((aligned(2))) rte_ether_addr {
 #define RTE_ICMP_TYPE_TIMESTAMP_REQUEST 13
 #define RTE_ICMP_TYPE_TIMESTAMP_REPLY 14
 
-/* Destination Unreachable codes */
+// Destination Unreachable codes
 #define RTE_ICMP_CODE_UNREACH_NET 0
 #define RTE_ICMP_CODE_UNREACH_HOST 1
 #define RTE_ICMP_CODE_UNREACH_PROTO 2
@@ -49,17 +49,17 @@ struct __attribute__((aligned(2))) rte_ether_addr {
 #define RTE_ICMP_CODE_UNREACH_FRAG 4
 #define RTE_ICMP_CODE_UNREACH_SRC 5
 
-/* Time Exceeded codes */
+// Time Exceeded codes
 #define RTE_ICMP_CODE_TTL_EXCEEDED 0
 #define RTE_ICMP_CODE_TTL_FRAG 1
 
-/* Redirect codes */
+// Redirect codes
 #define RTE_ICMP_CODE_REDIRECT_NET 0
 #define RTE_ICMP_CODE_REDIRECT_HOST 1
 #define RTE_ICMP_CODE_REDIRECT_TOS_NET 2
 #define RTE_ICMP_CODE_REDIRECT_TOS_HOST 3
 
-/* ICMPv6 packet types */
+// ICMPv6 packet types
 #define ICMP6_TYPE_ERR_DEST_UNREACH 1
 #define ICMP6_TYPE_ERR_PKT_TOO_BIG 2
 #define ICMP6_TYPE_ERR_TTL_EXCEEDED 3

@@ -151,7 +151,7 @@ struct gr_ip6_icmp_send_req {
 	uint8_t ttl;
 };
 
-/* struct gr_ip6_icmp_send_resp { } */
+// struct gr_ip6_icmp_send_resp { };
 
 #define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
 
