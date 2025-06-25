@@ -41,44 +41,48 @@ static struct gr_api_handler config_set_handler = {
 static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
 	const struct nexthop_af_ops *ops;
+	struct gr_nexthop base = req->nh;
 	struct nexthop *nh;
+
 	int ret;
 
-	switch (req->nh.af) {
+	switch (base.af) {
 	case GR_AF_IP4:
-		if (req->nh.ipv4 == 0)
+		if (base.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
 		break;
 	case GR_AF_IP6:
-		if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
+		if (rte_ipv6_addr_is_unspec(&base.ipv6))
 			return api_out(EDESTADDRREQ, 0);
 		break;
 	default:
 		return api_out(ENOPROTOOPT, 0);
 	}
-	if (req->nh.vrf_id >= MAX_VRFS)
+	if (base.vrf_id >= MAX_VRFS)
 		return api_out(EOVERFLOW, 0);
 
-	if (iface_from_id(req->nh.iface_id) == NULL)
+	if (iface_from_id(base.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+	nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
 	if (nh != NULL) {
-		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && rte_is_same_ether_addr(&req->nh.mac, &nh->mac))
+		if (req->exist_ok && base.iface_id == nh->iface_id
+		    && rte_is_same_ether_addr(&base.mac, &nh->mac))
 			return api_out(0, 0);
 		return api_out(EEXIST, 0);
 	}
 
-	nh = nexthop_new(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
+	base.type = GR_NH_T_L3;
+	base.state = GR_NH_S_NEW;
+	base.flags = 0;
+	if (!rte_is_zero_ether_addr(&base.mac)) {
+		base.state = GR_NH_S_REACHABLE;
+		base.flags = GR_NH_F_STATIC;
+	}
+
+	nh = nexthop_new(&base);
 	if (nh == NULL)
 		return api_out(errno, 0);
-
-	nh->mac = req->nh.mac;
-	if (!rte_is_zero_ether_addr(&nh->mac)) {
-		nh->flags = GR_NH_F_STATIC;
-		nh->state = GR_NH_S_REACHABLE;
-	}
 
 	ops = nexthop_af_ops_get(req->nh.af);
 	assert(ops != NULL);

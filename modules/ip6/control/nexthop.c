@@ -46,7 +46,13 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = nh6_new(nh->vrf_id, nh->iface_id, dst);
+			remote = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP6,
+				.vrf_id = nh->vrf_id,
+				.iface_id = nh->iface_id,
+				.ipv6 = *dst,
+			});
 		}
 
 		if (remote == NULL) {
@@ -152,7 +158,14 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 			//
 			// Create one now. If the sender has requested our mac address, they
 			// will certainly contact us soon and it will save us an NDP solicitation.
-			if ((nh = nh6_new(iface->vrf_id, iface->id, remote)) == NULL) {
+			nh = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP6,
+				.vrf_id = iface->vrf_id,
+				.iface_id = iface->id,
+				.ipv6 = *remote,
+			});
+			if (nh == NULL) {
 				LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
 				goto free;
 			}

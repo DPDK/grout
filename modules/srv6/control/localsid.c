@@ -14,15 +14,21 @@
 static struct api_out srv6_localsid_add(const void *request, void ** /*response*/) {
 	const struct gr_srv6_localsid_add_req *req = request;
 	struct srv6_localsid_nh_priv *data;
+	struct gr_nexthop base = {
+		.type = GR_NH_T_SR6_LOCAL,
+		.af = GR_AF_IP6,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = req->l.vrf_id,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.ipv6 = req->l.lsid,
+	};
 	struct nexthop *nh;
 	int r;
 
-	nh = nexthop_new(GR_AF_IP6, req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid);
+	nh = nexthop_new(&base);
 	if (nh == NULL)
 		return api_out(errno, 0);
-	nh->type = GR_NH_T_SR6_LOCAL;
-	nh->flags |= GR_NH_F_LOCAL | GR_NH_F_STATIC;
-	nh->state = GR_NH_S_REACHABLE;
 
 	data = srv6_localsid_nh_priv(nh);
 	data->behavior = req->l.behavior;

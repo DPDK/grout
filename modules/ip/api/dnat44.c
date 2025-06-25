@@ -28,13 +28,18 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 		return api_out(EEXIST, 0);
 	}
 
-	nh = nh4_new(iface->vrf_id, iface->id, req->rule.match);
+	nh = nexthop_new(&(struct gr_nexthop) {
+		.type = GR_NH_T_DNAT,
+		.af = GR_AF_IP4,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = iface->vrf_id,
+		.iface_id = iface->id,
+		.ipv4 = req->rule.match,
+	});
 	if (nh == NULL)
 		return api_out(ENOMEM, 0);
 
-	nh->flags = GR_NH_F_LOCAL | GR_NH_F_STATIC;
-	nh->state = GR_NH_S_REACHABLE;
-	nh->type = GR_NH_T_DNAT;
 	data = dnat44_nh_data(nh);
 	data->replace = req->rule.replace;
 	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_RT_ORIGIN_INTERNAL, nh);

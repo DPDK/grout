@@ -36,7 +36,6 @@ static int srv6_encap_data_add(
 	memcpy(d->seglist, seglist, sizeof(d->seglist[0]) * n_seglist);
 
 	srv6_encap_nh_priv(nh)->d = d;
-	nh->type = GR_NH_T_SR6_OUTPUT;
 
 	return 0;
 }
@@ -50,6 +49,14 @@ static void srv6_encap_data_del(struct nexthop *nh) {
 // srv6 route ////////////////////////////////////////////////////////////////
 static struct api_out srv6_route_add(const void *request, void ** /*response*/) {
 	const struct gr_srv6_route_add_req *req = request;
+	struct gr_nexthop base = {
+		.type = GR_NH_T_SR6_OUTPUT,
+		.af = GR_AF_IP6,
+		.state = GR_NH_S_REACHABLE,
+		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
+		.vrf_id = req->r.key.vrf_id,
+		.iface_id = GR_IFACE_ID_UNDEF,
+	};
 	struct nexthop *nh;
 	int ret;
 
@@ -65,13 +72,8 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
 			return api_out(EEXIST, 0);
 
-		nh = nexthop_new(
-			GR_AF_IP6, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest6.ip
-		);
-		if (nh == NULL)
-			return api_out(errno, 0);
-
-		nh->prefixlen = req->r.key.dest6.prefixlen;
+		base.ipv6 = req->r.key.dest6.ip;
+		base.prefixlen = req->r.key.dest6.prefixlen;
 	} else {
 		nh = rib4_lookup_exact(
 			req->r.key.vrf_id, req->r.key.dest4.ip, req->r.key.dest4.prefixlen
@@ -79,15 +81,13 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
 			return api_out(EEXIST, 0);
 
-		nh = nexthop_new(
-			GR_AF_IP4, req->r.key.vrf_id, GR_IFACE_ID_UNDEF, &req->r.key.dest4.ip
-		);
-		if (nh == NULL)
-			return api_out(errno, 0);
-		nh->prefixlen = req->r.key.dest4.prefixlen;
+		base.ipv4 = req->r.key.dest4.ip;
+		base.prefixlen = req->r.key.dest4.prefixlen;
 	}
-	nh->flags |= GR_NH_F_GATEWAY | GR_NH_F_STATIC;
-	nh->state = GR_NH_S_REACHABLE;
+
+	nh = nexthop_new(&base);
+	if (nh == NULL)
+		return api_out(errno, 0);
 
 	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist);
 	if (ret < 0) {
