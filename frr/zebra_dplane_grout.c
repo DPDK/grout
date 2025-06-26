@@ -396,8 +396,7 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_NH_INSTALL:
 	case DPLANE_OP_NH_UPDATE:
 	case DPLANE_OP_NH_DELETE:
-		// As netlink_put_nexthop_update_msg when kernel doesn't support nexthop objects.
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+		return grout_add_del_nexthop(ctx);
 
 	case DPLANE_OP_NONE:
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;

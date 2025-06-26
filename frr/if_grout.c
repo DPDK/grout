@@ -19,11 +19,6 @@
 #include <zebra/interface.h>
 #include <zebra_dplane_grout.h>
 
-// ugly hack to avoid collision with ifindex kernel
-// Don't use 1<<32, because ietf-interfaces.yang defined int32, not uint32
-// else it triggers assert in
-// `libyang: Unsatisfied raInge - value "-2147483647" is out of the allowed range`
-#define GROUT_INDEX_OFFSET (1000000000U) // 1<<30U , round-up to lower decimal numbers
 #define GROUT_NS NS_DEFAULT
 
 static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_type link_type) {
