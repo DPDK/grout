@@ -33,6 +33,44 @@ typedef enum : uint8_t {
 	GR_NH_T_DNAT,
 } gr_nh_type_t;
 
+// Route install origin values shared by IPv4 and IPv6.
+// See NH_ORIGIN_* in sys/route/nhop.h (BSD) and RTPROT_* in zebra/rt_netlink.h (FRR).
+typedef enum : uint8_t {
+	GR_NH_ORIGIN_UNSPEC = 0, //!< (NH_ORIGIN_UNSPEC).
+	GR_NH_ORIGIN_REDIRECT = 1, //!< Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
+	GR_NH_ORIGIN_LINK = 2, //!< Installed implicitly for local addresses (NH_ORIGIN_KERNEL).
+	GR_NH_ORIGIN_BOOT = 3, //!< Installed at boot?? (NH_ORIGIN_BOOT).
+	GR_NH_ORIGIN_USER = 4, //!< Installed explicitly by user (NH_ORIGIN_STATIC).
+	// Values 5 to 254 are allowed and are used by routing daemons.
+	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
+	GR_NH_ORIGIN_RA = 9, // (RTPROT_RA)
+	GR_NH_ORIGIN_MRT = 10, // (RTPROT_MRT)
+	GR_NH_ORIGIN_ZEBRA = 11, // (RTPROT_ZEBRA)
+	GR_NH_ORIGIN_BIRD = 12, // (RTPROT_BIRD)
+	GR_NH_ORIGIN_DNROUTED = 13, // (RTPROT_DNROUTED)
+	GR_NH_ORIGIN_XORP = 14, // (RTPROT_XORP)
+	GR_NH_ORIGIN_NTK = 15, // (RTPROT_NTK)
+	GR_NH_ORIGIN_DHCP = 16, // (RTPROT_DHCP)
+	GR_NH_ORIGIN_MROUTED = 17, // (RTPROT_MROUTED)
+	GR_NH_ORIGIN_KEEPALIVED = 18, // (RTPROT_KEEPALIVED)
+	GR_NH_ORIGIN_BABEL = 42, // (RTPROT_BABEL)
+	GR_NH_ORIGIN_OPENR = 99, // (RTPROT_OPENR)
+	GR_NH_ORIGIN_BGP = 186, // (RTPROT_BGP)
+	GR_NH_ORIGIN_ISIS = 187, // (RTPROT_ISIS)
+	GR_NH_ORIGIN_OSPF = 188, // (RTPROT_OSPF)
+	GR_NH_ORIGIN_RIP = 189, // (RTPROT_RIP)
+	GR_NH_ORIGIN_RIPNG = 190, // (RTPROT_RIPNG from zebra)
+	GR_NH_ORIGIN_NHRP = 191, // (RTPROT_NHRP from zebra)
+	GR_NH_ORIGIN_EIGRP = 192, // (RTPROT_EIGRP)
+	GR_NH_ORIGIN_LDP = 193, // (RTPROT_LDP from zebra)
+	GR_NH_ORIGIN_SHARP = 194, // (RTPROT_SHARP from zebra)
+	GR_NH_ORIGIN_PBR = 195, // (RTPROT_PBR from zebra)
+	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
+	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
+	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
+	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
+} gr_nh_origin_t;
+
 #define GR_NH_ID_UNSET UINT32_C(0)
 
 //! Nexthop structure exposed to the API.
@@ -114,44 +152,6 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 	}
 	return "?";
 }
-
-// Route install origin values shared by IPv4 and IPv6.
-// See NH_ORIGIN_* in sys/route/nhop.h (BSD) and RTPROT_* in zebra/rt_netlink.h (FRR).
-typedef enum : uint8_t {
-	GR_NH_ORIGIN_UNSPEC = 0, //!< (NH_ORIGIN_UNSPEC).
-	GR_NH_ORIGIN_REDIRECT = 1, //!< Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
-	GR_NH_ORIGIN_LINK = 2, //!< Installed implicitly for local addresses (NH_ORIGIN_KERNEL).
-	GR_NH_ORIGIN_BOOT = 3, //!< Installed at boot?? (NH_ORIGIN_BOOT).
-	GR_NH_ORIGIN_USER = 4, //!< Installed explicitly by user (NH_ORIGIN_STATIC).
-	// Values 5 to 254 are allowed and are used by routing daemons.
-	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
-	GR_NH_ORIGIN_RA = 9, // (RTPROT_RA)
-	GR_NH_ORIGIN_MRT = 10, // (RTPROT_MRT)
-	GR_NH_ORIGIN_ZEBRA = 11, // (RTPROT_ZEBRA)
-	GR_NH_ORIGIN_BIRD = 12, // (RTPROT_BIRD)
-	GR_NH_ORIGIN_DNROUTED = 13, // (RTPROT_DNROUTED)
-	GR_NH_ORIGIN_XORP = 14, // (RTPROT_XORP)
-	GR_NH_ORIGIN_NTK = 15, // (RTPROT_NTK)
-	GR_NH_ORIGIN_DHCP = 16, // (RTPROT_DHCP)
-	GR_NH_ORIGIN_MROUTED = 17, // (RTPROT_MROUTED)
-	GR_NH_ORIGIN_KEEPALIVED = 18, // (RTPROT_KEEPALIVED)
-	GR_NH_ORIGIN_BABEL = 42, // (RTPROT_BABEL)
-	GR_NH_ORIGIN_OPENR = 99, // (RTPROT_OPENR)
-	GR_NH_ORIGIN_BGP = 186, // (RTPROT_BGP)
-	GR_NH_ORIGIN_ISIS = 187, // (RTPROT_ISIS)
-	GR_NH_ORIGIN_OSPF = 188, // (RTPROT_OSPF)
-	GR_NH_ORIGIN_RIP = 189, // (RTPROT_RIP)
-	GR_NH_ORIGIN_RIPNG = 190, // (RTPROT_RIPNG from zebra)
-	GR_NH_ORIGIN_NHRP = 191, // (RTPROT_NHRP from zebra)
-	GR_NH_ORIGIN_EIGRP = 192, // (RTPROT_EIGRP)
-	GR_NH_ORIGIN_LDP = 193, // (RTPROT_LDP from zebra)
-	GR_NH_ORIGIN_SHARP = 194, // (RTPROT_SHARP from zebra)
-	GR_NH_ORIGIN_PBR = 195, // (RTPROT_PBR from zebra)
-	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
-	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
-	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
-	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
-} gr_nh_origin_t;
 
 static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 	switch (origin) {
