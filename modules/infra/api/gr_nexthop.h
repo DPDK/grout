@@ -83,13 +83,13 @@ struct gr_nexthop {
 	uint16_t vrf_id; //!< L3 VRF domain
 	uint16_t iface_id; //!< interface associated with this nexthop
 	struct rte_ether_addr mac; //!< link-layer address
+	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
 	union {
 		struct {
 		} addr;
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
-	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
 };
 
 //! Nexthop events.
