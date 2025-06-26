@@ -101,7 +101,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			GR_IFACE_ID_UNDEF,
 			&req->r.key.dest6.ip,
 			req->r.key.dest6.prefixlen,
-			GR_RT_ORIGIN_LINK,
+			GR_NH_ORIGIN_LINK,
 			nh
 		);
 	else
@@ -109,7 +109,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			req->r.key.vrf_id,
 			req->r.key.dest4.ip,
 			req->r.key.dest4.prefixlen,
-			GR_RT_ORIGIN_LINK,
+			GR_NH_ORIGIN_LINK,
 			nh
 		);
 
