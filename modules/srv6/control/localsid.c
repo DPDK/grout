@@ -34,7 +34,7 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	data->behavior = req->l.behavior;
 	data->out_vrf_id = req->l.out_vrf_id;
 	data->flags = req->l.flags;
-	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, GR_RT_ORIGIN_LINK, nh);
+	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, GR_NH_ORIGIN_LINK, nh);
 	if (r < 0)
 		return api_out(-r, 0);
 

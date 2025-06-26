@@ -42,7 +42,7 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 
 	data = dnat44_nh_data(nh);
 	data->replace = req->rule.replace;
-	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_RT_ORIGIN_INTERNAL, nh);
+	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
 	if (ret < 0)
 		return api_out(-ret, 0);
 

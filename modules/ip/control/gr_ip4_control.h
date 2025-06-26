@@ -33,7 +33,7 @@ int rib4_insert(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
 	uint8_t prefixlen,
-	gr_rt_origin_t origin,
+	gr_nh_origin_t origin,
 	struct nexthop *nh
 );
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);

@@ -8,84 +8,84 @@
 #include <zebra/table_manager.h>
 #include <zebra_dplane_grout.h>
 
-static inline bool is_selfroute(gr_rt_origin_t origin) {
+static inline bool is_selfroute(gr_nh_origin_t origin) {
 	switch (origin) {
-	case GR_RT_ORIGIN_ZEBRA:
-	case GR_RT_ORIGIN_BABEL:
-	case GR_RT_ORIGIN_BGP:
-	case GR_RT_ORIGIN_ISIS:
-	case GR_RT_ORIGIN_OSPF:
-	case GR_RT_ORIGIN_RIP:
-	case GR_RT_ORIGIN_RIPNG:
-	case GR_RT_ORIGIN_NHRP:
-	case GR_RT_ORIGIN_EIGRP:
-	case GR_RT_ORIGIN_LDP:
-	case GR_RT_ORIGIN_SHARP:
-	case GR_RT_ORIGIN_PBR:
-	case GR_RT_ORIGIN_ZSTATIC:
-	case GR_RT_ORIGIN_OPENFABRIC:
-	case GR_RT_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_ZEBRA:
+	case GR_NH_ORIGIN_BABEL:
+	case GR_NH_ORIGIN_BGP:
+	case GR_NH_ORIGIN_ISIS:
+	case GR_NH_ORIGIN_OSPF:
+	case GR_NH_ORIGIN_RIP:
+	case GR_NH_ORIGIN_RIPNG:
+	case GR_NH_ORIGIN_NHRP:
+	case GR_NH_ORIGIN_EIGRP:
+	case GR_NH_ORIGIN_LDP:
+	case GR_NH_ORIGIN_SHARP:
+	case GR_NH_ORIGIN_PBR:
+	case GR_NH_ORIGIN_ZSTATIC:
+	case GR_NH_ORIGIN_OPENFABRIC:
+	case GR_NH_ORIGIN_SRTE:
 		return true;
 	default:
 		return false;
 	}
 }
 
-static inline gr_rt_origin_t zebra2origin(int proto) {
-	gr_rt_origin_t origin;
+static inline gr_nh_origin_t zebra2origin(int proto) {
+	gr_nh_origin_t origin;
 
 	switch (proto) {
 	case ZEBRA_ROUTE_BABEL:
-		origin = GR_RT_ORIGIN_BABEL;
+		origin = GR_NH_ORIGIN_BABEL;
 		break;
 	case ZEBRA_ROUTE_BGP:
-		origin = GR_RT_ORIGIN_BGP;
+		origin = GR_NH_ORIGIN_BGP;
 		break;
 	case ZEBRA_ROUTE_OSPF:
 	case ZEBRA_ROUTE_OSPF6:
-		origin = GR_RT_ORIGIN_OSPF;
+		origin = GR_NH_ORIGIN_OSPF;
 		break;
 	case ZEBRA_ROUTE_STATIC:
-		origin = GR_RT_ORIGIN_ZSTATIC;
+		origin = GR_NH_ORIGIN_ZSTATIC;
 		break;
 	case ZEBRA_ROUTE_ISIS:
-		origin = GR_RT_ORIGIN_ISIS;
+		origin = GR_NH_ORIGIN_ISIS;
 		break;
 	case ZEBRA_ROUTE_RIP:
-		origin = GR_RT_ORIGIN_RIP;
+		origin = GR_NH_ORIGIN_RIP;
 		break;
 	case ZEBRA_ROUTE_RIPNG:
-		origin = GR_RT_ORIGIN_RIPNG;
+		origin = GR_NH_ORIGIN_RIPNG;
 		break;
 	case ZEBRA_ROUTE_NHRP:
-		origin = GR_RT_ORIGIN_NHRP;
+		origin = GR_NH_ORIGIN_NHRP;
 		break;
 	case ZEBRA_ROUTE_EIGRP:
-		origin = GR_RT_ORIGIN_EIGRP;
+		origin = GR_NH_ORIGIN_EIGRP;
 		break;
 	case ZEBRA_ROUTE_LDP:
-		origin = GR_RT_ORIGIN_LDP;
+		origin = GR_NH_ORIGIN_LDP;
 		break;
 	case ZEBRA_ROUTE_SHARP:
-		origin = GR_RT_ORIGIN_SHARP;
+		origin = GR_NH_ORIGIN_SHARP;
 		break;
 	case ZEBRA_ROUTE_PBR:
-		origin = GR_RT_ORIGIN_PBR;
+		origin = GR_NH_ORIGIN_PBR;
 		break;
 	case ZEBRA_ROUTE_OPENFABRIC:
-		origin = GR_RT_ORIGIN_OPENFABRIC;
+		origin = GR_NH_ORIGIN_OPENFABRIC;
 		break;
 	case ZEBRA_ROUTE_SRTE:
-		origin = GR_RT_ORIGIN_SRTE;
+		origin = GR_NH_ORIGIN_SRTE;
 		break;
 	case ZEBRA_ROUTE_TABLE:
 	case ZEBRA_ROUTE_NHG:
-		origin = GR_RT_ORIGIN_ZEBRA;
+		origin = GR_NH_ORIGIN_ZEBRA;
 		break;
 	case ZEBRA_ROUTE_CONNECT:
 	case ZEBRA_ROUTE_LOCAL:
 	case ZEBRA_ROUTE_KERNEL:
-		origin = GR_RT_ORIGIN_LINK;
+		origin = GR_NH_ORIGIN_LINK;
 		break;
 	default:
 		// When a user adds a new protocol this will show up
@@ -93,77 +93,77 @@ static inline gr_rt_origin_t zebra2origin(int proto) {
 		// is intentionally a warn because we should see
 		// this as part of development of a new protocol.
 		gr_log_debug("Please add this protocol(%d) to grout", proto);
-		origin = GR_RT_ORIGIN_ZEBRA;
+		origin = GR_NH_ORIGIN_ZEBRA;
 		break;
 	}
 
 	return origin;
 }
 
-static inline int origin2zebra(gr_rt_origin_t origin, int family, bool is_nexthop) {
+static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nexthop) {
 	int proto;
 
 	switch (origin) {
-	case GR_RT_ORIGIN_BABEL:
+	case GR_NH_ORIGIN_BABEL:
 		proto = ZEBRA_ROUTE_BABEL;
 		break;
-	case GR_RT_ORIGIN_BGP:
+	case GR_NH_ORIGIN_BGP:
 		proto = ZEBRA_ROUTE_BGP;
 		break;
-	case GR_RT_ORIGIN_OSPF:
+	case GR_NH_ORIGIN_OSPF:
 		proto = (family == AF_INET) ? ZEBRA_ROUTE_OSPF : ZEBRA_ROUTE_OSPF6;
 		break;
-	case GR_RT_ORIGIN_ISIS:
+	case GR_NH_ORIGIN_ISIS:
 		proto = ZEBRA_ROUTE_ISIS;
 		break;
-	case GR_RT_ORIGIN_RIP:
+	case GR_NH_ORIGIN_RIP:
 		proto = ZEBRA_ROUTE_RIP;
 		break;
-	case GR_RT_ORIGIN_RIPNG:
+	case GR_NH_ORIGIN_RIPNG:
 		proto = ZEBRA_ROUTE_RIPNG;
 		break;
-	case GR_RT_ORIGIN_NHRP:
+	case GR_NH_ORIGIN_NHRP:
 		proto = ZEBRA_ROUTE_NHRP;
 		break;
-	case GR_RT_ORIGIN_EIGRP:
+	case GR_NH_ORIGIN_EIGRP:
 		proto = ZEBRA_ROUTE_EIGRP;
 		break;
-	case GR_RT_ORIGIN_LDP:
+	case GR_NH_ORIGIN_LDP:
 		proto = ZEBRA_ROUTE_LDP;
 		break;
-	case GR_RT_ORIGIN_ZSTATIC:
+	case GR_NH_ORIGIN_ZSTATIC:
 		proto = ZEBRA_ROUTE_STATIC;
 		break;
-	case GR_RT_ORIGIN_SHARP:
+	case GR_NH_ORIGIN_SHARP:
 		proto = ZEBRA_ROUTE_SHARP;
 		break;
-	case GR_RT_ORIGIN_PBR:
+	case GR_NH_ORIGIN_PBR:
 		proto = ZEBRA_ROUTE_PBR;
 		break;
-	case GR_RT_ORIGIN_OPENFABRIC:
+	case GR_NH_ORIGIN_OPENFABRIC:
 		proto = ZEBRA_ROUTE_OPENFABRIC;
 		break;
-	case GR_RT_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_SRTE:
 		proto = ZEBRA_ROUTE_SRTE;
 		break;
-	case GR_RT_ORIGIN_USER:
-	case GR_RT_ORIGIN_UNSPEC:
-	case GR_RT_ORIGIN_REDIRECT:
-	case GR_RT_ORIGIN_LINK:
-	case GR_RT_ORIGIN_BOOT:
-	case GR_RT_ORIGIN_GATED:
-	case GR_RT_ORIGIN_RA:
-	case GR_RT_ORIGIN_MRT:
-	case GR_RT_ORIGIN_BIRD:
-	case GR_RT_ORIGIN_DNROUTED:
-	case GR_RT_ORIGIN_XORP:
-	case GR_RT_ORIGIN_NTK:
-	case GR_RT_ORIGIN_MROUTED:
-	case GR_RT_ORIGIN_KEEPALIVED:
-	case GR_RT_ORIGIN_OPENR:
+	case GR_NH_ORIGIN_USER:
+	case GR_NH_ORIGIN_UNSPEC:
+	case GR_NH_ORIGIN_REDIRECT:
+	case GR_NH_ORIGIN_LINK:
+	case GR_NH_ORIGIN_BOOT:
+	case GR_NH_ORIGIN_GATED:
+	case GR_NH_ORIGIN_RA:
+	case GR_NH_ORIGIN_MRT:
+	case GR_NH_ORIGIN_BIRD:
+	case GR_NH_ORIGIN_DNROUTED:
+	case GR_NH_ORIGIN_XORP:
+	case GR_NH_ORIGIN_NTK:
+	case GR_NH_ORIGIN_MROUTED:
+	case GR_NH_ORIGIN_KEEPALIVED:
+	case GR_NH_ORIGIN_OPENR:
 		proto = ZEBRA_ROUTE_KERNEL;
 		break;
-	case GR_RT_ORIGIN_ZEBRA:
+	case GR_NH_ORIGIN_ZEBRA:
 		if (is_nexthop) {
 			proto = ZEBRA_ROUTE_NHG;
 			break;
@@ -185,7 +185,7 @@ static inline int origin2zebra(gr_rt_origin_t origin, int family, bool is_nextho
 static void grout_route_change(
 	bool new,
 	uint16_t vrf_id,
-	gr_rt_origin_t origin,
+	gr_nh_origin_t origin,
 	uint16_t family,
 	void *nh_addr,
 	void *dest_addr,
@@ -210,7 +210,7 @@ static void grout_route_change(
 			new ? "add" : "del",
 			dest_addr,
 			dest_prefixlen,
-			gr_rt_origin_name(origin)
+			gr_nh_origin_name(origin)
 		);
 	else
 		gr_log_debug(
@@ -218,19 +218,19 @@ static void grout_route_change(
 			new ? "add" : "del",
 			dest_addr,
 			dest_prefixlen,
-			gr_rt_origin_name(origin)
+			gr_nh_origin_name(origin)
 		);
 
 	if (new && is_selfroute(origin)) {
 		gr_log_debug(
 			"'%s' route received that we think we have originated, ignoring",
-			gr_rt_origin_name(origin)
+			gr_nh_origin_name(origin)
 		);
 		return;
 	}
 
-	if (origin == GR_RT_ORIGIN_LINK) {
-		gr_log_debug("'%s' route intentionally ignoring", gr_rt_origin_name(origin));
+	if (origin == GR_NH_ORIGIN_LINK) {
+		gr_log_debug("'%s' route intentionally ignoring", gr_nh_origin_name(origin));
 		return;
 	}
 
@@ -334,7 +334,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	const struct nexthop_group *ng;
 	enum nexthop_types_t nt = 0;
 	const struct prefix *p;
-	gr_rt_origin_t origin;
+	gr_nh_origin_t origin;
 	uint32_t req_type;
 	size_t req_len;
 	bool new;
@@ -420,7 +420,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 			new ? "add" : "del",
 			&dest->ip,
 			dest->prefixlen,
-			gr_rt_origin_name(origin)
+			gr_nh_origin_name(origin)
 		);
 	} else {
 		struct ip6_net *dest;
@@ -472,7 +472,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 			new ? "add" : "del",
 			&dest->ip,
 			dest->prefixlen,
-			gr_rt_origin_name(origin)
+			gr_nh_origin_name(origin)
 		);
 	}
 

@@ -69,7 +69,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 			nh->iface_id,
 			dst,
 			RTE_IPV6_MAX_DEPTH,
-			GR_RT_ORIGIN_INTERNAL,
+			GR_NH_ORIGIN_INTERNAL,
 			remote
 		);
 		if (ret < 0) {
@@ -176,7 +176,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 				iface->id,
 				remote,
 				RTE_IPV6_MAX_DEPTH,
-				GR_RT_ORIGIN_INTERNAL,
+				GR_NH_ORIGIN_INTERNAL,
 				nh
 			);
 			if (ret < 0) {
@@ -232,7 +232,7 @@ free:
 }
 
 static int nh6_add(struct nexthop *nh) {
-	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_RT_ORIGIN_INTERNAL, nh);
+	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_NH_ORIGIN_INTERNAL, nh);
 }
 
 static void nh6_del(struct nexthop *nh) {

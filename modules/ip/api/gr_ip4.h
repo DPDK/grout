@@ -19,7 +19,7 @@ struct gr_ip4_ifaddr {
 struct gr_ip4_route {
 	struct ip4_net dest;
 	struct gr_nexthop nh;
-	gr_rt_origin_t origin;
+	gr_nh_origin_t origin;
 };
 
 #define GR_IP4_MODULE 0xf00d
@@ -33,7 +33,7 @@ struct gr_ip4_route_add_req {
 	struct ip4_net dest;
 	ip4_addr_t nh;
 	uint32_t nh_id;
-	gr_rt_origin_t origin;
+	gr_nh_origin_t origin;
 	uint8_t exist_ok;
 };
 

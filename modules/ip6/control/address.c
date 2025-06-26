@@ -188,7 +188,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if ((nh = nexthop_new(&base)) == NULL)
 		return errno_set(-errno);
 
-	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_RT_ORIGIN_LINK, nh);
+	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_NH_ORIGIN_LINK, nh);
 	if (ret < 0)
 		return errno_set(-ret);
 

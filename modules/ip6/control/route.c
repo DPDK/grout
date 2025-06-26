@@ -28,7 +28,7 @@
 static struct rte_rib6 **vrf_ribs;
 
 static struct rte_rib6_conf rib6_conf = {
-	.ext_sz = sizeof(gr_rt_origin_t),
+	.ext_sz = sizeof(gr_nh_origin_t),
 	.max_nodes = IP6_MAX_ROUTES,
 };
 
@@ -137,7 +137,7 @@ int rib6_insert(
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
 	uint8_t prefixlen,
-	gr_rt_origin_t origin,
+	gr_nh_origin_t origin,
 	struct nexthop *nh
 ) {
 	struct rte_rib6 *rib = get_or_create_rib6(vrf_id);
@@ -145,7 +145,7 @@ int rib6_insert(
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
 	struct nexthop *existing;
-	gr_rt_origin_t *o;
+	gr_nh_origin_t *o;
 	int ret;
 
 	nexthop_incref(nh);
@@ -170,7 +170,7 @@ int rib6_insert(
 	o = rte_rib6_get_ext(rn);
 	*o = origin;
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
-	if (origin != GR_RT_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP6_ROUTE_ADD,
 			&(struct gr_ip6_route) {
@@ -195,7 +195,7 @@ int rib6_delete(
 ) {
 	struct rte_rib6 *rib = get_rib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
-	gr_rt_origin_t *o, origin;
+	gr_nh_origin_t *o, origin;
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
 	struct nexthop *nh;
@@ -216,7 +216,7 @@ int rib6_delete(
 
 	rte_rib6_remove(rib, scoped_ip, prefixlen);
 
-	if (origin != GR_RT_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP6_ROUTE_DEL,
 			&(struct gr_ip6_route) {
@@ -236,7 +236,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	if (req->origin == GR_RT_ORIGIN_INTERNAL)
+	if (req->origin == GR_NH_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0);
 
 	if (req->nh_id != GR_NH_ID_UNSET) {
@@ -318,7 +318,7 @@ static struct api_out route6_get(const void *request, void **response) {
 static int route6_count(uint16_t vrf_id) {
 	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
 	struct rte_rib6_node *rn = NULL;
-	gr_rt_origin_t *origin;
+	gr_nh_origin_t *origin;
 	struct rte_rib6 *rib;
 	int num;
 
@@ -329,13 +329,13 @@ static int route6_count(uint16_t vrf_id) {
 	num = 0;
 	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		origin = rte_rib6_get_ext(rn);
-		if (*origin != GR_RT_ORIGIN_INTERNAL)
+		if (*origin != GR_NH_ORIGIN_INTERNAL)
 			num++;
 	}
 	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
 		origin = rte_rib6_get_ext(rn);
-		if (*origin != GR_RT_ORIGIN_INTERNAL)
+		if (*origin != GR_NH_ORIGIN_INTERNAL)
 			num++;
 	}
 
@@ -347,7 +347,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 	struct rte_rib6_node *rn = NULL;
 	struct rte_ipv6_addr tmp;
 	struct gr_ip6_route *r;
-	gr_rt_origin_t *origin;
+	gr_nh_origin_t *origin;
 	struct rte_rib6 *rib;
 	uintptr_t nh_id;
 
@@ -356,7 +356,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 
 	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		origin = rte_rib6_get_ext(rn);
-		if (*origin == GR_RT_ORIGIN_INTERNAL)
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
 			continue;
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);
@@ -369,7 +369,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 	// check if there is a default route configured
 	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
 		origin = rte_rib6_get_ext(rn);
-		if (*origin == GR_RT_ORIGIN_INTERNAL)
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
 			return;
 		r = &resp->routes[resp->n_routes++];
 		rte_rib6_get_nh(rn, &nh_id);

@@ -73,7 +73,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
 			       &r4->nh.ipv4,
-			       gr_rt_origin_name(r4->origin));
+			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r4));
@@ -82,7 +82,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
 			       &r4->nh.ipv4,
-			       gr_rt_origin_name(r4->origin));
+			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r6));
@@ -91,7 +91,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
 			       &r6->nh.ipv6,
-			       gr_rt_origin_name(r6->origin));
+			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r6));
@@ -100,7 +100,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
 			       &r6->nh.ipv6,
-			       gr_rt_origin_name(r6->origin));
+			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_NEXTHOP_NEW:
 			assert(e->payload_len == sizeof(*nh));

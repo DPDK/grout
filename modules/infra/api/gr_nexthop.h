@@ -118,106 +118,106 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 // Route install origin values shared by IPv4 and IPv6.
 // See NH_ORIGIN_* in sys/route/nhop.h (BSD) and RTPROT_* in zebra/rt_netlink.h (FRR).
 typedef enum : uint8_t {
-	GR_RT_ORIGIN_UNSPEC = 0, //!< (NH_ORIGIN_UNSPEC).
-	GR_RT_ORIGIN_REDIRECT = 1, //!< Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
-	GR_RT_ORIGIN_LINK = 2, //!< Installed implicitly for local addresses (NH_ORIGIN_KERNEL).
-	GR_RT_ORIGIN_BOOT = 3, //!< Installed at boot?? (NH_ORIGIN_BOOT).
-	GR_RT_ORIGIN_USER = 4, //!< Installed explicitly by user (NH_ORIGIN_STATIC).
+	GR_NH_ORIGIN_UNSPEC = 0, //!< (NH_ORIGIN_UNSPEC).
+	GR_NH_ORIGIN_REDIRECT = 1, //!< Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
+	GR_NH_ORIGIN_LINK = 2, //!< Installed implicitly for local addresses (NH_ORIGIN_KERNEL).
+	GR_NH_ORIGIN_BOOT = 3, //!< Installed at boot?? (NH_ORIGIN_BOOT).
+	GR_NH_ORIGIN_USER = 4, //!< Installed explicitly by user (NH_ORIGIN_STATIC).
 	// Values 5 to 254 are allowed and are used by routing daemons.
-	GR_RT_ORIGIN_GATED = 8, // (RTPROT_GATED)
-	GR_RT_ORIGIN_RA = 9, // (RTPROT_RA)
-	GR_RT_ORIGIN_MRT = 10, // (RTPROT_MRT)
-	GR_RT_ORIGIN_ZEBRA = 11, // (RTPROT_ZEBRA)
-	GR_RT_ORIGIN_BIRD = 12, // (RTPROT_BIRD)
-	GR_RT_ORIGIN_DNROUTED = 13, // (RTPROT_DNROUTED)
-	GR_RT_ORIGIN_XORP = 14, // (RTPROT_XORP)
-	GR_RT_ORIGIN_NTK = 15, // (RTPROT_NTK)
-	GR_RT_ORIGIN_DHCP = 16, // (RTPROT_DHCP)
-	GR_RT_ORIGIN_MROUTED = 17, // (RTPROT_MROUTED)
-	GR_RT_ORIGIN_KEEPALIVED = 18, // (RTPROT_KEEPALIVED)
-	GR_RT_ORIGIN_BABEL = 42, // (RTPROT_BABEL)
-	GR_RT_ORIGIN_OPENR = 99, // (RTPROT_OPENR)
-	GR_RT_ORIGIN_BGP = 186, // (RTPROT_BGP)
-	GR_RT_ORIGIN_ISIS = 187, // (RTPROT_ISIS)
-	GR_RT_ORIGIN_OSPF = 188, // (RTPROT_OSPF)
-	GR_RT_ORIGIN_RIP = 189, // (RTPROT_RIP)
-	GR_RT_ORIGIN_RIPNG = 190, // (RTPROT_RIPNG from zebra)
-	GR_RT_ORIGIN_NHRP = 191, // (RTPROT_NHRP from zebra)
-	GR_RT_ORIGIN_EIGRP = 192, // (RTPROT_EIGRP)
-	GR_RT_ORIGIN_LDP = 193, // (RTPROT_LDP from zebra)
-	GR_RT_ORIGIN_SHARP = 194, // (RTPROT_SHARP from zebra)
-	GR_RT_ORIGIN_PBR = 195, // (RTPROT_PBR from zebra)
-	GR_RT_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
-	GR_RT_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
-	GR_RT_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
-	GR_RT_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
-} gr_rt_origin_t;
+	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
+	GR_NH_ORIGIN_RA = 9, // (RTPROT_RA)
+	GR_NH_ORIGIN_MRT = 10, // (RTPROT_MRT)
+	GR_NH_ORIGIN_ZEBRA = 11, // (RTPROT_ZEBRA)
+	GR_NH_ORIGIN_BIRD = 12, // (RTPROT_BIRD)
+	GR_NH_ORIGIN_DNROUTED = 13, // (RTPROT_DNROUTED)
+	GR_NH_ORIGIN_XORP = 14, // (RTPROT_XORP)
+	GR_NH_ORIGIN_NTK = 15, // (RTPROT_NTK)
+	GR_NH_ORIGIN_DHCP = 16, // (RTPROT_DHCP)
+	GR_NH_ORIGIN_MROUTED = 17, // (RTPROT_MROUTED)
+	GR_NH_ORIGIN_KEEPALIVED = 18, // (RTPROT_KEEPALIVED)
+	GR_NH_ORIGIN_BABEL = 42, // (RTPROT_BABEL)
+	GR_NH_ORIGIN_OPENR = 99, // (RTPROT_OPENR)
+	GR_NH_ORIGIN_BGP = 186, // (RTPROT_BGP)
+	GR_NH_ORIGIN_ISIS = 187, // (RTPROT_ISIS)
+	GR_NH_ORIGIN_OSPF = 188, // (RTPROT_OSPF)
+	GR_NH_ORIGIN_RIP = 189, // (RTPROT_RIP)
+	GR_NH_ORIGIN_RIPNG = 190, // (RTPROT_RIPNG from zebra)
+	GR_NH_ORIGIN_NHRP = 191, // (RTPROT_NHRP from zebra)
+	GR_NH_ORIGIN_EIGRP = 192, // (RTPROT_EIGRP)
+	GR_NH_ORIGIN_LDP = 193, // (RTPROT_LDP from zebra)
+	GR_NH_ORIGIN_SHARP = 194, // (RTPROT_SHARP from zebra)
+	GR_NH_ORIGIN_PBR = 195, // (RTPROT_PBR from zebra)
+	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
+	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
+	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
+	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
+} gr_nh_origin_t;
 
-static inline const char *gr_rt_origin_name(gr_rt_origin_t origin) {
+static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 	switch (origin) {
-	case GR_RT_ORIGIN_UNSPEC:
+	case GR_NH_ORIGIN_UNSPEC:
 		return "";
-	case GR_RT_ORIGIN_REDIRECT:
+	case GR_NH_ORIGIN_REDIRECT:
 		return "redirect";
-	case GR_RT_ORIGIN_LINK:
+	case GR_NH_ORIGIN_LINK:
 		return "link";
-	case GR_RT_ORIGIN_BOOT:
+	case GR_NH_ORIGIN_BOOT:
 		return "boot";
-	case GR_RT_ORIGIN_USER:
+	case GR_NH_ORIGIN_USER:
 		return "user";
-	case GR_RT_ORIGIN_GATED:
+	case GR_NH_ORIGIN_GATED:
 		return "gated";
-	case GR_RT_ORIGIN_RA:
+	case GR_NH_ORIGIN_RA:
 		return "ra";
-	case GR_RT_ORIGIN_MRT:
+	case GR_NH_ORIGIN_MRT:
 		return "mrt";
-	case GR_RT_ORIGIN_ZEBRA:
+	case GR_NH_ORIGIN_ZEBRA:
 		return "zebra";
-	case GR_RT_ORIGIN_BIRD:
+	case GR_NH_ORIGIN_BIRD:
 		return "bird";
-	case GR_RT_ORIGIN_DNROUTED:
+	case GR_NH_ORIGIN_DNROUTED:
 		return "dnrouted";
-	case GR_RT_ORIGIN_XORP:
+	case GR_NH_ORIGIN_XORP:
 		return "xorp";
-	case GR_RT_ORIGIN_NTK:
+	case GR_NH_ORIGIN_NTK:
 		return "ntk";
-	case GR_RT_ORIGIN_DHCP:
+	case GR_NH_ORIGIN_DHCP:
 		return "dhcp";
-	case GR_RT_ORIGIN_MROUTED:
+	case GR_NH_ORIGIN_MROUTED:
 		return "mrouted";
-	case GR_RT_ORIGIN_KEEPALIVED:
+	case GR_NH_ORIGIN_KEEPALIVED:
 		return "keepalived";
-	case GR_RT_ORIGIN_BABEL:
+	case GR_NH_ORIGIN_BABEL:
 		return "babel";
-	case GR_RT_ORIGIN_OPENR:
+	case GR_NH_ORIGIN_OPENR:
 		return "openr";
-	case GR_RT_ORIGIN_BGP:
+	case GR_NH_ORIGIN_BGP:
 		return "bgp";
-	case GR_RT_ORIGIN_ISIS:
+	case GR_NH_ORIGIN_ISIS:
 		return "isis";
-	case GR_RT_ORIGIN_OSPF:
+	case GR_NH_ORIGIN_OSPF:
 		return "ospf";
-	case GR_RT_ORIGIN_RIP:
+	case GR_NH_ORIGIN_RIP:
 		return "rip";
-	case GR_RT_ORIGIN_RIPNG:
+	case GR_NH_ORIGIN_RIPNG:
 		return "ripng";
-	case GR_RT_ORIGIN_NHRP:
+	case GR_NH_ORIGIN_NHRP:
 		return "nhrp";
-	case GR_RT_ORIGIN_EIGRP:
+	case GR_NH_ORIGIN_EIGRP:
 		return "eigrp";
-	case GR_RT_ORIGIN_LDP:
+	case GR_NH_ORIGIN_LDP:
 		return "ldp";
-	case GR_RT_ORIGIN_SHARP:
+	case GR_NH_ORIGIN_SHARP:
 		return "sharp";
-	case GR_RT_ORIGIN_PBR:
+	case GR_NH_ORIGIN_PBR:
 		return "pbr";
-	case GR_RT_ORIGIN_ZSTATIC:
+	case GR_NH_ORIGIN_ZSTATIC:
 		return "zebra_static";
-	case GR_RT_ORIGIN_OPENFABRIC:
+	case GR_NH_ORIGIN_OPENFABRIC:
 		return "openfabric";
-	case GR_RT_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_SRTE:
 		return "srte";
-	case GR_RT_ORIGIN_INTERNAL:
+	case GR_NH_ORIGIN_INTERNAL:
 		return "INTERNAL";
 	}
 	return "?";
