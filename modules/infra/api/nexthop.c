@@ -177,15 +177,16 @@ static struct gr_api_handler nh_del_handler = {
 
 struct list_context {
 	uint16_t vrf_id;
+	bool all;
 	struct gr_nexthop *nh;
 };
 
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 
-	if (nh->flags & GR_NH_F_MCAST)
-		return;
 	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
+		return;
+	if (!ctx->all && nh->origin == GR_NH_ORIGIN_INTERNAL)
 		return;
 
 	gr_vec_add(ctx->nh, nh->base);
@@ -193,7 +194,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 
 static struct api_out nh_list(const void *request, void **response) {
 	const struct gr_nh_list_req *req = request;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .nh = NULL};
+	struct list_context ctx = {.vrf_id = req->vrf_id, .all = req->all, .nh = NULL};
 	struct gr_nh_list_resp *resp = NULL;
 	size_t len;
 

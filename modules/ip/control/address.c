@@ -89,6 +89,7 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 		.iface_id = iface->id,
 		.ipv4 = req->addr.addr.ip,
 		.prefixlen = req->addr.addr.prefixlen,
+		.origin = GR_NH_ORIGIN_LINK,
 	};
 	if (iface_get_eth_addr(iface->id, &base.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0);

@@ -59,7 +59,7 @@ static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_p
 }
 
 static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_add_req req = {.exist_ok = true};
+	struct gr_nh_add_req req = {.exist_ok = true, .nh.origin = GR_NH_ORIGIN_USER};
 	struct gr_iface iface;
 
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
@@ -131,6 +131,9 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		scols_unref_table(table);
 		return CMD_ERROR;
 	}
+
+	req.all = arg_str(p, "all") != NULL;
+
 	if (gr_api_client_send_recv(c, GR_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
 		scols_unref_table(table);
 		return CMD_ERROR;
@@ -147,6 +150,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "STATE", 0, 0);
 	scols_table_new_column(table, "FLAGS", 0, 0);
+	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_nhs; i++) {
@@ -182,6 +186,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 			buf[n - 1] = '\0';
 
 		scols_line_sprintf(line, 8, "%s", buf);
+		scols_line_sprintf(line, 9, "%s", gr_nh_origin_name(nh->origin));
 	}
 
 	scols_print_table(table);
@@ -269,10 +274,11 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW),
-		"nexthop [vrf VRF]",
+		"nexthop [vrf VRF] [all]",
 		nh_list,
 		"List all next hops.",
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("All next hops including internal ones.", ec_node_str("all", "all"))
 	);
 	if (ret < 0)
 		return ret;

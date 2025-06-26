@@ -84,6 +84,7 @@ struct gr_nexthop {
 	uint16_t iface_id; //!< interface associated with this nexthop
 	struct rte_ether_addr mac; //!< link-layer address
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
+	gr_nh_origin_t origin;
 	union {
 		struct {
 		} addr;
@@ -280,6 +281,7 @@ struct gr_nh_del_req {
 
 struct gr_nh_list_req {
 	uint16_t vrf_id;
+	bool all;
 };
 
 struct gr_nh_list_resp {

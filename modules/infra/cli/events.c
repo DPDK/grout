@@ -105,32 +105,35 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 		case GR_EVENT_NEXTHOP_NEW:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
 			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_DELETE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "  origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
 			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_UPDATE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
 			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		default:
 			printf("> unknown event 0x%08x\n", e->ev_type);
