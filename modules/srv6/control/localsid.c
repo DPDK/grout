@@ -22,6 +22,7 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 		.vrf_id = req->l.vrf_id,
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.ipv6 = req->l.lsid,
+		.origin = GR_NH_ORIGIN_LINK,
 	};
 	struct nexthop *nh;
 	int r;

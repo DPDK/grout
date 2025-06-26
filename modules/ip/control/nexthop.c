@@ -51,6 +51,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 				.vrf_id = nh->vrf_id,
 				.iface_id = nh->iface_id,
 				.ipv4 = dst,
+				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 		}
 
@@ -128,6 +129,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 			.vrf_id = iface->vrf_id,
 			.iface_id = iface->id,
 			.ipv4 = sip,
+			.origin = GR_NH_ORIGIN_INTERNAL,
 		});
 		if (nh == NULL) {
 			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
@@ -149,7 +151,9 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = arp->arp_data.arp_sha;
-		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {

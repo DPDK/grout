@@ -36,6 +36,7 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 		.vrf_id = iface->vrf_id,
 		.iface_id = iface->id,
 		.ipv4 = req->rule.match,
+		.origin = GR_NH_ORIGIN_INTERNAL,
 	});
 	if (nh == NULL)
 		return api_out(ENOMEM, 0);

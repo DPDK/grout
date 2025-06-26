@@ -258,6 +258,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 				.vrf_id = nh->vrf_id,
 				.iface_id = nh->iface_id,
 				.ipv6 = req->nh,
+				.origin = req->origin,
 			});
 			if (nh == NULL)
 				return api_out(errno, 0);

@@ -112,6 +112,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 			.vrf_id = iface->vrf_id,
 			.iface_id = iface->id,
 			.ipv6 = *ip,
+			.origin = GR_NH_ORIGIN_INTERNAL,
 		};
 		rte_ether_mcast_from_ipv6(&base.mac, ip);
 
@@ -181,6 +182,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		.iface_id = iface->id,
 		.ipv6 = *ip,
 		.prefixlen = prefixlen,
+		.origin = GR_NH_ORIGIN_LINK,
 	};
 	if ((ret = iface_get_eth_addr(iface->id, &base.mac)) < 0 && errno != EOPNOTSUPP)
 		return errno_set(-ret);

@@ -52,6 +52,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 				.vrf_id = nh->vrf_id,
 				.iface_id = nh->iface_id,
 				.ipv6 = *dst,
+				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 		}
 
@@ -164,6 +165,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 				.vrf_id = iface->vrf_id,
 				.iface_id = iface->id,
 				.ipv6 = *remote,
+				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 			if (nh == NULL) {
 				LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
@@ -194,7 +196,9 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = mac;
-		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {

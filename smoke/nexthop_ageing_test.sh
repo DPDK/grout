@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local timeout=5
 	for i in $(seq 1 $timeout); do
-		grcli show nexthop | grep -qE "$ip.+reachable";
+		grcli show nexthop all | grep -qE "$ip.+reachable";
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
