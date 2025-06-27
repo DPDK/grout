@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_api.h>
+#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_module.h>
 #include <gr_nexthop.h>
@@ -42,7 +43,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
 	const struct nexthop_af_ops *ops;
 	struct gr_nexthop base = req->nh;
-	struct nexthop *nh;
+	struct nexthop *nh = NULL;
 
 	int ret;
 
@@ -64,20 +65,6 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	if (iface_from_id(base.iface_id) == NULL)
 		return api_out(errno, 0);
 
-	if (base.nh_id != GR_NH_ID_UNSET && nexthop_lookup_by_id(base.nh_id) != NULL) {
-		if (req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
-	nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
-	if (nh != NULL) {
-		if (req->exist_ok && base.iface_id == nh->iface_id
-		    && rte_is_same_ether_addr(&base.mac, &nh->mac))
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
 	base.type = GR_NH_T_L3;
 	base.state = GR_NH_S_NEW;
 	base.flags = 0;
@@ -86,13 +73,46 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		base.flags = GR_NH_F_STATIC;
 	}
 
-	nh = nexthop_new(&base);
-	if (nh == NULL)
-		return api_out(errno, 0);
+	if (base.nh_id != GR_NH_ID_UNSET)
+		nh = nexthop_lookup_by_id(base.nh_id);
 
-	ops = nexthop_af_ops_get(req->nh.af);
-	assert(ops != NULL);
-	ret = ops->add(nh);
+	if (nh == NULL)
+		nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
+
+	if (nh == NULL) {
+		nh = nexthop_new(&base);
+		if (nh == NULL)
+			return api_out(errno, 0);
+		ops = nexthop_af_ops_get(nh->af);
+		assert(ops != NULL);
+		ret = ops->add(nh);
+	} else if (!req->exist_ok) {
+		ret = -EEXIST;
+	} else {
+		// Test the equality on the ipv6 address which encompasses both address families.
+		bool need_update = nh->af != base.af || !rte_ipv6_addr_eq(&nh->ipv6, &base.ipv6);
+		if (need_update) {
+			// Address family or address has changed.
+			// Delete the old /32 or /128 route.
+			ops = nexthop_af_ops_get(nh->af);
+			assert(ops != NULL);
+			nexthop_incref(nh); // Prevent ops->del from freeing the nexthop.
+			ops->del(nh);
+		}
+		// Update fields after deleting the route.
+		nh->base = base;
+		if (need_update) {
+			// Re-add the new /32 or /128 route.
+			ops = nexthop_af_ops_get(nh->af);
+			assert(ops != NULL);
+			ret = ops->add(nh);
+			nexthop_decref(nh); // ops->add called nexthop_incref if successful.
+		} else {
+			ret = 0;
+		}
+		if (ret == 0)
+			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+	}
 
 	return api_out(-ret, 0);
 }
