@@ -1,13 +1,13 @@
-From 567fc4fe322a8a88e6a520d06d024f2dfbab96f6 Mon Sep 17 00:00:00 2001
+From d55d8335e852de6033cf4f307c2b0442f2f2a836 Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Fri, 23 May 2025 17:44:02 +0200
 Subject: [PATCH] meson add dependency definition
 
 Signed-off-by: Maxime Leroy <maxime@leroys.fr>
 ---
- frr_install.sh | 35 ++++++++++++++++++++++
- meson.build    | 80 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 115 insertions(+)
+ frr_install.sh | 35 ++++++++++++++++++++
+ meson.build    | 86 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 121 insertions(+)
  create mode 100644 frr_install.sh
  create mode 100644 meson.build
 
@@ -54,10 +54,10 @@ index 0000000..1e40167
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000..5518634
+index 0000000..3079e77
 --- /dev/null
 +++ b/meson.build
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,86 @@
 +# SPDX-License-Identifier: BSD-3-Clause
 +# Copyright (c) 2025 Maxime Leroy, Free Mobile
 +
@@ -87,6 +87,12 @@ index 0000000..5518634
 +user_name  = run_command('id', '-un', check: true).stdout().strip()
 +group_name = run_command('id', '-gn', check: true).stdout().strip()
 +extra_configure_option = '--enable-user=' + user_name + ' ' + '--enable-group=' + group_name
++
++buildtype = get_option('buildtype')
++debug = buildtype.startswith('debug')
++if debug
++  extra_configure_option += ' --enable-dev-build'
++endif
 +
 +configure = custom_target(
 +  'configure',
