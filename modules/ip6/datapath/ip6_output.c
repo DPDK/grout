@@ -21,6 +21,7 @@ enum {
 	HOLD,
 	DEST_UNREACH,
 	ERROR,
+	TOO_BIG,
 	EDGE_COUNT,
 };
 
@@ -83,6 +84,12 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = ERROR;
 			goto next;
 		}
+
+		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
+			edge = TOO_BIG;
+			goto next;
+		}
+
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
 		edge = iface_type_edges[iface->type];
@@ -128,6 +135,7 @@ static struct rte_node_register output_node = {
 		[HOLD] = "ip6_hold",
 		[ERROR] = "ip6_output_error",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
+		[TOO_BIG] = "ip6_output_too_big",
 	},
 };
 
@@ -139,3 +147,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_output_error);
+GR_DROP_REGISTER(ip6_output_too_big);
