@@ -14,6 +14,7 @@
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_vec.h>
+#include <gr_vlan.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -249,6 +250,13 @@ static int iface_port_reconfig(
 	} else {
 		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
+	}
+
+	struct iface *v = NULL;
+	while ((v = iface_next(GR_IFACE_TYPE_VLAN, v)) != NULL) {
+		struct iface_info_vlan *vlan = (struct iface_info_vlan *)v->info;
+		if (vlan->parent_id == iface->id)
+			v->mtu = iface->mtu;
 	}
 
 	if (set_attrs & GR_IFACE_SET_MODE)

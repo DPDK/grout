@@ -124,10 +124,9 @@ static int iface_vlan_reconfig(
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
 		iface->flags = conf->flags;
-	if (set_attrs & GR_IFACE_SET_MTU)
-		iface->mtu = conf->mtu ? conf->mtu : iface_from_id(cur->parent_id)->mtu;
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
+	iface->mtu = iface_from_id(cur->parent_id)->mtu;
 
 	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
