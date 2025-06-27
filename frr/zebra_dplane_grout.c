@@ -116,6 +116,9 @@ static void zebra_grout_connect(struct event *t) {
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IP_ROUTE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IP_ROUTE_DEL, .suppress_self_events = true},
+		{.type = GR_EVENT_NEXTHOP_NEW, .suppress_self_events = true},
+		{.type = GR_EVENT_NEXTHOP_DELETE, .suppress_self_events = true},
+		{.type = GR_EVENT_NEXTHOP_UPDATE, .suppress_self_events = true},
 	};
 
 	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
@@ -154,6 +157,11 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_IP6_ROUTE_ADD);
 	case GR_IP6_ROUTE_DEL:
 		return TOSTRING(GR_IP6_ROUTE_DEL);
+	case GR_NH_ADD:
+		return TOSTRING(GR_NH_ADD);
+	case GR_NH_DEL:
+		return TOSTRING(GR_NH_DEL);
+
 	default:
 		return "unknown";
 	}
@@ -226,6 +234,12 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_IP6_ROUTE_ADD);
 	case GR_EVENT_IP6_ROUTE_DEL:
 		return TOSTRING(GR_EVENT_IP6_ROUTE_DEL);
+	case GR_EVENT_NEXTHOP_NEW:
+		return TOSTRING(GR_EVENT_NEXTHOP_NEW);
+	case GR_EVENT_NEXTHOP_UPDATE:
+		return TOSTRING(GR_EVENT_NEXTHOP_UPDATE);
+	case GR_EVENT_NEXTHOP_DELETE:
+		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
 	default:
 		return "unknown";
 	}
@@ -318,6 +332,7 @@ static void zebra_read_notifications(struct event *event) {
 	struct gr_api_event *gr_e = NULL;
 	struct gr_ip4_route *gr_r4;
 	struct gr_ip6_route *gr_r6;
+	struct gr_nexthop *gr_nh;
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.zebra_notifs, &gr_e) < 0 || gr_e == NULL) {
@@ -360,6 +375,21 @@ static void zebra_read_notifications(struct event *event) {
 		);
 
 		grout_route6_change(new, gr_r6);
+		break;
+	case GR_EVENT_NEXTHOP_NEW:
+	case GR_EVENT_NEXTHOP_UPDATE:
+		new = true;
+	case GR_EVENT_NEXTHOP_DELETE:
+		gr_nh = PAYLOAD(gr_e);
+
+		gr_log_debug(
+			"%s nexthop %u notification (%s)",
+			new ? "add" : "del",
+			gr_nh->nh_id,
+			gr_evt_to_str(gr_e->ev_type)
+		);
+
+		grout_nexthop_change(new, gr_nh);
 		break;
 	default:
 		gr_log_debug(
