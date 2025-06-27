@@ -143,7 +143,10 @@ int dpdk_init(void) {
 		gr_vec_add(eal_args, "--no-shconf");
 		gr_vec_add(eal_args, "--no-huge");
 		gr_vec_add(eal_args, "-m");
-		gr_vec_add(eal_args, "2048");
+		if (gr_config.max_mtu > 2048)
+			gr_vec_add(eal_args, "4096");
+		else
+			gr_vec_add(eal_args, "2048");
 	} else {
 		gr_vec_add(eal_args, "--in-memory");
 	}

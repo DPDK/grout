@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include <gr_config.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_mempool.h>
@@ -14,6 +15,8 @@ struct mempool_tracker {
 
 #define MAX_MEMPOOL_PER_NUMA 32
 #define MEMPOOL_DEFAULT_SIZE (1 << 16) - 1
+#define ETHER_HDR_SIZE 14
+#define VLAN_HDR_SIZE 4
 
 static int mt_sort(const void *p1, const void *p2) {
 	const struct mempool_tracker *mt1 = p1;
@@ -37,9 +40,14 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 	char mp_name[RTE_MEMPOOL_NAMESIZE];
 	struct rte_mempool *mp = NULL;
 	uint32_t alloc_size;
+	uint32_t mbuf_size;
 
 	if (socket_id < SOCKET_ID_ANY || socket_id >= RTE_MAX_NUMA_NODES)
 		return errno_set_null(EINVAL);
+
+	mbuf_size = rte_align32pow2(
+		RTE_PKTMBUF_HEADROOM + ETHER_HDR_SIZE + VLAN_HDR_SIZE + gr_config.max_mtu
+	);
 
 	for (int i = 0; i < MAX_MEMPOOL_PER_NUMA; i++) {
 		unsigned mt_index = socket_id == SOCKET_ID_ANY ? 0 : socket_id + 1;
@@ -54,16 +62,17 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 			}
 			sprintf(mp_name, "mbuf_%d:%d", socket_id, i);
 			LOG(DEBUG,
-			    "allocate mempool %s reserved %u (size %u)",
+			    "allocate mempool %s reserved %u (size %u, mbuf_size %u)",
 			    mp_name,
 			    count,
-			    alloc_size);
+			    alloc_size,
+			    mbuf_size);
 			mt->mp = rte_pktmbuf_pool_create(
 				mp_name,
 				alloc_size,
 				RTE_MEMPOOL_CACHE_MAX_SIZE,
 				GR_MBUF_PRIV_MAX_SIZE,
-				RTE_MBUF_DEFAULT_BUF_SIZE,
+				mbuf_size,
 				socket_id
 			);
 			if (mt->mp == NULL)
@@ -73,11 +82,12 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 			break;
 		} else if ((count + mt->reserved) <= mt->mp->size) {
 			LOG(DEBUG,
-			    "reuse mempool %s reserved %u -> %u (size %u)",
+			    "reuse mempool %s reserved %u -> %u (size %u, mbuf_size %u)",
 			    mt->mp->name,
 			    mt->reserved,
 			    mt->reserved + count,
-			    mt->mp->size);
+			    mt->mp->size,
+			    mbuf_size);
 			mt->reserved += count;
 			mp = mt->mp;
 			break;

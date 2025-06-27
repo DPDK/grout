@@ -31,8 +31,8 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-L <type>:<lvl>] [-p] [-s <path>] [-t] [-T <regexp>]\n", prog);
-	printf("       %*s [-B <size>] [-D <path>] [-M <mode>] [-x] [-v] [-V]\n",
+	printf("Usage: %s [-h] [-L <type>:<lvl>] [-p] [-s <path>] [-t] [-u <mtu>]\n", prog);
+	printf("       %*s [-T <regexp>] [-B <size>] [-D <path>] [-M <mode>] [-x] [-v] [-V]\n",
 	       (int)strlen(prog),
 	       "");
 	puts("");
@@ -50,6 +50,7 @@ static void usage(const char *prog) {
 	puts("                                 Default: GROUT_SOCK_PATH from env or");
 	printf("                                 %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -t, --test-mode                Run in test mode (no hugepages).");
+	puts("  -u, --max-mtu <mtu>            Maximum Transmission Unit (default 1800).");
 	puts("  -T, --trace <regexp>           Enable trace matching the regular expression.");
 	puts("  -B, --trace-bufsz <size>       Maximum size of allocated memory for trace output.");
 	puts("  -D, --trace-dir <path>         Change path for trace output.");
@@ -127,13 +128,37 @@ static int parse_sock_mode(const char *perm_str) {
 	return 0;
 }
 
+static int parse_max_mtu(const char *mtu) {
+	unsigned long val;
+	char *endptr;
+
+	errno = 0;
+	val = strtoul(mtu, &endptr, 10);
+
+	if (errno != 0 || *endptr != '\0' || val < 512 || val > 16384) {
+		if (errno == 0) {
+			if (*endptr != '\0')
+				errno = EINVAL;
+			else
+				errno = ERANGE;
+		}
+		fprintf(stderr, "error: invalid max-mtu '%s': %s\n", mtu, strerror(errno));
+		return -1;
+	}
+
+	gr_config.max_mtu = (unsigned)val;
+
+	return 0;
+}
+
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:Vhm:o:pSs:tvx"
+#define FLAGS ":B:D:L:M:T:Vhm:o:pSs:tu:vx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"log-level", required_argument, NULL, 'L'},
+		{"max-mtu", required_argument, NULL, 'u'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"syslog", no_argument, NULL, 'S'},
 		{"socket", required_argument, NULL, 's'},
@@ -158,6 +183,7 @@ static int parse_args(int argc, char **argv) {
 	gr_config.api_sock_uid = getuid();
 	gr_config.api_sock_gid = getgid();
 	gr_config.api_sock_mode = 0660;
+	gr_config.max_mtu = 1800;
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
 
@@ -204,6 +230,10 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'x':
 			gr_config.log_packets = true;
+			break;
+		case 'u':
+			if (parse_max_mtu(optarg) < 0)
+				return errno_set(EINVAL);
 			break;
 		case 'v':
 			gr_config.log_level++;
