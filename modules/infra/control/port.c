@@ -156,6 +156,9 @@ static int iface_port_reconfig(
 	bool needs_configure = false;
 	int ret;
 
+	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu > gr_config.max_mtu)
+		return errno_set(ERANGE);
+
 	if ((ret = port_unplug(p->port_id)) < 0)
 		return ret;
 

@@ -24,6 +24,7 @@ Grout is a software router based on DPDK __rte_graph__.
 [**-s** _PATH_]
 [**-t**]
 [**-T** _REGEXP_]
+[**-u** _MTU_]
 [**-v**]
 [**-V**]
 [**-x**]
@@ -129,6 +130,12 @@ Global trace configuration for ALL the components:
 ```
 
 Can be specified multiple times up to 32 times.
+
+#### **-u**, **--max-mtu** _MTU_
+
+Maximum Transmission Unit.
+
+Default: _1800_.
 
 #### **-v**, **--verbose**
 
