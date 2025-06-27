@@ -15,6 +15,7 @@ struct gr_config {
 	gid_t api_sock_gid;
 	mode_t api_sock_mode;
 	unsigned log_level;
+	unsigned max_mtu;
 	bool test_mode;
 	bool poll_mode;
 	bool log_syslog;

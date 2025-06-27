@@ -14,6 +14,7 @@
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_vec.h>
+#include <gr_vlan.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -72,12 +73,7 @@ static struct rte_eth_conf default_port_config = {
 		},
 	},
 	.rxmode = {
-		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM
-			| RTE_ETH_RX_OFFLOAD_VLAN
-			| RTE_ETH_RX_OFFLOAD_SCATTER,
-	},
-	.txmode = {
-		.offloads = RTE_ETH_TX_OFFLOAD_MULTI_SEGS,
+		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN,
 	},
 };
 
@@ -128,7 +124,6 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 	conf.rxmode.offloads &= info.rx_offload_capa;
-	conf.txmode.offloads &= info.tx_offload_capa;
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
@@ -161,6 +156,9 @@ static int iface_port_reconfig(
 	const struct gr_iface_info_port *api = api_info;
 	bool needs_configure = false;
 	int ret;
+
+	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu > gr_config.max_mtu)
+		return errno_set(ERANGE);
 
 	if ((ret = port_unplug(p->port_id)) < 0)
 		return ret;
@@ -252,6 +250,13 @@ static int iface_port_reconfig(
 	} else {
 		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
+	}
+
+	struct iface *v = NULL;
+	while ((v = iface_next(GR_IFACE_TYPE_VLAN, v)) != NULL) {
+		struct iface_info_vlan *vlan = (struct iface_info_vlan *)v->info;
+		if (vlan->parent_id == iface->id)
+			v->mtu = iface->mtu;
 	}
 
 	if (set_attrs & GR_IFACE_SET_MODE)
