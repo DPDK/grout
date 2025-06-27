@@ -196,6 +196,23 @@ struct gr_infra_iface_set_req {
 
 // struct gr_infra_iface_set_resp { };
 
+#define GR_INFRA_IFACE_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0006)
+
+// struct gr_infra_iface_stats_get_req { };
+
+struct gr_iface_stats {
+	uint16_t iface_id;
+	uint64_t rx_packets;
+	uint64_t rx_bytes;
+	uint64_t tx_packets;
+	uint64_t tx_bytes;
+};
+
+struct gr_infra_iface_stats_get_resp {
+	uint16_t n_stats;
+	struct gr_iface_stats stats[/* n_stats */];
+};
+
 // port rxqs ///////////////////////////////////////////////////////////////////
 #define GR_INFRA_RXQ_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0010)
 

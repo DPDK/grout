@@ -329,12 +329,75 @@ err:
 	return CMD_ERROR;
 }
 
+static cmd_status_t iface_stats(const struct gr_api_client *c, const struct ec_pnode * /*p*/) {
+	struct gr_infra_iface_stats_get_resp *resp = NULL;
+	struct libscols_table *table = NULL;
+	cmd_status_t status = CMD_ERROR;
+	void *resp_ptr = NULL;
+	int ret;
+
+	// Send the new API request and wait for the response
+	ret = gr_api_client_send_recv(c, GR_INFRA_IFACE_STATS_GET, 0, NULL, &resp_ptr);
+	if (ret < 0) {
+		errorf("failed to get interface stats: %s", strerror(-ret));
+		goto end;
+	}
+
+	resp = resp_ptr;
+
+	table = scols_new_table();
+	if (table == NULL) {
+		errorf("failed to create table: %s", strerror(errno));
+		goto end;
+	}
+
+	scols_table_new_column(table, "INTERFACE", 0, 0);
+	scols_table_new_column(table, "RX_PACKETS", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "RX_BYTES", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "TX_PACKETS", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "TX_BYTES", SCOLS_FL_RIGHT, 0);
+	scols_table_set_column_separator(table, "  ");
+
+	for (uint16_t i = 0; i < resp->n_stats; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
+		struct gr_iface iface;
+		if (line == NULL) {
+			errorf("failed to create line: %s", strerror(errno));
+			goto end;
+		}
+
+		if (iface_from_id(c, resp->stats[i].iface_id, &iface) == 0)
+			scols_line_set_data(line, 0, iface.name);
+		else
+			scols_line_set_data(line, 0, "?");
+
+		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
+		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
+		scols_line_sprintf(line, 3, "%lu", resp->stats[i].tx_packets);
+		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_bytes);
+	}
+
+	scols_print_table(table);
+	status = CMD_SUCCESS;
+
+end:
+	if (table)
+		scols_unref_table(table);
+	free(resp_ptr);
+	return status;
+}
+
 static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct cli_iface_type *type;
 	struct gr_iface iface;
 
-	if (arg_str(p, "NAME") == NULL || arg_str(p, "TYPE") != NULL)
+	if (arg_str(p, "stats") != NULL) {
+		return iface_stats(c, p);
+	}
+
+	if (arg_str(p, "NAME") == NULL || arg_str(p, "TYPE") != NULL) {
 		return iface_list(c, p);
+	}
 
 	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
 		return CMD_ERROR;
@@ -387,7 +450,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("interface", "Display interface details.")),
-		"[(name NAME)|(type TYPE)]",
+		"[(name NAME)|(type TYPE)|stats]",
 		iface_show,
 		"Show interface details.",
 		with_help(
@@ -397,7 +460,8 @@ static int ctx_init(struct ec_node *root) {
 		with_help(
 			"Show only this type of interface.",
 			ec_node_dyn("TYPE", complete_iface_types, NULL)
-		)
+		),
+		with_help("Show interface statistics.", ec_node_str("stats", "stats"))
 	);
 
 	return ret;
