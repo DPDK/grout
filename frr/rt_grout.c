@@ -182,27 +182,57 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	return proto;
 }
 
+static int grout_gr_nexthop_to_frr_nexthop(
+	struct gr_nexthop *gr_nh,
+	struct nexthop *nh,
+	int *nh_family,
+	bool new
+) {
+	size_t sz;
+
+	if (gr_nh->vrf_id != VRF_DEFAULT) {
+		gr_log_debug("no vrf support for nexthop, nexthop not sync");
+		return -1;
+	}
+	nh->vrf_id = gr_nh->vrf_id;
+
+	switch (gr_nh->af) {
+	case GR_AF_IP4:
+		nh->type = NEXTHOP_TYPE_IPV4;
+		sz = 4;
+		*nh_family = AF_INET;
+		memcpy(&nh->gate.ipv4, &gr_nh->ipv4, sz);
+		break;
+	case GR_AF_IP6:
+		nh->type = NEXTHOP_TYPE_IPV6;
+		sz = 16;
+		*nh_family = AF_INET6;
+		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
+		break;
+	default:
+		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
+		return -1;
+	}
+	// XXX: no NEXTHOP_TYPE_IFINDEX in grout, unlike kernel
+	return 0;
+}
+
 static void grout_route_change(
 	bool new,
-	uint16_t vrf_id,
 	gr_nh_origin_t origin,
 	uint16_t family,
-	void *nh_addr,
 	void *dest_addr,
-	uint8_t dest_prefixlen
+	uint8_t dest_prefixlen,
+	struct gr_nexthop *gr_nh
 ) {
 	int tableid = RT_TABLE_ID_MAIN; /* no table support for now */
 	int proto = ZEBRA_ROUTE_KERNEL;
 	struct nexthop nh = {};
 	uint32_t flags = 0;
 	struct prefix p;
+	int nh_family;
 	size_t sz;
 	afi_t afi;
-
-	if (vrf_id != VRF_DEFAULT) {
-		gr_log_debug("no vrf support for route, route not sync");
-		return;
-	}
 
 	if (family == AF_INET)
 		gr_log_debug(
@@ -236,7 +266,19 @@ static void grout_route_change(
 
 	// A method to ignore our own messages. selfroute ? */
 	memset(&nh, 0, sizeof(nh));
-	nh.vrf_id = VRF_DEFAULT;
+	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &nh_family, new) < 0) {
+		gr_log_debug("route received has invalid nexthop, ignoring");
+		return;
+	}
+
+	if (nh_family != family) {
+		gr_log_debug(
+			"nexthop family %u different that route family %u nexthop, ignoring",
+			nh_family,
+			family
+		);
+		return;
+	}
 
 	if (family == AF_INET) {
 		afi = AFI_IP;
@@ -245,10 +287,6 @@ static void grout_route_change(
 
 		memcpy(&p.u.prefix4, dest_addr, sz);
 		p.prefixlen = dest_prefixlen;
-
-		// FIX IFINDEX CASE */
-		nh.type = NEXTHOP_TYPE_IPV4;
-		memcpy(&nh.gate.ipv4, nh_addr, sz);
 	} else {
 		afi = AFI_IP6;
 		p.family = AF_INET6;
@@ -256,10 +294,6 @@ static void grout_route_change(
 
 		memcpy(&p.u.prefix6, dest_addr, sz);
 		p.prefixlen = dest_prefixlen;
-
-		// FIX IFINDEX CASE */
-		nh.type = NEXTHOP_TYPE_IPV6;
-		memcpy(&nh.gate.ipv6, nh_addr, sz);
 	}
 
 	proto = origin2zebra(origin, family, false);
@@ -303,24 +337,22 @@ static void grout_route_change(
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
 	grout_route_change(
 		new,
-		gr_r4->nh.vrf_id,
 		gr_r4->origin,
 		AF_INET,
-		&gr_r4->nh.ipv4,
 		(void *)&gr_r4->dest.ip,
-		gr_r4->dest.prefixlen
+		gr_r4->dest.prefixlen,
+		&gr_r4->nh
 	);
 }
 
 void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 	grout_route_change(
 		new,
-		gr_r6->nh.vrf_id,
 		gr_r6->origin,
 		AF_INET6,
-		&gr_r6->nh.ipv6,
 		(void *)&gr_r6->dest.ip,
-		gr_r6->dest.prefixlen
+		gr_r6->dest.prefixlen,
+		&gr_r6->nh
 	);
 }
 
