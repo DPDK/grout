@@ -200,15 +200,72 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 		atomic_store(&worker->stats_reset, true);
 
 	iface = NULL;
-	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-		struct iface_info_port *port = (struct iface_info_port *)iface->info;
-		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
-			return api_out(-ret, 0);
-		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
-			return api_out(-ret, 0);
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		struct iface_stats *sw_stats = iface_get_stats(iface->id);
+		// Reset software stats for all interface types.
+		if (sw_stats != NULL) {
+			memset(sw_stats, 0, sizeof(*sw_stats));
+		}
+
+		if (iface->type == GR_IFACE_TYPE_PORT) {
+			struct iface_info_port *port = (struct iface_info_port *)iface->info;
+			if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
+				return api_out(-ret, 0);
+			if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
+				return api_out(-ret, 0);
+		}
 	}
 
 	return api_out(0, 0);
+}
+
+static struct api_out iface_stats_get(const void * /*request*/, void **response) {
+	struct gr_infra_iface_stats_get_resp *resp = NULL;
+	struct gr_iface_stats *stats_vec = NULL;
+	struct iface *iface = NULL;
+	int ret = 0;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		struct iface_stats *sw_stats = iface_get_stats(iface->id);
+		if (sw_stats == NULL)
+			continue;
+
+		// Create a single stats object per interface
+		struct gr_iface_stats s;
+		s.iface_id = iface->id;
+		s.rx_packets = 0;
+		s.rx_bytes = 0;
+		s.tx_packets = 0;
+		s.tx_bytes = 0;
+
+		// Aggregate per-core stats
+		for (int i = 0; i < RTE_MAX_LCORE; i++) {
+			s.rx_packets += sw_stats->rx_packets[i];
+			s.rx_bytes += sw_stats->rx_bytes[i];
+			s.tx_packets += sw_stats->tx_packets[i];
+			s.tx_bytes += sw_stats->tx_bytes[i];
+		}
+		gr_vec_add(stats_vec, s);
+	}
+
+	size_t n_stats = gr_vec_len(stats_vec);
+	size_t len = sizeof(*resp) + n_stats * sizeof(struct gr_iface_stats);
+	if ((resp = calloc(1, len)) == NULL) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	resp->n_stats = n_stats;
+	memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
+
+	gr_vec_free(stats_vec);
+	*response = resp;
+	return api_out(0, len);
+err:
+	gr_vec_free(stats_vec);
+	free(resp);
+	return api_out(-ret, 0);
 }
 
 static int
@@ -415,9 +472,16 @@ static struct gr_api_handler stats_reset_handler = {
 	.callback = stats_reset,
 };
 
+static struct gr_api_handler iface_stats_get_handler = {
+	.name = "iface stats get",
+	.request_type = GR_INFRA_IFACE_STATS_GET,
+	.callback = iface_stats_get,
+};
+
 RTE_INIT(infra_stats_init) {
 	gr_register_api_handler(&stats_get_handler);
 	gr_register_api_handler(&stats_reset_handler);
+	gr_register_api_handler(&iface_stats_get_handler);
 	rte_telemetry_register_cmd(
 		"/grout/stats/graph",
 		telemetry_sw_stats_get,
