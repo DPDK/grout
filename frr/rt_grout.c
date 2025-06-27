@@ -590,3 +590,30 @@ end:
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
+
+void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
+	struct nexthop nh = {.weight = 1};
+	afi_t afi = AFI_UNSPEC;
+	int family, type;
+
+	// XXX: grout is optional to have an ID for nexthop
+	// but in FRR, it's mandatory
+	if (gr_nh->nh_id == 0) {
+		gr_log_err("impossible to sync nexthop from grout that does not have an ID");
+		return;
+	}
+
+	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &family, new) < 0)
+		return;
+
+	if (!new) {
+		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
+		return;
+	}
+
+	afi = family2afi(family);
+	type = origin2zebra(gr_nh->origin, family, false);
+	SET_FLAG(nh.flags, NEXTHOP_FLAG_ACTIVE);
+
+	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, false, NULL);
+}
