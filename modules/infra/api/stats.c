@@ -211,6 +211,63 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 	return api_out(0, 0);
 }
 
+static struct api_out iface_stats_get(const void * /*request*/, void **response) {
+	struct gr_infra_iface_stats_get_resp *resp = NULL;
+	struct gr_iface_stats *stats_vec = NULL;
+	struct iface *iface = NULL;
+	int ret = 0;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		struct iface_stats *sw_stats = iface_get_stats(iface->id);
+		if (sw_stats == NULL)
+			continue;
+
+		// Aggregate per-core stats into totals
+		uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
+		for (int i = 0; i < RTE_MAX_LCORE; i++) {
+			rx_pkts += sw_stats->rx_packets[i];
+			rx_bytes += sw_stats->rx_bytes[i];
+			tx_pkts += sw_stats->tx_packets[i];
+			tx_bytes += sw_stats->tx_bytes[i];
+		}
+
+		struct gr_iface_stats s;
+		s.value = rx_pkts;
+		snprintf(s.name, sizeof(s.name), "%s.rx_packets", iface->name);
+		gr_vec_add(stats_vec, s);
+
+		s.value = rx_bytes;
+		snprintf(s.name, sizeof(s.name), "%s.rx_bytes", iface->name);
+		gr_vec_add(stats_vec, s);
+
+		s.value = tx_pkts;
+		snprintf(s.name, sizeof(s.name), "%s.tx_packets", iface->name);
+		gr_vec_add(stats_vec, s);
+
+		s.value = tx_bytes;
+		snprintf(s.name, sizeof(s.name), "%s.tx_bytes", iface->name);
+		gr_vec_add(stats_vec, s);
+	}
+
+	size_t n_stats = gr_vec_len(stats_vec);
+	size_t len = sizeof(*resp) + n_stats * sizeof(struct gr_iface_stats);
+	if ((resp = calloc(1, len)) == NULL) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	resp->n_stats = n_stats;
+	memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
+
+	gr_vec_free(stats_vec);
+	*response = resp;
+	return api_out(0, len);
+err:
+	gr_vec_free(stats_vec);
+	free(resp);
+	return api_out(-ret, 0);
+}
+
 static int
 telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
 	struct stat *stats = NULL, *s;
@@ -415,9 +472,16 @@ static struct gr_api_handler stats_reset_handler = {
 	.callback = stats_reset,
 };
 
+static struct gr_api_handler iface_stats_get_handler = {
+	.name = "iface stats get",
+	.request_type = GR_INFRA_IFACE_STATS_GET,
+	.callback = iface_stats_get,
+};
+
 RTE_INIT(infra_stats_init) {
 	gr_register_api_handler(&stats_get_handler);
 	gr_register_api_handler(&stats_reset_handler);
+	gr_register_api_handler(&iface_stats_get_handler);
 	rte_telemetry_register_cmd(
 		"/grout/stats/graph",
 		telemetry_sw_stats_get,
