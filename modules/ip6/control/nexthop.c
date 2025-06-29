@@ -232,7 +232,7 @@ free:
 }
 
 static int nh6_add(struct nexthop *nh) {
-	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_RT_ORIGIN_LINK, nh);
+	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_RT_ORIGIN_INTERNAL, nh);
 }
 
 static void nh6_del(struct nexthop *nh) {
