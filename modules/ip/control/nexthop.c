@@ -188,7 +188,7 @@ free:
 }
 
 static int nh4_add(struct nexthop *nh) {
-	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_LINK, nh);
+	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_INTERNAL, nh);
 }
 
 static void nh4_del(struct nexthop *nh) {
