@@ -59,7 +59,7 @@ static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_p
 }
 
 static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_add_req req = {0};
+	struct gr_nh_add_req req = {.exist_ok = true};
 	struct gr_iface iface;
 
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
