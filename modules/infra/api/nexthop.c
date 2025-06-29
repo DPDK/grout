@@ -144,7 +144,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 
 	ops = nexthop_af_ops_get(nh->af);
 	assert(ops != NULL);
-	ops->free(nh);
+	ops->del(nh);
 
 	return api_out(0, 0);
 }
