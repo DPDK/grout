@@ -81,7 +81,7 @@ struct nexthop_af_ops {
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked when all nexthop probes failed and it needs to be freed.
-	void (*free)(struct nexthop *);
+	void (*del)(struct nexthop *);
 };
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
