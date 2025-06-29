@@ -191,7 +191,7 @@ static int nh4_add(struct nexthop *nh) {
 	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_LINK, nh);
 }
 
-static void nh4_free(struct nexthop *nh) {
+static void nh4_del(struct nexthop *nh) {
 	rib4_delete(nh->vrf_id, nh->ipv4, 32);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
@@ -213,7 +213,7 @@ static struct gr_module nh4_module = {
 static struct nexthop_af_ops nh_ops = {
 	.add = nh4_add,
 	.solicit = arp_output_request_solicit,
-	.free = nh4_free,
+	.del = nh4_del,
 };
 
 RTE_INIT(control_ip_init) {

@@ -235,7 +235,7 @@ static int nh6_add(struct nexthop *nh) {
 	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_RT_ORIGIN_LINK, nh);
 }
 
-static void nh6_free(struct nexthop *nh) {
+static void nh6_del(struct nexthop *nh) {
 	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
@@ -257,7 +257,7 @@ static struct gr_module nh6_module = {
 static struct nexthop_af_ops nh_ops = {
 	.add = nh6_add,
 	.solicit = nh6_solicit,
-	.free = nh6_free,
+	.del = nh6_del,
 };
 
 RTE_INIT(control_ip_init) {

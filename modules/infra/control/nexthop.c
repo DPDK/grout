@@ -96,7 +96,7 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 	switch (af) {
 	case GR_AF_IP4:
 	case GR_AF_IP6:
-		if (ops == NULL || ops->free == NULL || ops->solicit == NULL)
+		if (ops == NULL || ops->del == NULL || ops->solicit == NULL)
 			ABORT("invalid af ops");
 		if (af_ops[af] != NULL)
 			ABORT("duplicate af ops %hhu", af);
@@ -353,7 +353,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts);
-			ops->free(nh);
+			ops->del(nh);
 		}
 	}
 }
