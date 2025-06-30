@@ -53,6 +53,7 @@ static int grout_notif_subscribe(
 	}
 
 	for (i = 0; i < nb_ev_types; i++) {
+		req.suppress_self_events = false;
 		req.ev_type = ev_types[i];
 
 		if (gr_api_client_send_recv(

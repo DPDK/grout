@@ -9,7 +9,9 @@
 #include <gr_net_types.h>
 
 static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_pnode *) {
-	struct gr_event_subscribe_req req = {.ev_type = EVENT_TYPE_ALL};
+	struct gr_event_subscribe_req req = {
+		.suppress_self_events = false, .ev_type = EVENT_TYPE_ALL
+	};
 	struct gr_infra_iface_get_resp *p;
 	struct gr_api_event *e = NULL;
 	struct gr_ip4_route *r4;
