@@ -22,8 +22,25 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+static pid_t socket_pid(int fd) {
+	struct ucred cred;
+	socklen_t len;
+
+	len = sizeof(cred);
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
+		return errno_log(errno, "getsockopt(SO_PEERCRED)");
+
+	return cred.pid;
+}
+
+struct subscription {
+	bool suppress_self_events;
+	evutil_socket_t sock;
+	pid_t pid;
+};
+
 // List of subscribers to EVENT_TYPE_ALL
-static evutil_socket_t *all_events_subs;
+static struct subscription *all_events_subs;
 // 2 dimensional array of subscribers to events.
 //
 // Example to get a list of sockets subscribed to ev_type = 0xacdc0102:
@@ -55,15 +72,17 @@ static evutil_socket_t *all_events_subs;
 //                             +--------+
 //
 struct module_subscribers {
-	evutil_socket_t *ev_subs[UINT16_MAX];
+	struct subscription *ev_subs[UINT16_MAX];
 };
 static struct module_subscribers *mod_subs[UINT16_MAX];
+// PID of the current request while API handler is called.
+static __thread pid_t cur_req_pid;
 
 static void api_send_notifications(uint32_t ev_type, const void *obj) {
+	struct subscription *ev_subs = NULL;
 	struct module_subscribers *subs;
-	evutil_socket_t *socks = NULL;
+	struct subscription *s;
 	struct gr_api_event e;
-	evutil_socket_t s;
 	void *data = NULL;
 	uint16_t mod, ev;
 	int len;
@@ -72,9 +91,9 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	ev = ev_type & 0xffff;
 	subs = mod_subs[mod];
 	if (subs != NULL)
-		socks = subs->ev_subs[ev];
+		ev_subs = subs->ev_subs[ev];
 
-	if (gr_vec_len(all_events_subs) == 0 && gr_vec_len(socks) == 0) {
+	if (gr_vec_len(all_events_subs) == 0 && gr_vec_len(ev_subs) == 0) {
 		// no subscribers
 		return;
 	}
@@ -87,13 +106,17 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	e.ev_type = ev_type;
 	e.payload_len = len;
 
-	gr_vec_foreach (s, all_events_subs) {
-		send(s, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
-		send(s, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+	gr_vec_foreach_ref (s, all_events_subs) {
+		if (s->suppress_self_events && s->pid == cur_req_pid)
+			continue;
+		send(s->sock, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
+		send(s->sock, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}
-	gr_vec_foreach (s, socks) {
-		send(s, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
-		send(s, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+	gr_vec_foreach_ref (s, ev_subs) {
+		if (s->suppress_self_events && s->pid == cur_req_pid)
+			continue;
+		send(s->sock, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
+		send(s->sock, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
 	}
 
 	free(data);
@@ -102,15 +125,22 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 static struct api_out subscribe(evutil_socket_t sock, const void *request) {
 	const struct gr_event_subscribe_req *req = request;
 	struct module_subscribers *subs;
-	evutil_socket_t s;
+	struct subscription sub = {
+		.sock = sock,
+		.pid = socket_pid(sock),
+		.suppress_self_events = req->suppress_self_events,
+	};
+	struct subscription *s;
 	uint16_t mod, ev;
 
 	if (req->ev_type == EVENT_TYPE_ALL) {
-		gr_vec_foreach (s, all_events_subs) {
-			if (s == sock)
+		gr_vec_foreach_ref (s, all_events_subs) {
+			if (s->sock == sock) {
+				s->suppress_self_events = req->suppress_self_events;
 				return api_out(0, 0); // already subscribed
+			}
 		}
-		gr_vec_add(all_events_subs, sock);
+		gr_vec_add(all_events_subs, sub);
 		return api_out(0, 0);
 	}
 
@@ -123,11 +153,13 @@ static struct api_out subscribe(evutil_socket_t sock, const void *request) {
 		if (subs == NULL)
 			return api_out(ENOMEM, 0);
 	}
-	gr_vec_foreach (s, subs->ev_subs[ev]) {
-		if (s == sock)
+	gr_vec_foreach_ref (s, subs->ev_subs[ev]) {
+		if (s->sock == sock) {
+			s->suppress_self_events = req->suppress_self_events;
 			return api_out(0, 0); // already subscribed
+		}
 	}
-	gr_vec_add(subs->ev_subs[ev], sock);
+	gr_vec_add(subs->ev_subs[ev], sub);
 
 	return api_out(0, 0);
 }
@@ -137,7 +169,7 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 
 	i = 0;
 	while (i < gr_vec_len(all_events_subs)) {
-		if (all_events_subs[i] == sock)
+		if (all_events_subs[i].sock == sock)
 			gr_vec_del_swap(all_events_subs, i);
 		else
 			i++;
@@ -148,11 +180,11 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 		if (subs == NULL)
 			continue;
 		for (uint16_t ev = 0; ev < ARRAY_DIM(subs->ev_subs); ev++) {
-			evutil_socket_t *sockets = subs->ev_subs[ev];
+			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
-			while (i < gr_vec_len(sockets)) {
-				if (sockets[i] == sock)
-					gr_vec_del_swap(sockets, i);
+			while (i < gr_vec_len(ev_subs)) {
+				if (ev_subs[i].sock == sock)
+					gr_vec_del_swap(ev_subs, i);
 				else
 					i++;
 			}
@@ -285,7 +317,9 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		goto send;
 	}
 
+	cur_req_pid = socket_pid(sock);
 	out = handler->callback(req_payload, &resp_payload);
+	cur_req_pid = 0;
 
 send:
 	resp = malloc(sizeof(*resp) + out.len);
