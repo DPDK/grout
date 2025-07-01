@@ -5,7 +5,6 @@
 #include <gr_clock.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
-#include <gr_event.h>
 #include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6.h>
@@ -196,9 +195,6 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = mac;
-
-		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
