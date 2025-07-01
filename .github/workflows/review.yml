@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+
+name: AI Code Review
+
+permissions: write-all
+
+on:
+  pull_request_target:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai_review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run GPT Code Review
+        uses: anc95/ChatGPT-CodeReview@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL: o4-mini
+          PROMPT: |
+            You are a senior C developer reviewing a GitHub pull request.
+
+            Focus on:
+            - Memory safety (e.g., buffer overflows, pointer misuse)
+            - Correctness (null checks, type safety, missing error handling)
+            - Code clarity and clean style
+            - Use of standard idioms and conventions (C23)
+
+            Only provide helpful, relevant comments. Be brief but clear.
+          IGNORE_PATTERNS: "/build/**,*.md"
+          INCLUDE_PATTERNS: "*.c,*.h,*.sh,meson.build"
