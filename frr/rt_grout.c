@@ -241,10 +241,10 @@ static void grout_route_change(
 ) {
 	int tableid = RT_TABLE_ID_MAIN; /* no table support for now */
 	int proto = ZEBRA_ROUTE_KERNEL;
-	struct nexthop nh = {};
+	uint32_t nh_id = gr_nh->nh_id;
+	struct nexthop _nh, *nh = NULL;
 	uint32_t flags = 0;
 	struct prefix p;
-	int nh_family;
 	size_t sz;
 	afi_t afi;
 
@@ -278,20 +278,27 @@ static void grout_route_change(
 		return;
 	}
 
-	// A method to ignore our own messages. selfroute ? */
-	memset(&nh, 0, sizeof(nh));
-	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &nh_family, new) < 0) {
-		gr_log_debug("route received has invalid nexthop, ignoring");
-		return;
-	}
+	// if no nh_id, parse nexthop
+	if (nh_id == 0) {
+		int nh_family;
 
-	if (nh_family != family) {
-		gr_log_debug(
-			"nexthop family %u different that route family %u nexthop, ignoring",
-			nh_family,
-			family
-		);
-		return;
+		memset(&_nh, 0, sizeof(_nh));
+		nh = &_nh;
+
+		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family, new) < 0) {
+			gr_log_debug("route received has invalid nexthop, ignoring");
+			return;
+		}
+
+		if (nh_family != family) {
+			gr_log_debug(
+				"nexthop family %u different that route family %u nexthop, "
+				"ignoring",
+				nh_family,
+				family
+			);
+			return;
+		}
 	}
 
 	if (family == AF_INET) {
@@ -312,24 +319,28 @@ static void grout_route_change(
 
 	proto = origin2zebra(origin, family, false);
 
-	if (new)
-		rib_add(afi,
-			SAFI_UNICAST,
-			VRF_DEFAULT,
-			proto,
-			0,
-			flags,
-			&p,
-			NULL,
-			&nh,
-			0,
-			tableid,
-			0,
-			0,
-			0,
-			0,
-			false);
-	else
+	if (new) {
+		struct route_entry *re;
+		struct nexthop_group *ng = NULL;
+		struct nexthop *nexthop;
+
+		re = zebra_rib_route_entry_new(
+			VRF_DEFAULT, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0
+		);
+		if (nh) {
+			ng = nexthop_group_new();
+
+			nexthop = nexthop_new();
+			*nexthop = *nh;
+			nexthop_group_add_sorted(ng, nexthop);
+			assert(nh_id == 0);
+		}
+
+		rib_add_multipath(afi, SAFI_UNICAST, &p, NULL, re, ng, false);
+
+		if (ng)
+			nexthop_group_delete(&ng);
+	} else
 		rib_delete(
 			afi,
 			SAFI_UNICAST,
@@ -339,8 +350,8 @@ static void grout_route_change(
 			flags,
 			&p,
 			NULL,
-			&nh,
-			0,
+			nh,
+			nh_id,
 			tableid,
 			0,
 			0,
