@@ -41,6 +41,8 @@ Provide a list of concise per-file inline comments in JSON format. Example:
 
 [{{"path": "modules/infra/control/nexthop.c", "line": 42, "comment": "Return value of malloc is not checked."}}, {{"path": "main/dpdk.c", "line": 666, "comment": "Reset to NULL to avoid double-free."}}]
 
+The line number should be the exact one where the comment applies and should refer to the location in the files *after* the diff is applied.
+
 Here is the diff to review:
 
 ```diff
@@ -64,6 +66,7 @@ for c in parsed:
         {
             "path": c["path"],
             "line": c["line"],
+            "side": "RIGHT",
             "body": c["comment"],
             "commit_id": COMMIT_ID,
         }
