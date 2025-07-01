@@ -1,41 +1,43 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Robin Jarry
 
-name: AI Code Review
-
-permissions: write-all
+name: GPT Inline Code Review
 
 on:
-  pull_request:
-    branches:
-      - main
+  pull_request_target:
+    types: [opened, synchronize]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   ai_review:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Run GPT Code Review
-        uses: anc95/ChatGPT-CodeReview@main
+      - name: Download PR diff
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -H "Accept: application/vnd.github.v3.diff" \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -L "${{ github.event.pull_request.diff_url }}" \
+            -o pr.diff
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip' # caching pip dependencies
+
+      - run: pip install openai requests
+
+      - name: Run GPT inline review
+        env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MODEL: o4-mini
-          PROMPT: |
-            You are a senior C developer reviewing a GitHub pull request.
-
-            Focus on:
-            - Memory safety (e.g., buffer overflows, pointer misuse)
-            - Correctness (null checks, type safety, missing error handling)
-            - Code clarity and clean style
-            - Use of standard idioms and conventions (C23)
-
-            Only provide helpful, relevant comments. Be brief but clear.
-          IGNORE_PATTERNS: "/build/**,*.md"
-          INCLUDE_PATTERNS: "*.c,*.h,*.sh,meson.build"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_ID: ${{ github.event.pull_request.head.sha }}
+          DIFF_FILE: pr.diff
+        run: python3 .github/workflows/ai-review.py
