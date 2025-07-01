@@ -36,10 +36,15 @@ static const char *plugin_name = "zebra_dplane_grout";
 static void dplane_read_notifications(struct event *event);
 static void zebra_read_notifications(struct event *event);
 
+struct grout_evt {
+	uint32_t type;
+	bool suppress_self_events;
+};
+
 static int grout_notif_subscribe(
 	struct gr_api_client **pgr_client,
-	const uint32_t *ev_types,
-	unsigned int nb_ev_types
+	const struct grout_evt *gr_evts,
+	unsigned int nb_gr_evts
 ) {
 	struct gr_event_subscribe_req req;
 	unsigned int i;
@@ -52,9 +57,9 @@ static int grout_notif_subscribe(
 		return -1;
 	}
 
-	for (i = 0; i < nb_ev_types; i++) {
-		req.suppress_self_events = false;
-		req.ev_type = ev_types[i];
+	for (i = 0; i < nb_gr_evts; i++) {
+		req.suppress_self_events = gr_evts[i].suppress_self_events;
+		req.ev_type = gr_evts[i].type;
 
 		if (gr_api_client_send_recv(
 			    *pgr_client, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL
@@ -77,19 +82,19 @@ static int grout_notif_subscribe(
 
 static void dplane_grout_connect(struct event *t) {
 	struct event_loop *dg_master = dplane_get_thread_master();
-	const uint32_t ev_types[] = {
-		GR_EVENT_IFACE_POST_ADD,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-		GR_EVENT_IFACE_POST_RECONFIG,
-		GR_EVENT_IFACE_PRE_REMOVE,
-		GR_EVENT_IP_ADDR_ADD,
-		GR_EVENT_IP6_ADDR_ADD,
-		GR_EVENT_IP_ADDR_DEL,
-		GR_EVENT_IP6_ADDR_DEL
+	static const struct grout_evt gr_evts[] = {
+		{.type = GR_EVENT_IFACE_POST_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_STATUS_UP, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_STATUS_DOWN, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_POST_RECONFIG, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_PRE_REMOVE, .suppress_self_events = true},
+		{.type = GR_EVENT_IP_ADDR_ADD, .suppress_self_events = false},
+		{.type = GR_EVENT_IP6_ADDR_ADD, .suppress_self_events = false},
+		{.type = GR_EVENT_IP_ADDR_DEL, .suppress_self_events = false},
+		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, ev_types, ARRAY_SIZE(ev_types)) < 0)
+	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
 		goto reschedule_connect;
 
 	event_add_read(
@@ -108,12 +113,12 @@ reschedule_connect:
 }
 
 static void zebra_grout_connect(struct event *t) {
-	const uint32_t ev_types[] = {
-		GR_EVENT_IP_ROUTE_ADD,
-		GR_EVENT_IP_ROUTE_DEL,
+	static const struct grout_evt gr_evts[] = {
+		{.type = GR_EVENT_IP_ROUTE_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_IP_ROUTE_DEL, .suppress_self_events = true},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, ev_types, ARRAY_SIZE(ev_types)) < 0)
+	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
 		goto reschedule_connect;
 
 	event_add_read(
