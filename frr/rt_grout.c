@@ -195,17 +195,30 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		gr_log_debug("no vrf support for nexthop, nexthop not sync");
 		return -1;
 	}
+	if (gr_nh->iface_id)
+		nh->ifindex = gr_nh->iface_id + GROUT_INDEX_OFFSET;
+	else
+		nh->ifindex = 0;
+
 	nh->vrf_id = gr_nh->vrf_id;
 
 	switch (gr_nh->af) {
 	case GR_AF_IP4:
-		nh->type = NEXTHOP_TYPE_IPV4;
+		if (nh->ifindex)
+			nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
+		else
+			nh->type = NEXTHOP_TYPE_IPV4;
+
 		sz = 4;
 		*nh_family = AF_INET;
 		memcpy(&nh->gate.ipv4, &gr_nh->ipv4, sz);
 		break;
 	case GR_AF_IP6:
-		nh->type = NEXTHOP_TYPE_IPV6;
+		if (nh->ifindex)
+			nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
+		else
+			nh->type = NEXTHOP_TYPE_IPV6;
+
 		sz = 16;
 		*nh_family = AF_INET6;
 		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
