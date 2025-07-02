@@ -204,8 +204,10 @@ struct gr_iface_stats {
 	uint16_t iface_id;
 	uint64_t rx_packets;
 	uint64_t rx_bytes;
+	uint64_t rx_drops;
 	uint64_t tx_packets;
 	uint64_t tx_bytes;
+	uint64_t tx_errors;
 };
 
 struct gr_infra_iface_stats_get_resp {
