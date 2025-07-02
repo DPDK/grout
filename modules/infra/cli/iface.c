@@ -354,8 +354,10 @@ static cmd_status_t iface_stats(const struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "INTERFACE", 0, 0);
 	scols_table_new_column(table, "RX_PACKETS", SCOLS_FL_RIGHT, 0);
 	scols_table_new_column(table, "RX_BYTES", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "RX_DROPS", SCOLS_FL_RIGHT, 0);
 	scols_table_new_column(table, "TX_PACKETS", SCOLS_FL_RIGHT, 0);
 	scols_table_new_column(table, "TX_BYTES", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "TX_ERRORS", SCOLS_FL_RIGHT, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
@@ -373,8 +375,10 @@ static cmd_status_t iface_stats(const struct gr_api_client *c, const struct ec_p
 
 		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
 		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
-		scols_line_sprintf(line, 3, "%lu", resp->stats[i].tx_packets);
-		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_bytes);
+		scols_line_sprintf(line, 3, "%lu", resp->stats[i].rx_drops);
+		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_packets);
+		scols_line_sprintf(line, 5, "%lu", resp->stats[i].tx_bytes);
+		scols_line_sprintf(line, 6, "%lu", resp->stats[i].tx_errors);
 	}
 
 	scols_print_table(table);

@@ -238,8 +238,10 @@ static struct api_out iface_stats_get(const void * /*request*/, void **response)
 		s.iface_id = iface->id;
 		s.rx_packets = 0;
 		s.rx_bytes = 0;
+		s.rx_drops = 0;
 		s.tx_packets = 0;
 		s.tx_bytes = 0;
+		s.tx_errors = 0;
 
 		// Aggregate per-core stats
 		for (int i = 0; i < RTE_MAX_LCORE; i++) {
@@ -248,6 +250,17 @@ static struct api_out iface_stats_get(const void * /*request*/, void **response)
 			s.tx_packets += sw_stats->tx_packets[i];
 			s.tx_bytes += sw_stats->tx_bytes[i];
 		}
+
+		if (iface->type == GR_IFACE_TYPE_PORT) {
+			// If possible, use the hardware statistics from the driver
+			struct iface_info_port *port = (struct iface_info_port *)iface->info;
+			struct rte_eth_stats stats = {0};
+			if (rte_eth_stats_get(port->port_id, &stats) == 0) {
+				s.rx_drops = stats.imissed;
+				s.tx_errors = stats.oerrors;
+			}
+		}
+
 		gr_vec_add(stats_vec, s);
 	}
 
