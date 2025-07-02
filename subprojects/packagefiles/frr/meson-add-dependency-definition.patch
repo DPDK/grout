@@ -1,4 +1,4 @@
-From d55d8335e852de6033cf4f307c2b0442f2f2a836 Mon Sep 17 00:00:00 2001
+From 2bfb97b7ed4edf3c5ff63e7e7df61a2aab1ca567 Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Fri, 23 May 2025 17:44:02 +0200
 Subject: [PATCH] meson add dependency definition
@@ -54,7 +54,7 @@ index 0000000..1e40167
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000..3079e77
+index 0000000..b066a11
 --- /dev/null
 +++ b/meson.build
 @@ -0,0 +1,86 @@
@@ -103,7 +103,7 @@ index 0000000..3079e77
 +    '"' + srcdir + '/configure" ' +
 +    '--prefix="' + prefix + '" ' +
 +    '--with-moduledir="' + moduledir + '" ' +
-+    '--disable-doc ' +
++    '--disable-doc --enable-multipath=1 ' +
 +    '--disable-ripd --disable-ripngd --disable-ospfd --disable-ospf6d ' +
 +    '--disable-ldpd --disable-nhrpd --disable-eigrpd --disable-babeld  ' +
 +    '--disable-isisd --disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
