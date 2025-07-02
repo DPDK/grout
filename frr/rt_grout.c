@@ -201,6 +201,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		nh->ifindex = 0;
 
 	nh->vrf_id = gr_nh->vrf_id;
+	nh->weight = 1;
 
 	switch (gr_nh->af) {
 	case GR_AF_IP4:
