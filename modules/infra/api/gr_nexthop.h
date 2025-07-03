@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_NEXTHOP
-#define _GR_NEXTHOP
+#pragma once
 
 #include <gr_bitops.h>
 #include <gr_clock.h>
@@ -288,5 +287,3 @@ struct gr_nh_list_resp {
 	uint16_t n_nhs;
 	struct gr_nexthop nhs[/* n_nhs */];
 };
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CLI
-#define _GR_CLI
+#pragma once
 
 #include <gr_api.h>
 #include <gr_errno.h>
@@ -112,5 +111,3 @@ struct ec_node *ec_node_dyn(const char *id, ec_node_dyn_comp_t cb, void *cb_arg)
 
 #define CLIENT_ATTR "gr_api_client"
 #define SOCK_PATH_ID "gr_api_sock_path"
-
-#endif

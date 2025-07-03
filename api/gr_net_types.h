@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_NET_TYPES
-#define _GR_NET_TYPES
+#pragma once
 
 #include <gr_errno.h>
 
@@ -136,5 +135,3 @@ out:
 
 #define IP_ANY_RE "^(" __IPV4_RE "|" __IPV6_RE ")$"
 #define IP_ANY_NET_RE "^(" __IPV4_RE __IPV4_PREFIX_RE "|" __IPV6_RE __IPV6_PREFIX_RE "$"
-
-#endif

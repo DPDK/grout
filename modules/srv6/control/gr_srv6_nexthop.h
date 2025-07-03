@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#ifndef _GR_SRV6_NEXTHOP
-#define _GR_SRV6_NEXTHOP
+#pragma once
 
 #include <gr_nh_control.h>
 #include <gr_srv6.h>
@@ -27,5 +26,3 @@ struct srv6_encap_data {
 // A pointer to it is stored in nexthop priv.
 //
 GR_NH_PRIV_DATA_TYPE(srv6_encap_nh_priv, { struct srv6_encap_data *d; });
-
-#endif

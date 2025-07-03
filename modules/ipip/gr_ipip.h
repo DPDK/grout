@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_API_IPIP
-#define _GR_API_IPIP
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -21,5 +20,3 @@ struct gr_iface_info_ipip {
 };
 
 static_assert(sizeof(struct gr_iface_info_ipip) <= MEMBER_SIZE(struct gr_iface, info));
-
-#endif

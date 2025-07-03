@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP6_CONTROL
-#define _GR_IP6_CONTROL
+#pragma once
 
 #include <gr_ip6.h>
 #include <gr_net_types.h>
@@ -56,5 +55,3 @@ struct nexthop *addr6_get_linklocal(uint16_t iface_id);
 struct hoplist *addr6_get_all(uint16_t iface_id);
 // determine if the given interface is member of the provided multicast address group
 struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast);
-
-#endif

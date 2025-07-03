@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_VEC
-#define _GR_VEC
+#pragma once
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -159,5 +158,3 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 #define gr_vec_foreach_ref(p, v)                                                                   \
 	for (size_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++)   \
 		for (p = &v[__i]; __next; __next = !__next)
-
-#endif

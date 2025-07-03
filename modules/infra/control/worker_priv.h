@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CONTROL_WORKER
-#define _GR_CONTROL_WORKER
+#pragma once
 
 #include <gr_port.h>
 #include <gr_worker.h>
@@ -15,5 +14,3 @@ unsigned worker_count(void);
 int worker_create(unsigned cpu_id);
 struct worker *worker_find(unsigned cpu_id);
 int worker_destroy(unsigned cpu_id);
-
-#endif

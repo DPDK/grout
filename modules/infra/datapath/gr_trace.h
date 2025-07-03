@@ -2,8 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_PACKET_TRACE
-#define _GR_INFRA_PACKET_TRACE
+#pragma once
 
 #include <gr_icmp6.h>
 
@@ -48,5 +47,3 @@ int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t 
 int trace_icmp_format(char *buf, size_t len, const struct rte_icmp_hdr *, size_t data_len);
 
 int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *, size_t data_len);
-
-#endif

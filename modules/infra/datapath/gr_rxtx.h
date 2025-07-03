@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_RXTX
-#define _GR_INFRA_RXTX
+#pragma once
 
 #include <rte_build_config.h>
 
@@ -29,5 +28,3 @@ struct rxtx_trace_data {
 };
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
-
-#endif

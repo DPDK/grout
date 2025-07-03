@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_VLAN_PRIV
-#define _GR_INFRA_VLAN_PRIV
+#pragma once
 
 #include <gr_iface.h>
 
@@ -17,5 +16,3 @@ struct __rte_aligned(alignof(void *)) iface_info_vlan {
 };
 
 struct iface *vlan_get_iface(uint16_t port_id, uint16_t vlan_id);
-
-#endif

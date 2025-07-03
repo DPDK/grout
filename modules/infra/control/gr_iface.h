@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_IFACE
-#define _GR_INFRA_IFACE
+#pragma once
 
 #include <gr_bitops.h>
 #include <gr_infra.h>
@@ -83,5 +82,3 @@ struct iface_stats *iface_get_stats(uint16_t ifid);
 
 #define MAX_IFACES 1024
 #define MAX_VRFS 256
-
-#endif

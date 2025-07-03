@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CORE_LOG
-#define _GR_CORE_LOG
+#pragma once
 
 #include <gr_errno.h>
 
@@ -39,5 +38,3 @@ static inline void *__errno_log_null(int errnum, const char *func, const char *w
 }
 
 #define errno_log_null(err, what) __errno_log_null(err, __func__, what)
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP6_DATAPATH_H
-#define _GR_IP6_DATAPATH_H
+#pragma once
 
 #include <gr_control_output.h>
 #include <gr_icmp6.h>
@@ -73,5 +72,3 @@ int icmp6_local_send(
 );
 
 void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb);
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#ifndef _GR_FIB6_H
-#define _GR_FIB6_H
+#pragma once
 
 #include <gr_net_types.h>
 #include <gr_nh_control.h>
@@ -57,5 +56,3 @@ addr6_linklocal_unscope(const struct rte_ipv6_addr *ip, struct rte_ipv6_addr *un
 		return ip;
 	}
 }
-
-#endif

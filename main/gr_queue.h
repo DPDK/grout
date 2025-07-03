@@ -2,8 +2,7 @@
 // Copyright (c) 1991, 1993 The Regents of the University of California
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_QUEUE
-#define _GR_QUEUE
+#pragma once
 
 #include <sys/queue.h>
 
@@ -31,6 +30,4 @@
 	for ((var) = TAILQ_FIRST(head);                                                            \
 	     (var) != TAILQ_END(head) && ((tvar) = TAILQ_NEXT(var, field), 1);                     \
 	     (var) = (tvar))
-#endif
-
 #endif

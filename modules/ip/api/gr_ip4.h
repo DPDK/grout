@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP4_MSG
-#define _GR_IP4_MSG
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -177,5 +176,3 @@ struct gr_dnat44_list_resp {
 	uint16_t n_rules;
 	struct gr_dnat44_rule rules[/* n_rules */];
 };
-
-#endif

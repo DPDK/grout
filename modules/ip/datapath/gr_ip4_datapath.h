@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP4_DATAPATH_H
-#define _GR_IP4_DATAPATH_H
+#pragma once
 
 #include <gr_control_output.h>
 #include <gr_iface.h>
@@ -87,5 +86,3 @@ fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
 }
 
 void snat44_process(const struct iface *, struct rte_ipv4_hdr *);
-
-#endif

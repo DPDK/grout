@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CONFIG
-#define _GR_CONFIG
+#pragma once
 
 #include <sched.h>
 #include <stdbool.h>
@@ -26,5 +25,3 @@ struct gr_config {
 };
 
 extern struct gr_config gr_config;
-
-#endif
