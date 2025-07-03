@@ -268,6 +268,7 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IFACE_STATUS_DOWN:
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		new = true;
+		// fallthrough
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		gr_p = PAYLOAD(gr_e);
 
@@ -283,6 +284,7 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IP_ADDR_ADD:
 	case GR_EVENT_IP6_ADDR_ADD:
 		new = true;
+		// fallthrough
 	case GR_EVENT_IP_ADDR_DEL:
 	case GR_EVENT_IP6_ADDR_DEL:
 		gr_nh = PAYLOAD(gr_e);
@@ -348,6 +350,7 @@ static void zebra_read_notifications(struct event *event) {
 	switch (gr_e->ev_type) {
 	case GR_EVENT_IP_ROUTE_ADD:
 		new = true;
+		// fallthrough
 	case GR_EVENT_IP_ROUTE_DEL:
 		gr_r4 = PAYLOAD(gr_e);
 
@@ -363,6 +366,7 @@ static void zebra_read_notifications(struct event *event) {
 		break;
 	case GR_EVENT_IP6_ROUTE_ADD:
 		new = true;
+		// fallthrough
 	case GR_EVENT_IP6_ROUTE_DEL:
 		gr_r6 = PAYLOAD(gr_e);
 
@@ -379,6 +383,7 @@ static void zebra_read_notifications(struct event *event) {
 	case GR_EVENT_NEXTHOP_NEW:
 	case GR_EVENT_NEXTHOP_UPDATE:
 		new = true;
+		// fallthrough
 	case GR_EVENT_NEXTHOP_DELETE:
 		gr_nh = PAYLOAD(gr_e);
 
