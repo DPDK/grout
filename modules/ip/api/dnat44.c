@@ -137,17 +137,17 @@ static struct api_out dnat44_list(const void *request, void **response) {
 }
 
 static struct gr_api_handler add_handler = {
-	.name = "nat44 add",
+	.name = "dnat44 add",
 	.request_type = GR_DNAT44_ADD,
 	.callback = dnat44_add,
 };
 static struct gr_api_handler del_handler = {
-	.name = "nat44 del",
+	.name = "dnat44 del",
 	.request_type = GR_DNAT44_DEL,
 	.callback = dnat44_del,
 };
 static struct gr_api_handler list_handler = {
-	.name = "nat44 list",
+	.name = "dnat44 list",
 	.request_type = GR_DNAT44_LIST,
 	.callback = dnat44_list,
 };
