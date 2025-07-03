@@ -145,7 +145,7 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 #define gr_vec_del(v, i) __gr_vec_del_range(v, sizeof(*(v)), (i), 1)
 
 // delete multiple items stating at a given index
-#define gr_vec_del_n(v, i, n) __gr_vec_del_range(vec, sizeof(*(v)), (i), (n))
+#define gr_vec_del_n(v, i, n) __gr_vec_del_range(v, sizeof(*(v)), (i), (n))
 
 // replace the item at the specified index with the last item
 #define gr_vec_del_swap(v, i) ((v)[i] = gr_vec_last(v), __gr_vec_hdr(v)->len--)
