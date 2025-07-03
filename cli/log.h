@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CLI_LOG
-#define _GR_CLI_LOG
+#pragma once
 
 #include "exec.h"
 
@@ -20,5 +19,3 @@ bool is_tty(const FILE *);
 int print_cmd_status(exec_status_t status);
 
 void trace_cmd(const char *line);
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_GRAPH
-#define _GR_INFRA_GRAPH
+#pragma once
 
 #include <gr_trace.h>
 
@@ -69,5 +68,3 @@ extern struct node_infos node_infos;
 	RTE_INIT(gr_drop_register_##node_name) {                                                   \
 		STAILQ_INSERT_TAIL(&node_infos, &drop_info_##node_name, next);                     \
 	}
-
-#endif

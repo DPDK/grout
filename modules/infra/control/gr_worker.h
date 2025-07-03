@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_INFRA_WORKER
-#define _GR_INFRA_WORKER
+#pragma once
 
 #include <gr_graph.h>
 #include <gr_port.h>
@@ -73,5 +72,3 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
 int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports);
 void worker_wait_ready(struct worker *);
 void worker_signal_ready(struct worker *);
-
-#endif

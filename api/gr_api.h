@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_API
-#define _GR_API
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -68,5 +67,3 @@ struct gr_api_event {
 };
 
 int gr_api_client_event_recv(const struct gr_api_client *, struct gr_api_event **);
-
-#endif

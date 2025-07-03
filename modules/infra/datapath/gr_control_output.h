@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#ifndef _GR_CONTROL_OUTPUT_PATH
-#define _GR_CONTROL_OUTPUT_PATH
+#pragma once
 
 #include <gr_mbuf.h>
 
@@ -32,5 +31,3 @@ void control_output_done(void);
 
 // Change the thread affinity of the control output thread.
 int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity);
-
-#endif

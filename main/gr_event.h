@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#ifndef _GR_EVENT
-#define _GR_EVENT
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -43,5 +42,3 @@ void gr_event_register_serializer(struct gr_event_serializer *);
 
 // Serialize an event to be sent to a subscribed client over the API socket.
 int gr_event_serialize(uint32_t ev_type, const void *obj, void **buf);
-
-#endif

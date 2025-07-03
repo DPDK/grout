@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_NH_CONTROL
-#define _GR_INFRA_NH_CONTROL
+#pragma once
 
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -94,5 +93,3 @@ struct nexthop_type_ops {
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
 const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type);
-
-#endif

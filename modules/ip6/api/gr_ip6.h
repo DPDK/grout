@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP6_MSG
-#define _GR_IP6_MSG
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -176,5 +175,3 @@ typedef enum {
 	GR_EVENT_IP6_ROUTE_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0003),
 	GR_EVENT_IP6_ROUTE_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0004),
 } gr_event_ip6_t;
-
-#endif

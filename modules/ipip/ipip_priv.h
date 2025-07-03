@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _IPIP_PRIV_H
-#define _IPIP_PRIV_H
+#pragma once
 
 #include <gr_ipip.h>
 #include <gr_macro.h>
@@ -24,5 +23,3 @@ struct trace_ipip_data {
 };
 
 int trace_ipip_format(char *buf, size_t len, const void *data, size_t data_len);
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP4_CONTROL
-#define _GR_IP4_CONTROL
+#pragma once
 
 #include <gr_iface.h>
 #include <gr_ip4.h>
@@ -43,5 +42,3 @@ void rib4_cleanup(struct nexthop *);
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
-
-#endif

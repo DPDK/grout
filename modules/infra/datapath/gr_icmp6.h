@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_DATAPATH_ICMP6
-#define _GR_DATAPATH_ICMP6
+#pragma once
 
 #include <gr_macro.h>
 
@@ -162,5 +161,3 @@ next:
 	}
 	return ICMP6_OPT_NOT_FOUND;
 }
-
-#endif

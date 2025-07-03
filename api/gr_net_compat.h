@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_NET_COMPAT
-#define _GR_NET_COMPAT
+#pragma once
 
 #include <limits.h>
 #include <stdint.h>
@@ -66,5 +65,3 @@ struct __attribute__((aligned(2))) rte_ether_addr {
 #define ICMP6_TYPE_ERR_PARAM_PROBLEM 4
 #define ICMP6_TYPE_ECHO_REQUEST 128
 #define ICMP6_TYPE_ECHO_REPLY 129
-
-#endif

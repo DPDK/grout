@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_MODULE
-#define _GR_MODULE
+#pragma once
 
 #include <event2/event.h>
 
@@ -39,5 +38,3 @@ struct gr_module {
 };
 
 void gr_register_module(struct gr_module *);
-
-#endif

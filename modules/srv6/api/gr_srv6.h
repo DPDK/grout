@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#ifndef _GR_API_SRV6
-#define _GR_API_SRV6
+#pragma once
 
 #include <gr_api.h>
 #include <gr_net_types.h>
@@ -112,5 +111,3 @@ struct gr_srv6_localsid_list_resp {
 	uint16_t n_lsid;
 	struct gr_srv6_localsid lsid[/* n_lsid */];
 };
-
-#endif

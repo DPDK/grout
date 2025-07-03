@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_MBUF
-#define _GR_MBUF
+#pragma once
 
 #include <gr_graph.h>
 
@@ -67,5 +66,3 @@ void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_l
 
 // Detach the trace items from an mbuf and store them in the trace buffer.
 void gr_mbuf_trace_finish(struct rte_mbuf *m);
-
-#endif

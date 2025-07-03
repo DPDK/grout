@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_INFRA_API
-#define _GR_INFRA_API
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -358,5 +357,3 @@ static inline const char *iface_mode_to_str(gr_iface_mode_t mode) {
 	}
 	return "?";
 }
-
-#endif
