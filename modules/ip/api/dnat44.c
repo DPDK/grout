@@ -123,7 +123,7 @@ static struct api_out dnat44_list(const void *request, void **response) {
 	len = sizeof(*resp) + gr_vec_len(iter.rules) * sizeof(struct gr_dnat44_rule);
 	resp = malloc(len);
 	if (resp == NULL) {
-		free(iter.rules);
+		gr_vec_free(iter.rules);
 		return api_out(ENOMEM, 0);
 	}
 
