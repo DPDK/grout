@@ -24,15 +24,6 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Download PR diff
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -H "Accept: application/vnd.github.v3.diff" \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -L "${{ github.event.pull_request.diff_url }}" \
-            -o pr.diff
-
       - name: Run GPT inline review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -40,5 +31,4 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           COMMIT_ID: ${{ github.event.pull_request.head.sha }}
-          DIFF_FILE: pr.diff
         run: python3 .github/workflows/ai-review.py

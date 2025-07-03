@@ -13,16 +13,11 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 REPO = os.environ["REPO"]
 PR_NUMBER = os.environ["PR_NUMBER"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
-COMMIT_ID = os.environ["COMMIT_ID"]
-DIFF_FILE = os.environ["DIFF_FILE"]
-
-with open(DIFF_FILE) as f:
-    diff = f.read()
-
-# Split into file hunks
-comments = []
-
-prompt = f"""You are an expert C developer reviewing a GitHub pull request.
+GITHUB_BASE_URL = f"https://api.github.com/repos/{REPO}"
+GITHUB_AUTH = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+}
+PROMPT = """You are an expert C developer reviewing a GitHub pull request.
 
 Focus on:
 - Memory safety (e.g., buffer overflows, pointer misuse)
@@ -31,62 +26,148 @@ Focus on:
 - Use of standard idioms and conventions (C23)
 
 Only provide helpful, relevant comments.
-Be brief but clear.
+Be brief and terse but clear.
 Only include issues worth commenting.
 Never suggest to add code comments.
 
-**IMPORTANT: OUTPUT PURE JSON WITHOUT MARKDOWN SYNTAX.**
+You will be provided the full pull request diff and a list of updated file contents.
+The review comments should only refer to changed lines in the diff.
+Make sure you are accurate about the line numbers in the file.
 
-Provide a list of concise per-file inline comments in JSON format. Example:
+Provide a list of concise per-file line comments in JSON format. Example:
 
-[{{"path": "modules/infra/control/nexthop.c", "line": 42, "comment": "Return value of malloc is not checked."}}, {{"path": "main/dpdk.c", "line": 666, "comment": "Reset to NULL to avoid double-free."}}]
+```json
+{
+  "comments": [
+    {
+      "path": "modules/infra/cli/nexthop.c",
+      "line": 42,
+      "body": "Return value of malloc is not checked."
+    },
+    {
+      "path": "main/dpdk.c",
+      "line": 666,
+      "body": "Reset to NULL to avoid double-free.",
+    }
+  ]
+}
+```
+"""
 
-The line number should be the exact one where the comment applies and should refer to the location in the files *after* the diff is applied.
 
-Here is the diff to review:
+def github_get(url: str) -> dict:
+    url = f"{GITHUB_BASE_URL}/{url}"
+    print(f"fetching json {url}")
+    return requests.get(url, headers=GITHUB_AUTH).json()
+
+
+def github_get_raw(commit: str, filename: str) -> str:
+    url = f"https://github.com/{REPO}/raw/{commit}/{filename}"
+    print(f"fetching raw {url}")
+    return requests.get(url).text
+
+
+def github_get_diff() -> str:
+    url = f"https://github.com/{REPO}/pull/{PR_NUMBER}.diff"
+    print(f"fetching diff {url}")
+    return requests.get(url).text
+
+
+def github_post(url: str, data: dict) -> requests.Response:
+    url = f"{GITHUB_BASE_URL}/{url}"
+    print(f"posting json {url}")
+    return requests.post(url, json=data, headers=GITHUB_AUTH)
+
+
+def main():
+    pr_info = github_get(f"pulls/{PR_NUMBER}")
+    diff = github_get_diff()
+    commit = pr_info["head"]["sha"]
+
+    request = f"""Here is the diff:
 
 ```diff
 {diff}
 ```
+
+And here are the files:
 """
 
-response = openai.chat.completions.create(
-    model="o4-mini",
-    messages=[
-        {"role": "user", "content": prompt},
-    ],
-)
+    files = {}
+    for file in github_get(f"pulls/{PR_NUMBER}/files"):
+        if file["status"] not in ("added", "modified"):
+            continue
+        name = file["filename"]
+        files[name] = github_get_raw(commit, name)
+        request += f"""
 
-result = response.choices[0].message.content.strip()
-result = result.removeprefix("```json")
-result = result.removesuffix("```")
-parsed = json.loads(result.strip())
-for c in parsed:
-    comments.append(
-        {
-            "path": c["path"],
-            "line": c["line"],
-            "side": "RIGHT",
-            "body": c["comment"],
-            "commit_id": COMMIT_ID,
-        }
+========================= {name} ===========================
+
+```
+{files[name]}
+```
+"""
+
+    client = openai.OpenAI()
+    response = client.responses.parse(
+        model="o4-mini",
+        input=[
+            {"role": "developer", "content": PROMPT},
+            {"role": "user", "content": request},
+        ],
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "review",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "comments": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string"},
+                                    "line": {"type": "number"},
+                                    "body": {"type": "string"},
+                                },
+                                "required": ["path", "line", "body"],
+                                "additionalProperties": False,
+                            },
+                        },
+                    },
+                    "required": ["comments"],
+                    "additionalProperties": False,
+                },
+                "strict": True,
+            }
+        },
     )
+    try:
+        for c in json.loads(response.output_text.strip())["comments"]:
+            file = files[c["path"]]
+            lines = file.splitlines()
+            start_line = max(c["line"], 1)
+            line = min(c["line"] + 5, len(lines))
+            comment = {
+                "path": c["path"],
+                "start_line": start_line,
+                "line": line,
+                "side": "RIGHT",
+                "body": c["body"],
+                "commit_id": commit,
+            }
+            print(f"review {c['path']}:{c['line']}: {c['body']}")
+            r = github_post(f"pulls/{PR_NUMBER}/comments", comment)
+            if r.status_code >= 300:
+                print(
+                    f"error: failed to post comment: {r.status_code} {r.text}",
+                    file=sys.stderr,
+                )
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"error: failed to parse AI response: {e}", file=sys.stderr)
+        print(response.output_text)
 
-if comments:
-    for c in comments:
-        print(f"adding comment on {c['path']}:{c['line']}: {c['body']}")
-        r = requests.post(
-            f"https://api.github.com/repos/{REPO}/pulls/{PR_NUMBER}/comments",
-            headers={
-                "Authorization": f"Bearer {GITHUB_TOKEN}",
-                "Accept": "application/vnd.github+json",
-            },
-            json=c,
-        )
-        if r.status_code >= 300:
-            print(
-                "error: failed to post comment:", r.status_code, r.text, file=sys.stderr
-            )
-            os.exit(1)
-else:
-    print("no actionable review comments.")
+
+if __name__ == "__main__":
+    main()
