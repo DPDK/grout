@@ -17,7 +17,7 @@ struct snat44_key {
 	ip4_addr_t match;
 };
 
-int snat44_rule_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
+int snat44_static_rule_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
 	const struct snat44_key key = {iface->id, match};
 	void *data = NULL;
 
@@ -33,7 +33,7 @@ int snat44_rule_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
 	return 0;
 }
 
-int snat44_rule_del(struct iface *iface, ip4_addr_t match) {
+int snat44_static_rule_del(struct iface *iface, ip4_addr_t match) {
 	const struct snat44_key key = {iface->id, match};
 	int32_t ret = rte_hash_del_key(snat_hash, &key);
 	if (ret < 0)

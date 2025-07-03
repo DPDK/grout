@@ -47,14 +47,14 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	if (ret < 0)
 		return api_out(-ret, 0);
 
-	ret = snat44_rule_add(iface, req->rule.replace, req->rule.match);
+	ret = snat44_static_rule_add(iface, req->rule.replace, req->rule.match);
 	if (ret < 0)
 		goto fail;
 
 	return api_out(0, 0);
 fail:
 	rib4_delete(iface->vrf_id, req->rule.match, 32);
-	snat44_rule_del(iface, req->rule.replace);
+	snat44_static_rule_del(iface, req->rule.replace);
 	return api_out(-ret, 0);
 }
 
@@ -79,7 +79,7 @@ static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 		return api_out(EADDRINUSE, 0);
 
 	rib4_delete(iface->vrf_id, req->rule.match, 32);
-	snat44_rule_del(iface, req->rule.replace);
+	snat44_static_rule_del(iface, req->rule.replace);
 
 	return api_out(0, 0);
 }
