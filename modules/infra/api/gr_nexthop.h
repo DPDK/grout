@@ -70,6 +70,10 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
 } gr_nh_origin_t;
 
+#define GR_NH_STATE_COUNT (GR_NH_S_FAILED + 1)
+#define GR_NH_ORIGIN_MAX GR_NH_ORIGIN_INTERNAL
+#define GR_NH_ORIGIN_COUNT (GR_NH_ORIGIN_MAX + 1)
+
 #define GR_NH_ID_UNSET UINT32_C(0)
 
 //! Nexthop structure exposed to the API.

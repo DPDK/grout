@@ -101,6 +101,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		nh->held_pkts++;
 		if (nh->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
+			nh_stats_update(nh, GR_NH_S_PENDING);
 			nh->state = GR_NH_S_PENDING;
 		}
 		return;
@@ -238,6 +239,7 @@ static int nh6_add(struct nexthop *nh) {
 static void nh6_del(struct nexthop *nh) {
 	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
 	if (nh->ref_count > 0) {
+		nh_stats_update(nh, GR_NH_S_NEW);
 		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));
 	}

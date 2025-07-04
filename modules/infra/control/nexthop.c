@@ -3,6 +3,7 @@
 
 #include <gr_clock.h>
 #include <gr_event.h>
+#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_module.h>
@@ -25,6 +26,19 @@ static struct rte_mempool *pool;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 static const struct nexthop_type_ops *type_ops[256];
+
+static struct nh_stats nh_stats[MAX_VRFS][2]; // [vrf_id][af_index]
+
+static int af_to_index(addr_family_t af) {
+	switch (af) {
+	case GR_AF_IP4:
+		return 0;
+	case GR_AF_IP6:
+		return 1;
+	default:
+		return -1;
+	}
+}
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
@@ -161,6 +175,14 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	nh = data;
 	nh->base = *base;
 
+	// Initialize stats for new nexthop
+	int af_index = af_to_index(nh->af);
+	if (af_index >= 0 && nh->vrf_id < MAX_VRFS) {
+		struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
+		stats->total++;
+		stats->by_state[GR_NH_S_NEW]++;
+	}
+
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
@@ -276,6 +298,15 @@ void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
+		int af_index = af_to_index(nh->af);
+		if (af_index >= 0 && nh->vrf_id < MAX_VRFS) {
+			struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
+			if (nh->state < GR_NH_STATE_COUNT && stats->by_state[nh->state] > 0)
+				stats->by_state[nh->state]--;
+			if (stats->total > 0)
+				stats->total--;
+		}
+
 		// Flush all held packets.
 		struct rte_mbuf *m = nh->held_pkts_head;
 		while (m != NULL) {
@@ -329,6 +360,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			    nh->held_pkts,
 			    gr_nh_state_name(&nh->base));
 
+			nh_stats_update(nh, GR_NH_S_FAILED);
 			nh->state = GR_NH_S_FAILED;
 		} else {
 			if (ops->solicit(nh) < 0)
@@ -341,8 +373,10 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 		}
 		break;
 	case GR_NH_S_REACHABLE:
-		if (reply_age > nh_conf.lifetime_reachable_sec)
+		if (reply_age > nh_conf.lifetime_reachable_sec) {
+			nh_stats_update(nh, GR_NH_S_STALE);
 			nh->state = GR_NH_S_STALE;
+		}
 		break;
 	case GR_NH_S_FAILED:
 		if (request_age > nh_conf.lifetime_unreachable_sec) {
@@ -379,6 +413,31 @@ static void nh_fini(struct event_base *) {
 	if (ageing_timer)
 		event_free(ageing_timer);
 	rte_mempool_free(pool);
+}
+
+struct nh_stats *nexthop_get_stats(uint16_t vrf_id, addr_family_t af) {
+	int af_index = af_to_index(af);
+	if (af_index < 0 || vrf_id >= MAX_VRFS)
+		return NULL;
+	return &nh_stats[vrf_id][af_index];
+}
+
+void nh_stats_update(struct nexthop *nh, gr_nh_state_t new_state) {
+	int af_index = af_to_index(nh->af);
+	if (af_index < 0 || nh->vrf_id >= MAX_VRFS)
+		return;
+
+	struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
+
+	if (nh->state != new_state) {
+		// Decrease old state count
+		if (nh->state < GR_NH_STATE_COUNT && stats->by_state[nh->state] > 0)
+			stats->by_state[nh->state]--;
+
+		// Increase new state count
+		if (new_state < GR_NH_STATE_COUNT)
+			stats->by_state[new_state]++;
+	}
 }
 
 static struct gr_event_serializer nh_serializer = {
