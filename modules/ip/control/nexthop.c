@@ -145,7 +145,6 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	if (!(nh->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
-		nh->iface_id = iface->id;
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
