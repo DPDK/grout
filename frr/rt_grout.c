@@ -597,7 +597,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		break;
 	case NEXTHOP_TYPE_IFINDEX:
 		gr_log_debug("add nexthop id %u ifindex %u", nh_id, gr_nh->iface_id);
-		break;
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
