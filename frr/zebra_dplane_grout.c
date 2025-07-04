@@ -166,6 +166,10 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_SRV6_LOCALSID_ADD);
 	case GR_SRV6_LOCALSID_DEL:
 		return TOSTRING(GR_SRV6_LOCALSID_DEL);
+	case GR_SRV6_ROUTE_ADD:
+		return TOSTRING(GR_SRV6_ROUTE_ADD);
+	case GR_SRV6_ROUTE_DEL:
+		return TOSTRING(GR_SRV6_ROUTE_DEL);
 
 	default:
 		return "unknown";
