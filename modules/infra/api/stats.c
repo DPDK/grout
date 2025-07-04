@@ -4,8 +4,11 @@
 #include <gr_api.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
+#include <gr_ip4_control.h>
+#include <gr_ip6_control.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_nh_control.h>
 #include <gr_port.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
@@ -690,5 +693,10 @@ RTE_INIT(infra_stats_init) {
 		"/grout/iface",
 		telemetry_ifaces_info_get,
 		"Returns information per interface. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/datapath/stats",
+		telemetry_datapath_stats_get,
+		"Returns RIB and Nexthop entry counts per VRF. No parameters"
 	);
 }

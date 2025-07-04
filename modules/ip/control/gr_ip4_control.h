@@ -44,8 +44,8 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 struct hoplist *addr4_get_all(uint16_t iface_id);
 
 struct rib4_stats {
-	uint32_t total_routes;
-	uint32_t by_origin[GR_NH_ORIGIN_COUNT];
+	_Atomic uint32_t total_routes;
+	_Atomic uint32_t by_origin[GR_NH_ORIGIN_COUNT];
 };
 
 // Get route stats for IPv4 (exposed for telemetry)
