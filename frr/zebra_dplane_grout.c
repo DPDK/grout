@@ -7,6 +7,7 @@
 #include "rt_grout.h"
 
 #include <gr_api_client_impl.h>
+#include <gr_srv6.h>
 
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
@@ -161,6 +162,10 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_NH_ADD);
 	case GR_NH_DEL:
 		return TOSTRING(GR_NH_DEL);
+	case GR_SRV6_LOCALSID_ADD:
+		return TOSTRING(GR_SRV6_LOCALSID_ADD);
+	case GR_SRV6_LOCALSID_DEL:
+		return TOSTRING(GR_SRV6_LOCALSID_DEL);
 
 	default:
 		return "unknown";
