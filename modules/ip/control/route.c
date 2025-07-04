@@ -21,12 +21,14 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 
 static struct rte_rib **vrf_ribs;
+static struct rib4_stats stats[MAX_VRFS];
 
 static struct rte_rib_conf rib_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -155,6 +157,11 @@ int rib4_insert(
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib_get_ext(rn);
 	*o = origin;
+
+	// Update stats
+	atomic_fetch_add(&stats[vrf_id].total_routes, 1);
+	atomic_fetch_add(&stats[vrf_id].by_origin[origin], 1);
+
 	fib4_insert(vrf_id, ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -194,6 +201,11 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 
 	rte_rib_remove(rib, rte_be_to_cpu_32(ip), prefixlen);
 	fib4_remove(vrf_id, ip, prefixlen);
+
+	if (atomic_load(&stats[vrf_id].total_routes) > 0)
+		atomic_fetch_sub(&stats[vrf_id].total_routes, 1);
+	if (atomic_load(&stats[vrf_id].by_origin[origin]) > 0)
+		atomic_fetch_sub(&stats[vrf_id].by_origin[origin], 1);
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -310,6 +322,13 @@ static int route4_count(uint16_t vrf_id) {
 	}
 
 	return num;
+}
+
+struct rib4_stats *rib4_get_stats(uint16_t vrf_id) {
+	if (vrf_id >= MAX_VRFS)
+		return NULL;
+
+	return &stats[vrf_id];
 }
 
 static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_id) {
