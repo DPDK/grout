@@ -100,7 +100,11 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 			ops->del(nh);
 		}
 		// Update fields after deleting the route.
-		nh->base = base;
+		if ((ret = nexthop_update(nh, &base)) < 0) {
+			if (need_update)
+				nexthop_decref(nh);
+			goto end;
+		}
 		if (need_update) {
 			// Re-add the new /32 or /128 route.
 			ops = nexthop_af_ops_get(nh->af);
@@ -113,7 +117,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		if (ret == 0)
 			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
-
+end:
 	return api_out(-ret, 0);
 }
 

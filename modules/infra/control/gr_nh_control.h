@@ -58,6 +58,9 @@ bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 // Allocate a new nexthop from the global pool with the provided initial values.
 struct nexthop *nexthop_new(const struct gr_nexthop *);
 
+// Update a nexthop with values from the API.
+int nexthop_update(struct nexthop *, const struct gr_nexthop *);
+
 // Clean all next hop related to an interface.
 void nexthop_cleanup(uint16_t iface_id);
 
