@@ -9,6 +9,7 @@
 #include <gr_nh_control.h>
 #include <gr_rcu.h>
 
+#include <rte_hash.h>
 #include <rte_malloc.h>
 #include <rte_mempool.h>
 
@@ -22,6 +23,8 @@
 #define DEFAULT_BCAST_PROBES 3
 
 static struct rte_mempool *pool;
+static struct rte_hash *hash_by_addr;
+static struct rte_hash *hash_by_id;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 static const struct nexthop_type_ops *type_ops[256];
@@ -69,6 +72,93 @@ static struct rte_mempool *create_mempool(const struct gr_nexthop_config *c) {
 	return p;
 }
 
+struct nexthop_key {
+	addr_family_t af;
+	uint16_t vrf_id;
+	union {
+		ip4_addr_t ipv4;
+		struct rte_ipv6_addr ipv6;
+	};
+};
+
+static inline void set_nexthop_key(
+	struct nexthop_key *key,
+	addr_family_t af,
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const void *addr
+) {
+	memset(key, 0, sizeof(*key));
+	key->af = af;
+	key->vrf_id = vrf_id;
+	switch (af) {
+	case GR_AF_IP4:
+		key->ipv4 = *(ip4_addr_t *)addr;
+		break;
+	case GR_AF_IP6:
+		key->ipv6 = *(struct rte_ipv6_addr *)addr;
+		if (rte_ipv6_addr_is_linklocal(&key->ipv6)) {
+			key->ipv6.a[2] = (iface_id >> 8) & 0xff;
+			key->ipv6.a[3] = iface_id & 0xff;
+		}
+		break;
+	}
+}
+
+static struct rte_hash *create_hash_by_addr(const struct gr_nexthop_config *c) {
+	if (hash_by_addr != NULL && rte_hash_count(hash_by_addr) > 0)
+		return errno_set_null(EBUSY);
+
+	struct rte_hash_parameters params = {
+		.name = "nexthop-addrs",
+		.socket_id = SOCKET_ID_ANY,
+		.key_len = sizeof(struct nexthop_key),
+		.entries = c->max_count,
+	};
+
+	struct rte_hash *h = rte_hash_create(&params);
+	if (h == NULL)
+		return errno_log_null(rte_errno, "rte_hash_create");
+
+	struct rte_hash_rcu_config conf = {
+		.v = gr_datapath_rcu(),
+		.mode = RTE_HASH_QSBR_MODE_SYNC,
+	};
+	if (rte_hash_rcu_qsbr_add(h, &conf)) {
+		rte_hash_free(h);
+		return errno_log_null(rte_errno, "rte_hash_rcu_qsbr_add");
+	}
+
+	return h;
+}
+
+static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
+	if (hash_by_id != NULL && rte_hash_count(hash_by_id) > 0)
+		return errno_set_null(EBUSY);
+
+	struct rte_hash_parameters params = {
+		.name = "nexthop-ids",
+		.socket_id = SOCKET_ID_ANY,
+		.key_len = sizeof(uint32_t),
+		.entries = c->max_count,
+	};
+
+	struct rte_hash *h = rte_hash_create(&params);
+	if (h == NULL)
+		return errno_log_null(rte_errno, "rte_hash_create");
+
+	struct rte_hash_rcu_config conf = {
+		.v = gr_datapath_rcu(),
+		.mode = RTE_HASH_QSBR_MODE_SYNC,
+	};
+	if (rte_hash_rcu_qsbr_add(h, &conf)) {
+		rte_hash_free(h);
+		return errno_log_null(rte_errno, "rte_hash_rcu_qsbr_add");
+	}
+
+	return h;
+}
+
 int nexthop_config_set(const struct gr_nexthop_config *c) {
 	if (c->max_count != 0 && c->max_count != nh_conf.max_count) {
 		struct rte_mempool *p = create_mempool(c);
@@ -76,6 +166,19 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 			return -errno;
 		rte_mempool_free(pool);
 		pool = p;
+
+		struct rte_hash *h = create_hash_by_addr(c);
+		if (h == NULL)
+			return -errno;
+		rte_hash_free(hash_by_addr);
+		hash_by_addr = h;
+
+		h = create_hash_by_id(c);
+		if (h == NULL)
+			return -errno;
+		rte_hash_free(hash_by_id);
+		hash_by_id = h;
+
 		nh_conf.max_count = c->max_count;
 	}
 	if (c->lifetime_reachable_sec != 0)
@@ -131,7 +234,7 @@ const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type) {
 }
 
 struct nexthop *nexthop_new(const struct gr_nexthop *base) {
-	struct nexthop *nh;
+	struct nexthop *nh = NULL;
 	void *data;
 	int ret;
 
@@ -159,12 +262,45 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 		return errno_set_null(-ret);
 
 	nh = data;
-	nh->base = *base;
+
+	if ((ret = nexthop_update(nh, base)) < 0) {
+		memset(nh, 0, sizeof(*nh));
+		rte_mempool_put(pool, nh);
+		return errno_set_null(-ret);
+	}
 
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
 	return nh;
+}
+
+int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
+	struct nexthop_key key;
+	int ret;
+
+	if (nh->nh_id != 0)
+		rte_hash_del_key(hash_by_id, &nh->nh_id);
+	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+		rte_hash_del_key(hash_by_addr, &key);
+	}
+
+	nh->base = *update;
+
+	if (nh->nh_id != 0 && (ret = rte_hash_add_key_data(hash_by_id, &nh->nh_id, nh)) < 0)
+		return ret;
+
+	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+		if ((ret = rte_hash_add_key_data(hash_by_addr, &key, nh)) < 0) {
+			if (nh->nh_id != 0)
+				rte_hash_del_key(hash_by_id, &nh->nh_id);
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
@@ -226,48 +362,26 @@ struct lookup_filter {
 	struct nexthop *nh;
 };
 
-static void nh_lookup_cb(struct nexthop *nh, void *priv) {
-	struct lookup_filter *filter = priv;
-
-	if (filter->nh != NULL)
-		return;
-
-	if (filter->nh_id != GR_NH_ID_UNSET && filter->nh_id == nh->nh_id) {
-		filter->nh = nh;
-		return;
-	}
-
-	if (nh->af != filter->af || nh->vrf_id != filter->vrf_id)
-		return;
-
-	switch (filter->af) {
-	case GR_AF_IP4:
-		if (nh->ipv4 == *(ip4_addr_t *)filter->addr)
-			filter->nh = nh;
-		break;
-	case GR_AF_IP6:
-		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
-			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
-			if (!is_linklocal || nh->iface_id == filter->iface_id)
-				filter->nh = nh;
-		}
-		break;
-	}
-}
-
 struct nexthop *
 nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
-	struct lookup_filter filter = {
-		.af = af, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
-	};
-	nexthop_iter(nh_lookup_cb, &filter);
-	return filter.nh ?: errno_set_null(ENOENT);
+	struct nexthop_key key;
+	void *data;
+
+	set_nexthop_key(&key, af, vrf_id, iface_id, addr);
+
+	if (rte_hash_lookup_data(hash_by_addr, &key, &data) < 0)
+		return errno_set_null(ENOENT);
+
+	return data;
 }
 
 struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
-	struct lookup_filter filter = {.nh_id = nh_id};
-	nexthop_iter(nh_lookup_cb, &filter);
-	return filter.nh ?: errno_set_null(ENOENT);
+	void *data;
+
+	if (rte_hash_lookup_data(hash_by_id, &nh_id, &data) < 0)
+		return errno_set_null(ENOENT);
+
+	return data;
 }
 
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
@@ -285,6 +399,14 @@ void nexthop_cleanup(uint16_t iface_id) {
 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
+		if (nh->nh_id != 0)
+			rte_hash_del_key(hash_by_id, &nh->nh_id);
+		if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+			struct nexthop_key key;
+			set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+			rte_hash_del_key(hash_by_addr, &key);
+		}
+
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
 		// Flush all held packets.
@@ -378,6 +500,14 @@ static void nh_init(struct event_base *ev_base) {
 	if (pool == NULL)
 		ABORT("rte_mempool_create(nexthops) failed");
 
+	hash_by_addr = create_hash_by_addr(&nh_conf);
+	if (hash_by_addr == NULL)
+		ABORT("rte_hash_create(nexthop-addrs) failed");
+
+	hash_by_id = create_hash_by_id(&nh_conf);
+	if (hash_by_id == NULL)
+		ABORT("rte_hash_create(nexthop-ids) failed");
+
 	ageing_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, do_ageing, NULL);
 	if (ageing_timer == NULL)
 		ABORT("event_new() failed");
@@ -387,6 +517,8 @@ static void nh_init(struct event_base *ev_base) {
 }
 
 static void nh_fini(struct event_base *) {
+	rte_hash_free(hash_by_addr);
+	rte_hash_free(hash_by_id);
 	if (ageing_timer)
 		event_free(ageing_timer);
 	rte_mempool_free(pool);
@@ -404,6 +536,7 @@ static struct gr_event_serializer nh_serializer = {
 
 static struct gr_module module = {
 	.name = "nexthop",
+	.depends_on = "rcu",
 	.init = nh_init,
 	.fini = nh_fini,
 };
