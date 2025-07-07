@@ -35,7 +35,7 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 		.vrf_id = req->l.vrf_id,
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.ipv6 = req->l.lsid,
-		.origin = GR_NH_ORIGIN_LINK,
+		.origin = req->origin,
 	};
 	struct nexthop *nh;
 	int r;
@@ -48,7 +48,7 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	data->behavior = req->l.behavior;
 	data->out_vrf_id = req->l.out_vrf_id;
 	data->flags = req->l.flags;
-	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, GR_NH_ORIGIN_LINK, nh);
+	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, req->origin, nh);
 	if (r == -EEXIST && req->exist_ok)
 		r = 0;
 

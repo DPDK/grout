@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_net_types.h>
+#include <gr_nexthop.h>
 
 #define GR_SRV6_MODULE 0xfeef
 
@@ -40,6 +41,7 @@ struct gr_srv6_route {
 
 struct gr_srv6_route_add_req {
 	uint8_t exist_ok;
+	gr_nh_origin_t origin;
 	struct gr_srv6_route r;
 };
 
@@ -94,6 +96,7 @@ struct gr_srv6_localsid {
 
 struct gr_srv6_localsid_add_req {
 	struct gr_srv6_localsid l;
+	gr_nh_origin_t origin;
 	uint8_t exist_ok;
 };
 
