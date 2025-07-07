@@ -37,7 +37,9 @@ static gr_srv6_behavior_t str_to_behavior(const char *str) {
 }
 
 static cmd_status_t srv6_localsid_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_localsid_add_req req = {.l.out_vrf_id = UINT16_MAX, .exist_ok = true};
+	struct gr_srv6_localsid_add_req req = {
+		.l.out_vrf_id = UINT16_MAX, .exist_ok = true, .origin = GR_NH_ORIGIN_USER
+	};
 	const struct ec_pnode *n;
 	const struct ec_strvec *v;
 	const char *str;

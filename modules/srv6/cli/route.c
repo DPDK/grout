@@ -31,6 +31,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 		return CMD_ERROR;
 	req->r.n_seglist = ec_pnode_len(n);
 	req->exist_ok = true;
+	req->origin = GR_NH_ORIGIN_USER;
 
 	// parse SEGLIST list.
 	for (n = ec_pnode_get_first_child(n), i = 0; n != NULL; n = ec_pnode_next(n), i++) {

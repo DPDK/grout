@@ -81,7 +81,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
 		.vrf_id = req->r.key.vrf_id,
 		.iface_id = GR_IFACE_ID_UNDEF,
-		.origin = GR_NH_ORIGIN_LINK,
+		.origin = req->origin,
 	};
 	struct nexthop *nh;
 	int ret;
@@ -113,7 +113,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			GR_IFACE_ID_UNDEF,
 			&req->r.key.dest6.ip,
 			req->r.key.dest6.prefixlen,
-			GR_NH_ORIGIN_LINK,
+			req->origin,
 			nh
 		);
 	else
@@ -121,7 +121,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			req->r.key.vrf_id,
 			req->r.key.dest4.ip,
 			req->r.key.dest4.prefixlen,
-			GR_NH_ORIGIN_LINK,
+			req->origin,
 			nh
 		);
 
