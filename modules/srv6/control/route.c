@@ -51,7 +51,6 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 	const struct gr_srv6_route_add_req *req = request;
 	struct gr_nexthop base = {
 		.type = GR_NH_T_SR6_OUTPUT,
-		.af = GR_AF_IP6,
 		.state = GR_NH_S_REACHABLE,
 		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
 		.vrf_id = req->r.key.vrf_id,
@@ -75,6 +74,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 		base.ipv6 = req->r.key.dest6.ip;
 		base.prefixlen = req->r.key.dest6.prefixlen;
+		base.af = GR_AF_IP6;
 	} else {
 		nh = rib4_lookup_exact(
 			req->r.key.vrf_id, req->r.key.dest4.ip, req->r.key.dest4.prefixlen
@@ -84,6 +84,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 		base.ipv4 = req->r.key.dest4.ip;
 		base.prefixlen = req->r.key.dest4.prefixlen;
+		base.af = GR_AF_IP4;
 	}
 
 	nh = nexthop_new(&base);
