@@ -70,22 +70,22 @@ static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 	struct iface *iface;
 	struct nexthop *nh;
 
-	iface = iface_from_id(req->rule.iface_id);
+	iface = iface_from_id(req->iface_id);
 	if (iface == NULL)
 		return api_out(ENODEV, 0);
 
-	nh = nh4_lookup(iface->vrf_id, req->rule.match);
+	nh = nh4_lookup(iface->vrf_id, req->match);
 	if (nh == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
 	}
 	data = dnat44_nh_data(nh);
-	if (nh->type != GR_NH_T_DNAT || data->replace != req->rule.replace)
+	if (nh->type != GR_NH_T_DNAT)
 		return api_out(EADDRINUSE, 0);
 
-	rib4_delete(iface->vrf_id, req->rule.match, 32);
-	snat44_static_rule_del(iface, req->rule.replace);
+	rib4_delete(iface->vrf_id, req->match, 32);
+	snat44_static_rule_del(iface, data->replace);
 
 	return api_out(0, 0);
 }

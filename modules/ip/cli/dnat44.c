@@ -39,10 +39,8 @@ static cmd_status_t dnat44_del(const struct gr_api_client *c, const struct ec_pn
 
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
-	req.rule.iface_id = iface.id;
-	if (arg_ip4(p, "DEST", &req.rule.match) < 0)
-		return CMD_ERROR;
-	if (arg_ip4(p, "REPLACE", &req.rule.replace) < 0)
+	req.iface_id = iface.id;
+	if (arg_ip4(p, "DEST", &req.match) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_DNAT44_DEL, sizeof(req), &req, NULL) < 0)
@@ -114,12 +112,11 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		IP_DEL_CTX(root),
-		"dnat44 interface IFACE destination DEST replace REPLACE",
+		"dnat44 interface IFACE destination DEST",
 		dnat44_del,
 		"Delete a DNAT44 rule.",
 		with_help("Input interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
-		with_help("Destination IPv4 address to match.", ec_node_re("DEST", IPV4_RE)),
-		with_help("Replace match with this IPv4 address.", ec_node_re("REPLACE", IPV4_RE))
+		with_help("Destination IPv4 address to match.", ec_node_re("DEST", IPV4_RE))
 	);
 	if (ret < 0)
 		return ret;
