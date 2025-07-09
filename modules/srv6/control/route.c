@@ -88,26 +88,10 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 	// retrieve or create nexthop into rib4/rib6
 	if (req->r.key.is_dest6) {
-		nh = rib6_lookup_exact(
-			req->r.key.vrf_id,
-			GR_IFACE_ID_UNDEF,
-			&req->r.key.dest6.ip,
-			req->r.key.dest6.prefixlen
-		);
-
-		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
-			return api_out(EEXIST, 0);
-
 		base.ipv6 = req->r.key.dest6.ip;
 		base.prefixlen = req->r.key.dest6.prefixlen;
 		base.af = GR_AF_IP6;
 	} else {
-		nh = rib4_lookup_exact(
-			req->r.key.vrf_id, req->r.key.dest4.ip, req->r.key.dest4.prefixlen
-		);
-		if (nh && srv6_encap_nh_priv(nh)->d != NULL)
-			return api_out(EEXIST, 0);
-
 		base.ipv4 = req->r.key.dest4.ip;
 		base.prefixlen = req->r.key.dest4.prefixlen;
 		base.af = GR_AF_IP4;
