@@ -87,24 +87,17 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 	const struct gr_dnat44_del_req *req = request;
 	struct iface *iface;
-	struct nexthop *nh;
+	int ret;
 
 	iface = iface_from_id(req->iface_id);
 	if (iface == NULL)
 		return api_out(ENODEV, 0);
 
-	nh = nh4_lookup(iface->vrf_id, req->match);
-	if (nh == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
-	}
-	if (nh->type != GR_NH_T_DNAT)
-		return api_out(EADDRINUSE, 0);
+	ret = rib4_delete(iface->vrf_id, req->match, 32, GR_NH_T_DNAT);
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
-	rib4_delete(iface->vrf_id, req->match, 32);
-
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 struct dnat44_list_iterator {
