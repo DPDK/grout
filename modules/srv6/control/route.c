@@ -133,35 +133,26 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 static struct api_out srv6_route_del(const void *request, void ** /*response*/) {
 	const struct gr_srv6_route_del_req *req = request;
-	struct nexthop *nh;
+	int ret;
 
 	if (req->key.is_dest6)
-		nh = rib6_lookup_exact(
+		ret = rib6_delete(
 			req->key.vrf_id,
 			GR_IFACE_ID_UNDEF,
 			&req->key.dest6.ip,
-			req->key.dest6.prefixlen
+			req->key.dest6.prefixlen,
+			GR_NH_T_SR6_OUTPUT
 		);
+
 	else
-		nh = rib4_lookup_exact(
-			req->key.vrf_id, req->key.dest4.ip, req->key.dest4.prefixlen
-		);
-
-	if (nh == NULL || nh->type != GR_NH_T_SR6_OUTPUT)
-		return api_out(ENOENT, 0);
-
-	if (req->key.is_dest6)
-		rib6_delete(
+		ret = rib4_delete(
 			req->key.vrf_id,
-			GR_IFACE_ID_UNDEF,
-			&req->key.dest6.ip,
-			req->key.dest6.prefixlen
+			req->key.dest4.ip,
+			req->key.dest4.prefixlen,
+			GR_NH_T_SR6_OUTPUT
 		);
 
-	else
-		rib4_delete(req->key.vrf_id, req->key.dest4.ip, req->key.dest4.prefixlen);
-
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 struct list_context {

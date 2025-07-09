@@ -173,7 +173,7 @@ fail:
 	return errno_set(-ret);
 }
 
-int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type) {
 	struct rte_rib *rib = get_rib(vrf_id);
 	gr_nh_origin_t *o, origin;
 	struct rte_rib_node *rn;
@@ -191,6 +191,8 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	origin = *o;
 	rte_rib_get_nh(rn, &nh_id);
 	nh = nh_id_to_ptr(nh_id);
+	if (nh->type != nh_type)
+		return errno_set(EINVAL);
 
 	rte_rib_remove(rib, rte_be_to_cpu_32(ip), prefixlen);
 	fib4_remove(vrf_id, ip, prefixlen);
@@ -254,18 +256,13 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 
 static struct api_out route4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_del_req *req = request;
-	struct nexthop *nh;
+	int ret;
 
-	if ((nh = rib4_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen)) == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
-	}
+	ret = rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen, GR_NH_T_L3);
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
-	if (rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen) < 0)
-		return api_out(errno, 0);
-
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out route4_get(const void *request, void **response) {
@@ -416,9 +413,9 @@ void rib4_cleanup(struct nexthop *nh) {
 	local_prefixlen = nh->prefixlen;
 
 	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
-		rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
+		rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen, nh->type);
 	else
-		rib4_delete(nh->vrf_id, nh->ipv4, 32);
+		rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
 
 	rib = get_rib(nh->vrf_id);
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
@@ -430,10 +427,15 @@ void rib4_cleanup(struct nexthop *nh) {
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
+			LOG(DEBUG,
+			    "delete %s " IP4_F "/%hhu via " IP4_F,
+			    gr_nh_type_name(&nh->base),
+			    &ip,
+			    prefixlen,
+			    &nh->ipv4);
 
-			rib4_delete(nh->vrf_id, ip, prefixlen);
-			rib4_delete(nh->vrf_id, ip, 32);
+			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
+			rib4_delete(nh->vrf_id, ip, 32, nh->type);
 		}
 	}
 
@@ -446,10 +448,15 @@ void rib4_cleanup(struct nexthop *nh) {
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
 
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
+			LOG(DEBUG,
+			    "delete %s " IP4_F "/%hhu via " IP4_F,
+			    gr_nh_type_name(&nh->base),
+			    &ip,
+			    prefixlen,
+			    &nh->ipv4);
 
-			rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
-			rib4_delete(nh->vrf_id, nh->ipv4, 32);
+			rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen, nh->type);
+			rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
 		}
 	}
 }

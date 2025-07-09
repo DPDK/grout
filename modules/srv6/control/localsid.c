@@ -57,12 +57,8 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 
 static struct api_out srv6_localsid_del(const void *request, void ** /*response*/) {
 	const struct gr_srv6_localsid_del_req *req = request;
-	struct nexthop *nh;
 
-	if ((nh = rib6_lookup_exact(req->vrf_id, GR_IFACE_ID_UNDEF, &req->lsid, 128)) == NULL)
-		return api_out(ENOENT, 0);
-
-	if (rib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->lsid, 128) < 0)
+	if (rib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->lsid, 128, GR_NH_T_SR6_LOCAL) < 0)
 		return api_out(errno, 0);
 
 	return api_out(0, 0);

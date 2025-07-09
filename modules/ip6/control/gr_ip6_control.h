@@ -36,7 +36,8 @@ int rib6_delete(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *,
-	uint8_t prefixlen
+	uint8_t prefixlen,
+	gr_nh_type_t nh_type
 );
 void rib6_cleanup(struct nexthop *);
 struct nexthop *rib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);

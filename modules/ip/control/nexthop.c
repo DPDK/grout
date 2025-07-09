@@ -192,7 +192,7 @@ static int nh4_add(struct nexthop *nh) {
 }
 
 static void nh4_del(struct nexthop *nh) {
-	rib4_delete(nh->vrf_id, nh->ipv4, 32);
+	rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));

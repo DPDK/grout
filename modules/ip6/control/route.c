@@ -191,7 +191,8 @@ int rib6_delete(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
-	uint8_t prefixlen
+	uint8_t prefixlen,
+	gr_nh_type_t nh_type
 ) {
 	struct rte_rib6 *rib = get_rib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
@@ -213,6 +214,8 @@ int rib6_delete(
 	origin = *o;
 	rte_rib6_get_nh(rn, &nh_id);
 	nh = nh_id_to_ptr(nh_id);
+	if (nh->type != nh_type)
+		return errno_set(EINVAL);
 
 	rte_rib6_remove(rib, scoped_ip, prefixlen);
 
@@ -277,21 +280,15 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 
 static struct api_out route6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_del_req *req = request;
-	struct nexthop *nh;
+	int ret;
 
-	if ((nh = rib6_lookup_exact(
-		     req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen
-	     ))
-	    == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
-	}
+	ret = rib6_delete(
+		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen, GR_NH_T_L3
+	);
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
-	if (rib6_delete(req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen) < 0)
-		return api_out(errno, 0);
-
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out route6_get(const void *request, void **response) {
@@ -446,9 +443,9 @@ void rib6_cleanup(struct nexthop *nh) {
 	local_depth = nh->prefixlen;
 
 	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
-		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
+		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen, nh->type);
 	else
-		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type);
 
 	rib = get_rib6(nh->vrf_id);
 	while ((rn = rte_rib6_get_nxt(rib, 0, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
@@ -459,10 +456,15 @@ void rib6_cleanup(struct nexthop *nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
 
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
+			LOG(DEBUG,
+			    "delete %s " IP6_F "/%hhu via " IP6_F,
+			    gr_nh_type_name(&nh->base),
+			    &ip,
+			    depth,
+			    &nh->ipv6);
 
-			rib6_delete(nh->vrf_id, nh->iface_id, &ip, depth);
-			rib6_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH);
+			rib6_delete(nh->vrf_id, nh->iface_id, &ip, depth, nh->type);
+			rib6_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH, nh->type);
 		}
 	}
 
@@ -474,10 +476,17 @@ void rib6_cleanup(struct nexthop *nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
 
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
+			LOG(DEBUG,
+			    "delete %s " IP6_F "/%hhu via " IP6_F,
+			    gr_nh_type_name(&nh->base),
+			    &ip,
+			    depth,
+			    &nh->ipv6);
 
-			rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen);
-			rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH);
+			rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen, nh->type);
+			rib6_delete(
+				nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type
+			);
 		}
 	}
 }
