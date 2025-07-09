@@ -13,6 +13,32 @@
 #include <rte_malloc.h>
 
 // routes ////////////////////////////////////////////////////////////////
+static bool srv6_encap_data_equal(const struct nexthop *a, const struct nexthop *b) {
+	struct srv6_encap_data *ad, *bd;
+	uint8_t i;
+
+	assert(a->type == GR_NH_T_SR6_OUTPUT);
+	assert(b->type == GR_NH_T_SR6_OUTPUT);
+
+	ad = srv6_encap_nh_priv(a)->d;
+	bd = srv6_encap_nh_priv(b)->d;
+
+	assert(ad != NULL);
+	assert(bd != NULL);
+
+	if (ad->encap != bd->encap)
+		return false;
+
+	if (ad->n_seglist != bd->n_seglist)
+		return false;
+
+	for (i = 0; i < ad->n_seglist; i++) {
+		if (memcmp(&ad->seglist[i], &bd->seglist[i], sizeof(struct rte_ipv6_addr)))
+			return false;
+	}
+
+	return true;
+}
 
 static int srv6_encap_data_add(
 	struct nexthop *nh,
@@ -248,6 +274,7 @@ static struct gr_api_handler srv6_route_list_handler = {
 
 static struct nexthop_type_ops nh_ops = {
 	.free = srv6_encap_data_del,
+	.equal = srv6_encap_data_equal,
 };
 
 RTE_INIT(srv6_constructor) {

@@ -89,6 +89,7 @@ const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af);
 struct nexthop_type_ops {
 	// Callback that will be invoked the nexthop refcount reaches zero.
 	void (*free)(struct nexthop *);
+	bool (*equal)(const struct nexthop *, const struct nexthop *);
 };
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);

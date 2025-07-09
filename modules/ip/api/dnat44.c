@@ -7,6 +7,18 @@
 #include <gr_module.h>
 #include <gr_vec.h>
 
+static bool dnat44_data_priv_equal(const struct nexthop *a, const struct nexthop *b) {
+	struct dnat44_nh_data *ad, *bd;
+
+	assert(a->type == GR_NH_T_DNAT);
+	assert(b->type == GR_NH_T_DNAT);
+
+	ad = dnat44_nh_data(a);
+	bd = dnat44_nh_data(b);
+
+	return (ad->replace == bd->replace);
+}
+
 static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	const struct gr_dnat44_add_req *req = request;
 	struct dnat44_nh_data *data;
@@ -152,8 +164,13 @@ static struct gr_api_handler list_handler = {
 	.callback = dnat44_list,
 };
 
+static struct nexthop_type_ops nh_ops = {
+	.equal = dnat44_data_priv_equal,
+};
+
 RTE_INIT(_init) {
 	gr_register_api_handler(&add_handler);
 	gr_register_api_handler(&del_handler);
 	gr_register_api_handler(&list_handler);
+	nexthop_type_ops_register(GR_NH_T_DNAT, &nh_ops);
 }
