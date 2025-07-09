@@ -19,9 +19,34 @@ static bool dnat44_data_priv_equal(const struct nexthop *a, const struct nexthop
 	return (ad->replace == bd->replace);
 }
 
+static int dnat44_data_priv_add(
+	struct nexthop *nh,
+	struct iface *iface,
+	ip4_addr_t match,
+	ip4_addr_t replace
+) {
+	struct dnat44_nh_data *data;
+
+	data = dnat44_nh_data(nh);
+	data->replace = replace;
+
+	return snat44_static_rule_add(iface, replace, match);
+}
+
+static void dnat44_data_priv_del(struct nexthop *nh) {
+	struct iface *iface;
+
+	nh->type = GR_NH_T_L3;
+
+	iface = iface_from_id(nh->iface_id);
+	if (iface == NULL)
+		return;
+
+	snat44_static_rule_del(iface, nh->ipv4);
+}
+
 static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	const struct gr_dnat44_add_req *req = request;
-	struct dnat44_nh_data *data;
 	struct iface *iface;
 	struct nexthop *nh;
 	int ret;
@@ -43,30 +68,24 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	if (nh == NULL)
 		return api_out(ENOMEM, 0);
 
-	data = dnat44_nh_data(nh);
-	data->replace = req->rule.replace;
-	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
+	ret = dnat44_data_priv_add(nh, iface, req->rule.match, req->rule.replace);
 	if (ret < 0) {
 		if (ret == -EEXIST && req->exist_ok)
-			return api_out(0, 0);
+			ret = 0;
 
+		nexthop_decref(nh);
 		return api_out(-ret, 0);
 	}
 
-	ret = snat44_static_rule_add(iface, req->rule.replace, req->rule.match);
-	if (ret < 0)
-		goto fail;
+	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
+	if (ret == -EEXIST && req->exist_ok)
+		ret = 0;
 
-	return api_out(0, 0);
-fail:
-	rib4_delete(iface->vrf_id, req->rule.match, 32);
-	snat44_static_rule_del(iface, req->rule.replace);
 	return api_out(-ret, 0);
 }
 
 static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 	const struct gr_dnat44_del_req *req = request;
-	struct dnat44_nh_data *data;
 	struct iface *iface;
 	struct nexthop *nh;
 
@@ -80,12 +99,10 @@ static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 			return api_out(0, 0);
 		return api_out(ENOENT, 0);
 	}
-	data = dnat44_nh_data(nh);
 	if (nh->type != GR_NH_T_DNAT)
 		return api_out(EADDRINUSE, 0);
 
 	rib4_delete(iface->vrf_id, req->match, 32);
-	snat44_static_rule_del(iface, data->replace);
 
 	return api_out(0, 0);
 }
@@ -160,6 +177,7 @@ static struct gr_api_handler list_handler = {
 
 static struct nexthop_type_ops nh_ops = {
 	.equal = dnat44_data_priv_equal,
+	.free = dnat44_data_priv_del,
 };
 
 RTE_INIT(_init) {
