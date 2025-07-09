@@ -474,8 +474,8 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 				.missing_ok = true, .vrf_id = 0
 			};
 
-			req_type = GR_IP6_ROUTE_ADD;
-			req_len = sizeof(struct gr_ip6_route_add_req);
+			req_type = GR_IP6_ROUTE_DEL;
+			req_len = sizeof(struct gr_ip6_route_del_req);
 
 			dest = &req.r6_del.dest;
 			new = false;
