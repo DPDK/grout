@@ -39,6 +39,7 @@ struct gr_srv6_route {
 #define GR_SRV6_ROUTE_ADD REQUEST_TYPE(GR_SRV6_MODULE, 0x0001)
 
 struct gr_srv6_route_add_req {
+	uint8_t exist_ok;
 	struct gr_srv6_route r;
 };
 
@@ -46,6 +47,7 @@ struct gr_srv6_route_add_req {
 
 struct gr_srv6_route_del_req {
 	struct gr_srv6_route_key key;
+	uint8_t missing_ok;
 };
 
 #define GR_SRV6_ROUTE_LIST REQUEST_TYPE(GR_SRV6_MODULE, 0x0004)

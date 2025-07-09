@@ -30,6 +30,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 	if ((req = calloc(1, len)) == NULL)
 		return CMD_ERROR;
 	req->r.n_seglist = ec_pnode_len(n);
+	req->exist_ok = true;
 
 	// parse SEGLIST list.
 	for (n = ec_pnode_get_first_child(n), i = 0; n != NULL; n = ec_pnode_next(n), i++) {
@@ -62,7 +63,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 }
 
 static cmd_status_t srv6_route_del(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_del_req req = {};
+	struct gr_srv6_route_del_req req = {.missing_ok = true};
 
 	if (arg_ip6_net(p, "DEST6", &req.key.dest6, true) >= 0)
 		req.key.is_dest6 = true;
