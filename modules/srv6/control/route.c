@@ -125,10 +125,10 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 			nh
 		);
 
-	if (ret < 0)
-		return api_out(-ret, 0);
+	if (ret == -EEXIST && req->exist_ok)
+		ret = 0;
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out srv6_route_del(const void *request, void ** /*response*/) {
@@ -151,6 +151,9 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 			req->key.dest4.prefixlen,
 			GR_NH_T_SR6_OUTPUT
 		);
+
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
 	return api_out(-ret, 0);
 }
