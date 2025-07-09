@@ -11,6 +11,19 @@
 #include <gr_vec.h>
 
 // localsid /////////////////////////////////////////////////////////////
+static bool srv6_localsid_priv_equal(const struct nexthop *a, const struct nexthop *b) {
+	struct srv6_localsid_nh_priv *ad, *bd;
+
+	assert(a->type == GR_NH_T_SR6_LOCAL);
+	assert(b->type == GR_NH_T_SR6_LOCAL);
+
+	ad = srv6_localsid_nh_priv(a);
+	bd = srv6_localsid_nh_priv(b);
+
+	return (ad->behavior == bd->behavior && ad->out_vrf_id == bd->out_vrf_id
+		&& ad->flags == bd->flags);
+}
+
 static struct api_out srv6_localsid_add(const void *request, void ** /*response*/) {
 	const struct gr_srv6_localsid_add_req *req = request;
 	struct srv6_localsid_nh_priv *data;
@@ -121,8 +134,13 @@ static struct gr_api_handler srv6_localsid_list_handler = {
 	.callback = srv6_localsid_list,
 };
 
+static struct nexthop_type_ops nh_ops = {
+	.equal = srv6_localsid_priv_equal,
+};
+
 RTE_INIT(srv6_constructor) {
 	gr_register_api_handler(&srv6_localsid_add_handler);
 	gr_register_api_handler(&srv6_localsid_del_handler);
 	gr_register_api_handler(&srv6_localsid_list_handler);
+	nexthop_type_ops_register(GR_NH_T_SR6_LOCAL, &nh_ops);
 }

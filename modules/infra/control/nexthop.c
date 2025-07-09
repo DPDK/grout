@@ -116,7 +116,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
-		if (ops == NULL || ops->free == NULL)
+		if (ops == NULL || (ops->free == NULL && ops->equal == NULL))
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
 			ABORT("duplicate type ops %hhu", type);
@@ -168,19 +168,30 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 }
 
 bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
-	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->af != b->af)
+	const struct nexthop_type_ops *ops = type_ops[a->type];
+
+	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->af != b->af
+	    || a->type != b->type)
 		return false;
 
 	switch (a->af) {
 	case GR_AF_IP4:
-		return memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)) == 0;
+		if (memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)))
+			return false;
+		break;
 	case GR_AF_IP6:
-		return memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)) == 0;
+		if (memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)))
+			return false;
+		break;
 	default:
 		ABORT("invalid nexthop family %hhu", a->af);
 	}
 
-	return false;
+	if (ops != NULL && ops->equal != NULL)
+		if (!ops->equal(a, b))
+			return false;
+
+	return true;
 }
 
 struct pool_iterator {
