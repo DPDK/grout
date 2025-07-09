@@ -49,19 +49,21 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	data->out_vrf_id = req->l.out_vrf_id;
 	data->flags = req->l.flags;
 	r = rib6_insert(req->l.vrf_id, GR_IFACE_ID_UNDEF, &req->l.lsid, 128, GR_NH_ORIGIN_LINK, nh);
-	if (r < 0)
-		return api_out(-r, 0);
+	if (r == -EEXIST && req->exist_ok)
+		r = 0;
 
-	return api_out(0, 0);
+	return api_out(-r, 0);
 }
 
 static struct api_out srv6_localsid_del(const void *request, void ** /*response*/) {
 	const struct gr_srv6_localsid_del_req *req = request;
+	int ret;
 
-	if (rib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->lsid, 128, GR_NH_T_SR6_LOCAL) < 0)
-		return api_out(errno, 0);
+	ret = rib6_delete(req->vrf_id, GR_IFACE_ID_UNDEF, &req->lsid, 128, GR_NH_T_SR6_LOCAL);
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 struct list_context {

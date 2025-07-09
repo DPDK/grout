@@ -94,6 +94,7 @@ struct gr_srv6_localsid {
 
 struct gr_srv6_localsid_add_req {
 	struct gr_srv6_localsid l;
+	uint8_t exist_ok;
 };
 
 #define GR_SRV6_LOCALSID_DEL REQUEST_TYPE(GR_SRV6_MODULE, 0x0022)
@@ -101,6 +102,7 @@ struct gr_srv6_localsid_add_req {
 struct gr_srv6_localsid_del_req {
 	struct rte_ipv6_addr lsid;
 	uint16_t vrf_id;
+	uint8_t missing_ok;
 };
 
 #define GR_SRV6_LOCALSID_LIST REQUEST_TYPE(GR_SRV6_MODULE, 0x0023)
