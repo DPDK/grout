@@ -160,7 +160,8 @@ struct gr_dnat44_add_req {
 #define GR_DNAT44_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0032)
 
 struct gr_dnat44_del_req {
-	struct gr_dnat44_rule rule;
+	uint16_t iface_id;
+	ip4_addr_t match;
 	bool missing_ok;
 };
 
