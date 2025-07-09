@@ -30,16 +30,6 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	if (iface == NULL)
 		return api_out(ENODEV, 0);
 
-	nh = nh4_lookup(iface->vrf_id, req->rule.match);
-	if (nh != NULL) {
-		data = dnat44_nh_data(nh);
-		if (nh->type != GR_NH_T_DNAT || data->replace != req->rule.replace)
-			return api_out(EADDRINUSE, 0);
-		if (req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
 	nh = nexthop_new(&(struct gr_nexthop) {
 		.type = GR_NH_T_DNAT,
 		.af = GR_AF_IP4,
@@ -56,8 +46,12 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	data = dnat44_nh_data(nh);
 	data->replace = req->rule.replace;
 	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
-	if (ret < 0)
+	if (ret < 0) {
+		if (ret == -EEXIST && req->exist_ok)
+			return api_out(0, 0);
+
 		return api_out(-ret, 0);
+	}
 
 	ret = snat44_static_rule_add(iface, req->rule.replace, req->rule.match);
 	if (ret < 0)
