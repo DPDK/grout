@@ -434,60 +434,33 @@ static void route6_fini(struct event_base *) {
 
 void rib6_cleanup(struct nexthop *nh) {
 	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
-	struct rte_ipv6_addr local_ip, ip;
 	struct rte_rib6_node *rn = NULL;
-	uint8_t depth, local_depth;
+	struct rte_ipv6_addr ip;
 	struct rte_rib6 *rib;
+	struct nexthop *hop;
 	uintptr_t nh_id;
-
-	local_ip = nh->ipv6;
-	local_depth = nh->prefixlen;
-
-	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
-		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen, nh->type);
-	else
-		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type);
+	uint8_t depth;
 
 	rib = get_rib6(nh->vrf_id);
 	while ((rn = rte_rib6_get_nxt(rib, &unspec, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		rte_rib6_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && rte_ipv6_addr_eq_prefix(&nh->ipv6, &local_ip, local_depth)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
-
-			LOG(DEBUG,
-			    "delete %s " IP6_F "/%hhu via " IP6_F,
-			    gr_nh_type_name(&nh->base),
-			    &ip,
-			    depth,
-			    &nh->ipv6);
-
-			rib6_delete(nh->vrf_id, nh->iface_id, &ip, depth, nh->type);
-			rib6_delete(nh->vrf_id, nh->iface_id, &ip, RTE_IPV6_MAX_DEPTH, nh->type);
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
+			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
 		}
 	}
 
 	if ((rn = rte_rib6_lookup_exact(rib, &unspec, 0)) != NULL) {
 		rte_rib6_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && rte_ipv6_addr_eq_prefix(&nh->ipv6, &local_ip, local_depth)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
-
-			LOG(DEBUG,
-			    "delete %s " IP6_F "/%hhu via " IP6_F,
-			    gr_nh_type_name(&nh->base),
-			    &ip,
-			    depth,
-			    &nh->ipv6);
-
-			rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, nh->prefixlen, nh->type);
-			rib6_delete(
-				nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type
-			);
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
+			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
 		}
 	}
 }
