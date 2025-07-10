@@ -16,7 +16,7 @@ static bool dnat44_data_priv_equal(const struct nexthop *a, const struct nexthop
 	ad = dnat44_nh_data(a);
 	bd = dnat44_nh_data(b);
 
-	return (ad->replace == bd->replace);
+	return ad->replace == bd->replace;
 }
 
 static int dnat44_data_priv_add(
