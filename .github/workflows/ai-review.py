@@ -8,6 +8,7 @@ import sys
 
 import openai
 import requests
+import unidiff
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
 REPO = os.environ["REPO"]
@@ -30,11 +31,9 @@ Be brief and terse but clear.
 Only include issues worth commenting.
 Never suggest to add code comments.
 
-You will be provided the full pull request diff and a list of updated file contents.
-The review comments should only refer to changed lines in the diff.
-Make sure you are accurate about the line numbers in the file.
-
-Provide a list of concise per-file line comments in JSON format. Example:
+Here are code snippets that were added or modified in the pull request.
+For each snippet, decide if there's an issue worth commenting on.
+Output your review comments in this JSON format:
 
 ```json
 {
@@ -47,7 +46,7 @@ Provide a list of concise per-file line comments in JSON format. Example:
     {
       "path": "main/dpdk.c",
       "line": 666,
-      "body": "Reset to NULL to avoid double-free.",
+      "body": "Reset to NULL to avoid double-free."
     }
   ]
 }
@@ -59,12 +58,6 @@ def github_get(url: str) -> dict:
     url = f"{GITHUB_BASE_URL}/{url}"
     print(f"fetching json {url}")
     return requests.get(url, headers=GITHUB_AUTH).json()
-
-
-def github_get_raw(commit: str, filename: str) -> str:
-    url = f"https://github.com/{REPO}/raw/{commit}/{filename}"
-    print(f"fetching raw {url}")
-    return requests.get(url).text
 
 
 def github_get_diff() -> str:
@@ -79,35 +72,36 @@ def github_post(url: str, data: dict) -> requests.Response:
     return requests.post(url, json=data, headers=GITHUB_AUTH)
 
 
+def extract_added_lines(diff: str) -> list[tuple[str, int, str]]:
+    snippets = []
+    for file in unidiff.PatchSet(diff):
+        for hunk in file:
+            new_line = hunk.target_start
+            for line in hunk:
+                if line.is_added:
+                    snippets.append((file.path, new_line, line.value.strip()))
+                if not line.is_removed:
+                    new_line += 1
+    return snippets
+
+
 def main():
     pr_info = github_get(f"pulls/{PR_NUMBER}")
     diff = github_get_diff()
     commit = pr_info["head"]["sha"]
 
-    request = f"""Here is the diff:
+    print("extracting added lines from diff")
+    added_lines = extract_added_lines(diff)
 
-```diff
-{diff}
-```
+    if not added_lines:
+        print("no added lines to review")
+        return
 
-And here are the files:
-"""
+    request = "Review the following added lines:\n"
+    for path, line, code in added_lines:
+        request += f"\n{path}:{line}: {code}"
 
-    files = {}
-    for file in github_get(f"pulls/{PR_NUMBER}/files"):
-        if file["status"] not in ("added", "modified"):
-            continue
-        name = file["filename"]
-        files[name] = github_get_raw(commit, name)
-        request += f"""
-
-========================= {name} ===========================
-
-```
-{files[name]}
-```
-"""
-
+    print("requesting review from OpenAI")
     client = openai.OpenAI()
     response = client.responses.parse(
         model="o4-mini",
@@ -143,16 +137,13 @@ And here are the files:
             }
         },
     )
+
     try:
         for c in json.loads(response.output_text.strip())["comments"]:
-            file = files[c["path"]]
-            lines = file.splitlines()
-            start_line = max(c["line"], 1)
-            line = min(c["line"] + 5, len(lines))
             comment = {
                 "path": c["path"],
-                "start_line": start_line,
-                "line": line,
+                "start_line": max(c["line"] - 3, 1),
+                "line": c["line"],
                 "side": "RIGHT",
                 "body": c["body"],
                 "commit_id": commit,

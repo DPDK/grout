@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Robin Jarry
 
-name: GPT Inline Code Review
+name: Review
 
 on:
   pull_request_target:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.13'
 
-      - run: pip install openai requests
+      - run: pip install openai requests unidiff
 
       - uses: actions/checkout@v4
 
