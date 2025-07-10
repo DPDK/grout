@@ -4,8 +4,11 @@
 #include <gr_api.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
+#include <gr_ip4_control.h>
+#include <gr_ip6_control.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_nh_control.h>
 #include <gr_port.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
@@ -15,6 +18,7 @@
 #include <rte_telemetry.h>
 
 #include <fnmatch.h>
+#include <stdatomic.h>
 
 struct stat {
 	char name[64];
@@ -189,6 +193,51 @@ err:
 	gr_vec_free(stats);
 	free(resp);
 	return api_out(-ret, 0);
+}
+
+#define VRF_ID_STR_SIZE 11
+
+// Helper function to get nexthop state name by index
+static const char *get_nh_state_name(int state_index) {
+	static const char *state_names[] = {
+		[GR_NH_S_NEW] = "new",
+		[GR_NH_S_PENDING] = "pending",
+		[GR_NH_S_REACHABLE] = "reachable",
+		[GR_NH_S_STALE] = "stale",
+		[GR_NH_S_FAILED] = "failed",
+	};
+
+	if (state_index >= 0 && state_index < GR_NH_STATE_COUNT && state_names[state_index] != NULL)
+		return state_names[state_index];
+
+	return "unknown";
+}
+
+static void
+add_nexthop_stats(struct rte_tel_data *vrf_data, const char *key, struct nh_stats *nh_stats) {
+	struct rte_tel_data *nh_data = rte_tel_data_alloc();
+	if (nh_data == NULL)
+		return;
+	rte_tel_data_start_dict(nh_data);
+	rte_tel_data_add_dict_uint(nh_data, "total", atomic_load(&nh_stats->total));
+
+	struct rte_tel_data *nh_state = rte_tel_data_alloc();
+	if (nh_state == NULL) {
+		rte_tel_data_free(nh_data);
+		return;
+	}
+	rte_tel_data_start_dict(nh_state);
+
+	for (int i = 0; i < GR_NH_STATE_COUNT; i++) {
+		uint32_t count = atomic_load(&nh_stats->by_state[i]);
+		if (count > 0) {
+			const char *state_name = get_nh_state_name(i);
+			rte_tel_data_add_dict_uint(nh_state, state_name, count);
+		}
+	}
+
+	rte_tel_data_add_dict_container(nh_data, "by_state", nh_state, 0);
+	rte_tel_data_add_dict_container(vrf_data, key, nh_data, 0);
 }
 
 static struct api_out stats_reset(const void * /*request*/, void ** /*response*/) {
@@ -475,6 +524,144 @@ err:
 	return -1;
 }
 
+static int telemetry_datapath_stats_get(
+	const char * /*cmd*/,
+	const char * /*params*/,
+	struct rte_tel_data *d
+) {
+	rte_tel_data_start_dict(d);
+
+	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+		struct rib4_stats *rib4_stats;
+		struct rib6_stats *rib6_stats;
+		struct nh_stats *nh4_stats, *nh6_stats;
+
+		rib4_stats = rib4_get_stats(vrf_id);
+		rib6_stats = rib6_get_stats(vrf_id);
+		nh4_stats = nexthop_get_stats(vrf_id, GR_AF_IP4);
+		nh6_stats = nexthop_get_stats(vrf_id, GR_AF_IP6);
+
+		// Skip VRF only if ALL stats are null (VRF doesn't exist)
+		if (!rib4_stats && !rib6_stats && !nh4_stats && !nh6_stats)
+			continue;
+
+		// Only show VRFs that have actual routes
+		uint32_t total_routes = 0;
+		if (rib4_stats)
+			total_routes += atomic_load(&rib4_stats->total_routes);
+		if (rib6_stats)
+			total_routes += atomic_load(&rib6_stats->total_routes);
+		if (total_routes == 0)
+			continue;
+
+		char vrf_key[VRF_ID_STR_SIZE];
+		snprintf(vrf_key, sizeof(vrf_key), "vrf%u", vrf_id);
+
+		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
+		if (vrf_data == NULL)
+			continue;
+		rte_tel_data_start_dict(vrf_data);
+
+		// Add IPv4 stats
+		if (rib4_stats) {
+			struct rte_tel_data *ipv4_data = rte_tel_data_alloc();
+			if (ipv4_data == NULL) {
+				rte_tel_data_free(vrf_data);
+				continue;
+			}
+			rte_tel_data_start_dict(ipv4_data);
+
+			rte_tel_data_add_dict_uint(
+				ipv4_data, "total_routes", atomic_load(&rib4_stats->total_routes)
+			);
+
+			// Add route counts by origin
+			struct rte_tel_data *origins_data = rte_tel_data_alloc();
+			if (origins_data == NULL) {
+				rte_tel_data_free(ipv4_data);
+				rte_tel_data_free(vrf_data);
+				continue;
+			}
+			rte_tel_data_start_dict(origins_data);
+
+			for (int i = 0; i <= GR_NH_ORIGIN_MAX; i++) {
+				uint32_t count = atomic_load(&rib4_stats->by_origin[i]);
+				if (count > 0) {
+					rte_tel_data_add_dict_uint(
+						origins_data, gr_nh_origin_name(i), count
+					);
+				}
+			}
+
+			rte_tel_data_add_dict_container(
+				ipv4_data, "routes_by_origin", origins_data, 0
+			);
+			rte_tel_data_add_dict_container(vrf_data, "ipv4", ipv4_data, 0);
+		}
+
+		// Add IPv6 stats
+		if (rib6_stats) {
+			struct rte_tel_data *ipv6_data = rte_tel_data_alloc();
+			if (ipv6_data == NULL) {
+				rte_tel_data_free(vrf_data);
+				continue;
+			}
+			rte_tel_data_start_dict(ipv6_data);
+
+			rte_tel_data_add_dict_uint(
+				ipv6_data, "total_routes", atomic_load(&rib6_stats->total_routes)
+			);
+
+			// Add route counts by origin
+			struct rte_tel_data *origins_data = rte_tel_data_alloc();
+			if (origins_data == NULL) {
+				rte_tel_data_free(ipv6_data);
+				rte_tel_data_free(vrf_data);
+				continue;
+			}
+			rte_tel_data_start_dict(origins_data);
+
+			for (int i = 0; i <= GR_NH_ORIGIN_MAX; i++) {
+				uint32_t count = atomic_load(&rib6_stats->by_origin[i]);
+				if (count > 0) {
+					rte_tel_data_add_dict_uint(
+						origins_data, gr_nh_origin_name(i), count
+					);
+				}
+			}
+
+			rte_tel_data_add_dict_container(
+				ipv6_data, "routes_by_origin", origins_data, 0
+			);
+			rte_tel_data_add_dict_container(vrf_data, "ipv6", ipv6_data, 0);
+		}
+
+		// Add nexthop stats
+		if (nh4_stats || nh6_stats) {
+			struct rte_tel_data *nexthop_data = rte_tel_data_alloc();
+			if (nexthop_data == NULL) {
+				rte_tel_data_free(vrf_data);
+				continue;
+			}
+			rte_tel_data_start_dict(nexthop_data);
+
+			if (nh4_stats) {
+				add_nexthop_stats(nexthop_data, "ipv4", nh4_stats);
+			}
+			if (nh6_stats) {
+				add_nexthop_stats(nexthop_data, "ipv6", nh6_stats);
+			}
+
+			rte_tel_data_add_dict_container(vrf_data, "nexthops", nexthop_data, 0);
+		}
+
+		// Add VRF container to main response
+		rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0);
+	}
+
+	return 0;
+}
+
 static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
 	.request_type = GR_INFRA_STATS_GET,
@@ -506,5 +693,10 @@ RTE_INIT(infra_stats_init) {
 		"/grout/iface",
 		telemetry_ifaces_info_get,
 		"Returns information per interface. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/datapath/stats",
+		telemetry_datapath_stats_get,
+		"Returns RIB and Nexthop entry counts per VRF. No parameters"
 	);
 }

@@ -93,3 +93,15 @@ struct nexthop_type_ops {
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
 const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type);
+
+// Nexthop statistics structure
+struct nh_stats {
+	_Atomic uint32_t total;
+	_Atomic uint32_t by_state[GR_NH_STATE_COUNT];
+};
+
+// Get nexthop statistics for a given VRF and address family
+struct nh_stats *nexthop_get_stats(uint16_t vrf_id, addr_family_t af);
+
+// Update nexthop stats when state changes
+void nh_stats_update(struct nexthop *nh, gr_nh_state_t new_state);

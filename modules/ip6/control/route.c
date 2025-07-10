@@ -20,12 +20,14 @@
 #include <rte_rib6.h>
 
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 
 static struct rte_rib6 **vrf_ribs;
+static struct rib6_stats stats[MAX_VRFS];
 
 static struct rte_rib6_conf rib6_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -169,6 +171,11 @@ int rib6_insert(
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib6_get_ext(rn);
 	*o = origin;
+
+	// Update stats
+	atomic_fetch_add(&stats[vrf_id].total_routes, 1);
+	atomic_fetch_add(&stats[vrf_id].by_origin[origin], 1);
+
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -215,6 +222,12 @@ int rib6_delete(
 	nh = nh_id_to_ptr(nh_id);
 
 	rte_rib6_remove(rib, scoped_ip, prefixlen);
+
+	// Update stats
+	if (atomic_load(&stats[vrf_id].total_routes) > 0)
+		atomic_fetch_sub(&stats[vrf_id].total_routes, 1);
+	if (atomic_load(&stats[vrf_id].by_origin[origin]) > 0)
+		atomic_fetch_sub(&stats[vrf_id].by_origin[origin], 1);
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -341,6 +354,13 @@ static int route6_count(uint16_t vrf_id) {
 	}
 
 	return num;
+}
+
+struct rib6_stats *rib6_get_stats(uint16_t vrf_id) {
+	if (vrf_id >= MAX_VRFS)
+		return NULL;
+
+	return &stats[vrf_id];
 }
 
 static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_id) {
