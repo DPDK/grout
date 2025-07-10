@@ -402,61 +402,35 @@ static void route4_fini(struct event_base *) {
 }
 
 void rib4_cleanup(struct nexthop *nh) {
-	uint8_t prefixlen, local_prefixlen;
 	struct rte_rib_node *rn = NULL;
 	struct rte_rib *rib;
-	ip4_addr_t local_ip;
+	struct nexthop *hop;
+	uint8_t prefixlen;
 	uintptr_t nh_id;
 	ip4_addr_t ip;
-
-	local_ip = nh->ipv4;
-	local_prefixlen = nh->prefixlen;
-
-	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
-		rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen, nh->type);
-	else
-		rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
 
 	rib = get_rib(nh->vrf_id);
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-
-			LOG(DEBUG,
-			    "delete %s " IP4_F "/%hhu via " IP4_F,
-			    gr_nh_type_name(&nh->base),
-			    &ip,
-			    prefixlen,
-			    &nh->ipv4);
-
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
 			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
-			rib4_delete(nh->vrf_id, ip, 32, nh->type);
 		}
 	}
 
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-
-			LOG(DEBUG,
-			    "delete %s " IP4_F "/%hhu via " IP4_F,
-			    gr_nh_type_name(&nh->base),
-			    &ip,
-			    prefixlen,
-			    &nh->ipv4);
-
-			rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen, nh->type);
-			rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
+			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
 		}
 	}
 }
