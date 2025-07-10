@@ -20,8 +20,8 @@ static bool srv6_localsid_priv_equal(const struct nexthop *a, const struct nexth
 	ad = srv6_localsid_nh_priv(a);
 	bd = srv6_localsid_nh_priv(b);
 
-	return (ad->behavior == bd->behavior && ad->out_vrf_id == bd->out_vrf_id
-		&& ad->flags == bd->flags);
+	return ad->behavior == bd->behavior && ad->out_vrf_id == bd->out_vrf_id
+		&& ad->flags == bd->flags;
 }
 
 static struct api_out srv6_localsid_add(const void *request, void ** /*response*/) {

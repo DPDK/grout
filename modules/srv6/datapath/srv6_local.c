@@ -71,7 +71,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->ext_offset = sizeof(*ip6);
 
 	// advance through IPv6 extension headers until we find a proto supported by SRv6
-	while ((!proto_supported[ip6_info->proto])) {
+	while (!proto_supported[ip6_info->proto]) {
 		size_t ext_size = 0;
 		const uint8_t *ext;
 		uint8_t _ext[2];
@@ -259,7 +259,7 @@ static int process_behav_end(
 	if (sr == NULL || sr->segments_left == 0) {
 		// 4.16.3 USD
 		// this packet could be decapsulated and forwarded
-		if ((sr_d->flags & GR_SR_FL_FLAVOR_USD))
+		if (sr_d->flags & GR_SR_FL_FLAVOR_USD)
 			return process_behav_decap(m, sr_d, ip6_info);
 
 		// process locally
@@ -378,7 +378,7 @@ next:
 
 static void srv6_node_init(void) {
 	ip6_input_register_nexthop_type(GR_NH_T_SR6_LOCAL, "sr6_local");
-};
+}
 
 static struct rte_node_register srv6_local_node = {
 	.name = "sr6_local",
