@@ -433,6 +433,7 @@ static void route6_fini(struct event_base *) {
 }
 
 void rib6_cleanup(struct nexthop *nh) {
+	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
 	struct rte_ipv6_addr local_ip, ip;
 	struct rte_rib6_node *rn = NULL;
 	uint8_t depth, local_depth;
@@ -448,7 +449,7 @@ void rib6_cleanup(struct nexthop *nh) {
 		rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type);
 
 	rib = get_rib6(nh->vrf_id);
-	while ((rn = rte_rib6_get_nxt(rib, 0, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
+	while ((rn = rte_rib6_get_nxt(rib, &unspec, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
 		rte_rib6_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
 
@@ -468,7 +469,7 @@ void rib6_cleanup(struct nexthop *nh) {
 		}
 	}
 
-	if ((rn = rte_rib6_lookup_exact(rib, 0, 0)) != NULL) {
+	if ((rn = rte_rib6_lookup_exact(rib, &unspec, 0)) != NULL) {
 		rte_rib6_get_nh(rn, &nh_id);
 		nh = nh_id_to_ptr(nh_id);
 
