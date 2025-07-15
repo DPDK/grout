@@ -4,6 +4,8 @@
 
 . $(dirname $0)/_init.sh
 
+command -v rdisc6 || fail "rdisc6 (from ndisc6 package) is not installed"
+
 p1=${run_id}1
 
 grcli add interface port $p1 devargs net_tap0,iface=$p1 mac d2:f0:0c:ba:a4:11
