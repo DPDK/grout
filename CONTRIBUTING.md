@@ -66,6 +66,8 @@ commits). Follow these general rules:
   * `Requested-by:`
   * `Reported-by:`
   * `Co-authored-by:`
+  * `Assisted-by:` used to acknowledge AI assistants or automated tools that
+    helped with the implementation.
   * `Signed-off-by:` compulsory!
   * `Tested-by:` used in review _after_ submission to the mailing list. If
     minimal changes occur between respins, feel free to include that into your
