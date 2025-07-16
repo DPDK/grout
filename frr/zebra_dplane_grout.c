@@ -482,8 +482,8 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 	if (sock_path)
 		gr_sock_path = sock_path;
 
-	event_add_timer(dg_master, dplane_grout_connect, NULL, 1, NULL);
-	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 1, NULL);
+	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);
+	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
 
 	gr_log_debug(
 		"%s start (debug=%lu, gr_sock_path=%s)",
