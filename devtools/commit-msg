@@ -23,6 +23,7 @@ Co-authored-by:
 Tested-by:
 Reviewed-by:
 Acked-by:
+Assisted-by:
 "
 file=${1?file}
 tmp=$(mktemp)
