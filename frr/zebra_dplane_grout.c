@@ -472,8 +472,18 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 	return 0;
 }
 
-static int zd_grout_start(struct zebra_dplane_provider *prov) {
+static void zd_grout_ns(struct event *t) {
 	struct event_loop *dg_master = dplane_get_thread_master();
+
+	gr_log_debug("disable linux namespace");
+	zebra_ns_disabled(ns_get_default());
+
+	// Add timer to connect on grout socket to get events
+	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);
+	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
+}
+
+static int zd_grout_start(struct zebra_dplane_provider *prov) {
 	const char *debug = getenv("ZEBRA_DEBUG_DPLANE_GROUT");
 	const char *sock_path = getenv("GROUT_SOCK_PATH");
 
@@ -482,8 +492,7 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 	if (sock_path)
 		gr_sock_path = sock_path;
 
-	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);
-	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
+	event_add_timer(zrouter.master, zd_grout_ns, NULL, 0, NULL);
 
 	gr_log_debug(
 		"%s start (debug=%lu, gr_sock_path=%s)",
