@@ -57,7 +57,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_VLAN:
 		gr_vlan = (const struct gr_iface_info_vlan *)&gr_if->info;
 		mac = &gr_vlan->mac;
-		link_ifindex = gr_vlan->parent_id + GROUT_INDEX_OFFSET;
+		link_ifindex = gr_vlan->parent_id;
 		zif_type = ZEBRA_IF_VLAN;
 		link_type = ZEBRA_LLT_ETHER;
 		break;
@@ -86,7 +86,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
-	dplane_ctx_set_ifindex(ctx, gr_if->base.id + GROUT_INDEX_OFFSET);
+	dplane_ctx_set_ifindex(ctx, gr_if->base.id);
 	dplane_ctx_set_ifname(ctx, gr_if->name);
 	dplane_ctx_set_ifp_startup(ctx, startup);
 	dplane_ctx_set_ifp_family(ctx, AF_UNSPEC);
@@ -160,7 +160,7 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 	else
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_DEL);
 
-	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id + GROUT_INDEX_OFFSET);
+	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id);
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 
 	// Convert addr to prefix
@@ -183,8 +183,8 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 }
 
 enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
-	int gr_iface_id = dplane_ctx_get_ifindex(ctx) - GROUT_INDEX_OFFSET;
 	const struct prefix *p = dplane_ctx_get_intf_addr(ctx);
+	int gr_iface_id = dplane_ctx_get_ifindex(ctx);
 	union {
 		struct gr_ip4_addr_add_req ip4_add;
 		struct gr_ip4_addr_del_req ip4_del;
@@ -206,6 +206,10 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 		gr_log_err(
 			"impossible to add/del address with family %u (not supported)", p->family
 		);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	if (gr_iface_id < 0 || gr_iface_id >= UINT16_MAX) {
+		gr_log_err("impossible to add/del address with invalid ifindex %d", gr_iface_id);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
@@ -259,4 +263,53 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+static int grout_collect_interfaces(struct interface *ifp, void *arg) {
+	struct interface ***arrp = arg;
+	*darr_append(*arrp) = ifp;
+	return NS_WALK_CONTINUE;
+}
+
+void grout_remove_all_interfaces(void) {
+	struct zebra_ns *zns = zebra_ns_lookup(NS_DEFAULT);
+	struct interface **ifps = NULL;
+	struct interface **pifp, *ifp;
+
+	if (!zns) {
+		gr_log_err("no zebra namespace, at init should not happen");
+		return;
+	}
+
+	// iface can not be removing when walking thru ifp
+	zebra_ns_ifp_walk(zns, grout_collect_interfaces, &ifps);
+
+	darr_foreach_p(ifps, pifp) {
+		ifp = *pifp;
+
+		if (!ifp)
+			continue;
+
+		gr_log_debug("remove linux ifp %s", ifp->name);
+
+		// copy/paste from zebra_nets_notify (to keep sync)
+		if (if_is_no_ptm_operative(ifp)) {
+			UNSET_FLAG(ifp->flags, IFF_RUNNING);
+			if_down(ifp);
+		}
+
+		if (IS_ZEBRA_IF_BOND(ifp))
+			zebra_l2if_update_bond(ifp, false);
+		if (IS_ZEBRA_IF_BOND_SLAVE(ifp))
+			zebra_l2if_update_bond_slave(ifp, IFINDEX_INTERNAL, false);
+		if (IS_ZEBRA_IF_BRIDGE(ifp))
+			zebra_l2_bridge_del(ifp);
+		else if (IS_ZEBRA_IF_VXLAN(ifp))
+			zebra_l2_vxlanif_del(ifp);
+
+		UNSET_FLAG(ifp->flags, IFF_UP);
+		if_delete_update(&ifp);
+	}
+
+	darr_free(ifps);
 }

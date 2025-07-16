@@ -478,6 +478,8 @@ static void zd_grout_ns(struct event *t) {
 	gr_log_debug("disable linux namespace");
 	zebra_ns_disabled(ns_get_default());
 
+	grout_remove_all_interfaces();
+
 	// Add timer to connect on grout socket to get events
 	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);
 	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
