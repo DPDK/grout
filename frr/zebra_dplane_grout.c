@@ -474,8 +474,23 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 
 static void zd_grout_ns(struct event *t) {
 	struct event_loop *dg_master = dplane_get_thread_master();
+	struct vrf *default_vrf;
 
 	zebra_ns_disabled(ns_get_default());
+
+	// Delete all vrfs including the default one
+	vrf_terminate();
+
+	default_vrf = vrf_get(VRF_DEFAULT, VRF_DEFAULT_NAME);
+	if (!default_vrf) {
+		gr_log_err("failed to recreate the default VRF!");
+		exit(1);
+	}
+	// Enable the default VRF
+	if (!vrf_enable(default_vrf)) {
+		gr_log_err("failed to re-enable the default VRF!");
+		exit(1);
+	}
 
 	// Add timer to connect on grout socket to get events
 	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);

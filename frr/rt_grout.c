@@ -202,11 +202,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		gr_log_err("sync nexthop not L3 from grout is not supported");
 		return -1;
 	}
-	if (gr_nh->iface_id)
-		nh->ifindex = gr_nh->iface_id + GROUT_INDEX_OFFSET;
-	else
-		nh->ifindex = 0;
-
+	nh->ifindex = gr_nh->iface_id;
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
 
@@ -840,11 +836,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		gr_log_err("impossible to add/del nexthop in grout that does not have an ifindex");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
-	if (nh->ifindex < GROUT_INDEX_OFFSET) {
-		gr_log_err("impossible to add/del nexthop on interface not managed by grout");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-	gr_nh->iface_id = nh->ifindex - GROUT_INDEX_OFFSET;
+	gr_nh->iface_id = nh->ifindex;
 
 	switch (nh->type) {
 	case NEXTHOP_TYPE_IPV4:
