@@ -92,6 +92,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		nh->held_pkts++;
 		if (nh->state != GR_NH_S_PENDING) {
 			arp_output_request_solicit(nh);
+			nh_stats_update(nh, GR_NH_S_PENDING);
 			nh->state = GR_NH_S_PENDING;
 		}
 		return;
@@ -145,6 +146,8 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	if (!(nh->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
+		nh->iface_id = iface->id;
+		nh_stats_update(nh, GR_NH_S_REACHABLE);
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
@@ -193,6 +196,7 @@ static int nh4_add(struct nexthop *nh) {
 static void nh4_del(struct nexthop *nh) {
 	rib4_delete(nh->vrf_id, nh->ipv4, 32, nh->type);
 	if (nh->ref_count > 0) {
+		nh_stats_update(nh, GR_NH_S_NEW);
 		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));
 	}

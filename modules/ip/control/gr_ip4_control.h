@@ -13,6 +13,7 @@
 #include <rte_hash.h>
 #include <rte_rcu_qsbr.h>
 
+#include <stdatomic.h>
 #include <stdint.h>
 
 static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
@@ -42,3 +43,11 @@ void rib4_cleanup(struct nexthop *);
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
+
+struct rib4_stats {
+	_Atomic uint32_t total_routes;
+	_Atomic uint32_t by_origin[GR_NH_ORIGIN_COUNT];
+};
+
+// Get route stats for IPv4 (exposed for telemetry)
+struct rib4_stats *rib4_get_stats(uint16_t vrf_id);

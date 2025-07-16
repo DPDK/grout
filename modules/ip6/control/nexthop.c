@@ -101,6 +101,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		nh->held_pkts++;
 		if (nh->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
+			nh_stats_update(nh, GR_NH_S_PENDING);
 			nh->state = GR_NH_S_PENDING;
 		}
 		return;
@@ -190,6 +191,8 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (nh && !(nh->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
+		nh->iface_id = iface->id;
+		nh_stats_update(nh, GR_NH_S_REACHABLE);
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
@@ -237,6 +240,7 @@ static int nh6_add(struct nexthop *nh) {
 static void nh6_del(struct nexthop *nh) {
 	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type);
 	if (nh->ref_count > 0) {
+		nh_stats_update(nh, GR_NH_S_NEW);
 		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));
 	}
