@@ -4,8 +4,11 @@
 #include <gr_api.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
+#include <gr_ip4_control.h>
+#include <gr_ip6_control.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_nh_control.h>
 #include <gr_port.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
@@ -15,6 +18,7 @@
 #include <rte_telemetry.h>
 
 #include <fnmatch.h>
+#include <stdatomic.h>
 
 struct stat {
 	char name[64];
@@ -190,6 +194,8 @@ err:
 	free(resp);
 	return api_out(-ret, 0);
 }
+
+#define VRF_ID_STR_SIZE 11
 
 static struct api_out stats_reset(const void * /*request*/, void ** /*response*/) {
 	struct worker *worker;
@@ -475,6 +481,193 @@ err:
 	return -1;
 }
 
+static int
+telemetry_rib_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	rte_tel_data_start_dict(d);
+
+	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+		struct rib4_stats *rib4_stats = rib4_get_stats(vrf_id);
+		struct rib6_stats *rib6_stats = rib6_get_stats(vrf_id);
+
+		// Skip VRFs that don't have any routes
+		uint32_t total_routes = 0;
+		if (rib4_stats)
+			total_routes += atomic_load(&rib4_stats->total_routes);
+		if (rib6_stats)
+			total_routes += atomic_load(&rib6_stats->total_routes);
+
+		if (total_routes == 0)
+			continue;
+
+		// Create VRF container with VRF ID as key
+		char vrf_key[VRF_ID_STR_SIZE];
+		snprintf(vrf_key, sizeof(vrf_key), "vrf_%u", vrf_id);
+
+		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
+		if (vrf_data == NULL) {
+			goto err;
+		}
+		rte_tel_data_start_dict(vrf_data);
+
+		rte_tel_data_add_dict_uint(vrf_data, "vrf_id", vrf_id);
+
+		struct rte_tel_data *ipv4_data = NULL;
+		struct rte_tel_data *ipv6_data = NULL;
+
+		// Allocate and build IPv4 container if needed
+		if (rib4_stats && atomic_load(&rib4_stats->total_routes) > 0) {
+			ipv4_data = rte_tel_data_alloc();
+			if (ipv4_data == NULL) {
+				rte_tel_data_free(vrf_data);
+				goto err;
+			}
+			rte_tel_data_start_dict(ipv4_data);
+
+			rte_tel_data_add_dict_uint(
+				ipv4_data, "total", atomic_load(&rib4_stats->total_routes)
+			);
+
+			// Add route counts by origin (only non-zero counts)
+			for (int i = 0; i <= GR_NH_ORIGIN_MAX; i++) {
+				uint32_t count = atomic_load(&rib4_stats->by_origin[i]);
+				if (count > 0) {
+					const char *origin_name = gr_nh_origin_name(i);
+					rte_tel_data_add_dict_uint(ipv4_data, origin_name, count);
+				}
+			}
+		}
+
+		// Allocate and build IPv6 container if needed
+		if (rib6_stats && atomic_load(&rib6_stats->total_routes) > 0) {
+			ipv6_data = rte_tel_data_alloc();
+			if (ipv6_data == NULL) {
+				rte_tel_data_free(ipv4_data);
+				rte_tel_data_free(vrf_data);
+				goto err;
+			}
+			rte_tel_data_start_dict(ipv6_data);
+
+			rte_tel_data_add_dict_uint(
+				ipv6_data, "total", atomic_load(&rib6_stats->total_routes)
+			);
+
+			// Add route counts by origin (only non-zero counts)
+			for (int i = 0; i <= GR_NH_ORIGIN_MAX; i++) {
+				uint32_t count = atomic_load(&rib6_stats->by_origin[i]);
+				if (count > 0) {
+					const char *origin_name = gr_nh_origin_name(i);
+					rte_tel_data_add_dict_uint(ipv6_data, origin_name, count);
+				}
+			}
+		}
+
+		// Now add completed containers to vrf_data
+		if (ipv4_data != NULL) {
+			if (rte_tel_data_add_dict_container(vrf_data, "ipv4", ipv4_data, 0) != 0) {
+				rte_tel_data_free(ipv4_data);
+				rte_tel_data_free(ipv6_data);
+				rte_tel_data_free(vrf_data);
+				goto err;
+			}
+		}
+
+		if (ipv6_data != NULL) {
+			if (rte_tel_data_add_dict_container(vrf_data, "ipv6", ipv6_data, 0) != 0) {
+				rte_tel_data_free(ipv4_data);
+				rte_tel_data_free(ipv6_data);
+				rte_tel_data_free(vrf_data);
+				goto err;
+			}
+		}
+
+		if (rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0) != 0) {
+			rte_tel_data_free(vrf_data);
+			goto err;
+		}
+	}
+
+	return 0;
+
+err:
+	return -1;
+}
+
+static int
+telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	// Use dictionary with VRF indices as keys to simulate array behavior
+	rte_tel_data_start_dict(d);
+
+	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+		struct nh_stats *nh4_stats = nexthop_get_stats(vrf_id, GR_AF_IP4);
+		struct nh_stats *nh6_stats = nexthop_get_stats(vrf_id, GR_AF_IP6);
+
+		// Skip VRFs that don't have any nexthops
+		uint32_t total_nexthops = 0;
+		if (nh4_stats)
+			total_nexthops += atomic_load(&nh4_stats->total);
+		if (nh6_stats)
+			total_nexthops += atomic_load(&nh6_stats->total);
+		if (total_nexthops == 0)
+			continue;
+
+		// Create VRF container with VRF ID as key
+		char vrf_key[VRF_ID_STR_SIZE];
+		snprintf(vrf_key, sizeof(vrf_key), "vrf_%u", vrf_id);
+
+		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
+		if (vrf_data == NULL) {
+			goto err;
+		}
+		rte_tel_data_start_dict(vrf_data);
+
+		rte_tel_data_add_dict_uint(vrf_data, "vrf_id", vrf_id);
+
+		// Add nexthop counts by address family
+		if (nh4_stats) {
+			rte_tel_data_add_dict_uint(
+				vrf_data, "ipv4", atomic_load(&nh4_stats->total)
+			);
+		}
+		if (nh6_stats) {
+			rte_tel_data_add_dict_uint(
+				vrf_data, "ipv6", atomic_load(&nh6_stats->total)
+			);
+		}
+
+		// Add nexthop counts by state (aggregate across both address families)
+		uint32_t state_counts[GR_NH_STATE_COUNT] = {0};
+		if (nh4_stats) {
+			for (int i = 0; i < GR_NH_STATE_COUNT; i++) {
+				state_counts[i] += atomic_load(&nh4_stats->by_state[i]);
+			}
+		}
+		if (nh6_stats) {
+			for (int i = 0; i < GR_NH_STATE_COUNT; i++) {
+				state_counts[i] += atomic_load(&nh6_stats->by_state[i]);
+			}
+		}
+
+		// Add state counts (only non-zero counts)
+		for (int i = 0; i < GR_NH_STATE_COUNT; i++) {
+			if (state_counts[i] > 0) {
+				struct gr_nexthop temp_nh = {.state = i};
+				const char *state_name = gr_nh_state_name(&temp_nh);
+				rte_tel_data_add_dict_uint(vrf_data, state_name, state_counts[i]);
+			}
+		}
+
+		if (rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0) != 0) {
+			rte_tel_data_free(vrf_data);
+			goto err;
+		}
+	}
+
+	return 0;
+
+err:
+	return -1;
+}
+
 static struct gr_api_handler stats_get_handler = {
 	.name = "stats get",
 	.request_type = GR_INFRA_STATS_GET,
@@ -506,5 +699,15 @@ RTE_INIT(infra_stats_init) {
 		"/grout/iface",
 		telemetry_ifaces_info_get,
 		"Returns information per interface. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/rib/stats",
+		telemetry_rib_stats_get,
+		"Returns RIB (route) statistics per VRF. No parameters"
+	);
+	rte_telemetry_register_cmd(
+		"/grout/nexthop/stats",
+		telemetry_nexthop_stats_get,
+		"Returns nexthop statistics per VRF. No parameters"
 	);
 }
