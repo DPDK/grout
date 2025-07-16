@@ -57,7 +57,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_VLAN:
 		gr_vlan = (const struct gr_iface_info_vlan *)&gr_if->info;
 		mac = &gr_vlan->mac;
-		link_ifindex = gr_vlan->parent_id + GROUT_INDEX_OFFSET;
+		link_ifindex = gr_vlan->parent_id;
 		zif_type = ZEBRA_IF_VLAN;
 		link_type = ZEBRA_LLT_ETHER;
 		break;
@@ -86,7 +86,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
-	dplane_ctx_set_ifindex(ctx, gr_if->base.id + GROUT_INDEX_OFFSET);
+	dplane_ctx_set_ifindex(ctx, gr_if->base.id);
 	dplane_ctx_set_ifname(ctx, gr_if->name);
 	dplane_ctx_set_ifp_startup(ctx, startup);
 	dplane_ctx_set_ifp_family(ctx, AF_UNSPEC);
@@ -160,7 +160,7 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 	else
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_DEL);
 
-	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id + GROUT_INDEX_OFFSET);
+	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id);
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 
 	// Convert addr to prefix
@@ -183,8 +183,8 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 }
 
 enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
-	int gr_iface_id = dplane_ctx_get_ifindex(ctx) - GROUT_INDEX_OFFSET;
 	const struct prefix *p = dplane_ctx_get_intf_addr(ctx);
+	int gr_iface_id = dplane_ctx_get_ifindex(ctx);
 	union {
 		struct gr_ip4_addr_add_req ip4_add;
 		struct gr_ip4_addr_del_req ip4_del;
@@ -206,6 +206,10 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 		gr_log_err(
 			"impossible to add/del address with family %u (not supported)", p->family
 		);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	if (gr_iface_id < 0 || gr_iface_id >= UINT16_MAX) {
+		gr_log_err("impossible to add/del address with invalid ifindex %d", gr_iface_id);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
