@@ -829,7 +829,6 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	gr_nh->type = GR_NH_T_L3;
-	gr_nh->vrf_id = 0;
 	afi = dplane_ctx_get_nhe_afi(ctx);
 	if (afi == AFI_IP)
 		gr_nh->af = GR_AF_IP4;
