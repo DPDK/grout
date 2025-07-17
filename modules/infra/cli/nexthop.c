@@ -82,7 +82,6 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
 	req.nh.iface_id = iface.id;
-	req.nh.vrf_id = iface.vrf_id;
 
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
