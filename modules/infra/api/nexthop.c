@@ -44,7 +44,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct nexthop_af_ops *ops;
 	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
-
+	struct iface *iface;
 	int ret;
 
 	base.flags = 0;
@@ -70,12 +70,12 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	default:
 		return api_out(ENOPROTOOPT, 0);
 	}
-	if (base.vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
 
-	if (iface_from_id(base.iface_id) == NULL)
+	iface = iface_from_id(base.iface_id);
+	if (iface == NULL)
 		return api_out(errno, 0);
 
+	base.vrf_id = iface->vrf_id;
 	base.type = GR_NH_T_L3;
 	base.state = GR_NH_S_NEW;
 	if (!rte_is_zero_ether_addr(&base.mac)) {
