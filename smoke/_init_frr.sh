@@ -9,9 +9,10 @@ tap_index=0
 create_interface() {
 	local p="$1"
 	local mac="$2"
+	local vrf="${3:-0}"
 
 	ip link add v0-$p type veth peer name v1-$p
-	grcli add interface port $p devargs net_tap$tap_index,iface=tap-$p,remote=v0-$p mac $mac
+	grcli add interface port $p devargs net_tap$tap_index,iface=tap-$p,remote=v0-$p vrf $vrf mac $mac
 
 	local max_tries=5
 	local count=0
@@ -30,6 +31,7 @@ create_interface() {
 set_ip_address() {
 	local p="$1"
 	local ip_cidr="$2"
+	local vrf="${3:-0}"
 	local max_tries=5
 	local count=0
 
@@ -52,7 +54,7 @@ set_ip_address() {
 	exit
 EOF
 
-	while ! grcli show ${gr_ip} address | grep -q "$grep_pattern"; do
+	while ! grcli show ${gr_ip} address vrf ${vrf} | grep -q "$grep_pattern"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "IP address $ip_cidr not set after $max_tries attempts."
 			exit 1
@@ -62,11 +64,23 @@ EOF
 	done
 }
 
+vrf_name_from_id() {
+	local vrf_id="${1:-0}"
+
+	if [[ "$vrf_id" -eq 0 ]]; then
+		printf 'default\n'
+	else
+		printf 'gr-loop%s\n' "$vrf_id"
+	fi
+}
+
 set_ip_route() {
 	local prefix="$1"
 	local next_hop="$2"
+	local vrf_id="${3:-0}"
 	local max_tries=5
 	local count=0
+	local vrf_name="$(vrf_name_from_id "$vrf_id")"
 
 	if echo "$prefix" | grep -q ':'; then
 		# IPv6
@@ -78,15 +92,15 @@ set_ip_route() {
 		local gr_ip="ip"
 	fi
 
-	local grep_pattern="^0[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"
+	local grep_pattern="^${vrf_id}[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"
 
 	vtysh <<-EOF
 	configure terminal
-	${frr_ip} route ${prefix} ${next_hop}
+	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}
 	exit
 EOF
 
-	while ! grcli show ${gr_ip} route | grep -q "${grep_pattern}"; do
+	while ! grcli show ${gr_ip} route vrf ${vrf_id} | grep -q "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
