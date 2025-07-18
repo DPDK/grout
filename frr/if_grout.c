@@ -73,6 +73,11 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		break;
 	case GR_IFACE_TYPE_LOOPBACK:
 		link_type = ZEBRA_LLT_LOOPBACK;
+		if (gr_if->base.vrf_id)
+			zif_type = ZEBRA_IF_VRF;
+
+		// In kernel, there is no vrf interface for default vrf
+		// So sync gr-vrf0, as IF_OTHER
 		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
@@ -99,31 +104,27 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
 
-		// No VRF support
-		if (gr_if->base.vrf_id != 0) {
-			gr_log_err(
-				"VRF are not supported, interface %s on vrf %u can not be sync",
-				gr_if->name,
-				gr_if->base.vrf_id
-			);
-			dplane_ctx_fini(&ctx);
-			return;
-		}
-
 		// no bond/bridge support in grout
 		dplane_ctx_set_ifp_zif_slave_type(ctx, ZEBRA_IF_SLAVE_NONE);
-		dplane_ctx_set_ifp_vrf_id(ctx, 0);
 		dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);
 		dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
 		dplane_ctx_set_ifp_bond_ifindex(ctx, IFINDEX_INTERNAL);
 		dplane_ctx_set_ifp_bypass(ctx, 0);
 		dplane_ctx_set_ifp_zltype(ctx, link_type);
-
-		if (vrf_is_backend_netns())
-			dplane_ctx_set_ifp_vrf_id(ctx, GROUT_NS);
-
 		dplane_ctx_set_ifp_flags(ctx, gr_if_flags_to_netlink(gr_if, link_type));
 		dplane_ctx_set_ifp_protodown_set(ctx, false);
+
+		if (gr_if->base.vrf_id != 0) {
+			dplane_ctx_set_ifp_table_id(ctx, gr_if->base.vrf_id);
+
+			// In Linux, vrf_id equals the interface index; in Grout we model a VRF
+			// with its gr‑vrf interface
+			// The gr‑vrf’s ifindex is guaranteed to match vrf_id
+			dplane_ctx_set_ifp_vrf_id(ctx, gr_if->base.vrf_id);
+		} else {
+			dplane_ctx_set_ifp_table_id(ctx, 0);
+			dplane_ctx_set_ifp_vrf_id(ctx, 0);
+		}
 
 		if (mac)
 			dplane_ctx_set_ifp_hw_addr(
@@ -149,12 +150,6 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
 	struct prefix p = {};
-
-	if (gr_nh->vrf_id != 0) {
-		gr_log_err("VRF are not supported");
-		dplane_ctx_fini(&ctx);
-		return;
-	}
 
 	if (new)
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_ADD);
@@ -198,14 +193,6 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 	} req;
 	uint32_t req_type;
 	size_t req_len;
-
-	if (dplane_ctx_get_vrf(ctx) != 0) {
-		gr_log_err(
-			"impossible to add/del address on vrf %u (vrf not supported)",
-			dplane_ctx_get_vrf(ctx)
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 
 	if (p->family != AF_INET && p->family != AF_INET6) {
 		gr_log_err(
