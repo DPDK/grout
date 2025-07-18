@@ -486,6 +486,11 @@ static void zd_grout_ns(struct event *t) {
 	// Delete all vrfs including the default one
 	vrf_terminate();
 
+	// Force the default main table ID to 0 (Linux uses 254)
+	// Because Grout lacks tables, we reuse the vrf_id as the table ID
+	// Therefore table 254 refers to vrf 254 in Grout, not to the default VRF (0)
+	rt_table_main_id = 0;
+	// changing id or name for default vrf is not going well in FRR
 	default_vrf = vrf_get(VRF_DEFAULT, VRF_DEFAULT_NAME);
 	if (!default_vrf) {
 		gr_log_err("failed to recreate the default VRF!");
@@ -505,6 +510,11 @@ static void zd_grout_ns(struct event *t) {
 static int zd_grout_start(struct zebra_dplane_provider *prov) {
 	const char *debug = getenv("ZEBRA_DEBUG_DPLANE_GROUT");
 	const char *sock_path = getenv("GROUT_SOCK_PATH");
+
+	if (vrf_is_backend_netns()) {
+		gr_log_err("vrf backend netns is not supported with grout");
+		exit(1); // Exit because zebra_dplane_start() does not check the return value
+	}
 
 	if (debug)
 		zebra_debug_dplane_grout = (strcmp(debug, "1") == 0 || strcmp(debug, "true") == 0);
