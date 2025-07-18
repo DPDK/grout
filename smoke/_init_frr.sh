@@ -78,9 +78,17 @@ set_ip_route() {
 	local prefix="$1"
 	local next_hop="$2"
 	local vrf_id="${3:-0}"
+	local nexthop_vrf_id="${4:-}"
 	local max_tries=5
 	local count=0
 	local vrf_name="$(vrf_name_from_id "$vrf_id")"
+
+	local nexthop_vrf_clause=""
+	if [[ -n "$nexthop_vrf_id" ]]; then
+		    local nexthop_vrf_name
+		    nexthop_vrf_name="$(vrf_name_from_id "$nexthop_vrf_id")"
+		    nexthop_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
+	fi
 
 	if echo "$prefix" | grep -q ':'; then
 		# IPv6
@@ -96,7 +104,7 @@ set_ip_route() {
 
 	vtysh <<-EOF
 	configure terminal
-	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}
+	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}
 	exit
 EOF
 
