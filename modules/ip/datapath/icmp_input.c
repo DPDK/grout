@@ -16,20 +16,20 @@
 #include <rte_ip.h>
 
 enum {
-	OUTPUT = 0,
-	CONTROL,
+	UNSUPPORTED = 0,
+	OUTPUT,
 	INVALID,
-	UNSUPPORTED,
 	EDGE_COUNT,
 };
 
 #define ICMP_MIN_SIZE 8
 
-static control_output_cb_t icmp_cb[UINT8_MAX];
+static rte_edge_t edges[UINT8_MAX] = {UNSUPPORTED};
 
 static uint16_t
 icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
+	struct icmp_mbuf_data *icmp_data;
 	struct rte_icmp_hdr *icmp;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
@@ -57,13 +57,10 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			ip_data->dst = ip_data->src;
 			ip_data->src = ip;
 			edge = OUTPUT;
-		} else if (icmp_cb[icmp->icmp_type]) {
-			struct control_output_mbuf_data *c = control_output_mbuf_data(mbuf);
-			c->callback = icmp_cb[icmp->icmp_type];
-			c->timestamp = gr_clock_us();
-			edge = CONTROL;
 		} else {
-			edge = UNSUPPORTED;
+			icmp_data = icmp_mbuf_data(mbuf);
+			icmp_data->timestamp = gr_clock_us();
+			edge = edges[icmp->icmp_type];
 		}
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
@@ -76,13 +73,14 @@ next:
 	return nb_objs;
 }
 
-void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb) {
+void icmp_input_register_type(uint8_t icmp_type, const char *next_node) {
+	LOG(DEBUG, "icmp_input_register_type: type=%hhu -> %s", icmp_type, next_node);
 	if (icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST)
 		ABORT("cannot register callback for echo request");
-	if (icmp_cb[icmp_type])
-		ABORT("callback already registered for %d", icmp_type);
+	if (edges[icmp_type] != UNSUPPORTED)
+		ABORT("icmp_input edge already registered for %d", icmp_type);
 
-	icmp_cb[icmp_type] = cb;
+	edges[icmp_type] = gr_node_attach_parent("icmp_input", next_node);
 }
 
 static void icmp_input_register(void) {
@@ -97,7 +95,6 @@ static struct rte_node_register icmp_input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "icmp_output",
-		[CONTROL] = "control_output",
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
 	},

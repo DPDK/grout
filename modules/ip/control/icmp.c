@@ -4,12 +4,16 @@
 #include <gr_api.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
+#include <gr_datapath.h>
+#include <gr_graph.h>
+#include <gr_infra.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_queue.h>
+#include <gr_trace.h>
 
 #include <rte_icmp.h>
 #include <rte_ip.h>
@@ -30,20 +34,6 @@ static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 	if (free_mbuf)
 		rte_pktmbuf_free(i->mbuf);
 	rte_mempool_put(pool, i);
-}
-
-// Callback invoked by control plane for each ICMP packet received for a local address.
-// The packet is added at the end of a linked list.
-static void icmp_input_cb(struct rte_mbuf *m) {
-	struct icmp_queue_item *i;
-	void *data;
-
-	while (rte_mempool_get(pool, &data) < 0)
-		icmp_queue_pop(STAILQ_FIRST(&icmp_queue), true);
-
-	i = data;
-	i->mbuf = m;
-	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
 }
 
 // Search for the oldest ICMP response matching the given identifier.
@@ -144,7 +134,7 @@ static struct api_out icmp_recv(const void *request, void **response) {
 	resp->ident = rte_be_to_cpu_16(icmp->icmp_ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp->icmp_seq_nb);
 	timestamp = PAYLOAD(icmp);
-	resp->response_time = control_output_mbuf_data(m)->timestamp - *timestamp;
+	resp->response_time = icmp_mbuf_data(m)->timestamp - *timestamp;
 
 	*response = resp;
 	len = sizeof(*resp);
@@ -201,11 +191,45 @@ static struct gr_module icmp_module = {
 	.fini = icmp_fini,
 };
 
+static uint16_t
+icmp_input_ctl_process(struct rte_graph *, struct rte_node *, void **objs, uint16_t nb_objs) {
+	struct icmp_queue_item *item;
+	void *data;
+
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		while (rte_mempool_get(pool, &data) < 0)
+			icmp_queue_pop(STAILQ_FIRST(&icmp_queue), true);
+		item = data;
+		item->mbuf = objs[i];
+		STAILQ_INSERT_TAIL(&icmp_queue, item, next);
+	}
+	return nb_objs;
+}
+
+static struct rte_node_register icmp_input_ctl_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "icmp_input_ctl",
+	.process = icmp_input_ctl_process,
+	.nb_edges = 0,
+	.next_nodes = {},
+};
+
+static void icmp_input_register(void) {
+	icmp_input_register_type(RTE_ICMP_TYPE_DEST_UNREACHABLE, "icmp_input_ctl");
+	icmp_input_register_type(RTE_ICMP_TYPE_TTL_EXCEEDED, "icmp_input_ctl");
+	icmp_input_register_type(RTE_ICMP_TYPE_ECHO_REPLY, "icmp_input_ctl");
+}
+
+static struct gr_node_info icmp_input_info = {
+	.node = &icmp_input_ctl_node,
+	.register_callback = icmp_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp_format,
+};
+
+GR_NODE_REGISTER(icmp_input_info);
+
 RTE_INIT(icmp_module_init) {
 	gr_register_module(&icmp_module);
 	gr_register_api_handler(&ip4_icmp_send_handler);
 	gr_register_api_handler(&ip4_icmp_recv_handler);
-	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
-	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
-	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);
 }

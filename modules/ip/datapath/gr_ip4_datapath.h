@@ -29,6 +29,8 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 
 GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
 
+GR_MBUF_PRIV_DATA_TYPE(icmp_mbuf_data, { clock_t timestamp; });
+
 void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node);
@@ -68,7 +70,7 @@ int icmp_local_send(
 	uint8_t ttl
 );
 
-void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
+void icmp_input_register_type(uint8_t icmp_type, const char *next_node);
 
 static inline rte_be16_t
 fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
