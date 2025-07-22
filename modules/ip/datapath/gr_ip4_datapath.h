@@ -27,9 +27,11 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint8_t ttl;
 });
 
-GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
+GR_MBUF_PRIV_DATA_EXTENDS(icmp_mbuf_data, ip_local_mbuf_data, {
+	clock_t timestamp; // time when the ICMP request was sent
+});
 
-GR_MBUF_PRIV_DATA_TYPE(icmp_mbuf_data, { clock_t timestamp; });
+GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
 
 void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);

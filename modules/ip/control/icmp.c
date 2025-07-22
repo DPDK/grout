@@ -96,6 +96,7 @@ out:
 static struct api_out icmp_recv(const void *request, void **response) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
+	struct icmp_mbuf_data *icmp_data;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	clock_t *timestamp;
@@ -112,12 +113,10 @@ static struct api_out icmp_recv(const void *request, void **response) {
 		goto out;
 	}
 
-	// Ugly, there is no guarantee that the outer packet is actually IPv4
-	ip = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, -sizeof(*ip));
-
+	icmp_data = icmp_mbuf_data(m);
 	icmp = rte_pktmbuf_mtod(m, struct rte_icmp_hdr *);
-	resp->src_addr = ip->src_addr;
-	resp->ttl = ip->time_to_live;
+	resp->src_addr = icmp_data->src;
+	resp->ttl = icmp_data->ttl;
 	resp->type = icmp->icmp_type;
 	resp->code = icmp->icmp_code;
 
@@ -134,7 +133,7 @@ static struct api_out icmp_recv(const void *request, void **response) {
 	resp->ident = rte_be_to_cpu_16(icmp->icmp_ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp->icmp_seq_nb);
 	timestamp = PAYLOAD(icmp);
-	resp->response_time = icmp_mbuf_data(m)->timestamp - *timestamp;
+	resp->response_time = icmp_data->timestamp - *timestamp;
 
 	*response = resp;
 	len = sizeof(*resp);
