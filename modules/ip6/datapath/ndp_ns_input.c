@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_control_output.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_ip6_control.h>
@@ -15,7 +14,7 @@
 #include <rte_ip6.h>
 
 enum {
-	CONTROL = 0,
+	NDP_PROBE = 0,
 	INVAL,
 	DROP,
 	EDGE_COUNT,
@@ -27,7 +26,6 @@ static uint16_t ndp_ns_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *c;
 	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_solicit *ns;
 	struct ip6_local_mbuf_data d;
@@ -87,11 +85,7 @@ static uint16_t ndp_ns_input_process(
 			ASSERT_NDP(lladdr_found == ICMP6_OPT_NOT_FOUND);
 		}
 
-		c = control_output_mbuf_data(mbuf);
-		c->iface = d.iface;
-		c->callback = ndp_probe_input_cb;
-		memcpy(c->cb_data, &d, sizeof(d));
-		next = CONTROL;
+		next = NDP_PROBE;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			uint8_t trace_len = RTE_MIN(d.len, GR_TRACE_ITEM_MAX_LEN);
@@ -111,7 +105,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[CONTROL] = "control_output",
+		[NDP_PROBE] = "ndp_probe",
 		[INVAL] = "ndp_ns_input_inval",
 		[DROP] = "ndp_ns_input_drop",
 	},

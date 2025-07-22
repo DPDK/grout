@@ -20,9 +20,6 @@ nh6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
 	return nexthop_lookup(GR_AF_IP6, vrf_id, iface_id, ip);
 }
 
-void ndp_probe_input_cb(struct rte_mbuf *m);
-void ndp_router_sollicit_input_cb(struct rte_mbuf *m);
-
 int rib6_insert(
 	uint16_t vrf_id,
 	uint16_t iface_id,

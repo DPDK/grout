@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_control_output.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_ip6_control.h>
@@ -15,7 +14,7 @@
 #include <rte_ip6.h>
 
 enum {
-	CONTROL = 0,
+	NDP_PROBE = 0,
 	INVAL,
 	DROP,
 	EDGE_COUNT,
@@ -27,7 +26,6 @@ static uint16_t ndp_na_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *ctrl_data;
 	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
@@ -94,10 +92,7 @@ static uint16_t ndp_na_input_process(
 		// received advertisement.
 		ASSERT_NDP(lladdr_found == ICMP6_OPT_FOUND);
 
-		ctrl_data = control_output_mbuf_data(mbuf);
-		ctrl_data->iface = iface;
-		ctrl_data->callback = ndp_probe_input_cb;
-		edge = CONTROL;
+		edge = NDP_PROBE;
 next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
@@ -114,7 +109,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[CONTROL] = "control_output",
+		[NDP_PROBE] = "ndp_probe",
 		[INVAL] = "ndp_na_input_inval",
 		[DROP] = "ndp_na_input_drop",
 	},
