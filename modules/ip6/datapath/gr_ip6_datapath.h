@@ -32,7 +32,7 @@ GR_MBUF_PRIV_DATA_TYPE(ndp_na_output_mbuf_data, {
 	const struct nexthop *remote;
 });
 
-GR_MBUF_PRIV_DATA_TYPE(icmp6_mbuf_data, { clock_t timestamp; });
+GR_MBUF_PRIV_DATA_EXTENDS(icmp6_mbuf_data, ip6_local_mbuf_data, { clock_t timestamp; });
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip6_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
