@@ -3,7 +3,6 @@
 
 #include <gr_api.h>
 #include <gr_clock.h>
-#include <gr_control_input.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -24,8 +23,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
-
-static control_input_t ip_output_node;
 
 enum {
 	NH4_IP_OUTPUT = 0,
@@ -139,89 +136,119 @@ static struct gr_node_info nh4_unreachable_info = {
 
 GR_NODE_REGISTER(nh4_unreachable_info);
 
-static control_input_t arp_output_reply_node;
+enum {
+	IP_OUTPUT = 0,
+	ARP_OUTPUT_REPLY,
+	ARP_SINK,
+	ARP_EDGE_COUNT,
+};
 
-void arp_probe_input_cb(struct rte_mbuf *m) {
+static uint16_t
+arp_probe_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *held;
 	struct nexthop *nh;
+	struct rte_mbuf *m;
+	rte_edge_t edge;
 	ip4_addr_t sip;
 
-	arp = rte_pktmbuf_mtod(m, struct rte_arp_hdr *);
-	iface = mbuf_data(m)->iface;
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		m = objs[i];
+		edge = ARP_SINK;
 
-	sip = arp->arp_data.arp_sip;
-	nh = nh4_lookup(iface->vrf_id, sip);
-	if (nh == NULL) {
-		// We don't have an entry for the ARP request sender address yet.
-		//
-		// Create one now. If the sender has requested our mac address,
-		// they will certainly contact us soon and it will save us an
-		// ARP request.
-		nh = nexthop_new(&(struct gr_nexthop) {
-			.type = GR_NH_T_L3,
-			.af = GR_AF_IP4,
-			.vrf_id = iface->vrf_id,
-			.iface_id = iface->id,
-			.ipv4 = sip,
-			.origin = GR_NH_ORIGIN_INTERNAL,
-		});
+		arp = rte_pktmbuf_mtod(m, struct rte_arp_hdr *);
+		iface = mbuf_data(m)->iface;
+
+		sip = arp->arp_data.arp_sip;
+		nh = nh4_lookup(iface->vrf_id, sip);
 		if (nh == NULL) {
-			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
-			goto free;
+			// We don't have an entry for the ARP request sender address yet.
+			//
+			// Create one now. If the sender has requested our mac address,
+			// they will certainly contact us soon and it will save us an
+			// ARP request.
+			nh = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP4,
+				.vrf_id = iface->vrf_id,
+				.iface_id = iface->id,
+				.ipv4 = sip,
+				.origin = GR_NH_ORIGIN_INTERNAL,
+			});
+			if (nh == NULL) {
+				LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
+				goto next;
+			}
+			// Add an internal /32 route to reference the newly created nexthop.
+			if (rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+				LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
+				goto next;
+			}
 		}
-		// Add an internal /32 route to reference the newly created nexthop.
-		if (rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
-			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
-			goto free;
+
+		// static next hops never need updating
+		if (!(nh->flags & GR_NH_F_STATIC)) {
+			// Refresh all fields.
+			nh->last_reply = gr_clock_us();
+			nh->state = GR_NH_S_REACHABLE;
+			nh->ucast_probes = 0;
+			nh->bcast_probes = 0;
+			nh->mac = arp->arp_data.arp_sha;
 		}
-	}
 
-	// static next hops never need updating
-	if (!(nh->flags & GR_NH_F_STATIC)) {
-		// Refresh all fields.
-		nh->last_reply = gr_clock_us();
-		nh->state = GR_NH_S_REACHABLE;
-		nh->ucast_probes = 0;
-		nh->bcast_probes = 0;
-		nh->mac = arp->arp_data.arp_sha;
-	}
-
-	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
-		// send a reply for our local ip
-		struct nexthop *local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
-		struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
-		d->local = local;
-		d->iface = iface;
-		if (post_to_stack(arp_output_reply_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
-			goto free;
+		if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
+			// send a reply for our local ip
+			struct nexthop *local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
+			struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
+			d->local = local;
+			d->iface = iface;
+			edge = ARP_OUTPUT_REPLY;
+			goto next;
 		}
-		// prevent double free, mbuf has been re-consumed by datapath
-		m = NULL;
+
+		// Flush all held packets.
+		held = nh->held_pkts_head;
+		while (held != NULL) {
+			struct ip_output_mbuf_data *o;
+			struct rte_mbuf *next;
+
+			next = queue_mbuf_data(held)->next;
+			o = ip_output_mbuf_data(held);
+			o->nh = nh;
+			o->iface = NULL;
+			rte_node_enqueue_x1(graph, node, IP_OUTPUT, held);
+			held = next;
+		}
+		nh->held_pkts_head = NULL;
+		nh->held_pkts_tail = NULL;
+		nh->held_pkts = 0;
+next:
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_add(m, node, 0);
+		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	// Flush all held packets.
-	held = nh->held_pkts_head;
-	while (held != NULL) {
-		struct ip_output_mbuf_data *o;
-		struct rte_mbuf *next;
-
-		next = queue_mbuf_data(held)->next;
-		o = ip_output_mbuf_data(held);
-		o->nh = nh;
-		o->iface = NULL;
-		post_to_stack(ip_output_node, held);
-		held = next;
-	}
-	nh->held_pkts_head = NULL;
-	nh->held_pkts_tail = NULL;
-	nh->held_pkts = 0;
-
-free:
-	rte_pktmbuf_free(m);
+	return nb_objs;
 }
+
+static struct rte_node_register arp_probe_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "arp_probe",
+	.process = arp_probe_process,
+	.nb_edges = ARP_EDGE_COUNT,
+	.next_nodes = {
+		[IP_OUTPUT] = "ip_output",
+		[ARP_OUTPUT_REPLY] = "arp_output_reply",
+		[ARP_SINK] = "ctlplane_sink",
+	},
+};
+
+static struct gr_node_info arp_probe_info = {
+	.node = &arp_probe_node,
+};
+
+GR_NODE_REGISTER(arp_probe_info);
 
 static int nh4_add(struct nexthop *nh) {
 	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh);
@@ -235,15 +262,9 @@ static void nh4_del(struct nexthop *nh) {
 	}
 }
 
-static void nh4_init(struct event_base *) {
-	ip_output_node = gr_control_input_register_handler("ip_output", true);
-	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
-}
-
 static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.depends_on = "graph",
-	.init = nh4_init,
 };
 
 static struct nexthop_af_ops nh_ops = {
