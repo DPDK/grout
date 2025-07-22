@@ -64,7 +64,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 }
 
 static cmd_status_t srv6_route_del(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_del_req req = {.missing_ok = true};
+	struct gr_srv6_route_del_req req = {.key.vrf_id = 0, .missing_ok = true};
 
 	if (arg_ip6_net(p, "DEST6", &req.key.dest6, true) >= 0)
 		req.key.is_dest6 = true;
