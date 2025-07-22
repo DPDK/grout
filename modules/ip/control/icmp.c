@@ -3,7 +3,6 @@
 
 #include <gr_api.h>
 #include <gr_control_input.h>
-#include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_infra.h>

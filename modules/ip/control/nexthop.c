@@ -49,7 +49,7 @@ static uint16_t nh4_unreachable_process(
 		if (gr_mbuf_is_traced(m))
 			gr_mbuf_trace_add(m, node, 0);
 
-		nh = rib4_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
+		nh = rib4_lookup(mbuf_data(m)->iface->vrf_id, dst);
 		if (nh == NULL)
 			goto next; // route to dst has disappeared
 

@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <gr_control_output.h>
 #include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6_control.h>
