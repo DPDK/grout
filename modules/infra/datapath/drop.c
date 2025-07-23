@@ -31,3 +31,4 @@ int drop_format(char *buf, size_t len, const void * /*data*/, size_t /*data_len*
 
 // Global drop counters, used by multiple nodes
 GR_DROP_REGISTER(error_no_headroom);
+GR_DROP_REGISTER(ctlplane_sink);

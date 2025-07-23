@@ -2,7 +2,6 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_clock.h>
-#include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
@@ -21,7 +20,6 @@ enum {
 	NEIGH_SOLICIT,
 	NEIGH_ADVERT,
 	ROUTER_SOLICIT,
-	CONTROL,
 	BAD_CHECKSUM,
 	INVALID,
 	UNSUPPORTED,
@@ -29,14 +27,15 @@ enum {
 	EDGE_COUNT,
 };
 
-static control_output_cb_t icmp6_cb[UINT8_MAX];
+static rte_edge_t edges[UINT8_MAX] = {UNSUPPORTED};
 
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct icmp6_mbuf_data *icmp6_data;
 	struct ip6_local_mbuf_data *d;
-	struct icmp6 *icmp6;
 	struct rte_ipv6_addr tmp_ip;
 	struct rte_mbuf *mbuf;
+	struct icmp6 *icmp6;
 	rte_edge_t next;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -85,16 +84,9 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			break;
 		case ICMP6_TYPE_ROUTER_ADVERT:
 		default:
-			if (icmp6_cb[icmp6->type] != NULL) {
-				struct control_output_mbuf_data *c;
-				c = control_output_mbuf_data(mbuf);
-				memmove(c->cb_data, d, sizeof(*d));
-				c->callback = icmp6_cb[icmp6->type];
-				c->timestamp = gr_clock_us();
-				next = CONTROL;
-			} else {
-				next = UNSUPPORTED;
-			}
+			icmp6_data = icmp6_mbuf_data(mbuf);
+			icmp6_data->timestamp = gr_clock_us();
+			next = edges[icmp6->type];
 		}
 next:
 		rte_node_enqueue_x1(graph, node, next, mbuf);
@@ -103,13 +95,14 @@ next:
 	return nb_objs;
 }
 
-void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb) {
+void icmp6_input_register_type(uint8_t icmp6_type, const char *next_node) {
+	LOG(DEBUG, "icmp6_input_register_type: type=%hhu -> %s", icmp6_type, next_node);
 	if (icmp6_type == ICMP6_TYPE_ECHO_REQUEST)
 		ABORT("cannot register callback for echo request");
-	if (icmp6_cb[icmp6_type])
-		ABORT("callback already registered for %d", icmp6_type);
+	if (edges[icmp6_type])
+		ABORT("icmp6_type edge already registered for %d", icmp6_type);
 
-	icmp6_cb[icmp6_type] = cb;
+	edges[icmp6_type] = gr_node_attach_parent("icmp6_input", next_node);
 }
 
 static void icmp6_input_register(void) {
@@ -127,7 +120,6 @@ static struct rte_node_register icmp6_input_node = {
 		[NEIGH_SOLICIT] = "ndp_ns_input",
 		[NEIGH_ADVERT] = "ndp_na_input",
 		[ROUTER_SOLICIT] = "ndp_rs_input",
-		[CONTROL] = "control_output",
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
 		[UNSUPPORTED] = "icmp6_input_unsupported",

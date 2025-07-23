@@ -2,9 +2,10 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
-  'control_output.c',
   'iface.c',
+  'loop_output.c',
   'loopback.c',
+  'main_loop.c',
   'mempool.c',
   'nexthop.c',
   'port.c',

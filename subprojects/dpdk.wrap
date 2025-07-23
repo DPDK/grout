@@ -1,6 +1,7 @@
 [wrap-git]
 url = https://github.com/DPDK/dpdk-stable
 revision = v24.11.1
+diff_files = graph-allow-non-EAL-Thread-for-pipeline-mode.patch
 depth = 1
 
 [provide]
