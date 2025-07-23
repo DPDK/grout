@@ -70,12 +70,13 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
 	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_new_column(table, "ID", 0, 0);
+	scols_table_new_column(table, "NEXT_HOP_VRF", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip6_route *route = &resp->routes[i];
-		scols_line_sprintf(line, 0, "%u", route->nh.vrf_id);
+		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, IP6_F, &route->nh.ipv6);
 		scols_line_sprintf(line, 3, "%s", gr_nh_origin_name(route->origin));
@@ -83,6 +84,7 @@ static cmd_status_t route6_list(const struct gr_api_client *c, const struct ec_p
 			scols_line_sprintf(line, 4, "%u", route->nh.nh_id);
 		else
 			scols_line_set_data(line, 4, "");
+		scols_line_sprintf(line, 5, "%u", route->nh.vrf_id);
 	}
 
 	scols_print_table(table);
@@ -129,7 +131,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP6_ADD_CTX(root),
-		"route DEST via (id ID)|(NH [vrf VRF])",
+		"route DEST via (id ID)|(NH) [vrf VRF]",
 		route6_add,
 		"Add a new route.",
 		with_help("IPv6 destination prefix.", ec_node_re("DEST", IPV6_NET_RE)),
