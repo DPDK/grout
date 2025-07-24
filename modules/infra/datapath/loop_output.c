@@ -41,14 +41,8 @@ static struct rte_node_register loopback_output_node = {
 	},
 };
 
-static void loopback_output_register(void) {
-	ip_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loopback_output");
-	ip6_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loopback_output");
-}
-
 static struct gr_node_info info = {
 	.node = &loopback_output_node,
-	.register_callback = loopback_output_register,
 };
 
 GR_NODE_REGISTER(info);
