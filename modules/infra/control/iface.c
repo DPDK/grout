@@ -92,7 +92,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		errno = ENOMEM;
 		goto fail;
 	}
-	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
+	if (conf->type == GR_IFACE_TYPE_VRF && conf->vrf_id) {
 		ifid = conf->vrf_id;
 		if (reserve_ifid(ifid) < 0)
 			goto fail;
@@ -309,7 +309,7 @@ static void iface_fini(struct event_base *) {
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
-		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
+		    && iface->type != GR_IFACE_TYPE_VRF) {
 			if (iface_destroy(ifid) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
@@ -319,7 +319,7 @@ static void iface_fini(struct event_base *) {
 	// Finally, destroy DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
+		if (iface == NULL || iface->type == GR_IFACE_TYPE_VRF)
 			continue;
 		if (iface_destroy(ifid) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));

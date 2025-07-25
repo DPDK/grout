@@ -4,7 +4,6 @@
 #include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_eth.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_kernel.h>
 #include <gr_log.h>
@@ -28,11 +27,6 @@
 
 static struct rte_mempool *kernel_pool;
 static struct event_base *ev_base;
-
-struct iface_info_kernel {
-	int fd;
-	struct event *ev;
-};
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -78,7 +72,7 @@ void kernel_tx(struct rte_mbuf *m) {
 	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
 
 	if (writev(lo->fd, iov, ARRAY_DIM(iov)) < 0) {
-		// The user messed up and removed gr-loopX
+		// The user messed up and removed gr-vrfX
 		// release resources on our side to try to recover
 		if (errno == EBADFD) {
 			iface_destroy(d->iface->id);
@@ -104,7 +98,7 @@ static void iface_kernel_poll(evutil_socket_t, short reason, void *ev_iface) {
 	lo = (struct iface_info_kernel *)iface->info;
 
 	if (reason & EV_CLOSED) {
-		// The user messed up and removed gr-loopX
+		// The user messed up and removed gr-vrfX
 		LOG(ERR, "tun device %s deleted", iface->name);
 		iface_destroy(iface->id);
 		return;
@@ -152,21 +146,21 @@ err:
 }
 
 struct iface *iface_kernel_create(uint16_t vrf_id) {
-	struct gr_iface conf = {.type = GR_IFACE_TYPE_LOOPBACK, .mtu = 1500, .vrf_id = vrf_id};
-	snprintf(conf.name, sizeof(conf.name), "gr-loop%d", vrf_id);
+	struct gr_iface conf = {.type = GR_IFACE_TYPE_VRF, .mtu = 1500, .vrf_id = vrf_id};
+	snprintf(conf.name, sizeof(conf.name), "gr-vrf%d", vrf_id);
 	return iface_create(&conf, NULL);
 }
 
 int iface_kernel_delete(uint16_t vrf_id) {
 	const struct iface *i = NULL;
-	while ((i = iface_next(GR_IFACE_TYPE_LOOPBACK, i)) != NULL)
+	while ((i = iface_next(GR_IFACE_TYPE_VRF, i)) != NULL)
 		if (i->vrf_id == vrf_id)
 			return iface_destroy(i->id);
 
 	return errno_set(ENODEV);
 }
 
-static int iface_kernel_init(struct iface *iface, const void * /* api_info */) {
+int iface_kernel_init(struct iface *iface, const void * /* api_info */) {
 	struct iface_info_kernel *lo = (struct iface_info_kernel *)iface->info;
 	struct ifreq ifr;
 	int ioctl_sock;
@@ -241,7 +235,7 @@ err:
 	return errno_set(err_save);
 }
 
-static int iface_kernel_fini(struct iface *iface) {
+int iface_kernel_fini(struct iface *iface) {
 	struct iface_info_kernel *lo = (struct iface_info_kernel *)iface->info;
 	event_free_finalize(0, lo->ev, finalize_fd);
 	return 0;
@@ -258,17 +252,6 @@ static void kernel_module_fini(struct event_base *) {
 	gr_pktmbuf_pool_release(kernel_pool, RTE_GRAPH_BURST_SIZE);
 }
 
-static void iface_loopback_to_api(void * /* info */, const struct iface * /* iface */) { }
-
-static struct iface_type iface_type_loopback = {
-	.id = GR_IFACE_TYPE_LOOPBACK,
-	.name = "loopback",
-	.info_size = sizeof(struct iface_info_kernel),
-	.init = iface_kernel_init,
-	.fini = iface_kernel_fini,
-	.to_api = iface_loopback_to_api,
-};
-
 static struct gr_module kernel_module = {
 	.name = "iface kernel",
 	.init = kernel_module_init,
@@ -276,6 +259,5 @@ static struct gr_module kernel_module = {
 };
 
 RTE_INIT(kernel_constructor) {
-	iface_type_register(&iface_type_loopback);
 	gr_register_module(&kernel_module);
 }

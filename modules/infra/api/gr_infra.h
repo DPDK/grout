@@ -15,7 +15,7 @@
 
 typedef enum : uint8_t {
 	GR_IFACE_TYPE_UNDEF = 0,
-	GR_IFACE_TYPE_LOOPBACK,
+	GR_IFACE_TYPE_VRF,
 	GR_IFACE_TYPE_PORT,
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
@@ -333,8 +333,8 @@ static inline const char *iface_type_to_str(gr_iface_type_t type) {
 	switch (type) {
 	case GR_IFACE_TYPE_UNDEF:
 		return "undef";
-	case GR_IFACE_TYPE_LOOPBACK:
-		return "loopback";
+	case GR_IFACE_TYPE_VRF:
+		return "vrf";
 	case GR_IFACE_TYPE_PORT:
 		return "port";
 	case GR_IFACE_TYPE_VLAN:

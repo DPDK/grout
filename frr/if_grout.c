@@ -70,7 +70,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_IPIP:
 		link_type = ZEBRA_LLT_IPIP;
 		break;
-	case GR_IFACE_TYPE_LOOPBACK:
+	case GR_IFACE_TYPE_VRF:
 		link_type = ZEBRA_LLT_LOOPBACK;
 		break;
 	case GR_IFACE_TYPE_UNDEF:

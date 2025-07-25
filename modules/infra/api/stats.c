@@ -357,7 +357,7 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 	rte_tel_data_start_dict(d);
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		if (iface->type != GR_IFACE_TYPE_LOOPBACK) {
+		if (iface->type != GR_IFACE_TYPE_VRF) {
 			struct rte_tel_data *iface_container = rte_tel_data_alloc();
 			if (iface_container == NULL) {
 				goto err;

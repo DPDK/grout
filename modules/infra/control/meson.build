@@ -12,6 +12,7 @@ src += files(
   'graph.c',
   'vlan.c',
   'vrf.c',
+  'vrf_iface.c',
 )
 inc += include_directories('.')
 
