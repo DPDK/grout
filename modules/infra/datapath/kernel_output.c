@@ -6,7 +6,7 @@
 #include <gr_infra.h>
 #include <gr_ip4_datapath.h>
 #include <gr_ip6_datapath.h>
-#include <gr_loopback.h>
+#include <gr_kernel.h>
 #include <gr_trace.h>
 
 enum {
@@ -14,7 +14,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static uint16_t loopback_output_process(
+static uint16_t kernel_output_process(
 	struct rte_graph *graph,
 	struct rte_node *node,
 	void **objs,
@@ -26,15 +26,15 @@ static uint16_t loopback_output_process(
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		co = control_output_mbuf_data(mbuf);
-		co->callback = loopback_tx;
+		co->callback = kernel_tx;
 		rte_node_enqueue_x1(graph, node, CONTROL_OUTPUT, mbuf);
 	}
 	return nb_objs;
 }
 
-static struct rte_node_register loopback_output_node = {
-	.name = "loopback_output",
-	.process = loopback_output_process,
+static struct rte_node_register kernel_output_node = {
+	.name = "kernel_output",
+	.process = kernel_output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[CONTROL_OUTPUT] = "control_output",
@@ -42,7 +42,7 @@ static struct rte_node_register loopback_output_node = {
 };
 
 static struct gr_node_info info = {
-	.node = &loopback_output_node,
+	.node = &kernel_output_node,
 };
 
 GR_NODE_REGISTER(info);

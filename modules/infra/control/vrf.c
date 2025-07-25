@@ -31,11 +31,11 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
 		if (++vrfs[iface->vrf_id].ref_count == 1)
-			vrfs[iface->vrf_id].iface = iface_loopback_create(iface->vrf_id);
+			vrfs[iface->vrf_id].iface = iface_kernel_create(iface->vrf_id);
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		if (--vrfs[iface->vrf_id].ref_count == 0) {
-			iface_loopback_delete(iface->vrf_id);
+			iface_kernel_delete(iface->vrf_id);
 			vrfs[iface->vrf_id].iface = NULL;
 		}
 		break;
@@ -51,13 +51,13 @@ static void iface_event_vrf(uint32_t event, const void *obj) {
 			if (vrfs[i].ref_count > ifaces_per_vrf[i]) {
 				vrfs[i].ref_count = ifaces_per_vrf[i];
 				if (vrfs[i].ref_count == 0) {
-					iface_loopback_delete(i);
+					iface_kernel_delete(i);
 					vrfs[i].iface = NULL;
 				}
 			} else if (vrfs[i].ref_count < ifaces_per_vrf[i]) {
 				vrfs[i].ref_count = ifaces_per_vrf[i];
 				if (vrfs[i].ref_count == 1)
-					vrfs[i].iface = iface_loopback_create(i);
+					vrfs[i].iface = iface_kernel_create(i);
 			}
 		}
 		break;

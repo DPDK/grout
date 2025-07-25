@@ -4,7 +4,7 @@
 src += files(
   'control_output.c',
   'iface.c',
-  'loopback.c',
+  'kernel.c',
   'mempool.c',
   'nexthop.c',
   'port.c',

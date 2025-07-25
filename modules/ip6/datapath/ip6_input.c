@@ -5,8 +5,8 @@
 #include <gr_fib6.h>
 #include <gr_graph.h>
 #include <gr_ip6_datapath.h>
+#include <gr_kernel.h>
 #include <gr_log.h>
-#include <gr_loopback.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -102,7 +102,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 
 		switch (e->domain) {
-		case ETH_DOMAIN_LOOPBACK:
+		case ETH_DOMAIN_KERNEL:
 		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
 			break;
@@ -132,7 +132,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// send to ip6_local.
 		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
 			edge = LOCAL;
-		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+		else if (e->domain == ETH_DOMAIN_KERNEL)
 			edge = OUTPUT;
 
 next:
@@ -151,7 +151,7 @@ next:
 
 static void ip6_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
-	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
+	kernel_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
 }
 
 static struct rte_node_register input_node = {
@@ -200,7 +200,7 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip6_format(char *, size_t, const struct rte_ipv6_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
-mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+mock_func(void, kernel_input_add_type(rte_be16_t, const char *));
 mock_func(struct nexthop *, mcast6_get_member(uint16_t, const struct rte_ipv6_addr *));
 
 struct fake_mbuf {

@@ -6,8 +6,8 @@
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
+#include <gr_kernel.h>
 #include <gr_log.h>
-#include <gr_loopback.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -110,7 +110,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		switch (e->domain) {
-		case ETH_DOMAIN_LOOPBACK:
+		case ETH_DOMAIN_KERNEL:
 		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
 			break;
@@ -140,7 +140,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		// send to ip_local.
 		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
 			edge = LOCAL;
-		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+		else if (e->domain == ETH_DOMAIN_KERNEL)
 			edge = OUTPUT;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
@@ -158,7 +158,7 @@ next:
 
 static void ip_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
-	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
+	kernel_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
 }
 
 static struct rte_node_register input_node = {
@@ -204,7 +204,7 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip_format(char *, size_t, const struct rte_ipv4_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
-mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+mock_func(void, kernel_input_add_type(rte_be16_t, const char *));
 
 struct fake_mbuf {
 	struct rte_ipv4_hdr ipv4_hdr;
