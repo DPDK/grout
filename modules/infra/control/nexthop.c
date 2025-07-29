@@ -159,28 +159,50 @@ static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
 	return h;
 }
 
+static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
+	struct rte_mempool *p = NULL;
+	struct rte_hash *haddr = NULL;
+	struct rte_hash *hid = NULL;
+
+	if (c->max_count == 0 || c->max_count == nh_conf.max_count)
+		return 0;
+
+	p = create_mempool(c);
+	if (p == NULL)
+		goto fail;
+
+	haddr = create_hash_by_addr(c);
+	if (haddr == NULL)
+		goto fail;
+
+	hid = create_hash_by_id(c);
+	if (hid == NULL)
+		goto fail;
+
+	rte_mempool_free(pool);
+	pool = p;
+	rte_hash_free(hash_by_addr);
+	hash_by_addr = haddr;
+	rte_hash_free(hash_by_id);
+	hash_by_id = hid;
+
+	nh_conf.max_count = c->max_count;
+	return 0;
+
+fail:
+	if (p)
+		rte_mempool_free(p);
+	if (haddr)
+		rte_hash_free(haddr);
+	if (hid)
+		rte_hash_free(hid);
+
+	return -errno;
+}
+
 int nexthop_config_set(const struct gr_nexthop_config *c) {
-	if (c->max_count != 0 && c->max_count != nh_conf.max_count) {
-		struct rte_mempool *p = create_mempool(c);
-		if (p == NULL)
-			return -errno;
-		rte_mempool_free(pool);
-		pool = p;
+	nexthop_config_allocate(c);
 
-		struct rte_hash *h = create_hash_by_addr(c);
-		if (h == NULL)
-			return -errno;
-		rte_hash_free(hash_by_addr);
-		hash_by_addr = h;
-
-		h = create_hash_by_id(c);
-		if (h == NULL)
-			return -errno;
-		rte_hash_free(hash_by_id);
-		hash_by_id = h;
-
-		nh_conf.max_count = c->max_count;
-	}
 	if (c->lifetime_reachable_sec != 0)
 		nh_conf.lifetime_reachable_sec = c->lifetime_reachable_sec;
 	if (c->lifetime_unreachable_sec != 0)
