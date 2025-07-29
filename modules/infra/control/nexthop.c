@@ -3,6 +3,7 @@
 
 #include <gr_clock.h>
 #include <gr_event.h>
+#include <gr_id_pool.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_module.h>
@@ -23,6 +24,7 @@
 #define DEFAULT_BCAST_PROBES 3
 
 static struct rte_mempool *pool;
+static struct gr_id_pool *pool_id;
 static struct rte_hash *hash_by_addr;
 static struct rte_hash *hash_by_id;
 static struct event *ageing_timer;
@@ -70,6 +72,59 @@ static struct rte_mempool *create_mempool(const struct gr_nexthop_config *c) {
 	if (p == NULL)
 		return errno_log_null(rte_errno, "rte_mempool_create");
 	return p;
+}
+
+static struct gr_id_pool *create_idpool(const struct gr_nexthop_config *c) {
+	if (pool_id != NULL && gr_id_pool_used(pool_id))
+		return errno_set_null(EBUSY);
+
+	char name[128];
+	snprintf(name, sizeof(name), "nexthop-ids-%u", c->max_count);
+	struct gr_id_pool *pid = gr_id_pool_create(name, c->max_count);
+	if (pid == NULL)
+		return errno_log_null(rte_errno, "gr_id_pool_create");
+
+	return pid;
+}
+
+static void nexthop_id_put(struct nexthop *nh) {
+	if (nh->nh_id == 0)
+		return;
+
+	if (nh->nh_id <= nh_conf.max_count)
+		gr_id_pool_put(pool_id, nh->nh_id);
+
+	rte_hash_del_key(hash_by_id, &nh->nh_id);
+	nh->nh_id = 0;
+	return;
+}
+
+static int nexthop_id_get(struct nexthop *nh) {
+	int ret;
+
+	// no id for internal, as we should not let user manipulate it
+	if (nh->origin == GR_NH_ORIGIN_INTERNAL) {
+		nh->nh_id = 0;
+		return 0;
+	}
+
+	// if no id allocate one
+	if (nh->nh_id == 0) {
+		nh->nh_id = gr_id_pool_get(pool_id);
+		if (nh->nh_id == 0)
+			return errno_set(ENOSPC);
+		// book id if this one in the range of id allocated
+		// (user is allowed to use id outside > max_count
+	} else if (nh->nh_id <= nh_conf.max_count && gr_id_pool_book(pool_id, nh->nh_id) < 0)
+		return errno_set(EBUSY);
+
+	ret = rte_hash_add_key_data(hash_by_id, &nh->nh_id, nh);
+	if (ret < 0) {
+		if (nh->nh_id <= nh_conf.max_count)
+			gr_id_pool_put(pool_id, nh->nh_id);
+		return errno_set(-ret);
+	}
+	return 0;
 }
 
 struct nexthop_key {
@@ -163,6 +218,7 @@ static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
 	struct rte_mempool *p = NULL;
 	struct rte_hash *haddr = NULL;
 	struct rte_hash *hid = NULL;
+	struct gr_id_pool *pid = NULL;
 
 	if (c->max_count == 0 || c->max_count == nh_conf.max_count)
 		return 0;
@@ -179,12 +235,18 @@ static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
 	if (hid == NULL)
 		goto fail;
 
+	pid = create_idpool(c);
+	if (pid == NULL)
+		goto fail;
+
 	rte_mempool_free(pool);
 	pool = p;
 	rte_hash_free(hash_by_addr);
 	hash_by_addr = haddr;
 	rte_hash_free(hash_by_id);
 	hash_by_id = hid;
+	gr_id_pool_destroy(pool_id);
+	pool_id = pid;
 
 	nh_conf.max_count = c->max_count;
 	return 0;
@@ -196,6 +258,8 @@ fail:
 		rte_hash_free(haddr);
 	if (hid)
 		rte_hash_free(hid);
+	if (pid)
+		gr_id_pool_destroy(pid);
 
 	return -errno;
 }
@@ -301,8 +365,8 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 	struct nexthop_key key;
 	int ret;
 
-	if (nh->nh_id != 0)
-		rte_hash_del_key(hash_by_id, &nh->nh_id);
+	nexthop_id_put(nh);
+
 	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
 		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
 		rte_hash_del_key(hash_by_addr, &key);
@@ -310,7 +374,7 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 
 	nh->base = *update;
 
-	if (nh->nh_id != 0 && (ret = rte_hash_add_key_data(hash_by_id, &nh->nh_id, nh)) < 0)
+	if ((ret = nexthop_id_get(nh)) < 0)
 		return ret;
 
 	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
@@ -421,8 +485,7 @@ void nexthop_cleanup(uint16_t iface_id) {
 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
-		if (nh->nh_id != 0)
-			rte_hash_del_key(hash_by_id, &nh->nh_id);
+		nexthop_id_put(nh);
 		if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
 			struct nexthop_key key;
 			set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
@@ -529,6 +592,10 @@ static void nh_init(struct event_base *ev_base) {
 	hash_by_id = create_hash_by_id(&nh_conf);
 	if (hash_by_id == NULL)
 		ABORT("rte_hash_create(nexthop-ids) failed");
+
+	pool_id = create_idpool(&nh_conf);
+	if (pool_id == NULL)
+		ABORT("gr_id_pool_create(nexthop-ids) failed");
 
 	ageing_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, do_ageing, NULL);
 	if (ageing_timer == NULL)
