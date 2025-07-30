@@ -47,14 +47,25 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 
 	int ret;
 
+	base.flags = 0;
 	switch (base.af) {
 	case GR_AF_IP4:
 		if (base.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
+
+		base.flags |= GR_NH_F_GATEWAY;
 		break;
 	case GR_AF_IP6:
 		if (rte_ipv6_addr_is_unspec(&base.ipv6))
 			return api_out(EDESTADDRREQ, 0);
+
+		base.flags |= GR_NH_F_GATEWAY;
+		break;
+	case GR_AF_UNSPEC:
+		if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
+			return api_out(EINVAL, 0);
+
+		base.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
 		break;
 	default:
 		return api_out(ENOPROTOOPT, 0);
@@ -67,10 +78,12 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 
 	base.type = GR_NH_T_L3;
 	base.state = GR_NH_S_NEW;
-	base.flags = 0;
 	if (!rte_is_zero_ether_addr(&base.mac)) {
+		if (base.af == GR_AF_UNSPEC)
+			return api_out(EINVAL, 0);
+
 		base.state = GR_NH_S_REACHABLE;
-		base.flags = GR_NH_F_STATIC;
+		base.flags |= GR_NH_F_STATIC;
 	}
 
 	if (base.nh_id != GR_NH_ID_UNSET)

@@ -174,6 +174,10 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 		p.family = AF_INET6;
 		memcpy(&p.u.prefix6, &gr_nh->ipv6, sizeof(p.u.prefix6));
 		break;
+	case GR_AF_UNSPEC:
+		gr_log_err("interface with addr family UNSPEC are not supported");
+		dplane_ctx_fini(&ctx);
+		return;
 	}
 	dplane_ctx_set_intf_addr(ctx, &p);
 	dplane_ctx_set_intf_metric(ctx, METRIC_MAX);
