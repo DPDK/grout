@@ -62,6 +62,9 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	struct gr_nh_add_req req = {.exist_ok = true, .nh.origin = GR_NH_ORIGIN_USER};
 	struct gr_iface iface;
 
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
 	case 0:
 		req.nh.af = GR_AF_IP4;
@@ -79,9 +82,6 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	req.nh.iface_id = iface.id;
 	req.nh.vrf_id = iface.vrf_id;
 
-	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -94,19 +94,9 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
-	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
-	case 0:
-		req.nh.af = GR_AF_IP4;
-		break;
-	case -EINVAL:
-		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
-			return CMD_ERROR;
-		req.nh.af = GR_AF_IP6;
-		break;
-	default:
-		if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
-			return CMD_ERROR;
-	}
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
+		return CMD_ERROR;
+
 	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -251,10 +241,10 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop IP iface IFACE [id ID] [mac MAC]",
+		"nexthop [id ID] IP iface IFACE [mac MAC]",
 		nh_add,
 		"Add a new next hop.",
-		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
+		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
@@ -263,7 +253,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_DEL),
-		"nexthop (id ID)|IP [vrf VRF]",
+		"nexthop ID [vrf VRF]",
 		nh_del,
 		"Delete a next hop.",
 		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
