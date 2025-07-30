@@ -246,7 +246,8 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 		nh = nexthop_lookup_by_id(req->nh_id);
 		if (nh == NULL)
 			return api_out(ENOENT, 0);
-	} else {
+	} else if ((nh = nexthop_lookup(GR_AF_IP6, req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh))
+		   == NULL) {
 		// ensure route gateway is reachable
 		if ((nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
 			return api_out(EHOSTUNREACH, 0);
