@@ -157,6 +157,9 @@ static inline void set_nexthop_key(
 			key->ipv6.a[3] = iface_id & 0xff;
 		}
 		break;
+	case GR_AF_UNSPEC:
+		ABORT("AF_UNSPEC has no nexthop key with gw");
+		break;
 	}
 }
 
@@ -283,6 +286,7 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
 	switch (af) {
+	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
 		if (ops == NULL || ops->add == NULL || ops->del == NULL || ops->solicit == NULL)
@@ -334,6 +338,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 		ABORT("invalid nexthop type %hhu", base->type);
 	}
 	switch (base->af) {
+	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
 		break;
@@ -405,6 +410,8 @@ bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
 		if (memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)))
 			return false;
 		break;
+	case GR_AF_UNSPEC:
+		break;
 	default:
 		ABORT("invalid nexthop family %hhu", a->af);
 	}
@@ -452,6 +459,9 @@ struct nexthop *
 nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct nexthop_key key;
 	void *data;
+
+	if (af == AF_UNSPEC)
+		return NULL;
 
 	set_nexthop_key(&key, af, vrf_id, iface_id, addr);
 
@@ -630,7 +640,27 @@ static struct gr_module module = {
 	.fini = nh_fini,
 };
 
+static int nh_unspec_add(struct nexthop *nh) {
+	nexthop_incref(nh);
+	return 0;
+}
+
+static void nh_unspec_del(struct nexthop *nh) {
+	nexthop_decref(nh);
+}
+
+static int nh_unspec_solicit(struct nexthop *) {
+	return errno_set(EINVAL);
+}
+
+static struct nexthop_af_ops nh_ops = {
+	.add = nh_unspec_add,
+	.solicit = nh_unspec_solicit,
+	.del = nh_unspec_del,
+};
+
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
+	nexthop_af_ops_register(GR_AF_UNSPEC, &nh_ops);
 }

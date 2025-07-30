@@ -75,8 +75,10 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 		req.nh.af = GR_AF_IP6;
 		break;
 	default:
-		return CMD_ERROR;
+		req.nh.af = GR_AF_UNSPEC;
+		break;
 	}
+
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
 	req.nh.iface_id = iface.id;
@@ -154,7 +156,10 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 			scols_line_set_data(line, 1, "");
 		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
 		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
-		scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
+		if (nh->af == GR_AF_UNSPEC)
+			scols_line_set_data(line, 4, "");
+		else
+			scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
 
 		if (nh->state == GR_NH_S_REACHABLE)
 			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
@@ -241,7 +246,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop [id ID] IP iface IFACE [mac MAC]",
+		"nexthop [id ID] [address IP] iface IFACE [mac MAC]",
 		nh_add,
 		"Add a new next hop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
@@ -256,7 +261,6 @@ static int ctx_init(struct ec_node *root) {
 		"nexthop ID [vrf VRF]",
 		nh_del,
 		"Delete a next hop.",
-		with_help("IPv4 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);

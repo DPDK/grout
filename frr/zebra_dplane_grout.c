@@ -315,6 +315,8 @@ static void dplane_read_notifications(struct event *event) {
 				gr_evt_to_str(gr_e->ev_type)
 			);
 			break;
+		case GR_AF_UNSPEC:
+			break;
 		}
 
 		grout_interface_addr_dplane(gr_nh, new);
