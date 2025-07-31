@@ -227,6 +227,10 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		*nh_family = AF_INET6;
 		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
 		break;
+	case GR_AF_UNSPEC:
+		nh->type = NEXTHOP_TYPE_IFINDEX;
+		*nh_family = AF_UNSPEC;
+		break;
 	default:
 		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
 		return -1;
@@ -294,7 +298,7 @@ static void grout_route_change(
 			return;
 		}
 
-		if (nh_family != family) {
+		if (nh_family != AF_UNSPEC && nh_family != family) {
 			gr_log_debug(
 				"nexthop family %u different that route family %u nexthop, "
 				"ignoring",
@@ -850,8 +854,11 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->ipv6);
 		break;
 	case NEXTHOP_TYPE_IFINDEX:
-		gr_log_debug("add nexthop id %u ifindex %u", nh_id, gr_nh->iface_id);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
+		// dplane_ctx_get_nhe_afi(ctx) returns AFI_IP for a nexthop with no gateway
+		// force to UNSPEC for grout
+		gr_nh->af = GR_AF_UNSPEC;
+		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
+		break;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
@@ -889,6 +896,10 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
 		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
 		return;
 	}
+
+	// kernel set INET4 when no gateway, let's do the same
+	if (family == AF_UNSPEC)
+		family = AF_INET;
 
 	afi = family2afi(family);
 	type = origin2zebra(gr_nh->origin, family, false);
