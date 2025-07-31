@@ -218,6 +218,7 @@ int rib6_delete(
 		return errno_set(EINVAL);
 
 	rte_rib6_remove(rib, scoped_ip, prefixlen);
+	fib6_remove(vrf_id, iface_id, scoped_ip, prefixlen);
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
