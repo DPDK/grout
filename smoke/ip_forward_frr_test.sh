@@ -18,7 +18,11 @@ for n in 0 1; do
 	ip -n n-$p link set v1-$p up
 	ip -n n-$p link set lo up
 	ip -n n-$p addr add 172.16.$n.2/24 dev v1-$p
-	ip -n n-$p addr add 16.$n.0.1/16 dev lo
+	if [[ $n -eq 0 ]]; then
+		ip -n n-$p addr add 16.$n.0.1/16 dev lo
+	else
+		ip -n n-$p addr add 16.$n.0.1/16 dev v1-$p
+	fi
 	ip -n n-$p route add default via 172.16.$n.1
 	ip -n n-$p addr show
 done
@@ -26,7 +30,7 @@ done
 set_ip_address $p0 172.16.0.1/24
 set_ip_address $p1 172.16.1.1/24
 set_ip_route 16.0.0.0/16 172.16.0.2
-set_ip_route 16.1.0.0/16 172.16.1.2
+set_ip_route 16.1.0.0/16 $p1
 
 ip netns exec n-$p0 ping -i0.01 -c3 -n 16.1.0.1
 ip netns exec n-$p1 ping -i0.01 -c3 -n 16.0.0.1
