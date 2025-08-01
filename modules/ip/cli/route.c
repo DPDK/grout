@@ -128,7 +128,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		IP_ADD_CTX(root),
-		"route DEST via (id ID)|(NH [vrf VRF])",
+		"route DEST via (NH [vrf VRF])|(id ID)",
 		route4_add,
 		"Add a new route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
