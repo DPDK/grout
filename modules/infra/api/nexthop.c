@@ -47,14 +47,25 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 
 	int ret;
 
+	base.flags = 0;
 	switch (base.af) {
 	case GR_AF_IP4:
 		if (base.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
+
+		base.flags |= GR_NH_F_GATEWAY;
 		break;
 	case GR_AF_IP6:
 		if (rte_ipv6_addr_is_unspec(&base.ipv6))
 			return api_out(EDESTADDRREQ, 0);
+
+		base.flags |= GR_NH_F_GATEWAY;
+		break;
+	case GR_AF_UNSPEC:
+		if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
+			return api_out(EINVAL, 0);
+
+		base.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
 		break;
 	default:
 		return api_out(ENOPROTOOPT, 0);
@@ -67,10 +78,12 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 
 	base.type = GR_NH_T_L3;
 	base.state = GR_NH_S_NEW;
-	base.flags = 0;
 	if (!rte_is_zero_ether_addr(&base.mac)) {
+		if (base.af == GR_AF_UNSPEC)
+			return api_out(EINVAL, 0);
+
 		base.state = GR_NH_S_REACHABLE;
-		base.flags = GR_NH_F_STATIC;
+		base.flags |= GR_NH_F_STATIC;
 	}
 
 	if (base.nh_id != GR_NH_ID_UNSET)
@@ -132,35 +145,11 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 
-	if (req->nh.nh_id != GR_NH_ID_UNSET) {
-		nh = nexthop_lookup_by_id(req->nh.nh_id);
-		if (nh == NULL) {
-			if (req->missing_ok)
-				return api_out(0, 0);
-			return api_out(ENOENT, 0);
-		}
-	} else {
-		switch (req->nh.af) {
-		case GR_AF_IP4:
-			if (req->nh.ipv4 == 0)
-				return api_out(EDESTADDRREQ, 0);
-			break;
-		case GR_AF_IP6:
-			if (rte_ipv6_addr_is_unspec(&req->nh.ipv6))
-				return api_out(EDESTADDRREQ, 0);
-			break;
-		default:
-			return api_out(ENOPROTOOPT, 0);
-		}
-		if (req->nh.vrf_id >= MAX_VRFS)
-			return api_out(EOVERFLOW, 0);
-
-		nh = nexthop_lookup(req->nh.af, req->nh.vrf_id, req->nh.iface_id, &req->nh.addr);
-		if (nh == NULL) {
-			if (errno == ENOENT && req->missing_ok)
-				return api_out(0, 0);
-			return api_out(errno, 0);
-		}
+	nh = nexthop_lookup_by_id(req->nh.nh_id);
+	if (nh == NULL) {
+		if (req->missing_ok)
+			return api_out(0, 0);
+		return api_out(ENOENT, 0);
 	}
 
 	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)

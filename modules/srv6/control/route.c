@@ -78,7 +78,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 	struct gr_nexthop base = {
 		.type = GR_NH_T_SR6_OUTPUT,
 		.state = GR_NH_S_REACHABLE,
-		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
+		.flags = GR_NH_F_STATIC,
 		.vrf_id = req->r.key.vrf_id,
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.origin = req->origin,

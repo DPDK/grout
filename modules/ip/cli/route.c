@@ -75,9 +75,17 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	for (size_t i = 0; i < resp->n_routes; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		const struct gr_ip4_route *route = &resp->routes[i];
+		struct gr_iface iface;
+
 		scols_line_sprintf(line, 0, "%u", route->nh.vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
+		if (route->nh.af == GR_AF_UNSPEC) {
+			if (iface_from_id(c, route->nh.iface_id, &iface) < 0)
+				scols_line_sprintf(line, 2, "%u", route->nh.iface_id);
+			else
+				scols_line_sprintf(line, 2, "%s", iface.name);
+		} else
+			scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
 		scols_line_sprintf(line, 3, "%s", gr_nh_origin_name(route->origin));
 		if (route->nh.nh_id != GR_NH_ID_UNSET)
 			scols_line_sprintf(line, 4, "%u", route->nh.nh_id);
