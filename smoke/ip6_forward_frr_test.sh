@@ -18,7 +18,11 @@ for n in 1 2; do
 	ip -n n-$p link set v1-$p up
 	ip -n n-$p link set lo up
 	ip -n n-$p addr add fd00:ba4:$n::2/64 dev v1-$p
-	ip -n n-$p addr add fd00:f00:$n::2/64 dev lo
+	if [[ $n -eq 1 ]]; then
+		ip -n n-$p addr add fd00:f00:$n::2/64 dev lo
+	else
+		ip -n n-$p addr add fd00:f00:$n::2/64 dev v1-$p
+	fi
 	ip -n n-$p route add default via fd00:ba4:$n::1
 	ip -n n-$p addr show
 done
@@ -26,7 +30,7 @@ done
 set_ip_address $p1 fd00:ba4:1::1/64
 set_ip_address $p2 fd00:ba4:2::1/64
 set_ip_route fd00:f00:1::/64 fd00:ba4:1::2
-set_ip_route fd00:f00:2::/64 fd00:ba4:2::2
+set_ip_route fd00:f00:2::/64 $p2
 
 sleep 3  # wait for DAD
 

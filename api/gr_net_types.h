@@ -23,12 +23,15 @@
 #endif
 
 typedef enum : uint8_t {
+	GR_AF_UNSPEC = AF_UNSPEC,
 	GR_AF_IP4 = AF_INET,
 	GR_AF_IP6 = AF_INET6,
 } addr_family_t;
 
 static inline const char *gr_af_name(addr_family_t af) {
 	switch (af) {
+	case GR_AF_UNSPEC:
+		return "Unspec";
 	case GR_AF_IP4:
 		return "IPv4";
 	case GR_AF_IP6:

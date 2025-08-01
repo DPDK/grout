@@ -68,8 +68,8 @@ uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
 struct iface *get_vrf_iface(uint16_t vrf_id);
-struct iface *iface_loopback_create(uint16_t vrf_id);
-int iface_loopback_delete(uint16_t vrf_id);
+struct iface *iface_kernel_create(uint16_t vrf_id);
+int iface_kernel_delete(uint16_t vrf_id);
 
 struct __rte_cache_aligned iface_stats {
 	uint64_t rx_packets[RTE_MAX_LCORE];

@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
+#include <vrf_priv.h>
 #include <wchar.h>
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
@@ -45,13 +46,28 @@ void iface_type_register(struct iface_type *type) {
 // the first slot is wasted by GR_IFACE_ID_UNDEF
 static struct iface **ifaces;
 
+// Reserve a specific interface id.
+// Returns 0 on success, -errno on failure.
+static int reserve_ifid(uint16_t ifid) {
+	if (ifid >= MAX_IFACES)
+		return errno_set(EINVAL);
+
+	if (ifaces[ifid] == NULL)
+		return 0;
+
+	return errno_set(EBUSY);
+}
+
+// The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = IFACE_ID_FIRST; i < MAX_IFACES; i++) {
-		if (ifaces[i] == NULL) {
-			*ifid = i;
-			return 0;
-		}
+	for (uint16_t i = MAX_VRFS; i < MAX_IFACES; i++) {
+		if (reserve_ifid(i) < 0)
+			continue;
+
+		*ifid = i;
+		return 0;
 	}
+
 	return errno_set(ENOSPC);
 }
 
@@ -77,7 +93,11 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		errno = ENOMEM;
 		goto fail;
 	}
-	if (next_ifid(&ifid) < 0)
+	if (conf->type == GR_IFACE_TYPE_VRF && conf->vrf_id) {
+		ifid = conf->vrf_id;
+		if (reserve_ifid(ifid) < 0)
+			goto fail;
+	} else if (next_ifid(&ifid) < 0)
 		goto fail;
 
 	iface->base = conf->base;
@@ -93,6 +113,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	ifaces[ifid] = iface;
 
 	memset(&stats[ifid], 0, sizeof(stats[ifid]));
+
+	if (iface->type != GR_IFACE_TYPE_VRF)
+		vrf_incref(iface->vrf_id);
 
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
@@ -112,6 +135,8 @@ int iface_reconfig(
 ) {
 	struct iface_type *type;
 	struct iface *iface;
+	uint16_t old_vrf_id;
+	int ret;
 
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
@@ -135,7 +160,21 @@ int iface_reconfig(
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
-	return type->reconfig(iface, set_attrs, conf, api_info);
+
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		old_vrf_id = iface->vrf_id;
+		vrf_incref(conf->vrf_id);
+	}
+
+	ret = type->reconfig(iface, set_attrs, conf, api_info);
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		if (ret == 0)
+			vrf_decref(old_vrf_id);
+		else
+			vrf_decref(conf->vrf_id);
+	}
+
+	return ret;
 }
 
 uint16_t ifaces_count(gr_iface_type_t type_id) {
@@ -260,6 +299,8 @@ int iface_destroy(uint16_t ifid) {
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	if (iface->type != GR_IFACE_TYPE_VRF)
+		vrf_decref(iface->vrf_id);
 	nexthop_cleanup(ifid);
 
 	ifaces[ifid] = NULL;
@@ -290,7 +331,7 @@ static void iface_fini(struct event_base *) {
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
-		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
+		    && iface->type != GR_IFACE_TYPE_VRF) {
 			if (iface_destroy(ifid) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
@@ -300,7 +341,7 @@ static void iface_fini(struct event_base *) {
 	// Finally, destroy DPDK ports.
 	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
+		if (iface == NULL || iface->type == GR_IFACE_TYPE_VRF)
 			continue;
 		if (iface_destroy(ifid) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));

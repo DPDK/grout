@@ -4,7 +4,7 @@
 src += files(
   'control_output.c',
   'iface.c',
-  'loopback.c',
+  'kernel.c',
   'mempool.c',
   'nexthop.c',
   'port.c',
@@ -12,6 +12,7 @@ src += files(
   'graph.c',
   'vlan.c',
   'vrf.c',
+  'vrf_iface.c',
 )
 inc += include_directories('.')
 

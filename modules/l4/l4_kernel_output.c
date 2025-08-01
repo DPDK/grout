@@ -20,7 +20,7 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static uint16_t l4_loopback_output_process(
+static uint16_t l4_kernel_output_process(
 	struct rte_graph *graph,
 	struct rte_node *node,
 	void **objs,
@@ -74,23 +74,23 @@ next:
 	return nb_objs;
 }
 
-static struct rte_node_register l4_loopback_output_node = {
-	.name = "l4_loopback_output",
-	.process = l4_loopback_output_process,
+static struct rte_node_register l4_kernel_output_node = {
+	.name = "l4_kernel_output",
+	.process = l4_kernel_output_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[REDIRECT] = "loopback_output",
-		[NO_IFACE] = "no_loop_iface",
+		[REDIRECT] = "kernel_output",
+		[NO_IFACE] = "no_kernel_iface",
 		[BAD_PROTO] = "l4_bad_proto",
 		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 
 static struct gr_node_info info = {
-	.node = &l4_loopback_output_node,
+	.node = &l4_kernel_output_node,
 };
 
 GR_NODE_REGISTER(info);
 
-GR_DROP_REGISTER(no_loop_iface);
+GR_DROP_REGISTER(no_kernel_iface);
 GR_DROP_REGISTER(l4_bad_proto);

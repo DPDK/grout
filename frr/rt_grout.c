@@ -194,10 +194,6 @@ static int grout_gr_nexthop_to_frr_nexthop(
 ) {
 	size_t sz;
 
-	if (gr_nh->vrf_id != VRF_DEFAULT) {
-		gr_log_debug("no vrf support for nexthop, nexthop not sync");
-		return -1;
-	}
 	if (gr_nh->type != GR_NH_T_L3) {
 		gr_log_err("sync nexthop not L3 from grout is not supported");
 		return -1;
@@ -227,6 +223,10 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		*nh_family = AF_INET6;
 		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
 		break;
+	case GR_AF_UNSPEC:
+		nh->type = NEXTHOP_TYPE_IFINDEX;
+		*nh_family = AF_UNSPEC;
+		break;
 	default:
 		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
 		return -1;
@@ -243,7 +243,9 @@ static void grout_route_change(
 	uint8_t dest_prefixlen,
 	struct gr_nexthop *gr_nh
 ) {
-	int tableid = RT_TABLE_ID_MAIN; /* no table support for now */
+	uint32_t vrf_id = gr_nh->vrf_id;
+	// Grout has no per‑VRF routing tables; table_id always equals vrf_id
+	uint32_t tableid = vrf_id;
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
 	struct nexthop _nh, *nh = NULL;
@@ -294,7 +296,7 @@ static void grout_route_change(
 			return;
 		}
 
-		if (nh_family != family) {
+		if (nh_family != AF_UNSPEC && nh_family != family) {
 			gr_log_debug(
 				"nexthop family %u different that route family %u nexthop, "
 				"ignoring",
@@ -328,9 +330,7 @@ static void grout_route_change(
 		struct nexthop_group *ng = NULL;
 		struct nexthop *nexthop;
 
-		re = zebra_rib_route_entry_new(
-			VRF_DEFAULT, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0
-		);
+		re = zebra_rib_route_entry_new(vrf_id, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0);
 		if (nh) {
 			ng = nexthop_group_new();
 
@@ -348,7 +348,7 @@ static void grout_route_change(
 		rib_delete(
 			afi,
 			SAFI_UNICAST,
-			VRF_DEFAULT,
+			vrf_id,
 			proto,
 			0,
 			flags,
@@ -436,11 +436,12 @@ static enum zebra_dplane_result grout_add_del_srv6_route(
 		key->dest6.prefixlen = p->prefixlen;
 
 		gr_log_debug(
-			"%s srv6 route %pI6/%u (origin %s)",
+			"%s srv6 route %pI6/%u (origin %s) on vrf %u",
 			new ? "add" : "del",
 			&key->dest6.ip,
 			key->dest6.prefixlen,
-			gr_nh_origin_name(origin)
+			gr_nh_origin_name(origin),
+			vrf_id
 		);
 
 	} else {
@@ -448,11 +449,12 @@ static enum zebra_dplane_result grout_add_del_srv6_route(
 		key->dest4.prefixlen = p->prefixlen;
 
 		gr_log_debug(
-			"%s srv6 route %pI4/%u (origin %s)",
+			"%s srv6 route %pI4/%u (origin %s) on vrf %u",
 			new ? "add" : "del",
 			&key->dest4.ip,
 			key->dest4.prefixlen,
-			gr_nh_origin_name(origin)
+			gr_nh_origin_name(origin),
+			vrf_id
 		);
 	}
 
@@ -568,19 +570,19 @@ static enum zebra_dplane_result grout_add_del_srv6_local(
 		break;
 	case ZEBRA_SEG6_LOCAL_ACTION_END_T:
 		gr_l->behavior = SR_BEHAVIOR_END_T;
-		gr_l->out_vrf_id = zebra_vrf_lookup_by_table(ctx6->table, NS_DEFAULT);
+		gr_l->out_vrf_id = ctx6->table;
 		break;
 	case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
 		gr_l->behavior = SR_BEHAVIOR_END_DT6;
-		gr_l->out_vrf_id = zebra_vrf_lookup_by_table(ctx6->table, NS_DEFAULT);
+		gr_l->out_vrf_id = ctx6->table;
 		break;
 	case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
 		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = zebra_vrf_lookup_by_table(ctx6->table, NS_DEFAULT);
+		gr_l->out_vrf_id = ctx6->table;
 		break;
 	case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
 		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = zebra_vrf_lookup_by_table(ctx6->table, NS_DEFAULT);
+		gr_l->out_vrf_id = ctx6->table;
 		break;
 	default:
 		zlog_err("%s: not supported srv6 local behaviour action=%u", __func__, action);
@@ -621,6 +623,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		struct gr_ip6_route_del_req r6_del;
 	} req;
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
+	uint32_t vrf_id = dplane_ctx_get_vrf(ctx);
 	const struct nexthop_group *ng;
 	const struct prefix *p;
 	gr_nh_origin_t origin;
@@ -628,14 +631,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	uint32_t req_type;
 	size_t req_len;
 	bool new;
-
-	if (dplane_ctx_get_vrf(ctx) != VRF_DEFAULT) {
-		gr_log_err(
-			"impossible to add/del route on vrf %u (vrf not supported)",
-			dplane_ctx_get_vrf(ctx)
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 
 	p = dplane_ctx_get_dest(ctx);
 	if (p->family != AF_INET && p->family != AF_INET6) {
@@ -663,10 +658,10 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		}
 
 		if (nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC)
-			return grout_add_del_srv6_local(ctx, p, origin, nh, VRF_DEFAULT, new);
+			return grout_add_del_srv6_local(ctx, p, origin, nh, vrf_id, new);
 		if (nh->nh_srv6->seg6_segs && nh->nh_srv6->seg6_segs->num_segs
 		    && !sid_zero(nh->nh_srv6->seg6_segs))
-			return grout_add_del_srv6_route(ctx, p, origin, nh, VRF_DEFAULT, new);
+			return grout_add_del_srv6_route(ctx, p, origin, nh, vrf_id, new);
 
 		gr_log_err("impossible to add/del srv6 route (invalid format)");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
@@ -681,17 +676,20 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		struct ip4_net *dest;
 
 		if (new) {
-			req.r4_add = (struct gr_ip4_route_add_req) {.exist_ok = true, .vrf_id = 0};
+			req.r4_add = (struct gr_ip4_route_add_req) {
+				.exist_ok = true, .vrf_id = vrf_id
+			};
 
 			req_type = GR_IP4_ROUTE_ADD;
 			req_len = sizeof(struct gr_ip4_route_add_req);
 
+			req.r4_add.vrf_id = vrf_id;
 			req.r4_add.nh_id = nh_id;
 			req.r4_add.origin = origin;
 			dest = &req.r4_add.dest;
 		} else {
 			req.r4_del = (struct gr_ip4_route_del_req) {
-				.missing_ok = true, .vrf_id = 0
+				.missing_ok = true, .vrf_id = vrf_id
 			};
 			req_type = GR_IP4_ROUTE_DEL;
 			req_len = sizeof(struct gr_ip4_route_del_req);
@@ -704,18 +702,21 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		dest->prefixlen = p->prefixlen;
 
 		gr_log_debug(
-			"%s route %pI4/%u (origin %s, nh_id %u)",
+			"%s route %pI4/%u (origin %s, nh_id %u) on vrf %u",
 			new ? "add" : "del",
 			&dest->ip,
 			dest->prefixlen,
 			gr_nh_origin_name(origin),
-			nh_id
+			nh_id,
+			vrf_id
 		);
 	} else {
 		struct ip6_net *dest;
 
 		if (new) {
-			req.r6_add = (struct gr_ip6_route_add_req) {.exist_ok = true, .vrf_id = 0};
+			req.r6_add = (struct gr_ip6_route_add_req) {
+				.exist_ok = true, .vrf_id = vrf_id
+			};
 
 			req_type = GR_IP6_ROUTE_ADD;
 			req_len = sizeof(struct gr_ip6_route_add_req);
@@ -725,7 +726,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 			dest = &req.r6_add.dest;
 		} else {
 			req.r6_del = (struct gr_ip6_route_del_req) {
-				.missing_ok = true, .vrf_id = 0
+				.missing_ok = true, .vrf_id = vrf_id
 			};
 
 			req_type = GR_IP6_ROUTE_DEL;
@@ -739,12 +740,13 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		dest->prefixlen = p->prefixlen;
 
 		gr_log_debug(
-			"%s route %pI6/%u (origin %s, nh_id %u)",
+			"%s route %pI6/%u (origin %s, nh_id %u) on vrf %u",
 			new ? "add" : "del",
 			&dest->ip,
 			dest->prefixlen,
 			gr_nh_origin_name(origin),
-			nh_id
+			nh_id,
+			vrf_id
 		);
 	}
 
@@ -784,13 +786,6 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
-	if (dplane_ctx_get_nhe_vrf_id(ctx) != VRF_DEFAULT) {
-		gr_log_err(
-			"impossible to add/del nexthop on vrf %u (vrf not supported)",
-			dplane_ctx_get_vrf(ctx)
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;
 	if (nh->type == NEXTHOP_TYPE_BLACKHOLE) {
 		gr_log_err("impossible to add/del blackhole nexthop (not supported)");
@@ -825,7 +820,6 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	gr_nh->type = GR_NH_T_L3;
-	gr_nh->vrf_id = 0;
 	afi = dplane_ctx_get_nhe_afi(ctx);
 	if (afi == AFI_IP)
 		gr_nh->af = GR_AF_IP4;
@@ -850,8 +844,11 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->ipv6);
 		break;
 	case NEXTHOP_TYPE_IFINDEX:
-		gr_log_debug("add nexthop id %u ifindex %u", nh_id, gr_nh->iface_id);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
+		// dplane_ctx_get_nhe_afi(ctx) returns AFI_IP for a nexthop with no gateway
+		// force to UNSPEC for grout
+		gr_nh->af = GR_AF_UNSPEC;
+		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
+		break;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
@@ -889,6 +886,10 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
 		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
 		return;
 	}
+
+	// kernel set INET4 when no gateway, let's do the same
+	if (family == AF_UNSPEC)
+		family = AF_INET;
 
 	afi = family2afi(family);
 	type = origin2zebra(gr_nh->origin, family, false);

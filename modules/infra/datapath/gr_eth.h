@@ -12,7 +12,7 @@
 
 typedef enum {
 	ETH_DOMAIN_UNKNOWN = 0,
-	ETH_DOMAIN_LOOPBACK, // packet comes from a local loopback interface
+	ETH_DOMAIN_KERNEL, // packet comes from kernel
 	ETH_DOMAIN_LOCAL, // destination is the input interface mac
 	ETH_DOMAIN_BROADCAST, // destination is ff:ff:ff:ff:ff:ff
 	ETH_DOMAIN_MULTICAST, // destination is a multicast ethernet address

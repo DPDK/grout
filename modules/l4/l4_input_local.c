@@ -83,7 +83,7 @@ static struct rte_node_register input_node = {
 	.process = l4_input_local_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[MANAGEMENT] = "l4_loopback_output",
+		[MANAGEMENT] = "l4_kernel_output",
 		[BAD_PROTO] = "l4_bad_proto",
 	},
 };

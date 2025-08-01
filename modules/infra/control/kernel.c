@@ -4,10 +4,9 @@
 #include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_eth.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
+#include <gr_kernel.h>
 #include <gr_log.h>
-#include <gr_loopback.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
 
@@ -26,13 +25,8 @@
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
-static struct rte_mempool *loopback_pool;
+static struct rte_mempool *kernel_pool;
 static struct event_base *ev_base;
-
-struct iface_info_loopback {
-	int fd;
-	struct event *ev;
-};
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -40,14 +34,14 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void loopback_tx(struct rte_mbuf *m) {
+void kernel_tx(struct rte_mbuf *m) {
 	struct mbuf_data *d = mbuf_data(m);
-	struct iface_info_loopback *lo;
+	struct iface_info_kernel *lo;
 	struct iovec iov[2];
 	struct tun_pi pi;
 	char *data;
 
-	lo = (struct iface_info_loopback *)d->iface->info;
+	lo = (struct iface_info_kernel *)d->iface->info;
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
 	} else {
@@ -78,7 +72,7 @@ void loopback_tx(struct rte_mbuf *m) {
 	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
 
 	if (writev(lo->fd, iov, ARRAY_DIM(iov)) < 0) {
-		// The user messed up and removed gr-loopX
+		// The user messed up and removed gr-vrfX
 		// release resources on our side to try to recover
 		if (errno == EBADFD) {
 			iface_destroy(d->iface->id);
@@ -92,25 +86,25 @@ end:
 	rte_pktmbuf_free(m);
 }
 
-static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
+static void iface_kernel_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct eth_input_mbuf_data *e;
-	struct iface_info_loopback *lo;
+	struct iface_info_kernel *lo;
 	struct iface *iface = ev_iface;
 	struct rte_mbuf *mbuf;
 	size_t read_len;
 	size_t len;
 	char *data;
 
-	lo = (struct iface_info_loopback *)iface->info;
+	lo = (struct iface_info_kernel *)iface->info;
 
 	if (reason & EV_CLOSED) {
-		// The user messed up and removed gr-loopX
+		// The user messed up and removed gr-vrfX
 		LOG(ERR, "tun device %s deleted", iface->name);
 		iface_destroy(iface->id);
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(loopback_pool);
+	mbuf = rte_pktmbuf_alloc(kernel_pool);
 	if (!mbuf) {
 		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
 		goto err;
@@ -142,32 +136,32 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
 	e->iface = iface;
-	e->domain = ETH_DOMAIN_LOOPBACK;
+	e->domain = ETH_DOMAIN_KERNEL;
 
-	post_to_stack(loopback_get_control_id(), mbuf);
+	post_to_stack(kernel_get_control_id(), mbuf);
 	return;
 
 err:
 	rte_pktmbuf_free(mbuf);
 }
 
-struct iface *iface_loopback_create(uint16_t vrf_id) {
-	struct gr_iface conf = {.type = GR_IFACE_TYPE_LOOPBACK, .mtu = 1500, .vrf_id = vrf_id};
-	snprintf(conf.name, sizeof(conf.name), "gr-loop%d", vrf_id);
+struct iface *iface_kernel_create(uint16_t vrf_id) {
+	struct gr_iface conf = {.type = GR_IFACE_TYPE_VRF, .mtu = 1500, .vrf_id = vrf_id};
+	snprintf(conf.name, sizeof(conf.name), "gr-vrf%d", vrf_id);
 	return iface_create(&conf, NULL);
 }
 
-int iface_loopback_delete(uint16_t vrf_id) {
+int iface_kernel_delete(uint16_t vrf_id) {
 	const struct iface *i = NULL;
-	while ((i = iface_next(GR_IFACE_TYPE_LOOPBACK, i)) != NULL)
+	while ((i = iface_next(GR_IFACE_TYPE_VRF, i)) != NULL)
 		if (i->vrf_id == vrf_id)
 			return iface_destroy(i->id);
 
 	return errno_set(ENODEV);
 }
 
-static int iface_loopback_init(struct iface *iface, const void * /* api_info */) {
-	struct iface_info_loopback *lo = (struct iface_info_loopback *)iface->info;
+int iface_kernel_init(struct iface *iface, const void * /* api_info */) {
+	struct iface_info_kernel *lo = (struct iface_info_kernel *)iface->info;
 	struct ifreq ifr;
 	int ioctl_sock;
 	int err_save;
@@ -221,7 +215,7 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		ev_base,
 		lo->fd,
 		EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE,
-		iface_loopback_poll,
+		iface_kernel_poll,
 		iface
 	);
 
@@ -241,41 +235,29 @@ err:
 	return errno_set(err_save);
 }
 
-static int iface_loopback_fini(struct iface *iface) {
-	struct iface_info_loopback *lo = (struct iface_info_loopback *)iface->info;
+int iface_kernel_fini(struct iface *iface) {
+	struct iface_info_kernel *lo = (struct iface_info_kernel *)iface->info;
 	event_free_finalize(0, lo->ev, finalize_fd);
 	return 0;
 }
 
-static void loopback_module_init(struct event_base *base) {
-	loopback_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
-	if (!loopback_pool)
+static void kernel_module_init(struct event_base *base) {
+	kernel_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
+	if (!kernel_pool)
 		ABORT("pktmbuf_pool returned NULL");
 	ev_base = base;
 }
 
-static void loopback_module_fini(struct event_base *) {
-	gr_pktmbuf_pool_release(loopback_pool, RTE_GRAPH_BURST_SIZE);
+static void kernel_module_fini(struct event_base *) {
+	gr_pktmbuf_pool_release(kernel_pool, RTE_GRAPH_BURST_SIZE);
 }
 
-static void iface_loopback_to_api(void * /* info */, const struct iface * /* iface */) { }
-
-static struct iface_type iface_type_loopback = {
-	.id = GR_IFACE_TYPE_LOOPBACK,
-	.name = "loopback",
-	.info_size = sizeof(struct iface_info_loopback),
-	.init = iface_loopback_init,
-	.fini = iface_loopback_fini,
-	.to_api = iface_loopback_to_api,
+static struct gr_module kernel_module = {
+	.name = "iface kernel",
+	.init = kernel_module_init,
+	.fini = kernel_module_fini,
 };
 
-static struct gr_module loopback_module = {
-	.name = "iface loopback",
-	.init = loopback_module_init,
-	.fini = loopback_module_fini,
-};
-
-RTE_INIT(loopback_constructor) {
-	iface_type_register(&iface_type_loopback);
-	gr_register_module(&loopback_module);
+RTE_INIT(kernel_constructor) {
+	gr_register_module(&kernel_module);
 }

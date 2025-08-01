@@ -50,7 +50,7 @@ static struct api_out iface_del(const void *request, void ** /*response*/) {
 	if ((iface = iface_from_id(req->iface_id)) == NULL)
 		return api_out(ENODEV, 0);
 
-	if (iface->type == GR_IFACE_TYPE_LOOPBACK)
+	if (iface->type == GR_IFACE_TYPE_VRF)
 		return api_out(EINVAL, 0);
 
 	ret = iface_destroy(req->iface_id);

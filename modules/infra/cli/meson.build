@@ -6,12 +6,12 @@ cli_src += files(
   'events.c',
   'graph.c',
   'iface.c',
-  'loopback.c',
   'nexthop.c',
   'port.c',
   'stats.c',
   'trace.c',
   'vlan.c',
+  'vrf_iface.c',
 )
 
 cli_inc += include_directories('.')

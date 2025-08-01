@@ -8,11 +8,12 @@ src += files(
   'eth_input.c',
   'eth_output.c',
   'l1_xconnect.c',
-  'loop_input.c',
-  'loop_output.c',
+  'kernel_input.c',
+  'kernel_output.c',
   'main_loop.c',
   'rx.c',
   'trace.c',
   'tx.c',
+  'vrf_output.c'
 )
 inc += include_directories('.')
