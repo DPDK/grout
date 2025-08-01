@@ -14,5 +14,6 @@ src += files(
   'rx.c',
   'trace.c',
   'tx.c',
+  'vrf_output.c'
 )
 inc += include_directories('.')
