@@ -42,12 +42,33 @@ struct hoplist *addr6_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
+static struct nexthop *preferred_addr[MAX_IFACES];
+
+static void addr6_update_preferred(uint16_t iface_id) {
+	struct hoplist *addrs = addr6_get_all(iface_id);
+	struct nexthop *pref = NULL, *nh;
+
+	if (addrs == NULL)
+		return;
+
+	if (gr_vec_len(addrs->nh) == 2) {
+		gr_vec_foreach (nh, addrs->nh) {
+			if (pref == NULL && !rte_ipv6_addr_is_linklocal(&nh->ipv6))
+				pref = nh;
+		}
+	}
+	preferred_addr[iface_id] = pref;
+}
+
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
 	struct hoplist *addrs = addr6_get_all(iface_id);
 	struct nexthop *pref = NULL, *nh;
 
 	if (addrs == NULL)
 		return NULL;
+
+	if (preferred_addr[iface_id])
+		return preferred_addr[iface_id];
 
 	gr_vec_foreach (nh, addrs->nh) {
 		if (rte_ipv6_addr_eq_prefix(dst, &nh->ipv6, nh->prefixlen))
@@ -220,6 +241,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 		if (errno != EOPNOTSUPP)
 			return api_out(errno, 0);
 	}
+	addr6_update_preferred(iface->id);
 
 	return api_out(0, 0);
 }
@@ -254,6 +276,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 
 	// shift the remaining addresses
 	gr_vec_del(addrs->nh, i);
+	addr6_update_preferred(req->addr.iface_id);
 
 	// leave the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
