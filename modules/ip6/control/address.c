@@ -217,7 +217,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	// join the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
 	if (mcast6_addr_add(iface, &solicited_node) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != EEXIST)
 			return api_out(errno, 0);
 	}
 
