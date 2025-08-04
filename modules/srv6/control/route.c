@@ -232,6 +232,64 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 	return api_out(0, ctx.len);
 }
 
+struct nexthop *tunsrc_nh = NULL;
+
+static struct api_out srv6_tunsrc_clear(const void * /*request*/, void ** /*response*/) {
+	if (tunsrc_nh) {
+		nexthop_decref(tunsrc_nh);
+		tunsrc_nh = NULL;
+	}
+
+	return api_out(0, 0);
+}
+
+static struct api_out srv6_tunsrc_set(const void *request, void ** /*response*/) {
+	const struct gr_srv6_tunsrc_set_req *req = request;
+	struct nexthop *nh;
+
+	if (rte_ipv6_addr_is_unspec(&req->addr))
+		return srv6_tunsrc_clear(NULL, NULL);
+
+	struct gr_nexthop base = {
+		.type = GR_NH_T_L3,
+		.af = GR_AF_IP6,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = GR_VRF_ID_ALL,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.ipv6 = req->addr,
+		.prefixlen = 128,
+		.origin = GR_NH_ORIGIN_LINK,
+	};
+
+	if (tunsrc_nh)
+		nexthop_decref(tunsrc_nh);
+
+	if ((nh = nexthop_new(&base)) == NULL)
+		return api_out(-errno, 0);
+
+	tunsrc_nh = nh;
+	nexthop_incref(nh);
+
+	return api_out(0, 0);
+}
+
+static struct api_out srv6_tunsrc_show(const void * /*request*/, void **response) {
+	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
+	struct gr_srv6_tunsrc_show_resp *resp;
+
+	if ((resp = calloc(1, sizeof(*resp))) == NULL)
+		return api_out(-ENOMEM, 0);
+
+	if (tunsrc_nh)
+		resp->addr = tunsrc_nh->ipv6;
+	else
+		resp->addr = unspec;
+
+	*response = resp;
+	return api_out(0, sizeof(*resp));
+}
+
 // srv6 headend module /////////////////////////////////////////////////////
 
 static struct gr_api_handler srv6_route_add_handler = {
@@ -249,6 +307,21 @@ static struct gr_api_handler srv6_route_list_handler = {
 	.request_type = GR_SRV6_ROUTE_LIST,
 	.callback = srv6_route_list,
 };
+static struct gr_api_handler srv6_tunsrc_set_handler = {
+	.name = "sr tunsrc set",
+	.request_type = GR_SRV6_TUNSRC_SET,
+	.callback = srv6_tunsrc_set,
+};
+static struct gr_api_handler srv6_tunsrc_clear_handler = {
+	.name = "sr tunsrc clear",
+	.request_type = GR_SRV6_TUNSRC_CLEAR,
+	.callback = srv6_tunsrc_clear,
+};
+static struct gr_api_handler srv6_tunsrc_show_handler = {
+	.name = "sr tunsrc show",
+	.request_type = GR_SRV6_TUNSRC_SHOW,
+	.callback = srv6_tunsrc_show,
+};
 
 static struct nexthop_type_ops nh_ops = {
 	.free = srv6_encap_data_del,
@@ -259,5 +332,8 @@ RTE_INIT(srv6_constructor) {
 	gr_register_api_handler(&srv6_route_add_handler);
 	gr_register_api_handler(&srv6_route_del_handler);
 	gr_register_api_handler(&srv6_route_list_handler);
+	gr_register_api_handler(&srv6_tunsrc_set_handler);
+	gr_register_api_handler(&srv6_tunsrc_clear_handler);
+	gr_register_api_handler(&srv6_tunsrc_show_handler);
 	nexthop_type_ops_register(GR_NH_T_SR6_OUTPUT, &nh_ops);
 }

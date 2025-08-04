@@ -63,6 +63,21 @@ struct gr_srv6_route_list_resp {
 	uint8_t route[/* n_route */];
 };
 
+#define GR_SRV6_TUNSRC_SET REQUEST_TYPE(GR_SRV6_MODULE, 0x0005)
+struct gr_srv6_tunsrc_set_req {
+	struct rte_ipv6_addr addr;
+};
+
+#define GR_SRV6_TUNSRC_CLEAR REQUEST_TYPE(GR_SRV6_MODULE, 0x0006)
+// struct gr_srv6_tunsrc_clear_req { };
+
+#define GR_SRV6_TUNSRC_SHOW REQUEST_TYPE(GR_SRV6_MODULE, 0x0007)
+// struct gr_srv6_tunsrc_show_req { };
+
+struct gr_srv6_tunsrc_show_resp {
+	struct rte_ipv6_addr addr;
+};
+
 // localsid (tunnel transit and exit) /////////////////////////////////
 
 //

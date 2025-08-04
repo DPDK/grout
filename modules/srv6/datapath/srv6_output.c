@@ -134,9 +134,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip6_output_mbuf_data(m)->nh = nh;
 
-		// Use output interface ip as source address
-		// XXX is it safe from DP ? this one HAVE TO be cached, at least
-		nh = addr6_get_preferred(nh->iface_id, &nh->ipv6);
+		nh = sr_tunsrc_get(nh->iface_id, &nh->ipv6);
 		if (nh == NULL) {
 			// cannot output packet on interface that does not have ip6 addr
 			edge = NO_ROUTE;
