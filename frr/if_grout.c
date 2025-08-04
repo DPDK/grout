@@ -15,6 +15,7 @@
 
 #include <gr_ip4.h>
 #include <gr_ip6.h>
+#include <gr_srv6.h>
 
 #include <zebra/interface.h>
 #include <zebra_dplane_grout.h>
@@ -264,6 +265,23 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 	}
 
 	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+enum zebra_dplane_result grout_set_sr_tunsrc(struct zebra_dplane_ctx *ctx) {
+	const struct in6_addr *tunsrc_addr = dplane_ctx_get_srv6_encap_srcaddr(ctx);
+	struct gr_srv6_tunsrc_set_req req;
+
+	if (tunsrc_addr == NULL) {
+		if (IS_ZEBRA_DEBUG_DPLANE_GROUT)
+			zlog_debug("sr tunsrc set failed: SRv6 encap source address not set");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	memcpy(&req.addr, tunsrc_addr, sizeof(req.addr));
+
+	if (grout_client_send_recv(GR_SRV6_TUNSRC_SET, sizeof(req), &req, NULL) < 0)
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
