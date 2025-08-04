@@ -99,8 +99,10 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
 	gr_vec_foreach (nh, maddrs->nh) {
-		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
+		if (rte_ipv6_addr_eq(&nh->ipv6, ip)) {
+			nexthop_incref(nh);
 			return errno_set(EEXIST);
+		}
 	}
 
 	if ((nh = nh6_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
@@ -131,9 +133,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
 	unsigned i = 0;
-	int ret;
-
-	LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
+	int ret = 0;
 
 	gr_vec_foreach (nh, maddrs->nh) {
 		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
@@ -144,11 +144,13 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	// shift remaining addresses
-	gr_vec_del(maddrs->nh, i);
-
-	// remove ethernet filter
-	ret = iface_del_eth_addr(iface->id, &nh->mac);
+	if (nh->ref_count == 1) {
+		LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
+		// shift remaining addresses
+		gr_vec_del(maddrs->nh, i);
+		// remove ethernet filter
+		ret = iface_del_eth_addr(iface->id, &nh->mac);
+	}
 	nexthop_decref(nh);
 
 	return ret;
