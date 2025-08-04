@@ -159,6 +159,40 @@ static cmd_status_t srv6_route_show(const struct gr_api_client *c, const struct 
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t srv6_tunsrc_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_srv6_tunsrc_set_req req;
+
+	if (arg_ip6(p, "SRC", &req.addr) < 0)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_SRV6_TUNSRC_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t srv6_tunsrc_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+	if (gr_api_client_send_recv(c, GR_SRV6_TUNSRC_CLEAR, 0, NULL, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t srv6_tunsrc_show(const struct gr_api_client *c, const struct ec_pnode *) {
+	struct gr_srv6_tunsrc_show_resp *resp;
+	void *resp_ptr;
+
+	if (gr_api_client_send_recv(c, GR_SRV6_TUNSRC_SHOW, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	printf("sr tunsrc addr " IP6_F "\n", &resp->addr);
+
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
@@ -195,6 +229,33 @@ static int ctx_init(struct ec_node *root) {
 		"View all SR route",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SET, CTX_ARG("sr", "Set srv6 stack elements.")),
+		"tunsrc SRC",
+		srv6_tunsrc_set,
+		"Set Segment Routing SRv6 source address",
+		with_help("Ipv6 address to use as source.", ec_node_re("SRC", IPV6_RE)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_CLEAR, CTX_ARG("sr", "Clear srv6 stack elements.")),
+		"tunsrc",
+		srv6_tunsrc_clear,
+		"Clear Segment Routing SRv6 source address"
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
+		"tunsrc",
+		srv6_tunsrc_show,
+		"Show Segment Routing SRv6 source address"
 	);
 	if (ret < 0)
 		return ret;

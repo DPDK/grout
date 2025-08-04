@@ -26,3 +26,9 @@ struct srv6_encap_data {
 // A pointer to it is stored in nexthop priv.
 //
 GR_NH_PRIV_DATA_TYPE(srv6_encap_nh_priv, { struct srv6_encap_data *d; });
+
+extern struct nexthop *tunsrc_nh;
+static inline const struct nexthop *
+sr_tunsrc_get(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
+	return tunsrc_nh ? tunsrc_nh : addr6_get_preferred(iface_id, dst);
+}
