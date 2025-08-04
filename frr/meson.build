@@ -5,7 +5,7 @@ if not get_option('frr').enabled()
   subdir_done()
 endif
 
-frr_dep = dependency('frr', version: '>= 10.3', fallback: ['frr', 'frr_dep'])
+frr_dep = dependency('frr', version: '>= 10.4', fallback: ['frr', 'frr_dep'])
 
 frr_plugin = shared_module(
   'frr_dplane_grout',

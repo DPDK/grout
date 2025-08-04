@@ -1,6 +1,6 @@
-From 5745031d387c18ed2da7d3cbcce5e2525f9d73b7 Mon Sep 17 00:00:00 2001
+From 5f3d3c0eb05b8c1457b4b77546c6de487b8756c2 Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
-Date: Fri, 23 May 2025 17:44:02 +0200
+Date: Mon, 4 Aug 2025 14:21:26 +0200
 Subject: [PATCH] meson add dependency definition
 
 Signed-off-by: Maxime Leroy <maxime@leroys.fr>
@@ -54,14 +54,14 @@ index 0000000..1e40167
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000..3153050
+index 0000000..70664dc
 --- /dev/null
 +++ b/meson.build
 @@ -0,0 +1,85 @@
 +# SPDX-License-Identifier: BSD-3-Clause
 +# Copyright (c) 2025 Maxime Leroy, Free Mobile
 +
-+project('frr', 'c', version: '10.3', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
++project('frr', 'c', version: '10.4.1', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
 +
 +srcdir = meson.current_source_dir()
 +builddir = meson.current_build_dir()
