@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Robin Jarry
 ---
 language: en-US
-tone_instructions: ""
+tone_instructions: "Only provide helpful, relevant comments. Be brief and terse but clear."
 early_access: true
 enable_free_tier: true
 reviews:
@@ -16,17 +16,17 @@ reviews:
   review_status: true
   commit_status: true
   fail_commit_status: false
-  collapse_walkthrough: false
-  changed_files_summary: true
-  sequence_diagrams: true
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
   assess_linked_issues: true
   related_issues: true
   related_prs: true
-  suggested_labels: true
+  suggested_labels: false
   auto_apply_labels: false
   suggested_reviewers: true
-  auto_assign_reviewers: false
-  poem: true
+  auto_assign_reviewers: true
+  poem: false
   labeling_instructions:
     - label: ""
       instructions: ""
@@ -45,9 +45,9 @@ reviews:
     base_branches: []
   finishing_touches:
     docstrings:
-      enabled: true
+      enabled: false
     unit_tests:
-      enabled: true
+      enabled: false
   tools:
     ast-grep:
       rule_dirs: []
