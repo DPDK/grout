@@ -74,6 +74,17 @@ vrf_name_from_id() {
 	fi
 }
 
+set_vrf_iface() {
+	local vrf_id="$1"
+	local vrf_name="$(vrf_name_from_id "$vrf_id")"
+
+	vtysh <<-EOF
+	configure terminal
+	interface ${vrf_name} vrf ${vrf_name}
+	exit
+EOF
+}
+
 set_ip_route() {
 	local prefix="$1"
 	local next_hop="$2"

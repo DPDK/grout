@@ -25,9 +25,15 @@ done
 
 set_ip_address $p0 172.16.0.1/24 1
 set_ip_address $p1 172.16.1.1/24 2
+set_vrf_iface 1
+set_vrf_iface 2
 
-set_ip_route 16.0.0.0/16 172.16.0.2 2 1
+# from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 set_ip_route 16.1.0.0/16 172.16.1.2 1 2
+
+# from 16.1.0.1 to 16.0.0.1, two route lookup are done
+set_ip_route 16.0.0.0/16 "$(vrf_name_from_id 1)" 2 1
+set_ip_route 16.0.0.0/16 172.16.0.2 1
 
 ip netns exec n-$p0 ping -i0.01 -c3 -n 172.16.0.1
 ip netns exec n-$p1 ping -i0.01 -c3 -n 172.16.1.1
