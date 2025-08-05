@@ -176,6 +176,7 @@ int rib6_insert(
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->base,
+				vrf_id,
 				origin,
 			}
 		);
@@ -226,6 +227,7 @@ int rib6_delete(
 			&(struct gr_ip6_route) {
 				{*ip, prefixlen},
 				nh->base,
+				vrf_id,
 				origin,
 			}
 		);
@@ -364,6 +366,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_depth(rn, &r->dest.prefixlen);
 		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->dest.ip = *addr6_linklocal_unscope(&r->dest.ip, &tmp);
+		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
 	// check if there is a default route configured
@@ -375,6 +378,7 @@ static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_
 		rte_rib6_get_nh(rn, &nh_id);
 		memset(&r->dest, 0, sizeof(r->dest));
 		r->nh = nh_id_to_ptr(nh_id)->base;
+		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
 }
