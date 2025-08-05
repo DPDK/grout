@@ -10,6 +10,7 @@ src += files(
   'l1_xconnect.c',
   'loop_input.c',
   'loop_output.c',
+  'loop_xvrf.c',
   'main_loop.c',
   'rx.c',
   'trace.c',
