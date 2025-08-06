@@ -152,7 +152,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
+	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ops = nexthop_af_ops_get(nh->af);
