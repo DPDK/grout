@@ -33,7 +33,7 @@ static uint16_t dnat44_static_process(
 		d = ip_output_mbuf_data(mbuf);
 		data = dnat44_nh_data(d->nh);
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
-		ip->hdr_checksum = fixup_checksum(ip->hdr_checksum, ip->dst_addr, data->replace);
+		ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->dst_addr, data->replace);
 		ip->dst_addr = data->replace;
 
 		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr);
