@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
+#include <vrf_priv.h>
 #include <wchar.h>
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
@@ -73,6 +74,7 @@ static int next_ifid(uint16_t *ifid) {
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
+	bool vrf_ref = false;
 	uint16_t ifid;
 
 	if (type == NULL)
@@ -91,6 +93,11 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (iface == NULL) {
 		errno = ENOMEM;
 		goto fail;
+	}
+	if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
+		if (vrf_incref(conf->vrf_id) < 0)
+			goto fail;
+		vrf_ref = true;
 	}
 	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
 		ifid = conf->vrf_id;
@@ -117,8 +124,12 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	return iface;
 fail:
-	if (iface != NULL)
+	if (iface != NULL) {
+		if (vrf_ref)
+			vrf_decref(iface->vrf_id);
+
 		free(iface->name);
+	}
 	rte_free(iface);
 	return NULL;
 }
@@ -131,6 +142,8 @@ int iface_reconfig(
 ) {
 	struct iface_type *type;
 	struct iface *iface;
+	uint16_t old_vrf_id;
+	int ret;
 
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
@@ -154,7 +167,23 @@ int iface_reconfig(
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
-	return type->reconfig(iface, set_attrs, conf, api_info);
+
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		old_vrf_id = iface->vrf_id;
+		ret = vrf_incref(conf->vrf_id);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = type->reconfig(iface, set_attrs, conf, api_info);
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		if (ret == 0)
+			vrf_decref(old_vrf_id);
+		else
+			vrf_decref(conf->vrf_id);
+	}
+
+	return ret;
 }
 
 uint16_t ifaces_count(gr_iface_type_t type_id) {
@@ -279,6 +308,8 @@ int iface_destroy(uint16_t ifid) {
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
+		vrf_decref(iface->vrf_id);
 	nexthop_cleanup(ifid);
 
 	ifaces[ifid] = NULL;
