@@ -5,11 +5,6 @@
 #include "config.h"
 #endif
 
-#include <net/if.h>
-#ifdef GNU_LINUX
-#include <linux/if.h>
-#endif /* GNU_LINUX */
-
 #include "if_grout.h"
 #include "log_grout.h"
 
@@ -17,6 +12,8 @@
 #include <gr_ip6.h>
 #include <gr_srv6.h>
 
+#include <linux/if.h>
+#include <net/if.h>
 #include <zebra/interface.h>
 #include <zebra_dplane_grout.h>
 
