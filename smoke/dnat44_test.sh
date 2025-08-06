@@ -11,8 +11,8 @@ grcli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
 grcli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
 grcli add ip address 172.16.0.1/24 iface $p0
 grcli add ip address 10.99.0.1/24 iface $p1
-grcli add ip dnat44 interface $p0 destination 172.16.0.99 replace 10.99.0.99
-grcli show ip dnat44
+grcli add policy dnat44 interface $p0 destination 172.16.0.99 replace 10.99.0.99
+grcli show policy dnat44
 grcli show nexthop
 
 for n in 0 1; do
@@ -30,5 +30,5 @@ ip -n $p1 route add default via 10.99.0.1
 
 ip netns exec $p0 ping -i0.01 -c3 -n 172.16.0.99
 
-grcli show ip dnat44
+grcli show policy dnat44
 grcli show nexthop

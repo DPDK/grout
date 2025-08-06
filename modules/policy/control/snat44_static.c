@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_nat_control.h>
 #include <gr_net_types.h>
 
 #include <rte_common.h>
@@ -17,23 +17,23 @@ struct snat44_key {
 	ip4_addr_t match;
 };
 
-int snat44_static_rule_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
+int snat44_static_policy_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
 	const struct snat44_key key = {iface->id, match};
 	void *data = NULL;
 
 	if (rte_hash_lookup_data(snat_hash, &key, &data) >= 0)
 		return errno_set(EEXIST);
 
-	int ret = rte_hash_add_key_data(snat_hash, &key, (void *)(intptr_t)replace);
+	int ret = rte_hash_add_key_data(snat_hash, &key, (void *)(uintptr_t)replace);
 	if (ret < 0)
 		return errno_set(-ret);
 
-	iface->flags |= GR_IFACE_F_SNAT;
+	iface->flags |= GR_IFACE_F_SNAT_STATIC;
 
 	return 0;
 }
 
-int snat44_static_rule_del(struct iface *iface, ip4_addr_t match) {
+int snat44_static_policy_del(struct iface *iface, ip4_addr_t match) {
 	const struct snat44_key key = {iface->id, match};
 	int32_t ret = rte_hash_del_key(snat_hash, &key);
 	if (ret < 0)
@@ -51,46 +51,43 @@ int snat44_static_rule_del(struct iface *iface, ip4_addr_t match) {
 	}
 
 	if (count == 0)
-		iface->flags &= ~GR_IFACE_F_SNAT;
+		iface->flags &= ~GR_IFACE_F_SNAT_STATIC;
 
 	return 0;
 }
 
-void snat44_process(const struct iface *iface, struct rte_ipv4_hdr *ip) {
-	const struct snat44_key key = {iface->id, ip->src_addr};
+bool snat44_static_lookup_translation(uint16_t iface_id, ip4_addr_t orig, ip4_addr_t *trans) {
+	const struct snat44_key key = {iface_id, orig};
 	void *data = NULL;
 
 	if (rte_hash_lookup_data(snat_hash, &key, &data) < 0)
-		return;
+		return false;
 
-	ip4_addr_t replace = (ip4_addr_t)(intptr_t)data;
-	ip->hdr_checksum = fixup_checksum(ip->hdr_checksum, ip->src_addr, replace);
-	ip->src_addr = replace;
+	*trans = (ip4_addr_t)(uintptr_t)data;
+	return true;
 }
 
 #define SNAT44_RULE_COUNT 1024
 
 static void snat44_init(struct event_base *) {
-	struct rte_hash_parameters params = {
-		.name = "snat44",
+	snat_hash = rte_hash_create(&(struct rte_hash_parameters) {
+		.name = "snat44-static",
 		.entries = SNAT44_RULE_COUNT,
 		.key_len = sizeof(struct snat44_key),
 		.socket_id = SOCKET_ID_ANY,
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
 			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
-	};
-	snat_hash = rte_hash_create(&params);
+	});
 	if (snat_hash == NULL)
 		ABORT("rte_hash_create(snat44)");
 }
 
 static void snat44_fini(struct event_base *) {
 	rte_hash_free(snat_hash);
-	snat_hash = NULL;
 }
 
 static struct gr_module module = {
-	.name = "snat44",
+	.name = "snat44-static",
 	.init = snat44_init,
 	.fini = snat44_fini,
 };

@@ -5,6 +5,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_nat_datapath.h>
 
 enum edges {
 	FORWARD = 0,
@@ -13,8 +14,12 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static uint16_t
-dnat44_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+static uint16_t dnat44_static_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t nb_objs
+) {
 	struct ip_output_mbuf_data *d;
 	struct dnat44_nh_data *data;
 	struct rte_ipv4_hdr *ip;
@@ -50,14 +55,14 @@ dnat44_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	return nb_objs;
 }
 
-static void dnat44_register(void) {
-	ip_input_register_nexthop_type(GR_NH_T_DNAT, "dnat44");
+static void dnat44_static_register(void) {
+	ip_input_register_nexthop_type(GR_NH_T_DNAT, "dnat44_static");
 }
 
 static struct rte_node_register node = {
-	.name = "dnat44",
+	.name = "dnat44_static",
 
-	.process = dnat44_process,
+	.process = dnat44_static_process,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
@@ -69,7 +74,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
-	.register_callback = dnat44_register,
+	.register_callback = dnat44_static_register,
 	.trace_format = (gr_trace_format_cb_t)trace_ip_format,
 };
 

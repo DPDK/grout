@@ -12,6 +12,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_nat_datapath.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -95,8 +96,8 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		edge = iface_type_edges[iface->type];
 		mbuf_data(mbuf)->iface = iface;
 
-		if (iface->flags & GR_IFACE_F_SNAT)
-			snat44_process(iface, ip);
+		if (iface->flags & GR_IFACE_F_SNAT_STATIC)
+			snat44_static_process(iface, ip);
 
 		if (edge != ETH_OUTPUT)
 			goto next;

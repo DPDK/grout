@@ -284,7 +284,7 @@ static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pn
 			SAFE_BUF(snprintf, sizeof(buf), " allmulti");
 		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
 			SAFE_BUF(snprintf, sizeof(buf), " tracing");
-		if (iface->flags & GR_IFACE_F_SNAT)
+		if (iface->flags & GR_IFACE_F_SNAT_STATIC)
 			SAFE_BUF(snprintf, sizeof(buf), " snat");
 		scols_line_set_data(line, 2, buf);
 
@@ -507,6 +507,8 @@ static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pn
 		printf(" allmulti");
 	if (iface.flags & GR_IFACE_F_PACKET_TRACE)
 		printf(" tracing");
+	if (iface.flags & GR_IFACE_F_SNAT_STATIC)
+		printf(" nat");
 	printf("\n");
 	printf("vrf: %u\n", iface.vrf_id);
 	printf("mtu: %u\n", iface.mtu);
