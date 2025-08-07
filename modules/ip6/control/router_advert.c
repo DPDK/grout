@@ -120,11 +120,46 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	return api_out(0, len);
 }
 
-void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {
-	uint16_t iface_id = mbuf_data(m)->iface->id;
-	rte_pktmbuf_free(m);
-	event_active(ra_conf[iface_id].timer, 0, 0);
+enum {
+	SINK = 0,
+};
+
+static uint16_t ndp_router_solicit_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t nb_objs
+) {
+	struct rte_mbuf *m;
+	uint16_t iface_id;
+
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		m = objs[i];
+		iface_id = mbuf_data(m)->iface->id;
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_add(m, node, 0);
+		event_active(ra_conf[iface_id].timer, 0, 0);
+	}
+	rte_node_next_stream_move(graph, node, SINK);
+
+	return nb_objs;
 }
+
+static struct rte_node_register node_rs = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "ndp_router_solicit",
+	.process = ndp_router_solicit_process,
+	.nb_edges = 1,
+	.next_nodes = {
+		[SINK] = "ctlplane_sink",
+	},
+};
+
+static struct gr_node_info info_rs = {
+	.node = &node_rs,
+};
+
+GR_NODE_REGISTER(info_rs);
 
 static void build_ra_packet(struct rte_mbuf *m, struct rte_ipv6_addr *srcv6) {
 	struct rte_ipv6_addr dst = RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;

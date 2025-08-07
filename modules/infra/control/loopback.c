@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "loopback.h"
+
 #include <gr_control_input.h>
-#include <gr_control_output.h>
 #include <gr_eth.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -29,67 +30,10 @@
 static struct rte_mempool *loopback_pool;
 static struct event_base *ev_base;
 
-struct iface_info_loopback {
-	int fd;
-	struct event *ev;
-};
-
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
 	if (fd >= 0)
 		close(fd);
-}
-
-void loopback_tx(struct rte_mbuf *m) {
-	struct mbuf_data *d = mbuf_data(m);
-	struct iface_info_loopback *lo;
-	struct iovec iov[2];
-	struct tun_pi pi;
-	char *data;
-
-	lo = (struct iface_info_loopback *)d->iface->info;
-	if (rte_pktmbuf_linearize(m) == 0) {
-		data = rte_pktmbuf_mtod(m, char *);
-	} else {
-		data = rte_malloc(NULL, rte_pktmbuf_pkt_len(m), 0);
-		if (data == NULL) {
-			LOG(ERR, "rte_malloc failed %s", rte_strerror(rte_errno));
-			goto end;
-		}
-		// with a non-contiguous mbuf, rte_pktmbuf_read returns a pointer
-		// to the user provided buffer.
-		rte_pktmbuf_read(m, 0, rte_pktmbuf_pkt_len(m), data);
-	}
-	pi.flags = 0;
-	if ((data[0] & 0xf0) == 0x40)
-		pi.proto = RTE_BE16(RTE_ETHER_TYPE_IPV4);
-	else if ((data[0] & 0xf0) == 0x60)
-		pi.proto = RTE_BE16(RTE_ETHER_TYPE_IPV6);
-	else {
-		LOG(ERR, "Bad proto: 0x%x - drop packet", data[0]);
-		goto end;
-	}
-	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
-	// If the tun device queue is full, something really bad is
-	// already happening on the management plane side.
-	iov[0].iov_base = &pi;
-	iov[0].iov_len = sizeof(pi);
-	iov[1].iov_base = data;
-	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
-
-	if (writev(lo->fd, iov, ARRAY_DIM(iov)) < 0) {
-		// The user messed up and removed gr-loopX
-		// release resources on our side to try to recover
-		if (errno == EBADFD) {
-			iface_destroy(d->iface->id);
-		}
-		LOG(ERR, "write to tun device failed %s", strerror(errno));
-	}
-
-end:
-	if (!rte_pktmbuf_is_contiguous(m))
-		rte_free(data);
-	rte_pktmbuf_free(m);
 }
 
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {

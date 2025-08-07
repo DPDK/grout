@@ -3,7 +3,6 @@
 
 #include <gr_api.h>
 #include <gr_config.h>
-#include <gr_control_output.h>
 #include <gr_infra.h>
 #include <gr_module.h>
 #include <gr_port.h>
@@ -35,10 +34,6 @@ static struct api_out affinity_set(const void *request, void ** /*response*/) {
 
 	if (CPU_COUNT(&req->control_cpus) > 0) {
 		ret = -pthread_setaffinity_np(pthread_self(), CPU_SETSIZE, &req->control_cpus);
-		if (ret < 0)
-			goto out;
-
-		ret = -control_output_set_affinity(CPU_SETSIZE, &req->control_cpus);
 		if (ret < 0)
 			goto out;
 

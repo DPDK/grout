@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <gr_control_output.h>
 #include <gr_iface.h>
 #include <gr_ip4_control.h>
 #include <gr_mbuf.h>
@@ -25,6 +24,10 @@ GR_MBUF_PRIV_DATA_TYPE(ip_local_mbuf_data, {
 	uint16_t vrf_id;
 	uint8_t proto;
 	uint8_t ttl;
+});
+
+GR_MBUF_PRIV_DATA_EXTENDS(icmp_mbuf_data, ip_local_mbuf_data, {
+	clock_t timestamp; // time when the ICMP request was sent
 });
 
 GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
@@ -68,7 +71,7 @@ int icmp_local_send(
 	uint8_t ttl
 );
 
-void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
+void icmp_input_register_type(uint8_t icmp_type, const char *next_node);
 
 static inline rte_be16_t
 fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {

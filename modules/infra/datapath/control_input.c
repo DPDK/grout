@@ -127,7 +127,7 @@ static void control_input_unregister(void) {
 }
 
 static struct rte_node_register control_input_node = {
-	.flags = RTE_NODE_SOURCE_F,
+	.flags = RTE_NODE_SOURCE_F | GR_NODE_FLAG_CONTROL_PLANE,
 	.name = "control_input",
 	.process = control_input_process,
 	.nb_edges = EDGE_COUNT,

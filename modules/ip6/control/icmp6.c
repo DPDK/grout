@@ -2,8 +2,6 @@
 // Copyright (c) 2025 Olivier Gournet
 
 #include <gr_api.h>
-#include <gr_control_input.h>
-#include <gr_control_output.h>
 #include <gr_icmp6.h>
 #include <gr_ip6.h>
 #include <gr_ip6_datapath.h>
@@ -29,19 +27,6 @@ static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 	if (free_mbuf)
 		rte_pktmbuf_free(i->mbuf);
 	rte_mempool_put(pool, i);
-}
-
-// called from dataplane context
-static void icmp6_input_cb(struct rte_mbuf *m) {
-	struct icmp_queue_item *i;
-	void *data;
-
-	while (rte_mempool_get(pool, &data) < 0)
-		icmp6_queue_pop(STAILQ_FIRST(&icmp_queue), true);
-
-	i = data;
-	i->mbuf = m;
-	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
 }
 
 #define ICMP6_ERROR_PKT_LEN                                                                        \
@@ -104,11 +89,10 @@ static struct api_out icmp6_send(const void *request, void ** /* response */) {
 
 static struct api_out icmp6_recv(const void *request, void **response) {
 	const struct gr_ip6_icmp_recv_req *recvreq = request;
-	struct gr_ip6_icmp_recv_resp *resp;
-	struct control_output_mbuf_data *d_ctl;
-	struct ip6_local_mbuf_data *d_ip6;
-	struct icmp6 *icmp6;
 	struct icmp6_echo_reply *icmp6_echo;
+	struct gr_ip6_icmp_recv_resp *resp;
+	struct icmp6_mbuf_data *d_ip6;
+	struct icmp6 *icmp6;
 	clock_t *timestamp;
 	struct rte_mbuf *m;
 	int ret = 0;
@@ -117,8 +101,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 	if (m == NULL)
 		return api_out(0, 0);
 
-	d_ctl = control_output_mbuf_data(m);
-	d_ip6 = (struct ip6_local_mbuf_data *)d_ctl->cb_data;
+	d_ip6 = icmp6_mbuf_data(m);
 	icmp6_echo = PAYLOAD(icmp6);
 	timestamp = PAYLOAD(icmp6_echo);
 
@@ -128,7 +111,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 	resp->ttl = d_ip6->hop_limit;
 	resp->ident = rte_be_to_cpu_16(icmp6_echo->ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp6_echo->seqnum);
-	resp->response_time = d_ctl->timestamp - *timestamp;
+	resp->response_time = d_ip6->timestamp - *timestamp;
 	icmp6 = rte_pktmbuf_mtod(m, struct icmp6 *);
 	resp->type = icmp6->type;
 	resp->code = icmp6->code;
@@ -188,13 +171,48 @@ static struct gr_module icmp6_module = {
 	.fini = icmp_fini,
 };
 
+static uint16_t
+icmp6_input_ctl_process(struct rte_graph *, struct rte_node *, void **objs, uint16_t nb_objs) {
+	struct icmp_queue_item *qi;
+	void *data;
+
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		while (rte_mempool_get(pool, &data) < 0)
+			icmp6_queue_pop(STAILQ_FIRST(&icmp_queue), true);
+
+		qi = data;
+		qi->mbuf = objs[i];
+		STAILQ_INSERT_TAIL(&icmp_queue, qi, next);
+	}
+	return nb_objs;
+}
+
+static struct rte_node_register icmp6_input_ctl_node = {
+	.flags = GR_NODE_FLAG_CONTROL_PLANE,
+	.name = "icmp6_input_ctl",
+	.process = icmp6_input_ctl_process,
+	.nb_edges = 0,
+	.next_nodes = {},
+};
+
+static void icmp6_input_register(void) {
+	icmp6_input_register_type(ICMP6_TYPE_ECHO_REPLY, "icmp6_input_ctl");
+	icmp6_input_register_type(ICMP6_ERR_DEST_UNREACH, "icmp6_input_ctl");
+	icmp6_input_register_type(ICMP6_ERR_TTL_EXCEEDED, "icmp6_input_ctl");
+	icmp6_input_register_type(ICMP6_ERR_PKT_TOO_BIG, "icmp6_input_ctl");
+	icmp6_input_register_type(ICMP6_ERR_PARAM_PROBLEM, "icmp6_input_ctl");
+}
+
+static struct gr_node_info icmp6_input_info = {
+	.node = &icmp6_input_ctl_node,
+	.register_callback = icmp6_input_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
+};
+
+GR_NODE_REGISTER(icmp6_input_info);
+
 RTE_INIT(icmp_module_init) {
 	gr_register_module(&icmp6_module);
 	gr_register_api_handler(&ip6_icmp_send_handler);
 	gr_register_api_handler(&ip6_icmp_recv_handler);
-	icmp6_input_register_callback(ICMP6_TYPE_ECHO_REPLY, icmp6_input_cb);
-	icmp6_input_register_callback(ICMP6_ERR_DEST_UNREACH, icmp6_input_cb);
-	icmp6_input_register_callback(ICMP6_ERR_TTL_EXCEEDED, icmp6_input_cb);
-	icmp6_input_register_callback(ICMP6_ERR_PKT_TOO_BIG, icmp6_input_cb);
-	icmp6_input_register_callback(ICMP6_ERR_PARAM_PROBLEM, icmp6_input_cb);
 }

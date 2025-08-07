@@ -421,7 +421,7 @@ static void worker_fini(struct event_base *) {
 
 static struct gr_module worker_module = {
 	.name = "worker",
-	.depends_on = "control_output",
+	.depends_on = "graph",
 	.init = worker_init,
 	.fini = worker_fini,
 };
