@@ -1,6 +1,6 @@
-From f7cb6920640f4906229336619810cf906c63b7c0 Mon Sep 17 00:00:00 2001
+From 2e791176685f07dd04ae1a0e46db01262ce7d9bc Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
-Date: Mon, 4 Aug 2025 14:21:26 +0200
+Date: Thu, 7 Aug 2025 12:29:10 +0200
 Subject: [PATCH] meson add dependency definition
 
 Signed-off-by: Maxime Leroy <maxime@leroys.fr>
@@ -54,7 +54,7 @@ index 0000000..1e40167
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000..9c415b4
+index 0000000..d26e979
 --- /dev/null
 +++ b/meson.build
 @@ -0,0 +1,86 @@
@@ -129,7 +129,7 @@ index 0000000..9c415b4
 +alias_target('build', build)
 +
 +frr_dep = declare_dependency(
-+  include_directories: include_directories('.', 'lib', 'zebra'),
++  include_directories: include_directories('.', 'lib'),
 +  compile_args: [
 +    '-DHAVE_CONFIG_H',
 +    '-D_GNU_SOURCE',
