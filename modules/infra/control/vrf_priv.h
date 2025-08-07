@@ -3,5 +3,7 @@
 
 #pragma once
 
-int vrf_incref(uint16_t vrfid);
+#include <stdint.h>
+
+void vrf_incref(uint16_t vrfid);
 void vrf_decref(uint16_t vrfid);
