@@ -79,13 +79,20 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 		struct gr_iface iface;
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		if (route->nh.af == GR_AF_UNSPEC) {
+		switch (route->nh.af) {
+		case GR_AF_UNSPEC:
 			if (iface_from_id(c, route->nh.iface_id, &iface) < 0)
 				scols_line_sprintf(line, 2, "%u", route->nh.iface_id);
 			else
 				scols_line_sprintf(line, 2, "%s", iface.name);
-		} else
+			break;
+		case GR_AF_IP4:
 			scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
+			break;
+		case GR_AF_IP6:
+			scols_line_sprintf(line, 2, IP6_F, &route->nh.ipv6);
+			break;
+		}
 		scols_line_sprintf(line, 3, "%s", gr_nh_origin_name(route->origin));
 		if (route->nh.nh_id != GR_NH_ID_UNSET)
 			scols_line_sprintf(line, 4, "%u", route->nh.nh_id);
