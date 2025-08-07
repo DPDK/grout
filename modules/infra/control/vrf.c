@@ -23,19 +23,22 @@ struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return vrfs[vrf_id].iface;
 }
 
-int vrf_incref(uint16_t vrf_id) {
+void vrf_incref(uint16_t vrf_id) {
 	if (vrf_id >= MAX_VRFS)
-		return errno_set(EINVAL);
+		return;
 
 	if (vrfs[vrf_id].ref_count == 0) {
 		vrfs[vrf_id].iface = iface_loopback_create(vrf_id);
 		if (vrfs[vrf_id].iface == NULL) {
-			return errno_set(errno);
+			LOG(WARNING,
+			    "loopback for vrf %u cannot be created: %s",
+			    vrf_id,
+			    strerror(errno));
+			return;
 		}
 	}
-	vrfs[vrf_id].ref_count++;
 
-	return 0;
+	vrfs[vrf_id].ref_count++;
 }
 
 void vrf_decref(uint16_t vrf_id) {
@@ -43,16 +46,15 @@ void vrf_decref(uint16_t vrf_id) {
 		return;
 
 	if (vrfs[vrf_id].ref_count == 1) {
-		int ret;
-
-		ret = iface_loopback_delete(vrf_id);
-		if (ret < 0)
-			ABORT("loopback for vrf %u cannot be deleted %s", vrf_id, strerror(errno));
-
-		assert(ret == 0);
+		if (iface_loopback_delete(vrf_id) < 0) {
+			LOG(WARNING,
+			    "loopback for vrf %u cannot be deleted: %s",
+			    vrf_id,
+			    strerror(errno));
+			return;
+		}
 		vrfs[vrf_id].iface = NULL;
 	}
 
 	vrfs[vrf_id].ref_count--;
-	return;
 }

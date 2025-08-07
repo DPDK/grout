@@ -95,8 +95,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		goto fail;
 	}
 	if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
-		if (vrf_incref(conf->vrf_id) < 0)
-			goto fail;
+		vrf_incref(conf->vrf_id);
 		vrf_ref = true;
 	}
 	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
@@ -170,9 +169,7 @@ int iface_reconfig(
 
 	if (set_attrs & GR_IFACE_SET_VRF) {
 		old_vrf_id = iface->vrf_id;
-		ret = vrf_incref(conf->vrf_id);
-		if (ret < 0)
-			return ret;
+		vrf_incref(conf->vrf_id);
 	}
 
 	ret = type->reconfig(iface, set_attrs, conf, api_info);
