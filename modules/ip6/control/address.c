@@ -323,6 +323,8 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
+		if (iface->type == GR_IFACE_TYPE_LOOPBACK)
+			break;
 		if (iface_get_eth_addr(iface->id, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
 			if (iface6_addr_add(iface, &link_local, 64) < 0)
