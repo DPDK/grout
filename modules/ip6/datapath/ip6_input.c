@@ -151,7 +151,6 @@ next:
 
 static void ip6_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
-	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV6), "ip6_input");
 }
 
 static struct rte_node_register input_node = {
@@ -200,7 +199,6 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip6_format(char *, size_t, const struct rte_ipv6_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
-mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
 mock_func(struct nexthop *, mcast6_get_member(uint16_t, const struct rte_ipv6_addr *));
 
 struct fake_mbuf {
