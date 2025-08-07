@@ -54,9 +54,9 @@ loop_xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 
 		// XXX: increment tx stats of gr-loopX on initial vrf
-		stats = iface_get_stats(loop_iface->id);
-		stats->rx_packets[rte_lcore_id()] += 1;
-		stats->rx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(m);
+		stats = iface_get_stats(rte_lcore_id(), loop_iface->id);
+		stats->rx_packets += 1;
+		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
 next:
 		if (gr_mbuf_is_traced(m)
 		    || (loop_iface && loop_iface->flags & GR_IFACE_F_PACKET_TRACE)) {
