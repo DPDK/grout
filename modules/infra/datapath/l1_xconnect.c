@@ -29,18 +29,18 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		iface = mbuf_data(mbuf)->iface;
 		peer = iface_from_id(iface->domain_id);
 
-		struct iface_stats *rx_stats = iface_get_stats(iface->id);
-		rx_stats->rx_packets[rte_lcore_id()]++;
-		rx_stats->rx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
+		struct iface_stats *rx_stats = iface_get_stats(rte_lcore_id(), iface->id);
+		rx_stats->rx_packets++;
+		rx_stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 
 		if (peer->type == GR_IFACE_TYPE_PORT) {
 			port = (const struct iface_info_port *)peer->info;
 			mbuf->port = port->port_id;
 			edge = TX;
 
-			struct iface_stats *tx_stats = iface_get_stats(peer->id);
-			tx_stats->tx_packets[rte_lcore_id()]++;
-			tx_stats->tx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
+			struct iface_stats *tx_stats = iface_get_stats(rte_lcore_id(), peer->id);
+			tx_stats->tx_packets++;
+			tx_stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
 		} else {
 			edge = NO_PORT;
 		}

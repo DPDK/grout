@@ -72,9 +72,9 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->ether_type = priv->ether_type;
 		mbuf->port = port->port_id;
 
-		struct iface_stats *stats = iface_get_stats(iface->id);
-		stats->tx_packets[rte_lcore_id()] += 1;
-		stats->tx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
+		struct iface_stats *stats = iface_get_stats(rte_lcore_id(), iface->id);
+		stats->tx_packets += 1;
+		stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
 
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct eth_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));

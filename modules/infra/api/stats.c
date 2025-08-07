@@ -203,20 +203,15 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 
 	iface = NULL;
 
-	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		struct iface_stats *sw_stats = iface_get_stats(iface->id);
-		// Reset software stats for all interface types.
-		if (sw_stats != NULL) {
-			memset(sw_stats, 0, sizeof(*sw_stats));
-		}
+	// Reset software stats for all interfaces.
+	memset(iface_stats, 0, sizeof(iface_stats));
 
-		if (iface->type == GR_IFACE_TYPE_PORT) {
-			struct iface_info_port *port = (struct iface_info_port *)iface->info;
-			if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
-				return api_out(-ret, 0);
-			if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
-				return api_out(-ret, 0);
-		}
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+		struct iface_info_port *port = (struct iface_info_port *)iface->info;
+		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
+			return api_out(-ret, 0);
+		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
+			return api_out(-ret, 0);
 	}
 
 	return api_out(0, 0);
@@ -229,10 +224,6 @@ static struct api_out iface_stats_get(const void * /*request*/, void **response)
 	int ret = 0;
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		struct iface_stats *sw_stats = iface_get_stats(iface->id);
-		if (sw_stats == NULL)
-			continue;
-
 		// Create a single stats object per interface
 		struct gr_iface_stats s;
 		s.iface_id = iface->id;
@@ -245,10 +236,11 @@ static struct api_out iface_stats_get(const void * /*request*/, void **response)
 
 		// Aggregate per-core stats
 		for (int i = 0; i < RTE_MAX_LCORE; i++) {
-			s.rx_packets += sw_stats->rx_packets[i];
-			s.rx_bytes += sw_stats->rx_bytes[i];
-			s.tx_packets += sw_stats->tx_packets[i];
-			s.tx_bytes += sw_stats->tx_bytes[i];
+			struct iface_stats *sw_stats = iface_get_stats(i, iface->id);
+			s.rx_packets += sw_stats->rx_packets;
+			s.rx_bytes += sw_stats->rx_bytes;
+			s.tx_packets += sw_stats->tx_packets;
+			s.tx_bytes += sw_stats->tx_bytes;
 		}
 
 		if (iface->type == GR_IFACE_TYPE_PORT) {
@@ -396,20 +388,18 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 			rte_tel_data_start_dict(stats_container);
 
 			// Software stats
-			struct iface_stats *sw_stats = iface_get_stats(iface->id);
-			if (sw_stats != NULL) {
-				uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
-				for (int i = 0; i < RTE_MAX_LCORE; i++) {
-					rx_pkts += sw_stats->rx_packets[i];
-					rx_bytes += sw_stats->rx_bytes[i];
-					tx_pkts += sw_stats->tx_packets[i];
-					tx_bytes += sw_stats->tx_bytes[i];
-				}
-				rte_tel_data_add_dict_uint(stats_container, "rx_packets", rx_pkts);
-				rte_tel_data_add_dict_uint(stats_container, "rx_bytes", rx_bytes);
-				rte_tel_data_add_dict_uint(stats_container, "tx_packets", tx_pkts);
-				rte_tel_data_add_dict_uint(stats_container, "tx_bytes", tx_bytes);
+			uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
+			for (int i = 0; i < RTE_MAX_LCORE; i++) {
+				struct iface_stats *sw_stats = iface_get_stats(i, iface->id);
+				rx_pkts += sw_stats->rx_packets;
+				rx_bytes += sw_stats->rx_bytes;
+				tx_pkts += sw_stats->tx_packets;
+				tx_bytes += sw_stats->tx_bytes;
 			}
+			rte_tel_data_add_dict_uint(stats_container, "rx_packets", rx_pkts);
+			rte_tel_data_add_dict_uint(stats_container, "rx_bytes", rx_bytes);
+			rte_tel_data_add_dict_uint(stats_container, "tx_packets", tx_pkts);
+			rte_tel_data_add_dict_uint(stats_container, "tx_bytes", tx_bytes);
 
 			// Get hardware stats for physical ports.
 			if (iface->type == GR_IFACE_TYPE_PORT) {

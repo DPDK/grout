@@ -21,7 +21,7 @@
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
-static struct iface_stats stats[MAX_IFACES];
+struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
 struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
@@ -92,7 +92,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	ifaces[ifid] = iface;
 
-	memset(&stats[ifid], 0, sizeof(stats[ifid]));
+	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
 
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
@@ -174,10 +174,6 @@ struct iface *iface_from_id(uint16_t ifid) {
 	if (iface == NULL)
 		errno = ENODEV;
 	return iface;
-}
-
-struct iface_stats *iface_get_stats(uint16_t ifid) {
-	return &stats[ifid];
 }
 
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {

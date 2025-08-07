@@ -68,9 +68,9 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
-		stats = iface_get_stats(ipip->id);
-		stats->rx_packets[rte_lcore_id()] += 1;
-		stats->rx_bytes[rte_lcore_id()] += rte_pktmbuf_pkt_len(mbuf);
+		stats = iface_get_stats(rte_lcore_id(), ipip->id);
+		stats->rx_packets += 1;
+		stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
