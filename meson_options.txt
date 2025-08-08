@@ -7,7 +7,7 @@ option(
 )
 
 option(
-  'frr', type: 'feature', value: 'disabled',
+  'frr', type: 'feature', value: 'auto',
   description: 'Build FRR plugin. If set to "auto", only build if FRR headers are found.',
 )
 
