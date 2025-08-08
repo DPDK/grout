@@ -20,7 +20,6 @@ fi
 cleanup() {
 	set +e
 	sh -x $tmp/cleanup
-
 	# delete all non-port interfaces first
 	grcli show interface |
 	grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<loopback\>' |
