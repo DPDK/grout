@@ -32,7 +32,7 @@ smoke-tests: all
 .PHONY: update-graph
 update-graph: all
 	$Q set -xe; tmp=`mktemp -d`; \
-	trap "killall grout; wait; rm -rf $$tmp" EXIT; \
+	trap "kill %1; wait; rm -rf $$tmp" EXIT; \
 	export GROUT_SOCK_PATH="$$tmp/sock"; \
 	$(BUILDDIR)/grout -t & \
 	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
