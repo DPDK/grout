@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_datapath.h>
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_ip4_datapath.h>
 #include <gr_ip6_datapath.h>
@@ -26,6 +26,7 @@ static uint16_t l4_loopback_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	struct eth_output_mbuf_data *eth_data;
 	struct rte_mbuf *mbuf;
 	struct mbuf_data *d;
 	rte_edge_t edge;
@@ -35,6 +36,7 @@ static uint16_t l4_loopback_output_process(
 		edge = REDIRECT;
 
 		d = mbuf_data(mbuf);
+		eth_data = eth_output_mbuf_data(mbuf);
 		d->iface = get_vrf_iface(d->iface->vrf_id);
 		if (!d->iface) {
 			edge = NO_IFACE;
@@ -50,6 +52,7 @@ static uint16_t l4_loopback_output_process(
 				goto next;
 			}
 			ip_set_fields(ip, d);
+			eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		} else if (mbuf->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(mbuf);
 			struct rte_ipv6_hdr *ip;
@@ -60,6 +63,7 @@ static uint16_t l4_loopback_output_process(
 			}
 			ip6_set_fields(ip, d->len, d->proto, &d->src, &d->dst);
 			ip->hop_limits = d->hop_limit;
+			eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 		} else {
 			edge = BAD_PROTO;
 		}
