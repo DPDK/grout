@@ -1,13 +1,22 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (c) 2025 Maxime Leroy, Free Mobile
+frr_opt = get_option('frr')
 
-if not get_option('frr').enabled()
+if frr_opt.disabled()
   subdir_done()
 endif
 
-frr_dep = dependency('frr', version: '>= 10.4', fallback: ['frr', 'frr_dep'])
-install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'false') == 'true'
+frr_dep = dependency('frr', version: '>= 10.4', required: false)
+if not frr_dep.found()
+  if get_option('frr').enabled()
+    sp = subproject('frr')
+    frr_dep = sp.get_variable('frr_dep')
+  else
+    subdir_done()
+  endif
+endif
 
+install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'false') == 'true'
 frr_plugin = shared_module(
   'frr_dplane_grout',
   files(
