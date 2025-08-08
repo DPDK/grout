@@ -21,6 +21,7 @@
 #include <rte_mempool.h>
 #include <rte_ring.h>
 #include <rte_tcp.h>
+#include <rte_udp.h>
 
 static inline const char *eth_type_str(rte_be16_t type) {
 	switch (type) {
@@ -340,6 +341,16 @@ err:
 	return -1;
 }
 
+static int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
+	return snprintf(
+		buf,
+		len,
+		"%u > %u",
+		rte_be_to_cpu_16(udp->src_port),
+		rte_be_to_cpu_16(udp->dst_port)
+	);
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	static const struct rte_ether_addr stp_dst = {
 		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x00},
@@ -401,6 +412,13 @@ ipv4:
 			tcp = rte_pktmbuf_mtod_offset(m, const struct rte_tcp_hdr *, offset);
 			SAFE_BUF(snprintf, sizeof(buf), " / TCP ");
 			SAFE_BUF(trace_tcp_format, sizeof(buf), tcp);
+			break;
+		}
+		case IPPROTO_UDP: {
+			const struct rte_udp_hdr *udp;
+			udp = rte_pktmbuf_mtod_offset(m, const struct rte_udp_hdr *, offset);
+			SAFE_BUF(snprintf, sizeof(buf), " / UDP ");
+			SAFE_BUF(trace_udp_format, sizeof(buf), udp);
 			break;
 		}
 		case IPPROTO_IPIP:
