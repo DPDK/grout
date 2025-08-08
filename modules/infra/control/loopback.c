@@ -178,40 +178,40 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT | IFF_ONE_QUEUE;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		LOG(ERR, "socket %s", strerror(errno));
+		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
 		goto err;
 	}
 
 	if ((lo->fd = open(TUN_TAP_DEV_PATH, O_RDWR)) < 0) {
-		LOG(ERR, "open %s", strerror(errno));
+		LOG(ERR, "open(%s): %s", TUN_TAP_DEV_PATH, strerror(errno));
 		goto err;
 	}
 
 	if (ioctl(lo->fd, TUNSETIFF, &ifr) < 0) {
-		LOG(ERR, "ioctl %s", strerror(errno));
+		LOG(ERR, "ioctl(TUNSETIFF): %s", strerror(errno));
 		goto err;
 	}
 
 	flags = fcntl(lo->fd, F_GETFL);
 	if (flags == -1) {
-		LOG(ERR, "fnctl %s", strerror(errno));
+		LOG(ERR, "fcntl(F_GETFL): %s", strerror(errno));
 		goto err;
 	}
 
 	flags |= O_NONBLOCK;
 	if (fcntl(lo->fd, F_SETFL, flags) < 0) {
-		LOG(ERR, "fnctl %s", strerror(errno));
+		LOG(ERR, "fcntl(F_SETFL): %s", strerror(errno));
 		goto err;
 	}
 
 	if (ioctl(ioctl_sock, SIOCGIFFLAGS, &ifr) < 0) {
-		LOG(ERR, "ioctl %s", strerror(errno));
+		LOG(ERR, "ioctl(SIOCGIFFLAGS): %s", strerror(errno));
 		goto err;
 	}
 
 	ifr.ifr_flags |= IFF_UP;
 	if (ioctl(ioctl_sock, SIOCSIFFLAGS, &ifr) < 0) {
-		LOG(ERR, "ioctl %s", strerror(errno));
+		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
 		goto err;
 	}
 
