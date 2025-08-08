@@ -619,6 +619,15 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			}
 			port->link_speed = link.link_speed;
 
+			if (strncmp(port->devargs, "net_tap", strlen("net_tap")) == 0) {
+				if (!(iface->state & GR_IFACE_S_RUNNING)) {
+					LOG(INFO, "%s: link status up", iface->name);
+					iface->state |= GR_IFACE_S_RUNNING;
+					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+				}
+				continue;
+			}
+
 			if (link.link_status == RTE_ETH_LINK_UP) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
 					LOG(INFO, "%s: link status up", iface->name);
