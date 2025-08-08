@@ -7,6 +7,9 @@
 #include <gr_module.h>
 #include <gr_nat_datapath.h>
 
+#include <rte_tcp.h>
+#include <rte_udp.h>
+
 enum edges {
 	FORWARD = 0,
 	LOCAL,
@@ -34,6 +37,29 @@ static uint16_t dnat44_static_process(
 		data = dnat44_nh_data(d->nh);
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->dst_addr, data->replace);
+
+		switch (ip->next_proto_id) {
+		case IPPROTO_TCP: {
+			struct rte_tcp_hdr *tcp = rte_pktmbuf_mtod_offset(
+				mbuf, struct rte_tcp_hdr *, rte_ipv4_hdr_len(ip)
+			);
+			tcp->cksum = fixup_checksum_32(tcp->cksum, ip->dst_addr, data->replace);
+			break;
+		}
+		case IPPROTO_UDP: {
+			struct rte_udp_hdr *udp = rte_pktmbuf_mtod_offset(
+				mbuf, struct rte_udp_hdr *, rte_ipv4_hdr_len(ip)
+			);
+			if (udp->dgram_cksum != 0)
+				udp->dgram_cksum = fixup_checksum_32(
+					udp->dgram_cksum, ip->dst_addr, data->replace
+				);
+			break;
+		}
+		}
+
+		// Modify the address *after* updating the TCP/UDP checksum.
+		// We need the old address value to fixup the checksum properly.
 		ip->dst_addr = data->replace;
 
 		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr);

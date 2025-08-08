@@ -40,4 +40,4 @@ fixup_checksum_32(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr
 	return ~sum & 0xffff;
 }
 
-bool snat44_static_process(const struct iface *, struct rte_ipv4_hdr *);
+bool snat44_static_process(const struct iface *, struct rte_mbuf *);
