@@ -11,8 +11,7 @@ create_interface() {
 	local mac="$2"
 	local vrf="${3:-0}"
 
-	ip link add v0-$p type veth peer name v1-$p
-	grcli add interface port $p devargs net_tap$tap_index,iface=tap-$p,remote=v0-$p vrf $vrf mac $mac
+	grcli add interface port $p devargs net_tap$tap_index,iface=$p vrf $vrf mac $mac
 
 	local max_tries=5
 	local count=0
