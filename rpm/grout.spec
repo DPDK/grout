@@ -65,7 +65,7 @@ Suggests: %{name}
 This package contains the development headers to build %{grout} API clients.
 
 %build
-%meson -Ddpdk:platform=generic
+%meson -Ddpdk:platform=generic -Dfrr=disabled
 %meson_build
 
 %install
