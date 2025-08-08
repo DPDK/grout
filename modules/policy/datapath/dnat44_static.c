@@ -7,6 +7,10 @@
 #include <gr_module.h>
 #include <gr_nat_datapath.h>
 
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
+
 enum edges {
 	FORWARD = 0,
 	LOCAL,
@@ -24,8 +28,8 @@ static uint16_t dnat44_static_process(
 	struct dnat44_nh_data *data;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
+	uint16_t i, frag;
 	rte_edge_t edge;
-	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -34,6 +38,40 @@ static uint16_t dnat44_static_process(
 		data = dnat44_nh_data(d->nh);
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->dst_addr, data->replace);
+
+		frag = rte_be_to_cpu_16(ip->fragment_offset) & RTE_IPV4_HDR_OFFSET_MASK;
+		if (frag == 0) {
+			// Only update the L4 checksum on first fragments.
+			switch (ip->next_proto_id) {
+			case IPPROTO_TCP: {
+				struct rte_tcp_hdr *tcp = rte_pktmbuf_mtod_offset(
+					mbuf, struct rte_tcp_hdr *, rte_ipv4_hdr_len(ip)
+				);
+				tcp->cksum = fixup_checksum_32(
+					tcp->cksum, ip->dst_addr, data->replace
+				);
+				break;
+			}
+			case IPPROTO_UDP: {
+				struct rte_udp_hdr *udp = rte_pktmbuf_mtod_offset(
+					mbuf, struct rte_udp_hdr *, rte_ipv4_hdr_len(ip)
+				);
+				if (udp->dgram_cksum != RTE_BE16(0)) {
+					udp->dgram_cksum = fixup_checksum_32(
+						udp->dgram_cksum, ip->dst_addr, data->replace
+					);
+					if (udp->dgram_cksum == RTE_BE16(0)) {
+						// Prevent UDP checksum from becoming 0 (RFC 768).
+						udp->dgram_cksum = RTE_BE16(0xffff);
+					}
+				}
+				break;
+			}
+			}
+		}
+
+		// Modify the address *after* updating the TCP/UDP checksum.
+		// We need the old address value to fixup the checksum properly.
 		ip->dst_addr = data->replace;
 
 		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr);
