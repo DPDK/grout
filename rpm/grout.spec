@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Robin Jarry
 
+%undefine _debugsource_packages
 %global _lto_cflags %nil
 %global branch main
 %global __meson_wrap_mode default
-%if "%toolset" != ""
+%if %{defined toolset}
 %global __meson /usr/bin/scl run %toolset -- /usr/bin/meson
 %endif
 
@@ -17,7 +18,7 @@ Version: %{version}
 Release: %{release}
 Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
 
-%if "%toolset" == ""
+%if %{undefined toolset}
 BuildRequires: gcc >= 13
 %else
 BuildRequires: %toolset
@@ -54,7 +55,9 @@ It comes with a client library to configure it over a standard UNIX socket and
 a CLI that uses that library. The CLI can be used as an interactive shell, but
 also in scripts one command at a time, or by batches.
 
+%if %{undefined fedora}
 %debug_package
+%endif
 
 %package devel
 Summary: Development headers for building %{name} API clients
@@ -69,7 +72,6 @@ This package contains the development headers to build %{grout} API clients.
 %meson_build
 
 %install
-rm -rf %{buildroot}
 %meson_install --skip-subprojects
 
 install -D -m 0644 main/grout.default %{buildroot}%{_sysconfdir}/default/grout
@@ -77,9 +79,6 @@ install -D -m 0644 main/grout.init %{buildroot}%{_sysconfdir}/grout.init
 install -D -m 0644 main/grout.service %{buildroot}%{_unitdir}/grout.service
 install -D -m 0644 main/grout.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grout
 install -D -m 0644 cli/grcli.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grcli
-
-%clean
-rm -rf %{buildroot} %{_vpath_builddir}
 
 %post
 %systemd_post %{name}.service

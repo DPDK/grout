@@ -86,7 +86,7 @@ rpm:
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
-	for name in grout grout-debuginfo grout-debugsource; do \
+	for name in grout grout-debuginfo; do \
 		mv -vf ~/rpmbuild/RPMS/$$arch/$$name-$$version.$$arch.rpm \
 			$$name.$$arch.rpm || exit; \
 	done
