@@ -81,7 +81,7 @@ static int grout_notif_subscribe(
 	return 0;
 }
 
-static void dplane_grout_connect(struct event *t) {
+static void dplane_grout_connect(struct event *) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IFACE_POST_ADD, .suppress_self_events = true},
@@ -113,7 +113,7 @@ reschedule_connect:
 	event_add_timer(dg_master, dplane_grout_connect, NULL, 1, &grout_ctx.dg_t_dplane_update);
 }
 
-static void zebra_grout_connect(struct event *t) {
+static void zebra_grout_connect(struct event *) {
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IP_ROUTE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IP_ROUTE_DEL, .suppress_self_events = true},
@@ -533,7 +533,7 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 	return 0;
 }
 
-static int zd_grout_finish(struct zebra_dplane_provider *prov, bool early) {
+static int zd_grout_finish(struct zebra_dplane_provider *, bool early) {
 	if (early) {
 		event_cancel(&grout_ctx.dg_t_zebra_update);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
@@ -549,7 +549,7 @@ static int zd_grout_finish(struct zebra_dplane_provider *prov, bool early) {
 	return 0;
 }
 
-static int zd_grout_plugin_init(struct event_loop *tm) {
+static int zd_grout_plugin_init(struct event_loop *) {
 	int ret;
 
 	ret = dplane_provider_register(

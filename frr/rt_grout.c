@@ -186,12 +186,8 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	return proto;
 }
 
-static int grout_gr_nexthop_to_frr_nexthop(
-	struct gr_nexthop *gr_nh,
-	struct nexthop *nh,
-	int *nh_family,
-	bool new
-) {
+static int
+grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, int *nh_family) {
 	size_t sz;
 
 	if (gr_nh->type != GR_NH_T_L3) {
@@ -291,7 +287,7 @@ static void grout_route_change(
 		memset(&_nh, 0, sizeof(_nh));
 		nh = &_nh;
 
-		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family, new) < 0) {
+		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family) < 0) {
 			gr_log_debug("route received has invalid nexthop, ignoring");
 			return;
 		}
@@ -388,7 +384,6 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 static_assert(SRV6_MAX_SEGS <= GR_SRV6_ROUTE_SEGLIST_COUNT_MAX);
 
 static enum zebra_dplane_result grout_add_del_srv6_route(
-	struct zebra_dplane_ctx *ctx,
 	const struct prefix *p,
 	gr_nh_origin_t origin,
 	struct nexthop *nh,
@@ -509,7 +504,6 @@ end:
 }
 
 static enum zebra_dplane_result grout_add_del_srv6_local(
-	struct zebra_dplane_ctx *ctx,
 	const struct prefix *p,
 	gr_nh_origin_t origin,
 	struct nexthop *nh,
@@ -658,10 +652,10 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		}
 
 		if (nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC)
-			return grout_add_del_srv6_local(ctx, p, origin, nh, vrf_id, new);
+			return grout_add_del_srv6_local(p, origin, nh, vrf_id, new);
 		if (nh->nh_srv6->seg6_segs && nh->nh_srv6->seg6_segs->num_segs
 		    && !sid_zero(nh->nh_srv6->seg6_segs))
-			return grout_add_del_srv6_route(ctx, p, origin, nh, vrf_id, new);
+			return grout_add_del_srv6_route(p, origin, nh, vrf_id, new);
 
 		gr_log_err("impossible to add/del srv6 route (invalid format)");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
@@ -879,7 +873,7 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
 		return;
 	}
 
-	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &family, new) < 0)
+	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &family) < 0)
 		return;
 
 	if (!new) {
