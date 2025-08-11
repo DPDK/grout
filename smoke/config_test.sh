@@ -18,10 +18,13 @@ grcli add ip address 10.0.0.1/24 iface p0
 grcli add ip address 10.1.0.1/24 iface p1
 grcli add ip route 0.0.0.0/0 via 10.0.0.2
 grcli add ip route 4.5.21.2/27 via id 47
+grcli add ip route 172.16.47.0/24 via id 1047
 grcli add ip6 address 2345::1/24 iface p0
 grcli add ip6 address 2346::1/24 iface p1
 grcli add ip6 route ::/0 via 2345::2
 grcli add ip6 route 2521:111::4/37 via id 1047
+grcli add ip6 route 2521:112::/64 via id 45
+grcli add ip6 route 2521:113::/64 via id 47
 grcli set interface port p0 rxqs 2
 grcli set interface port p1 rxqs 2
 grcli show interface
@@ -32,3 +35,10 @@ grcli show graph full
 grcli show stats software
 grcli show stats hardware
 grcli del nexthop id 42
+
+grcli del interface p0
+grcli del interface p1
+
+if [ "$(grcli show nexthop | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
+if [ "$(grcli show ip route | wc -l)" -ne 0 ]; then fail "RIB4 is not empty" ; fi
+if [ "$(grcli show ip6 route | wc -l)" -ne 0 ]; then fail "RIB6 is not empty" ; fi
