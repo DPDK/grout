@@ -261,7 +261,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 			nh = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
 				.af = GR_AF_IP6,
-				.flags = GR_NH_F_GATEWAY,
+				.flags = 0,
 				.vrf_id = nh->vrf_id,
 				.iface_id = nh->iface_id,
 				.ipv6 = req->nh,
@@ -279,18 +279,25 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 
+	nh->flags |= GR_NH_F_GATEWAY;
+
 	return api_out(-ret, 0);
 }
 
 static struct api_out route6_del(const void *request, void ** /*response*/) {
 	const struct gr_ip6_route_del_req *req = request;
+	struct nexthop *nh = NULL;
 	int ret;
 
+	nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip);
 	ret = rib6_delete(
 		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen, GR_NH_T_L3
 	);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
+
+	if (nh && nh->ref_count == 1)
+		nh->flags &= ~GR_NH_F_GATEWAY;
 
 	return api_out(-ret, 0);
 }

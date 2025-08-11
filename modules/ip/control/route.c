@@ -152,6 +152,8 @@ int rib4_insert(
 		goto fail;
 	}
 
+	nh->flags |= GR_NH_F_GATEWAY;
+
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib_get_ext(rn);
 	*o = origin;
@@ -259,11 +261,16 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 
 static struct api_out route4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_del_req *req = request;
+	struct nexthop *nh = NULL;
 	int ret;
 
+	nh = rib4_lookup(req->vrf_id, req->dest.ip);
 	ret = rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen, GR_NH_T_L3);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
+
+	if (nh && nh->ref_count == 1)
+		nh->flags &= ~GR_NH_F_GATEWAY;
 
 	return api_out(-ret, 0);
 }
