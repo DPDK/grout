@@ -531,14 +531,13 @@ void nexthop_incref(struct nexthop *nh) {
 static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 	const struct nexthop_af_ops *ops = af_ops[nh->af];
 	clock_t now = gr_clock_us();
-	time_t reply_age, request_age;
 	unsigned probes, max_probes;
+	time_t reply_age;
 
 	if (nh->flags & GR_NH_F_STATIC)
 		return;
 
 	reply_age = (now - nh->last_reply) / CLOCKS_PER_SEC;
-	request_age = (now - nh->last_request) / CLOCKS_PER_SEC;
 	max_probes = nh_conf.max_ucast_probes + nh_conf.max_bcast_probes;
 	probes = nh->ucast_probes + nh->bcast_probes;
 
@@ -573,16 +572,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			nh->state = GR_NH_S_STALE;
 		break;
 	case GR_NH_S_FAILED:
-		if (request_age > nh_conf.lifetime_unreachable_sec) {
-			LOG(DEBUG,
-			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-			    ADDR_W(nh->af),
-			    &nh->addr,
-			    nh->vrf_id,
-			    probes,
-			    nh->held_pkts);
-			ops->del(nh);
-		}
+		break;
 	}
 }
 
