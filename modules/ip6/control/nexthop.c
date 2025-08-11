@@ -235,7 +235,7 @@ static int nh6_add(struct nexthop *nh) {
 }
 
 static void nh6_del(struct nexthop *nh) {
-	rib6_delete(nh->vrf_id, nh->iface_id, &nh->ipv6, RTE_IPV6_MAX_DEPTH, nh->type);
+	rib6_cleanup(nh);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));

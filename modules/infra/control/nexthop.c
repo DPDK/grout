@@ -483,6 +483,7 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
 	if (nh->iface_id == filter->iface_id) {
+		nexthop_af_ops_get(GR_AF_UNSPEC)->del(nh);
 		while (nh->ref_count)
 			nexthop_decref(nh);
 	}
@@ -646,6 +647,8 @@ static int nh_unspec_add(struct nexthop *nh) {
 }
 
 static void nh_unspec_del(struct nexthop *nh) {
+	nexthop_af_ops_get(GR_AF_IP4)->del(nh);
+	nexthop_af_ops_get(GR_AF_IP6)->del(nh);
 	nexthop_decref(nh);
 }
 
