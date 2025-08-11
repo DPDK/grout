@@ -53,13 +53,11 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		if (base.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
 
-		base.flags |= GR_NH_F_GATEWAY;
 		break;
 	case GR_AF_IP6:
 		if (rte_ipv6_addr_is_unspec(&base.ipv6))
 			return api_out(EDESTADDRREQ, 0);
 
-		base.flags |= GR_NH_F_GATEWAY;
 		break;
 	case GR_AF_UNSPEC:
 		if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
