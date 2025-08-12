@@ -261,7 +261,6 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 			nh = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
 				.af = GR_AF_IP6,
-				.flags = 0,
 				.vrf_id = nh->vrf_id,
 				.iface_id = nh->iface_id,
 				.ipv6 = req->nh,
