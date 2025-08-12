@@ -139,6 +139,7 @@ static struct gr_api_handler nh_add_handler = {
 };
 
 static struct api_out nh_del(const void *request, void ** /*response*/) {
+	static const gr_nh_flags_t addr_flags = GR_NH_F_LOCAL | GR_NH_F_STATIC;
 	const struct gr_nh_del_req *req = request;
 	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
@@ -150,7 +151,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
+	if (nh->type != GR_NH_T_L3 || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ops = nexthop_af_ops_get(nh->af);
