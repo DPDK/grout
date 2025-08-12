@@ -20,6 +20,7 @@ static void port_show(const struct gr_api_client *c, const struct gr_iface *ifac
 
 	printf("devargs: %s\n", port->devargs);
 	printf("driver:  %s\n", port->driver_name);
+	printf("desc: %s\n", port->description);
 	printf("mac: " ETH_F "\n", &port->mac);
 	if (port->link_speed == UINT32_MAX)
 		printf("speed: unknown\n");
@@ -70,6 +71,7 @@ static uint64_t parse_port_args(
 ) {
 	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
 	struct gr_iface_info_port *port;
+	const char *description;
 	const char *devargs;
 
 	port = (struct gr_iface_info_port *)iface->info;
@@ -108,6 +110,14 @@ static uint64_t parse_port_args(
 		set_attrs |= GR_IFACE_SET_DOMAIN;
 		iface->mode = GR_IFACE_MODE_L1_XC;
 		iface->domain_id = peer.id;
+	}
+	description = arg_str(p, "DESCRIPTION");
+	if (description != NULL) {
+		if (strlen(description) >= sizeof(port->description)) {
+			errno = ENAMETOOLONG;
+			goto err;
+		}
+		memccpy(port->description, description, 0, sizeof(port->description));
 	}
 
 	if (set_attrs == 0)
@@ -149,7 +159,8 @@ static cmd_status_t port_set(const struct gr_api_client *c, const struct ec_pnod
 }
 
 #define PORT_ATTRS_CMD                                                                             \
-	IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE),(mode l3|(xconnect PEER))"
+	IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE),(mode l3|(xconnect PEER)),"        \
+			"(desc DESCRIPTION)"
 
 #define PORT_ATTRS_ARGS                                                                            \
 	IFACE_ATTRS_ARGS, with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),  \
@@ -160,7 +171,8 @@ static cmd_status_t port_set(const struct gr_api_client *c, const struct ec_pnod
 		with_help(                                                                         \
 			"Peer interface for xconnect",                                             \
 			ec_node_dyn("PEER", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))     \
-		)
+		),                                                                                 \
+		with_help("desc:", ec_node("any", "DESCRIPTION"))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;

@@ -314,6 +314,8 @@ static int iface_port_fini(struct iface *iface) {
 
 	free(port->devargs);
 	port->devargs = NULL;
+	free(port->description);
+	port->description = NULL;
 	if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
 		LOG(ERR, "rte_eth_dev_info_get: %s", rte_strerror(-ret));
 	if ((ret = rte_eth_dev_stop(port->port_id)) < 0)
@@ -371,8 +373,15 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		return errno_set(EIDRM);
 
 	port->port_id = port_id;
+	port->devargs = NULL;
+	port->description = NULL;
 	port->devargs = strndup(api->devargs, GR_PORT_DEVARGS_SIZE);
 	if (port->devargs == NULL) {
+		ret = errno_set(ENOMEM);
+		goto fail;
+	}
+	port->description = strndup(api->description, GR_PORT_DESCRIPTION_SIZE);
+	if (port->description == NULL) {
 		ret = errno_set(ENOMEM);
 		goto fail;
 	}
@@ -391,7 +400,10 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 
 	return 0;
 fail:
-	free(port->devargs);
+	if (port->devargs)
+		free(port->devargs);
+	if (port->description)
+		free(port->description);
 	return ret;
 }
 
@@ -577,6 +589,7 @@ static void port_to_api(void *info, const struct iface *iface) {
 
 	api->base = port->base;
 	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
+	memccpy(api->description, port->description, 0, sizeof(api->description));
 
 	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0) {
 		memccpy(api->driver_name, dev_info.driver_name, 0, sizeof(api->driver_name));

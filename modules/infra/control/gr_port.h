@@ -34,6 +34,7 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 	bool started;
 	struct rte_mempool *pool;
 	char *devargs;
+	char *description;
 	uint32_t pool_size;
 	struct mac_filter ucast_filter;
 	struct mac_filter mcast_filter;

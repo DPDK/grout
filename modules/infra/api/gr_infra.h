@@ -73,7 +73,7 @@ struct gr_iface {
 
 #define GR_IFACE_NAME_SIZE 64
 	char name[GR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
-	uint8_t info[256]; // Type specific interface info.
+	uint8_t info[512]; // Placeholder for type specific interface info.
 };
 
 void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
@@ -101,6 +101,8 @@ struct gr_iface_info_port {
 	char devargs[GR_PORT_DEVARGS_SIZE];
 #define GR_PORT_DRIVER_NAME_SIZE 32
 	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
+#define GR_PORT_DESCRIPTION_SIZE 255
+	char description[GR_PORT_DESCRIPTION_SIZE];
 };
 
 static_assert(sizeof(struct gr_iface_info_port) <= MEMBER_SIZE(struct gr_iface, info));
