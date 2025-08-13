@@ -39,54 +39,74 @@ static struct gr_api_handler config_set_handler = {
 	.callback = nh_config_set,
 };
 
+static int nh_add_blackhole(struct gr_nexthop *base) {
+	base->state = GR_NH_S_REACHABLE;
+	base->flags |= GR_NH_F_STATIC;
+	return 0;
+}
+
+static int nh_add_l3(struct gr_nexthop *base) {
+	struct iface *iface;
+
+	switch (base->af) {
+	case GR_AF_IP4:
+		if (base->ipv4 == 0)
+			return EDESTADDRREQ;
+		break;
+	case GR_AF_IP6:
+		if (rte_ipv6_addr_is_unspec(&base->ipv6))
+			return EDESTADDRREQ;
+
+		break;
+	case GR_AF_UNSPEC:
+		if (base->ipv4 || !rte_ipv6_addr_is_unspec(&base->ipv6))
+			return EINVAL;
+
+		base->flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
+		break;
+	default:
+		return ENOPROTOOPT;
+	}
+
+	iface = iface_from_id(base->iface_id);
+	if (iface == NULL)
+		return errno;
+
+	base->vrf_id = iface->vrf_id;
+	base->state = GR_NH_S_NEW;
+	if (!rte_is_zero_ether_addr(&base->mac)) {
+		if (base->af == GR_AF_UNSPEC)
+			return EINVAL;
+
+		base->state = GR_NH_S_REACHABLE;
+		base->flags |= GR_NH_F_STATIC;
+	}
+	return 0;
+}
+
 static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
 	const struct nexthop_af_ops *ops;
 	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
-	struct iface *iface;
 	int ret;
 
 	base.flags = 0;
-	if (base.type != GR_NH_T_BLACKHOLE) {
-		switch (base.af) {
-		case GR_AF_IP4:
-			if (base.ipv4 == 0)
-				return api_out(EDESTADDRREQ, 0);
-
-			break;
-		case GR_AF_IP6:
-			if (rte_ipv6_addr_is_unspec(&base.ipv6))
-				return api_out(EDESTADDRREQ, 0);
-
-			break;
-		case GR_AF_UNSPEC:
-			if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
-				return api_out(EINVAL, 0);
-
-			base.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
-			break;
-		default:
-			return api_out(ENOPROTOOPT, 0);
-		}
-
-		iface = iface_from_id(base.iface_id);
-		if (iface == NULL)
-			return api_out(errno, 0);
-
-		base.vrf_id = iface->vrf_id;
-		base.state = GR_NH_S_NEW;
-		if (!rte_is_zero_ether_addr(&base.mac)) {
-			if (base.af == GR_AF_UNSPEC)
-				return api_out(EINVAL, 0);
-
-			base.state = GR_NH_S_REACHABLE;
-			base.flags |= GR_NH_F_STATIC;
-		}
-	} else {
-		base.state = GR_NH_S_REACHABLE;
-		base.flags |= GR_NH_F_STATIC;
+	switch (base.type) {
+	case GR_NH_T_BLACKHOLE:
+		ret = nh_add_blackhole(&base);
+		break;
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6_OUTPUT:
+	case GR_NH_T_SR6_LOCAL:
+	case GR_NH_T_DNAT:
+		ret = nh_add_l3(&base);
+		break;
+	default:
+		return api_out(EINVAL, 0);
 	}
+	if (ret)
+		return api_out(ret, 0);
 
 	if (base.nh_id != GR_NH_ID_UNSET)
 		nh = nexthop_lookup_by_id(base.nh_id);
