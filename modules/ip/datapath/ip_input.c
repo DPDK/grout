@@ -158,6 +158,8 @@ next:
 
 static void ip_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
+	ip_input_register_nexthop_type(GR_NH_T_BLACKHOLE, "ip_blackhole");
+	ip_input_register_nexthop_type(GR_NH_T_REJECT, "ip_error_dest_unreach");
 }
 
 static struct rte_node_register input_node = {
@@ -190,6 +192,7 @@ GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
 GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
+GR_DROP_REGISTER(ip_blackhole);
 
 #ifdef __GROUT_UNIT_TEST__
 #include <gr_cmocka.h>

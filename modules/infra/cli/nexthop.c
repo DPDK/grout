@@ -59,11 +59,25 @@ static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_p
 }
 
 static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_add_req req = {.exist_ok = true, .nh.origin = GR_NH_ORIGIN_USER};
+	struct gr_nh_add_req req = {
+		.exist_ok = true,
+		.nh.origin = GR_NH_ORIGIN_USER,
+		.nh.type = GR_NH_T_L3,
+	};
 	struct gr_iface iface;
 
 	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+
+	if (arg_str(p, "blackhole") != NULL) {
+		req.nh.type = GR_NH_T_BLACKHOLE;
+		goto send;
+	}
+
+	if (arg_str(p, "reject") != NULL) {
+		req.nh.type = GR_NH_T_REJECT;
+		goto send;
+	}
 
 	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
 	case 0:
@@ -85,7 +99,7 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-
+send:
 	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
@@ -245,13 +259,15 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop [id ID] [address IP] iface IFACE [mac MAC]",
+		"nexthop [id ID] ([address IP] iface IFACE [mac MAC])|blackhole|reject",
 		nh_add,
 		"Add a new next hop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Blackhole nexthop.", ec_node_str("blackhole", "blackhole")),
+		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject"))
 	);
 	if (ret < 0)
 		return ret;

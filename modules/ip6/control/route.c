@@ -290,7 +290,11 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 
 	nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip);
 	ret = rib6_delete(
-		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen, GR_NH_T_L3
+		req->vrf_id,
+		GR_IFACE_ID_UNDEF,
+		&req->dest.ip,
+		req->dest.prefixlen,
+		nh ? nh->type : GR_NH_T_L3
 	);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;

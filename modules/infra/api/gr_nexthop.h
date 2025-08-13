@@ -30,6 +30,8 @@ typedef enum : uint8_t {
 	GR_NH_T_SR6_OUTPUT,
 	GR_NH_T_SR6_LOCAL,
 	GR_NH_T_DNAT,
+	GR_NH_T_BLACKHOLE,
+	GR_NH_T_REJECT,
 } gr_nh_type_t;
 
 // Route install origin values shared by IPv4 and IPv6.
@@ -149,6 +151,10 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 		return "SRv6-local";
 	case GR_NH_T_DNAT:
 		return "DNAT";
+	case GR_NH_T_BLACKHOLE:
+		return "blackhole";
+	case GR_NH_T_REJECT:
+		return "reject";
 	}
 	return "?";
 }

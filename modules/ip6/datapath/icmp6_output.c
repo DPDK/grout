@@ -16,6 +16,8 @@
 
 enum {
 	OUTPUT = 0,
+	BLACKHOLE,
+	REJECT,
 	NO_HEADROOM,
 	NO_ROUTE,
 	EDGE_COUNT,
@@ -65,6 +67,13 @@ static uint16_t icmp6_output_process(
 			edge = NO_ROUTE;
 			goto next;
 		}
+		if (nh->type == GR_NH_T_BLACKHOLE) {
+			edge = BLACKHOLE;
+			goto next;
+		} else if (nh->type == GR_NH_T_REJECT) {
+			edge = REJECT;
+			goto next;
+		}
 		o = ip6_output_mbuf_data(mbuf);
 		o->nh = nh;
 		o->iface = d->iface;
@@ -84,6 +93,8 @@ static struct rte_node_register icmp6_output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "ip6_output",
+		[BLACKHOLE] = "ip6_blackhole",
+		[REJECT] = "ip6_admin_prohibited",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_ROUTE] = "icmp6_output_no_route",
 	},
@@ -96,4 +107,5 @@ static struct gr_node_info icmp6_output_info = {
 
 GR_NODE_REGISTER(icmp6_output_info);
 
-GR_DROP_REGISTER(icmp6_output_no_route)
+GR_DROP_REGISTER(icmp6_output_no_route);
+GR_DROP_REGISTER(ip6_admin_prohibited);

@@ -15,6 +15,8 @@
 
 enum {
 	OUTPUT = 0,
+	BLACKHOLE,
+	REJECT,
 	NO_HEADROOM,
 	NO_ROUTE,
 	EDGE_COUNT,
@@ -51,11 +53,21 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			edge = NO_ROUTE;
 			goto next;
 		}
+		if (nh->type == GR_NH_T_BLACKHOLE) {
+			edge = BLACKHOLE;
+			goto next;
+		} else if (nh->type == GR_NH_T_REJECT) {
+			edge = REJECT;
+			goto next;
+		}
 		o = ip_output_mbuf_data(mbuf);
 		o->nh = nh;
 		o->iface = NULL;
 		edge = OUTPUT;
 next:
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
+
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -70,6 +82,8 @@ static struct rte_node_register icmp_output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "ip_output",
+		[BLACKHOLE] = "ip_blackhole",
+		[REJECT] = "ip_admin_prohibited",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_ROUTE] = "icmp_output_no_route",
 	},
@@ -82,3 +96,4 @@ static struct gr_node_info icmp_output_info = {
 GR_NODE_REGISTER(icmp_output_info);
 
 GR_DROP_REGISTER(icmp_output_no_route);
+GR_DROP_REGISTER(ip_admin_prohibited);
