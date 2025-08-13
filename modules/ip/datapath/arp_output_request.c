@@ -22,6 +22,8 @@
 
 enum {
 	OUTPUT = 0,
+	BLACKHOLE,
+	REJECT,
 	ERROR,
 	EDGE_COUNT,
 };
@@ -61,6 +63,16 @@ static uint16_t arp_output_request_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		nh = control_input_mbuf_data(mbuf)->data;
+
+		if (nh->type == GR_NH_T_BLACKHOLE) {
+			edge = BLACKHOLE;
+			goto next;
+		}
+		if (nh->type == GR_NH_T_REJECT) {
+			edge = REJECT;
+			goto next;
+		}
+
 		local = addr4_get_preferred(nh->iface_id, nh->ipv4);
 
 		if (local == NULL) {
@@ -122,6 +134,8 @@ static struct rte_node_register arp_output_request_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "eth_output",
+		[BLACKHOLE] = "ip_blackhole",
+		[REJECT] = "ip_admin_prohibited",
 		[ERROR] = "arp_output_error",
 	},
 };
