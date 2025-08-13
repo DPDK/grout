@@ -354,12 +354,12 @@ static cmd_status_t iface_stats(const struct gr_api_client *c, const struct ec_p
 	}
 
 	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "RX_BYTES", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "RX_DROPS", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_PACKETS", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_BYTES", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_ERRORS", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "RX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "RX_BYTES", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "RX_DROPS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_BYTES", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_ERRORS", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
@@ -419,12 +419,12 @@ static cmd_status_t iface_rates(const struct gr_api_client *c, const struct ec_p
 	}
 
 	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS/S", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "RX_BYTES/S", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "RX_DROPS/S", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_PACKETS/S", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_BYTES/S", SCOLS_FL_RIGHT, 0);
-	scols_table_new_column(table, "TX_ERRORS/S", SCOLS_FL_RIGHT, 0);
+	scols_table_new_column(table, "RX_PACKETS/S", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "RX_BYTES/S", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "RX_DROPS/S", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_PACKETS/S", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_BYTES/S", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "TX_ERRORS/S", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
