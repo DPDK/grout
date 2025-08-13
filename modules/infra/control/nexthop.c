@@ -312,6 +312,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
 		if (ops == NULL || (ops->free == NULL && ops->equal == NULL))
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
@@ -336,6 +337,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
 		break;
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
