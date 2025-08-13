@@ -107,6 +107,9 @@ static int nexthop_id_get(struct nexthop *nh) {
 		nh->nh_id = 0;
 		return 0;
 	}
+	// don't allocate nh id for address, else will conflict with zebra nexthop address
+	if (nh->nh_id == 0 && nh->origin == GR_NH_ORIGIN_LINK)
+		return 0;
 
 	// if no id allocate one
 	if (nh->nh_id == 0) {
