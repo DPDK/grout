@@ -5,5 +5,8 @@ src += files(
   'dnat44.c',
 )
 
-api_headers += files('gr_nat.h')
+api_headers += files(
+  'gr_conn.h',
+  'gr_nat.h',
+)
 api_inc += include_directories('.')
