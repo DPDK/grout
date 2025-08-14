@@ -438,6 +438,20 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	}
 }
 
+void gr_conn_snat44_purge(const struct gr_snat44_policy *policy) {
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(conn_hash, &key, &data, &next) >= 0) {
+		if (conn_flow(data) != CONN_FLOW_FWD)
+			continue;
+		struct conn *conn = conn_ptr(data);
+		if (conn->nat.policy == policy)
+			gr_conn_destroy(conn);
+	}
+}
+
 void gr_conn_destroy(struct conn *conn) {
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("called from datapath thread");
@@ -450,6 +464,7 @@ static void conn_free(void * /*priv*/, void *data) {
 	struct conn *conn = data;
 
 	if (--conn->ref_count == 0) {
+		gr_conn_snat44_free_ports(conn);
 		rte_mempool_put(conn_pool, conn);
 	}
 }

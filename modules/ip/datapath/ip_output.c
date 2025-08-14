@@ -23,10 +23,12 @@
 
 enum {
 	ETH_OUTPUT = 0,
+	CONNTRACK,
 	HOLD,
 	NO_ROUTE,
 	ERROR,
 	TOO_BIG,
+	DROP,
 	EDGE_COUNT,
 };
 
@@ -96,8 +98,17 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		edge = iface_type_edges[iface->type];
 		mbuf_data(mbuf)->iface = iface;
 
-		if (iface->flags & GR_IFACE_F_SNAT_STATIC)
-			snat44_static_process(iface, mbuf);
+		switch (snat44_process(iface, mbuf)) {
+		case NAT_VERDICT_CONTINUE:
+		case NAT_VERDICT_FINAL:
+			break;
+		case NAT_VERDICT_DROP:
+			edge = DROP;
+			break;
+		case NAT_VERDICT_CONTROL:
+			edge = CONNTRACK;
+			break;
+		}
 
 		if (edge != ETH_OUTPUT)
 			goto next;
@@ -138,10 +149,12 @@ static struct rte_node_register output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[ETH_OUTPUT] = "eth_output",
+		[CONNTRACK] = "snat44_conntrack",
 		[HOLD] = "ip_hold",
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[ERROR] = "ip_output_error",
 		[TOO_BIG] = "ip_output_too_big",
+		[DROP] = "ip_output_drop",
 	},
 };
 
@@ -154,3 +167,4 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_output_error);
 GR_DROP_REGISTER(ip_output_too_big);
+GR_DROP_REGISTER(ip_output_drop);

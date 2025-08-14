@@ -7,6 +7,7 @@
 #include <gr_conntrack.h>
 #include <gr_iface.h>
 #include <gr_mbuf.h>
+#include <gr_nat_control.h>
 #include <gr_net_types.h>
 
 #include <rte_tcp.h>
@@ -47,6 +48,7 @@ struct conn {
 	_Atomic(gr_conn_state_t) state;
 	_Atomic(clock_t) last_update;
 	atomic_uint ref_count;
+	struct nat44 nat;
 };
 
 bool gr_conn_parse_key(
@@ -59,6 +61,9 @@ struct conn *gr_conn_lookup(const struct conn_key *, conn_flow_t *);
 struct conn *gr_conn_insert(const struct conn_key *fwd, const struct conn_key *rev);
 void gr_conn_update(struct conn *, const conn_flow_t, const struct rte_tcp_hdr *);
 void gr_conn_destroy(struct conn *);
+void gr_conn_snat44_purge(const struct gr_snat44_policy *);
+void gr_conn_snat44_free_ports(const struct conn *);
+const struct gr_snat44_policy *snat44_dynamic_policy_lookup(const struct conn_key *);
 const struct gr_conntrack_config *gr_conntrack_config_get(void);
 void gr_conntrack_config_set(const struct gr_conntrack_config *);
 
