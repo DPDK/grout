@@ -462,11 +462,31 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		gr_conn_destroy(conn);
 }
 
+void gr_conn_snat44_purge(struct snat44_policy *policy) {
+	struct rte_hash *h = atomic_load(&conn_hash);
+	gr_vec struct conn **to_purge = NULL;
+	uint32_t next = 0;
+	struct conn *conn;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(h, &key, &data, &next) >= 0) {
+		if (conn_flow(data) != CONN_FLOW_FWD)
+			continue;
+		conn = conn_ptr(data);
+		if (conn->nat.policy == policy)
+			gr_vec_add(to_purge, conn);
+	}
+	gr_vec_foreach (conn, to_purge)
+		gr_conn_destroy(conn);
+}
+
 void gr_conn_destroy(struct conn *conn) {
 	struct rte_hash *h = atomic_load(&conn_hash);
 	rte_hash_del_key(h, &conn->fwd_key);
 	rte_hash_del_key(h, &conn->rev_key);
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	gr_conn_snat44_free_port(conn->nat.policy, conn->fwd_key.proto, conn->nat.tran_id);
 	rte_mempool_put(rte_mempool_from_obj(conn), conn);
 }
 

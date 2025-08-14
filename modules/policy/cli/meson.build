@@ -4,4 +4,5 @@
 cli_src += files(
   'conntrack.c',
   'dnat44.c',
+  'snat44.c',
 )
