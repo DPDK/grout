@@ -96,8 +96,10 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		edge = iface_type_edges[iface->type];
 		mbuf_data(mbuf)->iface = iface;
 
-		if (iface->flags & GR_IFACE_F_SNAT_STATIC)
-			snat44_static_process(iface, mbuf);
+		if (iface->flags & GR_IFACE_F_SNAT_STATIC && snat44_static_process(iface, mbuf))
+			;
+		else if (iface->flags & GR_IFACE_F_SNAT_DYNAMIC)
+			snat44_dynamic_process(iface, mbuf);
 
 		if (edge != ETH_OUTPUT)
 			goto next;
