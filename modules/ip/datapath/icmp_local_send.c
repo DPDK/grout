@@ -10,6 +10,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_vec.h>
 
 #include <rte_icmp.h>
 #include <rte_ip.h>
@@ -45,6 +46,13 @@ int icmp_local_send(
 	const struct nexthop *local;
 	struct ctl_to_stack *msg;
 	int ret;
+
+	if (gw->type == GR_NH_T_GROUP) {
+		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
+		if (gr_vec_len(g->nhs) == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = g->nhs[ident % gr_vec_len(g->nhs)];
+	}
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
@@ -104,6 +112,10 @@ static uint16_t icmp_local_send_process(
 		icmp->icmp_code = 0;
 		icmp->icmp_seq_nb = rte_cpu_to_be_16(msg->seq_num);
 		icmp->icmp_ident = rte_cpu_to_be_16(msg->ident);
+
+		// Fake RSS to spread the traffic
+		// for ECMP routes or active/active bonds.
+		mbuf->hash.rss = msg->ident;
 
 		data = ip_local_mbuf_data(mbuf);
 		data->proto = IPPROTO_ICMP;
