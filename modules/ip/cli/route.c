@@ -48,10 +48,12 @@ static cmd_status_t route4_del(const struct gr_api_client *c, const struct ec_pn
 }
 
 static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_list_req nh_req = {.vrf_id = UINT16_MAX, .all = true};
 	struct gr_ip4_route_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
+	void *resp_ptr = NULL, *nh_resp_ptr = NULL;
 	const struct gr_ip4_route_list_resp *resp;
-	void *resp_ptr = NULL;
+	const struct gr_nh_list_resp *nh_resp;
 
 	if (table == NULL)
 		return CMD_ERROR;
@@ -59,12 +61,19 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+	if (gr_api_client_send_recv(c, GR_NH_LIST, sizeof(nh_req), &nh_req, &nh_resp_ptr) < 0) {
 		scols_unref_table(table);
 		return CMD_ERROR;
 	}
+	nh_resp = nh_resp_ptr;
 
+	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		free(nh_resp_ptr);
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
 	resp = resp_ptr;
+
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
@@ -79,11 +88,22 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 		struct gr_iface iface;
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		if (route->nh.type == GR_NH_T_BLACKHOLE)
+		switch (route->nh.type) {
+		case GR_NH_T_BLACKHOLE:
 			scols_line_sprintf(line, 2, "blackhole");
-		else if (route->nh.type == GR_NH_T_REJECT)
+			break;
+		case GR_NH_T_REJECT:
 			scols_line_sprintf(line, 2, "reject");
-		else
+			break;
+		case GR_NH_T_GROUP: {
+			char buf[BUFSIZ] = "";
+			nh_group_print(c, nh_resp, route->nh.nh_id, buf);
+			scols_line_sprintf(line, 2, "%s", buf);
+		} break;
+		case GR_NH_T_L3:
+		case GR_NH_T_SR6_OUTPUT:
+		case GR_NH_T_SR6_LOCAL:
+		case GR_NH_T_DNAT:
 			switch (route->nh.af) {
 			case GR_AF_UNSPEC:
 				if (iface_from_id(c, route->nh.iface_id, &iface) < 0)
@@ -98,6 +118,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 				scols_line_sprintf(line, 2, IP6_F, &route->nh.ipv6);
 				break;
 			}
+		}
 		scols_line_sprintf(line, 3, "%s", gr_nh_origin_name(route->origin));
 		if (route->nh.nh_id != GR_NH_ID_UNSET)
 			scols_line_sprintf(line, 4, "%u", route->nh.nh_id);
@@ -108,6 +129,7 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 
 	scols_print_table(table);
 	scols_unref_table(table);
+	free(nh_resp_ptr);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
