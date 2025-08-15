@@ -32,6 +32,7 @@ typedef enum : uint8_t {
 	GR_NH_T_DNAT,
 	GR_NH_T_BLACKHOLE,
 	GR_NH_T_REJECT,
+	GR_NH_T_GROUP, // ECMP
 #define GR_NH_T_ALL UINT8_C(0xff)
 } gr_nh_type_t;
 
@@ -97,6 +98,17 @@ struct gr_nexthop_info_l3 {
 		struct rte_ipv6_addr ipv6;
 	};
 	struct rte_ether_addr mac; //!< link-layer address
+};
+
+// Info for GR_NH_T_GROUP nexthops
+struct gr_nexthop_group_member {
+	uint32_t nh_id;
+	uint32_t weight;
+};
+
+struct gr_nexthop_info_group {
+	uint32_t n_members;
+	struct gr_nexthop_group_member members[];
 };
 
 //! Nexthop structure exposed to the API.
@@ -166,6 +178,8 @@ static inline const char *gr_nh_type_name(const gr_nh_type_t type) {
 		return "blackhole";
 	case GR_NH_T_REJECT:
 		return "reject";
+	case GR_NH_T_GROUP:
+		return "group";
 	}
 	return "?";
 }
