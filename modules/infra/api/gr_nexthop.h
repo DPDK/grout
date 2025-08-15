@@ -31,6 +31,7 @@ typedef enum : uint8_t {
 	GR_NH_T_SR6_LOCAL,
 	GR_NH_T_DNAT,
 	GR_NH_T_BLACKHOLE,
+	GR_NH_T_GROUP, // ECMP
 } gr_nh_type_t;
 
 // Route install origin values shared by IPv4 and IPv6.
@@ -73,6 +74,8 @@ typedef enum : uint8_t {
 
 #define GR_NH_ID_UNSET UINT32_C(0)
 
+#define GR_NH_GROUP_MAX 64
+
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
 	gr_nh_type_t type;
@@ -84,12 +87,14 @@ struct gr_nexthop {
 	uint16_t iface_id; //!< interface associated with this nexthop
 	struct rte_ether_addr mac; //!< link-layer address
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
+	uint8_t nh_grp_count; //!< only has meaning with GR_NH_T_GROUP
 	gr_nh_origin_t origin;
 	union {
 		struct {
 		} addr;
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
+		struct nexthop *nh_group[GR_NH_GROUP_MAX];
 	};
 };
 
@@ -152,6 +157,8 @@ static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
 		return "DNAT";
 	case GR_NH_T_BLACKHOLE:
 		return "blackhole";
+	case GR_NH_T_GROUP:
+		return "group";
 	}
 	return "?";
 }
@@ -289,4 +296,21 @@ struct gr_nh_list_req {
 struct gr_nh_list_resp {
 	uint16_t n_nhs;
 	struct gr_nexthop nhs[/* n_nhs */];
+};
+
+#define GR_NH_GROUP_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0074)
+struct gr_nh_group_set_req {
+	uint32_t group_id;
+	uint32_t nh_grp_count;
+	uint32_t nh_ids[GR_NH_GROUP_MAX];
+};
+
+#define GR_NH_GROUP_SHOW REQUEST_TYPE(GR_INFRA_MODULE, 0x0075)
+struct gr_nh_group_show_req {
+	uint32_t group_id;
+};
+
+struct gr_nh_group_show_resp {
+	uint32_t nh_grp_count;
+	uint32_t nexthop_ids[GR_NH_GROUP_MAX];
 };
