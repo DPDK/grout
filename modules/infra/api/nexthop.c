@@ -263,7 +263,6 @@ static struct api_out nh_group_set(const void *request, void ** /*response*/) {
 	if (req->nh_grp_count > GR_NH_GROUP_MAX)
 		return api_out(ENOSPC, 0);
 
-
 	for (size_t i = 0; i < req->nh_grp_count; i++) {
 		nh[i] = nexthop_lookup_by_id(req->nh_ids[i]);
 		if (nh[i] == NULL)
