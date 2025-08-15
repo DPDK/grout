@@ -307,6 +307,9 @@ err:
 }
 
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
+	static const struct rte_ether_addr stp_dst = {
+		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x00},
+	};
 	const struct rte_ether_hdr *eth;
 	struct rte_ether_addr src, dst;
 	rte_be16_t ether_type;
@@ -334,6 +337,11 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 		vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
 		ether_type = vlan->eth_proto;
 		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
+	}
+
+	if (rte_is_same_ether_addr(&dst, &stp_dst)) {
+		SAFE_BUF(snprintf, sizeof(buf), " / STP");
+		goto end;
 	}
 
 	switch (ether_type) {
@@ -410,11 +418,24 @@ ipv4:
 		SAFE_BUF(trace_arp_format, sizeof(buf), arp, sizeof(*arp));
 		break;
 	}
+	case RTE_BE16(RTE_ETHER_TYPE_1588):
+		SAFE_BUF(snprintf, sizeof(buf), " / PTP");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_LLDP):
+		SAFE_BUF(snprintf, sizeof(buf), " / LLDP");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_MPLS):
+		SAFE_BUF(snprintf, sizeof(buf), " / MPLS");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_SLOW):
+		SAFE_BUF(snprintf, sizeof(buf), " / LACP");
+		break;
 	default:
 		SAFE_BUF(snprintf, sizeof(buf), " type=");
 		SAFE_BUF(eth_type_format, sizeof(buf), ether_type);
 		break;
 	}
+end:
 	SAFE_BUF(snprintf, sizeof(buf), ", (pkt_len=%u)", m->pkt_len);
 
 	LOG(NOTICE, "[%s %s] %s", node, iface, buf);
