@@ -73,6 +73,10 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 		req.nh.type = GR_NH_T_BLACKHOLE;
 		goto send;
 	}
+	if (arg_str(p, "group") != NULL) {
+		req.nh.type = GR_NH_T_GROUP;
+		goto send;
+	}
 
 	if (arg_str(p, "reject") != NULL) {
 		req.nh.type = GR_NH_T_REJECT;
@@ -119,6 +123,51 @@ static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode 
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
+}
+
+void nh_group_print(
+	const struct gr_api_client *c,
+	const struct gr_nh_list_resp *info,
+	uint32_t group_id,
+	char *line
+) {
+	struct gr_nh_group_show_req req = {.group_id = group_id};
+	struct gr_nh_group_show_resp *resp;
+	const struct gr_nexthop *nh;
+	char buf[BUFSIZ] = "";
+	void *resp_ptr;
+	int n = 0;
+
+	if (gr_api_client_send_recv(c, GR_NH_GROUP_SHOW, sizeof(req), &req, &resp_ptr) < 0) {
+		return;
+	}
+
+	resp = resp_ptr;
+	for (unsigned int i = 0; i < resp->nh_grp_count; i++) {
+		nh = NULL;
+		for (int j = 0; j < info->n_nhs; j++) {
+			if (info->nhs[j].nh_id == resp->nexthop_ids[i])
+				nh = &info->nhs[j];
+		}
+		SAFE_BUF(snprintf, sizeof(buf), "[%d] ", resp->nexthop_ids[i]);
+		if (nh) {
+			if (nh->af == GR_AF_UNSPEC) {
+				struct gr_iface iface;
+				if (iface_from_id(c, nh->iface_id, &iface) == 0)
+					SAFE_BUF(snprintf, sizeof(buf), "iface %s", iface.name);
+			} else {
+				SAFE_BUF(snprintf, sizeof(buf), ADDR_F, ADDR_W(nh->af), &nh->addr);
+			}
+		}
+		SAFE_BUF(snprintf, sizeof(buf), "<%d>, ", resp->weights[i]);
+	}
+	if (strlen(buf) > 2)
+		buf[strlen(buf) - 2] = '\0';
+
+err:
+	free(resp_ptr);
+	strncpy(line, buf, BUFSIZ);
+	return;
 }
 
 static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode *p) {
@@ -168,21 +217,29 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		else
 			scols_line_set_data(line, 1, "");
 		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
-		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
-		if (nh->af == GR_AF_UNSPEC)
-			scols_line_set_data(line, 4, "");
-		else
-			scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
+		if (nh->type == GR_NH_T_GROUP) {
+			scols_line_set_data(line, 3, "");
+			buf[0] = '\0';
+			nh_group_print(c, resp, nh->nh_id, buf);
+			scols_line_sprintf(line, 4, "%s", buf);
+		} else {
+			scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
+			if (nh->af == GR_AF_UNSPEC) {
+				scols_line_set_data(line, 4, "");
+			} else {
+				scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
+			}
 
-		if (nh->state == GR_NH_S_REACHABLE)
-			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
-		else
-			scols_line_set_data(line, 5, "?");
+			if (nh->state == GR_NH_S_REACHABLE)
+				scols_line_sprintf(line, 5, ETH_F, &nh->mac);
+			else
+				scols_line_set_data(line, 5, "?");
 
-		if (iface_from_id(c, nh->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 6, "%s", iface.name);
-		else
-			scols_line_set_data(line, 6, "?");
+			if (iface_from_id(c, nh->iface_id, &iface) == 0)
+				scols_line_sprintf(line, 6, "%s", iface.name);
+			else
+				scols_line_set_data(line, 6, "?");
+		}
 
 		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh));
 
@@ -206,6 +263,33 @@ err:
 	scols_unref_table(table);
 	free(resp_ptr);
 	return CMD_ERROR;
+}
+
+static cmd_status_t nh_group_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+	const struct ec_pnode *n = ec_pnode_find(p, "MEMBERS");
+	struct gr_nh_group_set_req req = {0};
+
+	if (arg_u32(p, "ID", &req.group_id) < 0)
+		return CMD_ERROR;
+
+	while (n) {
+		n = ec_pnode_get_first_child(n);
+		if (arg_u32(n, "NHID", &req.nh_ids[req.nh_grp_count]) < 0)
+			return CMD_ERROR;
+
+		if (arg_u32(n, "WEIGHT", &req.weights[req.nh_grp_count]) < 0 && errno != ENOENT)
+			return CMD_ERROR;
+
+		req.nh_grp_count++;
+		if (req.nh_grp_count == GR_NH_GROUP_MAX)
+			return CMD_ERROR;
+		n = ec_pnode_next(n);
+	}
+
+	if (gr_api_client_send_recv(c, GR_NH_GROUP_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {
@@ -259,7 +343,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop [id ID] ([address IP] iface IFACE [mac MAC])|blackhole|reject",
+		"nexthop [id ID] ([address IP] iface IFACE [mac MAC])|blackhole|reject|group",
 		nh_add,
 		"Add a new next hop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
@@ -267,7 +351,8 @@ static int ctx_init(struct ec_node *root) {
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
 		with_help("Blackhole nexthop.", ec_node_str("blackhole", "blackhole")),
-		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject"))
+		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject")),
+		with_help("group nexthop.", ec_node_str("group", "group"))
 	);
 	if (ret < 0)
 		return ret;
@@ -283,11 +368,44 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW),
-		"nexthop [vrf VRF] [all]",
+		"nexthop ([vrf VRF] [all])",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
 		with_help("All next hops including internal ones.", ec_node_str("all", "all"))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SET),
+		"nexthop group id ID members MEMBERS",
+		nh_group_set,
+		"Set the members for a nexthop group.",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
+		with_help(
+			"Nexthop member IDs with relative weights.",
+			ec_node_many(
+				"MEMBERS",
+				EC_NODE_CMD(
+					EC_NO_ID,
+					"nh NHID [weight WEIGHT]",
+					ec_node_uint("NHID", 1, UINT32_MAX - 1, 10),
+					ec_node_uint("WEIGHT", 1, UINT32_MAX - 1, 10)
+				),
+				1,
+				GR_NH_GROUP_MAX
+			)
+		)
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_CLEAR),
+		"nexthop group id ID",
+		nh_group_set,
+		"Append a nexthop to a group.",
+		with_help("Nexthop Group ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
