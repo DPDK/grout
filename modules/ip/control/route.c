@@ -265,7 +265,7 @@ static struct api_out route4_del(const void *request, void ** /*response*/) {
 	int ret;
 
 	nh = rib4_lookup(req->vrf_id, req->dest.ip);
-	ret = rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen, GR_NH_T_L3);
+	ret = rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen, nh->type);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 
