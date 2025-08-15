@@ -313,6 +313,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		if (ops == NULL)
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
@@ -335,6 +336,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		break;
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
@@ -483,6 +485,28 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
 	return data;
 }
 
+static void nh_groups_remove_member(const struct nexthop *nh) {
+	struct nexthop_info_group *info;
+	struct nexthop *group;
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(hash_by_id, &key, &data, &next) >= 0) {
+		group = data;
+		if (group->type != GR_NH_T_GROUP)
+			continue;
+		info = nexthop_info_group(group);
+		for (uint32_t i = 0; i < info->n_members; i++) {
+			if (info->members[i].nh == nh) {
+				info->members[i].nh = info->members[info->n_members - 1].nh;
+				info->members[i].weight = info->members[info->n_members - 1].weight;
+				info->n_members--;
+			}
+		}
+	}
+}
+
 void nexthop_routes_cleanup(struct nexthop *nh) {
 	const struct nexthop_af_ops *ops;
 	for (unsigned i = 0; i < ARRAY_DIM(af_ops); i++) {
@@ -513,8 +537,8 @@ void nexthop_decref(struct nexthop *nh) {
 		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
+		nh_groups_remove_member(nh);
 		nexthop_id_put(nh);
-
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
 		assert(nh_stats.total > 0);
@@ -525,7 +549,6 @@ void nexthop_decref(struct nexthop *nh) {
 		const struct nexthop_type_ops *ops = type_ops[nh->type];
 		if (ops != NULL && ops->free != NULL)
 			ops->free(nh);
-
 		rte_mempool_put(pool, nh);
 	}
 }
@@ -795,6 +818,100 @@ static struct nexthop_type_ops l3_nh_ops = {
 	.to_api = l3_to_api,
 };
 
+static bool group_equal(const struct nexthop *a, const struct nexthop *b) {
+	const struct nexthop_info_group *da = nexthop_info_group(a);
+	const struct nexthop_info_group *db = nexthop_info_group(b);
+
+	if (da->n_members != db->n_members)
+		return false;
+	for (uint32_t i = 0; i < da->n_members; i++)
+		if (da->members[i].nh != db->members[i].nh
+		    || da->members[i].weight != db->members[i].weight)
+			return false;
+	return true;
+}
+
+static void group_free(struct nexthop *nh) {
+	struct nexthop_info_group *pvt = nexthop_info_group(nh);
+
+	for (uint32_t i = 0; i < pvt->n_members; i++)
+		nexthop_decref(pvt->members[i].nh);
+	rte_free(pvt->members);
+}
+
+static int group_import_info(struct nexthop *nh, const void *info) {
+	struct nexthop_info_group *pvt = nexthop_info_group(nh);
+	const struct gr_nexthop_info_group *group = info;
+	struct nh_group_member *members, *tmp;
+	uint32_t n_tmp;
+
+	members = rte_zmalloc(
+		__func__, group->n_members * sizeof(pvt->members[0]), RTE_CACHE_LINE_SIZE
+	);
+	if (group->n_members > 0 && members == NULL)
+		return errno_set(ENOMEM);
+
+	for (uint32_t i = 0; i < group->n_members; i++) {
+		struct nexthop *nh = nexthop_lookup_by_id(group->members[i].nh_id);
+		if (nh) {
+			members[i].nh = nh;
+			members[i].weight = group->members[i].weight;
+		} else {
+			rte_free(members);
+			return errno_set(ENOENT);
+		}
+	}
+
+	for (uint32_t i = 0; i < group->n_members; i++)
+		nexthop_incref(members[i].nh);
+
+	n_tmp = pvt->n_members;
+	tmp = pvt->members;
+	pvt->n_members = group->n_members;
+	pvt->members = members;
+
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
+	for (uint32_t i = 0; i < n_tmp; i++)
+		nexthop_decref(tmp[i].nh);
+
+	rte_free(tmp);
+
+	return 0;
+}
+
+static struct gr_nexthop *group_to_api(const struct nexthop *nh, size_t *len) {
+	const struct nexthop_info_group *group_priv = nexthop_info_group(nh);
+	struct gr_nexthop_info_group *group_pub;
+	struct gr_nexthop *pub;
+	*len = sizeof(*pub) + sizeof(*group_pub)
+		+ group_priv->n_members * sizeof(group_priv->members[0]);
+
+	pub = malloc(*len);
+	if (pub == NULL) {
+		*len = 0;
+		return errno_set_null(ENOMEM);
+	}
+
+	pub->base = nh->base;
+	group_pub = (struct gr_nexthop_info_group *)pub->info;
+
+	group_pub->n_members = group_priv->n_members;
+	for (uint32_t i = 0; i < group_pub->n_members; i++) {
+		group_pub->members[i].nh_id = group_priv->members[i].nh->nh_id;
+		group_pub->members[i].weight = group_priv->members[i].weight;
+	}
+
+	return pub;
+}
+
+static struct nexthop_type_ops group_nh_ops = {
+	.equal = group_equal,
+	.free = group_free,
+	.import_info = group_import_info,
+	.to_api = group_to_api,
+};
+
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
@@ -802,4 +919,5 @@ RTE_INIT(init) {
 		"/grout/nexthop/stats", telemetry_nexthop_stats_get, "Get nexthop statistics"
 	);
 	nexthop_type_ops_register(GR_NH_T_L3, &l3_nh_ops);
+	nexthop_type_ops_register(GR_NH_T_GROUP, &group_nh_ops);
 }

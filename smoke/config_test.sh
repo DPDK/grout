@@ -16,6 +16,8 @@ grcli nexthop add l3 iface p0 address ba4:f00::1 mac ba:d0:ca:ca:00:02
 grcli nexthop add l3 iface p1 address 4.3.2.1 mac ba:d0:ca:ca:00:01
 grcli nexthop add blackhole id 666
 grcli nexthop add reject id 123456
+grcli nexthop add group id 333 member 42 weight 102
+grcli nexthop add group id 333 member 45 member 47
 grcli address add 10.0.0.1/24 iface p0
 grcli address add 10.1.0.1/24 iface p1
 grcli route add 0.0.0.0/0 via 10.0.0.2
@@ -40,6 +42,7 @@ grcli stats show hardware
 grcli nexthop del 42
 grcli nexthop del 666
 grcli nexthop del 123456
+grcli nexthop del 333
 
 grcli interface del p0
 grcli interface del p1
