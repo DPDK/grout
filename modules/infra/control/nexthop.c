@@ -313,6 +313,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		if (ops == NULL)
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
@@ -335,6 +336,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		break;
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
@@ -795,6 +797,78 @@ static struct nexthop_type_ops l3_nh_ops = {
 	.to_api = l3_to_api,
 };
 
+static bool group_equal(const struct nexthop *a, const struct nexthop *b) {
+	const struct nexthop_info_group *da = nexthop_info_group(a);
+	const struct nexthop_info_group *db = nexthop_info_group(b);
+
+	assert(a->type == GR_NH_T_GROUP);
+	assert(b->type == GR_NH_T_GROUP);
+
+	if (gr_vec_len(da->nhs) != gr_vec_len(db->nhs))
+		return false;
+	if (memcmp(da->weights, db->weights, gr_vec_len(da->weights)))
+		return false;
+	if (memcmp(da->nhs, db->nhs, gr_vec_len(da->nhs)))
+		return false;
+
+	return true;
+}
+
+static void group_free(struct nexthop *nh) {
+	assert(nh->type == GR_NH_T_GROUP);
+	memset(nexthop_info_group(nh), 0, sizeof(*nexthop_info_group(nh)));
+}
+
+static int group_import_info(struct nexthop *nh, const void *info) {
+	struct nexthop_info_group *pvt = nexthop_info_group(nh);
+	const struct gr_nexthop_info_group *group = info;
+
+	if (group->count > GR_NH_GROUP_MAX)
+		return -E2BIG;
+
+	for (uint32_t i = 0; i < group->count; i++) {
+		struct nexthop *nh = nexthop_lookup_by_id(group->nh_ids[i]);
+		if (nh) {
+			gr_vec_add(pvt->nhs, nh);
+			gr_vec_add(pvt->weights, group->weights[i]);
+		} else {
+			return -ENOENT;
+		}
+	}
+	return 0;
+}
+
+static struct gr_nexthop *group_to_api(const struct nexthop *nh, size_t *len) {
+	const struct nexthop_info_group *group_priv = nexthop_info_group(nh);
+	struct gr_nexthop_info_group *group_pub;
+	struct gr_nexthop *pub;
+
+	pub = malloc(sizeof(*pub) + sizeof(*group_pub));
+	if (pub == NULL) {
+		len = 0;
+		return errno_set_null(ENOMEM);
+	}
+
+	pub->base = nh->base;
+	group_pub = (struct gr_nexthop_info_group *)pub->info;
+
+	group_pub->count = gr_vec_len(group_priv->nhs);
+	for (uint32_t i = 0; i < group_pub->count; i++) {
+		group_pub->nh_ids[i] = group_priv->nhs[i]->nh_id;
+		group_pub->weights[i] = group_priv->weights[i];
+	}
+
+	*len = sizeof(*pub) + sizeof(*group_pub);
+	return pub;
+}
+
+static struct nexthop_type_ops group_nh_ops = {
+	.equal = group_equal,
+	.free = group_free,
+	.import_info = group_import_info,
+	.to_api = group_to_api,
+};
+
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
@@ -802,4 +876,5 @@ RTE_INIT(init) {
 		"/grout/nexthop/stats", telemetry_nexthop_stats_get, "Get nexthop statistics"
 	);
 	nexthop_type_ops_register(GR_NH_T_L3, &l3_nh_ops);
+	nexthop_type_ops_register(GR_NH_T_GROUP, &group_nh_ops);
 }
