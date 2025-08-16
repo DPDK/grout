@@ -159,6 +159,14 @@ static void grout_sync_nhs(struct event *e) {
 	}
 	nh_resp = resp;
 	for (uint16_t i = 0; i < nh_resp->n_nhs; i++) {
+		if (nh_resp->nhs[i].type != GR_NH_T_GROUP)
+			continue;
+		gr_log_debug("sync nexthop %d", nh_resp->nhs[i].nh_id);
+		grout_nexthop_change(true, &nh_resp->nhs[i], true);
+	}
+	for (uint16_t i = 0; i < nh_resp->n_nhs; i++) {
+		if (nh_resp->nhs[i].type == GR_NH_T_GROUP)
+			continue;
 		gr_log_debug("sync nexthop %d", nh_resp->nhs[i].nh_id);
 		grout_nexthop_change(true, &nh_resp->nhs[i], true);
 	}
