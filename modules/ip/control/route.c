@@ -122,15 +122,16 @@ struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefix
 	return nh_id_to_ptr(nh_id);
 }
 
-int rib4_insert(
+static int rib4_insert_or_replace(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
 	uint8_t prefixlen,
 	gr_nh_origin_t origin,
-	struct nexthop *nh
+	struct nexthop *nh,
+	bool replace
 ) {
 	struct rte_rib *rib = get_or_create_rib(vrf_id);
-	struct nexthop *existing;
+	struct nexthop *existing = NULL;
 	struct rte_rib_node *rn;
 	gr_nh_origin_t *o;
 	int ret;
@@ -141,15 +142,21 @@ int rib4_insert(
 		ret = -errno;
 		goto fail;
 	}
-	existing = rib4_lookup_exact(vrf_id, ip, prefixlen);
-	if (existing != NULL) {
-		ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
-		goto fail;
-	}
 
-	if ((rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
-		ret = -rte_errno;
-		goto fail;
+	if ((rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
+		rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen);
+		if (rn == NULL) {
+			ret = -rte_errno;
+			goto fail;
+		}
+	} else {
+		uintptr_t nh_id;
+		rte_rib_get_nh(rn, &nh_id);
+		existing = nh_id_to_ptr(nh_id);
+		if (!replace) {
+			ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
+			goto fail;
+		}
 	}
 
 	nh->flags |= GR_NH_F_GATEWAY;
@@ -170,10 +177,23 @@ int rib4_insert(
 		);
 	}
 
+	if (existing)
+		nexthop_decref(existing);
+
 	return 0;
 fail:
 	nexthop_decref(nh);
 	return errno_set(-ret);
+}
+
+int rib4_insert(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	struct nexthop *nh
+) {
+	return rib4_insert_or_replace(vrf_id, ip, prefixlen, origin, nh, false);
 }
 
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type) {
@@ -252,9 +272,9 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	}
 
 	// if route insert fails, the created nexthop will be freed
-	ret = rib4_insert(req->vrf_id, req->dest.ip, req->dest.prefixlen, req->origin, nh);
-	if (ret == -EEXIST && req->exist_ok)
-		ret = 0;
+	ret = rib4_insert_or_replace(
+		req->vrf_id, req->dest.ip, req->dest.prefixlen, req->origin, nh, req->exist_ok
+	);
 
 	return api_out(-ret, 0);
 }

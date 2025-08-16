@@ -132,39 +132,48 @@ struct nexthop *rib6_lookup_exact(
 	return nh_id_to_ptr(nh_id);
 }
 
-int rib6_insert(
+static int rib6_insert_or_replace(
 	uint16_t vrf_id,
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
 	uint8_t prefixlen,
 	gr_nh_origin_t origin,
-	struct nexthop *nh
+	struct nexthop *nh,
+	bool replace
 ) {
 	struct rte_rib6 *rib = get_or_create_rib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
+	struct nexthop *existing = NULL;
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
-	struct nexthop *existing;
 	gr_nh_origin_t *o;
 	int ret;
 
 	nexthop_incref(nh);
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 
 	if (rib == NULL) {
 		ret = -errno;
 		goto fail;
 	}
-	existing = rib6_lookup_exact(vrf_id, iface_id, ip, prefixlen);
-	if (existing != NULL) {
-		ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
-		goto fail;
+
+	if ((rn = rte_rib6_lookup_exact(rib, scoped_ip, prefixlen)) == NULL) {
+		rn = rte_rib6_insert(rib, scoped_ip, prefixlen);
+		if (rn == NULL) {
+			ret = -rte_errno;
+			goto fail;
+		}
+	} else {
+		uintptr_t nh_id;
+		rte_rib6_get_nh(rn, &nh_id);
+		existing = nh_id_to_ptr(nh_id);
+		if (!replace) {
+			ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
+			goto fail;
+		}
 	}
 
-	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
-	if ((rn = rte_rib6_insert(rib, scoped_ip, prefixlen)) == NULL) {
-		ret = -rte_errno;
-		goto fail;
-	}
+	nh->flags |= GR_NH_F_GATEWAY;
 
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib6_get_ext(rn);
@@ -182,10 +191,24 @@ int rib6_insert(
 		);
 	}
 
+	if (existing)
+		nexthop_decref(existing);
+
 	return 0;
 fail:
 	nexthop_decref(nh);
 	return errno_set(-ret);
+}
+
+int rib6_insert(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	struct nexthop *nh
+) {
+	return rib6_insert_or_replace(vrf_id, iface_id, ip, prefixlen, origin, nh, false);
 }
 
 int rib6_delete(
@@ -272,13 +295,15 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 	}
 
 	// if route insert fails, the created nexthop will be freed
-	ret = rib6_insert(
-		req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, req->origin, nh
+	ret = rib6_insert_or_replace(
+		req->vrf_id,
+		nh->iface_id,
+		&req->dest.ip,
+		req->dest.prefixlen,
+		req->origin,
+		nh,
+		req->exist_ok
 	);
-	if (ret == -EEXIST && req->exist_ok)
-		ret = 0;
-
-	nh->flags |= GR_NH_F_GATEWAY;
 
 	return api_out(-ret, 0);
 }
