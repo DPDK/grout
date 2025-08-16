@@ -65,25 +65,25 @@ static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode 
 	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
+	switch (arg_ip4(p, "IP", &req.nh.l3.ipv4)) {
 	case 0:
-		req.nh.af = GR_AF_IP4;
+		req.nh.l3.af = GR_AF_IP4;
 		break;
 	case -EINVAL:
-		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
+		if (arg_ip6(p, "IP", &req.nh.l3.ipv6) < 0)
 			return CMD_ERROR;
-		req.nh.af = GR_AF_IP6;
+		req.nh.l3.af = GR_AF_IP6;
 		break;
 	default:
-		req.nh.af = GR_AF_UNSPEC;
+		req.nh.l3.af = GR_AF_UNSPEC;
 		break;
 	}
 
 	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
 		return CMD_ERROR;
-	req.nh.iface_id = iface.id;
+	req.nh.l3.iface_id = iface.id;
 
-	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
+	if (arg_eth_addr(p, "MAC", &req.nh.l3.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
@@ -154,18 +154,18 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		else
 			scols_line_set_data(line, 1, "");
 		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
-		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
-		if (nh->af == GR_AF_UNSPEC)
+		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->l3.af));
+		if (nh->l3.af == GR_AF_UNSPEC)
 			scols_line_set_data(line, 4, "");
 		else
-			scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
+			scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->l3.af), &nh->l3.addr);
 
 		if (nh->state == GR_NH_S_REACHABLE)
-			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
+			scols_line_sprintf(line, 5, ETH_F, &nh->l3.mac);
 		else
 			scols_line_set_data(line, 5, "?");
 
-		if (iface_from_id(c, nh->iface_id, &iface) == 0)
+		if (iface_from_id(c, nh->l3.iface_id, &iface) == 0)
 			scols_line_sprintf(line, 6, "%s", iface.name);
 		else
 			scols_line_set_data(line, 6, "?");

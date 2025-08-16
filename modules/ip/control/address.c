@@ -51,7 +51,7 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 		return NULL;
 
 	gr_vec_foreach (nh, addrs->nh) {
-		if (ip4_addr_same_subnet(dst, nh->ipv4, nh->prefixlen))
+		if (ip4_addr_same_subnet(dst, nh->l3.ipv4, nh->l3.prefixlen))
 			return nh;
 	}
 
@@ -72,8 +72,8 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 	ifaddrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, ifaddrs->nh) {
-		if (req->exist_ok && req->addr.addr.ip == nh->ipv4
-		    && req->addr.addr.prefixlen == nh->prefixlen)
+		if (req->exist_ok && req->addr.addr.ip == nh->l3.ipv4
+		    && req->addr.addr.prefixlen == nh->l3.prefixlen)
 			return api_out(0, 0);
 	}
 
@@ -82,22 +82,23 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 
 	struct gr_nexthop base = {
 		.type = GR_NH_T_L3,
-		.af = GR_AF_IP4,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
 		.state = GR_NH_S_REACHABLE,
 		.vrf_id = iface->vrf_id,
-		.iface_id = iface->id,
-		.ipv4 = req->addr.addr.ip,
-		.prefixlen = req->addr.addr.prefixlen,
+		.l3.af = GR_AF_IP4,
+		.l3.iface_id = iface->id,
+		.l3.ipv4 = req->addr.addr.ip,
+		.l3.prefixlen = req->addr.addr.prefixlen,
 		.origin = GR_NH_ORIGIN_LINK,
 	};
-	if (iface_get_eth_addr(iface->id, &base.mac) < 0 && errno != EOPNOTSUPP)
+	if (iface_get_eth_addr(iface->id, &base.l3.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0);
 
 	if ((nh = nexthop_new(&base)) == NULL)
 		return api_out(errno, 0);
 
-	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, GR_NH_ORIGIN_LINK, nh)) < 0)
+	if ((ret = rib4_insert(iface->vrf_id, nh->l3.ipv4, nh->l3.prefixlen, GR_NH_ORIGIN_LINK, nh))
+	    < 0)
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);
@@ -116,7 +117,8 @@ static struct api_out addr_del(const void *request, void ** /*response*/) {
 		return api_out(ENODEV, 0);
 
 	gr_vec_foreach (nh, addrs->nh) {
-		if (nh->ipv4 == req->addr.addr.ip && nh->prefixlen == req->addr.addr.prefixlen) {
+		if (nh->l3.ipv4 == req->addr.addr.ip
+		    && nh->l3.prefixlen == req->addr.addr.prefixlen) {
 			break;
 		}
 		nh = NULL;
@@ -166,8 +168,8 @@ static struct api_out addr_list(const void *request, void **response) {
 			continue;
 		gr_vec_foreach (nh, addrs->nh) {
 			addr = &resp->addrs[resp->n_addrs++];
-			addr->addr.ip = nh->ipv4;
-			addr->addr.prefixlen = nh->prefixlen;
+			addr->addr.ip = nh->l3.ipv4;
+			addr->addr.prefixlen = nh->l3.prefixlen;
 			addr->iface_id = iface_id;
 		}
 	}

@@ -29,12 +29,12 @@ static struct api_out srv6_localsid_add(const void *request, void ** /*response*
 	struct srv6_localsid_nh_priv *data;
 	struct gr_nexthop base = {
 		.type = GR_NH_T_SR6_LOCAL,
-		.af = GR_AF_IP6,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_STATIC,
 		.state = GR_NH_S_REACHABLE,
+		.l3.af = GR_AF_IP6,
 		.vrf_id = req->l.vrf_id,
-		.iface_id = GR_IFACE_ID_UNDEF,
-		.ipv6 = req->l.lsid,
+		.l3.iface_id = GR_IFACE_ID_UNDEF,
+		.l3.ipv6 = req->l.lsid,
 		.origin = req->origin,
 	};
 	struct nexthop *nh;
@@ -83,7 +83,7 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	data = srv6_localsid_nh_priv(nh);
 	memset(&ldata, 0x00, sizeof(ldata));
 
-	ldata.lsid = nh->ipv6;
+	ldata.lsid = nh->l3.ipv6;
 	ldata.vrf_id = nh->vrf_id;
 	ldata.behavior = data->behavior;
 	ldata.flags = data->flags;

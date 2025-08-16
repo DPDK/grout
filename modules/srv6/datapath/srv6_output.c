@@ -62,8 +62,8 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 			nh = ip_output_mbuf_data(m)->nh;
 			if (t != NULL) {
-				t->dest4.ip = nh->ipv4;
-				t->dest4.prefixlen = nh->prefixlen;
+				t->dest4.ip = nh->l3.ipv4;
+				t->dest4.prefixlen = nh->l3.prefixlen;
 				t->is_dest6 = false;
 			}
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
@@ -75,8 +75,8 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 			nh = ip6_output_mbuf_data(m)->nh;
 			if (t != NULL) {
-				t->dest6.ip = nh->ipv6;
-				t->dest6.prefixlen = nh->prefixlen;
+				t->dest6.ip = nh->l3.ipv6;
+				t->dest6.prefixlen = nh->l3.prefixlen;
 				t->is_dest6 = true;
 			}
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
@@ -134,14 +134,14 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip6_output_mbuf_data(m)->nh = nh;
 
-		nh = sr_tunsrc_get(nh->iface_id, &nh->ipv6);
+		nh = sr_tunsrc_get(nh->l3.iface_id, &nh->l3.ipv6);
 		if (nh == NULL) {
 			// cannot output packet on interface that does not have ip6 addr
 			edge = NO_ROUTE;
 			goto next;
 		}
 
-		ip6_set_fields(outer_ip6, plen, proto, &nh->ipv6, &d->seglist[0]);
+		ip6_set_fields(outer_ip6, plen, proto, &nh->l3.ipv6, &d->seglist[0]);
 		edge = IP6_OUTPUT;
 
 next:

@@ -51,24 +51,24 @@ static uint16_t ndp_na_output_process(
 		na->override = 1;
 		na->router = 1;
 		na->solicited = remote != NULL;
-		na->target = local->ipv6;
+		na->target = local->l3.ipv6;
 		opt = PAYLOAD(na);
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
 		ll = PAYLOAD(opt);
-		ll->mac = local->mac;
+		ll->mac = local->l3.mac;
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
-		d->iface = iface_from_id(local->iface_id);
-		d->src = local->ipv6;
+		d->iface = iface_from_id(local->l3.iface_id);
+		d->src = local->l3.ipv6;
 		if (remote == NULL) {
 			// If the source of the solicitation is the unspecified address, the
 			// node MUST set the Solicited flag to zero and multicast the
 			// advertisement to the all-nodes address.
 			d->dst = (struct rte_ipv6_addr)RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
 		} else {
-			d->dst = remote->ipv6;
+			d->dst = remote->l3.ipv6;
 		}
 		d->len = payload_len;
 		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;

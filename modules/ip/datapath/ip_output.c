@@ -79,7 +79,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		iface = iface_from_id(nh->iface_id);
+		iface = iface_from_id(nh->l3.iface_id);
 		if (iface == NULL) {
 			edge = ERROR;
 			goto next;
@@ -102,7 +102,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 
 		if (nh->state != GR_NH_S_REACHABLE
-		    || (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->ipv4)) {
+		    || (nh->flags & GR_NH_F_LINK && ip->dst_addr != nh->l3.ipv4)) {
 			// The nexthop needs ARP resolution or it is associated with
 			// a "connected" route (i.e. matching an address/prefix on
 			// a local interface).
@@ -117,7 +117,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		eth_data->dst = nh->mac;
+		eth_data->dst = nh->l3.mac;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 		sent++;
 next:

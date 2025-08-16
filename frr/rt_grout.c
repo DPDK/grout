@@ -194,11 +194,11 @@ grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, in
 		gr_log_err("sync nexthop not L3 from grout is not supported");
 		return -1;
 	}
-	nh->ifindex = gr_nh->iface_id;
+	nh->ifindex = gr_nh->l3.iface_id;
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
 
-	switch (gr_nh->af) {
+	switch (gr_nh->l3.af) {
 	case GR_AF_IP4:
 		if (nh->ifindex)
 			nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
@@ -207,7 +207,7 @@ grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, in
 
 		sz = 4;
 		*nh_family = AF_INET;
-		memcpy(&nh->gate.ipv4, &gr_nh->ipv4, sz);
+		memcpy(&nh->gate.ipv4, &gr_nh->l3.ipv4, sz);
 		break;
 	case GR_AF_IP6:
 		if (nh->ifindex)
@@ -217,14 +217,14 @@ grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, in
 
 		sz = 16;
 		*nh_family = AF_INET6;
-		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
+		memcpy(&nh->gate.ipv6, &gr_nh->l3.ipv6, sz);
 		break;
 	case GR_AF_UNSPEC:
 		nh->type = NEXTHOP_TYPE_IFINDEX;
 		*nh_family = AF_UNSPEC;
 		break;
 	default:
-		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
+		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->l3.af);
 		return -1;
 	}
 	// XXX: no NEXTHOP_TYPE_IFINDEX in grout, unlike kernel
@@ -816,32 +816,32 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	gr_nh->type = GR_NH_T_L3;
 	afi = dplane_ctx_get_nhe_afi(ctx);
 	if (afi == AFI_IP)
-		gr_nh->af = GR_AF_IP4;
+		gr_nh->l3.af = GR_AF_IP4;
 	else
-		gr_nh->af = GR_AF_IP6;
+		gr_nh->l3.af = GR_AF_IP6;
 
 	if (!nh->ifindex) {
 		gr_log_err("impossible to add/del nexthop in grout that does not have an ifindex");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
-	gr_nh->iface_id = nh->ifindex;
+	gr_nh->l3.iface_id = nh->ifindex;
 
 	switch (nh->type) {
 	case NEXTHOP_TYPE_IPV4:
 	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		memcpy(&gr_nh->ipv4, &nh->gate.ipv4, sizeof(gr_nh->ipv4));
-		gr_log_debug("add nexthop id %u gw %pI4", nh_id, &gr_nh->ipv4);
+		memcpy(&gr_nh->l3.ipv4, &nh->gate.ipv4, sizeof(gr_nh->l3.ipv4));
+		gr_log_debug("add nexthop id %u gw %pI4", nh_id, &gr_nh->l3.ipv4);
 		break;
 	case NEXTHOP_TYPE_IPV6:
 	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		memcpy(&gr_nh->ipv6, &nh->gate.ipv6, sizeof(gr_nh->ipv6));
-		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->ipv6);
+		memcpy(&gr_nh->l3.ipv6, &nh->gate.ipv6, sizeof(gr_nh->l3.ipv6));
+		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->l3.ipv6);
 		break;
 	case NEXTHOP_TYPE_IFINDEX:
 		// dplane_ctx_get_nhe_afi(ctx) returns AFI_IP for a nexthop with no gateway
 		// force to UNSPEC for grout
-		gr_nh->af = GR_AF_UNSPEC;
-		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
+		gr_nh->l3.af = GR_AF_UNSPEC;
+		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->l3.iface_id);
 		break;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);

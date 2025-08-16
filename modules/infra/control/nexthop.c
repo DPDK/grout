@@ -340,13 +340,13 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
 	}
-	switch (base->af) {
+	switch (base->l3.af) {
 	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
 		break;
 	default:
-		ABORT("invalid nexthop family %hhu", base->af);
+		ABORT("invalid nexthop family %hhu", base->l3.af);
 	}
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
@@ -375,8 +375,8 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 
 	nexthop_id_put(nh);
 
-	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
-		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+	if (nh->l3.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->l3.ipv6)) {
+		set_nexthop_key(&key, nh->l3.af, nh->vrf_id, nh->l3.iface_id, &nh->l3.addr);
 		rte_hash_del_key(hash_by_addr, &key);
 	}
 
@@ -385,8 +385,8 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 	if ((ret = nexthop_id_get(nh)) < 0)
 		return ret;
 
-	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
-		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+	if (nh->l3.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->l3.ipv6)) {
+		set_nexthop_key(&key, nh->l3.af, nh->vrf_id, nh->l3.iface_id, &nh->l3.addr);
 		if ((ret = rte_hash_add_key_data(hash_by_addr, &key, nh)) < 0) {
 			if (nh->nh_id != 0)
 				rte_hash_del_key(hash_by_id, &nh->nh_id);
@@ -400,23 +400,23 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
 	const struct nexthop_type_ops *ops = type_ops[a->type];
 
-	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->af != b->af
+	if (a->vrf_id != b->vrf_id || a->l3.iface_id != b->l3.iface_id || a->l3.af != b->l3.af
 	    || a->type != b->type)
 		return false;
 
-	switch (a->af) {
+	switch (a->l3.af) {
 	case GR_AF_IP4:
-		if (memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)))
+		if (memcmp(&a->l3.ipv4, &b->l3.ipv4, sizeof(a->l3.ipv4)))
 			return false;
 		break;
 	case GR_AF_IP6:
-		if (memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)))
+		if (memcmp(&a->l3.ipv6, &b->l3.ipv6, sizeof(a->l3.ipv6)))
 			return false;
 		break;
 	case GR_AF_UNSPEC:
 		break;
 	default:
-		ABORT("invalid nexthop family %hhu", a->af);
+		ABORT("invalid nexthop family %hhu", a->l3.af);
 	}
 
 	if (ops != NULL && ops->equal != NULL)
@@ -438,7 +438,7 @@ static void nh_pool_iter_cb(struct rte_mempool *, void *priv, void *obj, unsigne
 		it->user_cb(nh, it->priv);
 	else
 		assert(rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL)
-		       || rte_ipv6_addr_is_unspec(&nh->ipv6));
+		       || rte_ipv6_addr_is_unspec(&nh->l3.ipv6));
 }
 
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
@@ -485,7 +485,7 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
 
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
-	if (nh->iface_id == filter->iface_id) {
+	if (nh->l3.iface_id == filter->iface_id) {
 		nexthop_af_ops_get(GR_AF_UNSPEC)->del(nh);
 		while (nh->ref_count)
 			nexthop_decref(nh);
@@ -500,9 +500,9 @@ void nexthop_cleanup(uint16_t iface_id) {
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
 		nexthop_id_put(nh);
-		if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+		if (nh->l3.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->l3.ipv6)) {
 			struct nexthop_key key;
-			set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+			set_nexthop_key(&key, nh->l3.af, nh->vrf_id, nh->l3.iface_id, &nh->l3.addr);
 			rte_hash_del_key(hash_by_addr, &key);
 		}
 
@@ -533,7 +533,7 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *) {
-	const struct nexthop_af_ops *ops = af_ops[nh->af];
+	const struct nexthop_af_ops *ops = af_ops[nh->l3.af];
 	clock_t now = gr_clock_us();
 	unsigned probes, max_probes;
 	time_t reply_age;
@@ -553,8 +553,8 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 		if (probes >= max_probes) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    ADDR_W(nh->af),
-			    &nh->addr,
+			    ADDR_W(nh->l3.af),
+			    &nh->l3.addr,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts,
@@ -565,8 +565,8 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			if (ops->solicit(nh) < 0)
 				LOG(ERR,
 				    ADDR_F " vrf=%u solicit failed: %s",
-				    ADDR_W(nh->af),
-				    &nh->addr,
+				    ADDR_W(nh->l3.af),
+				    &nh->l3.addr,
 				    nh->vrf_id,
 				    strerror(errno));
 		}

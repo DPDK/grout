@@ -39,10 +39,10 @@ loop_xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
 			edge = IP_INPUT;
-			loop_iface = iface_from_id(ip_output_mbuf_data(m)->nh->iface_id);
+			loop_iface = iface_from_id(ip_output_mbuf_data(m)->nh->l3.iface_id);
 		} else {
 			edge = IP6_INPUT;
-			loop_iface = iface_from_id(ip6_output_mbuf_data(m)->nh->iface_id);
+			loop_iface = iface_from_id(ip6_output_mbuf_data(m)->nh->l3.iface_id);
 		}
 		if (loop_iface == NULL || loop_iface->type != GR_IFACE_TYPE_LOOPBACK) {
 			edge = INVALID_IFACE; // should not happens

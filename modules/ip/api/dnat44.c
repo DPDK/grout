@@ -38,11 +38,11 @@ static void dnat44_data_priv_del(struct nexthop *nh) {
 
 	nh->type = GR_NH_T_L3;
 
-	iface = iface_from_id(nh->iface_id);
+	iface = iface_from_id(nh->l3.iface_id);
 	if (iface == NULL)
 		return;
 
-	snat44_static_rule_del(iface, nh->ipv4);
+	snat44_static_rule_del(iface, nh->l3.ipv4);
 }
 
 static struct api_out dnat44_add(const void *request, void ** /*response*/) {
@@ -57,12 +57,12 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 
 	nh = nexthop_new(&(struct gr_nexthop) {
 		.type = GR_NH_T_DNAT,
-		.af = GR_AF_IP4,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_STATIC,
 		.state = GR_NH_S_REACHABLE,
 		.vrf_id = iface->vrf_id,
-		.iface_id = iface->id,
-		.ipv4 = req->rule.match,
+		.l3.af = GR_AF_IP4,
+		.l3.iface_id = iface->id,
+		.l3.ipv4 = req->rule.match,
 		.origin = GR_NH_ORIGIN_INTERNAL,
 	});
 	if (nh == NULL)
@@ -118,8 +118,8 @@ static void dnat44_list_iter(struct nexthop *nh, void *priv) {
 	data = dnat44_nh_data(nh);
 
 	struct gr_dnat44_rule rule = {
-		.iface_id = nh->iface_id,
-		.match = nh->ipv4,
+		.iface_id = nh->l3.iface_id,
+		.match = nh->l3.ipv4,
 		.replace = data->replace,
 	};
 	gr_vec_add(iter->rules, rule);

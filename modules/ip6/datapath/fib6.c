@@ -114,8 +114,8 @@ int fib6_insert(
 	if (nh->ref_count == 0)
 		ABORT("nexthop has ref_count==0: vrf=%u iface=%u " IP6_F,
 		      nh->vrf_id,
-		      nh->iface_id,
-		      &nh->ipv6);
+		      nh->l3.iface_id,
+		      &nh->l3.ipv6);
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("fib6 modified from datapath thread");
