@@ -17,11 +17,13 @@ grcli add nexthop address 4.3.2.1 iface p1 mac ba:d0:ca:ca:00:01
 grcli add ip address 10.0.0.1/24 iface p0
 grcli add ip address 10.1.0.1/24 iface p1
 grcli add ip route 0.0.0.0/0 via 10.0.0.2
+grcli add ip route 0.0.0.0/0 via 10.0.0.1 || fail "route replace should succeed"
 grcli add ip route 4.5.21.2/27 via id 47
 grcli add ip route 172.16.47.0/24 via id 1047
 grcli add ip6 address 2345::1/24 iface p0
 grcli add ip6 address 2346::1/24 iface p1
 grcli add ip6 route ::/0 via 2345::2
+grcli add ip6 route ::/0 via 2345::1 || fail "route6 replace should succeed"
 grcli add ip6 route 2521:111::4/37 via id 1047
 grcli add ip6 route 2521:112::/64 via id 45
 grcli add ip6 route 2521:113::/64 via id 47
