@@ -39,50 +39,82 @@ static struct gr_api_handler config_set_handler = {
 	.callback = nh_config_set,
 };
 
+static int nh_add_blackhole(struct gr_nexthop *base) {
+	base->state = GR_NH_S_REACHABLE;
+	base->flags |= GR_NH_F_STATIC;
+	return 0;
+}
+
+static int nh_add_l3(struct gr_nexthop *base) {
+	struct iface *iface;
+
+	switch (base->af) {
+	case GR_AF_IP4:
+		if (base->ipv4 == 0)
+			return EDESTADDRREQ;
+		break;
+	case GR_AF_IP6:
+		if (rte_ipv6_addr_is_unspec(&base->ipv6))
+			return EDESTADDRREQ;
+
+		break;
+	case GR_AF_UNSPEC:
+		if (base->ipv4 || !rte_ipv6_addr_is_unspec(&base->ipv6))
+			return EINVAL;
+
+		base->flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
+		break;
+	default:
+		return ENOPROTOOPT;
+	}
+
+	iface = iface_from_id(base->iface_id);
+	if (iface == NULL)
+		return errno;
+
+	base->vrf_id = iface->vrf_id;
+	base->state = GR_NH_S_NEW;
+	if (!rte_is_zero_ether_addr(&base->mac)) {
+		if (base->af == GR_AF_UNSPEC)
+			return EINVAL;
+
+		base->state = GR_NH_S_REACHABLE;
+		base->flags |= GR_NH_F_STATIC;
+	}
+	return 0;
+}
+
+static int nh_add_group(struct gr_nexthop *base) {
+	base->flags |= GR_NH_F_STATIC;
+	return 0;
+}
+
 static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
 	const struct nexthop_af_ops *ops;
 	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
-	struct iface *iface;
 	int ret;
 
 	base.flags = 0;
-	switch (base.af) {
-	case GR_AF_IP4:
-		if (base.ipv4 == 0)
-			return api_out(EDESTADDRREQ, 0);
-
+	switch (base.type) {
+	case GR_NH_T_BLACKHOLE:
+		ret = nh_add_blackhole(&base);
 		break;
-	case GR_AF_IP6:
-		if (rte_ipv6_addr_is_unspec(&base.ipv6))
-			return api_out(EDESTADDRREQ, 0);
-
+	case GR_NH_T_GROUP:
+		ret = nh_add_group(&base);
 		break;
-	case GR_AF_UNSPEC:
-		if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
-			return api_out(EINVAL, 0);
-
-		base.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6_OUTPUT:
+	case GR_NH_T_SR6_LOCAL:
+	case GR_NH_T_DNAT:
+		ret = nh_add_l3(&base);
 		break;
 	default:
-		return api_out(ENOPROTOOPT, 0);
+		return api_out(EINVAL, 0);
 	}
-
-	iface = iface_from_id(base.iface_id);
-	if (iface == NULL)
-		return api_out(errno, 0);
-
-	base.vrf_id = iface->vrf_id;
-	base.type = GR_NH_T_L3;
-	base.state = GR_NH_S_NEW;
-	if (!rte_is_zero_ether_addr(&base.mac)) {
-		if (base.af == GR_AF_UNSPEC)
-			return api_out(EINVAL, 0);
-
-		base.state = GR_NH_S_REACHABLE;
-		base.flags |= GR_NH_F_STATIC;
-	}
+	if (ret)
+		return api_out(ret, 0);
 
 	if (base.nh_id != GR_NH_ID_UNSET)
 		nh = nexthop_lookup_by_id(base.nh_id);
@@ -151,7 +183,8 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 		return api_out(ENOENT, 0);
 	}
 
-	if (nh->type != GR_NH_T_L3 || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
+	if ((nh->type != GR_NH_T_L3 && nh->type != GR_NH_T_BLACKHOLE)
+	    || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
 	ops = nexthop_af_ops_get(nh->af);
@@ -213,10 +246,90 @@ static struct gr_api_handler nh_list_handler = {
 	.callback = nh_list,
 };
 
+static struct api_out nh_group_set(const void *request, void ** /*response*/) {
+	const struct gr_nh_group_set_req *req = request;
+	struct nexthop *old[GR_NH_GROUP_MAX];
+	struct nexthop *nh[GR_NH_GROUP_MAX];
+	uint32_t old_nh_grp_count;
+	struct nexthop *group;
+
+	group = nexthop_lookup_by_id(req->group_id);
+	if (group == NULL)
+		return api_out(ENOENT, 0);
+
+	if (group->type != GR_NH_T_GROUP)
+		return api_out(EINVAL, 0);
+
+	if (req->nh_grp_count > GR_NH_GROUP_MAX)
+		return api_out(ENOSPC, 0);
+
+	for (size_t i = 0; i < req->nh_grp_count; i++) {
+		nh[i] = nexthop_lookup_by_id(req->nh_ids[i]);
+		if (nh[i] == NULL)
+			return api_out(ENOENT, 0);
+
+		if (nh[i]->type != GR_NH_T_L3)
+			return api_out(EINVAL, 0);
+	}
+
+	old_nh_grp_count = group->nh_grp_count;
+	memcpy(old, group->nh_group, sizeof(old[0]) * group->nh_grp_count);
+	group->nh_grp_count = req->nh_grp_count;
+	memcpy(group->nh_group, nh, sizeof(old[0]) * req->nh_grp_count);
+
+	for (size_t i = 0; i < req->nh_grp_count; i++)
+		nexthop_incref(nh[i]);
+	for (size_t i = 0; i < old_nh_grp_count; i++)
+		nexthop_decref(old[i]);
+
+	if (group->nh_grp_count > 0)
+		group->state = GR_NH_S_REACHABLE;
+	else
+		group->state = GR_NH_S_NEW;
+
+	return api_out(0, 0);
+}
+
+static struct gr_api_handler nh_group_set_handler = {
+	.name = "nexthop group set",
+	.request_type = GR_NH_GROUP_SET,
+	.callback = nh_group_set,
+};
+
+static struct api_out nh_group_show(const void *request, void **response) {
+	const struct gr_nh_group_show_req *req = request;
+	struct gr_nh_group_show_resp *resp;
+	struct nexthop *group;
+
+	group = nexthop_lookup_by_id(req->group_id);
+	if (group == NULL)
+		return api_out(ENOENT, 0);
+	if (group->type != GR_NH_T_GROUP)
+		return api_out(EINVAL, 0);
+
+	if ((resp = calloc(1, sizeof(*resp))) == NULL)
+		return api_out(ENOMEM, 0);
+
+	resp->nh_grp_count = group->nh_grp_count;
+	for (int i = 0; i < group->nh_grp_count; i++)
+		resp->nexthop_ids[i] = group->nh_group[i]->nh_id;
+
+	*response = resp;
+	return api_out(0, sizeof(*resp));
+}
+
+static struct gr_api_handler nh_group_show_handler = {
+	.name = "nexthop group show",
+	.request_type = GR_NH_GROUP_SHOW,
+	.callback = nh_group_show,
+};
+
 RTE_INIT(_init) {
 	gr_register_api_handler(&config_get_handler);
 	gr_register_api_handler(&config_set_handler);
 	gr_register_api_handler(&nh_add_handler);
 	gr_register_api_handler(&nh_del_handler);
 	gr_register_api_handler(&nh_list_handler);
+	gr_register_api_handler(&nh_group_set_handler);
+	gr_register_api_handler(&nh_group_show_handler);
 }

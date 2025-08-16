@@ -45,6 +45,12 @@ int icmp_local_send(
 	const struct nexthop *local;
 	int ret;
 
+	if (gw->type == GR_NH_T_GROUP) {
+		if (gw->nh_grp_count == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = gw->nh_group[ident % gw->nh_grp_count];
+	}
+
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
 

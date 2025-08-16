@@ -46,6 +46,12 @@ int icmp6_local_send(
 	const struct nexthop *local;
 	int ret;
 
+	if (gw->type == GR_NH_T_GROUP) {
+		if (gw->nh_grp_count == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = gw->nh_group[ident % gw->nh_grp_count];
+	}
+
 	if ((local = addr6_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
 		return -errno;
 

@@ -312,6 +312,8 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_GROUP:
 		if (ops == NULL || (ops->free == NULL && ops->equal == NULL))
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
@@ -336,6 +338,8 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_GROUP:
 		break;
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
@@ -655,8 +659,33 @@ static struct nexthop_af_ops nh_ops = {
 	.del = nh_unspec_del,
 };
 
+static bool nh_type_group_equal(const struct nexthop *a, const struct nexthop *b) {
+	assert(a->type == GR_NH_T_GROUP);
+	assert(b->type == GR_NH_T_GROUP);
+
+	if (a->nh_grp_count != b->nh_grp_count)
+		return false;
+
+	for (int i = 0; i < a->nh_grp_count; i++) {
+		if (a->nh_group[i] != b->nh_group[i])
+			return false;
+	}
+	return true;
+}
+
+static void nh_type_group_free(struct nexthop *nh) {
+	nh->type = GR_NH_T_L3;
+	memset(&nh->nh_group, 0, sizeof(nh->nh_group));
+}
+
+static struct nexthop_type_ops nht_group_ops = {
+	.equal = nh_type_group_equal,
+	.free = nh_type_group_free,
+};
+
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
 	nexthop_af_ops_register(GR_AF_UNSPEC, &nh_ops);
+	nexthop_type_ops_register(GR_NH_T_GROUP, &nht_group_ops);
 }
