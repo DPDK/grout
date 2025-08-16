@@ -103,7 +103,7 @@ index 0000000..d26e979
 +    '"' + srcdir + '/configure" ' +
 +    '--prefix="' + prefix + '" ' +
 +    '--with-moduledir="' + moduledir + '" ' +
-+    '--disable-doc --enable-multipath=1 ' +
++    '--disable-doc --enable-multipath=128 ' +
 +    '--disable-ripd --disable-ripngd --disable-ospfd --disable-ospf6d ' +
 +    '--disable-ldpd --disable-nhrpd --disable-eigrpd --disable-babeld  ' +
 +    '--disable-isisd --disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
