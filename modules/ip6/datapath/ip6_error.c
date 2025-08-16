@@ -97,7 +97,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 		d = ip6_local_mbuf_data(mbuf);
-		d->src = nh->ipv6;
+		d->src = nh->l3.ipv6;
 		d->dst = ip->src_addr;
 		d->len = rte_pktmbuf_pkt_len(mbuf);
 		d->iface = iface;

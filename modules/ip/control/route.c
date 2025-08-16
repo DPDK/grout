@@ -236,14 +236,14 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 
 		// if the route gateway is reachable via a prefix route,
 		// create a new unresolved nexthop
-		if (nh->ipv4 != req->nh) {
+		if (nh->l3.ipv4 != req->nh) {
 			nh = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
-				.af = GR_AF_IP4,
 				.flags = GR_NH_F_GATEWAY,
 				.vrf_id = req->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv4 = req->nh,
+				.l3.af = GR_AF_IP4,
+				.l3.iface_id = nh->l3.iface_id,
+				.l3.ipv4 = req->nh,
 				.origin = req->origin,
 			});
 			if (nh == NULL)
@@ -429,7 +429,8 @@ void rib4_cleanup(struct nexthop *nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->l3.ipv4
+			);
 			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
 		}
 	}
@@ -441,7 +442,8 @@ void rib4_cleanup(struct nexthop *nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
+			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->l3.ipv4
+			);
 			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
 		}
 	}

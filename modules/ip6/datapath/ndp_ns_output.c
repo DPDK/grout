@@ -69,7 +69,7 @@ static uint16_t ndp_ns_output_process(
 			next = ERROR;
 			goto next;
 		}
-		local = addr6_get_preferred(nh->iface_id, &nh->ipv6);
+		local = addr6_get_preferred(nh->l3.iface_id, &nh->l3.ipv6);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;
@@ -82,21 +82,21 @@ static uint16_t ndp_ns_output_process(
 		icmp6->code = 0;
 		ns = PAYLOAD(icmp6);
 		ns->__reserved = 0;
-		ns->target = nh->ipv6;
+		ns->target = nh->l3.ipv6;
 		opt = PAYLOAD(ns);
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = PAYLOAD(opt);
-		lladdr->mac = local->mac;
+		lladdr->mac = local->l3.mac;
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
-		d->iface = iface_from_id(local->iface_id);
-		d->src = local->ipv6;
+		d->iface = iface_from_id(local->l3.iface_id);
+		d->src = local->l3.ipv6;
 		if (nh->last_reply != 0 && nh->bcast_probes == 0)
-			d->dst = nh->ipv6;
+			d->dst = nh->l3.ipv6;
 		else
-			rte_ipv6_solnode_from_addr(&d->dst, &nh->ipv6);
+			rte_ipv6_solnode_from_addr(&d->dst, &nh->l3.ipv6);
 		d->len = payload_len;
 		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;
 		d->proto = IPPROTO_ICMPV6;

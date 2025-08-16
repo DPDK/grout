@@ -80,7 +80,7 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 		.state = GR_NH_S_REACHABLE,
 		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
 		.vrf_id = req->r.key.vrf_id,
-		.iface_id = GR_IFACE_ID_UNDEF,
+		.l3.iface_id = GR_IFACE_ID_UNDEF,
 		.origin = req->origin,
 	};
 	struct nexthop *nh;
@@ -88,13 +88,13 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 	// retrieve or create nexthop into rib4/rib6
 	if (req->r.key.is_dest6) {
-		base.ipv6 = req->r.key.dest6.ip;
-		base.prefixlen = req->r.key.dest6.prefixlen;
-		base.af = GR_AF_IP6;
+		base.l3.ipv6 = req->r.key.dest6.ip;
+		base.l3.prefixlen = req->r.key.dest6.prefixlen;
+		base.l3.af = GR_AF_IP6;
 	} else {
-		base.ipv4 = req->r.key.dest4.ip;
-		base.prefixlen = req->r.key.dest4.prefixlen;
-		base.af = GR_AF_IP4;
+		base.l3.ipv4 = req->r.key.dest4.ip;
+		base.l3.prefixlen = req->r.key.dest4.prefixlen;
+		base.l3.af = GR_AF_IP4;
 	}
 
 	nh = nexthop_new(&base);
@@ -202,16 +202,16 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 		d = srv6_encap_nh_priv(nh)->d;
 
 		r->key.vrf_id = nh->vrf_id;
-		switch (nh->af) {
+		switch (nh->l3.af) {
 		case GR_AF_IP6:
 			r->key.is_dest6 = true;
-			r->key.dest6.ip = nh->ipv6;
-			r->key.dest6.prefixlen = nh->prefixlen;
+			r->key.dest6.ip = nh->l3.ipv6;
+			r->key.dest6.prefixlen = nh->l3.prefixlen;
 			break;
 		case GR_AF_IP4:
 			r->key.is_dest6 = false;
-			r->key.dest4.ip = nh->ipv4;
-			r->key.dest4.prefixlen = nh->prefixlen;
+			r->key.dest4.ip = nh->l3.ipv4;
+			r->key.dest4.prefixlen = nh->l3.prefixlen;
 			break;
 		default:
 			// should never happen
@@ -252,13 +252,13 @@ static struct api_out srv6_tunsrc_set(const void *request, void ** /*response*/)
 
 	struct gr_nexthop base = {
 		.type = GR_NH_T_L3,
-		.af = GR_AF_IP6,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
 		.state = GR_NH_S_REACHABLE,
 		.vrf_id = GR_VRF_ID_ALL,
-		.iface_id = GR_IFACE_ID_UNDEF,
-		.ipv6 = req->addr,
-		.prefixlen = 128,
+		.l3.af = GR_AF_IP6,
+		.l3.iface_id = GR_IFACE_ID_UNDEF,
+		.l3.ipv6 = req->addr,
+		.l3.prefixlen = 128,
 		.origin = GR_NH_ORIGIN_LINK,
 	};
 
@@ -282,7 +282,7 @@ static struct api_out srv6_tunsrc_show(const void * /*request*/, void **response
 		return api_out(-ENOMEM, 0);
 
 	if (tunsrc_nh)
-		resp->addr = tunsrc_nh->ipv6;
+		resp->addr = tunsrc_nh->l3.ipv6;
 	else
 		resp->addr = unspec;
 

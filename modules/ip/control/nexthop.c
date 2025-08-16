@@ -36,7 +36,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
 
-	if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
+	if (nh->flags & GR_NH_F_LINK && dst != nh->l3.ipv4) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
@@ -46,10 +46,10 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 			// No existing nexthop for this IP, create one.
 			remote = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
-				.af = GR_AF_IP4,
 				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv4 = dst,
+				.l3.af = GR_AF_IP4,
+				.l3.iface_id = nh->l3.iface_id,
+				.l3.ipv4 = dst,
 				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 		}
@@ -58,7 +58,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
 			goto free;
 		}
-		if (remote->iface_id != nh->iface_id)
+		if (remote->l3.iface_id != nh->l3.iface_id)
 			ABORT(IP4_F " nexthop lookup gives wrong interface", &ip);
 
 		// Create an associated /32 route so that next packets take it
@@ -124,10 +124,10 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		// ARP request.
 		nh = nexthop_new(&(struct gr_nexthop) {
 			.type = GR_NH_T_L3,
-			.af = GR_AF_IP4,
+			.l3.af = GR_AF_IP4,
 			.vrf_id = iface->vrf_id,
-			.iface_id = iface->id,
-			.ipv4 = sip,
+			.l3.iface_id = iface->id,
+			.l3.ipv4 = sip,
 			.origin = GR_NH_ORIGIN_INTERNAL,
 		});
 		if (nh == NULL) {
@@ -148,7 +148,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
-		nh->mac = arp->arp_data.arp_sha;
+		nh->l3.mac = arp->arp_data.arp_sha;
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
@@ -187,14 +187,14 @@ free:
 }
 
 static int nh4_add(struct nexthop *nh) {
-	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh);
+	return rib4_insert(nh->vrf_id, nh->l3.ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh);
 }
 
 static void nh4_del(struct nexthop *nh) {
 	rib4_cleanup(nh);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
-		memset(&nh->mac, 0, sizeof(nh->mac));
+		memset(&nh->l3.mac, 0, sizeof(nh->l3.mac));
 	}
 }
 

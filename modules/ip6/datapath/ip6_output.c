@@ -75,11 +75,11 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		// For multicast destination, nh->iface will be NULL
+		// For multicast destination, nh->l3.iface will be NULL
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
 			iface = mbuf_data(mbuf)->iface;
 		else
-			iface = iface_from_id(nh->iface_id);
+			iface = iface_from_id(nh->l3.iface_id);
 		if (iface == NULL) {
 			edge = ERROR;
 			goto next;
@@ -101,7 +101,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
 		    && (nh->state != GR_NH_S_REACHABLE
 			|| (nh->flags & GR_NH_F_LINK
-			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)))) {
+			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->l3.ipv6)))) {
 			edge = HOLD;
 			goto next;
 		}
@@ -112,7 +112,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
 			rte_ether_mcast_from_ipv6(&eth_data->dst, &ip->dst_addr);
 		else
-			eth_data->dst = nh->mac;
+			eth_data->dst = nh->l3.mac;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 		sent++;
 next:

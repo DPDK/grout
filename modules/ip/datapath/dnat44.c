@@ -35,7 +35,7 @@ dnat44_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 
 		if (d->nh == NULL)
 			edge = NO_ROUTE;
-		else if (d->nh->flags & GR_NH_F_LOCAL && ip->dst_addr == d->nh->ipv4)
+		else if (d->nh->flags & GR_NH_F_LOCAL && ip->dst_addr == d->nh->l3.ipv4)
 			edge = LOCAL;
 		else
 			edge = FORWARD;

@@ -79,18 +79,18 @@ static cmd_status_t route4_list(const struct gr_api_client *c, const struct ec_p
 		struct gr_iface iface;
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		switch (route->nh.af) {
+		switch (route->nh.l3.af) {
 		case GR_AF_UNSPEC:
-			if (iface_from_id(c, route->nh.iface_id, &iface) < 0)
-				scols_line_sprintf(line, 2, "%u", route->nh.iface_id);
+			if (iface_from_id(c, route->nh.l3.iface_id, &iface) < 0)
+				scols_line_sprintf(line, 2, "%u", route->nh.l3.iface_id);
 			else
 				scols_line_sprintf(line, 2, "%s", iface.name);
 			break;
 		case GR_AF_IP4:
-			scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
+			scols_line_sprintf(line, 2, IP4_F, &route->nh.l3.ipv4);
 			break;
 		case GR_AF_IP6:
-			scols_line_sprintf(line, 2, IP6_F, &route->nh.ipv6);
+			scols_line_sprintf(line, 2, IP6_F, &route->nh.l3.ipv6);
 			break;
 		}
 		scols_line_sprintf(line, 3, "%s", gr_nh_origin_name(route->origin));
@@ -126,13 +126,14 @@ static cmd_status_t route4_get(const struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf(IP4_F " via " IP4_F " lladdr " ETH_F, &req.dest, &resp->nh.ipv4, &resp->nh.mac);
+	printf(IP4_F " via " IP4_F " lladdr " ETH_F, &req.dest, &resp->nh.l3.ipv4, &resp->nh.l3.mac
+	);
 	if (resp->nh.nh_id != GR_NH_ID_UNSET)
 		printf(" id %u", resp->nh.nh_id);
-	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
+	if (iface_from_id(c, resp->nh.l3.iface_id, &iface) == 0)
 		printf(" iface %s", iface.name);
 	else
-		printf(" iface %u", resp->nh.iface_id);
+		printf(" iface %u", resp->nh.l3.iface_id);
 	printf("\n");
 	free(resp_ptr);
 

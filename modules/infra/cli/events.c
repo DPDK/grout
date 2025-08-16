@@ -53,18 +53,18 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> addr add: iface[%d] " ADDR_F "\n",
-			       nh->iface_id,
-			       ADDR_W(nh->af),
-			       &nh->addr);
+			       nh->l3.iface_id,
+			       ADDR_W(nh->l3.af),
+			       &nh->l3.addr);
 			break;
 		case GR_EVENT_IP_ADDR_DEL:
 		case GR_EVENT_IP6_ADDR_DEL:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> addr del: iface[%d] " ADDR_F "\n",
-			       nh->iface_id,
-			       ADDR_W(nh->af),
-			       &nh->addr);
+			       nh->l3.iface_id,
+			       ADDR_W(nh->l3.af),
+			       &nh->l3.addr);
 			break;
 		case GR_EVENT_IP_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r4));
@@ -72,7 +72,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route add: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh.ipv4,
+			       &r4->nh.l3.ipv4,
 			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP_ROUTE_DEL:
@@ -81,7 +81,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route del: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh.ipv4,
+			       &r4->nh.l3.ipv4,
 			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_ADD:
@@ -90,7 +90,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route add: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh.ipv6,
+			       &r6->nh.l3.ipv6,
 			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_DEL:
@@ -99,40 +99,40 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route del: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh.ipv6,
+			       &r6->nh.l3.ipv6,
 			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_NEXTHOP_NEW:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
-			       nh->iface_id,
+			       nh->l3.iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh->af),
-			       &nh->addr,
-			       &nh->mac,
+			       ADDR_W(nh->l3.af),
+			       &nh->l3.addr,
+			       &nh->l3.mac,
 			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_DELETE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "  origin %s\n",
-			       nh->iface_id,
+			       nh->l3.iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh->af),
-			       &nh->addr,
-			       &nh->mac,
+			       ADDR_W(nh->l3.af),
+			       &nh->l3.addr,
+			       &nh->l3.mac,
 			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_UPDATE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
 			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
-			       nh->iface_id,
+			       nh->l3.iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh->af),
-			       &nh->addr,
-			       &nh->mac,
+			       ADDR_W(nh->l3.af),
+			       &nh->l3.addr,
+			       &nh->l3.mac,
 			       gr_nh_origin_name(nh->origin));
 			break;
 		default:

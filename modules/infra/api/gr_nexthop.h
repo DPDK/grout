@@ -75,20 +75,26 @@ typedef enum : uint8_t {
 //! Nexthop structure exposed to the API.
 struct gr_nexthop {
 	gr_nh_type_t type;
-	addr_family_t af;
 	gr_nh_state_t state;
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
+	gr_nh_origin_t origin;
 	uint32_t nh_id; //!< Arbitrary ID set by user. Zero means "unset".
 	uint16_t vrf_id; //!< L3 VRF domain
-	uint16_t iface_id; //!< interface associated with this nexthop
-	struct rte_ether_addr mac; //!< link-layer address
-	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
-	gr_nh_origin_t origin;
 	union {
-		struct {
-		} addr;
-		ip4_addr_t ipv4;
-		struct rte_ipv6_addr ipv6;
+		struct { // GR_NH_T_L3
+			addr_family_t af;
+			uint16_t iface_id; //!< interface associated with this nexthop
+			struct rte_ether_addr mac; //!< link-layer address
+			uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
+			union {
+				struct {
+				} addr;
+				ip4_addr_t ipv4;
+				struct rte_ipv6_addr ipv6;
+			};
+		} l3;
+		struct { // GR_NH_T_BLACKHOLE
+		} bh;
 	};
 };
 

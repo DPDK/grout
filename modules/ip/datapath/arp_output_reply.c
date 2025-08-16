@@ -55,7 +55,7 @@ static uint16_t arp_output_reply_process(
 		arp->arp_data.arp_tha = arp->arp_data.arp_sha;
 		iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha);
 		arp->arp_data.arp_tip = arp->arp_data.arp_sip;
-		arp->arp_data.arp_sip = local->ipv4;
+		arp->arp_data.arp_sip = local->l3.ipv4;
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);

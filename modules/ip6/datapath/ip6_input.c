@@ -130,7 +130,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip6_local.
-		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
+		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->l3.ipv6))
 			edge = LOCAL;
 		else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;

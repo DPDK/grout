@@ -37,7 +37,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 	if (nh == NULL)
 		goto free; // route to dst has disappeared
 
-	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
+	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->l3.ipv6)) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
@@ -47,10 +47,10 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 			// No existing nexthop for this IP, create one.
 			remote = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
 				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv6 = *dst,
+				.l3.af = GR_AF_IP6,
+				.l3.iface_id = nh->l3.iface_id,
+				.l3.ipv6 = *dst,
 				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 		}
@@ -59,14 +59,14 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
 			goto free;
 		}
-		if (remote->iface_id != nh->iface_id)
+		if (remote->l3.iface_id != nh->l3.iface_id)
 			ABORT(IP6_F " nexthop lookup gives wrong interface", &ip);
 
 		// Create an associated /128 route so that next packets take it
 		// in priority with a single route lookup.
 		int ret = rib6_insert(
 			nh->vrf_id,
-			nh->iface_id,
+			nh->l3.iface_id,
 			dst,
 			RTE_IPV6_MAX_DEPTH,
 			GR_NH_ORIGIN_INTERNAL,
@@ -160,10 +160,10 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 			// will certainly contact us soon and it will save us an NDP solicitation.
 			nh = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
 				.vrf_id = iface->vrf_id,
-				.iface_id = iface->id,
-				.ipv6 = *remote,
+				.l3.af = GR_AF_IP6,
+				.l3.iface_id = iface->id,
+				.l3.ipv6 = *remote,
 				.origin = GR_NH_ORIGIN_INTERNAL,
 			});
 			if (nh == NULL) {
@@ -193,7 +193,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
-		nh->mac = mac;
+		nh->l3.mac = mac;
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
@@ -231,14 +231,16 @@ free:
 }
 
 static int nh6_add(struct nexthop *nh) {
-	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_NH_ORIGIN_INTERNAL, nh);
+	return rib6_insert(
+		nh->vrf_id, nh->l3.iface_id, &nh->l3.ipv6, 128, GR_NH_ORIGIN_INTERNAL, nh
+	);
 }
 
 static void nh6_del(struct nexthop *nh) {
 	rib6_cleanup(nh);
 	if (nh->ref_count > 0) {
 		nh->state = GR_NH_S_NEW;
-		memset(&nh->mac, 0, sizeof(nh->mac));
+		memset(&nh->l3.mac, 0, sizeof(nh->l3.mac));
 	}
 }
 

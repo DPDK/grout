@@ -138,7 +138,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
+		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->l3.ipv4)
 			edge = LOCAL;
 		else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;

@@ -61,7 +61,7 @@ static uint16_t arp_output_request_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		nh = control_input_mbuf_data(mbuf)->data;
-		local = addr4_get_preferred(nh->iface_id, nh->ipv4);
+		local = addr4_get_preferred(nh->l3.iface_id, nh->l3.ipv4);
 
 		if (local == NULL) {
 			edge = ERROR;
@@ -79,16 +79,16 @@ static uint16_t arp_output_request_process(
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REQUEST);
 		arp->arp_hlen = sizeof(struct rte_ether_addr);
 		arp->arp_plen = sizeof(ip4_addr_t);
-		if (iface_get_eth_addr(local->iface_id, &arp->arp_data.arp_sha) < 0) {
+		if (iface_get_eth_addr(local->l3.iface_id, &arp->arp_data.arp_sha) < 0) {
 			edge = ERROR;
 			goto next;
 		}
-		arp->arp_data.arp_sip = local->ipv4;
+		arp->arp_data.arp_sip = local->l3.ipv4;
 		if (nh->last_reply != 0)
-			arp->arp_data.arp_tha = nh->mac;
+			arp->arp_data.arp_tha = nh->l3.mac;
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
-		arp->arp_data.arp_tip = nh->ipv4;
+		arp->arp_data.arp_tip = nh->l3.ipv4;
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *arp;
@@ -101,7 +101,7 @@ static uint16_t arp_output_request_process(
 		else
 			memset(&eth_data->dst, 0xff, sizeof(eth_data->dst));
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_ARP);
-		eth_data->iface = iface_from_id(nh->iface_id);
+		eth_data->iface = iface_from_id(nh->l3.iface_id);
 
 		edge = OUTPUT;
 		sent++;

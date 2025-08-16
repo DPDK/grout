@@ -298,12 +298,12 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IP6_ADDR_DEL:
 		gr_nh = PAYLOAD(gr_e);
 
-		switch (gr_nh->af) {
+		switch (gr_nh->l3.af) {
 		case GR_AF_IP4:
 			gr_log_debug(
 				"%s addr %pI4 notification (%s)",
 				new ? "add" : "del",
-				&gr_nh->ipv4,
+				&gr_nh->l3.ipv4,
 				gr_evt_to_str(gr_e->ev_type)
 			);
 			break;
@@ -311,7 +311,7 @@ static void dplane_read_notifications(struct event *event) {
 			gr_log_debug(
 				"%s addr %pI6 notification (%s)",
 				new ? "add" : "del",
-				&gr_nh->ipv6,
+				&gr_nh->l3.ipv6,
 				gr_evt_to_str(gr_e->ev_type)
 			);
 			break;

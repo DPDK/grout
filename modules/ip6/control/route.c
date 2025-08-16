@@ -257,13 +257,13 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 
 		// if the route gateway is reachable via a prefix route,
 		// create a new unresolved nexthop
-		if (!rte_ipv6_addr_eq(&nh->ipv6, &req->nh)) {
+		if (!rte_ipv6_addr_eq(&nh->l3.ipv6, &req->nh)) {
 			nh = nexthop_new(&(struct gr_nexthop) {
 				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
 				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv6 = req->nh,
+				.l3.af = GR_AF_IP6,
+				.l3.iface_id = nh->l3.iface_id,
+				.l3.ipv6 = req->nh,
 				.origin = req->origin,
 			});
 			if (nh == NULL)
@@ -273,7 +273,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 
 	// if route insert fails, the created nexthop will be freed
 	ret = rib6_insert(
-		req->vrf_id, nh->iface_id, &req->dest.ip, req->dest.prefixlen, req->origin, nh
+		req->vrf_id, nh->l3.iface_id, &req->dest.ip, req->dest.prefixlen, req->origin, nh
 	);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
@@ -313,9 +313,9 @@ static struct api_out route6_get(const void *request, void **response) {
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
 
-	resp->nh.ipv6 = nh->ipv6;
-	resp->nh.iface_id = nh->iface_id;
-	resp->nh.mac = nh->mac;
+	resp->nh.l3.ipv6 = nh->l3.ipv6;
+	resp->nh.l3.iface_id = nh->l3.iface_id;
+	resp->nh.l3.mac = nh->l3.mac;
 	resp->nh.flags = nh->flags;
 
 	*response = resp;
@@ -460,8 +460,8 @@ void rib6_cleanup(struct nexthop *nh) {
 		if (hop == nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
-			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->l3.ipv6);
+			rib6_delete(hop->vrf_id, hop->l3.iface_id, &ip, depth, nh->type);
 		}
 	}
 
@@ -471,8 +471,8 @@ void rib6_cleanup(struct nexthop *nh) {
 		if (hop == nh) {
 			rte_rib6_get_ip(rn, &ip);
 			rte_rib6_get_depth(rn, &depth);
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
-			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
+			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->l3.ipv6);
+			rib6_delete(hop->vrf_id, hop->l3.iface_id, &ip, depth, nh->type);
 		}
 	}
 }

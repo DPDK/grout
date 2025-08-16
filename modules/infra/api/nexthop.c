@@ -48,19 +48,19 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	int ret;
 
 	base.flags = 0;
-	switch (base.af) {
+	switch (base.l3.af) {
 	case GR_AF_IP4:
-		if (base.ipv4 == 0)
+		if (base.l3.ipv4 == 0)
 			return api_out(EDESTADDRREQ, 0);
 
 		break;
 	case GR_AF_IP6:
-		if (rte_ipv6_addr_is_unspec(&base.ipv6))
+		if (rte_ipv6_addr_is_unspec(&base.l3.ipv6))
 			return api_out(EDESTADDRREQ, 0);
 
 		break;
 	case GR_AF_UNSPEC:
-		if (base.ipv4 || !rte_ipv6_addr_is_unspec(&base.ipv6))
+		if (base.l3.ipv4 || !rte_ipv6_addr_is_unspec(&base.l3.ipv6))
 			return api_out(EINVAL, 0);
 
 		base.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
@@ -69,15 +69,15 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		return api_out(ENOPROTOOPT, 0);
 	}
 
-	iface = iface_from_id(base.iface_id);
+	iface = iface_from_id(base.l3.iface_id);
 	if (iface == NULL)
 		return api_out(errno, 0);
 
 	base.vrf_id = iface->vrf_id;
 	base.type = GR_NH_T_L3;
 	base.state = GR_NH_S_NEW;
-	if (!rte_is_zero_ether_addr(&base.mac)) {
-		if (base.af == GR_AF_UNSPEC)
+	if (!rte_is_zero_ether_addr(&base.l3.mac)) {
+		if (base.l3.af == GR_AF_UNSPEC)
 			return api_out(EINVAL, 0);
 
 		base.state = GR_NH_S_REACHABLE;
@@ -88,24 +88,25 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		nh = nexthop_lookup_by_id(base.nh_id);
 
 	if (nh == NULL)
-		nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
+		nh = nexthop_lookup(base.l3.af, base.vrf_id, base.l3.iface_id, &base.l3.addr);
 
 	if (nh == NULL) {
 		nh = nexthop_new(&base);
 		if (nh == NULL)
 			return api_out(errno, 0);
-		ops = nexthop_af_ops_get(nh->af);
+		ops = nexthop_af_ops_get(nh->l3.af);
 		assert(ops != NULL);
 		ret = ops->add(nh);
 	} else if (!req->exist_ok) {
 		ret = -EEXIST;
 	} else {
 		// Test the equality on the ipv6 address which encompasses both address families.
-		bool need_update = nh->af != base.af || !rte_ipv6_addr_eq(&nh->ipv6, &base.ipv6);
+		bool need_update = nh->l3.af != base.l3.af
+			|| !rte_ipv6_addr_eq(&nh->l3.ipv6, &base.l3.ipv6);
 		if (need_update) {
 			// Address family or address has changed.
 			// Delete the old /32 or /128 route.
-			ops = nexthop_af_ops_get(nh->af);
+			ops = nexthop_af_ops_get(nh->l3.af);
 			assert(ops != NULL);
 			nexthop_incref(nh); // Prevent ops->del from freeing the nexthop.
 			ops->del(nh);
@@ -118,7 +119,7 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		}
 		if (need_update) {
 			// Re-add the new /32 or /128 route.
-			ops = nexthop_af_ops_get(nh->af);
+			ops = nexthop_af_ops_get(nh->l3.af);
 			assert(ops != NULL);
 			ret = ops->add(nh);
 			nexthop_decref(nh); // ops->add called nexthop_incref if successful.
@@ -154,7 +155,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	if (nh->type != GR_NH_T_L3 || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ops = nexthop_af_ops_get(nh->af);
+	ops = nexthop_af_ops_get(nh->l3.af);
 	assert(ops != NULL);
 	ops->del(nh);
 
