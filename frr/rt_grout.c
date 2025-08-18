@@ -190,6 +190,15 @@ static int
 grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, int *nh_family) {
 	size_t sz;
 
+	if (gr_nh->type == GR_NH_T_BLACKHOLE || gr_nh->type == GR_NH_T_REJECT) {
+		nh->vrf_id = gr_nh->vrf_id;
+		nh->type = NEXTHOP_TYPE_BLACKHOLE;
+		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
+		*nh_family = AF_UNSPEC;
+		nh->weight = 1;
+		return 0;
+	}
+
 	if (gr_nh->type != GR_NH_T_L3) {
 		gr_log_err("sync nexthop not L3 from grout is not supported");
 		return -1;
@@ -781,10 +790,6 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;
-	if (nh->type == NEXTHOP_TYPE_BLACKHOLE) {
-		gr_log_err("impossible to add/del blackhole nexthop (not supported)");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 	if (nh->nh_srv6) {
 		gr_log_err("impossible to add/del srv6 nexthop (not supported)");
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
@@ -820,11 +825,12 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	else
 		gr_nh->af = GR_AF_IP6;
 
-	if (!nh->ifindex) {
+	if (nh->type != NEXTHOP_TYPE_BLACKHOLE && !nh->ifindex) {
 		gr_log_err("impossible to add/del nexthop in grout that does not have an ifindex");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	} else {
+		gr_nh->iface_id = nh->ifindex;
 	}
-	gr_nh->iface_id = nh->ifindex;
 
 	switch (nh->type) {
 	case NEXTHOP_TYPE_IPV4:
@@ -842,6 +848,12 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		// force to UNSPEC for grout
 		gr_nh->af = GR_AF_UNSPEC;
 		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
+		break;
+	case NEXTHOP_TYPE_BLACKHOLE:
+		gr_nh->type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
+		gr_nh->af = GR_AF_UNSPEC;
+		gr_nh->iface_id = GR_IFACE_ID_UNDEF;
+		gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(gr_nh));
 		break;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
