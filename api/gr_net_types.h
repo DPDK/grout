@@ -31,7 +31,7 @@ typedef enum : uint8_t {
 static inline const char *gr_af_name(addr_family_t af) {
 	switch (af) {
 	case GR_AF_UNSPEC:
-		return "Unspec";
+		return "unspec";
 	case GR_AF_IP4:
 		return "IPv4";
 	case GR_AF_IP6:
