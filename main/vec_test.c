@@ -4,6 +4,8 @@
 #include <gr_cmocka.h>
 #include <gr_vec.h>
 
+int gr_rte_log_type __attribute__((weak));
+
 static void int_vec(void **) {
 	int *vec = NULL;
 
