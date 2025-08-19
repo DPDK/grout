@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// convenience tag to indicate that a pointer is managed with gr_vec_* macros
+#define gr_vec
+
 // (internal) vector header
 struct __gr_vec_hdr {
 	uint32_t len;

@@ -30,7 +30,7 @@ static struct api_out affinity_get(const void * /*request*/, void **response) {
 
 static struct api_out affinity_set(const void *request, void ** /*response*/) {
 	const struct gr_infra_cpu_affinity_set_req *req = request;
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	int ret = 0;
 
 	if (CPU_COUNT(&req->control_cpus) > 0) {

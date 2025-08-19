@@ -264,10 +264,10 @@ move:
 	return worker_graph_reload(dst_worker);
 }
 
-int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports) {
+int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_port **ports) {
 	struct iface_info_port *port;
+	gr_vec unsigned *cpus = NULL;
 	struct worker *worker, *tmp;
-	unsigned *cpus = NULL;
 	char buf[BUFSIZ];
 	int ret = 0;
 	unsigned i;

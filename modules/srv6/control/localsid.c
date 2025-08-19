@@ -68,7 +68,7 @@ static struct api_out srv6_localsid_del(const void *request, void ** /*response*
 
 struct list_context {
 	uint16_t vrf_id;
-	struct gr_srv6_localsid *ldata;
+	gr_vec struct gr_srv6_localsid *ldata;
 };
 
 static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
