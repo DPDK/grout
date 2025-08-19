@@ -340,7 +340,7 @@ static void queue_distribute_reduce(void **) {
 	CPU_ZERO(&affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
 		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
 
@@ -377,7 +377,7 @@ static void queue_distribute_increase(void **) {
 	CPU_SET(3, &affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
 		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
 

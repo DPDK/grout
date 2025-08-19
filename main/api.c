@@ -40,7 +40,7 @@ struct subscription {
 };
 
 // List of subscribers to EVENT_TYPE_ALL
-static struct subscription *all_events_subs;
+static gr_vec struct subscription *all_events_subs;
 // 2 dimensional array of subscribers to events.
 //
 // Example to get a list of sockets subscribed to ev_type = 0xacdc0102:
@@ -72,7 +72,7 @@ static struct subscription *all_events_subs;
 //                             +--------+
 //
 struct module_subscribers {
-	struct subscription *ev_subs[UINT16_MAX];
+	gr_vec struct subscription *ev_subs[UINT16_MAX];
 };
 static struct module_subscribers *mod_subs[UINT16_MAX];
 // PID of the current request while API handler is called.

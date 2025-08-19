@@ -160,7 +160,7 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 
 struct list_context {
 	uint16_t vrf_id;
-	struct nexthop **nhs;
+	gr_vec struct nexthop **nhs;
 	ssize_t len;
 };
 

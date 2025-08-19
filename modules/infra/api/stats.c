@@ -37,8 +37,9 @@ static struct stat *find_stat(struct stat *stats, const char *name) {
 static struct api_out stats_get(const void *request, void **response) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
-	struct stat *stats = NULL, *s;
+	gr_vec struct stat *stats = NULL;
 	size_t len, n_stats;
+	struct stat *s;
 	int ret;
 
 	if (req->flags & GR_INFRA_STAT_F_SW) {
@@ -219,7 +220,7 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 
 static struct api_out iface_stats_get(const void * /*request*/, void **response) {
 	struct gr_infra_iface_stats_get_resp *resp = NULL;
-	struct gr_iface_stats *stats_vec = NULL;
+	gr_vec struct gr_iface_stats *stats_vec = NULL;
 	struct iface *iface = NULL;
 	int ret = 0;
 
@@ -277,8 +278,9 @@ err:
 
 static int
 telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	struct stat *stats = NULL, *s;
+	gr_vec struct stat *stats = NULL;
 	struct worker *worker;
+	struct stat *s;
 
 	rte_tel_data_start_dict(d);
 

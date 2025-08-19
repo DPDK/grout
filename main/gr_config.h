@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <gr_vec.h>
+
 #include <sched.h>
 #include <stdbool.h>
 #include <sys/types.h>
@@ -19,7 +21,7 @@ struct gr_config {
 	bool poll_mode;
 	bool log_syslog;
 	bool log_packets;
-	char **eal_extra_args;
+	gr_vec char **eal_extra_args;
 	cpu_set_t control_cpus; //!< control plane threads allowed CPUs
 	cpu_set_t datapath_cpus; //!< datapath threads allowed CPUs
 };

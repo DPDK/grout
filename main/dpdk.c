@@ -91,8 +91,9 @@ int dpdk_log_init(void) {
 }
 
 int dpdk_init(void) {
-	char **eal_args = NULL, *arg;
+	gr_vec char **eal_args = NULL;
 	char main_lcore[32] = "";
+	char *arg;
 	int ret;
 
 	pthread_setname_np(pthread_self(), "grout:main");
