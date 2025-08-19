@@ -873,7 +873,7 @@ end:
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
-void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
+void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	struct nexthop nh = {.weight = 1};
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
@@ -901,5 +901,5 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh) {
 	type = origin2zebra(gr_nh->origin, family, false);
 	SET_FLAG(nh.flags, NEXTHOP_FLAG_ACTIVE);
 
-	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, false, NULL);
+	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
 }
