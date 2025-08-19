@@ -5,6 +5,7 @@
 
 #include <gr_log.h>
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +13,13 @@
 // convenience tag to indicate that a pointer is managed with gr_vec_* macros
 #define gr_vec
 
+#define __GR_VEC_MAGIC UINT64_C(0x23061981)
+
 // (internal) vector header
 struct __gr_vec_hdr {
+#ifndef NDEBUG
+	uint64_t magic;
+#endif
 	uint32_t len;
 	uint32_t cap;
 };
@@ -22,7 +28,12 @@ struct __gr_vec_hdr {
 static inline struct __gr_vec_hdr *__gr_vec_hdr(const void *vec) {
 	if (vec == NULL)
 		return NULL;
-	return ((struct __gr_vec_hdr *)vec) - 1;
+
+	struct __gr_vec_hdr *hdr = ((struct __gr_vec_hdr *)vec) - 1;
+#ifndef NDEBUG
+	assert(hdr->magic == __GR_VEC_MAGIC);
+#endif
+	return hdr;
 }
 
 // (internal) get the current capacity of a vector
@@ -59,6 +70,9 @@ static inline void *__gr_vec_grow(void *vec, size_t item_size, uint32_t add_num,
 	if (hdr == NULL)
 		ABORT("realloc out of memory");
 
+#ifndef NDEBUG
+	hdr->magic = __GR_VEC_MAGIC;
+#endif
 	if (vec == NULL)
 		hdr->len = 0;
 	hdr->cap = min_cap;
@@ -116,6 +130,9 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 	if (hdr == NULL)
 		ABORT("malloc out of memory");
 
+#ifndef NDEBUG
+	hdr->magic = __GR_VEC_MAGIC;
+#endif
 	hdr->len = hdr->cap = gr_vec_len(vec);
 	memcpy(hdr + 1, vec, gr_vec_len(vec) * item_size);
 
