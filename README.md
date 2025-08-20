@@ -293,6 +293,39 @@ Use ? for help and <tab> for command completion.
 grout#
 ```
 
+### Debugging tools
+
+Pretty printers for Grout are available in `devtools/gdb_pprint.py`.
+
+To automatically load them, a `.gdbinit` file is provided, that you can enable
+by adding the following to your `$HOME/.gdbinit` file:
+
+```
+set auto-load local-gdbinit on
+set auto-load safe-path /
+```
+
+You can also load the python script manually:
+
+```
+(gdb) source devtools/gdb_pprint.py
+```
+
+Multiple pretty printers are available, you can verify they are loaded with
+`info pretty-printer`:
+
+```
+(gdb) info pretty-printer
+global pretty-printers:
+  builtin
+    mpx_bound128
+  grout
+    ip4_addr_t
+    struct iface
+    struct rte_ether_addr
+    struct rte_ipv6_addr
+```
+
 ## Contact
 
 * Mailing list: grout@dpdk.org ([archives](http://mails.dpdk.org/archives/grout/))
