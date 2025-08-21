@@ -4,6 +4,7 @@
 #include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_log.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 #include <gr_vlan.h>
 

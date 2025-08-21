@@ -77,8 +77,6 @@ struct gr_iface {
 	uint8_t info[256]; // Type specific interface info.
 };
 
-void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
-
 // Port reconfig attributes
 #define GR_PORT_SET_N_RXQS GR_BIT64(32)
 #define GR_PORT_SET_N_TXQS GR_BIT64(33)
