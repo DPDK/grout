@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <gr_infra.h>
+
 #include <rte_build_config.h>
 
 #include <stddef.h>
@@ -28,3 +30,5 @@ struct rxtx_trace_data {
 };
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
+
+void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
