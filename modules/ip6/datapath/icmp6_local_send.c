@@ -11,6 +11,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_vec.h>
 
 #include <rte_ip6.h>
 
@@ -45,6 +46,13 @@ int icmp6_local_send(
 	struct ctl_to_stack *msg;
 	const struct nexthop *local;
 	int ret;
+
+	if (gw->type == GR_NH_T_GROUP) {
+		struct group_nh_data *d = group_nh_data(gw);
+		if (gr_vec_len(d->nhs) == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = d->nhs[ident % gr_vec_len(d->nhs)];
+	}
 
 	if ((local = addr6_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
 		return -errno;

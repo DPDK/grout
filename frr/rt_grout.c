@@ -764,6 +764,52 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
+static enum zebra_dplane_result grout_add_del_nexthop_group(struct zebra_dplane_ctx *ctx) {
+	struct gr_nh_add_req nh_add = {.exist_ok = true};
+	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
+	struct gr_nh_group_set_req nh_grp_set = {0};
+	const struct nh_grp *nhs;
+
+	if (dplane_ctx_get_op(ctx) == DPLANE_OP_NH_DELETE) {
+		struct gr_nh_del_req nh_del = {
+			.nh.nh_id = nh_id,
+			.missing_ok = true,
+		};
+		if (grout_client_send_recv(GR_NH_DEL, sizeof(nh_del), &nh_del, NULL) < 0)
+			return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+
+	nh_add.nh.nh_id = nh_id;
+	nh_add.nh.type = GR_NH_T_GROUP;
+	nh_add.nh.origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
+
+	if (grout_client_send_recv(GR_NH_ADD, sizeof(nh_add), &nh_add, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	nh_grp_set.group_id = nh_id;
+	nh_grp_set.nh_grp_count = dplane_ctx_get_nhe_nh_grp_count(ctx);
+	if (nh_grp_set.nh_grp_count > GR_NH_GROUP_MAX) {
+		gr_log_err(
+			"nexthop-group %u has too many members (%u > %u)",
+			nh_id,
+			nh_grp_set.nh_grp_count,
+			GR_NH_GROUP_MAX
+		);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	nhs = dplane_ctx_get_nhe_nh_grp(ctx);
+
+	for (size_t i = 0; i < nh_grp_set.nh_grp_count; i++) {
+		nh_grp_set.nh_ids[i] = nhs[i].id;
+		// TODO: provide nhs[i].weight when grout will support it
+	}
+	if (grout_client_send_recv(GR_NH_GROUP_SET, sizeof(nh_grp_set), &nh_grp_set, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
 enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
 	union {
@@ -784,9 +830,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	if (dplane_ctx_get_nhe_nh_grp_count(ctx)) {
-		// next group are not supported in grout
-		gr_log_err("impossible to add/del nexthop grout %u (nhg not supported)", nh_id);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
+		return grout_add_del_nexthop_group(ctx);
 	}
 
 	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gr_infra.h>
+#include <gr_nexthop.h>
 
 #include <ecoli.h>
 
@@ -66,4 +67,11 @@ uint64_t parse_iface_args(
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
 	bool update
+);
+
+void nh_group_print(
+	const struct gr_api_client *c,
+	const struct gr_nh_list_resp *info,
+	uint32_t group_id,
+	char *line
 );
