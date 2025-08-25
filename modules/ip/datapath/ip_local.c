@@ -47,7 +47,7 @@ static uint16_t ip_input_local_process(
 			data->len = rte_be_to_cpu_16(ip->total_length) - rte_ipv4_hdr_len(ip);
 			data->vrf_id = iface->vrf_id;
 			data->proto = ip->next_proto_id;
-			rte_pktmbuf_adj(mbuf, sizeof(*ip));
+			rte_pktmbuf_adj(mbuf, rte_ipv4_hdr_len(ip));
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
