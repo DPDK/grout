@@ -6,6 +6,7 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_mbuf.h>
@@ -41,8 +42,7 @@ struct __rte_cache_aligned nexthop {
 	static_assert(sizeof(struct type) <= MEMBER_SIZE(struct nexthop, priv))
 
 struct hoplist {
-	// list managed with gr_vec_*
-	struct nexthop **nh;
+	gr_vec struct nexthop **nh;
 };
 
 // Lookup a nexthop from the global pool that matches the specified criteria.

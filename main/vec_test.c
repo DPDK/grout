@@ -4,8 +4,10 @@
 #include <gr_cmocka.h>
 #include <gr_vec.h>
 
+int gr_rte_log_type __attribute__((weak));
+
 static void int_vec(void **) {
-	int *vec = NULL;
+	gr_vec int *vec = NULL;
 
 	assert_int_equal(gr_vec_len(vec), 0);
 
@@ -41,7 +43,7 @@ static void int_vec(void **) {
 }
 
 static void str_vec(void **) {
-	const char **vec = NULL;
+	gr_vec const char **vec = NULL;
 
 	assert_int_equal(gr_vec_len(vec), 0);
 

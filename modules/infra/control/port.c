@@ -188,7 +188,7 @@ static int iface_port_reconfig(
 			return ret;
 
 		// generate a list of ports including the one being configured/created
-		struct iface_info_port **ports = NULL;
+		gr_vec struct iface_info_port **ports = NULL;
 		struct iface *i = NULL;
 		bool found = false;
 		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
@@ -292,7 +292,7 @@ static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
 
 static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	struct rte_eth_dev_info info;
 	struct iface *i = NULL;
 	int ret;

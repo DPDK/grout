@@ -118,10 +118,10 @@ mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
 #define assert_qmaps(qmaps, ...)                                                                   \
 	do {                                                                                       \
 		struct queue_map __expected[] = {__VA_ARGS__};                                     \
-		size_t __len = sizeof(__expected) / sizeof(struct queue_map);                      \
+		uint32_t __len = sizeof(__expected) / sizeof(struct queue_map);                    \
 		if (gr_vec_len(qmaps) != __len)                                                    \
-			fail_msg("%s len %zu expected %zu", #qmaps, gr_vec_len(qmaps), __len);     \
-		for (unsigned __i = 0; __i < __len; __i++) {                                       \
+			fail_msg("%s len %u expected %u", #qmaps, gr_vec_len(qmaps), __len);       \
+		for (uint32_t __i = 0; __i < __len; __i++) {                                       \
 			struct queue_map *exp = &__expected[__i], *act;                            \
 			bool found = false;                                                        \
 			gr_vec_foreach_ref (act, qmaps) {                                          \
@@ -340,7 +340,7 @@ static void queue_distribute_reduce(void **) {
 	CPU_ZERO(&affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
 		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
 
@@ -377,7 +377,7 @@ static void queue_distribute_increase(void **) {
 	CPU_SET(3, &affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	struct iface_info_port **ports = NULL;
+	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
 		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
 

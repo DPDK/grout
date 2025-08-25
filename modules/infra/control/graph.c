@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
-static const char **node_names;
+static gr_vec const char **node_names;
 
 struct node_data_key {
 	char graph[RTE_GRAPH_NAMESIZE];

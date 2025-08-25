@@ -102,7 +102,7 @@ static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 
 struct dnat44_list_iterator {
 	uint16_t vrf_id;
-	struct gr_dnat44_rule *rules;
+	gr_vec struct gr_dnat44_rule *rules;
 };
 
 static void dnat44_list_iter(struct nexthop *nh, void *priv) {

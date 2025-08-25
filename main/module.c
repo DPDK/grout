@@ -140,7 +140,8 @@ static void topo_sort(struct gr_module **mods) {
 }
 
 void modules_init(struct event_base *ev_base) {
-	struct gr_module *mod, **mods = NULL;
+	gr_vec struct gr_module **mods = NULL;
+	struct gr_module *mod;
 
 	STAILQ_FOREACH (mod, &modules, entries)
 		gr_vec_add(mods, mod);
@@ -161,7 +162,8 @@ void modules_init(struct event_base *ev_base) {
 }
 
 void modules_fini(struct event_base *ev_base) {
-	struct gr_module *mod, **mods = NULL;
+	gr_vec struct gr_module **mods = NULL;
+	struct gr_module *mod;
 
 	STAILQ_FOREACH (mod, &modules, entries)
 		gr_vec_add(mods, mod);

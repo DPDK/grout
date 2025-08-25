@@ -5,6 +5,7 @@
 
 #include <gr_bitops.h>
 #include <gr_infra.h>
+#include <gr_vec.h>
 
 #include <rte_ether.h>
 
@@ -15,7 +16,7 @@
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
-	const struct iface **subinterfaces;
+	gr_vec const struct iface **subinterfaces;
 	char *name;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };

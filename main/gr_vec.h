@@ -3,40 +3,56 @@
 
 #pragma once
 
+#include <gr_log.h>
+
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+// convenience tag to indicate that a pointer is managed with gr_vec_* macros
+#define gr_vec
+
+#define __GR_VEC_MAGIC UINT64_C(0x23061981)
+
 // (internal) vector header
 struct __gr_vec_hdr {
-	size_t len;
-	size_t cap;
+#ifndef NDEBUG
+	uint64_t magic;
+#endif
+	uint32_t len;
+	uint32_t cap;
 };
 
 // (internal) get a pointer the vector header
 static inline struct __gr_vec_hdr *__gr_vec_hdr(const void *vec) {
 	if (vec == NULL)
 		return NULL;
-	return ((struct __gr_vec_hdr *)vec) - 1;
+
+	struct __gr_vec_hdr *hdr = ((struct __gr_vec_hdr *)vec) - 1;
+#ifndef NDEBUG
+	assert(hdr->magic == __GR_VEC_MAGIC);
+#endif
+	return hdr;
 }
 
 // (internal) get the current capacity of a vector
-static inline size_t __gr_vec_cap(const void *vec) {
+static inline uint32_t __gr_vec_cap(const void *vec) {
 	if (vec == NULL)
 		return 0;
 	return __gr_vec_hdr(vec)->cap;
 }
 
 // get the size of a vector
-static inline size_t gr_vec_len(const void *vec) {
+static inline uint32_t gr_vec_len(const void *vec) {
 	if (vec == NULL)
 		return 0;
 	return __gr_vec_hdr(vec)->len;
 }
 
 // (internal) allocate memory to prepare for more items
-static inline void *__gr_vec_grow(void *vec, size_t item_size, size_t add_num, size_t min_cap) {
-	size_t min_len = gr_vec_len(vec) + add_num;
+static inline void *__gr_vec_grow(void *vec, size_t item_size, uint32_t add_num, uint32_t min_cap) {
+	uint32_t min_len = gr_vec_len(vec) + add_num;
 	struct __gr_vec_hdr *hdr;
 
 	if (min_len > min_cap)
@@ -52,8 +68,11 @@ static inline void *__gr_vec_grow(void *vec, size_t item_size, size_t add_num, s
 
 	hdr = realloc(__gr_vec_hdr(vec), sizeof(*hdr) + item_size * min_cap);
 	if (hdr == NULL)
-		abort();
+		ABORT("realloc out of memory");
 
+#ifndef NDEBUG
+	hdr->magic = __GR_VEC_MAGIC;
+#endif
 	if (vec == NULL)
 		hdr->len = 0;
 	hdr->cap = min_cap;
@@ -62,12 +81,12 @@ static inline void *__gr_vec_grow(void *vec, size_t item_size, size_t add_num, s
 }
 
 // (internal) delete multiple items stating at a given index
-static inline void __gr_vec_del_range(void *vec, size_t item_size, size_t start, size_t len) {
+static inline void __gr_vec_del_range(void *vec, size_t item_size, uint32_t start, uint32_t len) {
 	struct __gr_vec_hdr *hdr = __gr_vec_hdr(vec);
-	size_t end = start + len;
+	uint32_t end = start + len;
 
 	if (hdr == NULL || start >= hdr->len || len == 0 || item_size == 0)
-		abort();
+		ABORT("out of bounds");
 
 	if (end >= hdr->len) {
 		hdr->len = start;
@@ -82,11 +101,12 @@ static inline void __gr_vec_del_range(void *vec, size_t item_size, size_t start,
 }
 
 // (internal) delete multiple items stating at a given index
-static inline void *__gr_vec_shift_range(void *vec, size_t item_size, size_t start, size_t len) {
-	size_t end = start + len;
+static inline void *
+__gr_vec_shift_range(void *vec, size_t item_size, uint32_t start, uint32_t len) {
+	uint32_t end = start + len;
 
 	if (len == 0 || item_size == 0 || start > gr_vec_len(vec))
-		abort();
+		ABORT("out of bounds");
 
 	vec = __gr_vec_grow(vec, item_size, len, 0);
 
@@ -108,12 +128,19 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 
 	hdr = malloc(sizeof(*hdr) + (gr_vec_len(vec) * item_size));
 	if (hdr == NULL)
-		abort();
+		ABORT("malloc out of memory");
 
+#ifndef NDEBUG
+	hdr->magic = __GR_VEC_MAGIC;
+#endif
 	hdr->len = hdr->cap = gr_vec_len(vec);
 	memcpy(hdr + 1, vec, gr_vec_len(vec) * item_size);
 
 	return hdr + 1;
+}
+
+static inline void __gr_vec_abort(const char *msg) {
+	ABORT("%s", msg);
 }
 
 // free a previously allocated vector
@@ -135,10 +162,14 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 #define gr_vec_insert(v, i, x) ((v) = __gr_vec_shift_range(v, sizeof(*(v)), (i), 1), (v)[i] = (x))
 
 // remove the last item from a vector and return it
-#define gr_vec_pop(v) (gr_vec_len(v) > 0 ? (void)0 : abort(), (v)[--__gr_vec_hdr(v)->len])
+#define gr_vec_pop(v)                                                                              \
+	(gr_vec_len(v) > 0 ? (void)0 : __gr_vec_abort("gr_vec_pop empty vec"),                     \
+	 (v)[--__gr_vec_hdr(v)->len])
 
 // get the last item from a vector
-#define gr_vec_last(v) (gr_vec_len(v) > 0 ? (void)0 : abort(), (v)[__gr_vec_hdr(v)->len - 1])
+#define gr_vec_last(v)                                                                             \
+	(gr_vec_len(v) > 0 ? (void)0 : __gr_vec_abort("gr_vec_last empty vec"),                    \
+	 (v)[__gr_vec_hdr(v)->len - 1])
 
 // delete an item at the specified index, shifting following items
 #define gr_vec_del(v, i) __gr_vec_del_range(v, sizeof(*(v)), (i), 1)
@@ -151,10 +182,10 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 
 // iterate over a vector, dereferencing each item into a local variable
 #define gr_vec_foreach(x, v)                                                                       \
-	for (size_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++)   \
+	for (uint32_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++) \
 		for (x = v[__i]; __next; __next = !__next)
 
 // iterate over a vector, referencing each item into a local pointer
 #define gr_vec_foreach_ref(p, v)                                                                   \
-	for (size_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++)   \
+	for (uint32_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++) \
 		for (p = &v[__i]; __next; __next = !__next)

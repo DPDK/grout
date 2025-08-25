@@ -198,7 +198,7 @@ static struct gr_api_handler nh_del_handler = {
 struct list_context {
 	uint16_t vrf_id;
 	bool all;
-	struct gr_nexthop *nh;
+	gr_vec struct gr_nexthop *nh;
 };
 
 static void nh_list_cb(struct nexthop *nh, void *priv) {

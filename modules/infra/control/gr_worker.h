@@ -60,8 +60,8 @@ struct worker {
 
 	// private for control plane only
 	pthread_t thread;
-	struct queue_map *rxqs;
-	struct queue_map *txqs;
+	gr_vec struct queue_map *rxqs;
+	gr_vec struct queue_map *txqs;
 	STAILQ_ENTRY(worker) next;
 } __rte_cache_aligned;
 
@@ -69,6 +69,6 @@ STAILQ_HEAD(workers, worker);
 extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
-int worker_queue_distribute(const cpu_set_t *affinity, struct iface_info_port **ports);
+int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_port **ports);
 void worker_wait_ready(struct worker *);
 void worker_signal_ready(struct worker *);
