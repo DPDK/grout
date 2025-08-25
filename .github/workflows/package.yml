@@ -46,7 +46,7 @@ jobs:
             grout*.deb
             grout*.ddeb
           retention-days: 5
-        if: ${{ github.event_name == 'workflow_call' && inputs.upload }}
+        if: ${{ inputs.upload }}
 
   rpm:
     permissions:
@@ -75,4 +75,4 @@ jobs:
           name: rpm-packages
           path: grout*.rpm
           retention-days: 5
-        if: ${{ github.event_name == 'workflow_call' && inputs.upload }}
+        if: ${{ inputs.upload }}
