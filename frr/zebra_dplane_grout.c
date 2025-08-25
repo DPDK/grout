@@ -81,6 +81,71 @@ static int grout_notif_subscribe(
 	return 0;
 }
 
+static void grout_sync_nhs(struct event *) {
+	struct gr_nh_list_req nh_req = {.vrf_id = 0, .all = true};
+	struct gr_nh_list_resp *nh_resp;
+	void *resp;
+	if (grout_client_send_recv(GR_NH_LIST, sizeof(nh_req), &nh_req, &resp) < 0)
+		return;
+	nh_resp = resp;
+	for (uint16_t i = 0; i < nh_resp->n_nhs; i++)
+		grout_nexthop_change(true, &nh_resp->nhs[i]);
+	free(nh_resp);
+}
+
+static void grout_sync_ifaces(struct event *) {
+	struct gr_infra_iface_list_req if_req = {.type = GR_IFACE_TYPE_UNDEF};
+	struct gr_infra_iface_list_resp *if_list;
+	void *resp;
+
+	if (grout_client_send_recv(GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req, &resp) < 0)
+		return;
+	if_list = resp;
+	for (uint16_t i = 0; i < if_list->n_ifaces; i++)
+		grout_link_change(&if_list->ifaces[i], true, false);
+	free(if_list);
+
+	struct gr_ip4_addr_list_req ip_req = {.vrf_id = 0};
+	struct gr_ip4_addr_list_resp *ip_resp;
+	if (grout_client_send_recv(GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req, &resp) < 0)
+		return;
+	ip_resp = resp;
+	for (uint16_t i = 0; i < ip_resp->n_addrs; i++) {
+		struct gr_nexthop dummy = {
+			.af = GR_AF_IP4,
+			.ipv4 = ip_resp->addrs[i].addr.ip,
+			.prefixlen = ip_resp->addrs[i].addr.prefixlen,
+			.iface_id = ip_resp->addrs[i].iface_id,
+		};
+		grout_interface_addr_dplane(&dummy, true);
+	}
+	free(ip_resp);
+
+	struct gr_ip6_addr_list_req ip6_req = {.vrf_id = 0};
+	struct gr_ip6_addr_list_resp *ip6_resp;
+	if (grout_client_send_recv(GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req, &resp) < 0)
+		return;
+	ip6_resp = resp;
+	for (uint16_t i = 0; i < ip6_resp->n_addrs; i++) {
+		struct gr_nexthop dummy = {
+			.af = GR_AF_IP6,
+			.ipv6 = ip6_resp->addrs[i].addr.ip,
+			.prefixlen = ip6_resp->addrs[i].addr.prefixlen,
+			.iface_id = ip6_resp->addrs[i].iface_id,
+		};
+		grout_interface_addr_dplane(&dummy, true);
+	}
+	free(ip6_resp);
+	event_add_timer(zrouter.master, grout_sync_nhs, NULL, 0, NULL);
+}
+
+static void grout_sync(struct event *) {
+	struct event_loop *dg_master = dplane_get_thread_master();
+	if (grout_ctx.dplane_notifs == NULL || grout_ctx.zebra_notifs == NULL)
+		return;
+	event_add_timer(dg_master, grout_sync_ifaces, NULL, 0, NULL);
+}
+
 static void dplane_grout_connect(struct event *) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	static const struct grout_evt gr_evts[] = {
@@ -107,6 +172,7 @@ static void dplane_grout_connect(struct event *) {
 	);
 
 	gr_log_debug("monitor iface/ip events");
+	event_add_timer(dg_master, grout_sync, NULL, 0, NULL);
 	return;
 
 reschedule_connect:
@@ -114,6 +180,7 @@ reschedule_connect:
 }
 
 static void zebra_grout_connect(struct event *) {
+	struct event_loop *dg_master = dplane_get_thread_master();
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IP_ROUTE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IP_ROUTE_DEL, .suppress_self_events = true},
@@ -134,6 +201,7 @@ static void zebra_grout_connect(struct event *) {
 	);
 
 	gr_log_debug("monitor route events");
+	event_add_timer(dg_master, grout_sync, NULL, 0, NULL);
 	return;
 
 reschedule_connect:
