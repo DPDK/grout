@@ -35,8 +35,9 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct eth_input_mbuf_data *eth_data;
 	struct ip_local_mbuf_data *ip_data;
 	ip4_addr_t last_src, last_dst;
-	uint16_t last_vrf_id;
+	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
+	uint16_t last_vrf_id;
 	struct iface *ipip;
 	rte_edge_t edge;
 
@@ -67,6 +68,9 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
+		stats = iface_get_stats(rte_lcore_id(), ipip->id);
+		stats->rx_packets += 1;
+		stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));

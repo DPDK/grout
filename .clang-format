@@ -139,6 +139,8 @@ QualifierAlignment: Leave
 ReferenceAlignment: Pointer
 ReflowComments: false
 RemoveBracesLLVM: false
+RemoveParentheses: ReturnStatement
+RemoveSemicolon: true
 SeparateDefinitionBlocks: Leave
 ShortNamespaceLines: 1
 SortIncludes: CaseSensitive

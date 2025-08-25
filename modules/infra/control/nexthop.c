@@ -3,11 +3,14 @@
 
 #include <gr_clock.h>
 #include <gr_event.h>
+#include <gr_id_pool.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_module.h>
 #include <gr_nh_control.h>
+#include <gr_rcu.h>
 
+#include <rte_hash.h>
 #include <rte_malloc.h>
 #include <rte_mempool.h>
 
@@ -21,8 +24,12 @@
 #define DEFAULT_BCAST_PROBES 3
 
 static struct rte_mempool *pool;
+static struct gr_id_pool *pool_id;
+static struct rte_hash *hash_by_addr;
+static struct rte_hash *hash_by_id;
 static struct event *ageing_timer;
-static const struct nexthop_ops *nh_ops[GR_NH_TYPE_COUNT];
+static const struct nexthop_af_ops *af_ops[256];
+static const struct nexthop_type_ops *type_ops[256];
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
@@ -67,15 +74,205 @@ static struct rte_mempool *create_mempool(const struct gr_nexthop_config *c) {
 	return p;
 }
 
-int nexthop_config_set(const struct gr_nexthop_config *c) {
-	if (c->max_count != 0 && c->max_count != nh_conf.max_count) {
-		struct rte_mempool *p = create_mempool(c);
-		if (p == NULL)
-			return -errno;
-		rte_mempool_free(pool);
-		pool = p;
-		nh_conf.max_count = c->max_count;
+static struct gr_id_pool *create_idpool(const struct gr_nexthop_config *c) {
+	if (pool_id != NULL && gr_id_pool_used(pool_id))
+		return errno_set_null(EBUSY);
+
+	char name[128];
+	snprintf(name, sizeof(name), "nexthop-ids-%u", c->max_count);
+	struct gr_id_pool *pid = gr_id_pool_create(name, c->max_count);
+	if (pid == NULL)
+		return errno_log_null(rte_errno, "gr_id_pool_create");
+
+	return pid;
+}
+
+static void nexthop_id_put(struct nexthop *nh) {
+	if (nh->nh_id == 0)
+		return;
+
+	if (nh->nh_id <= nh_conf.max_count)
+		gr_id_pool_put(pool_id, nh->nh_id);
+
+	rte_hash_del_key(hash_by_id, &nh->nh_id);
+	nh->nh_id = 0;
+	return;
+}
+
+static int nexthop_id_get(struct nexthop *nh) {
+	int ret;
+
+	// no id for internal, as we should not let user manipulate it
+	if (nh->origin == GR_NH_ORIGIN_INTERNAL) {
+		nh->nh_id = 0;
+		return 0;
 	}
+	// don't allocate nh id for address, else will conflict with zebra nexthop address
+	if (nh->nh_id == 0 && nh->origin == GR_NH_ORIGIN_LINK)
+		return 0;
+
+	// if no id allocate one
+	if (nh->nh_id == 0) {
+		nh->nh_id = gr_id_pool_get(pool_id);
+		if (nh->nh_id == 0)
+			return errno_set(ENOSPC);
+		// book id if this one in the range of id allocated
+		// (user is allowed to use id outside > max_count
+	} else if (nh->nh_id <= nh_conf.max_count && gr_id_pool_book(pool_id, nh->nh_id) < 0)
+		return errno_set(EBUSY);
+
+	ret = rte_hash_add_key_data(hash_by_id, &nh->nh_id, nh);
+	if (ret < 0) {
+		if (nh->nh_id <= nh_conf.max_count)
+			gr_id_pool_put(pool_id, nh->nh_id);
+		return errno_set(-ret);
+	}
+	return 0;
+}
+
+struct nexthop_key {
+	addr_family_t af;
+	uint16_t vrf_id;
+	union {
+		ip4_addr_t ipv4;
+		struct rte_ipv6_addr ipv6;
+	};
+};
+
+static inline void set_nexthop_key(
+	struct nexthop_key *key,
+	addr_family_t af,
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const void *addr
+) {
+	memset(key, 0, sizeof(*key));
+	key->af = af;
+	key->vrf_id = vrf_id;
+	switch (af) {
+	case GR_AF_IP4:
+		key->ipv4 = *(ip4_addr_t *)addr;
+		break;
+	case GR_AF_IP6:
+		key->ipv6 = *(struct rte_ipv6_addr *)addr;
+		if (rte_ipv6_addr_is_linklocal(&key->ipv6)) {
+			key->ipv6.a[2] = (iface_id >> 8) & 0xff;
+			key->ipv6.a[3] = iface_id & 0xff;
+		}
+		break;
+	case GR_AF_UNSPEC:
+		ABORT("AF_UNSPEC has no nexthop key with gw");
+		break;
+	}
+}
+
+static struct rte_hash *create_hash_by_addr(const struct gr_nexthop_config *c) {
+	if (hash_by_addr != NULL && rte_hash_count(hash_by_addr) > 0)
+		return errno_set_null(EBUSY);
+
+	struct rte_hash_parameters params = {
+		.name = "nexthop-addrs",
+		.socket_id = SOCKET_ID_ANY,
+		.key_len = sizeof(struct nexthop_key),
+		.entries = c->max_count,
+	};
+
+	struct rte_hash *h = rte_hash_create(&params);
+	if (h == NULL)
+		return errno_log_null(rte_errno, "rte_hash_create");
+
+	struct rte_hash_rcu_config conf = {
+		.v = gr_datapath_rcu(),
+		.mode = RTE_HASH_QSBR_MODE_SYNC,
+	};
+	if (rte_hash_rcu_qsbr_add(h, &conf)) {
+		rte_hash_free(h);
+		return errno_log_null(rte_errno, "rte_hash_rcu_qsbr_add");
+	}
+
+	return h;
+}
+
+static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
+	if (hash_by_id != NULL && rte_hash_count(hash_by_id) > 0)
+		return errno_set_null(EBUSY);
+
+	struct rte_hash_parameters params = {
+		.name = "nexthop-ids",
+		.socket_id = SOCKET_ID_ANY,
+		.key_len = sizeof(uint32_t),
+		.entries = c->max_count,
+	};
+
+	struct rte_hash *h = rte_hash_create(&params);
+	if (h == NULL)
+		return errno_log_null(rte_errno, "rte_hash_create");
+
+	struct rte_hash_rcu_config conf = {
+		.v = gr_datapath_rcu(),
+		.mode = RTE_HASH_QSBR_MODE_SYNC,
+	};
+	if (rte_hash_rcu_qsbr_add(h, &conf)) {
+		rte_hash_free(h);
+		return errno_log_null(rte_errno, "rte_hash_rcu_qsbr_add");
+	}
+
+	return h;
+}
+
+static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
+	struct rte_mempool *p = NULL;
+	struct rte_hash *haddr = NULL;
+	struct rte_hash *hid = NULL;
+	struct gr_id_pool *pid = NULL;
+
+	if (c->max_count == 0 || c->max_count == nh_conf.max_count)
+		return 0;
+
+	p = create_mempool(c);
+	if (p == NULL)
+		goto fail;
+
+	haddr = create_hash_by_addr(c);
+	if (haddr == NULL)
+		goto fail;
+
+	hid = create_hash_by_id(c);
+	if (hid == NULL)
+		goto fail;
+
+	pid = create_idpool(c);
+	if (pid == NULL)
+		goto fail;
+
+	rte_mempool_free(pool);
+	pool = p;
+	rte_hash_free(hash_by_addr);
+	hash_by_addr = haddr;
+	rte_hash_free(hash_by_id);
+	hash_by_id = hid;
+	gr_id_pool_destroy(pool_id);
+	pool_id = pid;
+
+	nh_conf.max_count = c->max_count;
+	return 0;
+
+fail:
+	if (p)
+		rte_mempool_free(p);
+	if (haddr)
+		rte_hash_free(haddr);
+	if (hid)
+		rte_hash_free(hid);
+	if (pid)
+		gr_id_pool_destroy(pid);
+
+	return -errno;
+}
+
+int nexthop_config_set(const struct gr_nexthop_config *c) {
+	nexthop_config_allocate(c);
+
 	if (c->lifetime_reachable_sec != 0)
 		nh_conf.lifetime_reachable_sec = c->lifetime_reachable_sec;
 	if (c->lifetime_unreachable_sec != 0)
@@ -90,24 +287,71 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 	return 0;
 }
 
-void nexthop_ops_register(gr_nh_type_t type, const struct nexthop_ops *ops) {
-	switch (type) {
-	case GR_NH_IPV4:
-	case GR_NH_IPV6:
-		break;
-	default:
-		ABORT("invalid nexthop type %hhu", type);
+void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
+	switch (af) {
+	case GR_AF_UNSPEC:
+	case GR_AF_IP4:
+	case GR_AF_IP6:
+		if (ops == NULL || ops->add == NULL || ops->del == NULL || ops->solicit == NULL)
+			ABORT("invalid af ops");
+		if (af_ops[af] != NULL)
+			ABORT("duplicate af ops %hhu", af);
+		af_ops[af] = ops;
+		return;
 	}
-	if (ops == NULL || ops->free == NULL || ops->solicit == NULL)
-		ABORT("invalid ops");
-	nh_ops[type] = ops;
+	ABORT("invalid nexthop family %hhu", af);
 }
 
-struct nexthop *
-nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
-	struct nexthop *nh;
+const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af) {
+	return af_ops[af];
+}
+
+void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
+	switch (type) {
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6_OUTPUT:
+	case GR_NH_T_SR6_LOCAL:
+	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
+		if (ops == NULL || (ops->free == NULL && ops->equal == NULL))
+			ABORT("invalid type ops");
+		if (type_ops[type] != NULL)
+			ABORT("duplicate type ops %hhu", type);
+		type_ops[type] = ops;
+		return;
+	}
+	ABORT("invalid nexthop type %hhu", type);
+}
+
+const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type) {
+	return type_ops[type];
+}
+
+struct nexthop *nexthop_new(const struct gr_nexthop *base) {
+	struct nexthop *nh = NULL;
 	void *data;
 	int ret;
+
+	switch (base->type) {
+	case GR_NH_T_L3:
+	case GR_NH_T_SR6_OUTPUT:
+	case GR_NH_T_SR6_LOCAL:
+	case GR_NH_T_DNAT:
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
+		break;
+	default:
+		ABORT("invalid nexthop type %hhu", base->type);
+	}
+	switch (base->af) {
+	case GR_AF_UNSPEC:
+	case GR_AF_IP4:
+	case GR_AF_IP6:
+		break;
+	default:
+		ABORT("invalid nexthop family %hhu", base->af);
+	}
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("nexthop created from datapath thread");
@@ -116,43 +360,74 @@ nexthop_new(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *a
 		return errno_set_null(-ret);
 
 	nh = data;
-	nh->vrf_id = vrf_id;
-	nh->iface_id = iface_id;
-	nh->type = type;
-	switch (type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
-		nh->ipv4 = *(ip4_addr_t *)addr;
-		break;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-		nh->ipv6 = *(struct rte_ipv6_addr *)addr;
-		break;
-	default:
-		ABORT("invalid nexthop type %hhu", type);
+
+	if ((ret = nexthop_update(nh, base)) < 0) {
+		memset(nh, 0, sizeof(*nh));
+		rte_mempool_put(pool, nh);
+		return errno_set_null(-ret);
 	}
 
-	gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
+	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
 	return nh;
 }
 
-bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
-	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->type != b->type)
-		return false;
+int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
+	struct nexthop_key key;
+	int ret;
 
-	switch (a->type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
-		return memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)) == 0;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-		return memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)) == 0;
-	default:
-		ABORT("invalid nexthop type %hhu", a->type);
+	nexthop_id_put(nh);
+
+	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+		rte_hash_del_key(hash_by_addr, &key);
 	}
 
-	return false;
+	nh->base = *update;
+
+	if ((ret = nexthop_id_get(nh)) < 0)
+		return ret;
+
+	if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+		set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+		if ((ret = rte_hash_add_key_data(hash_by_addr, &key, nh)) < 0) {
+			if (nh->nh_id != 0)
+				rte_hash_del_key(hash_by_id, &nh->nh_id);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
+	const struct nexthop_type_ops *ops = type_ops[a->type];
+
+	if (a->vrf_id != b->vrf_id || a->iface_id != b->iface_id || a->af != b->af
+	    || a->type != b->type)
+		return false;
+
+	switch (a->af) {
+	case GR_AF_IP4:
+		if (memcmp(&a->ipv4, &b->ipv4, sizeof(a->ipv4)))
+			return false;
+		break;
+	case GR_AF_IP6:
+		if (memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)))
+			return false;
+		break;
+	case GR_AF_UNSPEC:
+		break;
+	default:
+		ABORT("invalid nexthop family %hhu", a->af);
+	}
+
+	if (ops != NULL && ops->equal != NULL)
+		if (!ops->equal(a, b))
+			return false;
+
+	return true;
 }
 
 struct pool_iterator {
@@ -179,49 +454,64 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
 }
 
 struct lookup_filter {
-	gr_nh_type_t type;
+	addr_family_t af;
 	uint16_t vrf_id;
 	uint16_t iface_id;
+	uint32_t nh_id;
 	const void *addr;
 	struct nexthop *nh;
 };
 
-static void nh_lookup_cb(struct nexthop *nh, void *priv) {
+struct nexthop *
+nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+	struct nexthop_key key;
+	void *data;
+
+	if (af == AF_UNSPEC)
+		return NULL;
+
+	set_nexthop_key(&key, af, vrf_id, iface_id, addr);
+
+	if (rte_hash_lookup_data(hash_by_addr, &key, &data) < 0)
+		return errno_set_null(ENOENT);
+
+	return data;
+}
+
+struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
+	void *data;
+
+	if (rte_hash_lookup_data(hash_by_id, &nh_id, &data) < 0)
+		return errno_set_null(ENOENT);
+
+	return data;
+}
+
+static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
-
-	if (filter->nh != NULL || nh->type != filter->type || nh->vrf_id != filter->vrf_id)
-		return;
-
-	switch (filter->type) {
-	case GR_NH_IPV4:
-	case GR_NH_SR6_IPV4:
-		if (nh->ipv4 == *(ip4_addr_t *)filter->addr)
-			filter->nh = nh;
-		break;
-	case GR_NH_IPV6:
-	case GR_NH_SR6_IPV6:
-		if (rte_ipv6_addr_eq(&nh->ipv6, filter->addr)) {
-			bool is_linklocal = rte_ipv6_addr_is_linklocal(&nh->ipv6);
-			if (!is_linklocal || nh->iface_id == filter->iface_id)
-				filter->nh = nh;
-		}
-		break;
-	case GR_NH_TYPE_COUNT:
-		break;
+	if (nh->iface_id == filter->iface_id) {
+		nexthop_af_ops_get(GR_AF_UNSPEC)->del(nh);
+		while (nh->ref_count)
+			nexthop_decref(nh);
 	}
 }
 
-struct nexthop *
-nexthop_lookup(gr_nh_type_t type, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
-	struct lookup_filter filter = {
-		.type = type, .vrf_id = vrf_id, .iface_id = iface_id, .addr = addr
-	};
-	nexthop_iter(nh_lookup_cb, &filter);
-	return filter.nh ?: errno_set_null(ENOENT);
+void nexthop_cleanup(uint16_t iface_id) {
+	struct lookup_filter filter = {.iface_id = iface_id};
+	nexthop_iter(nh_cleanup_interface_cb, &filter);
 }
 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
+		nexthop_id_put(nh);
+		if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
+			struct nexthop_key key;
+			set_nexthop_key(&key, nh->af, nh->vrf_id, nh->iface_id, &nh->addr);
+			rte_hash_del_key(hash_by_addr, &key);
+		}
+
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
 		// Flush all held packets.
 		struct rte_mbuf *m = nh->held_pkts_head;
 		while (m != NULL) {
@@ -229,7 +519,12 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+		const struct nexthop_type_ops *ops = type_ops[nh->type];
+		if (ops != NULL && ops->free != NULL)
+			ops->free(nh);
+
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	} else {
@@ -242,53 +537,50 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nexthop_ageing_cb(struct nexthop *nh, void *) {
-	const struct nexthop_ops *ops = nh_ops[nh->type];
+	const struct nexthop_af_ops *ops = af_ops[nh->af];
 	clock_t now = gr_clock_us();
-	time_t reply_age, request_age;
 	unsigned probes, max_probes;
+	time_t reply_age;
 
 	if (nh->flags & GR_NH_F_STATIC)
 		return;
 
 	reply_age = (now - nh->last_reply) / CLOCKS_PER_SEC;
-	request_age = (now - nh->last_request) / CLOCKS_PER_SEC;
 	max_probes = nh_conf.max_ucast_probes + nh_conf.max_bcast_probes;
 	probes = nh->ucast_probes + nh->bcast_probes;
 
-	if (nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)) {
+	switch (nh->state) {
+	case GR_NH_S_NEW:
+		break;
+	case GR_NH_S_PENDING:
+	case GR_NH_S_STALE:
 		if (probes >= max_probes) {
 			LOG(DEBUG,
 			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    ADDR_W(nh_af(&nh->base)),
+			    ADDR_W(nh->af),
 			    &nh->addr,
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts,
-			    gr_nh_flag_name(nh->flags & (GR_NH_F_PENDING | GR_NH_F_STALE)));
+			    gr_nh_state_name(&nh->base));
 
-			nh->flags &= ~(GR_NH_F_PENDING | GR_NH_F_STALE);
-			nh->flags |= GR_NH_F_FAILED;
+			nh->state = GR_NH_S_FAILED;
 		} else {
 			if (ops->solicit(nh) < 0)
 				LOG(ERR,
 				    ADDR_F " vrf=%u solicit failed: %s",
-				    ADDR_W(nh_af(&nh->base)),
+				    ADDR_W(nh->af),
 				    &nh->addr,
 				    nh->vrf_id,
 				    strerror(errno));
 		}
-	} else if (nh->flags & GR_NH_F_REACHABLE && reply_age > nh_conf.lifetime_reachable_sec) {
-		nh->flags &= ~GR_NH_F_REACHABLE;
-		nh->flags |= GR_NH_F_STALE;
-	} else if (nh->flags & GR_NH_F_FAILED && request_age > nh_conf.lifetime_unreachable_sec) {
-		LOG(DEBUG,
-		    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: failed -> <destroy>",
-		    ADDR_W(nh_af(&nh->base)),
-		    &nh->addr,
-		    nh->vrf_id,
-		    probes,
-		    nh->held_pkts);
-		ops->free(nh);
+		break;
+	case GR_NH_S_REACHABLE:
+		if (reply_age > nh_conf.lifetime_reachable_sec)
+			nh->state = GR_NH_S_STALE;
+		break;
+	case GR_NH_S_FAILED:
+		break;
 	}
 }
 
@@ -301,6 +593,18 @@ static void nh_init(struct event_base *ev_base) {
 	if (pool == NULL)
 		ABORT("rte_mempool_create(nexthops) failed");
 
+	hash_by_addr = create_hash_by_addr(&nh_conf);
+	if (hash_by_addr == NULL)
+		ABORT("rte_hash_create(nexthop-addrs) failed");
+
+	hash_by_id = create_hash_by_id(&nh_conf);
+	if (hash_by_id == NULL)
+		ABORT("rte_hash_create(nexthop-ids) failed");
+
+	pool_id = create_idpool(&nh_conf);
+	if (pool_id == NULL)
+		ABORT("gr_id_pool_create(nexthop-ids) failed");
+
 	ageing_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, do_ageing, NULL);
 	if (ageing_timer == NULL)
 		ABORT("event_new() failed");
@@ -310,6 +614,8 @@ static void nh_init(struct event_base *ev_base) {
 }
 
 static void nh_fini(struct event_base *) {
+	rte_hash_free(hash_by_addr);
+	rte_hash_free(hash_by_id);
 	if (ageing_timer)
 		event_free(ageing_timer);
 	rte_mempool_free(pool);
@@ -327,11 +633,34 @@ static struct gr_event_serializer nh_serializer = {
 
 static struct gr_module module = {
 	.name = "nexthop",
+	.depends_on = "rcu",
 	.init = nh_init,
 	.fini = nh_fini,
+};
+
+static int nh_unspec_add(struct nexthop *nh) {
+	nexthop_incref(nh);
+	return 0;
+}
+
+static void nh_unspec_del(struct nexthop *nh) {
+	nexthop_af_ops_get(GR_AF_IP4)->del(nh);
+	nexthop_af_ops_get(GR_AF_IP6)->del(nh);
+	nexthop_decref(nh);
+}
+
+static int nh_unspec_solicit(struct nexthop *) {
+	return errno_set(EINVAL);
+}
+
+static struct nexthop_af_ops nh_ops = {
+	.add = nh_unspec_add,
+	.solicit = nh_unspec_solicit,
+	.del = nh_unspec_del,
 };
 
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
+	nexthop_af_ops_register(GR_AF_UNSPEC, &nh_ops);
 }

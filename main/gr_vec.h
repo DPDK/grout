@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_VEC
-#define _GR_VEC
+#pragma once
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -145,7 +144,7 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 #define gr_vec_del(v, i) __gr_vec_del_range(v, sizeof(*(v)), (i), 1)
 
 // delete multiple items stating at a given index
-#define gr_vec_del_n(v, i, n) __gr_vec_del_range(vec, sizeof(*(v)), (i), (n))
+#define gr_vec_del_n(v, i, n) __gr_vec_del_range(v, sizeof(*(v)), (i), (n))
 
 // replace the item at the specified index with the last item
 #define gr_vec_del_swap(v, i) ((v)[i] = gr_vec_last(v), __gr_vec_hdr(v)->len--)
@@ -159,5 +158,3 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 #define gr_vec_foreach_ref(p, v)                                                                   \
 	for (size_t __i = 0, __next = 1; __next && __i < gr_vec_len(v); __next = !__next, __i++)   \
 		for (p = &v[__i]; __next; __next = !__next)
-
-#endif

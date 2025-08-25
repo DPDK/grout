@@ -29,7 +29,7 @@
 static struct rte_rib **vrf_ribs;
 
 static struct rte_rib_conf rib_conf = {
-	.ext_sz = sizeof(gr_rt_origin_t),
+	.ext_sz = sizeof(gr_nh_origin_t),
 	.max_nodes = IP4_MAX_ROUTES,
 };
 
@@ -122,17 +122,18 @@ struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefix
 	return nh_id_to_ptr(nh_id);
 }
 
-int rib4_insert(
+static int rib4_insert_or_replace(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
 	uint8_t prefixlen,
-	gr_rt_origin_t origin,
-	struct nexthop *nh
+	gr_nh_origin_t origin,
+	struct nexthop *nh,
+	bool replace
 ) {
 	struct rte_rib *rib = get_or_create_rib(vrf_id);
-	struct nexthop *existing;
+	struct nexthop *existing = NULL;
 	struct rte_rib_node *rn;
-	gr_rt_origin_t *o;
+	gr_nh_origin_t *o;
 	int ret;
 
 	nexthop_incref(nh);
@@ -141,32 +142,43 @@ int rib4_insert(
 		ret = -errno;
 		goto fail;
 	}
-	existing = rib4_lookup_exact(vrf_id, ip, prefixlen);
-	if (existing != NULL) {
-		ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
-		goto fail;
+
+	if ((rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
+		rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen);
+		if (rn == NULL) {
+			ret = -rte_errno;
+			goto fail;
+		}
+	} else {
+		uintptr_t nh_id;
+		rte_rib_get_nh(rn, &nh_id);
+		existing = nh_id_to_ptr(nh_id);
+		if (!replace) {
+			ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
+			goto fail;
+		}
 	}
 
-	if ((rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
-		ret = -rte_errno;
-		goto fail;
-	}
+	nh->flags |= GR_NH_F_GATEWAY;
 
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib_get_ext(rn);
 	*o = origin;
 	fib4_insert(vrf_id, ip, prefixlen, nh);
-	if (origin != GR_RT_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP_ROUTE_ADD,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
-				nh->ipv4,
-				nh->vrf_id,
+				nh->base,
+				vrf_id,
 				origin,
 			}
 		);
 	}
+
+	if (existing)
+		nexthop_decref(existing);
 
 	return 0;
 fail:
@@ -174,9 +186,19 @@ fail:
 	return errno_set(-ret);
 }
 
-int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+int rib4_insert(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	struct nexthop *nh
+) {
+	return rib4_insert_or_replace(vrf_id, ip, prefixlen, origin, nh, false);
+}
+
+int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type) {
 	struct rte_rib *rib = get_rib(vrf_id);
-	gr_rt_origin_t *o, origin;
+	gr_nh_origin_t *o, origin;
 	struct rte_rib_node *rn;
 	struct nexthop *nh;
 	uintptr_t nh_id;
@@ -192,17 +214,19 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 	origin = *o;
 	rte_rib_get_nh(rn, &nh_id);
 	nh = nh_id_to_ptr(nh_id);
+	if (nh->type != nh_type)
+		return errno_set(EINVAL);
 
 	rte_rib_remove(rib, rte_be_to_cpu_32(ip), prefixlen);
 	fib4_remove(vrf_id, ip, prefixlen);
 
-	if (origin != GR_RT_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP_ROUTE_DEL,
 			&(struct gr_ip4_route) {
 				{ip, prefixlen},
-				nh->ipv4,
-				nh->vrf_id,
+				nh->base,
+				vrf_id,
 				origin,
 			}
 		);
@@ -217,43 +241,60 @@ static struct api_out route4_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	if (req->origin == GR_RT_ORIGIN_INTERNAL)
+	if (req->origin == GR_NH_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0);
 
-	// ensure route gateway is reachable
-	if ((nh = rib4_lookup(req->vrf_id, req->nh)) == NULL)
-		return api_out(EHOSTUNREACH, 0);
+	if (req->nh_id != GR_NH_ID_UNSET) {
+		nh = nexthop_lookup_by_id(req->nh_id);
+		if (nh == NULL)
+			return api_out(ENOENT, 0);
+	} else if ((nh = nexthop_lookup(GR_AF_IP4, req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh))
+		   == NULL) {
+		// ensure route gateway is reachable
+		if ((nh = rib4_lookup(req->vrf_id, req->nh)) == NULL)
+			return api_out(EHOSTUNREACH, 0);
 
-	// if the route gateway is reachable via a prefix route,
-	// create a new unresolved nexthop
-	if (nh->ipv4 != req->nh) {
-		if ((nh = nh4_new(req->vrf_id, nh->iface_id, req->nh)) == NULL)
-			return api_out(errno, 0);
-		nh->flags |= GR_NH_F_GATEWAY;
+		// if the route gateway is reachable via a prefix route,
+		// create a new unresolved nexthop
+		if (nh->ipv4 != req->nh) {
+			nh = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP4,
+				.flags = GR_NH_F_GATEWAY,
+				.vrf_id = req->vrf_id,
+				.iface_id = nh->iface_id,
+				.ipv4 = req->nh,
+				.origin = req->origin,
+			});
+			if (nh == NULL)
+				return api_out(errno, 0);
+		}
 	}
 
 	// if route insert fails, the created nexthop will be freed
-	ret = rib4_insert(req->vrf_id, req->dest.ip, req->dest.prefixlen, req->origin, nh);
-	if (ret == -EEXIST && req->exist_ok)
-		ret = 0;
+	ret = rib4_insert_or_replace(
+		req->vrf_id, req->dest.ip, req->dest.prefixlen, req->origin, nh, req->exist_ok
+	);
 
 	return api_out(-ret, 0);
 }
 
 static struct api_out route4_del(const void *request, void ** /*response*/) {
 	const struct gr_ip4_route_del_req *req = request;
-	struct nexthop *nh;
+	struct nexthop *nh = NULL;
+	int ret;
 
-	if ((nh = rib4_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen)) == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
-	}
+	nh = rib4_lookup(req->vrf_id, req->dest.ip);
+	ret = rib4_delete(
+		req->vrf_id, req->dest.ip, req->dest.prefixlen, nh ? nh->type : GR_NH_T_L3
+	);
+	if (ret == -ENOENT && req->missing_ok)
+		ret = 0;
 
-	if (rib4_delete(req->vrf_id, req->dest.ip, req->dest.prefixlen) < 0)
-		return api_out(errno, 0);
+	if (nh && nh->ref_count == 1)
+		nh->flags &= ~GR_NH_F_GATEWAY;
 
-	return api_out(0, 0);
+	return api_out(-ret, 0);
 }
 
 static struct api_out route4_get(const void *request, void **response) {
@@ -276,7 +317,7 @@ static struct api_out route4_get(const void *request, void **response) {
 
 static int route4_count(uint16_t vrf_id) {
 	struct rte_rib_node *rn = NULL;
-	gr_rt_origin_t *origin;
+	gr_nh_origin_t *origin;
 	struct rte_rib *rib;
 	int num;
 
@@ -287,13 +328,13 @@ static int route4_count(uint16_t vrf_id) {
 	num = 0;
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		origin = rte_rib_get_ext(rn);
-		if (*origin != GR_RT_ORIGIN_INTERNAL)
+		if (*origin != GR_NH_ORIGIN_INTERNAL)
 			num++;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		origin = rte_rib_get_ext(rn);
-		if (*origin != GR_RT_ORIGIN_INTERNAL)
+		if (*origin != GR_NH_ORIGIN_INTERNAL)
 			num++;
 	}
 
@@ -303,7 +344,7 @@ static int route4_count(uint16_t vrf_id) {
 static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_id) {
 	struct rte_rib_node *rn = NULL;
 	struct gr_ip4_route *r;
-	gr_rt_origin_t *origin;
+	gr_nh_origin_t *origin;
 	struct rte_rib *rib;
 	uintptr_t nh_id;
 	uint32_t ip;
@@ -313,27 +354,27 @@ static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_
 
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		origin = rte_rib_get_ext(rn);
-		if (*origin == GR_RT_ORIGIN_INTERNAL)
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
 			continue;
 		r = &resp->routes[resp->n_routes++];
 		rte_rib_get_nh(rn, &nh_id);
 		rte_rib_get_ip(rn, &ip);
 		rte_rib_get_depth(rn, &r->dest.prefixlen);
 		r->dest.ip = htonl(ip);
-		r->nh = nh_id_to_ptr(nh_id)->ipv4;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
 	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		origin = rte_rib_get_ext(rn);
-		if (*origin == GR_RT_ORIGIN_INTERNAL)
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
 			return;
 		r = &resp->routes[resp->n_routes++];
 		rte_rib_get_nh(rn, &nh_id);
 		r->dest.ip = 0;
 		r->dest.prefixlen = 0;
-		r->nh = nh_id_to_ptr(nh_id)->ipv4;
+		r->nh = nh_id_to_ptr(nh_id)->base;
 		r->vrf_id = vrf_id;
 		r->origin = *origin;
 	}
@@ -395,51 +436,35 @@ static void route4_fini(struct event_base *) {
 }
 
 void rib4_cleanup(struct nexthop *nh) {
-	uint8_t prefixlen, local_prefixlen;
 	struct rte_rib_node *rn = NULL;
 	struct rte_rib *rib;
-	ip4_addr_t local_ip;
+	struct nexthop *hop;
+	uint8_t prefixlen;
 	uintptr_t nh_id;
 	ip4_addr_t ip;
-
-	local_ip = nh->ipv4;
-	local_prefixlen = nh->prefixlen;
-
-	if (nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK))
-		rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
-	else
-		rib4_delete(nh->vrf_id, nh->ipv4, 32);
 
 	rib = get_rib(nh->vrf_id);
 	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-
 			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
-
-			rib4_delete(nh->vrf_id, ip, prefixlen);
-			rib4_delete(nh->vrf_id, ip, 32);
+			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
 		}
 	}
 
 	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
 		rte_rib_get_nh(rn, &nh_id);
-		nh = nh_id_to_ptr(nh_id);
-
-		if (nh && ip4_addr_same_subnet(nh->ipv4, local_ip, local_prefixlen)) {
+		hop = nh_id_to_ptr(nh_id);
+		if (hop == nh) {
 			rte_rib_get_ip(rn, &ip);
 			rte_rib_get_depth(rn, &prefixlen);
 			ip = rte_cpu_to_be_32(ip);
-
 			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
-
-			rib4_delete(nh->vrf_id, nh->ipv4, nh->prefixlen);
-			rib4_delete(nh->vrf_id, nh->ipv4, 32);
+			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
 		}
 	}
 }
@@ -473,6 +498,7 @@ static struct gr_event_serializer route_serializer = {
 
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
+	.depends_on = "fib4",
 	.init = route4_init,
 	.fini = route4_fini,
 };

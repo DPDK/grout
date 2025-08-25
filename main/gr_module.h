@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_MODULE
-#define _GR_MODULE
+#pragma once
 
 #include <event2/event.h>
 
@@ -35,15 +34,7 @@ struct gr_module {
 	const char *depends_on;
 	void (*init)(struct event_base *);
 	void (*fini)(struct event_base *);
-	void (*init_dp)(void);
-	void (*fini_dp)(void);
 	STAILQ_ENTRY(gr_module) entries;
 };
 
 void gr_register_module(struct gr_module *);
-
-void gr_modules_dp_init(void);
-
-void gr_modules_dp_fini(void);
-
-#endif

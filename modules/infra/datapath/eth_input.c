@@ -36,6 +36,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_ether_addr iface_mac;
 	struct rte_ether_hdr *eth;
 	struct rte_vlan_hdr *vlan;
+	struct iface_stats *stats;
 	rte_be16_t eth_type;
 	struct rte_mbuf *m;
 	size_t l2_hdr_size;
@@ -83,7 +84,15 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				goto next;
 			}
 			iface = eth_in->iface;
+			stats = iface_get_stats(rte_lcore_id(), eth_in->iface->id);
 		}
+
+		stats->rx_packets += 1;
+		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
+
+		if (unlikely(eth_in->domain == ETH_DOMAIN_LOOPBACK))
+			goto next;
+
 		if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
 			if (rte_is_broadcast_ether_addr(&eth->dst_addr))
 				eth_in->domain = ETH_DOMAIN_BROADCAST;

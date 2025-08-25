@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_ETH
-#define _GR_INFRA_ETH
+#pragma once
 
 #include <gr_graph.h>
 #include <gr_iface.h>
@@ -36,5 +35,3 @@ struct eth_trace_data {
 };
 
 int eth_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
-
-#endif

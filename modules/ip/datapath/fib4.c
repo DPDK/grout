@@ -5,6 +5,7 @@
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_rcu.h>
 
 #include <rte_errno.h>
 #include <rte_fib.h>
@@ -51,6 +52,11 @@ static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
 		fib = rte_fib_create(name, SOCKET_ID_ANY, &fib_conf);
 		if (fib == NULL)
 			return errno_set_null(rte_errno);
+
+		struct rte_fib_rcu_config rcu_config = {
+			.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_SYNC
+		};
+		rte_fib_rcu_qsbr_add(fib, &rcu_config);
 
 		vrf_fibs[vrf_id] = fib;
 	}
@@ -153,6 +159,7 @@ static void fib4_fini(struct event_base *) {
 
 static struct gr_module module = {
 	.name = "fib4",
+	.depends_on = "nexthop",
 	.init = fib4_init,
 	.fini = fib4_fini,
 };

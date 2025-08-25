@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_control_output.h>
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_ip4_datapath.h>
@@ -11,6 +12,7 @@
 
 enum {
 	CONTROL_OUTPUT,
+	NO_HEADROOM,
 	EDGE_COUNT,
 };
 
@@ -20,14 +22,28 @@ static uint16_t loopback_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	struct eth_output_mbuf_data *eth_data;
 	struct control_output_mbuf_data *co;
+	struct rte_ether_hdr *eth;
 	struct rte_mbuf *mbuf;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+		edge = CONTROL_OUTPUT;
+		eth_data = eth_output_mbuf_data(mbuf);
+		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
+		if (eth == NULL) {
+			edge = NO_HEADROOM;
+			goto next;
+		}
+
+		eth->ether_type = eth_data->ether_type;
+
 		co = control_output_mbuf_data(mbuf);
 		co->callback = loopback_tx;
-		rte_node_enqueue_x1(graph, node, CONTROL_OUTPUT, mbuf);
+next:
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 	return nb_objs;
 }
@@ -38,17 +54,12 @@ static struct rte_node_register loopback_output_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[CONTROL_OUTPUT] = "control_output",
+		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 
-static void loopback_output_register(void) {
-	ip_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loopback_output");
-	ip6_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loopback_output");
-}
-
 static struct gr_node_info info = {
 	.node = &loopback_output_node,
-	.register_callback = loopback_output_register,
 };
 
 GR_NODE_REGISTER(info);

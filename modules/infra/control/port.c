@@ -14,6 +14,7 @@
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_vec.h>
+#include <gr_vlan.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -156,6 +157,9 @@ static int iface_port_reconfig(
 	bool needs_configure = false;
 	int ret;
 
+	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu > gr_config.max_mtu)
+		return errno_set(ERANGE);
+
 	if ((ret = port_unplug(p->port_id)) < 0)
 		return ret;
 
@@ -246,6 +250,13 @@ static int iface_port_reconfig(
 	} else {
 		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
+	}
+
+	struct iface *v = NULL;
+	while ((v = iface_next(GR_IFACE_TYPE_VLAN, v)) != NULL) {
+		struct iface_info_vlan *vlan = (struct iface_info_vlan *)v->info;
+		if (vlan->parent_id == iface->id)
+			v->mtu = iface->mtu;
 	}
 
 	if (set_attrs & GR_IFACE_SET_MODE)
@@ -601,6 +612,19 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				continue;
 
 			port = (struct iface_info_port *)iface->info;
+
+			// XXX: net_tap devices are signaled down by the kernel when they
+			// are moved to another netns although they still can receive and
+			// transmit packets. Ignore link status updates for this driver and
+			// always assume they are running.
+			if (strncmp(port->devargs, "net_tap", strlen("net_tap")) == 0) {
+				if (!(iface->state & GR_IFACE_S_RUNNING)) {
+					LOG(INFO, "%s: link status up", iface->name);
+					iface->state |= GR_IFACE_S_RUNNING;
+					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+				}
+				continue;
+			}
 
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
 				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));

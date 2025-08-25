@@ -29,6 +29,17 @@ enum edges {
 	EDGE_COUNT,
 };
 
+static rte_edge_t nh_type_edges[256] = {FORWARD};
+
+void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
+	LOG(DEBUG, "ip_input: nexthop type=%u -> %s", type, next_node);
+	if (type == 0)
+		ABORT("invalid nexthop type=%u", type);
+	if (nh_type_edges[type] != FORWARD)
+		ABORT("next node already registered for nexthop type=%u", type);
+	nh_type_edges[type] = gr_node_attach_parent("ip_input", next_node);
+}
+
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_input_mbuf_data *e;
@@ -121,14 +132,16 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
+		edge = nh_type_edges[nh->type];
+		if (edge != FORWARD)
+			goto next;
+
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
 		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
 			edge = LOCAL;
 		else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;
-		else
-			edge = FORWARD;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_ipv4_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -145,7 +158,8 @@ next:
 
 static void ip_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
-	loopback_input_add_type(RTE_BE16(RTE_ETHER_TYPE_IPV4), "ip_input");
+	ip_input_register_nexthop_type(GR_NH_T_BLACKHOLE, "ip_blackhole");
+	ip_input_register_nexthop_type(GR_NH_T_REJECT, "ip_error_dest_unreach");
 }
 
 static struct rte_node_register input_node = {
@@ -178,18 +192,20 @@ GR_DROP_REGISTER(ip_input_bad_checksum);
 GR_DROP_REGISTER(ip_input_bad_length);
 GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
+GR_DROP_REGISTER(ip_blackhole);
 
 #ifdef __GROUT_UNIT_TEST__
 #include <gr_cmocka.h>
 
+int gr_rte_log_type;
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
+mock_func(rte_edge_t, gr_node_attach_parent(const char *, const char *));
 mock_func(const struct nexthop *, fib4_lookup(uint16_t, ip4_addr_t));
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip_format(char *, size_t, const struct rte_ipv4_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
-mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
 
 struct fake_mbuf {
 	struct rte_ipv4_hdr ipv4_hdr;

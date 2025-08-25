@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#ifndef _RT_GROUT_H
-#define _RT_GROUT_H
+#pragma once
 
 #include <gr_ip4.h>
 #include <gr_ip6.h>
@@ -12,5 +11,5 @@
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4);
 void grout_route6_change(bool new, struct gr_ip6_route *gr_r6);
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx);
-
-#endif /* _RT_GROUT_H */
+enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx);
+void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh);

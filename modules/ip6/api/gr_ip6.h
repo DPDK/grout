@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP6_MSG
-#define _GR_IP6_MSG
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -18,44 +17,12 @@ struct gr_ip6_ifaddr {
 
 struct gr_ip6_route {
 	struct ip6_net dest;
-	struct rte_ipv6_addr nh;
+	struct gr_nexthop nh;
 	uint16_t vrf_id;
-	gr_rt_origin_t origin;
+	gr_nh_origin_t origin;
 };
 
 #define GR_IP6_MODULE 0xfeed
-
-// next hops ///////////////////////////////////////////////////////////////////
-
-#define GR_IP6_NH_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0001)
-
-struct gr_ip6_nh_add_req {
-	struct gr_nexthop nh;
-	uint8_t exist_ok;
-};
-
-// struct gr_ip6_nh_add_resp { };
-
-#define GR_IP6_NH_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0002)
-
-struct gr_ip6_nh_del_req {
-	uint16_t vrf_id;
-	struct rte_ipv6_addr host;
-	uint8_t missing_ok;
-};
-
-// struct gr_ip6_nh_del_resp { };
-
-#define GR_IP6_NH_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0003)
-
-struct gr_ip6_nh_list_req {
-	uint16_t vrf_id;
-};
-
-struct gr_ip6_nh_list_resp {
-	uint16_t n_nhs;
-	struct gr_nexthop nhs[/* n_nhs */];
-};
 
 // routes //////////////////////////////////////////////////////////////////////
 
@@ -65,7 +32,8 @@ struct gr_ip6_route_add_req {
 	uint16_t vrf_id;
 	struct ip6_net dest;
 	struct rte_ipv6_addr nh;
-	gr_rt_origin_t origin;
+	uint32_t nh_id;
+	gr_nh_origin_t origin;
 	uint8_t exist_ok;
 };
 
@@ -183,7 +151,7 @@ struct gr_ip6_icmp_send_req {
 	uint8_t ttl;
 };
 
-/* struct gr_ip6_icmp_send_resp { } */
+// struct gr_ip6_icmp_send_resp { };
 
 #define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
 
@@ -208,5 +176,3 @@ typedef enum {
 	GR_EVENT_IP6_ROUTE_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0003),
 	GR_EVENT_IP6_ROUTE_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0004),
 } gr_event_ip6_t;
-
-#endif

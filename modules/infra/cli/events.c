@@ -9,7 +9,9 @@
 #include <gr_net_types.h>
 
 static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_pnode *) {
-	struct gr_event_subscribe_req req = {.ev_type = EVENT_TYPE_ALL};
+	struct gr_event_subscribe_req req = {
+		.suppress_self_events = false, .ev_type = EVENT_TYPE_ALL
+	};
 	struct gr_infra_iface_get_resp *p;
 	struct gr_api_event *e = NULL;
 	struct gr_ip4_route *r4;
@@ -52,7 +54,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			nh = PAYLOAD(e);
 			printf("> addr add: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr);
 			break;
 		case GR_EVENT_IP_ADDR_DEL:
@@ -61,7 +63,7 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			nh = PAYLOAD(e);
 			printf("> addr del: iface[%d] " ADDR_F "\n",
 			       nh->iface_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr);
 			break;
 		case GR_EVENT_IP_ROUTE_ADD:
@@ -70,8 +72,8 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route add: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh,
-			       gr_rt_origin_name(r4->origin));
+			       &r4->nh.ipv4,
+			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r4));
@@ -79,8 +81,8 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route del: %4p/%d via %4p origin %s\n",
 			       &r4->dest.ip,
 			       r4->dest.prefixlen,
-			       &r4->nh,
-			       gr_rt_origin_name(r4->origin));
+			       &r4->nh.ipv4,
+			       gr_nh_origin_name(r4->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_ADD:
 			assert(e->payload_len == sizeof(*r6));
@@ -88,8 +90,8 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route add: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh,
-			       gr_rt_origin_name(r6->origin));
+			       &r6->nh.ipv6,
+			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_IP6_ROUTE_DEL:
 			assert(e->payload_len == sizeof(*r6));
@@ -97,38 +99,41 @@ static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_p
 			printf("> route del: %6p/%d via %6p origin %s\n",
 			       &r6->dest.ip,
 			       r6->dest.prefixlen,
-			       &r6->nh,
-			       gr_rt_origin_name(r6->origin));
+			       &r6->nh.ipv6,
+			       gr_nh_origin_name(r6->origin));
 			break;
 		case GR_EVENT_NEXTHOP_NEW:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh new: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_DELETE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh del: iface %d vrf %d " ADDR_F " " ETH_F "  origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		case GR_EVENT_NEXTHOP_UPDATE:
 			assert(e->payload_len == sizeof(*nh));
 			nh = PAYLOAD(e);
-			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F "\n",
+			printf("> nh update: iface %d vrf %d " ADDR_F " " ETH_F " origin %s\n",
 			       nh->iface_id,
 			       nh->vrf_id,
-			       ADDR_W(nh_af(nh)),
+			       ADDR_W(nh->af),
 			       &nh->addr,
-			       &nh->mac);
+			       &nh->mac,
+			       gr_nh_origin_name(nh->origin));
 			break;
 		default:
 			printf("> unknown event 0x%08x\n", e->ev_type);

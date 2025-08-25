@@ -32,7 +32,7 @@ smoke-tests: all
 .PHONY: update-graph
 update-graph: all
 	$Q set -xe; tmp=`mktemp -d`; \
-	trap "killall grout; wait; rm -rf $$tmp" EXIT; \
+	trap "kill %1; wait; rm -rf $$tmp" EXIT; \
 	export GROUT_SOCK_PATH="$$tmp/sock"; \
 	$(BUILDDIR)/grout -t & \
 	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
@@ -86,7 +86,7 @@ rpm:
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
-	for name in grout grout-debuginfo grout-debugsource; do \
+	for name in grout grout-debuginfo; do \
 		mv -vf ~/rpmbuild/RPMS/$$arch/$$name-$$version.$$arch.rpm \
 			$$name.$$arch.rpm || exit; \
 	done
@@ -121,6 +121,8 @@ lint:
 	}
 	@echo '[white-space]'
 	$Q $(all_files) | xargs devtools/check-whitespace
+	@echo '[comments]'
+	$Q $(c_src) | xargs devtools/check-comments
 	@echo '[codespell]'
 	$Q codespell *
 
@@ -157,4 +159,4 @@ tag-release:
 	set -xe && \
 	sed -i "s/\<v$$cur_version\>/v$$next_version/" meson.build && \
 	git commit -sm "grout: release v$$next_version" -m "`devtools/git-stats v$$cur_version..`" meson.build && \
-	git tag -sm "v$$next_version" "v$$next_version"
+	git tag -sm "`devtools/git-stats v$$cur_version..HEAD^`" "v$$next_version"

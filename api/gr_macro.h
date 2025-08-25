@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_MACRO
-#define _GR_MACRO
+#pragma once
 
 #include <errno.h>
 
@@ -37,5 +36,3 @@
 		}                                                                                  \
 		n += __s;                                                                          \
 	} while (0)
-
-#endif

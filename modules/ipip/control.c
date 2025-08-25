@@ -11,6 +11,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
+#include <gr_rcu.h>
 
 #include <event2/event.h>
 #include <rte_ethdev.h>
@@ -101,7 +102,7 @@ static int iface_ipip_fini(struct iface *iface) {
 static int iface_ipip_init(struct iface *iface, const void *api_info) {
 	const struct gr_iface conf = {
 		.flags = iface->flags,
-		.mtu = iface->mtu,
+		.mtu = iface->mtu ?: 1480,
 		.mode = iface->mode,
 		.vrf_id = iface->vrf_id
 	};
@@ -145,6 +146,11 @@ static void ipip_init(struct event_base *) {
 	ipip_hash = rte_hash_create(&params);
 	if (ipip_hash == NULL)
 		ABORT("rte_hash_create(ipip)");
+
+	struct rte_hash_rcu_config rcu_config = {
+		.v = gr_datapath_rcu(), .mode = RTE_HASH_QSBR_MODE_SYNC
+	};
+	rte_hash_rcu_qsbr_add(ipip_hash, &rcu_config);
 }
 
 static void ipip_fini(struct event_base *) {
@@ -154,6 +160,7 @@ static void ipip_fini(struct event_base *) {
 
 static struct gr_module ipip_module = {
 	.name = "ipip",
+	.depends_on = "rcu",
 	.init = ipip_init,
 	.fini = ipip_fini,
 };

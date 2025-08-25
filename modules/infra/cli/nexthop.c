@@ -6,8 +6,10 @@
 #include <gr_cli_iface.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
+#include <gr_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -56,6 +58,156 @@ static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_add_req req = {
+		.exist_ok = true,
+		.nh.origin = GR_NH_ORIGIN_USER,
+		.nh.type = GR_NH_T_L3,
+	};
+	struct gr_iface iface;
+
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	if (arg_str(p, "blackhole") != NULL) {
+		req.nh.type = GR_NH_T_BLACKHOLE;
+		goto send;
+	}
+
+	if (arg_str(p, "reject") != NULL) {
+		req.nh.type = GR_NH_T_REJECT;
+		goto send;
+	}
+
+	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
+	case 0:
+		req.nh.af = GR_AF_IP4;
+		break;
+	case -EINVAL:
+		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
+			return CMD_ERROR;
+		req.nh.af = GR_AF_IP6;
+		break;
+	default:
+		req.nh.af = GR_AF_UNSPEC;
+		break;
+	}
+
+	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
+		return CMD_ERROR;
+	req.nh.iface_id = iface.id;
+
+	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+send:
+	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_del_req req = {.missing_ok = true};
+
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
+		return CMD_ERROR;
+
+	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_DEL, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_list_req req = {.vrf_id = UINT16_MAX};
+	struct libscols_table *table = scols_new_table();
+	const struct gr_nh_list_resp *resp;
+	struct gr_iface iface;
+	void *resp_ptr = NULL;
+	char buf[BUFSIZ];
+	ssize_t n;
+
+	if (table == NULL)
+		return CMD_ERROR;
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
+
+	req.all = arg_str(p, "all") != NULL;
+
+	if (gr_api_client_send_recv(c, GR_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
+		scols_unref_table(table);
+		return CMD_ERROR;
+	}
+
+	resp = resp_ptr;
+
+	scols_table_new_column(table, "VRF", 0, 0);
+	scols_table_new_column(table, "ID", 0, 0);
+	scols_table_new_column(table, "TYPE", 0, 0);
+	scols_table_new_column(table, "FAMILY", 0, 0);
+	scols_table_new_column(table, "IP", 0, 0);
+	scols_table_new_column(table, "MAC", 0, 0);
+	scols_table_new_column(table, "IFACE", 0, 0);
+	scols_table_new_column(table, "STATE", 0, 0);
+	scols_table_new_column(table, "FLAGS", 0, 0);
+	scols_table_new_column(table, "ORIGIN", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+
+	for (size_t i = 0; i < resp->n_nhs; i++) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
+		const struct gr_nexthop *nh = &resp->nhs[i];
+
+		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
+		if (nh->nh_id != GR_NH_ID_UNSET)
+			scols_line_sprintf(line, 1, "%u", nh->nh_id);
+		else
+			scols_line_set_data(line, 1, "");
+		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
+		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
+		if (nh->af == GR_AF_UNSPEC)
+			scols_line_set_data(line, 4, "");
+		else
+			scols_line_sprintf(line, 4, ADDR_F, ADDR_W(nh->af), &nh->addr);
+
+		if (nh->state == GR_NH_S_REACHABLE)
+			scols_line_sprintf(line, 5, ETH_F, &nh->mac);
+		else
+			scols_line_set_data(line, 5, "?");
+
+		if (iface_from_id(c, nh->iface_id, &iface) == 0)
+			scols_line_sprintf(line, 6, "%s", iface.name);
+		else
+			scols_line_set_data(line, 6, "?");
+
+		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh));
+
+		n = 0;
+		buf[0] = '\0';
+		gr_nh_flags_foreach (f, nh->flags)
+			SAFE_BUF(snprintf, sizeof(buf), "%s ", gr_nh_flag_name(f));
+		if (n > 0)
+			buf[n - 1] = '\0';
+
+		scols_line_sprintf(line, 8, "%s", buf);
+		scols_line_sprintf(line, 9, "%s", gr_nh_origin_name(nh->origin));
+	}
+
+	scols_print_table(table);
+	scols_unref_table(table);
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+err:
+	scols_unref_table(table);
+	free(resp_ptr);
+	return CMD_ERROR;
+}
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
@@ -101,6 +253,41 @@ static int ctx_init(struct ec_node *root) {
 		"nexthop",
 		show_config,
 		"Show the current nexthop configuration.",
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_ADD),
+		"nexthop [id ID] ([address IP] iface IFACE [mac MAC])|blackhole|reject",
+		nh_add,
+		"Add a new next hop.",
+		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
+		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Blackhole nexthop.", ec_node_str("blackhole", "blackhole")),
+		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject"))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_DEL),
+		"nexthop ID [vrf VRF]",
+		nh_del,
+		"Delete a next hop.",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_SHOW),
+		"nexthop [vrf VRF] [all]",
+		nh_list,
+		"List all next hops.",
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("All next hops including internal ones.", ec_node_str("all", "all"))
 	);
 	if (ret < 0)
 		return ret;

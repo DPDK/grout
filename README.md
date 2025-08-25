@@ -168,7 +168,7 @@ DESTINATION    NEXT_HOP
 172.16.0.0/24  172.16.0.2
 172.16.1.0/24  172.16.1.2
 0.0.0.0/0      172.16.1.183
-grout# show ip nexthop
+grout# show nexthop
 VRF  IP            MAC                IFACE  QUEUE  AGE  STATE
 0    172.16.0.2    30:3e:a7:0b:eb:c0  p0     0      0    reachable static local link
 0    172.16.1.2    30:3e:a7:0b:eb:c1  p1     0      0    reachable static local link
@@ -291,6 +291,39 @@ INFO: GROUT: listen_api_socket: listening on API socket grout.sock
 Welcome to the grout CLI.
 Use ? for help and <tab> for command completion.
 grout#
+```
+
+### Debugging tools
+
+Pretty printers for Grout are available in `devtools/gdb_pprint.py`.
+
+To automatically load them, a `.gdbinit` file is provided, that you can enable
+by adding the following to your `$HOME/.gdbinit` file:
+
+```
+set auto-load local-gdbinit on
+set auto-load safe-path /
+```
+
+You can also load the python script manually:
+
+```
+(gdb) source devtools/gdb_pprint.py
+```
+
+Multiple pretty printers are available, you can verify they are loaded with
+`info pretty-printer`:
+
+```
+(gdb) info pretty-printer
+global pretty-printers:
+  builtin
+    mpx_bound128
+  grout
+    ip4_addr_t
+    struct iface
+    struct rte_ether_addr
+    struct rte_ipv6_addr
 ```
 
 ## Contact

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#ifndef _GR_CLOCK
-#define _GR_CLOCK
+#pragma once
 
 #include <stdint.h>
 #include <time.h>
@@ -19,5 +18,3 @@ static inline clock_t gr_clock_us(void) {
 	struct timespec tp = gr_clock_raw();
 	return (tp.tv_sec * CLOCKS_PER_SEC) + (tp.tv_nsec / 1000);
 }
-
-#endif

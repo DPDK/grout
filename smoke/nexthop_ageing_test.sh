@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local timeout=5
 	for i in $(seq 1 $timeout); do
-		grcli show ip nexthop | grep -qE "$ip.+reachable";
+		grcli show nexthop all | grep -qE "$ip.+reachable";
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
@@ -49,12 +49,12 @@ done
 ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec $p1 ping -i0.01 -c3 -n 172.16.0.2
 
-grcli show ip nexthop
+grcli show nexthop
 # let nexthops lifetime expire and wait for ARP probes to be sent
 sleep 3
 
 grcli <<EOF
-show ip nexthop
+show nexthop
 show ip address
 EOF
 

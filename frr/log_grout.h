@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#ifndef _LOG_GROUT_H
-#define _LOG_GROUT_H
+#pragma once
 
 #include <lib/zlog.h>
 #include <zebra/debug.h>
@@ -19,5 +18,3 @@ extern unsigned long zebra_debug_dplane_grout;
 		if (IS_ZEBRA_DEBUG_DPLANE_GROUT)                                                   \
 			gr_log(LOG_DEBUG, "%s: " fmt, __func__, ##__VA_ARGS__);                    \
 	} while (0)
-
-#endif /* _LOG_GROUT_H */

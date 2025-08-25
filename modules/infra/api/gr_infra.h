@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_INFRA_API
-#define _GR_INFRA_API
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -29,6 +28,7 @@ typedef enum : uint16_t {
 	GR_IFACE_F_PROMISC = GR_BIT16(1),
 	GR_IFACE_F_ALLMULTI = GR_BIT16(2),
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(3),
+	GR_IFACE_F_SNAT = GR_BIT16(4),
 } gr_iface_flags_t;
 
 // Interface state flags
@@ -195,6 +195,25 @@ struct gr_infra_iface_set_req {
 
 // struct gr_infra_iface_set_resp { };
 
+#define GR_INFRA_IFACE_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0006)
+
+// struct gr_infra_iface_stats_get_req { };
+
+struct gr_iface_stats {
+	uint16_t iface_id;
+	uint64_t rx_packets;
+	uint64_t rx_bytes;
+	uint64_t rx_drops;
+	uint64_t tx_packets;
+	uint64_t tx_bytes;
+	uint64_t tx_errors;
+};
+
+struct gr_infra_iface_stats_get_resp {
+	uint16_t n_stats;
+	struct gr_iface_stats stats[/* n_stats */];
+};
+
 // port rxqs ///////////////////////////////////////////////////////////////////
 #define GR_INFRA_RXQ_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0010)
 
@@ -309,4 +328,34 @@ struct gr_infra_cpu_affinity_set_req {
 
 // struct gr_infra_cpu_affinity_set_resp { };
 
-#endif
+// Helper function to convert iface type enum to string
+static inline const char *iface_type_to_str(gr_iface_type_t type) {
+	switch (type) {
+	case GR_IFACE_TYPE_UNDEF:
+		return "undef";
+	case GR_IFACE_TYPE_LOOPBACK:
+		return "loopback";
+	case GR_IFACE_TYPE_PORT:
+		return "port";
+	case GR_IFACE_TYPE_VLAN:
+		return "vlan";
+	case GR_IFACE_TYPE_IPIP:
+		return "ipip";
+	case GR_IFACE_TYPE_COUNT:
+		break;
+	}
+	return "?";
+}
+
+// Helper function to convert iface mode enum to string
+static inline const char *iface_mode_to_str(gr_iface_mode_t mode) {
+	switch (mode) {
+	case GR_IFACE_MODE_L3:
+		return "l3";
+	case GR_IFACE_MODE_L1_XC:
+		return "l1-xc";
+	case GR_IFACE_MODE_COUNT:
+		break;
+	}
+	return "?";
+}

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CONFIG
-#define _GR_CONFIG
+#pragma once
 
 #include <sched.h>
 #include <stdbool.h>
@@ -15,6 +14,7 @@ struct gr_config {
 	gid_t api_sock_gid;
 	mode_t api_sock_mode;
 	unsigned log_level;
+	unsigned max_mtu;
 	bool test_mode;
 	bool poll_mode;
 	bool log_syslog;
@@ -25,5 +25,3 @@ struct gr_config {
 };
 
 extern struct gr_config gr_config;
-
-#endif

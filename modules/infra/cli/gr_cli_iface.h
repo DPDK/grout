@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_CLI_IFACE
-#define _GR_CLI_IFACE
+#pragma once
 
 #include <gr_infra.h>
 
@@ -68,5 +67,3 @@ uint64_t parse_iface_args(
 	struct gr_iface *iface,
 	bool update
 );
-
-#endif

@@ -6,6 +6,7 @@
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_rcu.h>
 #include <gr_worker.h>
 
 #include <rte_common.h>
@@ -111,6 +112,8 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 // The default timer resolution is around 50us, make it more precise
 #define SLEEP_RESOLUTION_NS 1000
 
+static struct rte_rcu_qsbr *rcu;
+
 void *gr_datapath_loop(void *priv) {
 	struct stats_context ctx = {.last_count = 0};
 	uint64_t timestamp, timestamp_tmp, cycles;
@@ -146,6 +149,8 @@ void *gr_datapath_loop(void *priv) {
 
 	log(INFO, "lcore_id = %d", w->lcore_id);
 
+	rte_rcu_qsbr_thread_register(rcu, rte_lcore_id());
+
 	static_assert(atomic_is_lock_free(&w->shutdown));
 	static_assert(atomic_is_lock_free(&w->cur_config));
 	static_assert(atomic_is_lock_free(&w->stats_reset));
@@ -161,6 +166,8 @@ reconfig:
 
 	if (graph == NULL) {
 		worker_wait_ready(w);
+		if (ctx.w_stats != NULL && atomic_exchange(&w->stats_reset, false))
+			stats_reset(ctx.w_stats);
 		goto reconfig;
 	}
 
@@ -168,17 +175,18 @@ reconfig:
 		goto shutdown;
 	atomic_store(&w->stats, ctx.w_stats);
 
-	gr_modules_dp_init();
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	loop = 0;
 	sleep = 0;
 	timestamp = rte_rdtsc();
 	for (;;) {
 		rte_graph_walk(graph);
+		rte_rcu_qsbr_quiescent(rcu, rte_lcore_id());
 
 		if (++loop == 256) {
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
-				gr_modules_dp_fini();
+				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 				goto reconfig;
 			}
 
@@ -211,8 +219,35 @@ shutdown:
 	if (ctx.stats)
 		rte_graph_cluster_stats_destroy(ctx.stats);
 	rte_free(ctx.w_stats);
+	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
 
 	return NULL;
+}
+
+struct rte_rcu_qsbr *gr_datapath_rcu(void) {
+	return rcu;
+}
+
+static void rcu_init(struct event_base *) {
+	rcu = rte_zmalloc("rcu", rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE), RTE_CACHE_LINE_SIZE);
+	if (rcu == NULL)
+		ABORT("rte_zmalloc(rcu)");
+	rte_rcu_qsbr_init(rcu, RTE_MAX_LCORE);
+}
+
+static void rcu_fini(struct event_base *) {
+	rte_free(rcu);
+	rcu = NULL;
+}
+
+static struct gr_module module = {
+	.name = "rcu",
+	.init = rcu_init,
+	.fini = rcu_fini,
+};
+
+RTE_INIT(_init) {
+	gr_register_module(&module);
 }

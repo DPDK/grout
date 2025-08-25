@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_INFRA_IFACE
-#define _GR_INFRA_IFACE
+#pragma once
 
 #include <gr_bitops.h>
 #include <gr_infra.h>
@@ -72,7 +71,17 @@ struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
 int iface_loopback_delete(uint16_t vrf_id);
 
+struct __rte_cache_aligned iface_stats {
+	uint64_t rx_packets;
+	uint64_t rx_bytes;
+	uint64_t tx_packets;
+	uint64_t tx_bytes;
+};
+
 #define MAX_IFACES 1024
 #define MAX_VRFS 256
 
-#endif
+extern struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
+static inline struct iface_stats *iface_get_stats(uint16_t lcore_id, uint16_t ifid) {
+	return &iface_stats[ifid][lcore_id];
+}

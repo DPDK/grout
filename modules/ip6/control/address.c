@@ -99,18 +99,30 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
 	gr_vec_foreach (nh, maddrs->nh) {
-		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
+		if (rte_ipv6_addr_eq(&nh->ipv6, ip)) {
+			nexthop_incref(nh);
 			return errno_set(EEXIST);
+		}
 	}
 
 	if ((nh = nh6_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
-		if ((nh = nh6_new(iface->vrf_id, iface->id, ip)) == NULL)
+		struct gr_nexthop base = {
+			.type = GR_NH_T_L3,
+			.af = GR_AF_IP6,
+			.state = GR_NH_S_REACHABLE,
+			.flags = GR_NH_F_STATIC | GR_NH_F_MCAST,
+			.vrf_id = iface->vrf_id,
+			.iface_id = iface->id,
+			.ipv6 = *ip,
+			.origin = GR_NH_ORIGIN_INTERNAL,
+		};
+		rte_ether_mcast_from_ipv6(&base.mac, ip);
+
+		if ((nh = nexthop_new(&base)) == NULL)
 			return errno_set(-errno);
-		rte_ether_mcast_from_ipv6(&nh->mac, ip);
 	}
 
 	nexthop_incref(nh);
-	nh->flags = GR_NH_F_REACHABLE | GR_NH_F_STATIC | GR_NH_F_MCAST;
 	gr_vec_add(maddrs->nh, nh);
 
 	// add ethernet filter
@@ -121,9 +133,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
 	struct nexthop *nh = NULL;
 	unsigned i = 0;
-	int ret;
-
-	LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
+	int ret = 0;
 
 	gr_vec_foreach (nh, maddrs->nh) {
 		if (rte_ipv6_addr_eq(&nh->ipv6, ip))
@@ -134,11 +144,13 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	// shift remaining addresses
-	gr_vec_del(maddrs->nh, i);
-
-	// remove ethernet filter
-	ret = iface_del_eth_addr(iface->id, &nh->mac);
+	if (nh->ref_count == 1) {
+		LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
+		// shift remaining addresses
+		gr_vec_del(maddrs->nh, i);
+		// remove ethernet filter
+		ret = iface_del_eth_addr(iface->id, &nh->mac);
+	}
 	nexthop_decref(nh);
 
 	return ret;
@@ -163,19 +175,24 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (nh6_lookup(iface->vrf_id, iface->id, ip) != NULL)
 		return errno_set(EADDRINUSE);
 
-	if ((nh = nh6_new(iface->vrf_id, iface->id, ip)) == NULL)
+	struct gr_nexthop base = {
+		.type = GR_NH_T_L3,
+		.af = GR_AF_IP6,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = iface->vrf_id,
+		.iface_id = iface->id,
+		.ipv6 = *ip,
+		.prefixlen = prefixlen,
+		.origin = GR_NH_ORIGIN_LINK,
+	};
+	if ((ret = iface_get_eth_addr(iface->id, &base.mac)) < 0 && errno != EOPNOTSUPP)
+		return errno_set(-ret);
+
+	if ((nh = nexthop_new(&base)) == NULL)
 		return errno_set(-errno);
 
-	nh->prefixlen = prefixlen;
-	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
-
-	if ((ret = iface_get_eth_addr(iface->id, &nh->mac)) < 0)
-		if (errno != EOPNOTSUPP) {
-			nexthop_decref(nh);
-			return errno_set(-ret);
-		}
-
-	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_RT_ORIGIN_LINK, nh);
+	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_NH_ORIGIN_LINK, nh);
 	if (ret < 0)
 		return errno_set(-ret);
 
@@ -202,7 +219,7 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 	// join the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
 	if (mcast6_addr_add(iface, &solicited_node) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != EEXIST)
 			return api_out(errno, 0);
 	}
 
@@ -306,6 +323,8 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
+		if (iface->type == GR_IFACE_TYPE_LOOPBACK)
+			break;
 		if (iface_get_eth_addr(iface->id, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
 			if (iface6_addr_add(iface, &link_local, 64) < 0)

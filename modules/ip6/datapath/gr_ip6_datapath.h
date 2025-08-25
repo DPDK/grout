@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP6_DATAPATH_H
-#define _GR_IP6_DATAPATH_H
+#pragma once
 
 #include <gr_control_output.h>
 #include <gr_icmp6.h>
@@ -34,6 +33,7 @@ GR_MBUF_PRIV_DATA_TYPE(ndp_na_output_mbuf_data, {
 });
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node);
+void ip6_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_node);
 void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 int nh6_solicit(struct nexthop *nh);
@@ -72,5 +72,3 @@ int icmp6_local_send(
 );
 
 void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb);
-
-#endif

@@ -6,6 +6,8 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
+#include <gr_nh_control.h>
+#include <gr_rcu.h>
 #include <gr_string.h>
 #include <gr_vec.h>
 
@@ -15,9 +17,12 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
+#include <vrf_priv.h>
 #include <wchar.h>
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+
+struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
 struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
@@ -41,19 +46,35 @@ void iface_type_register(struct iface_type *type) {
 // the first slot is wasted by GR_IFACE_ID_UNDEF
 static struct iface **ifaces;
 
+// Reserve a specific interface id.
+// Returns 0 on success, -errno on failure.
+static int reserve_ifid(uint16_t ifid) {
+	if (ifid >= MAX_IFACES)
+		return errno_set(EINVAL);
+
+	if (ifaces[ifid] == NULL)
+		return 0;
+
+	return errno_set(EBUSY);
+}
+
+// The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = IFACE_ID_FIRST; i < MAX_IFACES; i++) {
-		if (ifaces[i] == NULL) {
-			*ifid = i;
-			return 0;
-		}
+	for (uint16_t i = MAX_VRFS; i < MAX_IFACES; i++) {
+		if (reserve_ifid(i) < 0)
+			continue;
+
+		*ifid = i;
+		return 0;
 	}
+
 	return errno_set(ENOSPC);
 }
 
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
+	bool vrf_ref = false;
 	uint16_t ifid;
 
 	if (type == NULL)
@@ -73,7 +94,15 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		errno = ENOMEM;
 		goto fail;
 	}
-	if (next_ifid(&ifid) < 0)
+	if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
+		vrf_incref(conf->vrf_id);
+		vrf_ref = true;
+	}
+	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
+		ifid = conf->vrf_id;
+		if (reserve_ifid(ifid) < 0)
+			goto fail;
+	} else if (next_ifid(&ifid) < 0)
 		goto fail;
 
 	iface->base = conf->base;
@@ -88,12 +117,18 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	ifaces[ifid] = iface;
 
+	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
+
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
 	return iface;
 fail:
-	if (iface != NULL)
+	if (iface != NULL) {
+		if (vrf_ref)
+			vrf_decref(iface->vrf_id);
+
 		free(iface->name);
+	}
 	rte_free(iface);
 	return NULL;
 }
@@ -106,6 +141,8 @@ int iface_reconfig(
 ) {
 	struct iface_type *type;
 	struct iface *iface;
+	uint16_t old_vrf_id;
+	int ret;
 
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
@@ -129,7 +166,21 @@ int iface_reconfig(
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
-	return type->reconfig(iface, set_attrs, conf, api_info);
+
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		old_vrf_id = iface->vrf_id;
+		vrf_incref(conf->vrf_id);
+	}
+
+	ret = type->reconfig(iface, set_attrs, conf, api_info);
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		if (ret == 0)
+			vrf_decref(old_vrf_id);
+		else
+			vrf_decref(conf->vrf_id);
+	}
+
+	return ret;
 }
 
 uint16_t ifaces_count(gr_iface_type_t type_id) {
@@ -244,14 +295,20 @@ int iface_destroy(uint16_t ifid) {
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
-	/* interface is still up, send status down */
+	// interface is still up, send status down
 	if (iface->flags & GR_IFACE_F_UP) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
+		vrf_decref(iface->vrf_id);
+	nexthop_cleanup(ifid);
 
 	ifaces[ifid] = NULL;
+
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
 	ret = type->fini(iface);
@@ -265,7 +322,7 @@ int iface_destroy(uint16_t ifid) {
 static void iface_init(struct event_base *) {
 	ifaces = rte_calloc(__func__, MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
 	if (ifaces == NULL)
-		ABORT("rte_zmalloc(ifaces)");
+		ABORT("rte_calloc(ifaces)");
 }
 
 static void iface_fini(struct event_base *) {
@@ -298,7 +355,7 @@ static void iface_fini(struct event_base *) {
 
 static struct gr_module iface_module = {
 	.name = "iface",
-	.depends_on = "iface port",
+	.depends_on = "*route",
 	.init = iface_init,
 	.fini = iface_fini,
 };

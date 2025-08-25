@@ -24,6 +24,8 @@
 
 enum {
 	OUTPUT = 0,
+	BLACKHOLE,
+	REJECT,
 	ERROR,
 	EDGE_COUNT,
 };
@@ -69,6 +71,15 @@ static uint16_t ndp_ns_output_process(
 			next = ERROR;
 			goto next;
 		}
+		if (nh->type == GR_NH_T_BLACKHOLE) {
+			next = BLACKHOLE;
+			goto next;
+		}
+		if (nh->type == GR_NH_T_REJECT) {
+			next = REJECT;
+			goto next;
+		}
+
 		local = addr6_get_preferred(nh->iface_id, &nh->ipv6);
 		if (local == NULL) {
 			next = ERROR;
@@ -103,7 +114,7 @@ static uint16_t ndp_ns_output_process(
 		next = OUTPUT;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
-			if (next == ERROR) {
+			if (next != OUTPUT) {
 				gr_mbuf_trace_add(mbuf, node, 0);
 			} else {
 				uint8_t trace_len = RTE_MIN(payload_len, GR_TRACE_ITEM_MAX_LEN);
@@ -127,6 +138,8 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "icmp6_output",
+		[BLACKHOLE] = "ip6_blackhole",
+		[REJECT] = "ip6_admin_prohibited",
 		[ERROR] = "ndp_ns_output_error",
 	},
 };

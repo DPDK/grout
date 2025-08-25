@@ -3,8 +3,7 @@
 
 // This file must be included in *one* of your client application files.
 
-#ifndef _GR_API_CLIENT_IMPL
-#define _GR_API_CLIENT_IMPL
+#pragma once
 
 #include <gr_api.h>
 #include <gr_macro.h>
@@ -161,5 +160,3 @@ err:
 	*event = NULL;
 	return -errno;
 }
-
-#endif

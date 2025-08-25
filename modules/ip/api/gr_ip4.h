@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_IP4_MSG
-#define _GR_IP4_MSG
+#pragma once
 
 #include <gr_api.h>
 #include <gr_bitops.h>
@@ -18,44 +17,12 @@ struct gr_ip4_ifaddr {
 
 struct gr_ip4_route {
 	struct ip4_net dest;
-	ip4_addr_t nh;
+	struct gr_nexthop nh;
 	uint16_t vrf_id;
-	gr_rt_origin_t origin;
+	gr_nh_origin_t origin;
 };
 
 #define GR_IP4_MODULE 0xf00d
-
-// next hops ///////////////////////////////////////////////////////////////////
-
-#define GR_IP4_NH_ADD REQUEST_TYPE(GR_IP4_MODULE, 0x0001)
-
-struct gr_ip4_nh_add_req {
-	struct gr_nexthop nh;
-	uint8_t exist_ok;
-};
-
-// struct gr_ip4_nh_add_resp { };
-
-#define GR_IP4_NH_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0002)
-
-struct gr_ip4_nh_del_req {
-	uint16_t vrf_id;
-	ip4_addr_t host;
-	uint8_t missing_ok;
-};
-
-// struct gr_ip4_nh_del_resp { };
-
-#define GR_IP4_NH_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0003)
-
-struct gr_ip4_nh_list_req {
-	uint16_t vrf_id;
-};
-
-struct gr_ip4_nh_list_resp {
-	uint16_t n_nhs;
-	struct gr_nexthop nhs[/* n_nhs */];
-};
 
 // routes //////////////////////////////////////////////////////////////////////
 
@@ -65,7 +32,8 @@ struct gr_ip4_route_add_req {
 	uint16_t vrf_id;
 	struct ip4_net dest;
 	ip4_addr_t nh;
-	gr_rt_origin_t origin;
+	uint32_t nh_id;
+	gr_nh_origin_t origin;
 	uint8_t exist_ok;
 };
 
@@ -165,10 +133,48 @@ struct gr_ip4_icmp_recv_resp {
 	clock_t response_time;
 };
 
+// events //////////////////////////////////////////////////////////////////////
 typedef enum {
 	GR_EVENT_IP_ADDR_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0001),
 	GR_EVENT_IP_ADDR_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0002),
 	GR_EVENT_IP_ROUTE_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0003),
 	GR_EVENT_IP_ROUTE_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0004),
 } gr_event_ip_t;
-#endif
+
+// dnat44 //////////////////////////////////////////////////////////////////////
+
+struct gr_dnat44_rule {
+	uint16_t iface_id;
+	ip4_addr_t match;
+	ip4_addr_t replace;
+};
+
+#define GR_DNAT44_ADD REQUEST_TYPE(GR_IP4_MODULE, 0x0031)
+
+struct gr_dnat44_add_req {
+	struct gr_dnat44_rule rule;
+	bool exist_ok;
+};
+
+// struct gr_dnat44_add_resp { };
+
+#define GR_DNAT44_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0032)
+
+struct gr_dnat44_del_req {
+	uint16_t iface_id;
+	ip4_addr_t match;
+	bool missing_ok;
+};
+
+// struct gr_dnat44_del_resp { };
+
+#define GR_DNAT44_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0033)
+
+struct gr_dnat44_list_req {
+	uint16_t vrf_id;
+};
+
+struct gr_dnat44_list_resp {
+	uint16_t n_rules;
+	struct gr_dnat44_rule rules[/* n_rules */];
+};

@@ -80,19 +80,24 @@ static struct api_out addr_add(const void *request, void ** /*response*/) {
 	if (nh4_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
 		return api_out(EADDRINUSE, 0);
 
-	if ((nh = nh4_new(iface->vrf_id, iface->id, req->addr.addr.ip)) == NULL)
+	struct gr_nexthop base = {
+		.type = GR_NH_T_L3,
+		.af = GR_AF_IP4,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
+		.vrf_id = iface->vrf_id,
+		.iface_id = iface->id,
+		.ipv4 = req->addr.addr.ip,
+		.prefixlen = req->addr.addr.prefixlen,
+		.origin = GR_NH_ORIGIN_LINK,
+	};
+	if (iface_get_eth_addr(iface->id, &base.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0);
 
-	nh->prefixlen = req->addr.addr.prefixlen;
-	nh->flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_REACHABLE | GR_NH_F_STATIC;
+	if ((nh = nexthop_new(&base)) == NULL)
+		return api_out(errno, 0);
 
-	if (iface_get_eth_addr(iface->id, &nh->mac) < 0)
-		if (errno != EOPNOTSUPP) {
-			nexthop_decref(nh);
-			return api_out(errno, 0);
-		}
-
-	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, GR_RT_ORIGIN_LINK, nh)) < 0)
+	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, GR_NH_ORIGIN_LINK, nh)) < 0)
 		return api_out(-ret, 0);
 
 	gr_vec_add(ifaddrs->nh, nh);

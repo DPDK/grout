@@ -9,6 +9,7 @@
 #include <gr_vec.h>
 
 #include <assert.h>
+#include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
@@ -77,7 +78,7 @@ static void topo_sort(struct gr_module **mods) {
 			continue;
 
 		for (unsigned j = 0; j < len; j++) {
-			if (strcmp(mods[j]->name, mods[i]->depends_on) == 0) {
+			if (fnmatch(mods[i]->depends_on, mods[j]->name, 0) == 0) {
 				adj_matrix[j * len + i] = true;
 				break;
 			}
@@ -180,26 +181,4 @@ void modules_fini(struct event_base *ev_base) {
 	}
 
 	gr_vec_free(mods);
-}
-
-void gr_modules_dp_init(void) {
-	struct gr_module *mod;
-
-	STAILQ_FOREACH (mod, &modules, entries) {
-		if (mod->init_dp != NULL) {
-			LOG(DEBUG, "%s", mod->name);
-			mod->init_dp();
-		}
-	}
-}
-
-void gr_modules_dp_fini(void) {
-	struct gr_module *mod;
-
-	STAILQ_FOREACH (mod, &modules, entries) {
-		if (mod->fini_dp != NULL) {
-			LOG(DEBUG, "%s", mod->name);
-			mod->fini_dp();
-		}
-	}
 }

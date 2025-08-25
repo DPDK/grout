@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#ifndef _GR_CLI_EXEC
-#define _GR_CLI_EXEC
+#pragma once
 
 #include <gr_api.h>
 
@@ -31,5 +30,3 @@ exec_status_t exec_args(
 	size_t argc,
 	const char *const *argv
 );
-
-#endif

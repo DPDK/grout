@@ -4,7 +4,6 @@
 #include <gr_api.h>
 #include <gr_clock.h>
 #include <gr_control_input.h>
-#include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -45,7 +44,14 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = nh4_new(nh->vrf_id, nh->iface_id, dst);
+			remote = nexthop_new(&(struct gr_nexthop) {
+				.type = GR_NH_T_L3,
+				.af = GR_AF_IP4,
+				.vrf_id = nh->vrf_id,
+				.iface_id = nh->iface_id,
+				.ipv4 = dst,
+				.origin = GR_NH_ORIGIN_INTERNAL,
+			});
 		}
 
 		if (remote == NULL) {
@@ -57,14 +63,14 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 
 		// Create an associated /32 route so that next packets take it
 		// in priority with a single route lookup.
-		if (rib4_insert(nh->vrf_id, dst, 32, GR_RT_ORIGIN_INTERNAL, remote) < 0) {
+		if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
 			LOG(ERR, "failed to insert route: %s", strerror(errno));
 			goto free;
 		}
 		nh = remote;
 	}
 
-	if (nh->flags & GR_NH_F_REACHABLE) {
+	if (nh->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
 		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
@@ -84,9 +90,9 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 			queue_mbuf_data(nh->held_pkts_tail)->next = m;
 		nh->held_pkts_tail = m;
 		nh->held_pkts++;
-		if (!(nh->flags & GR_NH_F_PENDING)) {
+		if (nh->state != GR_NH_S_PENDING) {
 			arp_output_request_solicit(nh);
-			nh->flags |= GR_NH_F_PENDING;
+			nh->state = GR_NH_S_PENDING;
 		}
 		return;
 	} else {
@@ -116,12 +122,20 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		// Create one now. If the sender has requested our mac address,
 		// they will certainly contact us soon and it will save us an
 		// ARP request.
-		if ((nh = nh4_new(iface->vrf_id, iface->id, sip)) == NULL) {
+		nh = nexthop_new(&(struct gr_nexthop) {
+			.type = GR_NH_T_L3,
+			.af = GR_AF_IP4,
+			.vrf_id = iface->vrf_id,
+			.iface_id = iface->id,
+			.ipv4 = sip,
+			.origin = GR_NH_ORIGIN_INTERNAL,
+		});
+		if (nh == NULL) {
 			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
 			goto free;
 		}
 		// Add an internal /32 route to reference the newly created nexthop.
-		if (rib4_insert(iface->vrf_id, sip, 32, GR_RT_ORIGIN_INTERNAL, nh) < 0) {
+		if (rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
 			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
 			goto free;
 		}
@@ -131,13 +145,10 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	if (!(nh->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
-		nh->iface_id = iface->id;
-		nh->flags |= GR_NH_F_REACHABLE;
-		nh->flags &= ~(GR_NH_F_STALE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
 		nh->mac = arp->arp_data.arp_sha;
-		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
@@ -175,98 +186,14 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static struct api_out nh4_add(const void *request, void ** /*response*/) {
-	const struct gr_ip4_nh_add_req *req = request;
-	struct nexthop *nh;
-	int ret;
-
-	if (req->nh.ipv4 == 0)
-		return api_out(EINVAL, 0);
-	if (req->nh.vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
-	if (iface_from_id(req->nh.iface_id) == NULL)
-		return api_out(errno, 0);
-
-	if ((nh = nh4_lookup(req->nh.vrf_id, req->nh.ipv4)) != NULL) {
-		if (req->exist_ok && req->nh.iface_id == nh->iface_id
-		    && rte_is_same_ether_addr(&req->nh.mac, &nh->mac))
-			return api_out(0, 0);
-		return api_out(EEXIST, 0);
-	}
-
-	if ((nh = nh4_new(req->nh.vrf_id, req->nh.iface_id, req->nh.ipv4)) == NULL)
-		return api_out(errno, 0);
-
-	nh->mac = req->nh.mac;
-	nh->flags = GR_NH_F_STATIC | GR_NH_F_REACHABLE;
-	ret = rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_RT_ORIGIN_LINK, nh);
-
-	return api_out(-ret, 0);
+static int nh4_add(struct nexthop *nh) {
+	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh);
 }
 
-static struct api_out nh4_del(const void *request, void ** /*response*/) {
-	const struct gr_ip4_nh_del_req *req = request;
-	struct nexthop *nh;
-
-	if (req->vrf_id >= MAX_VRFS)
-		return api_out(EOVERFLOW, 0);
-
-	if ((nh = nh4_lookup(req->vrf_id, req->host)) == NULL) {
-		if (errno == ENOENT && req->missing_ok)
-			return api_out(0, 0);
-		return api_out(errno, 0);
-	}
-	if ((nh->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_GATEWAY)) || nh->ref_count > 1)
-		return api_out(EBUSY, 0);
-
-	// this also does ip4_nexthop_decref(), freeing the next hop
-	if (rib4_delete(req->vrf_id, req->host, 32) < 0)
-		return api_out(errno, 0);
-
-	return api_out(0, 0);
-}
-
-struct list_context {
-	uint16_t vrf_id;
-	struct gr_nexthop *nh;
-};
-
-static void nh_list_cb(struct nexthop *nh, void *priv) {
-	struct list_context *ctx = priv;
-
-	if (nh->type != GR_NH_IPV4 || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
-		return;
-
-	gr_vec_add(ctx->nh, nh->base);
-}
-
-static struct api_out nh4_list(const void *request, void **response) {
-	const struct gr_ip4_nh_list_req *req = request;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .nh = NULL};
-	struct gr_ip4_nh_list_resp *resp = NULL;
-	size_t len;
-
-	nexthop_iter(nh_list_cb, &ctx);
-
-	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(ctx.nh);
-		return api_out(ENOMEM, 0);
-	}
-
-	resp->n_nhs = gr_vec_len(ctx.nh);
-	if (ctx.nh != NULL)
-		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
-	gr_vec_free(ctx.nh);
-	*response = resp;
-
-	return api_out(0, len);
-}
-
-static void nh4_free(struct nexthop *nh) {
-	rib4_delete(nh->vrf_id, nh->ipv4, 32);
+static void nh4_del(struct nexthop *nh) {
+	rib4_cleanup(nh);
 	if (nh->ref_count > 0) {
-		nh->flags &= ~(GR_NH_F_REACHABLE | GR_NH_F_PENDING | GR_NH_F_FAILED);
+		nh->state = GR_NH_S_NEW;
 		memset(&nh->mac, 0, sizeof(nh->mac));
 	}
 }
@@ -276,37 +203,19 @@ static void nh4_init(struct event_base *) {
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
 }
 
-static struct gr_api_handler nh4_add_handler = {
-	.name = "ipv4 nexthop add",
-	.request_type = GR_IP4_NH_ADD,
-	.callback = nh4_add,
-};
-static struct gr_api_handler nh4_del_handler = {
-	.name = "ipv4 nexthop del",
-	.request_type = GR_IP4_NH_DEL,
-	.callback = nh4_del,
-};
-static struct gr_api_handler nh4_list_handler = {
-	.name = "ipv4 nexthop list",
-	.request_type = GR_IP4_NH_LIST,
-	.callback = nh4_list,
-};
-
 static struct gr_module nh4_module = {
 	.name = "ipv4 nexthop",
 	.depends_on = "graph",
 	.init = nh4_init,
 };
 
-static struct nexthop_ops nh_ops = {
+static struct nexthop_af_ops nh_ops = {
+	.add = nh4_add,
 	.solicit = arp_output_request_solicit,
-	.free = nh4_free,
+	.del = nh4_del,
 };
 
 RTE_INIT(control_ip_init) {
-	gr_register_api_handler(&nh4_add_handler);
-	gr_register_api_handler(&nh4_del_handler);
-	gr_register_api_handler(&nh4_list_handler);
 	gr_register_module(&nh4_module);
-	nexthop_ops_register(GR_NH_IPV4, &nh_ops);
+	nexthop_af_ops_register(GR_AF_IP4, &nh_ops);
 }

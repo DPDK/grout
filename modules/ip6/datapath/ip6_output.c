@@ -21,6 +21,7 @@ enum {
 	HOLD,
 	DEST_UNREACH,
 	ERROR,
+	TOO_BIG,
 	EDGE_COUNT,
 };
 
@@ -35,11 +36,11 @@ void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_n
 	iface_type_edges[type] = gr_node_attach_parent("ip6_output", next_node);
 }
 
-static rte_edge_t nh_type_edges[GR_NH_TYPE_COUNT] = {ETH_OUTPUT};
+static rte_edge_t nh_type_edges[256] = {ETH_OUTPUT};
 
 void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 	LOG(DEBUG, "ip6_output: nexthop type=%u -> %s", type, next_node);
-	if (type == 0 || type >= ARRAY_DIM(nh_type_edges))
+	if (type == 0)
 		ABORT("invalid nexthop type=%u", type);
 	if (nh_type_edges[type] != ETH_OUTPUT)
 		ABORT("next node already registered for nexthop type=%u", type);
@@ -83,6 +84,12 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = ERROR;
 			goto next;
 		}
+
+		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
+			edge = TOO_BIG;
+			goto next;
+		}
+
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
 		edge = iface_type_edges[iface->type];
@@ -92,7 +99,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		// clang-format off
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
-		    && (!(nh->flags & GR_NH_F_REACHABLE)
+		    && (nh->state != GR_NH_S_REACHABLE
 			|| (nh->flags & GR_NH_F_LINK
 			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)))) {
 			edge = HOLD;
@@ -128,6 +135,7 @@ static struct rte_node_register output_node = {
 		[HOLD] = "ip6_hold",
 		[ERROR] = "ip6_output_error",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
+		[TOO_BIG] = "ip6_output_too_big",
 	},
 };
 
@@ -139,3 +147,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_output_error);
+GR_DROP_REGISTER(ip6_output_too_big);

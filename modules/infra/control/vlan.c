@@ -7,6 +7,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_port.h>
+#include <gr_rcu.h>
 #include <gr_vlan.h>
 
 #include <event2/event.h>
@@ -123,10 +124,9 @@ static int iface_vlan_reconfig(
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
 		iface->flags = conf->flags;
-	if (set_attrs & GR_IFACE_SET_MTU)
-		iface->mtu = conf->mtu ? conf->mtu : iface_from_id(cur->parent_id)->mtu;
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
+	iface->mtu = iface_from_id(cur->parent_id)->mtu;
 
 	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
@@ -246,6 +246,11 @@ static void vlan_init(struct event_base *) {
 	vlan_hash = rte_hash_create(&params);
 	if (vlan_hash == NULL)
 		ABORT("rte_hash_create(vlan)");
+
+	struct rte_hash_rcu_config rcu_config = {
+		.v = gr_datapath_rcu(), .mode = RTE_HASH_QSBR_MODE_SYNC
+	};
+	rte_hash_rcu_qsbr_add(vlan_hash, &rcu_config);
 }
 
 static void vlan_fini(struct event_base *) {
@@ -255,6 +260,7 @@ static void vlan_fini(struct event_base *) {
 
 static struct gr_module vlan_module = {
 	.name = "vlan",
+	.depends_on = "rcu",
 	.init = vlan_init,
 	.fini = vlan_fini,
 };

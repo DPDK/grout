@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#ifndef _GR_API
-#define _GR_API
+#pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,6 +51,9 @@ struct gr_hello_req {
 
 #define GR_MAIN_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
 struct gr_event_subscribe_req {
+	// If true, suppress events originating from API messages made by the same PID as the
+	// subscriber socket.
+	bool suppress_self_events;
 	uint32_t ev_type;
 };
 // struct gr_event_subscribe_resp { };
@@ -64,5 +67,3 @@ struct gr_api_event {
 };
 
 int gr_api_client_event_recv(const struct gr_api_client *, struct gr_api_event **);
-
-#endif
