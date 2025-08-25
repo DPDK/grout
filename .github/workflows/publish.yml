@@ -20,62 +20,13 @@ jobs:
       actions: write
     uses: ./.github/workflows/check.yml
 
-  deb:
+  package:
     permissions:
+      contents: read
       actions: write
-    runs-on: ubuntu-24.04
-    steps:
-      - name: install system dependencies
-        run: |
-          set -xe
-          sudo apt-get update -qy
-          sudo apt-get install -qy --no-install-recommends \
-            git build-essential meson ninja-build pkgconf go-md2man python3-pyelftools \
-            libcmocka-dev libedit-dev libevent-dev libnuma-dev \
-            libsmartcols-dev libarchive-dev libibverbs-dev \
-            bash-completion devscripts debhelper
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # force fetch all history
-          persist-credentials: false
-      - run: git config --global --add safe.directory $PWD
-      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
-      - run: make deb
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deb-packages
-          path: |
-            grout*.deb
-            grout*.ddeb
-          retention-days: 5
-
-  rpm:
-    permissions:
-      actions: write
-    runs-on: ubuntu-24.04
-    container: "quay.io/centos/centos:stream9"
-    steps:
-      - name: install system dependencies
-        run: |
-          set -xe
-          dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
-            git make meson ninja-build pkgconf python3-pyelftools \
-            gcc-toolset-13 scl-utils golang-github-cpuguy83-md2man \
-            libcmocka-devel libedit-devel libevent-devel numactl-devel \
-            libsmartcols-devel libarchive-devel rdma-core-devel \
-            rpm-build systemd
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # force fetch all history
-          persist-credentials: false
-      - run: git config --global --add safe.directory $PWD
-      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
-      - run: make rpm RPMBUILD_OPTS="-D 'toolset gcc-toolset-13'"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rpm-packages
-          path: grout*.rpm
-          retention-days: 5
+    uses: ./.github/workflows/package.yml
+    with:
+      upload: true
 
   upload:
     permissions:
@@ -84,8 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - check
-      - deb
-      - rpm
+      - package
     steps:
       - uses: actions/checkout@v4
         with:
