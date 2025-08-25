@@ -97,6 +97,7 @@ install -D -m 0644 cli/grcli.bash-completion %{buildroot}%{_datadir}/bash-comple
 %attr(755, root, root) %{_bindir}/grcli
 %attr(755, root, root) %{_bindir}/grout
 %attr(644, root, root) %{_mandir}/man1/grcli.1*
+%attr(644, root, root) %{_mandir}/man7/grout-frr.7*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 
 %files devel
