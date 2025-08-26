@@ -28,7 +28,7 @@ static struct rte_fib_conf fib_conf = {
 static struct rte_fib *get_fib(uint16_t vrf_id) {
 	struct rte_fib *fib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -41,7 +41,7 @@ static struct rte_fib *get_fib(uint16_t vrf_id) {
 static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
 	struct rte_fib *fib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -143,13 +143,13 @@ int fib4_remove(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
 }
 
 static void fib4_init(struct event_base *) {
-	vrf_fibs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE);
+	vrf_fibs = rte_calloc(__func__, GR_MAX_VRFS, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE);
 	if (vrf_fibs == NULL)
 		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
 }
 
 static void fib4_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
 		rte_fib_free(vrf_fibs[vrf_id]);
 		vrf_fibs[vrf_id] = NULL;
 	}

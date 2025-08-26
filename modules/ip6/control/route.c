@@ -27,7 +27,7 @@
 #include <sys/queue.h>
 
 static struct rte_rib6 **vrf_ribs;
-static struct rib6_stats stats[MAX_VRFS];
+static struct rib6_stats stats[GR_MAX_VRFS];
 
 static struct rte_rib6_conf rib6_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -37,7 +37,7 @@ static struct rte_rib6_conf rib6_conf = {
 static struct rte_rib6 *get_rib6(uint16_t vrf_id) {
 	struct rte_rib6 *rib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	rib = vrf_ribs[vrf_id];
@@ -50,7 +50,7 @@ static struct rte_rib6 *get_rib6(uint16_t vrf_id) {
 static struct rte_rib6 *get_or_create_rib6(uint16_t vrf_id) {
 	struct rte_rib6 *rib;
 
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return errno_set_null(EOVERFLOW);
 
 	rib = vrf_ribs[vrf_id];
@@ -197,7 +197,7 @@ static int rib6_insert_or_replace(
 	}
 
 	// Update statistics
-	if (vrf_id < MAX_VRFS) {
+	if (vrf_id < GR_MAX_VRFS) {
 		if (existing) {
 			// Replace case: total unchanged; adjust origin bucket if changed
 			if (origin != old_origin) {
@@ -277,7 +277,7 @@ int rib6_delete(
 		);
 	}
 	// Update statistics
-	if (vrf_id < MAX_VRFS) {
+	if (vrf_id < GR_MAX_VRFS) {
 		if (stats[vrf_id].total_routes > 0)
 			stats[vrf_id].total_routes--;
 		if (stats[vrf_id].by_origin[origin] > 0)
@@ -455,7 +455,7 @@ static struct api_out route6_list(const void *request, void **response) {
 
 	if (req->vrf_id == UINT16_MAX) {
 		num = 0;
-		for (uint16_t v = 0; v < MAX_VRFS; v++) {
+		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
 			if (vrf_ribs[v] == NULL)
 				continue;
 			if ((n = route6_count(v)) < 0)
@@ -473,7 +473,7 @@ static struct api_out route6_list(const void *request, void **response) {
 		return api_out(ENOMEM, 0);
 
 	if (req->vrf_id == UINT16_MAX) {
-		for (uint16_t v = 0; v < MAX_VRFS; v++) {
+		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
 			if (vrf_ribs[v] == NULL)
 				continue;
 			route6_rib_to_api(resp, v);
@@ -491,13 +491,15 @@ static void route6_init(struct event_base *) {
 	// Initialize statistics arrays to zero
 	memset(stats, 0, sizeof(stats));
 
-	vrf_ribs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_rib6 *), RTE_CACHE_LINE_SIZE);
+	vrf_ribs = rte_calloc(
+		__func__, GR_MAX_VRFS, sizeof(struct rte_rib6 *), RTE_CACHE_LINE_SIZE
+	);
 	if (vrf_ribs == NULL)
 		ABORT("rte_calloc(vrf_rib6s): %s", rte_strerror(rte_errno));
 }
 
 static void route6_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
 		rte_rib6_free(vrf_ribs[vrf_id]);
 		vrf_ribs[vrf_id] = NULL;
 	}
@@ -539,7 +541,7 @@ void rib6_cleanup(struct nexthop *nh) {
 }
 
 const struct rib6_stats *rib6_get_stats(uint16_t vrf_id) {
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return NULL;
 	return &stats[vrf_id];
 }
@@ -548,7 +550,7 @@ static int
 telemetry_rib6_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
 	rte_tel_data_start_dict(d);
 
-	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
 		const struct rib6_stats *vrf_stats = rib6_get_stats(vrf_id);
 
 		if (vrf_id != 0 && (vrf_stats == NULL || vrf_stats->total_routes == 0))

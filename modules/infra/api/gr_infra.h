@@ -47,6 +47,7 @@ typedef enum : uint16_t {
 #define GR_IFACE_ID_UNDEF 0
 
 #define GR_VRF_ID_ALL UINT16_MAX
+#define GR_MAX_VRFS 256
 
 typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
