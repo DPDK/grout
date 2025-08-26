@@ -15,6 +15,7 @@ typedef enum : uint8_t {
 	GR_NH_S_REACHABLE, // Probe reply received
 	GR_NH_S_STALE, // Reachable lifetime expired, need refresh
 	GR_NH_S_FAILED, // All probes sent without reply
+#define _GR_NH_S_COUNT (GR_NH_S_FAILED + 1)
 } gr_nh_state_t;
 
 typedef enum : uint8_t {
@@ -70,6 +71,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
 	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
 	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
+#define _GR_NH_ORIGIN_COUNT (GR_NH_ORIGIN_INTERNAL + 1)
 } gr_nh_origin_t;
 
 #define GR_NH_ID_UNSET UINT32_C(0)
