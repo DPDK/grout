@@ -17,14 +17,14 @@ struct vrf_info {
 };
 
 // we have the same number of VRFs for IP4 and IP6
-static struct vrf_info vrfs[MAX_VRFS];
+static struct vrf_info vrfs[GR_MAX_VRFS];
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return vrfs[vrf_id].iface;
 }
 
 void vrf_incref(uint16_t vrf_id) {
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return;
 
 	if (vrfs[vrf_id].ref_count == 0) {
@@ -42,7 +42,7 @@ void vrf_incref(uint16_t vrf_id) {
 }
 
 void vrf_decref(uint16_t vrf_id) {
-	if (vrf_id >= MAX_VRFS)
+	if (vrf_id >= GR_MAX_VRFS)
 		return;
 
 	if (vrfs[vrf_id].ref_count == 1) {

@@ -103,7 +103,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
 	const struct trace_srv6_data *t = data;
-	if (t->out_vrf_id < MAX_VRFS)
+	if (t->out_vrf_id < GR_MAX_VRFS)
 		return snprintf(
 			buf,
 			len,
@@ -234,7 +234,7 @@ static int process_behav_decap(
 
 	id = eth_input_mbuf_data(m);
 	id->domain = ETH_DOMAIN_LOCAL;
-	if (sr_d->out_vrf_id < MAX_VRFS) {
+	if (sr_d->out_vrf_id < GR_MAX_VRFS) {
 		iface = get_vrf_iface(sr_d->out_vrf_id);
 		if (iface == NULL)
 			return DEST_UNREACH;
@@ -278,7 +278,7 @@ static int process_behav_end(
 	}
 
 	// change input interface to the vrf we wish to go
-	if (sr_d->out_vrf_id < MAX_VRFS) {
+	if (sr_d->out_vrf_id < GR_MAX_VRFS) {
 		iface = get_vrf_iface(sr_d->out_vrf_id);
 		if (iface == NULL)
 			return DEST_UNREACH;

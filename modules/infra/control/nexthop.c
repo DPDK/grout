@@ -33,7 +33,7 @@ static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 static const struct nexthop_type_ops *type_ops[256];
 
-static struct nh_stats nh_stats[MAX_VRFS][2]; // [vrf_id][af_index]
+static struct nh_stats nh_stats[GR_MAX_VRFS][2]; // [vrf_id][af_index]
 
 static int af_to_index(addr_family_t af) {
 	switch (af) {
@@ -385,7 +385,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 
 	// Initialize stats for new nexthop
 	int af_index = af_to_index(nh->af);
-	if (af_index >= 0 && nh->vrf_id < MAX_VRFS) {
+	if (af_index >= 0 && nh->vrf_id < GR_MAX_VRFS) {
 		struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
 		stats->total++;
 		stats->by_state[GR_NH_S_NEW]++;
@@ -551,7 +551,7 @@ void nexthop_decref(struct nexthop *nh) {
 
 		// Update stats for deleted nexthop
 		int af_index = af_to_index(nh->af);
-		if (af_index >= 0 && nh->vrf_id < MAX_VRFS) {
+		if (af_index >= 0 && nh->vrf_id < GR_MAX_VRFS) {
 			struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
 			if (nh->state < _GR_NH_S_COUNT && stats->by_state[nh->state] > 0)
 				stats->by_state[nh->state]--;
@@ -627,14 +627,14 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 
 const struct nh_stats *nexthop_get_stats(uint16_t vrf_id, addr_family_t af) {
 	int af_index = af_to_index(af);
-	if (af_index < 0 || vrf_id >= MAX_VRFS)
+	if (af_index < 0 || vrf_id >= GR_MAX_VRFS)
 		return NULL;
 	return &nh_stats[vrf_id][af_index];
 }
 
 void nh_stats_update(struct nexthop *nh, gr_nh_state_t new_state) {
 	int af_index = af_to_index(nh->af);
-	if (af_index < 0 || nh->vrf_id >= MAX_VRFS)
+	if (af_index < 0 || nh->vrf_id >= GR_MAX_VRFS)
 		return;
 
 	struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
@@ -704,7 +704,7 @@ static int
 telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
 	rte_tel_data_start_dict(d);
 
-	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
 		const struct nh_stats *ipv4_stats = nexthop_get_stats(vrf_id, GR_AF_IP4);
 		const struct nh_stats *ipv6_stats = nexthop_get_stats(vrf_id, GR_AF_IP6);
 

@@ -60,7 +60,7 @@ static int reserve_ifid(uint16_t ifid) {
 
 // The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = MAX_VRFS; i < MAX_IFACES; i++) {
+	for (uint16_t i = GR_MAX_VRFS; i < MAX_IFACES; i++) {
 		if (reserve_ifid(i) < 0)
 			continue;
 
