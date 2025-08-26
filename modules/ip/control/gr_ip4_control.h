@@ -42,3 +42,11 @@ void rib4_cleanup(struct nexthop *);
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
+
+struct rib4_stats {
+	uint32_t total_routes;
+	uint32_t by_origin[_GR_NH_ORIGIN_COUNT];
+};
+
+// Get route stats for IPv4 (exposed for telemetry)
+const struct rib4_stats *rib4_get_stats(uint16_t vrf_id);

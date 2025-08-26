@@ -18,6 +18,7 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 #include <rte_rib6.h>
+#include <rte_telemetry.h>
 
 #include <errno.h>
 #include <stdint.h>
@@ -26,6 +27,7 @@
 #include <sys/queue.h>
 
 static struct rte_rib6 **vrf_ribs;
+static struct rib6_stats stats[MAX_VRFS];
 
 static struct rte_rib6_conf rib6_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -177,6 +179,9 @@ static int rib6_insert_or_replace(
 
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib6_get_ext(rn);
+	gr_nh_origin_t old_origin = origin;
+	if (existing)
+		old_origin = *o;
 	*o = origin;
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
@@ -189,6 +194,22 @@ static int rib6_insert_or_replace(
 				origin,
 			}
 		);
+	}
+
+	// Update statistics
+	if (vrf_id < MAX_VRFS) {
+		if (existing) {
+			// Replace case: total unchanged; adjust origin bucket if changed
+			if (origin != old_origin) {
+				if (stats[vrf_id].by_origin[old_origin] > 0)
+					stats[vrf_id].by_origin[old_origin]--;
+				stats[vrf_id].by_origin[origin]++;
+			}
+		} else {
+			// New insert
+			stats[vrf_id].total_routes++;
+			stats[vrf_id].by_origin[origin]++;
+		}
 	}
 
 	if (existing)
@@ -255,6 +276,14 @@ int rib6_delete(
 			}
 		);
 	}
+	// Update statistics
+	if (vrf_id < MAX_VRFS) {
+		if (stats[vrf_id].total_routes > 0)
+			stats[vrf_id].total_routes--;
+		if (stats[vrf_id].by_origin[origin] > 0)
+			stats[vrf_id].by_origin[origin]--;
+	}
+
 	nexthop_decref(nh);
 
 	return 0;
@@ -459,6 +488,9 @@ static struct api_out route6_list(const void *request, void **response) {
 }
 
 static void route6_init(struct event_base *) {
+	// Initialize statistics arrays to zero
+	memset(stats, 0, sizeof(stats));
+
 	vrf_ribs = rte_calloc(__func__, MAX_VRFS, sizeof(struct rte_rib6 *), RTE_CACHE_LINE_SIZE);
 	if (vrf_ribs == NULL)
 		ABORT("rte_calloc(vrf_rib6s): %s", rte_strerror(rte_errno));
@@ -506,6 +538,51 @@ void rib6_cleanup(struct nexthop *nh) {
 	}
 }
 
+const struct rib6_stats *rib6_get_stats(uint16_t vrf_id) {
+	if (vrf_id >= MAX_VRFS)
+		return NULL;
+	return &stats[vrf_id];
+}
+
+static int
+telemetry_rib6_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
+	rte_tel_data_start_dict(d);
+
+	for (uint16_t vrf_id = 0; vrf_id < MAX_VRFS; vrf_id++) {
+		const struct rib6_stats *vrf_stats = rib6_get_stats(vrf_id);
+
+		if (vrf_id != 0 && (vrf_stats == NULL || vrf_stats->total_routes == 0))
+			continue;
+
+		char vrf_key[32];
+		snprintf(vrf_key, sizeof(vrf_key), "%u", vrf_id);
+
+		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
+		if (vrf_data == NULL)
+			continue;
+
+		rte_tel_data_start_dict(vrf_data);
+		rte_tel_data_add_dict_uint(vrf_data, "vrf_id", vrf_id);
+
+		struct rte_tel_data *ipv6_data = rte_tel_data_alloc();
+		if (ipv6_data != NULL) {
+			rte_tel_data_start_dict(ipv6_data);
+			rte_tel_data_add_dict_uint(ipv6_data, "total", vrf_stats->total_routes);
+			rte_tel_data_add_dict_uint(
+				ipv6_data, "link", vrf_stats->by_origin[GR_NH_ORIGIN_LINK]
+			);
+			rte_tel_data_add_dict_container(vrf_data, "ipv6", ipv6_data, 1);
+		}
+
+		if (rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0) != 0) {
+			rte_tel_data_free(vrf_data);
+			continue;
+		}
+	}
+
+	return 0;
+}
+
 static struct gr_api_handler route6_add_handler = {
 	.name = "ipv6 route add",
 	.request_type = GR_IP6_ROUTE_ADD,
@@ -547,4 +624,7 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route6_list_handler);
 	gr_event_register_serializer(&route6_serializer);
 	gr_register_module(&route6_module);
+	rte_telemetry_register_cmd(
+		"/grout/rib6/stats", telemetry_rib6_stats_get, "Get IPv6 RIB statistics"
+	);
 }
