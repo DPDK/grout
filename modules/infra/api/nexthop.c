@@ -171,7 +171,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 
-	nh = nexthop_lookup_by_id(req->nh.nh_id);
+	nh = nexthop_lookup_by_id(req->nh_id);
 	if (nh == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0);

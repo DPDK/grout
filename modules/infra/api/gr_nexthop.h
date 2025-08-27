@@ -278,7 +278,7 @@ struct gr_nh_add_req {
 #define GR_NH_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0072)
 
 struct gr_nh_del_req {
-	struct gr_nexthop nh;
+	uint32_t nh_id;
 	uint8_t missing_ok;
 };
 

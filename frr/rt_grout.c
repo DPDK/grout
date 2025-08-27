@@ -803,15 +803,15 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		req_len = sizeof(struct gr_nh_add_req);
 
 		gr_nh = &req.nh_add.nh;
+		gr_nh->nh_id = nh_id;
 	} else {
 		req.nh_del = (struct gr_nh_del_req) {.missing_ok = true};
 
 		req_type = GR_NH_DEL;
 		req_len = sizeof(struct gr_nh_del_req);
 
-		gr_nh = &req.nh_del.nh;
+		req.nh_del.nh_id = nh_id;
 	}
-	gr_nh->nh_id = nh_id;
 
 	if (!new) {
 		gr_log_debug("del nexthop id %u", nh_id);
