@@ -109,8 +109,8 @@ typedef enum {
 		if (flags & f)
 
 // Return the name of a given nexthop state.
-static inline const char *gr_nh_state_name(const struct gr_nexthop *nh) {
-	switch (nh->state) {
+static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
+	switch (state) {
 	case GR_NH_S_NEW:
 		return "new";
 	case GR_NH_S_PENDING:
@@ -143,8 +143,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	return "?";
 }
 
-static inline const char *gr_nh_type_name(const struct gr_nexthop *nh) {
-	switch (nh->type) {
+static inline const char *gr_nh_type_name(const gr_nh_type_t type) {
+	switch (type) {
 	case GR_NH_T_L3:
 		return "L3";
 	case GR_NH_T_SR6_OUTPUT:

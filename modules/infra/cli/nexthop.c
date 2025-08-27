@@ -167,7 +167,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 			scols_line_sprintf(line, 1, "%u", nh->nh_id);
 		else
 			scols_line_set_data(line, 1, "");
-		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh));
+		scols_line_sprintf(line, 2, "%s", gr_nh_type_name(nh->type));
 		scols_line_sprintf(line, 3, "%s", gr_af_name(nh->af));
 		if (nh->af == GR_AF_UNSPEC)
 			scols_line_set_data(line, 4, "");
@@ -184,7 +184,7 @@ static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode
 		else
 			scols_line_set_data(line, 6, "?");
 
-		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh));
+		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh->state));
 
 		n = 0;
 		buf[0] = '\0';
