@@ -418,6 +418,9 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 		}
 	}
 
+	if (nh->ref_count > 0 && nh->origin != GR_NH_ORIGIN_INTERNAL)
+		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+
 	return 0;
 }
 
@@ -532,6 +535,9 @@ void nexthop_iface_cleanup(uint16_t iface_id) {
 
 void nexthop_decref(struct nexthop *nh) {
 	if (nh->ref_count <= 1) {
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+
 		nexthop_id_put(nh);
 		if (nh->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&nh->ipv6)) {
 			struct nexthop_key key;
@@ -548,8 +554,6 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 		const struct nexthop_type_ops *ops = type_ops[nh->type];
 		if (ops != NULL && ops->free != NULL)
 			ops->free(nh);

@@ -125,8 +125,6 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		ret = -EEXIST;
 	} else {
 		ret = nexthop_update(nh, &base);
-		if (ret == 0)
-			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 	return api_out(-ret, 0);
 }
