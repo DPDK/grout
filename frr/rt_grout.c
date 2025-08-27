@@ -853,7 +853,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		gr_nh->type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
 		gr_nh->af = GR_AF_UNSPEC;
 		gr_nh->iface_id = GR_IFACE_ID_UNDEF;
-		gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(gr_nh));
+		gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(gr_nh->type));
 		break;
 	default:
 		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);

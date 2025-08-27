@@ -596,7 +596,7 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			    nh->vrf_id,
 			    probes,
 			    nh->held_pkts,
-			    gr_nh_state_name(&nh->base));
+			    gr_nh_state_name(nh->state));
 
 			nh_stats_update(nh, GR_NH_S_FAILED);
 			nh->state = GR_NH_S_FAILED;
