@@ -140,7 +140,6 @@ static struct gr_api_handler nh_add_handler = {
 static struct api_out nh_del(const void *request, void ** /*response*/) {
 	static const gr_nh_flags_t addr_flags = GR_NH_F_LOCAL | GR_NH_F_STATIC;
 	const struct gr_nh_del_req *req = request;
-	const struct nexthop_af_ops *ops;
 	struct nexthop *nh;
 
 	nh = nexthop_lookup_by_id(req->nh_id);
@@ -154,9 +153,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	    || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
 		return api_out(EBUSY, 0);
 
-	ops = nexthop_af_ops_get(nh->af);
-	assert(ops != NULL);
-	ops->del(nh);
+	nexthop_routes_cleanup(nh);
 	// The nexthop *may* still have one ref_count when it has been created
 	// manually from the API (see nh_add()). Implicit nexthops created when
 	// creating a gateway route will not have that extra ref_count.

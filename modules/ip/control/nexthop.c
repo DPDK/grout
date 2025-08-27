@@ -188,15 +188,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static void nh4_del(struct nexthop *nh) {
-	rib4_cleanup(nh);
-	if (nh->ref_count > 0) {
-		nh_stats_update(nh, GR_NH_S_NEW);
-		nh->state = GR_NH_S_NEW;
-		memset(&nh->mac, 0, sizeof(nh->mac));
-	}
-}
-
 static void nh4_init(struct event_base *) {
 	ip_output_node = gr_control_input_register_handler("ip_output", true);
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
@@ -210,7 +201,7 @@ static struct gr_module nh4_module = {
 
 static struct nexthop_af_ops nh_ops = {
 	.solicit = arp_output_request_solicit,
-	.del = nh4_del,
+	.cleanup_routes = rib4_cleanup,
 };
 
 RTE_INIT(control_ip_init) {

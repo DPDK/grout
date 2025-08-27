@@ -303,7 +303,7 @@ int iface_destroy(uint16_t ifid) {
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
 		vrf_decref(iface->vrf_id);
-	nexthop_cleanup(ifid);
+	nexthop_iface_cleanup(ifid);
 
 	ifaces[ifid] = NULL;
 
