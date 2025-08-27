@@ -109,10 +109,7 @@ send:
 static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
-	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
-		return CMD_ERROR;
-
-	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
+	if (arg_u32(p, "ID", &req.nh_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_DEL, sizeof(req), &req, NULL) < 0)
@@ -273,11 +270,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_DEL),
-		"nexthop ID [vrf VRF]",
+		"nexthop ID",
 		nh_del,
 		"Delete a next hop.",
-		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;

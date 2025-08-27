@@ -36,7 +36,7 @@ grcli show nexthop
 grcli show graph full
 grcli show stats software
 grcli show stats hardware
-grcli del nexthop id 42
+grcli del nexthop 42
 
 grcli del interface p0
 grcli del interface p1
