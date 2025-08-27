@@ -232,10 +232,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static int nh6_add(struct nexthop *nh) {
-	return rib6_insert(nh->vrf_id, nh->iface_id, &nh->ipv6, 128, GR_NH_ORIGIN_INTERNAL, nh);
-}
-
 static void nh6_del(struct nexthop *nh) {
 	rib6_cleanup(nh);
 	if (nh->ref_count > 0) {
@@ -257,7 +253,6 @@ static struct gr_module nh6_module = {
 };
 
 static struct nexthop_af_ops nh_ops = {
-	.add = nh6_add,
 	.solicit = nh6_solicit,
 	.del = nh6_del,
 };

@@ -308,7 +308,7 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
-		if (ops == NULL || ops->add == NULL || ops->del == NULL || ops->solicit == NULL)
+		if (ops == NULL || ops->del == NULL || ops->solicit == NULL)
 			ABORT("invalid af ops");
 		if (af_ops[af] != NULL)
 			ABORT("duplicate af ops %hhu", af);
@@ -740,11 +740,6 @@ telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struc
 	return 0;
 }
 
-static int nh_unspec_add(struct nexthop *nh) {
-	nexthop_incref(nh);
-	return 0;
-}
-
 static void nh_unspec_del(struct nexthop *nh) {
 	nexthop_af_ops_get(GR_AF_IP4)->del(nh);
 	nexthop_af_ops_get(GR_AF_IP6)->del(nh);
@@ -756,7 +751,6 @@ static int nh_unspec_solicit(struct nexthop *) {
 }
 
 static struct nexthop_af_ops nh_ops = {
-	.add = nh_unspec_add,
 	.solicit = nh_unspec_solicit,
 	.del = nh_unspec_del,
 };

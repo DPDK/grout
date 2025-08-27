@@ -188,10 +188,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static int nh4_add(struct nexthop *nh) {
-	return rib4_insert(nh->vrf_id, nh->ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh);
-}
-
 static void nh4_del(struct nexthop *nh) {
 	rib4_cleanup(nh);
 	if (nh->ref_count > 0) {
@@ -213,7 +209,6 @@ static struct gr_module nh4_module = {
 };
 
 static struct nexthop_af_ops nh_ops = {
-	.add = nh4_add,
 	.solicit = arp_output_request_solicit,
 	.del = nh4_del,
 };
