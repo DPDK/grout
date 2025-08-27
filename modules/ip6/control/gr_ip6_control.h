@@ -48,6 +48,16 @@ struct nexthop *rib6_lookup_exact(
 	uint8_t prefixlen
 );
 
+typedef void (*rib6_iter_cb_t)(
+	uint16_t vrf_id,
+	const struct rte_ipv6_addr *,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	const struct nexthop *,
+	void *priv
+);
+void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv);
+
 // get the default address for a given interface
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);
 // get the link-local address for a given interface

@@ -12,6 +12,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_build_config.h>
@@ -381,106 +382,76 @@ static struct api_out route6_get(const void *request, void **response) {
 	return api_out(0, sizeof(*resp));
 }
 
-static int route6_count(uint16_t vrf_id) {
-	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
-	struct rte_rib6_node *rn = NULL;
+void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv) {
+	static const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
+	struct rte_rib6_node *rn;
+	struct rte_ipv6_addr ip;
 	gr_nh_origin_t *origin;
 	struct rte_rib6 *rib;
-	int num;
-
-	rib = get_rib6(vrf_id);
-	if (rib == NULL)
-		return -errno;
-
-	num = 0;
-	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
-		origin = rte_rib6_get_ext(rn);
-		if (*origin != GR_NH_ORIGIN_INTERNAL)
-			num++;
-	}
-	// check if there is a default route configured
-	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
-		origin = rte_rib6_get_ext(rn);
-		if (*origin != GR_NH_ORIGIN_INTERNAL)
-			num++;
-	}
-
-	return num;
-}
-
-static void route6_rib_to_api(struct gr_ip6_route_list_resp *resp, uint16_t vrf_id) {
-	struct rte_ipv6_addr zero = RTE_IPV6_ADDR_UNSPEC;
-	struct rte_rib6_node *rn = NULL;
-	struct rte_ipv6_addr tmp;
-	struct gr_ip6_route *r;
-	gr_nh_origin_t *origin;
-	struct rte_rib6 *rib;
+	uint8_t prefixlen;
 	uintptr_t nh_id;
 
-	rib = get_rib6(vrf_id);
-	assert(rib != NULL);
-
-	while ((rn = rte_rib6_get_nxt(rib, &zero, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
-		origin = rte_rib6_get_ext(rn);
-		if (*origin == GR_NH_ORIGIN_INTERNAL)
+	for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
+		rib = vrf_ribs[v];
+		if (rib == NULL || (v != vrf_id && vrf_id != UINT16_MAX))
 			continue;
-		r = &resp->routes[resp->n_routes++];
-		rte_rib6_get_nh(rn, &nh_id);
-		rte_rib6_get_ip(rn, &r->dest.ip);
-		rte_rib6_get_depth(rn, &r->dest.prefixlen);
-		r->nh = nh_id_to_ptr(nh_id)->base;
-		r->dest.ip = *addr6_linklocal_unscope(&r->dest.ip, &tmp);
-		r->vrf_id = vrf_id;
-		r->origin = *origin;
+
+		rn = NULL;
+		while ((rn = rte_rib6_get_nxt(rib, &unspec, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
+			rte_rib6_get_ip(rn, &ip);
+			rte_rib6_get_depth(rn, &prefixlen);
+			origin = rte_rib6_get_ext(rn);
+			rte_rib6_get_nh(rn, &nh_id);
+			cb(v, &ip, prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+		}
+		// check if there is a default route configured
+		if ((rn = rte_rib6_lookup_exact(rib, &unspec, 0)) != NULL) {
+			rte_rib6_get_ip(rn, &ip);
+			rte_rib6_get_depth(rn, &prefixlen);
+			origin = rte_rib6_get_ext(rn);
+			rte_rib6_get_nh(rn, &nh_id);
+			cb(v, &ip, prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+		}
 	}
-	// check if there is a default route configured
-	if ((rn = rte_rib6_lookup_exact(rib, &zero, 0)) != NULL) {
-		origin = rte_rib6_get_ext(rn);
-		if (*origin == GR_NH_ORIGIN_INTERNAL)
-			return;
-		r = &resp->routes[resp->n_routes++];
-		rte_rib6_get_nh(rn, &nh_id);
-		memset(&r->dest, 0, sizeof(r->dest));
-		r->nh = nh_id_to_ptr(nh_id)->base;
-		r->vrf_id = vrf_id;
-		r->origin = *origin;
+}
+
+static void route6_list_cb(
+	uint16_t vrf_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh,
+	void *priv
+) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
+		gr_vec struct gr_ip6_route **routes = priv;
+		struct gr_ip6_route r = {
+			.vrf_id = vrf_id,
+			.dest = {*ip, prefixlen},
+			.nh = nh->base,
+			.origin = origin,
+		};
+		gr_vec_add(*routes, r);
 	}
 }
 
 static struct api_out route6_list(const void *request, void **response) {
 	const struct gr_ip6_route_list_req *req = request;
 	struct gr_ip6_route_list_resp *resp = NULL;
-	size_t num, len;
-	int n;
+	gr_vec struct gr_ip6_route *routes = NULL;
+	size_t len;
 
-	if (req->vrf_id == UINT16_MAX) {
-		num = 0;
-		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
-			if (vrf_ribs[v] == NULL)
-				continue;
-			if ((n = route6_count(v)) < 0)
-				return api_out(errno, 0);
-			num += n;
-		}
-	} else {
-		if ((n = route6_count(req->vrf_id)) < 0)
-			return api_out(errno, 0);
-		num = n;
-	}
+	rib6_iter(req->vrf_id, route6_list_cb, &routes);
 
-	len = sizeof(*resp) + num * sizeof(struct gr_ip6_route);
-	if ((resp = calloc(1, len)) == NULL)
+	len = sizeof(*resp) + gr_vec_len(routes) * sizeof(struct gr_ip6_route);
+	if ((resp = calloc(1, len)) == NULL) {
+		gr_vec_free(routes);
 		return api_out(ENOMEM, 0);
-
-	if (req->vrf_id == UINT16_MAX) {
-		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
-			if (vrf_ribs[v] == NULL)
-				continue;
-			route6_rib_to_api(resp, v);
-		}
-	} else {
-		route6_rib_to_api(resp, req->vrf_id);
 	}
+
+	resp->n_routes = gr_vec_len(routes);
+	memcpy(resp->routes, routes, gr_vec_len(routes) * sizeof(resp->routes[0]));
+	gr_vec_free(routes);
 
 	*response = resp;
 
@@ -507,37 +478,23 @@ static void route6_fini(struct event_base *) {
 	vrf_ribs = NULL;
 }
 
+static void rib6_cleanup_nh(
+	uint16_t vrf_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t depth,
+	gr_nh_origin_t,
+	const struct nexthop *nh,
+	void *priv
+) {
+	const struct nexthop *hop = priv;
+	if (nh == hop) {
+		LOG(DEBUG, "delete " IP6_F "/%hhu via %u", ip, depth, nh->nh_id);
+		rib6_delete(vrf_id, nh->iface_id, ip, depth, nh->type);
+	}
+}
+
 void rib6_cleanup(struct nexthop *nh) {
-	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
-	struct rte_rib6_node *rn = NULL;
-	struct rte_ipv6_addr ip;
-	struct rte_rib6 *rib;
-	struct nexthop *hop;
-	uintptr_t nh_id;
-	uint8_t depth;
-
-	rib = get_rib6(nh->vrf_id);
-	while ((rn = rte_rib6_get_nxt(rib, &unspec, 0, rn, RTE_RIB6_GET_NXT_ALL)) != NULL) {
-		rte_rib6_get_nh(rn, &nh_id);
-		hop = nh_id_to_ptr(nh_id);
-		if (hop == nh) {
-			rte_rib6_get_ip(rn, &ip);
-			rte_rib6_get_depth(rn, &depth);
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
-			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
-		}
-	}
-
-	if ((rn = rte_rib6_lookup_exact(rib, &unspec, 0)) != NULL) {
-		rte_rib6_get_nh(rn, &nh_id);
-		hop = nh_id_to_ptr(nh_id);
-		if (hop == nh) {
-			rte_rib6_get_ip(rn, &ip);
-			rte_rib6_get_depth(rn, &depth);
-			LOG(DEBUG, "delete " IP6_F "/%hhu via " IP6_F, &ip, depth, &nh->ipv6);
-			rib6_delete(hop->vrf_id, hop->iface_id, &ip, depth, nh->type);
-		}
-	}
+	rib6_iter(UINT16_MAX, rib6_cleanup_nh, nh);
 }
 
 const struct rib6_stats *rib6_get_stats(uint16_t vrf_id) {
