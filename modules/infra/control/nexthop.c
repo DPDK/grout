@@ -308,7 +308,7 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
-		if (ops == NULL || ops->del == NULL || ops->solicit == NULL)
+		if (ops == NULL || ops->cleanup_routes == NULL || ops->solicit == NULL)
 			ABORT("invalid af ops");
 		if (af_ops[af] != NULL)
 			ABORT("duplicate af ops %hhu", af);
@@ -316,10 +316,6 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 		return;
 	}
 	ABORT("invalid nexthop family %hhu", af);
-}
-
-const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af) {
-	return af_ops[af];
 }
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
@@ -511,16 +507,25 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
 	return data;
 }
 
+void nexthop_routes_cleanup(struct nexthop *nh) {
+	const struct nexthop_af_ops *ops;
+	for (unsigned i = 0; i < ARRAY_DIM(af_ops); i++) {
+		ops = af_ops[i];
+		if (ops != NULL)
+			ops->cleanup_routes(nh);
+	}
+}
+
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	struct lookup_filter *filter = priv;
 	if (nh->iface_id == filter->iface_id) {
-		nexthop_af_ops_get(GR_AF_UNSPEC)->del(nh);
+		nexthop_routes_cleanup(nh);
 		while (nh->ref_count)
 			nexthop_decref(nh);
 	}
 }
 
-void nexthop_cleanup(uint16_t iface_id) {
+void nexthop_iface_cleanup(uint16_t iface_id) {
 	struct lookup_filter filter = {.iface_id = iface_id};
 	nexthop_iter(nh_cleanup_interface_cb, &filter);
 }
@@ -740,25 +745,9 @@ telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struc
 	return 0;
 }
 
-static void nh_unspec_del(struct nexthop *nh) {
-	nexthop_af_ops_get(GR_AF_IP4)->del(nh);
-	nexthop_af_ops_get(GR_AF_IP6)->del(nh);
-	nexthop_decref(nh);
-}
-
-static int nh_unspec_solicit(struct nexthop *) {
-	return errno_set(EINVAL);
-}
-
-static struct nexthop_af_ops nh_ops = {
-	.solicit = nh_unspec_solicit,
-	.del = nh_unspec_del,
-};
-
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
-	nexthop_af_ops_register(GR_AF_UNSPEC, &nh_ops);
 	rte_telemetry_register_cmd(
 		"/grout/nexthop/stats", telemetry_nexthop_stats_get, "Get nexthop statistics"
 	);

@@ -62,7 +62,10 @@ struct nexthop *nexthop_new(const struct gr_nexthop *);
 int nexthop_update(struct nexthop *, const struct gr_nexthop *);
 
 // Clean all next hop related to an interface.
-void nexthop_cleanup(uint16_t iface_id);
+void nexthop_iface_cleanup(uint16_t iface_id);
+
+// Clean all routes that reference a given nexthop.
+void nexthop_routes_cleanup(struct nexthop *);
 
 // Increment the reference counter of a nexthop.
 void nexthop_incref(struct nexthop *);
@@ -80,12 +83,11 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 struct nexthop_af_ops {
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
-	// Callback that will be invoked when all nexthop probes failed and it needs to be freed.
-	void (*del)(struct nexthop *);
+	// Callback that will be invoked to delete all routes which reference a given nexthop.
+	void (*cleanup_routes)(struct nexthop *);
 };
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
-const struct nexthop_af_ops *nexthop_af_ops_get(addr_family_t af);
 
 struct nexthop_type_ops {
 	// Callback that will be invoked the nexthop refcount reaches zero.

@@ -232,15 +232,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static void nh6_del(struct nexthop *nh) {
-	rib6_cleanup(nh);
-	if (nh->ref_count > 0) {
-		nh_stats_update(nh, GR_NH_S_NEW);
-		nh->state = GR_NH_S_NEW;
-		memset(&nh->mac, 0, sizeof(nh->mac));
-	}
-}
-
 static void nh6_init(struct event_base *) {
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 	ndp_na_output_node = gr_control_input_register_handler("ndp_na_output", true);
@@ -254,7 +245,7 @@ static struct gr_module nh6_module = {
 
 static struct nexthop_af_ops nh_ops = {
 	.solicit = nh6_solicit,
-	.del = nh6_del,
+	.cleanup_routes = rib6_cleanup,
 };
 
 RTE_INIT(control_ip_init) {
