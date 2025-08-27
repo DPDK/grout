@@ -88,7 +88,6 @@ static int nh_add_l3(struct gr_nexthop *base) {
 
 static struct api_out nh_add(const void *request, void ** /*response*/) {
 	const struct gr_nh_add_req *req = request;
-	const struct nexthop_af_ops *ops;
 	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
 	int ret;
@@ -121,41 +120,14 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		nh = nexthop_new(&base);
 		if (nh == NULL)
 			return api_out(errno, 0);
-		ops = nexthop_af_ops_get(nh->af);
-		assert(ops != NULL);
-		ret = ops->add(nh);
+		nexthop_incref(nh);
 	} else if (!req->exist_ok) {
 		ret = -EEXIST;
 	} else {
-		// Test the equality on the ipv6 address which encompasses both address families.
-		bool need_update = nh->af != base.af || !rte_ipv6_addr_eq(&nh->ipv6, &base.ipv6);
-		if (need_update) {
-			// Address family or address has changed.
-			// Delete the old /32 or /128 route.
-			ops = nexthop_af_ops_get(nh->af);
-			assert(ops != NULL);
-			nexthop_incref(nh); // Prevent ops->del from freeing the nexthop.
-			ops->del(nh);
-		}
-		// Update fields after deleting the route.
-		if ((ret = nexthop_update(nh, &base)) < 0) {
-			if (need_update)
-				nexthop_decref(nh);
-			goto end;
-		}
-		if (need_update) {
-			// Re-add the new /32 or /128 route.
-			ops = nexthop_af_ops_get(nh->af);
-			assert(ops != NULL);
-			ret = ops->add(nh);
-			nexthop_decref(nh); // ops->add called nexthop_incref if successful.
-		} else {
-			ret = 0;
-		}
+		ret = nexthop_update(nh, &base);
 		if (ret == 0)
 			gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
-end:
 	return api_out(-ret, 0);
 }
 
@@ -185,6 +157,11 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	ops = nexthop_af_ops_get(nh->af);
 	assert(ops != NULL);
 	ops->del(nh);
+	// The nexthop *may* still have one ref_count when it has been created
+	// manually from the API (see nh_add()). Implicit nexthops created when
+	// creating a gateway route will not have that extra ref_count.
+	while (nh->ref_count > 0)
+		nexthop_decref(nh);
 
 	return api_out(0, 0);
 }
