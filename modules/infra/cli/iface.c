@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
 #include <gr_macro.h>
@@ -560,6 +561,53 @@ static struct gr_cli_context ctx = {
 	.init = ctx_init,
 };
 
+static void iface_event_print(uint32_t event, const void *obj) {
+	const struct gr_iface *iface = obj;
+	const struct cli_iface_type *type = type_from_id(iface->type);
+	const char *action;
+
+	switch (event) {
+	case GR_EVENT_IFACE_POST_ADD:
+		action = "add";
+		break;
+	case GR_EVENT_IFACE_PRE_REMOVE:
+		action = "del";
+		break;
+	case GR_EVENT_IFACE_STATUS_UP:
+		action = "up";
+		break;
+	case GR_EVENT_IFACE_STATUS_DOWN:
+		action = "down";
+		break;
+	case GR_EVENT_IFACE_POST_RECONFIG:
+		action = "reconf";
+		break;
+	default:
+		action = "?";
+		break;
+	}
+
+	printf("iface %s: %s", action, iface->name);
+	if (type != NULL)
+		printf(" type=%s", type->name);
+	else
+		printf(" type=%u", iface->type);
+	printf(" id=%u vrf=%u mtu=%u\n", iface->id, iface->vrf_id, iface->mtu);
+}
+
+static struct gr_cli_event_printer printer = {
+	.print = iface_event_print,
+	.ev_count = 5,
+	.ev_types = {
+		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_STATUS_DOWN,
+		GR_EVENT_IFACE_POST_RECONFIG,
+	},
+};
+
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_event_register_printer(&printer);
 }

@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
@@ -188,6 +189,56 @@ static struct gr_cli_context ctx = {
 	.init = ctx_init,
 };
 
+static void route_event_print(uint32_t event, const void *obj) {
+	const struct gr_ip4_route *r = obj;
+	const char *action;
+
+	switch (event) {
+	case GR_EVENT_IP_ROUTE_ADD:
+		action = "add";
+		break;
+	case GR_EVENT_IP_ROUTE_DEL:
+		action = "del";
+		break;
+	default:
+		action = "?";
+		break;
+	}
+
+	printf("route %s: vrf=%u " IP4_F "/%hhu via",
+	       action,
+	       r->vrf_id,
+	       &r->dest.ip,
+	       r->dest.prefixlen);
+
+	printf(" type=%s", gr_nh_type_name(r->nh.type));
+
+	if (r->nh.nh_id != GR_NH_ID_UNSET)
+		printf(" id=%u", r->nh.nh_id);
+
+	printf(" vrf=%u af=%s", r->nh.vrf_id, gr_af_name(r->nh.af));
+
+	if (r->nh.af != GR_AF_UNSPEC)
+		printf(" " ADDR_F, ADDR_W(r->nh.af), &r->nh.addr);
+	else if (r->nh.iface_id != GR_IFACE_ID_UNDEF)
+		printf(" iface=%u", r->nh.iface_id);
+
+	if (r->origin != GR_NH_ORIGIN_UNSPEC)
+		printf(" origin=%s", gr_nh_origin_name(r->origin));
+
+	printf("\n");
+}
+
+static struct gr_cli_event_printer printer = {
+	.print = route_event_print,
+	.ev_count = 2,
+	.ev_types = {
+		GR_EVENT_IP_ROUTE_ADD,
+		GR_EVENT_IP_ROUTE_DEL,
+	},
+};
+
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_event_register_printer(&printer);
 }

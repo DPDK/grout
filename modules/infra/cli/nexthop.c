@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
@@ -296,6 +297,60 @@ static struct gr_cli_context ctx = {
 	.init = ctx_init,
 };
 
+static void nexthop_event_print(uint32_t event, const void *obj) {
+	const struct gr_nexthop *nh = obj;
+	const char *action;
+
+	switch (event) {
+	case GR_EVENT_NEXTHOP_NEW:
+		action = "new";
+		break;
+	case GR_EVENT_NEXTHOP_DELETE:
+		action = "del";
+		break;
+	case GR_EVENT_NEXTHOP_UPDATE:
+		action = "update";
+		break;
+	default:
+		action = "?";
+		break;
+	}
+	printf("nh %s: type=%s", action, gr_nh_type_name(nh->type));
+
+	if (nh->nh_id != GR_NH_ID_UNSET)
+		printf(" id=%u", nh->nh_id);
+
+	if (nh->iface_id != GR_IFACE_ID_UNDEF)
+		printf(" iface=%u", nh->iface_id);
+
+	printf(" vrf=%u af=%s", nh->vrf_id, gr_af_name(nh->af));
+
+	if (nh->af != GR_AF_UNSPEC)
+		printf(" " ADDR_F, ADDR_W(nh->af), &nh->addr);
+
+	if (nh->type == GR_NH_T_L3) {
+		printf(" state=%s", gr_nh_state_name(nh->state));
+		if (nh->state == GR_NH_S_REACHABLE)
+			printf(" mac=" ETH_F, &nh->mac);
+	}
+
+	if (nh->origin != GR_NH_ORIGIN_UNSPEC)
+		printf(" origin=%s", gr_nh_origin_name(nh->origin));
+
+	printf("\n");
+}
+
+static struct gr_cli_event_printer printer = {
+	.print = nexthop_event_print,
+	.ev_count = 3,
+	.ev_types = {
+		GR_EVENT_NEXTHOP_NEW,
+		GR_EVENT_NEXTHOP_DELETE,
+		GR_EVENT_NEXTHOP_UPDATE,
+	},
+};
+
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_event_register_printer(&printer);
 }

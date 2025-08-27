@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_ip6.h>
 #include <gr_net_types.h>
@@ -131,6 +132,39 @@ static struct gr_cli_context ctx = {
 	.init = ctx_init,
 };
 
+static void addr_event_print(uint32_t event, const void *obj) {
+	const struct gr_nexthop *nh = obj;
+	const char *action;
+
+	switch (event) {
+	case GR_EVENT_IP6_ADDR_ADD:
+		action = "add";
+		break;
+	case GR_EVENT_IP6_ADDR_DEL:
+		action = "del";
+		break;
+	default:
+		action = "?";
+		break;
+	}
+	printf("addr6 %s: iface=%u " ADDR_F "/%hhu\n",
+	       action,
+	       nh->iface_id,
+	       ADDR_W(nh->af),
+	       &nh->addr,
+	       nh->prefixlen);
+}
+
+static struct gr_cli_event_printer printer = {
+	.print = addr_event_print,
+	.ev_count = 2,
+	.ev_types = {
+		GR_EVENT_IP6_ADDR_ADD,
+		GR_EVENT_IP6_ADDR_DEL,
+	},
+};
+
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_event_register_printer(&printer);
 }
