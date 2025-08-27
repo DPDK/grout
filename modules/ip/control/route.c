@@ -12,6 +12,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_build_config.h>
@@ -344,105 +345,75 @@ static struct api_out route4_get(const void *request, void **response) {
 	return api_out(0, sizeof(*resp));
 }
 
-static int route4_count(uint16_t vrf_id) {
-	struct rte_rib_node *rn = NULL;
+void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
+	struct rte_rib_node *rn;
 	gr_nh_origin_t *origin;
 	struct rte_rib *rib;
-	int num;
-
-	rib = get_rib(vrf_id);
-	if (rib == NULL)
-		return -errno;
-
-	num = 0;
-	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
-		origin = rte_rib_get_ext(rn);
-		if (*origin != GR_NH_ORIGIN_INTERNAL)
-			num++;
-	}
-	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
-	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
-		origin = rte_rib_get_ext(rn);
-		if (*origin != GR_NH_ORIGIN_INTERNAL)
-			num++;
-	}
-
-	return num;
-}
-
-static void route4_rib_to_api(struct gr_ip4_route_list_resp *resp, uint16_t vrf_id) {
-	struct rte_rib_node *rn = NULL;
-	struct gr_ip4_route *r;
-	gr_nh_origin_t *origin;
-	struct rte_rib *rib;
+	uint8_t prefixlen;
 	uintptr_t nh_id;
 	uint32_t ip;
 
-	rib = get_rib(vrf_id);
-	assert(rib != NULL);
-
-	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
-		origin = rte_rib_get_ext(rn);
-		if (*origin == GR_NH_ORIGIN_INTERNAL)
+	for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
+		rib = vrf_ribs[v];
+		if (rib == NULL || (v != vrf_id && vrf_id != UINT16_MAX))
 			continue;
-		r = &resp->routes[resp->n_routes++];
-		rte_rib_get_nh(rn, &nh_id);
-		rte_rib_get_ip(rn, &ip);
-		rte_rib_get_depth(rn, &r->dest.prefixlen);
-		r->dest.ip = htonl(ip);
-		r->nh = nh_id_to_ptr(nh_id)->base;
-		r->vrf_id = vrf_id;
-		r->origin = *origin;
+
+		rn = NULL;
+		while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
+			rte_rib_get_ip(rn, &ip);
+			rte_rib_get_depth(rn, &prefixlen);
+			origin = rte_rib_get_ext(rn);
+			rte_rib_get_nh(rn, &nh_id);
+			cb(v, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+		}
+		// check if there is a default route configured
+		if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
+			rte_rib_get_ip(rn, &ip);
+			rte_rib_get_depth(rn, &prefixlen);
+			origin = rte_rib_get_ext(rn);
+			rte_rib_get_nh(rn, &nh_id);
+			cb(v, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+		}
 	}
-	// FIXME: remove this when rte_rib_get_nxt returns a default route, if any is configured
-	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
-		origin = rte_rib_get_ext(rn);
-		if (*origin == GR_NH_ORIGIN_INTERNAL)
-			return;
-		r = &resp->routes[resp->n_routes++];
-		rte_rib_get_nh(rn, &nh_id);
-		r->dest.ip = 0;
-		r->dest.prefixlen = 0;
-		r->nh = nh_id_to_ptr(nh_id)->base;
-		r->vrf_id = vrf_id;
-		r->origin = *origin;
+}
+
+static void route4_list_cb(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh,
+	void *priv
+) {
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
+		gr_vec struct gr_ip4_route **routes = priv;
+		struct gr_ip4_route r = {
+			.vrf_id = vrf_id,
+			.dest = {ip, prefixlen},
+			.nh = nh->base,
+			.origin = origin,
+		};
+		gr_vec_add(*routes, r);
 	}
 }
 
 static struct api_out route4_list(const void *request, void **response) {
 	const struct gr_ip4_route_list_req *req = request;
 	struct gr_ip4_route_list_resp *resp = NULL;
-	size_t num, len;
-	int n;
+	gr_vec struct gr_ip4_route *routes = NULL;
+	size_t len;
 
-	if (req->vrf_id == UINT16_MAX) {
-		num = 0;
-		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
-			if (vrf_ribs[v] == NULL)
-				continue;
-			if ((n = route4_count(v)) < 0)
-				return api_out(errno, 0);
-			num += n;
-		}
-	} else {
-		if ((n = route4_count(req->vrf_id)) < 0)
-			return api_out(errno, 0);
-		num = n;
-	}
+	rib4_iter(req->vrf_id, route4_list_cb, &routes);
 
-	len = sizeof(*resp) + num * sizeof(struct gr_ip4_route);
-	if ((resp = calloc(1, len)) == NULL)
+	len = sizeof(*resp) + gr_vec_len(routes) * sizeof(struct gr_ip4_route);
+	if ((resp = calloc(1, len)) == NULL) {
+		gr_vec_free(routes);
 		return api_out(ENOMEM, 0);
-
-	if (req->vrf_id == UINT16_MAX) {
-		for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
-			if (vrf_ribs[v] == NULL)
-				continue;
-			route4_rib_to_api(resp, v);
-		}
-	} else {
-		route4_rib_to_api(resp, req->vrf_id);
 	}
+
+	resp->n_routes = gr_vec_len(routes);
+	memcpy(resp->routes, routes, gr_vec_len(routes) * sizeof(resp->routes[0]));
+	gr_vec_free(routes);
 
 	*response = resp;
 
@@ -465,38 +436,23 @@ static void route4_fini(struct event_base *) {
 	vrf_ribs = NULL;
 }
 
+static void rib4_cleanup_nh(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t depth,
+	gr_nh_origin_t,
+	const struct nexthop *nh,
+	void *priv
+) {
+	const struct nexthop *hop = priv;
+	if (nh == hop) {
+		LOG(DEBUG, "delete " IP4_F "/%hhu via %u", &ip, depth, nh->nh_id);
+		rib4_delete(vrf_id, ip, depth, nh->type);
+	}
+}
+
 void rib4_cleanup(struct nexthop *nh) {
-	struct rte_rib_node *rn = NULL;
-	struct rte_rib *rib;
-	struct nexthop *hop;
-	uint8_t prefixlen;
-	uintptr_t nh_id;
-	ip4_addr_t ip;
-
-	rib = get_rib(nh->vrf_id);
-	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
-		rte_rib_get_nh(rn, &nh_id);
-		hop = nh_id_to_ptr(nh_id);
-		if (hop == nh) {
-			rte_rib_get_ip(rn, &ip);
-			rte_rib_get_depth(rn, &prefixlen);
-			ip = rte_cpu_to_be_32(ip);
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
-			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
-		}
-	}
-
-	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
-		rte_rib_get_nh(rn, &nh_id);
-		hop = nh_id_to_ptr(nh_id);
-		if (hop == nh) {
-			rte_rib_get_ip(rn, &ip);
-			rte_rib_get_depth(rn, &prefixlen);
-			ip = rte_cpu_to_be_32(ip);
-			LOG(DEBUG, "delete " IP4_F "/%hhu via " IP4_F, &ip, prefixlen, &nh->ipv4);
-			rib4_delete(nh->vrf_id, ip, prefixlen, nh->type);
-		}
-	}
+	rib4_iter(UINT16_MAX, rib4_cleanup_nh, nh);
 }
 
 const struct rib4_stats *rib4_get_stats(uint16_t vrf_id) {

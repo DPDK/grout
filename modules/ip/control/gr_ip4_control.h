@@ -38,6 +38,16 @@ int rib4_insert(
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type);
 void rib4_cleanup(struct nexthop *);
 
+typedef void (*rib4_iter_cb_t)(
+	uint16_t vrf_id,
+	ip4_addr_t,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	const struct nexthop *,
+	void *priv
+);
+void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv);
+
 // get the default address for a given interface
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
