@@ -534,7 +534,9 @@ void nexthop_iface_cleanup(uint16_t iface_id) {
 }
 
 void nexthop_decref(struct nexthop *nh) {
-	if (nh->ref_count <= 1) {
+	assert(nh->ref_count > 0);
+	nh->ref_count--;
+	if (nh->ref_count == 0) {
 		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
@@ -570,8 +572,6 @@ void nexthop_decref(struct nexthop *nh) {
 
 		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
-	} else {
-		nh->ref_count--;
 	}
 }
 
