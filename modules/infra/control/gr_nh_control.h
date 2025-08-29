@@ -45,6 +45,13 @@ struct hoplist {
 	gr_vec struct nexthop **nh;
 };
 
+GR_NH_PRIV_DATA_TYPE(group_nh_data, {
+	// list managed with gr_vec_*
+	uint32_t *weights;
+	// list managed with gr_vec_*
+	struct nexthop **nhs;
+});
+
 // Lookup a nexthop from the global pool that matches the specified criteria.
 struct nexthop *
 nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);

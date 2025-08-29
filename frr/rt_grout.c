@@ -190,7 +190,11 @@ static int
 grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, int *nh_family) {
 	size_t sz;
 
-	if (gr_nh->type == GR_NH_T_BLACKHOLE || gr_nh->type == GR_NH_T_REJECT) {
+	switch (gr_nh->type) {
+	case GR_NH_T_L3:
+		break;
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT: {
 		nh->vrf_id = gr_nh->vrf_id;
 		nh->type = NEXTHOP_TYPE_BLACKHOLE;
 		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
@@ -198,11 +202,16 @@ grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, in
 		nh->weight = 1;
 		return 0;
 	}
-
-	if (gr_nh->type != GR_NH_T_L3) {
+	case GR_NH_T_GROUP:
+		nh->ifindex = gr_nh->iface_id;
+		nh->vrf_id = gr_nh->vrf_id;
+		*nh_family = AF_UNSPEC;
+		break;
+	default:
 		gr_log_err("sync nexthop not L3 from grout is not supported");
 		return -1;
 	}
+
 	nh->ifindex = gr_nh->iface_id;
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
@@ -764,6 +773,52 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
+static enum zebra_dplane_result grout_add_del_nexthop_group(struct zebra_dplane_ctx *ctx) {
+	struct gr_nh_add_req nh_add = {.exist_ok = true};
+	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
+	struct gr_nh_group_set_req nh_grp_set = {0};
+	const struct nh_grp *nhs;
+
+	if (dplane_ctx_get_op(ctx) == DPLANE_OP_NH_DELETE) {
+		struct gr_nh_del_req nh_del = {
+			.nh.nh_id = nh_id,
+			.missing_ok = true,
+		};
+		if (grout_client_send_recv(GR_NH_DEL, sizeof(nh_del), &nh_del, NULL) < 0)
+			return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+
+	nh_add.nh.nh_id = nh_id;
+	nh_add.nh.type = GR_NH_T_GROUP;
+	nh_add.nh.origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
+
+	if (grout_client_send_recv(GR_NH_ADD, sizeof(nh_add), &nh_add, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	nh_grp_set.group_id = nh_id;
+	nh_grp_set.nh_grp_count = dplane_ctx_get_nhe_nh_grp_count(ctx);
+	if (nh_grp_set.nh_grp_count > GR_NH_GROUP_MAX) {
+		gr_log_err(
+			"nexthop-group %u has too many members (%u > %u)",
+			nh_id,
+			nh_grp_set.nh_grp_count,
+			GR_NH_GROUP_MAX
+		);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	nhs = dplane_ctx_get_nhe_nh_grp(ctx);
+
+	for (size_t i = 0; i < nh_grp_set.nh_grp_count; i++) {
+		nh_grp_set.nh_ids[i] = nhs[i].id;
+		nh_grp_set.weights[i] = nhs[i].weight;
+	}
+	if (grout_client_send_recv(GR_NH_GROUP_SET, sizeof(nh_grp_set), &nh_grp_set, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
 enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
 	union {
@@ -784,9 +839,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	if (dplane_ctx_get_nhe_nh_grp_count(ctx)) {
-		// next group are not supported in grout
-		gr_log_err("impossible to add/del nexthop grout %u (nhg not supported)", nh_id);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
+		return grout_add_del_nexthop_group(ctx);
 	}
 
 	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;
@@ -875,6 +928,8 @@ end:
 
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	struct nexthop nh = {.weight = 1};
+	struct nh_grp grp[MULTIPATH_NUM] = {};
+	unsigned group_count = 0;
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
@@ -893,6 +948,22 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 		return;
 	}
 
+	if (gr_nh->type == GR_NH_T_GROUP) {
+		struct gr_nh_group_show_req grp_req = {
+			.group_id = gr_nh->nh_id,
+		};
+		struct gr_nh_group_show_resp *grp_resp;
+		void *resp;
+		if (grout_client_send_recv(GR_NH_GROUP_SHOW, sizeof(grp_req), &grp_req, &resp) < 0)
+			return;
+		grp_resp = resp;
+		group_count = grp_resp->nh_grp_count;
+		for (unsigned i = 0; i < group_count; i++) {
+			grp[i].id = grp_resp->nexthop_ids[i];
+			grp[i].weight = grp_resp->weights[i];
+		}
+	}
+
 	// kernel set INET4 when no gateway, let's do the same
 	if (family == AF_UNSPEC)
 		family = AF_INET;
@@ -901,5 +972,7 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	type = origin2zebra(gr_nh->origin, family, false);
 	SET_FLAG(nh.flags, NEXTHOP_FLAG_ACTIVE);
 
-	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+	zebra_nhg_kernel_find(
+		gr_nh->nh_id, &nh, grp, group_count, gr_nh->vrf_id, afi, type, startup, NULL
+	);
 }

@@ -10,6 +10,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_vec.h>
 
 #include <rte_icmp.h>
 #include <rte_ip.h>
@@ -44,6 +45,13 @@ int icmp_local_send(
 	struct ctl_to_stack *msg;
 	const struct nexthop *local;
 	int ret;
+
+	if (gw->type == GR_NH_T_GROUP) {
+		struct group_nh_data *d = group_nh_data(gw);
+		if (gr_vec_len(d->nhs) == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = d->nhs[ident % gr_vec_len(d->nhs)];
+	}
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);

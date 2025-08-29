@@ -10,6 +10,7 @@
 #include <gr_module.h>
 #include <gr_nh_control.h>
 #include <gr_rcu.h>
+#include <gr_vec.h>
 
 #include <rte_hash.h>
 #include <rte_malloc.h>
@@ -330,6 +331,7 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		if (ops == NULL || (ops->free == NULL && ops->equal == NULL))
 			ABORT("invalid type ops");
 		if (type_ops[type] != NULL)
@@ -356,6 +358,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 	case GR_NH_T_DNAT:
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
+	case GR_NH_T_GROUP:
 		break;
 	default:
 		ABORT("invalid nexthop type %hhu", base->type);
@@ -761,10 +764,45 @@ static struct nexthop_af_ops nh_ops = {
 	.del = nh_unspec_del,
 };
 
+static bool nh_type_group_equal(const struct nexthop *a, const struct nexthop *b) {
+	struct group_nh_data *da = group_nh_data(a);
+	struct group_nh_data *db = group_nh_data(b);
+
+	assert(a->type == GR_NH_T_GROUP);
+	assert(b->type == GR_NH_T_GROUP);
+
+	if (gr_vec_len(da->nhs) != gr_vec_len(db->nhs))
+		return false;
+
+    // len(weights) and len(nhs) should be equal anyway
+	if (gr_vec_len(da->weights) != gr_vec_len(db->weights))
+		return false;
+
+	if (memcmp(da->weights, db->weights, gr_vec_len(da->weights)))
+		return false;
+	if (memcmp(da->nhs, db->nhs, gr_vec_len(da->nhs)))
+		return false;
+
+	return true;
+}
+
+static void nh_type_group_free(struct nexthop *nh) {
+	assert(nh->type == GR_NH_T_GROUP);
+	gr_vec_free(group_nh_data(nh)->nhs);
+	memset(group_nh_data(nh), 0, sizeof(*group_nh_data(nh)));
+	nh->type = GR_NH_T_L3;
+}
+
+static struct nexthop_type_ops nht_group_ops = {
+	.equal = nh_type_group_equal,
+	.free = nh_type_group_free,
+};
+
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
 	nexthop_af_ops_register(GR_AF_UNSPEC, &nh_ops);
+	nexthop_type_ops_register(GR_NH_T_GROUP, &nht_group_ops);
 	rte_telemetry_register_cmd(
 		"/grout/nexthop/stats", telemetry_nexthop_stats_get, "Get nexthop statistics"
 	);
