@@ -33,9 +33,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 	const struct rte_ipv6_addr *dst = &ip->dst_addr;
 	struct nexthop *nh;
 
-	nh = rib6_lookup(mbuf_data(m)->iface->vrf_id, mbuf_data(m)->iface->id, dst);
-	if (nh == NULL)
-		goto free; // route to dst has disappeared
+	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
 
 	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
 		// The resolved nexthop is associated with a "connected" route.
