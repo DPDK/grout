@@ -32,9 +32,7 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 	ip4_addr_t dst = ip->dst_addr;
 	struct nexthop *nh;
 
-	nh = rib4_lookup(control_output_mbuf_data(m)->iface->vrf_id, dst);
-	if (nh == NULL)
-		goto free; // route to dst has disappeared
+	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
 
 	if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
 		// The resolved nexthop is associated with a "connected" route.
