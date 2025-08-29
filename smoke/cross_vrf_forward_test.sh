@@ -15,6 +15,7 @@ grcli add ip address 172.16.1.1/24 iface $p1
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 grcli add nexthop id 2 address 172.16.1.2 iface $p1
 grcli add ip route 16.1.0.0/16 via id 2 vrf 1
+grcli add ip route 16.1.0.0/16 via id 2 vrf 2 # required for ARP resolution
 
 # from 16.1.0.1 to 16.0.0.1, two route lookup are done
 grcli add nexthop id 1 iface gr-loop1
@@ -34,7 +35,5 @@ for n in 0 1; do
 	ip -n $p addr show
 done
 
-ip netns exec $p0 ping -i0.01 -c3 -n 172.16.0.1
-ip netns exec $p1 ping -i0.01 -c3 -n 172.16.1.1
 ip netns exec $p0 ping -i0.01 -c3 -I 16.0.0.1 -n 16.1.0.1
 ip netns exec $p1 ping -i0.01 -c3 -I 16.1.0.1 -n 16.0.0.1

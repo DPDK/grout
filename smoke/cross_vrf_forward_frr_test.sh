@@ -30,12 +30,11 @@ set_vrf_iface 2
 
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 set_ip_route 16.1.0.0/16 172.16.1.2 1 2
+set_ip_route 16.1.0.0/16 172.16.1.2 2 2 # required for ARP resolution
 
 # from 16.1.0.1 to 16.0.0.1, two route lookup are done
 set_ip_route 16.0.0.0/16 "$(vrf_name_from_id 1)" 2 1
 set_ip_route 16.0.0.0/16 172.16.0.2 1
 
-ip netns exec n-$p0 ping -i0.01 -c3 -n 172.16.0.1
-ip netns exec n-$p1 ping -i0.01 -c3 -n 172.16.1.1
 ip netns exec n-$p0 ping -i0.01 -c3 -I 16.0.0.1 -n 16.1.0.1
 ip netns exec n-$p1 ping -i0.01 -c3 -I 16.1.0.1 -n 16.0.0.1
