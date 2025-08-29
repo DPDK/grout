@@ -77,6 +77,7 @@ struct module_subscribers {
 static struct module_subscribers *mod_subs[UINT16_MAX];
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
+static __thread evutil_socket_t cur_req_sock;
 
 static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct subscription *ev_subs = NULL;
@@ -122,12 +123,12 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	free(data);
 }
 
-static struct api_out subscribe(evutil_socket_t sock, const void *request) {
+static struct api_out subscribe(const void *request, void ** /*response*/) {
 	const struct gr_event_subscribe_req *req = request;
 	struct module_subscribers *subs;
 	struct subscription sub = {
-		.sock = sock,
-		.pid = socket_pid(sock),
+		.sock = cur_req_sock,
+		.pid = cur_req_pid,
 		.suppress_self_events = req->suppress_self_events,
 	};
 	struct subscription *s;
@@ -135,7 +136,7 @@ static struct api_out subscribe(evutil_socket_t sock, const void *request) {
 
 	if (req->ev_type == EVENT_TYPE_ALL) {
 		gr_vec_foreach_ref (s, all_events_subs) {
-			if (s->sock == sock) {
+			if (s->sock == cur_req_sock) {
 				s->suppress_self_events = req->suppress_self_events;
 				return api_out(0, 0); // already subscribed
 			}
@@ -154,7 +155,7 @@ static struct api_out subscribe(evutil_socket_t sock, const void *request) {
 			return api_out(ENOMEM, 0);
 	}
 	gr_vec_foreach_ref (s, subs->ev_subs[ev]) {
-		if (s->sock == sock) {
+		if (s->sock == cur_req_sock) {
 			s->suppress_self_events = req->suppress_self_events;
 			return api_out(0, 0); // already subscribed
 		}
@@ -164,12 +165,18 @@ static struct api_out subscribe(evutil_socket_t sock, const void *request) {
 	return api_out(0, 0);
 }
 
-static struct api_out unsubscribe(evutil_socket_t sock) {
+static struct gr_api_handler subscribe_handler = {
+	.request_type = GR_MAIN_EVENT_SUBSCRIBE,
+	.callback = subscribe,
+	.name = "event subscribe"
+};
+
+static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/) {
 	unsigned i;
 
 	i = 0;
 	while (i < gr_vec_len(all_events_subs)) {
-		if (all_events_subs[i].sock == sock)
+		if (all_events_subs[i].sock == cur_req_sock)
 			gr_vec_del_swap(all_events_subs, i);
 		else
 			i++;
@@ -183,7 +190,7 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
 			while (i < gr_vec_len(ev_subs)) {
-				if (ev_subs[i].sock == sock)
+				if (ev_subs[i].sock == cur_req_sock)
 					gr_vec_del_swap(ev_subs, i);
 				else
 					i++;
@@ -194,7 +201,13 @@ static struct api_out unsubscribe(evutil_socket_t sock) {
 	return api_out(0, 0);
 }
 
-static struct api_out hello(const void *request) {
+static struct gr_api_handler unsubscribe_handler = {
+	.request_type = GR_MAIN_EVENT_UNSUBSCRIBE,
+	.callback = unsubscribe,
+	.name = "event unsubscribe"
+};
+
+static struct api_out hello(const void *request, void ** /*response*/) {
 	const struct gr_hello_req *req = request;
 
 	if (strncmp(req->version, GROUT_VERSION, sizeof(req->version)) != 0)
@@ -202,6 +215,12 @@ static struct api_out hello(const void *request) {
 
 	return api_out(0, 0);
 }
+
+static struct gr_api_handler hello_handler = {
+	.request_type = GR_MAIN_HELLO,
+	.callback = hello,
+	.name = "hello"
+};
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -212,14 +231,6 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp) {
 	if (resp == NULL)
 		return errno_set(ENOMEM);
-
-	LOG(DEBUG,
-	    "fd=%d for_id=%u len=%u status=%u %s",
-	    sock,
-	    resp->for_id,
-	    resp->payload_len,
-	    resp->status,
-	    strerror(resp->status));
 
 	size_t len = sizeof(*resp) + resp->payload_len;
 	return send(sock, resp, len, MSG_DONTWAIT | MSG_NOSIGNAL);
@@ -296,20 +307,6 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 		}
 	}
 
-	LOG(DEBUG, "fd=%d id=%u req_type=0x%08x len=%u", sock, req.id, req.type, req.payload_len);
-
-	switch (req.type) {
-	case GR_MAIN_HELLO:
-		out = hello(req_payload);
-		goto send;
-	case GR_MAIN_EVENT_SUBSCRIBE:
-		out = subscribe(sock, req_payload);
-		goto send;
-	case GR_MAIN_EVENT_UNSUBSCRIBE:
-		out = unsubscribe(sock);
-		goto send;
-	}
-
 	const struct gr_api_handler *handler = lookup_api_handler(&req);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
@@ -318,10 +315,22 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 	}
 
 	cur_req_pid = socket_pid(sock);
+	cur_req_sock = sock;
 	out = handler->callback(req_payload, &resp_payload);
 	cur_req_pid = 0;
+	cur_req_sock = -1;
 
 send:
+	LOG(DEBUG,
+	    "fd=%d id=%u req_type=0x%08x (%s) req_len=%u status=%d (%s) resp_len=%u",
+	    sock,
+	    req.id,
+	    req.type,
+	    handler ? handler->name : "?",
+	    req.payload_len,
+	    out.status,
+	    strerror(out.status),
+	    out.len);
 	resp = malloc(sizeof(*resp) + out.len);
 	if (resp == NULL) {
 		LOG(ERR, "cannot allocate %zu bytes for response payload", sizeof(*resp) + out.len);
@@ -359,7 +368,9 @@ retry_send:
 close:
 	free(req_payload);
 	free(resp);
-	unsubscribe(sock);
+	cur_req_sock = sock;
+	unsubscribe(NULL, NULL);
+	cur_req_sock = -1;
 	if (ev != NULL)
 		event_free_finalize(0, ev, finalize_fd);
 }
@@ -492,4 +503,7 @@ static struct gr_event_subscription ev_subscribtion = {
 
 RTE_INIT(init) {
 	gr_event_subscribe(&ev_subscribtion);
+	gr_register_api_handler(&subscribe_handler);
+	gr_register_api_handler(&unsubscribe_handler);
+	gr_register_api_handler(&hello_handler);
 }

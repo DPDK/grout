@@ -22,16 +22,9 @@ void gr_register_api_handler(struct gr_api_handler *handler) {
 	assert(handler != NULL);
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
-	switch (handler->request_type) {
-	case GR_MAIN_HELLO:
-	case GR_MAIN_EVENT_SUBSCRIBE:
-	case GR_MAIN_EVENT_UNSUBSCRIBE:
-		goto duplicate;
-	}
 
 	STAILQ_FOREACH (h, &handlers, entries) {
 		if (h->request_type == handler->request_type)
-duplicate:
 			ABORT("duplicate api handler type=0x%08x '%s'",
 			      handler->request_type,
 			      handler->name);
