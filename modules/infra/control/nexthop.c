@@ -372,9 +372,9 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 		return errno_set_null(-ret);
 
 	nh = data;
+	memset(nh, 0, sizeof(*nh));
 
 	if ((ret = nexthop_update(nh, base)) < 0) {
-		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 		return errno_set_null(-ret);
 	}
@@ -463,9 +463,6 @@ static void nh_pool_iter_cb(struct rte_mempool *, void *priv, void *obj, unsigne
 	struct nexthop *nh = obj;
 	if (nh->ref_count != 0)
 		it->user_cb(nh, it->priv);
-	else
-		assert(rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL)
-		       || rte_ipv6_addr_is_unspec(&nh->ipv6));
 }
 
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
@@ -570,7 +567,6 @@ void nexthop_decref(struct nexthop *nh) {
 				stats->total--;
 		}
 
-		memset(nh, 0, sizeof(*nh));
 		rte_mempool_put(pool, nh);
 	}
 }
