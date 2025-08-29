@@ -105,14 +105,14 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 		}
 	}
 
-	if ((nh = nh6_lookup(iface->vrf_id, iface->id, ip)) == NULL) {
+	if ((nh = nh6_lookup(iface->vrf_id, GR_IFACE_ID_UNDEF, ip)) == NULL) {
 		struct gr_nexthop base = {
 			.type = GR_NH_T_L3,
 			.af = GR_AF_IP6,
 			.state = GR_NH_S_REACHABLE,
 			.flags = GR_NH_F_STATIC | GR_NH_F_MCAST,
 			.vrf_id = iface->vrf_id,
-			.iface_id = iface->id,
+			.iface_id = GR_IFACE_ID_UNDEF,
 			.ipv6 = *ip,
 			.origin = GR_NH_ORIGIN_INTERNAL,
 		};
