@@ -4,6 +4,7 @@
 #include <gr_control_output.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
 #include <gr_mbuf.h>
 #include <gr_trace.h>
 
@@ -17,6 +18,7 @@ enum {
 static uint16_t
 ip_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct control_output_mbuf_data *d;
+	const struct nexthop *nh;
 	struct rte_mbuf *mbuf;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -24,8 +26,10 @@ ip_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		// TODO: Allocate a new mbuf from a control plane pool and copy
 		// the packet into it so that the datapath mbuf can be freed and
 		// returned to the stack for hardware RX.
+		nh = ip_output_mbuf_data(mbuf)->nh;
 		d = control_output_mbuf_data(mbuf);
 		d->callback = nh4_unreachable_cb;
+		memcpy(d->cb_data, &nh, sizeof(const struct nexthop *));
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
