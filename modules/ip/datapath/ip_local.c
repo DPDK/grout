@@ -48,7 +48,7 @@ static uint16_t ip_input_local_process(
 			data->vrf_id = iface->vrf_id;
 			data->proto = ip->next_proto_id;
 			data->ttl = ip->time_to_live;
-			rte_pktmbuf_adj(mbuf, sizeof(*ip));
+			rte_pktmbuf_adj(mbuf, rte_ipv4_hdr_len(ip));
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
