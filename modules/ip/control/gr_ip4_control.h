@@ -52,7 +52,7 @@ struct hoplist *addr4_get_all(uint16_t iface_id);
 
 struct rib4_stats {
 	uint32_t total_routes;
-	uint32_t by_origin[_GR_NH_ORIGIN_COUNT];
+	uint32_t by_origin[UINT_NUM_VALUES(gr_nh_origin_t)];
 };
 
 // Get route stats for IPv4 (exposed for telemetry)

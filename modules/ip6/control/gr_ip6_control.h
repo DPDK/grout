@@ -69,7 +69,7 @@ struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr 
 
 struct rib6_stats {
 	uint32_t total_routes;
-	uint32_t by_origin[_GR_NH_ORIGIN_COUNT];
+	uint32_t by_origin[UINT_NUM_VALUES(gr_nh_origin_t)];
 };
 
 // Get route stats for IPv6

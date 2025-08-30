@@ -197,24 +197,14 @@ static int rib6_insert_or_replace(
 		);
 	}
 
-	// Update statistics
-	if (vrf_id < GR_MAX_VRFS) {
-		if (existing) {
-			// Replace case: total unchanged; adjust origin bucket if changed
-			if (origin != old_origin) {
-				if (stats[vrf_id].by_origin[old_origin] > 0)
-					stats[vrf_id].by_origin[old_origin]--;
-				stats[vrf_id].by_origin[origin]++;
-			}
-		} else {
-			// New insert
-			stats[vrf_id].total_routes++;
-			stats[vrf_id].by_origin[origin]++;
-		}
-	}
-
-	if (existing)
+	if (existing) {
 		nexthop_decref(existing);
+		assert(stats[vrf_id].by_origin[old_origin] > 0);
+		stats[vrf_id].by_origin[old_origin]--;
+	} else {
+		stats[vrf_id].total_routes++;
+	}
+	stats[vrf_id].by_origin[origin]++;
 
 	return 0;
 fail:
@@ -278,12 +268,10 @@ int rib6_delete(
 		);
 	}
 	// Update statistics
-	if (vrf_id < GR_MAX_VRFS) {
-		if (stats[vrf_id].total_routes > 0)
-			stats[vrf_id].total_routes--;
-		if (stats[vrf_id].by_origin[origin] > 0)
-			stats[vrf_id].by_origin[origin]--;
-	}
+	assert(stats[vrf_id].total_routes > 0);
+	stats[vrf_id].total_routes--;
+	assert(stats[vrf_id].by_origin[origin] > 0);
+	stats[vrf_id].by_origin[origin]--;
 
 	nexthop_decref(nh);
 
@@ -510,9 +498,12 @@ telemetry_rib6_stats_get(const char * /*cmd*/, const char * /*params*/, struct r
 		if (ipv6_data != NULL) {
 			rte_tel_data_start_dict(ipv6_data);
 			rte_tel_data_add_dict_uint(ipv6_data, "total", vrf_stats->total_routes);
-			rte_tel_data_add_dict_uint(
-				ipv6_data, "link", vrf_stats->by_origin[GR_NH_ORIGIN_LINK]
-			);
+			for (unsigned o = 0; o < ARRAY_DIM(vrf_stats->by_origin); o++) {
+				uint32_t count = vrf_stats->by_origin[o];
+				const char *name = gr_nh_origin_name(o);
+				if (count > 0 && strcmp(name, "") != 0 && strcmp(name, "?") != 0)
+					rte_tel_data_add_dict_uint(ipv6_data, name, count);
+			}
 			rte_tel_data_add_dict_container(vrf_data, "ipv6", ipv6_data, 1);
 		}
 
