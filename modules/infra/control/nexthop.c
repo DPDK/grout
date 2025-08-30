@@ -32,19 +32,7 @@ static struct rte_hash *hash_by_id;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 static const struct nexthop_type_ops *type_ops[256];
-
-static struct nh_stats nh_stats[GR_MAX_VRFS][2]; // [vrf_id][af_index]
-
-static int af_to_index(addr_family_t af) {
-	switch (af) {
-	case GR_AF_IP4:
-		return 0;
-	case GR_AF_IP6:
-		return 1;
-	default:
-		return -1;
-	}
-}
+static struct nh_stats nh_stats;
 
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
@@ -377,13 +365,8 @@ struct nexthop *nexthop_new(const struct gr_nexthop *base) {
 		return errno_set_null(-ret);
 	}
 
-	// Initialize stats for new nexthop
-	int af_index = af_to_index(nh->af);
-	if (af_index >= 0 && nh->vrf_id < GR_MAX_VRFS) {
-		struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
-		stats->total++;
-		stats->by_state[GR_NH_S_NEW]++;
-	}
+	nh_stats.total++;
+	nh_stats.by_type[nh->type]++;
 
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
@@ -555,15 +538,10 @@ void nexthop_decref(struct nexthop *nh) {
 		if (ops != NULL && ops->free != NULL)
 			ops->free(nh);
 
-		// Update stats for deleted nexthop
-		int af_index = af_to_index(nh->af);
-		if (af_index >= 0 && nh->vrf_id < GR_MAX_VRFS) {
-			struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
-			if (nh->state < _GR_NH_S_COUNT && stats->by_state[nh->state] > 0)
-				stats->by_state[nh->state]--;
-			if (stats->total > 0)
-				stats->total--;
-		}
+		assert(nh_stats.total > 0);
+		nh_stats.total--;
+		assert(nh_stats.by_type[nh->type] > 0);
+		nh_stats.by_type[nh->type]--;
 
 		rte_mempool_put(pool, nh);
 	}
@@ -601,7 +579,6 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 			    nh->held_pkts,
 			    gr_nh_state_name(nh->state));
 
-			nh_stats_update(nh, GR_NH_S_FAILED);
 			nh->state = GR_NH_S_FAILED;
 		} else {
 			if (ops->solicit(nh) < 0)
@@ -615,7 +592,6 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 		break;
 	case GR_NH_S_REACHABLE:
 		if (reply_age > nh_conf.lifetime_reachable_sec) {
-			nh_stats_update(nh, GR_NH_S_STALE);
 			nh->state = GR_NH_S_STALE;
 		}
 		break;
@@ -628,29 +604,8 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	nexthop_iter(nexthop_ageing_cb, NULL);
 }
 
-const struct nh_stats *nexthop_get_stats(uint16_t vrf_id, addr_family_t af) {
-	int af_index = af_to_index(af);
-	if (af_index < 0 || vrf_id >= GR_MAX_VRFS)
-		return NULL;
-	return &nh_stats[vrf_id][af_index];
-}
-
-void nh_stats_update(struct nexthop *nh, gr_nh_state_t new_state) {
-	int af_index = af_to_index(nh->af);
-	if (af_index < 0 || nh->vrf_id >= GR_MAX_VRFS)
-		return;
-
-	struct nh_stats *stats = &nh_stats[nh->vrf_id][af_index];
-
-	if (nh->state != new_state) {
-		// Decrease old state count
-		if (nh->state < _GR_NH_S_COUNT && stats->by_state[nh->state] > 0)
-			stats->by_state[nh->state]--;
-
-		// Increase new state count
-		if (new_state < _GR_NH_S_COUNT)
-			stats->by_state[new_state]++;
-	}
+const struct nh_stats *nexthop_get_stats(void) {
+	return &nh_stats;
 }
 
 static void nh_init(struct event_base *ev_base) {
@@ -707,37 +662,10 @@ static int
 telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
 	rte_tel_data_start_dict(d);
 
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
-		const struct nh_stats *ipv4_stats = nexthop_get_stats(vrf_id, GR_AF_IP4);
-		const struct nh_stats *ipv6_stats = nexthop_get_stats(vrf_id, GR_AF_IP6);
-
-		// Always show VRF 0, and show other VRFs if they have any nexthops
-		if (vrf_id != 0 && (ipv4_stats == NULL || ipv4_stats->total == 0)
-		    && (ipv6_stats == NULL || ipv6_stats->total == 0))
-			continue;
-
-		char vrf_key[32];
-		snprintf(vrf_key, sizeof(vrf_key), "%u", vrf_id);
-
-		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
-		if (vrf_data == NULL)
-			continue;
-
-		rte_tel_data_start_dict(vrf_data);
-		rte_tel_data_add_dict_uint(vrf_data, "vrf_id", vrf_id);
-		rte_tel_data_add_dict_uint(vrf_data, "ipv4", ipv4_stats ? ipv4_stats->total : 0);
-		rte_tel_data_add_dict_uint(vrf_data, "ipv6", ipv6_stats ? ipv6_stats->total : 0);
-		rte_tel_data_add_dict_uint(
-			vrf_data,
-			"new",
-			(ipv4_stats ? ipv4_stats->by_state[GR_NH_S_NEW] : 0)
-				+ (ipv6_stats ? ipv6_stats->by_state[GR_NH_S_NEW] : 0)
-		);
-
-		if (rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0) != 0) {
-			rte_tel_data_free(vrf_data);
-			continue;
-		}
+	rte_tel_data_add_dict_uint(d, "total", nh_stats.total);
+	for (unsigned t = 0; t < ARRAY_DIM(nh_stats.by_type); t++) {
+		if (nh_stats.by_type[t] > 0)
+			rte_tel_data_add_dict_uint(d, gr_nh_type_name(t), nh_stats.by_type[t]);
 	}
 
 	return 0;

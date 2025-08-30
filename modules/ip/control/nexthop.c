@@ -90,7 +90,6 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		nh->held_pkts++;
 		if (nh->state != GR_NH_S_PENDING) {
 			arp_output_request_solicit(nh);
-			nh_stats_update(nh, GR_NH_S_PENDING);
 			nh->state = GR_NH_S_PENDING;
 		}
 		return;
@@ -144,7 +143,6 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	if (!(nh->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
-		nh_stats_update(nh, GR_NH_S_REACHABLE);
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
