@@ -15,7 +15,6 @@ typedef enum : uint8_t {
 	GR_NH_S_REACHABLE, // Probe reply received
 	GR_NH_S_STALE, // Reachable lifetime expired, need refresh
 	GR_NH_S_FAILED, // All probes sent without reply
-#define _GR_NH_S_COUNT (GR_NH_S_FAILED + 1)
 } gr_nh_state_t;
 
 typedef enum : uint8_t {

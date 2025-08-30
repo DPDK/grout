@@ -4,10 +4,12 @@
 #pragma once
 
 #include <errno.h>
+#include <limits.h>
 
 #define ARRAY_DIM(array) (sizeof(array) / sizeof(array[0]))
 #define MEMBER_SIZE(type, member) (sizeof(((type *)0)->member))
 #define PAYLOAD(header) ((void *)(header + 1))
+#define UINT_NUM_VALUES(type) (1ULL << (sizeof(type) * CHAR_BIT))
 
 // Define a structure as a base for another one using anonymous tagged structure extension.
 #define BASE(typename)                                                                             \

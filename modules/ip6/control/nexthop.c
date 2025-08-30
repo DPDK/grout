@@ -99,7 +99,6 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		nh->held_pkts++;
 		if (nh->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
-			nh_stats_update(nh, GR_NH_S_PENDING);
 			nh->state = GR_NH_S_PENDING;
 		}
 		return;
@@ -189,7 +188,6 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	if (nh && !(nh->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
 		nh->last_reply = gr_clock_us();
-		nh_stats_update(nh, GR_NH_S_REACHABLE);
 		nh->state = GR_NH_S_REACHABLE;
 		nh->ucast_probes = 0;
 		nh->bcast_probes = 0;
