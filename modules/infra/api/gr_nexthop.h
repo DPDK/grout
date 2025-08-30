@@ -70,7 +70,6 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
 	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
 	GR_NH_ORIGIN_INTERNAL = 255, //!< Reserved for internal use by grout.
-#define _GR_NH_ORIGIN_COUNT (GR_NH_ORIGIN_INTERNAL + 1)
 } gr_nh_origin_t;
 
 #define GR_NH_ID_UNSET UINT32_C(0)
