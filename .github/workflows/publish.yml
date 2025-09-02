@@ -25,8 +25,6 @@ jobs:
       contents: read
       actions: write
     uses: ./.github/workflows/package.yml
-    with:
-      upload: true
 
   upload:
     permissions:
@@ -70,10 +68,5 @@ jobs:
           token: ${{ github.token }}
           tag: "edge"
           files: |
-            grout.x86_64.rpm
-            grout-devel.noarch.rpm
-            grout-debuginfo.x86_64.rpm
-            grout-debugsource.x86_64.rpm
-            grout_amd64.deb
-            grout-dev_all.deb
-            grout-dbgsym_amd64.ddeb
+            grout*.rpm
+            grout*.*deb
