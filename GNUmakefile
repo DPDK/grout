@@ -76,7 +76,9 @@ deb:
 	mv -vf ../grout-dev_$(debversion)_all.deb grout-dev_all.deb && \
 	mv -vf ../grout-prometheus_$(debversion)_all.deb grout-prometheus_all.deb && \
 	mv -vf ../grout_$(debversion)_$$arch.deb grout_$$arch.deb && \
-	mv -vf ../grout-dbgsym_$(debversion)_$$arch.ddeb grout-dbgsym_$$arch.ddeb
+	mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb && \
+	mv -vf ../grout-frr_$(debversion)_$$arch.deb grout-frr_$$arch.deb && \
+	mv -vf ../grout-frr-dbgsym_$(debversion)_$$arch.deb grout-frr-dbgsym_$$arch.deb
 
 rpmversion = $(firstword $(version))
 rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
@@ -89,7 +91,9 @@ rpm:
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-prometheus-$$version.noarch.rpm grout-prometheus.noarch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/$$arch/grout-$$version.$$arch.rpm grout.$$arch.rpm && \
-	mv -vf ~/rpmbuild/RPMS/$$arch/grout-debuginfo-$$version.$$arch.rpm grout-debuginfo.$$arch.rpm
+	mv -vf ~/rpmbuild/RPMS/$$arch/grout-debuginfo-$$version.$$arch.rpm grout-debuginfo.$$arch.rpm && \
+	mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-$$version.$$arch.rpm grout-frr.$$arch.rpm && \
+	mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-debuginfo-$$version.$$arch.rpm grout-frr-debuginfo.$$arch.rpm
 
 CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'

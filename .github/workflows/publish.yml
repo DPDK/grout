@@ -42,26 +42,46 @@ jobs:
         with:
           pattern: "*-packages"
           merge-multiple: true
+      - uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER }}
+          password: ${{ secrets.QUAY_TOKEN }}
       - uses: docker/metadata-action@v5
         name: Extract metadata for the Docker image
-        id: meta
+        id: meta-grout
         with:
           images: "quay.io/grout/grout"
           tags: |
               type=edge,branch=main
               type=semver,pattern={{version}}
               type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USER }}
-          password: ${{ secrets.QUAY_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Containerfile
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: Containerfile.grout
+          tags: ${{ steps.meta-grout.outputs.tags }}
+          labels: ${{ steps.meta-grout.outputs.labels }}
+          push: true
+      - run: sed -n 's/^revision = /version=/p' subprojects/frr.wrap >> $GITHUB_OUTPUT
+        id: frr-version
+      - uses: docker/metadata-action@v5
+        name: Extract metadata for the Docker image
+        id: meta-frr
+        with:
+          images: "quay.io/grout/frr"
+          tags: |
+            type=edge,branch=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            frr_version=${{steps.frr-version.outputs.version}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile.frr
+          tags: ${{ steps.meta-frr.outputs.tags }}
+          labels: ${{ steps.meta-frr.outputs.labels }}
           push: true
       - uses: pyTooling/Actions/releaser@r0
         with:

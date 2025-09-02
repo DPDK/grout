@@ -88,3 +88,24 @@ Description: Prometheus exporter for grout
  It comes with a client library to configure it over a standard UNIX socket and
  a CLI that uses that library. The CLI can be used as an interactive shell, but
  also in scripts one command at a time, or by batches.
+
+Package: grout-frr
+Architecture: linux-any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ frr (= 10.4.1),
+Description: FRR dplane plugin for grout
+ grout stands for Graph Router. In English, "grout" refers to thin mortar that
+ hardens to fill gaps between tiles.
+ .
+ grout is a DPDK based network processing application. It uses the rte_graph
+ library for data path processing.
+ .
+ Its main purpose is to simulate a network function or a physical router for
+ testing/replicating real (usually closed source) VNF/CNF behavior with an
+ opensource tool.
+ .
+ It comes with a client library to configure it over a standard UNIX socket and
+ a CLI that uses that library. The CLI can be used as an interactive shell, but
+ also in scripts one command at a time, or by batches.
