@@ -17,27 +17,39 @@ jobs:
     permissions:
       actions: write
     runs-on: ubuntu-24.04
+    container: "debian:stable"
     steps:
       - name: install system dependencies
         run: |
           set -xe
-          sudo apt-get update -qy
-          sudo apt-get install -qy --no-install-recommends \
-            git build-essential meson ninja-build pkgconf go-md2man \
-            python3-pyelftools bash-completion devscripts debhelper \
-            libcmocka-dev libedit-dev libevent-dev libnuma-dev \
-            libsmartcols-dev libarchive-dev libibverbs-dev
+          apt-get update -qy
+          apt-get install -qy --no-install-recommends \
+            autoconf automake bash-completion bison build-essential debhelper \
+            curl devscripts flex git go-md2man libarchive-dev libcap-dev \
+            libcmocka-dev libedit-dev libelf-dev libevent-dev libibverbs-dev \
+            libjson-c-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
+            librtr-dev libsmartcols-dev libtool libyang-dev meson ninja-build \
+            patch pkg-config protobuf-c-compiler python3-dev python3-pyelftools \
+            texinfo
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+      - uses: ./.github/actions/frr-install
+        with:
+          sysconfdir: /etc/frr
+          libdir: /usr/lib/x86_64-linux-gnu
+          libexecdir: /usr/libexec
+          sbindir: /usr/lib/frr
+          localstatedir: /run/frr
+          yangmodelsdir: /usr/share/frr-yang
       - run: make deb
       - uses: actions/upload-artifact@v4
         with:
           name: deb-packages
-          path: grout*.*deb
+          path: grout*.deb
           retention-days: 5
 
   rpm:
@@ -49,18 +61,29 @@ jobs:
       - name: install system dependencies
         run: |
           set -xe
+          dnf install -y https://rpm.frrouting.org/repo/frr-10-repo.el9.noarch.rpm
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
-            git make meson ninja-build pkgconf python3-pyelftools \
-            gcc-toolset-13 scl-utils golang-github-cpuguy83-md2man \
-            libcmocka-devel libedit-devel libevent-devel numactl-devel \
-            libsmartcols-devel libarchive-devel rdma-core-devel \
-            rpm-build systemd
+            autoconf automake bison elfutils-libelf-devel flex gcc-toolset-13 \
+            git golang-github-cpuguy83-md2man json-c-devel libarchive-devel \
+            libcap-devel libcmocka-devel libedit-devel libevent-devel \
+            libsmartcols-devel libyang-devel libtool make meson ninja-build \
+            numactl-devel pkgconf protobuf-c-compiler protobuf-c-devel \
+            python3-pyelftools python3-devel rdma-core-devel readline-devel \
+            rpm-build scl-utils systemd
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+      - uses: ./.github/actions/frr-install
+        with:
+          sysconfdir: /etc
+          libdir: /usr/lib64
+          libexecdir: /usr/libexec
+          sbindir: /usr/lib64/frr
+          localstatedir: /var
+          yangmodelsdir: /usr/share/frr-yang
       - run: make rpm RPMBUILD_OPTS="-D 'toolset gcc-toolset-13'"
       - uses: actions/upload-artifact@v4
         with:

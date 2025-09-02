@@ -13,7 +13,7 @@ Name: grout
 Summary: Graph router based on DPDK
 Group: System Environment/Daemons
 URL: https://github.com/DPDK/grout
-License: BSD-3-Clause
+License: BSD-3-Clause AND GPL-2.0-or-later
 Version: %{version}
 Release: %{release}
 Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
@@ -25,6 +25,7 @@ BuildRequires: %toolset
 BuildRequires: scl-utils
 %endif
 BuildRequires: git
+BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: libarchive-devel
 BuildRequires: libcmocka-devel
 BuildRequires: libedit-devel
@@ -37,7 +38,6 @@ BuildRequires: numactl-devel
 BuildRequires: pkgconf
 BuildRequires: python3-pyelftools
 BuildRequires: rdma-core-devel
-BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: systemd
 
 %description
@@ -75,8 +75,15 @@ Requires: python3
 %description prometheus
 Prometheus exporter for grout.
 
+%package frr
+Summary: FRR dplane plugin for grout
+Requires: frr = %(sed -n "s/revision = frr-//p" subprojects/frr.wrap)
+
+%description frr
+FRR dplane plugin for grout
+
 %build
-%meson -Ddpdk:platform=generic -Dfrr=disabled
+%meson -Ddpdk:platform=generic -Dfrr=enabled
 %meson_build
 
 %install
@@ -107,7 +114,6 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %attr(755, root, root) %{_bindir}/grcli
 %attr(755, root, root) %{_bindir}/grout
 %attr(644, root, root) %{_mandir}/man1/grcli.1*
-%attr(644, root, root) %{_mandir}/man7/grout-frr.7*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 
 %files devel
@@ -120,6 +126,12 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %license licenses/BSD-3-clause.txt
 %attr(755, root, root) %{_bindir}/grout-telemetry-exporter
 %attr(644, root, root) %{_datadir}/dpdk/telemetry-endpoints/*
+
+%files frr
+%doc README.md
+%license licenses/GPL-2.0-or-later.txt
+%attr(755, root, root) %{_libdir}/frr/modules/frr_dplane_grout.so
+%attr(644, root, root) %{_mandir}/man7/grout-frr.7*
 
 %changelog
 * Mon Sep 02 2024 Robin Jarry <rjarry@redhat.com>

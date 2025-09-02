@@ -8,7 +8,7 @@ include /usr/share/dpkg/default.mk
 meson_opts := --wrap-mode=default
 meson_opts += --auto-features=enabled
 meson_opts += -Ddpdk:platform=generic
-meson_opts += -Dfrr=disabled
+meson_opts += -Dfrr=enabled
 
 build = $(CURDIR)/debian/_build
 dest = $(CURDIR)/debian/tmp
