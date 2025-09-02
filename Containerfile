@@ -2,9 +2,9 @@
 # Copyright (c) 2025 Christophe Fontaine
 
 FROM registry.access.redhat.com/ubi9 as ubi-builder
-COPY grout.*.rpm /tmp
+COPY grout.*.rpm grout-prometheus.*.rpm /tmp
 RUN mkdir -p /tmp/null
-RUN dnf -y install --nodocs --setopt=install_weak_deps=0 --releasever 9 --installroot /tmp/null /tmp/grout.$(arch).rpm
+RUN dnf -y install --nodocs --setopt=install_weak_deps=0 --releasever 9 --installroot /tmp/null /tmp/grout*.rpm
 RUN dnf -y --installroot /tmp/null clean all
 RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
 

@@ -67,6 +67,14 @@ Suggests: %{name}
 %description devel
 This package contains the development headers to build %{grout} API clients.
 
+%package prometheus
+Summary: Prometheus exporter for DPDK/grout
+BuildArch: noarch
+Requires: python3
+
+%description prometheus
+Prometheus exporter for grout.
+
 %build
 %meson -Ddpdk:platform=generic -Dfrr=disabled
 %meson_build
@@ -79,6 +87,8 @@ install -D -m 0644 main/grout.init %{buildroot}%{_sysconfdir}/grout.init
 install -D -m 0644 main/grout.service %{buildroot}%{_unitdir}/grout.service
 install -D -m 0644 main/grout.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grout
 install -D -m 0644 cli/grcli.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grcli
+install -D -m 0755 subprojects/dpdk/usertools/dpdk-telemetry-exporter.py %{buildroot}%{_bindir}/grout-telemetry-exporter
+install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojects/dpdk/usertools/telemetry-endpoints/*
 
 %post
 %systemd_post %{name}.service
@@ -104,6 +114,12 @@ install -D -m 0644 cli/grcli.bash-completion %{buildroot}%{_datadir}/bash-comple
 %doc README.md
 %license licenses/BSD-3-clause.txt
 %{_includedir}/gr_*.h
+
+%files prometheus
+%doc README.md
+%license licenses/BSD-3-clause.txt
+%attr(755, root, root) %{_bindir}/grout-telemetry-exporter
+%attr(644, root, root) %{_datadir}/dpdk/telemetry-endpoints/*
 
 %changelog
 * Mon Sep 02 2024 Robin Jarry <rjarry@redhat.com>
