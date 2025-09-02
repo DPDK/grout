@@ -8,11 +8,6 @@ permissions:
 
 on:
   workflow_call:
-    inputs:
-      upload:
-        type: boolean
-        required: false
-        default: false
   pull_request:
     branches:
       - main
@@ -42,11 +37,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: deb-packages
-          path: |
-            grout*.deb
-            grout*.ddeb
+          path: grout*.*deb
           retention-days: 5
-        if: ${{ inputs.upload }}
 
   rpm:
     permissions:
@@ -75,4 +67,3 @@ jobs:
           name: rpm-packages
           path: grout*.rpm
           retention-days: 5
-        if: ${{ inputs.upload }}
