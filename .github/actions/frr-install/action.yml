@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+name: Install FRR
+
+inputs:
+  sysconfdir:
+    required: true
+  libdir:
+    required: true
+  libexecdir:
+    required: true
+  sbindir:
+    required: true
+  localstatedir:
+    required: true
+  yangmodelsdir:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install FRR
+      shell: bash
+      run: ./.github/actions/frr-install/run.sh
+      env:
+        SYSCONFDIR: ${{inputs.sysconfdir}}
+        LIBDIR: ${{inputs.libdir}}
+        LIBEXECDIR: ${{inputs.libexecdir}}
+        SBINDIR: ${{inputs.sbindir}}
+        LOCALSTATEDIR: ${{inputs.localstatedir}}
+        YANGMODELSDIR: ${{inputs.yangmodelsdir}}
