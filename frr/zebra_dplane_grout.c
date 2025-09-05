@@ -615,6 +615,9 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_NONE:
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 
+	case DPLANE_OP_INTF_SPEED:
+		// no needs and no support to query interface speed
+		// fallthrough
 	default:
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
