@@ -94,9 +94,7 @@ static struct gr_id_pool *create_idpool(const struct gr_nexthop_config *c) {
 	if (pool_id != NULL && gr_id_pool_used(pool_id))
 		return errno_set_null(EBUSY);
 
-	char name[128];
-	snprintf(name, sizeof(name), "nexthop-ids-%u", c->max_count);
-	struct gr_id_pool *pid = gr_id_pool_create(name, c->max_count);
+	struct gr_id_pool *pid = gr_id_pool_create(1, c->max_count);
 	if (pid == NULL)
 		return errno_log_null(rte_errno, "gr_id_pool_create");
 
