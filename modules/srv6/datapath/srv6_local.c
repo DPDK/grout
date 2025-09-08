@@ -58,7 +58,9 @@ static uint8_t proto_supported[256] = {
 
 static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_hdr *ip6;
+	uint16_t data_len;
 
+	data_len = rte_pktmbuf_data_len(m);
 	ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 	ip6_info->ip6_hdr = ip6;
 
@@ -73,14 +75,14 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	// advance through IPv6 extension headers until we find a proto supported by SRv6
 	while (!proto_supported[ip6_info->proto]) {
 		size_t ext_size = 0;
-		const uint8_t *ext;
-		uint8_t _ext[2];
 		int next_proto;
+		uint8_t *ext;
 
-		ext = rte_pktmbuf_read(m, ip6_info->ext_offset, sizeof(_ext), _ext);
-		if (ext == NULL)
+		// minimal precheck: rte_ipv6_get_next_ext() touches ≤ 2 bytes
+		if (unlikely(ip6_info->ext_offset + 2 > data_len))
 			return -1;
 
+		ext = rte_pktmbuf_mtod_offset(m, uint8_t *, ip6_info->ext_offset);
 		next_proto = rte_ipv6_get_next_ext(ext, ip6_info->proto, &ext_size);
 		if (next_proto < 0)
 			break; // end of extension headers
@@ -88,7 +90,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 		ip6_info->len -= ext_size;
 		ip6_info->proto = next_proto;
 		// next header is always the first field of any extension
-		ip6_info->p_proto = (uint8_t *)ext;
+		ip6_info->p_proto = ext;
 	}
 
 	if (ip6_info->proto == IPPROTO_ROUTING)
