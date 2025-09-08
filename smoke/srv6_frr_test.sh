@@ -67,3 +67,5 @@ set_srv6_localsid locator_grout fd00:202 fd00:202::100
 
 # test
 ip netns exec n-$p0 ping -c 3 192.168.60.1
+# check that sid is reachable
+ip netns exec n-$p1 ping6 -c 3 fd00:202::100

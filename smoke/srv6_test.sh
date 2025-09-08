@@ -66,3 +66,5 @@ grcli add sr localsid fd00:202::100 behavior end.dt4
 
 # test
 ip netns exec $p0 ping -c 3 192.168.60.1
+# check that sid is reachable
+ip netns exec $p1 ping6 -c 3 fd00:202::100

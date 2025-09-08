@@ -323,11 +323,6 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		if (!proto_supported[ip6_info.proto]) {
-			edge = UNEXPECTED_UPPER;
-			goto next;
-		}
-
 		sr_d = srv6_localsid_nh_priv(ip6_output_mbuf_data(m)->nh);
 		assert(sr_d != NULL);
 
