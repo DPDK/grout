@@ -180,10 +180,6 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 			return INVALID_PACKET;
 	}
 
-	// avoid ip6_input_local <-> sr6_local loop
-	if (ip6_info->proto == IPPROTO_IPIP || ip6_info->proto == IPPROTO_IPV6)
-		return UNEXPECTED_UPPER;
-
 	// prepend ipv6 header without any ext, before entering ip6_input_local again.
 	if (!ip6_info->ip6_hdr) {
 		ip6 = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(m, sizeof(*ip6));
