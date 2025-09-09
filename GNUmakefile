@@ -136,7 +136,7 @@ format:
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
 		$(CLANG_FORMAT) --files="$$tmp" -i --verbose
 
-REVISION_RANGE ?= origin/main..
+REVISION_RANGE ?= @{u}..
 
 .PHONY: check-patches
 check-patches:
