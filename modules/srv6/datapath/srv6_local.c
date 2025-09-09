@@ -335,6 +335,7 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->behavior = sr_d->behavior;
 			t->out_vrf_id = sr_d->out_vrf_id;
+			t->segleft = 0;
 		} else {
 			t = NULL;
 		}
