@@ -348,8 +348,13 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 				goto next;
 			}
 
+			// hdr_len is in 8B units (excl. first 8B)
+			// -> ext_len = 8 * (hdr_len + 1)
+			// each segment is 16B = 2×8B
+			// -> nsegs = hdr_len/2
+			// -> last_entry < hdr_len/2
 			if ((size_t)((sr->hdr_len + 1) << 3) != ext_len
-			    || sr->last_entry > ext_len / 2 - 1
+			    || sr->last_entry > sr->hdr_len / 2 - 1
 			    || sr->segments_left > sr->last_entry + 1
 			    || sr->type != RTE_IPV6_SRCRT_TYPE_4) {
 				// XXX send icmp parameter problem
