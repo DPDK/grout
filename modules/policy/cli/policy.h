@@ -10,3 +10,5 @@
 #define POLICY_DEL_CTX(root)                                                                       \
 	CLI_CONTEXT(root, CTX_DEL, CTX_ARG("policy", "Delete policy elements."))
 #define POLICY_SHOW_CTX(root) CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("policy", "Show policy details."))
+#define POLICY_CLEAR_CTX(root)                                                                     \
+	CLI_CONTEXT(root, CTX_CLEAR, CTX_ARG("policy", "Clear policy elements."))
