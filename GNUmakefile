@@ -23,7 +23,7 @@ debug: all
 
 .PHONY: unit-tests
 unit-tests: $(BUILDDIR)/build.ninja
-	$Q ninja -C $(BUILDDIR) test $(ninja_opts)
+	$Q meson test -C $(BUILDDIR) --print-errorlogs $(if $(filter 1,$V),--verbose)
 
 .PHONY: smoke-tests
 smoke-tests: all
