@@ -20,6 +20,7 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_ring.h>
+#include <rte_tcp.h>
 
 static inline const char *eth_type_str(rte_be16_t type) {
 	switch (type) {
@@ -306,6 +307,39 @@ err:
 	return -1;
 }
 
+static int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *tcp) {
+	size_t n = 0;
+
+	SAFE_BUF(
+		snprintf,
+		len,
+		"%u > %u flags=",
+		rte_be_to_cpu_16(tcp->src_port),
+		rte_be_to_cpu_16(tcp->dst_port)
+	);
+
+	if (tcp->tcp_flags & RTE_TCP_FIN_FLAG)
+		SAFE_BUF(snprintf, len, "F");
+	if (tcp->tcp_flags & RTE_TCP_SYN_FLAG)
+		SAFE_BUF(snprintf, len, "S");
+	if (tcp->tcp_flags & RTE_TCP_RST_FLAG)
+		SAFE_BUF(snprintf, len, "R");
+	if (tcp->tcp_flags & RTE_TCP_PSH_FLAG)
+		SAFE_BUF(snprintf, len, "P");
+	if (tcp->tcp_flags & RTE_TCP_ACK_FLAG)
+		SAFE_BUF(snprintf, len, "A");
+	if (tcp->tcp_flags & RTE_TCP_URG_FLAG)
+		SAFE_BUF(snprintf, len, "U");
+	if (tcp->tcp_flags & RTE_TCP_ECE_FLAG)
+		SAFE_BUF(snprintf, len, "E");
+	if (tcp->tcp_flags & RTE_TCP_CWR_FLAG)
+		SAFE_BUF(snprintf, len, "C");
+
+	return n;
+err:
+	return -1;
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	static const struct rte_ether_addr stp_dst = {
 		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x00},
@@ -360,6 +394,13 @@ ipv4:
 			icmp = rte_pktmbuf_mtod_offset(m, const struct rte_icmp_hdr *, offset);
 			SAFE_BUF(snprintf, sizeof(buf), " / ICMP ");
 			SAFE_BUF(trace_icmp_format, sizeof(buf), icmp, sizeof(*icmp));
+			break;
+		}
+		case IPPROTO_TCP: {
+			const struct rte_tcp_hdr *tcp;
+			tcp = rte_pktmbuf_mtod_offset(m, const struct rte_tcp_hdr *, offset);
+			SAFE_BUF(snprintf, sizeof(buf), " / TCP ");
+			SAFE_BUF(trace_tcp_format, sizeof(buf), tcp);
 			break;
 		}
 		case IPPROTO_IPIP:
