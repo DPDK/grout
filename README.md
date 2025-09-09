@@ -31,6 +31,10 @@ also in scripts one command at a time, or by batches.
 * Multiple VRF domains
 * VLAN sub interfaces
 * IP in IP tunnels
+* SRv6
+* Static IPv4 DNAT
+* Dynamic IPv4 SNAT (with connection tracking)
+* FRR synchronization via a [dplane plugin](/frr)
 
 ## Quickstart
 

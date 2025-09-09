@@ -8,13 +8,13 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 
-bool snat44_static_process(const struct iface *iface, struct rte_mbuf *mbuf) {
+nat_verdict_t snat44_static_process(const struct iface *iface, struct rte_mbuf *mbuf) {
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 	ip4_addr_t replace;
 	uint16_t frag;
 
 	if (!snat44_static_lookup_translation(iface->id, ip->src_addr, &replace))
-		return false;
+		return NAT_VERDICT_CONTINUE;
 
 	ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->src_addr, replace);
 
@@ -51,5 +51,5 @@ bool snat44_static_process(const struct iface *iface, struct rte_mbuf *mbuf) {
 	// We need the old address value to fixup the checksum properly.
 	ip->src_addr = replace;
 
-	return true;
+	return NAT_VERDICT_FINAL;
 }

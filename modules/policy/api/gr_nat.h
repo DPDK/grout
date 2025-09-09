@@ -5,6 +5,7 @@
 
 #include <gr_net_types.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define GR_NAT_MODULE 0x0bad
@@ -45,4 +46,39 @@ struct gr_dnat44_list_req {
 struct gr_dnat44_list_resp {
 	uint16_t n_policies;
 	struct gr_dnat44_policy policies[/* n_policies */];
+};
+
+// snat44 //////////////////////////////////////////////////////////////////////
+
+struct gr_snat44_policy {
+	uint16_t iface_id;
+	struct ip4_net net;
+	ip4_addr_t replace;
+};
+
+#define GR_SNAT44_ADD REQUEST_TYPE(GR_NAT_MODULE, 0x0011)
+
+struct gr_snat44_add_req {
+	struct gr_snat44_policy policy;
+	bool exist_ok;
+};
+
+// struct gr_snat44_add_resp { };
+
+#define GR_SNAT44_DEL REQUEST_TYPE(GR_NAT_MODULE, 0x0012)
+
+struct gr_snat44_del_req {
+	struct gr_snat44_policy policy;
+	bool missing_ok;
+};
+
+// struct gr_snat44_del_resp { };
+
+#define GR_SNAT44_LIST REQUEST_TYPE(GR_NAT_MODULE, 0x0013)
+
+// struct gr_snat44_list_req { };
+
+struct gr_snat44_list_resp {
+	uint16_t n_policies;
+	struct gr_snat44_policy policies[/* n_policies */];
 };

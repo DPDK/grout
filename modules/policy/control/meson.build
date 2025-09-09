@@ -4,5 +4,6 @@
 src += files(
   'conntrack.c',
   'snat44_static.c',
+  'snat44_dynamic.c',
 )
 inc += include_directories('.')
