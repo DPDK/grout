@@ -12,18 +12,32 @@
 GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
 
 static inline rte_be16_t
-fixup_checksum(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
-	uint32_t sum, old, new;
+fixup_checksum_16(rte_be16_t old_cksum, rte_be16_t old_field, rte_be16_t new_field) {
+	uint32_t sum;
 
-	old = rte_be_to_cpu_32(old_addr);
-	new = rte_be_to_cpu_32(new_addr);
-
-	sum = ~rte_be_to_cpu_16(old_cksum) & 0xffff;
-	sum += (~old & 0xffff) + (new & 0xffff);
-	sum += (~old >> 16) + (new >> 16);
+	// RFC 1624: HC' = ~(~HC + ~m + m')
+	// Note: 1's complement sum is endian-independent (RFC 1071, page 2).
+	sum = ~old_cksum & 0xffff;
+	sum += (~old_field & 0xffff) + new_field;
 	sum = (sum >> 16) + (sum & 0xffff);
 	sum += (sum >> 16);
-	return rte_cpu_to_be_16(~sum & 0xffff);
+
+	return ~sum & 0xffff;
+}
+
+static inline rte_be16_t
+fixup_checksum_32(rte_be16_t old_cksum, ip4_addr_t old_addr, ip4_addr_t new_addr) {
+	uint32_t sum;
+
+	// Checksum 32-bit datum as as two 16-bit.  Note, the first
+	// 32->16 bit reduction is not necessary.
+	sum = ~old_cksum & 0xffff;
+	sum += (~old_addr & 0xffff) + (new_addr & 0xffff);
+	sum += (~old_addr >> 16) + (new_addr >> 16);
+	sum = (sum >> 16) + (sum & 0xffff);
+	sum += (sum >> 16);
+
+	return ~sum & 0xffff;
 }
 
 bool snat44_static_process(const struct iface *, struct rte_ipv4_hdr *);
