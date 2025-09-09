@@ -2,5 +2,6 @@
 # Copyright (c) 2025 Robin Jarry
 
 cli_src += files(
+  'conntrack.c',
   'dnat44.c',
 )
