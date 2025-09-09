@@ -10,7 +10,7 @@ bool snat44_static_process(const struct iface *iface, struct rte_ipv4_hdr *ip) {
 	if (!snat44_static_lookup_translation(iface->id, ip->src_addr, &replace))
 		return false;
 
-	ip->hdr_checksum = fixup_checksum(ip->hdr_checksum, ip->src_addr, replace);
+	ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->src_addr, replace);
 	ip->src_addr = replace;
 
 	return true;
