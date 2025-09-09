@@ -350,7 +350,7 @@ ipv4:
 		const struct rte_ipv4_hdr *ip;
 
 		ip = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, offset);
-		offset += sizeof(*ip);
+		offset += rte_ipv4_hdr_len(ip);
 		SAFE_BUF(snprintf, sizeof(buf), " / IP ");
 		SAFE_BUF(trace_ip_format, sizeof(buf), ip, sizeof(*ip));
 
