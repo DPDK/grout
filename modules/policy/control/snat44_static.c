@@ -8,7 +8,6 @@
 
 #include <rte_common.h>
 #include <rte_hash.h>
-#include <rte_ip4.h>
 
 static struct rte_hash *snat_hash;
 
