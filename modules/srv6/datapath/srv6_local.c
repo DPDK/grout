@@ -43,37 +43,29 @@ struct ip6_info {
 	struct rte_ipv6_addr dst;
 	uint16_t len;
 	uint16_t ext_offset;
+	uint16_t sr_len;
 	uint8_t hop_limit;
 	uint8_t proto;
+	// Pointer to the Next Header byte in the previous header
+	// (IPv6 base NH if SRH is first).
 	uint8_t *p_proto;
 	struct rte_ipv6_hdr *ip6_hdr;
 	struct rte_ipv6_routing_ext *sr;
 };
 
-static uint8_t proto_supported[256] = {
-	[IPPROTO_IPIP] = 1,
-	[IPPROTO_IPV6] = 1,
+static const uint8_t is_ipv6_ext[256] = {
+	[IPPROTO_HOPOPTS] = 1,
 	[IPPROTO_ROUTING] = 1,
+	[IPPROTO_FRAGMENT] = 1,
+	[IPPROTO_AH] = 1,
+	[IPPROTO_DSTOPTS] = 1,
 };
 
-static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
-	struct rte_ipv6_hdr *ip6;
-	uint16_t data_len;
+static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+	uint16_t data_len = rte_pktmbuf_data_len(m);
 
-	data_len = rte_pktmbuf_data_len(m);
-	ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-	ip6_info->ip6_hdr = ip6;
-
-	ip6_info->src = ip6->src_addr;
-	ip6_info->dst = ip6->dst_addr;
-	ip6_info->len = rte_be_to_cpu_16(ip6->payload_len);
-	ip6_info->hop_limit = ip6->hop_limits;
-	ip6_info->proto = ip6->proto;
-	ip6_info->p_proto = &ip6->proto;
-	ip6_info->ext_offset = sizeof(*ip6);
-
-	// advance through IPv6 extension headers until we find a proto supported by SRv6
-	while (!proto_supported[ip6_info->proto]) {
+	// advance through IPv6 extension headers
+	while (is_ipv6_ext[ip6_info->proto]) {
 		size_t ext_len = 0;
 		int next_proto;
 		uint8_t *ext;
@@ -84,21 +76,67 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 		ext = rte_pktmbuf_mtod_offset(m, uint8_t *, ip6_info->ext_offset);
 		next_proto = rte_ipv6_get_next_ext(ext, ip6_info->proto, &ext_len);
-		if (next_proto < 0)
-			break; // end of extension headers
+		// is_ipv6_ext already checked current proto is a valid IPv6 extension
+		assert(next_proto >= 0 && next_proto < 256);
 		ip6_info->ext_offset += ext_len;
 		ip6_info->len -= ext_len;
-		ip6_info->proto = next_proto;
+
+		if (ip6_info->proto == IPPROTO_ROUTING) {
+			ip6_info->proto = (uint8_t)next_proto;
+			ip6_info->sr = (struct rte_ipv6_routing_ext *)ext;
+			ip6_info->sr_len = ext_len;
+			break;
+		}
+
+		ip6_info->proto = (uint8_t)next_proto;
 		// next header is always the first field of any extension
 		ip6_info->p_proto = ext;
 	}
 
-	if (ip6_info->proto == IPPROTO_ROUTING)
-		ip6_info->sr = rte_pktmbuf_mtod_offset(
-			m, struct rte_ipv6_routing_ext *, ip6_info->ext_offset
-		);
-	else
-		ip6_info->sr = NULL;
+	// single final guard
+	if (unlikely(ip6_info->ext_offset > data_len))
+		return -1;
+
+	return 0;
+}
+
+static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+	struct rte_ipv6_hdr *ip6;
+
+	// already checked by ip6_input_process
+	assert(rte_pktmbuf_data_len(m) >= sizeof(struct rte_ipv6_hdr));
+	ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
+	ip6_info->ip6_hdr = ip6;
+
+	ip6_info->src = ip6->src_addr;
+	ip6_info->dst = ip6->dst_addr;
+	ip6_info->len = rte_be_to_cpu_16(ip6->payload_len);
+	ip6_info->hop_limit = ip6->hop_limits;
+	ip6_info->proto = ip6->proto;
+	ip6_info->p_proto = &ip6->proto;
+	ip6_info->ext_offset = sizeof(*ip6);
+	ip6_info->sr = NULL;
+	ip6_info->sr_len = 0;
+
+	if (fetch_upper_layer(m, ip6_info) < 0)
+		return -1;
+
+	if (ip6_info->sr) {
+		struct rte_ipv6_routing_ext *sr = ip6_info->sr;
+
+		// hdr_len is in 8B units (excl. first 8B)
+		// -> ext_len = 8 * (hdr_len + 1)
+		// each segment is 16B = 2×8B
+		// -> nsegs = hdr_len/2
+		// -> last_entry < hdr_len/2
+		if ((size_t)((sr->hdr_len + 1) << 3) != ip6_info->sr_len
+		    || sr->last_entry > sr->hdr_len / 2 - 1
+		    || sr->segments_left > sr->last_entry + 1
+		    || sr->type != RTE_IPV6_SRCRT_TYPE_4) {
+			// XXX send icmp parameter problem
+			return -1;
+		}
+	}
 
 	return 0;
 }
@@ -139,6 +177,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
 
 	ip6_info->sr = NULL;
+	ip6_info->sr_len = 0;
 	ip6_info->ext_offset = 0;
 }
 
@@ -163,6 +202,7 @@ static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->ext_offset = 0;
 	ip6_info->ip6_hdr = NULL;
 	ip6_info->sr = NULL;
+	ip6_info->sr_len = 0;
 	return 0;
 }
 
@@ -332,39 +372,9 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->behavior = sr_d->behavior;
 			t->out_vrf_id = sr_d->out_vrf_id;
-			t->segleft = 0;
-		} else {
+			t->segleft = ip6_info.sr ? ip6_info.sr->segments_left : 0;
+		} else
 			t = NULL;
-		}
-
-		// check SRH correctness
-		if (ip6_info.sr) {
-			struct rte_ipv6_routing_ext *sr = ip6_info.sr;
-			size_t ext_len;
-
-			if (rte_ipv6_get_next_ext((const uint8_t *)sr, ip6_info.proto, &ext_len)
-			    < 0) {
-				edge = INVALID_PACKET;
-				goto next;
-			}
-
-			// hdr_len is in 8B units (excl. first 8B)
-			// -> ext_len = 8 * (hdr_len + 1)
-			// each segment is 16B = 2×8B
-			// -> nsegs = hdr_len/2
-			// -> last_entry < hdr_len/2
-			if ((size_t)((sr->hdr_len + 1) << 3) != ext_len
-			    || sr->last_entry > sr->hdr_len / 2 - 1
-			    || sr->segments_left > sr->last_entry + 1
-			    || sr->type != RTE_IPV6_SRCRT_TYPE_4) {
-				// XXX send icmp parameter problem
-				edge = INVALID_PACKET;
-				goto next;
-			}
-
-			if (t != NULL)
-				t->segleft = sr->segments_left;
-		}
 
 		edge = srv6_local_process_pkt(m, sr_d, &ip6_info);
 
