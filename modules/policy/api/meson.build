@@ -3,6 +3,7 @@
 
 src += files(
   'dnat44.c',
+  'snat44.c',
 )
 
 api_headers += files(
