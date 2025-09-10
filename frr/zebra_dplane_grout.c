@@ -428,9 +428,9 @@ static const char *gr_evt_to_str(uint32_t e) {
 
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
-	struct gr_infra_iface_get_resp *gr_p;
 	struct gr_api_event *gr_e = NULL;
 	struct gr_nexthop *gr_nh;
+	struct gr_iface *iface;
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.dplane_notifs, &gr_e) < 0 || gr_e == NULL) {
@@ -451,16 +451,16 @@ static void dplane_read_notifications(struct event *event) {
 		new = true;
 		// fallthrough
 	case GR_EVENT_IFACE_PRE_REMOVE:
-		gr_p = PAYLOAD(gr_e);
+		iface = PAYLOAD(gr_e);
 
 		gr_log_debug(
 			"%s iface %s notification (%s)",
 			new ? "add" : "del",
-			gr_p->iface.name,
+			iface->name,
 			gr_evt_to_str(gr_e->ev_type)
 		);
 
-		grout_link_change(&gr_p->iface, new, false);
+		grout_link_change(iface, new, false);
 		break;
 	case GR_EVENT_IP_ADDR_ADD:
 	case GR_EVENT_IP6_ADDR_ADD:
