@@ -110,7 +110,7 @@ set_ip_route() {
 		local gr_ip="ip"
 	fi
 
-	local grep_pattern="^${vrf_id}[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"
+	local grep_pattern="^${vrf_id}[[:space:]]\\+${prefix}\\>.*\\<${next_hop}\\>"
 
 	vtysh <<-EOF
 	configure terminal
