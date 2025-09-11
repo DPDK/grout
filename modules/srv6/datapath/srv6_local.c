@@ -415,3 +415,257 @@ GR_DROP_REGISTER(sr6_local_invalid);
 GR_DROP_REGISTER(sr6_local_unexpected_upper);
 GR_DROP_REGISTER(sr6_local_not_allowed_upper);
 GR_DROP_REGISTER(sr6_local_no_transit);
+
+#ifdef __GROUT_UNIT_TEST__
+#include <gr_cmocka.h>
+
+int gr_rte_log_type;
+struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
+
+mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
+mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
+mock_func(int, drop_format(char *, size_t, const void *, size_t));
+mock_func(void, ip6_input_register_nexthop_type(gr_nh_type_t, const char *));
+mock_func(struct iface *, get_vrf_iface(uint16_t));
+
+struct ipv6_ext_base {
+	uint8_t next_hdr;
+	uint8_t hdr_ext_len; // in 8-octet units, not including first 8 bytes
+} __attribute__((packed));
+
+struct fake_mbuf {
+	union {
+		struct rte_ipv6_hdr ip6; // always first.
+		uint8_t data
+			[sizeof(struct rte_ipv6_hdr) + sizeof(struct ipv6_ext_base) + // for hbh
+			 sizeof(struct rte_ipv6_routing_ext) + sizeof(struct rte_ipv6_addr)
+			 + // for sid0
+			 sizeof(struct ipv6_ext_base)]; // for dstopts
+	};
+	struct rte_mbuf mbuf;
+	uint16_t offset;
+	uint8_t *prev_next; // points inside data[] to the previous “Next Header” byte
+};
+
+static inline void fm_update_lengths(struct fake_mbuf *fm) {
+	struct rte_ipv6_hdr *ip6 = &fm->ip6;
+	uint16_t total = fm->offset;
+	uint16_t pl;
+
+	pl = total - sizeof(struct rte_ipv6_hdr);
+	ip6->payload_len = rte_cpu_to_be_16(pl);
+	fm->mbuf.data_len = total;
+	fm->mbuf.pkt_len = total;
+}
+
+#define IP6_SRC ((struct rte_ipv6_addr)RTE_IPV6(0, 3, 0, 3, 1, 9, 8, 8))
+#define IP6_DST ((struct rte_ipv6_addr)RTE_IPV6(0, 3, 0, 5, 2, 0, 2, 4))
+
+static void fm_init_ipv6(struct fake_mbuf *fm, struct ip6_info *expect) {
+	struct rte_ipv6_hdr *ip6 = &fm->ip6;
+
+	memset(fm, 0, sizeof(struct fake_mbuf));
+	memset(expect, 0, sizeof(struct ip6_info));
+
+	ip6->vtc_flow = rte_cpu_to_be_32(6u << 28);
+	ip6->proto = IPPROTO_NONE;
+	ip6->src_addr = IP6_SRC;
+	ip6->dst_addr = IP6_DST;
+
+	fm->offset = sizeof(struct rte_ipv6_hdr);
+	fm->prev_next = &ip6->proto;
+
+	fm->mbuf.buf_addr = fm->data;
+	fm->mbuf.packet_type = RTE_PTYPE_L3_IPV6;
+	fm->mbuf.next = NULL;
+	fm->mbuf.ol_flags = 0;
+
+	fm_update_lengths(fm);
+
+	expect->src = IP6_SRC;
+	expect->dst = IP6_DST;
+	expect->ext_offset = sizeof(struct rte_ipv6_hdr);
+	expect->proto = IPPROTO_NONE;
+	expect->p_proto = &ip6->proto;
+	expect->ip6_hdr = ip6;
+	expect->sr = NULL;
+	expect->sr_len = 0;
+}
+
+// Generic 8n-byte extension (HbH/Dst-Opts).
+static void push_ext8(
+	struct fake_mbuf *fm,
+	struct ip6_info *expect,
+	uint8_t proto_value,
+	uint16_t bytes,
+	bool after_srh
+) {
+	uint8_t *p = fm->data + fm->offset;
+	struct ipv6_ext_base *b = (struct ipv6_ext_base *)p;
+
+	memset(p, 0, bytes);
+	*fm->prev_next = proto_value;
+	b->next_hdr = IPPROTO_NONE;
+	b->hdr_ext_len = (uint8_t)((bytes / 8) - 1);
+
+	fm->offset += bytes;
+	fm->prev_next = &b->next_hdr;
+	fm_update_lengths(fm);
+
+	if (!after_srh) {
+		expect->ext_offset += 8;
+		expect->p_proto = fm->prev_next;
+	} else
+		expect->proto = proto_value;
+}
+
+// SRH with one SID
+static void push_srh_1sid(struct fake_mbuf *fm, struct ip6_info *expect) {
+	struct rte_ipv6_routing_ext *sr;
+	struct rte_ipv6_addr *sid0;
+	uint16_t srh_bytes;
+	uint8_t *p;
+
+	p = fm->data + fm->offset;
+	*fm->prev_next = IPPROTO_ROUTING;
+
+	sr = (struct rte_ipv6_routing_ext *)p;
+	memset(sr, 0, sizeof *sr);
+
+	srh_bytes = sizeof(struct rte_ipv6_routing_ext) + sizeof(struct rte_ipv6_addr);
+	sr->type = RTE_IPV6_SRCRT_TYPE_4;
+	sr->segments_left = 0;
+	sr->last_entry = 0;
+	sr->next_hdr = IPPROTO_NONE;
+	sr->hdr_len = (uint8_t)((srh_bytes / 8) - 1);
+
+	sid0 = (struct rte_ipv6_addr *)(p + sizeof(struct rte_ipv6_routing_ext));
+	*sid0 = ((struct rte_ipv6_addr)RTE_IPV6(0, 3, 0, 1, 1, 9, 8, 6));
+
+	fm->offset += srh_bytes;
+	fm->prev_next = &sr->next_hdr;
+	fm_update_lengths(fm);
+
+	expect->sr = sr;
+	expect->sr_len = srh_bytes;
+	expect->ext_offset += srh_bytes;
+}
+
+static void assert_ipv6_equal(const struct rte_ipv6_addr *got, const struct rte_ipv6_addr *exp) {
+	assert_non_null(got);
+	assert_non_null(exp);
+	assert_memory_equal(got, exp, sizeof(struct rte_ipv6_addr));
+}
+
+// Compare every field of ip6_info using only cmocka assert_ macros.
+static inline void assert_ip6_info_equal(const struct ip6_info *got, const struct ip6_info *exp) {
+	assert_non_null(got);
+	assert_non_null(exp);
+
+	// Addresses
+	assert_ipv6_equal(&got->src, &exp->src);
+	assert_ipv6_equal(&got->dst, &exp->dst);
+
+	// Scalars
+	assert_int_equal(got->ext_offset, exp->ext_offset);
+	assert_int_equal(got->sr_len, exp->sr_len);
+	assert_int_equal(got->proto, exp->proto);
+
+	// Pointers
+	assert_ptr_equal(got->p_proto, exp->p_proto);
+	assert_ptr_equal(got->ip6_hdr, exp->ip6_hdr);
+	assert_ptr_equal(got->sr, exp->sr);
+}
+
+static void srv6_parse_only_ipv6(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	// no extensions added
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_memory_equal(&info, &expect, sizeof info);
+}
+
+static void srv6_parse_ipv6_srv6(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_ip6_info_equal(&info, &expect);
+
+	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_ip6_info_equal(&info, &expect);
+}
+
+static void srv6_parse_ipv6_hop_srv6(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, 8, false);
+	push_srh_1sid(&fm, &expect);
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_ip6_info_equal(&info, &expect);
+
+	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_ip6_info_equal(&info, &expect);
+}
+
+static void srv6_parse_ipv6_srv6_dop(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, 8, true);
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_ip6_info_equal(&info, &expect);
+
+	expect.ext_offset += 8;
+	expect.p_proto = fm.prev_next;
+	expect.proto = IPPROTO_NONE;
+
+	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_ip6_info_equal(&info, &expect);
+}
+
+static void srv6_parse_ipv6_hop_srv6_dop(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, 8, false);
+	push_srh_1sid(&fm, &expect);
+	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, 8, true);
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_ip6_info_equal(&info, &expect);
+
+	expect.ext_offset += 8;
+	expect.p_proto = fm.prev_next;
+	expect.proto = IPPROTO_NONE;
+
+	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_ip6_info_equal(&info, &expect);
+}
+
+// ---- runner -----------------------------------------------------------------
+int main(void) {
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(srv6_parse_only_ipv6),
+		cmocka_unit_test(srv6_parse_ipv6_srv6),
+		cmocka_unit_test(srv6_parse_ipv6_hop_srv6),
+		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
+		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
+	};
+	return cmocka_run_group_tests(tests, NULL, NULL);
+}
+
+#endif

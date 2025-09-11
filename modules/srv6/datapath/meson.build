@@ -6,3 +6,10 @@ src += files(
   'srv6_output.c',
 )
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('srv6_local.c'),
+    'link_args': [],
+  },
+]
