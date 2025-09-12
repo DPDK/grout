@@ -130,7 +130,7 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %files frr
 %doc README.md
 %license licenses/GPL-2.0-or-later.txt
-%attr(755, root, root) %{_libdir}/frr/modules/frr_dplane_grout.so
+%attr(755, root, root) %{_libdir}/frr/modules/dplane_grout.so
 %attr(644, root, root) %{_mandir}/man7/grout-frr.7*
 
 %changelog
