@@ -61,7 +61,7 @@ static const uint8_t is_ipv6_ext[256] = {
 	[IPPROTO_DSTOPTS] = 1,
 };
 
-static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
 	uint16_t data_len = rte_pktmbuf_data_len(m);
 
 	// advance through IPv6 extension headers
@@ -81,7 +81,7 @@ static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 		ip6_info->ext_offset += ext_len;
 		ip6_info->len -= ext_len;
 
-		if (ip6_info->proto == IPPROTO_ROUTING) {
+		if (stop_sr && ip6_info->proto == IPPROTO_ROUTING) {
 			ip6_info->proto = (uint8_t)next_proto;
 			ip6_info->sr = (struct rte_ipv6_routing_ext *)ext;
 			ip6_info->sr_len = ext_len;
@@ -118,7 +118,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
 
-	if (fetch_upper_layer(m, ip6_info) < 0)
+	if (fetch_upper_layer(m, ip6_info, true) < 0)
 		return -1;
 
 	if (ip6_info->sr) {
@@ -183,21 +183,10 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 // Remove ipv6 headers and extension
 static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
-	size_t ext_len;
-	int next_proto;
-	void *p_cur;
+	if (fetch_upper_layer(m, ip6_info, false) < 0)
+		return -1;
 
 	// remove ip6 hdr with its extension header
-	p_cur = rte_pktmbuf_mtod_offset(m, void *, ip6_info->ext_offset);
-	while ((next_proto = rte_ipv6_get_next_ext(p_cur, ip6_info->proto, &ext_len)) > 0) {
-		if (ip6_info->ext_offset + ext_len > m->data_len)
-			return -1;
-		ip6_info->proto = next_proto;
-		ip6_info->ext_offset += ext_len;
-		ip6_info->len -= ext_len;
-		p_cur += ext_len;
-	}
-
 	rte_pktmbuf_adj(m, ip6_info->ext_offset);
 	ip6_info->ext_offset = 0;
 	ip6_info->ip6_hdr = NULL;
