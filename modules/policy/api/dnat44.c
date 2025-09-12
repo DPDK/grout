@@ -2,9 +2,11 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_api.h>
-#include <gr_ip4.h>
-#include <gr_ip4_datapath.h>
+#include <gr_ip4_control.h>
 #include <gr_module.h>
+#include <gr_nat.h>
+#include <gr_nat_control.h>
+#include <gr_nat_datapath.h>
 #include <gr_vec.h>
 
 static bool dnat44_data_priv_equal(const struct nexthop *a, const struct nexthop *b) {
@@ -30,7 +32,7 @@ static int dnat44_data_priv_add(
 	data = dnat44_nh_data(nh);
 	data->replace = replace;
 
-	return snat44_static_rule_add(iface, replace, match);
+	return snat44_static_policy_add(iface, replace, match);
 }
 
 static void dnat44_data_priv_del(struct nexthop *nh) {
@@ -42,7 +44,7 @@ static void dnat44_data_priv_del(struct nexthop *nh) {
 	if (iface == NULL)
 		return;
 
-	snat44_static_rule_del(iface, nh->ipv4);
+	snat44_static_policy_del(iface, nh->ipv4);
 }
 
 static struct api_out dnat44_add(const void *request, void ** /*response*/) {
@@ -51,9 +53,16 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 	struct nexthop *nh;
 	int ret;
 
-	iface = iface_from_id(req->rule.iface_id);
+	iface = iface_from_id(req->policy.iface_id);
 	if (iface == NULL)
 		return api_out(ENODEV, 0);
+
+	nh = nexthop_lookup(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
+	if (nh != NULL) {
+		if (nh->type == GR_NH_T_DNAT && req->exist_ok)
+			return api_out(0, 0);
+		return api_out(EADDRINUSE, 0);
+	}
 
 	nh = nexthop_new(&(struct gr_nexthop) {
 		.type = GR_NH_T_DNAT,
@@ -62,13 +71,13 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 		.state = GR_NH_S_REACHABLE,
 		.vrf_id = iface->vrf_id,
 		.iface_id = iface->id,
-		.ipv4 = req->rule.match,
+		.ipv4 = req->policy.match,
 		.origin = GR_NH_ORIGIN_INTERNAL,
 	});
 	if (nh == NULL)
 		return api_out(ENOMEM, 0);
 
-	ret = dnat44_data_priv_add(nh, iface, req->rule.match, req->rule.replace);
+	ret = dnat44_data_priv_add(nh, iface, req->policy.match, req->policy.replace);
 	if (ret < 0) {
 		if (ret == -EEXIST && req->exist_ok)
 			ret = 0;
@@ -77,7 +86,7 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 		return api_out(-ret, 0);
 	}
 
-	ret = rib4_insert(iface->vrf_id, req->rule.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
+	ret = rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 
@@ -102,7 +111,7 @@ static struct api_out dnat44_del(const void *request, void ** /*response*/) {
 
 struct dnat44_list_iterator {
 	uint16_t vrf_id;
-	gr_vec struct gr_dnat44_rule *rules;
+	gr_vec struct gr_dnat44_policy *policies;
 };
 
 static void dnat44_list_iter(struct nexthop *nh, void *priv) {
@@ -117,12 +126,12 @@ static void dnat44_list_iter(struct nexthop *nh, void *priv) {
 
 	data = dnat44_nh_data(nh);
 
-	struct gr_dnat44_rule rule = {
+	struct gr_dnat44_policy policy = {
 		.iface_id = nh->iface_id,
 		.match = nh->ipv4,
 		.replace = data->replace,
 	};
-	gr_vec_add(iter->rules, rule);
+	gr_vec_add(iter->policies, policy);
 }
 
 static struct api_out dnat44_list(const void *request, void **response) {
@@ -130,22 +139,24 @@ static struct api_out dnat44_list(const void *request, void **response) {
 	struct gr_dnat44_list_resp *resp;
 	struct dnat44_list_iterator iter = {
 		.vrf_id = req->vrf_id,
-		.rules = NULL,
+		.policies = NULL,
 	};
 	size_t len;
 
 	nexthop_iter(dnat44_list_iter, &iter);
 
-	len = sizeof(*resp) + gr_vec_len(iter.rules) * sizeof(struct gr_dnat44_rule);
+	len = sizeof(*resp) + gr_vec_len(iter.policies) * sizeof(struct gr_dnat44_policy);
 	resp = malloc(len);
 	if (resp == NULL) {
-		gr_vec_free(iter.rules);
+		gr_vec_free(iter.policies);
 		return api_out(ENOMEM, 0);
 	}
 
-	resp->n_rules = gr_vec_len(iter.rules);
-	memcpy(resp->rules, iter.rules, gr_vec_len(iter.rules) * sizeof(struct gr_dnat44_rule));
-	gr_vec_free(iter.rules);
+	resp->n_policies = gr_vec_len(iter.policies);
+	memcpy(resp->policies,
+	       iter.policies,
+	       gr_vec_len(iter.policies) * sizeof(struct gr_dnat44_policy));
+	gr_vec_free(iter.policies);
 
 	*response = resp;
 

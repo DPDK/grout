@@ -28,7 +28,8 @@ typedef enum : uint16_t {
 	GR_IFACE_F_PROMISC = GR_BIT16(1),
 	GR_IFACE_F_ALLMULTI = GR_BIT16(2),
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(3),
-	GR_IFACE_F_SNAT = GR_BIT16(4),
+	GR_IFACE_F_SNAT_STATIC = GR_BIT16(4),
+	GR_IFACE_F_SNAT_DYNAMIC = GR_BIT16(5),
 } gr_iface_flags_t;
 
 // Interface state flags

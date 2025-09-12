@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_conntrack_control.h>
 #include <gr_eth.h>
 #include <gr_fib4.h>
 #include <gr_graph.h>
@@ -19,6 +20,7 @@
 
 enum edges {
 	FORWARD = 0,
+	DNAT44_DYNAMIC,
 	OUTPUT,
 	LOCAL,
 	NO_ROUTE,
@@ -43,7 +45,6 @@ void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_input_mbuf_data *e;
-	struct ip_output_mbuf_data *d;
 	const struct iface *iface;
 	const struct nexthop *nh;
 	struct rte_ipv4_hdr *ip;
@@ -132,24 +133,39 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
+		// Store the resolved next hop for ip_output to avoid a second route lookup.
+		ip_output_mbuf_data(mbuf)->nh = nh;
+
 		edge = nh_type_edges[nh->type];
 		if (edge != FORWARD)
 			goto next;
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4)
+		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4) {
 			edge = LOCAL;
-		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+			if (iface->flags & GR_IFACE_F_SNAT_DYNAMIC) {
+				conn_flow_t flow = CONN_FLOW_REV;
+				struct conn_key key;
+				struct conn *conn;
+
+				// XXX: All returning IP fragments will go to LOCAL whether they
+				// are part of a conntrack or not. We need reassembly to fix this.
+				if (gr_conn_parse_key(iface, GR_AF_IP4, mbuf, &key)
+				    && (conn = gr_conn_lookup(&key, &flow)) != NULL) {
+					struct conn_mbuf_data *cd = conn_mbuf_data(mbuf);
+					cd->conn = conn;
+					cd->flow = flow;
+					edge = DNAT44_DYNAMIC;
+				}
+			}
+		} else if (e->domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_ipv4_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *ip;
 		}
-		// Store the resolved next hop for ip_output to avoid a second route lookup.
-		d = ip_output_mbuf_data(mbuf);
-		d->nh = nh;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -170,6 +186,7 @@ static struct rte_node_register input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[FORWARD] = "ip_forward",
+		[DNAT44_DYNAMIC] = "dnat44_dynamic",
 		[OUTPUT] = "ip_output",
 		[LOCAL] = "ip_input_local",
 		[NO_ROUTE] = "ip_error_dest_unreach",
@@ -206,12 +223,24 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip_format(char *, size_t, const struct rte_ipv4_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
+mock_func(
+	bool,
+	gr_conn_parse_key(
+		const struct iface *,
+		const addr_family_t,
+		const struct rte_mbuf *,
+		struct conn_key *
+	)
+);
+mock_func(struct conn *, gr_conn_lookup(const struct conn_key *, conn_flow_t *));
 
 struct fake_mbuf {
 	struct rte_ipv4_hdr ipv4_hdr;
 	struct rte_mbuf mbuf;
 	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
 };
+
+static struct iface iface;
 
 static void ipv4_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
 	memset(fake_mbuf, 0, sizeof(struct fake_mbuf));
@@ -235,7 +264,8 @@ static void ipv4_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
 	fake_mbuf->mbuf.ol_flags = 0;
 	fake_mbuf->mbuf.packet_type = RTE_PTYPE_L3_IPV4;
 
-	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_OTHER;
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->iface = &iface;
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_LOCAL;
 }
 
 static void ip_input_invalid_mbuf_len(void **) {
@@ -299,6 +329,28 @@ static void ip_input_invalid_total_length(void **) {
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
+static void ip_input_conntrack_dnat(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv4_init_default_mbuf(&fake_mbuf);
+	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
+
+	struct nexthop nh = {
+		.flags = GR_NH_F_LOCAL,
+		.ipv4 = fake_mbuf.ipv4_hdr.dst_addr,
+	};
+	will_return(fib4_lookup, &nh);
+
+	iface.flags |= GR_IFACE_F_SNAT_DYNAMIC;
+	struct conn conn;
+	will_return(gr_conn_parse_key, true);
+	will_return(gr_conn_lookup, &conn);
+
+	expect_value(rte_node_enqueue_x1, next, DNAT44_DYNAMIC);
+	ip_input_process(NULL, NULL, &obj, 1);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(ip_input_invalid_mbuf_len),
@@ -306,6 +358,7 @@ int main(void) {
 		cmocka_unit_test(ip_input_invalid_version),
 		cmocka_unit_test(ip_input_invalid_ihl),
 		cmocka_unit_test(ip_input_invalid_total_length),
+		cmocka_unit_test(ip_input_conntrack_dnat),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

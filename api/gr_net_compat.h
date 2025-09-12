@@ -6,6 +6,8 @@
 #include <limits.h>
 #include <stdint.h>
 
+typedef uint16_t rte_be16_t;
+
 #define RTE_IPV6_ADDR_SIZE 16
 #define RTE_IPV6_MAX_DEPTH (RTE_IPV6_ADDR_SIZE * CHAR_BIT)
 

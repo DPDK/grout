@@ -18,4 +18,11 @@ tests += [
     'sources': files('vec_test.c'),
     'link_args': [],
   },
+  {
+    'sources': files('id_pool_test.c'),
+    'link_args': [
+      '-Wl,--wrap=rte_free',
+      '-Wl,--wrap=rte_malloc',
+    ],
+  },
 ]

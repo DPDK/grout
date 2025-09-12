@@ -23,7 +23,7 @@ debug: all
 
 .PHONY: unit-tests
 unit-tests: $(BUILDDIR)/build.ninja
-	$Q ninja -C $(BUILDDIR) test $(ninja_opts)
+	$Q meson test -C $(BUILDDIR) --print-errorlogs $(if $(filter 1,$V),--verbose)
 
 .PHONY: smoke-tests
 smoke-tests: all
@@ -136,7 +136,7 @@ format:
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
 		$(CLANG_FORMAT) --files="$$tmp" -i --verbose
 
-REVISION_RANGE ?= origin/main..
+REVISION_RANGE ?= @{u}..
 
 .PHONY: check-patches
 check-patches:
