@@ -41,10 +41,8 @@ struct trace_srv6_data {
 struct ip6_info {
 	struct rte_ipv6_addr src;
 	struct rte_ipv6_addr dst;
-	uint16_t len;
 	uint16_t ext_offset;
 	uint16_t sr_len;
-	uint8_t hop_limit;
 	uint8_t proto;
 	// Pointer to the Next Header byte in the previous header
 	// (IPv6 base NH if SRH is first).
@@ -79,7 +77,6 @@ static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bo
 		// is_ipv6_ext already checked current proto is a valid IPv6 extension
 		assert(next_proto >= 0 && next_proto < 256);
 		ip6_info->ext_offset += ext_len;
-		ip6_info->len -= ext_len;
 
 		if (stop_sr && ip6_info->proto == IPPROTO_ROUTING) {
 			ip6_info->proto = (uint8_t)next_proto;
@@ -118,8 +115,6 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 	ip6_info->src = ip6->src_addr;
 	ip6_info->dst = ip6->dst_addr;
-	ip6_info->len = rte_be_to_cpu_16(ip6->payload_len);
-	ip6_info->hop_limit = ip6->hop_limits;
 	ip6_info->proto = ip6->proto;
 	ip6_info->p_proto = &ip6->proto;
 	ip6_info->ext_offset = sizeof(*ip6);
@@ -184,9 +179,12 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6 = (void *)ip6 + adj_len;
 	ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
 
+	// After decap_srv6
+	ip6_info->ip6_hdr = ip6;
+	ip6_info->ext_offset -= adj_len;
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
-	ip6_info->ext_offset = 0;
+	// ip6_info->p_proto is invalid, but not used
 }
 
 // Remove ipv6 headers and extension
@@ -209,23 +207,10 @@ static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 // The USP flavor (4.16.2) is always enabled, by design.
 //
 static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
-	struct rte_ipv6_hdr *ip6;
+	if (ip6_info->sr)
+		decap_srv6(m, ip6_info);
 
-	// if not already decap
-	if (ip6_info->ext_offset) {
-		if (ip6_info->sr)
-			decap_srv6(m, ip6_info);
-		else if (decap_outer(m, ip6_info) < 0)
-			return INVALID_PACKET;
-	}
-
-	// prepend ipv6 header without any ext, before entering ip6_input_local again.
-	if (!ip6_info->ip6_hdr) {
-		ip6 = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(m, sizeof(*ip6));
-		ip6_set_fields(ip6, ip6_info->len, ip6_info->proto, &ip6_info->src, &ip6_info->dst);
-		ip6->hop_limits = ip6_info->hop_limit;
-	}
-
+	assert(ip6_info->ip6_hdr != NULL);
 	return IP6_LOCAL;
 }
 
@@ -246,10 +231,6 @@ static int process_behav_decap(
 	if (sr != NULL && sr->segments_left > 0)
 		return NO_TRANSIT;
 
-	// remove tunnel ipv6 + ext headers
-	if (ip6_info->ext_offset && decap_outer(m, ip6_info) < 0)
-		return INVALID_PACKET;
-
 	switch (ip6_info->proto) {
 	case IPPROTO_IPV6:
 		if (sr_d->behavior == SR_BEHAVIOR_END_DT4)
@@ -266,6 +247,10 @@ static int process_behav_decap(
 	default:
 		return process_upper_layer(m, ip6_info);
 	}
+
+	// remove tunnel ipv6 + ext headers
+	if (ip6_info->ext_offset && decap_outer(m, ip6_info) < 0)
+		return INVALID_PACKET;
 
 	id = eth_input_mbuf_data(m);
 	id->domain = ETH_DOMAIN_LOCAL;
