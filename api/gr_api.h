@@ -33,13 +33,23 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path);
 
 int gr_api_client_disconnect(struct gr_api_client *);
 
-int gr_api_client_send_recv(
-	const struct gr_api_client *,
+long int
+gr_api_client_send(struct gr_api_client *, uint32_t req_type, size_t tx_len, const void *tx_data);
+
+int gr_api_client_recv(struct gr_api_client *, uint32_t for_id, void **rx_data);
+
+static inline int gr_api_client_send_recv(
+	struct gr_api_client *client,
 	uint32_t req_type,
 	size_t tx_len,
 	const void *tx_data,
 	void **rx_data
-);
+) {
+	long int ret = gr_api_client_send(client, req_type, tx_len, tx_data);
+	if (ret < 0)
+		return ret;
+	return gr_api_client_recv(client, ret, rx_data);
+}
 
 #define GR_MAIN_MODULE 0xcafe
 

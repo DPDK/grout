@@ -6,21 +6,31 @@
 #pragma once
 
 #include <gr_api.h>
+#include <gr_errno.h>
 #include <gr_macro.h>
 #include <gr_version.h>
 
+#include <assert.h>
 #include <errno.h>
 #include <getopt.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+struct response {
+	struct gr_api_response header;
+	void *payload;
+	STAILQ_ENTRY(response) next;
+};
+
 struct gr_api_client {
 	int sock_fd;
+	STAILQ_HEAD(, response) responses;
 };
 
 struct gr_api_client *gr_api_client_connect(const char *sock_path) {
@@ -33,6 +43,7 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 	if (client == NULL)
 		goto err;
 
+	STAILQ_INIT(&client->responses);
 	client->sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (client->sock_fd == -1)
 		goto err;
@@ -60,6 +71,12 @@ int gr_api_client_disconnect(struct gr_api_client *client) {
 	if (client == NULL)
 		return 0;
 	int ret = close(client->sock_fd);
+	while (!STAILQ_EMPTY(&client->responses)) {
+		struct response *resp = STAILQ_FIRST(&client->responses);
+		STAILQ_REMOVE_HEAD(&client->responses, next);
+		free(resp->payload);
+		free(resp);
+	}
 	free(client);
 	return ret;
 }
@@ -107,42 +124,59 @@ static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
 	return len;
 }
 
-int gr_api_client_send_recv(
-	const struct gr_api_client *client,
+long int gr_api_client_send(
+	struct gr_api_client *client,
 	uint32_t req_type,
 	size_t tx_len,
-	const void *tx_data,
-	void **rx_data
+	const void *tx_data
 ) {
-	struct gr_api_request *req = NULL;
-	struct gr_api_response resp;
 	static uint32_t message_id;
-	uint32_t id = ++message_id;
+
+	if (client == NULL || (tx_len == 0 && tx_data != NULL) || (tx_len > 0 && tx_data == NULL))
+		return errno_set(EINVAL);
+
+	struct gr_api_request req = {
+		.id = ++message_id,
+		.payload_len = tx_len,
+		.type = req_type,
+	};
+
+	if (send_all(client, &req, sizeof(req)) < 0)
+		return -errno;
+
+	if (tx_len > 0 && send_all(client, tx_data, tx_len) < 0)
+		return -errno;
+
+	return req.id;
+}
+
+int gr_api_client_recv(struct gr_api_client *client, uint32_t for_id, void **rx_data) {
+	struct response *cached = NULL;
+	struct gr_api_response resp;
 	void *payload = NULL;
 
-	if (client == NULL) {
-		errno = EINVAL;
-		goto err;
+	if (client == NULL)
+		return errno_set(EINVAL);
+
+	// Before receiving from the socket,
+	// check if there are any cached messages with the requested ID.
+	STAILQ_FOREACH (cached, &client->responses, next) {
+		if (cached->header.for_id == for_id)
+			break;
 	}
-	if ((req = malloc(sizeof(*req) + tx_len)) == NULL)
-		goto err;
-
-	req->id = id;
-	req->type = req_type;
-	req->payload_len = tx_len;
-	if (tx_len > 0)
-		memcpy(PAYLOAD(req), tx_data, tx_len);
-
-	if (send_all(client, req, sizeof(*req) + tx_len) != (int)(sizeof(*req) + tx_len))
-		goto err;
-
+	if (cached != NULL) {
+		// Remove the cached message from the list and return it.
+		STAILQ_REMOVE(&client->responses, cached, response, next);
+		resp = cached->header;
+		payload = cached->payload;
+		free(cached);
+		goto out;
+	}
+recv:
+	// No matching cached message, try to receive one from the socket.
 	if (recv_all(client, &resp, sizeof(resp)) != sizeof(resp))
 		goto err;
 
-	if (resp.for_id != id) {
-		errno = EBADMSG;
-		goto err;
-	}
 	if (resp.payload_len > GR_API_MAX_MSG_LEN) {
 		errno = EMSGSIZE;
 		goto err;
@@ -154,18 +188,30 @@ int gr_api_client_send_recv(
 		if (recv_all(client, payload, resp.payload_len) != resp.payload_len)
 			goto err;
 	}
+	if (resp.for_id != for_id) {
+		// Not the message ID we expected. Enqueue it to the cached messages.
+		cached = malloc(sizeof(*cached));
+		if (cached == NULL)
+			goto err;
+		cached->header = resp;
+		cached->payload = payload;
+		STAILQ_INSERT_TAIL(&client->responses, cached, next);
+		payload = NULL;
+		// And try to receive the next message until we get the correct ID.
+		goto recv;
+	}
+out:
 	if (resp.status != 0) {
 		errno = resp.status;
 		goto err;
 	}
-
-	if (payload != NULL && rx_data != NULL)
+	if (payload != NULL) {
+		assert(rx_data != NULL);
 		*rx_data = payload;
+	}
 
-	free(req);
 	return 0;
 err:
-	free(req);
 	free(payload);
 	return -errno;
 }
