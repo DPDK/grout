@@ -19,6 +19,7 @@ enum {
 	IP6_LOCAL,
 	INVALID_PACKET,
 	UNEXPECTED_UPPER,
+	NOT_ALLOWED_UPPER,
 	NO_TRANSIT,
 	DEST_UNREACH,
 	EDGE_COUNT,
@@ -207,8 +208,21 @@ static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 // The USP flavor (4.16.2) is always enabled, by design.
 //
 static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
-	if (ip6_info->sr)
+	if (ip6_info->sr) {
 		decap_srv6(m, ip6_info);
+
+		if (unlikely(fetch_upper_layer(m, ip6_info, false) < 0))
+			return INVALID_PACKET;
+	}
+
+	// RFC 8996 : 4.1.1 Upper-Layer Header
+	// Allowing the processing of specific Upper-Layer header types is
+	// useful for Operations, Administration, and Maintenance (OAM).  As an
+	// example, an operator might permit pinging of SIDs
+	// XXX: make allowed ULPs configurable (bitmap/flags).
+	if (ip6_info->proto != IPPROTO_ICMPV6)
+		// Optionally send ICMP Parameter Problem, Code 4, pointer = ip6_info->ext_offsets
+		return NOT_ALLOWED_UPPER;
 
 	assert(ip6_info->ip6_hdr != NULL);
 	return IP6_LOCAL;
@@ -383,6 +397,7 @@ static struct rte_node_register srv6_local_node = {
 		[IP6_LOCAL] = "ip6_input_local",
 		[INVALID_PACKET] = "sr6_local_invalid",
 		[UNEXPECTED_UPPER] = "sr6_local_unexpected_upper",
+		[NOT_ALLOWED_UPPER] = "sr6_local_not_allowed_upper",
 		[NO_TRANSIT] = "sr6_local_no_transit",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
 	},
@@ -398,4 +413,5 @@ GR_NODE_REGISTER(srv6_local_info);
 
 GR_DROP_REGISTER(sr6_local_invalid);
 GR_DROP_REGISTER(sr6_local_unexpected_upper);
+GR_DROP_REGISTER(sr6_local_not_allowed_upper);
 GR_DROP_REGISTER(sr6_local_no_transit);
