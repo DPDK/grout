@@ -7,6 +7,6 @@ set -eu
 # $1 = built .so, $2 = destination .so, $3 = daemons file, $4 = stamp file
 install -D -m 755 "$1" "$2"
 sed -i -e '/^zebra_options=/ {
-             /-M[[:space:]]*frr_dplane_grout/! s/"$/ -M frr_dplane_grout"/
+             /-M[[:space:]]*dplane_grout/! s/"$/ -M dplane_grout"/
            }' "$3"
 touch "$4"
