@@ -173,7 +173,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 	// 4.16.1 PSP
 	// remove this SRH
-	adj_len = (sr->hdr_len + 1) << 3;
+	adj_len = ip6_info->sr_len;
 	*ip6_info->p_proto = sr->next_hdr;
 	memmove((void *)ip6 + adj_len, ip6, (void *)sr - (void *)ip6);
 	rte_pktmbuf_adj(m, adj_len);
