@@ -61,11 +61,11 @@ static const uint8_t is_ipv6_ext[256] = {
 	[IPPROTO_DSTOPTS] = 1,
 };
 
-static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
+static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
 	uint16_t data_len = rte_pktmbuf_data_len(m);
 
 	// advance through IPv6 extension headers
-	while (is_ipv6_ext[ip6_info->proto]) {
+	do {
 		size_t ext_len = 0;
 		int next_proto;
 		uint8_t *ext;
@@ -91,13 +91,21 @@ static int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool
 		ip6_info->proto = (uint8_t)next_proto;
 		// next header is always the first field of any extension
 		ip6_info->p_proto = ext;
-	}
+	} while (is_ipv6_ext[ip6_info->proto]);
 
 	// single final guard
 	if (unlikely(ip6_info->ext_offset > data_len))
 		return -1;
 
 	return 0;
+}
+
+static inline int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
+	// no IPv6 extension headers
+	if (!is_ipv6_ext[ip6_info->proto])
+		return 0;
+
+	return __fetch_upper_layer(m, ip6_info, stop_sr);
 }
 
 static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
