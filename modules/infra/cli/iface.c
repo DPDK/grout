@@ -99,37 +99,27 @@ fail:
 }
 
 int iface_from_name(const struct gr_api_client *c, const char *name, struct gr_iface *iface) {
-	struct gr_infra_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
-	const struct gr_infra_iface_list_resp *resp;
+	struct gr_infra_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
+	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
-	int ret = -1;
 
-	if (name == NULL) {
-		errno = EINVAL;
-		goto out;
-	}
+	if (name == NULL)
+		return errno_set(EINVAL);
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
-		goto out;
+	memccpy(req.name, name, 0, sizeof(req.name));
+
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
+		return -errno;
 
 	resp = resp_ptr;
-	for (uint16_t i = 0; i < resp->n_ifaces; i++) {
-		const struct gr_iface *iter = &resp->ifaces[i];
-		if (strcmp(iter->name, name) == 0) {
-			*iface = *iter;
-			ret = 0;
-			goto out;
-		}
-	}
-
-	errno = ENODEV;
-out:
+	*iface = resp->iface;
 	free(resp_ptr);
-	return ret;
+
+	return 0;
 }
 
 int iface_from_id(const struct gr_api_client *c, uint16_t iface_id, struct gr_iface *iface) {
-	struct gr_infra_iface_get_req req = {.iface_id = iface_id};
+	struct gr_infra_iface_get_req req = {.iface_id = iface_id, .name = ""};
 	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
 

@@ -169,6 +169,7 @@ struct gr_infra_iface_del_req {
 
 struct gr_infra_iface_get_req {
 	uint16_t iface_id;
+	char name[GR_IFACE_NAME_SIZE];
 };
 
 struct gr_infra_iface_get_resp {
