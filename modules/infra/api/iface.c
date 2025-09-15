@@ -61,10 +61,19 @@ static struct api_out iface_del(const void *request, void ** /*response*/) {
 static struct api_out iface_get(const void *request, void **response) {
 	const struct gr_infra_iface_get_req *req = request;
 	struct gr_infra_iface_get_resp *resp = NULL;
-	struct iface *iface;
+	const struct iface *iface = NULL;
 
-	if ((iface = iface_from_id(req->iface_id)) == NULL)
-		return api_out(ENODEV, 0);
+	if (req->iface_id != GR_IFACE_ID_UNDEF) {
+		if ((iface = iface_from_id(req->iface_id)) == NULL)
+			return api_out(ENODEV, 0);
+	} else {
+		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+			if (strncmp(iface->name, req->name, sizeof(req->name)) == 0)
+				break;
+		}
+		if (iface == NULL)
+			return api_out(ENODEV, 0);
+	}
 
 	if ((resp = malloc(sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0);
