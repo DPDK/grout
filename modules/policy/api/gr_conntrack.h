@@ -79,10 +79,7 @@ struct gr_conntrack {
 
 // struct gr_conntrack_list_req { };
 
-struct gr_conntrack_list_resp {
-	uint32_t n_conns;
-	struct gr_conntrack conns[/* n_conns */];
-};
+// STREAM(struct gr_conntrack);
 
 #define GR_CONNTRACK_FLUSH REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0002)
 

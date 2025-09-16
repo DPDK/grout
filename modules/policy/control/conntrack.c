@@ -8,7 +8,6 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_rcu.h>
-#include <gr_vec.h>
 
 #include <rte_hash.h>
 #include <rte_icmp.h>
@@ -559,13 +558,10 @@ static int config_update(const struct gr_conntrack_config *new_conf) {
 	return 0;
 }
 
-static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *) {
-	gr_vec struct gr_conntrack *conntracks = NULL;
-	struct gr_conntrack_list_resp *resp = NULL;
+static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *ctx) {
 	struct conn *conn;
 	uint32_t next = 0;
 	const void *key;
-	size_t len;
 	void *data;
 
 	while (rte_hash_iterate(conn_hash, &key, &data, &next) >= 0) {
@@ -593,21 +589,10 @@ static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *)
 			.state = atomic_load(&conn->state),
 			.last_update = atomic_load(&conn->last_update),
 		};
-		gr_vec_add(conntracks, ct);
+		api_send(ctx, sizeof(ct), &ct);
 	}
 
-	len = sizeof(*resp) + gr_vec_len(conntracks) * sizeof(*conntracks);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(conntracks);
-		return api_out(ENOMEM, 0, NULL);
-	}
-
-	resp->n_conns = gr_vec_len(conntracks);
-	if (conntracks != NULL)
-		memcpy(resp->conns, conntracks, resp->n_conns * sizeof(resp->conns[0]));
-	gr_vec_free(conntracks);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler conn_list_handler = {

@@ -17,22 +17,12 @@
 #include <stdint.h>
 
 static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
-	const struct gr_conntrack_list_resp *resp;
+	const struct gr_conntrack *conn;
 	struct libscols_table *table;
-	cmd_status_t ret = CMD_ERROR;
-	void *resp_ptr = NULL;
 	clock_t now;
+	int ret;
 
 	table = scols_new_table();
-	if (table == NULL)
-		goto end;
-
-	if (gr_api_client_send_recv(c, GR_CONNTRACK_LIST, 0, NULL, &resp_ptr) < 0)
-		goto end;
-
-	resp = resp_ptr;
-	now = gr_clock_us();
-
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "ID", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "STATE", 0, 0);
@@ -45,10 +35,11 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	scols_table_new_column(table, "LAST_UPDATE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_conns; i++) {
+	now = gr_clock_us();
+
+	gr_api_client_stream_foreach (conn, ret, c, GR_CONNTRACK_LIST, 0, NULL) {
 		struct libscols_line *fwd = scols_table_new_line(table, NULL);
 		struct libscols_line *rev = scols_table_new_line(table, NULL);
-		const struct gr_conntrack *conn = &resp->conns[i];
 		struct gr_iface iface;
 
 		if (iface_from_id(c, conn->iface_id, &iface) < 0)
@@ -89,13 +80,9 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	}
 
 	scols_print_table(table);
-	ret = CMD_SUCCESS;
-end:
-	if (table)
-		scols_unref_table(table);
-	free(resp_ptr);
+	scols_unref_table(table);
 
-	return ret;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t conn_flush(struct gr_api_client *c, const struct ec_pnode *) {
