@@ -11,10 +11,10 @@
 #include <stdio.h>
 #include <sys/queue.h>
 
-static struct api_out graph_dump(const void *request, void **response) {
+static struct api_out graph_dump(const void *request, struct api_ctx *) {
 	const struct gr_infra_graph_dump_req *req = request;
 	char *buf = NULL, *copy, *line, *prev_line, *eol;
-	struct gr_infra_graph_dump_resp *resp;
+	struct gr_infra_graph_dump_resp *resp = NULL;
 	size_t buf_len = 0, resp_len = 0;
 	const char *graph_name;
 	struct worker *worker;
@@ -22,7 +22,7 @@ static struct api_out graph_dump(const void *request, void **response) {
 	int ret = 0;
 
 	if (req->flags & ~GR_INFRA_GRAPH_DUMP_F_ERRORS)
-		return api_out(EINVAL, 0);
+		return api_out(EINVAL, 0, NULL);
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		for (int i = 0; i < 2; i++) {
@@ -32,10 +32,10 @@ static struct api_out graph_dump(const void *request, void **response) {
 			}
 		}
 	}
-	return api_out(ENODEV, 0);
+	return api_out(ENODEV, 0, NULL);
 found:
 	if ((stream = open_memstream(&buf, &buf_len)) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	if ((ret = rte_graph_export(graph_name, stream)) < 0)
 		goto end;
@@ -68,11 +68,10 @@ found:
 
 	resp->len = copy - resp->dot;
 	resp_len = sizeof(*resp) + resp->len;
-	*response = resp;
 end:
 	fclose(stream);
 	free(buf);
-	return api_out(-ret, resp_len);
+	return api_out(-ret, resp_len, resp);
 }
 
 static struct gr_api_handler graph_dump_handler = {

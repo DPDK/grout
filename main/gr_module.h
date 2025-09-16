@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 
+#include <event2/bufferevent.h>
 #include <event2/event.h>
 
 #include <stdint.h>
@@ -13,10 +14,11 @@
 struct api_out {
 	uint32_t status;
 	uint32_t len;
+	void *payload;
 };
 
-static inline struct api_out api_out(uint32_t status, uint32_t len) {
-	struct api_out out = {status, len};
+static inline struct api_out api_out(uint32_t status, uint32_t len, void *payload) {
+	struct api_out out = {status, len, payload};
 	return out;
 }
 
@@ -24,10 +26,11 @@ struct api_ctx {
 	struct gr_api_request header;
 	bool header_complete;
 	struct bufferevent *bev;
+	pid_t pid;
 	LIST_ENTRY(api_ctx) next;
 };
 
-typedef struct api_out (*gr_api_handler_func)(const void *request, void **response);
+typedef struct api_out (*gr_api_handler_func)(const void *request, struct api_ctx *);
 
 struct gr_api_handler {
 	const char *name;

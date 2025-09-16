@@ -290,23 +290,23 @@ int rib6_delete(
 	return 0;
 }
 
-static struct api_out route6_add(const void *request, void ** /*response*/) {
+static struct api_out route6_add(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_add_req *req = request;
 	struct nexthop *nh;
 	int ret;
 
 	if (req->origin == GR_NH_ORIGIN_INTERNAL)
-		return api_out(EINVAL, 0);
+		return api_out(EINVAL, 0, NULL);
 
 	if (req->nh_id != GR_NH_ID_UNSET) {
 		nh = nexthop_lookup_by_id(req->nh_id);
 		if (nh == NULL)
-			return api_out(ENOENT, 0);
+			return api_out(ENOENT, 0, NULL);
 	} else if ((nh = nexthop_lookup(GR_AF_IP6, req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh))
 		   == NULL) {
 		// ensure route gateway is reachable
 		if ((nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
-			return api_out(EHOSTUNREACH, 0);
+			return api_out(EHOSTUNREACH, 0, NULL);
 
 		// if the route gateway is reachable via a prefix route,
 		// create a new unresolved nexthop
@@ -320,7 +320,7 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 				.origin = req->origin,
 			});
 			if (nh == NULL)
-				return api_out(errno, 0);
+				return api_out(errno, 0, NULL);
 		}
 	}
 
@@ -335,10 +335,10 @@ static struct api_out route6_add(const void *request, void ** /*response*/) {
 		req->exist_ok
 	);
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out route6_del(const void *request, void ** /*response*/) {
+static struct api_out route6_del(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_del_req *req = request;
 	struct nexthop *nh = NULL;
 	int ret;
@@ -357,29 +357,27 @@ static struct api_out route6_del(const void *request, void ** /*response*/) {
 	if (nh && nh->ref_count == 1)
 		nh->flags &= ~GR_NH_F_GATEWAY;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out route6_get(const void *request, void **response) {
+static struct api_out route6_get(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_get_req *req = request;
 	struct gr_ip6_route_get_resp *resp = NULL;
 	const struct nexthop *nh = NULL;
 
 	nh = fib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest);
 	if (nh == NULL)
-		return api_out(ENETUNREACH, 0);
+		return api_out(ENETUNREACH, 0, NULL);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	resp->nh.ipv6 = nh->ipv6;
 	resp->nh.iface_id = nh->iface_id;
 	resp->nh.mac = nh->mac;
 	resp->nh.flags = nh->flags;
 
-	*response = resp;
-
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
 void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv) {
@@ -435,7 +433,7 @@ static void route6_list_cb(
 	}
 }
 
-static struct api_out route6_list(const void *request, void **response) {
+static struct api_out route6_list(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_list_req *req = request;
 	struct gr_ip6_route_list_resp *resp = NULL;
 	gr_vec struct gr_ip6_route *routes = NULL;
@@ -446,16 +444,14 @@ static struct api_out route6_list(const void *request, void **response) {
 	len = sizeof(*resp) + gr_vec_len(routes) * sizeof(struct gr_ip6_route);
 	if ((resp = calloc(1, len)) == NULL) {
 		gr_vec_free(routes);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->n_routes = gr_vec_len(routes);
 	memcpy(resp->routes, routes, gr_vec_len(routes) * sizeof(resp->routes[0]));
 	gr_vec_free(routes);
 
-	*response = resp;
-
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static void route6_init(struct event_base *) {

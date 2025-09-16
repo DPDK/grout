@@ -8,26 +8,26 @@
 #include <gr_nat_control.h>
 #include <gr_vec.h>
 
-static struct api_out snat44_add(const void *request, void ** /*response*/) {
+static struct api_out snat44_add(const void *request, struct api_ctx *) {
 	const struct gr_snat44_add_req *req = request;
 	struct iface *iface;
 	int ret;
 
 	iface = iface_from_id(req->policy.iface_id);
 	if (iface == NULL)
-		return api_out(ENODEV, 0);
+		return api_out(ENODEV, 0, NULL);
 
 	if (nh4_lookup(iface->vrf_id, req->policy.replace) == NULL)
-		return api_out(EADDRNOTAVAIL, 0);
+		return api_out(EADDRNOTAVAIL, 0, NULL);
 
 	ret = snat44_dynamic_policy_add(&req->policy);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out snat44_del(const void *request, void ** /*response*/) {
+static struct api_out snat44_del(const void *request, struct api_ctx *) {
 	const struct gr_snat44_del_req *req = request;
 	int ret;
 
@@ -35,10 +35,10 @@ static struct api_out snat44_del(const void *request, void ** /*response*/) {
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out snat44_list(const void * /*request*/, void **response) {
+static struct api_out snat44_list(const void * /*request*/, struct api_ctx *) {
 	gr_vec struct gr_snat44_policy *policies;
 	struct gr_snat44_list_resp *resp;
 	size_t len;
@@ -48,16 +48,14 @@ static struct api_out snat44_list(const void * /*request*/, void **response) {
 	resp = malloc(len);
 	if (resp == NULL) {
 		gr_vec_free(policies);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->n_policies = gr_vec_len(policies);
 	memcpy(resp->policies, policies, gr_vec_len(policies) * sizeof(*policies));
 	gr_vec_free(policies);
 
-	*response = resp;
-
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static struct gr_api_handler add_handler = {

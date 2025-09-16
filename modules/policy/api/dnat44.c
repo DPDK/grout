@@ -47,7 +47,7 @@ static void dnat44_data_priv_del(struct nexthop *nh) {
 	snat44_static_policy_del(iface, nh->ipv4);
 }
 
-static struct api_out dnat44_add(const void *request, void ** /*response*/) {
+static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 	const struct gr_dnat44_add_req *req = request;
 	struct iface *iface;
 	struct nexthop *nh;
@@ -55,13 +55,13 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 
 	iface = iface_from_id(req->policy.iface_id);
 	if (iface == NULL)
-		return api_out(ENODEV, 0);
+		return api_out(ENODEV, 0, NULL);
 
 	nh = nexthop_lookup(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
 	if (nh != NULL) {
 		if (nh->type == GR_NH_T_DNAT && req->exist_ok)
-			return api_out(0, 0);
-		return api_out(EADDRINUSE, 0);
+			return api_out(0, 0, NULL);
+		return api_out(EADDRINUSE, 0, NULL);
 	}
 
 	nh = nexthop_new(&(struct gr_nexthop) {
@@ -75,7 +75,7 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 		.origin = GR_NH_ORIGIN_INTERNAL,
 	});
 	if (nh == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	ret = dnat44_data_priv_add(nh, iface, req->policy.match, req->policy.replace);
 	if (ret < 0) {
@@ -83,30 +83,30 @@ static struct api_out dnat44_add(const void *request, void ** /*response*/) {
 			ret = 0;
 
 		nexthop_decref(nh);
-		return api_out(-ret, 0);
+		return api_out(-ret, 0, NULL);
 	}
 
 	ret = rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh);
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out dnat44_del(const void *request, void ** /*response*/) {
+static struct api_out dnat44_del(const void *request, struct api_ctx *) {
 	const struct gr_dnat44_del_req *req = request;
 	struct iface *iface;
 	int ret;
 
 	iface = iface_from_id(req->iface_id);
 	if (iface == NULL)
-		return api_out(ENODEV, 0);
+		return api_out(ENODEV, 0, NULL);
 
 	ret = rib4_delete(iface->vrf_id, req->match, 32, GR_NH_T_DNAT);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
 struct dnat44_list_iterator {
@@ -134,7 +134,7 @@ static void dnat44_list_iter(struct nexthop *nh, void *priv) {
 	gr_vec_add(iter->policies, policy);
 }
 
-static struct api_out dnat44_list(const void *request, void **response) {
+static struct api_out dnat44_list(const void *request, struct api_ctx *) {
 	const struct gr_dnat44_list_req *req = request;
 	struct gr_dnat44_list_resp *resp;
 	struct dnat44_list_iterator iter = {
@@ -149,7 +149,7 @@ static struct api_out dnat44_list(const void *request, void **response) {
 	resp = malloc(len);
 	if (resp == NULL) {
 		gr_vec_free(iter.policies);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->n_policies = gr_vec_len(iter.policies);
@@ -158,9 +158,7 @@ static struct api_out dnat44_list(const void *request, void **response) {
 	       gr_vec_len(iter.policies) * sizeof(struct gr_dnat44_policy));
 	gr_vec_free(iter.policies);
 
-	*response = resp;
-
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static struct gr_api_handler add_handler = {

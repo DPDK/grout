@@ -39,11 +39,11 @@ struct ra_iface_conf {
 
 static struct ra_iface_conf ra_conf[MAX_IFACES];
 
-static struct api_out iface_ra_set(const void *request, void ** /*response*/) {
+static struct api_out iface_ra_set(const void *request, struct api_ctx *) {
 	const struct gr_ip6_ra_set_req *req = request;
 
 	if (iface_from_id(req->iface_id) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	if (req->set_interval)
 		ra_conf[req->iface_id].interval = req->interval;
@@ -55,23 +55,23 @@ static struct api_out iface_ra_set(const void *request, void ** /*response*/) {
 		&(struct timeval) {.tv_sec = ra_conf[req->iface_id].interval}
 	);
 	event_active(ra_conf[req->iface_id].timer, 0, 0);
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out iface_ra_clear(const void *request, void ** /*response*/) {
+static struct api_out iface_ra_clear(const void *request, struct api_ctx *) {
 	const struct gr_ip6_ra_clear_req *req = request;
 
 	if (iface_from_id(req->iface_id) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	event_del(ra_conf[req->iface_id].timer);
 	ra_conf[req->iface_id].interval = RA_DEFAULT_INTERVAL;
 	ra_conf[req->iface_id].lifetime = RA_DEFAULT_LIFETIME;
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out iface_ra_show(const void *request, void **response) {
+static struct api_out iface_ra_show(const void *request, struct api_ctx *) {
 	const struct gr_ip6_ra_show_req *req = request;
 	struct gr_ip6_ra_show_resp *resp;
 	uint16_t iface_id, n_ras;
@@ -82,7 +82,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	if (req->iface_id == 0)
 		show_all = true;
 	else if (iface_from_id(req->iface_id) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	n_ras = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
@@ -97,7 +97,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 	len = sizeof(*resp) + n_ras * sizeof(struct gr_ip6_ra_conf);
 	resp = calloc(1, sizeof(*resp) + n_ras * sizeof(struct gr_ip6_ra_conf));
 	if (!resp)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	resp->n_ras = n_ras;
 	n_ras = 0;
 	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
@@ -116,8 +116,7 @@ static struct api_out iface_ra_show(const void *request, void **response) {
 		n_ras++;
 	}
 
-	*response = resp;
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {
