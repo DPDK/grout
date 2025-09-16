@@ -9,10 +9,14 @@
 #include <gr_event.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_queue.h>
 #include <gr_vec.h>
 #include <gr_version.h>
 
+#include <event2/buffer.h>
+#include <event2/bufferevent.h>
 #include <event2/event.h>
+#include <event2/listener.h>
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -35,7 +39,7 @@ static pid_t socket_pid(int fd) {
 
 struct subscription {
 	bool suppress_self_events;
-	evutil_socket_t sock;
+	struct bufferevent *bev;
 	pid_t pid;
 };
 
@@ -75,9 +79,10 @@ struct module_subscribers {
 	gr_vec struct subscription *ev_subs[UINT16_MAX];
 };
 static struct module_subscribers *mod_subs[UINT16_MAX];
+static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
-static __thread evutil_socket_t cur_req_sock;
+static __thread struct bufferevent *cur_req_bev;
 
 static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct subscription *ev_subs = NULL;
@@ -110,14 +115,14 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	gr_vec_foreach_ref (s, all_events_subs) {
 		if (s->suppress_self_events && s->pid == cur_req_pid)
 			continue;
-		send(s->sock, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
-		send(s->sock, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+		bufferevent_write(s->bev, &e, sizeof(e));
+		bufferevent_write(s->bev, data, len);
 	}
 	gr_vec_foreach_ref (s, ev_subs) {
 		if (s->suppress_self_events && s->pid == cur_req_pid)
 			continue;
-		send(s->sock, &e, sizeof(e), MSG_DONTWAIT | MSG_NOSIGNAL);
-		send(s->sock, data, len, MSG_DONTWAIT | MSG_NOSIGNAL);
+		bufferevent_write(s->bev, &e, sizeof(e));
+		bufferevent_write(s->bev, data, len);
 	}
 
 	free(data);
@@ -127,7 +132,7 @@ static struct api_out subscribe(const void *request, void ** /*response*/) {
 	const struct gr_event_subscribe_req *req = request;
 	struct module_subscribers *subs;
 	struct subscription sub = {
-		.sock = cur_req_sock,
+		.bev = cur_req_bev,
 		.pid = cur_req_pid,
 		.suppress_self_events = req->suppress_self_events,
 	};
@@ -136,7 +141,7 @@ static struct api_out subscribe(const void *request, void ** /*response*/) {
 
 	if (req->ev_type == EVENT_TYPE_ALL) {
 		gr_vec_foreach_ref (s, all_events_subs) {
-			if (s->sock == cur_req_sock) {
+			if (s->bev == cur_req_bev) {
 				s->suppress_self_events = req->suppress_self_events;
 				return api_out(0, 0); // already subscribed
 			}
@@ -155,7 +160,7 @@ static struct api_out subscribe(const void *request, void ** /*response*/) {
 			return api_out(ENOMEM, 0);
 	}
 	gr_vec_foreach_ref (s, subs->ev_subs[ev]) {
-		if (s->sock == cur_req_sock) {
+		if (s->bev == cur_req_bev) {
 			s->suppress_self_events = req->suppress_self_events;
 			return api_out(0, 0); // already subscribed
 		}
@@ -176,7 +181,7 @@ static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/
 
 	i = 0;
 	while (i < gr_vec_len(all_events_subs)) {
-		if (all_events_subs[i].sock == cur_req_sock)
+		if (all_events_subs[i].bev == cur_req_bev)
 			gr_vec_del_swap(all_events_subs, i);
 		else
 			i++;
@@ -190,7 +195,7 @@ static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/
 			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
 			while (i < gr_vec_len(ev_subs)) {
-				if (ev_subs[i].sock == cur_req_sock)
+				if (ev_subs[i].bev == cur_req_bev)
 					gr_vec_del_swap(ev_subs, i);
 				else
 					i++;
@@ -222,92 +227,73 @@ static struct gr_api_handler hello_handler = {
 	.name = "hello"
 };
 
-static void finalize_fd(struct event *ev, void * /*priv*/) {
-	int fd = event_get_fd(ev);
-	if (fd >= 0)
-		close(fd);
+static void disconnect_client(struct api_ctx *ctx) {
+	assert(ctx != NULL);
+	assert(ctx->bev != NULL);
+
+	LIST_REMOVE(ctx, next);
+
+	LOG(DEBUG, "client fd=%d disconnected", bufferevent_getfd(ctx->bev));
+
+	// Clean up subscriptions for this client
+	cur_req_bev = ctx->bev;
+	unsubscribe(NULL, NULL);
+	cur_req_bev = NULL;
+
+	bufferevent_free(ctx->bev);
+	free(ctx);
 }
 
-static ssize_t send_response(evutil_socket_t sock, struct gr_api_response *resp) {
-	if (resp == NULL)
-		return errno_set(ENOMEM);
-
-	size_t len = sizeof(*resp) + resp->payload_len;
-	return send(sock, resp, len, MSG_DONTWAIT | MSG_NOSIGNAL);
-}
-
-// This is allocated in main() but we need a reference here.
-// write_cb() needs both struct event_base AND struct gr_api_response and we
-// cannot pass two private pointers.
-static struct event_base *ev_base;
-
-static void write_cb(evutil_socket_t sock, short /*what*/, void *priv) {
-	struct event *ev = event_base_get_running_event(ev_base);
-	struct gr_api_response *resp = priv;
-
-	if (send_response(sock, resp) < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto retry;
-		LOG(ERR, "send_response: %s", strerror(errno));
-	}
-	goto free;
-
-retry:
-	if (ev == NULL || event_add(ev, NULL) < 0) {
-		LOG(ERR, "failed to add event to loop");
-		goto free;
-	}
-	return;
-
-free:
-	free(resp);
-	if (ev != NULL)
-		event_free(ev);
-}
-
-static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
-	struct event *ev = event_base_get_running_event(ev_base);
+static void read_cb(struct bufferevent *bev, void *priv) {
+	struct evbuffer *input = bufferevent_get_input(bev);
 	void *req_payload = NULL, *resp_payload = NULL;
-	struct gr_api_response *resp = NULL;
-	struct gr_api_request req;
-	struct event *write_ev;
+	struct api_ctx *ctx = priv;
 	struct api_out out;
-	ssize_t len;
+	int sock;
 
-	if (what & EV_CLOSED)
-		goto close;
+	assert(ctx != NULL);
 
-	if ((len = recv(sock, &req, sizeof(req), MSG_DONTWAIT)) < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			return;
+	// Read header if we haven't already
+	if (!ctx->header_complete) {
+		if (evbuffer_get_length(input) < sizeof(ctx->header))
+			return; // Wait for more data
+
+		// Read the request header
+		if (evbuffer_remove(input, &ctx->header, sizeof(ctx->header)) < 0) {
+			LOG(ERR, "failed to read request header");
+			goto close;
 		}
-		LOG(ERR, "recv: %s", strerror(errno));
-		goto close;
-	} else if (len == 0) {
-		LOG(DEBUG, "client disconnected");
-		goto close;
-	}
-	if (req.payload_len > GR_API_MAX_MSG_LEN) {
-		LOG(ERR, "recv: %s", strerror(EMSGSIZE));
-		goto close;
+
+		if (ctx->header.payload_len > GR_API_MAX_MSG_LEN) {
+			LOG(ERR, "request payload too large: %u", ctx->header.payload_len);
+			goto close;
+		}
+
+		ctx->header_complete = true;
 	}
 
-	if (req.payload_len > 0) {
-		req_payload = malloc(req.payload_len);
+	if (evbuffer_get_length(input) < ctx->header.payload_len) {
+		return; // Wait for more data
+	} else if (ctx->header.payload_len > 0) {
+		req_payload = malloc(ctx->header.payload_len);
 		if (req_payload == NULL) {
-			LOG(ERR, "cannot allocate %u bytes for request payload", req.payload_len);
+			LOG(ERR,
+			    "cannot allocate %u bytes for request payload",
+			    ctx->header.payload_len);
 			goto close;
 		}
-		if ((len = recv(sock, req_payload, req.payload_len, MSG_DONTWAIT)) < 0) {
-			LOG(ERR, "recv: %s", strerror(errno));
-			goto close;
-		} else if (len == 0) {
-			LOG(DEBUG, "client disconnected");
+		if (evbuffer_remove(input, req_payload, ctx->header.payload_len) < 0) {
+			LOG(ERR, "failed to read request payload");
 			goto close;
 		}
 	}
 
-	const struct gr_api_handler *handler = lookup_api_handler(&req);
+	// Reset state for next request
+	ctx->header_complete = false;
+
+	// We have a complete request, process it
+	sock = bufferevent_getfd(bev);
+	const struct gr_api_handler *handler = lookup_api_handler(&ctx->header);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
 		out.len = 0;
@@ -315,96 +301,108 @@ static void read_cb(evutil_socket_t sock, short what, void * /*priv*/) {
 	}
 
 	cur_req_pid = socket_pid(sock);
-	cur_req_sock = sock;
+	cur_req_bev = bev;
 	out = handler->callback(req_payload, &resp_payload);
 	cur_req_pid = 0;
-	cur_req_sock = -1;
+	cur_req_bev = NULL;
 
 send:
 	LOG(DEBUG,
 	    "fd=%d id=%u req_type=0x%08x (%s) req_len=%u status=%d (%s) resp_len=%u",
 	    sock,
-	    req.id,
-	    req.type,
+	    ctx->header.id,
+	    ctx->header.type,
 	    handler ? handler->name : "?",
-	    req.payload_len,
+	    ctx->header.payload_len,
 	    out.status,
 	    strerror(out.status),
 	    out.len);
-	resp = malloc(sizeof(*resp) + out.len);
-	if (resp == NULL) {
-		LOG(ERR, "cannot allocate %zu bytes for response payload", sizeof(*resp) + out.len);
-		goto close;
-	}
-	resp->for_id = req.id;
-	resp->status = out.status;
-	resp->payload_len = out.len;
-	if (resp_payload != NULL && out.len > 0) {
-		memcpy(PAYLOAD(resp), resp_payload, out.len);
-		free(resp_payload);
-		resp_payload = NULL;
-	}
-	if (send_response(sock, resp) < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto retry_send;
-		LOG(ERR, "send: %s", strerror(errno));
-		goto close;
-	}
-	free(req_payload);
-	free(resp);
-	return;
 
-retry_send:
-	write_ev = event_new(ev_base, sock, EV_WRITE | EV_FINALIZE, write_cb, resp);
-	if (write_ev == NULL || event_add(write_ev, NULL) < 0) {
-		LOG(ERR, "failed to add event to loop");
-		if (write_ev != NULL)
-			event_free(write_ev);
-		goto close;
+	struct gr_api_response resp = {
+		.for_id = ctx->header.id,
+		.status = out.status,
+		.payload_len = out.len,
+	};
+
+	if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
+		LOG(ERR, "failed to write header");
+	if (out.len > 0) {
+		assert(resp_payload != NULL);
+		if (bufferevent_write(bev, resp_payload, out.len) < 0)
+			LOG(ERR, "failed to write payload");
 	}
+
+	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
+
 	free(req_payload);
+	free(resp_payload);
+
+	if (evbuffer_get_length(input) >= sizeof(ctx->header)) {
+		// More data is available in the input buffer.
+		// Force read_cb to be invoked again when possible.
+		bufferevent_flush(bev, EV_READ, BEV_NORMAL);
+	}
 	return;
 
 close:
 	free(req_payload);
-	free(resp);
-	cur_req_sock = sock;
-	unsubscribe(NULL, NULL);
-	cur_req_sock = -1;
-	if (ev != NULL)
-		event_free_finalize(0, ev, finalize_fd);
+	free(resp_payload);
+	disconnect_client(ctx);
 }
 
-static void listen_cb(evutil_socket_t sock, short what, void * /*priv*/) {
-	struct event *ev;
-	int fd;
+static void event_cb(struct bufferevent *bev, short events, void *priv) {
+	assert(priv != NULL);
 
-	if (what & EV_CLOSED) {
-		ev = event_base_get_running_event(ev_base);
-		event_free_finalize(0, ev, finalize_fd);
+	if (events & BEV_EVENT_ERROR)
+		LOG(ERR, "bufferevent error on fd=%d: %s", bufferevent_getfd(bev), strerror(errno));
+
+	if (events & BEV_EVENT_EOF)
+		disconnect_client(priv);
+}
+
+static void accept_conn_cb(
+	struct evconnlistener *,
+	evutil_socket_t fd,
+	struct sockaddr *,
+	int /*socklen*/,
+	void *priv
+) {
+	struct event_base *base = priv;
+	struct bufferevent *bev;
+	struct api_ctx *ctx;
+
+	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+	if (bev == NULL) {
+		LOG(ERR, "failed to create bufferevent for fd=%d", fd);
+		close(fd);
 		return;
 	}
 
-	if ((fd = accept4(sock, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC)) < 0) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			LOG(ERR, "accept: %s", strerror(errno));
-		}
+	ctx = calloc(1, sizeof(*ctx));
+	if (ctx == NULL) {
+		LOG(ERR, "failed to allocate client context for fd=%d", fd);
+		bufferevent_free(bev);
 		return;
 	}
+
+	ctx->bev = bev;
 
 	LOG(DEBUG, "new connection fd=%d", fd);
 
-	ev = event_new(ev_base, fd, EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE, read_cb, NULL);
-	if (ev == NULL || event_add(ev, NULL) < 0) {
-		LOG(ERR, "failed to add event to loop");
-		if (ev != NULL)
-			event_free(ev);
-		close(fd);
-	}
+	bufferevent_setwatermark(
+		bev, EV_READ, 0, sizeof(struct gr_api_request) + GR_API_MAX_MSG_LEN
+	);
+	bufferevent_setwatermark(
+		bev, EV_WRITE, 0, sizeof(struct gr_api_response) + GR_API_MAX_MSG_LEN
+	);
+	bufferevent_setcb(bev, read_cb, NULL, event_cb, ctx);
+	bufferevent_enable(bev, EV_READ | EV_WRITE);
+
+	LIST_INSERT_HEAD(&clients, ctx, next);
 }
 
 #define SOCKET_LISTEN_BACKLOG 16
-static struct event *ev_listen;
+static struct evconnlistener *listener;
 
 int api_socket_start(struct event_base *base) {
 	const char *path = gr_config.api_sock_path;
@@ -459,40 +457,30 @@ int api_socket_start(struct event_base *base) {
 		return errno_log(errno, "listen");
 	}
 
-	ev_listen = event_new(
-		base, fd, EV_READ | EV_WRITE | EV_CLOSED | EV_PERSIST | EV_FINALIZE, listen_cb, NULL
+	listener = evconnlistener_new(
+		base, accept_conn_cb, base, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, 0, fd
 	);
-	if (ev_listen == NULL || event_add(ev_listen, NULL) < 0) {
+	if (listener == NULL) {
 		close(fd);
-		return errno_log(errno, "event_new");
+		return errno_log(errno, "evconnlistener_new");
 	}
-	// keep a reference for callbacks
-	ev_base = base;
 
 	LOG(INFO, "listening on API socket %s", path);
 
 	return 0;
 }
 
-static int collect_clients(const struct event_base *, const struct event *ev, void *priv) {
-	struct event ***events = priv;
-	event_callback_fn cb = event_get_callback(ev);
-	if (cb == read_cb || cb == write_cb)
-		gr_vec_add(*events, (struct event *)ev);
-	return 0;
-}
-
 void api_socket_stop(struct event_base *) {
-	struct event **events = NULL;
-	struct event *ev;
+	if (listener != NULL) {
+		// Stop listening for new connections.
+		evconnlistener_free(listener);
+		listener = NULL;
+	}
 
-	if (ev_listen != NULL)
-		event_free_finalize(0, ev_listen, finalize_fd);
-
-	event_base_foreach_event(ev_base, collect_clients, &events);
-	gr_vec_foreach (ev, events)
-		event_free_finalize(0, ev, finalize_fd);
-	gr_vec_free(events);
+	// Gracefully disconnect all clients.
+	struct api_ctx *ctx, *tmp;
+	LIST_FOREACH_SAFE (ctx, &clients, next, tmp)
+		disconnect_client(ctx);
 }
 
 static struct gr_event_subscription ev_subscribtion = {
