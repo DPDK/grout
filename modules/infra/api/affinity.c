@@ -59,36 +59,23 @@ out:
 	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out rxq_list(const void * /*request*/, struct api_ctx *) {
-	struct gr_infra_rxq_list_resp *resp = NULL;
+static struct api_out rxq_list(const void * /*request*/, struct api_ctx *ctx) {
 	struct queue_map *qmap;
 	struct worker *worker;
-	uint16_t n_rxqs = 0;
-	size_t len;
 
-	STAILQ_FOREACH (worker, &workers, next)
-		n_rxqs += gr_vec_len(worker->rxqs);
-
-	len = sizeof(*resp) + n_rxqs * sizeof(struct gr_port_rxq_map);
-	if ((resp = malloc(len)) == NULL)
-		return api_out(ENOMEM, 0, NULL);
-
-	memset(resp, 0, len);
-
-	n_rxqs = 0;
 	STAILQ_FOREACH (worker, &workers, next) {
 		gr_vec_foreach_ref (qmap, worker->rxqs) {
-			struct gr_port_rxq_map *q = &resp->rxqs[n_rxqs];
-			q->iface_id = port_get_iface(qmap->port_id)->id;
-			q->rxq_id = qmap->queue_id;
-			q->cpu_id = worker->cpu_id;
-			q->enabled = qmap->enabled;
-			n_rxqs++;
+			struct gr_port_rxq_map q = {
+				.iface_id = port_get_iface(qmap->port_id)->id,
+				.rxq_id = qmap->queue_id,
+				.cpu_id = worker->cpu_id,
+				.enabled = qmap->enabled,
+			};
+			api_send(ctx, sizeof(q), &q);
 		}
 	}
-	resp->n_rxqs = n_rxqs;
 
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct api_out rxq_set(const void *request, struct api_ctx *) {

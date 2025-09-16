@@ -220,10 +220,7 @@ struct gr_infra_iface_stats_get_resp {
 
 // struct gr_infra_rxq_list_req { };
 
-struct gr_infra_rxq_list_resp {
-	uint16_t n_rxqs;
-	struct gr_port_rxq_map rxqs[/* n_rxq */];
-};
+// STREAM(struct gr_port_rxq_map);
 
 #define GR_INFRA_RXQ_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0011)
 
