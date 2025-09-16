@@ -49,34 +49,21 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 }
 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct libscols_table *table = scols_new_table();
-	const struct gr_ip6_addr_list_resp *resp;
 	struct gr_ip6_addr_list_req req = {0};
+	const struct gr_ip6_ifaddr *addr;
 	struct gr_iface iface;
-	void *resp_ptr = NULL;
+	int ret;
 
-	if (table == NULL)
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
-
-	if (gr_api_client_send_recv(c, GR_IP6_ADDR_LIST, sizeof(req), &req, &resp_ptr) < 0) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
-
-	resp = resp_ptr;
-
+	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "ADDRESS", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_addrs; i++) {
+	gr_api_client_stream_foreach (addr, ret, c, GR_IP6_ADDR_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_ip6_ifaddr *addr = &resp->addrs[i];
 		if (iface_from_id(c, addr->iface_id, &iface) == 0)
 			scols_line_sprintf(line, 0, "%s", iface.name);
 		else
@@ -86,9 +73,8 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {

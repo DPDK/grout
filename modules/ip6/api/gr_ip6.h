@@ -97,10 +97,7 @@ struct gr_ip6_addr_list_req {
 	uint16_t vrf_id;
 };
 
-struct gr_ip6_addr_list_resp {
-	uint16_t n_addrs;
-	struct gr_ip6_ifaddr addrs[/* n_addrs */];
-};
+// STREAM(struct gr_ip6_ifaddr);
 
 // router advertisement ////////////////////////////////////////////////////////
 
