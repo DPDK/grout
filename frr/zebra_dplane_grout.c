@@ -180,7 +180,6 @@ static void grout_sync_nhs(struct event *e) {
 static void grout_sync_ifaces_addresses(struct event *e) {
 	struct gr_ip4_addr_list_req ip_req = {.vrf_id = EVENT_VAL(e)};
 	const struct gr_ip4_ifaddr *ip_addr;
-	void *resp;
 	int ret;
 
 	gr_log_debug("sync ifaces addresses for vrf %u", EVENT_VAL(e));
@@ -205,24 +204,24 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
 
 	struct gr_ip6_addr_list_req ip6_req = {.vrf_id = EVENT_VAL(e)};
-	struct gr_ip6_addr_list_resp *ip6_resp;
-	if (grout_client_send_recv(GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req, &resp) < 0) {
-		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
-	} else {
-		ip6_resp = resp;
-		for (uint16_t i = 0; i < ip6_resp->n_addrs; i++) {
-			struct gr_nexthop dummy = {
-				.af = GR_AF_IP6,
-				.ipv6 = ip6_resp->addrs[i].addr.ip,
-				.prefixlen = ip6_resp->addrs[i].addr.prefixlen,
-				.iface_id = ip6_resp->addrs[i].iface_id,
-				.vrf_id = EVENT_VAL(e),
-			};
-			gr_log_debug("sync addr %pI6", &dummy.ipv6);
-			grout_interface_addr_dplane(&dummy, true);
-		}
-		free(ip6_resp);
+	const struct gr_ip6_ifaddr *ip6_addr;
+
+	gr_api_client_stream_foreach (
+		ip6_addr, ret, grout_ctx.client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
+	) {
+		struct gr_nexthop dummy = {
+			.af = GR_AF_IP6,
+			.ipv6 = ip6_addr->addr.ip,
+			.prefixlen = ip6_addr->addr.prefixlen,
+			.iface_id = ip6_addr->iface_id,
+			.vrf_id = EVENT_VAL(e),
+		};
+		gr_log_debug("sync addr %pI6", &dummy.ipv6);
+		grout_interface_addr_dplane(&dummy, true);
 	}
+	if (ret < 0)
+		gr_log_err("GR_IP6_ADDR_LIST: %s", strerror(errno));
+
 	event_add_event(zrouter.master, grout_sync_nhs, NULL, EVENT_VAL(e), NULL);
 }
 
