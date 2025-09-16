@@ -239,6 +239,24 @@ static void disconnect_client(struct api_ctx *ctx) {
 	free(ctx);
 }
 
+void api_send(struct api_ctx *ctx, uint32_t len, const void *payload) {
+	assert(ctx != NULL);
+	assert(len != 0);
+	assert(payload != NULL);
+
+	LOG(DEBUG, "pid=%d for_id=%u len=%u", ctx->pid, ctx->header.id, len);
+
+	struct gr_api_response resp = {
+		.for_id = ctx->header.id,
+		.payload_len = len,
+		.status = 0,
+	};
+	if (bufferevent_write(ctx->bev, &resp, sizeof(resp)) < 0)
+		LOG(ERR, "pid=%d cannot write header", ctx->pid);
+	if (bufferevent_write(ctx->bev, payload, len) < 0)
+		LOG(ERR, "pid=%d cannot write payload", ctx->pid);
+}
+
 static void read_cb(struct bufferevent *bev, void *priv) {
 	struct evbuffer *input = bufferevent_get_input(bev);
 	struct api_ctx *ctx = priv;
