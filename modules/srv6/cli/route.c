@@ -83,35 +83,25 @@ static cmd_status_t srv6_route_del(struct gr_api_client *c, const struct ec_pnod
 }
 
 static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct libscols_table *table = scols_new_table();
 	struct gr_srv6_route_list_req req = {};
-	struct gr_srv6_route_list_resp *resp;
-	void *ptr, *resp_ptr = NULL;
 	struct libscols_line *line;
 	struct gr_srv6_route *r;
 	uint32_t j, cur, n;
 	char buf[80];
-	int i, ret;
+	int ret;
 
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_ROUTE_LIST, sizeof(req), &req, &resp_ptr);
-	if (ret < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-
-	scols_table_new_column(table, "vrf", 0, 0);
-	scols_table_new_column(table, "match", 0, 0);
-	scols_table_new_column(table, "encap", 0, 0);
-	scols_table_new_column(table, "segment list", 0, 0);
+	struct libscols_table *table = scols_new_table();
+	scols_table_new_column(table, "VRF", 0, 0);
+	scols_table_new_column(table, "MATCH", 0, 0);
+	scols_table_new_column(table, "ENCAP", 0, 0);
+	scols_table_new_column(table, "SEGMENT_LIST", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	ptr = resp->route;
-	for (i = 0; i < resp->n_route; i++) {
+	gr_api_client_stream_foreach (r, ret, c, GR_SRV6_ROUTE_LIST, sizeof(req), &req) {
 		line = scols_table_new_line(table, NULL);
-		r = ptr;
 
 		scols_line_sprintf(line, 0, "%u", r->key.vrf_id);
 		if (r->key.is_dest6)
@@ -148,15 +138,12 @@ static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pno
 			cur += n;
 		}
 		scols_line_set_data(line, 3, buf);
-
-		ptr += sizeof(*r) + r->n_seglist * sizeof(r->seglist[0]);
 	}
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t srv6_tunsrc_set(struct gr_api_client *c, const struct ec_pnode *p) {

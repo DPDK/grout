@@ -58,10 +58,7 @@ struct gr_srv6_route_list_req {
 	uint16_t vrf_id;
 };
 
-struct gr_srv6_route_list_resp {
-	uint16_t n_route;
-	uint8_t route[/* n_route */];
-};
+// STREAM(struct gr_srv6_route);
 
 #define GR_SRV6_TUNSRC_SET REQUEST_TYPE(GR_SRV6_MODULE, 0x0005)
 struct gr_srv6_tunsrc_set_req {
