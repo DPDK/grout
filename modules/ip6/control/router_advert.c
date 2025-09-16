@@ -71,52 +71,38 @@ static struct api_out iface_ra_clear(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out iface_ra_show(const void *request, struct api_ctx *) {
+static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip6_ra_show_req *req = request;
-	struct gr_ip6_ra_show_resp *resp;
-	uint16_t iface_id, n_ras;
+	uint16_t iface_id;
 	struct hoplist *addrs;
 	bool show_all = false;
-	size_t len;
 
 	if (req->iface_id == 0)
 		show_all = true;
 	else if (iface_from_id(req->iface_id) == NULL)
 		return api_out(errno, 0, NULL);
 
-	n_ras = 0;
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs->nh) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
 			continue;
-		n_ras++;
+
+		struct gr_ip6_ra_conf ra_conf_item = {
+			.iface_id = iface_id,
+			.enabled = event_pending(
+				ra_conf[iface_id].timer,
+				EV_TIMEOUT | EV_READ | EV_WRITE | EV_SIGNAL,
+				0
+			),
+			.interval = ra_conf[iface_id].interval,
+			.lifetime = ra_conf[iface_id].lifetime,
+		};
+		api_send(ctx, sizeof(ra_conf_item), &ra_conf_item);
 	}
 
-	len = sizeof(*resp) + n_ras * sizeof(struct gr_ip6_ra_conf);
-	resp = calloc(1, sizeof(*resp) + n_ras * sizeof(struct gr_ip6_ra_conf));
-	if (!resp)
-		return api_out(ENOMEM, 0, NULL);
-	resp->n_ras = n_ras;
-	n_ras = 0;
-	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = addr6_get_all(iface_id);
-		if (addrs == NULL || gr_vec_len(addrs->nh) == 0)
-			continue;
-		if (show_all == false && iface_id != req->iface_id)
-			continue;
-
-		resp->ras[n_ras].iface_id = iface_id;
-		resp->ras[n_ras].enabled = event_pending(
-			ra_conf[iface_id].timer, EV_TIMEOUT | EV_READ | EV_WRITE | EV_SIGNAL, 0
-		);
-		resp->ras[n_ras].interval = ra_conf[iface_id].interval;
-		resp->ras[n_ras].lifetime = ra_conf[iface_id].lifetime;
-		n_ras++;
-	}
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {

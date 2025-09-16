@@ -120,16 +120,13 @@ struct gr_ip6_ra_show_req {
 	uint16_t iface_id;
 };
 
+// STREAM(struct gr_ip6_ra_conf);
+
 struct gr_ip6_ra_conf {
 	bool enabled;
 	uint16_t iface_id;
 	uint16_t interval;
 	uint16_t lifetime;
-};
-
-struct gr_ip6_ra_show_resp {
-	uint16_t n_ras;
-	struct gr_ip6_ra_conf ras[];
 };
 
 // icmpv6 ////////////////////////////////////////////////////////////////////////
