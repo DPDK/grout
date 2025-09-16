@@ -74,41 +74,20 @@ static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	return CMD_SUCCESS;
 }
 
-static int rxqs_order(const void *a, const void *b) {
-	const struct gr_port_rxq_map *rxq_a = a;
-	const struct gr_port_rxq_map *rxq_b = b;
-	int v = rxq_a->cpu_id - rxq_b->cpu_id;
-	if (v != 0)
-		return v;
-	v = rxq_a->iface_id - rxq_b->iface_id;
-	if (v != 0)
-		return v;
-	return rxq_a->rxq_id - rxq_b->rxq_id;
-}
-
 static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
-	struct libscols_table *table = scols_new_table();
-	struct gr_infra_rxq_list_resp *resp;
-	void *resp_ptr = NULL;
+	const struct gr_port_rxq_map *q;
+	struct libscols_table *table;
+	int ret;
 
-	if (table == NULL)
-		return CMD_ERROR;
-
-	if (gr_api_client_send_recv(c, GR_INFRA_RXQ_LIST, 0, NULL, &resp_ptr) < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-	qsort(resp->rxqs, resp->n_rxqs, sizeof(*resp->rxqs), rxqs_order);
-
+	table = scols_new_table();
 	scols_table_new_column(table, "CPU_ID", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "RXQ_ID", 0, 0);
 	scols_table_new_column(table, "ENABLED", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_rxqs; i++) {
+	gr_api_client_stream_foreach (q, ret, c, GR_INFRA_RXQ_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_port_rxq_map *q = &resp->rxqs[i];
 		struct gr_iface iface;
 
 		scols_line_sprintf(line, 0, "%u", q->cpu_id);
@@ -122,9 +101,8 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 #define CPU_LIST_RE "^[0-9,-]+$"
