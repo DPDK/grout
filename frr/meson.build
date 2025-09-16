@@ -29,7 +29,7 @@ frr_plugin = shared_module(
   include_directories: api_inc + include_directories('.'),
   install: not install_build_flag,
   install_dir  : frr_dep.get_variable('moduledir'),
-  override_options: ['c_std=gnu11'],
+  override_options: ['b_sanitize=none'],
 )
 
 if install_build_flag
