@@ -96,32 +96,23 @@ static cmd_status_t srv6_localsid_del(struct gr_api_client *c, const struct ec_p
 
 static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_localsid_list_req req = {.vrf_id = UINT16_MAX};
-	struct libscols_table *table = scols_new_table();
-	struct gr_srv6_localsid_list_resp *resp;
-	struct gr_srv6_localsid *lsid;
+	const struct gr_srv6_localsid *lsid;
 	struct libscols_line *line;
 	char vrf_buf[100];
-	void *resp_ptr = NULL;
-	int ret, i;
+	int ret;
 
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_LOCALSID_LIST, sizeof(req), &req, &resp_ptr);
-	if (ret < 0)
-		return CMD_ERROR;
-
-	resp = resp_ptr;
-
-	scols_table_new_column(table, "vrf", 0, 0);
-	scols_table_new_column(table, "lsid", 0, 0);
-	scols_table_new_column(table, "behavior", 0, 0);
-	scols_table_new_column(table, "args", 0, 0);
+	struct libscols_table *table = scols_new_table();
+	scols_table_new_column(table, "VRF", 0, 0);
+	scols_table_new_column(table, "LSID", 0, 0);
+	scols_table_new_column(table, "BEHAVIOR", 0, 0);
+	scols_table_new_column(table, "ARGS", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (i = 0; i < resp->n_lsid; i++) {
+	gr_api_client_stream_foreach (lsid, ret, c, GR_SRV6_LOCALSID_LIST, sizeof(req), &req) {
 		line = scols_table_new_line(table, NULL);
-		lsid = &resp->lsid[i];
 
 		vrf_buf[0] = 0;
 		if (lsid->out_vrf_id < UINT16_MAX)
@@ -157,9 +148,8 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {
