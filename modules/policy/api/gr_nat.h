@@ -43,10 +43,7 @@ struct gr_dnat44_list_req {
 	uint16_t vrf_id;
 };
 
-struct gr_dnat44_list_resp {
-	uint16_t n_policies;
-	struct gr_dnat44_policy policies[/* n_policies */];
-};
+// STREAM(struct gr_dnat44_policy);
 
 // snat44 //////////////////////////////////////////////////////////////////////
 

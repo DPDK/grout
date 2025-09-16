@@ -111,7 +111,7 @@ static struct api_out dnat44_del(const void *request, struct api_ctx *) {
 
 struct dnat44_list_iterator {
 	uint16_t vrf_id;
-	gr_vec struct gr_dnat44_policy *policies;
+	struct api_ctx *ctx;
 };
 
 static void dnat44_list_iter(struct nexthop *nh, void *priv) {
@@ -131,34 +131,19 @@ static void dnat44_list_iter(struct nexthop *nh, void *priv) {
 		.match = nh->ipv4,
 		.replace = data->replace,
 	};
-	gr_vec_add(iter->policies, policy);
+	api_send(iter->ctx, sizeof(policy), &policy);
 }
 
-static struct api_out dnat44_list(const void *request, struct api_ctx *) {
+static struct api_out dnat44_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_dnat44_list_req *req = request;
-	struct gr_dnat44_list_resp *resp;
 	struct dnat44_list_iterator iter = {
 		.vrf_id = req->vrf_id,
-		.policies = NULL,
+		.ctx = ctx,
 	};
-	size_t len;
 
 	nexthop_iter(dnat44_list_iter, &iter);
 
-	len = sizeof(*resp) + gr_vec_len(iter.policies) * sizeof(struct gr_dnat44_policy);
-	resp = malloc(len);
-	if (resp == NULL) {
-		gr_vec_free(iter.policies);
-		return api_out(ENOMEM, 0, NULL);
-	}
-
-	resp->n_policies = gr_vec_len(iter.policies);
-	memcpy(resp->policies,
-	       iter.policies,
-	       gr_vec_len(iter.policies) * sizeof(struct gr_dnat44_policy));
-	gr_vec_free(iter.policies);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler add_handler = {
