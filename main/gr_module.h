@@ -30,6 +30,8 @@ struct api_ctx {
 	LIST_ENTRY(api_ctx) next;
 };
 
+void api_send(struct api_ctx *, uint32_t len, const void *payload);
+
 typedef struct api_out (*gr_api_handler_func)(const void *request, struct api_ctx *);
 
 struct gr_api_handler {
