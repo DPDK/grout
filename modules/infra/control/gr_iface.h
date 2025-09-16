@@ -37,7 +37,8 @@ typedef void (*iface_to_api_t)(void *api_info, const struct iface *);
 
 struct iface_type {
 	uint16_t id;
-	size_t info_size;
+	size_t pub_size;
+	size_t priv_size;
 	iface_init_t init;
 	iface_reconfig_t reconfig;
 	iface_fini_t fini;

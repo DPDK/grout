@@ -18,5 +18,3 @@ struct gr_iface_info_ipip {
 	ip4_addr_t local;
 	ip4_addr_t remote;
 };
-
-static_assert(sizeof(struct gr_iface_info_ipip) <= MEMBER_SIZE(struct gr_iface, info));

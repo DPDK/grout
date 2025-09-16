@@ -75,7 +75,7 @@ struct gr_iface {
 
 #define GR_IFACE_NAME_SIZE 64
 	char name[GR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
-	uint8_t info[256]; // Type specific interface info.
+	uint8_t info[]; // Type specific interface info.
 };
 
 // Port reconfig attributes
@@ -103,8 +103,6 @@ struct gr_iface_info_port {
 	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
 };
 
-static_assert(sizeof(struct gr_iface_info_port) <= MEMBER_SIZE(struct gr_iface, info));
-
 // VLAN reconfig attributes
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
 #define GR_VLAN_SET_VLAN GR_BIT64(33)
@@ -116,8 +114,6 @@ struct gr_iface_info_vlan {
 	uint16_t vlan_id;
 	struct rte_ether_addr mac;
 };
-
-static_assert(sizeof(struct gr_iface_info_vlan) <= MEMBER_SIZE(struct gr_iface, info));
 
 struct gr_port_rxq_map {
 	uint16_t iface_id;
@@ -187,8 +183,8 @@ struct gr_infra_iface_list_req {
 #define GR_INFRA_IFACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0005)
 
 struct gr_infra_iface_set_req {
-	struct gr_iface iface;
 	uint64_t set_attrs;
+	struct gr_iface iface;
 };
 
 // struct gr_infra_iface_set_resp { };

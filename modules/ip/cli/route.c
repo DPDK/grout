@@ -67,7 +67,6 @@ static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface iface;
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
 		if (route->nh.type == GR_NH_T_BLACKHOLE)
@@ -77,10 +76,12 @@ static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *
 		else
 			switch (route->nh.af) {
 			case GR_AF_UNSPEC:
-				if (iface_from_id(c, route->nh.iface_id, &iface) < 0)
+				struct gr_iface *iface = iface_from_id(c, route->nh.iface_id);
+				if (iface == NULL)
 					scols_line_sprintf(line, 2, "%u", route->nh.iface_id);
 				else
-					scols_line_sprintf(line, 2, "%s", iface.name);
+					scols_line_sprintf(line, 2, "%s", iface->name);
+				free(iface);
 				break;
 			case GR_AF_IP4:
 				scols_line_sprintf(line, 2, IP4_F, &route->nh.ipv4);
@@ -106,7 +107,6 @@ static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *
 static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_ip4_route_get_resp *resp;
 	struct gr_ip4_route_get_req req = {0};
-	struct gr_iface iface;
 	void *resp_ptr = NULL;
 
 	if (arg_ip4(p, "DEST", &req.dest) < 0) {
@@ -124,10 +124,12 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 	printf(IP4_F " via " IP4_F " lladdr " ETH_F, &req.dest, &resp->nh.ipv4, &resp->nh.mac);
 	if (resp->nh.nh_id != GR_NH_ID_UNSET)
 		printf(" id %u", resp->nh.nh_id);
-	if (iface_from_id(c, resp->nh.iface_id, &iface) == 0)
-		printf(" iface %s", iface.name);
+	struct gr_iface *iface = iface_from_id(c, resp->nh.iface_id);
+	if (iface != NULL)
+		printf(" iface %s", iface->name);
 	else
 		printf(" iface %u", resp->nh.iface_id);
+	free(iface);
 	printf("\n");
 	free(resp_ptr);
 

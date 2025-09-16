@@ -13,11 +13,16 @@
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 
-static void iface_to_api(struct gr_iface *to, const struct iface *from) {
-	struct iface_type *type = iface_type_get(from->type);
-	to->base = from->base;
-	memccpy(to->name, from->name, 0, sizeof(to->name));
-	type->to_api(to->info, from);
+static struct gr_iface *iface_to_api(const struct iface *priv) {
+	const struct iface_type *type = iface_type_get(priv->type);
+	assert(type != NULL);
+	struct gr_iface *pub = malloc(sizeof(*pub) + type->pub_size);
+	if (pub == NULL)
+		return errno_set_null(ENOMEM);
+	pub->base = priv->base;
+	memccpy(pub->name, priv->name, 0, sizeof(pub->name));
+	type->to_api(pub->info, priv);
+	return pub;
 }
 
 static struct api_out iface_add(const void *request, struct api_ctx *) {
@@ -59,40 +64,51 @@ static struct api_out iface_del(const void *request, struct api_ctx *) {
 
 static struct api_out iface_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_get_req *req = request;
-	struct gr_infra_iface_get_resp *resp = NULL;
-	const struct iface *iface = NULL;
+	const struct iface_type *type = NULL;
+	const struct iface *priv = NULL;
+	struct gr_iface *pub = NULL;
 
 	if (req->iface_id != GR_IFACE_ID_UNDEF) {
-		if ((iface = iface_from_id(req->iface_id)) == NULL)
+		if ((priv = iface_from_id(req->iface_id)) == NULL)
 			return api_out(ENODEV, 0, NULL);
 	} else {
-		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-			if (strncmp(iface->name, req->name, sizeof(req->name)) == 0)
+		while ((priv = iface_next(GR_IFACE_TYPE_UNDEF, priv)) != NULL) {
+			if (strncmp(priv->name, req->name, sizeof(req->name)) == 0)
 				break;
 		}
-		if (iface == NULL)
+		if (priv == NULL)
 			return api_out(ENODEV, 0, NULL);
 	}
 
-	if ((resp = malloc(sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0, NULL);
+	type = iface_type_get(priv->type);
+	assert(type != NULL);
 
-	iface_to_api(&resp->iface, iface);
+	pub = iface_to_api(priv);
+	if (pub == NULL)
+		return api_out(errno, 0, NULL);
 
-	return api_out(0, sizeof(*resp), resp);
+	return api_out(0, sizeof(*pub) + type->pub_size, pub);
 }
 
 static struct api_out iface_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_infra_iface_list_req *req = request;
 	const struct iface *iface = NULL;
+	int ret = 0;
 
 	while ((iface = iface_next(req->type, iface)) != NULL) {
-		struct gr_iface api_iface;
-		iface_to_api(&api_iface, iface);
-		api_send(ctx, sizeof(api_iface), &api_iface);
+		const struct iface_type *type = iface_type_get(iface->type);
+		struct gr_iface *pub = iface_to_api(iface);
+		assert(type != NULL);
+		if (pub == NULL) {
+			ret = errno;
+			goto out;
+		}
+		api_send(ctx, sizeof(*pub) + type->pub_size, pub);
+		free(pub);
 	}
 
-	return api_out(0, 0, NULL);
+out:
+	return api_out(ret, 0, NULL);
 }
 
 static struct api_out iface_set(const void *request, struct api_ctx *) {
@@ -133,14 +149,16 @@ static struct gr_api_handler iface_set_handler = {
 };
 
 static int iface_event_serialize(const void *obj, void **buf) {
-	struct gr_iface *api_iface = calloc(1, sizeof(*api_iface));
+	struct gr_iface *api_iface = iface_to_api(obj);
 	if (api_iface == NULL)
 		return errno_set(ENOMEM);
 
-	iface_to_api(api_iface, obj);
 	*buf = api_iface;
 
-	return sizeof(*api_iface);
+	const struct iface_type *type = iface_type_get(api_iface->type);
+	assert(type != NULL);
+
+	return sizeof(*api_iface) + type->pub_size;
 }
 
 static struct gr_event_serializer iface_serializer = {

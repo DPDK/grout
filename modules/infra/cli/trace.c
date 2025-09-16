@@ -14,16 +14,17 @@
 
 static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_packet_trace_set_req req;
-	struct gr_iface iface;
+	struct gr_iface *iface = NULL;
 
 	req.enabled = true;
 
 	if (arg_str(p, "all") != NULL)
 		req.all = true;
-	else if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+	else if ((iface = iface_from_name(c, arg_str(p, "NAME"))) == NULL)
 		return CMD_ERROR;
 	else
-		req.iface_id = iface.id;
+		req.iface_id = iface->id;
+	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -33,15 +34,16 @@ static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p)
 
 static cmd_status_t trace_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_packet_trace_set_req req;
-	struct gr_iface iface;
+	struct gr_iface *iface = NULL;
 
 	req.enabled = false;
 	if (arg_str(p, "all") != NULL)
 		req.all = true;
-	else if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+	else if ((iface = iface_from_name(c, arg_str(p, "NAME"))) == NULL)
 		return CMD_ERROR;
 	else
-		req.iface_id = iface.id;
+		req.iface_id = iface->id;
+	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;

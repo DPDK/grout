@@ -65,7 +65,6 @@ static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
 		.nh.origin = GR_NH_ORIGIN_USER,
 		.nh.type = GR_NH_T_L3,
 	};
-	struct gr_iface iface;
 
 	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -94,9 +93,11 @@ static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
 		break;
 	}
 
-	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+	if (iface == NULL)
 		return CMD_ERROR;
-	req.nh.iface_id = iface.id;
+	req.nh.iface_id = iface->id;
+	free(iface);
 
 	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -122,7 +123,6 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = UINT16_MAX};
 	const struct gr_nexthop *nh;
-	struct gr_iface iface;
 	char buf[BUFSIZ];
 	ssize_t n;
 	int ret;
@@ -165,10 +165,12 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 		else
 			scols_line_set_data(line, 5, "?");
 
-		if (iface_from_id(c, nh->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 6, "%s", iface.name);
+		struct gr_iface *iface = iface_from_id(c, nh->iface_id);
+		if (iface != NULL)
+			scols_line_sprintf(line, 6, "%s", iface->name);
 		else
-			scols_line_set_data(line, 6, "?");
+			scols_line_sprintf(line, 6, "%u", nh->iface_id);
+		free(iface);
 
 		scols_line_sprintf(line, 7, "%s", gr_nh_state_name(nh->state));
 

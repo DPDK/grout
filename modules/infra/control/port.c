@@ -700,7 +700,8 @@ static void port_fini(struct event_base *) {
 static struct iface_type iface_type_port = {
 	.id = GR_IFACE_TYPE_PORT,
 	.name = "port",
-	.info_size = sizeof(struct iface_info_port),
+	.pub_size = sizeof(struct gr_iface_info_port),
+	.priv_size = sizeof(struct iface_info_port),
 	.init = iface_port_init,
 	.reconfig = iface_port_reconfig,
 	.fini = iface_port_fini,

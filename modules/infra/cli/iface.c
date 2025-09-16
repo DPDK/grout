@@ -89,45 +89,36 @@ int complete_iface_names(
 	return ret < 0 ? -1 : result;
 }
 
-int iface_from_name(struct gr_api_client *c, const char *name, struct gr_iface *iface) {
+struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 	struct gr_infra_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
-	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
 
 	if (name == NULL)
-		return errno_set(EINVAL);
+		return errno_set_null(EINVAL);
 
 	memccpy(req.name, name, 0, sizeof(req.name));
 
 	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return -errno;
+		return NULL;
 
-	resp = resp_ptr;
-	*iface = resp->iface;
-	free(resp_ptr);
-
-	return 0;
+	return resp_ptr;
 }
 
-int iface_from_id(struct gr_api_client *c, uint16_t iface_id, struct gr_iface *iface) {
+struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	struct gr_infra_iface_get_req req = {.iface_id = iface_id, .name = ""};
-	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
-		return -errno;
+		return NULL;
 
-	resp = resp_ptr;
-	*iface = resp->iface;
-	free(resp_ptr);
-
-	return 0;
+	return resp_ptr;
 }
 
 uint64_t parse_iface_args(
 	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
+	size_t info_size,
 	bool update
 ) {
 	const char *name, *promisc, *allmulti;
@@ -135,8 +126,11 @@ uint64_t parse_iface_args(
 
 	name = arg_str(p, "NAME");
 	if (update) {
-		if (iface_from_name(c, name, iface) < 0)
+		struct gr_iface *cur = iface_from_name(c, name);
+		if (cur == NULL)
 			goto err;
+		memcpy(iface, cur, sizeof(*cur) + info_size);
+		free(cur);
 		name = arg_str(p, "NEW_NAME");
 	}
 
@@ -186,13 +180,14 @@ err:
 }
 
 static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
 	struct gr_infra_iface_del_req req;
-	struct gr_iface iface;
 
-	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+	if (iface == NULL)
 		return CMD_ERROR;
 
-	req.iface_id = iface.id;
+	req.iface_id = iface->id;
+	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -324,16 +319,17 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface iface;
 		if (line == NULL) {
 			errorf("failed to create line: %s", strerror(errno));
 			goto end;
 		}
 
-		if (iface_from_id(c, resp->stats[i].iface_id, &iface) == 0)
-			scols_line_set_data(line, 0, iface.name);
+		struct gr_iface *iface = iface_from_id(c, resp->stats[i].iface_id);
+		if (iface != NULL)
+			scols_line_set_data(line, 0, iface->name);
 		else
-			scols_line_set_data(line, 0, "?");
+			scols_line_sprintf(line, 0, "%u", resp->stats[i].iface_id);
+		free(iface);
 
 		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
 		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
@@ -390,7 +386,6 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
 		const struct gr_iface_stats *s2 = &resp2->stats[i];
 		const struct gr_iface_stats *s1 = NULL;
-		struct gr_iface iface;
 
 		for (uint16_t j = 0; j < resp1->n_stats; j++) {
 			s1 = &resp1->stats[j];
@@ -406,10 +401,12 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 		if (line == NULL)
 			goto end;
 
-		if (iface_from_id(c, s2->iface_id, &iface) == 0)
-			scols_line_set_data(line, 0, iface.name);
+		struct gr_iface *iface = iface_from_id(c, s2->iface_id);
+		if (iface != NULL)
+			scols_line_set_data(line, 0, iface->name);
 		else
-			scols_line_set_data(line, 0, "?");
+			scols_line_sprintf(line, 0, "%u", s2->iface_id);
+		free(iface);
 
 		scols_line_sprintf(line, 1, "%lu", s2->rx_packets - s1->rx_packets);
 		scols_line_sprintf(line, 2, "%lu", s2->rx_bytes - s1->rx_bytes);
@@ -433,7 +430,6 @@ end:
 
 static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct cli_iface_type *type;
-	struct gr_iface iface;
 
 	if (arg_str(p, "stats") != NULL) {
 		return iface_stats(c, p);
@@ -447,38 +443,42 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 		return iface_list(c, p);
 	}
 
-	if (iface_from_name(c, arg_str(p, "NAME"), &iface) < 0)
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
+	if (iface == NULL)
 		return CMD_ERROR;
 
-	type = type_from_id(iface.type);
+	type = type_from_id(iface->type);
+	assert(type != NULL);
 
-	printf("name: %s\n", iface.name);
-	printf("id: %u\n", iface.id);
+	printf("name: %s\n", iface->name);
+	printf("id: %u\n", iface->id);
 	printf("flags: ");
-	if (iface.flags & GR_IFACE_F_UP)
+	if (iface->flags & GR_IFACE_F_UP)
 		printf("up");
 	else
 		printf("down");
-	if (iface.state & GR_IFACE_S_RUNNING)
+	if (iface->state & GR_IFACE_S_RUNNING)
 		printf(" running");
-	if (iface.flags & GR_IFACE_F_PROMISC)
+	if (iface->flags & GR_IFACE_F_PROMISC)
 		printf(" promisc");
-	if (iface.flags & GR_IFACE_F_ALLMULTI)
+	if (iface->flags & GR_IFACE_F_ALLMULTI)
 		printf(" allmulti");
-	if (iface.flags & GR_IFACE_F_PACKET_TRACE)
+	if (iface->flags & GR_IFACE_F_PACKET_TRACE)
 		printf(" tracing");
-	if (iface.flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
+	if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
 		printf(" nat");
 	printf("\n");
-	printf("vrf: %u\n", iface.vrf_id);
-	printf("mtu: %u\n", iface.mtu);
+	printf("vrf: %u\n", iface->vrf_id);
+	printf("mtu: %u\n", iface->mtu);
 
 	if (type == NULL) {
-		printf("type: %u\n", iface.type);
+		printf("type: %u\n", iface->type);
 	} else {
 		printf("type: %s\n", type->name);
-		type->show(c, &iface);
+		type->show(c, iface);
 	}
+
+	free(iface);
 
 	return CMD_SUCCESS;
 }
