@@ -64,6 +64,49 @@ int gr_api_client_disconnect(struct gr_api_client *client) {
 	return ret;
 }
 
+static ssize_t send_all(const struct gr_api_client *c, const void *buf, size_t len) {
+	size_t remaining = len;
+	const char *ptr = buf;
+	ssize_t n;
+
+	while (remaining > 0) {
+		n = send(c->sock_fd, ptr, remaining, MSG_NOSIGNAL);
+		if (n < 0) {
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+			return n;
+		}
+
+		ptr += n;
+		remaining -= n;
+	}
+
+	return len;
+}
+
+static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
+	size_t remaining = len;
+	char *ptr = buf;
+	ssize_t n;
+
+	while (remaining > 0) {
+		n = recv(c->sock_fd, ptr, remaining, MSG_WAITALL);
+		if (n == 0) {
+			errno = ECONNRESET;
+			return len - remaining;
+		} else if (n < 0) {
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+			return n;
+		}
+
+		ptr += n;
+		remaining -= n;
+	}
+
+	return len;
+}
+
 int gr_api_client_send_recv(
 	const struct gr_api_client *client,
 	uint32_t req_type,
@@ -76,7 +119,6 @@ int gr_api_client_send_recv(
 	static uint32_t message_id;
 	uint32_t id = ++message_id;
 	void *payload = NULL;
-	ssize_t n;
 
 	if (client == NULL) {
 		errno = EINVAL;
@@ -91,13 +133,13 @@ int gr_api_client_send_recv(
 	if (tx_len > 0)
 		memcpy(PAYLOAD(req), tx_data, tx_len);
 
-	if (send(client->sock_fd, req, sizeof(*req) + tx_len, 0) < 0)
+	if (send_all(client, req, sizeof(*req) + tx_len) != (int)(sizeof(*req) + tx_len))
 		goto err;
 
-	if ((n = recv(client->sock_fd, &resp, sizeof(resp), 0)) < 0)
+	if (recv_all(client, &resp, sizeof(resp)) != sizeof(resp))
 		goto err;
 
-	if (n != sizeof(resp) || resp.for_id != id) {
+	if (resp.for_id != id) {
 		errno = EBADMSG;
 		goto err;
 	}
@@ -109,7 +151,7 @@ int gr_api_client_send_recv(
 		// receive payload *before* checking response status to drain socket buffer
 		if ((payload = malloc(resp.payload_len)) == NULL)
 			goto err;
-		if (recv(client->sock_fd, payload, resp.payload_len, 0) < 0)
+		if (recv_all(client, payload, resp.payload_len) != resp.payload_len)
 			goto err;
 	}
 	if (resp.status != 0) {
@@ -130,17 +172,11 @@ err:
 
 int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event **event) {
 	struct gr_api_event header;
-	ssize_t n;
 
 	*event = NULL;
-	if ((n = recv(c->sock_fd, &header, sizeof(header), 0)) < 0) {
+	if (recv_all(c, &header, sizeof(header)) != sizeof(header))
 		goto err;
-	}
 
-	if (n != sizeof(header)) {
-		errno = EBADMSG;
-		goto err;
-	}
 	if (header.payload_len > GR_API_MAX_MSG_LEN) {
 		errno = EMSGSIZE;
 		goto err;
@@ -150,7 +186,7 @@ int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event 
 			goto err;
 		(*event)->ev_type = header.ev_type;
 		(*event)->payload_len = header.payload_len;
-		if (recv(c->sock_fd, PAYLOAD(*event), header.payload_len, 0) < 0)
+		if (recv_all(c, PAYLOAD(*event), header.payload_len) != (int)header.payload_len)
 			goto err;
 	}
 	return 0;
