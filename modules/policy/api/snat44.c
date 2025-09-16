@@ -38,24 +38,17 @@ static struct api_out snat44_del(const void *request, struct api_ctx *) {
 	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out snat44_list(const void * /*request*/, struct api_ctx *) {
+static struct api_out snat44_list(const void * /*request*/, struct api_ctx *ctx) {
 	gr_vec struct gr_snat44_policy *policies;
-	struct gr_snat44_list_resp *resp;
-	size_t len;
+	struct gr_snat44_policy *policy;
 
 	policies = snat44_dynamic_policy_export();
-	len = sizeof(*resp) + gr_vec_len(policies) * sizeof(*policies);
-	resp = malloc(len);
-	if (resp == NULL) {
-		gr_vec_free(policies);
-		return api_out(ENOMEM, 0, NULL);
+	gr_vec_foreach_ref (policy, policies) {
+		api_send(ctx, sizeof(*policy), policy);
 	}
-
-	resp->n_policies = gr_vec_len(policies);
-	memcpy(resp->policies, policies, gr_vec_len(policies) * sizeof(*policies));
 	gr_vec_free(policies);
 
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler add_handler = {

@@ -75,7 +75,4 @@ struct gr_snat44_del_req {
 
 // struct gr_snat44_list_req { };
 
-struct gr_snat44_list_resp {
-	uint16_t n_policies;
-	struct gr_snat44_policy policies[/* n_policies */];
-};
+// STREAM(struct gr_snat44_policy);
