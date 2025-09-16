@@ -160,15 +160,17 @@ static struct api_out srv6_route_del(const void *request, struct api_ctx *) {
 
 struct list_context {
 	uint16_t vrf_id;
-	gr_vec struct nexthop **nhs;
-	ssize_t len;
+	int ret;
+	struct api_ctx *ctx;
 };
 
 static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 	struct srv6_encap_data *d;
+	struct gr_srv6_route *r;
+	size_t len;
 
-	if ((nh->type != GR_NH_T_SR6_OUTPUT)
+	if (ctx->ret != 0 || (nh->type != GR_NH_T_SR6_OUTPUT)
 	    || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
 		return;
 
@@ -176,58 +178,47 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	if (d == NULL)
 		return;
 
-	ctx->len += sizeof(struct gr_srv6_route) + d->n_seglist * sizeof(d->seglist[0]);
-	gr_vec_add(ctx->nhs, nh);
+	len = sizeof(*r) + d->n_seglist * sizeof(r->seglist[0]);
+	r = malloc(len);
+	if (r == NULL) {
+		LOG(ERR, "cannot allocate memory");
+		ctx->ret = ENOMEM;
+		return;
+	}
+
+	r->key.vrf_id = nh->vrf_id;
+	switch (nh->af) {
+	case GR_AF_IP6:
+		r->key.is_dest6 = true;
+		r->key.dest6.ip = nh->ipv6;
+		r->key.dest6.prefixlen = nh->prefixlen;
+		break;
+	case GR_AF_IP4:
+		r->key.is_dest6 = false;
+		r->key.dest4.ip = nh->ipv4;
+		r->key.dest4.prefixlen = nh->prefixlen;
+		break;
+	default:
+		// should never happen
+		free(r);
+		return;
+	}
+
+	r->encap_behavior = d->encap;
+	r->n_seglist = d->n_seglist;
+	memcpy(r->seglist, d->seglist, r->n_seglist * sizeof(r->seglist[0]));
+
+	api_send(ctx->ctx, len, r);
+	free(r);
 }
 
-static struct api_out srv6_route_list(const void *request, struct api_ctx *) {
+static struct api_out srv6_route_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_srv6_route_list_req *req = request;
-	struct gr_srv6_route_list_resp *resp;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .nhs = NULL, .len = sizeof(*resp)};
-	struct srv6_encap_data *d;
-	struct gr_srv6_route *r;
-	const struct nexthop *nh;
-	void *ptr;
+	struct list_context list_ctx = {.vrf_id = req->vrf_id, .ctx = ctx, .ret = 0};
 
-	nexthop_iter(nh_srv6_list_cb, &ctx);
+	nexthop_iter(nh_srv6_list_cb, &list_ctx);
 
-	if ((resp = calloc(1, ctx.len)) == NULL) {
-		return api_out(ENOMEM, 0, NULL);
-	}
-	resp->n_route = 0;
-
-	ptr = resp->route;
-	gr_vec_foreach (nh, ctx.nhs) {
-		r = ptr;
-		d = srv6_encap_nh_priv(nh)->d;
-
-		r->key.vrf_id = nh->vrf_id;
-		switch (nh->af) {
-		case GR_AF_IP6:
-			r->key.is_dest6 = true;
-			r->key.dest6.ip = nh->ipv6;
-			r->key.dest6.prefixlen = nh->prefixlen;
-			break;
-		case GR_AF_IP4:
-			r->key.is_dest6 = false;
-			r->key.dest4.ip = nh->ipv4;
-			r->key.dest4.prefixlen = nh->prefixlen;
-			break;
-		default:
-			// should never happen
-			continue;
-		}
-
-		r->encap_behavior = d->encap;
-		r->n_seglist = d->n_seglist;
-		memcpy(r->seglist, d->seglist, r->n_seglist * sizeof(r->seglist[0]));
-		ptr += sizeof(*r) + r->n_seglist * sizeof(r->seglist[0]);
-		resp->n_route++;
-	}
-	assert(ptr - (void *)resp <= ctx.len);
-	gr_vec_free(ctx.nhs);
-
-	return api_out(0, ctx.len, resp);
+	return api_out(list_ctx.ret, 0, NULL);
 }
 
 struct nexthop *tunsrc_nh = NULL;
