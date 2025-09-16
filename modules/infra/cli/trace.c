@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static cmd_status_t trace_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_packet_trace_set_req req;
 	struct gr_iface iface;
 
@@ -31,7 +31,7 @@ static cmd_status_t trace_set(const struct gr_api_client *c, const struct ec_pno
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t trace_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t trace_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_packet_trace_set_req req;
 	struct gr_iface iface;
 
@@ -49,7 +49,7 @@ static cmd_status_t trace_del(const struct gr_api_client *c, const struct ec_pno
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t trace_show(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t trace_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_packet_trace_dump_resp *resp = NULL;
 	struct gr_infra_packet_trace_dump_req req;
 	uint16_t max_packets = 10;
@@ -84,21 +84,21 @@ static cmd_status_t trace_show(const struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t trace_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t trace_clear(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_CLEAR, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t packet_logging_set(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t packet_logging_set(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_SET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t packet_logging_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t packet_logging_clear(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_CLEAR, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 

@@ -12,7 +12,7 @@
 
 #include <errno.h>
 
-static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_route_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_route_add_req *req;
 	const struct ec_strvec *v;
 	const struct ec_pnode *n;
@@ -63,7 +63,7 @@ static cmd_status_t srv6_route_add(const struct gr_api_client *c, const struct e
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_route_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_route_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_route_del_req req = {.key.vrf_id = 0, .missing_ok = true};
 
 	if (arg_ip6_net(p, "DEST6", &req.key.dest6, true) >= 0)
@@ -82,7 +82,7 @@ static cmd_status_t srv6_route_del(const struct gr_api_client *c, const struct e
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_route_show(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
 	struct gr_srv6_route_list_req req = {};
 	struct gr_srv6_route_list_resp *resp;
@@ -159,7 +159,7 @@ static cmd_status_t srv6_route_show(const struct gr_api_client *c, const struct 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_tunsrc_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_tunsrc_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_tunsrc_set_req req;
 
 	if (arg_ip6(p, "SRC", &req.addr) < 0)
@@ -171,14 +171,14 @@ static cmd_status_t srv6_tunsrc_set(const struct gr_api_client *c, const struct 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_tunsrc_clear(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t srv6_tunsrc_clear(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_SRV6_TUNSRC_CLEAR, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_tunsrc_show(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pnode *) {
 	struct gr_srv6_tunsrc_show_resp *resp;
 	void *resp_ptr;
 

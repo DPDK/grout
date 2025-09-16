@@ -36,7 +36,7 @@ static gr_srv6_behavior_t str_to_behavior(const char *str) {
 	return SR_BEHAVIOR_MAX;
 }
 
-static cmd_status_t srv6_localsid_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_localsid_add_req req = {
 		.l.out_vrf_id = UINT16_MAX, .exist_ok = true, .origin = GR_NH_ORIGIN_USER
 	};
@@ -79,7 +79,7 @@ static cmd_status_t srv6_localsid_add(const struct gr_api_client *c, const struc
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_localsid_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_localsid_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_localsid_del_req req = {.vrf_id = 0, .missing_ok = true};
 
 	if (arg_ip6(p, "SID", &req.lsid) < 0)
@@ -94,7 +94,7 @@ static cmd_status_t srv6_localsid_del(const struct gr_api_client *c, const struc
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_localsid_show(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_localsid_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	struct gr_srv6_localsid_list_resp *resp;

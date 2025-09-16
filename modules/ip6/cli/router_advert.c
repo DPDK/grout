@@ -13,7 +13,7 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
-static cmd_status_t ra_show(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_ra_show_resp *resp;
 	struct gr_ip6_ra_show_req req;
 	struct gr_iface iface;
@@ -52,7 +52,7 @@ static cmd_status_t ra_show(const struct gr_api_client *c, const struct ec_pnode
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t ra_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ra_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_ra_set_req req = {0};
 	struct gr_iface iface;
 
@@ -71,7 +71,7 @@ static cmd_status_t ra_set(const struct gr_api_client *c, const struct ec_pnode 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t ra_clear(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ra_clear(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_ra_clear_req req;
 	struct gr_iface iface;
 

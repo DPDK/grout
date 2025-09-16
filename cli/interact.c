@@ -60,7 +60,7 @@ const char *__lsan_default_options(void) {
 }
 #endif
 
-int interact(const struct gr_api_client *client, struct ec_node *cmdlist) {
+int interact(struct gr_api_client *client, struct ec_node *cmdlist) {
 	int flags = EC_EDITLINE_DEFAULT_SIGHANDLER;
 	struct ec_editline *edit = NULL;
 	struct ec_node *shlex = NULL;

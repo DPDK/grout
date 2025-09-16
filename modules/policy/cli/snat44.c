@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-static cmd_status_t snat44_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t snat44_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_snat44_add_req req = {.exist_ok = true};
 	struct gr_iface iface;
 
@@ -33,7 +33,7 @@ static cmd_status_t snat44_add(const struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t snat44_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t snat44_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_snat44_del_req req = {.missing_ok = true};
 	struct gr_iface iface;
 
@@ -51,7 +51,7 @@ static cmd_status_t snat44_del(const struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t snat44_list(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_snat44_list_resp *resp;
 	struct libscols_table *table;
 	cmd_status_t ret = CMD_ERROR;

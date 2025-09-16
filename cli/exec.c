@@ -49,7 +49,7 @@ static cmd_cb_t *find_cmd_callback(struct ec_pnode *parsed) {
 }
 
 static exec_status_t exec_strvec(
-	const struct gr_api_client *client,
+	struct gr_api_client *client,
 	const struct ec_node *cmdlist,
 	const struct ec_strvec *vec
 ) {
@@ -86,7 +86,7 @@ out:
 }
 
 exec_status_t
-exec_line(const struct gr_api_client *client, const struct ec_node *cmdlist, const char *line) {
+exec_line(struct gr_api_client *client, const struct ec_node *cmdlist, const char *line) {
 	exec_status_t status = EXEC_SUCCESS;
 	struct ec_strvec *vec = NULL;
 
@@ -110,7 +110,7 @@ out:
 }
 
 exec_status_t exec_args(
-	const struct gr_api_client *client,
+	struct gr_api_client *client,
 	const struct ec_node *cmdlist,
 	size_t argc,
 	const char *const *argv

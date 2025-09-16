@@ -7,4 +7,4 @@
 
 #include <ecoli.h>
 
-int interact(const struct gr_api_client *, struct ec_node *);
+int interact(struct gr_api_client *, struct ec_node *);

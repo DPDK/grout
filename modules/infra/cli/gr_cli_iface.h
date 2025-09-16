@@ -14,29 +14,29 @@ struct cli_iface_type {
 	STAILQ_ENTRY(cli_iface_type) next;
 	gr_iface_type_t type_id;
 	const char *name;
-	void (*show)(const struct gr_api_client *c, const struct gr_iface *);
-	void (*list_info)(const struct gr_api_client *c, const struct gr_iface *, char *, size_t);
+	void (*show)(struct gr_api_client *c, const struct gr_iface *);
+	void (*list_info)(struct gr_api_client *c, const struct gr_iface *, char *, size_t);
 };
 
 void register_iface_type(struct cli_iface_type *);
 
 const struct cli_iface_type *type_from_name(const char *name);
 const struct cli_iface_type *type_from_id(gr_iface_type_t type_id);
-int iface_from_name(const struct gr_api_client *c, const char *name, struct gr_iface *iface);
-int iface_from_id(const struct gr_api_client *c, uint16_t ifid, struct gr_iface *iface);
+int iface_from_name(struct gr_api_client *c, const char *name, struct gr_iface *iface);
+int iface_from_id(struct gr_api_client *c, uint16_t ifid, struct gr_iface *iface);
 
 struct ec_node;
 struct ec_comp;
 
 int complete_iface_types(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_node *node,
 	struct ec_comp *comp,
 	const char *arg,
 	void *cb_arg
 );
 int complete_iface_names(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_node *node,
 	struct ec_comp *comp,
 	const char *arg,
@@ -62,7 +62,7 @@ int complete_iface_names(
 		)
 
 uint64_t parse_iface_args(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
 	bool update

@@ -29,7 +29,7 @@ static int stats_order_cycles(const void *sa, const void *sb) {
 	return 1;
 }
 
-static cmd_status_t stats_get(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_stats_get_req req = {.flags = 0};
 	bool brief = arg_str(p, "brief") != NULL;
 	struct gr_infra_stats_get_resp *resp;
@@ -103,7 +103,7 @@ fail:
 	return CMD_ERROR;
 }
 
-static cmd_status_t stats_reset(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t stats_reset(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
