@@ -73,7 +73,7 @@ static void srv6_encap_data_del(struct nexthop *nh) {
 }
 
 // srv6 route ////////////////////////////////////////////////////////////////
-static struct api_out srv6_route_add(const void *request, void ** /*response*/) {
+static struct api_out srv6_route_add(const void *request, struct api_ctx *) {
 	const struct gr_srv6_route_add_req *req = request;
 	struct gr_nexthop base = {
 		.type = GR_NH_T_SR6_OUTPUT,
@@ -99,12 +99,12 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 
 	nh = nexthop_new(&base);
 	if (nh == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist);
 	if (ret < 0) {
 		nexthop_decref(nh);
-		return api_out(-ret, 0);
+		return api_out(-ret, 0, NULL);
 	}
 
 	if (req->r.key.is_dest6)
@@ -128,10 +128,10 @@ static struct api_out srv6_route_add(const void *request, void ** /*response*/) 
 	if (ret == -EEXIST && req->exist_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out srv6_route_del(const void *request, void ** /*response*/) {
+static struct api_out srv6_route_del(const void *request, struct api_ctx *) {
 	const struct gr_srv6_route_del_req *req = request;
 	int ret;
 
@@ -155,7 +155,7 @@ static struct api_out srv6_route_del(const void *request, void ** /*response*/) 
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
 struct list_context {
@@ -180,7 +180,7 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	gr_vec_add(ctx->nhs, nh);
 }
 
-static struct api_out srv6_route_list(const void *request, void **response) {
+static struct api_out srv6_route_list(const void *request, struct api_ctx *) {
 	const struct gr_srv6_route_list_req *req = request;
 	struct gr_srv6_route_list_resp *resp;
 	struct list_context ctx = {.vrf_id = req->vrf_id, .nhs = NULL, .len = sizeof(*resp)};
@@ -192,7 +192,7 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 	nexthop_iter(nh_srv6_list_cb, &ctx);
 
 	if ((resp = calloc(1, ctx.len)) == NULL) {
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 	resp->n_route = 0;
 
@@ -227,28 +227,26 @@ static struct api_out srv6_route_list(const void *request, void **response) {
 	assert(ptr - (void *)resp <= ctx.len);
 	gr_vec_free(ctx.nhs);
 
-	*response = resp;
-
-	return api_out(0, ctx.len);
+	return api_out(0, ctx.len, resp);
 }
 
 struct nexthop *tunsrc_nh = NULL;
 
-static struct api_out srv6_tunsrc_clear(const void * /*request*/, void ** /*response*/) {
+static struct api_out srv6_tunsrc_clear(const void * /*request*/, struct api_ctx *) {
 	if (tunsrc_nh) {
 		nexthop_decref(tunsrc_nh);
 		tunsrc_nh = NULL;
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out srv6_tunsrc_set(const void *request, void ** /*response*/) {
+static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) {
 	const struct gr_srv6_tunsrc_set_req *req = request;
 	struct nexthop *nh;
 
 	if (rte_ipv6_addr_is_unspec(&req->addr))
-		return srv6_tunsrc_clear(NULL, NULL);
+		return srv6_tunsrc_clear(NULL, ctx);
 
 	struct gr_nexthop base = {
 		.type = GR_NH_T_L3,
@@ -266,28 +264,27 @@ static struct api_out srv6_tunsrc_set(const void *request, void ** /*response*/)
 		nexthop_decref(tunsrc_nh);
 
 	if ((nh = nexthop_new(&base)) == NULL)
-		return api_out(-errno, 0);
+		return api_out(-errno, 0, NULL);
 
 	tunsrc_nh = nh;
 	nexthop_incref(nh);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out srv6_tunsrc_show(const void * /*request*/, void **response) {
+static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx *) {
 	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
 	struct gr_srv6_tunsrc_show_resp *resp;
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
-		return api_out(-ENOMEM, 0);
+		return api_out(-ENOMEM, 0, NULL);
 
 	if (tunsrc_nh)
 		resp->addr = tunsrc_nh->ipv6;
 	else
 		resp->addr = unspec;
 
-	*response = resp;
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
 // srv6 headend module /////////////////////////////////////////////////////

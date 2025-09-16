@@ -88,7 +88,7 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num) {
 	return mbuf;
 }
 
-static struct api_out icmp_send(const void *request, void ** /*response*/) {
+static struct api_out icmp_send(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_send_req *req = request;
 	const struct nexthop *nh;
 	int ret = 0;
@@ -100,10 +100,10 @@ static struct api_out icmp_send(const void *request, void ** /*response*/) {
 
 	ret = icmp_local_send(req->vrf, req->addr, nh, req->ident, req->seq_num, req->ttl);
 out:
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out icmp_recv(const void *request, void **response) {
+static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
 	struct rte_icmp_hdr *icmp;
@@ -115,7 +115,7 @@ static struct api_out icmp_recv(const void *request, void **response) {
 
 	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num);
 	if (m == NULL)
-		return api_out(0, 0);
+		return api_out(0, 0, NULL);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL) {
 		ret = ENOMEM;
@@ -146,11 +146,10 @@ static struct api_out icmp_recv(const void *request, void **response) {
 	timestamp = PAYLOAD(icmp);
 	resp->response_time = control_output_mbuf_data(m)->timestamp - *timestamp;
 
-	*response = resp;
 	len = sizeof(*resp);
 out:
 	rte_pktmbuf_free(m);
-	return api_out(ret, len);
+	return api_out(ret, len, resp);
 }
 
 static struct gr_api_handler ip4_icmp_send_handler = {

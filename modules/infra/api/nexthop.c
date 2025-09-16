@@ -9,17 +9,16 @@
 #include <gr_nh_control.h>
 #include <gr_vec.h>
 
-static struct api_out nh_config_get(const void * /*request*/, void **response) {
+static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_infra_nh_config_get_resp *resp = malloc(sizeof(*resp));
 
 	if (resp == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	resp->base = nh_conf;
 	resp->used_count = nexthop_used_count();
-	*response = resp;
 
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
 static struct gr_api_handler config_get_handler = {
@@ -28,9 +27,9 @@ static struct gr_api_handler config_get_handler = {
 	.callback = nh_config_get,
 };
 
-static struct api_out nh_config_set(const void *request, void ** /*response*/) {
+static struct api_out nh_config_set(const void *request, struct api_ctx *) {
 	const struct gr_infra_nh_config_set_req *req = request;
-	return api_out(-nexthop_config_set(&req->base), 0);
+	return api_out(-nexthop_config_set(&req->base), 0, NULL);
 }
 
 static struct gr_api_handler config_set_handler = {
@@ -86,7 +85,7 @@ static int nh_add_l3(struct gr_nexthop *base) {
 	return 0;
 }
 
-static struct api_out nh_add(const void *request, void ** /*response*/) {
+static struct api_out nh_add(const void *request, struct api_ctx *) {
 	const struct gr_nh_add_req *req = request;
 	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
@@ -105,10 +104,10 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 		ret = nh_add_l3(&base);
 		break;
 	default:
-		return api_out(EINVAL, 0);
+		return api_out(EINVAL, 0, NULL);
 	}
 	if (ret < 0)
-		return api_out(-ret, 0);
+		return api_out(-ret, 0, NULL);
 
 	if (base.nh_id != GR_NH_ID_UNSET)
 		nh = nexthop_lookup_by_id(base.nh_id);
@@ -119,14 +118,14 @@ static struct api_out nh_add(const void *request, void ** /*response*/) {
 	if (nh == NULL) {
 		nh = nexthop_new(&base);
 		if (nh == NULL)
-			return api_out(errno, 0);
+			return api_out(errno, 0, NULL);
 		nexthop_incref(nh);
 	} else if (!req->exist_ok) {
 		ret = -EEXIST;
 	} else {
 		ret = nexthop_update(nh, &base);
 	}
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
 static struct gr_api_handler nh_add_handler = {
@@ -135,7 +134,7 @@ static struct gr_api_handler nh_add_handler = {
 	.callback = nh_add,
 };
 
-static struct api_out nh_del(const void *request, void ** /*response*/) {
+static struct api_out nh_del(const void *request, struct api_ctx *) {
 	static const gr_nh_flags_t addr_flags = GR_NH_F_LOCAL | GR_NH_F_STATIC;
 	const struct gr_nh_del_req *req = request;
 	struct nexthop *nh;
@@ -143,13 +142,13 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	nh = nexthop_lookup_by_id(req->nh_id);
 	if (nh == NULL) {
 		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
+			return api_out(0, 0, NULL);
+		return api_out(ENOENT, 0, NULL);
 	}
 
 	if ((nh->type != GR_NH_T_L3 && nh->type != GR_NH_T_BLACKHOLE && nh->type != GR_NH_T_REJECT)
 	    || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
-		return api_out(EBUSY, 0);
+		return api_out(EBUSY, 0, NULL);
 
 	nexthop_routes_cleanup(nh);
 	// The nexthop *may* still have one ref_count when it has been created
@@ -158,7 +157,7 @@ static struct api_out nh_del(const void *request, void ** /*response*/) {
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler nh_del_handler = {
@@ -184,7 +183,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	gr_vec_add(ctx->nh, nh->base);
 }
 
-static struct api_out nh_list(const void *request, void **response) {
+static struct api_out nh_list(const void *request, struct api_ctx *) {
 	const struct gr_nh_list_req *req = request;
 	struct list_context ctx = {.vrf_id = req->vrf_id, .all = req->all, .nh = NULL};
 	struct gr_nh_list_resp *resp = NULL;
@@ -195,16 +194,15 @@ static struct api_out nh_list(const void *request, void **response) {
 	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
 	if ((resp = calloc(1, len)) == NULL) {
 		gr_vec_free(ctx.nh);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->n_nhs = gr_vec_len(ctx.nh);
 	if (ctx.nh != NULL)
 		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
 	gr_vec_free(ctx.nh);
-	*response = resp;
 
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static struct gr_api_handler nh_list_handler = {

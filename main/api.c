@@ -82,7 +82,6 @@ static struct module_subscribers *mod_subs[UINT16_MAX];
 static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
-static __thread struct bufferevent *cur_req_bev;
 
 static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct subscription *ev_subs = NULL;
@@ -128,12 +127,12 @@ static void api_send_notifications(uint32_t ev_type, const void *obj) {
 	free(data);
 }
 
-static struct api_out subscribe(const void *request, void ** /*response*/) {
+static struct api_out subscribe(const void *request, struct api_ctx *ctx) {
 	const struct gr_event_subscribe_req *req = request;
 	struct module_subscribers *subs;
 	struct subscription sub = {
-		.bev = cur_req_bev,
-		.pid = cur_req_pid,
+		.bev = ctx->bev,
+		.pid = ctx->pid,
 		.suppress_self_events = req->suppress_self_events,
 	};
 	struct subscription *s;
@@ -141,13 +140,13 @@ static struct api_out subscribe(const void *request, void ** /*response*/) {
 
 	if (req->ev_type == EVENT_TYPE_ALL) {
 		gr_vec_foreach_ref (s, all_events_subs) {
-			if (s->bev == cur_req_bev) {
+			if (s->bev == ctx->bev) {
 				s->suppress_self_events = req->suppress_self_events;
-				return api_out(0, 0); // already subscribed
+				return api_out(0, 0, NULL); // already subscribed
 			}
 		}
 		gr_vec_add(all_events_subs, sub);
-		return api_out(0, 0);
+		return api_out(0, 0, NULL);
 	}
 
 	mod = (req->ev_type >> 16) & 0xffff;
@@ -157,17 +156,17 @@ static struct api_out subscribe(const void *request, void ** /*response*/) {
 	if (subs == NULL) {
 		mod_subs[mod] = subs = calloc(1, sizeof(*subs));
 		if (subs == NULL)
-			return api_out(ENOMEM, 0);
+			return api_out(ENOMEM, 0, NULL);
 	}
 	gr_vec_foreach_ref (s, subs->ev_subs[ev]) {
-		if (s->bev == cur_req_bev) {
+		if (s->bev == ctx->bev) {
 			s->suppress_self_events = req->suppress_self_events;
-			return api_out(0, 0); // already subscribed
+			return api_out(0, 0, NULL); // already subscribed
 		}
 	}
 	gr_vec_add(subs->ev_subs[ev], sub);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler subscribe_handler = {
@@ -176,12 +175,12 @@ static struct gr_api_handler subscribe_handler = {
 	.name = "event subscribe"
 };
 
-static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/) {
+static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx) {
 	unsigned i;
 
 	i = 0;
 	while (i < gr_vec_len(all_events_subs)) {
-		if (all_events_subs[i].bev == cur_req_bev)
+		if (all_events_subs[i].bev == ctx->bev)
 			gr_vec_del_swap(all_events_subs, i);
 		else
 			i++;
@@ -195,7 +194,7 @@ static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/
 			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
 			while (i < gr_vec_len(ev_subs)) {
-				if (ev_subs[i].bev == cur_req_bev)
+				if (ev_subs[i].bev == ctx->bev)
 					gr_vec_del_swap(ev_subs, i);
 				else
 					i++;
@@ -203,7 +202,7 @@ static struct api_out unsubscribe(const void * /*request*/, void ** /*response*/
 		}
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler unsubscribe_handler = {
@@ -212,13 +211,13 @@ static struct gr_api_handler unsubscribe_handler = {
 	.name = "event unsubscribe"
 };
 
-static struct api_out hello(const void *request, void ** /*response*/) {
+static struct api_out hello(const void *request, struct api_ctx *) {
 	const struct gr_hello_req *req = request;
 
 	if (strncmp(req->version, GROUT_VERSION, sizeof(req->version)) != 0)
-		return api_out(EPROTO, 0);
+		return api_out(EPROTO, 0, NULL);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler hello_handler = {
@@ -233,23 +232,17 @@ static void disconnect_client(struct api_ctx *ctx) {
 
 	LIST_REMOVE(ctx, next);
 
-	LOG(DEBUG, "client fd=%d disconnected", bufferevent_getfd(ctx->bev));
+	LOG(DEBUG, "client pid=%d disconnected", ctx->pid);
 
-	// Clean up subscriptions for this client
-	cur_req_bev = ctx->bev;
-	unsubscribe(NULL, NULL);
-	cur_req_bev = NULL;
-
+	unsubscribe(NULL, ctx);
 	bufferevent_free(ctx->bev);
 	free(ctx);
 }
 
 static void read_cb(struct bufferevent *bev, void *priv) {
 	struct evbuffer *input = bufferevent_get_input(bev);
-	void *req_payload = NULL, *resp_payload = NULL;
 	struct api_ctx *ctx = priv;
-	struct api_out out;
-	int sock;
+	void *req_payload = NULL;
 
 	assert(ctx != NULL);
 
@@ -291,25 +284,25 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 	// Reset state for next request
 	ctx->header_complete = false;
 
+	struct api_out out;
+
 	// We have a complete request, process it
-	sock = bufferevent_getfd(bev);
 	const struct gr_api_handler *handler = lookup_api_handler(&ctx->header);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
 		out.len = 0;
+		out.payload = NULL;
 		goto send;
 	}
 
-	cur_req_pid = socket_pid(sock);
-	cur_req_bev = bev;
-	out = handler->callback(req_payload, &resp_payload);
+	cur_req_pid = ctx->pid;
+	out = handler->callback(req_payload, ctx);
 	cur_req_pid = 0;
-	cur_req_bev = NULL;
 
 send:
 	LOG(DEBUG,
-	    "fd=%d id=%u req_type=0x%08x (%s) req_len=%u status=%d (%s) resp_len=%u",
-	    sock,
+	    "pid=%d id=%u req_type=0x%08x (%s) req_len=%u status=%d (%s) resp_len=%u",
+	    ctx->pid,
 	    ctx->header.id,
 	    ctx->header.type,
 	    handler ? handler->name : "?",
@@ -327,15 +320,15 @@ send:
 	if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
 		LOG(ERR, "failed to write header");
 	if (out.len > 0) {
-		assert(resp_payload != NULL);
-		if (bufferevent_write(bev, resp_payload, out.len) < 0)
+		assert(out.payload != NULL);
+		if (bufferevent_write(bev, out.payload, out.len) < 0)
 			LOG(ERR, "failed to write payload");
 	}
 
 	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 
 	free(req_payload);
-	free(resp_payload);
+	free(out.payload);
 
 	if (evbuffer_get_length(input) >= sizeof(ctx->header)) {
 		// More data is available in the input buffer.
@@ -346,7 +339,6 @@ send:
 
 close:
 	free(req_payload);
-	free(resp_payload);
 	disconnect_client(ctx);
 }
 
@@ -386,8 +378,9 @@ static void accept_conn_cb(
 	}
 
 	ctx->bev = bev;
+	ctx->pid = socket_pid(fd);
 
-	LOG(DEBUG, "new connection fd=%d", fd);
+	LOG(DEBUG, "new connection fd=%d pid=%d", fd, ctx->pid);
 
 	bufferevent_setwatermark(
 		bev, EV_READ, 0, sizeof(struct gr_api_request) + GR_API_MAX_MSG_LEN

@@ -34,7 +34,7 @@ static struct stat *find_stat(struct stat *stats, const char *name) {
 	return errno_set_null(ENOENT);
 }
 
-static struct api_out stats_get(const void *request, void **response) {
+static struct api_out stats_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
 	gr_vec struct stat *stats = NULL;
@@ -184,15 +184,14 @@ free_xstat:
 	}
 
 	gr_vec_free(stats);
-	*response = resp;
-	return api_out(0, len);
+	return api_out(0, len, resp);
 err:
 	gr_vec_free(stats);
 	free(resp);
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out stats_reset(const void * /*request*/, void ** /*response*/) {
+static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 	struct worker *worker;
 	struct iface *iface;
 	int ret;
@@ -210,15 +209,15 @@ static struct api_out stats_reset(const void * /*request*/, void ** /*response*/
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = (struct iface_info_port *)iface->info;
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
-			return api_out(-ret, 0);
+			return api_out(-ret, 0, NULL);
 		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
-			return api_out(-ret, 0);
+			return api_out(-ret, 0, NULL);
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out iface_stats_get(const void * /*request*/, void **response) {
+static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_infra_iface_stats_get_resp *resp = NULL;
 	gr_vec struct gr_iface_stats *stats_vec = NULL;
 	struct iface *iface = NULL;
@@ -268,12 +267,11 @@ static struct api_out iface_stats_get(const void * /*request*/, void **response)
 	memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
 
 	gr_vec_free(stats_vec);
-	*response = resp;
-	return api_out(0, len);
+	return api_out(0, len, resp);
 err:
 	gr_vec_free(stats_vec);
 	free(resp);
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
 static int

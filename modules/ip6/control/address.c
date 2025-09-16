@@ -202,7 +202,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	return 0;
 }
 
-static struct api_out addr6_add(const void *request, void ** /*response*/) {
+static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	const struct gr_ip6_addr_add_req *req = request;
 	struct rte_ipv6_addr solicited_node;
 	struct iface *iface;
@@ -210,23 +210,23 @@ static struct api_out addr6_add(const void *request, void ** /*response*/) {
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	if ((ret = iface6_addr_add(iface, &req->addr.addr.ip, req->addr.addr.prefixlen)) < 0)
 		if (ret != -EEXIST || !req->exist_ok)
-			return api_out(-ret, 0);
+			return api_out(-ret, 0, NULL);
 
 	// join the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
 	if (mcast6_addr_add(iface, &solicited_node) < 0) {
 		if (errno != EOPNOTSUPP && errno != EEXIST)
-			return api_out(errno, 0);
+			return api_out(errno, 0, NULL);
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out addr6_del(const void *request, void ** /*response*/) {
+static struct api_out addr6_del(const void *request, struct api_ctx *) {
 	const struct gr_ip6_addr_del_req *req = request;
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop *nh = NULL;
@@ -234,7 +234,7 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	unsigned i = 0;
 
 	if ((addrs = addr6_get_all(req->addr.iface_id)) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	gr_vec_foreach (nh, addrs->nh) {
 		if (rte_ipv6_addr_eq(&nh->ipv6, &req->addr.addr.ip)
@@ -246,8 +246,8 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	}
 	if (nh == NULL) {
 		if (req->missing_ok)
-			return api_out(0, 0);
-		return api_out(ENOENT, 0);
+			return api_out(0, 0, NULL);
+		return api_out(ENOENT, 0, NULL);
 	}
 
 	gr_event_push(GR_EVENT_IP6_ADDR_DEL, nh);
@@ -260,12 +260,12 @@ static struct api_out addr6_del(const void *request, void ** /*response*/) {
 	// leave the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
 	if (mcast6_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out addr6_list(const void *request, void **response) {
+static struct api_out addr6_list(const void *request, struct api_ctx *) {
 	const struct gr_ip6_addr_list_req *req = request;
 	struct gr_ip6_addr_list_resp *resp = NULL;
 	const struct hoplist *addrs;
@@ -285,7 +285,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 
 	len = sizeof(*resp) + num * sizeof(struct gr_ip6_ifaddr);
 	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
@@ -301,9 +301,7 @@ static struct api_out addr6_list(const void *request, void **response) {
 		}
 	}
 
-	*response = resp;
-
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static const struct rte_ipv6_addr well_known_mcast_addrs[] = {

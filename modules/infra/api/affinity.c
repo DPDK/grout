@@ -14,21 +14,19 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-static struct api_out affinity_get(const void * /*request*/, void **response) {
+static struct api_out affinity_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_infra_cpu_affinity_get_resp *resp = calloc(1, sizeof(*resp));
 
 	if (resp == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	resp->control_cpus = gr_config.control_cpus;
 	resp->datapath_cpus = gr_config.datapath_cpus;
 
-	*response = resp;
-
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
-static struct api_out affinity_set(const void *request, void ** /*response*/) {
+static struct api_out affinity_set(const void *request, struct api_ctx *) {
 	const struct gr_infra_cpu_affinity_set_req *req = request;
 	gr_vec struct iface_info_port **ports = NULL;
 	int ret = 0;
@@ -58,10 +56,10 @@ static struct api_out affinity_set(const void *request, void ** /*response*/) {
 
 out:
 	gr_vec_free(ports);
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out rxq_list(const void * /*request*/, void **response) {
+static struct api_out rxq_list(const void * /*request*/, struct api_ctx *) {
 	struct gr_infra_rxq_list_resp *resp = NULL;
 	struct queue_map *qmap;
 	struct worker *worker;
@@ -73,7 +71,7 @@ static struct api_out rxq_list(const void * /*request*/, void **response) {
 
 	len = sizeof(*resp) + n_rxqs * sizeof(struct gr_port_rxq_map);
 	if ((resp = malloc(len)) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	memset(resp, 0, len);
 
@@ -89,24 +87,23 @@ static struct api_out rxq_list(const void * /*request*/, void **response) {
 		}
 	}
 	resp->n_rxqs = n_rxqs;
-	*response = resp;
 
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
-static struct api_out rxq_set(const void *request, void ** /*response*/) {
+static struct api_out rxq_set(const void *request, struct api_ctx *) {
 	const struct gr_infra_rxq_set_req *req = request;
 	struct iface *iface = iface_from_id(req->iface_id);
 	struct iface_info_port *port;
 
 	if (iface == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	port = (struct iface_info_port *)iface->info;
 	if (worker_rxq_assign(port->port_id, req->rxq_id, req->cpu_id) < 0)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler affinity_get_handler = {

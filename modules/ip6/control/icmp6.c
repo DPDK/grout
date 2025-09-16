@@ -90,19 +90,19 @@ free_and_skip:
 	return NULL;
 }
 
-static struct api_out icmp6_send(const void *request, void ** /* response */) {
+static struct api_out icmp6_send(const void *request, struct api_ctx *) {
 	const struct gr_ip6_icmp_send_req *req = request;
 	const struct nexthop *nh;
 	int ret;
 
 	if ((nh = rib6_lookup(req->vrf, req->iface, &req->addr)) == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	ret = icmp6_local_send(&req->addr, nh, req->ident, req->seq_num, req->ttl);
-	return api_out(ret, 0);
+	return api_out(ret, 0, NULL);
 }
 
-static struct api_out icmp6_recv(const void *request, void **response) {
+static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip6_icmp_recv_req *recvreq = request;
 	struct gr_ip6_icmp_recv_resp *resp;
 	struct control_output_mbuf_data *d_ctl;
@@ -115,7 +115,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 
 	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6);
 	if (m == NULL)
-		return api_out(0, 0);
+		return api_out(0, 0, NULL);
 
 	d_ctl = control_output_mbuf_data(m);
 	d_ip6 = (struct ip6_local_mbuf_data *)d_ctl->cb_data;
@@ -123,7 +123,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 	timestamp = PAYLOAD(icmp6_echo);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	resp->src_addr = d_ip6->src;
 	resp->ttl = d_ip6->hop_limit;
 	resp->ident = rte_be_to_cpu_16(icmp6_echo->ident);
@@ -135,9 +135,7 @@ static struct api_out icmp6_recv(const void *request, void **response) {
 
 	rte_pktmbuf_free(m);
 
-	*response = resp;
-
-	return api_out(ret, sizeof(*resp));
+	return api_out(ret, sizeof(*resp), resp);
 }
 
 static struct gr_api_handler ip6_icmp_send_handler = {

@@ -20,27 +20,26 @@ static void iface_to_api(struct gr_iface *to, const struct iface *from) {
 	type->to_api(to->info, from);
 }
 
-static struct api_out iface_add(const void *request, void **response) {
+static struct api_out iface_add(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_add_req *req = request;
 	struct gr_infra_iface_add_resp *resp;
 	struct iface *iface;
 
 	iface = iface_create(&req->iface, req->iface.info);
 	if (iface == NULL)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
 	if ((resp = malloc(sizeof(*resp))) == NULL) {
 		iface_destroy(iface->id);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->iface_id = iface->id;
-	*response = resp;
 
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
-static struct api_out iface_del(const void *request, void ** /*response*/) {
+static struct api_out iface_del(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_del_req *req = request;
 	struct iface *iface;
 	int ret;
@@ -48,43 +47,42 @@ static struct api_out iface_del(const void *request, void ** /*response*/) {
 	// Loopback interfaces are special, and are deleted
 	// when the last interface of a VRF is destroyed.
 	if ((iface = iface_from_id(req->iface_id)) == NULL)
-		return api_out(ENODEV, 0);
+		return api_out(ENODEV, 0, NULL);
 
 	if (iface->type == GR_IFACE_TYPE_LOOPBACK)
-		return api_out(EINVAL, 0);
+		return api_out(EINVAL, 0, NULL);
 
 	ret = iface_destroy(req->iface_id);
 
-	return api_out(-ret, 0);
+	return api_out(-ret, 0, NULL);
 }
 
-static struct api_out iface_get(const void *request, void **response) {
+static struct api_out iface_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_get_req *req = request;
 	struct gr_infra_iface_get_resp *resp = NULL;
 	const struct iface *iface = NULL;
 
 	if (req->iface_id != GR_IFACE_ID_UNDEF) {
 		if ((iface = iface_from_id(req->iface_id)) == NULL)
-			return api_out(ENODEV, 0);
+			return api_out(ENODEV, 0, NULL);
 	} else {
 		while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 			if (strncmp(iface->name, req->name, sizeof(req->name)) == 0)
 				break;
 		}
 		if (iface == NULL)
-			return api_out(ENODEV, 0);
+			return api_out(ENODEV, 0, NULL);
 	}
 
 	if ((resp = malloc(sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	iface_to_api(&resp->iface, iface);
-	*response = resp;
 
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
-static struct api_out iface_list(const void *request, void **response) {
+static struct api_out iface_list(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_list_req *req = request;
 	struct gr_infra_iface_list_resp *resp = NULL;
 	const struct iface *iface = NULL;
@@ -95,25 +93,23 @@ static struct api_out iface_list(const void *request, void **response) {
 
 	len = sizeof(*resp) + n_ifaces * sizeof(struct gr_iface);
 	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	while ((iface = iface_next(req->type, iface)) != NULL)
 		iface_to_api(&resp->ifaces[resp->n_ifaces++], iface);
 
-	*response = resp;
-
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
-static struct api_out iface_set(const void *request, void ** /*response*/) {
+static struct api_out iface_set(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_set_req *req = request;
 	int ret;
 
 	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, req->iface.info);
 	if (ret < 0)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler iface_add_handler = {

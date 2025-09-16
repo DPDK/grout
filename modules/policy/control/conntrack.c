@@ -559,7 +559,7 @@ static int config_update(const struct gr_conntrack_config *new_conf) {
 	return 0;
 }
 
-static struct api_out conntrack_list(const void * /*request*/, void **response) {
+static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *) {
 	gr_vec struct gr_conntrack *conntracks = NULL;
 	struct gr_conntrack_list_resp *resp = NULL;
 	struct conn *conn;
@@ -599,16 +599,15 @@ static struct api_out conntrack_list(const void * /*request*/, void **response) 
 	len = sizeof(*resp) + gr_vec_len(conntracks) * sizeof(*conntracks);
 	if ((resp = calloc(1, len)) == NULL) {
 		gr_vec_free(conntracks);
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	resp->n_conns = gr_vec_len(conntracks);
 	if (conntracks != NULL)
 		memcpy(resp->conns, conntracks, resp->n_conns * sizeof(resp->conns[0]));
 	gr_vec_free(conntracks);
-	*response = resp;
 
-	return api_out(0, len);
+	return api_out(0, len, resp);
 }
 
 static struct gr_api_handler conn_list_handler = {
@@ -617,7 +616,7 @@ static struct gr_api_handler conn_list_handler = {
 	.callback = conntrack_list,
 };
 
-static struct api_out conntrack_flush(const void * /*request*/, void ** /*response*/) {
+static struct api_out conntrack_flush(const void * /*request*/, struct api_ctx *) {
 	struct conn *conn;
 	const void *key;
 	uint32_t iter;
@@ -631,7 +630,7 @@ static struct api_out conntrack_flush(const void * /*request*/, void ** /*respon
 		gr_conn_destroy(conn);
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler conn_flush_handler = {
@@ -640,13 +639,13 @@ static struct gr_api_handler conn_flush_handler = {
 	.callback = conntrack_flush,
 };
 
-static struct api_out config_set(const void *request, void ** /*response*/) {
+static struct api_out config_set(const void *request, struct api_ctx *) {
 	const struct gr_conntrack_conf_set_req *req = request;
 
 	if (config_update(&req->base) < 0)
-		return api_out(errno, 0);
+		return api_out(errno, 0, NULL);
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler conf_set_handler = {
@@ -655,14 +654,14 @@ static struct gr_api_handler conf_set_handler = {
 	.callback = config_set,
 };
 
-static struct api_out config_get(const void * /*request*/, void **response) {
+static struct api_out config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_conntrack_conf_get_resp *resp = malloc(sizeof(*resp));
 	const void *key;
 	uint32_t iter;
 	void *data;
 
 	if (resp == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	resp->base = conf;
 	resp->used_count = 0;
@@ -673,9 +672,7 @@ static struct api_out config_get(const void * /*request*/, void **response) {
 			resp->used_count++;
 	}
 
-	*response = resp;
-
-	return api_out(0, sizeof(*resp));
+	return api_out(0, sizeof(*resp), resp);
 }
 
 static struct gr_api_handler conf_get_handler = {

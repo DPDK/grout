@@ -23,7 +23,7 @@ static void iface_add_callback(uint32_t /*event*/, const void *obj) {
 		iface_from_id(iface->id)->flags |= GR_IFACE_F_PACKET_TRACE;
 }
 
-static struct api_out set_trace(const void *request, void ** /*response*/) {
+static struct api_out set_trace(const void *request, struct api_ctx *) {
 	const struct gr_infra_packet_trace_set_req *req = request;
 	struct iface *iface = NULL;
 
@@ -38,7 +38,7 @@ static struct api_out set_trace(const void *request, void ** /*response*/) {
 		}
 	} else {
 		if ((iface = iface_from_id(req->iface_id)) == NULL)
-			return api_out(ENODEV, 0);
+			return api_out(ENODEV, 0, NULL);
 
 		if (req->enabled)
 			iface->flags |= GR_IFACE_F_PACKET_TRACE;
@@ -46,16 +46,16 @@ static struct api_out set_trace(const void *request, void ** /*response*/) {
 			iface->flags &= ~GR_IFACE_F_PACKET_TRACE;
 	}
 
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out dump_trace(const void *request, void **response) {
+static struct api_out dump_trace(const void *request, struct api_ctx *) {
 	const struct gr_infra_packet_trace_dump_req *req = request;
 	struct gr_infra_packet_trace_dump_resp *resp;
 	int ret;
 
 	if ((resp = malloc(GR_API_MAX_MSG_LEN)) == NULL)
-		return api_out(ENOMEM, 0);
+		return api_out(ENOMEM, 0, NULL);
 
 	ret = gr_trace_dump(
 		resp->trace,
@@ -66,27 +66,25 @@ static struct api_out dump_trace(const void *request, void **response) {
 	);
 	if (ret < 0) {
 		free(resp);
-		return api_out(-ret, 0);
+		return api_out(-ret, 0, NULL);
 	}
 
-	*response = resp;
-
-	return api_out(0, sizeof(*resp) + resp->len);
+	return api_out(0, sizeof(*resp) + resp->len, resp);
 }
 
-static struct api_out clear_trace(const void * /*request*/, void ** /*response*/) {
+static struct api_out clear_trace(const void * /*request*/, struct api_ctx *) {
 	gr_trace_clear();
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out packet_log_enable(const void * /*request */, void ** /*response*/) {
+static struct api_out packet_log_enable(const void * /*request */, struct api_ctx *) {
 	gr_config.log_packets = true;
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
-static struct api_out packet_log_disable(const void * /*request */, void ** /*response*/) {
+static struct api_out packet_log_disable(const void * /*request */, struct api_ctx *) {
 	gr_config.log_packets = false;
-	return api_out(0, 0);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler set_trace_handler = {
