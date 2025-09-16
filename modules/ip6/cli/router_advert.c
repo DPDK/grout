@@ -14,42 +14,37 @@
 #include <libsmartcols.h>
 
 static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_ra_show_resp *resp;
+	const struct gr_ip6_ra_conf *ra;
 	struct gr_ip6_ra_show_req req;
 	struct gr_iface iface;
-	void *resp_ptr = NULL;
+	int ret;
 
 	if (!iface_from_name(c, arg_str(p, "IFACE"), &iface))
 		req.iface_id = iface.id;
 	else
-		req.iface_id = 0;
-
-	if (gr_api_client_send_recv(c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
-	resp = resp_ptr;
+		req.iface_id = GR_IFACE_ID_UNDEF;
 
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "IFACE", 0, 0);
 	scols_table_new_column(table, "RA", 0, 0);
-	scols_table_new_column(table, "interval", 0, 0);
-	scols_table_new_column(table, "lifetime", 0, 0);
+	scols_table_new_column(table, "INTERVAL", 0, 0);
+	scols_table_new_column(table, "LIFETIME", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (uint16_t i = 0; i < resp->n_ras; i++) {
+	gr_api_client_stream_foreach (ra, ret, c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (iface_from_id(c, resp->ras[i].iface_id, &iface) == 0)
+		if (iface_from_id(c, ra->iface_id, &iface) == 0)
 			scols_line_sprintf(line, 0, "%s", iface.name);
 		else
-			scols_line_sprintf(line, 0, "%u", resp->ras[i].iface_id);
-		scols_line_sprintf(line, 1, "%u", resp->ras[i].enabled);
-		scols_line_sprintf(line, 2, "%u", resp->ras[i].interval);
-		scols_line_sprintf(line, 3, "%u", resp->ras[i].lifetime);
+			scols_line_sprintf(line, 0, "%u", ra->iface_id);
+		scols_line_sprintf(line, 1, "%u", ra->enabled);
+		scols_line_sprintf(line, 2, "%u", ra->interval);
+		scols_line_sprintf(line, 3, "%u", ra->lifetime);
 	}
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t ra_set(struct gr_api_client *c, const struct ec_pnode *p) {
