@@ -68,7 +68,7 @@ static struct api_out srv6_localsid_del(const void *request, struct api_ctx *) {
 
 struct list_context {
 	uint16_t vrf_id;
-	gr_vec struct gr_srv6_localsid *ldata;
+	struct api_ctx *ctx;
 };
 
 static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
@@ -89,29 +89,16 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	ldata.flags = data->flags;
 	ldata.out_vrf_id = data->out_vrf_id;
 
-	gr_vec_add(ctx->ldata, ldata);
+	api_send(ctx->ctx, sizeof(ldata), &ldata);
 }
 
-static struct api_out srv6_localsid_list(const void *request, struct api_ctx *) {
+static struct api_out srv6_localsid_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_srv6_localsid_list_req *req = request;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .ldata = NULL};
-	struct gr_srv6_localsid_list_resp *resp;
-	size_t len;
+	struct list_context list_ctx = {.vrf_id = req->vrf_id, .ctx = ctx};
 
-	nexthop_iter(nh_srv6_list_cb, &ctx);
+	nexthop_iter(nh_srv6_list_cb, &list_ctx);
 
-	len = sizeof(*resp) + gr_vec_len(ctx.ldata) * sizeof(*ctx.ldata);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(ctx.ldata);
-		return api_out(ENOMEM, 0, NULL);
-	}
-
-	resp->n_lsid = gr_vec_len(ctx.ldata);
-	if (ctx.ldata != NULL)
-		memcpy(resp->lsid, ctx.ldata, resp->n_lsid * sizeof(resp->lsid[0]));
-	gr_vec_free(ctx.ldata);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 // srv6 localsid module //////////////////////////////////////////////////////

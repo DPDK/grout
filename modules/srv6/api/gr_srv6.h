@@ -126,7 +126,4 @@ struct gr_srv6_localsid_list_req {
 	uint16_t vrf_id;
 };
 
-struct gr_srv6_localsid_list_resp {
-	uint16_t n_lsid;
-	struct gr_srv6_localsid lsid[/* n_lsid */];
-};
+// STREAM(struct gr_srv6_localsid);
