@@ -422,36 +422,23 @@ static void route6_list_cb(
 	void *priv
 ) {
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
-		gr_vec struct gr_ip6_route **routes = priv;
+		struct api_ctx *ctx = priv;
 		struct gr_ip6_route r = {
 			.vrf_id = vrf_id,
 			.dest = {*ip, prefixlen},
 			.nh = nh->base,
 			.origin = origin,
 		};
-		gr_vec_add(*routes, r);
+		api_send(ctx, sizeof(r), &r);
 	}
 }
 
-static struct api_out route6_list(const void *request, struct api_ctx *) {
+static struct api_out route6_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip6_route_list_req *req = request;
-	struct gr_ip6_route_list_resp *resp = NULL;
-	gr_vec struct gr_ip6_route *routes = NULL;
-	size_t len;
 
-	rib6_iter(req->vrf_id, route6_list_cb, &routes);
+	rib6_iter(req->vrf_id, route6_list_cb, ctx);
 
-	len = sizeof(*resp) + gr_vec_len(routes) * sizeof(struct gr_ip6_route);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(routes);
-		return api_out(ENOMEM, 0, NULL);
-	}
-
-	resp->n_routes = gr_vec_len(routes);
-	memcpy(resp->routes, routes, gr_vec_len(routes) * sizeof(resp->routes[0]));
-	gr_vec_free(routes);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static void route6_init(struct event_base *) {

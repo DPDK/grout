@@ -50,22 +50,13 @@ static cmd_status_t route6_del(struct gr_api_client *c, const struct ec_pnode *p
 
 static cmd_status_t route6_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_route_list_req req = {.vrf_id = UINT16_MAX};
-	struct libscols_table *table = scols_new_table();
-	const struct gr_ip6_route_list_resp *resp;
-	void *resp_ptr = NULL;
-
-	if (table == NULL)
-		return CMD_ERROR;
+	const struct gr_ip6_route *route;
+	int ret;
 
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (gr_api_client_send_recv(c, GR_IP6_ROUTE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
-
-	resp = resp_ptr;
+	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
@@ -74,9 +65,8 @@ static cmd_status_t route6_list(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "NEXT_HOP_VRF", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_routes; i++) {
+	gr_api_client_stream_foreach (route, ret, c, GR_IP6_ROUTE_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_ip6_route *route = &resp->routes[i];
 		struct gr_iface iface;
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
@@ -109,9 +99,8 @@ static cmd_status_t route6_list(struct gr_api_client *c, const struct ec_pnode *
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p) {

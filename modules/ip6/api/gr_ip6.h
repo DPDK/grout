@@ -66,10 +66,7 @@ struct gr_ip6_route_list_req {
 	uint16_t vrf_id;
 };
 
-struct gr_ip6_route_list_resp {
-	uint16_t n_routes;
-	struct gr_ip6_route routes[/* n_routes */];
-};
+// STREAM(struct gr_ip6_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
