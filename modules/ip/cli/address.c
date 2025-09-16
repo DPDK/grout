@@ -18,13 +18,15 @@
 
 static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_addr_add_req req = {.exist_ok = true};
-	struct gr_iface iface;
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+
+	if (iface == NULL)
+		return CMD_ERROR;
+	req.addr.iface_id = iface->id;
+	free(iface);
 
 	if (arg_ip4_net(p, "IP_NET", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
-	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
-		return CMD_ERROR;
-	req.addr.iface_id = iface.id;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ADDR_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -34,13 +36,15 @@ static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) 
 
 static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_addr_del_req req = {.missing_ok = true};
-	struct gr_iface iface;
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+
+	if (iface == NULL)
+		return CMD_ERROR;
+	req.addr.iface_id = iface->id;
+	free(iface);
 
 	if (arg_ip4_net(p, "IP_NET", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
-	if (iface_from_name(c, arg_str(p, "IFACE"), &iface) < 0)
-		return CMD_ERROR;
-	req.addr.iface_id = iface.id;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ADDR_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -51,7 +55,6 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_addr_list_req req = {0};
 	const struct gr_ip4_ifaddr *addr;
-	struct gr_iface iface;
 	int ret;
 
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
@@ -64,10 +67,12 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 
 	gr_api_client_stream_foreach (addr, ret, c, GR_IP4_ADDR_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (iface_from_id(c, addr->iface_id, &iface) == 0)
-			scols_line_sprintf(line, 0, "%s", iface.name);
+		struct gr_iface *iface = iface_from_id(c, addr->iface_id);
+		if (iface != NULL)
+			scols_line_sprintf(line, 0, "%s", iface->name);
 		else
 			scols_line_sprintf(line, 0, "%u", addr->iface_id);
+		free(iface);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &addr->addr.ip, addr->addr.prefixlen);
 	}
 

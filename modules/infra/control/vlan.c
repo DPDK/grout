@@ -224,7 +224,8 @@ static void vlan_to_api(void *info, const struct iface *iface) {
 static struct iface_type iface_type_vlan = {
 	.id = GR_IFACE_TYPE_VLAN,
 	.name = "vlan",
-	.info_size = sizeof(struct iface_info_vlan),
+	.pub_size = sizeof(struct gr_iface_info_vlan),
+	.priv_size = sizeof(struct iface_info_vlan),
 	.init = iface_vlan_init,
 	.reconfig = iface_vlan_reconfig,
 	.fini = iface_vlan_fini,

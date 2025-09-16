@@ -291,7 +291,8 @@ static void iface_loopback_to_api(void * /* info */, const struct iface * /* ifa
 static struct iface_type iface_type_loopback = {
 	.id = GR_IFACE_TYPE_LOOPBACK,
 	.name = "loopback",
-	.info_size = sizeof(struct iface_info_loopback),
+	.pub_size = 0,
+	.priv_size = sizeof(struct iface_info_loopback),
 	.init = iface_loopback_init,
 	.fini = iface_loopback_fini,
 	.to_api = iface_loopback_to_api,

@@ -38,8 +38,10 @@ static uint64_t parse_ipip_args(
 	struct gr_iface *iface,
 	bool update
 ) {
-	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
 	struct gr_iface_info_ipip *ipip;
+	uint64_t set_attrs;
+
+	set_attrs = parse_iface_args(c, p, iface, sizeof(*ipip), update);
 
 	ipip = (struct gr_iface_info_ipip *)iface->info;
 
@@ -69,33 +71,52 @@ static uint64_t parse_ipip_args(
 
 static cmd_status_t ipip_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_iface_add_resp *resp;
-	struct gr_infra_iface_add_req req = {
-		.iface = {.type = GR_IFACE_TYPE_IPIP, .flags = GR_IFACE_F_UP}
-	};
+	struct gr_infra_iface_add_req *req = NULL;
 	void *resp_ptr = NULL;
+	size_t len;
 
-	if (parse_ipip_args(c, p, &req.iface, false) == 0)
-		return CMD_ERROR;
+	len = sizeof(*req) + sizeof(struct gr_iface_info_ipip);
+	if ((req = calloc(1, len)) == NULL)
+		goto err;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
+	req->iface.type = GR_IFACE_TYPE_IPIP;
+	req->iface.flags = GR_IFACE_F_UP;
 
+	if (parse_ipip_args(c, p, &req->iface, false) == 0)
+		goto err;
+
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, len, req, &resp_ptr) < 0)
+		goto err;
+
+	free(req);
 	resp = resp_ptr;
 	printf("Created interface %u\n", resp->iface_id);
 	free(resp_ptr);
 	return CMD_SUCCESS;
+err:
+	free(req);
+	return CMD_ERROR;
 }
 
 static cmd_status_t ipip_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_iface_set_req req = {0};
+	struct gr_infra_iface_set_req *req = NULL;
+	cmd_status_t ret = CMD_ERROR;
+	size_t len;
 
-	if ((req.set_attrs = parse_ipip_args(c, p, &req.iface, true)) == 0)
-		return CMD_ERROR;
+	len = sizeof(*req) + sizeof(struct gr_iface_info_ipip);
+	if ((req = calloc(1, len)) == NULL)
+		goto out;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
+	if ((req->set_attrs = parse_ipip_args(c, p, &req->iface, true)) == 0)
+		goto out;
 
-	return CMD_SUCCESS;
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, len, req, NULL) < 0)
+		goto out;
+
+	ret = CMD_SUCCESS;
+out:
+	free(req);
+	return ret;
 }
 
 #define IPIP_ATTRS_ARGS                                                                            \

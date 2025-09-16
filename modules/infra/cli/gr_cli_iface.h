@@ -22,8 +22,8 @@ void register_iface_type(struct cli_iface_type *);
 
 const struct cli_iface_type *type_from_name(const char *name);
 const struct cli_iface_type *type_from_id(gr_iface_type_t type_id);
-int iface_from_name(struct gr_api_client *c, const char *name, struct gr_iface *iface);
-int iface_from_id(struct gr_api_client *c, uint16_t ifid, struct gr_iface *iface);
+struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name);
+struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t ifid);
 
 struct ec_node;
 struct ec_comp;
@@ -65,5 +65,6 @@ uint64_t parse_iface_args(
 	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
+	size_t info_size,
 	bool update
 );

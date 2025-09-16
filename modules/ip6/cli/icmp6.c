@@ -143,7 +143,6 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	cmd_status_t ret = CMD_ERROR;
 	uint16_t count = UINT16_MAX;
 	uint16_t msdelay = 1000;
-	struct gr_iface iface;
 	const char *str;
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
@@ -155,9 +154,11 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	if ((ret = arg_u16(p, "DELAY", &msdelay)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((str = arg_str(p, "IFACE")) != NULL) {
-		if (iface_from_name(c, str, &iface) < 0)
+		struct gr_iface *iface = iface_from_name(c, str);
+		if (iface == NULL)
 			return CMD_ERROR;
-		req.iface = iface.id;
+		req.iface = iface->id;
+		free(iface);
 	}
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
@@ -174,7 +175,6 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
-	struct gr_iface iface;
 	const char *str;
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
@@ -182,9 +182,11 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((str = arg_str(p, "IFACE")) != NULL) {
-		if (iface_from_name(c, str, &iface) < 0)
+		struct gr_iface *iface = iface_from_name(c, str);
+		if (iface == NULL)
 			return CMD_ERROR;
-		req.iface = iface.id;
+		req.iface = iface->id;
+		free(iface);
 	}
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);

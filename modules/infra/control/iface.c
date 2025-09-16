@@ -89,7 +89,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		}
 	}
 
-	iface = rte_zmalloc(__func__, sizeof(*iface) + type->info_size, RTE_CACHE_LINE_SIZE);
+	iface = rte_zmalloc(__func__, sizeof(*iface) + type->priv_size, RTE_CACHE_LINE_SIZE);
 	if (iface == NULL) {
 		errno = ENOMEM;
 		goto fail;

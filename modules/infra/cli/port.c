@@ -16,7 +16,6 @@
 
 static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
-	struct gr_iface peer;
 
 	printf("devargs: %s\n", port->devargs);
 	printf("driver:  %s\n", port->driver_name);
@@ -31,27 +30,30 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	printf("txq_size: %u\n", port->txq_size);
 
 	if (iface->mode == GR_IFACE_MODE_L1_XC) {
-		if (iface_from_id(c, iface->domain_id, &peer) == 0)
-			printf("xc_peer: %s\n", peer.name);
+		struct gr_iface *peer = iface_from_id(c, iface->domain_id);
+		if (peer != NULL)
+			printf("xc_peer: %s\n", peer->name);
 		else
 			printf("xc_peer: %u\n", iface->domain_id);
+		free(peer);
 	}
 }
 
 static void
 port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
-	struct gr_iface peer;
+	struct gr_iface *peer = NULL;
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
 	if (iface->mode == GR_IFACE_MODE_L1_XC) {
-		if (iface_from_id(c, iface->domain_id, &peer) == 0)
-			SAFE_BUF(snprintf, len - n, " xc_peer=%s", peer.name);
+		if ((peer = iface_from_id(c, iface->domain_id)) != NULL)
+			SAFE_BUF(snprintf, len - n, " xc_peer=%s", peer->name);
 		else
 			SAFE_BUF(snprintf, len - n, " xc_peer=%u", iface->domain_id);
 	}
 err:
+	free(peer);
 	return;
 }
 
@@ -68,10 +70,11 @@ static uint64_t parse_port_args(
 	struct gr_iface *iface,
 	bool update
 ) {
-	uint64_t set_attrs = parse_iface_args(c, p, iface, update);
 	struct gr_iface_info_port *port;
 	const char *devargs;
+	uint64_t set_attrs;
 
+	set_attrs = parse_iface_args(c, p, iface, sizeof(*port), update);
 	port = (struct gr_iface_info_port *)iface->info;
 	devargs = arg_str(p, "DEVARGS");
 	if (devargs != NULL) {
@@ -98,8 +101,8 @@ static uint64_t parse_port_args(
 		iface->mode = GR_IFACE_MODE_L3;
 		iface->vrf_id = 0;
 	} else if (arg_str(p, "xconnect")) {
-		struct gr_iface peer;
-		if (iface_from_name(c, arg_str(p, "PEER"), &peer) < 0) {
+		struct gr_iface *peer = iface_from_name(c, arg_str(p, "PEER"));
+		if (peer == NULL) {
 			errno = ENODEV;
 			goto err;
 		}
@@ -107,7 +110,8 @@ static uint64_t parse_port_args(
 		set_attrs |= GR_IFACE_SET_MODE;
 		set_attrs |= GR_IFACE_SET_DOMAIN;
 		iface->mode = GR_IFACE_MODE_L1_XC;
-		iface->domain_id = peer.id;
+		iface->domain_id = peer->id;
+		free(peer);
 	}
 
 	if (set_attrs == 0)
@@ -119,33 +123,52 @@ err:
 
 static cmd_status_t port_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_iface_add_resp *resp;
-	struct gr_infra_iface_add_req req = {
-		.iface = {.type = GR_IFACE_TYPE_PORT, .flags = GR_IFACE_F_UP}
-	};
+	struct gr_infra_iface_add_req *req = NULL;
 	void *resp_ptr = NULL;
+	size_t len;
 
-	if (parse_port_args(c, p, &req.iface, false) == 0)
-		return CMD_ERROR;
+	len = sizeof(*req) + sizeof(struct gr_iface_info_port);
+	if ((req = calloc(1, len)) == NULL)
+		goto err;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, sizeof(req), &req, &resp_ptr) < 0)
-		return CMD_ERROR;
+	req->iface.type = GR_IFACE_TYPE_PORT;
+	req->iface.flags = GR_IFACE_F_UP;
 
+	if (parse_port_args(c, p, &req->iface, false) == 0)
+		goto err;
+
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, len, req, &resp_ptr) < 0)
+		goto err;
+
+	free(req);
 	resp = resp_ptr;
 	printf("Created interface %u\n", resp->iface_id);
 	free(resp_ptr);
 	return CMD_SUCCESS;
+err:
+	free(req);
+	return CMD_ERROR;
 }
 
 static cmd_status_t port_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_iface_set_req req = {0};
+	struct gr_infra_iface_set_req *req = NULL;
+	cmd_status_t ret = CMD_ERROR;
+	size_t len;
 
-	if ((req.set_attrs = parse_port_args(c, p, &req.iface, true)) == 0)
-		return CMD_ERROR;
+	len = sizeof(*req) + sizeof(struct gr_iface_info_port);
+	if ((req = calloc(1, len)) == NULL)
+		goto out;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
+	if ((req->set_attrs = parse_port_args(c, p, &req->iface, true)) == 0)
+		goto out;
 
-	return CMD_SUCCESS;
+	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, len, req, NULL) < 0)
+		goto out;
+
+	ret = CMD_SUCCESS;
+out:
+	free(req);
+	return ret;
 }
 
 #define PORT_ATTRS_CMD                                                                             \
