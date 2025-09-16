@@ -25,7 +25,7 @@ static const struct gr_cli_event_printer *get_event_printer(uint32_t ev_type) {
 	return NULL;
 }
 
-static cmd_status_t events_show(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *) {
 	struct gr_event_subscribe_req req = {
 		.suppress_self_events = false, .ev_type = EVENT_TYPE_ALL
 	};

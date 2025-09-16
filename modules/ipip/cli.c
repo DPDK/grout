@@ -11,7 +11,7 @@
 
 #include <errno.h>
 
-static void ipip_show(const struct gr_api_client *, const struct gr_iface *iface) {
+static void ipip_show(struct gr_api_client *, const struct gr_iface *iface) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
 
 	printf("local: " IP4_F "\n", &ipip->local);
@@ -19,7 +19,7 @@ static void ipip_show(const struct gr_api_client *, const struct gr_iface *iface
 }
 
 static void
-ipip_list_info(const struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
+ipip_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
 
 	snprintf(buf, len, "local=" IP4_F " remote=" IP4_F, &ipip->local, &ipip->remote);
@@ -33,7 +33,7 @@ static struct cli_iface_type ipip_type = {
 };
 
 static uint64_t parse_ipip_args(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
 	bool update
@@ -67,7 +67,7 @@ static uint64_t parse_ipip_args(
 	return set_attrs;
 }
 
-static cmd_status_t ipip_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ipip_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_iface_add_resp *resp;
 	struct gr_infra_iface_add_req req = {
 		.iface = {.type = GR_IFACE_TYPE_IPIP, .flags = GR_IFACE_F_UP}
@@ -86,7 +86,7 @@ static cmd_status_t ipip_add(const struct gr_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t ipip_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ipip_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_iface_set_req req = {0};
 
 	if ((req.set_attrs = parse_ipip_args(c, p, &req.iface, true)) == 0)

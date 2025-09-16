@@ -6,10 +6,9 @@
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
 
-static void loopback_show(const struct gr_api_client *, const struct gr_iface *) { }
+static void loopback_show(struct gr_api_client *, const struct gr_iface *) { }
 
-static void
-loopback_list_info(const struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
+static void loopback_list_info(struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
 
 static struct cli_iface_type loopback_type = {
 	.type_id = GR_IFACE_TYPE_LOOPBACK,

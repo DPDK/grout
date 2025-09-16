@@ -57,9 +57,9 @@ static struct gr_api_client *connect_client(struct ec_comp *comp) {
 	return client;
 }
 
-static const struct gr_api_client *get_client(struct ec_comp *comp) {
+static struct gr_api_client *get_client(struct ec_comp *comp) {
 	struct ec_pnode *pstate = ec_comp_get_cur_pstate(comp);
-	const struct gr_api_client *client = NULL;
+	struct gr_api_client *client = NULL;
 
 	while (client == NULL && pstate != NULL) {
 		const struct ec_node *node = ec_pnode_get_node(pstate);
@@ -78,7 +78,7 @@ static int ec_node_dyn_complete(
 	const struct ec_strvec *strvec
 ) {
 	const struct ec_node_dyn *priv = ec_node_priv(node);
-	const struct gr_api_client *client;
+	struct gr_api_client *client;
 
 	assert(priv->cb != NULL);
 

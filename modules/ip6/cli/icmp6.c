@@ -21,7 +21,7 @@ static void sighandler(int) {
 }
 
 static cmd_status_t icmp_send(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	struct gr_ip6_icmp_send_req *req,
 	uint16_t msdelay,
 	uint16_t count,
@@ -138,7 +138,7 @@ static cmd_status_t icmp_send(
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_ERROR;
 	uint16_t count = UINT16_MAX;
@@ -171,7 +171,7 @@ static cmd_status_t ping(const struct gr_api_client *c, const struct ec_pnode *p
 	return ret;
 }
 
-static cmd_status_t traceroute(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
 	struct gr_iface iface;

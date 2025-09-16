@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static cmd_status_t graph_dump(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_graph_dump_req req = {.flags = 0};
 	const struct gr_infra_graph_dump_resp *resp;
 	void *resp_ptr = NULL;

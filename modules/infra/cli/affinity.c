@@ -11,7 +11,7 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
-static cmd_status_t affinity_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t affinity_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_cpu_affinity_set_req req = {0};
 	const char *arg;
 
@@ -30,7 +30,7 @@ static cmd_status_t affinity_set(const struct gr_api_client *c, const struct ec_
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t affinity_show(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode *) {
 	struct gr_infra_cpu_affinity_get_resp resp;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
@@ -54,7 +54,7 @@ static cmd_status_t affinity_show(const struct gr_api_client *c, const struct ec
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t rxq_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_rxq_set_req req;
 	struct gr_iface iface;
 
@@ -86,7 +86,7 @@ static int rxqs_order(const void *a, const void *b) {
 	return rxq_a->rxq_id - rxq_b->rxq_id;
 }
 
-static cmd_status_t rxq_list(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 	struct libscols_table *table = scols_new_table();
 	struct gr_infra_rxq_list_resp *resp;
 	void *resp_ptr = NULL;

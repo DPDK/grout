@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-static cmd_status_t conn_list(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_conntrack_list_resp *resp;
 	struct libscols_table *table;
 	cmd_status_t ret = CMD_ERROR;
@@ -98,14 +98,14 @@ end:
 	return ret;
 }
 
-static cmd_status_t conn_flush(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t conn_flush(struct gr_api_client *c, const struct ec_pnode *) {
 	if (gr_api_client_send_recv(c, GR_CONNTRACK_FLUSH, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t config_show(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t config_show(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_conntrack_conf_get_resp *resp;
 	void *resp_ptr = NULL;
 
@@ -129,7 +129,7 @@ static cmd_status_t config_show(const struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t config_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t config_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_conntrack_conf_set_req req = {0};
 
 	if (arg_u32(p, "MAX", &req.max_count) < 0 && errno != ENOENT)

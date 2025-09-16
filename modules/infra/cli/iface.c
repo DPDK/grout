@@ -40,7 +40,7 @@ const struct cli_iface_type *type_from_name(const char *name) {
 }
 
 int complete_iface_types(
-	const struct gr_api_client *,
+	struct gr_api_client *,
 	const struct ec_node *node,
 	struct ec_comp *comp,
 	const char *arg,
@@ -68,7 +68,7 @@ const struct cli_iface_type *type_from_id(gr_iface_type_t type_id) {
 }
 
 int complete_iface_names(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_node *node,
 	struct ec_comp *comp,
 	const char *arg,
@@ -98,7 +98,7 @@ fail:
 	return ret;
 }
 
-int iface_from_name(const struct gr_api_client *c, const char *name, struct gr_iface *iface) {
+int iface_from_name(struct gr_api_client *c, const char *name, struct gr_iface *iface) {
 	struct gr_infra_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
 	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
@@ -118,7 +118,7 @@ int iface_from_name(const struct gr_api_client *c, const char *name, struct gr_i
 	return 0;
 }
 
-int iface_from_id(const struct gr_api_client *c, uint16_t iface_id, struct gr_iface *iface) {
+int iface_from_id(struct gr_api_client *c, uint16_t iface_id, struct gr_iface *iface) {
 	struct gr_infra_iface_get_req req = {.iface_id = iface_id, .name = ""};
 	const struct gr_infra_iface_get_resp *resp;
 	void *resp_ptr = NULL;
@@ -134,7 +134,7 @@ int iface_from_id(const struct gr_api_client *c, uint16_t iface_id, struct gr_if
 }
 
 uint64_t parse_iface_args(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
 	bool update
@@ -194,7 +194,7 @@ err:
 	return 0;
 }
 
-static cmd_status_t iface_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_iface_del_req req;
 	struct gr_iface iface;
 
@@ -215,7 +215,7 @@ static int iface_order(const void *ia, const void *ib) {
 	return a->id - b->id;
 }
 
-static cmd_status_t iface_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct libscols_table *table = scols_new_table();
 	struct gr_infra_iface_list_resp *resp;
 	struct gr_infra_iface_list_req req;
@@ -321,7 +321,7 @@ err:
 	return CMD_ERROR;
 }
 
-static cmd_status_t iface_stats(const struct gr_api_client *c, const struct ec_pnode * /*p*/) {
+static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	struct gr_infra_iface_stats_get_resp *resp = NULL;
 	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
@@ -383,7 +383,7 @@ end:
 	return status;
 }
 
-static cmd_status_t iface_rates(const struct gr_api_client *c, const struct ec_pnode * /*p*/) {
+static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	const struct gr_infra_iface_stats_get_resp *resp1, *resp2;
 	void *resp1_ptr = NULL, *resp2_ptr = NULL;
 	struct libscols_table *table = NULL;
@@ -461,7 +461,7 @@ end:
 	return status;
 }
 
-static cmd_status_t iface_show(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct cli_iface_type *type;
 	struct gr_iface iface;
 

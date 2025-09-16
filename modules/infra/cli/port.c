@@ -14,7 +14,7 @@
 #include <errno.h>
 #include <sys/queue.h>
 
-static void port_show(const struct gr_api_client *c, const struct gr_iface *iface) {
+static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
 	struct gr_iface peer;
 
@@ -39,7 +39,7 @@ static void port_show(const struct gr_api_client *c, const struct gr_iface *ifac
 }
 
 static void
-port_list_info(const struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
+port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
 	struct gr_iface peer;
 	size_t n = 0;
@@ -63,7 +63,7 @@ static struct cli_iface_type port_type = {
 };
 
 static uint64_t parse_port_args(
-	const struct gr_api_client *c,
+	struct gr_api_client *c,
 	const struct ec_pnode *p,
 	struct gr_iface *iface,
 	bool update
@@ -117,7 +117,7 @@ err:
 	return 0;
 }
 
-static cmd_status_t port_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t port_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_iface_add_resp *resp;
 	struct gr_infra_iface_add_req req = {
 		.iface = {.type = GR_IFACE_TYPE_PORT, .flags = GR_IFACE_F_UP}
@@ -136,7 +136,7 @@ static cmd_status_t port_add(const struct gr_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t port_set(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t port_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_iface_set_req req = {0};
 
 	if ((req.set_attrs = parse_port_args(c, p, &req.iface, true)) == 0)

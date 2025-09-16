@@ -29,7 +29,7 @@ typedef enum {
 	CMD_EXIT,
 } cmd_status_t;
 
-typedef cmd_status_t(cmd_cb_t)(const struct gr_api_client *, const struct ec_pnode *);
+typedef cmd_status_t(cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
 
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
@@ -100,7 +100,7 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 #define CTX_CLEAR CTX_ARG("clear", "Clear counters or temporary entries.")
 
 typedef int (*ec_node_dyn_comp_t)(
-	const struct gr_api_client *,
+	struct gr_api_client *,
 	const struct ec_node *,
 	struct ec_comp *,
 	const char *arg,

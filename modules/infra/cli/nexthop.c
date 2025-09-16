@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static cmd_status_t set_config(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t set_config(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_nh_config_set_req req = {0};
 
 	if (arg_u32(p, "MAX", &req.max_count) < 0 && errno != ENOENT)
@@ -37,7 +37,7 @@ static cmd_status_t set_config(const struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_infra_nh_config_get_resp *resp;
 	void *resp_ptr = NULL;
 
@@ -59,7 +59,7 @@ static cmd_status_t show_config(const struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh_add(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_add_req req = {
 		.exist_ok = true,
 		.nh.origin = GR_NH_ORIGIN_USER,
@@ -107,7 +107,7 @@ send:
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
 	if (arg_u32(p, "ID", &req.nh_id) < 0)
@@ -119,7 +119,7 @@ static cmd_status_t nh_del(const struct gr_api_client *c, const struct ec_pnode 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh_list(const struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = UINT16_MAX};
 	struct libscols_table *table = scols_new_table();
 	const struct gr_nh_list_resp *resp;

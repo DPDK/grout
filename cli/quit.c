@@ -4,7 +4,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 
-static cmd_status_t quit(const struct gr_api_client *, const struct ec_pnode *) {
+static cmd_status_t quit(struct gr_api_client *, const struct ec_pnode *) {
 	return CMD_EXIT;
 }
 
