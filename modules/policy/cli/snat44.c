@@ -52,28 +52,18 @@ static cmd_status_t snat44_del(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *) {
-	const struct gr_snat44_list_resp *resp;
+	const struct gr_snat44_policy *policy;
 	struct libscols_table *table;
-	cmd_status_t ret = CMD_ERROR;
-	void *resp_ptr = NULL;
+	int ret;
 
 	table = scols_new_table();
-	if (table == NULL)
-		goto end;
-
-	if (gr_api_client_send_recv(c, GR_SNAT44_LIST, 0, NULL, &resp_ptr) < 0)
-		goto end;
-
-	resp = resp_ptr;
-
 	scols_table_new_column(table, "INTERFACE", 0, 0);
 	scols_table_new_column(table, "SUBNET", 0, 0);
 	scols_table_new_column(table, "REPLACE", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_policies; i++) {
+	gr_api_client_stream_foreach (policy, ret, c, GR_SNAT44_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_snat44_policy *policy = &resp->policies[i];
 		struct gr_iface iface;
 
 		if (iface_from_id(c, policy->iface_id, &iface) < 0)
@@ -86,13 +76,9 @@ static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *
 	}
 
 	scols_print_table(table);
-	ret = CMD_SUCCESS;
-end:
-	if (table)
-		scols_unref_table(table);
-	free(resp_ptr);
+	scols_unref_table(table);
 
-	return ret;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {
