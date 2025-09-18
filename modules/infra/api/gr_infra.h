@@ -182,10 +182,7 @@ struct gr_infra_iface_list_req {
 	gr_iface_type_t type; // use GR_IFACE_TYPE_UNDEF for all
 };
 
-struct gr_infra_iface_list_resp {
-	uint16_t n_ifaces;
-	struct gr_iface ifaces[/* n_ifaces */];
-};
+// STREAM(struct gr_iface);
 
 #define GR_INFRA_IFACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0005)
 
