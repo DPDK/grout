@@ -169,7 +169,7 @@ static struct gr_api_handler nh_del_handler = {
 struct list_context {
 	uint16_t vrf_id;
 	bool all;
-	gr_vec struct gr_nexthop *nh;
+	struct api_ctx *ctx;
 };
 
 static void nh_list_cb(struct nexthop *nh, void *priv) {
@@ -180,29 +180,16 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 	if (!ctx->all && nh->origin == GR_NH_ORIGIN_INTERNAL)
 		return;
 
-	gr_vec_add(ctx->nh, nh->base);
+	api_send(ctx->ctx, sizeof(nh->base), &nh->base);
 }
 
-static struct api_out nh_list(const void *request, struct api_ctx *) {
+static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_nh_list_req *req = request;
-	struct list_context ctx = {.vrf_id = req->vrf_id, .all = req->all, .nh = NULL};
-	struct gr_nh_list_resp *resp = NULL;
-	size_t len;
+	struct list_context list = {.vrf_id = req->vrf_id, .all = req->all, .ctx = ctx};
 
-	nexthop_iter(nh_list_cb, &ctx);
+	nexthop_iter(nh_list_cb, &list);
 
-	len = sizeof(*resp) + gr_vec_len(ctx.nh) * sizeof(*ctx.nh);
-	if ((resp = calloc(1, len)) == NULL) {
-		gr_vec_free(ctx.nh);
-		return api_out(ENOMEM, 0, NULL);
-	}
-
-	resp->n_nhs = gr_vec_len(ctx.nh);
-	if (ctx.nh != NULL)
-		memcpy(resp->nhs, ctx.nh, resp->n_nhs * sizeof(resp->nhs[0]));
-	gr_vec_free(ctx.nh);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct gr_api_handler nh_list_handler = {

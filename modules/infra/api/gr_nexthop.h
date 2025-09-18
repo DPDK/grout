@@ -291,7 +291,4 @@ struct gr_nh_list_req {
 	bool all;
 };
 
-struct gr_nh_list_resp {
-	uint16_t n_nhs;
-	struct gr_nexthop nhs[/* n_nhs */];
-};
+// STREAM(struct gr_nexthop);

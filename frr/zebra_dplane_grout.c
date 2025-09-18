@@ -158,22 +158,25 @@ static void grout_sync_routes(struct event *e) {
 
 static void grout_sync_nhs(struct event *e) {
 	struct gr_nh_list_req nh_req = {.vrf_id = EVENT_VAL(e), .all = false};
-	struct gr_nh_list_resp *nh_resp;
-	void *resp;
+	struct gr_nexthop *nh;
+	int ret;
 
 	gr_log_debug("sync nexthops for vrf %u", EVENT_VAL(e));
 
-	if (grout_client_send_recv(GR_NH_LIST, sizeof(nh_req), &nh_req, &resp) < 0) {
+	if (grout_client_ensure_connect() < 0)
+		return;
+
+	gr_api_client_stream_foreach (
+		nh, ret, grout_ctx.client, GR_NH_LIST, sizeof(nh_req), &nh_req
+	) {
+		gr_log_debug("sync nexthop %d", nh->nh_id);
+		grout_nexthop_change(true, nh, true);
+	}
+	if (ret < 0) {
 		gr_log_err("GR_NH_LIST: %s", strerror(errno));
 		// No nexthop, we won't be able to add routes.
 		return;
 	}
-	nh_resp = resp;
-	for (uint16_t i = 0; i < nh_resp->n_nhs; i++) {
-		gr_log_debug("sync nexthop %d", nh_resp->nhs[i].nh_id);
-		grout_nexthop_change(true, &nh_resp->nhs[i], true);
-	}
-	free(nh_resp);
 	event_add_event(zrouter.master, grout_sync_routes, NULL, EVENT_VAL(e), NULL);
 }
 
