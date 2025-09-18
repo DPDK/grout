@@ -121,29 +121,18 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = UINT16_MAX};
-	struct libscols_table *table = scols_new_table();
-	const struct gr_nh_list_resp *resp;
+	const struct gr_nexthop *nh;
 	struct gr_iface iface;
-	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 	ssize_t n;
+	int ret;
 
-	if (table == NULL)
+	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
 
 	req.all = arg_str(p, "all") != NULL;
 
-	if (gr_api_client_send_recv(c, GR_NH_LIST, sizeof(req), &req, &resp_ptr) < 0) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
-
-	resp = resp_ptr;
-
+	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
@@ -156,9 +145,8 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_nhs; i++) {
+	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		const struct gr_nexthop *nh = &resp->nhs[i];
 
 		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
 		if (nh->nh_id != GR_NH_ID_UNSET)
@@ -197,12 +185,10 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 err:
 	scols_unref_table(table);
-	free(resp_ptr);
 	return CMD_ERROR;
 }
 
