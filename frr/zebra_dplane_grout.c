@@ -94,36 +94,33 @@ static int grout_client_ensure_connect(void) {
 
 static void grout_sync_routes(struct event *e) {
 	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e)};
-	struct gr_ip4_route_list_resp *r4;
+	struct gr_ip4_route *r4;
 	void *resp;
+	bool link;
+	int ret;
 
 	gr_log_debug("sync routes for vrf %u", EVENT_VAL(e));
 
-	if (grout_client_send_recv(GR_IP4_ROUTE_LIST, sizeof(r4_req), &r4_req, &resp) < 0) {
+	if (grout_client_ensure_connect() < 0)
+		return;
+
+	link = true;
+route4:
+	gr_api_client_stream_foreach (
+		r4, ret, grout_ctx.client, GR_IP4_ROUTE_LIST, sizeof(r4_req), &r4_req
+	) {
+		if (!link && r4->origin == GR_NH_ORIGIN_LINK)
+			continue;
+		if (link && r4->origin != GR_NH_ORIGIN_LINK)
+			continue;
+		gr_log_debug("sync route %pI4/%u", &r4->dest.ip, r4->dest.prefixlen);
+		grout_route4_change(true, r4);
+	}
+	if (ret < 0)
 		gr_log_err("GR_IP4_ROUTE_LIST: %s", strerror(errno));
-	} else {
-		r4 = resp;
-		for (uint16_t i = 0; i < r4->n_routes; i++) {
-			if (r4->routes[i].origin != GR_NH_ORIGIN_LINK)
-				continue;
-			gr_log_debug(
-				"sync route %pI4/%u",
-				&r4->routes[i].dest.ip,
-				r4->routes[i].dest.prefixlen
-			);
-			grout_route4_change(true, &r4->routes[i]);
-		}
-		for (uint16_t i = 0; i < r4->n_routes; i++) {
-			if (r4->routes[i].origin == GR_NH_ORIGIN_LINK)
-				continue;
-			gr_log_debug(
-				"sync route %pI4/%u",
-				&r4->routes[i].dest.ip,
-				r4->routes[i].dest.prefixlen
-			);
-			grout_route4_change(true, &r4->routes[i]);
-		}
-		free(r4);
+	if (link) {
+		link = false;
+		goto route4;
 	}
 
 	struct gr_ip6_route_list_req r6_req = {.vrf_id = EVENT_VAL(e)};
