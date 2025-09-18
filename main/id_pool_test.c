@@ -53,11 +53,12 @@ static void id_sequence(void **) {
 }
 
 #define THREADS 8
-#define LOOPS 10000
+#define LOOPS 100000
 
 struct id_pool_bench {
 	struct gr_id_pool *pool;
 	_Atomic(int) ret;
+	_Atomic(uint64_t) get_failures;
 	_Atomic(uint64_t) get;
 	_Atomic(uint64_t) put;
 };
@@ -68,12 +69,14 @@ static void *id_sequence_thread(void *arg) {
 	int ret;
 
 	for (unsigned i = 0; i < LOOPS; i++) {
+		if (atomic_load(&bench->ret) != 0)
+			break;
 		tsc = rte_rdtsc();
 		ret = gr_id_pool_get(bench->pool);
 		atomic_fetch_add(&bench->get, rte_rdtsc() - tsc);
 		if (ret == 0) {
-			atomic_store(&bench->ret, -ENOSPC);
-			break;
+			atomic_fetch_add(&bench->get_failures, 1);
+			continue;
 		}
 		tsc = rte_rdtsc();
 		ret = gr_id_pool_put(bench->pool, ret);
@@ -88,13 +91,16 @@ static void *id_sequence_thread(void *arg) {
 }
 
 static void bench_summary(const char *func, const char *fill, struct id_pool_bench *bench) {
+	double fail_rate = (double)bench->get_failures / (double)(THREADS * LOOPS);
 	print_message(
-		"gr_id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu\n",
+		"gr_id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu failures=%lu (%.8g%%)\n",
 		func,
 		fill,
 		THREADS,
 		LOOPS,
-		bench->get / (THREADS * LOOPS)
+		bench->get / (THREADS * LOOPS),
+		bench->get_failures,
+		fail_rate * 100.0
 	);
 	print_message(
 		"gr_id_pool_put(%s): threads=%u iterations=%u cycles/it=%lu\n",
@@ -103,6 +109,25 @@ static void bench_summary(const char *func, const char *fill, struct id_pool_ben
 		LOOPS,
 		bench->put / (THREADS * LOOPS)
 	);
+
+	assert_return_code(bench->ret, -bench->ret);
+	assert_true(fail_rate < 0.0001);
+
+	// check consistency
+	uint32_t used = 0;
+	uint16_t l0, l0_bit;
+	for (uint16_t l1 = 0; l1 < bench->pool->level1_len; l1++) {
+		used += 64 - rte_popcount64(bench->pool->level1[l1]);
+		l0 = l1 / 64;
+		l0_bit = l1 % 64;
+		if (bench->pool->level1[l1] == 0)
+			assert_int_equal(bench->pool->level0[l0] & GR_BIT64(l0_bit), 0);
+		else
+			assert_int_equal(
+				bench->pool->level0[l0] & GR_BIT64(l0_bit), GR_BIT64(l0_bit)
+			);
+	}
+	assert_int_equal(used, gr_id_pool_used(bench->pool));
 }
 
 static void id_sequence_bench(void **) {
@@ -113,36 +138,33 @@ static void id_sequence_bench(void **) {
 	pthread_t threads[THREADS];
 	unsigned t, id;
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_sequence_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get", "empty", &bench);
 
 	// reserve half of the ids
 	for (id = bench.pool->min_id; id < bench.pool->max_id / 2; id++)
 		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_sequence_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get", "half", &bench);
 
 	// reserve all ids but the last THREADS ones
 	for (id = bench.pool->max_id / 2; id <= bench.pool->max_id - THREADS; id++)
 		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_sequence_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get", "full-1", &bench);
 
 	gr_id_pool_destroy(bench.pool);
@@ -168,12 +190,14 @@ static void *id_random_thread(void *arg) {
 	int ret;
 
 	for (unsigned i = 0; i < LOOPS; i++) {
+		if (atomic_load(&bench->ret) != 0)
+			break;
 		tsc = rte_rdtsc();
 		ret = gr_id_pool_get_random(bench->pool);
 		atomic_fetch_add(&bench->get, rte_rdtsc() - tsc);
 		if (ret == 0) {
-			atomic_store(&bench->ret, -ENOSPC);
-			break;
+			atomic_fetch_add(&bench->get_failures, 1);
+			continue;
 		}
 		tsc = rte_rdtsc();
 		ret = gr_id_pool_put(bench->pool, ret);
@@ -195,36 +219,33 @@ static void id_random_bench(void **) {
 	pthread_t threads[THREADS];
 	unsigned t, id;
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_random_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get_random", "empty", &bench);
 
 	// reserve half of the ids
 	for (id = bench.pool->min_id; id < bench.pool->max_id / 2; id++)
-		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
+		assert_int_not_equal(gr_id_pool_get_random(bench.pool), 0);
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_random_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get_random", "half", &bench);
 
-	// reserve all ids but the last THREAD ones
+	// reserve all ids but THREAD ones
 	for (id = bench.pool->max_id / 2; id <= bench.pool->max_id - THREADS; id++)
-		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
+		assert_int_not_equal(gr_id_pool_get_random(bench.pool), 0);
 
-	bench.ret = bench.get = bench.put = 0;
+	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_create(&threads[t], NULL, id_random_thread, &bench);
 	for (t = 0; t < ARRAY_DIM(threads); t++)
 		pthread_join(threads[t], NULL);
-	assert_return_code(bench.ret, -bench.ret);
 	bench_summary("get_random", "full-1", &bench);
 
 	gr_id_pool_destroy(bench.pool);
