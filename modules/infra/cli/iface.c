@@ -75,27 +75,18 @@ int complete_iface_names(
 	void *cb_arg
 ) {
 	struct gr_infra_iface_list_req req = {.type = (uintptr_t)cb_arg};
-	const struct gr_infra_iface_list_resp *resp;
-	void *resp_ptr = NULL;
-	int ret = -1;
+	const struct gr_iface *iface;
+	int result = 0;
+	int ret;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0)
-		goto fail;
-
-	resp = resp_ptr;
-
-	for (uint16_t i = 0; i < resp->n_ifaces; i++) {
-		const struct gr_iface *iface = &resp->ifaces[i];
-		if (!ec_str_startswith(iface->name, arg))
-			continue;
-		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
-			goto fail;
+	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
+		if (ec_str_startswith(iface->name, arg)) {
+			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
+				result = -1;
+		}
 	}
 
-	ret = 0;
-fail:
-	free(resp_ptr);
-	return ret;
+	return ret < 0 ? -1 : result;
 }
 
 int iface_from_name(struct gr_api_client *c, const char *name, struct gr_iface *iface) {
@@ -209,21 +200,11 @@ static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p)
 	return CMD_SUCCESS;
 }
 
-static int iface_order(const void *ia, const void *ib) {
-	const struct gr_iface *a = ia;
-	const struct gr_iface *b = ib;
-	return a->id - b->id;
-}
-
 static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct libscols_table *table = scols_new_table();
-	struct gr_infra_iface_list_resp *resp;
 	struct gr_infra_iface_list_req req;
 	const struct cli_iface_type *type;
-	void *resp_ptr = NULL;
-
-	if (table == NULL)
-		return CMD_ERROR;
+	const struct gr_iface *iface;
+	int ret;
 
 	type = type_from_name(arg_str(p, "TYPE"));
 	if (type == NULL)
@@ -231,14 +212,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	else
 		req.type = type->type_id;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_LIST, sizeof(req), &req, &resp_ptr) < 0) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
-
-	resp = resp_ptr;
-	qsort(resp->ifaces, resp->n_ifaces, sizeof(*resp->ifaces), iface_order);
-
+	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "NAME", 0, 0);
 	scols_table_new_column(table, "ID", 0, 0);
 	scols_table_new_column(table, "FLAGS", 0, 0);
@@ -248,8 +222,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	for (size_t i = 0; i < resp->n_ifaces; i++) {
-		const struct gr_iface *iface = &resp->ifaces[i];
+	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		char buf[BUFSIZ];
@@ -311,13 +284,10 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 
 	scols_print_table(table);
 	scols_unref_table(table);
-	free(resp_ptr);
 
-	return CMD_SUCCESS;
-
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 err:
 	scols_unref_table(table);
-	free(resp_ptr);
 	return CMD_ERROR;
 }
 

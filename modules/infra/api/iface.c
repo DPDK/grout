@@ -82,23 +82,17 @@ static struct api_out iface_get(const void *request, struct api_ctx *) {
 	return api_out(0, sizeof(*resp), resp);
 }
 
-static struct api_out iface_list(const void *request, struct api_ctx *) {
+static struct api_out iface_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_infra_iface_list_req *req = request;
-	struct gr_infra_iface_list_resp *resp = NULL;
 	const struct iface *iface = NULL;
-	uint16_t n_ifaces;
-	size_t len;
 
-	n_ifaces = ifaces_count(req->type);
+	while ((iface = iface_next(req->type, iface)) != NULL) {
+		struct gr_iface api_iface;
+		iface_to_api(&api_iface, iface);
+		api_send(ctx, sizeof(api_iface), &api_iface);
+	}
 
-	len = sizeof(*resp) + n_ifaces * sizeof(struct gr_iface);
-	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0, NULL);
-
-	while ((iface = iface_next(req->type, iface)) != NULL)
-		iface_to_api(&resp->ifaces[resp->n_ifaces++], iface);
-
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static struct api_out iface_set(const void *request, struct api_ctx *) {

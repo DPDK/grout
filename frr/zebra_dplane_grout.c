@@ -81,6 +81,17 @@ static int grout_notif_subscribe(
 	return 0;
 }
 
+static int grout_client_ensure_connect(void) {
+	if (grout_ctx.client != NULL)
+		return 0;
+	grout_ctx.client = gr_api_client_connect(gr_sock_path);
+	if (grout_ctx.client == NULL) {
+		gr_log_err("gr_api_client_connect: %s", strerror(errno));
+		return -errno;
+	}
+	return 0;
+}
+
 static void grout_sync_routes(struct event *e) {
 	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e)};
 	struct gr_ip4_route_list_resp *r4;
@@ -215,20 +226,23 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 
 static void grout_sync_ifaces(struct event *) {
 	struct gr_infra_iface_list_req if_req = {.type = GR_IFACE_TYPE_UNDEF};
-	struct gr_infra_iface_list_resp *if_list;
 	bool sync_vrf[GR_MAX_VRFS] = {false};
-	void *resp;
-	if (grout_client_send_recv(GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req, &resp) < 0) {
-		gr_log_err("GR_INFRA_IFACE_LIST: %s", strerror(errno));
+	struct gr_iface *iface;
+	int ret;
+
+	if (grout_client_ensure_connect() < 0)
 		return;
+
+	gr_api_client_stream_foreach (
+		iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
+	) {
+		gr_log_debug("sync iface %s", iface->name);
+		grout_link_change(iface, true, true);
+		sync_vrf[iface->vrf_id] = true;
 	}
-	if_list = resp;
-	for (uint16_t i = 0; i < if_list->n_ifaces; i++) {
-		gr_log_debug("sync iface %s", if_list->ifaces[i].name);
-		grout_link_change(&if_list->ifaces[i], true, true);
-		sync_vrf[if_list->ifaces[i].vrf_id] = true;
-	}
-	free(if_list);
+	if (ret < 0)
+		gr_log_err("GR_INFRA_IFACE_LIST: %s", strerror(errno));
+
 	for (unsigned i = 0; i < GR_MAX_VRFS; i++) {
 		if (sync_vrf[i])
 			event_add_event(zrouter.master, grout_sync_ifaces_addresses, NULL, i, NULL);
