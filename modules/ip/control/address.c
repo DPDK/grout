@@ -137,27 +137,11 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out addr_list(const void *request, struct api_ctx *) {
+static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip4_addr_list_req *req = request;
-	struct gr_ip4_addr_list_resp *resp = NULL;
 	const struct hoplist *addrs;
-	struct gr_ip4_ifaddr *addr;
 	const struct nexthop *nh;
-	uint16_t iface_id, num;
-	size_t len;
-
-	num = 0;
-	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
-		addrs = addr4_get_all(iface_id);
-		if (addrs == NULL || gr_vec_len(addrs->nh) == 0
-		    || addrs->nh[0]->vrf_id != req->vrf_id)
-			continue;
-		num += gr_vec_len(addrs->nh);
-	}
-
-	len = sizeof(*resp) + num * sizeof(struct gr_ip4_ifaddr);
-	if ((resp = calloc(1, len)) == NULL)
-		return api_out(ENOMEM, 0, NULL);
+	uint16_t iface_id;
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr4_get_all(iface_id);
@@ -165,14 +149,16 @@ static struct api_out addr_list(const void *request, struct api_ctx *) {
 		    || addrs->nh[0]->vrf_id != req->vrf_id)
 			continue;
 		gr_vec_foreach (nh, addrs->nh) {
-			addr = &resp->addrs[resp->n_addrs++];
-			addr->addr.ip = nh->ipv4;
-			addr->addr.prefixlen = nh->prefixlen;
-			addr->iface_id = iface_id;
+			struct gr_ip4_ifaddr addr = {
+				.addr.ip = nh->ipv4,
+				.addr.prefixlen = nh->prefixlen,
+				.iface_id = iface_id,
+			};
+			api_send(ctx, sizeof(addr), &addr);
 		}
 	}
 
-	return api_out(0, len, resp);
+	return api_out(0, 0, NULL);
 }
 
 static void iface_pre_remove_cb(uint32_t /*event*/, const void *obj) {
