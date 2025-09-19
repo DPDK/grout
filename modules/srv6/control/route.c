@@ -263,7 +263,7 @@ static struct api_out srv6_tunsrc_clear(const void * /*request*/, struct api_ctx
 
 static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) {
 	const struct gr_srv6_tunsrc_set_req *req = request;
-	struct nexthop *nh;
+	struct nexthop *nh, *old_nh;
 
 	if (rte_ipv6_addr_is_unspec(&req->addr))
 		return srv6_tunsrc_clear(NULL, ctx);
@@ -280,20 +280,19 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 		.origin = GR_NH_ORIGIN_LINK,
 	};
 
-	if (tunsrc_nh)
-		nexthop_decref(tunsrc_nh);
-
 	if ((nh = nexthop_new(&base)) == NULL)
 		return api_out(-errno, 0, NULL);
 
+	old_nh = tunsrc_nh;
 	tunsrc_nh = nh;
 	nexthop_incref(nh);
+	if (old_nh != NULL)
+		nexthop_decref(old_nh);
 
 	return api_out(0, 0, NULL);
 }
 
 static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx *) {
-	const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
 	struct gr_srv6_tunsrc_show_resp *resp;
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
@@ -302,7 +301,7 @@ static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx 
 	if (tunsrc_nh)
 		resp->addr = tunsrc_nh->ipv6;
 	else
-		resp->addr = unspec;
+		resp->addr = (struct rte_ipv6_addr)RTE_IPV6_ADDR_UNSPEC;
 
 	return api_out(0, sizeof(*resp), resp);
 }
