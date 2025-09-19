@@ -30,34 +30,43 @@ static control_input_t ip_output_node;
 void nh4_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 	ip4_addr_t dst = ip->dst_addr;
+	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
 	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
 
-	if (nh->flags & GR_NH_F_LINK && dst != nh->ipv4) {
+	l3 = nexthop_info_l3(nh);
+
+	if (l3->flags & GR_NH_F_LINK && dst != l3->ipv4) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
 		struct nexthop *remote = nh4_lookup(nh->vrf_id, dst);
+		struct nexthop_info_l3 *remote_l3;
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP4,
-				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv4 = dst,
-				.origin = GR_NH_ORIGIN_INTERNAL,
-			});
+			remote = nexthop_new(
+				&(struct gr_nexthop_base) {
+					.type = GR_NH_T_L3,
+					.origin = GR_NH_ORIGIN_INTERNAL,
+					.vrf_id = nh->vrf_id,
+					.iface_id = nh->iface_id,
+				},
+				&(struct gr_nexthop_info_l3) {
+					.af = GR_AF_IP4,
+					.ipv4 = dst,
+				}
+			);
 		}
 
 		if (remote == NULL) {
 			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
 			goto free;
 		}
-		if (remote->iface_id != nh->iface_id)
-			ABORT(IP4_F " nexthop lookup gives wrong interface", &ip);
+
+		remote_l3 = nexthop_info_l3(remote);
+		assert(remote->iface_id == nh->iface_id);
 
 		// Create an associated /32 route so that next packets take it
 		// in priority with a single route lookup.
@@ -66,9 +75,10 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 			goto free;
 		}
 		nh = remote;
+		l3 = remote_l3;
 	}
 
-	if (nh->state == GR_NH_S_REACHABLE) {
+	if (l3->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
 		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
@@ -80,17 +90,17 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		return;
 	}
 
-	if (nh->held_pkts < nh_conf.max_held_pkts) {
+	if (l3->held_pkts < nh_conf.max_held_pkts) {
 		queue_mbuf_data(m)->next = NULL;
-		if (nh->held_pkts_head == NULL)
-			nh->held_pkts_head = m;
+		if (l3->held_pkts_head == NULL)
+			l3->held_pkts_head = m;
 		else
-			queue_mbuf_data(nh->held_pkts_tail)->next = m;
-		nh->held_pkts_tail = m;
-		nh->held_pkts++;
-		if (nh->state != GR_NH_S_PENDING) {
+			queue_mbuf_data(l3->held_pkts_tail)->next = m;
+		l3->held_pkts_tail = m;
+		l3->held_pkts++;
+		if (l3->state != GR_NH_S_PENDING) {
 			arp_output_request_solicit(nh);
-			nh->state = GR_NH_S_PENDING;
+			l3->state = GR_NH_S_PENDING;
 		}
 		return;
 	} else {
@@ -103,6 +113,7 @@ free:
 static control_input_t arp_output_reply_node;
 
 void arp_probe_input_cb(struct rte_mbuf *m) {
+	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *held;
@@ -120,14 +131,18 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		// Create one now. If the sender has requested our mac address,
 		// they will certainly contact us soon and it will save us an
 		// ARP request.
-		nh = nexthop_new(&(struct gr_nexthop) {
-			.type = GR_NH_T_L3,
-			.af = GR_AF_IP4,
-			.vrf_id = iface->vrf_id,
-			.iface_id = iface->id,
-			.ipv4 = sip,
-			.origin = GR_NH_ORIGIN_INTERNAL,
-		});
+		nh = nexthop_new(
+			&(struct gr_nexthop_base) {
+				.type = GR_NH_T_L3,
+				.origin = GR_NH_ORIGIN_INTERNAL,
+				.iface_id = iface->id,
+				.vrf_id = iface->vrf_id,
+			},
+			&(struct gr_nexthop_info_l3) {
+				.af = GR_AF_IP4,
+				.ipv4 = sip,
+			}
+		);
 		if (nh == NULL) {
 			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
 			goto free;
@@ -139,14 +154,16 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		}
 	}
 
+	l3 = nexthop_info_l3(nh);
+
 	// static next hops never need updating
-	if (!(nh->flags & GR_NH_F_STATIC)) {
+	if (!(l3->flags & GR_NH_F_STATIC)) {
 		// Refresh all fields.
-		nh->last_reply = gr_clock_us();
-		nh->state = GR_NH_S_REACHABLE;
-		nh->ucast_probes = 0;
-		nh->bcast_probes = 0;
-		nh->mac = arp->arp_data.arp_sha;
+		l3->last_reply = gr_clock_us();
+		l3->state = GR_NH_S_REACHABLE;
+		l3->ucast_probes = 0;
+		l3->bcast_probes = 0;
+		l3->mac = arp->arp_data.arp_sha;
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
@@ -164,7 +181,7 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 	}
 
 	// Flush all held packets.
-	held = nh->held_pkts_head;
+	held = l3->held_pkts_head;
 	while (held != NULL) {
 		struct ip_output_mbuf_data *o;
 		struct rte_mbuf *next;
@@ -176,9 +193,9 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 		post_to_stack(ip_output_node, held);
 		held = next;
 	}
-	nh->held_pkts_head = NULL;
-	nh->held_pkts_tail = NULL;
-	nh->held_pkts = 0;
+	l3->held_pkts_head = NULL;
+	l3->held_pkts_tail = NULL;
+	l3->held_pkts = 0;
 
 free:
 	rte_pktmbuf_free(m);

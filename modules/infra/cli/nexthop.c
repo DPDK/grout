@@ -66,7 +66,7 @@ ssize_t gr_cli_format_nexthop(
 	if (f != NULL) {
 		if (with_base_info)
 			SAFE_BUF(snprintf, len, " ");
-		SAFE_BUF(f->format, len, nh);
+		SAFE_BUF(f->format, len, nh->info);
 	}
 
 	return n;
@@ -74,7 +74,8 @@ err:
 	return -1;
 }
 
-static ssize_t format_nexthop_info_l3(char *buf, size_t len, const struct gr_nexthop *l3) {
+static ssize_t format_nexthop_info_l3(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_l3 *l3 = info;
 	ssize_t n = 0;
 
 	SAFE_BUF(snprintf, len, "af=%s", gr_af_name(l3->af));
@@ -105,7 +106,7 @@ static struct gr_cli_nexthop_formatter l3_formatter = {
 	.format = format_nexthop_info_l3,
 };
 
-static ssize_t format_nexthop_info_void(char *, size_t, const struct gr_nexthop *) {
+static ssize_t format_nexthop_info_void(char *, size_t, const void *) {
 	return 0;
 }
 
@@ -166,52 +167,76 @@ static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *
 }
 
 static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_add_req req = {
-		.exist_ok = true,
-		.nh.origin = GR_NH_ORIGIN_USER,
-		.nh.type = GR_NH_T_L3,
-	};
-
-	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
+	struct gr_nh_add_req *req = NULL;
+	struct gr_nexthop_info_l3 *l3;
+	cmd_status_t ret = CMD_ERROR;
+	size_t len = sizeof(*req);
+	gr_nh_type_t type;
 
 	if (arg_str(p, "blackhole") != NULL) {
-		req.nh.type = GR_NH_T_BLACKHOLE;
-		goto send;
+		type = GR_NH_T_BLACKHOLE;
+	} else if (arg_str(p, "reject") != NULL) {
+		type = GR_NH_T_REJECT;
+	} else {
+		type = GR_NH_T_L3;
+		len += sizeof(*l3);
 	}
 
-	if (arg_str(p, "reject") != NULL) {
-		req.nh.type = GR_NH_T_REJECT;
-		goto send;
-	}
+	req = calloc(1, len);
+	if (req == NULL)
+		goto out;
 
-	switch (arg_ip4(p, "IP", &req.nh.ipv4)) {
-	case 0:
-		req.nh.af = GR_AF_IP4;
+	req->exist_ok = true;
+	req->nh.type = type;
+	req->nh.origin = GR_NH_ORIGIN_USER;
+	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
+		goto out;
+
+	switch (type) {
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
 		break;
-	case -EINVAL:
-		if (arg_ip6(p, "IP", &req.nh.ipv6) < 0)
-			return CMD_ERROR;
-		req.nh.af = GR_AF_IP6;
+
+	case GR_NH_T_L3:
+		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+
+		switch (arg_ip4(p, "IP", &l3->ipv4)) {
+		case 0:
+			l3->af = GR_AF_IP4;
+			break;
+		case -EINVAL:
+			if (arg_ip6(p, "IP", &l3->ipv6) < 0)
+				return CMD_ERROR;
+			l3->af = GR_AF_IP6;
+			break;
+		default:
+			l3->af = GR_AF_UNSPEC;
+			break;
+		}
+
+		struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+		if (iface == NULL)
+			goto out;
+		req->nh.iface_id = iface->id;
+		free(iface);
+
+		if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
+			goto out;
+
 		break;
+
 	default:
-		req.nh.af = GR_AF_UNSPEC;
-		break;
+		errno = EINVAL;
+		goto out;
 	}
 
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
-	if (iface == NULL)
-		return CMD_ERROR;
-	req.nh.iface_id = iface->id;
-	free(iface);
+	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
+		goto out;
 
-	if (arg_eth_addr(p, "MAC", &req.nh.mac) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-send:
-	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
+	ret = CMD_SUCCESS;
+out:
+	free(req);
+	return ret;
 }
 
 static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {

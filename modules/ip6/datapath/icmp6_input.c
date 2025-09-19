@@ -65,7 +65,7 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 					next = NO_LOCAL_ADDR;
 					goto next;
 				}
-				tmp_ip = local->ipv6;
+				tmp_ip = nexthop_info_l3(local)->ipv6;
 			} else {
 				// swap source/destination addresses
 				tmp_ip = d->dst;

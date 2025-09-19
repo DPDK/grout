@@ -3,6 +3,8 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_nexthop.h>
+#include <gr_errno.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
 #include <gr_table.h>
@@ -119,18 +121,10 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 		scols_line_sprintf(line, 2, "%s", gr_srv6_behavior_name(lsid->behavior));
 		switch (lsid->behavior) {
 		case SR_BEHAVIOR_END:
-			scols_line_sprintf(
-				line, 3, "flavor=0x%02x", lsid->flags & GR_SR_FL_FLAVOR_MASK
-			);
+			scols_line_sprintf(line, 3, "flavor=0x%02x", lsid->flags);
 			break;
 		case SR_BEHAVIOR_END_T:
-			scols_line_sprintf(
-				line,
-				3,
-				"flavor=0x%02x %s",
-				lsid->flags & GR_SR_FL_FLAVOR_MASK,
-				vrf_buf
-			);
+			scols_line_sprintf(line, 3, "flavor=0x%02x %s", lsid->flags, vrf_buf);
 			break;
 		case SR_BEHAVIOR_END_DT6:
 		case SR_BEHAVIOR_END_DT4:
@@ -147,6 +141,46 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
+
+static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_srv6_local *sr6 = info;
+	ssize_t n = 0;
+	char vrf[64];
+
+	SAFE_BUF(
+		snprintf,
+		len,
+		"lsid=" IP6_F " behavior=%s",
+		&sr6->lsid,
+		gr_srv6_behavior_name(sr6->behavior)
+	);
+	vrf[0] = 0;
+	if (sr6->out_vrf_id != GR_VRF_ID_ALL)
+		snprintf(vrf, sizeof(vrf), "out_vrf=%d", sr6->out_vrf_id);
+
+	switch (sr6->behavior) {
+	case SR_BEHAVIOR_END:
+		SAFE_BUF(snprintf, len, " flavor=%#02x", sr6->flags);
+		break;
+	case SR_BEHAVIOR_END_T:
+		SAFE_BUF(snprintf, len, " flavor=%#02x %s", sr6->flags, vrf);
+		break;
+	case SR_BEHAVIOR_END_DT6:
+	case SR_BEHAVIOR_END_DT4:
+	case SR_BEHAVIOR_END_DT46:
+		SAFE_BUF(snprintf, len, " %s", vrf);
+		break;
+	}
+	return n;
+err:
+	return -1;
+}
+
+static struct gr_cli_nexthop_formatter srv6_local_formatter = {
+	.name = "srv6-local",
+	.type = GR_NH_T_SR6_LOCAL,
+	.format = format_nexthop_info_srv6_local,
+};
 
 static int ctx_init(struct ec_node *root) {
 	struct ec_node *beh_node, *flavor_node;
@@ -258,4 +292,5 @@ static struct gr_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_nexthop_register_formatter(&srv6_local_formatter);
 }

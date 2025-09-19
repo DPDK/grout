@@ -25,6 +25,7 @@ static uint16_t dnat44_dynamic_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	const struct nexthop_info_l3 *l3;
 	struct ip_output_mbuf_data *o;
 	struct conn_mbuf_data *c;
 	struct rte_ipv4_hdr *ip;
@@ -95,10 +96,15 @@ static uint16_t dnat44_dynamic_process(
 
 		if (o->nh == NULL)
 			edge = NO_ROUTE;
-		else if (o->nh->flags & GR_NH_F_LOCAL && ip->dst_addr == o->nh->ipv4)
-			edge = LOCAL;
-		else
+		else if (o->nh->type == GR_NH_T_L3) {
+			l3 = nexthop_info_l3(o->nh);
+			if (l3->flags & GR_NH_F_LOCAL && ip->dst_addr == l3->ipv4)
+				edge = LOCAL;
+			else
+				edge = FORWARD;
+		} else {
 			edge = FORWARD;
+		}
 
 		if (gr_mbuf_is_traced(m)) {
 			struct rte_ipv4_hdr *t = gr_mbuf_trace_add(m, node, sizeof(*t));

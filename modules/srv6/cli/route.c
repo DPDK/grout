@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_nexthop.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
 #include <gr_table.h>
@@ -26,10 +27,10 @@ static cmd_status_t srv6_route_add(struct gr_api_client *c, const struct ec_pnod
 		return CMD_ERROR;
 	if (ec_pnode_len(n) > GR_SRV6_ROUTE_SEGLIST_COUNT_MAX)
 		return CMD_ERROR;
-	len = sizeof(*req) + sizeof(req->r.seglist[0]) * ec_pnode_len(n);
+	len = sizeof(*req) + sizeof(req->r.nh.seglist[0]) * ec_pnode_len(n);
 	if ((req = calloc(1, len)) == NULL)
 		return CMD_ERROR;
-	req->r.n_seglist = ec_pnode_len(n);
+	req->r.nh.n_seglist = ec_pnode_len(n);
 	req->exist_ok = true;
 	req->origin = GR_NH_ORIGIN_USER;
 
@@ -37,15 +38,15 @@ static cmd_status_t srv6_route_add(struct gr_api_client *c, const struct ec_pnod
 	for (n = ec_pnode_get_first_child(n), i = 0; n != NULL; n = ec_pnode_next(n), i++) {
 		v = ec_pnode_get_strvec(n);
 		str = ec_strvec_val(v, 0);
-		if (inet_pton(AF_INET6, str, &req->r.seglist[i]) != 1) {
+		if (inet_pton(AF_INET6, str, &req->r.nh.seglist[i]) != 1) {
 			free(req);
 			return CMD_ERROR;
 		}
 	}
 
-	req->r.encap_behavior = SR_H_ENCAPS;
+	req->r.nh.encap_behavior = SR_H_ENCAPS;
 	if (ec_pnode_find(p, "h.encaps.red") != NULL)
-		req->r.encap_behavior = SR_H_ENCAPS_RED;
+		req->r.nh.encap_behavior = SR_H_ENCAPS_RED;
 
 	if (arg_ip6_net(p, "DEST6", &req->r.key.dest6, true) >= 0)
 		req->r.key.is_dest6 = true;
@@ -83,7 +84,7 @@ static cmd_status_t srv6_route_del(struct gr_api_client *c, const struct ec_pnod
 }
 
 static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_list_req req = {};
+	struct gr_srv6_route_list_req req = {0};
 	struct libscols_line *line;
 	struct gr_srv6_route *r;
 	uint32_t j, cur, n;
@@ -117,21 +118,23 @@ static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pno
 			line,
 			2,
 			"%s",
-			r->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encap"
+			r->nh.encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encap"
 		);
 
 		cur = 0;
 		buf[0] = 0;
-		for (j = 0; j < r->n_seglist; j++) {
-			n = snprintf(buf + cur, sizeof(buf) - cur - 20, IP6_F " ", &r->seglist[j]);
+		for (j = 0; j < r->nh.n_seglist; j++) {
+			n = snprintf(
+				buf + cur, sizeof(buf) - cur - 20, IP6_F " ", &r->nh.seglist[j]
+			);
 			if (n > sizeof(buf) - cur - 20) {
 				sprintf(buf + sizeof(buf) - 21, "...");
-				if (j + 1 < r->n_seglist)
+				if (j + 1 < r->nh.n_seglist)
 					snprintf(
 						buf + sizeof(buf) - 18,
 						18,
 						" (%d more)",
-						r->n_seglist - j - 1
+						r->nh.n_seglist - j - 1
 					);
 				break;
 			}
@@ -179,6 +182,34 @@ static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pn
 
 	return CMD_SUCCESS;
 }
+
+static ssize_t format_nexthop_info_srv6(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_srv6 *sr6 = info;
+	ssize_t n = 0;
+
+	SAFE_BUF(
+		snprintf,
+		len,
+		"%s",
+		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
+	);
+	for (unsigned i = 0; i < sr6->n_seglist; i++) {
+		SAFE_BUF(snprintf, len, " " IP6_F, &sr6->seglist[i]);
+		if (len - n < 30) {
+			SAFE_BUF(snprintf, len, " ... (%u more)", sr6->n_seglist - i - 1);
+			break;
+		}
+	}
+	return n;
+err:
+	return -1;
+}
+
+static struct gr_cli_nexthop_formatter srv6_local_formatter = {
+	.name = "srv6",
+	.type = GR_NH_T_SR6_OUTPUT,
+	.format = format_nexthop_info_srv6,
+};
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -257,4 +288,5 @@ static struct gr_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_nexthop_register_formatter(&srv6_local_formatter);
 }
