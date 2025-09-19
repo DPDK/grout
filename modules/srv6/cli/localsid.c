@@ -12,28 +12,25 @@
 
 #include <errno.h>
 
-static const char *behavior_str[SR_BEHAVIOR_MAX] = {
-	[SR_BEHAVIOR_END] = "end",
-	[SR_BEHAVIOR_END_T] = "end.t",
-	[SR_BEHAVIOR_END_DT6] = "end.dt6",
-	[SR_BEHAVIOR_END_DT4] = "end.dt4",
-	[SR_BEHAVIOR_END_DT46] = "end.dt46",
+static struct {
+	gr_srv6_behavior_t behavior;
+	const char *name;
+} behaviors[] = {
+	{SR_BEHAVIOR_END, "end"},
+	{SR_BEHAVIOR_END_T, "end.t"},
+	{SR_BEHAVIOR_END_DT6, "end.dt6"},
+	{SR_BEHAVIOR_END_DT4, "end.dt4"},
+	{SR_BEHAVIOR_END_DT46, "end.dt46"},
 };
 
-static const char *behavior_to_str(gr_srv6_behavior_t b) {
-	return behavior_str[b];
-}
-
-static gr_srv6_behavior_t str_to_behavior(const char *str) {
-	int i;
-
-	if (str == NULL)
-		return SR_BEHAVIOR_MAX;
-	for (i = 0; i < SR_BEHAVIOR_MAX; i++) {
-		if (behavior_str[i] != NULL && !strcmp(str, behavior_str[i]))
-			return i;
+static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
+	for (unsigned i = 0; i < ARRAY_DIM(behaviors); i++) {
+		if (strcmp(str, behaviors[i].name) == 0) {
+			*behavior = behaviors[i].behavior;
+			return 0;
+		}
 	}
-	return SR_BEHAVIOR_MAX;
+	return errno_set(EINVAL);
 }
 
 static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -66,8 +63,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 	n = ec_pnode_find(p, "BEHAVIOR");
 	if (n == NULL || ec_pnode_len(n) < 1)
 		return CMD_ERROR;
-	req.l.behavior = str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0));
-	if (req.l.behavior == SR_BEHAVIOR_MAX)
+	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &req.l.behavior) < 0)
 		return CMD_ERROR;
 
 	if (arg_u16(n, "TABLE", &req.l.out_vrf_id) < 0 && errno != ENOENT)
@@ -120,7 +116,7 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 
 		scols_line_sprintf(line, 0, "%u", lsid->vrf_id);
 		scols_line_sprintf(line, 1, IP6_F, &lsid->lsid);
-		scols_line_sprintf(line, 2, "%s", behavior_to_str(lsid->behavior));
+		scols_line_sprintf(line, 2, "%s", gr_srv6_behavior_name(lsid->behavior));
 		switch (lsid->behavior) {
 		case SR_BEHAVIOR_END:
 			scols_line_sprintf(

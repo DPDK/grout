@@ -25,14 +25,6 @@ enum {
 	EDGE_COUNT,
 };
 
-static const char *behavior_str[SR_BEHAVIOR_MAX] = {
-	[SR_BEHAVIOR_END] = "end",
-	[SR_BEHAVIOR_END_T] = "end.t",
-	[SR_BEHAVIOR_END_DT6] = "end.dt6",
-	[SR_BEHAVIOR_END_DT4] = "end.dt4",
-	[SR_BEHAVIOR_END_DT46] = "end.dt46",
-};
-
 struct trace_srv6_data {
 	gr_srv6_behavior_t behavior;
 	uint8_t segleft;
@@ -152,13 +144,17 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 			buf,
 			len,
 			"action=%s segleft=%d out_vrf=%d",
-			behavior_str[t->behavior],
+			gr_srv6_behavior_name(t->behavior),
 			t->segleft,
 			t->out_vrf_id
 		);
 	else
 		return snprintf(
-			buf, len, "action=%s segleft=%d", behavior_str[t->behavior], t->segleft
+			buf,
+			len,
+			"action=%s segleft=%d",
+			gr_srv6_behavior_name(t->behavior),
+			t->segleft
 		);
 }
 

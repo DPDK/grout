@@ -88,13 +88,27 @@ typedef enum : uint16_t {
 	SR_BEHAVIOR_END_DT6 = 0x0012,
 	SR_BEHAVIOR_END_DT4 = 0x0013,
 	SR_BEHAVIOR_END_DT46 = 0x0014,
-
-	SR_BEHAVIOR_MAX,
 } gr_srv6_behavior_t;
 
 #define GR_SR_FL_FLAVOR_PSP 0x01
 #define GR_SR_FL_FLAVOR_USD 0x02
 #define GR_SR_FL_FLAVOR_MASK 0x03
+
+static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
+	switch (b) {
+	case SR_BEHAVIOR_END:
+		return "end";
+	case SR_BEHAVIOR_END_T:
+		return "end.t";
+	case SR_BEHAVIOR_END_DT6:
+		return "end.dt6";
+	case SR_BEHAVIOR_END_DT4:
+		return "end.dt4";
+	case SR_BEHAVIOR_END_DT46:
+		return "end.dt46";
+	}
+	return "?";
+}
 
 struct gr_srv6_localsid {
 	struct rte_ipv6_addr lsid;
