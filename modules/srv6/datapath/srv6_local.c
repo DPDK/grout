@@ -229,7 +229,7 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 //
 static int process_behav_decap(
 	struct rte_mbuf *m,
-	struct srv6_localsid_nh_priv *sr_d,
+	struct nexthop_info_srv6_local *sr_d,
 	struct ip6_info *ip6_info
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
@@ -279,7 +279,7 @@ static int process_behav_decap(
 //
 static int process_behav_end(
 	struct rte_mbuf *m,
-	struct srv6_localsid_nh_priv *sr_d,
+	struct nexthop_info_srv6_local *sr_d,
 	struct ip6_info *ip6_info
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
@@ -321,7 +321,7 @@ static int process_behav_end(
 
 static inline rte_edge_t srv6_local_process_pkt(
 	struct rte_mbuf *m,
-	struct srv6_localsid_nh_priv *sr_d,
+	struct nexthop_info_srv6_local *sr_d,
 	struct ip6_info *ip6_info
 ) {
 	switch (sr_d->behavior) {
@@ -342,7 +342,7 @@ static inline rte_edge_t srv6_local_process_pkt(
 // called from 'ip6_input' node
 static uint16_t
 srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct srv6_localsid_nh_priv *sr_d;
+	struct nexthop_info_srv6_local *sr_d;
 	struct trace_srv6_data *t;
 	struct ip6_info ip6_info;
 	struct rte_mbuf *m;
@@ -357,8 +357,7 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		sr_d = srv6_localsid_nh_priv(ip6_output_mbuf_data(m)->nh);
-		assert(sr_d != NULL);
+		sr_d = nexthop_info_srv6_local(ip6_output_mbuf_data(m)->nh);
 
 		if (gr_mbuf_is_traced(m)) {
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));

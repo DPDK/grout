@@ -44,6 +44,7 @@ void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 
 static uint16_t
 ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct nexthop_info_l3 *l3;
 	struct eth_input_mbuf_data *e;
 	const struct iface *iface;
 	const struct nexthop *nh;
@@ -142,25 +143,30 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (nh->flags & GR_NH_F_LOCAL && ip->dst_addr == nh->ipv4) {
-			edge = LOCAL;
-			if (iface->flags & GR_IFACE_F_SNAT_DYNAMIC) {
-				conn_flow_t flow = CONN_FLOW_REV;
-				struct conn_key key;
-				struct conn *conn;
+		if (e->domain == ETH_DOMAIN_LOOPBACK)
+			edge = OUTPUT;
+		else if (nh->type == GR_NH_T_L3) {
+			l3 = nexthop_info_l3(nh);
+			if (l3->flags & GR_NH_F_LOCAL && ip->dst_addr == l3->ipv4) {
+				edge = LOCAL;
+				if (iface->flags & GR_IFACE_F_SNAT_DYNAMIC) {
+					conn_flow_t flow = CONN_FLOW_REV;
+					struct conn_key key;
+					struct conn *conn;
 
-				// XXX: All returning IP fragments will go to LOCAL whether they
-				// are part of a conntrack or not. We need reassembly to fix this.
-				if (gr_conn_parse_key(iface, GR_AF_IP4, mbuf, &key)
-				    && (conn = gr_conn_lookup(&key, &flow)) != NULL) {
-					struct conn_mbuf_data *cd = conn_mbuf_data(mbuf);
-					cd->conn = conn;
-					cd->flow = flow;
-					edge = DNAT44_DYNAMIC;
+					// XXX: All returning IP fragments will go to LOCAL
+					// whether they are part of a conntrack or not.
+					// We need reassembly to fix this.
+					if (gr_conn_parse_key(iface, GR_AF_IP4, mbuf, &key)
+					    && (conn = gr_conn_lookup(&key, &flow)) != NULL) {
+						struct conn_mbuf_data *cd = conn_mbuf_data(mbuf);
+						cd->conn = conn;
+						cd->flow = flow;
+						edge = DNAT44_DYNAMIC;
+					}
 				}
 			}
-		} else if (e->domain == ETH_DOMAIN_LOOPBACK)
-			edge = OUTPUT;
+		}
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_ipv4_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -336,10 +342,10 @@ static void ip_input_conntrack_dnat(void **) {
 	ipv4_init_default_mbuf(&fake_mbuf);
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
 
-	struct nexthop nh = {
-		.flags = GR_NH_F_LOCAL,
-		.ipv4 = fake_mbuf.ipv4_hdr.dst_addr,
-	};
+	struct nexthop nh = {.type = GR_NH_T_L3};
+	struct nexthop_info_l3 *l3 = (struct nexthop_info_l3 *)nh.info;
+	l3->flags = GR_NH_F_LOCAL;
+	l3->ipv4 = fake_mbuf.ipv4_hdr.dst_addr;
 	will_return(fib4_lookup, &nh);
 
 	iface.flags |= GR_IFACE_F_SNAT_DYNAMIC;

@@ -111,9 +111,8 @@ void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {
 	event_active(ra_conf[iface_id].timer, 0, 0);
 }
 
-static void build_ra_packet(struct rte_mbuf *m, struct rte_ipv6_addr *srcv6) {
+static void build_ra_packet(struct rte_mbuf *m, const struct rte_ipv6_addr *src) {
 	struct rte_ipv6_addr dst = RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
-	struct rte_ipv6_addr src = *srcv6;
 	struct icmp6_opt_lladdr *lladdr;
 	struct icmp6_router_advert *ra;
 	struct rte_ether_addr mac;
@@ -150,12 +149,13 @@ static void build_ra_packet(struct rte_mbuf *m, struct rte_ipv6_addr *srcv6) {
 		payload_len += sizeof(*opt) + sizeof(*lladdr);
 	}
 
-	ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, &src, &dst);
+	ip6_set_fields(ip, payload_len, IPPROTO_ICMPV6, src, &dst);
 	icmp6->cksum = 0;
 	icmp6->cksum = rte_ipv6_udptcp_cksum(ip, icmp6);
 }
 
 static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
+	const struct nexthop_info_l3 *l3;
 	struct iface *iface = priv;
 	struct hoplist *hl;
 	struct nexthop *nh;
@@ -165,17 +165,19 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 		return;
 
 	gr_vec_foreach (nh, hl->nh) {
-		struct rte_ipv6_addr ip = nh->ipv6;
-		if (nh->af != GR_AF_IP6)
+		if (nh->type != GR_NH_T_L3)
 			continue;
-		if (!rte_ipv6_addr_is_linklocal(&ip))
+		l3 = nexthop_info_l3(nh);
+		if (l3->af != GR_AF_IP6)
+			continue;
+		if (!rte_ipv6_addr_is_linklocal(&l3->ipv6))
 			continue;
 		if ((m = rte_pktmbuf_alloc(ra_ctx.mp)) == NULL) {
 			LOG(ERR, "rte_pktmbuf_alloc");
 			return;
 		}
 		mbuf_data(m)->iface = iface;
-		build_ra_packet(m, &ip);
+		build_ra_packet(m, &l3->ipv6);
 		post_to_stack(ra_output, m);
 	}
 }

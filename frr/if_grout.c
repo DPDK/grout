@@ -156,16 +156,18 @@ void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
 	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id);
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 
+	struct gr_nexthop_info_l3 *l3 = (struct gr_nexthop_info_l3 *)gr_nh->info;
+
 	// Convert addr to prefix
-	p.prefixlen = gr_nh->prefixlen;
-	switch (gr_nh->af) {
+	p.prefixlen = l3->prefixlen;
+	switch (l3->af) {
 	case GR_AF_IP4:
 		p.family = AF_INET;
-		p.u.prefix4.s_addr = gr_nh->ipv4;
+		p.u.prefix4.s_addr = l3->ipv4;
 		break;
 	case GR_AF_IP6:
 		p.family = AF_INET6;
-		memcpy(&p.u.prefix6, &gr_nh->ipv6, sizeof(p.u.prefix6));
+		memcpy(&p.u.prefix6, &l3->ipv6, sizeof(p.u.prefix6));
 		break;
 	case GR_AF_UNSPEC:
 		gr_log_err("interface with addr family UNSPEC are not supported");

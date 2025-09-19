@@ -31,34 +31,43 @@ static control_input_t ip6_output_node;
 void nh6_unreachable_cb(struct rte_mbuf *m) {
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 	const struct rte_ipv6_addr *dst = &ip->dst_addr;
+	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
 	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
 
-	if (nh->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &nh->ipv6)) {
+	l3 = nexthop_info_l3(nh);
+
+	if (l3->flags & GR_NH_F_LINK && !rte_ipv6_addr_eq(dst, &l3->ipv6)) {
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
 		struct nexthop *remote = nh6_lookup(nh->vrf_id, mbuf_data(m)->iface->id, dst);
+		struct nexthop_info_l3 *remote_l3;
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
-			remote = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
-				.vrf_id = nh->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv6 = *dst,
-				.origin = GR_NH_ORIGIN_INTERNAL,
-			});
+			remote = nexthop_new(
+				&(struct gr_nexthop_base) {
+					.type = GR_NH_T_L3,
+					.iface_id = nh->iface_id,
+					.vrf_id = nh->vrf_id,
+					.origin = GR_NH_ORIGIN_INTERNAL,
+				},
+				&(struct gr_nexthop_info_l3) {
+					.af = GR_AF_IP6,
+					.ipv6 = *dst,
+				}
+			);
 		}
 
 		if (remote == NULL) {
 			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
 			goto free;
 		}
-		if (remote->iface_id != nh->iface_id)
-			ABORT(IP6_F " nexthop lookup gives wrong interface", &ip);
+
+		remote_l3 = nexthop_info_l3(remote);
+		assert(remote->iface_id == nh->iface_id);
 
 		// Create an associated /128 route so that next packets take it
 		// in priority with a single route lookup.
@@ -75,9 +84,10 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 			goto free;
 		}
 		nh = remote;
+		l3 = remote_l3;
 	}
 
-	if (nh->state == GR_NH_S_REACHABLE) {
+	if (l3->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
 		struct ip6_output_mbuf_data *d = ip6_output_mbuf_data(m);
@@ -89,17 +99,17 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		return;
 	}
 
-	if (nh->held_pkts < nh_conf.max_held_pkts) {
+	if (l3->held_pkts < nh_conf.max_held_pkts) {
 		queue_mbuf_data(m)->next = NULL;
-		if (nh->held_pkts_head == NULL)
-			nh->held_pkts_head = m;
+		if (l3->held_pkts_head == NULL)
+			l3->held_pkts_head = m;
 		else
-			queue_mbuf_data(nh->held_pkts_tail)->next = m;
-		nh->held_pkts_tail = m;
-		nh->held_pkts++;
-		if (nh->state != GR_NH_S_PENDING) {
+			queue_mbuf_data(l3->held_pkts_tail)->next = m;
+		l3->held_pkts_tail = m;
+		l3->held_pkts++;
+		if (l3->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
-			nh->state = GR_NH_S_PENDING;
+			l3->state = GR_NH_S_PENDING;
 		}
 		return;
 	} else {
@@ -117,6 +127,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	const struct ip6_local_mbuf_data *d;
 	const struct icmp6_neigh_solicit *ns;
 	const struct icmp6_neigh_advert *na;
+	struct nexthop_info_l3 *l3 = NULL;
 	icmp6_opt_found_t lladdr_found;
 	const struct iface *iface;
 	struct rte_ether_addr mac;
@@ -156,14 +167,18 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 			//
 			// Create one now. If the sender has requested our mac address, they
 			// will certainly contact us soon and it will save us an NDP solicitation.
-			nh = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP6,
-				.vrf_id = iface->vrf_id,
-				.iface_id = iface->id,
-				.ipv6 = *remote,
-				.origin = GR_NH_ORIGIN_INTERNAL,
-			});
+			nh = nexthop_new(
+				&(struct gr_nexthop_base) {
+					.type = GR_NH_T_L3,
+					.iface_id = iface->id,
+					.vrf_id = iface->vrf_id,
+					.origin = GR_NH_ORIGIN_INTERNAL,
+				},
+				&(struct gr_nexthop_info_l3) {
+					.af = GR_AF_IP6,
+					.ipv6 = *remote,
+				}
+			);
 			if (nh == NULL) {
 				LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
 				goto free;
@@ -183,15 +198,16 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 				goto free;
 			}
 		}
+		l3 = nexthop_info_l3(nh);
 	}
 
-	if (nh && !(nh->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
+	if (l3 != NULL && !(l3->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
-		nh->last_reply = gr_clock_us();
-		nh->state = GR_NH_S_REACHABLE;
-		nh->ucast_probes = 0;
-		nh->bcast_probes = 0;
-		nh->mac = mac;
+		l3->last_reply = gr_clock_us();
+		l3->state = GR_NH_S_REACHABLE;
+		l3->ucast_probes = 0;
+		l3->bcast_probes = 0;
+		l3->mac = mac;
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
@@ -209,7 +225,7 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	}
 
 	// Flush all held packets.
-	struct rte_mbuf *held = nh->held_pkts_head;
+	struct rte_mbuf *held = l3->held_pkts_head;
 	while (held != NULL) {
 		struct ip6_output_mbuf_data *o;
 		struct rte_mbuf *next;
@@ -221,9 +237,9 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		post_to_stack(ip6_output_node, held);
 		held = next;
 	}
-	nh->held_pkts_head = NULL;
-	nh->held_pkts_tail = NULL;
-	nh->held_pkts = 0;
+	l3->held_pkts_head = NULL;
+	l3->held_pkts_tail = NULL;
+	l3->held_pkts = 0;
 free:
 	rte_pktmbuf_free(m);
 }

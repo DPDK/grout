@@ -172,6 +172,8 @@ static void grout_sync_nhs(struct event *e) {
 static void grout_sync_ifaces_addresses(struct event *e) {
 	struct gr_ip4_addr_list_req ip_req = {.vrf_id = EVENT_VAL(e)};
 	const struct gr_ip4_ifaddr *ip_addr;
+	struct gr_nexthop_info_l3 *l3;
+	struct gr_nexthop *nh;
 	int ret;
 
 	gr_log_debug("sync ifaces addresses for vrf %u", EVENT_VAL(e));
@@ -182,15 +184,23 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip_addr, ret, grout_ctx.client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
 	) {
-		struct gr_nexthop dummy = {
-			.af = GR_AF_IP4,
-			.ipv4 = ip_addr->addr.ip,
-			.prefixlen = ip_addr->addr.prefixlen,
-			.iface_id = ip_addr->iface_id,
-			.vrf_id = EVENT_VAL(e),
-		};
-		gr_log_debug("sync addr %pI4", &dummy.ipv4);
-		grout_interface_addr_dplane(&dummy, true);
+		nh = calloc(1, sizeof(*nh) + sizeof(*l3));
+		if (nh == NULL) {
+			ret = -ENOMEM;
+			continue;
+		}
+		nh->type = GR_NH_T_L3;
+		nh->iface_id = ip_addr->iface_id;
+		nh->vrf_id = EVENT_VAL(e);
+		l3 = (struct gr_nexthop_info_l3 *)nh->info;
+		l3->af = GR_AF_IP4;
+		l3->ipv4 = ip_addr->addr.ip;
+		l3->prefixlen = ip_addr->addr.prefixlen;
+
+		gr_log_debug("sync addr %pI4", &l3->ipv4);
+		grout_interface_addr_dplane(nh, true);
+		free(nh);
+		nh = NULL;
 	}
 	if (ret < 0)
 		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
@@ -201,15 +211,23 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip6_addr, ret, grout_ctx.client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
 	) {
-		struct gr_nexthop dummy = {
-			.af = GR_AF_IP6,
-			.ipv6 = ip6_addr->addr.ip,
-			.prefixlen = ip6_addr->addr.prefixlen,
-			.iface_id = ip6_addr->iface_id,
-			.vrf_id = EVENT_VAL(e),
-		};
-		gr_log_debug("sync addr %pI6", &dummy.ipv6);
-		grout_interface_addr_dplane(&dummy, true);
+		nh = calloc(1, sizeof(*nh) + sizeof(*l3));
+		if (nh == NULL) {
+			ret = -ENOMEM;
+			continue;
+		}
+		nh->type = GR_NH_T_L3;
+		nh->iface_id = ip6_addr->iface_id;
+		nh->vrf_id = EVENT_VAL(e);
+		l3 = (struct gr_nexthop_info_l3 *)nh->info;
+		l3->af = GR_AF_IP6;
+		l3->ipv6 = ip6_addr->addr.ip;
+		l3->prefixlen = ip6_addr->addr.prefixlen;
+
+		gr_log_debug("sync addr %pI6", &l3->ipv6);
+		grout_interface_addr_dplane(nh, true);
+		free(nh);
+		nh = NULL;
 	}
 	if (ret < 0)
 		gr_log_err("GR_IP6_ADDR_LIST: %s", strerror(errno));
@@ -429,6 +447,7 @@ static const char *gr_evt_to_str(uint32_t e) {
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct gr_api_event *gr_e = NULL;
+	struct gr_nexthop_info_l3 *l3;
 	struct gr_nexthop *gr_nh;
 	struct gr_iface *iface;
 	bool new = false;
@@ -469,13 +488,14 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IP_ADDR_DEL:
 	case GR_EVENT_IP6_ADDR_DEL:
 		gr_nh = PAYLOAD(gr_e);
+		l3 = (struct gr_nexthop_info_l3 *)gr_nh->info;
 
-		switch (gr_nh->af) {
+		switch (l3->af) {
 		case GR_AF_IP4:
 			gr_log_debug(
 				"%s addr %pI4 notification (%s)",
 				new ? "add" : "del",
-				&gr_nh->ipv4,
+				&l3->ipv4,
 				gr_evt_to_str(gr_e->ev_type)
 			);
 			break;
@@ -483,7 +503,7 @@ static void dplane_read_notifications(struct event *event) {
 			gr_log_debug(
 				"%s addr %pI6 notification (%s)",
 				new ? "add" : "del",
-				&gr_nh->ipv6,
+				&l3->ipv6,
 				gr_evt_to_str(gr_e->ev_type)
 			);
 			break;

@@ -6,4 +6,5 @@ skip =
 	build/*,
 	subprojects/*,
 ignore-words-list =
+	ND,
 	te,
