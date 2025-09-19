@@ -39,6 +39,8 @@ cleanup() {
 	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		frrinit.sh stop
 		sleep 1
+		kill %?tail
+		wait %?tail
 
 		# should be already stopped
 		for daemon in watchfrr.sh zebra staticd mgmtd vtysh; do
@@ -102,7 +104,7 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
-	taskset -c 0,1 grout -tvx $grout_extra_options &
+	taskset -c 0,1 grout -tvvx $grout_extra_options &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 
@@ -120,6 +122,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	zlog="$builddir/frr_install/var/log/frr/zebra.log"
 	rm -f "$zlog"
 	touch "$zlog"
+	tail -f "$zlog" &
 	frrinit.sh start
 	timeout=15
 	elapsed=0
