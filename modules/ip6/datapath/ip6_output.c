@@ -50,6 +50,7 @@ void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) 
 static uint16_t
 ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *eth_data;
+	const struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
@@ -97,22 +98,22 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge != ETH_OUTPUT)
 			goto next;
 
-		// clang-format off
+		l3 = nexthop_info_l3(nh);
+
 		if (!rte_ipv6_addr_is_mcast(&ip->dst_addr)
-		    && (nh->state != GR_NH_S_REACHABLE
-			|| (nh->flags & GR_NH_F_LINK
-			    && !rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6)))) {
+		    && (l3->state != GR_NH_S_REACHABLE
+			|| (l3->flags & GR_NH_F_LINK
+			    && !rte_ipv6_addr_eq(&ip->dst_addr, &l3->ipv6)))) {
 			edge = HOLD;
 			goto next;
 		}
-		// clang-format on
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
 		if (rte_ipv6_addr_is_mcast(&ip->dst_addr))
 			rte_ether_mcast_from_ipv6(&eth_data->dst, &ip->dst_addr);
 		else
-			eth_data->dst = nh->mac;
+			eth_data->dst = l3->mac;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 		sent++;
 next:

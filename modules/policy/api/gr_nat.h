@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <gr_api.h>
+#include <gr_macro.h>
 #include <gr_net_types.h>
+#include <gr_nexthop.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,6 +14,11 @@
 #define GR_NAT_MODULE 0x0bad
 
 // dnat44 //////////////////////////////////////////////////////////////////////
+
+struct gr_nexthop_info_dnat {
+	ip4_addr_t match;
+	ip4_addr_t replace;
+};
 
 struct gr_dnat44_policy {
 	uint16_t iface_id;

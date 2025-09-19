@@ -41,10 +41,11 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 // called from 'ip6_output' or 'ip_output' node
 static uint16_t
 srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct nexthop_info_srv6_output *d;
+	const struct nexthop_info_l3 *l3;
 	struct trace_srv6_data *t = NULL;
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
-	struct srv6_encap_data *d;
 	const struct nexthop *nh;
 	uint32_t hdrlen, plen;
 	struct rte_mbuf *m;
@@ -61,9 +62,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct rte_ipv4_hdr *inner_ip4;
 
 			nh = ip_output_mbuf_data(m)->nh;
-			if (t != NULL) {
-				t->dest4.ip = nh->ipv4;
-				t->dest4.prefixlen = nh->prefixlen;
+			if (t != NULL && nh->type == GR_NH_T_L3) {
+				l3 = nexthop_info_l3(nh);
+				t->dest4.ip = l3->ipv4;
+				t->dest4.prefixlen = l3->prefixlen;
 				t->is_dest6 = false;
 			}
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
@@ -74,9 +76,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct rte_ipv6_hdr *inner_ip6;
 
 			nh = ip6_output_mbuf_data(m)->nh;
-			if (t != NULL) {
-				t->dest6.ip = nh->ipv6;
-				t->dest6.prefixlen = nh->prefixlen;
+			if (t != NULL && nh->type == GR_NH_T_L3) {
+				l3 = nexthop_info_l3(nh);
+				t->dest6.ip = l3->ipv6;
+				t->dest6.prefixlen = l3->prefixlen;
 				t->is_dest6 = true;
 			}
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
@@ -88,7 +91,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 
-		d = srv6_encap_nh_priv(nh)->d;
+		d = nexthop_info_srv6_output(nh);
 		if (d == NULL) {
 			edge = INVALID;
 			goto next;
@@ -134,14 +137,15 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip6_output_mbuf_data(m)->nh = nh;
 
-		nh = sr_tunsrc_get(nh->iface_id, &nh->ipv6);
+		nh = sr_tunsrc_get(nh->iface_id, &d->seglist[0]);
 		if (nh == NULL) {
 			// cannot output packet on interface that does not have ip6 addr
 			edge = NO_ROUTE;
 			goto next;
 		}
+		l3 = nexthop_info_l3(nh);
 
-		ip6_set_fields(outer_ip6, plen, proto, &nh->ipv6, &d->seglist[0]);
+		ip6_set_fields(outer_ip6, plen, proto, &l3->ipv6, &d->seglist[0]);
 		edge = IP6_OUTPUT;
 
 next:

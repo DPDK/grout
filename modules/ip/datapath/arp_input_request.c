@@ -27,6 +27,7 @@ static uint16_t arp_input_request_process(
 	uint16_t nb_objs
 ) {
 	struct control_output_mbuf_data *ctrl_data;
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
@@ -38,13 +39,17 @@ static uint16_t arp_input_request_process(
 
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
 		iface = mbuf_data(mbuf)->iface;
-		local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
-		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
+		if ((local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip)) == NULL) {
+			// Unknown IP address
+			edge = DROP;
+			goto next;
+		}
+		l3 = nexthop_info_l3(local);
+		if (!(l3->flags & GR_NH_F_LOCAL)) {
 			// ARP request not for us
 			edge = DROP;
 			goto next;
 		}
-
 		ctrl_data = control_output_mbuf_data(mbuf);
 		ctrl_data->callback = arp_probe_input_cb;
 		ctrl_data->iface = iface;

@@ -4,6 +4,8 @@
 #pragma once
 
 #include <gr_api.h>
+#include <gr_bitops.h>
+#include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
 
@@ -17,9 +19,13 @@
 typedef enum : uint8_t {
 	SR_H_ENCAPS,
 	SR_H_ENCAPS_RED,
-
-	SR_H_ENCAPS_MAX,
 } gr_srv6_encap_behavior_t;
+
+struct gr_nexthop_info_srv6 {
+	gr_srv6_encap_behavior_t encap_behavior;
+	uint8_t n_seglist;
+	struct rte_ipv6_addr seglist[];
+};
 
 struct gr_srv6_route_key {
 	union {
@@ -32,9 +38,7 @@ struct gr_srv6_route_key {
 
 struct gr_srv6_route {
 	struct gr_srv6_route_key key;
-	gr_srv6_encap_behavior_t encap_behavior;
-	uint8_t n_seglist;
-	struct rte_ipv6_addr seglist[/* n_seglist */];
+	struct gr_nexthop_info_srv6 nh;
 };
 
 #define GR_SRV6_ROUTE_ADD REQUEST_TYPE(GR_SRV6_MODULE, 0x0001)
@@ -90,10 +94,6 @@ typedef enum : uint16_t {
 	SR_BEHAVIOR_END_DT46 = 0x0014,
 } gr_srv6_behavior_t;
 
-#define GR_SR_FL_FLAVOR_PSP 0x01
-#define GR_SR_FL_FLAVOR_USD 0x02
-#define GR_SR_FL_FLAVOR_MASK 0x03
-
 static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 	switch (b) {
 	case SR_BEHAVIOR_END:
@@ -110,12 +110,21 @@ static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 	return "?";
 }
 
-struct gr_srv6_localsid {
+typedef enum : uint8_t {
+	GR_SR_FL_FLAVOR_PSP = GR_BIT8(0),
+	GR_SR_FL_FLAVOR_USD = GR_BIT8(1),
+} gr_srv6_flags_t;
+
+struct gr_nexthop_info_srv6_local {
 	struct rte_ipv6_addr lsid;
-	uint16_t vrf_id;
-	gr_srv6_behavior_t behavior;
-	uint8_t flags;
 	uint16_t out_vrf_id;
+	gr_srv6_behavior_t behavior;
+	gr_srv6_flags_t flags;
+};
+
+struct gr_srv6_localsid {
+	BASE(gr_nexthop_info_srv6_local);
+	uint16_t vrf_id;
 };
 
 #define GR_SRV6_LOCALSID_ADD REQUEST_TYPE(GR_SRV6_MODULE, 0x0021)

@@ -27,6 +27,7 @@ static uint16_t arp_output_reply_process(
 	uint16_t nb_objs
 ) {
 	struct eth_output_mbuf_data *eth_data;
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
@@ -45,6 +46,7 @@ static uint16_t arp_output_reply_process(
 			edge = ERROR;
 			goto next;
 		}
+		l3 = nexthop_info_l3(local);
 
 		// Reuse mbuf to craft an ARP reply.
 		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
@@ -55,7 +57,7 @@ static uint16_t arp_output_reply_process(
 		arp->arp_data.arp_tha = arp->arp_data.arp_sha;
 		iface_get_eth_addr(iface->id, &arp->arp_data.arp_sha);
 		arp->arp_data.arp_tip = arp->arp_data.arp_sip;
-		arp->arp_data.arp_sip = local->ipv4;
+		arp->arp_data.arp_sip = l3->ipv4;
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);

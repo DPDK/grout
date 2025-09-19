@@ -11,7 +11,7 @@
 struct gr_cli_nexthop_formatter {
 	const char *name;
 	gr_nh_type_t type;
-	ssize_t (*format)(char *buf, size_t len, const struct gr_nexthop *);
+	ssize_t (*format)(char *buf, size_t len, const void *nexthop_info);
 	STAILQ_ENTRY(gr_cli_nexthop_formatter) entries;
 };
 

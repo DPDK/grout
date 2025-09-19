@@ -3,7 +3,6 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_module.h>
 #include <gr_nexthop.h>
 #include <gr_nh_control.h>
@@ -38,93 +37,30 @@ static struct gr_api_handler config_set_handler = {
 	.callback = nh_config_set,
 };
 
-static int nh_add_blackhole(struct gr_nexthop *base) {
-	base->state = GR_NH_S_REACHABLE;
-	base->flags |= GR_NH_F_STATIC;
-	base->af = GR_AF_UNSPEC;
-	base->iface_id = GR_IFACE_ID_UNDEF;
-	return 0;
-}
-
-static int nh_add_l3(struct gr_nexthop *base) {
-	struct iface *iface;
-
-	switch (base->af) {
-	case GR_AF_IP4:
-		if (base->ipv4 == 0)
-			return -EDESTADDRREQ;
-		break;
-	case GR_AF_IP6:
-		if (rte_ipv6_addr_is_unspec(&base->ipv6))
-			return -EDESTADDRREQ;
-
-		break;
-	case GR_AF_UNSPEC:
-		if (base->ipv4 || !rte_ipv6_addr_is_unspec(&base->ipv6))
-			return -EINVAL;
-
-		base->flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
-		break;
-	default:
-		return -ENOPROTOOPT;
-	}
-
-	iface = iface_from_id(base->iface_id);
-	if (iface == NULL)
-		return -errno;
-
-	base->vrf_id = iface->vrf_id;
-	base->state = GR_NH_S_NEW;
-	if (!rte_is_zero_ether_addr(&base->mac)) {
-		if (base->af == GR_AF_UNSPEC)
-			return -EINVAL;
-
-		base->state = GR_NH_S_REACHABLE;
-		base->flags |= GR_NH_F_STATIC;
-	}
-	return 0;
-}
-
 static struct api_out nh_add(const void *request, struct api_ctx *) {
 	const struct gr_nh_add_req *req = request;
-	struct gr_nexthop base = req->nh;
 	struct nexthop *nh = NULL;
-	int ret;
+	int ret = 0;
 
-	base.flags = 0;
-	switch (base.type) {
-	case GR_NH_T_BLACKHOLE:
-	case GR_NH_T_REJECT:
-		ret = nh_add_blackhole(&base);
-		break;
-	case GR_NH_T_L3:
-	case GR_NH_T_SR6_OUTPUT:
-	case GR_NH_T_SR6_LOCAL:
-	case GR_NH_T_DNAT:
-		ret = nh_add_l3(&base);
-		break;
-	default:
-		return api_out(EINVAL, 0, NULL);
+	if (req->nh.nh_id != GR_NH_ID_UNSET)
+		nh = nexthop_lookup_by_id(req->nh.nh_id);
+
+	if (nh == NULL && req->nh.type == GR_NH_T_L3) {
+		struct gr_nexthop_info_l3 *l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+		nh = nexthop_lookup(l3->af, req->nh.vrf_id, req->nh.iface_id, &l3->addr);
 	}
-	if (ret < 0)
-		return api_out(-ret, 0, NULL);
-
-	if (base.nh_id != GR_NH_ID_UNSET)
-		nh = nexthop_lookup_by_id(base.nh_id);
-
-	if (nh == NULL)
-		nh = nexthop_lookup(base.af, base.vrf_id, base.iface_id, &base.addr);
 
 	if (nh == NULL) {
-		nh = nexthop_new(&base);
+		nh = nexthop_new(&req->nh.base, req->nh.info);
 		if (nh == NULL)
 			return api_out(errno, 0, NULL);
 		nexthop_incref(nh);
 	} else if (!req->exist_ok) {
 		ret = -EEXIST;
 	} else {
-		ret = nexthop_update(nh, &base);
+		ret = nexthop_update(nh, &req->nh.base, req->nh.info);
 	}
+
 	return api_out(-ret, 0, NULL);
 }
 
@@ -146,9 +82,11 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 		return api_out(ENOENT, 0, NULL);
 	}
 
-	if ((nh->type != GR_NH_T_L3 && nh->type != GR_NH_T_BLACKHOLE && nh->type != GR_NH_T_REJECT)
-	    || (nh->flags & addr_flags) == addr_flags || nh->ref_count > 1)
-		return api_out(EBUSY, 0, NULL);
+	if (nh->type == GR_NH_T_L3) {
+		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if ((l3->flags & addr_flags) == addr_flags || nh->origin == GR_NH_ORIGIN_LINK)
+			return api_out(EBUSY, 0, NULL);
+	}
 
 	nexthop_routes_cleanup(nh);
 	// The nexthop *may* still have one ref_count when it has been created
@@ -169,27 +107,39 @@ static struct gr_api_handler nh_del_handler = {
 struct list_context {
 	uint16_t vrf_id;
 	bool all;
+	int ret;
 	struct api_ctx *ctx;
 };
 
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
+	struct gr_nexthop *pub_nh;
+	size_t len;
 
+	if (ctx->ret != 0)
+		return;
 	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_ALL)
 		return;
 	if (!ctx->all && nh->origin == GR_NH_ORIGIN_INTERNAL)
 		return;
 
-	api_send(ctx->ctx, sizeof(nh->base), &nh->base);
+	pub_nh = nexthop_to_api(nh, &len);
+	if (pub_nh == NULL) {
+		ctx->ret = errno;
+		LOG(ERR, "nexthop_export: %s", strerror(errno));
+		return;
+	}
+	api_send(ctx->ctx, len, pub_nh);
+	free(pub_nh);
 }
 
 static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_nh_list_req *req = request;
-	struct list_context list = {.vrf_id = req->vrf_id, .all = req->all, .ctx = ctx};
+	struct list_context list = {.vrf_id = req->vrf_id, .all = req->all, .ctx = ctx, .ret = 0};
 
 	nexthop_iter(nh_list_cb, &list);
 
-	return api_out(0, 0, NULL);
+	return api_out(list.ret, 0, NULL);
 }
 
 static struct gr_api_handler nh_list_handler = {

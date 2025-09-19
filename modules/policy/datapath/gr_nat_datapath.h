@@ -4,12 +4,16 @@
 #pragma once
 
 #include <gr_iface.h>
+#include <gr_nat.h>
 #include <gr_net_types.h>
 #include <gr_nh_control.h>
 
 #include <rte_ip.h>
 
-GR_NH_PRIV_DATA_TYPE(dnat44_nh_data, { ip4_addr_t replace; });
+GR_NH_TYPE_INFO(GR_NH_T_DNAT, nexthop_info_dnat, {
+	BASE(gr_nexthop_info_dnat);
+	struct nexthop *arp;
+});
 
 static inline rte_be16_t
 fixup_checksum_16(rte_be16_t old_cksum, rte_be16_t old_field, rte_be16_t new_field) {

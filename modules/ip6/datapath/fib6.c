@@ -111,14 +111,8 @@ int fib6_insert(
 	struct rte_fib6 *fib;
 	int ret;
 
-	if (nh->ref_count == 0)
-		ABORT("nexthop has ref_count==0: vrf=%u iface=%u " IP6_F,
-		      nh->vrf_id,
-		      nh->iface_id,
-		      &nh->ipv6);
-
-	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
-		ABORT("fib6 modified from datapath thread");
+	assert(nh->ref_count > 0);
+	assert(!rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL));
 
 	fib = get_or_create_fib6(vrf_id);
 	if (fib == NULL)
@@ -142,8 +136,7 @@ int fib6_remove(
 	struct rte_fib6 *fib;
 	int ret;
 
-	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
-		ABORT("fib6 modified from datapath thread");
+	assert(!rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL));
 
 	fib = get_fib6(vrf_id);
 	if (fib == NULL)

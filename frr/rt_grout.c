@@ -185,57 +185,62 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	return proto;
 }
 
-static int
-grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, int *nh_family) {
-	size_t sz;
-
-	if (gr_nh->type == GR_NH_T_BLACKHOLE || gr_nh->type == GR_NH_T_REJECT) {
-		nh->vrf_id = gr_nh->vrf_id;
-		nh->type = NEXTHOP_TYPE_BLACKHOLE;
-		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
-		*nh_family = AF_UNSPEC;
-		nh->weight = 1;
-		return 0;
-	}
-
-	if (gr_nh->type != GR_NH_T_L3) {
-		gr_log_err("sync nexthop not L3 from grout is not supported");
-		return -1;
-	}
+static int grout_gr_nexthop_to_frr_nexthop(
+	const struct gr_nexthop *gr_nh,
+	struct nexthop *nh,
+	int *nh_family
+) {
 	nh->ifindex = gr_nh->iface_id;
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
 
-	switch (gr_nh->af) {
-	case GR_AF_IP4:
-		if (nh->ifindex)
-			nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
-		else
-			nh->type = NEXTHOP_TYPE_IPV4;
-
-		sz = 4;
-		*nh_family = AF_INET;
-		memcpy(&nh->gate.ipv4, &gr_nh->ipv4, sz);
-		break;
-	case GR_AF_IP6:
-		if (nh->ifindex)
-			nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
-		else
-			nh->type = NEXTHOP_TYPE_IPV6;
-
-		sz = 16;
-		*nh_family = AF_INET6;
-		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
-		break;
-	case GR_AF_UNSPEC:
-		nh->type = NEXTHOP_TYPE_IFINDEX;
+	switch (gr_nh->type) {
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
+		nh->type = NEXTHOP_TYPE_BLACKHOLE;
+		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
 		*nh_family = AF_UNSPEC;
 		break;
+	case GR_NH_T_L3: {
+		const struct gr_nexthop_info_l3 *l3;
+		l3 = (const struct gr_nexthop_info_l3 *)gr_nh->info;
+
+		switch (l3->af) {
+		case GR_AF_IP4:
+			if (gr_nh->iface_id)
+				nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
+			else
+				nh->type = NEXTHOP_TYPE_IPV4;
+
+			*nh_family = AF_INET;
+			memcpy(&nh->gate.ipv4, &l3->ipv4, sizeof(nh->gate.ipv4));
+			break;
+		case GR_AF_IP6:
+			if (gr_nh->iface_id)
+				nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
+			else
+				nh->type = NEXTHOP_TYPE_IPV6;
+
+			*nh_family = AF_INET6;
+			memcpy(&nh->gate.ipv6, &l3->ipv6, sizeof(nh->gate.ipv6));
+			break;
+		case GR_AF_UNSPEC:
+			nh->type = NEXTHOP_TYPE_IFINDEX;
+			*nh_family = AF_UNSPEC;
+			break;
+		default:
+			gr_log_debug("inval nexthop family %u, nexthop not sync", l3->af);
+			return -1;
+		}
+		break;
+	}
 	default:
-		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
+		gr_log_err(
+			"sync %s nexthops from grout not supported", gr_nh_type_name(gr_nh->type)
+		);
 		return -1;
 	}
-	// XXX: no NEXTHOP_TYPE_IFINDEX in grout, unlike kernel
+
 	return 0;
 }
 
@@ -467,10 +472,10 @@ static enum zebra_dplane_result grout_add_del_srv6_route(
 
 	switch (segs->encap_behavior) {
 	case SRV6_HEADEND_BEHAVIOR_H_ENCAPS:
-		srv6_route->encap_behavior = SR_H_ENCAPS;
+		srv6_route->nh.encap_behavior = SR_H_ENCAPS;
 		break;
 	case SRV6_HEADEND_BEHAVIOR_H_ENCAPS_RED:
-		srv6_route->encap_behavior = SR_H_ENCAPS_RED;
+		srv6_route->nh.encap_behavior = SR_H_ENCAPS_RED;
 		break;
 	default:
 		zlog_err(
@@ -492,10 +497,12 @@ static enum zebra_dplane_result grout_add_del_srv6_route(
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
-	srv6_route->n_seglist = segs->num_segs;
+	srv6_route->nh.n_seglist = segs->num_segs;
 	for (i = 0; i < segs->num_segs; i++) {
-		memcpy(&srv6_route->seglist[i], &segs->seg[i], sizeof(srv6_route->seglist[i]));
-		req_len += sizeof(srv6_route->seglist[i]);
+		memcpy(
+			&srv6_route->nh.seglist[i], &segs->seg[i], sizeof(srv6_route->nh.seglist[i])
+		);
+		req_len += sizeof(srv6_route->nh.seglist[i]);
 	}
 
 end:
@@ -772,44 +779,68 @@ static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
 static enum zebra_dplane_result
 grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *nh) {
 	enum zebra_dplane_result ret = ZEBRA_DPLANE_REQUEST_FAILURE;
-	struct gr_nh_add_req req = {
-		.exist_ok = true,
-		.nh = {
-			.nh_id = nh_id,
-			.origin = origin,
-			.type = GR_NH_T_L3,
-			.vrf_id = nh->vrf_id,
-			.iface_id = nh->ifindex,
-		}
-	};
+	struct gr_nh_add_req *req = NULL;
+	struct gr_nexthop_info_l3 *l3;
+	size_t len = sizeof(*req);
+	gr_nh_type_t type;
 
 	switch (nh->type) {
 	case NEXTHOP_TYPE_IPV4:
 	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		req.nh.af = GR_AF_IP4;
-		memcpy(&req.nh.ipv4, &nh->gate.ipv4, sizeof(req.nh.ipv4));
-		break;
 	case NEXTHOP_TYPE_IPV6:
 	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		req.nh.af = GR_AF_IP6;
-		memcpy(&req.nh.ipv6, &nh->gate.ipv6, sizeof(req.nh.ipv6));
-		break;
 	case NEXTHOP_TYPE_IFINDEX:
-		req.nh.af = GR_AF_UNSPEC;
+		len += sizeof(*l3);
+		type = GR_NH_T_L3;
 		break;
 	case NEXTHOP_TYPE_BLACKHOLE:
-		req.nh.type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
-		req.nh.iface_id = GR_IFACE_ID_UNDEF;
+		type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
 		break;
 	}
 
-	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(req.nh.type));
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("cannot allocate memory");
+		goto out;
+	}
 
-	if (grout_client_send_recv(GR_NH_ADD, sizeof(req), &req, NULL) < 0)
+	req->exist_ok = true;
+	req->nh.nh_id = nh_id;
+	req->nh.origin = origin;
+	req->nh.type = type;
+	req->nh.vrf_id = nh->vrf_id;
+	req->nh.iface_id = nh->ifindex;
+
+	switch (nh->type) {
+	case NEXTHOP_TYPE_IPV4:
+	case NEXTHOP_TYPE_IPV4_IFINDEX:
+		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+		l3->af = GR_AF_IP4;
+		memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+		break;
+	case NEXTHOP_TYPE_IPV6:
+	case NEXTHOP_TYPE_IPV6_IFINDEX:
+		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+		l3->af = GR_AF_IP6;
+		memcpy(&l3->ipv6, &nh->gate.ipv6, sizeof(l3->ipv6));
+		break;
+	case NEXTHOP_TYPE_IFINDEX:
+		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+		l3->af = GR_AF_UNSPEC;
+		break;
+	case NEXTHOP_TYPE_BLACKHOLE:
+		req->nh.iface_id = GR_IFACE_ID_UNDEF;
+		break;
+	}
+
+	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(type));
+
+	if (grout_client_send_recv(GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
 
 	ret = ZEBRA_DPLANE_REQUEST_SUCCESS;
 out:
+	free(req);
 	return ret;
 }
 
