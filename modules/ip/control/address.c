@@ -45,13 +45,15 @@ struct hoplist *addr4_get_all(uint16_t iface_id) {
 
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	struct hoplist *addrs = addr4_get_all(iface_id);
+	const struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
 	if (addrs == NULL)
 		return NULL;
 
 	gr_vec_foreach (nh, addrs->nh) {
-		if (ip4_addr_same_subnet(dst, nh->ipv4, nh->prefixlen))
+		l3 = nexthop_info_l3(nh);
+		if (ip4_addr_same_subnet(dst, l3->ipv4, l3->prefixlen))
 			return nh;
 	}
 
@@ -72,32 +74,38 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 	ifaddrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, ifaddrs->nh) {
-		if (req->exist_ok && req->addr.addr.ip == nh->ipv4
-		    && req->addr.addr.prefixlen == nh->prefixlen)
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (req->exist_ok && req->addr.addr.ip == l3->ipv4
+		    && req->addr.addr.prefixlen == l3->prefixlen)
 			return api_out(0, 0, NULL);
 	}
 
 	if (nh4_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
 		return api_out(EADDRINUSE, 0, NULL);
 
-	struct gr_nexthop base = {
+	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
-		.af = GR_AF_IP4,
-		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
-		.state = GR_NH_S_REACHABLE,
-		.vrf_id = iface->vrf_id,
+		.origin = GR_NH_ORIGIN_INTERNAL,
 		.iface_id = iface->id,
+		.vrf_id = iface->vrf_id,
+	};
+	struct gr_nexthop_info_l3 l3 = {
+		.af = GR_AF_IP4,
 		.ipv4 = req->addr.addr.ip,
 		.prefixlen = req->addr.addr.prefixlen,
-		.origin = GR_NH_ORIGIN_INTERNAL,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.state = GR_NH_S_REACHABLE,
 	};
-	if (iface_get_eth_addr(iface->id, &base.mac) < 0 && errno != EOPNOTSUPP)
+	if (iface_get_eth_addr(iface->id, &l3.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0, NULL);
 
-	if ((nh = nexthop_new(&base)) == NULL)
+	if ((nh = nexthop_new(&base, &l3)) == NULL)
 		return api_out(errno, 0, NULL);
 
-	if ((ret = rib4_insert(iface->vrf_id, nh->ipv4, nh->prefixlen, GR_NH_ORIGIN_LINK, nh)) < 0)
+	ret = rib4_insert(
+		iface->vrf_id, req->addr.addr.ip, req->addr.addr.prefixlen, GR_NH_ORIGIN_LINK, nh
+	);
+	if (ret < 0)
 		return api_out(-ret, 0, NULL);
 
 	gr_vec_add(ifaddrs->nh, nh);
@@ -116,7 +124,8 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 		return api_out(ENODEV, 0, NULL);
 
 	gr_vec_foreach (nh, addrs->nh) {
-		if (nh->ipv4 == req->addr.addr.ip && nh->prefixlen == req->addr.addr.prefixlen) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (l3->ipv4 == req->addr.addr.ip && l3->prefixlen == req->addr.addr.prefixlen) {
 			break;
 		}
 		nh = NULL;
@@ -152,9 +161,10 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 		gr_vec_foreach (nh, addrs->nh) {
 			if (req->vrf_id != GR_VRF_ID_ALL && nh->vrf_id != req->vrf_id)
 				continue;
+			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 			struct gr_ip4_ifaddr addr = {
-				.addr.ip = nh->ipv4,
-				.addr.prefixlen = nh->prefixlen,
+				.addr.ip = l3->ipv4,
+				.addr.prefixlen = l3->prefixlen,
 				.iface_id = iface_id,
 			};
 			api_send(ctx, sizeof(addr), &addr);

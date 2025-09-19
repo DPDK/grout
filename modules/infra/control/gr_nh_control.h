@@ -11,35 +11,44 @@
 #include <event2/event.h>
 #include <rte_mbuf.h>
 
+#include <assert.h>
+#include <stdalign.h>
+
 extern struct gr_nexthop_config nh_conf;
 
 int nexthop_config_set(const struct gr_nexthop_config *);
 unsigned nexthop_used_count(void);
 
 struct __rte_cache_aligned nexthop {
-	BASE(gr_nexthop);
+	BASE(gr_nexthop_base);
+
+	uint32_t ref_count; // number of routes referencing this nexthop
+
+	uint8_t info[128] __rte_aligned(alignof(void *));
+};
+
+#define GR_NH_TYPE_INFO(type_id, type_name, fields)                                                \
+	struct type_name fields __attribute__((__may_alias__, aligned(alignof(void *))));          \
+	static inline struct type_name *type_name(const struct nexthop *nh) {                      \
+		assert(nh->type == type_id);                                                       \
+		return (struct type_name *)&nh->info;                                              \
+	}                                                                                          \
+	static_assert(sizeof(struct type_name) <= MEMBER_SIZE(struct nexthop, info))
+
+GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
+	BASE(gr_nexthop_info_l3);
 
 	clock_t last_reply; //!< timestamp when last update was received
 	clock_t last_request;
 
 	uint8_t ucast_probes;
 	uint8_t bcast_probes;
-	uint32_t ref_count; // number of routes referencing this nexthop
 
 	// packets waiting for address resolution
 	uint16_t held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
-
-	uint8_t priv[16] __rte_aligned(alignof(void *));
-};
-
-#define GR_NH_PRIV_DATA_TYPE(type, fields)                                                         \
-	struct type fields __attribute__((__may_alias__, aligned(alignof(void *))));               \
-	static inline struct type *type(const struct nexthop *nh) {                                \
-		return (struct type *)&nh->priv;                                                   \
-	}                                                                                          \
-	static_assert(sizeof(struct type) <= MEMBER_SIZE(struct nexthop, priv))
+});
 
 struct hoplist {
 	gr_vec struct nexthop **nh;
@@ -56,10 +65,17 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id);
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 
 // Allocate a new nexthop from the global pool with the provided initial values.
-struct nexthop *nexthop_new(const struct gr_nexthop *);
+struct nexthop *nexthop_new(const struct gr_nexthop_base *, const void *info);
 
 // Update a nexthop with values from the API.
-int nexthop_update(struct nexthop *, const struct gr_nexthop *);
+int nexthop_update(struct nexthop *, const struct gr_nexthop_base *, const void *info);
+
+// Convert a nexthop to its public representation in the API.
+// The returned value must be deallocated with free().
+struct gr_nexthop *nexthop_to_api(const struct nexthop *, size_t *len);
+
+// Uses nexthop_export to serve as callback for gr_event_serializer.
+int nexthop_serialize(const void *obj, void **buf);
 
 // Clean all next hop related to an interface.
 void nexthop_iface_cleanup(uint16_t iface_id);
@@ -93,10 +109,13 @@ struct nexthop_type_ops {
 	// Callback that will be invoked the nexthop refcount reaches zero.
 	void (*free)(struct nexthop *);
 	bool (*equal)(const struct nexthop *, const struct nexthop *);
+	// Copy public info structure to internal info structure.
+	int (*import_info)(struct nexthop *, const void *public_info);
+	// Convert a nexthop to its public representation in the API (including the base fields).
+	struct gr_nexthop *(*to_api)(const struct nexthop *, size_t *len);
 };
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
-const struct nexthop_type_ops *nexthop_type_ops_get(gr_nh_type_t type);
 
 // Nexthop statistics structure
 struct nh_stats {

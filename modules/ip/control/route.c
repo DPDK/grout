@@ -125,6 +125,13 @@ struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefix
 	return nh_id_to_ptr(nh_id);
 }
 
+struct route4_event {
+	struct ip4_net dest;
+	uint16_t vrf_id;
+	gr_nh_origin_t origin;
+	const struct nexthop *nh;
+};
+
 static int rib4_insert_or_replace(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
@@ -162,8 +169,6 @@ static int rib4_insert_or_replace(
 		}
 	}
 
-	nh->flags |= GR_NH_F_GATEWAY;
-
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib_get_ext(rn);
 	gr_nh_origin_t old_origin = origin;
@@ -174,11 +179,11 @@ static int rib4_insert_or_replace(
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP_ROUTE_ADD,
-			&(struct gr_ip4_route) {
-				{ip, prefixlen},
-				nh->base,
-				vrf_id,
-				origin,
+			&(const struct route4_event) {
+				.dest = {ip, prefixlen},
+				.vrf_id = vrf_id,
+				.origin = origin,
+				.nh = nh,
 			}
 		);
 	}
@@ -235,11 +240,11 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP_ROUTE_DEL,
-			&(struct gr_ip4_route) {
-				{ip, prefixlen},
-				nh->base,
-				vrf_id,
-				origin,
+			&(const struct route4_event) {
+				.dest = {ip, prefixlen},
+				.vrf_id = vrf_id,
+				.origin = origin,
+				.nh = nh,
 			}
 		);
 	}
@@ -274,16 +279,19 @@ static struct api_out route4_add(const void *request, struct api_ctx *) {
 
 		// if the route gateway is reachable via a prefix route,
 		// create a new unresolved nexthop
-		if (nh->ipv4 != req->nh) {
-			nh = nexthop_new(&(struct gr_nexthop) {
-				.type = GR_NH_T_L3,
-				.af = GR_AF_IP4,
-				.flags = GR_NH_F_GATEWAY,
-				.vrf_id = req->vrf_id,
-				.iface_id = nh->iface_id,
-				.ipv4 = req->nh,
-				.origin = req->origin,
-			});
+		if (nh->type != GR_NH_T_L3 || nexthop_info_l3(nh)->ipv4 != req->nh) {
+			nh = nexthop_new(
+				&(struct gr_nexthop_base) {
+					.type = GR_NH_T_L3,
+					.iface_id = nh->iface_id,
+					.vrf_id = req->vrf_id,
+					.origin = req->origin,
+				},
+				&(struct gr_nexthop_info_l3) {
+					.af = GR_AF_IP4,
+					.ipv4 = req->nh,
+				}
+			);
 			if (nh == NULL)
 				return api_out(errno, 0, NULL);
 		}
@@ -309,27 +317,24 @@ static struct api_out route4_del(const void *request, struct api_ctx *) {
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 
-	if (nh && nh->ref_count == 1)
-		nh->flags &= ~GR_NH_F_GATEWAY;
-
 	return api_out(-ret, 0, NULL);
 }
 
 static struct api_out route4_get(const void *request, struct api_ctx *) {
 	const struct gr_ip4_route_get_req *req = request;
-	struct gr_ip4_route_get_resp *resp = NULL;
 	const struct nexthop *nh = NULL;
+	struct gr_nexthop *pub = NULL;
+	size_t len;
 
 	nh = rib4_lookup(req->vrf_id, req->dest);
 	if (nh == NULL)
 		return api_out(ENETUNREACH, 0, NULL);
 
-	if ((resp = calloc(1, sizeof(*resp))) == NULL)
-		return api_out(ENOMEM, 0, NULL);
+	pub = nexthop_to_api(nh, &len);
+	if (pub == NULL)
+		return api_out(errno, 0, NULL);
 
-	resp->nh = nh->base;
-
-	return api_out(0, sizeof(*resp), resp);
+	return api_out(0, len, pub);
 }
 
 void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
@@ -364,6 +369,11 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	}
 }
 
+struct route4_iterator {
+	struct api_ctx *ctx;
+	int ret;
+};
+
 static void route4_list_cb(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
@@ -372,24 +382,44 @@ static void route4_list_cb(
 	const struct nexthop *nh,
 	void *priv
 ) {
-	if (origin != GR_NH_ORIGIN_INTERNAL) {
-		struct api_ctx *ctx = priv;
-		struct gr_ip4_route r = {
-			.vrf_id = vrf_id,
-			.dest = {ip, prefixlen},
-			.nh = nh->base,
-			.origin = origin,
-		};
-		api_send(ctx, sizeof(r), &r);
+	struct route4_iterator *iter = priv;
+	if (origin != GR_NH_ORIGIN_INTERNAL && iter->ret == 0) {
+		struct gr_ip4_route *r;
+		struct gr_nexthop *pub;
+		size_t nh_len, len;
+
+		pub = nexthop_to_api(nh, &nh_len);
+		if (pub == NULL) {
+			iter->ret = errno;
+			LOG(ERR, "nexthop_export: %s", strerror(errno));
+			return;
+		}
+
+		len = sizeof(*r) - sizeof(r->nh) + nh_len;
+		r = malloc(len);
+		if (r != NULL) {
+			r->vrf_id = vrf_id;
+			r->dest.ip = ip;
+			r->dest.prefixlen = prefixlen;
+			r->origin = origin;
+			memcpy(&r->nh, pub, nh_len);
+			api_send(iter->ctx, len, r);
+		} else {
+			LOG(ERR, "cannot allocate memory");
+			iter->ret = ENOMEM;
+		}
+		free(pub);
+		free(r);
 	}
 }
 
 static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip4_route_list_req *req = request;
+	struct route4_iterator iter = {.ctx = ctx, .ret = 0};
 
-	rib4_iter(req->vrf_id, route4_list_cb, (void *)ctx);
+	rib4_iter(req->vrf_id, route4_list_cb, &iter);
 
-	return api_out(0, 0, NULL);
+	return api_out(iter.ret, 0, NULL);
 }
 
 static void route4_init(struct event_base *) {
@@ -475,6 +505,34 @@ telemetry_rib4_stats_get(const char * /*cmd*/, const char * /*params*/, struct r
 	return 0;
 }
 
+static int serialize_route4_event(const void *obj, void **buf) {
+	const struct route4_event *priv = obj;
+	struct gr_ip4_route *r;
+	struct gr_nexthop *nh;
+	size_t nh_len;
+	int len;
+
+	nh = nexthop_to_api(priv->nh, &nh_len);
+	if (nh == NULL)
+		return -errno;
+
+	len = sizeof(*r) - sizeof(r->nh) + nh_len;
+
+	r = malloc(len);
+	if (r == NULL) {
+		len = -errno;
+	} else {
+		r->vrf_id = priv->vrf_id;
+		r->dest = priv->dest;
+		r->origin = priv->origin;
+		memcpy(&r->nh, nh, nh_len);
+		*buf = r;
+	}
+	free(nh);
+
+	return len;
+}
+
 static struct gr_api_handler route4_add_handler = {
 	.name = "ipv4 route add",
 	.request_type = GR_IP4_ROUTE_ADD,
@@ -497,7 +555,7 @@ static struct gr_api_handler route4_list_handler = {
 };
 
 static struct gr_event_serializer route_serializer = {
-	.size = sizeof(struct gr_ip4_route),
+	.callback = serialize_route4_event,
 	.ev_count = 2,
 	.ev_types = {GR_EVENT_IP_ROUTE_ADD, GR_EVENT_IP_ROUTE_DEL},
 };

@@ -6,25 +6,16 @@
 #include <gr_ip6_control.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_rcu.h>
 #include <gr_srv6.h>
 #include <gr_srv6_nexthop.h>
-#include <gr_vec.h>
 
 #include <rte_malloc.h>
 
 // routes ////////////////////////////////////////////////////////////////
-static bool srv6_encap_data_equal(const struct nexthop *a, const struct nexthop *b) {
-	struct srv6_encap_data *ad, *bd;
-	uint8_t i;
-
-	assert(a->type == GR_NH_T_SR6_OUTPUT);
-	assert(b->type == GR_NH_T_SR6_OUTPUT);
-
-	ad = srv6_encap_nh_priv(a)->d;
-	bd = srv6_encap_nh_priv(b)->d;
-
-	assert(ad != NULL);
-	assert(bd != NULL);
+static bool srv6_output_nh_equal(const struct nexthop *a, const struct nexthop *b) {
+	struct nexthop_info_srv6_output *ad = nexthop_info_srv6_output(a);
+	struct nexthop_info_srv6_output *bd = nexthop_info_srv6_output(b);
 
 	if (ad->encap != bd->encap)
 		return false;
@@ -32,80 +23,79 @@ static bool srv6_encap_data_equal(const struct nexthop *a, const struct nexthop 
 	if (ad->n_seglist != bd->n_seglist)
 		return false;
 
-	for (i = 0; i < ad->n_seglist; i++) {
-		if (memcmp(&ad->seglist[i], &bd->seglist[i], sizeof(struct rte_ipv6_addr)))
+	for (unsigned i = 0; i < ad->n_seglist; i++) {
+		if (!rte_ipv6_addr_eq(&ad->seglist[i], &bd->seglist[i]))
 			return false;
 	}
 
 	return true;
 }
 
-static int srv6_encap_data_add(
-	struct nexthop *nh,
-	gr_srv6_encap_behavior_t encap_behavior,
-	uint8_t n_seglist,
-	const struct rte_ipv6_addr *seglist
-) {
-	struct srv6_encap_data *d;
+static int srv6_output_nh_import_info(struct nexthop *nh, const void *info) {
+	struct nexthop_info_srv6_output *priv = nexthop_info_srv6_output(nh);
+	const struct gr_nexthop_info_srv6 *pub = info;
+	struct rte_ipv6_addr *seglist, *tmp;
 
-	if (srv6_encap_nh_priv(nh)->d != NULL)
-		return -EEXIST;
+	seglist = rte_calloc(__func__, pub->n_seglist, sizeof(*seglist), RTE_CACHE_LINE_SIZE);
+	if (seglist == NULL)
+		return errno_set(ENOMEM);
 
-	d = rte_calloc(
-		__func__, 1, sizeof(*d) + sizeof(d->seglist[0]) * n_seglist, RTE_CACHE_LINE_SIZE
-	);
-	if (d == NULL)
-		return -ENOMEM;
+	memcpy(seglist, pub->seglist, sizeof(*seglist) * pub->n_seglist);
 
-	d->encap = encap_behavior;
-	d->n_seglist = n_seglist;
-	memcpy(d->seglist, seglist, sizeof(d->seglist[0]) * n_seglist);
-
-	srv6_encap_nh_priv(nh)->d = d;
+	priv->encap = pub->encap_behavior;
+	priv->n_seglist = pub->n_seglist;
+	tmp = priv->seglist;
+	priv->seglist = seglist;
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_free(tmp);
 
 	return 0;
 }
 
-static void srv6_encap_data_del(struct nexthop *nh) {
-	nh->type = GR_NH_T_L3;
-	rte_free(srv6_encap_nh_priv(nh)->d);
-	srv6_encap_nh_priv(nh)->d = NULL;
+static struct gr_nexthop *srv6_output_nh_to_api(const struct nexthop *nh, size_t *len) {
+	const struct nexthop_info_srv6_output *sr6_priv = nexthop_info_srv6_output(nh);
+	struct gr_nexthop_info_srv6 *sr6_pub;
+	struct gr_nexthop *pub;
+
+	*len = sizeof(*pub) + sizeof(*sr6_pub) + sr6_priv->n_seglist * sizeof(sr6_pub->seglist[0]);
+	pub = malloc(*len);
+	if (pub == NULL)
+		return errno_set_null(ENOMEM);
+
+	pub->base = nh->base;
+	sr6_pub = (struct gr_nexthop_info_srv6 *)pub->info;
+
+	sr6_pub->encap_behavior = sr6_priv->encap;
+	sr6_pub->n_seglist = sr6_priv->n_seglist;
+	memcpy(sr6_pub->seglist,
+	       sr6_priv->seglist,
+	       sizeof(sr6_pub->seglist[0]) * sr6_pub->n_seglist);
+
+	return pub;
+}
+
+static void srv6_output_nh_del(struct nexthop *nh) {
+	struct nexthop_info_srv6_output *sr6 = nexthop_info_srv6_output(nh);
+	rte_free(sr6->seglist);
+	sr6->seglist = NULL;
 }
 
 // srv6 route ////////////////////////////////////////////////////////////////
 static struct api_out srv6_route_add(const void *request, struct api_ctx *) {
 	const struct gr_srv6_route_add_req *req = request;
-	struct gr_nexthop base = {
-		.type = GR_NH_T_SR6_OUTPUT,
-		.state = GR_NH_S_REACHABLE,
-		.flags = GR_NH_F_GATEWAY | GR_NH_F_STATIC,
-		.vrf_id = req->r.key.vrf_id,
-		.iface_id = GR_IFACE_ID_UNDEF,
-		.origin = req->origin,
-	};
 	struct nexthop *nh;
 	int ret;
 
-	// retrieve or create nexthop into rib4/rib6
-	if (req->r.key.is_dest6) {
-		base.ipv6 = req->r.key.dest6.ip;
-		base.prefixlen = req->r.key.dest6.prefixlen;
-		base.af = GR_AF_IP6;
-	} else {
-		base.ipv4 = req->r.key.dest4.ip;
-		base.prefixlen = req->r.key.dest4.prefixlen;
-		base.af = GR_AF_IP4;
-	}
-
-	nh = nexthop_new(&base);
+	nh = nexthop_new(
+		&(struct gr_nexthop_base) {
+			.type = GR_NH_T_SR6_OUTPUT,
+			.vrf_id = req->r.key.vrf_id,
+			.origin = req->origin,
+		},
+		&req->r.nh
+	);
 	if (nh == NULL)
 		return api_out(errno, 0, NULL);
-
-	ret = srv6_encap_data_add(nh, req->r.encap_behavior, req->r.n_seglist, req->r.seglist);
-	if (ret < 0) {
-		nexthop_decref(nh);
-		return api_out(-ret, 0, NULL);
-	}
 
 	if (req->r.key.is_dest6)
 		ret = rib6_insert(
@@ -172,17 +162,17 @@ static void route4_list_cb(
 	const struct nexthop *nh,
 	void *priv
 ) {
+	struct nexthop_info_srv6_output *sr6;
 	struct list_context *ctx = priv;
-	struct srv6_encap_data *d;
 	struct gr_srv6_route *r;
 	size_t len;
 
 	if (ctx->ret != 0 || nh->type != GR_NH_T_SR6_OUTPUT)
 		return;
 
-	d = srv6_encap_nh_priv(nh)->d;
+	sr6 = nexthop_info_srv6_output(nh);
 
-	len = sizeof(*r) + d->n_seglist * sizeof(r->seglist[0]);
+	len = sizeof(*r) + sr6->n_seglist * sizeof(r->nh.seglist[0]);
 	r = malloc(len);
 	if (r == NULL) {
 		LOG(ERR, "cannot allocate memory");
@@ -194,9 +184,9 @@ static void route4_list_cb(
 	r->key.vrf_id = vrf_id;
 	r->key.dest4.ip = ip;
 	r->key.dest4.prefixlen = prefixlen;
-	r->encap_behavior = d->encap;
-	r->n_seglist = d->n_seglist;
-	memcpy(r->seglist, d->seglist, r->n_seglist * sizeof(r->seglist[0]));
+	r->nh.encap_behavior = sr6->encap;
+	r->nh.n_seglist = sr6->n_seglist;
+	memcpy(r->nh.seglist, sr6->seglist, sr6->n_seglist * sizeof(r->nh.seglist[0]));
 
 	api_send(ctx->ctx, len, r);
 	free(r);
@@ -210,17 +200,17 @@ static void route6_list_cb(
 	const struct nexthop *nh,
 	void *priv
 ) {
+	struct nexthop_info_srv6_output *sr6;
 	struct list_context *ctx = priv;
-	struct srv6_encap_data *d;
 	struct gr_srv6_route *r;
 	size_t len;
 
 	if (ctx->ret != 0 || nh->type != GR_NH_T_SR6_OUTPUT)
 		return;
 
-	d = srv6_encap_nh_priv(nh)->d;
+	sr6 = nexthop_info_srv6_output(nh);
 
-	len = sizeof(*r) + d->n_seglist * sizeof(r->seglist[0]);
+	len = sizeof(*r) + sr6->n_seglist * sizeof(r->nh.seglist[0]);
 	r = malloc(len);
 	if (r == NULL) {
 		LOG(ERR, "cannot allocate memory");
@@ -232,9 +222,9 @@ static void route6_list_cb(
 	r->key.vrf_id = vrf_id;
 	r->key.dest6.ip = *ip;
 	r->key.dest6.prefixlen = prefixlen;
-	r->encap_behavior = d->encap;
-	r->n_seglist = d->n_seglist;
-	memcpy(r->seglist, d->seglist, r->n_seglist * sizeof(r->seglist[0]));
+	r->nh.encap_behavior = sr6->encap;
+	r->nh.n_seglist = sr6->n_seglist;
+	memcpy(r->nh.seglist, sr6->seglist, sr6->n_seglist * sizeof(r->nh.seglist[0]));
 
 	api_send(ctx->ctx, len, r);
 	free(r);
@@ -268,19 +258,21 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 	if (rte_ipv6_addr_is_unspec(&req->addr))
 		return srv6_tunsrc_clear(NULL, ctx);
 
-	struct gr_nexthop base = {
+	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.vrf_id = GR_VRF_ID_ALL,
+		.origin = GR_NH_ORIGIN_INTERNAL,
+	};
+	struct gr_nexthop_info_l3 l3 = {
 		.af = GR_AF_IP6,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
 		.state = GR_NH_S_REACHABLE,
-		.vrf_id = GR_VRF_ID_ALL,
-		.iface_id = GR_IFACE_ID_UNDEF,
 		.ipv6 = req->addr,
 		.prefixlen = 128,
-		.origin = GR_NH_ORIGIN_INTERNAL,
 	};
 
-	if ((nh = nexthop_new(&base)) == NULL)
+	if ((nh = nexthop_new(&base, &l3)) == NULL)
 		return api_out(errno, 0, NULL);
 
 	old_nh = tunsrc_nh;
@@ -298,10 +290,12 @@ static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(-ENOMEM, 0, NULL);
 
-	if (tunsrc_nh)
-		resp->addr = tunsrc_nh->ipv6;
-	else
+	if (tunsrc_nh) {
+		struct nexthop_info_l3 *l3 = nexthop_info_l3(tunsrc_nh);
+		resp->addr = l3->ipv6;
+	} else {
 		resp->addr = (struct rte_ipv6_addr)RTE_IPV6_ADDR_UNSPEC;
+	}
 
 	return api_out(0, sizeof(*resp), resp);
 }
@@ -340,8 +334,10 @@ static struct gr_api_handler srv6_tunsrc_show_handler = {
 };
 
 static struct nexthop_type_ops nh_ops = {
-	.free = srv6_encap_data_del,
-	.equal = srv6_encap_data_equal,
+	.free = srv6_output_nh_del,
+	.equal = srv6_output_nh_equal,
+	.import_info = srv6_output_nh_import_info,
+	.to_api = srv6_output_nh_to_api,
 };
 
 RTE_INIT(srv6_constructor) {

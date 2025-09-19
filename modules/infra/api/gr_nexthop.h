@@ -74,24 +74,34 @@ typedef enum : uint8_t {
 
 #define GR_NH_ID_UNSET UINT32_C(0)
 
-//! Nexthop structure exposed to the API.
-struct gr_nexthop {
+// Generic struct for all nexthops.
+struct gr_nexthop_base {
 	gr_nh_type_t type;
-	addr_family_t af;
+	gr_nh_origin_t origin;
+	uint16_t iface_id; //!< interface associated with this nexthop
+	uint16_t vrf_id; //!< L3 VRF domain
+	uint32_t nh_id; //!< Arbitrary ID set by user. Zero means "unset".
+};
+
+// Info for GR_NH_T_L3 nexthops
+struct gr_nexthop_info_l3 {
 	gr_nh_state_t state;
 	gr_nh_flags_t flags; //!< bit mask of GR_NH_F_*
-	uint32_t nh_id; //!< Arbitrary ID set by user. Zero means "unset".
-	uint16_t vrf_id; //!< L3 VRF domain
-	uint16_t iface_id; //!< interface associated with this nexthop
-	struct rte_ether_addr mac; //!< link-layer address
+	addr_family_t af;
 	uint8_t prefixlen; //!< only has meaning with GR_NH_F_LOCAL
-	gr_nh_origin_t origin;
 	union {
 		struct {
 		} addr;
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
+	struct rte_ether_addr mac; //!< link-layer address
+};
+
+//! Nexthop structure exposed to the API.
+struct gr_nexthop {
+	BASE(gr_nexthop_base);
+	uint8_t info[]; //!< Type specific nexthop info.
 };
 
 //! Nexthop events.
@@ -267,8 +277,8 @@ struct gr_infra_nh_config_set_req {
 #define GR_NH_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0071)
 
 struct gr_nh_add_req {
-	struct gr_nexthop nh;
 	uint8_t exist_ok;
+	struct gr_nexthop nh;
 };
 
 // struct gr_nh_add_resp { };

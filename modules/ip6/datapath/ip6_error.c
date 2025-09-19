@@ -24,12 +24,13 @@ static uint16_t
 ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct icmp6_err_dest_unreach *du;
 	struct icmp6_err_ttl_exceeded *te;
+	const struct nexthop_info_l3 *l3;
 	struct ip6_local_mbuf_data *d;
 	const struct iface *iface;
+	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
 	icmp6_type_t icmp_type;
 	struct rte_mbuf *mbuf;
-	struct nexthop *nh;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
 
@@ -96,8 +97,9 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = NO_IP;
 			goto next;
 		}
+		l3 = nexthop_info_l3(nh);
 		d = ip6_local_mbuf_data(mbuf);
-		d->src = nh->ipv6;
+		d->src = l3->ipv6;
 		d->dst = ip->src_addr;
 		d->len = rte_pktmbuf_pkt_len(mbuf);
 		d->iface = iface;
