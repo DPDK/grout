@@ -1,2 +1,2 @@
 /usr/share/man/man7/grout-frr.7
-/usr/lib/*/frr/modules/frr_dplane_grout.so
+/usr/lib/*/frr/modules/dplane_grout.so

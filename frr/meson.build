@@ -18,7 +18,7 @@ endif
 
 install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'false') == 'true'
 frr_plugin = shared_module(
-  'frr_dplane_grout',
+  'dplane_grout',
   files(
     'if_grout.c',
     'rt_grout.c',
@@ -28,7 +28,7 @@ frr_plugin = shared_module(
   dependencies: [frr_dep],
   include_directories: api_inc + include_directories('.'),
   install: not install_build_flag,
-  install_dir  : frr_dep.get_variable('moduledir'),
+  install_dir: frr_dep.get_variable('moduledir'),
   override_options: ['b_sanitize=none'],
 )
 
@@ -39,7 +39,7 @@ if install_build_flag
     command: [
       files('frr_plugin_install.sh'),
       frr_plugin.full_path(), # compiled .so file
-      frr_dep.get_variable('moduledir') / 'frr_dplane_grout.so', # target installation path
+      frr_dep.get_variable('moduledir') / 'dplane_grout.so', # target installation path
       frr_dep.get_variable('prefix') / 'etc/frr/daemons', # frr daemons config
       '@OUTPUT@', # stamp file
     ],

@@ -23,6 +23,7 @@ enum edges {
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *ip_data;
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *nh, *local;
 	uint8_t icmp_type, icmp_code;
 	const struct iface *iface;
@@ -30,6 +31,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
+	ip4_addr_t src;
 
 	icmp_type = node->ctx[0];
 	icmp_code = node->ctx[1];
@@ -51,15 +53,24 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			edge = NO_IP;
 			goto next;
 		}
+		if (nh->type == GR_NH_T_L3) {
+			l3 = nexthop_info_l3(nh);
+			src = l3->ipv4;
+		} else {
+			src = ip->src_addr;
+		}
 		// Select preferred source IP address to reply with
-		if ((local = addr4_get_preferred(nh->iface_id, nh->ipv4)) == NULL) {
+		if ((local = addr4_get_preferred(nh->iface_id, src)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
 
+		assert(local->type == GR_NH_T_L3);
+		l3 = nexthop_info_l3(local);
+
 		ip_data = ip_local_mbuf_data(mbuf);
 		ip_data->vrf_id = iface->vrf_id;
-		ip_data->src = local->ipv4;
+		ip_data->src = l3->ipv4;
 		ip_data->dst = ip->src_addr;
 
 		// RFC792 payload size: ip header + 64 bits of original datagram

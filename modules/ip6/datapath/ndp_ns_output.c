@@ -33,16 +33,18 @@ enum {
 static control_input_t ndp_solicit;
 
 int nh6_solicit(struct nexthop *nh) {
-	if (nh == NULL)
+	if (nh == NULL || nh->type != GR_NH_T_L3)
 		return errno_set(EINVAL);
+
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 
 	// This function is called by the control plane main thread.
 	// It is OK to modify the nexthop here.
-	nh->last_request = gr_clock_us();
-	if (nh->ucast_probes < nh_conf.max_ucast_probes)
-		nh->ucast_probes++;
+	l3->last_request = gr_clock_us();
+	if (l3->ucast_probes < nh_conf.max_ucast_probes)
+		l3->ucast_probes++;
 	else
-		nh->bcast_probes++;
+		l3->bcast_probes++;
 
 	return post_to_stack(ndp_solicit, nh);
 }
@@ -53,6 +55,7 @@ static uint16_t ndp_ns_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	const struct nexthop_info_l3 *local_l3, *l3;
 	const struct nexthop *local, *nh;
 	struct icmp6_opt_lladdr *lladdr;
 	struct icmp6_neigh_solicit *ns;
@@ -71,20 +74,16 @@ static uint16_t ndp_ns_output_process(
 			next = ERROR;
 			goto next;
 		}
-		if (nh->type == GR_NH_T_BLACKHOLE) {
-			next = BLACKHOLE;
-			goto next;
-		}
-		if (nh->type == GR_NH_T_REJECT) {
-			next = REJECT;
-			goto next;
-		}
 
-		local = addr6_get_preferred(nh->iface_id, &nh->ipv6);
+		l3 = nexthop_info_l3(nh);
+
+		local = addr6_get_preferred(nh->iface_id, &l3->ipv6);
 		if (local == NULL) {
 			next = ERROR;
 			goto next;
 		}
+
+		local_l3 = nexthop_info_l3(local);
 
 		// Fill ICMP6 layer.
 		payload_len = sizeof(*icmp6) + sizeof(*ns) + sizeof(*opt) + sizeof(*lladdr);
@@ -93,21 +92,21 @@ static uint16_t ndp_ns_output_process(
 		icmp6->code = 0;
 		ns = PAYLOAD(icmp6);
 		ns->__reserved = 0;
-		ns->target = nh->ipv6;
+		ns->target = l3->ipv6;
 		opt = PAYLOAD(ns);
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = PAYLOAD(opt);
-		lladdr->mac = local->mac;
+		lladdr->mac = local_l3->mac;
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
 		d->iface = iface_from_id(local->iface_id);
-		d->src = local->ipv6;
-		if (nh->last_reply != 0 && nh->bcast_probes == 0)
-			d->dst = nh->ipv6;
+		d->src = local_l3->ipv6;
+		if (l3->last_reply != 0 && l3->bcast_probes == 0)
+			d->dst = l3->ipv6;
 		else
-			rte_ipv6_solnode_from_addr(&d->dst, &nh->ipv6);
+			rte_ipv6_solnode_from_addr(&d->dst, &l3->ipv6);
 		d->len = payload_len;
 		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;
 		d->proto = IPPROTO_ICMPV6;

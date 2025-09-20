@@ -3,6 +3,8 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_nexthop.h>
+#include <gr_errno.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
 #include <gr_table.h>
@@ -12,28 +14,25 @@
 
 #include <errno.h>
 
-static const char *behavior_str[SR_BEHAVIOR_MAX] = {
-	[SR_BEHAVIOR_END] = "end",
-	[SR_BEHAVIOR_END_T] = "end.t",
-	[SR_BEHAVIOR_END_DT6] = "end.dt6",
-	[SR_BEHAVIOR_END_DT4] = "end.dt4",
-	[SR_BEHAVIOR_END_DT46] = "end.dt46",
+static struct {
+	gr_srv6_behavior_t behavior;
+	const char *name;
+} behaviors[] = {
+	{SR_BEHAVIOR_END, "end"},
+	{SR_BEHAVIOR_END_T, "end.t"},
+	{SR_BEHAVIOR_END_DT6, "end.dt6"},
+	{SR_BEHAVIOR_END_DT4, "end.dt4"},
+	{SR_BEHAVIOR_END_DT46, "end.dt46"},
 };
 
-static const char *behavior_to_str(gr_srv6_behavior_t b) {
-	return behavior_str[b];
-}
-
-static gr_srv6_behavior_t str_to_behavior(const char *str) {
-	int i;
-
-	if (str == NULL)
-		return SR_BEHAVIOR_MAX;
-	for (i = 0; i < SR_BEHAVIOR_MAX; i++) {
-		if (behavior_str[i] != NULL && !strcmp(str, behavior_str[i]))
-			return i;
+static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
+	for (unsigned i = 0; i < ARRAY_DIM(behaviors); i++) {
+		if (strcmp(str, behaviors[i].name) == 0) {
+			*behavior = behaviors[i].behavior;
+			return 0;
+		}
 	}
-	return SR_BEHAVIOR_MAX;
+	return errno_set(EINVAL);
 }
 
 static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -66,8 +65,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 	n = ec_pnode_find(p, "BEHAVIOR");
 	if (n == NULL || ec_pnode_len(n) < 1)
 		return CMD_ERROR;
-	req.l.behavior = str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0));
-	if (req.l.behavior == SR_BEHAVIOR_MAX)
+	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &req.l.behavior) < 0)
 		return CMD_ERROR;
 
 	if (arg_u16(n, "TABLE", &req.l.out_vrf_id) < 0 && errno != ENOENT)
@@ -120,21 +118,13 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 
 		scols_line_sprintf(line, 0, "%u", lsid->vrf_id);
 		scols_line_sprintf(line, 1, IP6_F, &lsid->lsid);
-		scols_line_sprintf(line, 2, "%s", behavior_to_str(lsid->behavior));
+		scols_line_sprintf(line, 2, "%s", gr_srv6_behavior_name(lsid->behavior));
 		switch (lsid->behavior) {
 		case SR_BEHAVIOR_END:
-			scols_line_sprintf(
-				line, 3, "flavor=0x%02x", lsid->flags & GR_SR_FL_FLAVOR_MASK
-			);
+			scols_line_sprintf(line, 3, "flavor=0x%02x", lsid->flags);
 			break;
 		case SR_BEHAVIOR_END_T:
-			scols_line_sprintf(
-				line,
-				3,
-				"flavor=0x%02x %s",
-				lsid->flags & GR_SR_FL_FLAVOR_MASK,
-				vrf_buf
-			);
+			scols_line_sprintf(line, 3, "flavor=0x%02x %s", lsid->flags, vrf_buf);
 			break;
 		case SR_BEHAVIOR_END_DT6:
 		case SR_BEHAVIOR_END_DT4:
@@ -151,6 +141,45 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
+
+static ssize_t format_nexthop_info_srv6(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_srv6_local *sr6 = info;
+	ssize_t n = 0;
+	char vrf[64];
+
+	SAFE_BUF(
+		snprintf,
+		len,
+		"lsid=" IP6_F " behavior=%s",
+		&sr6->lsid,
+		gr_srv6_behavior_name(sr6->behavior)
+	);
+	vrf[0] = 0;
+	if (sr6->out_vrf_id < UINT16_MAX)
+		sprintf(vrf, "out_vrf=%d", sr6->out_vrf_id);
+
+	switch (sr6->behavior) {
+	case SR_BEHAVIOR_END:
+		SAFE_BUF(snprintf, len, " flavor=%#02x", sr6->flags);
+		break;
+	case SR_BEHAVIOR_END_T:
+		SAFE_BUF(snprintf, len, " flavor=%#02x %s", sr6->flags, vrf);
+		break;
+	case SR_BEHAVIOR_END_DT6:
+	case SR_BEHAVIOR_END_DT4:
+	case SR_BEHAVIOR_END_DT46:
+		SAFE_BUF(snprintf, len, " %s", vrf);
+		break;
+	}
+	return n;
+err:
+	return -1;
+}
+
+static struct gr_cli_nexthop_formatter srv6_local_formatter = {
+	.type = GR_NH_T_SR6_LOCAL,
+	.format = format_nexthop_info_srv6,
+};
 
 static int ctx_init(struct ec_node *root) {
 	struct ec_node *beh_node, *flavor_node;
@@ -262,4 +291,5 @@ static struct gr_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_nexthop_register_formatter(&srv6_local_formatter);
 }

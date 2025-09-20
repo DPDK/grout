@@ -17,9 +17,9 @@ struct gr_ip6_ifaddr {
 
 struct gr_ip6_route {
 	struct ip6_net dest;
-	struct gr_nexthop nh;
 	uint16_t vrf_id;
 	gr_nh_origin_t origin;
+	struct gr_nexthop nh;
 };
 
 #define GR_IP6_MODULE 0xfeed

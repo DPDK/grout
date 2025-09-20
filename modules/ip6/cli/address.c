@@ -125,6 +125,7 @@ static struct gr_cli_context ctx = {
 
 static void addr_event_print(uint32_t event, const void *obj) {
 	const struct gr_nexthop *nh = obj;
+	const struct gr_nexthop_info_l3 *l3 = (const struct gr_nexthop_info_l3 *)nh->info;
 	const char *action;
 
 	switch (event) {
@@ -141,9 +142,9 @@ static void addr_event_print(uint32_t event, const void *obj) {
 	printf("addr6 %s: iface=%u " ADDR_F "/%hhu\n",
 	       action,
 	       nh->iface_id,
-	       ADDR_W(nh->af),
-	       &nh->addr,
-	       nh->prefixlen);
+	       ADDR_W(l3->af),
+	       &l3->addr,
+	       l3->prefixlen);
 }
 
 static struct gr_cli_event_printer printer = {
