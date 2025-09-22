@@ -82,7 +82,7 @@ static int parse_args(int argc, char **argv) {
 			opts.err_exit = true;
 			break;
 		case 'f':
-			opts.cmds_file = fopen(optarg, "r+");
+			opts.cmds_file = fopen(optarg, "r");
 			if (opts.cmds_file == NULL) {
 				errorf("--file %s: %s", optarg, strerror(errno));
 				return -errno;
