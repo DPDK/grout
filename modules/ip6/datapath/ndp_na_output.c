@@ -29,6 +29,7 @@ static uint16_t ndp_na_output_process(
 	struct ip6_local_mbuf_data *d;
 	struct icmp6_neigh_advert *na;
 	struct icmp6_opt_lladdr *ll;
+	const struct iface *iface;
 	struct icmp6_opt *opt;
 	struct rte_mbuf *mbuf;
 	uint16_t payload_len;
@@ -39,6 +40,7 @@ static uint16_t ndp_na_output_process(
 
 		local = ndp_na_output_mbuf_data(mbuf)->local;
 		remote = ndp_na_output_mbuf_data(mbuf)->remote;
+		iface = ndp_na_output_mbuf_data(mbuf)->iface;
 
 		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
 
@@ -60,7 +62,7 @@ static uint16_t ndp_na_output_process(
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
-		d->iface = iface_from_id(local->iface_id);
+		d->iface = iface;
 		d->src = local->ipv6;
 		if (remote == NULL) {
 			// If the source of the solicitation is the unspecified address, the
