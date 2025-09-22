@@ -42,10 +42,15 @@ static struct ec_node *get_or_create(struct ec_node *root, const char *name, con
 		goto fail;
 	}
 
-	// if context is already present, return the OR node directly
-	or_node = ec_node_find(root, name);
-	if (or_node != NULL)
-		return or_node;
+	for (unsigned i = 0; i < ec_node_get_children_count(root); i++) {
+		unsigned refs;
+		ec_node_get_child(root, i, &or_node, &refs);
+		if (strcmp(ec_node_id(or_node), name) == 0
+		    && strcmp(ec_node_type(or_node)->name, "or") == 0) {
+			// if context is already present, return the OR node directly
+			return or_node;
+		}
+	}
 
 	// else, create the context node
 	if ((or_node = ec_node("or", name)) == NULL)
