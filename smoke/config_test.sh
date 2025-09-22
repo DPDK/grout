@@ -6,14 +6,16 @@
 
 grcli add interface port p0 devargs net_null0,no-rx=1
 grcli add interface port p1 devargs net_null1,no-rx=1
-grcli add nexthop id 42 address 1.2.3.4 iface p0
-grcli add nexthop id 45 iface p0
-grcli add nexthop id 47 address 1.2.3.7 iface p0
-grcli add nexthop id 1042 address f00:ba4::1 iface p1
-grcli add nexthop id 1047 address f00:ba4::100 iface p1
-grcli add nexthop id 42 address f00:ba4::666 iface p1 # replace existing nexthop
-grcli add nexthop address ba4:f00::1 iface p0 mac ba:d0:ca:ca:00:02
-grcli add nexthop address 4.3.2.1 iface p1 mac ba:d0:ca:ca:00:01
+grcli add nexthop l3 iface p0 id 42 address 1.2.3.4
+grcli add nexthop l3 iface p0 id 45
+grcli add nexthop l3 iface p0 id 47 address 1.2.3.7
+grcli add nexthop l3 iface p1 id 1042 address f00:ba4::1
+grcli add nexthop l3 iface p1 id 1047 address f00:ba4::100
+grcli add nexthop l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
+grcli add nexthop l3 iface p0 address ba4:f00::1 mac ba:d0:ca:ca:00:02
+grcli add nexthop l3 iface p1 address 4.3.2.1 mac ba:d0:ca:ca:00:01
+grcli add nexthop blackhole id 666
+grcli add nexthop reject id 123456
 grcli add ip address 10.0.0.1/24 iface p0
 grcli add ip address 10.1.0.1/24 iface p1
 grcli add ip route 0.0.0.0/0 via 10.0.0.2
@@ -37,6 +39,8 @@ grcli show graph full
 grcli show stats software
 grcli show stats hardware
 grcli del nexthop 42
+grcli del nexthop 666
+grcli del nexthop 123456
 
 grcli del interface p0
 grcli del interface p1

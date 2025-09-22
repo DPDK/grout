@@ -146,7 +146,9 @@ route6:
 }
 
 static void grout_sync_nhs(struct event *e) {
-	struct gr_nh_list_req nh_req = {.vrf_id = EVENT_VAL(e), .all = false};
+	struct gr_nh_list_req nh_req = {
+		.vrf_id = EVENT_VAL(e), .type = GR_NH_T_ALL, .include_internal = false
+	};
 	struct gr_nexthop *nh;
 	int ret;
 
