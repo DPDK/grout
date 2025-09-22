@@ -43,10 +43,19 @@ static struct ec_node *get_or_create(struct ec_node *root, const char *name, con
 	}
 
 	for (unsigned i = 0; i < ec_node_get_children_count(root); i++) {
+		struct ec_node *seq_node;
 		unsigned refs;
-		ec_node_get_child(root, i, &or_node, &refs);
-		if (strcmp(ec_node_id(or_node), name) == 0
-		    && strcmp(ec_node_type(or_node)->name, "or") == 0) {
+		if (ec_node_get_child(root, i, &seq_node, &refs) < 0)
+			continue;
+		if (strcmp(ec_node_type(seq_node)->name, "seq") != 0)
+			continue;
+		if (ec_node_get_children_count(seq_node) != 2)
+			continue;
+		if (ec_node_get_child(seq_node, 1, &or_node, &refs) < 0)
+			continue;
+		if (strcmp(ec_node_type(or_node)->name, "or") != 0)
+			continue;
+		if (strcmp(ec_node_id(or_node), name) == 0) {
 			// if context is already present, return the OR node directly
 			return or_node;
 		}
