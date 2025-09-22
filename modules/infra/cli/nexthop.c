@@ -21,6 +21,7 @@ static STAILQ_HEAD(, gr_cli_nexthop_formatter) formatters = STAILQ_HEAD_INITIALI
 
 void gr_cli_nexthop_register_formatter(struct gr_cli_nexthop_formatter *f) {
 	assert(f->name != NULL);
+	assert(f->type != GR_NH_T_ALL);
 	assert(f->format != NULL);
 	STAILQ_INSERT_TAIL(&formatters, f, entries);
 }
@@ -122,6 +123,38 @@ static struct gr_cli_nexthop_formatter reject_formatter = {
 	.format = format_nexthop_info_void,
 };
 
+static int complete_nh_types(
+	struct gr_api_client *,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void * /*cb_arg*/
+) {
+	struct gr_cli_nexthop_formatter *f;
+
+	STAILQ_FOREACH (f, &formatters, entries) {
+		if (ec_str_startswith(f->name, arg)) {
+			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, f->name))
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int nh_name_to_type(const char *name, gr_nh_type_t *type) {
+	struct gr_cli_nexthop_formatter *f;
+
+	STAILQ_FOREACH (f, &formatters, entries) {
+		if (strcmp(f->name, name) == 0) {
+			*type = f->type;
+			return 0;
+		}
+	}
+
+	return errno_set(EPFNOSUPPORT);
+}
+
 static cmd_status_t set_config(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_nh_config_set_req req = {0};
 
@@ -166,69 +199,46 @@ static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
+static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_add_req *req = NULL;
 	struct gr_nexthop_info_l3 *l3;
 	cmd_status_t ret = CMD_ERROR;
-	size_t len = sizeof(*req);
-	gr_nh_type_t type;
-
-	if (arg_str(p, "blackhole") != NULL) {
-		type = GR_NH_T_BLACKHOLE;
-	} else if (arg_str(p, "reject") != NULL) {
-		type = GR_NH_T_REJECT;
-	} else {
-		type = GR_NH_T_L3;
-		len += sizeof(*l3);
-	}
+	size_t len = sizeof(*req) + sizeof(*l3);
 
 	req = calloc(1, len);
 	if (req == NULL)
 		goto out;
 
 	req->exist_ok = true;
-	req->nh.type = type;
+	req->nh.type = GR_NH_T_L3;
 	req->nh.origin = GR_NH_ORIGIN_USER;
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;
 
-	switch (type) {
-	case GR_NH_T_BLACKHOLE:
-	case GR_NH_T_REJECT:
+	l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+
+	switch (arg_ip4(p, "IP", &l3->ipv4)) {
+	case 0:
+		l3->af = GR_AF_IP4;
 		break;
-
-	case GR_NH_T_L3:
-		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-
-		switch (arg_ip4(p, "IP", &l3->ipv4)) {
-		case 0:
-			l3->af = GR_AF_IP4;
-			break;
-		case -EINVAL:
-			if (arg_ip6(p, "IP", &l3->ipv6) < 0)
-				return CMD_ERROR;
-			l3->af = GR_AF_IP6;
-			break;
-		default:
-			l3->af = GR_AF_UNSPEC;
-			break;
-		}
-
-		struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
-		if (iface == NULL)
+	case -EINVAL:
+		if (arg_ip6(p, "IP", &l3->ipv6) < 0)
 			goto out;
-		req->nh.iface_id = iface->id;
-		free(iface);
-
-		if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
-			goto out;
-
+		l3->af = GR_AF_IP6;
 		break;
-
 	default:
-		errno = EINVAL;
-		goto out;
+		l3->af = GR_AF_UNSPEC;
+		break;
 	}
+
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+	if (iface == NULL)
+		goto out;
+	req->nh.iface_id = iface->id;
+	free(iface);
+
+	if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
+		goto out;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
@@ -237,6 +247,29 @@ static cmd_status_t nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
 out:
 	free(req);
 	return ret;
+}
+
+static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_add_req req = {
+		.exist_ok = true,
+		.nh = {
+			.type = GR_NH_T_BLACKHOLE,
+			.iface_id = GR_IFACE_ID_UNDEF,
+			.origin = GR_NH_ORIGIN_USER,
+		},
+	};
+
+	if (arg_str(p, "reject") != NULL)
+		req.nh.type = GR_NH_T_REJECT;
+	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_ADD, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
 }
 
 static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -252,15 +285,20 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 }
 
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_ALL};
+	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_ALL, .type = GR_NH_T_ALL};
 	const struct gr_nexthop *nh;
+	const char *type;
 	char buf[128];
 	int ret;
 
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	req.all = arg_str(p, "all") != NULL;
+	type = arg_str(p, "TYPE");
+	if (type != NULL && nh_name_to_type(type, &req.type) < 0)
+		return CMD_ERROR;
+
+	req.include_internal = arg_str(p, "internal") != NULL;
 
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "VRF", 0, 0);
@@ -352,14 +390,24 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD),
-		"nexthop [id ID] ([address IP] iface IFACE [mac MAC])|blackhole|reject",
-		nh_add,
-		"Add a new next hop.",
+		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		"l3 iface IFACE [(id ID),(address IP),(mac MAC)]",
+		nh_l3_add,
+		"Add a new L3 nexthop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		"blackhole|reject [(id ID),(vrf VRF)]",
+		nh_blackhole_add,
+		"Add a new blackhole nexthop.",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
+		with_help("VRF ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
 		with_help("Blackhole nexthop.", ec_node_str("blackhole", "blackhole")),
 		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject"))
 	);
@@ -376,11 +424,14 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW),
-		"nexthop [vrf VRF] [all]",
+		"nexthop [(vrf VRF),(type TYPE),(internal)]",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
-		with_help("All next hops including internal ones.", ec_node_str("all", "all"))
+		with_help(
+			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
+		),
+		with_help("Include internal next hops.", ec_node_str("internal", "internal"))
 	);
 	if (ret < 0)
 		return ret;

@@ -12,7 +12,7 @@ grcli add interface port $p2 devargs net_tap1,iface=$p2 mac d2:f0:0c:ba:a4:12
 grcli add ip6 address fd00:ba4:1::1/64 iface $p1
 grcli add ip6 address fd00:ba4:2::1/64 iface $p2
 grcli add ip6 route fd00:f00:1::/64 via fd00:ba4:1::2
-grcli add nexthop id 45 iface $p2
+grcli add nexthop l3 iface $p2 id 45
 grcli add ip6 route fd00:f00:2::/64 via id 45
 
 for n in 1 2; do

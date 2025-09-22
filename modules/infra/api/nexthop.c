@@ -105,8 +105,9 @@ static struct gr_api_handler nh_del_handler = {
 };
 
 struct list_context {
+	gr_nh_type_t type;
 	uint16_t vrf_id;
-	bool all;
+	bool include_internal;
 	int ret;
 	struct api_ctx *ctx;
 };
@@ -120,7 +121,9 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 		return;
 	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_ALL)
 		return;
-	if (!ctx->all && nh->origin == GR_NH_ORIGIN_INTERNAL)
+	if (ctx->type != GR_NH_T_ALL && nh->type != ctx->type)
+		return;
+	if (!ctx->include_internal && nh->origin == GR_NH_ORIGIN_INTERNAL)
 		return;
 
 	pub_nh = nexthop_to_api(nh, &len);
@@ -135,7 +138,13 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 
 static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_nh_list_req *req = request;
-	struct list_context list = {.vrf_id = req->vrf_id, .all = req->all, .ctx = ctx, .ret = 0};
+	struct list_context list = {
+		.vrf_id = req->vrf_id,
+		.include_internal = req->include_internal,
+		.type = req->type,
+		.ctx = ctx,
+		.ret = 0
+	};
 
 	nexthop_iter(nh_list_cb, &list);
 
