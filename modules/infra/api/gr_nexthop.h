@@ -32,6 +32,7 @@ typedef enum : uint8_t {
 	GR_NH_T_DNAT,
 	GR_NH_T_BLACKHOLE,
 	GR_NH_T_REJECT,
+#define GR_NH_T_ALL UINT8_C(0xff)
 } gr_nh_type_t;
 
 // Route install origin values shared by IPv4 and IPv6.
@@ -296,7 +297,8 @@ struct gr_nh_del_req {
 
 struct gr_nh_list_req {
 	uint16_t vrf_id;
-	bool all;
+	gr_nh_type_t type;
+	bool include_internal;
 };
 
 // STREAM(struct gr_nexthop);
