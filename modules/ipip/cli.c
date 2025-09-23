@@ -128,7 +128,7 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
+		INTERFACE_ADD_CTX(root),
 		"ipip NAME local LOCAL remote REMOTE [" IFACE_ATTRS_CMD "]",
 		ipip_add,
 		"Create a new IPIP tunnel interface.",
@@ -138,7 +138,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("interface", "Modify interfaces.")),
+		INTERFACE_SET_CTX(root),
 		"ipip NAME (name NEW_NAME),(local LOCAL),(remote REMOTE)," IFACE_ATTRS_CMD,
 		ipip_set,
 		"Modify ipip parameters.",

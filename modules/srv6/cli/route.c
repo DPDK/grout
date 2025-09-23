@@ -131,11 +131,13 @@ static struct gr_cli_nexthop_formatter srv6_local_formatter = {
 	.format = format_nexthop_info_srv6,
 };
 
+#define TUNSRC_CTX(root) CLI_CONTEXT(root, CTX_ARG("tunsrc", "SRv6 source address."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		NEXTHOP_ADD_CTX(root),
 		"srv6 seglist SEGLIST+ [(encap h.encaps|h.encaps.red),(vrf VRF),(id ID)]",
 		srv6_nh_add,
 		"Add SRv6 encap nexthop.",
@@ -148,8 +150,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("sr", "Set srv6 stack elements.")),
-		"tunsrc SRC",
+		TUNSRC_CTX(root),
+		"set SRC",
 		srv6_tunsrc_set,
 		"Set Segment Routing SRv6 source address",
 		with_help("Ipv6 address to use as source.", ec_node_re("SRC", IPV6_RE)),
@@ -158,8 +160,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_CLEAR, CTX_ARG("sr", "Clear srv6 stack elements.")),
-		"tunsrc",
+		TUNSRC_CTX(root),
+		"clear",
 		srv6_tunsrc_clear,
 		"Clear Segment Routing SRv6 source address"
 	);
@@ -167,8 +169,8 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
-		"tunsrc",
+		TUNSRC_CTX(root),
+		"show",
 		srv6_tunsrc_show,
 		"Show Segment Routing SRv6 source address"
 	);

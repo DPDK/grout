@@ -340,12 +340,15 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
+#define NEXTHOP_CONFIG_CTX(root)                                                                   \
+	CLI_CONTEXT(root, NEXTHOP_ARG, CTX_ARG("config", "Nexthop configuration."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("config", "Change stack configuration.")),
-		"nexthop (max MAX),(lifetime LIFE),(unreachable UNREACH),"
+		NEXTHOP_CONFIG_CTX(root),
+		"set (max MAX),(lifetime LIFE),(unreachable UNREACH),"
 		"(held-packets HELD),(ucast-probes UCAST),(bcast-probes BCAST)",
 		set_config,
 		"Change the nexthop configuration.",
@@ -381,16 +384,16 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("config", "Show stack configuration.")),
-		"nexthop",
+		NEXTHOP_CONFIG_CTX(root),
+		"show",
 		show_config,
-		"Show the current nexthop configuration.",
+		"Show the current nexthop configuration."
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		NEXTHOP_ADD_CTX(root),
 		"l3 iface IFACE [(id ID),(address IP),(mac MAC)]",
 		nh_l3_add,
 		"Add a new L3 nexthop.",
@@ -402,7 +405,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		NEXTHOP_ADD_CTX(root),
 		"blackhole|reject [(id ID),(vrf VRF)]",
 		nh_blackhole_add,
 		"Add a new blackhole nexthop.",
@@ -414,8 +417,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL),
-		"nexthop ID",
+		NEXTHOP_CTX(root),
+		"del ID",
 		nh_del,
 		"Delete a next hop.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
@@ -423,8 +426,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW),
-		"nexthop [(vrf VRF),(type TYPE),(internal)]",
+		NEXTHOP_CTX(root),
+		"show [(vrf VRF),(type TYPE),(internal)]",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),

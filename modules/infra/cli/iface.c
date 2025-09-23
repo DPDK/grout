@@ -487,8 +487,8 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("interface", "Delete interfaces.")),
-		"NAME",
+		INTERFACE_CTX(root),
+		"del NAME",
 		iface_del,
 		"Delete an existing interface.",
 		with_help(
@@ -499,8 +499,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("interface", "Display interface details.")),
-		"[(name NAME)|(type TYPE)|stats|rates]",
+		INTERFACE_CTX(root),
+		"show [(name NAME)|(type TYPE)]",
 		iface_show,
 		"Show interface details.",
 		with_help(
@@ -510,10 +510,20 @@ static int ctx_init(struct ec_node *root) {
 		with_help(
 			"Show only this type of interface.",
 			ec_node_dyn("TYPE", complete_iface_types, NULL)
-		),
-		with_help("Show interface statistics.", ec_node_str("stats", "stats")),
-		with_help("Show interface counter rates.", ec_node_str("rates", "rates"))
+		)
 	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(INTERFACE_CTX(root), "stats", iface_stats, "Show interface counters.");
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CTX(root), "rates", iface_rates, "Show interface counter rates."
+	);
+	if (ret < 0)
+		return ret;
 
 	return ret;
 }

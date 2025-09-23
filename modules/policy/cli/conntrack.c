@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include "policy.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
@@ -142,24 +140,27 @@ static cmd_status_t config_set(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
+#define CONNTRACK_ARG CTX_ARG("conntrack", "Connection tracking.")
+#define CONNTRACK_CTX(root) CLI_CONTEXT(root, CONNTRACK_ARG)
+#define CONNTRACK_CONFIG_CTX(root)                                                                 \
+	CLI_CONTEXT(root, CONNTRACK_ARG, CTX_ARG("config", "Conntrack configuration."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	ret = CLI_COMMAND(CONNTRACK_CTX(root), "show", conn_list, "Display tracked connections.");
+	if (ret < 0)
+		return ret;
+
 	ret = CLI_COMMAND(
-		POLICY_SHOW_CTX(root), "conntrack", conn_list, "Display tracked connections."
+		CONNTRACK_CTX(root), "flush", conn_flush, "Flush all tracked connections."
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
-		POLICY_CLEAR_CTX(root), "conntrack", conn_flush, "Flush all tracked connections."
-	);
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("config", "Change stack configuration.")),
-		"conntrack (max MAX),(closed-timeout CLOSED),(new-timeout NEW),"
+		CONNTRACK_CONFIG_CTX(root),
+		"set (max MAX),(closed-timeout CLOSED),(new-timeout NEW),"
 		"(established-udp-timeout EST_UDP),(established-tcp-timeout EST_TCP),"
 		"(half-close-timeout HALF_CLOSE),(time-wait-timeout TIME_WAIT)",
 		config_set,
@@ -197,10 +198,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("config", "Show stack configuration.")),
-		"conntrack",
+		CONNTRACK_CONFIG_CTX(root),
+		"show",
 		config_show,
-		"Show the current connection tracking configuration.",
+		"Show the current connection tracking configuration."
 	);
 	if (ret < 0)
 		return ret;

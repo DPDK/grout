@@ -13,5 +13,5 @@ command -v dot || fail "graphviz is not installed"
 
 # compare runtime graph with the image stored in git
 svg_to_edges < docs/graph.svg > $tmp/edges_git
-grcli show graph | dot -Tsvg | svg_to_edges > $tmp/edges_runtime
+grcli graph show brief | dot -Tsvg | svg_to_edges > $tmp/edges_runtime
 diff -u $tmp/edges_git $tmp/edges_runtime || fail "docs/graph.svg is not up to date"
