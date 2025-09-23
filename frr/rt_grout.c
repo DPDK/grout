@@ -593,17 +593,14 @@ static enum zebra_dplane_result grout_add_del_srv6_local(
 	}
 
 	flv = &ctx6->flv;
-	if (flv->flv_ops == ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID) {
-		zlog_err("%s: not supported next-c-sid for srv6 local", __func__);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-	if (flv->flv_ops == ZEBRA_SEG6_LOCAL_FLV_OP_PSP)
+	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
 		gr_l->flags |= GR_SR_FL_FLAVOR_PSP;
-	if (flv->flv_ops == ZEBRA_SEG6_LOCAL_FLV_OP_USD)
+	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
+		gr_log_debug("USP is always configured");
+	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
 		gr_l->flags |= GR_SR_FL_FLAVOR_USD;
-	// XXX: if (flv->flv_ops == ZEBRA_SEG6_LOCAL_FLV_OP_USP)
-	if (flv->flv_ops == ZEBRA_SEG6_LOCAL_FLV_OP_UNSPEC)
-		zlog_debug("%s: USP is always configured", __func__);
+	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
+		gr_log_debug("not supported next-c-sid for srv6 local");
 
 end:
 
