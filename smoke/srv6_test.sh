@@ -62,7 +62,8 @@ ip -n $p1 route add 192.168.61.0/24 encap seg6 mode encap segs fd00:202::100 dev
 ip -n $p1 -6 route add fd00:202::/64 via fd00:102::1 dev $p1
 
 # (6)
-grcli add sr localsid fd00:202::100 behavior end.dt4
+grcli add nexthop srv6-local behavior end.dt4 id 666
+grcli add ip6 route fd00:202::100/128 via id 666
 
 # test
 ip netns exec $p0 ping -c 3 192.168.60.1

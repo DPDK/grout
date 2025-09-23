@@ -518,109 +518,6 @@ end:
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
-static enum zebra_dplane_result grout_add_del_srv6_local(
-	const struct prefix *p,
-	gr_nh_origin_t origin,
-	struct nexthop *nh,
-	vrf_id_t vrf_id,
-	bool new
-) {
-	union {
-		struct gr_srv6_localsid_add_req localsid_add;
-		struct gr_srv6_localsid_del_req localsid_del;
-	} req;
-	const struct seg6local_flavors_info *flv;
-	const struct seg6local_context *ctx6;
-	struct gr_srv6_localsid *gr_l;
-	uint32_t action, req_type;
-	size_t req_len;
-
-	if (p->family != AF_INET6) {
-		gr_log_err("impossible to add/del local srv6 with family %u", p->family);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	if (p->prefixlen != 128) {
-		gr_log_err(
-			"impossible to add/del local srv6 with prefix len %u (should be 128)",
-			p->prefixlen
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	if (!new) {
-		req.localsid_del = (struct gr_srv6_localsid_del_req) {
-			.vrf_id = vrf_id,
-			.missing_ok = true,
-		};
-		memcpy(&req.localsid_del.lsid, p->u.prefix6.s6_addr, sizeof(req.localsid_del.lsid));
-
-		req_type = GR_SRV6_LOCALSID_DEL;
-		req_len = sizeof(struct gr_srv6_localsid_del_req);
-		goto end;
-	}
-
-	req.localsid_add = (struct gr_srv6_localsid_add_req) {
-		.l.vrf_id = vrf_id,
-		.origin = origin,
-		.exist_ok = true,
-	};
-	req_type = GR_SRV6_LOCALSID_ADD;
-	req_len = sizeof(struct gr_srv6_localsid_add_req);
-
-	gr_l = &req.localsid_add.l;
-	memcpy(&gr_l->lsid, p->u.prefix6.s6_addr, sizeof(gr_l->lsid));
-	action = nh->nh_srv6->seg6local_action;
-	ctx6 = &nh->nh_srv6->seg6local_ctx;
-
-	switch (action) {
-	case ZEBRA_SEG6_LOCAL_ACTION_END:
-		gr_l->behavior = SR_BEHAVIOR_END;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_T:
-		gr_l->behavior = SR_BEHAVIOR_END_T;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
-		gr_l->behavior = SR_BEHAVIOR_END_DT6;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
-		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
-		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	default:
-		zlog_err("%s: not supported srv6 local behaviour action=%u", __func__, action);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	flv = &ctx6->flv;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
-		gr_l->flags |= GR_SR_FL_FLAVOR_PSP;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
-		gr_log_debug("USP is always configured");
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
-		gr_l->flags |= GR_SR_FL_FLAVOR_USD;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
-		gr_log_debug("not supported next-c-sid for srv6 local");
-
-end:
-
-	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr route, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
-
-	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-
-	return ZEBRA_DPLANE_REQUEST_SUCCESS;
-}
-
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	union {
 		struct gr_ip4_route_add_req r4_add;
@@ -654,7 +551,8 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 
 	ng = dplane_ctx_get_ng(ctx);
 	nh = ng->nexthop;
-	if (nh && nh->nh_srv6) {
+	if (nh && nh->nh_srv6 && nh->nh_srv6->seg6_segs && nh->nh_srv6->seg6_segs->num_segs
+	    && !sid_zero(nh->nh_srv6->seg6_segs)) {
 		if (nexthop_group_nexthop_num(ng) > 1) {
 			gr_log_err(
 				"impossible to add/del srv6 route with several nexthop (not "
@@ -662,15 +560,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 			);
 			return ZEBRA_DPLANE_REQUEST_FAILURE;
 		}
-
-		if (nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC)
-			return grout_add_del_srv6_local(p, origin, nh, vrf_id, new);
-		if (nh->nh_srv6->seg6_segs && nh->nh_srv6->seg6_segs->num_segs
-		    && !sid_zero(nh->nh_srv6->seg6_segs))
-			return grout_add_del_srv6_route(p, origin, nh, vrf_id, new);
-
-		gr_log_err("impossible to add/del srv6 route (invalid format)");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
+		return grout_add_del_srv6_route(p, origin, nh, vrf_id, new);
 	}
 
 	if (new && nh_id == 0) {
@@ -779,6 +669,7 @@ static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
 static enum zebra_dplane_result
 grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *nh) {
 	enum zebra_dplane_result ret = ZEBRA_DPLANE_REQUEST_FAILURE;
+	struct gr_nexthop_info_srv6_local *sr6_local;
 	struct gr_nh_add_req *req = NULL;
 	struct gr_nexthop_info_l3 *l3;
 	size_t len = sizeof(*req);
@@ -790,12 +681,21 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	case NEXTHOP_TYPE_IPV6:
 	case NEXTHOP_TYPE_IPV6_IFINDEX:
 	case NEXTHOP_TYPE_IFINDEX:
-		len += sizeof(*l3);
-		type = GR_NH_T_L3;
+		if (nh->nh_srv6 != NULL
+		    && nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC) {
+			len += sizeof(*sr6_local);
+			type = GR_NH_T_SR6_LOCAL;
+		} else {
+			len += sizeof(*l3);
+			type = GR_NH_T_L3;
+		}
 		break;
 	case NEXTHOP_TYPE_BLACKHOLE:
 		type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
 		break;
+	default:
+		gr_log_err("unsupported nexthop type: %u", nh->type);
+		goto out;
 	}
 
 	req = calloc(1, len);
@@ -811,26 +711,80 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	req->nh.vrf_id = nh->vrf_id;
 	req->nh.iface_id = nh->ifindex;
 
-	switch (nh->type) {
-	case NEXTHOP_TYPE_IPV4:
-	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-		l3->af = GR_AF_IP4;
-		memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+	switch (type) {
+	case GR_NH_T_L3:
+		switch (nh->type) {
+		case NEXTHOP_TYPE_IPV4:
+		case NEXTHOP_TYPE_IPV4_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_IP4;
+			memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+			break;
+		case NEXTHOP_TYPE_IPV6:
+		case NEXTHOP_TYPE_IPV6_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_IP6;
+			memcpy(&l3->ipv6, &nh->gate.ipv6, sizeof(l3->ipv6));
+			break;
+		case NEXTHOP_TYPE_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_UNSPEC;
+			break;
+		default:
+			break;
+		}
 		break;
-	case NEXTHOP_TYPE_IPV6:
-	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-		l3->af = GR_AF_IP6;
-		memcpy(&l3->ipv6, &nh->gate.ipv6, sizeof(l3->ipv6));
+	case GR_NH_T_SR6_LOCAL:
+		sr6_local = (struct gr_nexthop_info_srv6_local *)req->nh.info;
+
+		switch (nh->nh_srv6->seg6local_action) {
+		case ZEBRA_SEG6_LOCAL_ACTION_END:
+			sr6_local->behavior = SR_BEHAVIOR_END;
+			sr6_local->out_vrf_id = GR_VRF_ID_ALL;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_T:
+			sr6_local->behavior = SR_BEHAVIOR_END_T;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT6;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT4;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT46;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		default:
+			gr_log_err(
+				"not supported srv6 local behaviour action=%u",
+				nh->nh_srv6->seg6local_action
+			);
+			goto out;
+		}
+
+		uint32_t flv = nh->nh_srv6->seg6local_ctx.flv.flv_ops;
+
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
+			sr6_local->flags |= GR_SR_FL_FLAVOR_PSP;
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
+			gr_log_debug("USP is always configured");
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
+			sr6_local->flags |= GR_SR_FL_FLAVOR_USD;
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
+			gr_log_debug("not supported next-c-sid for srv6 local");
+
 		break;
-	case NEXTHOP_TYPE_IFINDEX:
-		l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-		l3->af = GR_AF_UNSPEC;
-		break;
-	case NEXTHOP_TYPE_BLACKHOLE:
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
 		req->nh.iface_id = GR_IFACE_ID_UNDEF;
 		break;
+	default:
+		gr_log_err("unsupported nexthop type: %s", gr_nh_type_name(type));
+		goto out;
 	}
 
 	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(type));
@@ -868,7 +822,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	}
 
 	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;
-	if (nh->nh_srv6) {
+	if (nh->nh_srv6 && nh->nh_srv6->seg6local_action == ZEBRA_SEG6_LOCAL_ACTION_UNSPEC) {
 		gr_log_err("impossible to add/del srv6 nexthop (not supported)");
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
