@@ -27,42 +27,7 @@ struct gr_nexthop_info_srv6 {
 	struct rte_ipv6_addr seglist[];
 };
 
-struct gr_srv6_route_key {
-	union {
-		struct ip4_net dest4;
-		struct ip6_net dest6;
-	};
-	bool is_dest6;
-	uint16_t vrf_id;
-};
-
-struct gr_srv6_route {
-	struct gr_srv6_route_key key;
-	struct gr_nexthop_info_srv6 nh;
-};
-
-#define GR_SRV6_ROUTE_ADD REQUEST_TYPE(GR_SRV6_MODULE, 0x0001)
-
-struct gr_srv6_route_add_req {
-	uint8_t exist_ok;
-	gr_nh_origin_t origin;
-	struct gr_srv6_route r;
-};
-
-#define GR_SRV6_ROUTE_DEL REQUEST_TYPE(GR_SRV6_MODULE, 0x0002)
-
-struct gr_srv6_route_del_req {
-	struct gr_srv6_route_key key;
-	uint8_t missing_ok;
-};
-
-#define GR_SRV6_ROUTE_LIST REQUEST_TYPE(GR_SRV6_MODULE, 0x0004)
-
-struct gr_srv6_route_list_req {
-	uint16_t vrf_id;
-};
-
-// STREAM(struct gr_srv6_route);
+// sr tun src //////////////////////////////////////////////////////
 
 #define GR_SRV6_TUNSRC_SET REQUEST_TYPE(GR_SRV6_MODULE, 0x0005)
 struct gr_srv6_tunsrc_set_req {
