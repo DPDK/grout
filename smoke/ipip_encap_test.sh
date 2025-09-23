@@ -8,12 +8,12 @@ p0=${run_id}0
 p1=${run_id}1
 iptun=${run_id}tun1
 
-grcli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:01
-grcli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:02
-grcli add ip address 10.99.0.1/24 iface $p0
-grcli add ip address 172.16.1.1/24 iface $p1
-grcli add interface ipip $iptun local 172.16.1.1 remote 172.16.1.2
-grcli add ip address 10.98.0.1/24 iface $iptun
+grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:01
+grcli interface add port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:02
+grcli address add 10.99.0.1/24 iface $p0
+grcli address add 172.16.1.1/24 iface $p1
+grcli interface add ipip $iptun local 172.16.1.1 remote 172.16.1.2
+grcli address add 10.98.0.1/24 iface $iptun
 
 netns_add $p0
 ip link set $p0 netns $p0

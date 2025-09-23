@@ -108,13 +108,16 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 }
 
 #define CPU_LIST_RE "^[0-9,-]+$"
+#define AFFINITY_ARG CTX_ARG("affinity", "CPU and physical queue affinity.")
+#define CPU_CTX(root) CLI_CONTEXT(root, AFFINITY_ARG, CTX_ARG("cpus", "CPU masks."))
+#define QMAP_CTX(root) CLI_CONTEXT(root, AFFINITY_ARG, CTX_ARG("qmap", "Physical RXQ mappings."))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("affinity", "Configure CPU affinity.")),
-		"cpus (control CONTROL),(datapath DATAPATH)",
+		CPU_CTX(root),
+		"set (control CONTROL),(datapath DATAPATH)",
 		affinity_set,
 		"Change the CPU affinity lists.",
 		with_help(
@@ -128,17 +131,12 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("affinity", "Display CPU affinity.")),
-		"cpus",
-		affinity_show,
-		"Display CPU affinity lists."
-	);
+	ret = CLI_COMMAND(CPU_CTX(root), "show", affinity_show, "Display CPU affinity lists.");
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("affinity", "Configure CPU affinity.")),
-		"qmap NAME rxq RXQ cpu CPU",
+		QMAP_CTX(root),
+		"set NAME rxq RXQ cpu CPU",
 		rxq_set,
 		"Set DPDK port queue affinity.",
 		with_help(
@@ -150,12 +148,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("affinity", "Display CPU affinity.")),
-		"qmap",
-		rxq_list,
-		"Display DPDK port RXQ affinity."
-	);
+	ret = CLI_COMMAND(QMAP_CTX(root), "show", rxq_list, "Display DPDK port RXQ affinity.");
 	if (ret < 0)
 		return ret;
 

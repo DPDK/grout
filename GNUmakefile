@@ -36,7 +36,7 @@ update-graph: all
 	export GROUT_SOCK_PATH="$$tmp/sock"; \
 	$(BUILDDIR)/grout -t & \
 	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
-	$(BUILDDIR)/grcli show graph brief | dot -Tsvg > docs/graph.svg
+	$(BUILDDIR)/grcli graph show brief | dot -Tsvg > docs/graph.svg
 
 .PHONY: coverage
 coverage:

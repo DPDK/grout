@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include "policy.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
@@ -86,12 +84,14 @@ static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
+#define SNAT_CTX(root) CLI_CONTEXT(root, CTX_ARG("snat44", "Dynamic source NAT44."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		POLICY_ADD_CTX(root),
-		"snat44 interface IFACE subnet NET replace REPLACE",
+		SNAT_CTX(root),
+		"add interface IFACE subnet NET replace REPLACE",
 		snat44_add,
 		"Create a SNAT44 policy.",
 		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
@@ -107,8 +107,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		POLICY_DEL_CTX(root),
-		"snat44 interface IFACE subnet NET replace REPLACE",
+		SNAT_CTX(root),
+		"del interface IFACE subnet NET replace REPLACE",
 		snat44_del,
 		"Delete a SNAT44 policy.",
 		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
@@ -123,7 +123,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(POLICY_SHOW_CTX(root), "snat44", snat44_list, "Display SNAT44 policies.");
+	ret = CLI_COMMAND(SNAT_CTX(root), "show", snat44_list, "Display SNAT44 policies.");
 	if (ret < 0)
 		return ret;
 

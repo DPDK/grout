@@ -4,47 +4,47 @@
 
 . $(dirname $0)/_init.sh
 
-grcli add interface port p0 devargs net_null0,no-rx=1
-grcli add interface port p1 devargs net_null1,no-rx=1
-grcli add nexthop l3 iface p0 id 42 address 1.2.3.4
-grcli add nexthop l3 iface p0 id 45
-grcli add nexthop l3 iface p0 id 47 address 1.2.3.7
-grcli add nexthop l3 iface p1 id 1042 address f00:ba4::1
-grcli add nexthop l3 iface p1 id 1047 address f00:ba4::100
-grcli add nexthop l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
-grcli add nexthop l3 iface p0 address ba4:f00::1 mac ba:d0:ca:ca:00:02
-grcli add nexthop l3 iface p1 address 4.3.2.1 mac ba:d0:ca:ca:00:01
-grcli add nexthop blackhole id 666
-grcli add nexthop reject id 123456
-grcli add ip address 10.0.0.1/24 iface p0
-grcli add ip address 10.1.0.1/24 iface p1
-grcli add ip route 0.0.0.0/0 via 10.0.0.2
-grcli add ip route 0.0.0.0/0 via 10.0.0.1 || fail "route replace should succeed"
-grcli add ip route 4.5.21.2/27 via id 47
-grcli add ip route 172.16.47.0/24 via id 1047
-grcli add ip6 address 2345::1/24 iface p0
-grcli add ip6 address 2346::1/24 iface p1
-grcli add ip6 route ::/0 via 2345::2
-grcli add ip6 route ::/0 via 2345::1 || fail "route6 replace should succeed"
-grcli add ip6 route 2521:111::4/37 via id 1047
-grcli add ip6 route 2521:112::/64 via id 45
-grcli add ip6 route 2521:113::/64 via id 47
-grcli set interface port p0 rxqs 2
-grcli set interface port p1 rxqs 2
-grcli show interface
-grcli show ip route
-grcli show ip6 route
-grcli show nexthop
-grcli show graph full
-grcli show stats software
-grcli show stats hardware
-grcli del nexthop 42
-grcli del nexthop 666
-grcli del nexthop 123456
+grcli interface add port p0 devargs net_null0,no-rx=1
+grcli interface add port p1 devargs net_null1,no-rx=1
+grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
+grcli nexthop add l3 iface p0 id 45
+grcli nexthop add l3 iface p0 id 47 address 1.2.3.7
+grcli nexthop add l3 iface p1 id 1042 address f00:ba4::1
+grcli nexthop add l3 iface p1 id 1047 address f00:ba4::100
+grcli nexthop add l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
+grcli nexthop add l3 iface p0 address ba4:f00::1 mac ba:d0:ca:ca:00:02
+grcli nexthop add l3 iface p1 address 4.3.2.1 mac ba:d0:ca:ca:00:01
+grcli nexthop add blackhole id 666
+grcli nexthop add reject id 123456
+grcli address add 10.0.0.1/24 iface p0
+grcli address add 10.1.0.1/24 iface p1
+grcli route add 0.0.0.0/0 via 10.0.0.2
+grcli route add 0.0.0.0/0 via 10.0.0.1 || fail "route replace should succeed"
+grcli route add 4.5.21.2/27 via id 47
+grcli route add 172.16.47.0/24 via id 1047
+grcli address6 add 2345::1/24 iface p0
+grcli address6 add 2346::1/24 iface p1
+grcli route6 add ::/0 via 2345::2
+grcli route6 add ::/0 via 2345::1 || fail "route6 replace should succeed"
+grcli route6 add 2521:111::4/37 via id 1047
+grcli route6 add 2521:112::/64 via id 45
+grcli route6 add 2521:113::/64 via id 47
+grcli interface set port p0 rxqs 2
+grcli interface set port p1 rxqs 2
+grcli interface show
+grcli route show
+grcli route6 show
+grcli nexthop show
+grcli graph show full
+grcli stats show software
+grcli stats show hardware
+grcli nexthop del 42
+grcli nexthop del 666
+grcli nexthop del 123456
 
-grcli del interface p0
-grcli del interface p1
+grcli interface del p0
+grcli interface del p1
 
-if [ "$(grcli show nexthop | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
-if [ "$(grcli show ip route | wc -l)" -ne 0 ]; then fail "RIB4 is not empty" ; fi
-if [ "$(grcli show ip6 route | wc -l)" -ne 0 ]; then fail "RIB6 is not empty" ; fi
+if [ "$(grcli nexthop show | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
+if [ "$(grcli route | wc -l)" -ne 0 ]; then fail "RIB4 is not empty" ; fi
+if [ "$(grcli route6 | wc -l)" -ne 0 ]; then fail "RIB6 is not empty" ; fi

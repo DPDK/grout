@@ -197,7 +197,7 @@ static int ctx_init(struct ec_node *root) {
 		)
 	);
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		NEXTHOP_ADD_CTX(root),
 		"srv6-local behavior BEHAVIOR [(id ID),(vrf VRF)]",
 		srv6_localsid_add,
 		"Create a new local endpoint.",

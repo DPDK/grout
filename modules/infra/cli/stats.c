@@ -149,12 +149,14 @@ static cmd_status_t stats_reset(struct gr_api_client *c, const struct ec_pnode *
 	return CMD_SUCCESS;
 }
 
+#define STATS_CTX(root) CLI_CONTEXT(root, CTX_ARG("stats", "Packet processing statistics."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("stats", "Print statistics.")),
-		"(software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
+		STATS_CTX(root),
+		"show (software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
 		stats_get,
 		"Print statistics.",
 		with_help("Print software stats.", ec_node_str("software", "software")),
@@ -188,9 +190,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_CLEAR), "stats", stats_reset, "Reset all stats to zero."
-	);
+	ret = CLI_COMMAND(STATS_CTX(root), "reset", stats_reset, "Reset all stats to zero.");
 	if (ret < 0)
 		return ret;
 

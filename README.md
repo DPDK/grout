@@ -99,12 +99,12 @@ See DPDK documentation for more details:
 ```sh
 # Startup configuration.
 cat > /etc/grout.init <<EOF
-set affinity cpus control 0,1,20,21 datapath 2,22
-add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
-add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
-add ip address 1.2.3.4/24 iface p0
-add ip address 4.3.2.1/24 iface p1
-add ip route 0.0.0.0/0 via 1.2.3.254
+affinity cpus set control 0,1,20,21 datapath 2,22
+interface add port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
+interface add port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
+address add 1.2.3.4/24 iface p0
+address add 4.3.2.1/24 iface p1
+route add 0.0.0.0/0 via 1.2.3.254
 EOF
 
 systemctl restart grout.service
@@ -128,15 +128,15 @@ systemctl restart grout.service
 Nov 30 10:31:31 grout systemd[1]: Starting Graph router daemon...
 Nov 30 10:31:31 grout grout[31299]: GROUT: main: starting grout version v0.2-93-gf53240e3750a
 Nov 30 10:31:31 grout grout[31299]: GROUT: dpdk_init: DPDK 24.11.0
-Nov 30 10:31:31 grout grcli[31302]: + add interface port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
+Nov 30 10:31:31 grout grcli[31302]: + interface add port p0 devargs 0000:8a:00.0 rxqs 1 qsize 2048
 Nov 30 10:31:32 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 2] starting tid=31303
 Nov 30 10:31:40 grout grcli[31302]: Created interface 1
-Nov 30 10:31:32 grout grcli[31302]: + add interface port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
+Nov 30 10:31:32 grout grcli[31302]: + interface add port p1 devargs 0000:8a:00.1 rxqs 1 qsize 2048
 Nov 30 10:31:34 grout grout[31299]: GROUT: gr_datapath_loop: [CPU 22] starting tid=31305
 Nov 30 10:31:40 grout grcli[31302]: Created interface 2
-Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.0.2/24 iface p0
-Nov 30 10:31:40 grout grcli[31302]: + add ip address 172.16.1.2/24 iface p1
-Nov 30 10:31:40 grout grcli[31302]: + add ip route 0.0.0.0/0 via 172.16.1.183
+Nov 30 10:31:40 grout grcli[31302]: + address add 172.16.0.2/24 iface p0
+Nov 30 10:31:40 grout grcli[31302]: + address add 172.16.1.2/24 iface p1
+Nov 30 10:31:40 grout grcli[31302]: + route add 0.0.0.0/0 via 172.16.1.183
 Nov 30 10:31:40 grout systemd[1]: Started Graph router daemon.
 ```
 
@@ -149,30 +149,44 @@ By default, the CLI will start an interactive shell with command completion:
 Welcome to the grout CLI.
 Use ? for help and <tab> for command completion.
 grout# ?
+address              IPv4 addresses.
+address6             IPv6 addresses.
+affinity             CPU and physical queue affinity.
+conntrack            Connection tracking.
+dnat44               Static destination NAT44.
+events               Subscribe to all events and dump them in real time
+graph                Show packet processing graph info (requires interfaces to be configured).
+interface            Interfaces.
+logging              Ingress/egress packet logging.
+nexthop              Nexthops.
+ping                 Send ICMPv6 echo requests and wait for replies.
 quit                 Exit the CLI.
-add                  Create objects in the configuration.
-del                  Delete objects from the configuration.
-show                 Display information about the configuration.
-clear                Clear counters or temporary entries.
-set                  Modify existing objects in the configuration.
-grout# show interface
+route                IPv4 routing tables.
+route6               IPv6 routing table.
+router-advert        IPv6 router advertisements.
+snat44               Dynamic source NAT44.
+stats                Packet processing statistics.
+trace                Packet tracing.
+traceroute           Discover IPv6 intermediate gateways.
+tunsrc               SRv6 source address.
+grout# interface show
 NAME  ID   FLAGS       MODE  DOMAIN  TYPE  INFO
 p0    256  up running  L3    0       port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
 p1    257  up running  L3    0       port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
-grout# show affinity qmap
+grout# affinity qmap show
 IFACE  RXQ_ID  CPU_ID  ENABLED
 p0     0       2       1
 p1     0       22      1
-grout# show ip address
+grout# address show
 IFACE  ADDRESS
 p0     172.16.0.2/24
 p1     172.16.1.2/24
-grout# show ip route
+grout# route show
 VRF  DESTINATION    NEXT_HOP
 0    172.16.0.0/24  type=L3 iface=p0 vrf=0 origin=link af=IPv4 addr=172.16.0.2/24 mac=22:43:d9:2d:dd:58 static local gateway link
 0    172.16.1.0/24  type=L3 iface=p1 vrf=0 origin=link af=IPv4 addr=172.16.1.2/24 mac=1e:34:18:0e:a8:38 static local gateway link
 0    0.0.0.0/0      type=L3 id=1 iface=p1 vrf=0 origin=user af=IPv4 addr=172.16.1.183 state=new gateway
-grout# show nexthop
+grout# nexthop show
 VRF  ID  ORIGIN  IFACE  TYPE  INFO
 0        link    p0     L3    af=IPv6 addr=fe80::2243:d9ff:fe2d:dd58/64 mac=22:43:d9:2d:dd:58 static local gateway link
 0        link    p1     L3    af=IPv6 addr=fe80::1e34:18ff:fe0e:a838/64 mac=1e:34:18:0e:a8:38 static local gateway link
@@ -187,30 +201,41 @@ The CLI can also be used as a one-shot command (bash-completion is available):
 
 ```console
 [root@grout]$ grcli <TAB><TAB>
-add                 (Create objects in the configuration.)
-clear               (Clear counters or temporary entries.)
-del                 (Delete objects from the configuration.)
+address6            (IPv6 addresses.)
+address             (IPv4 addresses.)
+affinity            (CPU and physical queue affinity.)
+conntrack           (Connection tracking.)
+dnat44              (Static destination NAT44.)
 -e                  (Abort on first error.)
 --err-exit          (Abort on first error.)
+events              (Subscribe to all events and dump them in real time)
+graph               (Show packet processing graph info (requires interfaces to be configured).)
 --help              (Show usage help and exit.)
 -h                  (Show usage help and exit.)
+interface           (Interfaces.)
+logging             (Ingress/egress packet logging.)
+nexthop             (Nexthops.)
+ping                (Send ICMPv6 echo requests and wait for replies.)
 quit                (Exit the CLI.)
-set                 (Modify existing objects in the configuration.)
-show                (Display information about the configuration.)
+route6              (IPv6 routing table.)
+route               (IPv4 routing tables.)
+router-advert       (IPv6 router advertisements.)
+snat44              (Dynamic source NAT44.)
 --socket            (Path to the control plane API socket.)
 -s                  (Path to the control plane API socket.)
+stats               (Packet processing statistics.)
 --trace-commands    (Print executed commands.)
+trace               (Packet tracing.)
+traceroute          (Discover IPv6 intermediate gateways.)
+tunsrc              (SRv6 source address.)
 -x                  (Print executed commands.)
-[root@grout]$ grcli show <TAB><TAB>
-graph        (Show packet processing graph info.)
-interface    (Display interface details.)
-ip           (Show IPv4 stack details.)
-port         (Display DPDK port information.)
-stats        (Print statistics.)
-[root@grout]$ grcli show stats <TAB><TAB>
+[root@grout]$ grcli stats <TAB><TAB>
+reset       (Reset all stats to zero.)
+show        (Print statistics.)
+[root@grout]$ grcli stats show <TAB><TAB>
 hardware    (Print hardware stats.)
 software    (Print software stats.)
-[root@grout]$ grcli show stats software
+[root@grout]$ grcli stats show software
 NODE         CALLS   PACKETS  PKTS/CALL  CYCLES/CALL  CYCLES/PKT
 port_rx     757792  22623757       29.9       1776.4        59.5
 ip_input    333675  22623757       67.8       3091.0        45.6
@@ -227,7 +252,7 @@ Dump the packet graph (excluding all error nodes) and convert it to an SVG
 image.
 
 ```console
-[root@grout]$ grcli show graph brief | dot -Tsvg > docs/graph.svg
+[root@grout]$ grcli graph brief | dot -Tsvg > docs/graph.svg
 ```
 
 ![docs/graph.svg](/docs/graph.svg)

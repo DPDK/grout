@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_event.h>
@@ -90,12 +88,14 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
+#define ADDR_CTX(root) CLI_CONTEXT(root, CTX_ARG("address6", "IPv6 addresses."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		IP6_ADD_CTX(root),
-		"address IP6_NET iface IFACE",
+		ADDR_CTX(root),
+		"add IP6_NET interface|iface|dev IFACE",
 		addr_add,
 		"Add an IPv6 address to an interface.",
 		with_help("IPv6 address with prefix length.", ec_node_re("IP6_NET", IPV6_NET_RE)),
@@ -104,8 +104,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		IP6_DEL_CTX(root),
-		"address IP6_NET iface IFACE",
+		ADDR_CTX(root),
+		"del IP6_NET interface|iface|dev IFACE",
 		addr_del,
 		"Remove an IPv6 address from an interface.",
 		with_help("IPv6 address with prefix length.", ec_node_re("IP6_NET", IPV6_NET_RE)),
@@ -114,8 +114,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		IP6_SHOW_CTX(root),
-		"address [(iface IFACE),(vrf VRF)]",
+		ADDR_CTX(root),
+		"show [(iface IFACE),(vrf VRF)]",
 		addr_list,
 		"Display all IPv6 addresses.",
 		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),

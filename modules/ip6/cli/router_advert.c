@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include "ip.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
@@ -86,12 +84,14 @@ static cmd_status_t ra_clear(struct gr_api_client *c, const struct ec_pnode *p) 
 	return CMD_SUCCESS;
 }
 
+#define RA_CTX(root) CLI_CONTEXT(root, CTX_ARG("router-advert", "IPv6 router advertisements."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		IP6_SHOW_CTX(root),
-		"router-advert [IFACE]",
+		RA_CTX(root),
+		"show [interface IFACE]",
 		ra_show,
 		"Show router advertisement configuration",
 		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
@@ -100,8 +100,8 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		IP6_SET_CTX(root),
-		"router-advert IFACE [interval IT] [lifetime LT]",
+		RA_CTX(root),
+		"set IFACE [interval IT] [lifetime LT]",
 		ra_set,
 		"Set router advertisement parameters",
 		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
@@ -112,8 +112,8 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		IP6_CLEAR_CTX(root),
-		"router-advert IFACE",
+		RA_CTX(root),
+		"clear IFACE",
 		ra_clear,
 		"Disable router advertisement and reset parameters",
 		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))

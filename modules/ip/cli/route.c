@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "ip.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_event.h>
@@ -84,11 +82,9 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 	void *resp_ptr = NULL;
 	char buf[128];
 
-	if (arg_ip4(p, "DEST", &req.dest) < 0) {
-		if (errno == ENOENT)
-			return route4_list(c, p);
+	if (arg_ip4(p, "DEST", &req.dest) < 0)
 		return CMD_ERROR;
-	}
+
 	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -105,12 +101,14 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
+#define ROUTE_CTX(root) CLI_CONTEXT(root, CTX_ARG("route", "IPv4 routing tables."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		IP_ADD_CTX(root),
-		"route DEST via (NH)|(id ID) [vrf VRF]",
+		ROUTE_CTX(root),
+		"add DEST via (NH)|(id ID) [vrf VRF]",
 		route4_add,
 		"Add a new route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
@@ -121,8 +119,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		IP_DEL_CTX(root),
-		"route DEST [vrf VRF]",
+		ROUTE_CTX(root),
+		"del DEST [vrf VRF]",
 		route4_del,
 		"Delete a route.",
 		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
@@ -131,10 +129,19 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		IP_SHOW_CTX(root),
-		"route [(destination DEST),(vrf VRF)]",
-		route4_get,
+		ROUTE_CTX(root),
+		"show [vrf VRF]",
+		route4_list,
 		"Show IPv4 routes.",
+		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		ROUTE_CTX(root),
+		"get DEST [vrf VRF]",
+		route4_get,
+		"Get the route associated with a destination IPv6 address.",
 		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);

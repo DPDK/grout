@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local timeout=5
 	for i in $(seq 1 $timeout); do
-		grcli show nexthop internal | grep -qE "$ip.+reachable";
+		grcli nexthop show internal | grep -qE "$ip.+reachable";
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
@@ -28,11 +28,11 @@ check_nexthop() {
 p0=${run_id}0
 p1=${run_id}1
 
-grcli set config nexthop lifetime 2 unreachable 1 ucast-probes 1 bcast-probes 1
-grcli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
-grcli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
-grcli add ip address 172.16.0.1/24 iface $p0
-grcli add ip address 172.16.1.1/24 iface $p1
+grcli nexthop config set lifetime 2 unreachable 1 ucast-probes 1 bcast-probes 1
+grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
+grcli interface add port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
+grcli address add 172.16.0.1/24 iface $p0
+grcli address add 172.16.1.1/24 iface $p1
 
 for n in 0 1; do
 	p=$run_id$n
@@ -49,22 +49,19 @@ done
 ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec $p1 ping -i0.01 -c3 -n 172.16.0.2
 
-grcli show nexthop
+grcli nexthop show
 # let nexthops lifetime expire and wait for ARP probes to be sent
 sleep 3
 
-grcli <<EOF
-show nexthop
-show ip address
-EOF
+grcli nexthop show
 
 # ensure that nexthops are still reachable
 check_nexthop '172\.16\.0\.2' true || fail "nexthop 172.16.0.2 should be reachable"
 check_nexthop '172\.16\.1\.2' true || fail "nexthop 172.16.1.2 should be reachable"
 
 # ensure addresses were not destroyed
-grcli show ip address | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli show ip address | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli address show | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
+grcli address show | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
 
 # force interfaces down so that linux does not reply to ARP requests anymore
 ip -n $p0 link set $p0 down
@@ -78,5 +75,5 @@ check_nexthop '172\.16\.0\.2' false || fail "nexthop 172.16.0.2 should be destro
 check_nexthop '172\.16\.1\.2' false || fail "nexthop 172.16.1.2 should be destroyed"
 
 # ensure addresses were not destroyed
-grcli show ip address | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli show ip address | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli address show | grep -E "^$p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
+grcli address show | grep -E "^$p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"

@@ -7,13 +7,13 @@
 p0=${run_id}0
 p1=${run_id}1
 
-grcli add interface port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
-grcli add interface port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
-grcli add ip address 172.16.0.1/24 iface $p0
-grcli add ip address 172.16.1.1/24 iface $p1
-grcli add ip route 16.0.0.0/16 via 172.16.0.2
-grcli add nexthop l3 iface $p1 id 45
-grcli add ip route 16.1.0.0/16 via id 45
+grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
+grcli interface add port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01
+grcli address add 172.16.0.1/24 iface $p0
+grcli address add 172.16.1.1/24 iface $p1
+grcli route add 16.0.0.0/16 via 172.16.0.2
+grcli nexthop add l3 iface $p1 id 45
+grcli route add 16.1.0.0/16 via id 45
 
 for n in 0 1; do
 	p=$run_id$n
