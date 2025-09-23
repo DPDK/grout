@@ -45,6 +45,13 @@ int complete_iface_names(
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 
+#define INTERFACE_ARG CTX_ARG("interface", "Interfaces.")
+#define INTERFACE_CTX(root) CLI_CONTEXT(root, INTERFACE_ARG)
+#define INTERFACE_ADD_CTX(root)                                                                    \
+	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("add", "Create an interface."))
+#define INTERFACE_SET_CTX(root)                                                                    \
+	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
+
 #define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(allmulti ALLMULTI),(mtu MTU),(vrf VRF)"
 
 #define IFACE_ATTRS_ARGS                                                                           \

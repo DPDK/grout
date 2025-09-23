@@ -8,8 +8,8 @@ command -v rdisc6 || fail "rdisc6 (from ndisc6 package) is not installed"
 
 p1=${run_id}1
 
-grcli add interface port $p1 devargs net_tap0,iface=$p1 mac d2:f0:0c:ba:a4:11
-grcli add ip6 address fd00:ba4:1::1/64 iface $p1
+grcli interface add port $p1 devargs net_tap0,iface=$p1 mac d2:f0:0c:ba:a4:11
+grcli address6 add fd00:ba4:1::1/64 iface $p1
 
 for n in 1; do
 	p=$run_id$n

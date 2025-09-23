@@ -93,12 +93,6 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 		)                                                                                  \
 	)
 
-#define CTX_ADD CTX_ARG("add", "Create objects in the configuration.")
-#define CTX_SET CTX_ARG("set", "Modify existing objects in the configuration.")
-#define CTX_DEL CTX_ARG("del", "Delete objects from the configuration.")
-#define CTX_SHOW CTX_ARG("show", "Display information about the configuration.")
-#define CTX_CLEAR CTX_ARG("clear", "Clear counters or temporary entries.")
-
 typedef int (*ec_node_dyn_comp_t)(
 	struct gr_api_client *,
 	const struct ec_node *,

@@ -5,15 +5,15 @@
 # Uncomment the examples below and/or add your own commands.
 
 # Datapath CPU affinity
-#set affinity cpus control 0,1 datapath 2,22,4,24
+#affinity cpus set control 0,1 datapath 2,22,4,24
 
 # Physical ports creation
-#add interface port p0 devargs 0000:4b:00.0 rxqs 2
-#add interface port p1 devargs 0000:4b:00.1 rxqs 2
+#interface add port p0 devargs 0000:4b:00.0 rxqs 2
+#interface add port p1 devargs 0000:4b:00.1 rxqs 2
 
 # Interface addresses
-#add ip address 1.2.3.4/24 iface p0
-#add ip address 4.3.2.1/24 iface p1
+#address add 1.2.3.4/24 iface p0
+#address add 4.3.2.1/24 iface p1
 
 # Default route
-#add ip route 0.0.0.0/0 via 1.2.3.254
+#route add 0.0.0.0/0 via 1.2.3.254

@@ -8,10 +8,10 @@ p0=${run_id}0
 p1=${run_id}1
 
 # setup ports and connected
-grcli add interface port $p0 devargs net_tap0,iface=$p0 mac d2:f0:0c:ba:a5:10
-grcli add interface port $p1 devargs net_tap1,iface=$p1 mac d2:f0:0c:ba:a5:11
-grcli add ip6 address fd00:102::1/64 iface $p1
-grcli add ip address 192.168.61.1/24 iface $p0
+grcli interface add port $p0 devargs net_tap0,iface=$p0 mac d2:f0:0c:ba:a5:10
+grcli interface add port $p1 devargs net_tap1,iface=$p1 mac d2:f0:0c:ba:a5:11
+grcli address6 add fd00:102::1/64 iface $p1
+grcli address add 192.168.61.1/24 iface $p0
 
 for n in 0 1; do
 	p=$run_id$n
@@ -48,9 +48,9 @@ ip netns exec $p1 sysctl -w net.ipv6.conf.$p1.forwarding=1
 ip -n $p0 route add default via 192.168.61.1 dev $p0
 
 # (2)
-grcli add nexthop srv6 seglist fd00:202::2 id 42
-grcli add ip route 192.168.0.0/16 via id 42
-grcli add ip6 route fd00:202::/64 via fd00:102::2
+grcli nexthop add srv6 seglist fd00:202::2 id 42
+grcli route add 192.168.0.0/16 via id 42
+grcli route6 add fd00:202::/64 via fd00:102::2
 
 # (3)
 ip -n $p1 -6 route add fd00:202::2 encap seg6local action End.DX4 nh4 192.168.60.1 count dev $p1
@@ -63,8 +63,8 @@ ip -n $p1 route add 192.168.61.0/24 encap seg6 mode encap segs fd00:202::100 dev
 ip -n $p1 -6 route add fd00:202::/64 via fd00:102::1 dev $p1
 
 # (6)
-grcli add nexthop srv6-local behavior end.dt4 id 666
-grcli add ip6 route fd00:202::100/128 via id 666
+grcli nexthop add srv6-local behavior end.dt4 id 666
+grcli route6 add fd00:202::100/128 via id 666
 
 # test
 ip netns exec $p0 ping -c 3 192.168.60.1

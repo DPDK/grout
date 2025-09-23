@@ -24,3 +24,8 @@ ssize_t gr_cli_format_nexthop(
 	const struct gr_nexthop *,
 	bool with_base_info
 );
+
+#define NEXTHOP_ARG CTX_ARG("nexthop", "Nexthops.")
+#define NEXTHOP_CTX(root) CLI_CONTEXT(root, NEXTHOP_ARG)
+#define NEXTHOP_ADD_CTX(root)                                                                      \
+	CLI_CONTEXT(root, NEXTHOP_ARG, CTX_ARG("add", "Create a new nexthop."))

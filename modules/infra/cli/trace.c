@@ -107,16 +107,15 @@ static cmd_status_t packet_logging_clear(struct gr_api_client *c, const struct e
 	return CMD_SUCCESS;
 }
 
+#define LOGGING_CTX(root) CLI_CONTEXT(root, CTX_ARG("logging", "Ingress/egress packet logging."))
+#define TRACE_CTX(root) CLI_CONTEXT(root, CTX_ARG("trace", "Packet tracing."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(
-			root,
-			CTX_SET,
-			CTX_ARG("trace", "Enable packet tracing for specified interface")
-		),
-		"all|(iface NAME)",
+		TRACE_CTX(root),
+		"enable all|(iface NAME)",
 		trace_set,
 		"Enable packet tracing for all or specified interface.",
 		with_help("all interfaces.", ec_node_str("all", "all")),
@@ -129,14 +128,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(
-			root,
-			CTX_DEL,
-			CTX_ARG("trace", "Disable packet tracing for specified interface")
-		),
-		"all|(iface NAME)",
+		TRACE_CTX(root),
+		"disable all|(iface NAME)",
 		trace_del,
-		"Enable packet tracing for all or specified interface.",
+		"Disable packet tracing for all or specified interface.",
 		with_help("all interfaces.", ec_node_str("all", "all")),
 		with_help(
 			"Interface name.",
@@ -147,10 +142,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("trace", "Show traced packets.")),
-		"[count COUNT]",
+		TRACE_CTX(root),
+		"show [count COUNT]",
 		trace_show,
-		"Show traced packets.",
+		"Show captured packets in the trace buffer.",
 		with_help(
 			"Maximum number of packets to show (default 10).",
 			ec_node_uint("COUNT", 1, UINT16_MAX, 10)
@@ -159,26 +154,24 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_CLEAR), "trace", trace_clear, "Clear packet tracing buffer.",
-	);
+	ret = CLI_COMMAND(TRACE_CTX(root), "clear", trace_clear, "Clear packet tracing buffer.");
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET),
-		"packet logging",
+		LOGGING_CTX(root),
+		"enable",
 		packet_logging_set,
-		"Dump packets on grout stdout.",
+		"Enable logging of ingress/egress packets."
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_CLEAR),
-		"packet logging",
+		LOGGING_CTX(root),
+		"disable",
 		packet_logging_clear,
-		"Stop packet dump on grout stdout.",
+		"Disable logging of ingress/egress packets."
 	);
 	if (ret < 0)
 		return ret;
