@@ -13,140 +13,60 @@
 
 #include <errno.h>
 
-static cmd_status_t srv6_route_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_add_req *req;
-	const struct ec_strvec *v;
+static cmd_status_t srv6_nh_add(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nexthop_info_srv6 *sr6;
+	struct gr_nh_add_req *req = NULL;
+	cmd_status_t ret = CMD_ERROR;
 	const struct ec_pnode *n;
-	const char *str;
 	size_t len;
-	int ret, i;
 
 	// get SEGLIST sequence node. it is the parent of the first SEGLIST node.
 	n = ec_pnode_find(p, "SEGLIST");
-	if (n == NULL || (n = ec_pnode_get_parent(n)) == NULL || ec_pnode_len(n) < 1)
-		return CMD_ERROR;
-	if (ec_pnode_len(n) > GR_SRV6_ROUTE_SEGLIST_COUNT_MAX)
-		return CMD_ERROR;
-	len = sizeof(*req) + sizeof(req->r.nh.seglist[0]) * ec_pnode_len(n);
+	if (n == NULL || (n = ec_pnode_get_parent(n)) == NULL || ec_pnode_len(n) < 1) {
+		errno = EINVAL;
+		goto out;
+	}
+	if (ec_pnode_len(n) > GR_SRV6_ROUTE_SEGLIST_COUNT_MAX) {
+		errno = E2BIG;
+		goto out;
+	}
+	len = sizeof(*req) + sizeof(*sr6) + sizeof(sr6->seglist[0]) * ec_pnode_len(n);
 	if ((req = calloc(1, len)) == NULL)
-		return CMD_ERROR;
-	req->r.nh.n_seglist = ec_pnode_len(n);
+		goto out;
+
 	req->exist_ok = true;
-	req->origin = GR_NH_ORIGIN_USER;
+	req->nh.type = GR_NH_T_SR6_OUTPUT;
+	req->nh.origin = GR_NH_ORIGIN_USER;
+
+	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
+		goto out;
+	if (arg_u16(p, "VRF", &req->nh.vrf_id) < 0 && errno != ENOENT)
+		goto out;
+
+	sr6 = (struct gr_nexthop_info_srv6 *)req->nh.info;
 
 	// parse SEGLIST list.
-	for (n = ec_pnode_get_first_child(n), i = 0; n != NULL; n = ec_pnode_next(n), i++) {
-		v = ec_pnode_get_strvec(n);
-		str = ec_strvec_val(v, 0);
-		if (inet_pton(AF_INET6, str, &req->r.nh.seglist[i]) != 1) {
-			free(req);
-			return CMD_ERROR;
+	for (n = ec_pnode_get_first_child(n); n != NULL; n = ec_pnode_next(n)) {
+		const char *str = ec_strvec_val(ec_pnode_get_strvec(n), 0);
+		if (inet_pton(AF_INET6, str, &sr6->seglist[sr6->n_seglist++]) != 1) {
+			errno = EINVAL;
+			goto out;
 		}
 	}
 
-	req->r.nh.encap_behavior = SR_H_ENCAPS;
-	if (ec_pnode_find(p, "h.encaps.red") != NULL)
-		req->r.nh.encap_behavior = SR_H_ENCAPS_RED;
-
-	if (arg_ip6_net(p, "DEST6", &req->r.key.dest6, true) >= 0)
-		req->r.key.is_dest6 = true;
-	else if (arg_ip4_net(p, "DEST4", &req->r.key.dest4, true) >= 0)
-		req->r.key.is_dest6 = false;
+	if (arg_str(p, "h.encaps.red") != NULL)
+		sr6->encap_behavior = SR_H_ENCAPS_RED;
 	else
-		return CMD_ERROR;
+		sr6->encap_behavior = SR_H_ENCAPS;
 
-	if (arg_u16(p, "VRF", &req->r.key.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
+	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
+		goto out;
 
-	ret = gr_api_client_send_recv(c, GR_SRV6_ROUTE_ADD, len, req, NULL);
+	ret = CMD_SUCCESS;
+
+out:
 	free(req);
-
-	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
-}
-
-static cmd_status_t srv6_route_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_del_req req = {.key.vrf_id = 0, .missing_ok = true};
-
-	if (arg_ip6_net(p, "DEST6", &req.key.dest6, true) >= 0)
-		req.key.is_dest6 = true;
-	else if (arg_ip4_net(p, "DEST4", &req.key.dest4, true) >= 0)
-		req.key.is_dest6 = false;
-	else
-		return CMD_ERROR;
-
-	if (arg_u16(p, "VRF", &req.key.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	if (gr_api_client_send_recv(c, GR_SRV6_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t srv6_route_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_route_list_req req = {0};
-	struct libscols_line *line;
-	struct gr_srv6_route *r;
-	uint32_t j, cur, n;
-	char buf[80];
-	int ret;
-
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "MATCH", 0, 0);
-	scols_table_new_column(table, "ENCAP", 0, 0);
-	scols_table_new_column(table, "SEGMENT_LIST", 0, 0);
-	scols_table_set_column_separator(table, "  ");
-
-	gr_api_client_stream_foreach (r, ret, c, GR_SRV6_ROUTE_LIST, sizeof(req), &req) {
-		line = scols_table_new_line(table, NULL);
-
-		scols_line_sprintf(line, 0, "%u", r->key.vrf_id);
-		if (r->key.is_dest6)
-			scols_line_sprintf(
-				line, 1, IP6_F "/%hhu", &r->key.dest6.ip, r->key.dest6.prefixlen
-			);
-		else
-			scols_line_sprintf(
-				line, 1, IP4_F "/%hhu", &r->key.dest4.ip, r->key.dest4.prefixlen
-			);
-
-		scols_line_sprintf(
-			line,
-			2,
-			"%s",
-			r->nh.encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encap"
-		);
-
-		cur = 0;
-		buf[0] = 0;
-		for (j = 0; j < r->nh.n_seglist; j++) {
-			n = snprintf(
-				buf + cur, sizeof(buf) - cur - 20, IP6_F " ", &r->nh.seglist[j]
-			);
-			if (n > sizeof(buf) - cur - 20) {
-				sprintf(buf + sizeof(buf) - 21, "...");
-				if (j + 1 < r->nh.n_seglist)
-					snprintf(
-						buf + sizeof(buf) - 18,
-						18,
-						" (%d more)",
-						r->nh.n_seglist - j - 1
-					);
-				break;
-			}
-			cur += n;
-		}
-		scols_line_set_data(line, 3, buf);
-	}
-
-	scols_print_table(table);
-	scols_unref_table(table);
-
-	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
+	return ret;
 }
 
 static cmd_status_t srv6_tunsrc_set(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -215,38 +135,15 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("sr", "Create srv6 stack elements.")),
-		"route DEST4|DEST6 seglist SEGLIST+ [encap (h.encaps|h.encaps.red)] [vrf VRF]",
-		srv6_route_add,
-		"Add SR route.",
-		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
-		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
+		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		"srv6 seglist SEGLIST+ [(encap h.encaps|h.encaps.red),(vrf VRF),(id ID)]",
+		srv6_nh_add,
+		"Add SRv6 encap nexthop.",
 		with_help("Encaps.", ec_node_str("h.encaps", "h.encaps")),
 		with_help("Encaps Reduced.", ec_node_str("h.encaps.red", "h.encaps.red")),
 		with_help("Next SID to visit.", ec_node_re("SEGLIST", IPV6_RE)),
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("sr", "Delete srv6 stack elements.")),
-		"route DEST4|DEST6 [vrf VRF]",
-		srv6_route_del,
-		"Delete SR route.",
-		with_help("Ipv4 destination prefix to steer", ec_node_re("DEST4", IPV4_NET_RE)),
-		with_help("Ipv6 destination prefix to steer", ec_node_re("DEST6", IPV6_NET_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
-		"route [vrf VRF]",
-		srv6_route_show,
-		"View all SR route",
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-
 	);
 	if (ret < 0)
 		return ret;
