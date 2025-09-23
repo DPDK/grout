@@ -168,14 +168,12 @@ set_srv6_localsid() {
 EOF
 
 	# --- wait until grout has the localsid ---------------------------------
-	# Expected "grcli show sr localsid" output pattern:
-	# vrf lsid                         behavior  args
-	# 0   fc00:100:64:10::666          end.dt4   out_vrf=0
-	local grep_pattern="^[[:space:]]*0[[:space:]]+${sid_local}[[:space:]]+${grout_behavior}"
-
-	while ! grcli show sr localsid | grep -qE "${grep_pattern}"; do
+	# Expected "grcli show ip6 route" output pattern:
+	# VRF  DESTINATION        NEXT_HOP
+	# 0    fd00:202::100/128  type=SRv6-local id=12 iface=gr-loop0 vrf=0 origin=zebra behavior=end.dt4 out_vrf=0
+	local grep_pattern="\\<${sid_local}/128[[:space:]]+type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
+	while ! grcli show ip6 route | grep -qE "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
-			grcli show sr localsid
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
 			exit 1
 		fi

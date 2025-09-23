@@ -116,37 +116,7 @@ typedef enum : uint8_t {
 } gr_srv6_flags_t;
 
 struct gr_nexthop_info_srv6_local {
-	struct rte_ipv6_addr lsid;
 	uint16_t out_vrf_id;
 	gr_srv6_behavior_t behavior;
 	gr_srv6_flags_t flags;
 };
-
-struct gr_srv6_localsid {
-	BASE(gr_nexthop_info_srv6_local);
-	uint16_t vrf_id;
-};
-
-#define GR_SRV6_LOCALSID_ADD REQUEST_TYPE(GR_SRV6_MODULE, 0x0021)
-
-struct gr_srv6_localsid_add_req {
-	struct gr_srv6_localsid l;
-	gr_nh_origin_t origin;
-	uint8_t exist_ok;
-};
-
-#define GR_SRV6_LOCALSID_DEL REQUEST_TYPE(GR_SRV6_MODULE, 0x0022)
-
-struct gr_srv6_localsid_del_req {
-	struct rte_ipv6_addr lsid;
-	uint16_t vrf_id;
-	uint8_t missing_ok;
-};
-
-#define GR_SRV6_LOCALSID_LIST REQUEST_TYPE(GR_SRV6_MODULE, 0x0023)
-
-struct gr_srv6_localsid_list_req {
-	uint16_t vrf_id;
-};
-
-// STREAM(struct gr_srv6_localsid);
