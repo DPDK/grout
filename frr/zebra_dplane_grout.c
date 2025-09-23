@@ -315,10 +315,6 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_NH_ADD);
 	case GR_NH_DEL:
 		return TOSTRING(GR_NH_DEL);
-	case GR_SRV6_ROUTE_ADD:
-		return TOSTRING(GR_SRV6_ROUTE_ADD);
-	case GR_SRV6_ROUTE_DEL:
-		return TOSTRING(GR_SRV6_ROUTE_DEL);
 	case GR_INFRA_IFACE_LIST:
 		return TOSTRING(GR_INFRA_IFACE_LIST);
 	case GR_IP4_ADDR_LIST:
