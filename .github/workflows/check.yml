@@ -27,26 +27,31 @@ jobs:
             buildtype: debugoptimized
             os: ubuntu-24.04
             extra_opts: -Dfrr=enabled
+            rebase: false
           - compiler: gcc-14
             sanitize: address
             buildtype: debug
             os: ubuntu-24.04
-            extra_opts:
+            extra_opts: -Dfrr=enabled
+            rebase: true
           - compiler: clang-15
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-22.04
             extra_opts:
+            rebase: false
           - compiler: clang-16
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
             extra_opts:
+            rebase: false
           - compiler: clang-18
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
             extra_opts:
+            rebase: false
     runs-on: ${{ matrix.conf.os }}
     env:
       SANITIZE: ${{ matrix.conf.sanitize }}
@@ -97,9 +102,9 @@ jobs:
             ccache-x86_64-${{ matrix.conf.compiler }}-
       - run: ccache -sv
       - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "HEAD~${{ github.event.pull_request.commits }}"
-        if: ${{ github.event.pull_request.commits }}
+        if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
       - run: make all unit-tests && sudo smoke/run.sh build
-        if: ${{ ! github.event.pull_request.commits }}
+        if: ${{ ! matrix.conf.rebase || ! github.event.pull_request.commits }}
       - run: ccache -sv
 
   build-cross-aarch64:
