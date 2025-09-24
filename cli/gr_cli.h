@@ -11,15 +11,15 @@
 
 #include <sys/queue.h>
 
-typedef int(gr_cli_ctx_init_t)(struct ec_node *root);
+typedef int (*cli_ctx_init_t)(struct ec_node *root);
 
-struct gr_cli_context {
+struct cli_context {
 	const char *name;
-	gr_cli_ctx_init_t *init;
-	STAILQ_ENTRY(gr_cli_context) next;
+	cli_ctx_init_t init;
+	STAILQ_ENTRY(cli_context) next;
 };
 
-void register_context(struct gr_cli_context *);
+void cli_context_register(struct cli_context *);
 
 void errorf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
@@ -29,11 +29,11 @@ typedef enum {
 	CMD_EXIT,
 } cmd_status_t;
 
-typedef cmd_status_t(cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
+typedef cmd_status_t (*cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
 
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
-struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
+struct ec_node *with_callback(cmd_cb_t cb, struct ec_node *node);
 
 struct ctx_arg {
 	const char *name;

@@ -91,7 +91,7 @@ static ssize_t format_nexthop_info_dnat(char *buf, size_t len, const void *info)
 	return snprintf(buf, len, "match=" IP4_F " replace=" IP4_F, &dnat->match, &dnat->replace);
 }
 
-static struct gr_cli_nexthop_formatter dnat_formatter = {
+static struct cli_nexthop_formatter dnat_formatter = {
 	.name = "dnat",
 	.type = GR_NH_T_DNAT,
 	.format = format_nexthop_info_dnat,
@@ -136,12 +136,12 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "dnat44",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_nexthop_register_formatter(&dnat_formatter);
+	cli_context_register(&ctx);
+	cli_nexthop_formatter_register(&dnat_formatter);
 }

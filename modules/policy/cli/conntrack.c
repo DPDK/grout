@@ -209,11 +209,11 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "conntrack",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
+	cli_context_register(&ctx);
 }

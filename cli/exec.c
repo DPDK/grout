@@ -9,14 +9,14 @@
 
 #include <errno.h>
 
-static STAILQ_HEAD(, gr_cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
+static STAILQ_HEAD(, cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 
-void register_context(struct gr_cli_context *ctx) {
+void cli_context_register(struct cli_context *ctx) {
 	STAILQ_INSERT_HEAD(&contexts, ctx, next);
 }
 
 struct ec_node *init_commands(void) {
-	struct gr_cli_context *ctx;
+	struct cli_context *ctx;
 	struct ec_node *root;
 
 	if ((root = ec_node("or", "grcli")) == NULL)
@@ -35,12 +35,12 @@ fail:
 	return NULL;
 }
 
-static cmd_cb_t *find_cmd_callback(struct ec_pnode *parsed) {
+static cmd_cb_t find_cmd_callback(struct ec_pnode *parsed) {
 	const struct ec_pnode *p;
 
 	for (p = parsed; p != NULL; p = EC_PNODE_ITER_NEXT(parsed, p, true)) {
 		const struct ec_node *node = ec_pnode_get_node(p);
-		cmd_cb_t *cb = ec_dict_get(ec_node_attrs(node), CALLBACK_ATTR);
+		cmd_cb_t cb = ec_dict_get(ec_node_attrs(node), CALLBACK_ATTR);
 		if (cb != NULL)
 			return cb;
 	}
@@ -55,7 +55,7 @@ static exec_status_t exec_strvec(
 ) {
 	struct ec_pnode *parsed = NULL;
 	exec_status_t status;
-	cmd_cb_t *cb;
+	cmd_cb_t cb;
 
 	if ((parsed = ec_parse_strvec(cmdlist, vec)) == NULL) {
 		status = EXEC_OTHER_ERROR;

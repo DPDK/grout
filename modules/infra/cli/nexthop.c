@@ -17,17 +17,17 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static STAILQ_HEAD(, gr_cli_nexthop_formatter) formatters = STAILQ_HEAD_INITIALIZER(formatters);
+static STAILQ_HEAD(, cli_nexthop_formatter) formatters = STAILQ_HEAD_INITIALIZER(formatters);
 
-void gr_cli_nexthop_register_formatter(struct gr_cli_nexthop_formatter *f) {
+void cli_nexthop_formatter_register(struct cli_nexthop_formatter *f) {
 	assert(f->name != NULL);
 	assert(f->type != GR_NH_T_ALL);
 	assert(f->format != NULL);
 	STAILQ_INSERT_TAIL(&formatters, f, next);
 }
 
-static const struct gr_cli_nexthop_formatter *find_formatter(gr_nh_type_t type) {
-	struct gr_cli_nexthop_formatter *f;
+static const struct cli_nexthop_formatter *find_formatter(gr_nh_type_t type) {
+	struct cli_nexthop_formatter *f;
 
 	STAILQ_FOREACH (f, &formatters, next) {
 		if (f->type == type)
@@ -37,7 +37,7 @@ static const struct gr_cli_nexthop_formatter *find_formatter(gr_nh_type_t type) 
 	return NULL;
 }
 
-ssize_t gr_cli_format_nexthop(
+ssize_t cli_nexthop_format(
 	char *buf,
 	size_t len,
 	struct gr_api_client *c,
@@ -63,7 +63,7 @@ ssize_t gr_cli_format_nexthop(
 		SAFE_BUF(snprintf, len, " origin=%s", gr_nh_origin_name(nh->origin));
 	}
 
-	const struct gr_cli_nexthop_formatter *f = find_formatter(nh->type);
+	const struct cli_nexthop_formatter *f = find_formatter(nh->type);
 	if (f != NULL) {
 		if (with_base_info)
 			SAFE_BUF(snprintf, len, " ");
@@ -101,7 +101,7 @@ err:
 	return -errno;
 }
 
-static struct gr_cli_nexthop_formatter l3_formatter = {
+static struct cli_nexthop_formatter l3_formatter = {
 	.name = "l3",
 	.type = GR_NH_T_L3,
 	.format = format_nexthop_info_l3,
@@ -111,13 +111,13 @@ static ssize_t format_nexthop_info_void(char *, size_t, const void *) {
 	return 0;
 }
 
-static struct gr_cli_nexthop_formatter blackhole_formatter = {
+static struct cli_nexthop_formatter blackhole_formatter = {
 	.name = "blackhole",
 	.type = GR_NH_T_BLACKHOLE,
 	.format = format_nexthop_info_void,
 };
 
-static struct gr_cli_nexthop_formatter reject_formatter = {
+static struct cli_nexthop_formatter reject_formatter = {
 	.name = "reject",
 	.type = GR_NH_T_REJECT,
 	.format = format_nexthop_info_void,
@@ -130,7 +130,7 @@ static int complete_nh_types(
 	const char *arg,
 	void * /*cb_arg*/
 ) {
-	struct gr_cli_nexthop_formatter *f;
+	struct cli_nexthop_formatter *f;
 
 	STAILQ_FOREACH (f, &formatters, next) {
 		if (ec_str_startswith(f->name, arg)) {
@@ -143,7 +143,7 @@ static int complete_nh_types(
 }
 
 static int nh_name_to_type(const char *name, gr_nh_type_t *type) {
-	struct gr_cli_nexthop_formatter *f;
+	struct cli_nexthop_formatter *f;
 
 	STAILQ_FOREACH (f, &formatters, next) {
 		if (strcmp(f->name, name) == 0) {
@@ -330,7 +330,7 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 		}
 		scols_line_sprintf(line, 4, "%s", gr_nh_type_name(nh->type));
 
-		if (gr_cli_format_nexthop(buf, sizeof(buf), c, nh, false) > 0)
+		if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
 			scols_line_set_data(line, 5, buf);
 	}
 
@@ -442,7 +442,7 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "nexthop",
 	.init = ctx_init,
 };
@@ -468,11 +468,11 @@ static void nexthop_event_print(uint32_t event, const void *obj) {
 	}
 
 	buf[0] = '\0';
-	gr_cli_format_nexthop(buf, sizeof(buf), NULL, nh, true);
+	cli_nexthop_format(buf, sizeof(buf), NULL, nh, true);
 	printf("nh %s: %s\n", action, buf);
 }
 
-static struct gr_cli_event_printer printer = {
+static struct cli_event_printer printer = {
 	.print = nexthop_event_print,
 	.ev_count = 3,
 	.ev_types = {
@@ -483,9 +483,9 @@ static struct gr_cli_event_printer printer = {
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_event_register_printer(&printer);
-	gr_cli_nexthop_register_formatter(&l3_formatter);
-	gr_cli_nexthop_register_formatter(&blackhole_formatter);
-	gr_cli_nexthop_register_formatter(&reject_formatter);
+	cli_context_register(&ctx);
+	cli_event_printer_register(&printer);
+	cli_nexthop_formatter_register(&l3_formatter);
+	cli_nexthop_formatter_register(&blackhole_formatter);
+	cli_nexthop_formatter_register(&reject_formatter);
 }

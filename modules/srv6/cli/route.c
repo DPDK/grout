@@ -125,7 +125,7 @@ err:
 	return -1;
 }
 
-static struct gr_cli_nexthop_formatter srv6_local_formatter = {
+static struct cli_nexthop_formatter srv6_local_formatter = {
 	.name = "srv6",
 	.type = GR_NH_T_SR6_OUTPUT,
 	.format = format_nexthop_info_srv6,
@@ -180,12 +180,12 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "srv6_route",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_nexthop_register_formatter(&srv6_local_formatter);
+	cli_context_register(&ctx);
+	cli_nexthop_formatter_register(&srv6_local_formatter);
 }

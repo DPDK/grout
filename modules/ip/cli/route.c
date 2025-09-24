@@ -66,7 +66,7 @@ static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		if (gr_cli_format_nexthop(buf, sizeof(buf), c, &route->nh, true) > 0)
+		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
 			scols_line_set_data(line, 2, buf);
 	}
 
@@ -94,7 +94,7 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 	resp = resp_ptr;
 
 	buf[0] = '\0';
-	gr_cli_format_nexthop(buf, sizeof(buf), c, &resp->nh, true);
+	cli_nexthop_format(buf, sizeof(buf), c, &resp->nh, true);
 	printf(IP4_F " via %s\n", &req.dest, buf);
 	free(resp_ptr);
 
@@ -151,7 +151,7 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "ipv4 route",
 	.init = ctx_init,
 };
@@ -174,7 +174,7 @@ static void route_event_print(uint32_t event, const void *obj) {
 	}
 
 	buf[0] = '\0';
-	gr_cli_format_nexthop(buf, sizeof(buf), NULL, &r->nh, true);
+	cli_nexthop_format(buf, sizeof(buf), NULL, &r->nh, true);
 	printf("route %s: vrf=%u " IP4_F "/%hhu via %s\n",
 	       action,
 	       r->vrf_id,
@@ -183,7 +183,7 @@ static void route_event_print(uint32_t event, const void *obj) {
 	       buf);
 }
 
-static struct gr_cli_event_printer printer = {
+static struct cli_event_printer printer = {
 	.print = route_event_print,
 	.ev_count = 2,
 	.ev_types = {
@@ -193,6 +193,6 @@ static struct gr_cli_event_printer printer = {
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_event_register_printer(&printer);
+	cli_context_register(&ctx);
+	cli_event_printer_register(&printer);
 }
