@@ -170,7 +170,9 @@ static void grout_sync_nhs(struct event *e) {
 }
 
 static void grout_sync_ifaces_addresses(struct event *e) {
-	struct gr_ip4_addr_list_req ip_req = {.vrf_id = EVENT_VAL(e)};
+	struct gr_ip4_addr_list_req ip_req = {
+		.vrf_id = EVENT_VAL(e), .iface_id = GR_IFACE_ID_UNDEF
+	};
 	const struct gr_ip4_ifaddr *ip_addr;
 	int ret;
 
@@ -195,7 +197,9 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	if (ret < 0)
 		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
 
-	struct gr_ip6_addr_list_req ip6_req = {.vrf_id = EVENT_VAL(e)};
+	struct gr_ip6_addr_list_req ip6_req = {
+		.vrf_id = EVENT_VAL(e), .iface_id = GR_IFACE_ID_UNDEF
+	};
 	const struct gr_ip6_ifaddr *ip6_addr;
 
 	gr_api_client_stream_foreach (
