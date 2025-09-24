@@ -49,7 +49,7 @@ static cmd_status_t route6_del(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t route6_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_route_list_req req = {.vrf_id = UINT16_MAX};
+	struct gr_ip6_route_list_req req = {.vrf_id = GR_VRF_ID_ALL};
 	const struct gr_ip6_route *route;
 	int ret;
 

@@ -61,7 +61,7 @@ next:
 		if (gr_mbuf_is_traced(m)
 		    || (loop_iface && loop_iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_vrf_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
-			t->vrf_id = loop_iface ? loop_iface->id : UINT16_MAX;
+			t->vrf_id = loop_iface ? loop_iface->id : GR_VRF_ID_ALL;
 		}
 
 		rte_node_enqueue_x1(graph, node, edge, m);

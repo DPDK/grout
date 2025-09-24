@@ -77,7 +77,7 @@ static void nh_srv6_list_cb(struct nexthop *nh, void *priv) {
 	struct gr_srv6_localsid ldata;
 
 	if ((nh->type != GR_NH_T_SR6_LOCAL)
-	    || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX))
+	    || (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_ALL))
 		return;
 
 	data = srv6_localsid_nh_priv(nh);
