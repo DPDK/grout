@@ -10,9 +10,9 @@ grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
 grcli interface del $p0
 grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
 
-grcli address6 add 2001::1/64 iface $p0
-grcli address6 show
-grcli address6 del 2001::1/64 iface $p0
-grcli address6 show
-grcli address6 add 2001::1/64 iface $p0
-grcli address6 show
+grcli address add 2001::1/64 iface $p0
+grcli address show
+grcli address del 2001::1/64 iface $p0
+grcli address show
+grcli address add 2001::1/64 iface $p0
+grcli address show

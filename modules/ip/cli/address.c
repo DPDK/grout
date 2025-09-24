@@ -5,6 +5,7 @@
 #include <gr_cli.h>
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
+#include <gr_cli_l3.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
 #include <gr_table.h>
@@ -23,7 +24,7 @@ static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) 
 	req.addr.iface_id = iface->id;
 	free(iface);
 
-	if (arg_ip4_net(p, "IP_NET", &req.addr.addr, false) < 0)
+	if (arg_ip4_net(p, "ADDR", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ADDR_ADD, sizeof(req), &req, NULL) < 0)
@@ -41,7 +42,7 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 	req.addr.iface_id = iface->id;
 	free(iface);
 
-	if (arg_ip4_net(p, "IP_NET", &req.addr.addr, false) < 0)
+	if (arg_ip4_net(p, "ADDR", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ADDR_DEL, sizeof(req), &req, NULL) < 0)
@@ -50,28 +51,14 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip4_addr_list_req req = {.vrf_id = GR_VRF_ID_ALL, .iface_id = GR_IFACE_ID_UNDEF};
-	const char *iface_name = arg_str(p, "IFACE");
+static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols_table *table) {
+	struct gr_ip4_addr_list_req req = {.vrf_id = GR_VRF_ID_ALL, .iface_id = iface_id};
 	const struct gr_ip4_ifaddr *addr;
 	int ret;
 
-	if (iface_name != NULL) {
-		struct gr_iface *iface = iface_from_name(c, iface_name);
-		if (iface == NULL)
-			return CMD_ERROR;
-		req.iface_id = iface->id;
-		free(iface);
-	} else if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
-		return CMD_ERROR;
-	}
-
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "ADDRESS", 0, 0);
-	scols_table_set_column_separator(table, "  ");
-
 	gr_api_client_stream_foreach (addr, ret, c, GR_IP4_ADDR_LIST, sizeof(req), &req) {
+		if (iface_id != GR_IFACE_ID_UNDEF && addr->iface_id != iface_id)
+			continue;
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		struct gr_iface *iface = iface_from_id(c, addr->iface_id);
 		if (iface != NULL)
@@ -82,50 +69,15 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &addr->addr.ip, addr->addr.prefixlen);
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
-
-	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
+	return ret;
 }
 
-#define ADDR_CTX(root) CLI_CONTEXT(root, CTX_ARG("address", "IPv4 addresses."))
-
-static int ctx_init(struct ec_node *root) {
-	int ret;
-
-	ret = CLI_COMMAND(
-		ADDR_CTX(root),
-		"add IP_NET interface|iface|dev IFACE",
-		addr_add,
-		"Add an IPv4 address to an interface.",
-		with_help("IPv4 address with prefix length.", ec_node_re("IP_NET", IPV4_NET_RE)),
-		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		ADDR_CTX(root),
-		"del IP_NET interface|iface|dev IFACE",
-		addr_del,
-		"Remove an IPv4 address from an interface.",
-		with_help("IPv4 address with prefix length.", ec_node_re("IP_NET", IPV4_NET_RE)),
-		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		ADDR_CTX(root),
-		"show [(iface IFACE),(vrf VRF)]",
-		addr_list,
-		"Display all IPv4 addresses.",
-		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
-		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
+static struct cli_addr_ops addr_ops = {
+	.af = GR_AF_IP4,
+	.add = addr_add,
+	.del = addr_del,
+	.list = addr_list,
+};
 
 static void addr_event_print(uint32_t event, const void *obj) {
 	const struct gr_ip4_ifaddr *ifa = obj;
@@ -158,12 +110,7 @@ static struct cli_event_printer printer = {
 	},
 };
 
-static struct cli_context ctx = {
-	.name = "ipv4 address",
-	.init = ctx_init,
-};
-
 static void __attribute__((constructor, used)) init(void) {
-	cli_context_register(&ctx);
+	cli_addr_ops_register(&addr_ops);
 	cli_event_printer_register(&printer);
 }
