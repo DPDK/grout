@@ -5,6 +5,7 @@
 #include <gr_cli.h>
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
+#include <gr_cli_l3.h>
 #include <gr_cli_nexthop.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
@@ -47,20 +48,11 @@ static cmd_status_t route4_del(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip4_route_list_req req = {.vrf_id = GR_VRF_ID_ALL};
+static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols_table *table) {
+	struct gr_ip4_route_list_req req = {.vrf_id = vrf_id};
 	const struct gr_ip4_route *route;
 	char buf[128];
 	int ret;
-
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "DESTINATION", 0, 0);
-	scols_table_new_column(table, "NEXT_HOP", 0, 0);
-	scols_table_set_column_separator(table, "  ");
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -70,10 +62,7 @@ static cmd_status_t route4_list(struct gr_api_client *c, const struct ec_pnode *
 			scols_line_set_data(line, 2, buf);
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
-
-	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
+	return ret;
 }
 
 static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -101,59 +90,12 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-#define ROUTE_CTX(root) CLI_CONTEXT(root, CTX_ARG("route", "IPv4 routing tables."))
-
-static int ctx_init(struct ec_node *root) {
-	int ret;
-
-	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"add DEST via (NH)|(id ID) [vrf VRF]",
-		route4_add,
-		"Add a new route.",
-		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
-		with_help("IPv4 next hop address.", ec_node_re("NH", IPV4_RE)),
-		with_help("Next hop user ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"del DEST [vrf VRF]",
-		route4_del,
-		"Delete a route.",
-		with_help("IPv4 destination prefix.", ec_node_re("DEST", IPV4_NET_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"show [vrf VRF]",
-		route4_list,
-		"Show IPv4 routes.",
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"get DEST [vrf VRF]",
-		route4_get,
-		"Get the route associated with a destination IPv6 address.",
-		with_help("IPv4 destination address.", ec_node_re("DEST", IPV4_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static struct cli_context ctx = {
-	.name = "ipv4 route",
-	.init = ctx_init,
+static struct cli_route_ops route_ops = {
+	.af = GR_AF_IP4,
+	.add = route4_add,
+	.del = route4_del,
+	.list = route4_list,
+	.get = route4_get,
 };
 
 static void route_event_print(uint32_t event, const void *obj) {
@@ -193,6 +135,6 @@ static struct cli_event_printer printer = {
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	cli_context_register(&ctx);
+	cli_route_ops_register(&route_ops);
 	cli_event_printer_register(&printer);
 }

@@ -50,7 +50,7 @@ ip -n $p0 route add default via 192.168.61.1 dev $p0
 # (2)
 grcli nexthop add srv6 seglist fd00:202::2 id 42
 grcli route add 192.168.0.0/16 via id 42
-grcli route6 add fd00:202::/64 via fd00:102::2
+grcli route add fd00:202::/64 via fd00:102::2
 
 # (3)
 ip -n $p1 -6 route add fd00:202::2 encap seg6local action End.DX4 nh4 192.168.60.1 count dev $p1
@@ -64,7 +64,7 @@ ip -n $p1 -6 route add fd00:202::/64 via fd00:102::1 dev $p1
 
 # (6)
 grcli nexthop add srv6-local behavior end.dt4 id 666
-grcli route6 add fd00:202::100/128 via id 666
+grcli route add fd00:202::100/128 via id 666
 
 # test
 ip netns exec $p0 ping -c 3 192.168.60.1

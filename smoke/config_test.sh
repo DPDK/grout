@@ -24,16 +24,15 @@ grcli route add 4.5.21.2/27 via id 47
 grcli route add 172.16.47.0/24 via id 1047
 grcli address6 add 2345::1/24 iface p0
 grcli address6 add 2346::1/24 iface p1
-grcli route6 add ::/0 via 2345::2
-grcli route6 add ::/0 via 2345::1 || fail "route6 replace should succeed"
-grcli route6 add 2521:111::4/37 via id 1047
-grcli route6 add 2521:112::/64 via id 45
-grcli route6 add 2521:113::/64 via id 47
+grcli route add ::/0 via 2345::2
+grcli route add ::/0 via 2345::1 || fail "route replace should succeed"
+grcli route add 2521:111::4/37 via id 1047
+grcli route add 2521:112::/64 via id 45
+grcli route add 2521:113::/64 via id 47
 grcli interface set port p0 rxqs 2
 grcli interface set port p1 rxqs 2
 grcli interface show
 grcli route show
-grcli route6 show
 grcli nexthop show
 grcli graph show full
 grcli stats show software
@@ -46,5 +45,4 @@ grcli interface del p0
 grcli interface del p1
 
 if [ "$(grcli nexthop show | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
-if [ "$(grcli route | wc -l)" -ne 0 ]; then fail "RIB4 is not empty" ; fi
-if [ "$(grcli route6 | wc -l)" -ne 0 ]; then fail "RIB6 is not empty" ; fi
+if [ "$(grcli route show | wc -l)" -ne 0 ]; then fail "route list is not empty" ; fi
