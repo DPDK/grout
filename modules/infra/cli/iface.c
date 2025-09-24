@@ -528,7 +528,7 @@ static int ctx_init(struct ec_node *root) {
 	return ret;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "infra iface",
 	.init = ctx_init,
 };
@@ -567,7 +567,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	printf(" id=%u vrf=%u mtu=%u\n", iface->id, iface->vrf_id, iface->mtu);
 }
 
-static struct gr_cli_event_printer printer = {
+static struct cli_event_printer printer = {
 	.print = iface_event_print,
 	.ev_count = 5,
 	.ev_types = {
@@ -580,6 +580,6 @@ static struct gr_cli_event_printer printer = {
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_event_register_printer(&printer);
+	cli_context_register(&ctx);
+	cli_event_printer_register(&printer);
 }
