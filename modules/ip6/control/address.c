@@ -276,7 +276,7 @@ static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 		if (addrs == NULL)
 			continue;
 		gr_vec_foreach (nh, addrs->nh) {
-			if (nh->vrf_id != req->vrf_id)
+			if (req->vrf_id != GR_VRF_ID_ALL && nh->vrf_id != req->vrf_id)
 				continue;
 			struct gr_ip6_ifaddr addr = {
 				.addr.ip = nh->ipv6,
