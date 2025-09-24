@@ -22,8 +22,8 @@ grcli route add 0.0.0.0/0 via 10.0.0.2
 grcli route add 0.0.0.0/0 via 10.0.0.1 || fail "route replace should succeed"
 grcli route add 4.5.21.2/27 via id 47
 grcli route add 172.16.47.0/24 via id 1047
-grcli address6 add 2345::1/24 iface p0
-grcli address6 add 2346::1/24 iface p1
+grcli address add 2345::1/24 iface p0
+grcli address add 2346::1/24 iface p1
 grcli route add ::/0 via 2345::2
 grcli route add ::/0 via 2345::1 || fail "route replace should succeed"
 grcli route add 2521:111::4/37 via id 1047

@@ -10,7 +10,7 @@ p1=${run_id}1
 # setup ports and connected
 grcli interface add port $p0 devargs net_tap0,iface=$p0 mac d2:f0:0c:ba:a5:10
 grcli interface add port $p1 devargs net_tap1,iface=$p1 mac d2:f0:0c:ba:a5:11
-grcli address6 add fd00:102::1/64 iface $p1
+grcli address add fd00:102::1/64 iface $p1
 grcli address add 192.168.61.1/24 iface $p0
 
 for n in 0 1; do
