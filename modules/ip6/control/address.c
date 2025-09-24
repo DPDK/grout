@@ -272,6 +272,8 @@ static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 	uint16_t iface_id;
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
+		if (req->iface_id != GR_IFACE_ID_UNDEF && iface_id != req->iface_id)
+			continue;
 		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL)
 			continue;

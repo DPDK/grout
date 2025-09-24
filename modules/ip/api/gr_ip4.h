@@ -92,6 +92,7 @@ struct gr_ip4_addr_del_req {
 
 struct gr_ip4_addr_list_req {
 	uint16_t vrf_id;
+	uint16_t iface_id;
 };
 
 // STREAM(struct gr_ip4_ifaddr);

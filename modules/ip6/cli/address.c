@@ -53,12 +53,20 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 }
 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_addr_list_req req = {.vrf_id = GR_VRF_ID_ALL};
+	struct gr_ip6_addr_list_req req = {.vrf_id = GR_VRF_ID_ALL, .iface_id = GR_IFACE_ID_UNDEF};
+	const char *iface_name = arg_str(p, "IFACE");
 	const struct gr_ip6_ifaddr *addr;
 	int ret;
 
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (iface_name != NULL) {
+		struct gr_iface *iface = iface_from_name(c, iface_name);
+		if (iface == NULL)
+			return CMD_ERROR;
+		req.iface_id = iface->id;
+		free(iface);
+	} else if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT) {
 		return CMD_ERROR;
+	}
 
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "IFACE", 0, 0);
@@ -107,9 +115,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		IP6_SHOW_CTX(root),
-		"address [vrf VRF]",
+		"address [(iface IFACE),(vrf VRF)]",
 		addr_list,
 		"Display all IPv6 addresses.",
+		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
 		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
