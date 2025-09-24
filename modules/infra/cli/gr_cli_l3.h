@@ -19,4 +19,13 @@ struct cli_route_ops {
 	STAILQ_ENTRY(cli_route_ops) next;
 };
 
+struct cli_addr_ops {
+	addr_family_t af;
+	cmd_cb_t add;
+	cmd_cb_t del;
+	int (*list)(struct gr_api_client *, uint16_t iface_id, struct libscols_table *);
+	STAILQ_ENTRY(cli_addr_ops) next;
+};
+
 void cli_route_ops_register(struct cli_route_ops *);
+void cli_addr_ops_register(struct cli_addr_ops *);

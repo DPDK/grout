@@ -25,8 +25,8 @@ for n in 0 1; do
 	ip -n n-$p route add default via 172.16.$((n % 2)).1
 	ip -n n-$p addr show
 done
-set_ip_address $p0 172.16.0.1/24 1
-set_ip_address $p1 172.16.1.1/24 1
+set_ip_address $p0 172.16.0.1/24
+set_ip_address $p1 172.16.1.1/24
 set_ip_route 16.0.0.0/16 172.16.0.2 1
 set_ip_route 16.1.0.0/16 172.16.1.2 1
 
@@ -41,8 +41,8 @@ for n in 2 3; do
 	ip -n n-$p route add default via 172.16.$((n % 2)).1
 	ip -n n-$p addr show
 done
-set_ip_address $p2 172.16.0.1/24 2
-set_ip_address $p3 172.16.1.1/24 2
+set_ip_address $p2 172.16.0.1/24
+set_ip_address $p3 172.16.1.1/24
 set_ip_route 16.0.0.0/16 172.16.0.2 2
 set_ip_route 16.1.0.0/16 172.16.1.2 2
 

@@ -30,18 +30,15 @@ create_interface() {
 set_ip_address() {
 	local p="$1"
 	local ip_cidr="$2"
-	local vrf="${3:-0}"
 	local max_tries=5
 	local count=0
 
 	if echo "$ip_cidr" | grep -q ':'; then
 		# IPv6
 		local frr_ip="ipv6"
-		local gr_addr="address6"
 	else
 		# IPv4
 		local frr_ip="ip"
-		local gr_addr="address"
 	fi
 
 	local grep_pattern="^${p}[[:space:]]\+${ip_cidr}$"
@@ -53,7 +50,7 @@ set_ip_address() {
 	exit
 EOF
 
-	while ! grcli ${gr_addr} show vrf ${vrf} | grep -q "$grep_pattern"; do
+	while ! grcli address show iface ${p} | grep -q "$grep_pattern"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "IP address $ip_cidr not set after $max_tries attempts."
 			exit 1

@@ -149,8 +149,7 @@ By default, the CLI will start an interactive shell with command completion:
 Welcome to the grout CLI.
 Use ? for help and <tab> for command completion.
 grout# ?
-address              IPv4 addresses.
-address6             IPv6 addresses.
+address              IP addresses.
 affinity             CPU and physical queue affinity.
 conntrack            Connection tracking.
 dnat44               Static destination NAT44.
@@ -200,8 +199,7 @@ The CLI can also be used as a one-shot command (bash-completion is available):
 
 ```console
 [root@grout]$ grcli <TAB><TAB>
-address6            (IPv6 addresses.)
-address             (IPv4 addresses.)
+address             (IP addresses.)
 affinity            (CPU and physical queue affinity.)
 conntrack           (Connection tracking.)
 dnat44              (Static destination NAT44.)

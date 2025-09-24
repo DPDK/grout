@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'address.c',
   'affinity.c',
   'events.c',
   'graph.c',
