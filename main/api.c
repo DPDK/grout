@@ -215,7 +215,7 @@ static struct api_out hello(const void *request, struct api_ctx *) {
 	const struct gr_hello_req *req = request;
 
 	if (strncmp(req->version, GROUT_VERSION, sizeof(req->version)) != 0)
-		return api_out(EPROTO, 0, NULL);
+		return api_out(EBADMSG, 0, NULL);
 
 	return api_out(0, 0, NULL);
 }
