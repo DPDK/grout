@@ -24,19 +24,19 @@ void gr_register_api_handler(struct gr_api_handler *handler) {
 	assert(handler->callback != NULL);
 	assert(handler->name != NULL);
 
-	STAILQ_FOREACH (h, &handlers, entries) {
+	STAILQ_FOREACH (h, &handlers, next) {
 		if (h->request_type == handler->request_type)
 			ABORT("duplicate api handler type=0x%08x '%s'",
 			      handler->request_type,
 			      handler->name);
 	}
-	STAILQ_INSERT_TAIL(&handlers, handler, entries);
+	STAILQ_INSERT_TAIL(&handlers, handler, next);
 }
 
 const struct gr_api_handler *lookup_api_handler(const struct gr_api_request *req) {
 	const struct gr_api_handler *handler;
 
-	STAILQ_FOREACH (handler, &handlers, entries) {
+	STAILQ_FOREACH (handler, &handlers, next) {
 		if (handler->request_type == req->type)
 			return handler;
 	}
@@ -52,12 +52,12 @@ void gr_register_module(struct gr_module *mod) {
 	if (mod->name == NULL)
 		ABORT("module with no name: %p", mod);
 
-	STAILQ_FOREACH (m, &modules, entries) {
+	STAILQ_FOREACH (m, &modules, next) {
 		if (strcmp(mod->name, m->name) == 0)
 			ABORT("duplicate module name: '%s'", mod->name);
 	}
 
-	STAILQ_INSERT_TAIL(&modules, mod, entries);
+	STAILQ_INSERT_TAIL(&modules, mod, next);
 }
 
 static bool module_is_child(const void *mod, const void *maybe_child) {
@@ -74,7 +74,7 @@ void modules_init(struct event_base *ev_base) {
 	gr_vec const struct gr_module **mods = NULL;
 	const struct gr_module *mod;
 
-	STAILQ_FOREACH (mod, &modules, entries)
+	STAILQ_FOREACH (mod, &modules, next)
 		gr_vec_add(mods, mod);
 
 	if (mods == NULL)
@@ -97,7 +97,7 @@ void modules_fini(struct event_base *ev_base) {
 	gr_vec const struct gr_module **mods = NULL;
 	const struct gr_module *mod;
 
-	STAILQ_FOREACH (mod, &modules, entries)
+	STAILQ_FOREACH (mod, &modules, next)
 		gr_vec_add(mods, mod);
 
 	if (mods == NULL)
