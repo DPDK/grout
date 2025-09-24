@@ -8,16 +8,16 @@
 #include <stdio.h>
 #include <sys/queue.h>
 
-struct gr_cli_nexthop_formatter {
+struct cli_nexthop_formatter {
 	const char *name;
 	gr_nh_type_t type;
 	ssize_t (*format)(char *buf, size_t len, const void *nexthop_info);
-	STAILQ_ENTRY(gr_cli_nexthop_formatter) next;
+	STAILQ_ENTRY(cli_nexthop_formatter) next;
 };
 
-void gr_cli_nexthop_register_formatter(struct gr_cli_nexthop_formatter *);
+void cli_nexthop_formatter_register(struct cli_nexthop_formatter *);
 
-ssize_t gr_cli_format_nexthop(
+ssize_t cli_nexthop_format(
 	char *buf,
 	size_t len,
 	struct gr_api_client *,

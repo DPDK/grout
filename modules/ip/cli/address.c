@@ -149,7 +149,7 @@ static void addr_event_print(uint32_t event, const void *obj) {
 	       ifa->addr.prefixlen);
 }
 
-static struct gr_cli_event_printer printer = {
+static struct cli_event_printer printer = {
 	.print = addr_event_print,
 	.ev_count = 2,
 	.ev_types = {
@@ -158,12 +158,12 @@ static struct gr_cli_event_printer printer = {
 	},
 };
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "ipv4 address",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_event_register_printer(&printer);
+	cli_context_register(&ctx);
+	cli_event_printer_register(&printer);
 }

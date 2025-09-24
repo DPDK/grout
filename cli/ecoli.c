@@ -23,7 +23,7 @@ struct ec_node *with_help(const char *help, struct ec_node *node) {
 	return node;
 }
 
-struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
+struct ec_node *with_callback(cmd_cb_t cb, struct ec_node *node) {
 	if (node == NULL)
 		return NULL;
 	struct ec_dict *attrs = ec_node_attrs(node);

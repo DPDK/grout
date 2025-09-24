@@ -6,11 +6,11 @@
 #include <inttypes.h>
 #include <sys/queue.h>
 
-struct gr_cli_event_printer {
-	STAILQ_ENTRY(gr_cli_event_printer) next;
+struct cli_event_printer {
+	STAILQ_ENTRY(cli_event_printer) next;
 	void (*print)(uint32_t ev_type, const void *event);
 	unsigned ev_count;
 	uint32_t ev_types[];
 };
 
-void gr_cli_event_register_printer(struct gr_cli_event_printer *);
+void cli_event_printer_register(struct cli_event_printer *);
