@@ -16,7 +16,7 @@ typedef int(gr_cli_ctx_init_t)(struct ec_node *root);
 struct gr_cli_context {
 	const char *name;
 	gr_cli_ctx_init_t *init;
-	STAILQ_ENTRY(gr_cli_context) entries;
+	STAILQ_ENTRY(gr_cli_context) next;
 };
 
 void register_context(struct gr_cli_context *);

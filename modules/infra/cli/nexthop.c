@@ -23,13 +23,13 @@ void gr_cli_nexthop_register_formatter(struct gr_cli_nexthop_formatter *f) {
 	assert(f->name != NULL);
 	assert(f->type != GR_NH_T_ALL);
 	assert(f->format != NULL);
-	STAILQ_INSERT_TAIL(&formatters, f, entries);
+	STAILQ_INSERT_TAIL(&formatters, f, next);
 }
 
 static const struct gr_cli_nexthop_formatter *find_formatter(gr_nh_type_t type) {
 	struct gr_cli_nexthop_formatter *f;
 
-	STAILQ_FOREACH (f, &formatters, entries) {
+	STAILQ_FOREACH (f, &formatters, next) {
 		if (f->type == type)
 			return f;
 	}
@@ -132,7 +132,7 @@ static int complete_nh_types(
 ) {
 	struct gr_cli_nexthop_formatter *f;
 
-	STAILQ_FOREACH (f, &formatters, entries) {
+	STAILQ_FOREACH (f, &formatters, next) {
 		if (ec_str_startswith(f->name, arg)) {
 			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, f->name))
 				return -1;
@@ -145,7 +145,7 @@ static int complete_nh_types(
 static int nh_name_to_type(const char *name, gr_nh_type_t *type) {
 	struct gr_cli_nexthop_formatter *f;
 
-	STAILQ_FOREACH (f, &formatters, entries) {
+	STAILQ_FOREACH (f, &formatters, next) {
 		if (strcmp(f->name, name) == 0) {
 			*type = f->type;
 			return 0;
