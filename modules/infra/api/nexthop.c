@@ -175,7 +175,7 @@ struct list_context {
 static void nh_list_cb(struct nexthop *nh, void *priv) {
 	struct list_context *ctx = priv;
 
-	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != UINT16_MAX)
+	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_ALL)
 		return;
 	if (!ctx->all && nh->origin == GR_NH_ORIGIN_INTERNAL)
 		return;

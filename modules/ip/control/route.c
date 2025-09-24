@@ -342,7 +342,7 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 
 	for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
 		rib = vrf_ribs[v];
-		if (rib == NULL || (v != vrf_id && vrf_id != UINT16_MAX))
+		if (rib == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_ALL))
 			continue;
 
 		rn = NULL;
@@ -424,7 +424,7 @@ static void rib4_cleanup_nh(
 }
 
 void rib4_cleanup(struct nexthop *nh) {
-	rib4_iter(UINT16_MAX, rib4_cleanup_nh, nh);
+	rib4_iter(GR_VRF_ID_ALL, rib4_cleanup_nh, nh);
 }
 
 const struct rib4_stats *rib4_get_stats(uint16_t vrf_id) {

@@ -35,7 +35,7 @@ static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
 
 static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_localsid_add_req req = {
-		.l.out_vrf_id = UINT16_MAX, .exist_ok = true, .origin = GR_NH_ORIGIN_USER
+		.l.out_vrf_id = GR_VRF_ID_ALL, .exist_ok = true, .origin = GR_NH_ORIGIN_USER
 	};
 	const struct ec_pnode *n;
 	const struct ec_strvec *v;
@@ -91,7 +91,7 @@ static cmd_status_t srv6_localsid_del(struct gr_api_client *c, const struct ec_p
 }
 
 static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_localsid_list_req req = {.vrf_id = UINT16_MAX};
+	struct gr_srv6_localsid_list_req req = {.vrf_id = GR_VRF_ID_ALL};
 	const struct gr_srv6_localsid *lsid;
 	struct libscols_line *line;
 	char vrf_buf[100];
@@ -111,7 +111,7 @@ static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_
 		line = scols_table_new_line(table, NULL);
 
 		vrf_buf[0] = 0;
-		if (lsid->out_vrf_id < UINT16_MAX)
+		if (lsid->out_vrf_id != GR_VRF_ID_ALL)
 			sprintf(vrf_buf, "out_vrf=%d", lsid->out_vrf_id);
 
 		scols_line_sprintf(line, 0, "%u", lsid->vrf_id);

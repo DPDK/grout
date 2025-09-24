@@ -44,7 +44,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	ipip = NULL;
 	last_src = 0;
 	last_dst = 0;
-	last_vrf_id = UINT16_MAX;
+	last_vrf_id = GR_VRF_ID_ALL;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
