@@ -97,7 +97,6 @@ grcli stats show software
 grcli interface show
 grcli nexthop show
 grcli route show
-grcli route6 show
 grcli trace show count 50
 EOF
 

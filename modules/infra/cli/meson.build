@@ -9,6 +9,7 @@ cli_src += files(
   'loopback.c',
   'nexthop.c',
   'port.c',
+  'route.c',
   'stats.c',
   'trace.c',
   'vlan.c',

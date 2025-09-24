@@ -161,8 +161,7 @@ logging              Ingress/egress packet logging.
 nexthop              Nexthops.
 ping                 Send ICMPv6 echo requests and wait for replies.
 quit                 Exit the CLI.
-route                IPv4 routing tables.
-route6               IPv6 routing table.
+route                Routing tables.
 router-advert        IPv6 router advertisements.
 snat44               Dynamic source NAT44.
 stats                Packet processing statistics.
@@ -217,8 +216,7 @@ logging             (Ingress/egress packet logging.)
 nexthop             (Nexthops.)
 ping                (Send ICMPv6 echo requests and wait for replies.)
 quit                (Exit the CLI.)
-route6              (IPv6 routing table.)
-route               (IPv4 routing tables.)
+route               (Routing tables.)
 router-advert       (IPv6 router advertisements.)
 snat44              (Dynamic source NAT44.)
 --socket            (Path to the control plane API socket.)

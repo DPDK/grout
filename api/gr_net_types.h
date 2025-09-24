@@ -137,4 +137,4 @@ out:
 }
 
 #define IP_ANY_RE "^(" __IPV4_RE "|" __IPV6_RE ")$"
-#define IP_ANY_NET_RE "^(" __IPV4_RE __IPV4_PREFIX_RE "|" __IPV6_RE __IPV6_PREFIX_RE "$"
+#define IP_ANY_NET_RE "^(" __IPV4_RE __IPV4_PREFIX_RE "|" __IPV6_RE __IPV6_PREFIX_RE ")$"
