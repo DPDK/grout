@@ -12,7 +12,7 @@
 static STAILQ_HEAD(, gr_cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 
 void register_context(struct gr_cli_context *ctx) {
-	STAILQ_INSERT_HEAD(&contexts, ctx, entries);
+	STAILQ_INSERT_HEAD(&contexts, ctx, next);
 }
 
 struct ec_node *init_commands(void) {
@@ -22,7 +22,7 @@ struct ec_node *init_commands(void) {
 	if ((root = ec_node("or", "grcli")) == NULL)
 		goto fail;
 
-	STAILQ_FOREACH (ctx, &contexts, entries) {
+	STAILQ_FOREACH (ctx, &contexts, next) {
 		if (ctx->init(root) < 0) {
 			errorf("context init %s: %s", ctx->name, strerror(errno));
 			goto fail;

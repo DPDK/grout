@@ -12,12 +12,12 @@
 static STAILQ_HEAD(, gr_cli_event_printer) printers = STAILQ_HEAD_INITIALIZER(printers);
 
 void gr_cli_event_register_printer(struct gr_cli_event_printer *p) {
-	STAILQ_INSERT_TAIL(&printers, p, entries);
+	STAILQ_INSERT_TAIL(&printers, p, next);
 }
 
 static const struct gr_cli_event_printer *get_event_printer(uint32_t ev_type) {
 	const struct gr_cli_event_printer *p;
-	STAILQ_FOREACH (p, &printers, entries) {
+	STAILQ_FOREACH (p, &printers, next) {
 		for (unsigned i = 0; i < p->ev_count; i++)
 			if (p->ev_types[i] == ev_type)
 				return p;
