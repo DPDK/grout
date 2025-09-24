@@ -145,10 +145,11 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 
 	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
 		addrs = addr4_get_all(iface_id);
-		if (addrs == NULL || gr_vec_len(addrs->nh) == 0
-		    || addrs->nh[0]->vrf_id != req->vrf_id)
+		if (addrs == NULL)
 			continue;
 		gr_vec_foreach (nh, addrs->nh) {
+			if (req->vrf_id != GR_VRF_ID_ALL && nh->vrf_id != req->vrf_id)
+				continue;
 			struct gr_ip4_ifaddr addr = {
 				.addr.ip = nh->ipv4,
 				.addr.prefixlen = nh->prefixlen,
