@@ -103,11 +103,9 @@ set_ip_route() {
 	if echo "$prefix" | grep -q ':'; then
 		# IPv6
 		local frr_ip="ipv6"
-		local gr_route="route6"
 	else
 		# IPv4
 		local frr_ip="ip"
-		local gr_route="route"
 	fi
 
 	local grep_pattern="^${vrf_id}[[:space:]]\\+${prefix}\\>.*\\<${next_hop}\\>"
@@ -118,7 +116,7 @@ set_ip_route() {
 	exit
 EOF
 
-	while ! grcli ${gr_route} show vrf ${vrf_id} | grep -q "${grep_pattern}"; do
+	while ! grcli route show vrf ${vrf_id} | grep -q "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
@@ -168,11 +166,11 @@ set_srv6_localsid() {
 EOF
 
 	# --- wait until grout has the localsid ---------------------------------
-	# Expected "grcli route6 show" output pattern:
+	# Expected "grcli route show" output pattern:
 	# VRF  DESTINATION        NEXT_HOP
 	# 0    fd00:202::100/128  type=SRv6-local id=12 iface=gr-loop0 vrf=0 origin=zebra behavior=end.dt4 out_vrf=0
 	local grep_pattern="\\<${sid_local}/128[[:space:]]+type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
-	while ! grcli route6 show | grep -qE "${grep_pattern}"; do
+	while ! grcli route show | grep -qE "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
 			exit 1
@@ -207,9 +205,9 @@ set_srv6_route() {
     # ----- choose FRR keyword ---------------------------------------------
     local frr_ip gr_ip
     if [[ "$prefix" == *:* ]]; then
-	    frr_ip="ipv6"; gr_route="route6"
+	    frr_ip="ipv6"
     else
-	    frr_ip="ip";   gr_route="route"
+	    frr_ip="ip"
     fi
 
     # ----- build CLI & Grout forms ----------------------------------------
@@ -224,7 +222,7 @@ set_srv6_route() {
 EOF
 
     # ----- make BRE pattern for Grout -------------------------------------
-    # Expected output from grcli route6 show
+    # Expected output from grcli route show
     #
     # VRF  DESTINATION      NEXT_HOP
     # 0    192.168.0.0/16   type=SRv6 id=8 iface=geydsm1 vrf=0 origin=zebra h.encap fd00:202::2
@@ -235,7 +233,7 @@ EOF
     local grep_pattern="\\<${prefix}[[:space:]]+type=SRv6\\>.*${sid_regex}"
 
     # ----- wait until Grout shows it --------------------------------------
-    while ! grcli $gr_route show | grep -qE "${grep_pattern}"; do
+    while ! grcli route show | grep -qE "${grep_pattern}"; do
 	    if (( count++ >= max_tries )); then
 		    echo "SRv6 route ${prefix} via ${seg_space} not visible in Grout after ${max_tries}s." >&2
 		    exit 1
