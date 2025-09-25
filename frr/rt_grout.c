@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#include "if_grout.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -761,18 +760,69 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
+static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
+	struct gr_nh_del_req req = {.missing_ok = true, .nh_id = nh_id};
+
+	if (grout_client_send_recv(GR_NH_DEL, sizeof(req), &req, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+static enum zebra_dplane_result
+grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *nh) {
+	enum zebra_dplane_result ret = ZEBRA_DPLANE_REQUEST_FAILURE;
+	struct gr_nh_add_req req = {
+		.exist_ok = true,
+		.nh = {
+			.nh_id = nh_id,
+			.origin = origin,
+			.type = GR_NH_T_L3,
+			.vrf_id = nh->vrf_id,
+			.iface_id = nh->ifindex,
+		}
+	};
+
+	switch (nh->type) {
+	case NEXTHOP_TYPE_IPV4:
+	case NEXTHOP_TYPE_IPV4_IFINDEX:
+		req.nh.af = GR_AF_IP4;
+		memcpy(&req.nh.ipv4, &nh->gate.ipv4, sizeof(req.nh.ipv4));
+		break;
+	case NEXTHOP_TYPE_IPV6:
+	case NEXTHOP_TYPE_IPV6_IFINDEX:
+		req.nh.af = GR_AF_IP6;
+		memcpy(&req.nh.ipv6, &nh->gate.ipv6, sizeof(req.nh.ipv6));
+		break;
+	case NEXTHOP_TYPE_IFINDEX:
+		req.nh.af = GR_AF_UNSPEC;
+		break;
+	case NEXTHOP_TYPE_BLACKHOLE:
+		req.nh.type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
+		req.nh.iface_id = GR_IFACE_ID_UNDEF;
+		break;
+	}
+
+	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(req.nh.type));
+
+	if (grout_client_send_recv(GR_NH_ADD, sizeof(req), &req, NULL) < 0)
+		goto out;
+
+	ret = ZEBRA_DPLANE_REQUEST_SUCCESS;
+out:
+	return ret;
+}
+
 enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
-	union {
-		struct gr_nh_add_req nh_add;
-		struct gr_nh_del_req nh_del;
-	} req;
 	const struct nexthop *nh;
-	struct gr_nexthop *gr_nh;
-	uint32_t req_type;
-	size_t req_len;
-	afi_t afi;
-	bool new;
+	gr_nh_origin_t origin;
+
+	origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
+	if (!is_selfroute(origin)) {
+		gr_log_debug("no frr nexthop, skip it");
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
 
 	if (!nh_id) {
 		// it's supported by grout, but not by the linux kernel
@@ -792,82 +842,10 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
 
-	new = dplane_ctx_get_op(ctx) != DPLANE_OP_NH_DELETE;
-	if (new) {
-		req.nh_add = (struct gr_nh_add_req) {.exist_ok = true};
+	if (dplane_ctx_get_op(ctx) == DPLANE_OP_NH_DELETE)
+		return grout_del_nexthop(nh_id);
 
-		req_type = GR_NH_ADD;
-		req_len = sizeof(struct gr_nh_add_req);
-
-		gr_nh = &req.nh_add.nh;
-		gr_nh->nh_id = nh_id;
-	} else {
-		req.nh_del = (struct gr_nh_del_req) {.missing_ok = true};
-
-		req_type = GR_NH_DEL;
-		req_len = sizeof(struct gr_nh_del_req);
-
-		req.nh_del.nh_id = nh_id;
-	}
-
-	if (!new) {
-		gr_log_debug("del nexthop id %u", nh_id);
-		goto end;
-	}
-
-	gr_nh->type = GR_NH_T_L3;
-	afi = dplane_ctx_get_nhe_afi(ctx);
-	if (afi == AFI_IP)
-		gr_nh->af = GR_AF_IP4;
-	else
-		gr_nh->af = GR_AF_IP6;
-
-	if (nh->type != NEXTHOP_TYPE_BLACKHOLE && !nh->ifindex) {
-		gr_log_err("impossible to add/del nexthop in grout that does not have an ifindex");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	} else {
-		gr_nh->iface_id = nh->ifindex;
-	}
-
-	switch (nh->type) {
-	case NEXTHOP_TYPE_IPV4:
-	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		memcpy(&gr_nh->ipv4, &nh->gate.ipv4, sizeof(gr_nh->ipv4));
-		gr_log_debug("add nexthop id %u gw %pI4", nh_id, &gr_nh->ipv4);
-		break;
-	case NEXTHOP_TYPE_IPV6:
-	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		memcpy(&gr_nh->ipv6, &nh->gate.ipv6, sizeof(gr_nh->ipv6));
-		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->ipv6);
-		break;
-	case NEXTHOP_TYPE_IFINDEX:
-		// dplane_ctx_get_nhe_afi(ctx) returns AFI_IP for a nexthop with no gateway
-		// force to UNSPEC for grout
-		gr_nh->af = GR_AF_UNSPEC;
-		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
-		break;
-	case NEXTHOP_TYPE_BLACKHOLE:
-		gr_nh->type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
-		gr_nh->af = GR_AF_UNSPEC;
-		gr_nh->iface_id = GR_IFACE_ID_UNDEF;
-		gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(gr_nh->type));
-		break;
-	default:
-		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	gr_nh->origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
-	if (!is_selfroute(gr_nh->origin)) {
-		gr_log_debug("no frr nexthop, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
-
-end:
-	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-
-	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	return grout_add_nexthop(nh_id, origin, nh);
 }
 
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
