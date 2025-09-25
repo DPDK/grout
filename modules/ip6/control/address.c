@@ -186,7 +186,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		.iface_id = iface->id,
 		.ipv6 = *ip,
 		.prefixlen = prefixlen,
-		.origin = GR_NH_ORIGIN_LINK,
+		.origin = GR_NH_ORIGIN_INTERNAL,
 	};
 	if ((ret = iface_get_eth_addr(iface->id, &base.mac)) < 0 && errno != EOPNOTSUPP)
 		return errno_set(-ret);
@@ -208,7 +208,13 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-ret);
 
 	gr_vec_add(addrs->nh, nh);
-	gr_event_push(GR_EVENT_IP6_ADDR_ADD, nh);
+	gr_event_push(
+		GR_EVENT_IP6_ADDR_ADD,
+		&(struct gr_ip6_ifaddr) {
+			.iface_id = iface->id,
+			.addr = {*ip, prefixlen},
+		}
+	);
 
 	return 0;
 }
@@ -250,7 +256,13 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	gr_event_push(GR_EVENT_IP6_ADDR_DEL, nh);
+	gr_event_push(
+		GR_EVENT_IP6_ADDR_DEL,
+		&(struct gr_ip6_ifaddr) {
+			.iface_id = iface->id,
+			.addr = {*ip, prefixlen},
+		}
+	);
 
 	rib6_cleanup(nh);
 
@@ -404,7 +416,7 @@ static struct gr_event_subscription iface_event_subscription = {
 	},
 };
 static struct gr_event_serializer iface_addr_serializer = {
-	.size = sizeof(struct gr_nexthop),
+	.size = sizeof(struct gr_ip6_ifaddr),
 	.ev_count = 2,
 	.ev_types = {
 		GR_EVENT_IP6_ADDR_ADD,

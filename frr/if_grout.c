@@ -144,39 +144,50 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_provider_enqueue_to_zebra(ctx);
 }
 
-void grout_interface_addr_dplane(struct gr_nexthop *gr_nh, bool new) {
+static void grout_interface_addr_change(
+	bool new,
+	uint16_t iface_id,
+	int af,
+	const void *addr,
+	uint8_t prefixlen
+) {
 	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
-	struct prefix p = {};
+	struct prefix p = {.family = af, .prefixlen = prefixlen};
 
 	if (new)
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_ADD);
 	else
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_DEL);
 
-	dplane_ctx_set_ifindex(ctx, gr_nh->iface_id);
+	dplane_ctx_set_ifindex(ctx, iface_id);
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 
 	// Convert addr to prefix
-	p.prefixlen = gr_nh->prefixlen;
-	switch (gr_nh->af) {
-	case GR_AF_IP4:
-		p.family = AF_INET;
-		p.u.prefix4.s_addr = gr_nh->ipv4;
+	switch (af) {
+	case AF_INET:
+		memcpy(&p.u.prefix4, addr, sizeof(p.u.prefix4));
 		break;
-	case GR_AF_IP6:
-		p.family = AF_INET6;
-		memcpy(&p.u.prefix6, &gr_nh->ipv6, sizeof(p.u.prefix6));
+	case AF_INET6:
+		memcpy(&p.u.prefix6, addr, sizeof(p.u.prefix6));
 		break;
-	case GR_AF_UNSPEC:
-		gr_log_err("interface with addr family UNSPEC are not supported");
-		dplane_ctx_fini(&ctx);
-		return;
 	}
 	dplane_ctx_set_intf_addr(ctx, &p);
 	dplane_ctx_set_intf_metric(ctx, METRIC_MAX);
 
 	// Enqueue ctx for main pthread to process
 	dplane_provider_enqueue_to_zebra(ctx);
+}
+
+void grout_interface_addr4_change(bool new, const struct gr_ip4_ifaddr *ifa) {
+	grout_interface_addr_change(
+		new, ifa->iface_id, AF_INET, &ifa->addr.ip, ifa->addr.prefixlen
+	);
+}
+
+void grout_interface_addr6_change(bool new, const struct gr_ip6_ifaddr *ifa) {
+	grout_interface_addr_change(
+		new, ifa->iface_id, AF_INET6, &ifa->addr.ip, ifa->addr.prefixlen
+	);
 }
 
 enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {

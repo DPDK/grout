@@ -184,15 +184,8 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip_addr, ret, grout_ctx.client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
 	) {
-		struct gr_nexthop dummy = {
-			.af = GR_AF_IP4,
-			.ipv4 = ip_addr->addr.ip,
-			.prefixlen = ip_addr->addr.prefixlen,
-			.iface_id = ip_addr->iface_id,
-			.vrf_id = EVENT_VAL(e),
-		};
-		gr_log_debug("sync addr %pI4", &dummy.ipv4);
-		grout_interface_addr_dplane(&dummy, true);
+		gr_log_debug("sync addr %pI4", &ip_addr->addr.ip);
+		grout_interface_addr4_change(true, ip_addr);
 	}
 	if (ret < 0)
 		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
@@ -205,15 +198,8 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip6_addr, ret, grout_ctx.client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
 	) {
-		struct gr_nexthop dummy = {
-			.af = GR_AF_IP6,
-			.ipv6 = ip6_addr->addr.ip,
-			.prefixlen = ip6_addr->addr.prefixlen,
-			.iface_id = ip6_addr->iface_id,
-			.vrf_id = EVENT_VAL(e),
-		};
-		gr_log_debug("sync addr %pI6", &dummy.ipv6);
-		grout_interface_addr_dplane(&dummy, true);
+		gr_log_debug("sync addr %pI6", &ip6_addr->addr.ip);
+		grout_interface_addr6_change(true, ip6_addr);
 	}
 	if (ret < 0)
 		gr_log_err("GR_IP6_ADDR_LIST: %s", strerror(errno));
@@ -433,7 +419,8 @@ static const char *gr_evt_to_str(uint32_t e) {
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct gr_api_event *gr_e = NULL;
-	struct gr_nexthop *gr_nh;
+	struct gr_ip4_ifaddr *ifa4;
+	struct gr_ip6_ifaddr *ifa6;
 	struct gr_iface *iface;
 	bool new = false;
 
@@ -467,35 +454,30 @@ static void dplane_read_notifications(struct event *event) {
 		grout_link_change(iface, new, false);
 		break;
 	case GR_EVENT_IP_ADDR_ADD:
-	case GR_EVENT_IP6_ADDR_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP_ADDR_DEL:
+		ifa4 = PAYLOAD(gr_e);
+		gr_log_debug(
+			"%s addr %pI4 notification (%s)",
+			new ? "add" : "del",
+			&ifa4->addr.ip,
+			gr_evt_to_str(gr_e->ev_type)
+		);
+		grout_interface_addr4_change(new, ifa4);
+		break;
+	case GR_EVENT_IP6_ADDR_ADD:
+		new = true;
+		// fallthrough
 	case GR_EVENT_IP6_ADDR_DEL:
-		gr_nh = PAYLOAD(gr_e);
-
-		switch (gr_nh->af) {
-		case GR_AF_IP4:
-			gr_log_debug(
-				"%s addr %pI4 notification (%s)",
-				new ? "add" : "del",
-				&gr_nh->ipv4,
-				gr_evt_to_str(gr_e->ev_type)
-			);
-			break;
-		case GR_AF_IP6:
-			gr_log_debug(
-				"%s addr %pI6 notification (%s)",
-				new ? "add" : "del",
-				&gr_nh->ipv6,
-				gr_evt_to_str(gr_e->ev_type)
-			);
-			break;
-		case GR_AF_UNSPEC:
-			break;
-		}
-
-		grout_interface_addr_dplane(gr_nh, new);
+		ifa6 = PAYLOAD(gr_e);
+		gr_log_debug(
+			"%s addr %pI6 notification (%s)",
+			new ? "add" : "del",
+			&ifa6->addr.ip,
+			gr_evt_to_str(gr_e->ev_type)
+		);
+		grout_interface_addr6_change(new, ifa6);
 		break;
 	default:
 		gr_log_debug(
