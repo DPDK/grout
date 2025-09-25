@@ -95,7 +95,7 @@ static inline void __gr_vec_del_range(void *vec, size_t item_size, uint32_t star
 
 	memmove((void *)((uintptr_t)vec + (item_size * start)),
 		(void *)((uintptr_t)vec + (item_size * end)),
-		item_size * len);
+		item_size * (gr_vec_len(vec) - end));
 
 	hdr->len -= len;
 }
