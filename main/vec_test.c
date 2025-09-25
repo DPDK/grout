@@ -19,6 +19,16 @@ static void int_vec(void **) {
 	for (int i = 0; i < 5; i++)
 		assert_int_equal(vec[i], i);
 
+	gr_vec_del(vec, 0);
+	assert_int_equal(gr_vec_len(vec), 4);
+	for (int i = 0; i < 4; i++)
+		assert_int_equal(vec[i], i + 1);
+
+	gr_vec_insert(vec, 0, 0);
+	assert_int_equal(gr_vec_len(vec), 5);
+	for (int i = 0; i < 5; i++)
+		assert_int_equal(vec[i], i);
+
 	gr_vec_insert(vec, 1, 42);
 	assert_int_equal(gr_vec_len(vec), 6);
 	assert_int_equal(vec[0], 0);
