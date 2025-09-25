@@ -257,7 +257,7 @@ static void grout_route_change(
 	uint32_t tableid = vrf_id;
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
-	struct nexthop _nh, *nh = NULL;
+	struct nexthop *nh = NULL;
 	uint32_t flags = 0;
 	struct prefix p;
 	size_t sz;
@@ -297,11 +297,11 @@ static void grout_route_change(
 	if (nh_id == 0) {
 		int nh_family;
 
-		memset(&_nh, 0, sizeof(_nh));
-		nh = &_nh;
+		nh = nexthop_new();
 
 		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family) < 0) {
 			gr_log_debug("route received has invalid nexthop, ignoring");
+			nexthop_free(nh);
 			return;
 		}
 
@@ -312,6 +312,7 @@ static void grout_route_change(
 				nh_family,
 				family
 			);
+			nexthop_free(nh);
 			return;
 		}
 	}
@@ -337,15 +338,11 @@ static void grout_route_change(
 	if (new) {
 		struct route_entry *re;
 		struct nexthop_group *ng = NULL;
-		struct nexthop *nexthop;
 
 		re = zebra_rib_route_entry_new(vrf_id, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0);
 		if (nh) {
 			ng = nexthop_group_new();
-
-			nexthop = nexthop_new();
-			*nexthop = *nh;
-			nexthop_group_add_sorted(ng, nexthop);
+			nexthop_group_add_sorted(ng, nh);
 			assert(nh_id == 0);
 		}
 
@@ -353,7 +350,7 @@ static void grout_route_change(
 
 		if (ng)
 			nexthop_group_delete(&ng);
-	} else
+	} else {
 		rib_delete(
 			afi,
 			SAFI_UNICAST,
@@ -370,6 +367,9 @@ static void grout_route_change(
 			0,
 			true
 		);
+		if (nh)
+			nexthop_free(nh);
+	}
 }
 
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
@@ -720,7 +720,7 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 }
 
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
-	struct nexthop nh = {.weight = 1};
+	struct nexthop *nh = NULL;
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
@@ -731,11 +731,15 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 		return;
 	}
 
-	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &family) < 0)
-		return;
-
 	if (!new) {
 		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
+		return;
+	}
+
+	nh = nexthop_new();
+
+	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &family) < 0) {
+		nexthop_free(nh);
 		return;
 	}
 
@@ -745,7 +749,11 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 
 	afi = family2afi(family);
 	type = origin2zebra(gr_nh->origin, family, false);
-	SET_FLAG(nh.flags, NEXTHOP_FLAG_ACTIVE);
+	SET_FLAG(nh->flags, NEXTHOP_FLAG_ACTIVE);
 
-	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+	zebra_nhg_kernel_find(gr_nh->nh_id, nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+
+	// zebra_nhg_kernel_find() makes a *shallow* copy of the allocated nexthop.
+	// nexthop_free() must *NOT* be used to preserve the nh_srv6 context.
+	free(nh);
 }
