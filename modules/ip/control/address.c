@@ -89,7 +89,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		.iface_id = iface->id,
 		.ipv4 = req->addr.addr.ip,
 		.prefixlen = req->addr.addr.prefixlen,
-		.origin = GR_NH_ORIGIN_LINK,
+		.origin = GR_NH_ORIGIN_INTERNAL,
 	};
 	if (iface_get_eth_addr(iface->id, &base.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0, NULL);
@@ -101,7 +101,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		return api_out(-ret, 0, NULL);
 
 	gr_vec_add(ifaddrs->nh, nh);
-	gr_event_push(GR_EVENT_IP_ADDR_ADD, nh);
+	gr_event_push(GR_EVENT_IP_ADDR_ADD, &req->addr);
 
 	return api_out(0, 0, NULL);
 }
@@ -128,7 +128,7 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 		return api_out(ENOENT, 0, NULL);
 	}
 
-	gr_event_push(GR_EVENT_IP_ADDR_DEL, nh);
+	gr_event_push(GR_EVENT_IP_ADDR_DEL, &req->addr);
 
 	rib4_cleanup(nh);
 
@@ -217,7 +217,7 @@ static struct gr_event_subscription iface_pre_rm_subscription = {
 	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
 };
 static struct gr_event_serializer iface_addr_serializer = {
-	.size = sizeof(struct gr_nexthop),
+	.size = sizeof(struct gr_ip4_ifaddr),
 	.ev_count = 2,
 	.ev_types = {GR_EVENT_IP_ADDR_ADD, GR_EVENT_IP_ADDR_DEL},
 };

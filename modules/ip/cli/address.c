@@ -128,7 +128,7 @@ static int ctx_init(struct ec_node *root) {
 }
 
 static void addr_event_print(uint32_t event, const void *obj) {
-	const struct gr_nexthop *nh = obj;
+	const struct gr_ip4_ifaddr *ifa = obj;
 	const char *action;
 
 	switch (event) {
@@ -142,12 +142,11 @@ static void addr_event_print(uint32_t event, const void *obj) {
 		action = "?";
 		break;
 	}
-	printf("addr %s: iface=%u " ADDR_F "/%hhu\n",
+	printf("addr %s: iface=%u " IP4_F "/%hhu\n",
 	       action,
-	       nh->iface_id,
-	       ADDR_W(nh->af),
-	       &nh->addr,
-	       nh->prefixlen);
+	       ifa->iface_id,
+	       &ifa->addr.ip,
+	       ifa->addr.prefixlen);
 }
 
 static struct gr_cli_event_printer printer = {
