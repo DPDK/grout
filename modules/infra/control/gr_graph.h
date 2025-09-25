@@ -27,10 +27,6 @@ rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void
 #include <rte_graph_worker.h>
 #endif
 
-void *gr_node_data_get(const char *graph, const char *node);
-
-int gr_node_data_set(const char *graph, const char *node, void *data);
-
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node);
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
