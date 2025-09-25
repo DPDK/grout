@@ -234,6 +234,43 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		}
 		break;
 	}
+	case GR_NH_T_SR6_LOCAL: {
+		enum seg6local_action_t action = ZEBRA_SEG6_LOCAL_ACTION_UNSPEC;
+		const struct gr_nexthop_info_srv6_local *sr6;
+		struct seg6local_context ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		sr6 = (const struct gr_nexthop_info_srv6_local *)gr_nh->info;
+
+		SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USP);
+		if (sr6->flags & GR_SR_FL_FLAVOR_PSP)
+			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP);
+		if (sr6->flags & GR_SR_FL_FLAVOR_USD)
+			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD);
+
+		switch (sr6->behavior) {
+		case SR_BEHAVIOR_END:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END;
+			break;
+		case SR_BEHAVIOR_END_T:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_T;
+			break;
+		case SR_BEHAVIOR_END_DT6:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT6;
+			break;
+		case SR_BEHAVIOR_END_DT4:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT4;
+			break;
+		case SR_BEHAVIOR_END_DT46:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT46;
+			break;
+		}
+
+		ctx.table = sr6->out_vrf_id;
+		nexthop_add_srv6_seg6local(nh, action, &ctx);
+		break;
+	}
 	default:
 		gr_log_err(
 			"sync %s nexthops from grout not supported", gr_nh_type_name(gr_nh->type)
