@@ -16,6 +16,7 @@ struct rx_port_queue {
 };
 
 struct rx_node_queues {
+	uint16_t burst_size;
 	uint16_t n_queues;
 	struct rx_port_queue queues[/* n_queues */];
 };

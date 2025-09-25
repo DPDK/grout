@@ -21,10 +21,6 @@ enum {
 	NB_EDGES,
 };
 
-struct tx_ctx {
-	uint16_t txq_ids[RTE_MAX_ETHPORTS];
-};
-
 static inline void tx_burst(
 	struct rte_graph *graph,
 	struct rte_node *node,
@@ -32,7 +28,7 @@ static inline void tx_burst(
 	struct rte_mbuf **mbufs,
 	uint16_t n
 ) {
-	const struct tx_ctx *ctx = node->ctx_ptr;
+	const struct tx_node_queues *ctx = node->ctx_ptr;
 	uint16_t txq_id, tx_ok;
 
 	txq_id = ctx->txq_ids[port_id];
@@ -89,24 +85,6 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	return nb_objs;
 }
 
-static int tx_init(const struct rte_graph *graph, struct rte_node *node) {
-	const struct tx_node_queues *data;
-	struct tx_ctx *ctx;
-
-	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
-		return -1;
-
-	ctx = rte_malloc(__func__, sizeof(*ctx), RTE_CACHE_LINE_SIZE);
-	if (ctx == NULL) {
-		LOG(ERR, "rte_malloc(): %s", rte_strerror(rte_errno));
-		return -1;
-	}
-	memcpy(ctx->txq_ids, data->txq_ids, sizeof(ctx->txq_ids));
-	node->ctx_ptr = ctx;
-
-	return 0;
-}
-
 static void tx_fini(const struct rte_graph *, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
@@ -115,7 +93,6 @@ static struct rte_node_register node = {
 	.name = "port_tx",
 
 	.process = tx_process,
-	.init = tx_init,
 	.fini = tx_fini,
 
 	.nb_edges = NB_EDGES,

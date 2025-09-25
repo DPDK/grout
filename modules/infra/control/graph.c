@@ -18,7 +18,7 @@
 #include <rte_build_config.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
-#include <rte_hash.h>
+#include <rte_malloc.h>
 
 #include <stdatomic.h>
 #include <sys/queue.h>
@@ -26,47 +26,6 @@
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 static gr_vec const char **node_names;
-
-struct node_data_key {
-	char graph[RTE_GRAPH_NAMESIZE];
-	char node[RTE_NODE_NAMESIZE];
-};
-
-static struct rte_hash *hash;
-
-static void set_key(struct node_data_key *key, const char *graph, const char *node) {
-	memset(key, 0, sizeof(*key));
-	memccpy(key->graph, graph, 0, sizeof(key->graph));
-	memccpy(key->node, node, 0, sizeof(key->node));
-}
-
-void *gr_node_data_get(const char *graph, const char *node) {
-	struct node_data_key key;
-	void *data = NULL;
-
-	set_key(&key, graph, node);
-
-	if (rte_hash_lookup_data(hash, &key, &data) < 0)
-		return errno_log_null(rte_errno, "rte_hash_lookup_data");
-
-	return data;
-}
-
-int gr_node_data_set(const char *graph, const char *node, void *data) {
-	struct node_data_key key;
-	void *old_data = NULL;
-
-	set_key(&key, graph, node);
-
-	if (rte_hash_lookup_data(hash, &key, &old_data) >= 0) {
-		rte_hash_del_key(hash, &key);
-		free(old_data);
-	}
-	if (rte_hash_add_key_data(hash, &key, data) < 0)
-		return errno_log(rte_errno, "rte_hash_add_key_data");
-
-	return 0;
-}
 
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node) {
 	rte_node_t parent_id;
@@ -98,28 +57,10 @@ rte_edge_t gr_node_attach_parent(const char *parent, const char *node) {
 	return edge;
 }
 
-static void node_data_reset(const char *graph) {
-	union {
-		const struct node_data_key *k;
-		const void *v;
-	} key;
-	void *data = NULL;
-	uint32_t iter;
-
-	iter = 0;
-	while (rte_hash_iterate(hash, &key.v, &data, &iter) >= 0) {
-		if (strcmp(key.k->graph, graph) == 0) {
-			rte_hash_del_key(hash, key.v);
-			free(data);
-		}
-	}
-}
-
 void worker_graph_free(struct worker *worker) {
 	int ret;
 	for (int i = 0; i < 2; i++) {
 		if (worker->graph[i] != NULL) {
-			node_data_reset(worker->graph[i]->name);
 			if ((ret = rte_graph_destroy(worker->graph[i]->id)) < 0)
 				LOG(ERR, "rte_graph_destroy: %s", rte_strerror(-ret));
 			worker->graph[i] = NULL;
@@ -153,12 +94,12 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 
 	// build rx & tx nodes data
 	len = sizeof(*rx) + n_rxqs * sizeof(struct rx_port_queue);
-	rx = malloc(len);
+	rx = rte_malloc(__func__, len, RTE_CACHE_LINE_SIZE);
 	if (rx == NULL) {
 		ret = -ENOMEM;
 		goto err;
 	}
-	n_rxqs = 0;
+	rx->n_queues = 0;
 	gr_vec_foreach_ref (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
@@ -167,20 +108,13 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    worker->cpu_id,
 		    qmap->port_id,
 		    qmap->queue_id);
-		rx->queues[n_rxqs].port_id = qmap->port_id;
-		rx->queues[n_rxqs].rxq_id = qmap->queue_id;
-		n_rxqs++;
+		rx->queues[rx->n_queues].port_id = qmap->port_id;
+		rx->queues[rx->n_queues].rxq_id = qmap->queue_id;
+		rx->n_queues++;
 	}
-	rx->n_queues = n_rxqs;
-	if (gr_node_data_set(name, "port_rx", rx) < 0) {
-		if (rte_errno == 0)
-			rte_errno = EINVAL;
-		ret = -rte_errno;
-		goto err;
-	}
-	rx = NULL;
+	rx->burst_size = RTE_GRAPH_BURST_SIZE / rx->n_queues;
 
-	tx = malloc(sizeof(*tx));
+	tx = rte_malloc(__func__, sizeof(*tx), RTE_CACHE_LINE_SIZE);
 	if (tx == NULL) {
 		ret = -ENOMEM;
 		goto err;
@@ -197,13 +131,6 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 		    qmap->queue_id);
 		tx->txq_ids[qmap->port_id] = qmap->queue_id;
 	}
-	if (gr_node_data_set(name, "port_tx", tx) < 0) {
-		if (rte_errno == 0)
-			rte_errno = EINVAL;
-		ret = -rte_errno;
-		goto err;
-	}
-	tx = NULL;
 
 	// graph init
 	struct rte_graph_param params = {
@@ -219,20 +146,19 @@ static int worker_graph_new(struct worker *worker, uint8_t index) {
 	}
 	worker->graph[index] = rte_graph_lookup(name);
 
+	rte_graph_node_get_by_name(name, "port_rx")->ctx_ptr = rx;
+	rte_graph_node_get_by_name(name, "port_tx")->ctx_ptr = tx;
+
 	return 0;
 err:
-	free(rx);
-	free(tx);
-	node_data_reset(name);
+	rte_free(rx);
+	rte_free(tx);
 	return errno_set(-ret);
 }
 
 int worker_graph_reload(struct worker *worker) {
 	unsigned next = !atomic_load(&worker->cur_config);
 	int ret;
-
-	if (hash == NULL)
-		return errno_set(EIO);
 
 	if ((ret = worker_graph_new(worker, next)) < 0)
 		return errno_log(-ret, "worker_graph_new");
@@ -247,7 +173,6 @@ int worker_graph_reload(struct worker *worker) {
 	next = !next;
 
 	if (worker->graph[next] != NULL) {
-		node_data_reset(worker->graph[next]->name);
 		if ((ret = rte_graph_destroy(worker->graph[next]->id)) < 0)
 			errno_log(-ret, "rte_graph_destroy");
 		worker->graph[next] = NULL;
@@ -410,37 +335,16 @@ static void graph_init(struct event_base *) {
 			info->register_callback();
 		}
 	}
-
-	struct rte_hash_parameters params = {
-		.name = "node_data",
-		.entries = 1024,
-		.key_len = sizeof(struct node_data_key),
-		.socket_id = SOCKET_ID_ANY,
-	};
-	hash = rte_hash_create(&params);
-	if (hash == NULL)
-		ABORT("rte_hash_create: %s", rte_strerror(rte_errno));
 }
 
 static void graph_fini(struct event_base *) {
 	struct gr_node_info *info;
-	const void *key = NULL;
-	void *data = NULL;
-	uint32_t iter;
 
 	STAILQ_FOREACH (info, &node_infos, next) {
 		if (info->unregister_callback != NULL) {
 			info->unregister_callback();
 		}
 	}
-
-	iter = 0;
-	while (rte_hash_iterate(hash, &key, &data, &iter) >= 0) {
-		rte_hash_del_key(hash, key);
-		free(data);
-	}
-	rte_hash_free(hash);
-	hash = NULL;
 
 	gr_vec_free(node_names);
 	node_names = NULL;

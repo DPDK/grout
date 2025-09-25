@@ -12,7 +12,6 @@
 
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
-#include <rte_hash.h>
 #include <rte_malloc.h>
 
 #include <stdbool.h>
@@ -22,12 +21,6 @@ enum {
 	IFACE_MODE_UNKNOWN = 0,
 	NO_IFACE,
 	NB_EDGES,
-};
-
-struct rx_ctx {
-	uint16_t burst_size;
-	uint16_t n_queues;
-	struct rx_port_queue queues[/* n_queues */];
 };
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
@@ -45,7 +38,7 @@ void register_interface_mode(gr_iface_mode_t mode, const char *next_node) {
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uint16_t count) {
-	const struct rx_ctx *ctx = node->ctx_ptr;
+	const struct rx_node_queues *ctx = node->ctx_ptr;
 	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	struct rx_port_queue q;
@@ -93,28 +86,6 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void ** /*objs*/, uin
 	return count;
 }
 
-static int rx_init(const struct rte_graph *graph, struct rte_node *node) {
-	const struct rx_node_queues *data;
-	struct rx_ctx *ctx;
-
-	if ((data = gr_node_data_get(graph->name, node->name)) == NULL)
-		return -1;
-
-	ctx = rte_zmalloc(
-		__func__, sizeof(*ctx) + data->n_queues * sizeof(*ctx->queues), RTE_CACHE_LINE_SIZE
-	);
-	if (ctx == NULL) {
-		LOG(ERR, "rte_zmalloc: %s", rte_strerror(rte_errno));
-		return -1;
-	}
-	ctx->n_queues = data->n_queues;
-	ctx->burst_size = RTE_GRAPH_BURST_SIZE / data->n_queues;
-	memcpy(ctx->queues, data->queues, ctx->n_queues * sizeof(*ctx->queues));
-	node->ctx_ptr = ctx;
-
-	return 0;
-}
-
 static void rx_fini(const struct rte_graph *, struct rte_node *node) {
 	rte_free(node->ctx_ptr);
 }
@@ -124,7 +95,6 @@ static struct rte_node_register node = {
 	.flags = RTE_NODE_SOURCE_F,
 
 	.process = rx_process,
-	.init = rx_init,
 	.fini = rx_fini,
 
 	.nb_edges = NB_EDGES,
