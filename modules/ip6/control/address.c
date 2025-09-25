@@ -229,29 +229,26 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out addr6_del(const void *request, struct api_ctx *) {
-	const struct gr_ip6_addr_del_req *req = request;
+static int
+iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i = 0;
 
-	if ((addrs = addr6_get_all(req->addr.iface_id)) == NULL)
-		return api_out(errno, 0, NULL);
+	if (iface == NULL || ip == NULL || prefixlen > RTE_IPV6_MAX_DEPTH)
+		return errno_set(EINVAL);
+
+	addrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, addrs->nh) {
-		if (rte_ipv6_addr_eq(&nh->ipv6, &req->addr.addr.ip)
-		    && nh->prefixlen == req->addr.addr.prefixlen) {
+		if (rte_ipv6_addr_eq(&nh->ipv6, ip) && nh->prefixlen == prefixlen)
 			break;
-		}
 		nh = NULL;
 		i++;
 	}
-	if (nh == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0, NULL);
-		return api_out(ENOENT, 0, NULL);
-	}
+	if (nh == NULL)
+		return errno_set(ENOENT);
 
 	gr_event_push(GR_EVENT_IP6_ADDR_DEL, nh);
 
@@ -261,9 +258,26 @@ static struct api_out addr6_del(const void *request, struct api_ctx *) {
 	gr_vec_del(addrs->nh, i);
 
 	// leave the solicited node multicast group
-	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
-	if (mcast6_addr_del(iface_from_id(req->addr.iface_id), &solicited_node) < 0)
+	rte_ipv6_solnode_from_addr(&solicited_node, ip);
+	if (mcast6_addr_del(iface, &solicited_node) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENOENT)
+			return errno_set(errno);
+	}
+
+	return 0;
+}
+
+static struct api_out addr6_del(const void *request, struct api_ctx *) {
+	const struct gr_ip6_addr_del_req *req = request;
+	const struct iface *iface;
+
+	iface = iface_from_id(req->addr.iface_id);
+	if (iface == NULL)
 		return api_out(errno, 0, NULL);
+
+	if (iface6_addr_del(iface, &req->addr.addr.ip, req->addr.addr.prefixlen) < 0)
+		if (errno != ENOENT || !req->missing_ok)
+			return api_out(errno, 0, NULL);
 
 	return api_out(0, 0, NULL);
 }
@@ -307,7 +321,6 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	struct rte_ipv6_addr link_local;
 	struct rte_ether_addr mac;
-	struct nexthop *nh;
 	unsigned i;
 
 	switch (event) {
@@ -326,17 +339,15 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		struct hoplist *addrs = &iface_addrs[iface->id];
-
-		gr_vec_foreach (nh, addrs->nh)
-			rib6_cleanup(nh);
+		while (gr_vec_len(addrs->nh) > 0) {
+			const struct nexthop *nh = addrs->nh[0];
+			iface6_addr_del(iface, &nh->ipv6, nh->prefixlen);
+		}
 		gr_vec_free(addrs->nh);
-
 		addrs = &iface_mcast_addrs[iface->id];
-		gr_vec_foreach (nh, addrs->nh) {
-			// remove ethernet filter
-			if (iface_del_eth_addr(iface->id, &nh->mac) < 0)
-				LOG(INFO, "%s: mcast_addr_del: %s", iface->name, strerror(errno));
-			nexthop_decref(nh);
+		while (gr_vec_len(addrs->nh) > 0) {
+			const struct nexthop *nh = addrs->nh[0];
+			mcast6_addr_del(iface, &nh->ipv6);
 		}
 		gr_vec_free(addrs->nh);
 		break;
