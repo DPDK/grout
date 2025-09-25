@@ -271,6 +271,24 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		nexthop_add_srv6_seg6local(nh, action, &ctx);
 		break;
 	}
+	case GR_NH_T_SR6_OUTPUT: {
+		enum srv6_headend_behavior encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS;
+		const struct gr_nexthop_info_srv6 *sr6;
+
+		sr6 = (const struct gr_nexthop_info_srv6 *)gr_nh->info;
+
+		switch (sr6->encap_behavior) {
+		case SR_H_ENCAPS:
+			encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS;
+			break;
+		case SR_H_ENCAPS_RED:
+			encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS_RED;
+			break;
+		}
+
+		nexthop_add_srv6_seg6(nh, (void *)sr6->seglist, sr6->n_seglist, encap_behavior);
+		break;
+	}
 	default:
 		gr_log_err(
 			"sync %s nexthops from grout not supported", gr_nh_type_name(gr_nh->type)
