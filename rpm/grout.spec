@@ -5,9 +5,6 @@
 %global _lto_cflags %nil
 %global branch main
 %global __meson_wrap_mode default
-%if %{defined toolset}
-%global __meson /usr/bin/scl run %toolset -- /usr/bin/meson
-%endif
 
 Name: grout
 Summary: Graph router based on DPDK
@@ -18,12 +15,7 @@ Version: %{version}
 Release: %{release}
 Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{version}-%{release}.tar.gz
 
-%if %{undefined toolset}
-BuildRequires: gcc >= 13
-%else
-BuildRequires: %toolset
-BuildRequires: scl-utils
-%endif
+BuildRequires: gcc
 BuildRequires: git
 BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: libarchive-devel

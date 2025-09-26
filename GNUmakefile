@@ -86,7 +86,7 @@ rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID=
 
 .PHONY: rpm
 rpm:
-	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' $(RPMBUILD_OPTS) rpm/grout.spec
+	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \

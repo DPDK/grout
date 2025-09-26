@@ -84,7 +84,7 @@ jobs:
           sbindir: /usr/lib64/frr
           localstatedir: /var
           yangmodelsdir: /usr/share/frr-yang
-      - run: make rpm RPMBUILD_OPTS="-D 'toolset gcc-toolset-13'"
+      - run: scl run gcc-toolset-13 -- make rpm
       - uses: actions/upload-artifact@v4
         with:
           name: rpm-packages
