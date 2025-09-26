@@ -24,6 +24,7 @@ runs:
       shell: bash
       run: ./.github/actions/frr-install/run.sh
       env:
+        CC: ccache gcc
         SYSCONFDIR: ${{inputs.sysconfdir}}
         LIBDIR: ${{inputs.libdir}}
         LIBEXECDIR: ${{inputs.libexecdir}}
