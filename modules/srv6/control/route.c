@@ -277,7 +277,7 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.ipv6 = req->addr,
 		.prefixlen = 128,
-		.origin = GR_NH_ORIGIN_LINK,
+		.origin = GR_NH_ORIGIN_INTERNAL,
 	};
 
 	if ((nh = nexthop_new(&base)) == NULL)
