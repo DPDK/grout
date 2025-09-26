@@ -6,6 +6,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_cli_nexthop.h>
 #include <gr_nat.h>
 #include <gr_net_types.h>
 #include <gr_table.h>
@@ -87,6 +88,17 @@ static cmd_status_t dnat44_list(struct gr_api_client *c, const struct ec_pnode *
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
+static ssize_t format_nexthop_info_dnat(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_dnat *dnat = info;
+	return snprintf(buf, len, "match=" IP4_F " replace=" IP4_F, &dnat->match, &dnat->replace);
+}
+
+static struct gr_cli_nexthop_formatter dnat_formatter = {
+	.name = "dnat",
+	.type = GR_NH_T_DNAT,
+	.format = format_nexthop_info_dnat,
+};
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
@@ -131,4 +143,5 @@ static struct gr_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_nexthop_register_formatter(&dnat_formatter);
 }

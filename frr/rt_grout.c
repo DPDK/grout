@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#include "if_grout.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -186,57 +185,117 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	return proto;
 }
 
-static int
-grout_gr_nexthop_to_frr_nexthop(struct gr_nexthop *gr_nh, struct nexthop *nh, int *nh_family) {
-	size_t sz;
-
-	if (gr_nh->type == GR_NH_T_BLACKHOLE || gr_nh->type == GR_NH_T_REJECT) {
-		nh->vrf_id = gr_nh->vrf_id;
-		nh->type = NEXTHOP_TYPE_BLACKHOLE;
-		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
-		*nh_family = AF_UNSPEC;
-		nh->weight = 1;
-		return 0;
-	}
-
-	if (gr_nh->type != GR_NH_T_L3) {
-		gr_log_err("sync nexthop not L3 from grout is not supported");
-		return -1;
-	}
+static int grout_gr_nexthop_to_frr_nexthop(
+	const struct gr_nexthop *gr_nh,
+	struct nexthop *nh,
+	int *nh_family
+) {
 	nh->ifindex = gr_nh->iface_id;
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
 
-	switch (gr_nh->af) {
-	case GR_AF_IP4:
-		if (nh->ifindex)
-			nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
-		else
-			nh->type = NEXTHOP_TYPE_IPV4;
-
-		sz = 4;
-		*nh_family = AF_INET;
-		memcpy(&nh->gate.ipv4, &gr_nh->ipv4, sz);
-		break;
-	case GR_AF_IP6:
-		if (nh->ifindex)
-			nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
-		else
-			nh->type = NEXTHOP_TYPE_IPV6;
-
-		sz = 16;
-		*nh_family = AF_INET6;
-		memcpy(&nh->gate.ipv6, &gr_nh->ipv6, sz);
-		break;
-	case GR_AF_UNSPEC:
-		nh->type = NEXTHOP_TYPE_IFINDEX;
+	switch (gr_nh->type) {
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
+		nh->type = NEXTHOP_TYPE_BLACKHOLE;
+		nh->bh_type = gr_nh->type == GR_NH_T_REJECT ? BLACKHOLE_REJECT : BLACKHOLE_NULL;
 		*nh_family = AF_UNSPEC;
 		break;
+	case GR_NH_T_L3: {
+		const struct gr_nexthop_info_l3 *l3;
+		l3 = (const struct gr_nexthop_info_l3 *)gr_nh->info;
+
+		switch (l3->af) {
+		case GR_AF_IP4:
+			if (nh->ifindex)
+				nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
+			else
+				nh->type = NEXTHOP_TYPE_IPV4;
+
+			*nh_family = AF_INET;
+			memcpy(&nh->gate.ipv4, &l3->ipv4, sizeof(nh->gate.ipv4));
+			break;
+		case GR_AF_IP6:
+			if (nh->ifindex)
+				nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
+			else
+				nh->type = NEXTHOP_TYPE_IPV6;
+
+			*nh_family = AF_INET6;
+			memcpy(&nh->gate.ipv6, &l3->ipv6, sizeof(nh->gate.ipv6));
+			break;
+		case GR_AF_UNSPEC:
+			nh->type = NEXTHOP_TYPE_IFINDEX;
+			*nh_family = AF_UNSPEC;
+			break;
+		default:
+			gr_log_debug("inval nexthop family %u, nexthop not sync", l3->af);
+			return -1;
+		}
+		break;
+	}
+	case GR_NH_T_SR6_LOCAL: {
+		enum seg6local_action_t action = ZEBRA_SEG6_LOCAL_ACTION_UNSPEC;
+		const struct gr_nexthop_info_srv6_local *sr6;
+		struct seg6local_context ctx;
+
+		memset(&ctx, 0, sizeof(ctx));
+
+		sr6 = (const struct gr_nexthop_info_srv6_local *)gr_nh->info;
+
+		SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USP);
+		if (sr6->flags & GR_SR_FL_FLAVOR_PSP)
+			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP);
+		if (sr6->flags & GR_SR_FL_FLAVOR_USD)
+			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD);
+
+		switch (sr6->behavior) {
+		case SR_BEHAVIOR_END:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END;
+			break;
+		case SR_BEHAVIOR_END_T:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_T;
+			break;
+		case SR_BEHAVIOR_END_DT6:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT6;
+			break;
+		case SR_BEHAVIOR_END_DT4:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT4;
+			break;
+		case SR_BEHAVIOR_END_DT46:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT46;
+			break;
+		}
+
+		ctx.table = sr6->out_vrf_id;
+		nexthop_add_srv6_seg6local(nh, action, &ctx);
+		break;
+	}
+	case GR_NH_T_SR6_OUTPUT: {
+		enum srv6_headend_behavior encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS;
+		const struct gr_nexthop_info_srv6 *sr6;
+
+		sr6 = (const struct gr_nexthop_info_srv6 *)gr_nh->info;
+
+		switch (sr6->encap_behavior) {
+		case SR_H_ENCAPS:
+			encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS;
+			break;
+		case SR_H_ENCAPS_RED:
+			encap_behavior = SRV6_HEADEND_BEHAVIOR_H_ENCAPS_RED;
+			break;
+		}
+
+		nexthop_add_srv6_seg6(nh, (void *)sr6->seglist, sr6->n_seglist, encap_behavior);
+		break;
+	}
 	default:
-		gr_log_debug("inval nexthop family %u, nexthop not sync", gr_nh->af);
+		gr_log_err(
+			"sync %s nexthops from grout not supported", gr_nh_type_name(gr_nh->type)
+		);
 		return -1;
 	}
-	// XXX: no NEXTHOP_TYPE_IFINDEX in grout, unlike kernel
+
 	return 0;
 }
 
@@ -253,7 +312,7 @@ static void grout_route_change(
 	uint32_t tableid = vrf_id;
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
-	struct nexthop _nh, *nh = NULL;
+	struct nexthop *nh = NULL;
 	uint32_t flags = 0;
 	struct prefix p;
 	size_t sz;
@@ -293,11 +352,11 @@ static void grout_route_change(
 	if (nh_id == 0) {
 		int nh_family;
 
-		memset(&_nh, 0, sizeof(_nh));
-		nh = &_nh;
+		nh = nexthop_new();
 
 		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family) < 0) {
 			gr_log_debug("route received has invalid nexthop, ignoring");
+			nexthop_free(nh);
 			return;
 		}
 
@@ -308,6 +367,7 @@ static void grout_route_change(
 				nh_family,
 				family
 			);
+			nexthop_free(nh);
 			return;
 		}
 	}
@@ -333,15 +393,11 @@ static void grout_route_change(
 	if (new) {
 		struct route_entry *re;
 		struct nexthop_group *ng = NULL;
-		struct nexthop *nexthop;
 
 		re = zebra_rib_route_entry_new(vrf_id, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0);
 		if (nh) {
 			ng = nexthop_group_new();
-
-			nexthop = nexthop_new();
-			*nexthop = *nh;
-			nexthop_group_add_sorted(ng, nexthop);
+			nexthop_group_add_sorted(ng, nh);
 			assert(nh_id == 0);
 		}
 
@@ -349,7 +405,7 @@ static void grout_route_change(
 
 		if (ng)
 			nexthop_group_delete(&ng);
-	} else
+	} else {
 		rib_delete(
 			afi,
 			SAFI_UNICAST,
@@ -366,6 +422,9 @@ static void grout_route_change(
 			0,
 			true
 		);
+		if (nh)
+			nexthop_free(nh);
+	}
 }
 
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
@@ -390,231 +449,6 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 	);
 }
 
-static_assert(SRV6_MAX_SEGS <= GR_SRV6_ROUTE_SEGLIST_COUNT_MAX);
-
-static enum zebra_dplane_result grout_add_del_srv6_route(
-	const struct prefix *p,
-	gr_nh_origin_t origin,
-	struct nexthop *nh,
-	vrf_id_t vrf_id,
-	bool new
-) {
-	union {
-		struct {
-			struct gr_srv6_route_add_req rsrv6_add;
-			struct rte_ipv6_addr seglist[SRV6_MAX_SEGS];
-		};
-		struct gr_srv6_route_del_req rsrv6_del;
-	} req;
-	struct seg6_seg_stack *segs = nh->nh_srv6->seg6_segs;
-	struct gr_srv6_route *srv6_route;
-	struct gr_srv6_route_key *key;
-	uint32_t req_type;
-	size_t req_len;
-	int i;
-
-	if (new) {
-		req.rsrv6_add = (struct gr_srv6_route_add_req) {
-			.r.key.vrf_id = vrf_id,
-			.exist_ok = true,
-			.origin = origin,
-		};
-		srv6_route = &req.rsrv6_add.r;
-		key = &srv6_route->key;
-		req_type = GR_SRV6_ROUTE_ADD;
-		req_len = sizeof(struct gr_srv6_route_add_req);
-	} else {
-		req.rsrv6_del = (struct gr_srv6_route_del_req) {
-			.key.vrf_id = vrf_id,
-			.missing_ok = false,
-		};
-		srv6_route = NULL;
-		key = &req.rsrv6_del.key;
-		req_type = GR_SRV6_ROUTE_DEL;
-		req_len = sizeof(struct gr_srv6_route_del_req);
-	}
-	*key = (struct gr_srv6_route_key) {.vrf_id = vrf_id, .is_dest6 = (p->family == AF_INET6)};
-
-	if (key->is_dest6) {
-		memcpy(key->dest6.ip.a, p->u.prefix6.s6_addr, sizeof(key->dest6.ip.a));
-		key->dest6.prefixlen = p->prefixlen;
-
-		gr_log_debug(
-			"%s srv6 route %pI6/%u (origin %s) on vrf %u",
-			new ? "add" : "del",
-			&key->dest6.ip,
-			key->dest6.prefixlen,
-			gr_nh_origin_name(origin),
-			vrf_id
-		);
-
-	} else {
-		key->dest4.ip = p->u.prefix4.s_addr;
-		key->dest4.prefixlen = p->prefixlen;
-
-		gr_log_debug(
-			"%s srv6 route %pI4/%u (origin %s) on vrf %u",
-			new ? "add" : "del",
-			&key->dest4.ip,
-			key->dest4.prefixlen,
-			gr_nh_origin_name(origin),
-			vrf_id
-		);
-	}
-
-	// just need key to delete
-	if (!new)
-		goto end;
-
-	switch (segs->encap_behavior) {
-	case SRV6_HEADEND_BEHAVIOR_H_ENCAPS:
-		srv6_route->encap_behavior = SR_H_ENCAPS;
-		break;
-	case SRV6_HEADEND_BEHAVIOR_H_ENCAPS_RED:
-		srv6_route->encap_behavior = SR_H_ENCAPS_RED;
-		break;
-	default:
-		zlog_err(
-			"%s: encap behavior '%s' not supported by grout",
-			__func__,
-			srv6_headend_behavior2str(segs->encap_behavior, true)
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	if (segs->num_segs > SRV6_MAX_SEGS) {
-		zlog_err(
-			"%s: too many segments %u (max zebra %u, max grout %u)",
-			__func__,
-			segs->num_segs,
-			SRV6_MAX_SEGS,
-			GR_SRV6_ROUTE_SEGLIST_COUNT_MAX
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	srv6_route->n_seglist = segs->num_segs;
-	for (i = 0; i < segs->num_segs; i++) {
-		memcpy(&srv6_route->seglist[i], &segs->seg[i], sizeof(srv6_route->seglist[i]));
-		req_len += sizeof(srv6_route->seglist[i]);
-	}
-
-end:
-
-	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr route, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
-
-	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-
-	return ZEBRA_DPLANE_REQUEST_SUCCESS;
-}
-
-static enum zebra_dplane_result grout_add_del_srv6_local(
-	const struct prefix *p,
-	gr_nh_origin_t origin,
-	struct nexthop *nh,
-	vrf_id_t vrf_id,
-	bool new
-) {
-	union {
-		struct gr_srv6_localsid_add_req localsid_add;
-		struct gr_srv6_localsid_del_req localsid_del;
-	} req;
-	const struct seg6local_flavors_info *flv;
-	const struct seg6local_context *ctx6;
-	struct gr_srv6_localsid *gr_l;
-	uint32_t action, req_type;
-	size_t req_len;
-
-	if (p->family != AF_INET6) {
-		gr_log_err("impossible to add/del local srv6 with family %u", p->family);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	if (p->prefixlen != 128) {
-		gr_log_err(
-			"impossible to add/del local srv6 with prefix len %u (should be 128)",
-			p->prefixlen
-		);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	if (!new) {
-		req.localsid_del = (struct gr_srv6_localsid_del_req) {
-			.vrf_id = vrf_id,
-			.missing_ok = true,
-		};
-		memcpy(&req.localsid_del.lsid, p->u.prefix6.s6_addr, sizeof(req.localsid_del.lsid));
-
-		req_type = GR_SRV6_LOCALSID_DEL;
-		req_len = sizeof(struct gr_srv6_localsid_del_req);
-		goto end;
-	}
-
-	req.localsid_add = (struct gr_srv6_localsid_add_req) {
-		.l.vrf_id = vrf_id,
-		.origin = origin,
-		.exist_ok = true,
-	};
-	req_type = GR_SRV6_LOCALSID_ADD;
-	req_len = sizeof(struct gr_srv6_localsid_add_req);
-
-	gr_l = &req.localsid_add.l;
-	memcpy(&gr_l->lsid, p->u.prefix6.s6_addr, sizeof(gr_l->lsid));
-	action = nh->nh_srv6->seg6local_action;
-	ctx6 = &nh->nh_srv6->seg6local_ctx;
-
-	switch (action) {
-	case ZEBRA_SEG6_LOCAL_ACTION_END:
-		gr_l->behavior = SR_BEHAVIOR_END;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_T:
-		gr_l->behavior = SR_BEHAVIOR_END_T;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
-		gr_l->behavior = SR_BEHAVIOR_END_DT6;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
-		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
-		gr_l->behavior = SR_BEHAVIOR_END_DT4;
-		gr_l->out_vrf_id = ctx6->table;
-		break;
-	default:
-		zlog_err("%s: not supported srv6 local behaviour action=%u", __func__, action);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	flv = &ctx6->flv;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
-		gr_l->flags |= GR_SR_FL_FLAVOR_PSP;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
-		gr_log_debug("USP is always configured");
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
-		gr_l->flags |= GR_SR_FL_FLAVOR_USD;
-	if (CHECK_SRV6_FLV_OP(flv->flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
-		gr_log_debug("not supported next-c-sid for srv6 local");
-
-end:
-
-	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr route, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
-
-	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-
-	return ZEBRA_DPLANE_REQUEST_SUCCESS;
-}
-
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	union {
 		struct gr_ip4_route_add_req r4_add;
@@ -624,10 +458,8 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	} req;
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
 	uint32_t vrf_id = dplane_ctx_get_vrf(ctx);
-	const struct nexthop_group *ng;
 	const struct prefix *p;
 	gr_nh_origin_t origin;
-	struct nexthop *nh;
 	uint32_t req_type;
 	size_t req_len;
 	bool new;
@@ -645,27 +477,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 
 	origin = zebra2origin(dplane_ctx_get_type(ctx));
 	new = dplane_ctx_get_op(ctx) != DPLANE_OP_ROUTE_DELETE;
-
-	ng = dplane_ctx_get_ng(ctx);
-	nh = ng->nexthop;
-	if (nh && nh->nh_srv6) {
-		if (nexthop_group_nexthop_num(ng) > 1) {
-			gr_log_err(
-				"impossible to add/del srv6 route with several nexthop (not "
-				"supported)"
-			);
-			return ZEBRA_DPLANE_REQUEST_FAILURE;
-		}
-
-		if (nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC)
-			return grout_add_del_srv6_local(p, origin, nh, vrf_id, new);
-		if (nh->nh_srv6->seg6_segs && nh->nh_srv6->seg6_segs->num_segs
-		    && !sid_zero(nh->nh_srv6->seg6_segs))
-			return grout_add_del_srv6_route(p, origin, nh, vrf_id, new);
-
-		gr_log_err("impossible to add/del srv6 route (invalid format)");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 
 	if (new && nh_id == 0) {
 		gr_log_err("impossible to add route with no nexthop id");
@@ -761,18 +572,189 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
+static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
+	struct gr_nh_del_req req = {.missing_ok = true, .nh_id = nh_id};
+
+	if (grout_client_send_recv(GR_NH_DEL, sizeof(req), &req, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+static enum zebra_dplane_result
+grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *nh) {
+	enum zebra_dplane_result ret = ZEBRA_DPLANE_REQUEST_FAILURE;
+	struct gr_nexthop_info_srv6_local *sr6_local;
+	struct gr_nexthop_info_srv6 *sr6;
+	struct gr_nh_add_req *req = NULL;
+	struct gr_nexthop_info_l3 *l3;
+	size_t len = sizeof(*req);
+	gr_nh_type_t type;
+
+	switch (nh->type) {
+	case NEXTHOP_TYPE_IPV4:
+	case NEXTHOP_TYPE_IPV4_IFINDEX:
+	case NEXTHOP_TYPE_IPV6:
+	case NEXTHOP_TYPE_IPV6_IFINDEX:
+	case NEXTHOP_TYPE_IFINDEX:
+		if (nh->nh_srv6 != NULL
+		    && nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC) {
+			len += sizeof(*sr6_local);
+			type = GR_NH_T_SR6_LOCAL;
+		} else if (nh->nh_srv6 != NULL && nh->nh_srv6->seg6_segs != NULL
+			   && nh->nh_srv6->seg6_segs->num_segs > 0) {
+			len += sizeof(*sr6)
+				+ nh->nh_srv6->seg6_segs->num_segs * sizeof(sr6->seglist[0]);
+			type = GR_NH_T_SR6_OUTPUT;
+		} else {
+			len += sizeof(*l3);
+			type = GR_NH_T_L3;
+		}
+		break;
+	case NEXTHOP_TYPE_BLACKHOLE:
+		type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
+		break;
+	default:
+		gr_log_err("unsupported nexthop type: %u", nh->type);
+		goto out;
+	}
+
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("cannot allocate memory");
+		goto out;
+	}
+
+	req->exist_ok = true;
+	req->nh.nh_id = nh_id;
+	req->nh.origin = origin;
+	req->nh.type = type;
+	req->nh.vrf_id = nh->vrf_id;
+	req->nh.iface_id = nh->ifindex;
+
+	switch (type) {
+	case GR_NH_T_L3:
+		switch (nh->type) {
+		case NEXTHOP_TYPE_IPV4:
+		case NEXTHOP_TYPE_IPV4_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_IP4;
+			memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+			break;
+		case NEXTHOP_TYPE_IPV6:
+		case NEXTHOP_TYPE_IPV6_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_IP6;
+			memcpy(&l3->ipv6, &nh->gate.ipv6, sizeof(l3->ipv6));
+			break;
+		case NEXTHOP_TYPE_IFINDEX:
+			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+			l3->af = GR_AF_UNSPEC;
+			break;
+		default:
+			break;
+		}
+		break;
+	case GR_NH_T_SR6_LOCAL:
+		sr6_local = (struct gr_nexthop_info_srv6_local *)req->nh.info;
+
+		switch (nh->nh_srv6->seg6local_action) {
+		case ZEBRA_SEG6_LOCAL_ACTION_END:
+			sr6_local->behavior = SR_BEHAVIOR_END;
+			sr6_local->out_vrf_id = GR_VRF_ID_ALL;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_T:
+			sr6_local->behavior = SR_BEHAVIOR_END_T;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT6;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT4;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
+			sr6_local->behavior = SR_BEHAVIOR_END_DT46;
+			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			break;
+		default:
+			gr_log_err(
+				"not supported srv6 local behaviour action=%u",
+				nh->nh_srv6->seg6local_action
+			);
+			goto out;
+		}
+
+		uint32_t flv = nh->nh_srv6->seg6local_ctx.flv.flv_ops;
+
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
+			sr6_local->flags |= GR_SR_FL_FLAVOR_PSP;
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
+			gr_log_debug("USP is always configured");
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
+			sr6_local->flags |= GR_SR_FL_FLAVOR_USD;
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
+			gr_log_debug("not supported next-c-sid for srv6 local");
+
+		break;
+	case GR_NH_T_SR6_OUTPUT:
+		sr6 = (struct gr_nexthop_info_srv6 *)req->nh.info;
+
+		switch (nh->nh_srv6->seg6_segs->encap_behavior) {
+		case SRV6_HEADEND_BEHAVIOR_H_ENCAPS:
+			sr6->encap_behavior = SR_H_ENCAPS;
+			break;
+		case SRV6_HEADEND_BEHAVIOR_H_ENCAPS_RED:
+			sr6->encap_behavior = SR_H_ENCAPS_RED;
+			break;
+		default:
+			gr_log_err(
+				"encap behavior '%s' not supported by grout",
+				srv6_headend_behavior2str(
+					nh->nh_srv6->seg6_segs->encap_behavior, true
+				)
+			);
+			goto out;
+		}
+
+		sr6->n_seglist = nh->nh_srv6->seg6_segs->num_segs;
+		for (unsigned i = 0; i < nh->nh_srv6->seg6_segs->num_segs; i++)
+			memcpy(&sr6->seglist[i],
+			       &nh->nh_srv6->seg6_segs->seg[i],
+			       sizeof(sr6->seglist[i]));
+
+		break;
+	case GR_NH_T_BLACKHOLE:
+	case GR_NH_T_REJECT:
+		req->nh.iface_id = GR_IFACE_ID_UNDEF;
+		break;
+	default:
+		gr_log_err("unsupported nexthop type: %s", gr_nh_type_name(type));
+		goto out;
+	}
+
+	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(type));
+
+	if (grout_client_send_recv(GR_NH_ADD, len, req, NULL) < 0)
+		goto out;
+
+	ret = ZEBRA_DPLANE_REQUEST_SUCCESS;
+out:
+	free(req);
+	return ret;
+}
+
 enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
-	union {
-		struct gr_nh_add_req nh_add;
-		struct gr_nh_del_req nh_del;
-	} req;
-	const struct nexthop *nh;
-	struct gr_nexthop *gr_nh;
-	uint32_t req_type;
-	size_t req_len;
-	afi_t afi;
-	bool new;
+	gr_nh_origin_t origin;
+
+	origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
+	if (!is_selfroute(origin)) {
+		gr_log_debug("no frr nexthop, skip it");
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
 
 	if (!nh_id) {
 		// it's supported by grout, but not by the linux kernel
@@ -786,92 +768,14 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
-	nh = dplane_ctx_get_nhe_ng(ctx)->nexthop;
-	if (nh->nh_srv6) {
-		gr_log_err("impossible to add/del srv6 nexthop (not supported)");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
+	if (dplane_ctx_get_op(ctx) == DPLANE_OP_NH_DELETE)
+		return grout_del_nexthop(nh_id);
 
-	new = dplane_ctx_get_op(ctx) != DPLANE_OP_NH_DELETE;
-	if (new) {
-		req.nh_add = (struct gr_nh_add_req) {.exist_ok = true};
-
-		req_type = GR_NH_ADD;
-		req_len = sizeof(struct gr_nh_add_req);
-
-		gr_nh = &req.nh_add.nh;
-		gr_nh->nh_id = nh_id;
-	} else {
-		req.nh_del = (struct gr_nh_del_req) {.missing_ok = true};
-
-		req_type = GR_NH_DEL;
-		req_len = sizeof(struct gr_nh_del_req);
-
-		req.nh_del.nh_id = nh_id;
-	}
-
-	if (!new) {
-		gr_log_debug("del nexthop id %u", nh_id);
-		goto end;
-	}
-
-	gr_nh->type = GR_NH_T_L3;
-	afi = dplane_ctx_get_nhe_afi(ctx);
-	if (afi == AFI_IP)
-		gr_nh->af = GR_AF_IP4;
-	else
-		gr_nh->af = GR_AF_IP6;
-
-	if (nh->type != NEXTHOP_TYPE_BLACKHOLE && !nh->ifindex) {
-		gr_log_err("impossible to add/del nexthop in grout that does not have an ifindex");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	} else {
-		gr_nh->iface_id = nh->ifindex;
-	}
-
-	switch (nh->type) {
-	case NEXTHOP_TYPE_IPV4:
-	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		memcpy(&gr_nh->ipv4, &nh->gate.ipv4, sizeof(gr_nh->ipv4));
-		gr_log_debug("add nexthop id %u gw %pI4", nh_id, &gr_nh->ipv4);
-		break;
-	case NEXTHOP_TYPE_IPV6:
-	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		memcpy(&gr_nh->ipv6, &nh->gate.ipv6, sizeof(gr_nh->ipv6));
-		gr_log_debug("add nexthop id %u gw %pI6", nh_id, &gr_nh->ipv6);
-		break;
-	case NEXTHOP_TYPE_IFINDEX:
-		// dplane_ctx_get_nhe_afi(ctx) returns AFI_IP for a nexthop with no gateway
-		// force to UNSPEC for grout
-		gr_nh->af = GR_AF_UNSPEC;
-		gr_log_debug("add nexthop id %u with ifindex %u", nh_id, gr_nh->iface_id);
-		break;
-	case NEXTHOP_TYPE_BLACKHOLE:
-		gr_nh->type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
-		gr_nh->af = GR_AF_UNSPEC;
-		gr_nh->iface_id = GR_IFACE_ID_UNDEF;
-		gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(gr_nh->type));
-		break;
-	default:
-		gr_log_err("impossible to add nexthop %u (type %u not supported)", nh_id, nh->type);
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
-	gr_nh->origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
-	if (!is_selfroute(gr_nh->origin)) {
-		gr_log_debug("no frr nexthop, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
-	}
-
-end:
-	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-
-	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	return grout_add_nexthop(nh_id, origin, dplane_ctx_get_nhe_ng(ctx)->nexthop);
 }
 
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
-	struct nexthop nh = {.weight = 1};
+	struct nexthop *nh = NULL;
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
@@ -882,11 +786,15 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 		return;
 	}
 
-	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, &nh, &family) < 0)
-		return;
-
 	if (!new) {
 		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
+		return;
+	}
+
+	nh = nexthop_new();
+
+	if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &family) < 0) {
+		nexthop_free(nh);
 		return;
 	}
 
@@ -896,7 +804,11 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 
 	afi = family2afi(family);
 	type = origin2zebra(gr_nh->origin, family, false);
-	SET_FLAG(nh.flags, NEXTHOP_FLAG_ACTIVE);
+	SET_FLAG(nh->flags, NEXTHOP_FLAG_ACTIVE);
 
-	zebra_nhg_kernel_find(gr_nh->nh_id, &nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+	zebra_nhg_kernel_find(gr_nh->nh_id, nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+
+	// zebra_nhg_kernel_find() makes a *shallow* copy of the allocated nexthop.
+	// nexthop_free() must *NOT* be used to preserve the nh_srv6 context.
+	free(nh);
 }

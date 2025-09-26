@@ -48,7 +48,8 @@ ip netns exec $p1 sysctl -w net.ipv6.conf.$p1.forwarding=1
 ip -n $p0 route add default via 192.168.61.1 dev $p0
 
 # (2)
-grcli add sr route 192.168.0.0/16 seglist fd00:202::2
+grcli add nexthop srv6 seglist fd00:202::2 id 42
+grcli add ip route 192.168.0.0/16 via id 42
 grcli add ip6 route fd00:202::/64 via fd00:102::2
 
 # (3)
@@ -62,7 +63,8 @@ ip -n $p1 route add 192.168.61.0/24 encap seg6 mode encap segs fd00:202::100 dev
 ip -n $p1 -6 route add fd00:202::/64 via fd00:102::1 dev $p1
 
 # (6)
-grcli add sr localsid fd00:202::100 behavior end.dt4
+grcli add nexthop srv6-local behavior end.dt4 id 666
+grcli add ip6 route fd00:202::100/128 via id 666
 
 # test
 ip netns exec $p0 ping -c 3 192.168.60.1

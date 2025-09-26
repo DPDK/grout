@@ -110,7 +110,7 @@ set_ip_route() {
 		local gr_ip="ip"
 	fi
 
-	local grep_pattern="^${vrf_id}[[:space:]]\+${prefix}[[:space:]]\+${next_hop}[[:space:]]"
+	local grep_pattern="^${vrf_id}[[:space:]]\\+${prefix}\\>.*\\<${next_hop}\\>"
 
 	vtysh <<-EOF
 	configure terminal
@@ -168,14 +168,12 @@ set_srv6_localsid() {
 EOF
 
 	# --- wait until grout has the localsid ---------------------------------
-	# Expected "grcli show sr localsid" output pattern:
-	# vrf lsid                         behavior  args
-	# 0   fc00:100:64:10::666          end.dt4   out_vrf=0
-	local grep_pattern="^[[:space:]]*0[[:space:]]+${sid_local}[[:space:]]+${grout_behavior}"
-
-	while ! grcli show sr localsid | grep -qE "${grep_pattern}"; do
+	# Expected "grcli show ip6 route" output pattern:
+	# VRF  DESTINATION        NEXT_HOP
+	# 0    fd00:202::100/128  type=SRv6-local id=12 iface=gr-loop0 vrf=0 origin=zebra behavior=end.dt4 out_vrf=0
+	local grep_pattern="\\<${sid_local}/128[[:space:]]+type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
+	while ! grcli show ip6 route | grep -qE "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
-			grcli show sr localsid
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
 			exit 1
 		fi
@@ -226,14 +224,18 @@ set_srv6_route() {
 EOF
 
     # ----- make BRE pattern for Grout -------------------------------------
+    # Expected output from grcli show ip route
+    #
+    # VRF  DESTINATION      NEXT_HOP
+    # 0    192.168.0.0/16   type=SRv6 id=8 iface=geydsm1 vrf=0 origin=zebra h.encap fd00:202::2
     local sid_regex="${sids[0]}"
     for ((i=1; i<${#sids[@]}; i++)); do
-	    sid_regex+="[[:space:]]\\+${sids[i]}"
+	    sid_regex+="[[:space:]]+${sids[i]}"
     done
-    local grep_pattern="^[[:space:]]*0[[:space:]]\\+${prefix}[[:space:]]\\+h\\.encap[[:space:]]\\+${sid_regex}"
+    local grep_pattern="\\<${prefix}[[:space:]]+type=SRv6\\>.*${sid_regex}"
 
     # ----- wait until Grout shows it --------------------------------------
-    while ! grcli show sr route | grep -q "${grep_pattern}"; do
+    while ! grcli show $gr_ip route | grep -qE "${grep_pattern}"; do
 	    if (( count++ >= max_tries )); then
 		    echo "SRv6 route ${prefix} via ${seg_space} not visible in Grout after ${max_tries}s." >&2
 		    exit 1

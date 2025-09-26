@@ -43,6 +43,7 @@ void ip6_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 
 static uint16_t
 ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct nexthop_info_l3 *l3;
 	struct ip6_output_mbuf_data *d;
 	struct eth_input_mbuf_data *e;
 	const struct iface *iface;
@@ -128,13 +129,15 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (edge != FORWARD)
 			goto next;
 
-		// If the resolved next hop is local and the destination IP is ourselves,
-		// send to ip6_local.
-		if (nh->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &nh->ipv6))
-			edge = LOCAL;
-		else if (e->domain == ETH_DOMAIN_LOOPBACK)
+		if (e->domain == ETH_DOMAIN_LOOPBACK) {
 			edge = OUTPUT;
-
+		} else if (nh->type == GR_NH_T_L3) {
+			// If the resolved next hop is local and the destination IP is ourselves,
+			// send to ip6_local.
+			l3 = nexthop_info_l3(nh);
+			if (l3->flags & GR_NH_F_LOCAL && rte_ipv6_addr_eq(&ip->dst_addr, &l3->ipv6))
+				edge = LOCAL;
+		}
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_ipv6_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));

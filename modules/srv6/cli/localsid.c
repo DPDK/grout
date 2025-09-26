@@ -3,6 +3,8 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_nexthop.h>
+#include <gr_errno.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
 #include <gr_table.h>
@@ -34,19 +36,32 @@ static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
 }
 
 static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_localsid_add_req req = {
-		.l.out_vrf_id = GR_VRF_ID_ALL, .exist_ok = true, .origin = GR_NH_ORIGIN_USER
-	};
+	struct gr_nh_add_req *req = NULL;
+	struct gr_nexthop_info_srv6_local *sr6;
+	cmd_status_t ret = CMD_ERROR;
+	size_t len = sizeof(*req) + sizeof(*sr6);
+
 	const struct ec_pnode *n;
 	const struct ec_strvec *v;
 	const char *str;
 	uint32_t i;
 
-	if (arg_ip6(p, "SID", &req.l.lsid) < 0)
-		return CMD_ERROR;
+	req = calloc(1, len);
+	if (req == NULL)
+		goto out;
 
-	if (arg_u16(p, "VRF", &req.l.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
+	req->exist_ok = true;
+	req->nh.type = GR_NH_T_SR6_LOCAL;
+	req->nh.origin = GR_NH_ORIGIN_USER;
+
+	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
+		goto out;
+	if (arg_u16(p, "VRF", &req->nh.vrf_id) < 0 && errno != ENOENT)
+		goto out;
+
+	sr6 = (struct gr_nexthop_info_srv6_local *)req->nh.info;
+
+	sr6->out_vrf_id = GR_VRF_ID_ALL;
 
 	n = ec_pnode_find(p, "FLAVORS");
 	if (n != NULL) {
@@ -54,99 +69,63 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 		for (i = 0; i < ec_strvec_len(v); i++) {
 			str = ec_strvec_val(v, i);
 			if (!strcmp(str, "psp"))
-				req.l.flags |= GR_SR_FL_FLAVOR_PSP;
+				sr6->flags |= GR_SR_FL_FLAVOR_PSP;
 			if (!strcmp(str, "usd"))
-				req.l.flags |= GR_SR_FL_FLAVOR_USD;
+				sr6->flags |= GR_SR_FL_FLAVOR_USD;
 		}
 	}
 
 	n = ec_pnode_find(p, "BEHAVIOR");
 	if (n == NULL || ec_pnode_len(n) < 1)
-		return CMD_ERROR;
-	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &req.l.behavior) < 0)
-		return CMD_ERROR;
+		goto out;
+	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &sr6->behavior) < 0)
+		goto out;
 
-	if (arg_u16(n, "TABLE", &req.l.out_vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
+	if (arg_u16(n, "TABLE", &sr6->out_vrf_id) < 0 && errno != ENOENT)
+		goto out;
 
-	if (gr_api_client_send_recv(c, GR_SRV6_LOCALSID_ADD, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
+	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
+		goto out;
 
-	return CMD_SUCCESS;
+	ret = CMD_SUCCESS;
+out:
+	free(req);
+	return ret;
 }
 
-static cmd_status_t srv6_localsid_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_localsid_del_req req = {.vrf_id = 0, .missing_ok = true};
+static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_srv6_local *sr6 = info;
+	ssize_t n = 0;
+	char vrf[64];
 
-	if (arg_ip6(p, "SID", &req.lsid) < 0)
-		return CMD_ERROR;
+	SAFE_BUF(snprintf, len, "behavior=%s", gr_srv6_behavior_name(sr6->behavior));
+	vrf[0] = 0;
+	if (sr6->out_vrf_id != GR_VRF_ID_ALL)
+		snprintf(vrf, sizeof(vrf), "out_vrf=%d", sr6->out_vrf_id);
 
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	if (gr_api_client_send_recv(c, GR_SRV6_LOCALSID_DEL, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t srv6_localsid_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_srv6_localsid_list_req req = {.vrf_id = GR_VRF_ID_ALL};
-	const struct gr_srv6_localsid *lsid;
-	struct libscols_line *line;
-	char vrf_buf[100];
-	int ret;
-
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "LSID", 0, 0);
-	scols_table_new_column(table, "BEHAVIOR", 0, 0);
-	scols_table_new_column(table, "ARGS", 0, 0);
-	scols_table_set_column_separator(table, "  ");
-
-	gr_api_client_stream_foreach (lsid, ret, c, GR_SRV6_LOCALSID_LIST, sizeof(req), &req) {
-		line = scols_table_new_line(table, NULL);
-
-		vrf_buf[0] = 0;
-		if (lsid->out_vrf_id != GR_VRF_ID_ALL)
-			sprintf(vrf_buf, "out_vrf=%d", lsid->out_vrf_id);
-
-		scols_line_sprintf(line, 0, "%u", lsid->vrf_id);
-		scols_line_sprintf(line, 1, IP6_F, &lsid->lsid);
-		scols_line_sprintf(line, 2, "%s", gr_srv6_behavior_name(lsid->behavior));
-		switch (lsid->behavior) {
-		case SR_BEHAVIOR_END:
-			scols_line_sprintf(
-				line, 3, "flavor=0x%02x", lsid->flags & GR_SR_FL_FLAVOR_MASK
-			);
-			break;
-		case SR_BEHAVIOR_END_T:
-			scols_line_sprintf(
-				line,
-				3,
-				"flavor=0x%02x %s",
-				lsid->flags & GR_SR_FL_FLAVOR_MASK,
-				vrf_buf
-			);
-			break;
-		case SR_BEHAVIOR_END_DT6:
-		case SR_BEHAVIOR_END_DT4:
-		case SR_BEHAVIOR_END_DT46:
-			scols_line_sprintf(line, 3, "%s", vrf_buf);
-			break;
-		default:
-			break;
-		}
+	switch (sr6->behavior) {
+	case SR_BEHAVIOR_END:
+		SAFE_BUF(snprintf, len, " flavor=%#02x", sr6->flags);
+		break;
+	case SR_BEHAVIOR_END_T:
+		SAFE_BUF(snprintf, len, " flavor=%#02x %s", sr6->flags, vrf);
+		break;
+	case SR_BEHAVIOR_END_DT6:
+	case SR_BEHAVIOR_END_DT4:
+	case SR_BEHAVIOR_END_DT46:
+		SAFE_BUF(snprintf, len, " %s", vrf);
+		break;
 	}
-
-	scols_print_table(table);
-	scols_unref_table(table);
-
-	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
+	return n;
+err:
+	return -1;
 }
+
+static struct gr_cli_nexthop_formatter srv6_local_formatter = {
+	.name = "srv6-local",
+	.type = GR_NH_T_SR6_LOCAL,
+	.format = format_nexthop_info_srv6_local,
+};
 
 static int ctx_init(struct ec_node *root) {
 	struct ec_node *beh_node, *flavor_node;
@@ -218,31 +197,12 @@ static int ctx_init(struct ec_node *root) {
 		)
 	);
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("sr", "Create srv6 stack elements.")),
-		"localsid SID behavior BEHAVIOR [vrf VRF]",
+		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("nexthop", "Create a new nexthop.")),
+		"srv6-local behavior BEHAVIOR [(id ID),(vrf VRF)]",
 		srv6_localsid_add,
 		"Create a new local endpoint.",
-		with_help("Local SID.", ec_node_re("SID", IPV6_RE)),
 		with_help("Node behavior", beh_node),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("sr", "Delete srv6 stack elements.")),
-		"localsid SID [vrf VRF]",
-		srv6_localsid_del,
-		"Delete a srv6 endpoint.",
-		with_help("Local SID.", ec_node_re("SID", IPV6_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
-	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("sr", "Show srv6 stack elements.")),
-		"localsid [vrf VRF]",
-		srv6_localsid_show,
-		"View all localsid",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
@@ -258,4 +218,5 @@ static struct gr_cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	register_context(&ctx);
+	gr_cli_nexthop_register_formatter(&srv6_local_formatter);
 }

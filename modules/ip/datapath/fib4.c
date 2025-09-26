@@ -107,10 +107,7 @@ int fib4_insert(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, const struct 
 	int ret;
 
 	if (nh->ref_count == 0)
-		ABORT("nexthop has ref_count==0: vrf=%u iface=%u " IP4_F,
-		      nh->vrf_id,
-		      nh->iface_id,
-		      &nh->ipv4);
+		ABORT("nexthop has ref_count==0: id=%u", nh->nh_id);
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("fib4 modified from datapath thread");

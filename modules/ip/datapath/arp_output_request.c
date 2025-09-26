@@ -31,16 +31,17 @@ enum {
 static control_input_t arp_solicit;
 
 int arp_output_request_solicit(struct nexthop *nh) {
-	if (nh == NULL)
+	if (nh == NULL || nh->type != GR_NH_T_L3)
 		return errno_set(EINVAL);
 
 	// This function is called by the control plane main thread.
 	// It is OK to modify the nexthop here.
-	nh->last_request = gr_clock_us();
-	if (nh->ucast_probes < nh_conf.max_ucast_probes)
-		nh->ucast_probes++;
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	l3->last_request = gr_clock_us();
+	if (l3->ucast_probes < nh_conf.max_ucast_probes)
+		l3->ucast_probes++;
 	else
-		nh->bcast_probes++;
+		l3->bcast_probes++;
 
 	return post_to_stack(arp_solicit, nh);
 }
@@ -51,6 +52,7 @@ static uint16_t arp_output_request_process(
 	void **objs,
 	uint16_t n_objs
 ) {
+	const struct nexthop_info_l3 *local_l3, *l3;
 	struct eth_output_mbuf_data *eth_data;
 	const struct nexthop *local, *nh;
 	struct rte_arp_hdr *arp;
@@ -73,12 +75,14 @@ static uint16_t arp_output_request_process(
 			goto next;
 		}
 
-		local = addr4_get_preferred(nh->iface_id, nh->ipv4);
+		l3 = nexthop_info_l3(nh);
+		local = addr4_get_preferred(nh->iface_id, l3->ipv4);
 
 		if (local == NULL) {
 			edge = ERROR;
 			goto next;
 		}
+		local_l3 = nexthop_info_l3(local);
 
 		// Set all ARP request fields. TODO: upstream this in dpdk.
 		arp = (struct rte_arp_hdr *)rte_pktmbuf_append(mbuf, sizeof(struct rte_arp_hdr));
@@ -95,12 +99,12 @@ static uint16_t arp_output_request_process(
 			edge = ERROR;
 			goto next;
 		}
-		arp->arp_data.arp_sip = local->ipv4;
-		if (nh->last_reply != 0)
-			arp->arp_data.arp_tha = nh->mac;
+		arp->arp_data.arp_sip = local_l3->ipv4;
+		if (l3->last_reply != 0)
+			arp->arp_data.arp_tha = l3->mac;
 		else
 			memset(&arp->arp_data.arp_tha, 0xff, sizeof(arp->arp_data.arp_tha));
-		arp->arp_data.arp_tip = nh->ipv4;
+		arp->arp_data.arp_tip = l3->ipv4;
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			*t = *arp;
@@ -108,7 +112,7 @@ static uint16_t arp_output_request_process(
 
 		// Prepare ethernet layer info.
 		eth_data = eth_output_mbuf_data(mbuf);
-		if (nh->bcast_probes == 0)
+		if (l3->bcast_probes == 0)
 			eth_data->dst = arp->arp_data.arp_tha;
 		else
 			memset(&eth_data->dst, 0xff, sizeof(eth_data->dst));

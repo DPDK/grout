@@ -29,6 +29,7 @@ static uint16_t ndp_na_output_process(
 	struct ip6_local_mbuf_data *d;
 	struct icmp6_neigh_advert *na;
 	struct icmp6_opt_lladdr *ll;
+	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	struct icmp6_opt *opt;
 	struct rte_mbuf *mbuf;
@@ -41,6 +42,7 @@ static uint16_t ndp_na_output_process(
 		local = ndp_na_output_mbuf_data(mbuf)->local;
 		remote = ndp_na_output_mbuf_data(mbuf)->remote;
 		iface = ndp_na_output_mbuf_data(mbuf)->iface;
+		l3 = nexthop_info_l3(local);
 
 		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
 
@@ -53,24 +55,24 @@ static uint16_t ndp_na_output_process(
 		na->override = 1;
 		na->router = 1;
 		na->solicited = remote != NULL;
-		na->target = local->ipv6;
+		na->target = l3->ipv6;
 		opt = PAYLOAD(na);
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
 		ll = PAYLOAD(opt);
-		ll->mac = local->mac;
+		ll->mac = l3->mac;
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
 		d->iface = iface;
-		d->src = local->ipv6;
+		d->src = l3->ipv6;
 		if (remote == NULL) {
 			// If the source of the solicitation is the unspecified address, the
 			// node MUST set the Solicited flag to zero and multicast the
 			// advertisement to the all-nodes address.
 			d->dst = (struct rte_ipv6_addr)RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL;
 		} else {
-			d->dst = remote->ipv6;
+			d->dst = nexthop_info_l3(remote)->ipv6;
 		}
 		d->len = payload_len;
 		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;

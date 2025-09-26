@@ -13,12 +13,12 @@ grcli add ip address 172.16.0.1/24 iface $p0
 grcli add ip address 172.16.1.1/24 iface $p1
 
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
-grcli add nexthop id 2 address 172.16.1.2 iface $p1
+grcli add nexthop l3 iface $p1 id 2 address 172.16.1.2
 grcli add ip route 16.1.0.0/16 via id 2 vrf 1
 grcli add ip route 16.1.0.0/16 via id 2 vrf 2 # required for ARP resolution
 
 # from 16.1.0.1 to 16.0.0.1, two route lookup are done
-grcli add nexthop id 1 iface gr-loop1
+grcli add nexthop l3 iface gr-loop1 id 1
 grcli add ip route 16.0.0.0/16 via id 1 vrf 2
 grcli add ip route 16.0.0.0/16 via 172.16.0.2 vrf 1
 

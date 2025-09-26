@@ -28,6 +28,7 @@ static uint16_t ndp_ns_input_process(
 	uint16_t nb_objs
 ) {
 	struct control_output_mbuf_data *c;
+	const struct nexthop_info_l3 *l3;
 	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_solicit *ns;
 	struct ip6_local_mbuf_data d;
@@ -68,10 +69,13 @@ static uint16_t ndp_ns_input_process(
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
 		local = nh6_lookup(d.iface->vrf_id, d.iface->id, &ns->target);
-		if (local == NULL || !(local->flags & GR_NH_F_LOCAL)) {
+		if (local == NULL) {
 			next = DROP;
-			if (gr_mbuf_is_traced(mbuf))
-				gr_mbuf_trace_add(mbuf, node, 0);
+			goto next;
+		}
+		l3 = nexthop_info_l3(local);
+		if (!(l3->flags & GR_NH_F_LOCAL)) {
+			next = DROP;
 			goto next;
 		}
 

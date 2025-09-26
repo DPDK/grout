@@ -46,7 +46,7 @@ int icmp6_local_send(
 	const struct nexthop *local;
 	int ret;
 
-	if ((local = addr6_get_preferred(gw->iface_id, &gw->ipv6)) == NULL)
+	if ((local = addr6_get_preferred(gw->iface_id, &nexthop_info_l3(gw)->ipv6)) == NULL)
 		return -errno;
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
@@ -56,7 +56,7 @@ int icmp6_local_send(
 	msg->ident = ident;
 	msg->hop_limit = hop_limit;
 	msg->dst = *dst;
-	msg->src = local->ipv6;
+	msg->src = nexthop_info_l3(local)->ipv6;
 
 	if ((ret = post_to_stack(ctl_icmp6_request, msg)) < 0) {
 		free(msg);

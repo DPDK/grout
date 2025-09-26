@@ -156,9 +156,9 @@ show                 Display information about the configuration.
 clear                Clear counters or temporary entries.
 set                  Modify existing objects in the configuration.
 grout# show interface
-NAME  ID  FLAGS       VRF  TYPE  INFO
-p0    1   up running  0    port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
-p1    2   up running  0    port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
+NAME  ID   FLAGS       MODE  DOMAIN  TYPE  INFO
+p0    256  up running  L3    0       port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
+p1    257  up running  L3    0       port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
 grout# show affinity qmap
 IFACE  RXQ_ID  CPU_ID  ENABLED
 p0     0       2       1
@@ -168,15 +168,17 @@ IFACE  ADDRESS
 p0     172.16.0.2/24
 p1     172.16.1.2/24
 grout# show ip route
-DESTINATION    NEXT_HOP
-172.16.0.0/24  172.16.0.2
-172.16.1.0/24  172.16.1.2
-0.0.0.0/0      172.16.1.183
+VRF  DESTINATION    NEXT_HOP
+0    172.16.0.0/24  type=L3 iface=p0 vrf=0 origin=link af=IPv4 addr=172.16.0.2/24 mac=22:43:d9:2d:dd:58 static local gateway link
+0    172.16.1.0/24  type=L3 iface=p1 vrf=0 origin=link af=IPv4 addr=172.16.1.2/24 mac=1e:34:18:0e:a8:38 static local gateway link
+0    0.0.0.0/0      type=L3 id=1 iface=p1 vrf=0 origin=user af=IPv4 addr=172.16.1.183 state=new gateway
 grout# show nexthop
-VRF  IP            MAC                IFACE  QUEUE  AGE  STATE
-0    172.16.0.2    30:3e:a7:0b:eb:c0  p0     0      0    reachable static local link
-0    172.16.1.2    30:3e:a7:0b:eb:c1  p1     0      0    reachable static local link
-0    172.16.1.183  ??:??:??:??:??:??  ?      0      ?    gateway
+VRF  ID  ORIGIN  IFACE  TYPE  INFO
+0        link    p0     L3    af=IPv6 addr=fe80::2243:d9ff:fe2d:dd58/64 mac=22:43:d9:2d:dd:58 static local gateway link
+0        link    p1     L3    af=IPv6 addr=fe80::1e34:18ff:fe0e:a838/64 mac=1e:34:18:0e:a8:38 static local gateway link
+0        link    p0     L3    af=IPv4 addr=172.16.0.2/24 mac=22:43:d9:2d:dd:58 static local gateway link
+0        link    p1     L3    af=IPv4 addr=172.16.1.2/24 mac=1e:34:18:0e:a8:38 static local gateway link
+0    1   user    p1     L3    af=IPv4 addr=172.16.1.183 state=new gateway
 grout#
 
 ```

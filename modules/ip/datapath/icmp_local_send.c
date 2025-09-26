@@ -41,8 +41,9 @@ int icmp_local_send(
 	uint16_t seq_num,
 	uint8_t ttl
 ) {
-	struct ctl_to_stack *msg;
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
+	struct ctl_to_stack *msg;
 	int ret;
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
@@ -54,12 +55,17 @@ int icmp_local_send(
 	msg->ttl = ttl;
 	msg->dst = dst;
 
-	if ((local = addr4_get_preferred(gw->iface_id, gw->ipv4)) == NULL) {
+	assert(gw->type == GR_NH_T_L3);
+	l3 = nexthop_info_l3(gw);
+
+	if ((local = addr4_get_preferred(gw->iface_id, l3->ipv4)) == NULL) {
 		free(msg);
 		return -errno;
 	}
 
-	msg->src = local->ipv4;
+	assert(local->type == GR_NH_T_L3);
+	l3 = nexthop_info_l3(local);
+	msg->src = l3->ipv4;
 
 	if ((ret = post_to_stack(ip4_icmp_request, msg)) < 0) {
 		free(msg);
