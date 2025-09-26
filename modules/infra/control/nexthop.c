@@ -385,6 +385,12 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop *update) {
 		rte_hash_del_key(hash_by_addr, &key);
 	}
 
+	if (nh->ref_count > 0 && update->type != nh->type) {
+		assert(nh_stats.by_type[nh->type] > 0);
+		nh_stats.by_type[nh->type]--;
+		nh_stats.by_type[update->type]++;
+	}
+
 	nh->base = *update;
 
 	if ((ret = nexthop_id_get(nh)) < 0)
@@ -534,14 +540,15 @@ void nexthop_decref(struct nexthop *nh) {
 			rte_pktmbuf_free(m);
 			m = next;
 		}
-		const struct nexthop_type_ops *ops = type_ops[nh->type];
-		if (ops != NULL && ops->free != NULL)
-			ops->free(nh);
 
 		assert(nh_stats.total > 0);
 		nh_stats.total--;
 		assert(nh_stats.by_type[nh->type] > 0);
 		nh_stats.by_type[nh->type]--;
+
+		const struct nexthop_type_ops *ops = type_ops[nh->type];
+		if (ops != NULL && ops->free != NULL)
+			ops->free(nh);
 
 		rte_mempool_put(pool, nh);
 	}
