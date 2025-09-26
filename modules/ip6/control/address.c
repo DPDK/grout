@@ -119,7 +119,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 		rte_ether_mcast_from_ipv6(&base.mac, ip);
 
 		if ((nh = nexthop_new(&base)) == NULL)
-			return errno_set(-errno);
+			return errno_set(errno);
 	}
 
 	nexthop_incref(nh);
@@ -192,7 +192,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		return errno_set(-ret);
 
 	if ((nh = nexthop_new(&base)) == NULL)
-		return errno_set(-errno);
+		return errno_set(errno);
 
 	// join the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, ip);
