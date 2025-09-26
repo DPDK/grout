@@ -25,7 +25,7 @@ jobs:
           apt-get update -qy
           apt-get install -qy --no-install-recommends \
             autoconf automake bash-completion bison build-essential debhelper \
-            curl devscripts flex git go-md2man libarchive-dev libcap-dev \
+            ccache curl devscripts flex git go-md2man libarchive-dev libcap-dev \
             libcmocka-dev libedit-dev libelf-dev libevent-dev libibverbs-dev \
             libjson-c-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
             librtr-dev libsmartcols-dev libtool libyang-dev meson ninja-build \
@@ -37,6 +37,15 @@ jobs:
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+      - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-x86_64-deb-${{ github.ref }}
+          restore-keys: |
+            ccache-x86_64-deb-refs/heads/main
+            ccache-x86_64-deb-
+      - run: ccache -z
       - uses: ./.github/actions/frr-install
         with:
           sysconfdir: /etc/frr
@@ -45,7 +54,8 @@ jobs:
           sbindir: /usr/lib/frr
           localstatedir: /run/frr
           yangmodelsdir: /usr/share/frr-yang
-      - run: make deb
+      - run: make deb CC="ccache gcc"
+      - run: ccache -sv
       - uses: actions/upload-artifact@v4
         with:
           name: deb-packages
@@ -62,8 +72,9 @@ jobs:
         run: |
           set -xe
           dnf install -y https://rpm.frrouting.org/repo/frr-10-repo.el9.noarch.rpm
+          dnf install -y epel-release
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
-            autoconf automake bison elfutils-libelf-devel flex gcc-toolset-13 \
+            autoconf automake bison ccache elfutils-libelf-devel flex gcc-toolset-13 \
             git golang-github-cpuguy83-md2man json-c-devel libarchive-devel \
             libcap-devel libcmocka-devel libedit-devel libevent-devel \
             libsmartcols-devel libyang-devel libtool make meson ninja-build \
@@ -76,6 +87,15 @@ jobs:
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+      - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-x86_64-rpm-${{ github.ref }}
+          restore-keys: |
+            ccache-x86_64-rpm-refs/heads/main
+            ccache-x86_64-rpm-
+      - run: ccache -z
       - uses: ./.github/actions/frr-install
         with:
           sysconfdir: /etc
@@ -84,7 +104,8 @@ jobs:
           sbindir: /usr/lib64/frr
           localstatedir: /var
           yangmodelsdir: /usr/share/frr-yang
-      - run: scl run gcc-toolset-13 -- make rpm
+      - run: scl run gcc-toolset-13 -- make rpm CC="ccache gcc"
+      - run: ccache -sv
       - uses: actions/upload-artifact@v4
         with:
           name: rpm-packages
