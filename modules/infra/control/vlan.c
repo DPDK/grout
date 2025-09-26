@@ -127,6 +127,7 @@ static int iface_vlan_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
 	iface->mtu = iface_from_id(cur->parent_id)->mtu;
+	iface->state = iface_from_id(cur->parent_id)->state;
 
 	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
