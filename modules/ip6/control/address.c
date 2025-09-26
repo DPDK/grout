@@ -159,6 +159,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 
 static int
 iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+	struct rte_ipv6_addr solicited_node;
 	struct hoplist *addrs;
 	struct nexthop *nh;
 	int ret;
@@ -193,6 +194,15 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if ((nh = nexthop_new(&base)) == NULL)
 		return errno_set(-errno);
 
+	// join the solicited node multicast group
+	rte_ipv6_solnode_from_addr(&solicited_node, ip);
+	if (mcast6_addr_add(iface, &solicited_node) < 0) {
+		if (errno != EOPNOTSUPP && errno != EEXIST) {
+			nexthop_decref(nh);
+			return errno_set(errno);
+		}
+	}
+
 	ret = rib6_insert(iface->vrf_id, iface->id, ip, nh->prefixlen, GR_NH_ORIGIN_LINK, nh);
 	if (ret < 0)
 		return errno_set(-ret);
@@ -205,7 +215,6 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	const struct gr_ip6_addr_add_req *req = request;
-	struct rte_ipv6_addr solicited_node;
 	struct iface *iface;
 	int ret;
 
@@ -216,13 +225,6 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	if ((ret = iface6_addr_add(iface, &req->addr.addr.ip, req->addr.addr.prefixlen)) < 0)
 		if (ret != -EEXIST || !req->exist_ok)
 			return api_out(-ret, 0, NULL);
-
-	// join the solicited node multicast group
-	rte_ipv6_solnode_from_addr(&solicited_node, &req->addr.addr.ip);
-	if (mcast6_addr_add(iface, &solicited_node) < 0) {
-		if (errno != EOPNOTSUPP && errno != EEXIST)
-			return api_out(errno, 0, NULL);
-	}
 
 	return api_out(0, 0, NULL);
 }
@@ -302,8 +304,8 @@ static const struct rte_ipv6_addr well_known_mcast_addrs[] = {
 };
 
 static void ip6_iface_event_handler(uint32_t event, const void *obj) {
-	struct rte_ipv6_addr link_local, solicited_node;
 	const struct iface *iface = obj;
+	struct rte_ipv6_addr link_local;
 	struct rte_ether_addr mac;
 	struct nexthop *nh;
 	unsigned i;
@@ -316,10 +318,6 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
 			if (iface6_addr_add(iface, &link_local, 64) < 0)
 				errno_log(errno, "iface_addr_add");
-
-			rte_ipv6_solnode_from_addr(&solicited_node, &link_local);
-			if (mcast6_addr_add(iface, &solicited_node) < 0)
-				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
 		}
 		for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
 			if (mcast6_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
