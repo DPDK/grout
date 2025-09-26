@@ -144,10 +144,11 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
+	// shift remaining addresses
+	gr_vec_del(maddrs->nh, i);
+
 	if (nh->ref_count == 1) {
 		LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
-		// shift remaining addresses
-		gr_vec_del(maddrs->nh, i);
 		// remove ethernet filter
 		ret = iface_del_eth_addr(iface->id, &nh->mac);
 	}
