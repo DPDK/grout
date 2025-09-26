@@ -281,7 +281,7 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 	};
 
 	if ((nh = nexthop_new(&base)) == NULL)
-		return api_out(-errno, 0, NULL);
+		return api_out(errno, 0, NULL);
 
 	old_nh = tunsrc_nh;
 	tunsrc_nh = nh;
