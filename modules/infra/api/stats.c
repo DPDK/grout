@@ -355,7 +355,7 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 			rte_tel_data_add_dict_string(iface_container, "name", iface->name);
 			rte_tel_data_add_dict_uint(iface_container, "id", iface->id);
 			rte_tel_data_add_dict_string(
-				iface_container, "type", iface_type_to_str(iface->type)
+				iface_container, "type", gr_iface_type_name(iface->type)
 			);
 			rte_tel_data_add_dict_uint(iface_container, "mtu", iface->mtu);
 
@@ -372,7 +372,7 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 			rte_tel_data_add_dict_container(iface_container, "flags", flags_array, 0);
 
 			rte_tel_data_add_dict_string(
-				iface_container, "mode", iface_mode_to_str(iface->mode)
+				iface_container, "mode", gr_iface_mode_name(iface->mode)
 			);
 			rte_tel_data_add_dict_uint(iface_container, "vrf_id", iface->vrf_id);
 

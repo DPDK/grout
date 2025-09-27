@@ -319,7 +319,7 @@ struct gr_infra_cpu_affinity_set_req {
 // struct gr_infra_cpu_affinity_set_resp { };
 
 // Helper function to convert iface type enum to string
-static inline const char *iface_type_to_str(gr_iface_type_t type) {
+static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 	switch (type) {
 	case GR_IFACE_TYPE_UNDEF:
 		return "undef";
@@ -338,7 +338,7 @@ static inline const char *iface_type_to_str(gr_iface_type_t type) {
 }
 
 // Helper function to convert iface mode enum to string
-static inline const char *iface_mode_to_str(gr_iface_mode_t mode) {
+static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 	switch (mode) {
 	case GR_IFACE_MODE_L3:
 		return "l3";
