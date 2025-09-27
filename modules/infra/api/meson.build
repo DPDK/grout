@@ -3,7 +3,6 @@
 
 src += files(
   'affinity.c',
-  'graph.c',
   'iface.c',
   'nexthop.c',
   'stats.c',

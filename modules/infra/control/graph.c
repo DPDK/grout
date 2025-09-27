@@ -278,6 +278,116 @@ const struct gr_node_info *gr_node_info_get(rte_node_t node_id) {
 	return errno_set_null(ENOENT);
 }
 
+static struct api_out graph_dump(const void *request, struct api_ctx *) {
+	const struct gr_infra_graph_dump_req *req = request;
+	bool errors = req->flags & GR_INFRA_GRAPH_DUMP_F_ERRORS;
+	gr_vec const char **seen_edges = NULL;
+	struct gr_node_info *info;
+	char **edges = NULL;
+	size_t buf_len = 0;
+	char *buf = NULL;
+	FILE *f = NULL;
+
+	if ((f = open_memstream(&buf, &buf_len)) == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (fprintf(f, "digraph grout {\n\trankdir=LR;\n") < 0)
+		goto err;
+	if (fprintf(f, "\tnode [margin=0.02 fontsize=11 fontname=sans];\n") < 0)
+		goto err;
+
+	STAILQ_FOREACH (info, &node_infos, next) {
+		rte_node_t node_id = rte_node_from_name(info->node->name);
+		unsigned nb_edges = rte_node_edge_count(node_id);
+		const char *name = info->node->name;
+		const char *attrs = "";
+
+		if (!errors) {
+			if (nb_edges == 0)
+				continue;
+			if (strstr(name, "error"))
+				continue;
+		}
+		if (fprintf(f, "\t\"%s\"", name) < 0)
+			goto err;
+
+		if (info->node->flags & RTE_NODE_SOURCE_F) {
+			attrs = " [color=blue style=bold]";
+			if (fprintf(f, "%s", attrs) < 0)
+				goto err;
+		} else if (nb_edges == 0) {
+			if (fprintf(f, " [fontcolor=darkorange shape=plain]") < 0)
+				goto err;
+		}
+
+		if (fprintf(f, ";\n") < 0)
+			goto err;
+
+		if (nb_edges == 0)
+			continue;
+		if ((edges = calloc(nb_edges, sizeof(char *))) == NULL)
+			goto err;
+		if (rte_node_edge_get(node_id, edges) == RTE_EDGE_ID_INVALID)
+			goto err;
+
+		for (unsigned i = 0; i < nb_edges; i++) {
+			const char *edge = edges[i];
+			const char *node_attrs = attrs;
+
+			gr_vec_foreach (const char *e, seen_edges) {
+				if (strcmp(e, edge) == 0)
+					goto skip; // skip duplicate edges
+			}
+
+			const struct gr_node_info *n;
+			STAILQ_FOREACH (n, &node_infos, next) {
+				if (strcmp(n->node->name, edge) != 0)
+					continue;
+
+				rte_node_t id = rte_node_from_name(n->node->name);
+				if (rte_node_edge_count(id) == 0) {
+					if (!errors)
+						goto skip;
+					node_attrs = " [color=darkorange]";
+				}
+				break;
+			}
+
+			gr_vec_add(seen_edges, edge);
+
+			if (fprintf(f, "\t\"%s\" -> \"%s\"%s;\n", name, edge, node_attrs) < 0)
+				goto err;
+skip:;
+		}
+		free(edges);
+		edges = NULL;
+		gr_vec_free(seen_edges);
+	}
+
+	// terminate with nul character
+	if (fprintf(f, "}\n%c", '\0') < 0)
+		goto err;
+
+	fflush(f);
+	fclose(f);
+
+	return api_out(0, buf_len, buf);
+
+err:
+	int errsave = errno;
+	fclose(f);
+	free(buf);
+	free(edges);
+	gr_vec_free(seen_edges);
+	return api_out(errsave, 0, NULL);
+}
+
+static struct gr_api_handler graph_dump_handler = {
+	.name = "graph dump",
+	.request_type = GR_INFRA_GRAPH_DUMP,
+	.callback = graph_dump,
+};
+
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
@@ -344,5 +454,6 @@ static struct gr_module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
+	gr_register_api_handler(&graph_dump_handler);
 	gr_register_module(&graph_module);
 }
