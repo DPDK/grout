@@ -15,22 +15,33 @@
 #include <stdint.h>
 
 enum {
-	TX = 0,
-	INVAL,
+	INVAL = 0,
 	NO_HEADROOM,
+	NO_MAC,
 	NB_EDGES,
 };
 
+static rte_edge_t iface_type_edges[GR_IFACE_TYPE_COUNT] = {INVAL};
+
+void eth_output_register_interface_type(gr_iface_type_t type, const char *next_node) {
+	LOG(DEBUG, "eth_output: iface_type=%s -> %s", gr_iface_type_name(type), next_node);
+	if (type == GR_IFACE_TYPE_UNDEF || type >= ARRAY_DIM(iface_type_edges))
+		ABORT("invalid iface type=%u", type);
+	if (iface_type_edges[type] != INVAL)
+		ABORT("next node already registered for iface type=%s", gr_iface_type_name(type));
+	iface_type_edges[type] = gr_node_attach_parent("eth_output", next_node);
+}
+
 static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct rte_ether_addr *src_mac;
-	const struct iface_info_port *port;
 	struct eth_output_mbuf_data *priv;
+	struct rte_ether_addr src_mac;
 	struct iface_info_vlan *sub;
 	const struct iface *iface;
 	struct rte_vlan_hdr *vlan;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *mbuf;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -38,39 +49,35 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		iface = priv->iface;
 		vlan = NULL;
 
-		switch (priv->iface->type) {
-		case GR_IFACE_TYPE_VLAN:
+		if (priv->iface->type == GR_IFACE_TYPE_VLAN) {
 			sub = (struct iface_info_vlan *)priv->iface->info;
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
 			if (unlikely(vlan == NULL)) {
-				rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
-				continue;
+				edge = NO_HEADROOM;
+				goto next;
 			}
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
 			vlan->eth_proto = priv->ether_type;
 			priv->ether_type = RTE_BE16(RTE_ETHER_TYPE_VLAN);
 			priv->iface = iface_from_id(sub->parent_id);
-			src_mac = &sub->mac;
-			port = (const struct iface_info_port *)priv->iface->info;
-			break;
-		case GR_IFACE_TYPE_PORT:
-			port = (const struct iface_info_port *)priv->iface->info;
-			src_mac = &port->mac;
-			break;
-		default:
-			rte_node_enqueue_x1(graph, node, INVAL, mbuf);
-			continue;
+			src_mac = sub->mac;
+		} else if (iface_get_eth_addr(priv->iface->id, &src_mac) < 0) {
+			edge = NO_MAC;
+			goto next;
 		}
+
+		edge = iface_type_edges[priv->iface->type];
+		if (edge == INVAL)
+			goto next;
 
 		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
 		if (unlikely(eth == NULL)) {
-			rte_node_enqueue_x1(graph, node, NO_HEADROOM, mbuf);
-			continue;
+			edge = NO_HEADROOM;
+			goto next;
 		}
 		eth->dst_addr = priv->dst;
-		eth->src_addr = *src_mac;
+		eth->src_addr = src_mac;
 		eth->ether_type = priv->ether_type;
-		mbuf->port = port->port_id;
 
 		struct iface_stats *stats = iface_get_stats(rte_lcore_id(), iface->id);
 		stats->tx_packets += 1;
@@ -84,8 +91,8 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			t->vlan_id = rte_be_to_cpu_16(vlan ? vlan->vlan_tci : 0);
 			t->iface_id = priv->iface->id;
 		}
-
-		rte_node_enqueue_x1(graph, node, TX, mbuf);
+next:
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
@@ -98,9 +105,9 @@ static struct rte_node_register node = {
 
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
-		[TX] = "port_tx",
 		[INVAL] = "eth_output_inval",
 		[NO_HEADROOM] = "error_no_headroom",
+		[NO_MAC] = "eth_output_no_mac",
 	},
 };
 
@@ -112,3 +119,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(eth_output_inval);
+GR_DROP_REGISTER(eth_output_no_mac);

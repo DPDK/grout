@@ -12,6 +12,7 @@ src += files(
   'loop_output.c',
   'loop_xvrf.c',
   'main_loop.c',
+  'port_output.c',
   'port_rx.c',
   'port_tx.c',
   'trace.c',
