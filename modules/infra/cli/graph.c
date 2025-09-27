@@ -13,8 +13,8 @@
 
 static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_graph_dump_req req = {.flags = 0};
-	const struct gr_infra_graph_dump_resp *resp;
 	void *resp_ptr = NULL;
+	const char *dot;
 
 	if (arg_str(p, "full"))
 		req.flags |= GR_INFRA_GRAPH_DUMP_F_ERRORS;
@@ -22,8 +22,8 @@ static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p
 	if (gr_api_client_send_recv(c, GR_INFRA_GRAPH_DUMP, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	resp = resp_ptr;
-	fwrite(resp->dot, 1, resp->len, stdout);
+	dot = resp_ptr;
+	printf("%s", dot);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

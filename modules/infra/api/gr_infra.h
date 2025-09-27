@@ -257,10 +257,7 @@ struct gr_infra_graph_dump_req {
 	uint16_t flags;
 };
 
-struct gr_infra_graph_dump_resp {
-	uint32_t len;
-	char dot[/* len */];
-};
+// struct gr_infra_graph_dump_resp -> char[]; // nul terminated string
 
 // packet tracing //////////////////////////////////////////////////////////////
 #define GR_INFRA_PACKET_TRACE_BATCH 32

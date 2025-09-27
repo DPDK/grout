@@ -9,8 +9,6 @@ svg_to_edges() {
 
 . $(dirname $0)/_init.sh
 
-grcli add interface port foo devargs net_null0,no-rx=1
-
 command -v dot || fail "graphviz is not installed"
 
 # compare runtime graph with the image stored in git
