@@ -6,8 +6,8 @@
 #include <gr_port.h>
 #include <gr_worker.h>
 
-int port_unplug(uint16_t port_id);
-int port_plug(uint16_t port_id);
+int port_unplug(struct iface_info_port *);
+int port_plug(struct iface_info_port *);
 int port_configure(struct iface_info_port *, uint16_t n_txq_min);
 
 unsigned worker_count(void);
