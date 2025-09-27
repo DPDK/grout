@@ -139,12 +139,23 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 	return hdr + 1;
 }
 
+// (internal) free a vector of dynamically allocated strings
+static inline char **__gr_strvec_free(gr_vec char **vec) {
+	for (unsigned i = 0; i < gr_vec_len(vec); i++)
+		free(vec[i]);
+	free(__gr_vec_hdr(vec));
+	return NULL;
+}
+
 static inline void __gr_vec_abort(const char *msg) {
 	ABORT("%s", msg);
 }
 
 // free a previously allocated vector
 #define gr_vec_free(v) ((v) ? free(__gr_vec_hdr(v)) : (void)0, (v) = NULL)
+
+// free a previously allocated string vector along with all the strings
+#define gr_strvec_free(v) ((v) = __gr_strvec_free(v))
 
 // clone a vector into a new one
 #define gr_vec_clone(v) __gr_vec_clone(v, sizeof(*(v)))

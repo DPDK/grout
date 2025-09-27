@@ -86,10 +86,21 @@ static void str_vec(void **) {
 	gr_vec_free(vec);
 }
 
+static void dyn_str_vec(void **) {
+	gr_vec char **vec = NULL;
+
+	gr_vec_add(vec, strdup("foo"));
+	gr_vec_add(vec, strdup("bar"));
+	gr_vec_add(vec, strdup("baz"));
+
+	gr_strvec_free(vec);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(int_vec),
 		cmocka_unit_test(str_vec),
+		cmocka_unit_test(dyn_str_vec),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
