@@ -12,8 +12,8 @@ src += files(
   'loop_output.c',
   'loop_xvrf.c',
   'main_loop.c',
-  'rx.c',
+  'port_rx.c',
+  'port_tx.c',
   'trace.c',
-  'tx.c',
 )
 inc += include_directories('.')
