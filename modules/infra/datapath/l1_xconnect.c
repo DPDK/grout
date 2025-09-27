@@ -12,7 +12,7 @@
 #include <gr_worker.h>
 
 enum edges {
-	TX = 0,
+	OUTPUT = 0,
 	NO_PORT,
 	EDGE_COUNT
 };
@@ -36,7 +36,7 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		if (peer->type == GR_IFACE_TYPE_PORT) {
 			port = (const struct iface_info_port *)peer->info;
 			mbuf->port = port->port_id;
-			edge = TX;
+			edge = OUTPUT;
 
 			struct iface_stats *tx_stats = iface_get_stats(rte_lcore_id(), peer->id);
 			tx_stats->tx_packets++;
@@ -59,8 +59,8 @@ static struct rte_node_register xconnect_node = {
 	.process = l1_xconnect_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[TX] = "port_tx",
-		[NO_PORT] = "xconnect_no_tx_port",
+		[OUTPUT] = "port_output",
+		[NO_PORT] = "xconnect_no_port",
 	},
 };
 
@@ -74,4 +74,4 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
-GR_DROP_REGISTER(xconnect_no_tx_port);
+GR_DROP_REGISTER(xconnect_no_port);
