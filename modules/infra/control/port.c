@@ -160,7 +160,7 @@ static int iface_port_reconfig(
 	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu > gr_config.max_mtu)
 		return errno_set(ERANGE);
 
-	if ((ret = port_unplug(p->port_id)) < 0)
+	if ((ret = port_unplug(p)) < 0)
 		return ret;
 
 	if (set_attrs
@@ -285,7 +285,7 @@ static int iface_port_reconfig(
 
 	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
-	return port_plug(p->port_id);
+	return port_plug(p);
 }
 
 static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];

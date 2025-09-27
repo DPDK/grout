@@ -142,20 +142,20 @@ struct worker *worker_find(unsigned cpu_id) {
 	return NULL;
 }
 
-int port_unplug(uint16_t port_id) {
+int port_unplug(struct iface_info_port *p) {
 	struct queue_map *qmap;
 	struct worker *worker;
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		gr_vec_foreach_ref (qmap, worker->rxqs) {
-			if (qmap->port_id == port_id) {
+			if (qmap->port_id == p->port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
 		}
 		gr_vec_foreach_ref (qmap, worker->txqs) {
-			if (qmap->port_id == port_id) {
+			if (qmap->port_id == p->port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
@@ -164,25 +164,25 @@ int port_unplug(uint16_t port_id) {
 	if (changed == 0)
 		return 0;
 
-	LOG(INFO, "port %u unplugged", port_id);
+	LOG(INFO, "port %u unplugged", p->port_id);
 
 	return worker_graph_reload_all();
 }
 
-int port_plug(uint16_t port_id) {
+int port_plug(struct iface_info_port *p) {
 	struct queue_map *qmap;
 	struct worker *worker;
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		gr_vec_foreach_ref (qmap, worker->rxqs) {
-			if (qmap->port_id == port_id) {
+			if (qmap->port_id == p->port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
 		}
 		gr_vec_foreach_ref (qmap, worker->txqs) {
-			if (qmap->port_id == port_id) {
+			if (qmap->port_id == p->port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
@@ -191,7 +191,7 @@ int port_plug(uint16_t port_id) {
 	if (changed == 0)
 		return errno_set(ENODEV);
 
-	LOG(INFO, "port %u plugged", port_id);
+	LOG(INFO, "port %u plugged", p->port_id);
 
 	return worker_graph_reload_all();
 }
