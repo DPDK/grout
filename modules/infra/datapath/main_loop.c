@@ -85,6 +85,7 @@ static int node_name_cmp(const void *a, const void *b) {
 
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
 	struct rte_graph_cluster_stats_param stats_param;
+	gr_vec const struct rte_node **nodes = NULL;
 	const char *graph_names[1];
 
 	assert(graph != NULL);
@@ -105,57 +106,65 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	ctx->stats = rte_graph_cluster_stats_create(&stats_param);
 	if (ctx->stats == NULL) {
 		LOG(ERR, "rte_graph_cluster_stats_create: %s", rte_strerror(rte_errno));
-		return -rte_errno;
+		goto err;
 	}
 
+	size_t len = sizeof(*ctx->w_stats) + graph->nb_nodes * sizeof(*ctx->w_stats->stats);
+	rte_free(ctx->w_stats);
+	ctx->w_stats = rte_zmalloc_socket(__func__, len, RTE_CACHE_LINE_SIZE, graph->socket);
 	if (ctx->w_stats == NULL) {
-		size_t len = sizeof(*ctx->w_stats) + graph->nb_nodes * sizeof(*ctx->w_stats->stats);
-		ctx->w_stats = rte_zmalloc_socket(
-			__func__, len, RTE_CACHE_LINE_SIZE, graph->socket
-		);
-		if (ctx->w_stats == NULL) {
-			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
-			return -rte_errno;
-		}
-		ctx->node_to_index = rte_calloc_socket(
-			__func__,
-			rte_node_max_count() + 1,
-			sizeof(*ctx->node_to_index),
-			RTE_CACHE_LINE_SIZE,
-			graph->socket
-		);
-		if (ctx->node_to_index == NULL) {
-			rte_free(ctx->w_stats);
-			ctx->w_stats = NULL;
-			LOG(ERR, "rte_calloc_socket: %s", rte_strerror(rte_errno));
-			return -rte_errno;
-		}
-		ctx->w_stats->n_stats = graph->nb_nodes;
-
-		gr_vec const struct rte_node **nodes = NULL;
-		const struct rte_node *node;
-		rte_graph_off_t off;
-		rte_node_t count;
-		rte_graph_foreach_node (count, off, graph, node)
-			gr_vec_add(nodes, node);
-
-		// sort by name first to ensure stable topo_sort
-		qsort(nodes, count, sizeof(void *), node_name_cmp);
-		if (topo_sort((gr_vec const void **)nodes, node_is_child) < 0)
-			LOG(ERR, "topo_sort failed: %s", strerror(errno));
-
-		count = 0;
-		gr_vec_foreach (node, nodes) {
-			ctx->node_to_index[node->id] = count;
-			ctx->w_stats->stats[count].node_id = node->id;
-			ctx->w_stats->stats[count].topo_order = count;
-			count++;
-		}
-
-		gr_vec_free(nodes);
+		LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
+		goto err;
 	}
+	rte_free(ctx->node_to_index);
+	ctx->node_to_index = rte_calloc_socket(
+		__func__,
+		rte_node_max_count() + 1,
+		sizeof(*ctx->node_to_index),
+		RTE_CACHE_LINE_SIZE,
+		graph->socket
+	);
+	if (ctx->node_to_index == NULL) {
+		LOG(ERR, "rte_calloc_socket: %s", rte_strerror(rte_errno));
+		goto err;
+	}
+	ctx->w_stats->n_stats = graph->nb_nodes;
+
+	const struct rte_node *node;
+	rte_graph_off_t off;
+	rte_node_t count;
+	rte_graph_foreach_node (count, off, graph, node)
+		gr_vec_add(nodes, node);
+
+	// sort by name first to ensure stable topo_sort
+	qsort(nodes, count, sizeof(void *), node_name_cmp);
+	if (topo_sort((gr_vec const void **)nodes, node_is_child) < 0) {
+		LOG(ERR, "topo_sort failed: %s", strerror(errno));
+		goto err;
+	}
+
+	count = 0;
+	gr_vec_foreach (node, nodes) {
+		ctx->node_to_index[node->id] = count;
+		ctx->w_stats->stats[count].node_id = node->id;
+		ctx->w_stats->stats[count].topo_order = count;
+		count++;
+	}
+
+	gr_vec_free(nodes);
 
 	return 0;
+err:
+	gr_vec_free(nodes);
+	if (ctx->stats != NULL) {
+		rte_graph_cluster_stats_destroy(ctx->stats);
+		ctx->stats = NULL;
+	}
+	rte_free(ctx->w_stats);
+	ctx->w_stats = NULL;
+	rte_free(ctx->node_to_index);
+	ctx->node_to_index = NULL;
+	return -ENOMEM;
 }
 
 // The default timer resolution is around 50us, make it more precise
@@ -214,6 +223,10 @@ void *gr_datapath_loop(void *priv) {
 reconfig:
 	if (atomic_load(&w->shutdown))
 		goto shutdown;
+
+	// The stats are outdated and must NOT be visible from control plane
+	// until they have been refreshed in stats_reload().
+	atomic_store(&w->stats, NULL);
 
 	cur = atomic_load(&w->next_config);
 	graph = w->graph[cur];

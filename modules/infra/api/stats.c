@@ -57,7 +57,8 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 				memccpy(stat.name, name, 0, sizeof(stat.name));
 				gr_vec_add(stats, stat);
 			}
-			if (strcmp(name, "port_rx") == 0 || strcmp(name, "control_input") == 0)
+			if (strncmp(name, "port_rx-", strlen("port_rx-")) == 0
+			    || strcmp(name, "control_input") == 0)
 				pkts += n->packets;
 			node_cycles += n->cycles;
 		}

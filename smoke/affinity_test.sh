@@ -26,3 +26,13 @@ grcli affinity qmap show
 
 grcli affinity cpus set datapath 2,3
 grcli affinity qmap show
+
+# ensure deleting and recreating ports does not cause a crash
+grcli interface del p0
+grcli interface add port p0 devargs net_null0,no-rx=1 rxqs 2
+grcli interface del p1
+grcli interface add port p1 devargs net_null1,no-rx=1 rxqs 3
+grcli interface del p0
+grcli stats show
+grcli interface del p1
+grcli stats show

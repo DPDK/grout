@@ -21,79 +21,41 @@ enum {
 	NB_EDGES,
 };
 
-static inline void tx_burst(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	uint16_t port_id,
-	struct rte_mbuf **mbufs,
-	uint16_t n
-) {
-	const struct tx_node_queues *ctx = node->ctx_ptr;
-	uint16_t txq_id, tx_ok;
-
-	txq_id = ctx->txq_ids[port_id];
-	if (txq_id == 0xffff) {
-		rte_node_enqueue(graph, node, TX_ERROR, (void *)mbufs, n);
-	} else {
-		tx_ok = rte_eth_tx_burst(port_id, txq_id, mbufs, n);
-		if (tx_ok < n)
-			rte_node_enqueue(graph, node, TX_ERROR, (void *)&mbufs[tx_ok], n - tx_ok);
-		for (int i = 0; i < tx_ok; i++) {
-			// FIXME racy: we are operating on mbufs already passed to driver
-			if (gr_mbuf_is_traced(mbufs[i])) {
-				struct rxtx_trace_data *t;
-				t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
-				t->queue_id = txq_id;
-				t->port_id = port_id;
-				gr_mbuf_trace_finish(mbufs[i]);
-			}
-		}
-	}
-}
-
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	uint16_t port_id, i, burst_start;
+	const struct port_queue *ctx = (const struct port_queue *)node->ctx;
+	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	uint16_t tx_ok;
 
-	port_id = UINT16_MAX;
-	burst_start = 0;
-
-	for (i = 0; i < nb_objs; i++) {
-		struct rte_mbuf *mbuf = objs[i];
-
-		if (gr_config.log_packets)
-			trace_log_packet(mbuf, "tx", (mbuf_data(mbuf)->iface)->name);
-
-		if (mbuf->port != port_id) {
-			if (burst_start != i) {
-				tx_burst(
-					graph,
-					node,
-					port_id,
-					(void *)&objs[burst_start],
-					i - burst_start
-				);
-				burst_start = i;
-			}
-			port_id = mbuf->port;
+	if (unlikely(gr_config.log_packets)) {
+		for (unsigned i = 0; i < nb_objs; i++) {
+			struct rte_mbuf *m = mbufs[i];
+			const struct iface *iface = mbuf_data(m)->iface;
+			trace_log_packet(m, "tx", iface->name);
 		}
 	}
 
-	if (burst_start != i)
-		tx_burst(graph, node, port_id, (void *)&objs[burst_start], i - burst_start);
+	tx_ok = rte_eth_tx_burst(ctx->port_id, ctx->queue_id, mbufs, nb_objs);
+	if (tx_ok < nb_objs)
+		rte_node_enqueue(graph, node, TX_ERROR, &objs[tx_ok], nb_objs - tx_ok);
+
+	for (unsigned i = 0; i < tx_ok; i++) {
+		// FIXME racy: we are operating on mbufs already passed to driver
+		if (gr_mbuf_is_traced(mbufs[i])) {
+			struct port_queue *t;
+			t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
+			*t = *ctx;
+			gr_mbuf_trace_finish(mbufs[i]);
+		}
+	}
 
 	return nb_objs;
 }
 
-static void tx_fini(const struct rte_graph *, struct rte_node *node) {
-	rte_free(node->ctx_ptr);
-}
-
 static struct rte_node_register node = {
-	.name = "port_tx",
+	.name = TX_NODE_BASE,
 
 	.process = tx_process,
-	.fini = tx_fini,
 
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
