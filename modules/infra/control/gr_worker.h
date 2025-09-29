@@ -31,10 +31,15 @@ struct node_stats {
 };
 
 struct worker_stats {
+	// used by lcore_usage_cb
 	uint64_t total_cycles;
 	uint64_t busy_cycles;
+	// meta statistics
 	uint64_t sleep_cycles;
 	uint64_t n_sleeps;
+	uint64_t loop_cycles;
+	uint64_t n_loops;
+	// graph node statistics
 	size_t n_stats;
 	struct node_stats stats[/* n_stats */];
 };

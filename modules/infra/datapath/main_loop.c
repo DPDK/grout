@@ -59,6 +59,8 @@ static inline void stats_reset(struct worker_stats *stats) {
 	}
 	stats->sleep_cycles = 0;
 	stats->n_sleeps = 0;
+	stats->loop_cycles = 0;
+	stats->n_loops = 0;
 }
 
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
@@ -112,6 +114,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 
 // The default timer resolution is around 50us, make it more precise
 #define SLEEP_RESOLUTION_NS 1000
+#define HOUSEKEEPING_INTERVAL 256
 
 static struct rte_rcu_qsbr *rcu;
 
@@ -185,7 +188,7 @@ reconfig:
 		rte_graph_walk(graph);
 		rte_rcu_qsbr_quiescent(rcu, rte_lcore_id());
 
-		if (++loop == 256) {
+		if (++loop == HOUSEKEEPING_INTERVAL) {
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
 				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 				goto reconfig;
@@ -211,6 +214,8 @@ reconfig:
 			loop = 0;
 			timestamp = timestamp_tmp;
 			ctx.w_stats->total_cycles += cycles;
+			ctx.w_stats->loop_cycles += cycles;
+			ctx.w_stats->n_loops += HOUSEKEEPING_INTERVAL;
 		}
 	}
 
