@@ -28,9 +28,10 @@ static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const
 }
 
 static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
+	uint64_t loop_cycles = 0, node_cycles = 0, n_loops = 0, pkts = 0;
 	gr_vec struct gr_infra_stat *stats = NULL;
-	struct worker *worker;
 	struct gr_infra_stat *s;
+	struct worker *worker;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		const struct worker_stats *w_stats = atomic_load(&worker->stats);
@@ -56,6 +57,9 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 				memccpy(stat.name, name, 0, sizeof(stat.name));
 				gr_vec_add(stats, stat);
 			}
+			if (strcmp(name, "port_rx") == 0 || strcmp(name, "control_input") == 0)
+				pkts += n->objs;
+			node_cycles += n->cycles;
 		}
 		s = find_stat(stats, "idle");
 		if (s != NULL) {
@@ -71,7 +75,18 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 			memccpy(stat.name, "idle", 0, sizeof(stat.name));
 			gr_vec_add(stats, stat);
 		}
+		loop_cycles += w_stats->loop_cycles - w_stats->sleep_cycles;
+		n_loops += w_stats->n_loops;
 	}
+
+	struct gr_infra_stat stat = {
+		.objs = pkts,
+		.calls = n_loops,
+		.cycles = loop_cycles - node_cycles,
+		.topo_order = UINT64_MAX - 1,
+	};
+	memccpy(stat.name, "overhead", 0, sizeof(stat.name));
+	gr_vec_add(stats, stat);
 
 	return stats;
 }
