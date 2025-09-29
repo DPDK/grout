@@ -34,6 +34,51 @@ static struct stat *find_stat(gr_vec struct stat *stats, const char *name) {
 	return errno_set_null(ENOENT);
 }
 
+static gr_vec struct stat *graph_stats(void) {
+	gr_vec struct stat *stats = NULL;
+	struct worker *worker;
+	struct stat *s;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		const struct worker_stats *w_stats = atomic_load(&worker->stats);
+		if (w_stats == NULL)
+			continue;
+		for (unsigned i = 0; i < w_stats->n_stats; i++) {
+			const struct node_stats *n = &w_stats->stats[i];
+			const char *name = rte_node_id_to_name(n->node_id);
+			s = find_stat(stats, name);
+			if (s != NULL) {
+				s->objs += n->objs;
+				s->calls += n->calls;
+				s->cycles += n->cycles;
+			} else {
+				struct stat stat = {
+					.objs = n->objs,
+					.calls = n->calls,
+					.cycles = n->cycles,
+				};
+				memccpy(stat.name, name, 0, sizeof(stat.name));
+				gr_vec_add(stats, stat);
+			}
+		}
+		s = find_stat(stats, "idle");
+		if (s != NULL) {
+			s->calls += w_stats->n_sleeps;
+			s->cycles += w_stats->sleep_cycles;
+		} else {
+			struct stat stat = {
+				.objs = 0,
+				.calls = w_stats->n_sleeps,
+				.cycles = w_stats->sleep_cycles,
+			};
+			memccpy(stat.name, "idle", 0, sizeof(stat.name));
+			gr_vec_add(stats, stat);
+		}
+	}
+
+	return stats;
+}
+
 static struct api_out stats_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
@@ -42,46 +87,8 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 	struct stat *s;
 	int ret;
 
-	if (req->flags & GR_INFRA_STAT_F_SW) {
-		struct worker *worker;
-
-		STAILQ_FOREACH (worker, &workers, next) {
-			const struct worker_stats *w_stats = atomic_load(&worker->stats);
-			if (w_stats == NULL)
-				continue;
-			for (unsigned i = 0; i < w_stats->n_stats; i++) {
-				const struct node_stats *n = &w_stats->stats[i];
-				const char *name = rte_node_id_to_name(n->node_id);
-				s = find_stat(stats, name);
-				if (s != NULL) {
-					s->objs += n->objs;
-					s->calls += n->calls;
-					s->cycles += n->cycles;
-				} else {
-					struct stat stat = {
-						.objs = n->objs,
-						.calls = n->calls,
-						.cycles = n->cycles,
-					};
-					memccpy(stat.name, name, 0, sizeof(stat.name));
-					gr_vec_add(stats, stat);
-				}
-			}
-			s = find_stat(stats, "idle");
-			if (s != NULL) {
-				s->calls += w_stats->n_sleeps;
-				s->cycles += w_stats->sleep_cycles;
-			} else {
-				struct stat stat = {
-					.objs = 0,
-					.calls = w_stats->n_sleeps,
-					.cycles = w_stats->sleep_cycles,
-				};
-				memccpy(stat.name, "idle", 0, sizeof(stat.name));
-				gr_vec_add(stats, stat);
-			}
-		}
-	}
+	if (req->flags & GR_INFRA_STAT_F_SW)
+		stats = graph_stats();
 
 	if (req->flags & GR_INFRA_STAT_F_HW) {
 		struct rte_eth_xstat_name *names = NULL;
@@ -277,48 +284,11 @@ err:
 
 static int
 telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	gr_vec struct stat *stats = NULL;
-	struct worker *worker;
+	gr_vec struct stat *stats = graph_stats();
 	struct stat *s;
 
 	rte_tel_data_start_dict(d);
 
-	STAILQ_FOREACH (worker, &workers, next) {
-		const struct worker_stats *w_stats = atomic_load(&worker->stats);
-		if (w_stats == NULL)
-			continue;
-		for (unsigned i = 0; i < w_stats->n_stats; i++) {
-			const struct node_stats *n = &w_stats->stats[i];
-			const char *name = rte_node_id_to_name(n->node_id);
-			s = find_stat(stats, name);
-			if (s != NULL) {
-				s->objs += n->objs;
-				s->calls += n->calls;
-				s->cycles += n->cycles;
-			} else {
-				struct stat stat = {
-					.objs = n->objs,
-					.calls = n->calls,
-					.cycles = n->cycles,
-				};
-				memccpy(stat.name, name, 0, sizeof(stat.name));
-				gr_vec_add(stats, stat);
-			}
-		}
-		s = find_stat(stats, "idle");
-		if (s != NULL) {
-			s->calls += w_stats->n_sleeps;
-			s->cycles += w_stats->sleep_cycles;
-		} else {
-			struct stat stat = {
-				.objs = 0,
-				.calls = w_stats->n_sleeps,
-				.cycles = w_stats->sleep_cycles,
-			};
-			memccpy(stat.name, "idle", 0, sizeof(stat.name));
-			gr_vec_add(stats, stat);
-		}
-	}
 	gr_vec_foreach_ref (s, stats) {
 		if (s->calls > 0) {
 			struct rte_tel_data *val = rte_tel_data_alloc();
