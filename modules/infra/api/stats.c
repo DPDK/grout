@@ -91,6 +91,21 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 	return stats;
 }
 
+static bool skip_stat(const struct gr_infra_stat *s, gr_infra_stats_flags_t flags) {
+	if (flags & GR_INFRA_STAT_F_ZERO)
+		return false;
+
+	if (s->objs != 0)
+		return false;
+
+	if (strcmp(s->name, "idle") == 0 || strcmp(s->name, "overhead") == 0) {
+		if (s->calls != 0)
+			return false;
+	}
+
+	return true;
+}
+
 static struct api_out stats_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
@@ -165,7 +180,7 @@ free_xstat:
 	// iterate once to determine the number of stats matching pattern
 	n_stats = 0;
 	gr_vec_foreach_ref (s, stats) {
-		if (s->objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
+		if (skip_stat(s, req->flags))
 			continue;
 		switch (fnmatch(req->pattern, s->name, 0)) {
 		case 0:
@@ -187,7 +202,7 @@ free_xstat:
 
 	// fill in response
 	gr_vec_foreach_ref (s, stats) {
-		if (s->objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
+		if (skip_stat(s, req->flags))
 			continue;
 		switch (fnmatch(req->pattern, s->name, 0)) {
 		case 0:
