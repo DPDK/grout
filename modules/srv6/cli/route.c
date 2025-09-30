@@ -170,7 +170,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		TUNSRC_CTX(root),
-		"show",
+		"[show]",
 		srv6_tunsrc_show,
 		"Show Segment Routing SRv6 source address"
 	);

@@ -385,7 +385,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		NEXTHOP_CONFIG_CTX(root),
-		"show",
+		"[show]",
 		show_config,
 		"Show the current nexthop configuration."
 	);
@@ -427,7 +427,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
-		"show [(vrf VRF),(type TYPE),(internal)]",
+		"[show] [(vrf VRF),(type TYPE),(internal)]",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
