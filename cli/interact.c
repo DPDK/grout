@@ -19,33 +19,6 @@
 #define DELIM "\x1e"
 #define COLOR_PROMPT DELIM CYAN_SGR DELIM __PROMPT DELIM RESET_SGR DELIM " "
 
-static void print_suggestions(const struct ec_editline *edit) {
-	struct ec_editline_help *sug = NULL;
-	ssize_t n = 0;
-	int pos = 0;
-
-	if ((n = ec_editline_get_suggestions(edit, &sug, NULL, &pos)) < 0) {
-		errorf("ec_editline_get_suggestions: %s", strerror(errno));
-		goto out;
-	}
-
-	pos += strlen(PROMPT);
-	printf("%*s%s^%s\n", pos, "", "\x1b[1;33m", RESET_SGR);
-	errorf("invalid arguments");
-	if (n > 0) {
-		printf("expected: ");
-		for (int i = 0; i < n; i++) {
-			if (i > 0)
-				printf(", ");
-			printf("%s", sug[i].desc);
-		}
-		printf("\n");
-	}
-
-out:
-	ec_editline_free_helps(sug, n);
-}
-
 static void sighandler(int) { }
 
 #if defined(__has_feature) && !defined(__SANITIZE_ADDRESS__)
@@ -116,26 +89,17 @@ int interact(struct gr_api_client *client, struct ec_node *cmdlist) {
 			}
 		}
 		errno = 0;
-		switch (exec_line(client, cmdlist, line)) {
+		switch (exec_line(client, cmdlist, line, false)) {
 		case EXEC_CMD_EMPTY:
 		case EXEC_SUCCESS:
-			break;
 		case EXEC_LEX_ERROR:
-			errorf("unterminated quote/escape");
+		case EXEC_CMD_INVALID_ARGS:
+		case EXEC_CMD_FAILED:
 			break;
 		case EXEC_CMD_EXIT:
 			goto exit_ok;
-		case EXEC_CMD_INVALID_ARGS:
-			print_suggestions(edit);
-			break;
-		case EXEC_CMD_FAILED:
-			errorf("command failed: %s", strerror(errno));
-			break;
 		case EXEC_CB_UNDEFINED:
-			errorf("no callback defined for command");
-			goto end;
 		case EXEC_OTHER_ERROR:
-			errorf("fatal: %s", strerror(errno));
 			goto end;
 		}
 	}
