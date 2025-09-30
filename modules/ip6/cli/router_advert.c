@@ -91,16 +91,6 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		RA_CTX(root),
-		"show [interface IFACE]",
-		ra_show,
-		"Show router advertisement configuration",
-		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
-	);
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		RA_CTX(root),
 		"set IFACE [interval IT] [lifetime LT]",
 		ra_set,
 		"Set router advertisement parameters",
@@ -116,6 +106,16 @@ static int ctx_init(struct ec_node *root) {
 		"clear IFACE",
 		ra_clear,
 		"Disable router advertisement and reset parameters",
+		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		RA_CTX(root),
+		"[show] [interface IFACE]",
+		ra_show,
+		"Show router advertisement configuration",
 		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
 	);
 	if (ret < 0)

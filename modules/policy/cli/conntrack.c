@@ -148,10 +148,6 @@ static cmd_status_t config_set(struct gr_api_client *c, const struct ec_pnode *p
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
-	ret = CLI_COMMAND(CONNTRACK_CTX(root), "show", conn_list, "Display tracked connections.");
-	if (ret < 0)
-		return ret;
-
 	ret = CLI_COMMAND(
 		CONNTRACK_CTX(root), "flush", conn_flush, "Flush all tracked connections."
 	);
@@ -199,10 +195,14 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CONNTRACK_CONFIG_CTX(root),
-		"show",
+		"[show]",
 		config_show,
 		"Show the current connection tracking configuration."
 	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(CONNTRACK_CTX(root), "[show]", conn_list, "Display tracked connections.");
 	if (ret < 0)
 		return ret;
 

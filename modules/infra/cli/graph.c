@@ -34,7 +34,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		root,
-		"graph show [brief|full]",
+		"graph [show] [brief|full]",
 		graph_dump,
 		"Show packet processing graph info (requires interfaces to be configured).",
 		with_help("Hide error nodes (default).", ec_node_str("brief", "brief")),

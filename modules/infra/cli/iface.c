@@ -486,6 +486,12 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	if (INTERFACE_ADD_CTX(root) == NULL)
+		return -1;
+
+	if (INTERFACE_SET_CTX(root) == NULL)
+		return -1;
+
 	ret = CLI_COMMAND(
 		INTERFACE_CTX(root),
 		"del NAME",
@@ -498,9 +504,20 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
+
+	ret = CLI_COMMAND(INTERFACE_CTX(root), "stats", iface_stats, "Show interface counters.");
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CTX(root), "rates", iface_rates, "Show interface counter rates."
+	);
+	if (ret < 0)
+		return ret;
+
 	ret = CLI_COMMAND(
 		INTERFACE_CTX(root),
-		"show [(name NAME)|(type TYPE)]",
+		"[show] [(name NAME)|(type TYPE)]",
 		iface_show,
 		"Show interface details.",
 		with_help(
@@ -511,16 +528,6 @@ static int ctx_init(struct ec_node *root) {
 			"Show only this type of interface.",
 			ec_node_dyn("TYPE", complete_iface_types, NULL)
 		)
-	);
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(INTERFACE_CTX(root), "stats", iface_stats, "Show interface counters.");
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		INTERFACE_CTX(root), "rates", iface_rates, "Show interface counter rates."
 	);
 	if (ret < 0)
 		return ret;
