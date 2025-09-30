@@ -123,7 +123,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(SNAT_CTX(root), "show", snat44_list, "Display SNAT44 policies.");
+	ret = CLI_COMMAND(SNAT_CTX(root), "[show]", snat44_list, "Display SNAT44 policies.");
 	if (ret < 0)
 		return ret;
 

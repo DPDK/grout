@@ -125,7 +125,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		DNAT_CTX(root),
-		"show [vrf VRF]",
+		"[show] [vrf VRF]",
 		dnat44_list,
 		"Display DNAT44 rules.",
 		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))

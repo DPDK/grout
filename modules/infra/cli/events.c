@@ -54,7 +54,10 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 
 static int ctx_init(struct ec_node *root) {
 	return CLI_COMMAND(
-		root, "events", events_show, "Subscribe to all events and dump them in real time"
+		root,
+		"events [show]",
+		events_show,
+		"Subscribe to all events and dump them in real time"
 	);
 }
 

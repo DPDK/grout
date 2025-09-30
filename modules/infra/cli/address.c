@@ -116,7 +116,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ADDR_CTX(root),
-		"show [iface IFACE]",
+		"[show] [iface IFACE]",
 		addr_list,
 		"Display interface addresses.",
 		with_help(

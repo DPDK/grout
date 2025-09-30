@@ -58,10 +58,10 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 	void *resp_ptr = NULL;
 	const char *pattern;
 
-	if (arg_str(p, "software") != NULL)
-		req.flags |= GR_INFRA_STAT_F_SW;
-	else if (arg_str(p, "hardware") != NULL)
+	if (arg_str(p, "hardware") != NULL)
 		req.flags |= GR_INFRA_STAT_F_HW;
+	else
+		req.flags |= GR_INFRA_STAT_F_SW;
 	if (arg_str(p, "zero") != NULL)
 		req.flags |= GR_INFRA_STAT_F_ZERO;
 	pattern = arg_str(p, "PATTERN");
@@ -154,12 +154,15 @@ static cmd_status_t stats_reset(struct gr_api_client *c, const struct ec_pnode *
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	ret = CLI_COMMAND(STATS_CTX(root), "reset", stats_reset, "Reset all stats to zero.");
+	if (ret < 0)
+		return ret;
 	ret = CLI_COMMAND(
 		STATS_CTX(root),
-		"show (software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
+		"[show] [(software|hardware),brief,zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
 		stats_get,
 		"Print statistics.",
-		with_help("Print software stats.", ec_node_str("software", "software")),
+		with_help("Print software stats (default).", ec_node_str("software", "software")),
 		with_help("Print hardware stats.", ec_node_str("hardware", "hardware")),
 		with_help("Only print packet counts.", ec_node_str("brief", "brief")),
 		with_help(
@@ -188,9 +191,6 @@ static int ctx_init(struct ec_node *root) {
 			)
 		)
 	);
-	if (ret < 0)
-		return ret;
-	ret = CLI_COMMAND(STATS_CTX(root), "reset", stats_reset, "Reset all stats to zero.");
 	if (ret < 0)
 		return ret;
 

@@ -131,7 +131,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(CPU_CTX(root), "show", affinity_show, "Display CPU affinity lists.");
+	ret = CLI_COMMAND(CPU_CTX(root), "[show]", affinity_show, "Display CPU affinity lists.");
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
@@ -148,7 +148,7 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(QMAP_CTX(root), "show", rxq_list, "Display DPDK port RXQ affinity.");
+	ret = CLI_COMMAND(QMAP_CTX(root), "[show]", rxq_list, "Display DPDK port RXQ affinity.");
 	if (ret < 0)
 		return ret;
 

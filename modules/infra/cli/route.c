@@ -120,19 +120,19 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"show [vrf VRF]",
-		route_list,
-		"Show IP routes.",
+		"get DEST [vrf VRF]",
+		route_get,
+		"Get the route associated with a destination IP address.",
+		with_help("IP destination address.", ec_node_re("DEST", IP_ANY_RE)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"get DEST [vrf VRF]",
-		route_get,
-		"Get the route associated with a destination IP address.",
-		with_help("IP destination address.", ec_node_re("DEST", IP_ANY_RE)),
+		"[show] [vrf VRF]",
+		route_list,
+		"Show IP routes.",
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 	if (ret < 0)
