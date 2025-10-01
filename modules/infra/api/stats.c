@@ -23,7 +23,7 @@ struct stat {
 	uint64_t cycles;
 };
 
-static struct stat *find_stat(struct stat *stats, const char *name) {
+static struct stat *find_stat(gr_vec struct stat *stats, const char *name) {
 	struct stat *s;
 
 	gr_vec_foreach_ref (s, stats) {
@@ -264,7 +264,8 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 	}
 
 	resp->n_stats = n_stats;
-	memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
+	if (gr_vec_len(stats_vec) > 0)
+		memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
 
 	gr_vec_free(stats_vec);
 	return api_out(0, len, resp);
