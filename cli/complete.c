@@ -15,22 +15,25 @@
 #define OPT(opts, help, ...) with_help(help, EC_NODE_CMD(EC_NO_ID, opts, __VA_ARGS__))
 
 static struct ec_node *bash_complete_node(struct ec_node *cmdlist) {
-	return EC_NODE_SEQ(
+	return ec_node_sh_lex_expand(
 		EC_NO_ID,
-		ec_node("any", "prog_name"),
-		ec_node_option(
+		EC_NODE_SEQ(
 			EC_NO_ID,
-			EC_NODE_SUBSET(
+			ec_node("any", "prog_name"),
+			ec_node_option(
 				EC_NO_ID,
-				FLAG("-h|--help", "Show usage help and exit."),
-				OPT("-s|--socket " SOCK_PATH_ID,
-				    "Path to the control plane API socket.",
-				    ec_node("file", SOCK_PATH_ID)),
-				FLAG("-e|--err-exit", "Abort on first error."),
-				FLAG("-x|--trace-commands", "Print executed commands.")
-			)
-		),
-		cmdlist
+				EC_NODE_SUBSET(
+					EC_NO_ID,
+					FLAG("-h|--help", "Show usage help and exit."),
+					OPT("-s|--socket " SOCK_PATH_ID,
+					    "Path to the control plane API socket.",
+					    ec_node("file", SOCK_PATH_ID)),
+					FLAG("-e|--err-exit", "Abort on first error."),
+					FLAG("-x|--trace-commands", "Print executed commands.")
+				)
+			),
+			cmdlist
+		)
 	);
 }
 
@@ -85,14 +88,16 @@ int bash_complete(struct ec_node *cmdlist) {
 		errorf("bash_complete_node: %s", strerror(errno));
 		goto end;
 	}
+
 	if ((vec = ec_strvec_sh_lex_str(buf, EC_STRVEC_TRAILSP, NULL)) == NULL) {
 		errorf("ec_strvec_sh_lex_str: %s", strerror(errno));
 		goto end;
 	}
+
 	if (ec_strvec_len(vec) < 2)
 		goto end;
 
-	if ((cmpl = ec_complete_strvec(cmdlist, vec)) == NULL) {
+	if ((cmpl = ec_complete(cmdlist, buf)) == NULL) {
 		errorf("ec_complete: %s", strerror(errno));
 		goto end;
 	}

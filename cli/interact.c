@@ -70,7 +70,7 @@ int interact(struct gr_api_client *client, struct ec_node *cmdlist) {
 	printf("Use ? for help and <tab> for command completion.\n");
 
 	// required for command completion in ec_editline_gets
-	shlex = ec_node_sh_lex(EC_NO_ID, ec_node_clone(cmdlist));
+	shlex = ec_node_sh_lex_expand(EC_NO_ID, ec_node_clone(cmdlist));
 	ec_editline_set_node(edit, shlex);
 
 	for (;;) {
