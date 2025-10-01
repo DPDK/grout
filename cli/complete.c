@@ -14,9 +14,10 @@
 #define FLAG(flags, help) with_help(help, EC_NODE_CMD(EC_NO_ID, flags))
 #define OPT(opts, help, ...) with_help(help, EC_NODE_CMD(EC_NO_ID, opts, __VA_ARGS__))
 
-static struct ec_node *add_flags(struct ec_node *cmdlist) {
+static struct ec_node *bash_complete_node(struct ec_node *cmdlist) {
 	return EC_NODE_SEQ(
 		EC_NO_ID,
+		ec_node("any", "prog_name"),
 		ec_node_option(
 			EC_NO_ID,
 			EC_NODE_SUBSET(
@@ -54,11 +55,11 @@ static const char *find_help(const struct ec_comp_item *item) {
 }
 
 int bash_complete(struct ec_node *cmdlist) {
-	struct ec_strvec *vec = NULL, *vec_cmd = NULL;
 	const char *comp_point = getenv("COMP_POINT");
 	const char *comp_line = getenv("COMP_LINE");
 	const char *comp_word, *last_colon;
 	int count, comp_width, colon_prefix;
+	struct ec_strvec *vec = NULL;
 	struct ec_comp *cmpl = NULL;
 	struct ec_comp_item *item;
 	int ret = EXIT_FAILURE;
@@ -80,8 +81,8 @@ int bash_complete(struct ec_node *cmdlist) {
 	memccpy(buf, comp_line, 0, i);
 	buf[i] = '\0';
 
-	if ((cmdlist = add_flags(cmdlist)) == NULL) {
-		errorf("add_flags: %s", strerror(errno));
+	if ((cmdlist = bash_complete_node(cmdlist)) == NULL) {
+		errorf("bash_complete_node: %s", strerror(errno));
 		goto end;
 	}
 	if ((vec = ec_strvec_sh_lex_str(buf, EC_STRVEC_TRAILSP, NULL)) == NULL) {
@@ -91,11 +92,7 @@ int bash_complete(struct ec_node *cmdlist) {
 	if (ec_strvec_len(vec) < 2)
 		goto end;
 
-	if ((vec_cmd = ec_strvec_ndup(vec, 1, ec_strvec_len(vec) - 1)) == NULL) {
-		errorf("ec_strvec_ndup: %s", strerror(errno));
-		goto end;
-	}
-	if ((cmpl = ec_complete_strvec(cmdlist, vec_cmd)) == NULL) {
+	if ((cmpl = ec_complete_strvec(cmdlist, vec)) == NULL) {
 		errorf("ec_complete: %s", strerror(errno));
 		goto end;
 	}
@@ -108,10 +105,11 @@ int bash_complete(struct ec_node *cmdlist) {
 			comp_width = w;
 		count++;
 	}
+
 	// Bash considers that ':' is a word separator when dealing with completion items.
 	// Detect the prefix up to the last ':' from the current completed word and strip it from
 	// the beginning of completion choices.
-	comp_word = ec_strvec_val(vec_cmd, ec_strvec_len(vec_cmd) - 1);
+	comp_word = ec_strvec_val(vec, ec_strvec_len(vec) - 1);
 	colon_prefix = 0;
 	if ((last_colon = strrchr(comp_word, ':')) != NULL)
 		colon_prefix = last_colon - comp_word + 1;
@@ -129,7 +127,6 @@ int bash_complete(struct ec_node *cmdlist) {
 
 	ret = EXIT_SUCCESS;
 end:
-	ec_strvec_free(vec_cmd);
 	ec_strvec_free(vec);
 	ec_comp_free(cmpl);
 	ec_node_free(cmdlist);
