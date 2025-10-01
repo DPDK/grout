@@ -196,7 +196,7 @@ reconfig:
 			cycles = timestamp_tmp - timestamp;
 			max_sleep_us = atomic_load(&w->max_sleep_us);
 			if (ctx.last_count == 0 && max_sleep_us > 0) {
-				sleep = sleep == max_sleep_us ? sleep : (sleep + 1);
+				sleep = sleep >= max_sleep_us ? max_sleep_us : (sleep + 1);
 				usleep(sleep);
 				ctx.w_stats->sleep_cycles += rte_rdtsc() - timestamp_tmp;
 				ctx.w_stats->n_sleeps += 1;
