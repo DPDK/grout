@@ -194,6 +194,7 @@ static exec_status_t exec_strvec(
 ) {
 	exec_status_t status = EXEC_OTHER_ERROR;
 	struct ec_pnode *parsed = NULL;
+	struct ec_strvec *args = NULL;
 	cmd_cb_t cb;
 
 	if (ec_strvec_len(vec) == 0) {
@@ -201,14 +202,18 @@ static exec_status_t exec_strvec(
 		goto out;
 	}
 
-	if (trace)
-		trace_cmd(vec);
+	// Try to expand all arguments to their non-ambiguous full name
+	if ((args = ec_complete_strvec_expand(cmdlist, EC_COMP_FULL, vec)) == NULL)
+		goto out;
 
-	if ((parsed = ec_parse_strvec(cmdlist, vec)) == NULL) {
+	if (trace)
+		trace_cmd(args);
+
+	if ((parsed = ec_parse_strvec(cmdlist, args)) == NULL) {
 		status = EXEC_OTHER_ERROR;
 		goto out;
 	}
-	if (!ec_pnode_matches(parsed) || ec_pnode_len(parsed) != ec_strvec_len(vec)) {
+	if (!ec_pnode_matches(parsed) || ec_pnode_len(parsed) != ec_strvec_len(args)) {
 		status = EXEC_CMD_INVALID_ARGS;
 		goto out;
 	}
@@ -228,7 +233,8 @@ static exec_status_t exec_strvec(
 		break;
 	}
 out:
-	print_status(status, cmdlist, vec);
+	print_status(status, cmdlist, args);
+	ec_strvec_free(args);
 	ec_pnode_free(parsed);
 	return status;
 }

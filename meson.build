@@ -80,7 +80,7 @@ ev_thread_dep = dependency('libevent_pthreads')
 numa_dep = dependency('numa')
 ecoli_dep = dependency(
   'libecoli',
-  version: '>= 0.5.0',
+  version: '>= 0.8.0',
   fallback: ['ecoli', 'libecoli_dep'],
   default_options: [
     'doc=disabled',
