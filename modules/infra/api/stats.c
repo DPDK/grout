@@ -16,15 +16,8 @@
 
 #include <fnmatch.h>
 
-struct stat {
-	char name[64];
-	uint64_t objs;
-	uint64_t calls;
-	uint64_t cycles;
-};
-
-static struct stat *find_stat(gr_vec struct stat *stats, const char *name) {
-	struct stat *s;
+static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const char *name) {
+	struct gr_infra_stat *s;
 
 	gr_vec_foreach_ref (s, stats) {
 		if (strncmp(s->name, name, sizeof(s->name)) == 0)
@@ -34,10 +27,10 @@ static struct stat *find_stat(gr_vec struct stat *stats, const char *name) {
 	return errno_set_null(ENOENT);
 }
 
-static gr_vec struct stat *graph_stats(uint16_t cpu_id) {
-	gr_vec struct stat *stats = NULL;
+static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
+	gr_vec struct gr_infra_stat *stats = NULL;
 	struct worker *worker;
-	struct stat *s;
+	struct gr_infra_stat *s;
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		const struct worker_stats *w_stats = atomic_load(&worker->stats);
@@ -54,7 +47,7 @@ static gr_vec struct stat *graph_stats(uint16_t cpu_id) {
 				s->calls += n->calls;
 				s->cycles += n->cycles;
 			} else {
-				struct stat stat = {
+				struct gr_infra_stat stat = {
 					.objs = n->objs,
 					.calls = n->calls,
 					.cycles = n->cycles,
@@ -68,7 +61,7 @@ static gr_vec struct stat *graph_stats(uint16_t cpu_id) {
 			s->calls += w_stats->n_sleeps;
 			s->cycles += w_stats->sleep_cycles;
 		} else {
-			struct stat stat = {
+			struct gr_infra_stat stat = {
 				.objs = 0,
 				.calls = w_stats->n_sleeps,
 				.cycles = w_stats->sleep_cycles,
@@ -87,9 +80,9 @@ static gr_vec struct stat *graph_stats(uint16_t cpu_id) {
 static struct api_out stats_get(const void *request, struct api_ctx *) {
 	const struct gr_infra_stats_get_req *req = request;
 	struct gr_infra_stats_get_resp *resp = NULL;
-	gr_vec struct stat *stats = NULL;
+	gr_vec struct gr_infra_stat *stats = NULL;
+	struct gr_infra_stat *s;
 	size_t len, n_stats;
-	struct stat *s;
 	int ret;
 
 	if (req->flags & GR_INFRA_STAT_F_SW) {
@@ -129,7 +122,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
-				struct stat stat = {
+				struct gr_infra_stat stat = {
 					.objs = xstats[i].value,
 					.calls = 0,
 					.cycles = 0,
@@ -179,16 +172,11 @@ free_xstat:
 
 	// fill in response
 	gr_vec_foreach_ref (s, stats) {
-		struct gr_infra_stat *i;
 		if (s->objs == 0 && !(req->flags & GR_INFRA_STAT_F_ZERO))
 			continue;
 		switch (fnmatch(req->pattern, s->name, 0)) {
 		case 0:
-			i = &resp->stats[resp->n_stats++];
-			memccpy(i->name, s->name, 0, sizeof(i->name));
-			i->objs = s->objs;
-			i->calls = s->calls;
-			i->cycles = s->cycles;
+			resp->stats[resp->n_stats++] = *s;
 		case FNM_NOMATCH:
 			continue;
 		default:
@@ -291,8 +279,8 @@ err:
 
 static int
 telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	gr_vec struct stat *stats = graph_stats(UINT16_MAX);
-	struct stat *s;
+	gr_vec struct gr_infra_stat *stats = graph_stats(UINT16_MAX);
+	struct gr_infra_stat *s;
 
 	rte_tel_data_start_dict(d);
 
