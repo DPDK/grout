@@ -40,6 +40,17 @@ static int stats_order_packets(const void *sa, const void *sb) {
 	return 1;
 }
 
+static int stats_order_topo(const void *sa, const void *sb) {
+	const struct gr_infra_stat *a = sa;
+	const struct gr_infra_stat *b = sb;
+
+	if (a->topo_order == b->topo_order)
+		return 0;
+	if (a->topo_order > b->topo_order)
+		return 1;
+	return -1;
+}
+
 static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_stats_get_req req = {.flags = 0, .cpu_id = UINT16_MAX};
 	bool brief = arg_str(p, "brief") != NULL;
@@ -73,6 +84,8 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		sort_func = stats_order_cycles;
 	else if (strcmp(order, "packets") == 0)
 		sort_func = stats_order_packets;
+	else if (strcmp(order, "graph") == 0)
+		sort_func = stats_order_topo;
 	else if (req.flags & GR_INFRA_STAT_F_HW || brief)
 		sort_func = stats_order_name;
 	else
@@ -161,6 +174,10 @@ static int ctx_init(struct ec_node *root) {
 				with_help(
 					"Sort by decreasing number of packets.",
 					ec_node_str(EC_NO_ID, "packets")
+				),
+				with_help(
+					"Sort by graph topological order.",
+					ec_node_str(EC_NO_ID, "graph")
 				),
 				with_help(
 					"Sort by decreasing number of cycles.",

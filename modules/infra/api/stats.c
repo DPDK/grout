@@ -51,6 +51,7 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 					.objs = n->objs,
 					.calls = n->calls,
 					.cycles = n->cycles,
+					.topo_order = n->topo_order,
 				};
 				memccpy(stat.name, name, 0, sizeof(stat.name));
 				gr_vec_add(stats, stat);
@@ -65,6 +66,7 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 				.objs = 0,
 				.calls = w_stats->n_sleeps,
 				.cycles = w_stats->sleep_cycles,
+				.topo_order = UINT64_MAX,
 			};
 			memccpy(stat.name, "idle", 0, sizeof(stat.name));
 			gr_vec_add(stats, stat);

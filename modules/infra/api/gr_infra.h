@@ -124,6 +124,7 @@ struct gr_port_rxq_map {
 
 struct gr_infra_stat {
 	char name[64];
+	uint64_t topo_order;
 	uint64_t objs;
 	uint64_t calls;
 	uint64_t cycles;
