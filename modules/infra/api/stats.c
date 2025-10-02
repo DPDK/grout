@@ -73,9 +73,6 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 		}
 	}
 
-	if (stats == NULL)
-		return errno_set_null(ENODEV);
-
 	return stats;
 }
 
@@ -88,8 +85,9 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 	int ret;
 
 	if (req->flags & GR_INFRA_STAT_F_SW) {
-		if ((stats = graph_stats(req->cpu_id)) == NULL)
-			return api_out(errno, 0, NULL);
+		stats = graph_stats(req->cpu_id);
+		if (stats == NULL && req->cpu_id != UINT16_MAX)
+			return api_out(ENODEV, 0, NULL);
 	}
 
 	if (req->flags & GR_INFRA_STAT_F_HW) {
