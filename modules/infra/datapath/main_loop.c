@@ -103,6 +103,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 		rte_graph_foreach_node (count, off, graph, node) {
 			ctx->node_to_index[node->id] = count;
 			ctx->w_stats->stats[count].node_id = node->id;
+			ctx->w_stats->stats[count].topo_order = count;
 		}
 	}
 
