@@ -93,15 +93,10 @@ static cmd_status_t trace_clear(struct gr_api_client *c, const struct ec_pnode *
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t packet_logging_set(struct gr_api_client *c, const struct ec_pnode *) {
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_SET, 0, NULL, NULL) < 0)
-		return CMD_ERROR;
+static cmd_status_t packet_logging_set(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_infra_packet_log_set_req req = {.enabled = arg_str(p, "enable") != NULL};
 
-	return CMD_SUCCESS;
-}
-
-static cmd_status_t packet_logging_clear(struct gr_api_client *c, const struct ec_pnode *) {
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_CLEAR, 0, NULL, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -170,7 +165,7 @@ static int ctx_init(struct ec_node *root) {
 	ret = CLI_COMMAND(
 		LOGGING_CTX(root),
 		"disable",
-		packet_logging_clear,
+		packet_logging_set,
 		"Disable logging of ingress/egress packets."
 	);
 	if (ret < 0)
