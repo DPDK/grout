@@ -235,6 +235,7 @@ typedef uint16_t gr_infra_stats_flags_t;
 
 struct gr_infra_stats_get_req {
 	gr_infra_stats_flags_t flags;
+	uint16_t cpu_id; // use UINT16_MAX for all CPUs
 	char pattern[64]; // optional glob pattern
 };
 

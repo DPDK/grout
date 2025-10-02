@@ -34,7 +34,7 @@ static struct stat *find_stat(gr_vec struct stat *stats, const char *name) {
 	return errno_set_null(ENOENT);
 }
 
-static gr_vec struct stat *graph_stats(void) {
+static gr_vec struct stat *graph_stats(uint16_t cpu_id) {
 	gr_vec struct stat *stats = NULL;
 	struct worker *worker;
 	struct stat *s;
@@ -42,6 +42,8 @@ static gr_vec struct stat *graph_stats(void) {
 	STAILQ_FOREACH (worker, &workers, next) {
 		const struct worker_stats *w_stats = atomic_load(&worker->stats);
 		if (w_stats == NULL)
+			continue;
+		if (cpu_id != UINT16_MAX && worker->cpu_id != cpu_id)
 			continue;
 		for (unsigned i = 0; i < w_stats->n_stats; i++) {
 			const struct node_stats *n = &w_stats->stats[i];
@@ -76,6 +78,9 @@ static gr_vec struct stat *graph_stats(void) {
 		}
 	}
 
+	if (stats == NULL)
+		return errno_set_null(ENODEV);
+
 	return stats;
 }
 
@@ -87,8 +92,10 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 	struct stat *s;
 	int ret;
 
-	if (req->flags & GR_INFRA_STAT_F_SW)
-		stats = graph_stats();
+	if (req->flags & GR_INFRA_STAT_F_SW) {
+		if ((stats = graph_stats(req->cpu_id)) == NULL)
+			return api_out(errno, 0, NULL);
+	}
 
 	if (req->flags & GR_INFRA_STAT_F_HW) {
 		struct rte_eth_xstat_name *names = NULL;
@@ -284,7 +291,7 @@ err:
 
 static int
 telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	gr_vec struct stat *stats = graph_stats();
+	gr_vec struct stat *stats = graph_stats(UINT16_MAX);
 	struct stat *s;
 
 	rte_tel_data_start_dict(d);
