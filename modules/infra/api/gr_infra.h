@@ -358,13 +358,14 @@ struct gr_infra_packet_trace_set_req {
 
 // struct gr_infra_packet_trace_set_resp { };
 
+// Enable/disable packet ingress/egress logging.
 #define GR_INFRA_PACKET_LOG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0043)
-// struct gr_infra_packet_log_set_req { };
-// struct gr_infra_packet_log_set_resp { };
 
-#define GR_INFRA_PACKET_LOG_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0044)
-// struct gr_infra_packet_log_clear_req { };
-// struct gr_infra_packet_log_clear_resp { };
+struct gr_infra_packet_log_set_req {
+	bool enabled;
+};
+
+// struct gr_infra_packet_log_set_resp { };
 
 // cpu affinities //////////////////////////////////////////////////////////////
 #define GR_INFRA_CPU_AFFINITY_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0050)
