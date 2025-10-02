@@ -30,7 +30,7 @@ static int stats_order_cycles(const void *sa, const void *sb) {
 }
 
 static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_stats_get_req req = {.flags = 0};
+	struct gr_infra_stats_get_req req = {.flags = 0, .cpu_id = UINT16_MAX};
 	bool brief = arg_str(p, "brief") != NULL;
 	struct gr_infra_stats_get_resp *resp;
 	void *resp_ptr = NULL;
@@ -46,6 +46,8 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 	if (pattern == NULL)
 		pattern = "*";
 	snprintf(req.pattern, sizeof(req.pattern), "%s", pattern);
+	if (arg_u16(p, "CPU", &req.cpu_id) < 0 && errno != ENOENT)
+		goto fail;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
 		goto fail;
@@ -115,12 +117,16 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("stats", "Print statistics.")),
-		"(software [brief])|hardware [zero,(pattern PATTERN)]",
+		"(software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU)]",
 		stats_get,
 		"Print statistics.",
 		with_help("Print software stats.", ec_node_str("software", "software")),
 		with_help("Print hardware stats.", ec_node_str("hardware", "hardware")),
 		with_help("Only print packet counts.", ec_node_str("brief", "brief")),
+		with_help(
+			"Only return stats from one CPU.",
+			ec_node_uint("CPU", 0, UINT16_MAX - 1, 10)
+		),
 		with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
 		with_help("Filter by glob pattern.", ec_node("any", "PATTERN"))
 	);
