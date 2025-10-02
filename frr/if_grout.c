@@ -50,6 +50,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	const struct rte_ether_addr *mac = NULL;
 	uint32_t txqlen = 1000;
+	uint32_t speed = UINT32_MAX;
 
 	switch (gr_if->base.type) {
 	case GR_IFACE_TYPE_VLAN:
@@ -64,6 +65,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		txqlen = gr_port->base.txq_size;
 		mac = &gr_port->base.mac;
 		link_type = ZEBRA_LLT_ETHER;
+		speed = gr_port->base.link_speed;
 		break;
 	case GR_IFACE_TYPE_IPIP:
 		link_type = ZEBRA_LLT_IPIP;
@@ -100,6 +102,10 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_INSTALL);
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
+		if (speed != UINT32_MAX) {
+			dplane_ctx_set_ifp_speed_set(ctx, true);
+			dplane_ctx_set_ifp_speed(ctx, speed);
+		}
 
 		// no bond/bridge support in grout
 		dplane_ctx_set_ifp_zif_slave_type(ctx, ZEBRA_IF_SLAVE_NONE);
