@@ -193,6 +193,8 @@ reconfig:
 				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 				goto reconfig;
 			}
+			if (atomic_exchange(&w->stats_reset, false))
+				stats_reset(ctx.w_stats);
 
 			ctx.last_count = 0;
 			rte_graph_cluster_stats_get(ctx.stats, false);
@@ -208,8 +210,6 @@ reconfig:
 				sleep = 0;
 				ctx.w_stats->busy_cycles += cycles;
 			}
-			if (atomic_exchange(&w->stats_reset, false))
-				stats_reset(ctx.w_stats);
 
 			loop = 0;
 			timestamp = timestamp_tmp;
