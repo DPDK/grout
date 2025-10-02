@@ -77,13 +77,9 @@ static struct api_out clear_trace(const void * /*request*/, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out packet_log_enable(const void * /*request */, struct api_ctx *) {
-	gr_config.log_packets = true;
-	return api_out(0, 0, NULL);
-}
-
-static struct api_out packet_log_disable(const void * /*request */, struct api_ctx *) {
-	gr_config.log_packets = false;
+static struct api_out packet_log_set(const void *request, struct api_ctx *) {
+	const struct gr_infra_packet_log_set_req *req = request;
+	gr_config.log_packets = req->enabled;
 	return api_out(0, 0, NULL);
 }
 
@@ -108,13 +104,7 @@ static struct gr_api_handler clear_trace_handler = {
 static struct gr_api_handler set_packet_log_handler = {
 	.name = "set packet logging",
 	.request_type = GR_INFRA_PACKET_LOG_SET,
-	.callback = packet_log_enable,
-};
-
-static struct gr_api_handler clear_packet_log_handler = {
-	.name = "clear packet logging",
-	.request_type = GR_INFRA_PACKET_LOG_CLEAR,
-	.callback = packet_log_disable,
+	.callback = packet_log_set,
 };
 
 static struct gr_event_subscription iface_add_sub = {
@@ -128,6 +118,5 @@ RTE_INIT(trace_init) {
 	gr_register_api_handler(&dump_trace_handler);
 	gr_register_api_handler(&clear_trace_handler);
 	gr_register_api_handler(&set_packet_log_handler);
-	gr_register_api_handler(&clear_packet_log_handler);
 	gr_event_subscribe(&iface_add_sub);
 }
