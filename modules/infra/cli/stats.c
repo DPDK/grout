@@ -29,6 +29,17 @@ static int stats_order_cycles(const void *sa, const void *sb) {
 	return 1;
 }
 
+static int stats_order_packets(const void *sa, const void *sb) {
+	const struct gr_infra_stat *a = sa;
+	const struct gr_infra_stat *b = sb;
+
+	if (a->objs == b->objs)
+		return 0;
+	if (a->objs > b->objs)
+		return -1;
+	return 1;
+}
+
 static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_stats_get_req req = {.flags = 0, .cpu_id = UINT16_MAX};
 	bool brief = arg_str(p, "brief") != NULL;
@@ -54,8 +65,21 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 
 	resp = resp_ptr;
 
+	int (*sort_func)(const void *, const void *);
+	const char *order = arg_str(p, "ORDER") ?: "";
+	if (strcmp(order, "name") == 0)
+		sort_func = stats_order_name;
+	else if (strcmp(order, "cycles") == 0)
+		sort_func = stats_order_cycles;
+	else if (strcmp(order, "packets") == 0)
+		sort_func = stats_order_packets;
+	else if (req.flags & GR_INFRA_STAT_F_HW || brief)
+		sort_func = stats_order_name;
+	else
+		sort_func = stats_order_cycles;
+
 	if (req.flags & GR_INFRA_STAT_F_HW || brief) {
-		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order_name);
+		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_infra_stat *s = &resp->stats[i];
 			if (req.flags & GR_INFRA_STAT_F_HW || brief)
@@ -72,7 +96,7 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
 		scols_table_set_column_separator(table, "  ");
 
-		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), stats_order_cycles);
+		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -117,7 +141,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("stats", "Print statistics.")),
-		"(software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU)]",
+		"(software [brief])|hardware [zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
 		stats_get,
 		"Print statistics.",
 		with_help("Print software stats.", ec_node_str("software", "software")),
@@ -128,7 +152,22 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_uint("CPU", 0, UINT16_MAX - 1, 10)
 		),
 		with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
-		with_help("Filter by glob pattern.", ec_node("any", "PATTERN"))
+		with_help("Filter by glob pattern.", ec_node("any", "PATTERN")),
+		with_help(
+			"Ordering.",
+			EC_NODE_OR(
+				"ORDER",
+				with_help("Sort by stat name.", ec_node_str(EC_NO_ID, "name")),
+				with_help(
+					"Sort by decreasing number of packets.",
+					ec_node_str(EC_NO_ID, "packets")
+				),
+				with_help(
+					"Sort by decreasing number of cycles.",
+					ec_node_str(EC_NO_ID, "cycles")
+				)
+			)
+		)
 	);
 	if (ret < 0)
 		return ret;
