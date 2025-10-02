@@ -360,11 +360,15 @@ close:
 	disconnect_client(ctx);
 }
 
-static void event_cb(struct bufferevent *bev, short events, void *priv) {
-	assert(priv != NULL);
+static void event_cb(struct bufferevent *, short events, void *priv) {
+	struct api_ctx *ctx = priv;
+	assert(ctx != NULL);
 
-	if (events & BEV_EVENT_ERROR)
-		LOG(ERR, "bufferevent error on fd=%d: %s", bufferevent_getfd(bev), strerror(errno));
+	if (events & BEV_EVENT_ERROR) {
+		if (errno == EPIPE)
+			events |= BEV_EVENT_EOF;
+		LOG(ERR, "client pid=%d %s", ctx->pid, strerror(errno));
+	}
 
 	if (events & BEV_EVENT_EOF)
 		disconnect_client(priv);
