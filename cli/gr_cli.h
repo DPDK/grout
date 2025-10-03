@@ -11,15 +11,15 @@
 
 #include <sys/queue.h>
 
-typedef int(gr_cli_ctx_init_t)(struct ec_node *root);
+typedef int (*cli_ctx_init_t)(struct ec_node *root);
 
-struct gr_cli_context {
+struct cli_context {
 	const char *name;
-	gr_cli_ctx_init_t *init;
-	STAILQ_ENTRY(gr_cli_context) entries;
+	cli_ctx_init_t init;
+	STAILQ_ENTRY(cli_context) next;
 };
 
-void register_context(struct gr_cli_context *);
+void cli_context_register(struct cli_context *);
 
 void errorf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
@@ -29,11 +29,11 @@ typedef enum {
 	CMD_EXIT,
 } cmd_status_t;
 
-typedef cmd_status_t(cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
+typedef cmd_status_t (*cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
 
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
-struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node);
+struct ec_node *with_callback(cmd_cb_t cb, struct ec_node *node);
 
 struct ctx_arg {
 	const char *name;
@@ -46,8 +46,10 @@ const char *arg_str(const struct ec_pnode *p, const char *id);
 int arg_i64(const struct ec_pnode *p, const char *id, int64_t *);
 int arg_u64(const struct ec_pnode *p, const char *id, uint64_t *);
 int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr *);
+int arg_ip(const struct ec_pnode *p, const char *id, void *addr, int af);
 int arg_ip4(const struct ec_pnode *p, const char *id, ip4_addr_t *addr);
 int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr);
+int arg_ip_net(const struct ec_pnode *p, const char *id, void *net, bool zero_mask, int af);
 int arg_ip4_net(const struct ec_pnode *p, const char *id, struct ip4_net *net, bool zero_mask);
 int arg_ip6_net(const struct ec_pnode *p, const char *id, struct ip6_net *net, bool zero_mask);
 
@@ -92,12 +94,6 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 			cb, with_help(help, EC_NODE_CMD(cmd, cmd __VA_OPT__(, ) __VA_ARGS__))      \
 		)                                                                                  \
 	)
-
-#define CTX_ADD CTX_ARG("add", "Create objects in the configuration.")
-#define CTX_SET CTX_ARG("set", "Modify existing objects in the configuration.")
-#define CTX_DEL CTX_ARG("del", "Delete objects from the configuration.")
-#define CTX_SHOW CTX_ARG("show", "Display information about the configuration.")
-#define CTX_CLEAR CTX_ARG("clear", "Clear counters or temporary entries.")
 
 typedef int (*ec_node_dyn_comp_t)(
 	struct gr_api_client *,

@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include "exec.h"
+#include <ecoli.h>
 
 #include <stdio.h>
 
 #define BOLD_RED_SGR "\x1b[1;31m"
 #define BOLD_YELLOW_SGR "\x1b[1;33m"
+#define YELLOW_SGR "\x1b[33m"
 #define CYAN_SGR "\x1b[36m"
 #define RESET_SGR "\x1b[0m"
 
@@ -16,6 +17,6 @@ void tty_init(void);
 
 bool is_tty(const FILE *);
 
-int print_cmd_status(exec_status_t status);
+const char *need_quote(const char *arg);
 
-void trace_cmd(const char *line);
+void trace_cmd(const struct ec_strvec *cmd);

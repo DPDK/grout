@@ -38,7 +38,7 @@ struct gr_api_handler {
 	const char *name;
 	uint32_t request_type;
 	gr_api_handler_func callback;
-	STAILQ_ENTRY(gr_api_handler) entries;
+	STAILQ_ENTRY(gr_api_handler) next;
 };
 
 void gr_register_api_handler(struct gr_api_handler *);
@@ -48,7 +48,7 @@ struct gr_module {
 	const char *depends_on;
 	void (*init)(struct event_base *);
 	void (*fini)(struct event_base *);
-	STAILQ_ENTRY(gr_module) entries;
+	STAILQ_ENTRY(gr_module) next;
 };
 
 void gr_register_module(struct gr_module *);

@@ -23,7 +23,7 @@ struct ec_node *with_help(const char *help, struct ec_node *node) {
 	return node;
 }
 
-struct ec_node *with_callback(cmd_cb_t *cb, struct ec_node *node) {
+struct ec_node *with_callback(cmd_cb_t cb, struct ec_node *node) {
 	if (node == NULL)
 		return NULL;
 	struct ec_dict *attrs = ec_node_attrs(node);
@@ -177,7 +177,7 @@ int arg_eth_addr(const struct ec_pnode *p, const char *id, struct rte_ether_addr
 	return 0;
 }
 
-static int arg_ip(const struct ec_pnode *p, const char *id, void *addr, int family) {
+int arg_ip(const struct ec_pnode *p, const char *id, void *addr, int family) {
 	const char *str = arg_str(p, id);
 	if (str == NULL)
 		return -errno;
@@ -196,8 +196,7 @@ int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr
 	return arg_ip(p, id, addr, AF_INET6);
 }
 
-static int
-arg_ip_net(const struct ec_pnode *p, const char *id, void *net, bool zero_mask, int family) {
+int arg_ip_net(const struct ec_pnode *p, const char *id, void *net, bool zero_mask, int family) {
 	const char *str = arg_str(p, id);
 	if (str == NULL)
 		return -errno;

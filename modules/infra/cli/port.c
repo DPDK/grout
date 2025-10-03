@@ -189,7 +189,7 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
+		INTERFACE_ADD_CTX(root),
 		"port NAME devargs DEVARGS [" PORT_ATTRS_CMD "]",
 		port_add,
 		"Create a new port.",
@@ -200,7 +200,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("interface", "Modify interfaces.")),
+		INTERFACE_SET_CTX(root),
 		"port NAME (name NEW_NAME)," PORT_ATTRS_CMD,
 		port_set,
 		"Modify port parameters.",
@@ -217,12 +217,12 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "infra port",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
+	cli_context_register(&ctx);
 	register_iface_type(&port_type);
 }

@@ -159,7 +159,7 @@ static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ADD, CTX_ARG("interface", "Create interfaces.")),
+		INTERFACE_ADD_CTX(root),
 		"vlan NAME parent PARENT vlan_id VLAN [" VLAN_ATTRS_CMD "]",
 		vlan_add,
 		"Create a new VLAN sub interface.",
@@ -174,7 +174,7 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SET, CTX_ARG("interface", "Modify interfaces.")),
+		INTERFACE_SET_CTX(root),
 		"vlan NAME (name NEW_NAME),(parent PARENT),(vlan_id VLAN)," VLAN_ATTRS_CMD,
 		vlan_set,
 		"Modify VLAN parameters.",
@@ -196,12 +196,12 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "infra vlan",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
+	cli_context_register(&ctx);
 	register_iface_type(&vlan_type);
 }

@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 cli_src += files(
+  'address.c',
   'affinity.c',
   'events.c',
   'graph.c',
@@ -9,6 +10,7 @@ cli_src += files(
   'loopback.c',
   'nexthop.c',
   'port.c',
+  'route.c',
   'stats.c',
   'trace.c',
   'vlan.c',

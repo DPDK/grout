@@ -9,18 +9,18 @@ p1=${run_id}1
 p2=${run_id}2
 p3=${run_id}3
 
-grcli add interface port $p0 devargs net_tap0,iface=$p0 vrf 1 mac f0:0d:ac:dc:01:00
-grcli add interface port $p1 devargs net_tap1,iface=$p1 vrf 1 mac f0:0d:ac:dc:01:01
-grcli add interface port $p2 devargs net_tap2,iface=$p2 vrf 2 mac f0:0d:ac:dc:02:00
-grcli add interface port $p3 devargs net_tap3,iface=$p3 vrf 2 mac f0:0d:ac:dc:02:01
-grcli add ip address 172.16.0.1/24 iface $p0
-grcli add ip address 172.16.1.1/24 iface $p1
-grcli add ip route 16.0.0.0/16 via 172.16.0.2 vrf 1
-grcli add ip route 16.1.0.0/16 via 172.16.1.2 vrf 1
-grcli add ip address 172.16.0.1/24 iface $p2
-grcli add ip address 172.16.1.1/24 iface $p3
-grcli add ip route 16.0.0.0/16 via 172.16.0.2 vrf 2
-grcli add ip route 16.1.0.0/16 via 172.16.1.2 vrf 2
+grcli interface add port $p0 devargs net_tap0,iface=$p0 vrf 1 mac f0:0d:ac:dc:01:00
+grcli interface add port $p1 devargs net_tap1,iface=$p1 vrf 1 mac f0:0d:ac:dc:01:01
+grcli interface add port $p2 devargs net_tap2,iface=$p2 vrf 2 mac f0:0d:ac:dc:02:00
+grcli interface add port $p3 devargs net_tap3,iface=$p3 vrf 2 mac f0:0d:ac:dc:02:01
+grcli address add 172.16.0.1/24 iface $p0
+grcli address add 172.16.1.1/24 iface $p1
+grcli route add 16.0.0.0/16 via 172.16.0.2 vrf 1
+grcli route add 16.1.0.0/16 via 172.16.1.2 vrf 1
+grcli address add 172.16.0.1/24 iface $p2
+grcli address add 172.16.1.1/24 iface $p3
+grcli route add 16.0.0.0/16 via 172.16.0.2 vrf 2
+grcli route add 16.1.0.0/16 via 172.16.1.2 vrf 2
 
 for n in 0 1; do
 	p=$run_id$n

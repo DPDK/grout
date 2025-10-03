@@ -120,23 +120,23 @@ Total number of neighbors 1
 ```
 
 ```grout
-grout# show ip route
-VRF  DESTINATION        NEXT_HOP       ORIGIN  ID  NEXT_HOP_VRF
-0    192.168.1.0/24     192.168.210.3  bgp     10  0
-0    192.168.2.0/24     192.168.210.3  bgp     10  0
-0    192.168.11.254/32  192.168.210.3  bgp     10  0
-0    192.168.11.0/24    192.168.210.3  bgp     10  0
-0    192.168.20.0/24    192.168.210.3  bgp     10  0
-0    192.168.94.0/24    192.168.210.3  bgp     10  0
-0    192.168.95.0/24    192.168.210.3  bgp     10  0
-0    192.168.200.0/24   192.168.210.3  bgp     10  0
-0    192.168.201.0/24   192.168.210.3  bgp     10  0
-0    192.168.203.0/24   192.168.210.3  bgp     10  0
-0    192.168.210.0/24   192.168.210.1  link        0
-0    192.168.211.0/24   192.168.211.1  link        0
-0    192.168.239.0/24   192.168.210.3  bgp     10  0
-0    192.168.254.0/24   192.168.210.3  bgp     10  0
-0    192.168.255.10/32  192.168.210.3  bgp     10  0
+grout# route show
+VRF  DESTINATION        NEXT_HOP
+0    192.168.1.0/24     type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.2.0/24     type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.11.254/32  type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.11.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.20.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.94.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.95.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.200.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.201.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.203.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.210.0/24   type=L3 iface=p0 vrf=0 origin=link af=IPv4 addr=192.168.210.1/24 mac=f0:0d:ac:dc:00:00 static local link
+0    192.168.211.0/24   type=L3 iface=p1 vrf=0 origin=link af=IPv4 addr=192.168.211.1/24 mac=f0:0d:ac:dc:00:01 static local link
+0    192.168.239.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.254.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
+0    192.168.255.10/32  type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
 ```
 
 # AUTHORS

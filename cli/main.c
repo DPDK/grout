@@ -123,6 +123,22 @@ static int parse_args(int argc, char **argv) {
 	return optind;
 }
 
+static int check_status(exec_status_t status) {
+	switch (status) {
+	case EXEC_SUCCESS:
+	case EXEC_CMD_EMPTY:
+	case EXEC_CMD_EXIT:
+		return 0;
+	case EXEC_LEX_ERROR:
+	case EXEC_CMD_INVALID_ARGS:
+	case EXEC_CMD_FAILED:
+	case EXEC_CB_UNDEFINED:
+	case EXEC_OTHER_ERROR:
+		break;
+	}
+	return -1;
+}
+
 int main(int argc, char **argv) {
 	struct gr_api_client *client = NULL;
 	struct ec_node *cmdlist = NULL;
@@ -164,8 +180,8 @@ int main(int argc, char **argv) {
 	ec_dict_set(ec_node_attrs(cmdlist), CLIENT_ATTR, client, NULL);
 
 	if (argc > 0) {
-		status = exec_args(client, cmdlist, argc, (const char *const *)argv);
-		if (print_cmd_status(status) < 0)
+		status = exec_args(client, cmdlist, argc, (const char *const *)argv, false);
+		if (check_status(status) < 0)
 			goto end;
 	} else if (is_tty(opts.cmds_file)) {
 		if (interact(client, cmdlist) < 0)
@@ -173,10 +189,8 @@ int main(int argc, char **argv) {
 	} else {
 		char buf[BUFSIZ];
 		while (fgets(buf, sizeof(buf), opts.cmds_file)) {
-			if (opts.trace_commands)
-				trace_cmd(buf);
-			status = exec_line(client, cmdlist, buf);
-			if (print_cmd_status(status) < 0 && opts.err_exit)
+			status = exec_line(client, cmdlist, buf, opts.trace_commands);
+			if (check_status(status) < 0 && opts.err_exit)
 				goto end;
 		}
 	}

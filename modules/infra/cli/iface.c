@@ -486,9 +486,15 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	if (INTERFACE_ADD_CTX(root) == NULL)
+		return -1;
+
+	if (INTERFACE_SET_CTX(root) == NULL)
+		return -1;
+
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_DEL, CTX_ARG("interface", "Delete interfaces.")),
-		"NAME",
+		INTERFACE_CTX(root),
+		"del NAME",
 		iface_del,
 		"Delete an existing interface.",
 		with_help(
@@ -498,9 +504,20 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
+
+	ret = CLI_COMMAND(INTERFACE_CTX(root), "stats", iface_stats, "Show interface counters.");
+	if (ret < 0)
+		return ret;
+
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW, CTX_ARG("interface", "Display interface details.")),
-		"[(name NAME)|(type TYPE)|stats|rates]",
+		INTERFACE_CTX(root), "rates", iface_rates, "Show interface counter rates."
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CTX(root),
+		"[show] [(name NAME)|(type TYPE)]",
 		iface_show,
 		"Show interface details.",
 		with_help(
@@ -510,15 +527,15 @@ static int ctx_init(struct ec_node *root) {
 		with_help(
 			"Show only this type of interface.",
 			ec_node_dyn("TYPE", complete_iface_types, NULL)
-		),
-		with_help("Show interface statistics.", ec_node_str("stats", "stats")),
-		with_help("Show interface counter rates.", ec_node_str("rates", "rates"))
+		)
 	);
+	if (ret < 0)
+		return ret;
 
 	return ret;
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "infra iface",
 	.init = ctx_init,
 };
@@ -557,7 +574,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	printf(" id=%u vrf=%u mtu=%u\n", iface->id, iface->vrf_id, iface->mtu);
 }
 
-static struct gr_cli_event_printer printer = {
+static struct cli_event_printer printer = {
 	.print = iface_event_print,
 	.ev_count = 5,
 	.ev_types = {
@@ -570,6 +587,6 @@ static struct gr_cli_event_printer printer = {
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_event_register_printer(&printer);
+	cli_context_register(&ctx);
+	cli_event_printer_register(&printer);
 }

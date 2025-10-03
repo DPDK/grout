@@ -7,6 +7,8 @@
 
 #include <ecoli.h>
 
+#include <stdbool.h>
+
 struct ec_node *init_commands(void);
 
 typedef enum {
@@ -22,7 +24,13 @@ typedef enum {
 
 #define CALLBACK_ATTR "callback"
 
-exec_status_t exec_line(struct gr_api_client *, const struct ec_node *, const char *line);
+exec_status_t exec_args(
+	struct gr_api_client *,
+	const struct ec_node *,
+	size_t argc,
+	const char *const *argv,
+	bool trace
+);
 
 exec_status_t
-exec_args(struct gr_api_client *, const struct ec_node *, size_t argc, const char *const *argv);
+exec_line(struct gr_api_client *, const struct ec_node *, const char *line, bool trace);

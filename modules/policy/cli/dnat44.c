@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include "policy.h"
-
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
@@ -93,18 +91,20 @@ static ssize_t format_nexthop_info_dnat(char *buf, size_t len, const void *info)
 	return snprintf(buf, len, "match=" IP4_F " replace=" IP4_F, &dnat->match, &dnat->replace);
 }
 
-static struct gr_cli_nexthop_formatter dnat_formatter = {
+static struct cli_nexthop_formatter dnat_formatter = {
 	.name = "dnat",
 	.type = GR_NH_T_DNAT,
 	.format = format_nexthop_info_dnat,
 };
 
+#define DNAT_CTX(root) CLI_CONTEXT(root, CTX_ARG("dnat44", "Static destination NAT44."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		POLICY_ADD_CTX(root),
-		"dnat44 interface IFACE destination DEST replace REPLACE",
+		DNAT_CTX(root),
+		"add interface IFACE destination DEST replace REPLACE",
 		dnat44_add,
 		"Create a DNAT44 rule.",
 		with_help("Input interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
@@ -114,8 +114,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		POLICY_DEL_CTX(root),
-		"dnat44 interface IFACE destination DEST",
+		DNAT_CTX(root),
+		"del interface IFACE destination DEST",
 		dnat44_del,
 		"Delete a DNAT44 rule.",
 		with_help("Input interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
@@ -124,8 +124,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		POLICY_SHOW_CTX(root),
-		"dnat44 [vrf VRF]",
+		DNAT_CTX(root),
+		"[show] [vrf VRF]",
 		dnat44_list,
 		"Display DNAT44 rules.",
 		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
@@ -136,12 +136,12 @@ static int ctx_init(struct ec_node *root) {
 	return 0;
 }
 
-static struct gr_cli_context ctx = {
-	.name = "nat44",
+static struct cli_context ctx = {
+	.name = "dnat44",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
-	gr_cli_nexthop_register_formatter(&dnat_formatter);
+	cli_context_register(&ctx);
+	cli_nexthop_formatter_register(&dnat_formatter);
 }

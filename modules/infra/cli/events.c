@@ -9,15 +9,15 @@
 
 #include <sys/queue.h>
 
-static STAILQ_HEAD(, gr_cli_event_printer) printers = STAILQ_HEAD_INITIALIZER(printers);
+static STAILQ_HEAD(, cli_event_printer) printers = STAILQ_HEAD_INITIALIZER(printers);
 
-void gr_cli_event_register_printer(struct gr_cli_event_printer *p) {
-	STAILQ_INSERT_TAIL(&printers, p, entries);
+void cli_event_printer_register(struct cli_event_printer *p) {
+	STAILQ_INSERT_TAIL(&printers, p, next);
 }
 
-static const struct gr_cli_event_printer *get_event_printer(uint32_t ev_type) {
-	const struct gr_cli_event_printer *p;
-	STAILQ_FOREACH (p, &printers, entries) {
+static const struct cli_event_printer *get_event_printer(uint32_t ev_type) {
+	const struct cli_event_printer *p;
+	STAILQ_FOREACH (p, &printers, next) {
 		for (unsigned i = 0; i < p->ev_count; i++)
 			if (p->ev_types[i] == ev_type)
 				return p;
@@ -29,7 +29,7 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 	struct gr_event_subscribe_req req = {
 		.suppress_self_events = false, .ev_type = EVENT_TYPE_ALL
 	};
-	const struct gr_cli_event_printer *p;
+	const struct cli_event_printer *p;
 	struct gr_api_event *e = NULL;
 
 	if (gr_api_client_send_recv(c, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL) < 0)
@@ -54,18 +54,18 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 
 static int ctx_init(struct ec_node *root) {
 	return CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_SHOW),
-		"events",
+		root,
+		"events [show]",
 		events_show,
 		"Subscribe to all events and dump them in real time"
 	);
 }
 
-static struct gr_cli_context ctx = {
+static struct cli_context ctx = {
 	.name = "events",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	register_context(&ctx);
+	cli_context_register(&ctx);
 }

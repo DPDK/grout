@@ -23,8 +23,8 @@ for n in 0 1; do
 	ip -n n-$p addr show
 done
 
-set_ip_address $p0 172.16.0.1/24 1
-set_ip_address $p1 172.16.1.1/24 2
+set_ip_address $p0 172.16.0.1/24
+set_ip_address $p1 172.16.1.1/24
 set_vrf_iface 1
 set_vrf_iface 2
 
