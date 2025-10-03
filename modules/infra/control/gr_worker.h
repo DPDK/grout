@@ -25,8 +25,8 @@ struct queue_map {
 struct node_stats {
 	rte_node_t node_id;
 	uint16_t topo_order;
-	uint64_t objs;
-	uint64_t calls;
+	uint64_t packets;
+	uint64_t batches;
 	uint64_t cycles;
 };
 

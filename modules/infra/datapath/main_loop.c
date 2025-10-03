@@ -43,8 +43,8 @@ static int node_stats_callback(
 	ctx->last_count += objs_incr;
 	index = ctx->node_to_index[stats->id];
 	s = &ctx->w_stats->stats[index];
-	s->objs += objs_incr;
-	s->calls += stats->calls - stats->prev_calls;
+	s->packets += objs_incr;
+	s->batches += stats->calls - stats->prev_calls;
 	s->cycles += stats->cycles - stats->prev_cycles;
 
 	return 0;
@@ -53,8 +53,8 @@ static int node_stats_callback(
 static inline void stats_reset(struct worker_stats *stats) {
 	for (unsigned i = 0; i < stats->n_stats; i++) {
 		struct node_stats *s = &stats->stats[i];
-		s->objs = 0;
-		s->calls = 0;
+		s->packets = 0;
+		s->batches = 0;
 		s->cycles = 0;
 	}
 	stats->sleep_cycles = 0;

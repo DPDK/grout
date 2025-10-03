@@ -33,9 +33,9 @@ static int stats_order_packets(const void *sa, const void *sb) {
 	const struct gr_infra_stat *a = sa;
 	const struct gr_infra_stat *b = sb;
 
-	if (a->objs == b->objs)
+	if (a->packets == b->packets)
 		return 0;
-	if (a->objs > b->objs)
+	if (a->packets > b->packets)
 		return -1;
 	return 1;
 }
@@ -96,16 +96,16 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_infra_stat *s = &resp->stats[i];
 			if (req.flags & GR_INFRA_STAT_F_HW || brief)
-				printf("%s %lu\n", s->name, s->objs);
+				printf("%s %lu\n", s->name, s->packets);
 		}
 	} else {
 		struct libscols_table *table = scols_new_table();
 
 		scols_table_new_column(table, "NODE", 0, 0);
-		scols_table_new_column(table, "CALLS", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "BATCHES", 0, SCOLS_FL_RIGHT);
 		scols_table_new_column(table, "PACKETS", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "PKTS/CALL", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "CYCLES/CALL", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "PKTS/BATCH", 0, SCOLS_FL_RIGHT);
+		scols_table_new_column(table, "CYCLES/BATCH", 0, SCOLS_FL_RIGHT);
 		scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
 		scols_table_set_column_separator(table, "  ");
 
@@ -116,16 +116,16 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 			double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
 			const struct gr_infra_stat *s = &resp->stats[i];
 
-			if (s->calls != 0) {
-				pkt_call = ((double)s->objs) / ((double)s->calls);
-				cycles_call = ((double)s->cycles) / ((double)s->calls);
+			if (s->batches != 0) {
+				pkt_call = ((double)s->packets) / ((double)s->batches);
+				cycles_call = ((double)s->cycles) / ((double)s->batches);
 			}
-			if (s->objs != 0)
-				cycles_pkt = ((double)s->cycles) / ((double)s->objs);
+			if (s->packets != 0)
+				cycles_pkt = ((double)s->cycles) / ((double)s->packets);
 
 			scols_line_sprintf(line, 0, "%s", s->name);
-			scols_line_sprintf(line, 1, "%lu", s->calls);
-			scols_line_sprintf(line, 2, "%lu", s->objs);
+			scols_line_sprintf(line, 1, "%lu", s->batches);
+			scols_line_sprintf(line, 2, "%lu", s->packets);
 			scols_line_sprintf(line, 3, "%.01f", pkt_call);
 			scols_line_sprintf(line, 4, "%.01f", cycles_call);
 			scols_line_sprintf(line, 5, "%.01f", cycles_pkt);

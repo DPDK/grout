@@ -44,13 +44,13 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 			const char *name = rte_node_id_to_name(n->node_id);
 			s = find_stat(stats, name);
 			if (s != NULL) {
-				s->objs += n->objs;
-				s->calls += n->calls;
+				s->packets += n->packets;
+				s->batches += n->batches;
 				s->cycles += n->cycles;
 			} else {
 				struct gr_infra_stat stat = {
-					.objs = n->objs,
-					.calls = n->calls,
+					.packets = n->packets,
+					.batches = n->batches,
 					.cycles = n->cycles,
 					.topo_order = n->topo_order,
 				};
@@ -58,17 +58,17 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 				gr_vec_add(stats, stat);
 			}
 			if (strcmp(name, "port_rx") == 0 || strcmp(name, "control_input") == 0)
-				pkts += n->objs;
+				pkts += n->packets;
 			node_cycles += n->cycles;
 		}
 		s = find_stat(stats, "idle");
 		if (s != NULL) {
-			s->calls += w_stats->n_sleeps;
+			s->batches += w_stats->n_sleeps;
 			s->cycles += w_stats->sleep_cycles;
 		} else {
 			struct gr_infra_stat stat = {
-				.objs = 0,
-				.calls = w_stats->n_sleeps,
+				.packets = 0,
+				.batches = w_stats->n_sleeps,
 				.cycles = w_stats->sleep_cycles,
 				.topo_order = UINT64_MAX,
 			};
@@ -80,8 +80,8 @@ static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
 	}
 
 	struct gr_infra_stat stat = {
-		.objs = pkts,
-		.calls = n_loops,
+		.packets = pkts,
+		.batches = n_loops,
 		.cycles = loop_cycles - node_cycles,
 		.topo_order = UINT64_MAX - 1,
 	};
@@ -95,11 +95,11 @@ static bool skip_stat(const struct gr_infra_stat *s, gr_infra_stats_flags_t flag
 	if (flags & GR_INFRA_STAT_F_ZERO)
 		return false;
 
-	if (s->objs != 0)
+	if (s->packets != 0)
 		return false;
 
 	if (strcmp(s->name, "idle") == 0 || strcmp(s->name, "overhead") == 0) {
-		if (s->calls != 0)
+		if (s->batches != 0)
 			return false;
 	}
 
@@ -153,8 +153,8 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
 				struct gr_infra_stat stat = {
-					.objs = xstats[i].value,
-					.calls = 0,
+					.packets = xstats[i].value,
+					.batches = 0,
 					.cycles = 0,
 				};
 				// prefix each xstat name with interface name
@@ -315,14 +315,14 @@ telemetry_sw_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte
 	rte_tel_data_start_dict(d);
 
 	gr_vec_foreach_ref (s, stats) {
-		if (s->calls > 0) {
+		if (s->batches > 0) {
 			struct rte_tel_data *val = rte_tel_data_alloc();
 			if (val == NULL) {
 				goto err;
 			}
 			rte_tel_data_start_dict(val);
-			rte_tel_data_add_dict_uint(val, "packets", s->objs);
-			rte_tel_data_add_dict_uint(val, "calls", s->calls);
+			rte_tel_data_add_dict_uint(val, "packets", s->packets);
+			rte_tel_data_add_dict_uint(val, "batches", s->batches);
 			rte_tel_data_add_dict_uint(val, "cycles", s->cycles);
 			if (rte_tel_data_add_dict_container(d, s->name, val, 0) != 0) {
 				rte_tel_data_free(val);
