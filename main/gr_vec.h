@@ -139,6 +139,20 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 	return hdr + 1;
 }
 
+// (internal) concatenate items from ext at the end of a vector
+static inline void *__gr_vec_extend(void *vec, const void *v, size_t item_size) {
+	uint32_t ext_len = gr_vec_len(v);
+
+	if (ext_len == 0)
+		return vec;
+
+	vec = __gr_vec_grow(vec, item_size, ext_len, 0);
+	memcpy((void *)((uintptr_t)vec + (item_size * gr_vec_len(vec))), v, ext_len * item_size);
+	__gr_vec_hdr(vec)->len += ext_len;
+
+	return vec;
+}
+
 // (internal) free a vector of dynamically allocated strings
 static inline char **__gr_strvec_free(gr_vec char **vec) {
 	for (unsigned i = 0; i < gr_vec_len(vec); i++)
@@ -168,6 +182,9 @@ static inline void __gr_vec_abort(const char *msg) {
 
 // add an item at the end of a vector
 #define gr_vec_add(v, x) (gr_vec_maybe_grow(v, 1), (v)[__gr_vec_hdr(v)->len++] = (x))
+
+// append all items of a vector at the end of another vector
+#define gr_vec_extend(v, v2) ((v) = __gr_vec_extend(v, v2, sizeof(*(v))))
 
 // add an item at a specific index in a vector
 #define gr_vec_insert(v, i, x) ((v) = __gr_vec_shift_range(v, sizeof(*(v)), (i), 1), (v)[i] = (x))

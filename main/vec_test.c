@@ -96,11 +96,41 @@ static void dyn_str_vec(void **) {
 	gr_strvec_free(vec);
 }
 
+static void ext_vec(void **) {
+	gr_vec const char **vec1 = NULL;
+	gr_vec const char **vec2 = NULL;
+
+	gr_vec_add(vec1, "foo1");
+	gr_vec_add(vec1, "bar1");
+	gr_vec_add(vec1, "baz1");
+
+	gr_vec_add(vec2, "foo2");
+	gr_vec_add(vec2, "bar2");
+	gr_vec_add(vec2, "baz2");
+
+	assert_int_equal(gr_vec_len(vec1), 3);
+	assert_int_equal(gr_vec_len(vec2), 3);
+
+	gr_vec_extend(vec1, vec2);
+
+	assert_int_equal(gr_vec_len(vec1), 6);
+	assert_string_equal(vec1[0], "foo1");
+	assert_string_equal(vec1[1], "bar1");
+	assert_string_equal(vec1[2], "baz1");
+	assert_string_equal(vec1[3], "foo2");
+	assert_string_equal(vec1[4], "bar2");
+	assert_string_equal(vec1[5], "baz2");
+
+	gr_vec_free(vec1);
+	gr_vec_free(vec2);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(int_vec),
 		cmocka_unit_test(str_vec),
 		cmocka_unit_test(dyn_str_vec),
+		cmocka_unit_test(ext_vec),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
