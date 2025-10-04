@@ -7,6 +7,8 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_rcu.h>
+#include <gr_sort.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <rte_common.h>
@@ -63,6 +65,24 @@ static inline void stats_reset(struct worker_stats *stats) {
 	stats->n_loops = 0;
 }
 
+static bool node_is_child(const void *node, const void *maybe_child) {
+	const struct rte_node *c = maybe_child;
+	const struct rte_node *n = node;
+
+	for (rte_edge_t edge = 0; edge < n->nb_edges; edge++) {
+		if (n->nodes[edge]->id == c->id)
+			return true;
+	}
+
+	return false;
+}
+
+static int node_name_cmp(const void *a, const void *b) {
+	const struct rte_node *na = *(const struct rte_node **)a;
+	const struct rte_node *nb = *(const struct rte_node **)b;
+	return strncmp(na->name, nb->name, sizeof(na->name));
+}
+
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
 	struct rte_graph_cluster_stats_param stats_param;
 	const char *graph_names[1];
@@ -112,14 +132,27 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 		}
 		ctx->w_stats->n_stats = graph->nb_nodes;
 
-		struct rte_node *node;
+		gr_vec const struct rte_node **nodes = NULL;
+		const struct rte_node *node;
 		rte_graph_off_t off;
 		rte_node_t count;
-		rte_graph_foreach_node (count, off, graph, node) {
+		rte_graph_foreach_node (count, off, graph, node)
+			gr_vec_add(nodes, node);
+
+		// sort by name first to ensure stable topo_sort
+		qsort(nodes, count, sizeof(void *), node_name_cmp);
+		if (topo_sort((gr_vec const void **)nodes, node_is_child) < 0)
+			LOG(ERR, "topo_sort failed: %s", strerror(errno));
+
+		count = 0;
+		gr_vec_foreach (node, nodes) {
 			ctx->node_to_index[node->id] = count;
 			ctx->w_stats->stats[count].node_id = node->id;
 			ctx->w_stats->stats[count].topo_order = count;
+			count++;
 		}
+
+		gr_vec_free(nodes);
 	}
 
 	return 0;
