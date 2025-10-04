@@ -7,6 +7,8 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_rcu.h>
+#include <gr_sort.h>
+#include <gr_vec.h>
 #include <gr_worker.h>
 
 #include <rte_common.h>
@@ -25,7 +27,7 @@ struct stats_context {
 	struct rte_graph_cluster_stats *stats;
 	uint64_t last_count;
 	struct worker_stats *w_stats;
-	uint8_t node_to_index[256];
+	unsigned *node_to_index;
 };
 
 static int node_stats_callback(
@@ -37,7 +39,7 @@ static int node_stats_callback(
 	struct stats_context *ctx = cookie;
 	struct node_stats *s;
 	uint64_t objs_incr;
-	uint8_t index;
+	unsigned index;
 
 	objs_incr = stats->objs - stats->prev_objs;
 	ctx->last_count += objs_incr;
@@ -61,6 +63,24 @@ static inline void stats_reset(struct worker_stats *stats) {
 	stats->n_sleeps = 0;
 	stats->loop_cycles = 0;
 	stats->n_loops = 0;
+}
+
+static bool node_is_parent(const void *node, const void *maybe_parent) {
+	const struct rte_node *p = maybe_parent;
+	const struct rte_node *n = node;
+
+	for (rte_edge_t edge = 0; edge < p->nb_edges; edge++) {
+		if (p->nodes[edge]->id == n->id)
+			return true;
+	}
+
+	return false;
+}
+
+static int node_name_cmp(const void *a, const void *b) {
+	const struct rte_node *na = *(const struct rte_node **)a;
+	const struct rte_node *nb = *(const struct rte_node **)b;
+	return strncmp(na->name, nb->name, sizeof(na->name));
 }
 
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
@@ -97,16 +117,41 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
 			return -rte_errno;
 		}
+		ctx->node_to_index = rte_calloc_socket(
+			__func__,
+			rte_node_max_count() + 1,
+			sizeof(*ctx->node_to_index),
+			RTE_CACHE_LINE_SIZE,
+			graph->socket
+		);
+		if (ctx->node_to_index == NULL) {
+			rte_free(ctx->w_stats);
+			ctx->w_stats = NULL;
+			LOG(ERR, "rte_calloc_socket: %s", rte_strerror(rte_errno));
+			return -rte_errno;
+		}
 		ctx->w_stats->n_stats = graph->nb_nodes;
 
-		struct rte_node *node;
+		gr_vec const struct rte_node **nodes = NULL;
+		const struct rte_node *node;
 		rte_graph_off_t off;
 		rte_node_t count;
-		rte_graph_foreach_node (count, off, graph, node) {
+		rte_graph_foreach_node (count, off, graph, node)
+			gr_vec_add(nodes, node);
+
+		// sort by name first to ensure stable topo_sort
+		qsort(nodes, count, sizeof(void *), node_name_cmp);
+		topo_sort((gr_vec const void **)nodes, node_is_parent, NULL);
+
+		count = 0;
+		gr_vec_foreach (node, nodes) {
 			ctx->node_to_index[node->id] = count;
 			ctx->w_stats->stats[count].node_id = node->id;
 			ctx->w_stats->stats[count].topo_order = count;
+			count++;
 		}
+
+		gr_vec_free(nodes);
 	}
 
 	return 0;
