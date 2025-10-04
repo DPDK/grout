@@ -6,6 +6,7 @@
 #include <gr_api.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_sort.h>
 #include <gr_vec.h>
 
 #include <assert.h>
@@ -59,82 +60,19 @@ void gr_register_module(struct gr_module *mod) {
 	STAILQ_INSERT_TAIL(&modules, mod, entries);
 }
 
-static void topo_sort(struct gr_module **mods) {
-	// Create an adjacency matrix representing all edges
-	const size_t len = gr_vec_len(mods);
-	bool *adj_matrix = calloc(len * len, sizeof(bool));
-	if (adj_matrix == NULL)
-		ABORT("cannot allocate memory");
+static bool module_is_child(const void *mod, const void *maybe_child) {
+	const struct gr_module *c = maybe_child;
+	const struct gr_module *m = mod;
 
-	for (unsigned i = 0; i < len; i++) {
-		if (mods[i]->depends_on == NULL)
-			continue;
+	if (c->depends_on == NULL)
+		return false;
 
-		for (unsigned j = 0; j < len; j++) {
-			if (fnmatch(mods[i]->depends_on, mods[j]->name, 0) == 0) {
-				adj_matrix[j * len + i] = true;
-				break;
-			}
-		}
-	}
-
-	// Calculate in-degree of each vertex
-	int *in_degree = calloc(len, sizeof(int));
-	if (in_degree == NULL)
-		ABORT("cannot allocate memory");
-
-	for (unsigned i = 0; i < len; i++) {
-		for (unsigned j = 0; j < len; j++) {
-			if (adj_matrix[i * len + j]) {
-				in_degree[j]++;
-			}
-		}
-	}
-
-	// Kahn's algorithm for topological sort
-	unsigned front = 0, rear = 0;
-	unsigned *queue = calloc(len, sizeof(unsigned));
-	if (queue == NULL)
-		ABORT("cannot allocate memory");
-
-	for (unsigned i = 0; i < len; i++) {
-		if (in_degree[i] == 0) {
-			queue[rear++] = i;
-		}
-	}
-
-	struct gr_module **sorted = calloc(len, sizeof(struct gr_module *));
-	if (sorted == NULL)
-		ABORT("cannot allocate memory");
-
-	unsigned i = 0;
-	while (front < rear) {
-		unsigned u = queue[front++];
-		sorted[i++] = mods[u];
-
-		// Reduce in-degree of neighbours
-		for (unsigned v = 0; v < len; v++) {
-			if (adj_matrix[u * len + v]) {
-				in_degree[v]--;
-				if (in_degree[v] == 0) {
-					queue[rear++] = v;
-				}
-			}
-		}
-	}
-
-	// Copy the sorted modules back to the original array
-	memcpy(mods, sorted, len * sizeof(struct gr_module *));
-
-	free(sorted);
-	free(queue);
-	free(in_degree);
-	free(adj_matrix);
+	return fnmatch(c->depends_on, m->name, 0) == 0;
 }
 
 void modules_init(struct event_base *ev_base) {
-	gr_vec struct gr_module **mods = NULL;
-	struct gr_module *mod;
+	gr_vec const struct gr_module **mods = NULL;
+	const struct gr_module *mod;
 
 	STAILQ_FOREACH (mod, &modules, entries)
 		gr_vec_add(mods, mod);
@@ -142,7 +80,8 @@ void modules_init(struct event_base *ev_base) {
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	topo_sort(mods);
+	if (topo_sort((gr_vec const void **)mods, module_is_child) < 0)
+		ABORT("topo_sort failed: %s", strerror(errno));
 
 	gr_vec_foreach (mod, mods) {
 		if (mod->init != NULL) {
@@ -155,8 +94,8 @@ void modules_init(struct event_base *ev_base) {
 }
 
 void modules_fini(struct event_base *ev_base) {
-	gr_vec struct gr_module **mods = NULL;
-	struct gr_module *mod;
+	gr_vec const struct gr_module **mods = NULL;
+	const struct gr_module *mod;
 
 	STAILQ_FOREACH (mod, &modules, entries)
 		gr_vec_add(mods, mod);
@@ -164,7 +103,8 @@ void modules_fini(struct event_base *ev_base) {
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	topo_sort(mods);
+	if (topo_sort((gr_vec const void **)mods, module_is_child) < 0)
+		ABORT("topo_sort failed: %s", strerror(errno));
 
 	// call fini() functions in reverse topological order
 	for (int i = gr_vec_len(mods) - 1; i >= 0; i--) {
