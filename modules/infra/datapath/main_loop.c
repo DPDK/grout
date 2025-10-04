@@ -25,7 +25,7 @@ struct stats_context {
 	struct rte_graph_cluster_stats *stats;
 	uint64_t last_count;
 	struct worker_stats *w_stats;
-	uint8_t node_to_index[256];
+	unsigned *node_to_index;
 };
 
 static int node_stats_callback(
@@ -37,7 +37,7 @@ static int node_stats_callback(
 	struct stats_context *ctx = cookie;
 	struct node_stats *s;
 	uint64_t objs_incr;
-	uint8_t index;
+	unsigned index;
 
 	objs_incr = stats->objs - stats->prev_objs;
 	ctx->last_count += objs_incr;
@@ -95,6 +95,19 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 		);
 		if (ctx->w_stats == NULL) {
 			LOG(ERR, "rte_zmalloc_socket: %s", rte_strerror(rte_errno));
+			return -rte_errno;
+		}
+		ctx->node_to_index = rte_calloc_socket(
+			__func__,
+			rte_node_max_count() + 1,
+			sizeof(*ctx->node_to_index),
+			RTE_CACHE_LINE_SIZE,
+			graph->socket
+		);
+		if (ctx->node_to_index == NULL) {
+			rte_free(ctx->w_stats);
+			ctx->w_stats = NULL;
+			LOG(ERR, "rte_calloc_socket: %s", rte_strerror(rte_errno));
 			return -rte_errno;
 		}
 		ctx->w_stats->n_stats = graph->nb_nodes;
