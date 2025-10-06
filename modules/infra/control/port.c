@@ -252,12 +252,8 @@ static int iface_port_reconfig(
 			return errno_log(-ret, "rte_eth_dev_get_mtu");
 	}
 
-	struct iface *v = NULL;
-	while ((v = iface_next(GR_IFACE_TYPE_VLAN, v)) != NULL) {
-		struct iface_info_vlan *vlan = (struct iface_info_vlan *)v->info;
-		if (vlan->parent_id == iface->id)
-			v->mtu = iface->mtu;
-	}
+	gr_vec_foreach (struct iface *s, iface->subinterfaces)
+		s->mtu = iface->mtu;
 
 	if (set_attrs & GR_IFACE_SET_MODE)
 		iface->mode = conf->mode;
