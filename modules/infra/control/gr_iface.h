@@ -16,7 +16,7 @@
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
-	gr_vec const struct iface **subinterfaces;
+	gr_vec struct iface **subinterfaces;
 	char *name;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
@@ -61,8 +61,8 @@ int iface_reconfig(
 );
 int iface_destroy(uint16_t ifid);
 struct iface *iface_from_id(uint16_t ifid);
-void iface_add_subinterface(struct iface *parent, const struct iface *sub);
-void iface_del_subinterface(struct iface *parent, const struct iface *sub);
+void iface_add_subinterface(struct iface *parent, struct iface *sub);
+void iface_del_subinterface(struct iface *parent, struct iface *sub);
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
 int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
 int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
