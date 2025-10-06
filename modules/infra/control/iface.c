@@ -239,16 +239,15 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	return type->get_eth_addr(iface, mac);
 }
 
-void iface_add_subinterface(struct iface *parent, const struct iface *sub) {
-	const struct iface **s;
-	gr_vec_foreach_ref (s, parent->subinterfaces) {
-		if (*s == sub)
+void iface_add_subinterface(struct iface *parent, struct iface *sub) {
+	gr_vec_foreach (struct iface *s, parent->subinterfaces) {
+		if (s == sub)
 			return;
 	}
 	gr_vec_add(parent->subinterfaces, sub);
 }
 
-void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
+void iface_del_subinterface(struct iface *parent, struct iface *sub) {
 	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
 			gr_vec_del_swap(parent->subinterfaces, i);
@@ -363,7 +362,7 @@ static struct gr_module iface_module = {
 	.fini = iface_fini,
 };
 
-static void iface_event_debug(uint32_t event, const void *obj) {
+static void iface_event(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	char *str = "";
 	switch (event) {
@@ -378,9 +377,17 @@ static void iface_event_debug(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		str = "STATUS_UP";
+		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+			s->state |= GR_IFACE_S_RUNNING;
+			gr_event_push(event, s);
+		}
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
 		str = "STATUS_DOWN";
+		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+			s->state &= ~GR_IFACE_S_RUNNING;
+			gr_event_push(event, s);
+		}
 		break;
 	default:
 		str = "?";
@@ -389,8 +396,8 @@ static void iface_event_debug(uint32_t event, const void *obj) {
 	LOG(DEBUG, "iface event [0x%08x] %s triggered for iface %s.", event, str, iface->name);
 }
 
-static struct gr_event_subscription iface_event_debug_handler = {
-	.callback = iface_event_debug,
+static struct gr_event_subscription iface_event_handler = {
+	.callback = iface_event,
 	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
@@ -403,5 +410,5 @@ static struct gr_event_subscription iface_event_debug_handler = {
 
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
-	gr_event_subscribe(&iface_event_debug_handler);
+	gr_event_subscribe(&iface_event_handler);
 }

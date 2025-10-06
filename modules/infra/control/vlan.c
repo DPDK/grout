@@ -265,37 +265,7 @@ static struct gr_module vlan_module = {
 	.fini = vlan_fini,
 };
 
-static void port_event(uint32_t event, const void *obj) {
-	const struct iface *iface = obj;
-	struct iface_info_vlan *info;
-	struct iface *vlan = NULL;
-
-	if (iface->type != GR_IFACE_TYPE_PORT)
-		return;
-
-	while ((vlan = iface_next(GR_IFACE_TYPE_VLAN, vlan)) != NULL) {
-		info = (struct iface_info_vlan *)vlan->info;
-		if (info->parent_id == iface->id) {
-			if (event == GR_EVENT_IFACE_STATUS_UP) {
-				vlan->flags |= GR_IFACE_F_UP;
-				vlan->state |= GR_IFACE_S_RUNNING;
-			} else {
-				vlan->flags &= ~GR_IFACE_F_UP;
-				vlan->state &= ~GR_IFACE_S_RUNNING;
-			}
-			gr_event_push(event, vlan);
-		}
-	}
-}
-
-static struct gr_event_subscription port_event_sub = {
-	.callback = port_event,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IFACE_STATUS_UP, GR_EVENT_IFACE_STATUS_DOWN},
-};
-
 RTE_INIT(vlan_constructor) {
 	gr_register_module(&vlan_module);
 	iface_type_register(&iface_type_vlan);
-	gr_event_subscribe(&port_event_sub);
 }
