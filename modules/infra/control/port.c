@@ -172,7 +172,7 @@ static int iface_port_reconfig(
 			p->n_txq = api->n_txq;
 		if (set_attrs & GR_PORT_SET_Q_SIZE) {
 			p->rxq_size = api->rxq_size;
-			p->txq_size = api->rxq_size;
+			p->txq_size = api->txq_size;
 		}
 		needs_configure = true;
 	}
