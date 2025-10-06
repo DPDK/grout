@@ -110,6 +110,7 @@ void gr_pktmbuf_pool_release(struct rte_mempool *mp, uint32_t count) {
 		for (int i = 0; i < MAX_MEMPOOL_PER_NUMA; i++) {
 			struct mempool_tracker *mt = &trackers[s][i];
 			if (mt->mp == mp) {
+				assert(mt->reserved >= count);
 				LOG(DEBUG,
 				    "release mempool %s reserved %u -> %u (size %u)",
 				    mt->mp->name,
@@ -117,7 +118,7 @@ void gr_pktmbuf_pool_release(struct rte_mempool *mp, uint32_t count) {
 				    mt->reserved - count,
 				    mt->mp->size);
 				mt->reserved -= count;
-				if (mt->reserved <= 0) {
+				if (mt->reserved == 0) {
 					LOG(DEBUG, "free mempool %s", mt->mp->name);
 					rte_mempool_free(mp);
 					mt->mp = NULL;
