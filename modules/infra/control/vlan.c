@@ -129,8 +129,6 @@ static int iface_vlan_reconfig(
 	iface->mtu = iface_from_id(cur->parent_id)->mtu;
 	iface->state = iface_from_id(cur->parent_id)->state;
 
-	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
-
 	return 0;
 }
 

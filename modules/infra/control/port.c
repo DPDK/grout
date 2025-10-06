@@ -283,8 +283,6 @@ static int iface_port_reconfig(
 
 	p->started = true;
 
-	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
-
 	return port_plug(p);
 }
 

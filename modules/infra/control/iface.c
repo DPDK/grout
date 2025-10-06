@@ -180,6 +180,9 @@ int iface_reconfig(
 			vrf_decref(conf->vrf_id);
 	}
 
+	if (ret == 0)
+		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
+
 	return ret;
 }
 
