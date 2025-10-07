@@ -24,7 +24,7 @@ static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
-struct iface_type *iface_type_get(gr_iface_type_t type_id) {
+const struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
 	STAILQ_FOREACH (t, &types, next)
 		if (t->id == type_id)
@@ -72,7 +72,7 @@ static int next_ifid(uint16_t *ifid) {
 }
 
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
-	struct iface_type *type = iface_type_get(conf->type);
+	const struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
 	bool vrf_ref = false;
 	uint16_t ifid;
@@ -139,13 +139,14 @@ int iface_reconfig(
 	const struct gr_iface *conf,
 	const void *api_info
 ) {
-	struct iface_type *type;
+	const struct iface_type *type;
 	struct iface *iface;
 	uint16_t old_vrf_id;
 	int ret;
 
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
+
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -errno;
 	if (set_attrs & GR_IFACE_SET_NAME) {
@@ -226,7 +227,7 @@ struct iface *iface_from_id(uint16_t ifid) {
 
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -258,7 +259,7 @@ void iface_del_subinterface(struct iface *parent, struct iface *sub) {
 
 int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -273,7 +274,7 @@ int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 
 int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -288,7 +289,7 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 
 int iface_destroy(uint16_t ifid) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 	int ret;
 
 	if (iface == NULL)

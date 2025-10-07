@@ -44,7 +44,7 @@ struct iface_type {
 };
 
 void iface_type_register(struct iface_type *);
-struct iface_type *iface_type_get(gr_iface_type_t type_id);
+const struct iface_type *iface_type_get(gr_iface_type_t type_id);
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info);
 int iface_reconfig(
 	uint16_t ifid,

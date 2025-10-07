@@ -58,7 +58,7 @@ static int iface_vlan_reconfig(
 	const struct gr_iface_info_vlan *next = api_info;
 	bool reconfig = set_attrs != IFACE_SET_ALL;
 	struct iface *cur_parent, *next_parent;
-	struct iface_type *parent_type;
+	const struct iface_type *parent_type;
 	int ret;
 
 	if (reconfig) {
@@ -135,8 +135,8 @@ static int iface_vlan_reconfig(
 static int iface_vlan_fini(struct iface *iface) {
 	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	struct iface *parent = iface_from_id(vlan->parent_id);
+	const struct iface_type *parent_type;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
-	struct iface_type *parent_type;
 	int ret, status = 0;
 
 	if (get_parent_port_id(vlan->parent_id, &port_id) < 0)
