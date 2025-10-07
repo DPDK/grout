@@ -48,9 +48,9 @@ port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 	SAFE_BUF(snprintf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
 	if (iface->mode == GR_IFACE_MODE_L1_XC) {
 		if ((peer = iface_from_id(c, iface->domain_id)) != NULL)
-			SAFE_BUF(snprintf, len - n, " xc_peer=%s", peer->name);
+			SAFE_BUF(snprintf, len, " xc_peer=%s", peer->name);
 		else
-			SAFE_BUF(snprintf, len - n, " xc_peer=%u", iface->domain_id);
+			SAFE_BUF(snprintf, len, " xc_peer=%u", iface->domain_id);
 	}
 err:
 	free(peer);
