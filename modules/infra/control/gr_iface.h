@@ -23,29 +23,22 @@ struct __rte_cache_aligned iface {
 
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
-typedef int (*iface_init_t)(struct iface *, const void *api_info);
-typedef int (*iface_reconfig_t)(
-	struct iface *,
-	uint64_t set_attrs,
-	const struct gr_iface *,
-	const void *api_info
-);
-typedef int (*iface_fini_t)(struct iface *);
-typedef int (*iface_eth_addr_get_t)(const struct iface *, struct rte_ether_addr *);
-typedef int (*iface_eth_addr_filter_t)(struct iface *, const struct rte_ether_addr *);
-typedef void (*iface_to_api_t)(void *api_info, const struct iface *);
-
 struct iface_type {
 	uint16_t id;
 	size_t pub_size;
 	size_t priv_size;
-	iface_init_t init;
-	iface_reconfig_t reconfig;
-	iface_fini_t fini;
-	iface_eth_addr_get_t get_eth_addr;
-	iface_eth_addr_filter_t add_eth_addr;
-	iface_eth_addr_filter_t del_eth_addr;
-	iface_to_api_t to_api;
+	int (*init)(struct iface *, const void *api_info);
+	int (*reconfig)(
+		struct iface *,
+		uint64_t set_attrs,
+		const struct gr_iface *,
+		const void *api_info
+	);
+	int (*fini)(struct iface *);
+	int (*get_eth_addr)(const struct iface *, struct rte_ether_addr *);
+	int (*add_eth_addr)(struct iface *, const struct rte_ether_addr *);
+	int (*del_eth_addr)(struct iface *, const struct rte_ether_addr *);
+	void (*to_api)(void *api_info, const struct iface *);
 	const char *name;
 	STAILQ_ENTRY(iface_type) next;
 };
