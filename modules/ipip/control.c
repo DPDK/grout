@@ -98,13 +98,13 @@ static int iface_ipip_fini(struct iface *iface) {
 }
 
 static int iface_ipip_init(struct iface *iface, const void *api_info) {
-	const struct gr_iface conf = {
-		.flags = iface->flags,
-		.mtu = iface->mtu ?: 1480,
-		.mode = iface->mode,
-		.vrf_id = iface->vrf_id
-	};
+	struct gr_iface conf;
 	int ret;
+
+	if (iface->mtu == 0)
+		iface->mtu = 1480;
+
+	conf.base = iface->base;
 
 	ret = iface_ipip_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
 	if (ret < 0) {
