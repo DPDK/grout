@@ -20,6 +20,14 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	printf("devargs: %s\n", port->devargs);
 	printf("driver:  %s\n", port->driver_name);
 	printf("mac: " ETH_F "\n", &port->mac);
+	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
+		struct gr_iface *bond = iface_from_id(c, port->bond_iface_id);
+		if (bond != NULL)
+			printf("bond: %s\n", bond->name);
+		else
+			printf("bond: %u\n", port->bond_iface_id);
+		free(bond);
+	}
 	if (port->link_speed == UINT32_MAX)
 		printf("speed: unknown\n");
 	else
@@ -42,7 +50,7 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 static void
 port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
-	struct gr_iface *peer = NULL;
+	struct gr_iface *peer = NULL, *bond = NULL;
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
@@ -52,9 +60,15 @@ port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 		else
 			SAFE_BUF(snprintf, len, " xc_peer=%u", iface->domain_id);
 	}
+	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
+		if ((bond = iface_from_id(c, port->bond_iface_id)) != NULL)
+			SAFE_BUF(snprintf, len, " bond=%s", bond->name);
+		else
+			SAFE_BUF(snprintf, len, " bond=%u", port->bond_iface_id);
+	}
 err:
 	free(peer);
-	return;
+	free(bond);
 }
 
 static struct cli_iface_type port_type = {

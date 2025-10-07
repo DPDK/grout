@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include <gr_bond.h>
 #include <gr_config.h>
 #include <gr_eth.h>
 #include <gr_graph.h>
@@ -41,17 +42,32 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
 	const struct iface_info_port *port;
 	struct eth_input_mbuf_data *d;
+	const struct iface *iface;
 	uint16_t rx;
 	unsigned r;
 
 	port = iface_info_port(ctx->iface);
-	if (!(ctx->iface->flags & GR_IFACE_F_UP) || !port->started)
+	if (!port->started)
+		return 0;
+	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
+		iface = iface_from_id(port->bond_iface_id);
+		if (iface == NULL)
+			return 0;
+		const struct iface_info_bond *bond = iface_info_bond(iface);
+		uint8_t active = bond->active_member;
+		if (bond->mode == GR_BOND_MODE_ACTIVE_BACKUP
+		    && (active >= bond->n_members || ctx->iface != bond->members[active].iface))
+			return 0;
+	} else {
+		iface = ctx->iface;
+	}
+	if (!(iface->flags & GR_IFACE_F_UP))
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
 	for (r = 0; r < rx; r++) {
 		d = eth_input_mbuf_data(mbufs[r]);
-		d->iface = ctx->iface;
+		d->iface = iface;
 		d->domain = ETH_DOMAIN_UNKNOWN;
 	}
 
@@ -68,7 +84,7 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			trace_log_packet(mbufs[r], "rx", ctx->iface->name);
 	}
 
-	rte_node_enqueue(graph, node, edges[ctx->iface->mode], objs, rx);
+	rte_node_enqueue(graph, node, edges[iface->mode], objs, rx);
 
 	return rx;
 }
