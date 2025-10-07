@@ -146,6 +146,159 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	return 0;
 }
 
+static int port_up_down(struct iface *iface, bool up) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret;
+
+	if (up) {
+		ret = rte_eth_dev_set_link_up(p->port_id);
+		switch (ret) {
+		case 0:
+		case -ENOSYS:
+		case -EOPNOTSUPP:
+			break;
+		default:
+			return errno_log(-ret, "rte_eth_dev_set_link_up");
+		}
+		iface->flags |= GR_IFACE_F_UP;
+	} else {
+		ret = rte_eth_dev_set_link_down(p->port_id);
+		switch (ret) {
+		case 0:
+		case -ENOSYS:
+		case -EOPNOTSUPP:
+			break;
+		default:
+			return errno_log(-ret, "rte_eth_dev_set_link_down");
+		}
+		iface->flags &= ~GR_IFACE_F_UP;
+	}
+
+	return 0;
+}
+
+static int port_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret;
+
+	if (!rte_is_zero_ether_addr(mac)) {
+		struct rte_ether_addr mut_mac = *mac;
+		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mut_mac)) < 0)
+			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
+		p->mac = mut_mac;
+	} else if ((ret = rte_eth_macaddr_get(p->port_id, &p->mac)) < 0) {
+		return errno_log(-ret, "rte_eth_macaddr_get");
+	}
+
+	return 0;
+}
+
+static int port_promisc_set(struct iface *iface, bool enabled) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret;
+
+	if (enabled)
+		ret = rte_eth_promiscuous_enable(p->port_id);
+	else
+		ret = rte_eth_promiscuous_disable(p->port_id);
+
+	switch (ret) {
+	case 0:
+	case -ENOSYS:
+	case -EOPNOTSUPP:
+		break;
+	default:
+		return errno_log(-ret, "rte_eth_promiscuous_{en,dis}able");
+	}
+
+	if (rte_eth_promiscuous_get(p->port_id) == 1)
+		iface->flags |= GR_IFACE_F_PROMISC;
+	else
+		iface->flags &= ~GR_IFACE_F_PROMISC;
+
+	return 0;
+}
+
+static int port_allmulti_set(struct iface *iface, bool enabled) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret;
+
+	if (enabled)
+		ret = rte_eth_allmulticast_enable(p->port_id);
+	else
+		ret = rte_eth_allmulticast_disable(p->port_id);
+
+	switch (ret) {
+	case 0:
+	case -ENOSYS:
+	case -EOPNOTSUPP:
+		break;
+	default:
+		return errno_log(-ret, "rte_eth_allmulticast_{en,dis}able");
+	}
+
+	if (rte_eth_allmulticast_get(p->port_id) == 1)
+		iface->flags |= GR_IFACE_F_ALLMULTI;
+	else
+		iface->flags &= ~GR_IFACE_F_ALLMULTI;
+
+	return 0;
+}
+
+static int port_mtu_set(struct iface *iface, uint16_t mtu) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret;
+
+	if (mtu != 0) {
+		ret = rte_eth_dev_set_mtu(p->port_id, mtu);
+		switch (ret) {
+		case 0:
+		case -ENOSYS:
+		case -EOPNOTSUPP:
+			break;
+		default:
+			return errno_log(-ret, "rte_eth_dev_set_mtu");
+		}
+		iface->mtu = mtu;
+	} else {
+		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
+			return errno_log(-ret, "rte_eth_dev_get_mtu");
+	}
+
+	gr_vec_foreach (struct iface *s, iface->subinterfaces)
+		s->mtu = iface->mtu;
+
+	return 0;
+}
+
+static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, true);
+	switch (ret) {
+	case 0:
+	case -ENOSYS:
+	case -EOPNOTSUPP:
+		break;
+	default:
+		return errno_log(-ret, "rte_eth_dev_vlan_filter");
+	}
+	return 0;
+}
+
+static int port_vlan_del(struct iface *iface, uint16_t vlan_id) {
+	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, false);
+	switch (ret) {
+	case 0:
+	case -ENOSYS:
+	case -EOPNOTSUPP:
+		break;
+	default:
+		return errno_log(-ret, "rte_eth_dev_vlan_filter");
+	}
+	return 0;
+}
+
 static int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -702,6 +855,13 @@ static struct iface_type iface_type_port = {
 	.get_eth_addr = port_mac_get,
 	.add_eth_addr = port_mac_add,
 	.del_eth_addr = port_mac_del,
+	.set_eth_addr = port_mac_set,
+	.set_mtu = port_mtu_set,
+	.set_up_down = port_up_down,
+	.set_promisc = port_promisc_set,
+	.set_allmulti = port_allmulti_set,
+	.add_vlan = port_vlan_add,
+	.del_vlan = port_vlan_del,
 	.to_api = port_to_api,
 };
 
