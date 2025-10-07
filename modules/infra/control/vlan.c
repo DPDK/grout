@@ -33,21 +33,6 @@ struct iface *vlan_get_iface(uint16_t parent_id, uint16_t vlan_id) {
 	return data;
 }
 
-static int get_parent_port_id(uint16_t parent_id, uint16_t *port_id) {
-	const struct iface *parent = iface_from_id(parent_id);
-	const struct iface_info_port *port;
-
-	if (parent == NULL)
-		return -errno;
-	if (parent->type != GR_IFACE_TYPE_PORT)
-		return errno_set(EMEDIUMTYPE);
-
-	port = (const struct iface_info_port *)parent->info;
-	*port_id = port->port_id;
-
-	return 0;
-}
-
 static int iface_vlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -58,25 +43,24 @@ static int iface_vlan_reconfig(
 	const struct gr_iface_info_vlan *next = api_info;
 	bool reconfig = set_attrs != IFACE_SET_ALL;
 	struct iface *cur_parent, *next_parent;
-	const struct iface_type *parent_type;
 	int ret;
 
 	if (reconfig) {
 		if ((cur_parent = iface_from_id(cur->parent_id)) == NULL)
 			return -errno;
+		if (set_attrs & GR_VLAN_SET_MAC) {
+			// reconfig, *not initial config*
+			// remove previous mac filter (ignore errors)
+			iface_del_eth_addr(cur->parent_id, &cur->mac);
+		}
 	} else {
 		cur_parent = NULL;
 	}
-	if ((next_parent = iface_from_id(next->parent_id)) == NULL)
-		return -errno;
-
-	parent_type = iface_type_get(next_parent->type);
 
 	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
 		struct vlan_key next_key = {next->parent_id, next->vlan_id};
-		uint16_t next_port_id = RTE_MAX_ETHPORTS;
 
-		if (get_parent_port_id(next->parent_id, &next_port_id) < 0)
+		if ((next_parent = iface_from_id(next->parent_id)) == NULL)
 			return -errno;
 
 		if (rte_hash_lookup(vlan_hash, &next_key) >= 0)
@@ -85,49 +69,41 @@ static int iface_vlan_reconfig(
 		if (reconfig) {
 			// reconfig, *not initial config*
 			struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
-			uint16_t cur_port_id = RTE_MAX_ETHPORTS;
 
 			rte_hash_del_key(vlan_hash, &cur_key);
 			iface_del_subinterface(cur_parent, iface);
 
-			if (get_parent_port_id(cur->parent_id, &cur_port_id) < 0)
-				return -errno;
-
 			// remove previous vlan filter (ignore errors)
-			if ((ret = rte_eth_dev_vlan_filter(cur_port_id, cur->vlan_id, false)) < 0)
-				errno_log(-ret, "rte_eth_dev_vlan_filter disable");
+			iface_del_vlan(cur->parent_id, cur->vlan_id);
 		}
 
-		if ((ret = rte_eth_dev_vlan_filter(next_port_id, next->vlan_id, true)) < 0) {
-			errno_log(-ret, "rte_eth_dev_vlan_filter enable");
-			if (ret != -ENOTSUP && ret != -ENOSYS)
-				return errno_set(-ret);
-		}
+		if (iface_add_vlan(next->parent_id, next->vlan_id) < 0)
+			return -errno;
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
 		iface_add_subinterface(next_parent, iface);
+		iface->state = next_parent->state;
+		iface->mtu = next_parent->mtu;
 
 		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0)
 			return errno_log(-ret, "rte_hash_add_key_data");
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
-		if (reconfig) {
-			// reconfig, *not initial config*
-			// remove previous mac filter (ignore errors)
-			parent_type->del_eth_addr(cur_parent, &cur->mac);
+		if (rte_is_zero_ether_addr(&next->mac)) {
+			if ((ret = iface_get_eth_addr(next->parent_id, &cur->mac)) < 0)
+				return ret;
+		} else {
+			if ((ret = iface_add_eth_addr(next->parent_id, &next->mac)) < 0)
+				return ret;
+			cur->mac = next->mac;
 		}
-		if ((ret = parent_type->add_eth_addr(next_parent, &next->mac)) < 0)
-			return ret;
-		cur->mac = next->mac;
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS)
 		iface->flags = conf->flags;
 	if (set_attrs & GR_IFACE_SET_VRF)
 		iface->vrf_id = conf->vrf_id;
-	iface->mtu = iface_from_id(cur->parent_id)->mtu;
-	iface->state = iface_from_id(cur->parent_id)->state;
 
 	return 0;
 }
@@ -135,39 +111,15 @@ static int iface_vlan_reconfig(
 static int iface_vlan_fini(struct iface *iface) {
 	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
 	struct iface *parent = iface_from_id(vlan->parent_id);
-	const struct iface_type *parent_type;
-	uint16_t port_id = RTE_MAX_ETHPORTS;
 	int ret, status = 0;
-
-	if (get_parent_port_id(vlan->parent_id, &port_id) < 0)
-		return -errno;
-
-	parent_type = iface_type_get(parent->type);
 
 	rte_hash_del_key(vlan_hash, &(struct vlan_key) {vlan->parent_id, vlan->vlan_id});
 
-	if ((ret = rte_eth_dev_vlan_filter(port_id, vlan->vlan_id, false)) < 0)
-		errno_log(-ret, "rte_eth_dev_vlan_filter disable");
-	if (status == 0 && ret < 0) {
-		switch (errno) {
-		case ENOSYS:
-		case EOPNOTSUPP:
-			break;
-		default:
-			status = ret;
-		}
-	}
+	if ((ret = iface_del_vlan(vlan->parent_id, vlan->vlan_id)) < 0)
+		status = ret;
 
-	ret = parent_type->del_eth_addr(parent, &vlan->mac);
-	if (status == 0 && ret < 0) {
-		switch (errno) {
-		case ENOSYS:
-		case EOPNOTSUPP:
-			break;
-		default:
-			status = ret;
-		}
-	}
+	if ((ret = iface_del_eth_addr(vlan->parent_id, &vlan->mac)) < 0)
+		status = status ?: ret;
 
 	iface_del_subinterface(parent, iface);
 
