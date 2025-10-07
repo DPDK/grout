@@ -13,14 +13,14 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-enum {
+typedef enum : uint8_t {
 	MAC_FILTER_F_UNSUPP = GR_BIT8(0),
 	MAC_FILTER_F_NOSPC = GR_BIT8(1),
 	MAC_FILTER_F_ALL = GR_BIT8(2),
-};
+} mac_filter_flags_t;
 
 struct mac_filter {
-	uint8_t flags;
+	mac_filter_flags_t flags;
 	uint8_t count;
 	uint8_t hw_limit;
 	uint16_t refcnt[RTE_ETH_NUM_RECEIVE_MAC_ADDR];

@@ -519,7 +519,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		}
 	}
 	if (i == ARRAY_DIM(filter->mac))
-		return errno_log(ENOSPC, mac_type);
+		return errno_set(ENOSPC);
 
 	filter->mac[i] = *mac;
 	filter->refcnt[i] = 1;
@@ -539,14 +539,14 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		if (ret == -ENOSPC) {
 			filter->flags |= MAC_FILTER_F_NOSPC;
 			filter->hw_limit = filter->count - 1;
-			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 		} else {
 			filter->flags |= MAC_FILTER_F_UNSUPP;
-			LOG(NOTICE, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 		}
 
 		mac_type = multicast ? "allmulti" : "promisc";
-		LOG(NOTICE, "%s: enabling %s", iface->name, mac_type);
+		LOG(INFO, "%s: enabling %s", iface->name, mac_type);
 
 		// promisc and allmulti enable is a noop if already enabled
 		if (multicast)
@@ -593,7 +593,7 @@ static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 		if (rte_is_same_ether_addr(&filter->mac[i], mac))
 			goto found;
 	}
-	return errno_log(ENOENT, mac_type);
+	return errno_set(ENOENT);
 
 found:
 	if (--filter->refcnt[i] > 0) {
