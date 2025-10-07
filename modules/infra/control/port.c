@@ -373,7 +373,7 @@ static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
 static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = (struct iface_info_port *)iface->info;
 	gr_vec struct iface_info_port **ports = NULL;
-	struct rte_eth_dev_info info;
+	struct rte_eth_dev_info info = {0};
 	struct iface *i = NULL;
 	int ret;
 
@@ -399,7 +399,7 @@ static int iface_port_fini(struct iface *iface) {
 	if ((ret = rte_eth_dev_stop(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
 	// XXX DPDK bus/fslmc VFIO constraint for dpaa2
-	if (strcmp(info.driver_name, "net_dpaa2") == 0)
+	if (info.driver_name != NULL && strcmp(info.driver_name, "net_dpaa2") == 0)
 		goto fini;
 	if ((ret = rte_eth_dev_close(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_close: %s", rte_strerror(-ret));
