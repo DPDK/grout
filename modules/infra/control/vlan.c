@@ -36,7 +36,7 @@ struct iface *vlan_get_iface(uint16_t parent_id, uint16_t vlan_id) {
 static int iface_vlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	const struct gr_iface *conf,
+	const struct gr_iface *,
 	const void *api_info
 ) {
 	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
@@ -100,11 +100,6 @@ static int iface_vlan_reconfig(
 		}
 	}
 
-	if (set_attrs & GR_IFACE_SET_FLAGS)
-		iface->flags = conf->flags;
-	if (set_attrs & GR_IFACE_SET_VRF)
-		iface->vrf_id = conf->vrf_id;
-
 	return 0;
 }
 
@@ -127,12 +122,9 @@ static int iface_vlan_fini(struct iface *iface) {
 }
 
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
-	const struct gr_iface conf = {
-		.flags = iface->flags, .mtu = iface->mtu, .vrf_id = iface->vrf_id
-	};
 	int ret;
 
-	ret = iface_vlan_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
+	ret = iface_vlan_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
 	if (ret < 0) {
 		iface_vlan_fini(iface);
 		errno = -ret;

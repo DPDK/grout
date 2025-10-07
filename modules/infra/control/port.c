@@ -302,16 +302,13 @@ static int port_vlan_del(struct iface *iface, uint16_t vlan_id) {
 static int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	const struct gr_iface *conf,
+	const struct gr_iface *,
 	const void *api_info
 ) {
 	struct iface_info_port *p = (struct iface_info_port *)iface->info;
 	const struct gr_iface_info_port *api = api_info;
 	bool needs_configure = false;
 	int ret;
-
-	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu > gr_config.max_mtu)
-		return errno_set(ERANGE);
 
 	if ((ret = port_unplug(p)) < 0)
 		return ret;
@@ -360,72 +357,8 @@ static int iface_port_reconfig(
 			return ret;
 	}
 
-	if (set_attrs & GR_IFACE_SET_FLAGS) {
-		if (conf->flags & GR_IFACE_F_PROMISC)
-			ret = rte_eth_promiscuous_enable(p->port_id);
-		else
-			ret = rte_eth_promiscuous_disable(p->port_id);
-		if (ret < 0)
-			errno_log(-ret, "rte_eth_promiscuous_{en,dis}able");
-		if (rte_eth_promiscuous_get(p->port_id) == 1)
-			iface->flags |= GR_IFACE_F_PROMISC;
-		else
-			iface->flags &= ~GR_IFACE_F_PROMISC;
-
-		if (conf->flags & GR_IFACE_F_ALLMULTI)
-			ret = rte_eth_allmulticast_enable(p->port_id);
-		else
-			ret = rte_eth_allmulticast_disable(p->port_id);
-		if (ret < 0)
-			errno_log(-ret, "rte_eth_allmulticast_{en,dis}able");
-		if (rte_eth_allmulticast_get(p->port_id) == 1)
-			iface->flags |= GR_IFACE_F_ALLMULTI;
-		else
-			iface->flags &= ~GR_IFACE_F_ALLMULTI;
-
-		if (conf->flags & GR_IFACE_F_UP) {
-			ret = rte_eth_dev_set_link_up(p->port_id);
-			iface->flags |= GR_IFACE_F_UP;
-			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
-		} else {
-			ret = rte_eth_dev_set_link_down(p->port_id);
-			iface->flags &= ~GR_IFACE_F_UP;
-			gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
-		}
-		if (ret < 0)
-			errno_log(-ret, "rte_eth_dev_set_link_{up,down}");
-	}
-
-	if ((set_attrs & GR_IFACE_SET_MTU) && conf->mtu != 0) {
-		if ((ret = rte_eth_dev_set_mtu(p->port_id, conf->mtu)) < 0)
-			return errno_log(-ret, "rte_eth_dev_set_mtu");
-		iface->mtu = conf->mtu;
-	} else {
-		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
-			return errno_log(-ret, "rte_eth_dev_get_mtu");
-	}
-
-	gr_vec_foreach (struct iface *s, iface->subinterfaces)
-		s->mtu = iface->mtu;
-
-	if (set_attrs & GR_IFACE_SET_MODE)
-		iface->mode = conf->mode;
-
-	if (set_attrs & GR_IFACE_SET_VRF)
-		iface->vrf_id = conf->vrf_id;
-
-	if (set_attrs & GR_IFACE_SET_DOMAIN)
-		iface->domain_id = conf->domain_id;
-
-	if ((set_attrs & GR_PORT_SET_MAC) && !rte_is_zero_ether_addr(&api->mac)) {
-		struct rte_ether_addr mac = api->mac;
-		if ((ret = rte_eth_dev_default_mac_addr_set(p->port_id, &mac)) < 0)
-			return errno_log(-ret, "rte_eth_dev_default_mac_addr_set");
-		p->mac = mac;
-	} else {
-		if ((ret = rte_eth_macaddr_get(p->port_id, &p->mac)) < 0)
-			return errno_log(-ret, "rte_eth_macaddr_get");
-	}
+	if (set_attrs & GR_PORT_SET_MAC && (ret = port_mac_set(iface, &api->mac)) < 0)
+		return ret;
 
 	if (!p->started && (ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
@@ -490,7 +423,6 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	const struct iface *i;
-	struct gr_iface conf;
 	int ret;
 
 	i = NULL;
@@ -524,11 +456,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		goto fail;
 	}
 
-	conf.flags = iface->flags;
-	conf.mtu = iface->mtu;
-	conf.vrf_id = iface->vrf_id;
-	conf.mode = iface->mode;
-	ret = iface_port_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
+	ret = iface_port_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
 	if (ret < 0) {
 		iface_port_fini(iface);
 		errno = -ret;
