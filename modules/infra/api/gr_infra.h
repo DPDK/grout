@@ -19,6 +19,7 @@ typedef enum : uint8_t {
 	GR_IFACE_TYPE_PORT,
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
+	GR_IFACE_TYPE_BOND,
 	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
@@ -92,6 +93,7 @@ struct __gr_iface_info_port_base {
 	uint16_t n_txq;
 	uint16_t rxq_size;
 	uint16_t txq_size;
+	uint16_t bond_iface_id;
 	uint32_t link_speed; //!< Physical link speed in Megabit/sec.
 	struct rte_ether_addr mac;
 };
@@ -115,6 +117,40 @@ struct gr_iface_info_vlan {
 	uint16_t parent_id;
 	uint16_t vlan_id;
 	struct rte_ether_addr mac;
+};
+
+// Bond operational modes
+typedef enum : uint8_t {
+	GR_BOND_MODE_ACTIVE_BACKUP = 1,
+} gr_bond_mode_t;
+
+static inline char *gr_bond_mode_name(gr_bond_mode_t mode) {
+	switch (mode) {
+	case GR_BOND_MODE_ACTIVE_BACKUP:
+		return "active-backup";
+	}
+	return "?";
+}
+
+// Bond reconfig attributes
+#define GR_BOND_SET_MODE GR_BIT64(32)
+#define GR_BOND_SET_MEMBERS GR_BIT64(33)
+#define GR_BOND_SET_PRIMARY GR_BIT64(34)
+#define GR_BOND_SET_MAC GR_BIT64(35)
+
+struct gr_bond_member {
+	uint16_t iface_id;
+	bool active;
+};
+
+// Info for GR_IFACE_TYPE_BOND interfaces
+struct gr_iface_info_bond {
+	gr_bond_mode_t mode;
+	struct rte_ether_addr mac;
+
+	uint8_t primary_member;
+	uint8_t n_members;
+	struct gr_bond_member members[8];
 };
 
 struct gr_port_rxq_map {
@@ -333,6 +369,8 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 		return "vlan";
 	case GR_IFACE_TYPE_IPIP:
 		return "ipip";
+	case GR_IFACE_TYPE_BOND:
+		return "bond";
 	case GR_IFACE_TYPE_COUNT:
 		break;
 	}
