@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
@@ -257,6 +258,21 @@ void iface_del_subinterface(struct iface *parent, struct iface *sub) {
 	}
 }
 
+int iface_set_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_eth_addr == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->set_eth_addr(iface, mac);
+}
+
 int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
 	const struct iface_type *type;
@@ -285,6 +301,111 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 		return errno_set(EOPNOTSUPP);
 
 	return type->del_eth_addr(iface, mac);
+}
+
+int iface_set_mtu(uint16_t ifid, uint16_t mtu) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	if (mtu > gr_config.max_mtu)
+		return errno_set(ERANGE);
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_mtu != NULL)
+		return type->set_mtu(iface, mtu);
+
+	iface->mtu = mtu;
+	return 0;
+}
+
+int iface_set_up_down(uint16_t ifid, bool up) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_up_down != NULL)
+		return type->set_up_down(iface, up);
+
+	if (!(iface->flags & GR_IFACE_F_UP) && up)
+		iface->flags |= GR_IFACE_F_UP;
+	else if ((iface->flags & GR_IFACE_F_UP) && !up)
+		iface->flags &= ~GR_IFACE_F_UP;
+
+	return 0;
+}
+
+int iface_set_promisc(uint16_t ifid, bool enabled) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_promisc != NULL)
+		return type->set_promisc(iface, enabled);
+
+	if (enabled)
+		return errno_set(EOPNOTSUPP);
+
+	return 0;
+}
+
+int iface_set_allmulti(uint16_t ifid, bool enabled) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_allmulti != NULL)
+		return type->set_allmulti(iface, enabled);
+
+	if (enabled)
+		return errno_set(EOPNOTSUPP);
+
+	return 0;
+}
+
+int iface_add_vlan(uint16_t ifid, uint16_t vlan_id) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->add_vlan == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->add_vlan(iface, vlan_id);
+}
+
+int iface_del_vlan(uint16_t ifid, uint16_t vlan_id) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->del_vlan == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->del_vlan(iface, vlan_id);
 }
 
 int iface_destroy(uint16_t ifid) {
