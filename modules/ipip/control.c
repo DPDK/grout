@@ -77,13 +77,7 @@ static int iface_ipip_reconfig(
 
 		cur->local = next->local;
 		cur->remote = next->remote;
-		iface->vrf_id = conf->vrf_id;
 	}
-
-	if (set_attrs & GR_IFACE_SET_FLAGS)
-		iface->flags = conf->flags;
-	if (set_attrs & GR_IFACE_SET_MTU)
-		iface->mtu = conf->mtu;
 
 	return 0;
 }
