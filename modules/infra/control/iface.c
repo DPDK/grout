@@ -116,6 +116,17 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->init(iface, api_info) < 0)
 		goto fail;
 
+	if (type->set_mtu != NULL && type->set_mtu(iface, iface->mtu) < 0)
+		goto fail;
+	if (type->set_promisc != NULL
+	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
+		goto fail;
+	if (type->set_allmulti != NULL
+	    && type->set_allmulti(iface, iface->flags & GR_IFACE_F_ALLMULTI) < 0)
+		goto fail;
+	if (type->set_up_down != NULL && type->set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
+		goto fail;
+
 	ifaces[ifid] = iface;
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
@@ -170,20 +181,43 @@ int iface_reconfig(
 	assert(type != NULL);
 
 	if (set_attrs & GR_IFACE_SET_VRF) {
+		if (conf->vrf_id >= GR_MAX_VRFS)
+			return errno_set(EOVERFLOW);
 		old_vrf_id = iface->vrf_id;
 		vrf_incref(conf->vrf_id);
 	}
 
 	ret = type->reconfig(iface, set_attrs, conf, api_info);
-	if (set_attrs & GR_IFACE_SET_VRF) {
-		if (ret == 0)
-			vrf_decref(old_vrf_id);
-		else
+	if (ret < 0) {
+		if (set_attrs & GR_IFACE_SET_VRF)
 			vrf_decref(conf->vrf_id);
+		return ret;
 	}
 
-	if (ret == 0)
-		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		iface->vrf_id = conf->vrf_id;
+		vrf_decref(old_vrf_id);
+	}
+
+	if (set_attrs & GR_IFACE_SET_MODE) {
+		iface->mode = conf->mode;
+	}
+
+	if (set_attrs & GR_IFACE_SET_MTU) {
+		if ((ret = iface_set_mtu(iface->id, conf->mtu)) < 0)
+			return ret;
+	}
+
+	if (set_attrs & GR_IFACE_SET_FLAGS) {
+		if ((ret = iface_set_promisc(iface->id, conf->flags & GR_IFACE_F_PROMISC)) < 0)
+			return ret;
+		if ((ret = iface_set_allmulti(iface->id, conf->flags & GR_IFACE_F_ALLMULTI)) < 0)
+			return ret;
+		if ((ret = iface_set_up_down(iface->id, conf->flags & GR_IFACE_F_UP)) < 0)
+			return ret;
+	}
+
+	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return ret;
 }
