@@ -45,7 +45,7 @@ static struct api_out affinity_set(const void *request, struct api_ctx *) {
 	if (CPU_COUNT(&req->datapath_cpus) > 0) {
 		struct iface *iface = NULL;
 		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
-			gr_vec_add(ports, (struct iface_info_port *)iface->info);
+			gr_vec_add(ports, iface_info_port(iface));
 
 		ret = worker_queue_distribute(&req->datapath_cpus, ports);
 		if (ret < 0)
@@ -86,7 +86,7 @@ static struct api_out rxq_set(const void *request, struct api_ctx *) {
 	if (iface == NULL)
 		return api_out(errno, 0, NULL);
 
-	port = (struct iface_info_port *)iface->info;
+	port = iface_info_port(iface);
 	if (worker_rxq_assign(port->port_id, req->rxq_id, req->cpu_id) < 0)
 		return api_out(errno, 0, NULL);
 

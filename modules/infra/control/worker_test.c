@@ -156,8 +156,9 @@ static int setup(void **) {
 		struct iface_info_port *port;
 		struct iface *iface = calloc(1, sizeof(*iface) + sizeof(*port));
 		assert_non_null(iface);
-		port = (struct iface_info_port *)iface->info;
 		iface->id = i;
+		iface->type = GR_IFACE_TYPE_PORT;
+		port = iface_info_port(iface);
 		port->started = true;
 		port->port_id = i;
 		port->n_rxq = 2;
@@ -342,7 +343,7 @@ static void queue_distribute_reduce(void **) {
 	CPU_SET(5, &affinity);
 	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
-		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
+		gr_vec_add(ports, iface_info_port(ifaces[i]));
 
 	will_return(__wrap_rte_zmalloc, &w4);
 	will_return(__wrap_rte_zmalloc, &w5);
@@ -362,7 +363,7 @@ static void queue_distribute_reduce(void **) {
 	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
 
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
-		struct iface_info_port *p = (struct iface_info_port *)ifaces[i]->info;
+		struct iface_info_port *p = iface_info_port(ifaces[i]);
 		assert_int_equal(p->n_txq, CPU_COUNT(&affinity));
 	}
 }
@@ -379,7 +380,7 @@ static void queue_distribute_increase(void **) {
 	CPU_SET(5, &affinity);
 	gr_vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
-		gr_vec_add(ports, (struct iface_info_port *)ifaces[i]->info);
+		gr_vec_add(ports, iface_info_port(ifaces[i]));
 
 	will_return(__wrap_rte_zmalloc, &w1);
 	will_return(__wrap_rte_zmalloc, &w2);
@@ -400,7 +401,7 @@ static void queue_distribute_increase(void **) {
 	assert_qmaps(w5.txqs, q(0, 4), q(1, 4), q(2, 4));
 
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
-		struct iface_info_port *p = (struct iface_info_port *)ifaces[i]->info;
+		struct iface_info_port *p = iface_info_port(ifaces[i]);
 		assert_int_equal(p->n_txq, CPU_COUNT(&affinity));
 	}
 }

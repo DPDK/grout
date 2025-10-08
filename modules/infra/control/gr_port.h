@@ -27,7 +27,7 @@ struct mac_filter {
 	struct rte_ether_addr mac[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
 };
 
-struct __rte_aligned(alignof(void *)) iface_info_port {
+GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	BASE(__gr_iface_info_port_base);
 
 	uint16_t port_id;
@@ -37,7 +37,7 @@ struct __rte_aligned(alignof(void *)) iface_info_port {
 	uint32_t pool_size;
 	struct mac_filter ucast_filter;
 	struct mac_filter mcast_filter;
-};
+});
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
 const struct iface *port_get_iface(uint16_t port_id);

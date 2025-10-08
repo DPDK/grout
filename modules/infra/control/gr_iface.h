@@ -21,6 +21,13 @@ struct __rte_cache_aligned iface {
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 
+#define GR_IFACE_INFO(type_id, type_name, fields)                                                  \
+	struct type_name fields __attribute__((__may_alias__, aligned(alignof(void *))));          \
+	static inline struct type_name *type_name(const struct iface *iface) {                     \
+		assert(iface->type == type_id);                                                    \
+		return (struct type_name *)iface->info;                                            \
+	}
+
 #define IFACE_SET_ALL UINT64_C(0xffffffffffffffff)
 
 struct iface_type {

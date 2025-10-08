@@ -34,7 +34,7 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		rx_stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 
 		if (peer->type == GR_IFACE_TYPE_PORT) {
-			port = (const struct iface_info_port *)peer->info;
+			port = iface_info_port(peer);
 			mbuf->port = port->port_id;
 			edge = OUTPUT;
 
