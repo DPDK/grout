@@ -16,6 +16,7 @@ enum {
 	UNKNOWN_ETHER_TYPE = 0,
 	UNKNOWN_VLAN,
 	INVALID_IFACE,
+	IFACE_DOWN,
 	NB_EDGES,
 };
 
@@ -57,6 +58,11 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_type = eth->ether_type;
 		vlan_id = 0;
 
+		if (!(eth_in->iface->flags & GR_IFACE_F_UP)) {
+			edge = IFACE_DOWN;
+			goto next;
+		}
+
 		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 			vlan_id = m->vlan_tci & 0xfff;
 		} else if (eth_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
@@ -73,6 +79,10 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			}
 			if (vlan_iface == NULL) {
 				edge = UNKNOWN_VLAN;
+				goto next;
+			}
+			if (!(vlan_iface->flags & GR_IFACE_F_UP)) {
+				edge = IFACE_DOWN;
 				goto next;
 			}
 			eth_in->iface = vlan_iface;
@@ -147,6 +157,7 @@ static struct rte_node_register node = {
 		[UNKNOWN_ETHER_TYPE] = "eth_input_unknown_type",
 		[UNKNOWN_VLAN] = "eth_input_unknown_vlan",
 		[INVALID_IFACE] = "eth_input_invalid_iface",
+		[IFACE_DOWN] = "iface_input_admin_down",
 		// other edges are updated dynamically with gr_eth_input_add_type
 	},
 };
@@ -166,3 +177,4 @@ GR_NODE_REGISTER(info);
 GR_DROP_REGISTER(eth_input_unknown_type);
 GR_DROP_REGISTER(eth_input_unknown_vlan);
 GR_DROP_REGISTER(eth_input_invalid_iface);
+GR_DROP_REGISTER(iface_input_admin_down);
