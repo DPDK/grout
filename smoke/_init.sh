@@ -50,11 +50,11 @@ cleanup() {
 			fi
 		done
 	fi
-	if [ "$run_grout" = true ]; then
-		kill %?grout
-		wait %?grout
-	fi
 	rm -rf -- "$tmp"
+	if [ "$run_grout" = true ]; then
+		kill -15 %?grout
+		wait %?grout || fail "grout crashed"
+	fi
 }
 
 fail() {
