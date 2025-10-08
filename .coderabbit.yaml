@@ -32,8 +32,19 @@ reviews:
       instructions: ""
   path_filters: []
   path_instructions:
-    - path: ""
-      instructions: ""
+    - path: "**/*.{c,h}"
+      instructions: |
+        - `gr_vec_*()` functions cannot fail. No need to check their return value.
+        - `gr_vec_free(x)` always sets `x = NULL`. There is no risk of double free.
+        - `ec_node_*()` functions consume their `ec_node` arguments. No leaks on error.
+        - `rte_node->ctx` is an uint8_t array of size 16, not a pointer.
+        - Don't suggest to replace `assert()` with graceful error checking.
+    - path: "**/*.sh"
+      instructions: |
+        - Don't bother about unquoted shell variables.
+    - path: "**/*.md"
+      instructions: |
+        - Never comment about setext vs ATX style headings.
   abort_on_close: true
   disable_cache: false
   auto_review:
