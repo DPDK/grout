@@ -5,6 +5,7 @@
 /*.list
 /*.rpm
 /.cache
+/.claude/settings.local.json
 /build
 /debian/*.debhelper
 /debian/*.debhelper.log
