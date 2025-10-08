@@ -18,6 +18,7 @@ enum {
 	INVAL = 0,
 	NO_HEADROOM,
 	NO_MAC,
+	IFACE_DOWN,
 	NB_EDGES,
 };
 
@@ -48,8 +49,21 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		iface = priv->iface;
 		vlan = NULL;
 
+		if (!(priv->iface->flags & GR_IFACE_F_UP)) {
+			edge = IFACE_DOWN;
+			goto next;
+		}
 		if (priv->iface->type == GR_IFACE_TYPE_VLAN) {
 			const struct iface_info_vlan *sub = iface_info_vlan(priv->iface);
+			priv->iface = iface_from_id(sub->parent_id);
+			if (priv->iface == NULL) {
+				edge = INVAL;
+				goto next;
+			}
+			if (!(priv->iface->flags & GR_IFACE_F_UP)) {
+				edge = IFACE_DOWN;
+				goto next;
+			}
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
 			if (unlikely(vlan == NULL)) {
 				edge = NO_HEADROOM;
@@ -58,7 +72,6 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			vlan->vlan_tci = rte_cpu_to_be_16(sub->vlan_id);
 			vlan->eth_proto = priv->ether_type;
 			priv->ether_type = RTE_BE16(RTE_ETHER_TYPE_VLAN);
-			priv->iface = iface_from_id(sub->parent_id);
 			src_mac = sub->mac;
 		} else if (iface_get_eth_addr(priv->iface->id, &src_mac) < 0) {
 			edge = NO_MAC;
@@ -107,6 +120,7 @@ static struct rte_node_register node = {
 		[INVAL] = "eth_output_inval",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_MAC] = "eth_output_no_mac",
+		[IFACE_DOWN] = "iface_input_admin_down",
 	},
 };
 
