@@ -165,7 +165,12 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 static struct rte_rcu_qsbr *rcu;
 
 void *gr_datapath_loop(void *priv) {
-	struct stats_context ctx = {.last_count = 0};
+	struct stats_context ctx = {
+		.stats = NULL,
+		.last_count = 0,
+		.node_to_index = NULL,
+		.w_stats = NULL,
+	};
 	uint64_t timestamp, timestamp_tmp, cycles;
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
@@ -271,6 +276,7 @@ shutdown:
 	if (ctx.stats)
 		rte_graph_cluster_stats_destroy(ctx.stats);
 	rte_free(ctx.w_stats);
+	rte_free(ctx.node_to_index);
 	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
