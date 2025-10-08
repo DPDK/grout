@@ -147,7 +147,7 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 }
 
 static int port_up_down(struct iface *iface, bool up) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
 	if (up) {
@@ -178,7 +178,7 @@ static int port_up_down(struct iface *iface, bool up) {
 }
 
 static int port_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
 	if (!rte_is_zero_ether_addr(mac)) {
@@ -194,7 +194,7 @@ static int port_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
 }
 
 static int port_promisc_set(struct iface *iface, bool enabled) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
 	if (enabled)
@@ -220,7 +220,7 @@ static int port_promisc_set(struct iface *iface, bool enabled) {
 }
 
 static int port_allmulti_set(struct iface *iface, bool enabled) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
 	if (enabled)
@@ -246,7 +246,7 @@ static int port_allmulti_set(struct iface *iface, bool enabled) {
 }
 
 static int port_mtu_set(struct iface *iface, uint16_t mtu) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
 	if (mtu != 0) {
@@ -272,7 +272,7 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 }
 
 static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, true);
 	switch (ret) {
 	case 0:
@@ -286,7 +286,7 @@ static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
 }
 
 static int port_vlan_del(struct iface *iface, uint16_t vlan_id) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, false);
 	switch (ret) {
 	case 0:
@@ -305,7 +305,7 @@ static int iface_port_reconfig(
 	const struct gr_iface *,
 	const void *api_info
 ) {
-	struct iface_info_port *p = (struct iface_info_port *)iface->info;
+	struct iface_info_port *p = iface_info_port(iface);
 	const struct gr_iface_info_port *api = api_info;
 	bool needs_configure = false;
 	int ret;
@@ -342,7 +342,7 @@ static int iface_port_reconfig(
 		struct iface *i = NULL;
 		bool found = false;
 		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
-			struct iface_info_port *port = (struct iface_info_port *)i->info;
+			struct iface_info_port *port = iface_info_port(i);
 			if (port == p)
 				found = true;
 			gr_vec_add(ports, port);
@@ -371,7 +371,7 @@ static int iface_port_reconfig(
 static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
 
 static int iface_port_fini(struct iface *iface) {
-	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port *port = iface_info_port(iface);
 	gr_vec struct iface_info_port **ports = NULL;
 	struct rte_eth_dev_info info = {0};
 	struct iface *i = NULL;
@@ -380,7 +380,7 @@ static int iface_port_fini(struct iface *iface) {
 	if (worker_count() > 0) {
 		// unplug port from all workers
 		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
-			struct iface_info_port *p = (struct iface_info_port *)i->info;
+			struct iface_info_port *p = iface_info_port(i);
 			if (p != port)
 				gr_vec_add(ports, p);
 		}
@@ -418,7 +418,7 @@ fini:
 }
 
 static int iface_port_init(struct iface *iface, const void *api_info) {
-	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port *port = iface_info_port(iface);
 	const struct gr_iface_info_port *api = api_info;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
@@ -427,7 +427,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 
 	i = NULL;
 	while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
-		const struct iface_info_port *p = (const struct iface_info_port *)i->info;
+		const struct iface_info_port *p = iface_info_port(i);
 		if (strncmp(p->devargs, api->devargs, sizeof(api->devargs)) == 0)
 			return errno_set(EEXIST);
 	}
@@ -475,13 +475,13 @@ const struct iface *port_get_iface(uint16_t port_id) {
 }
 
 static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
-	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port *port = iface_info_port(iface);
 	*mac = port->mac;
 	return 0;
 }
 
 static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
-	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port *port = iface_info_port(iface);
 	struct mac_filter *filter;
 	const char *mac_type;
 	bool multicast;
@@ -563,7 +563,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 }
 
 static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
-	struct iface_info_port *port = (struct iface_info_port *)iface->info;
+	struct iface_info_port *port = iface_info_port(iface);
 	struct mac_filter *filter;
 	const char *mac_type;
 	bool multicast;
@@ -646,7 +646,7 @@ found:
 }
 
 static void port_to_api(void *info, const struct iface *iface) {
-	const struct iface_info_port *port = (const struct iface_info_port *)iface->info;
+	const struct iface_info_port *port = iface_info_port(iface);
 	struct gr_iface_info_port *api = info;
 	struct rte_eth_dev_info dev_info;
 
@@ -686,7 +686,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			if (iface == NULL)
 				continue;
 
-			port = (struct iface_info_port *)iface->info;
+			port = iface_info_port(iface);
 
 			// XXX: net_tap devices are signaled down by the kernel when they
 			// are moved to another netns although they still can receive and

@@ -168,7 +168,7 @@ int port_unplug(struct iface_info_port *p) {
 		return 0;
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-		struct iface_info_port *port = (struct iface_info_port *)iface->info;
+		struct iface_info_port *port = iface_info_port(iface);
 		if (port->port_id != p->port_id)
 			gr_vec_add(ports, port);
 	}
@@ -209,7 +209,7 @@ int port_plug(struct iface_info_port *p) {
 	struct iface *iface = NULL;
 	bool found = false;
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-		struct iface_info_port *port = (struct iface_info_port *)iface->info;
+		struct iface_info_port *port = iface_info_port(iface);
 		if (port->port_id == p->port_id)
 			found = true;
 		gr_vec_add(ports, port);
@@ -278,7 +278,7 @@ move:
 	gr_vec struct iface_info_port **ports = NULL;
 	struct iface *iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
-		gr_vec_add(ports, (struct iface_info_port *)iface->info);
+		gr_vec_add(ports, iface_info_port(iface));
 
 	// ensure source worker has released the rxq
 	if ((ret = worker_graph_reload(src_worker, ports)) < 0)

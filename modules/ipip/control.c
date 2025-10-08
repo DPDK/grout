@@ -51,7 +51,7 @@ static int iface_ipip_reconfig(
 	const struct gr_iface *conf,
 	const void *api_info
 ) {
-	struct iface_info_ipip *cur = (struct iface_info_ipip *)iface->info;
+	struct iface_info_ipip *cur = iface_info_ipip(iface);
 	const struct gr_iface_info_ipip *next = api_info;
 	struct ipip_key cur_key = {cur->local, cur->remote, iface->vrf_id};
 	struct ipip_key next_key = {next->local, next->remote, conf->vrf_id};
@@ -83,7 +83,7 @@ static int iface_ipip_reconfig(
 }
 
 static int iface_ipip_fini(struct iface *iface) {
-	struct iface_info_ipip *ipip = (struct iface_info_ipip *)iface->info;
+	struct iface_info_ipip *ipip = iface_info_ipip(iface);
 	struct ipip_key key = {ipip->local, ipip->remote, iface->vrf_id};
 
 	rte_hash_del_key(ipip_hash, &key);
@@ -110,7 +110,7 @@ static int iface_ipip_init(struct iface *iface, const void *api_info) {
 }
 
 static void ipip_to_api(void *info, const struct iface *iface) {
-	const struct iface_info_ipip *ipip = (const struct iface_info_ipip *)iface->info;
+	const struct iface_info_ipip *ipip = iface_info_ipip(iface);
 	struct gr_iface_info_ipip *api = info;
 
 	*api = ipip->base;

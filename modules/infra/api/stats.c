@@ -128,7 +128,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 		unsigned num;
 
 		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-			struct iface_info_port *port = (struct iface_info_port *)iface->info;
+			struct iface_info_port *port = iface_info_port(iface);
 
 			// call first with NULL/0 to get the exact count
 			if ((ret = rte_eth_xstats_get(port->port_id, NULL, 0)) < 0)
@@ -240,7 +240,7 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 	memset(iface_stats, 0, sizeof(iface_stats));
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
-		struct iface_info_port *port = (struct iface_info_port *)iface->info;
+		struct iface_info_port *port = iface_info_port(iface);
 		if ((ret = rte_eth_stats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0, NULL);
 		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
@@ -278,7 +278,7 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 
 		if (iface->type == GR_IFACE_TYPE_PORT) {
 			// If possible, use the hardware statistics from the driver
-			struct iface_info_port *port = (struct iface_info_port *)iface->info;
+			struct iface_info_port *port = iface_info_port(iface);
 			struct rte_eth_stats stats = {0};
 			if (rte_eth_stats_get(port->port_id, &stats) == 0) {
 				s.rx_drops = stats.imissed;
@@ -400,8 +400,7 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 
 			// Get hardware stats for physical ports.
 			if (iface->type == GR_IFACE_TYPE_PORT) {
-				struct iface_info_port *port = (struct
-								iface_info_port *)iface->info;
+				struct iface_info_port *port = iface_info_port(iface);
 
 				struct rte_eth_stats eth_stats;
 				if (rte_eth_stats_get(port->port_id, &eth_stats) == 0) {
