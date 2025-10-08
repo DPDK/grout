@@ -36,7 +36,6 @@ static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_output_mbuf_data *priv;
 	struct rte_ether_addr src_mac;
-	struct iface_info_vlan *sub;
 	const struct iface *iface;
 	struct rte_vlan_hdr *vlan;
 	struct rte_ether_hdr *eth;
@@ -50,7 +49,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		vlan = NULL;
 
 		if (priv->iface->type == GR_IFACE_TYPE_VLAN) {
-			sub = (struct iface_info_vlan *)priv->iface->info;
+			const struct iface_info_vlan *sub = iface_info_vlan(priv->iface);
 			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
 			if (unlikely(vlan == NULL)) {
 				edge = NO_HEADROOM;

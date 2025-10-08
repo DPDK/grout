@@ -24,7 +24,7 @@ port_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	for (unsigned i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
 		iface = mbuf_data(mbuf)->iface;
-		port = (const struct iface_info_port *)iface->info;
+		port = iface_info_port(iface);
 
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);

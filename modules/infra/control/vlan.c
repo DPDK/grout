@@ -39,7 +39,7 @@ static int iface_vlan_reconfig(
 	const struct gr_iface *,
 	const void *api_info
 ) {
-	struct iface_info_vlan *cur = (struct iface_info_vlan *)iface->info;
+	struct iface_info_vlan *cur = iface_info_vlan(iface);
 	const struct gr_iface_info_vlan *next = api_info;
 	bool reconfig = set_attrs != IFACE_SET_ALL;
 	struct iface *cur_parent, *next_parent;
@@ -104,7 +104,7 @@ static int iface_vlan_reconfig(
 }
 
 static int iface_vlan_fini(struct iface *iface) {
-	struct iface_info_vlan *vlan = (struct iface_info_vlan *)iface->info;
+	struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct iface *parent = iface_from_id(vlan->parent_id);
 	int ret, status = 0;
 
@@ -134,13 +134,13 @@ static int iface_vlan_init(struct iface *iface, const void *api_info) {
 }
 
 static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
-	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	*mac = vlan->mac;
 	return 0;
 }
 
 static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
-	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 
 	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
 		return errno_set(EINVAL);
@@ -149,7 +149,7 @@ static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_a
 }
 
 static int iface_vlan_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
-	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 
 	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
 		return errno_set(EINVAL);
@@ -158,7 +158,7 @@ static int iface_vlan_del_eth_addr(struct iface *iface, const struct rte_ether_a
 }
 
 static void vlan_to_api(void *info, const struct iface *iface) {
-	const struct iface_info_vlan *vlan = (const struct iface_info_vlan *)iface->info;
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct gr_iface_info_vlan *api = info;
 
 	*api = vlan->base;
