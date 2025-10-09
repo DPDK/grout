@@ -13,11 +13,11 @@ RUN mkdir -p /tmp/null/var/run/frr
 RUN chroot /tmp/null chown -R frr:frr /etc/frr /var/run/frr
 # not packaged in centos, download from upstream
 ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini /tmp/null/sbin/tini
-ADD https://raw.githubusercontent.com/FRRouting/frr/refs/tags/frr-10.4.1/docker/ubi8-minimal/docker-start /tmp/null/sbin/frr-start
-RUN chmod +x /tmp/null/sbin/tini /tmp/null/sbin/frr-start
+ADD https://raw.githubusercontent.com/FRRouting/frr/refs/tags/frr-10.4.1/docker/ubi8-minimal/docker-start /tmp/null/sbin/docker-start
+RUN chmod +x /tmp/null/sbin/tini /tmp/null/sbin/docker-start
 
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/sbin/frr-start"]
+CMD ["/sbin/docker-start"]
