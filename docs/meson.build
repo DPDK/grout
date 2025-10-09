@@ -18,6 +18,7 @@ man_src = [
   'grout-frr.7.md',
   'grcli-address.1.md',
   'grcli-affinity.1.md',
+  'grcli-conntrack.1.md',
 ]
 
 foreach m : man_src
