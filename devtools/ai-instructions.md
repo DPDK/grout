@@ -60,6 +60,7 @@ See @CONTRIBUTING.md for expected commit message format and git trailers.
   relevant in the context of the commit.
 - **Avoid shallow/empty statements:** We don't need AI slop. We need actual
   information that is not present in the diff already.
+- **Commit body is NOT optional**
 
 Here is a pathological example:
 
