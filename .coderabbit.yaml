@@ -39,6 +39,7 @@ reviews:
         - `ec_node_*()` functions consume their `ec_node` arguments. No leaks on error.
         - `rte_node->ctx` is an uint8_t array of size 16, not a pointer.
         - Don't suggest to replace `assert()` with graceful error checking.
+        - We compile with `-std=gnu2x`. Unnamed parameters in function definitions are *valid*.
     - path: "**/*.sh"
       instructions: |
         - Don't bother about unquoted shell variables.
