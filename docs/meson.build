@@ -19,6 +19,7 @@ man_src = [
   'grcli-address.1.md',
   'grcli-affinity.1.md',
   'grcli-conntrack.1.md',
+  'grcli-dnat44.1.md',
 ]
 
 foreach m : man_src
