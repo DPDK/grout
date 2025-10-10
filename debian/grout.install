@@ -7,4 +7,5 @@
 /usr/share/man/man1/grcli-affinity.1
 /usr/share/man/man1/grcli-conntrack.1
 /usr/share/man/man1/grcli-dnat44.1
+/usr/share/man/man1/grcli-events.1
 /usr/share/man/man8/grout.8
