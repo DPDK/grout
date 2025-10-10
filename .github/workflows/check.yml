@@ -66,8 +66,8 @@ jobs:
           set -xe
           sudo apt-get update -qy
           sudo apt-get install -qy --no-install-recommends \
-            make gcc ccache ninja-build meson git go-md2man libibverbs-dev \
-            libasan8 libcmocka-dev libedit-dev libarchive-dev \
+            make gcc gdb ccache ninja-build meson git go-md2man \
+            libibverbs-dev libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq
           if echo $MESON_EXTRA_OPTS | grep -q frr=enabled ; then
