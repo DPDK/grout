@@ -18,6 +18,7 @@ else
 fi
 
 cleanup() {
+	status="$?"
 	set +e
 	sh -x $tmp/cleanup
 	# delete all non-port interfaces first
@@ -50,11 +51,38 @@ cleanup() {
 			fi
 		done
 	fi
-	rm -rf -- "$tmp"
 	if [ "$run_grout" = true ]; then
-		kill -15 %?grout
-		wait %?grout || fail "grout crashed"
+		set +x
+		kill -15 "$grout_pid"
+		wait "$grout_pid"
+		ret="$?"
+		if [ "$ret" -ne 0 ]; then
+			status="$ret"
+			if [ "$ret" -gt 128 ]; then
+				sig=$((ret - 128))
+				echo "fail: grout terminated by signal SIG$(kill -l $sig)"
+			else
+				echo "fail: grout exited with an error status $ret"
+			fi >&2
+			if [ -n "$core_pattern" ]; then
+				# core dumps written to files
+				for core in $tmp/core.*.*; do
+					[ -f "$core" ] || continue
+					gdb -c "$core" -batch \
+						-ex "info threads" \
+						-ex "thread apply all bt"
+				done
+				 # restore original core pattern
+				sysctl -w kernel.core_pattern="$core_pattern"
+			else
+				# fallback to systemd-coredump, if available
+				coredumpctl info --no-pager "$grout_pid"
+			fi
+		fi
+		set -x
 	fi
+	rm -rf -- "$tmp"
+	exit $status
 }
 
 fail() {
@@ -103,9 +131,16 @@ EOF
 set -x
 
 if [ "$run_grout" = true ]; then
+	ulimit -c unlimited
+	core_pattern=$(sysctl -n kernel.core_pattern)
+	if ! sysctl -w kernel.core_pattern="$tmp/core.%e.%p"; then
+		unset core_pattern
+	fi
+	export ASAN_OPTIONS=disable_coredump=0
 	taskset -c 0,1 grout -tvvx $grout_extra_options &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
+grout_pid=$(pgrep -g0 grout)
 
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh)
