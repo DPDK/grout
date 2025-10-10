@@ -31,11 +31,11 @@
 static struct rte_mempool *loopback_pool;
 static struct event_base *ev_base;
 
-struct iface_info_loopback {
+GR_IFACE_INFO(GR_IFACE_TYPE_LOOPBACK, iface_info_loopback, {
 	int fd;
 	struct event *ev;
 	struct rte_ether_addr mac;
-};
+});
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -44,7 +44,7 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 }
 
 static int loopback_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
-	struct iface_info_loopback *lo = (struct iface_info_loopback *)iface->info;
+	struct iface_info_loopback *lo = iface_info_loopback(iface);
 	*mac = lo->mac;
 	return 0;
 }
@@ -56,7 +56,7 @@ void loopback_tx(struct rte_mbuf *m) {
 	struct iface_stats *stats;
 	char *data = NULL;
 
-	lo = (struct iface_info_loopback *)d->iface->info;
+	lo = iface_info_loopback(d->iface);
 
 	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (rte_is_unicast_ether_addr(&eth->dst_addr))
@@ -115,7 +115,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	size_t len;
 	char *data;
 
-	lo = (struct iface_info_loopback *)iface->info;
+	lo = iface_info_loopback(iface);
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
@@ -189,7 +189,7 @@ int iface_loopback_delete(uint16_t vrf_id) {
 }
 
 static int iface_loopback_init(struct iface *iface, const void * /* api_info */) {
-	struct iface_info_loopback *lo = (struct iface_info_loopback *)iface->info;
+	struct iface_info_loopback *lo = iface_info_loopback(iface);
 	struct ifreq ifr;
 	int ioctl_sock;
 	int err_save;
@@ -270,7 +270,7 @@ err:
 }
 
 static int iface_loopback_fini(struct iface *iface) {
-	struct iface_info_loopback *lo = (struct iface_info_loopback *)iface->info;
+	struct iface_info_loopback *lo = iface_info_loopback(iface);
 	event_free_finalize(0, lo->ev, finalize_fd);
 	return 0;
 }

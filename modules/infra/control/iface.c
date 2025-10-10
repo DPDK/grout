@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_config.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
@@ -24,7 +25,7 @@ static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
-struct iface_type *iface_type_get(gr_iface_type_t type_id) {
+const struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
 	STAILQ_FOREACH (t, &types, next)
 		if (t->id == type_id)
@@ -72,7 +73,7 @@ static int next_ifid(uint16_t *ifid) {
 }
 
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
-	struct iface_type *type = iface_type_get(conf->type);
+	const struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
 	bool vrf_ref = false;
 	uint16_t ifid;
@@ -115,6 +116,17 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->init(iface, api_info) < 0)
 		goto fail;
 
+	if (type->set_mtu != NULL && type->set_mtu(iface, iface->mtu) < 0)
+		goto fail;
+	if (type->set_promisc != NULL
+	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
+		goto fail;
+	if (type->set_allmulti != NULL
+	    && type->set_allmulti(iface, iface->flags & GR_IFACE_F_ALLMULTI) < 0)
+		goto fail;
+	if (type->set_up_down != NULL && type->set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
+		goto fail;
+
 	ifaces[ifid] = iface;
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
@@ -139,13 +151,14 @@ int iface_reconfig(
 	const struct gr_iface *conf,
 	const void *api_info
 ) {
-	struct iface_type *type;
+	const struct iface_type *type;
 	struct iface *iface;
 	uint16_t old_vrf_id;
 	int ret;
 
 	if (set_attrs == 0)
 		return errno_set(EINVAL);
+
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -errno;
 	if (set_attrs & GR_IFACE_SET_NAME) {
@@ -168,17 +181,43 @@ int iface_reconfig(
 	assert(type != NULL);
 
 	if (set_attrs & GR_IFACE_SET_VRF) {
+		if (conf->vrf_id >= GR_MAX_VRFS)
+			return errno_set(EOVERFLOW);
 		old_vrf_id = iface->vrf_id;
 		vrf_incref(conf->vrf_id);
 	}
 
 	ret = type->reconfig(iface, set_attrs, conf, api_info);
-	if (set_attrs & GR_IFACE_SET_VRF) {
-		if (ret == 0)
-			vrf_decref(old_vrf_id);
-		else
+	if (ret < 0) {
+		if (set_attrs & GR_IFACE_SET_VRF)
 			vrf_decref(conf->vrf_id);
+		return ret;
 	}
+
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		iface->vrf_id = conf->vrf_id;
+		vrf_decref(old_vrf_id);
+	}
+
+	if (set_attrs & GR_IFACE_SET_MODE) {
+		iface->mode = conf->mode;
+	}
+
+	if (set_attrs & GR_IFACE_SET_MTU) {
+		if ((ret = iface_set_mtu(iface->id, conf->mtu)) < 0)
+			return ret;
+	}
+
+	if (set_attrs & GR_IFACE_SET_FLAGS) {
+		if ((ret = iface_set_promisc(iface->id, conf->flags & GR_IFACE_F_PROMISC)) < 0)
+			return ret;
+		if ((ret = iface_set_allmulti(iface->id, conf->flags & GR_IFACE_F_ALLMULTI)) < 0)
+			return ret;
+		if ((ret = iface_set_up_down(iface->id, conf->flags & GR_IFACE_F_UP)) < 0)
+			return ret;
+	}
+
+	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return ret;
 }
@@ -223,7 +262,7 @@ struct iface *iface_from_id(uint16_t ifid) {
 
 int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -236,16 +275,15 @@ int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
 	return type->get_eth_addr(iface, mac);
 }
 
-void iface_add_subinterface(struct iface *parent, const struct iface *sub) {
-	const struct iface **s;
-	gr_vec_foreach_ref (s, parent->subinterfaces) {
-		if (*s == sub)
+void iface_add_subinterface(struct iface *parent, struct iface *sub) {
+	gr_vec_foreach (struct iface *s, parent->subinterfaces) {
+		if (s == sub)
 			return;
 	}
 	gr_vec_add(parent->subinterfaces, sub);
 }
 
-void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
+void iface_del_subinterface(struct iface *parent, struct iface *sub) {
 	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
 			gr_vec_del_swap(parent->subinterfaces, i);
@@ -254,9 +292,24 @@ void iface_del_subinterface(struct iface *parent, const struct iface *sub) {
 	}
 }
 
+int iface_set_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_eth_addr == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->set_eth_addr(iface, mac);
+}
+
 int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -271,7 +324,7 @@ int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 
 int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 
 	if (iface == NULL)
 		return -errno;
@@ -284,9 +337,114 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	return type->del_eth_addr(iface, mac);
 }
 
+int iface_set_mtu(uint16_t ifid, uint16_t mtu) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	if (mtu > gr_config.max_mtu)
+		return errno_set(ERANGE);
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_mtu != NULL)
+		return type->set_mtu(iface, mtu);
+
+	iface->mtu = mtu;
+	return 0;
+}
+
+int iface_set_up_down(uint16_t ifid, bool up) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_up_down != NULL)
+		return type->set_up_down(iface, up);
+
+	if (!(iface->flags & GR_IFACE_F_UP) && up)
+		iface->flags |= GR_IFACE_F_UP;
+	else if ((iface->flags & GR_IFACE_F_UP) && !up)
+		iface->flags &= ~GR_IFACE_F_UP;
+
+	return 0;
+}
+
+int iface_set_promisc(uint16_t ifid, bool enabled) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_promisc != NULL)
+		return type->set_promisc(iface, enabled);
+
+	if (enabled)
+		return errno_set(EOPNOTSUPP);
+
+	return 0;
+}
+
+int iface_set_allmulti(uint16_t ifid, bool enabled) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->set_allmulti != NULL)
+		return type->set_allmulti(iface, enabled);
+
+	if (enabled)
+		return errno_set(EOPNOTSUPP);
+
+	return 0;
+}
+
+int iface_add_vlan(uint16_t ifid, uint16_t vlan_id) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->add_vlan == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->add_vlan(iface, vlan_id);
+}
+
+int iface_del_vlan(uint16_t ifid, uint16_t vlan_id) {
+	struct iface *iface = iface_from_id(ifid);
+	const struct iface_type *type;
+
+	if (iface == NULL)
+		return -errno;
+
+	type = iface_type_get(iface->type);
+	assert(type != NULL);
+	if (type->del_vlan == NULL)
+		return errno_set(EOPNOTSUPP);
+
+	return type->del_vlan(iface, vlan_id);
+}
+
 int iface_destroy(uint16_t ifid) {
 	struct iface *iface = iface_from_id(ifid);
-	struct iface_type *type;
+	const struct iface_type *type;
 	int ret;
 
 	if (iface == NULL)
@@ -360,7 +518,7 @@ static struct gr_module iface_module = {
 	.fini = iface_fini,
 };
 
-static void iface_event_debug(uint32_t event, const void *obj) {
+static void iface_event(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	char *str = "";
 	switch (event) {
@@ -375,9 +533,17 @@ static void iface_event_debug(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		str = "STATUS_UP";
+		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+			s->state |= GR_IFACE_S_RUNNING;
+			gr_event_push(event, s);
+		}
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
 		str = "STATUS_DOWN";
+		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+			s->state &= ~GR_IFACE_S_RUNNING;
+			gr_event_push(event, s);
+		}
 		break;
 	default:
 		str = "?";
@@ -386,8 +552,8 @@ static void iface_event_debug(uint32_t event, const void *obj) {
 	LOG(DEBUG, "iface event [0x%08x] %s triggered for iface %s.", event, str, iface->name);
 }
 
-static struct gr_event_subscription iface_event_debug_handler = {
-	.callback = iface_event_debug,
+static struct gr_event_subscription iface_event_handler = {
+	.callback = iface_event,
 	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
@@ -400,5 +566,5 @@ static struct gr_event_subscription iface_event_debug_handler = {
 
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
-	gr_event_subscribe(&iface_event_debug_handler);
+	gr_event_subscribe(&iface_event_handler);
 }

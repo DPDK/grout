@@ -23,6 +23,7 @@ enum {
 	IP_OUTPUT = 0,
 	NO_TUNNEL,
 	NO_HEADROOM,
+	IFACE_DOWN,
 	EDGE_COUNT,
 };
 
@@ -51,8 +52,12 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			t->iface_id = iface->id;
 		}
+		if (!(iface->flags & GR_IFACE_F_UP)) {
+			edge = IFACE_DOWN;
+			goto next;
+		}
 		ip_data->iface = iface;
-		ipip = (const struct iface_info_ipip *)iface->info;
+		ipip = iface_info_ipip(iface);
 
 		// Encapsulate with another IPv4 header.
 		inner = rte_pktmbuf_mtod(mbuf, const struct rte_ipv4_hdr *);
@@ -98,6 +103,7 @@ static struct rte_node_register ipip_output_node = {
 		[IP_OUTPUT] = "ip_output",
 		[NO_TUNNEL] = "ipip_output_no_tunnel",
 		[NO_HEADROOM] = "error_no_headroom",
+		[IFACE_DOWN] = "iface_input_admin_down",
 	},
 };
 

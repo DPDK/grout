@@ -21,6 +21,7 @@
 enum {
 	IP_INPUT = 0,
 	NO_TUNNEL,
+	IFACE_DOWN,
 	EDGE_COUNT,
 };
 
@@ -61,6 +62,10 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			edge = NO_TUNNEL;
 			goto next;
 		}
+		if (!(ipip->flags & GR_IFACE_F_UP)) {
+			edge = IFACE_DOWN;
+			goto next;
+		}
 		// The hw checksum offload only works on the outer IP.
 		// Clear the offload flag so that ip_input will check it in software.
 		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
@@ -95,6 +100,7 @@ static struct rte_node_register ipip_input_node = {
 	.next_nodes = {
 		[IP_INPUT] = "ip_input",
 		[NO_TUNNEL] = "ipip_input_no_tunnel",
+		[IFACE_DOWN] = "iface_input_admin_down",
 	},
 };
 
