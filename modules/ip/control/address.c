@@ -10,6 +10,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_rcu.h>
 #include <gr_vec.h>
 
 #include <event2/event.h>
@@ -108,7 +109,20 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 	if (ret < 0)
 		return api_out(-ret, 0, NULL);
 
-	gr_vec_add(ifaddrs->nh, nh);
+	// gr_vec_add may realloc() and free the old vector
+	// Duplicate the whole vector and append to the clone.
+	gr_vec struct nexthop **nhs_copy = NULL;
+	gr_vec struct nexthop **nhs_old = ifaddrs->nh;
+	gr_vec_cap_set(nhs_copy, gr_vec_len(nhs_old) + 1); // avoid malloc+realloc
+	gr_vec_extend(nhs_copy, nhs_old);
+	gr_vec_add(nhs_copy, nh);
+	ifaddrs->nh = nhs_copy;
+	if (nhs_old != NULL) {
+		// Once all datapath workers have seen the new clone, free the old one.
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		gr_vec_free(nhs_old);
+	}
+
 	gr_event_push(GR_EVENT_IP_ADDR_ADD, &req->addr);
 
 	return api_out(0, 0, NULL);

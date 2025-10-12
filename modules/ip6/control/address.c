@@ -10,6 +10,7 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_rcu.h>
 #include <gr_vec.h>
 
 #include <event2/event.h>
@@ -138,7 +139,20 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	}
 
 	nexthop_incref(nh);
-	gr_vec_add(maddrs->nh, nh);
+
+	// gr_vec_add may realloc() and free the old vector
+	// Duplicate the whole vector and append to the clone.
+	gr_vec struct nexthop **nhs_copy = NULL;
+	gr_vec struct nexthop **nhs_old = maddrs->nh;
+	gr_vec_cap_set(nhs_copy, gr_vec_len(nhs_old) + 1); // avoid malloc+realloc
+	gr_vec_extend(nhs_copy, nhs_old);
+	gr_vec_add(nhs_copy, nh);
+	maddrs->nh = nhs_copy;
+	if (nhs_old != NULL) {
+		// Once all datapath workers have seen the new clone, free the old one.
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		gr_vec_free(nhs_old);
+	}
 
 	// add ethernet filter
 	return iface_add_eth_addr(iface->id, &mac);
@@ -228,7 +242,20 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (ret < 0)
 		return errno_set(-ret);
 
-	gr_vec_add(addrs->nh, nh);
+	// gr_vec_add may realloc() and free the old vector
+	// Duplicate the whole vector and append to the clone.
+	gr_vec struct nexthop **nhs_copy = NULL;
+	gr_vec struct nexthop **nhs_old = addrs->nh;
+	gr_vec_cap_set(nhs_copy, gr_vec_len(nhs_old) + 1); // avoid malloc+realloc
+	gr_vec_extend(nhs_copy, nhs_old);
+	gr_vec_add(nhs_copy, nh);
+	addrs->nh = nhs_copy;
+	if (nhs_old != NULL) {
+		// Once all datapath workers have seen the new clone, free the old one.
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		gr_vec_free(nhs_old);
+	}
+
 	gr_event_push(
 		GR_EVENT_IP6_ADDR_ADD,
 		&(struct gr_ip6_ifaddr) {
