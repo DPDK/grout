@@ -21,6 +21,7 @@ man_src = [
   'grcli-conntrack.1.md',
   'grcli-dnat44.1.md',
   'grcli-events.1.md',
+  'grcli-graph.1.md',
 ]
 
 foreach m : man_src

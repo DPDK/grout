@@ -111,6 +111,7 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %attr(644, root, root) %{_mandir}/man1/grcli-conntrack.1*
 %attr(644, root, root) %{_mandir}/man1/grcli-dnat44.1*
 %attr(644, root, root) %{_mandir}/man1/grcli-events.1*
+%attr(644, root, root) %{_mandir}/man1/grcli-graph.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 
 %files devel
