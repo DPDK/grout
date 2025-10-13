@@ -27,6 +27,7 @@ man_src = [
   'grcli-nexthop.1.md',
   'grcli-route.1.md',
   'grcli-snat44.1.md',
+  'grcli-stats.1.md',
 ]
 
 foreach m : man_src

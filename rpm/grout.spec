@@ -117,6 +117,7 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %attr(644, root, root) %{_mandir}/man1/grcli-nexthop.1*
 %attr(644, root, root) %{_mandir}/man1/grcli-route.1*
 %attr(644, root, root) %{_mandir}/man1/grcli-snat44.1*
+%attr(644, root, root) %{_mandir}/man1/grcli-stats.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 
 %files devel
