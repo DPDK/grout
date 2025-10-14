@@ -27,7 +27,6 @@ ipip_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf, 
 
 static struct cli_iface_type ipip_type = {
 	.type_id = GR_IFACE_TYPE_IPIP,
-	.name = "ipip",
 	.show = ipip_show,
 	.list_info = ipip_list_info,
 };

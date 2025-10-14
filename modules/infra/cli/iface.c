@@ -32,7 +32,7 @@ const struct cli_iface_type *type_from_name(const char *name) {
 	}
 
 	STAILQ_FOREACH (type, &types, next) {
-		if (strcmp(type->name, name) == 0)
+		if (strcmp(gr_iface_type_name(type->type_id), name) == 0)
 			return type;
 	}
 	errno = ENODEV;
@@ -49,9 +49,10 @@ int complete_iface_types(
 	const struct cli_iface_type *type;
 
 	STAILQ_FOREACH (type, &types, next) {
-		if (!ec_str_startswith(type->name, arg))
+		const char *name = gr_iface_type_name(type->type_id);
+		if (!ec_str_startswith(name, arg))
 			continue;
-		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, type->name))
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, name))
 			return -errno;
 	}
 	return 0;
@@ -262,19 +263,14 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		// vrf
 		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
 
-		if (type == NULL) {
-			// type
-			scols_line_sprintf(line, 5, "%u", iface->type);
-			// info
-			scols_line_set_data(line, 6, "");
-		} else {
-			// type
-			scols_line_set_data(line, 5, type->name);
-			// info
-			buf[0] = 0;
-			type->list_info(c, iface, buf, sizeof(buf));
-			scols_line_set_data(line, 6, buf);
-		}
+		// type
+		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));
+
+		// info
+		assert(type != NULL);
+		buf[0] = 0;
+		type->list_info(c, iface, buf, sizeof(buf));
+		scols_line_set_data(line, 6, buf);
 	}
 
 	scols_print_table(table);
@@ -447,10 +443,8 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	type = type_from_id(iface->type);
-	assert(type != NULL);
-
 	printf("name: %s\n", iface->name);
+	printf("type: %s\n", gr_iface_type_name(iface->type));
 	printf("id: %u\n", iface->id);
 	printf("flags: ");
 	if (iface->flags & GR_IFACE_F_UP)
@@ -471,12 +465,9 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	printf("vrf: %u\n", iface->vrf_id);
 	printf("mtu: %u\n", iface->mtu);
 
-	if (type == NULL) {
-		printf("type: %u\n", iface->type);
-	} else {
-		printf("type: %s\n", type->name);
-		type->show(c, iface);
-	}
+	type = type_from_id(iface->type);
+	assert(type != NULL);
+	type->show(c, iface);
 
 	free(iface);
 
@@ -542,7 +533,6 @@ static struct cli_context ctx = {
 
 static void iface_event_print(uint32_t event, const void *obj) {
 	const struct gr_iface *iface = obj;
-	const struct cli_iface_type *type = type_from_id(iface->type);
 	const char *action;
 
 	switch (event) {
@@ -566,11 +556,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 		break;
 	}
 
-	printf("iface %s: %s", action, iface->name);
-	if (type != NULL)
-		printf(" type=%s", type->name);
-	else
-		printf(" type=%u", iface->type);
+	printf("iface %s: %s type=%s", action, iface->name, gr_iface_type_name(iface->type));
 	printf(" id=%u vrf=%u mtu=%u\n", iface->id, iface->vrf_id, iface->mtu);
 }
 

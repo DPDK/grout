@@ -13,7 +13,6 @@
 struct cli_iface_type {
 	STAILQ_ENTRY(cli_iface_type) next;
 	gr_iface_type_t type_id;
-	const char *name;
 	void (*show)(struct gr_api_client *c, const struct gr_iface *);
 	void (*list_info)(struct gr_api_client *c, const struct gr_iface *, char *, size_t);
 };
