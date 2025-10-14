@@ -12,7 +12,6 @@ static void loopback_list_info(struct gr_api_client *, const struct gr_iface *, 
 
 static struct cli_iface_type loopback_type = {
 	.type_id = GR_IFACE_TYPE_LOOPBACK,
-	.name = "loopback",
 	.show = loopback_show,
 	.list_info = loopback_list_info,
 };

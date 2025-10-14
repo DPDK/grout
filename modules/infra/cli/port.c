@@ -59,7 +59,6 @@ err:
 
 static struct cli_iface_type port_type = {
 	.type_id = GR_IFACE_TYPE_PORT,
-	.name = "port",
 	.show = port_show,
 	.list_info = port_list_info,
 };
