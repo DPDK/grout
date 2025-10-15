@@ -220,7 +220,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		.af = GR_AF_IP6,
 		.ipv6 = *ip,
 		.prefixlen = prefixlen,
-		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.flags = NH_LOCAL_ADDR_FLAGS,
 		.state = GR_NH_S_REACHABLE,
 	};
 	if ((ret = iface_get_eth_addr(iface->id, &l3.mac)) < 0 && errno != EOPNOTSUPP)

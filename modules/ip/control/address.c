@@ -94,7 +94,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		.af = GR_AF_IP4,
 		.ipv4 = req->addr.addr.ip,
 		.prefixlen = req->addr.addr.prefixlen,
-		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.flags = NH_LOCAL_ADDR_FLAGS,
 		.state = GR_NH_S_REACHABLE,
 	};
 	if (iface_get_eth_addr(iface->id, &l3.mac) < 0 && errno != EOPNOTSUPP)
