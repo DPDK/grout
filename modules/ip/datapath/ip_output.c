@@ -27,6 +27,7 @@ enum {
 	NO_ROUTE,
 	ERROR,
 	TOO_BIG,
+	FRAG_NEEDED,
 	DROP,
 	EDGE_COUNT,
 };
@@ -89,7 +90,11 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		}
 
 		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
-			edge = TOO_BIG;
+			if (ip->fragment_offset & rte_cpu_to_be_16(RTE_IPV4_HDR_DF_FLAG)) {
+				edge = FRAG_NEEDED;
+			} else {
+				edge = TOO_BIG;
+			}
 			goto next;
 		}
 
@@ -152,6 +157,7 @@ static struct rte_node_register output_node = {
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[ERROR] = "ip_output_error",
 		[TOO_BIG] = "ip_output_too_big",
+		[FRAG_NEEDED] = "ip_error_frag_needed",
 		[DROP] = "ip_output_drop",
 	},
 };
