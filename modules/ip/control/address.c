@@ -6,6 +6,7 @@
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
@@ -203,6 +204,17 @@ static void iface_pre_remove_cb(uint32_t /*event*/, const void *obj) {
 	gr_vec_free(ifaddrs->nh);
 }
 
+static void iface_up_cb(uint32_t /*event*/, const void *obj) {
+	const struct iface *iface = obj;
+	struct hoplist *ifaddrs = addr4_get_all(iface->id);
+
+	if (ifaddrs == NULL)
+		return;
+
+	gr_vec_foreach (struct nexthop *nh, ifaddrs->nh)
+		arp_output_request_solicit(nh);
+}
+
 static void addr_init(struct event_base *) {
 	iface_addrs = rte_calloc(__func__, MAX_IFACES, sizeof(struct hoplist), RTE_CACHE_LINE_SIZE);
 	if (iface_addrs == NULL)
@@ -240,6 +252,11 @@ static struct gr_event_subscription iface_pre_rm_subscription = {
 	.ev_count = 1,
 	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
 };
+static struct gr_event_subscription iface_up_subscription = {
+	.callback = iface_up_cb,
+	.ev_count = 1,
+	.ev_types = {GR_EVENT_IFACE_STATUS_UP},
+};
 static struct gr_event_serializer iface_addr_serializer = {
 	.size = sizeof(struct gr_ip4_ifaddr),
 	.ev_count = 2,
@@ -252,5 +269,6 @@ RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_list_handler);
 	gr_register_module(&addr_module);
 	gr_event_subscribe(&iface_pre_rm_subscription);
+	gr_event_subscribe(&iface_up_subscription);
 	gr_event_register_serializer(&iface_addr_serializer);
 }
