@@ -110,6 +110,13 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 	return 0;
 }
 
+static int frag_needed_init(const struct rte_graph *, struct rte_node *node) {
+	struct ip_error_ctx *ctx = ip_error_ctx(node);
+	ctx->icmp_type = RTE_ICMP_TYPE_DEST_UNREACHABLE;
+	ctx->icmp_code = RTE_ICMP_CODE_UNREACH_FRAG;
+	return 0;
+}
+
 static struct rte_node_register ip_forward_ttl_exceeded_node = {
 	.name = "ip_error_ttl_exceeded",
 	.process = ip_error_process,
@@ -134,6 +141,18 @@ static struct rte_node_register no_route_node = {
 	.init = no_route_init,
 };
 
+static struct rte_node_register frag_needed_node = {
+	.name = "ip_error_frag_needed",
+	.process = ip_error_process,
+	.nb_edges = EDGE_COUNT,
+	.next_nodes = {
+		[ICMP_OUTPUT] = "icmp_output",
+		[NO_HEADROOM] = "error_no_headroom",
+		[NO_IP] = "error_no_local_ip",
+	},
+	.init = frag_needed_init,
+};
+
 static struct gr_node_info info_ttl_exceeded = {
 	.node = &ip_forward_ttl_exceeded_node,
 };
@@ -142,7 +161,12 @@ static struct gr_node_info info_no_route = {
 	.node = &no_route_node,
 };
 
+static struct gr_node_info info_frag_needed = {
+	.node = &frag_needed_node,
+};
+
 GR_NODE_REGISTER(info_ttl_exceeded);
 GR_NODE_REGISTER(info_no_route);
+GR_NODE_REGISTER(info_frag_needed);
 
 GR_DROP_REGISTER(error_no_local_ip);
