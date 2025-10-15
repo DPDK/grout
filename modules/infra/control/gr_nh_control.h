@@ -125,3 +125,6 @@ struct nh_stats {
 
 // Get nexthop statistics.
 const struct nh_stats *nexthop_get_stats(void);
+
+// Local IP address nexthops will have these flags set.
+#define NH_LOCAL_ADDR_FLAGS (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC)

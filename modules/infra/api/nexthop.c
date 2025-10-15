@@ -71,7 +71,6 @@ static struct gr_api_handler nh_add_handler = {
 };
 
 static struct api_out nh_del(const void *request, struct api_ctx *) {
-	static const gr_nh_flags_t addr_flags = GR_NH_F_LOCAL | GR_NH_F_STATIC;
 	const struct gr_nh_del_req *req = request;
 	struct nexthop *nh;
 
@@ -84,7 +83,8 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 
 	if (nh->type == GR_NH_T_L3) {
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if ((l3->flags & addr_flags) == addr_flags || nh->origin == GR_NH_ORIGIN_LINK)
+		if ((l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS
+		    || nh->origin == GR_NH_ORIGIN_LINK)
 			return api_out(EBUSY, 0, NULL);
 	}
 
