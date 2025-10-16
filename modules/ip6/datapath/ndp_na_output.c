@@ -19,6 +19,30 @@ enum {
 	EDGE_COUNT,
 };
 
+struct advertise_context {
+	const struct nexthop *local;
+	const struct nexthop *remote;
+	const struct iface *iface;
+};
+
+static control_input_t na_output;
+
+int nh6_advertise(const struct nexthop *local, const struct nexthop *remote) {
+	assert(local != NULL);
+	assert(local->type == GR_NH_T_L3);
+	struct advertise_context *ctx = malloc(sizeof(*ctx));
+	if (ctx == NULL)
+		return errno_set(ENOMEM);
+	ctx->local = local;
+	ctx->remote = remote;
+	ctx->iface = iface_from_id(local->iface_id);
+	assert(ctx->iface != NULL);
+	int ret = post_to_stack(na_output, ctx);
+	if (ret < 0)
+		free(ctx);
+	return ret;
+}
+
 static uint16_t ndp_na_output_process(
 	struct rte_graph *graph,
 	struct rte_node *node,
@@ -26,6 +50,7 @@ static uint16_t ndp_na_output_process(
 	uint16_t nb_objs
 ) {
 	const struct nexthop *local, *remote;
+	struct advertise_context *ctx;
 	struct ip6_local_mbuf_data *d;
 	struct icmp6_neigh_advert *na;
 	struct icmp6_opt_lladdr *ll;
@@ -38,10 +63,11 @@ static uint16_t ndp_na_output_process(
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-
-		local = ndp_na_output_mbuf_data(mbuf)->local;
-		remote = ndp_na_output_mbuf_data(mbuf)->remote;
-		iface = ndp_na_output_mbuf_data(mbuf)->iface;
+		ctx = control_input_mbuf_data(mbuf)->data;
+		local = ctx->local;
+		remote = ctx->remote;
+		iface = ctx->iface;
+		free(ctx);
 		l3 = nexthop_info_l3(local);
 
 		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
@@ -89,6 +115,10 @@ static uint16_t ndp_na_output_process(
 	return nb_objs;
 }
 
+static void ndp_na_output_register(void) {
+	na_output = gr_control_input_register_handler("ndp_na_output", false);
+}
+
 static struct rte_node_register node = {
 	.name = "ndp_na_output",
 
@@ -102,6 +132,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.register_callback = ndp_na_output_register,
 	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 
