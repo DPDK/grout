@@ -119,8 +119,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static control_input_t ndp_na_output_node;
-
 void ndp_probe_input_cb(struct rte_mbuf *m) {
 	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
 	const struct rte_ipv6_addr *remote, *local;
@@ -212,16 +210,15 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
 		// send a reply for our local ip
-		struct ndp_na_output_mbuf_data *d = ndp_na_output_mbuf_data(m);
-		d->local = nh6_lookup(iface->vrf_id, iface->id, local);
-		d->remote = nh;
-		d->iface = iface;
-		if (post_to_stack(ndp_na_output_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
+		const struct nexthop *local_nh = nh6_lookup(iface->vrf_id, iface->id, local);
+		if (local_nh == NULL) {
+			LOG(INFO, "local address " IP6_F " has disappeared", local);
 			goto free;
 		}
-		// prevent double free, mbuf has been re-consumed by datapath
-		m = NULL;
+		if (nh6_advertise(local_nh, nh) < 0) {
+			LOG(ERR, "nh6_advertise: %s", strerror(errno));
+			goto free;
+		}
 	}
 
 	// Flush all held packets.
@@ -246,7 +243,6 @@ free:
 
 static void nh6_init(struct event_base *) {
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
-	ndp_na_output_node = gr_control_input_register_handler("ndp_na_output", true);
 }
 
 static struct gr_module nh6_module = {
