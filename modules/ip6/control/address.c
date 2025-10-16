@@ -6,6 +6,7 @@
 #include <gr_iface.h>
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
+#include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
@@ -385,6 +386,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	struct rte_ipv6_addr link_local;
 	struct rte_ether_addr mac;
 	const struct nexthop *nh;
+	struct hoplist *addrs;
 	unsigned i;
 
 	switch (event) {
@@ -402,7 +404,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		}
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
-		struct hoplist *addrs = &iface_addrs[iface->id];
+		addrs = &iface_addrs[iface->id];
 		while (gr_vec_len(addrs->nh) > 0) {
 			nh = addrs->nh[0];
 			l3 = (const struct nexthop_info_l3 *)nh->info;
@@ -416,6 +418,13 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 			mcast6_addr_del(iface, &l3->ipv6);
 		}
 		gr_vec_free(addrs->nh);
+		break;
+	case GR_EVENT_IFACE_STATUS_UP:
+		addrs = &iface_addrs[iface->id];
+		gr_vec_foreach (nh, addrs->nh) {
+			if (nh6_advertise(nh, NULL) < 0)
+				LOG(WARNING, "nh6_advertise: %s", strerror(errno));
+		}
 		break;
 	default:
 		break;
@@ -463,10 +472,11 @@ static struct gr_module addr6_module = {
 
 static struct gr_event_subscription iface_event_subscription = {
 	.callback = ip6_iface_event_handler,
-	.ev_count = 2,
+	.ev_count = 3,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_STATUS_UP,
 	},
 };
 static struct gr_event_serializer iface_addr_serializer = {
