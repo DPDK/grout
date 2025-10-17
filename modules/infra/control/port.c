@@ -310,20 +310,24 @@ static int iface_port_reconfig(
 	bool needs_configure = false;
 	int ret;
 
+	if (!(set_attrs
+	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC)))
+		return 0;
+
 	if ((ret = port_unplug(p)) < 0)
 		return ret;
 
-	if (set_attrs
-	    & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_IFACE_SET_FLAGS
-	       | GR_IFACE_SET_MTU | GR_PORT_SET_MAC)) {
-		if (set_attrs & GR_PORT_SET_N_RXQS)
-			p->n_rxq = api->n_rxq;
-		if (set_attrs & GR_PORT_SET_N_TXQS)
-			p->n_txq = api->n_txq;
-		if (set_attrs & GR_PORT_SET_Q_SIZE) {
-			p->rxq_size = api->rxq_size;
-			p->txq_size = api->txq_size;
-		}
+	if (set_attrs & GR_PORT_SET_N_RXQS) {
+		p->n_rxq = api->n_rxq;
+		needs_configure = true;
+	}
+	if (set_attrs & GR_PORT_SET_N_TXQS) {
+		p->n_txq = api->n_txq;
+		needs_configure = true;
+	}
+	if (set_attrs & GR_PORT_SET_Q_SIZE) {
+		p->rxq_size = api->rxq_size;
+		p->txq_size = api->txq_size;
 		needs_configure = true;
 	}
 
