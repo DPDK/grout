@@ -137,8 +137,14 @@ int dpdk_init(void) {
 	gr_vec_add(eal_args, "");
 	gr_vec_add(eal_args, "-l");
 	gr_vec_add(eal_args, main_lcore);
+#ifdef RTE_BUS_PCI
 	gr_vec_add(eal_args, "-a");
-	gr_vec_add(eal_args, "0000:00:00.0");
+	gr_vec_add(eal_args, "pci:0000:00:00.0");
+#endif
+#ifdef RTE_BUS_FSLMC
+	gr_vec_add(eal_args, "-a");
+	gr_vec_add(eal_args, "fslmc:dpni.65535");
+#endif
 
 	if (gr_config.test_mode) {
 		gr_vec_add(eal_args, "--no-shconf");
