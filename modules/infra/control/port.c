@@ -397,15 +397,10 @@ static int iface_port_fini(struct iface *iface) {
 		LOG(ERR, "rte_eth_dev_info_get: %s", rte_strerror(-ret));
 	if ((ret = rte_eth_dev_stop(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_stop: %s", rte_strerror(-ret));
-	// XXX DPDK bus/fslmc VFIO constraint for dpaa2
-	if (info.driver_name != NULL && strcmp(info.driver_name, "net_dpaa2") == 0)
-		goto fini;
 	if ((ret = rte_eth_dev_close(port->port_id)) < 0)
 		LOG(ERR, "rte_eth_dev_close: %s", rte_strerror(-ret));
 	if (info.device != NULL && (ret = rte_dev_remove(info.device)) < 0)
 		LOG(ERR, "rte_dev_remove: %s", rte_strerror(-ret));
-
-fini:
 	if (port->pool != NULL) {
 		gr_pktmbuf_pool_release(port->pool, port->pool_size);
 		port->pool = NULL;
