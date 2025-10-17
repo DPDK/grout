@@ -421,30 +421,20 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	const struct gr_iface_info_port *api = api_info;
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
-	const struct iface *i;
 	int ret;
 
-	i = NULL;
-	while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
-		const struct iface_info_port *p = iface_info_port(i);
-		if (strncmp(p->devargs, api->devargs, sizeof(api->devargs)) == 0)
-			return errno_set(EEXIST);
+	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
+		rte_eth_iterator_cleanup(&iterator);
+		return errno_set(EEXIST);
 	}
+
+	if ((ret = rte_dev_probe(api->devargs)) < 0)
+		return errno_set(-ret);
 
 	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		break;
 	}
-
-	if (!rte_eth_dev_is_valid_port(port_id)) {
-		if ((ret = rte_dev_probe(api->devargs)) < 0)
-			return errno_set(-ret);
-		RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
-			rte_eth_iterator_cleanup(&iterator);
-			break;
-		}
-	}
-
 	if (!rte_eth_dev_is_valid_port(port_id))
 		return errno_set(EIDRM);
 
