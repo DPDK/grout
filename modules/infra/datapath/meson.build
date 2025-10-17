@@ -2,6 +2,7 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'bond_output.c',
   'control_input.c',
   'control_output.c',
   'drop.c',

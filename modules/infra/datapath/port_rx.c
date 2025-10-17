@@ -19,6 +19,8 @@
 
 enum {
 	IFACE_MODE_UNKNOWN = 0,
+	MEMBER_INACTIVE,
+	INVALID_BOND,
 	NB_EDGES,
 };
 
@@ -39,18 +41,40 @@ static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t /*count*/) {
 	const struct rx_node_ctx *ctx = (const struct rx_node_ctx *)node->ctx;
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	const struct iface_info_port *port;
 	struct eth_input_mbuf_data *d;
+	const struct iface *iface;
+	rte_edge_t edge;
 	uint16_t rx;
 	unsigned r;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	if (rx == 0)
+		return 0;
+
+	port = iface_info_port(ctx->iface);
+	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
+		if (!(ctx->iface->state & GR_IFACE_S_ACTIVE)
+		    || !(ctx->iface->flags & GR_IFACE_F_UP)) {
+			edge = MEMBER_INACTIVE;
+			goto end;
+		}
+		iface = iface_from_id(port->bond_iface_id);
+		if (iface == NULL) {
+			edge = INVALID_BOND;
+			goto end;
+		}
+	} else {
+		iface = ctx->iface;
+	}
+
 	for (r = 0; r < rx; r++) {
 		d = eth_input_mbuf_data(mbufs[r]);
-		d->iface = ctx->iface;
+		d->iface = iface;
 		d->domain = ETH_DOMAIN_UNKNOWN;
 	}
 
-	if (unlikely(ctx->iface->flags & GR_IFACE_F_PACKET_TRACE)) {
+	if (unlikely(iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 		struct port_queue *q;
 		for (r = 0; r < rx; r++) {
 			q = gr_mbuf_trace_add(mbufs[r], node, sizeof(*q));
@@ -60,10 +84,13 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	if (unlikely(gr_config.log_packets)) {
 		for (r = 0; r < rx; r++)
-			trace_log_packet(mbufs[r], "rx", ctx->iface->name);
+			trace_log_packet(mbufs[r], "rx", iface->name);
 	}
 
-	rte_node_enqueue(graph, node, edges[ctx->iface->mode], objs, rx);
+	edge = edges[iface->mode];
+
+end:
+	rte_node_enqueue(graph, node, edge, objs, rx);
 
 	return rx;
 }
@@ -77,6 +104,8 @@ static struct rte_node_register node = {
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
 		[IFACE_MODE_UNKNOWN] = "port_rx_mode_unknown",
+		[MEMBER_INACTIVE] = "port_rx_member_inactive",
+		[INVALID_BOND] = "port_rx_invalid_bond",
 	},
 };
 
@@ -88,3 +117,5 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(port_rx_mode_unknown);
+GR_DROP_REGISTER(port_rx_member_inactive);
+GR_DROP_REGISTER(port_rx_invalid_bond);

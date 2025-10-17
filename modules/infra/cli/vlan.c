@@ -42,7 +42,6 @@ vlan_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 
 static struct cli_iface_type vlan_type = {
 	.type_id = GR_IFACE_TYPE_VLAN,
-	.name = "vlan",
 	.show = vlan_show,
 	.list_info = vlan_list_info,
 };
