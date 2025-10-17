@@ -138,7 +138,9 @@ int dpdk_init(void) {
 	gr_vec_add(eal_args, "-l");
 	gr_vec_add(eal_args, main_lcore);
 	gr_vec_add(eal_args, "-a");
-	gr_vec_add(eal_args, "0000:00:00.0");
+	gr_vec_add(eal_args, "pci:0000:00:00.0");
+	gr_vec_add(eal_args, "-a");
+	gr_vec_add(eal_args, "fslmc:dpni.65535");
 
 	if (gr_config.test_mode) {
 		gr_vec_add(eal_args, "--no-shconf");
