@@ -90,18 +90,20 @@ fail() {
 	return 1
 }
 
-netns_add() {
-	ip netns add "$1"
-	cat >> $tmp/cleanup <<EOF
-ip netns pids "$1" | xargs -r kill --timeout 500 KILL
-ip netns del "$1"
-EOF
-}
-
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
 run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
+
+netns_add() {
+	local ns="$1"
+	ip netns add "$ns"
+	cat >> $tmp/cleanup <<EOF
+ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
+ip netns del "$ns"
+EOF
+	ip -n "$ns" link set lo up
+}
 
 tap_counter=0
 port_add() {

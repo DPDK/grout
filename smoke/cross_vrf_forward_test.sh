@@ -29,7 +29,6 @@ for n in 0 1; do
 	ip -n $p link set $p up
 	ip -n $p addr add 172.16.$n.2/24 dev $p
 	ip -n $p addr add 16.$n.0.1/16 dev lo
-	ip -n $p link set lo up
 	ip -n $p route add default via 172.16.$n.1
 	ip -n $p addr show
 done

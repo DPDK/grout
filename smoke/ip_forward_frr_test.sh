@@ -15,7 +15,6 @@ for n in 0 1; do
 	netns_add n-$p
 	ip link set $p netns n-$p
 	ip -n n-$p link set $p up
-	ip -n n-$p link set lo up
 	ip -n n-$p addr add 172.16.$n.2/24 dev $p
 	if [[ $n -eq 0 ]]; then
 		ip -n n-$p addr add 16.$n.0.1/16 dev lo
