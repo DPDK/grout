@@ -688,19 +688,6 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 
 			port = iface_info_port(iface);
 
-			// XXX: net_tap devices are signaled down by the kernel when they
-			// are moved to another netns although they still can receive and
-			// transmit packets. Ignore link status updates for this driver and
-			// always assume they are running.
-			if (strncmp(port->devargs, "net_tap", strlen("net_tap")) == 0) {
-				if (!(iface->state & GR_IFACE_S_RUNNING)) {
-					LOG(INFO, "%s: link status up", iface->name);
-					iface->state |= GR_IFACE_S_RUNNING;
-					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
-				}
-				continue;
-			}
-
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
 				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));
 				continue;
