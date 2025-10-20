@@ -8,8 +8,8 @@ p0=${run_id}0
 p1=${run_id}1
 
 # setup ports and connected
-create_interface $p0 d2:f0:0c:ba:a5:10
-create_interface $p1 d2:f0:0c:ba:a5:11
+create_interface $p0
+create_interface $p1
 
 for n in 0 1; do
 	p=$run_id$n

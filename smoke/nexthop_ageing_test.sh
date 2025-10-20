@@ -30,8 +30,8 @@ p0=${run_id}0
 p1=${run_id}1
 
 grcli nexthop config set lifetime 2 unreachable 1 ucast-probes 1 bcast-probes 1
-port_add $p0 mac f0:0d:ac:dc:00:00
-port_add $p1 mac f0:0d:ac:dc:00:01
+port_add $p0
+port_add $p1
 grcli address add 172.16.0.1/24 iface $p0
 grcli address add 172.16.1.1/24 iface $p1
 

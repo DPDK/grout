@@ -9,10 +9,10 @@ p1=${run_id}1
 p2=${run_id}2
 p3=${run_id}3
 
-create_interface $p0 f0:0d:ac:dc:00:00 1
-create_interface $p1 f0:0d:ac:dc:00:01 1
-create_interface $p2 f0:0d:ac:dc:02:00 2
-create_interface $p3 f0:0d:ac:dc:02:01 2
+create_interface $p0 vrf 1
+create_interface $p1 vrf 1
+create_interface $p2 vrf 2
+create_interface $p3 vrf 2
 
 for n in 0 1; do
 	p=$run_id$n
