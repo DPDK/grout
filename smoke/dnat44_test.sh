@@ -20,7 +20,6 @@ for n in 0 1; do
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
-	ip -n $p link set lo up
 done
 
 ip -n $p0 addr add 172.16.0.2/24 dev $p0
