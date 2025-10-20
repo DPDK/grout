@@ -20,7 +20,7 @@ create_interface() {
 			echo "Interface $p not found after $max_tries attempts."
 			exit 1
 		fi
-		sleep 1
+		sleep 0.2
 		count=$((count + 1))
 	done
 
@@ -55,7 +55,7 @@ EOF
 			echo "IP address $ip_cidr not set after $max_tries attempts."
 			exit 1
 		fi
-		sleep 1
+		sleep 0.2
 		count=$((count + 1))
 	done
 }
@@ -118,7 +118,7 @@ EOF
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
 		fi
-		sleep 1
+		sleep 0.2
 		count=$((count + 1))
 	done
 }
@@ -172,7 +172,7 @@ EOF
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
 			exit 1
 		fi
-		sleep 1
+		sleep 0.2
 		count=$((count + 1))
 	done
 }
@@ -235,6 +235,6 @@ EOF
 		    echo "SRv6 route ${prefix} via ${seg_space} not visible in Grout after ${max_tries}s." >&2
 		    exit 1
 	    fi
-	    sleep 1
+	    sleep 0.2
     done
 }
