@@ -497,7 +497,7 @@ ipv4:
 end:
 	SAFE_BUF(snprintf, sizeof(buf), ", (pkt_len=%u)", m->pkt_len);
 
-	LOG(NOTICE, "[%s %s] %s", node, iface, buf);
+	RTE_LOG(NOTICE, GROUT, "[%s %s] %s\n", node, iface, buf);
 	return;
 err:
 	LOG(ERR, "[%s %s] snprintf failed: %s", node, iface, strerror(errno));
