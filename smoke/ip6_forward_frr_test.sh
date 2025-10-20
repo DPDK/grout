@@ -15,7 +15,6 @@ for n in 1 2; do
 	netns_add n-$p
 	ip link set $p netns n-$p
 	ip -n n-$p link set $p up
-	ip -n n-$p link set lo up
 	ip -n n-$p addr add fd00:ba4:$n::2/64 dev $p
 	if [[ $n -eq 1 ]]; then
 		ip -n n-$p addr add fd00:f00:$n::2/64 dev lo
