@@ -26,7 +26,7 @@ enum {
 	HOLD,
 	NO_ROUTE,
 	ERROR,
-	TOO_BIG,
+	FRAGMENT,
 	FRAG_NEEDED,
 	DROP,
 	EDGE_COUNT,
@@ -89,11 +89,13 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
+		mbuf_data(mbuf)->iface = iface;
+
 		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
 			if (ip->fragment_offset & rte_cpu_to_be_16(RTE_IPV4_HDR_DF_FLAG)) {
 				edge = FRAG_NEEDED;
 			} else {
-				edge = TOO_BIG;
+				edge = FRAGMENT;
 			}
 			goto next;
 		}
@@ -101,7 +103,6 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
 		edge = iface_type_edges[iface->type];
-		mbuf_data(mbuf)->iface = iface;
 
 		switch (snat44_process(iface, mbuf)) {
 		case NAT_VERDICT_CONTINUE:
@@ -156,7 +157,7 @@ static struct rte_node_register output_node = {
 		[HOLD] = "ip_hold",
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[ERROR] = "ip_output_error",
-		[TOO_BIG] = "ip_output_too_big",
+		[FRAGMENT] = "ip_fragment",
 		[FRAG_NEEDED] = "ip_error_frag_needed",
 		[DROP] = "ip_output_drop",
 	},
@@ -170,5 +171,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_output_error);
-GR_DROP_REGISTER(ip_output_too_big);
 GR_DROP_REGISTER(ip_output_drop);
