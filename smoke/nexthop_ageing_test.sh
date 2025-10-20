@@ -7,9 +7,9 @@
 check_nexthop() {
 	local ip="$1"
 	local expect_reacheable="$2"
-	local timeout=5
-	for i in $(seq 1 $timeout); do
-		grcli nexthop show internal | grep -qE "$ip.+reachable";
+	local attempts=25
+	while [ "$attempts" -gt 0 ]; do
+		grcli nexthop show internal | grep -qE "$ip.+reachable"
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
@@ -19,7 +19,8 @@ check_nexthop() {
 			return 0
 		fi
 
-		sleep 1
+		sleep 0.2
+		attempts=$((attempts - 1))
 	done
 
 	return 1

@@ -39,7 +39,6 @@ cleanup() {
 
 	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		frrinit.sh stop
-		sleep 1
 		kill %?tail
 		wait %?tail
 
@@ -184,16 +183,14 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		tail -f "$zlog" &
 	fi
 	frrinit.sh start
-	timeout=15
-	elapsed=0
+	attempts=25
 
 	# wait that zebra_dplane_grout get iface event from grout
 	while ! grep -q "GROUT:.*iface/ip events" "$zlog" 2>/dev/null; do
-		if [ "$elapsed" -ge "$timeout" ]; then
-			echo "Zebra is not listening grout event after ${timeout} seconds."
-			exit 1
+		if [ "$attempts" -le 0 ]; then
+			fail "Zebra is not listening grout events."
 		fi
-		sleep 1
-		elapsed=$((elapsed + 1))
+		sleep 0.2
+		attempts=$((attempts - 1))
 	done
 fi
