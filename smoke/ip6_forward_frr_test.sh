@@ -14,7 +14,6 @@ for n in 1 2; do
 	p=$run_id$n
 	netns_add n-$p
 	ip link set $p netns n-$p
-	ip -n n-$p link set $p address d2:ad:ca:ca:a4:1$n
 	ip -n n-$p link set $p up
 	ip -n n-$p link set lo up
 	ip -n n-$p addr add fd00:ba4:$n::2/64 dev $p
