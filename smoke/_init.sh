@@ -128,6 +128,13 @@ grcli route show
 grcli trace show count 50
 EOF
 
+if [ -t 1 ]; then
+	# print bash xtrace in cyan
+	exec 9> >(awk '{print "\033[36m" $0 "\033[0m"}')
+	export BASH_XTRACEFD=9
+	export PS4='+ '
+fi
+
 set -x
 
 if [ "$run_grout" = true ]; then
@@ -137,7 +144,14 @@ if [ "$run_grout" = true ]; then
 		unset core_pattern
 	fi
 	export ASAN_OPTIONS=disable_coredump=0
-	taskset -c 0,1 grout -tvvx $grout_extra_options &
+	if [ -t 1 ]; then
+		# print grout logs in blue (stderr in bold red)
+		taskset -c 0,1 grout -tvvx $grout_extra_options \
+			> >(awk '{print "\033[34m" $0 "\033[0m"}') \
+			2> >(awk '{print "\033[1;31m" $0 "\033[0m"}' >&2) &
+	else
+		taskset -c 0,1 grout -tvvx $grout_extra_options &
+	fi
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 grout_pid=$(pgrep -g0 grout)
@@ -150,13 +164,23 @@ config_test.sh|graph_svg_test.sh)
 	;;
 esac
 
-grcli events &
+if [ -t 1 ]; then
+	# print events in yellow
+	grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
+else
+	grcli events &
+fi
 
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	zlog="$builddir/frr_install/var/log/frr/zebra.log"
 	rm -f "$zlog"
 	touch "$zlog"
-	tail -f "$zlog" &
+	if [ -t 1 ]; then
+		# zebra logs in magenta
+		tail -f "$zlog" | awk '{print "\033[35m" $0 "\033[0m"}' &
+	else
+		tail -f "$zlog" &
+	fi
 	frrinit.sh start
 	timeout=15
 	elapsed=0
