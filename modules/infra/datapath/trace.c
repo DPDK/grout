@@ -110,6 +110,8 @@ int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_
 
 	switch (arp->arp_opcode) {
 	case RTE_BE16(RTE_ARP_OP_REQUEST):
+		if (tip == sip)
+			return snprintf(buf, len, "announce " IP4_F " is at " ETH_F, &sip, &sha);
 		return snprintf(buf, len, "request who has " IP4_F "? tell " IP4_F, &tip, &sip);
 	case RTE_BE16(RTE_ARP_OP_REPLY):
 		return snprintf(buf, len, "reply " IP4_F " is at " ETH_F, &sip, &sha);
