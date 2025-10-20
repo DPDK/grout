@@ -117,6 +117,10 @@ port_add() {
 	tap_counter=$((tap_counter + 1))
 }
 
+llocal_addr() {
+	grcli address show iface "$1" | sed -En "s/^$1[[:space:]]+(fe80:.+)\\/64\$/\\1/p"
+}
+
 if [ "$run_grout" = true ]; then
 	export GROUT_SOCK_PATH=$tmp/grout.sock
 fi

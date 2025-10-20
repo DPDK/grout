@@ -7,8 +7,8 @@
 p0=${run_id}0
 p1=${run_id}1
 
-create_interface $p0 f0:0d:ac:dc:00:00 1
-create_interface $p1 f0:0d:ac:dc:00:01 2
+create_interface $p0 vrf 1
+create_interface $p1 vrf 2
 
 for n in 0 1; do
 	p=$run_id$n

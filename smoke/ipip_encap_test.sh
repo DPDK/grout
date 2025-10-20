@@ -8,8 +8,8 @@ p0=${run_id}0
 p1=${run_id}1
 iptun=${run_id}tun1
 
-port_add $p0 mac f0:0d:ac:dc:00:01
-port_add $p1 mac f0:0d:ac:dc:00:02
+port_add $p0
+port_add $p1
 grcli address add 10.99.0.1/24 iface $p0
 grcli address add 172.16.1.1/24 iface $p1
 grcli interface add ipip $iptun local 172.16.1.1 remote 172.16.1.2

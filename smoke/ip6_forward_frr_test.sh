@@ -7,8 +7,8 @@
 p1=${run_id}1
 p2=${run_id}2
 
-create_interface $p1 d2:f0:0c:ba:a4:11
-create_interface $p2 d2:f0:0c:ba:a4:12
+create_interface $p1
+create_interface $p2
 
 for n in 1 2; do
 	p=$run_id$n
@@ -31,8 +31,8 @@ set_ip_route fd00:f00:2::/64 $p2
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a411
-ip netns exec $p2 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a412
+ip netns exec $p1 ping6 -i0.01 -c3 -n $(llocal_addr $p1)
+ip netns exec $p2 ping6 -i0.01 -c3 -n $(llocal_addr $p2)
 ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:f00:2::2
 ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:f00:1::2
 ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
