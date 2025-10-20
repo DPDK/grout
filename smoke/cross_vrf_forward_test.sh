@@ -7,8 +7,8 @@
 p0=${run_id}0
 p1=${run_id}1
 
-grcli interface add port $p0 devargs net_tap0,iface=$p0 vrf 1 mac f0:0d:ac:dc:01:00
-grcli interface add port $p1 devargs net_tap1,iface=$p1 vrf 2 mac f0:0d:ac:dc:01:01
+port_add $p0 vrf 1 mac f0:0d:ac:dc:01:00
+port_add $p1 vrf 2 mac f0:0d:ac:dc:01:01
 grcli address add 172.16.0.1/24 iface $p0
 grcli address add 172.16.1.1/24 iface $p1
 
@@ -26,7 +26,6 @@ for n in 0 1; do
 	p=$run_id$n
 	netns_add $p
 	ip link set $p netns $p
-	ip -n $p link set $p address ba:d0:ca:ca:01:0$n
 	ip -n $p link set $p up
 	ip -n $p addr add 172.16.$n.2/24 dev $p
 	ip -n $p addr add 16.$n.0.1/16 dev lo

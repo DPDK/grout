@@ -18,7 +18,6 @@ for n in 0 1; do
 	p=$run_id$n
 	netns_add n-$p
 	ip link set $p netns n-$p
-	ip -n n-$p link set $p address ba:d0:ca:ca:01:0$n
 	ip -n n-$p link set $p up
 	ip -n n-$p addr add 172.16.$((n % 2)).2/24 dev $p
 	ip -n n-$p addr add 16.$((n % 2)).0.1/16 dev lo
@@ -34,7 +33,6 @@ for n in 2 3; do
 	p=$run_id$n
 	netns_add n-$p
 	ip link set $p netns n-$p
-	ip -n n-$p link set $p address ba:d0:ca:ca:02:0$n
 	ip -n n-$p link set $p up
 	ip -n n-$p addr add 172.16.$((n % 2)).2/24 dev $p
 	ip -n n-$p addr add 16.$((n % 2)).0.1/16 dev lo
