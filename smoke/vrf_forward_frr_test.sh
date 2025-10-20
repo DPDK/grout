@@ -12,10 +12,8 @@ p3=${run_id}3
 for n in 0 1; do
 	p=$run_id$n
 	x=$((n % 2))
-	create_interface $p vrf 1
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
+	create_interface $p 40$n vrf 1
+	netns_add $p 40$n
 	ip -n $p addr add 172.16.$x.2/24 dev $p
 	ip -n $p addr add 16.$x.0.1/16 dev lo
 	ip -n $p route add default via 172.16.$x.1
@@ -26,10 +24,8 @@ done
 for n in 2 3; do
 	p=$run_id$n
 	x=$((n % 2))
-	create_interface $p vrf 2
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
+	create_interface $p 40$n vrf 2
+	netns_add $p 40$n
 	ip -n $p addr add 172.16.$x.2/24 dev $p
 	ip -n $p addr add 16.$x.0.1/16 dev lo
 	ip -n $p route add default via 172.16.$x.1

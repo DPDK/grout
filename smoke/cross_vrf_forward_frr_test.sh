@@ -10,11 +10,10 @@ p1=${run_id}1
 for n in 0 1; do
 	p=$run_id$n
 	vrf=$((n + 1))
-	create_interface $p vrf $vrf
+	create_interface $p 40$n vrf $vrf
 	set_ip_address $p 172.16.$n.1/24
 	set_vrf_iface $vrf
-	netns_add $p
-	ip link set $p netns $p
+	netns_add $p 40$n
 	ip -n $p link set $p up
 	ip -n $p addr add 172.16.$n.2/24 dev $p
 	ip -n $p addr add 16.$n.0.1/16 dev lo

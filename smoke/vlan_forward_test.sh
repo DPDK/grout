@@ -13,15 +13,13 @@ for n in 0 1; do
 	p=$run_id$n
 	vlan=$((n + 42))
 	v=$p.$vlan
-	port_add $p
+	port_add $p $vlan
+	bridge vlan del dev $p vid $vlan
+	bridge vlan add dev $p vid $vlan
 	grcli interface add vlan $v parent $p vlan_id $vlan
 	grcli address add 172.16.$((n % 2)).1/24 iface $v
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link add $v link $p type vlan id $((n+42))
-	ip -n $p link set $p up
-	ip -n $p link set $v up
-	ip -n $p addr add 172.16.$n.2/24 dev $v
+	netns_add $p $vlan
+	ip -n $p addr add 172.16.$n.2/24 dev $p
 	ip -n $p route add default via 172.16.$n.1
 done
 

@@ -94,27 +94,42 @@ tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
 run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
+bridge="${run_id}br"
 
 netns_add() {
 	local ns="$1"
+	local vlan="$2"
+	local veth="${ns}v"
 	ip netns add "$ns"
 	cat >> $tmp/cleanup <<EOF
 ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
 ip netns del "$ns"
 EOF
 	ip -n "$ns" link set lo up
+	ip link add "$veth" type veth peer "$ns" netns "$ns"
+	cat >> $tmp/cleanup <<EOF
+ip link del "$veth"
+EOF
+	ip -n "$ns" link set "$ns" up
+	ip link set "$veth" master "$bridge"
+	ip link set "$veth" up
+	bridge vlan del dev "$veth" vid 1
+	bridge vlan add dev "$veth" vid "$vlan" pvid untagged
 }
 
 tap_counter=0
 port_add() {
 	local name="$1"
-	shift
+	local vlan="$2"
+	shift 2
 	grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
 	# Ensure the Linux net device has a different mac address from grout's.
 	# This is required to avoid Linux from wrongfully assuming the packets
 	# sent by grout originated locally.
 	local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
-	ip link set "$name" address "$mac"
+	ip link set "$name" master "$bridge" address "$mac"
+	bridge vlan del dev "$name" vid 1
+	bridge vlan add dev "$name" vid "$vlan" pvid untagged
 	tap_counter=$((tap_counter + 1))
 }
 
@@ -214,3 +229,12 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		elapsed=$((elapsed + 1))
 	done
 fi
+
+ip link add $bridge type bridge vlan_filtering 1
+cat >> $tmp/cleanup <<EOF
+bridge fdb show | grep -v permanent
+ip link del $bridge
+EOF
+bridge vlan del dev $bridge vid 1 self
+bridge link set dev $bridge isolated on self
+ip link set $bridge up

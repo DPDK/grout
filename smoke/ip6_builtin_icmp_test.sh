@@ -9,11 +9,9 @@ p1=${run_id}1
 
 for n in 0 1; do
 	p=$run_id$n
-	port_add $p
+	port_add $p 40$n
 	grcli address add fd00:ba4:$n::1/64 iface $p
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
+	netns_add $p 40$n
 	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
 	ip -n $p route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
 done

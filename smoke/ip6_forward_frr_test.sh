@@ -9,10 +9,8 @@ p2=${run_id}2
 
 for n in 1 2; do
 	p=$run_id$n
-	create_interface $p
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
+	create_interface $p 40$n
+	netns_add $p 40$n
 	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
 	if [[ $n -eq 1 ]]; then
 		ip -n $p addr add fd00:f00:$n::2/64 dev lo

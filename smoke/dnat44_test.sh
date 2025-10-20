@@ -9,10 +9,8 @@ p1=${run_id}1
 
 for n in 0 1; do
 	p=$run_id$n
-	port_add $p
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
+	port_add $p 40$n
+	netns_add $p 40$n
 done
 
 grcli address add 172.16.0.1/24 iface $p0
