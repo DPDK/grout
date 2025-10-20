@@ -5,26 +5,22 @@ test_frr=true
 
 . $(dirname $0)/_init.sh
 
-tap_index=0
 create_interface() {
 	local p="$1"
 	local mac="$2"
 	local vrf="${3:-0}"
-
-	grcli interface add port $p devargs net_tap$tap_index,iface=$p vrf $vrf mac $mac
-
 	local max_tries=5
 	local count=0
+
+	port_add $p vrf $vrf mac $mac
+
 	while vtysh -c "show interface $p" 2>&1 | grep -q "% Can't find interface"; do
 		if [ "$count" -ge "$max_tries" ]; then
-			echo "Interface $p not found after $max_tries attempts."
-			exit 1
+			fail "Interface $p not found after $max_tries attempts."
 		fi
 		sleep 1
 		count=$((count + 1))
 	done
-
-	tap_index=$((tap_index + 1))
 }
 
 set_ip_address() {

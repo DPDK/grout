@@ -103,6 +103,19 @@ trap cleanup EXIT
 builddir=${1-}
 run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
 
+tap_counter=0
+port_add() {
+	local name="$1"
+	shift
+	grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
+	# Ensure the Linux net device has a different mac address from grout's.
+	# This is required to avoid Linux from wrongfully assuming the packets
+	# sent by grout originated locally.
+	local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
+	ip link set "$name" address "$mac"
+	tap_counter=$((tap_counter + 1))
+}
+
 if [ "$run_grout" = true ]; then
 	export GROUT_SOCK_PATH=$tmp/grout.sock
 fi
