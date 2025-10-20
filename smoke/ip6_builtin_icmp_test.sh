@@ -19,7 +19,6 @@ for n in 0 1; do
 	ip -n $p link set $p up
 	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
 	ip -n $p route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
-	ip -n $p addr show
 done
 
 sleep 3  # wait for DAD

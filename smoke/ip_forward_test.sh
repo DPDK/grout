@@ -27,7 +27,6 @@ for n in 0 1; do
 		ip -n $p addr add 16.$n.0.1/16 dev $p
 	fi
 	ip -n $p route add default via 172.16.$n.1
-	ip -n $p addr show
 done
 
 ip netns exec $p0 ping -i0.01 -c3 -n 16.1.0.1

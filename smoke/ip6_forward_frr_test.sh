@@ -22,7 +22,6 @@ for n in 1 2; do
 		ip -n $p addr add fd00:f00:$n::2/64 dev $p
 	fi
 	ip -n $p route add default via fd00:ba4:$n::1
-	ip -n $p addr show
 done
 
 set_ip_address $p1 fd00:ba4:1::1/64
