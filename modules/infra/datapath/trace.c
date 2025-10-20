@@ -266,7 +266,7 @@ int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *icmp6, size_t 
 		const struct icmp6_neigh_advert *na = PAYLOAD(icmp6);
 		payload_len -= sizeof(*na);
 		inet_ntop(AF_INET6, &na->target, dst, sizeof(dst));
-		SAFE_BUF(snprintf, len, "neigh advert %s is at", dst);
+		SAFE_BUF(snprintf, len, "neigh advert %s is at (solicited=%u)", dst, na->solicited);
 		opt = PAYLOAD(na);
 		break;
 	}
