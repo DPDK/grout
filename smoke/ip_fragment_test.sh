@@ -8,9 +8,9 @@
 p0=${run_id}0
 p1=${run_id}1
 
-grcli interface add port $p0 devargs net_tap0,iface=$p0 mac f0:0d:ac:dc:00:00
+port_add $p0 mac f0:0d:ac:dc:00:00
 # Set smaller MTU on p1 (egress) to force fragmentation
-grcli interface add port $p1 devargs net_tap1,iface=$p1 mac f0:0d:ac:dc:00:01 mtu 1280
+port_add $p1 mac f0:0d:ac:dc:00:01 mtu 1280
 grcli address add 172.16.0.1/24 iface $p0
 grcli address add 172.16.1.1/24 iface $p1
 
@@ -19,7 +19,6 @@ for n in 0 1; do
 	netns_add $p
 	ip link set $p mtu 1500
 	ip link set $p netns $p
-	ip -n $p link set $p address ba:d0:ca:ca:00:0$n
 	ip -n $p link set $p up
 	ip -n $p link set lo up
 	ip -n $p addr add 172.16.$n.2/24 dev $p
