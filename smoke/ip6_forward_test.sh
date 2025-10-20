@@ -20,7 +20,6 @@ for n in 1 2; do
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
-	ip -n $p link set lo up
 	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
 	if [[ $n -eq 1 ]]; then
 		ip -n $p addr add fd00:f00:$n::2/64 dev lo
