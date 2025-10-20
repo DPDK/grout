@@ -26,9 +26,7 @@ for n in 1 2; do
 	else
 		ip -n $p addr add fd00:f00:$n::2/64 dev $p
 	fi
-
 	ip -n $p route add default via fd00:ba4:$n::1
-	ip -n $p addr show
 done
 
 sleep 3  # wait for DAD

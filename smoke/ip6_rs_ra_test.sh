@@ -17,7 +17,6 @@ for n in 1; do
 	ip link set $p netns $p
 	ip -n $p link set $p up
 	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
-	ip -n $p addr show
 done
 
 sleep 3  # wait for DAD
