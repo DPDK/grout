@@ -13,6 +13,7 @@ src += files(
   'icmp_output.c',
   'ip_error.c',
   'ip_forward.c',
+  'ip_fragment.c',
   'ip_hold.c',
   'ip_input.c',
   'ip_local.c',
