@@ -7,11 +7,9 @@
 p1=${run_id}1
 p2=${run_id}2
 
-create_interface $p1
-create_interface $p2
-
 for n in 1 2; do
 	p=$run_id$n
+	create_interface $p
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
@@ -22,10 +20,9 @@ for n in 1 2; do
 		ip -n $p addr add fd00:f00:$n::2/64 dev $p
 	fi
 	ip -n $p route add default via fd00:ba4:$n::1
+	set_ip_address $p fd00:ba4:$n::1/64
 done
 
-set_ip_address $p1 fd00:ba4:1::1/64
-set_ip_address $p2 fd00:ba4:2::1/64
 set_ip_route fd00:f00:1::/64 fd00:ba4:1::2
 set_ip_route fd00:f00:2::/64 $p2
 

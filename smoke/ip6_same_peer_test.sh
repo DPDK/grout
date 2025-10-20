@@ -7,14 +7,10 @@
 p1=${run_id}1
 p2=${run_id}2
 
-port_add $p1
-port_add $p2
-
-grcli address add fd00:ba4:1::1/64 iface $p1
-grcli address add fd00:ba4:2::1/64 iface $p2
-
 for n in 1 2; do
 	p=$run_id$n
+	port_add $p
+	grcli address add fd00:ba4:$n::1/64 iface $p
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up

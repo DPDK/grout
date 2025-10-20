@@ -7,19 +7,17 @@
 p0=${run_id}0
 p1=${run_id}1
 
-# setup ports and connected
-port_add $p0
-port_add $p1
-grcli address add fd00:102::1/64 iface $p1
-grcli address add 192.168.61.1/24 iface $p0
-
 for n in 0 1; do
 	p=$run_id$n
+	port_add $p
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
 done
+
+grcli address add 192.168.61.1/24 iface $p0
 ip -n $p0 addr add 192.168.61.2/24 dev $p0
+grcli address add fd00:102::1/64 iface $p1
 ip -n $p1 addr add fd00:102::2/64 dev $p1
 
 sleep 3

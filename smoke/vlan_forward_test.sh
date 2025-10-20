@@ -9,16 +9,13 @@ p1=${run_id}1
 v0=$p0.42
 v1=$p1.43
 
-port_add $p0
-port_add $p1
-grcli interface add vlan $v0 parent $p0 vlan_id 42
-grcli interface add vlan $v1 parent $p1 vlan_id 43
-grcli address add 172.16.0.1/24 iface $v0
-grcli address add 172.16.1.1/24 iface $v1
-
 for n in 0 1; do
 	p=$run_id$n
-	v=$p.$((n+42))
+	vlan=$((n + 42))
+	v=$p.$vlan
+	port_add $p
+	grcli interface add vlan $v parent $p vlan_id $vlan
+	grcli address add 172.16.$((n % 2)).1/24 iface $v
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link add $v link $p type vlan id $((n+42))

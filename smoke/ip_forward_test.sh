@@ -7,16 +7,10 @@
 p0=${run_id}0
 p1=${run_id}1
 
-port_add $p0
-port_add $p1
-grcli address add 172.16.0.1/24 iface $p0
-grcli address add 172.16.1.1/24 iface $p1
-grcli route add 16.0.0.0/16 via 172.16.0.2
-grcli nexthop add l3 iface $p1 id 45
-grcli route add 16.1.0.0/16 via id 45
-
 for n in 0 1; do
 	p=$run_id$n
+	port_add $p
+	grcli address add 172.16.$n.1/24 iface $p
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
@@ -28,6 +22,10 @@ for n in 0 1; do
 	fi
 	ip -n $p route add default via 172.16.$n.1
 done
+
+grcli route add 16.0.0.0/16 via 172.16.0.2
+grcli nexthop add l3 iface $p1 id 45
+grcli route add 16.1.0.0/16 via id 45
 
 ip netns exec $p0 ping -i0.01 -c3 -n 16.1.0.1
 ip netns exec $p1 ping -i0.01 -c3 -n 16.0.0.1

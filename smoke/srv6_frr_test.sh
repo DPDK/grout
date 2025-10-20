@@ -7,12 +7,9 @@
 p0=${run_id}0
 p1=${run_id}1
 
-# setup ports and connected
-create_interface $p0
-create_interface $p1
-
 for n in 0 1; do
 	p=$run_id$n
+	create_interface $p
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up

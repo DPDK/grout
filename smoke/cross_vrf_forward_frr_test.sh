@@ -7,11 +7,12 @@
 p0=${run_id}0
 p1=${run_id}1
 
-create_interface $p0 vrf 1
-create_interface $p1 vrf 2
-
 for n in 0 1; do
 	p=$run_id$n
+	vrf=$((n + 1))
+	create_interface $p vrf $vrf
+	set_ip_address $p 172.16.$n.1/24
+	set_vrf_iface $vrf
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
@@ -19,11 +20,6 @@ for n in 0 1; do
 	ip -n $p addr add 16.$n.0.1/16 dev lo
 	ip -n $p route add default via 172.16.$n.1
 done
-
-set_ip_address $p0 172.16.0.1/24
-set_ip_address $p1 172.16.1.1/24
-set_vrf_iface 1
-set_vrf_iface 2
 
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 set_ip_route 16.1.0.0/16 172.16.1.2 1 2
