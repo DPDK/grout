@@ -7,8 +7,8 @@
 p1=${run_id}1
 p2=${run_id}2
 
-port_add $p1 mac d2:f0:0c:ba:a4:11
-port_add $p2 mac d2:f0:0c:ba:a4:12
+port_add $p1
+port_add $p2
 
 grcli address add fd00:ba4:1::1/64 iface $p1
 grcli address add fd00:ba4:2::1/64 iface $p2
@@ -24,9 +24,9 @@ done
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a411
-ip netns exec $p2 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a412
-ip netns exec $p1 ping6 -i0.01 -c3 -n fe80::d2f0:cff:feba:a412 && fail "Unexpected answer from foreign link local address"
+ip netns exec $p1 ping6 -i0.01 -c3 -n $(llocal_addr $p1)
+ip netns exec $p2 ping6 -i0.01 -c3 -n $(llocal_addr $p2)
+ip netns exec $p1 ping6 -i0.01 -c3 -n $(llocal_addr $p2) && fail "Unexpected answer from foreign link local address"
 ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
 ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
 ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:1::1

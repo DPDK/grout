@@ -7,8 +7,8 @@
 p0=${run_id}0
 p1=${run_id}1
 
-port_add $p0 mac f0:0d:ac:dc:13:00
-port_add $p1 mac f0:0d:ac:dc:13:01
+port_add $p0
+port_add $p1
 grcli address add fd00:ba4:0::1/64 iface $p0
 grcli address add fd00:ba4:1::1/64 iface $p1
 

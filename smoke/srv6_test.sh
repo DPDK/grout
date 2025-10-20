@@ -8,8 +8,8 @@ p0=${run_id}0
 p1=${run_id}1
 
 # setup ports and connected
-port_add $p0 mac d2:f0:0c:ba:a5:10
-port_add $p1 mac d2:f0:0c:ba:a5:11
+port_add $p0
+port_add $p1
 grcli address add fd00:102::1/64 iface $p1
 grcli address add 192.168.61.1/24 iface $p0
 

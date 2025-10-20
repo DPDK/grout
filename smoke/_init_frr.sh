@@ -7,12 +7,11 @@ test_frr=true
 
 create_interface() {
 	local p="$1"
-	local mac="$2"
-	local vrf="${3:-0}"
+	shift
 	local max_tries=5
 	local count=0
 
-	port_add $p vrf $vrf mac $mac
+	port_add $p "$@"
 
 	while vtysh -c "show interface $p" 2>&1 | grep -q "% Can't find interface"; do
 		if [ "$count" -ge "$max_tries" ]; then
