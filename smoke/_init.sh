@@ -101,7 +101,7 @@ EOF
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
-run_id=$(echo $SRANDOM$SRANDOM | base32 -w6 | tr '[:upper:]' '[:lower:]' | head -n1)
+run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
 
 if [ "$run_grout" = true ]; then
 	export GROUT_SOCK_PATH=$tmp/grout.sock
