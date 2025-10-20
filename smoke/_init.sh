@@ -140,7 +140,9 @@ if [ "$run_grout" = true ]; then
 	taskset -c 0,1 grout -tvvx $grout_extra_options &
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
-grout_pid=$(pgrep -g0 grout)
+if [ "$run_grout" = true ]; then
+	grout_pid=$(pgrep -g0 grout)
+fi
 
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh)
