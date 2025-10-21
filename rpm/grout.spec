@@ -75,7 +75,7 @@ Requires: frr = %(sed -n "s/revision = frr-//p" subprojects/frr.wrap)
 FRR dplane plugin for grout
 
 %build
-%meson -Ddpdk:platform=generic -Dfrr=enabled
+%meson -Ddpdk:platform=generic -Dfrr=enabled -Ddpdk_static=true
 %meson_build
 
 %install
