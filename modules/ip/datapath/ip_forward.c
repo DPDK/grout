@@ -20,6 +20,7 @@ ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	rte_be32_t csum;
+	rte_edge_t edge;
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
@@ -27,18 +28,18 @@ ip_forward_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
 		if (ip->time_to_live <= 1) {
-			rte_node_enqueue_x1(graph, node, TTL_EXCEEDED, mbuf);
-			continue;
+			edge = TTL_EXCEEDED;
+			goto next;
 		}
 		ip->time_to_live -= 1;
 		csum = ip->hdr_checksum + RTE_BE16(0x0100);
 		csum += csum >= 0xffff;
 		ip->hdr_checksum = csum;
-
+		edge = OUTPUT;
+next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
-
-		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
