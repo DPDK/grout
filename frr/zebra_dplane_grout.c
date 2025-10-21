@@ -52,7 +52,7 @@ static int grout_notif_subscribe(
 
 	*pgr_client = gr_api_client_connect(gr_sock_path);
 	if (*pgr_client == NULL) {
-		gr_log_debug(
+		gr_log_err(
 			"connect failed on grout sock %s error: %s", gr_sock_path, strerror(errno)
 		);
 		return -1;
@@ -66,7 +66,7 @@ static int grout_notif_subscribe(
 			    *pgr_client, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL
 		    )
 		    < 0) {
-			gr_log_debug(
+			gr_log_err(
 				"subscribe on event failed on grout sock %s error: %s",
 				gr_sock_path,
 				strerror(errno)

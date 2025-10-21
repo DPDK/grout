@@ -63,7 +63,6 @@ dpdk_dep = dependency(
   default_options: [
     'buildtype=release',
     'c_std=c11',
-    'default_library=static',
     'werror=false',
     'enable_kmods=false',
     'tests=false',
@@ -73,6 +72,7 @@ dpdk_dep = dependency(
     'enable_docs=false',
     'developer_mode=disabled',
   ],
+  static: get_option('dpdk_static'),
 )
 
 ev_core_dep = dependency('libevent_core')

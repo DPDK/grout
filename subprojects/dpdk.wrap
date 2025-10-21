@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/DPDK/dpdk-stable
-revision = v24.11.1
+revision = v24.11.3
 depth = 1
 
 [provide]

@@ -9,6 +9,7 @@ meson_opts := --wrap-mode=default
 meson_opts += --auto-features=enabled
 meson_opts += -Ddpdk:platform=generic
 meson_opts += -Dfrr=enabled
+meson_opts += -Ddpdk_static=true
 
 build = $(CURDIR)/debian/_build
 dest = $(CURDIR)/debian/tmp
