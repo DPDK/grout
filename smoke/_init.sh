@@ -134,11 +134,8 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	fi
 fi
 
-cat > $tmp/cleanup <<EOF
+cat >> $tmp/cleanup <<EOF
 grcli stats show software
-grcli interface show
-grcli nexthop show
-grcli route show
 grcli trace show count 50
 EOF
 
