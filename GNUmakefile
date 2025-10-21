@@ -54,7 +54,8 @@ clean:
 install: $(BUILDDIR)/build.ninja
 	$Q meson install -C $(BUILDDIR) --skip-subprojects
 
-meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2 -Db_sanitize=$(SANITIZE)
+meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2
+meson_opts += -Db_sanitize=$(SANITIZE) -Ddpdk_static=true
 meson_opts += $(MESON_EXTRA_OPTS)
 
 $(BUILDDIR)/build.ninja:
