@@ -13,6 +13,11 @@
 #include <rte_common.h>
 #include <rte_ip.h>
 
+GR_NODE_CTX_TYPE(ip6_error_ctx, {
+	icmp6_type_t icmp_type;
+	uint8_t icmp_code;
+});
+
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
@@ -22,6 +27,7 @@ enum edges {
 
 static uint16_t
 ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct ip6_error_ctx *ctx = ip6_error_ctx(node);
 	struct icmp6_err_dest_unreach *du;
 	struct icmp6_err_ttl_exceeded *te;
 	const struct nexthop_info_l3 *l3;
@@ -29,12 +35,9 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	const struct iface *iface;
 	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
-	icmp6_type_t icmp_type;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
-
-	icmp_type = node->ctx[0];
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -53,7 +56,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (rte_pktmbuf_pkt_len(mbuf) > RTE_IPV6_MIN_MTU)
 			rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf) - RTE_IPV6_MIN_MTU);
 
-		switch (icmp_type) {
+		switch (ctx->icmp_type) {
 		case ICMP6_ERR_DEST_UNREACH:
 			// clang-format off
 			du = (struct icmp6_err_dest_unreach *)
@@ -75,7 +78,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			}
 			break;
 		default:
-			ABORT("unexpected icmp_type value %hhu", icmp_type);
+			ABORT("unexpected icmp_type value %hhu", ctx->icmp_type);
 			break;
 		}
 
@@ -84,8 +87,8 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = NO_HEADROOM;
 			goto next;
 		}
-		icmp6->type = icmp_type;
-		icmp6->code = 0;
+		icmp6->type = ctx->icmp_type;
+		icmp6->code = ctx->icmp_code;
 
 		// Get the local router IP address from the input iface
 		iface = ip6_output_mbuf_data(mbuf)->iface;
@@ -112,12 +115,16 @@ next:
 }
 
 static int ttl_exceeded_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = ICMP6_ERR_TTL_EXCEEDED;
+	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
+	ctx->icmp_type = ICMP6_ERR_TTL_EXCEEDED;
+	ctx->icmp_code = 0;
 	return 0;
 }
 
 static int no_route_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = ICMP6_ERR_DEST_UNREACH;
+	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
+	ctx->icmp_type = ICMP6_ERR_DEST_UNREACH;
+	ctx->icmp_code = 0;
 	return 0;
 }
 
