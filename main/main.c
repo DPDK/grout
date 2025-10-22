@@ -22,6 +22,7 @@
 #include <grp.h>
 #include <locale.h>
 #include <pwd.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,93 +61,68 @@ static void usage(const char *prog) {
 	puts("  -V, --version                  Print version and exit.");
 }
 
+static int perr(const char *fmt, ...) {
+	char buf[512];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	fprintf(stderr, "error: %s\n", buf);
+
+	return -1;
+}
+
+static int
+parse_uint(unsigned int *v, const char *s, uint8_t base, unsigned long min, unsigned long max) {
+	unsigned long val;
+	char *endptr;
+
+	errno = 0;
+	val = strtoul(s, &endptr, base);
+	if (errno != 0)
+		return errno_set(errno);
+	if (*endptr != '\0')
+		return errno_set(EINVAL);
+	if (val < min || val > max)
+		return errno_set(ERANGE);
+
+	*v = val;
+
+	return 0;
+}
+
 struct gr_config gr_config;
 
 static int parse_sock_owner(char *user_group_str) {
 	char *group_str, *user_str = user_group_str;
 	struct passwd *pw;
-	char *colon, *end;
-	unsigned long val;
 	struct group *gr;
+	char *colon;
 
 	colon = strchr(user_group_str, ':');
-	if (!colon) {
-		fprintf(stderr, "error: -%c requires ':'\n", optopt);
-		return -1;
-	}
+	if (!colon)
+		return perr("--socket-owner: missing ':'");
 
 	*colon = '\0';
 	group_str = colon + 1;
 
 	pw = getpwnam(user_str);
 	if (!pw) {
-		errno = 0;
-		val = strtoul(user_str, &end, 10);
-
-		if (errno || *end != '\0' || val > (uid_t)-1) {
-			fprintf(stderr, "error: invalid user '%s'\n", user_str);
-			return -1;
-		}
-
-		gr_config.api_sock_uid = (uid_t)val;
+		if (parse_uint(&gr_config.api_sock_uid, user_str, 10, 0, (uid_t)-1) < 0)
+			return perr("--socket-owner: <user>: %s", strerror(errno));
 	} else {
 		gr_config.api_sock_uid = pw->pw_uid;
 	}
 
 	gr = getgrnam(group_str);
 	if (!gr) {
-		errno = 0;
-		val = strtoul(group_str, &end, 10);
-
-		if (errno || *end != '\0' || val > (gid_t)-1) {
-			fprintf(stderr, "error: invalid group %s\n", group_str);
-			return -1;
-		}
-
-		gr_config.api_sock_gid = (gid_t)val;
+		if (parse_uint(&gr_config.api_sock_gid, group_str, 10, 0, (gid_t)-1) < 0)
+			return perr("--socket-owner: <group>: %s", strerror(errno));
 	} else {
 		gr_config.api_sock_gid = gr->gr_gid;
 	}
-
-	return 0;
-}
-
-static int parse_sock_mode(const char *perm_str) {
-	unsigned long val;
-	char *endptr;
-
-	errno = 0;
-	val = strtoul(perm_str, &endptr, 8);
-
-	if (errno != 0 || *endptr != '\0' || val > 07777) {
-		fprintf(stderr, "error: invalid permissions '%s'\n", perm_str);
-		return -1;
-	}
-
-	gr_config.api_sock_mode = (mode_t)val;
-
-	return 0;
-}
-
-static int parse_max_mtu(const char *mtu) {
-	unsigned long val;
-	char *endptr;
-
-	errno = 0;
-	val = strtoul(mtu, &endptr, 10);
-
-	if (errno != 0 || *endptr != '\0' || val < 512 || val > 16384) {
-		if (errno == 0) {
-			if (*endptr != '\0')
-				errno = EINVAL;
-			else
-				errno = ERANGE;
-		}
-		fprintf(stderr, "error: invalid max-mtu '%s': %s\n", mtu, strerror(errno));
-		return -1;
-	}
-
-	gr_config.max_mtu = (unsigned)val;
 
 	return 0;
 }
@@ -197,8 +173,8 @@ static int parse_args(int argc, char **argv) {
 			gr_vec_add(gr_config.eal_extra_args, optarg);
 			break;
 		case 'm':
-			if (parse_sock_mode(optarg) < 0)
-				return errno_set(EINVAL);
+			if (parse_uint(&gr_config.api_sock_mode, optarg, 8, 0, 07777) < 0)
+				return perr("--socket-mode: %s", strerror(errno));
 			break;
 		case 'o':
 			if (parse_sock_owner(optarg) < 0)
@@ -232,8 +208,8 @@ static int parse_args(int argc, char **argv) {
 			gr_config.log_packets = true;
 			break;
 		case 'u':
-			if (parse_max_mtu(optarg) < 0)
-				return errno_set(EINVAL);
+			if (parse_uint(&gr_config.max_mtu, optarg, 10, 512, 16384) < 0)
+				return perr("--max-mtu: %s", strerror(errno));
 			break;
 		case 'v':
 			gr_config.log_level++;
@@ -243,22 +219,16 @@ static int parse_args(int argc, char **argv) {
 			exit(EXIT_SUCCESS);
 			break;
 		case ':':
-			usage(argv[0]);
-			fprintf(stderr, "error: -%c requires a value\n", optopt);
-			return errno_set(EINVAL);
+			return perr("-%c requires a value", optopt);
 		case '?':
-			usage(argv[0]);
-			fprintf(stderr, "error: -%c unknown option\n", optopt);
-			return errno_set(EINVAL);
+			return perr("-%c unknown option", optopt);
 		default:
 			goto end;
 		}
 	}
 end:
-	if (optind < argc) {
-		fputs("error: invalid arguments", stderr);
-		return errno_set(EINVAL);
-	}
+	if (optind < argc)
+		return perr("invalid arguments");
 
 	return 0;
 }
