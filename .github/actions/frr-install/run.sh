@@ -5,7 +5,7 @@
 set -xe -o pipefail
 
 : ${PREFIX:=/usr}
-: ${SYSCONFDIR:=/etc/frr}
+: ${SYSCONFDIR:=/etc}
 : ${LIBDIR:=/usr/lib64}
 : ${SBINDIR:=/usr/lib/frr}
 : ${LIBEXECDIR:=/usr/libexec}
@@ -20,10 +20,10 @@ cd frr_build
 curl -L https://github.com/FRRouting/frr/pull/19351.diff | patch -p1
 autoreconf -ivf
 ./configure \
-	--prefix=/usr \
+	--prefix="$PREFIX" \
 	--sysconfdir="$SYSCONFDIR" \
-	--libdir="$LIBDIR/frr" \
-	--libexecdir="$LIBEXECDIR/frr" \
+	--libdir="$LIBDIR" \
+	--libexecdir="$LIBEXECDIR" \
 	--localstatedir="$LOCALSTATEDIR" \
 	--sbindir="$SBINDIR" \
 	--with-moduledir="$LIBDIR/frr/modules" \
@@ -35,4 +35,3 @@ autoreconf -ivf
 	--disable-fabricd --disable-vrrpd --disable-pathd --disable-ospfapi \
 	--disable-ospfclient --disable-bfdd --disable-python-runtime
 make -j install
-install -Dm 0644 pkgconfig/frr.pc "$LIBDIR/pkgconfig/frr.pc"
