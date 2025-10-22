@@ -13,6 +13,11 @@
 #include <rte_icmp.h>
 #include <rte_ip.h>
 
+GR_NODE_CTX_TYPE(ip_error_ctx, {
+	uint8_t icmp_type;
+	uint8_t icmp_code;
+});
+
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
@@ -22,19 +27,16 @@ enum edges {
 
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct ip_error_ctx *ctx = ip_error_ctx(node);
 	struct ip_local_mbuf_data *ip_data;
 	const struct nexthop_info_l3 *l3;
 	const struct nexthop *nh, *local;
-	uint8_t icmp_type, icmp_code;
 	const struct iface *iface;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	ip4_addr_t src;
-
-	icmp_type = node->ctx[0];
-	icmp_code = node->ctx[1];
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -77,8 +79,8 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		ip_data->len = sizeof(*icmp) + rte_ipv4_hdr_len(ip) + 8;
 		ip_data->proto = IPPROTO_ICMP;
 
-		icmp->icmp_type = icmp_type;
-		icmp->icmp_code = icmp_code;
+		icmp->icmp_type = ctx->icmp_type;
+		icmp->icmp_code = ctx->icmp_code;
 		icmp->icmp_cksum = 0;
 		icmp->icmp_ident = 0;
 		icmp->icmp_seq_nb = 0;
@@ -95,14 +97,16 @@ next:
 }
 
 static int ttl_exceeded_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = RTE_ICMP_TYPE_TTL_EXCEEDED;
-	node->ctx[1] = RTE_ICMP_CODE_TTL_EXCEEDED;
+	struct ip_error_ctx *ctx = ip_error_ctx(node);
+	ctx->icmp_type = RTE_ICMP_TYPE_TTL_EXCEEDED;
+	ctx->icmp_code = RTE_ICMP_CODE_TTL_EXCEEDED;
 	return 0;
 }
 
 static int no_route_init(const struct rte_graph *, struct rte_node *node) {
-	node->ctx[0] = RTE_ICMP_TYPE_DEST_UNREACHABLE;
-	node->ctx[1] = RTE_ICMP_CODE_UNREACH_NET;
+	struct ip_error_ctx *ctx = ip_error_ctx(node);
+	ctx->icmp_type = RTE_ICMP_TYPE_DEST_UNREACHABLE;
+	ctx->icmp_code = RTE_ICMP_CODE_UNREACH_NET;
 	return 0;
 }
 
