@@ -14,19 +14,19 @@ Grout is a software router based on DPDK __rte_graph__.
 **grout**
 [**-B** _SIZE_]
 [**-D** _PATH_]
-[**-h**]
 [**-L** _TYPE_:_LEVEL_]
 [**-M** _MODE_]
+[**-S**]
+[**-T** _REGEXP_]
+[**-V**]
+[**-h**]
 [**-m** _PERMISSIONS_]
 [**-o** _USER_:_GROUP_]
 [**-p**]
-[**-S**]
 [**-s** _PATH_]
 [**-t**]
-[**-T** _REGEXP_]
 [**-u** _MTU_]
 [**-v**]
-[**-V**]
 [**-x**]
 
 # OPTIONS

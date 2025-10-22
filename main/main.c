@@ -31,34 +31,48 @@
 
 // Please keep options/flags in alphabetical order.
 
-static void usage(const char *prog) {
-	printf("Usage: %s [-h] [-L <type>:<lvl>] [-p] [-s <path>] [-t] [-u <mtu>]\n", prog);
-	printf("       %*s [-T <regexp>] [-B <size>] [-D <path>] [-M <mode>] [-x] [-v] [-V]\n",
-	       (int)strlen(prog),
-	       "");
+static void usage(void) {
+	printf("Usage: grout");
+	printf(" [-B SIZE]");
+	printf(" [-D PATH]");
+	printf(" [-L TYPE:LEVEL]");
+	printf(" [-M MODE]");
+	printf(" [-S]");
+	printf(" [-T REGEXP]");
+	printf(" [-V]");
+	printf(" [-h]");
+	printf("\n            ");
+	printf(" [-m PERMISSIONS]");
+	printf(" [-o USER:GROUP]");
+	printf(" [-p]");
+	printf(" [-s PATH]");
+	printf(" [-t]");
+	printf(" [-u MTU]");
+	printf(" [-v]");
+	printf(" [-x]");
+	puts("");
 	puts("");
 	printf("  Graph router version %s (%s).\n", GROUT_VERSION, rte_version());
 	puts("");
 	puts("options:");
-	puts("  -h, --help                     Display this help message and exit.");
-	puts("  -L, --log-level <type>:<lvl>   Specify log level for a specific component.");
-	puts("  -m, --socket-mode <mode>       API socket file permissions (Default: 0660).");
-	puts("  -o, --socket-owner <user>:<group>  API socket file ownership");
-	puts("                                 (Default: getuid():getgid()).");
-	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
+	puts("  -B, --trace-bufsz SIZE         Maximum size of allocated memory for trace output.");
+	puts("  -D, --trace-dir PATH           Change path for trace output.");
+	puts("  -L, --log-level TYPE:LEVEL     Specify log level for a specific component.");
+	puts("  -M, --trace-mode MODE          Specify the mode of update of trace output file.");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
-	puts("  -s, --socket <path>            Path the control plane API socket.");
+	puts("  -T, --trace REGEXO             Enable trace matching the regular expression.");
+	puts("  -V, --version                  Print version and exit.");
+	puts("  -h, --help                     Display this help message and exit.");
+	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
+	puts("  -o, --socket-owner USER:GROUP  API socket file ownership");
+	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
+	puts("  -s, --socket PATH              Path the control plane API socket.");
 	puts("                                 Default: GROUT_SOCK_PATH from env or");
 	printf("                                 %s).\n", GR_DEFAULT_SOCK_PATH);
 	puts("  -t, --test-mode                Run in test mode (no hugepages).");
-	puts("  -u, --max-mtu <mtu>            Maximum Transmission Unit (default 1800).");
-	puts("  -T, --trace <regexp>           Enable trace matching the regular expression.");
-	puts("  -B, --trace-bufsz <size>       Maximum size of allocated memory for trace output.");
-	puts("  -D, --trace-dir <path>         Change path for trace output.");
-	puts("  -M, --trace-mode <mode>        Specify the mode of update of trace output file.");
-	puts("  -x, --trace-packets            Print all ingress/egress packets.");
+	puts("  -u, --max-mtu MTU              Maximum Transmission Unit (default 1800).");
 	puts("  -v, --verbose                  Increase verbosity.");
-	puts("  -V, --version                  Print version and exit.");
+	puts("  -x, --trace-packets            Print all ingress/egress packets.");
 }
 
 static int perr(const char *fmt, ...) {
@@ -136,10 +150,10 @@ static int parse_args(int argc, char **argv) {
 		{"log-level", required_argument, NULL, 'L'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"poll-mode", no_argument, NULL, 'p'},
-		{"syslog", no_argument, NULL, 'S'},
 		{"socket", required_argument, NULL, 's'},
 		{"socket-mode", required_argument, NULL, 'm'},
 		{"socket-owner", required_argument, NULL, 'o'},
+		{"syslog", no_argument, NULL, 'S'},
 		{"test-mode", no_argument, NULL, 't'},
 		{"trace", required_argument, NULL, 'T'},
 		{"trace-bufsz", required_argument, NULL, 'B'},
@@ -166,8 +180,9 @@ static int parse_args(int argc, char **argv) {
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
 		case 'h':
-			usage(argv[0]);
-			return -1;
+			usage();
+			exit(EXIT_SUCCESS);
+			break;
 		case 'L':
 			gr_vec_add(gr_config.eal_extra_args, "--log-level");
 			gr_vec_add(gr_config.eal_extra_args, optarg);
