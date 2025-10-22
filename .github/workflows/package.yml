@@ -48,9 +48,9 @@ jobs:
       - run: ccache -z
       - uses: ./.github/actions/frr-install
         with:
-          sysconfdir: /etc/frr
+          sysconfdir: /etc
           libdir: /usr/lib/x86_64-linux-gnu
-          libexecdir: /usr/libexec
+          libexecdir: /usr/libexec/frr
           sbindir: /usr/lib/frr
           localstatedir: /run/frr
           yangmodelsdir: /usr/share/frr-yang
@@ -100,7 +100,7 @@ jobs:
         with:
           sysconfdir: /etc
           libdir: /usr/lib64
-          libexecdir: /usr/libexec
+          libexecdir: /usr/libexec/frr
           sbindir: /usr/lib64/frr
           localstatedir: /var
           yangmodelsdir: /usr/share/frr-yang
