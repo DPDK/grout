@@ -62,7 +62,7 @@ static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
 			level = "???";
 			break;
 		}
-		n = fprintf(stderr, "%s: %.*s", level, (int)size, buf);
+		n = fprintf(stdout, "%s: %.*s", level, (int)size, buf);
 	}
 	return n;
 }
