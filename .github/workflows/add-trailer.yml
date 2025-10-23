@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Robin Jarry
+---
+name: Add Trailer
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_run:
+    workflows: ["Review"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+jobs:
+  add-trailer:
+    if: >-
+      ${{ (github.event_name == 'issue_comment' && github.event.issue.pull_request
+          && (contains(github.event.comment.body, 'Acked-by:') || contains(github.event.comment.body, 'Tested-by:')))
+      || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR info and trailer
+        id: info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let pr, trailer;
+
+            if (context.eventName === 'issue_comment') {
+              const body = context.payload.comment.body;
+              const regexp = /(acked|tested)-by:\s+(\w[^<]+\w)(?:\s+<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>)?/i;
+              const match = body.match(regexp);
+              if (!match) {
+                throw new Error(`No valid trailer found in comment: ${body}`)
+              }
+
+              const { data: prData } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.issue.number
+              });
+
+              pr = prData;
+              trailer = `${match[1]}-by: ${match[2]} <${match[3] || 'UNKNOWN_EMAIL'}>`;
+
+            } else if (context.eventName === 'workflow_run') {
+              const headBranch = context.payload.workflow_run.head_branch;
+
+              const { data: allPRs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+              });
+
+              const matchingPRs = allPRs.filter(p => p.head.ref === headBranch);
+
+              if (matchingPRs.length === 0) {
+                throw new Error(`No open PR found for ${headBranch}`)
+              }
+              pr = matchingPRs[0];
+
+              const actor = context.payload.workflow_run.triggering_actor.login;
+              const req = await fetch(`https://api.github.com/users/${actor}`);
+              const user = await req.json();
+              trailer = `Reviewed-by: ${user.name || actor} <${user.email || 'UNKNOWN_EMAIL'}>`;
+            }
+
+            return {
+              base_sha: pr.base.sha,
+              head_repo: pr.head.repo.full_name,
+              head_ref: pr.head.ref,
+              trailer: trailer,
+            };
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TRAILER_BOT_TOKEN }}
+          repository: ${{ fromJSON(steps.info.outputs.result).head_repo }}
+          ref: ${{ fromJSON(steps.info.outputs.result).head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Amend all pull request commits with the trailer
+        env:
+          GIT_TRAILER_DEBUG: 1
+          BASE_SHA: ${{ fromJSON(steps.info.outputs.result).base_sha }}
+          HEAD_REF: ${{ fromJSON(steps.info.outputs.result).head_ref }}
+          TRAILER: ${{ fromJSON(steps.info.outputs.result).trailer }}
+        run: |
+          set -xe
+
+          if echo "$TRAILER" | grep -qw 'UNKNOWN_EMAIL'; then
+            NAME=$(echo "$TRAILER" | sed -En 's/.+-by:[[:blank:]]+([^<]+)[[:blank:]]<.+/\1/p')
+            EMAIL=$(git log --pretty=%aE --author="$NAME" | head -n1)
+
+            if [ -z "$EMAIL" ]; then
+              EMAIL=$(git shortlog -se -w0 --group=author --group=committer \
+                --group=trailer:acked-by --group=trailer:reviewed-by \
+                --group=trailer:reported-by --group=trailer:signed-off-by \
+                --group=trailer:tested-by HEAD | \
+                sed -En "s/^[[:space:]]+[0-9]+[[:space:]]+$NAME <([^@]+@[^>]+)>$/\\1/p" | head -n1)
+            fi
+
+            if [ -z "$EMAIL" ]; then
+              echo "Error: Could not find email for $NAME"
+              exit 1
+            fi
+
+            TRAILER=$(echo "$TRAILER" | sed "s/\\<UNKNOWN_EMAIL\\>/$EMAIL/")
+          fi
+
+          GIT_COMMITTER_NAME=$(git log -1 --pretty=%cN)
+          GIT_COMMITTER_EMAIL=$(git log -1 --pretty=%cE)
+          git config set user.name "$GIT_COMMITTER_NAME"
+          git config set user.email "$GIT_COMMITTER_EMAIL"
+          export GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+          rm -f .git/hooks/commit-msg
+          ln -s ../../devtools/commit-msg .git/hooks/commit-msg
+
+          git rebase "$BASE_SHA" \
+            --exec "git commit -C HEAD --no-edit --amend --trailer='$TRAILER'"
+
+          git push --force origin "$HEAD_REF"
