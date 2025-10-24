@@ -21,6 +21,7 @@ Build-Depends:
  patch,
  pkg-config,
  python3-pyelftools,
+ systemd-dev,
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/DPDK/grout
