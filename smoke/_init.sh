@@ -92,7 +92,6 @@ fail() {
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
-run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
 
 netns_add() {
 	local ns="$1"

@@ -5,17 +5,14 @@
 
 . $(dirname $0)/_init.sh
 
-p0=${run_id}0
-p1=${run_id}1
-
-port_add $p0
+port_add p0
 # Set smaller MTU on p1 (egress) to force fragmentation
-port_add $p1 mtu 1280
-grcli address add 172.16.0.1/24 iface $p0
-grcli address add 172.16.1.1/24 iface $p1
+port_add p1 mtu 1280
+grcli address add 172.16.0.1/24 iface p0
+grcli address add 172.16.1.1/24 iface p1
 
 for n in 0 1; do
-	p=$run_id$n
+	p=p$n
 	netns_add $p
 	ip link set $p mtu 1500
 	ip link set $p netns $p
@@ -27,19 +24,19 @@ for n in 0 1; do
 done
 
 # Test 1: Ping with default packet size (should work without fragmentation)
-ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
+ip netns exec p0 ping -i0.01 -c3 -n 172.16.1.2
 
 # Test 2: Large packet with DF flag set (should get ICMP fragmentation needed error)
 # Send 1260-byte packet with DF=1 (Don't Fragment)
 # Packet size: 1260 + 8 (ICMP) + 20 (IP) = 1288 bytes
 # Fits in p0 MTU (1500) but exceeds p1 MTU (1280)
 # Expected: ICMP Type 3 Code 4 (Fragmentation Needed and DF Set)
-ip netns exec $p0 ping -i0.01 -c3 -s 1260 -M do -n 172.16.1.2 && fail "ping with DF flag should have failed"
+ip netns exec p0 ping -i0.01 -c3 -s 1260 -M do -n 172.16.1.2 && fail "ping with DF flag should have failed"
 
 # Test 3: Large packet without DF flag (should fragment and succeed)
 # Send 1260-byte packet with DF=0 (fragmentation allowed)
 # Packet size: 1260 + 8 (ICMP) + 20 (IP) = 1288 bytes
 # Fits in p0 MTU (1500) but needs fragmentation for p1 MTU (1280)
 # Expected: Packet is fragmented into 2 fragments (1276 + 32 bytes) and ping succeeds
-ip netns exec $p0 ip route flush cache
-ip netns exec $p0 ping -i0.01 -c3 -s 1260 -M dont -n 172.16.1.2
+ip netns exec p0 ip route flush cache
+ip netns exec p0 ping -i0.01 -c3 -s 1260 -M dont -n 172.16.1.2
