@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_graph.h>
 #include <gr_infra.h>
 
 #include <rte_build_config.h>
@@ -16,16 +17,16 @@
 #define TX_NODE_BASE "port_tx"
 #define TX_NODE_FMT TX_NODE_BASE "-p%uq%u"
 
-struct port_queue {
+GR_NODE_CTX_TYPE(port_queue, {
 	uint16_t port_id;
 	uint16_t queue_id;
-};
+});
 
-struct rx_node_ctx {
+GR_NODE_CTX_TYPE(rx_node_ctx, {
 	const struct iface *iface;
 	struct port_queue rxq;
 	uint16_t burst_size;
-};
+});
 
 struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];

@@ -37,7 +37,7 @@ void register_interface_mode(gr_iface_mode_t mode, const char *next_node) {
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t /*count*/) {
-	const struct rx_node_ctx *ctx = (const struct rx_node_ctx *)node->ctx;
+	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
 	struct eth_input_mbuf_data *d;
 	uint16_t rx;
