@@ -4,19 +4,16 @@
 
 . $(dirname $0)/_init.sh
 
-p0=${run_id}0
-p1=${run_id}1
-
-port_add $p0
-port_add $p1
-grcli address add 172.16.0.1/24 iface $p0
-grcli address add 172.16.1.1/24 iface $p1
+port_add p0
+port_add p1
+grcli address add 172.16.0.1/24 iface p0
+grcli address add 172.16.1.1/24 iface p1
 grcli route add 16.0.0.0/16 via 172.16.0.2
-grcli nexthop add l3 iface $p1 id 45
+grcli nexthop add l3 iface p1 id 45
 grcli route add 16.1.0.0/16 via id 45
 
 for n in 0 1; do
-	p=$run_id$n
+	p=p$n
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
@@ -29,13 +26,13 @@ for n in 0 1; do
 	ip -n $p route add default via 172.16.$n.1
 done
 
-ip netns exec $p0 ping -i0.01 -c3 -n 16.1.0.1
-ip netns exec $p1 ping -i0.01 -c3 -n 16.0.0.1
-ip netns exec $p0 ping -i0.01 -c3 -n 172.16.1.2
-ip netns exec $p1 ping -i0.01 -c3 -n 172.16.0.2
-ip netns exec $p0 ping -i0.01 -c3 -n 172.16.0.1
-ip netns exec $p1 ping -i0.01 -c3 -n 172.16.1.1
-ip netns exec $p0 traceroute -N1 -n 16.1.0.1
-ip netns exec $p1 traceroute -N1 -n 16.0.0.1
-ip netns exec $p0 traceroute -N1 -n 172.16.1.2
-ip netns exec $p1 traceroute -N1 -n 172.16.0.2
+ip netns exec p0 ping -i0.01 -c3 -n 16.1.0.1
+ip netns exec p1 ping -i0.01 -c3 -n 16.0.0.1
+ip netns exec p0 ping -i0.01 -c3 -n 172.16.1.2
+ip netns exec p1 ping -i0.01 -c3 -n 172.16.0.2
+ip netns exec p0 ping -i0.01 -c3 -n 172.16.0.1
+ip netns exec p1 ping -i0.01 -c3 -n 172.16.1.1
+ip netns exec p0 traceroute -N1 -n 16.1.0.1
+ip netns exec p1 traceroute -N1 -n 16.0.0.1
+ip netns exec p0 traceroute -N1 -n 172.16.1.2
+ip netns exec p1 traceroute -N1 -n 172.16.0.2

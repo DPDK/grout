@@ -4,16 +4,13 @@
 
 . $(dirname $0)/_init.sh
 
-p0=${run_id}0
-p1=${run_id}1
-
-port_add $p0
-port_add $p1
-grcli address add fd00:ba4:0::1/64 iface $p0
-grcli address add fd00:ba4:1::1/64 iface $p1
+port_add p0
+port_add p1
+grcli address add fd00:ba4:0::1/64 iface p0
+grcli address add fd00:ba4:1::1/64 iface p1
 
 for n in 0 1; do
-	p=$run_id$n
+	p=p$n
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
