@@ -81,11 +81,6 @@ FRR dplane plugin for grout
 %install
 %meson_install --skip-subprojects
 
-install -D -m 0644 main/grout.default %{buildroot}%{_sysconfdir}/default/grout
-install -D -m 0644 main/grout.init %{buildroot}%{_sysconfdir}/grout.init
-install -D -m 0644 main/grout.service %{buildroot}%{_unitdir}/grout.service
-install -D -m 0644 main/grout.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grout
-install -D -m 0644 cli/grcli.bash-completion %{buildroot}%{_datadir}/bash-completion/completions/grcli
 install -D -m 0755 subprojects/dpdk/usertools/dpdk-telemetry-exporter.py %{buildroot}%{_bindir}/grout-telemetry-exporter
 install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojects/dpdk/usertools/telemetry-endpoints/*
 

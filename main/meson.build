@@ -27,3 +27,27 @@ tests += [
     ],
   },
 ]
+
+systemd_dep = dependency('systemd', required: false)
+if systemd_dep.found()
+  systemd_system_unit_dir = systemd_dep.get_variable(
+    pkgconfig: 'systemdsystemunitdir',
+    pkgconfig_define: ['prefix', get_option('prefix')]
+  )
+  install_data(
+    files('grout.service'),
+    install_dir: systemd_system_unit_dir,
+  )
+  install_data(
+    files('grout.default'),
+    rename: ['grout'],
+    install_dir: get_option('sysconfdir') / 'default',
+  )
+  install_data('grout.init', install_dir: get_option('sysconfdir'))
+endif
+
+install_data(
+  files('grout.bash-completion'),
+  rename: ['grout'],
+  install_dir: get_option('datadir') / 'bash-completion/completions',
+)
