@@ -12,11 +12,12 @@ grcli address add 172.16.1.1/24 iface p1
 
 for n in 0 1; do
 	p=p$n
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
-	ip -n $p addr add 172.16.$n.2/24 dev $p
-	ip -n $p route add default via 172.16.$n.1
+	ns=n$n
+	netns_add $ns
+	ip link set $p netns $ns
+	ip -n $ns link set $p up
+	ip -n $ns addr add 172.16.$n.2/24 dev $p
+	ip -n $ns route add default via 172.16.$n.1
 done
 
 set -m
