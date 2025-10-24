@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gr_infra.h>
+#include <gr_nexthop.h>
 
 #include <ecoli.h>
 

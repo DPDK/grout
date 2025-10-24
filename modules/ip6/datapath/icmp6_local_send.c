@@ -11,6 +11,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_vec.h>
 
 #include <rte_ip6.h>
 
@@ -45,6 +46,13 @@ int icmp6_local_send(
 	struct ctl_to_stack *msg;
 	const struct nexthop *local;
 	int ret;
+
+	if (gw->type == GR_NH_T_GROUP) {
+		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
+		if (g->n_members == 0)
+			return errno_set(EHOSTUNREACH);
+		gw = g->members[ident % g->n_members].nh;
+	}
 
 	if ((local = addr6_get_preferred(gw->iface_id, &nexthop_info_l3(gw)->ipv6)) == NULL)
 		return -errno;
@@ -93,6 +101,11 @@ static uint16_t icmp6_local_send_process(
 		icmp6_echo = PAYLOAD(icmp6);
 		icmp6_echo->ident = rte_cpu_to_be_16(msg->ident);
 		icmp6_echo->seqnum = rte_cpu_to_be_16(msg->seq_num);
+
+		// Fake RSS to spread the traffic
+		// for ECMP routes or active/active bonds.
+		mbuf->hash.rss = msg->ident;
+		mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
 
 		payload = PAYLOAD(icmp6_echo);
 		*payload = gr_clock_us();

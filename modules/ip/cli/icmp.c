@@ -33,29 +33,28 @@ static cmd_status_t icmp_send(
 	struct gr_ip4_icmp_send_req *req,
 	uint16_t msdelay,
 	uint16_t count,
+	uint16_t ident,
 	bool mode_traceroute
 ) {
 	struct gr_ip4_icmp_recv_resp *reply_resp;
 	struct gr_ip4_icmp_recv_req reply_req;
 	int timeout, ret, errors;
 	void *resp_ptr = NULL;
-	uint16_t ping_id;
 
 	stop = false;
 	errors = 0;
 	errno = 0;
-	ping_id = random();
 
 	for (int i = mode_traceroute; i < count && stop == false; i++) {
 		req->ttl = mode_traceroute ? i : 64;
-		req->ident = ping_id;
+		req->ident = ident;
 		req->seq_num = i;
 
 		ret = gr_api_client_send_recv(c, GR_IP4_ICMP_SEND, sizeof(*req), req, NULL);
 		if (ret < 0)
 			return CMD_ERROR;
 
-		reply_req.ident = ping_id;
+		reply_req.ident = ident;
 		reply_req.seq_num = i;
 		timeout = 50;
 		do {
@@ -132,6 +131,7 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_icmp_send_req req = {.seq_num = 0, .vrf = 0};
 	cmd_status_t ret = CMD_ERROR;
 	uint16_t count = UINT16_MAX;
+	uint16_t ident = random();
 	uint16_t msdelay = 1000;
 
 	if (arg_ip4(p, "IP", &req.addr) < 0)
@@ -142,12 +142,14 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "DELAY", &msdelay)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
+	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
+		return CMD_ERROR;
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
 	if (prev_handler == SIG_ERR)
 		return CMD_ERROR;
 
-	ret = icmp_send(c, &req, msdelay, count, false);
+	ret = icmp_send(c, &req, msdelay, count, ident, false);
 
 	signal(SIGINT, prev_handler);
 
@@ -157,8 +159,11 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_icmp_send_req req = {.seq_num = 0, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
+	uint16_t ident = random();
 
 	if (arg_ip4(p, "IP", &req.addr) < 0)
+		return CMD_ERROR;
+	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
@@ -167,7 +172,7 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	if (prev_handler == SIG_ERR)
 		return CMD_ERROR;
 
-	ret = icmp_send(c, &req, 0, 255, true);
+	ret = icmp_send(c, &req, 0, 255, ident, true);
 
 	signal(SIGINT, prev_handler);
 
@@ -181,23 +186,31 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(
 			root, CTX_ARG("ping", "Send IPv4 ICMP echo requests and wait for replies.")
 		),
-		"IP [vrf VRF] [count COUNT] [delay DELAY]",
+		"IP [vrf VRF] [count COUNT] [delay DELAY] [ident IDENT]",
 		ping,
 		"Send IPv4 ICMP echo requests and wait for replies.",
 		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
 		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
-		with_help("Delay in ms between icmp echo.", ec_node_uint("DELAY", 0, 10000, 10))
+		with_help("Delay in ms between icmp echo.", ec_node_uint("DELAY", 0, 10000, 10)),
+		with_help(
+			"Icmp ident field (default: random).",
+			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
+		)
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("traceroute", "Discover IPv4 intermediate gateways.")),
-		"IP [vrf VRF]",
+		"IP [ident IDENT] [vrf VRF]",
 		traceroute,
 		"Discover IPv4 intermediate gateways.",
 		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
+		with_help(
+			"Icmp ident field (default: random).",
+			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
+		),
 		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
 	);
 

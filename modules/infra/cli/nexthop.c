@@ -111,6 +111,19 @@ static ssize_t format_nexthop_info_void(char *, size_t, const void *) {
 	return 0;
 }
 
+static ssize_t format_nexthop_info_group(char *buf, size_t len, const void *info) {
+	const struct gr_nexthop_info_group *grp = info;
+	ssize_t n = 0;
+
+	for (uint32_t i = 0; i < grp->n_members; i++)
+		SAFE_BUF(
+			snprintf, len, "id(%u/%u) ", grp->members[i].nh_id, grp->members[i].weight
+		);
+	return n;
+err:
+	return -errno;
+}
+
 static struct cli_nexthop_formatter blackhole_formatter = {
 	.name = "blackhole",
 	.type = GR_NH_T_BLACKHOLE,
@@ -121,6 +134,12 @@ static struct cli_nexthop_formatter reject_formatter = {
 	.name = "reject",
 	.type = GR_NH_T_REJECT,
 	.format = format_nexthop_info_void,
+};
+
+static struct cli_nexthop_formatter group_formatter = {
+	.name = "group",
+	.type = GR_NH_T_GROUP,
+	.format = format_nexthop_info_group,
 };
 
 static int complete_nh_types(
@@ -284,6 +303,48 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t nh_group_add(struct gr_api_client *c, const struct ec_pnode *p) {
+	const struct ec_pnode *n = ec_pnode_find(p, "MEMBERS");
+	struct gr_nexthop_info_group *group;
+	struct gr_nh_add_req *req = NULL;
+	cmd_status_t ret = CMD_ERROR;
+	size_t len;
+
+	len = sizeof(*req) + sizeof(*group) + ec_pnode_len(n) * sizeof(group->members[0]);
+	if ((req = calloc(1, len)) == NULL)
+		goto out;
+
+	req->exist_ok = true;
+	req->nh.type = GR_NH_T_GROUP;
+	req->nh.origin = GR_NH_ORIGIN_USER;
+
+	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
+		goto out;
+
+	group = (struct gr_nexthop_info_group *)req->nh.info;
+
+	while (n) {
+		n = ec_pnode_get_first_child(n);
+		if (arg_u32(n, "NHID", &group->members[group->n_members].nh_id) < 0)
+			goto out;
+		if (arg_u32(n, "WEIGHT", &group->members[group->n_members].weight) < 0) {
+			if (errno == ENOENT)
+				group->members[group->n_members].weight = 1;
+			else
+				goto out;
+		}
+		group->n_members++;
+		n = ec_pnode_next(n);
+	}
+
+	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
+		goto out;
+	ret = CMD_SUCCESS;
+out:
+	free(req);
+	return ret;
+}
+
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_ALL, .type = GR_NH_T_ALL};
 	const struct gr_nexthop *nh;
@@ -417,6 +478,29 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
+		NEXTHOP_ADD_CTX(root),
+		"group [(id ID)] members MEMBERS",
+		nh_group_add,
+		"Add a new nexthop group.",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
+		with_help(
+			"Nexthop member IDs with relative weights.",
+			ec_node_many(
+				"MEMBERS",
+				EC_NODE_CMD(
+					EC_NO_ID,
+					"nh NHID [weight WEIGHT]",
+					ec_node_uint("NHID", 1, UINT32_MAX - 1, 10),
+					ec_node_uint("WEIGHT", 1, UINT32_MAX - 1, 10)
+				),
+				1,
+				128
+			)
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
 		"del ID",
 		nh_del,
@@ -488,4 +572,5 @@ static void __attribute__((constructor, used)) init(void) {
 	cli_nexthop_formatter_register(&l3_formatter);
 	cli_nexthop_formatter_register(&blackhole_formatter);
 	cli_nexthop_formatter_register(&reject_formatter);
+	cli_nexthop_formatter_register(&group_formatter);
 }
