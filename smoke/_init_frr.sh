@@ -233,3 +233,36 @@ EOF
 	    sleep 0.2
     done
 }
+
+# start_frr_on_namespace <namespace> starts an instance of FRR using the given
+# pathspace and running in a network namespace with the same name.
+start_frr_on_namespace() {
+	local namespace=$1
+
+	netns_add $namespace
+
+	frr_namespace_folder="${builddir}/frr_install/etc/frr/${namespace}"
+
+	mkdir -p ${frr_namespace_folder}
+
+	touch ${frr_namespace_folder}/vtysh.conf
+
+	cp $(dirname $0)/frr-bgp-peer/daemons ${frr_namespace_folder}/daemons
+	echo "watchfrr_options=\"--netns=${namespace}\"" >> ${frr_namespace_folder}/daemons
+
+	cp $(dirname $0)/frr-bgp-peer/frr.conf ${frr_namespace_folder}/frr.conf
+
+	frrinit.sh start $namespace
+
+	cat >> $tmp/cleanup <<EOF
+frrinit.sh stop $namespace
+EOF
+
+	SECONDS=0
+	while ! pgrep -f "bgpd -N $namespace"; do
+		if [ "$SECONDS" -ge "5" ]; then
+			fail "BGP daemon not started for namespace $namespace"
+		fi
+		sleep 0.1
+	done
+}
