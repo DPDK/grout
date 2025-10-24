@@ -4,14 +4,11 @@
 
 . $(dirname $0)/_init_frr.sh
 
-p1=${run_id}1
-p2=${run_id}2
-
-create_interface $p1
-create_interface $p2
+create_interface p1
+create_interface p2
 
 for n in 1 2; do
-	p=$run_id$n
+	p=p$n
 	netns_add $p
 	ip link set $p netns $p
 	ip -n $p link set $p up
@@ -24,22 +21,22 @@ for n in 1 2; do
 	ip -n $p route add default via fd00:ba4:$n::1
 done
 
-set_ip_address $p1 fd00:ba4:1::1/64
-set_ip_address $p2 fd00:ba4:2::1/64
+set_ip_address p1 fd00:ba4:1::1/64
+set_ip_address p2 fd00:ba4:2::1/64
 set_ip_route fd00:f00:1::/64 fd00:ba4:1::2
-set_ip_route fd00:f00:2::/64 $p2
+set_ip_route fd00:f00:2::/64 p2
 
 sleep 3  # wait for DAD
 
-ip netns exec $p1 ping6 -i0.01 -c3 -n $(llocal_addr $p1)
-ip netns exec $p2 ping6 -i0.01 -c3 -n $(llocal_addr $p2)
-ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:f00:2::2
-ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:f00:1::2
-ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
-ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
-ip netns exec $p1 ping6 -i0.01 -c3 -n fd00:ba4:1::1
-ip netns exec $p2 ping6 -i0.01 -c3 -n fd00:ba4:2::1
-ip netns exec $p1 traceroute -N1 -n fd00:ba4:2::2
-ip netns exec $p2 traceroute -N1 -n fd00:ba4:1::2
-ip netns exec $p1 traceroute -N1 -n fd00:f00:2::2
-ip netns exec $p2 traceroute -N1 -n fd00:f00:1::2
+ip netns exec p1 ping6 -i0.01 -c3 -n $(llocal_addr p1)
+ip netns exec p2 ping6 -i0.01 -c3 -n $(llocal_addr p2)
+ip netns exec p1 ping6 -i0.01 -c3 -n fd00:f00:2::2
+ip netns exec p2 ping6 -i0.01 -c3 -n fd00:f00:1::2
+ip netns exec p1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
+ip netns exec p2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
+ip netns exec p1 ping6 -i0.01 -c3 -n fd00:ba4:1::1
+ip netns exec p2 ping6 -i0.01 -c3 -n fd00:ba4:2::1
+ip netns exec p1 traceroute -N1 -n fd00:ba4:2::2
+ip netns exec p2 traceroute -N1 -n fd00:ba4:1::2
+ip netns exec p1 traceroute -N1 -n fd00:f00:2::2
+ip netns exec p2 traceroute -N1 -n fd00:f00:1::2
