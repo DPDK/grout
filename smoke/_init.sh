@@ -164,6 +164,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 fi
 
 cat >> $tmp/cleanup <<EOF
+echo ================== CLEANUP ==================
 grcli stats show software
 grcli trace show count 50
 EOF
