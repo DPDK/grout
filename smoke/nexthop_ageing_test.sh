@@ -34,15 +34,16 @@ grcli address add 172.16.1.1/24 iface p1
 
 for n in 0 1; do
 	p=p$n
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
-	ip -n $p addr add 172.16.$n.2/24 dev $p
-	ip -n $p route add default via 172.16.$n.1
+	ns=n$n
+	netns_add $ns
+	ip link set $p netns $ns
+	ip -n $ns link set $p up
+	ip -n $ns addr add 172.16.$n.2/24 dev $p
+	ip -n $ns route add default via 172.16.$n.1
 done
 
-ip netns exec p0 ping -i0.01 -c3 -n 172.16.1.2
-ip netns exec p1 ping -i0.01 -c3 -n 172.16.0.2
+ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
+ip netns exec n1 ping -i0.01 -c3 -n 172.16.0.2
 
 grcli nexthop show
 # let nexthops lifetime expire and wait for ARP probes to be sent
@@ -59,8 +60,8 @@ grcli address show | grep -E "^p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addr
 grcli address show | grep -E "^p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
 
 # force interfaces down so that linux does not reply to ARP requests anymore
-ip -n p0 link set p0 down
-ip -n p1 link set p1 down
+ip -n n0 link set p0 down
+ip -n n1 link set p1 down
 
 # let nexthops lifetime expire and wait for ARP probes to be sent
 sleep 3
