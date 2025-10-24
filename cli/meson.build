@@ -23,3 +23,9 @@ if not compiler.has_function(
 endif
 
 cli_inc += include_directories('.')
+
+install_data(
+  files('grcli.bash-completion'),
+  rename: ['grcli'],
+  install_dir: get_option('datadir') / 'bash-completion/completions',
+)
