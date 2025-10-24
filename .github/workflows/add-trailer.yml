@@ -61,7 +61,12 @@ jobs:
               if (matchingPRs.length === 0) {
                 throw new Error(`No open PR found for ${headBranch}`)
               }
-              pr = matchingPRs[0];
+              const { data: prData } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: matchingPRs[0].number
+              });
+              pr = prData;
 
               const actor = context.payload.workflow_run.triggering_actor.login;
               const req = await fetch(`https://api.github.com/users/${actor}`);
@@ -70,7 +75,7 @@ jobs:
             }
 
             return {
-              base_sha: pr.base.sha,
+              commits: pr.commits,
               head_repo: pr.head.repo.full_name,
               head_ref: pr.head.ref,
               trailer: trailer,
@@ -87,7 +92,7 @@ jobs:
       - name: Amend all pull request commits with the trailer
         env:
           GIT_TRAILER_DEBUG: 1
-          BASE_SHA: ${{ fromJSON(steps.info.outputs.result).base_sha }}
+          COMMITS: ${{ fromJSON(steps.info.outputs.result).commits }}
           HEAD_REF: ${{ fromJSON(steps.info.outputs.result).head_ref }}
           TRAILER: ${{ fromJSON(steps.info.outputs.result).trailer }}
         run: |
@@ -122,7 +127,7 @@ jobs:
           rm -f .git/hooks/commit-msg
           ln -s ../../devtools/commit-msg .git/hooks/commit-msg
 
-          git rebase "$BASE_SHA" \
+          git rebase "HEAD~$COMMITS" \
             --exec "git commit -C HEAD --no-edit --amend --trailer='$TRAILER'"
 
           git push --force origin "$HEAD_REF"
