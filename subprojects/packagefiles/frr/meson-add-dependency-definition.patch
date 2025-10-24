@@ -52,6 +52,8 @@ index 0000000..1e40167
 +    /--log[[:space:]]*$(printf '%s' "file:$log_path" | sed 's/[\/&]/\\&/g')/! \
 +        s|\"$| --log file:$log_path\"|
 +}" "$conf_file"
++
++sed -i -e "s/bgpd=no/bgpd=yes/" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
 index 0000000..d26e979
