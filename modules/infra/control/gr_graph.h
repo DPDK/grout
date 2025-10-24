@@ -27,6 +27,13 @@ rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void
 #include <rte_graph_worker.h>
 #endif
 
+#define GR_NODE_CTX_TYPE(type_name, fields)                                                        \
+	struct type_name fields;                                                                   \
+	static inline struct type_name *type_name(struct rte_node *node) {                         \
+		static_assert(sizeof(struct type_name) <= RTE_NODE_CTX_SZ);                        \
+		return (struct type_name *)node->ctx;                                              \
+	}
+
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node);
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
