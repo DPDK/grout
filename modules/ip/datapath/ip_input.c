@@ -50,6 +50,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	const struct nexthop *nh;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
+	eth_domain_t domain;
 	rte_edge_t edge;
 	uint16_t i;
 
@@ -57,6 +58,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		e = eth_input_mbuf_data(mbuf);
+		domain = e->domain;
 		iface = e->iface;
 		nh = NULL;
 
@@ -111,7 +113,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		switch (e->domain) {
+		switch (domain) {
 		case ETH_DOMAIN_LOOPBACK:
 		case ETH_DOMAIN_LOCAL:
 			// Packet sent to our ethernet address.
@@ -143,7 +145,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// If the resolved next hop is local and the destination IP is ourselves,
 		// send to ip_local.
-		if (e->domain == ETH_DOMAIN_LOOPBACK)
+		if (domain == ETH_DOMAIN_LOOPBACK)
 			edge = OUTPUT;
 		else if (nh->type == GR_NH_T_L3) {
 			l3 = nexthop_info_l3(nh);
