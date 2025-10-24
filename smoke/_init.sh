@@ -121,6 +121,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 fi
 
 cat > $tmp/cleanup <<EOF
+echo "Cleaning up resources"
 grcli stats show software
 grcli interface show
 grcli nexthop show
