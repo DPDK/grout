@@ -11,11 +11,12 @@ grcli address add fd00:ba4:1::1/64 iface p1
 
 for n in 0 1; do
 	p=p$n
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link set $p up
-	ip -n $p addr add fd00:ba4:$n::2/64 dev $p
-	ip -n $p route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
+	ns=n$n
+	netns_add $ns
+	ip link set $p netns $ns
+	ip -n $ns link set $p up
+	ip -n $ns addr add fd00:ba4:$n::2/64 dev $p
+	ip -n $ns route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
 done
 
 sleep 3  # wait for DAD

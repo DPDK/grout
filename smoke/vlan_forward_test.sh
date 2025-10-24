@@ -13,15 +13,16 @@ grcli address add 172.16.1.1/24 iface p1.43
 
 for n in 0 1; do
 	p=p$n
+	ns=n$n
 	v=$p.$((n+42))
-	netns_add $p
-	ip link set $p netns $p
-	ip -n $p link add $v link $p type vlan id $((n+42))
-	ip -n $p link set $p up
-	ip -n $p link set $v up
-	ip -n $p addr add 172.16.$n.2/24 dev $v
-	ip -n $p route add default via 172.16.$n.1
+	netns_add $ns
+	ip link set $p netns $ns
+	ip -n $ns link add $v link $p type vlan id $((n+42))
+	ip -n $ns link set $p up
+	ip -n $ns link set $v up
+	ip -n $ns addr add 172.16.$n.2/24 dev $v
+	ip -n $ns route add default via 172.16.$n.1
 done
 
-ip netns exec p0 ping -i0.01 -c3 -n 172.16.1.2
-ip netns exec p1 ping -i0.01 -c3 -n 172.16.0.2
+ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
+ip netns exec n1 ping -i0.01 -c3 -n 172.16.0.2
