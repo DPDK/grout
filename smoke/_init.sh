@@ -198,6 +198,10 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	else
 		tail -f "$zlog" &
 	fi
+
+	# Enable bgpd daemon
+	sed -i -e "s/bgpd=no/bgpd=yes/" "$builddir/frr_install/etc/frr/daemons"
+
 	frrinit.sh start
 	attempts=25
 
