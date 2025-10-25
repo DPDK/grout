@@ -39,7 +39,6 @@ cleanup() {
 
 	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		frrinit.sh stop
-		sleep 1
 		kill %?tail
 		wait %?tail
 
@@ -90,18 +89,36 @@ fail() {
 	return 1
 }
 
-netns_add() {
-	ip netns add "$1"
-	cat >> $tmp/cleanup <<EOF
-ip netns pids "$1" | xargs -r kill --timeout 500 KILL
-ip netns del "$1"
-EOF
-}
-
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
-run_id="$(base32 -w6 < /dev/urandom | tr '[:upper:]' '[:lower:]' | head -n1)-" || :
+
+netns_add() {
+	local ns="$1"
+	ip netns add "$ns"
+	cat >> $tmp/cleanup <<EOF
+ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
+ip netns del "$ns"
+EOF
+	ip -n "$ns" link set lo up
+}
+
+tap_counter=0
+port_add() {
+	local name="$1"
+	shift
+	grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
+	# Ensure the Linux net device has a different mac address from grout's.
+	# This is required to avoid Linux from wrongfully assuming the packets
+	# sent by grout originated locally.
+	local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
+	ip link set "$name" address "$mac"
+	tap_counter=$((tap_counter + 1))
+}
+
+llocal_addr() {
+	grcli address show iface "$1" | sed -En "s/^$1[[:space:]]+(fe80:.+)\\/64\$/\\1/p"
+}
 
 if [ "$run_grout" = true ]; then
 	export GROUT_SOCK_PATH=$tmp/grout.sock
@@ -120,11 +137,8 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	fi
 fi
 
-cat > $tmp/cleanup <<EOF
+cat >> $tmp/cleanup <<EOF
 grcli stats show software
-grcli interface show
-grcli nexthop show
-grcli route show
 grcli trace show count 50
 EOF
 
@@ -184,16 +198,14 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		tail -f "$zlog" &
 	fi
 	frrinit.sh start
-	timeout=15
-	elapsed=0
+	attempts=25
 
 	# wait that zebra_dplane_grout get iface event from grout
 	while ! grep -q "GROUT:.*iface/ip events" "$zlog" 2>/dev/null; do
-		if [ "$elapsed" -ge "$timeout" ]; then
-			echo "Zebra is not listening grout event after ${timeout} seconds."
-			exit 1
+		if [ "$attempts" -le 0 ]; then
+			fail "Zebra is not listening grout events."
 		fi
-		sleep 1
-		elapsed=$((elapsed + 1))
+		sleep 0.2
+		attempts=$((attempts - 1))
 	done
 fi
