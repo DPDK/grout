@@ -24,8 +24,11 @@ struct __rte_cache_aligned nexthop {
 
 	uint32_t ref_count; // number of routes referencing this nexthop
 
-	uint8_t info[128] __rte_aligned(alignof(void *));
+	uint8_t info
+		[RTE_CACHE_LINE_MIN_SIZE * 2 - sizeof(struct gr_nexthop_base)
+		 - sizeof(uint32_t)] __rte_aligned(alignof(void *));
 };
+static_assert(sizeof(struct nexthop) <= (RTE_CACHE_LINE_MIN_SIZE * 2));
 
 #define GR_NH_TYPE_INFO(type_id, type_name, fields)                                                \
 	struct type_name fields __attribute__((__may_alias__, aligned(alignof(void *))));          \
