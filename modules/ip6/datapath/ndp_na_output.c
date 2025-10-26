@@ -78,9 +78,9 @@ static uint16_t ndp_na_output_process(
 		icmp6->type = ICMP6_TYPE_NEIGH_ADVERT;
 		icmp6->code = 0;
 		na = PAYLOAD(icmp6);
-		na->override = 1;
-		na->router = 1;
-		na->solicited = remote != NULL;
+		na->flags = ICMP6_NA_F_OVERRIDE | ICMP6_NA_F_ROUTER;
+		if (remote != NULL)
+			na->flags |= ICMP6_NA_F_SOLICITED;
 		na->target = l3->ipv6;
 		opt = PAYLOAD(na);
 		opt->type = ICMP6_OPT_TARGET_LLADDR;

@@ -70,7 +70,7 @@ static uint16_t ndp_na_input_process(
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&na->target));
 		// - If the IP Destination Address is a multicast address the
 		//   Solicited flag is zero.
-		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&d->dst) || na->solicited == 0);
+		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&d->dst) || !(na->flags & ICMP6_NA_F_SOLICITED));
 
 		// https://www.rfc-editor.org/rfc/rfc4861.html#section-7.2.5
 		//
@@ -162,9 +162,7 @@ static void init_default_na_mbuf(struct fake_ndp_na_mbuf *ndp_mbuf) {
 	ndp_mbuf->icmp6_hdr.code = 0;
 
 	// NA specific packet headers
-	ndp_mbuf->na_hdr.router = 0;
-	ndp_mbuf->na_hdr.solicited = 1;
-	ndp_mbuf->na_hdr.override = 1;
+	ndp_mbuf->na_hdr.flags = ICMP6_NA_F_SOLICITED | ICMP6_NA_F_OVERRIDE;
 	ndp_mbuf->na_hdr.target = (struct rte_ipv6_addr)
 		RTE_IPV6(0xfe80, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00aa);
 
