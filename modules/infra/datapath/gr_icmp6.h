@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_bitops.h>
 #include <gr_macro.h>
 
 #include <rte_byteorder.h>
@@ -74,14 +75,15 @@ struct icmp6_router_solicit {
 	uint32_t __reserved;
 } __rte_packed;
 
+typedef enum : uint8_t {
+	ICMP6_RA_F_MANAGED_ADDR = GR_BIT8(0),
+	ICMP6_RA_F_OTHER_CONFIG = GR_BIT8(1),
+} icmp6_ra_flags_t;
+
 // ICMP6_TYPE_ROUTER_ADVERT
 struct icmp6_router_advert {
 	uint8_t cur_hoplim;
-#if BYTE_ORDER == BIG_ENDIAN
-	uint8_t managed_addr : 1, other_config : 1, __unused_flags : 6;
-#else
-	uint8_t __unused_flags : 6, managed_addr : 1, other_config : 1;
-#endif
+	icmp6_ra_flags_t flags;
 	rte_be16_t lifetime;
 	rte_be32_t reachable_time;
 	rte_be32_t retrans_timer;
@@ -93,13 +95,15 @@ struct icmp6_neigh_solicit {
 	struct rte_ipv6_addr target;
 } __rte_packed;
 
+typedef enum : uint8_t {
+	ICMP6_NA_F_ROUTER = GR_BIT8(0),
+	ICMP6_NA_F_SOLICITED = GR_BIT8(1),
+	ICMP6_NA_F_OVERRIDE = GR_BIT8(2),
+} icmp6_na_flags_t;
+
 // ICMP6_TYPE_NEIGH_ADVERT
 struct icmp6_neigh_advert {
-#if BYTE_ORDER == BIG_ENDIAN
-	uint8_t router : 1, solicited : 1, override : 1, __unused_flags : 5;
-#else
-	uint8_t __unused_flags : 5, override : 1, solicited : 1, router : 1;
-#endif
+	icmp6_na_flags_t flags;
 	uint8_t __reserved;
 	uint16_t __reserved2;
 	struct rte_ipv6_addr target;

@@ -132,8 +132,7 @@ static void build_ra_packet(struct rte_mbuf *m, const struct rte_ipv6_addr *src)
 	icmp6->code = 0;
 	ra = (struct icmp6_router_advert *)rte_pktmbuf_append(m, sizeof(*ra));
 	ra->cur_hoplim = IP6_DEFAULT_HOP_LIMIT; // Default TTL for this network
-	ra->managed_addr = 0; // DHCPv6 is available
-	ra->other_config = 0; // DNS available, ...
+	ra->flags = 0;
 	ra->lifetime = rte_cpu_to_be_16(ra_conf[iface_id].lifetime);
 	ra->reachable_time = RTE_BE16(0);
 	ra->retrans_timer = RTE_BE16(0);
