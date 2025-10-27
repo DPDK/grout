@@ -212,7 +212,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(
 			root, CTX_ARG("ping6", "Send ICMPv6 echo requests and wait for replies.")
 		),
-		"DEST [vrf VRF] [count COUNT] [delay DELAY] [iface IFACE] [ident IDENT]",
+		"DEST [(vrf VRF),(count COUNT),(delay DELAY),(iface IFACE),(ident IDENT)]",
 		ping,
 		"Send ICMPv6 echo requests and wait for replies.",
 		with_help("IPv6 destination address.", ec_node_re("DEST", IPV6_RE)),
@@ -233,7 +233,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("traceroute6", "Discover IPv6 intermediate gateways.")),
-		"DEST [vrf VRF] [iface IFACE] [ident IDENT]",
+		"DEST [(vrf VRF),(iface IFACE),(ident IDENT)]",
 		traceroute,
 		"Discover IPv6 intermediate gateways.",
 		with_help("IPv6 destination address.", ec_node_re("DEST", IPV6_RE)),
