@@ -1,0 +1,73 @@
+From 12d5ad466fcdb5d17d03050cba84c8026a847353 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Thu, 30 Oct 2025 15:45:26 +0100
+Subject: [PATCH dpdk 4/4] net/tap: configure link carrier
+
+In order for net_tap interfaces to be used in linux bonds, they need to
+report a carrier.
+
+After at last one RX queue has been configured, force the carrier on
+with ioctl(TUNSETCARRIER) (there is no netlink equivalent for this).
+
+Also do the same after the device has been moved to another netns.
+
+TUNSETCARRIER support was added in Linux 5.0. Only enable carrier set if
+this ioctl number is defined.
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ drivers/net/tap/rte_eth_tap.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/drivers/net/tap/rte_eth_tap.c b/drivers/net/tap/rte_eth_tap.c
+index 7869183c0ffe..730f1859bd28 100644
+--- a/drivers/net/tap/rte_eth_tap.c
++++ b/drivers/net/tap/rte_eth_tap.c
+@@ -1392,6 +1392,22 @@ tap_mac_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
+ 	return 0;
+ }
+ 
++static int tap_carrier_set(struct pmd_internals *pmd, int carrier)
++{
++#ifdef TUNSETCARRIER
++	int ret = ioctl(pmd->ka_fd, TUNSETCARRIER, &carrier);
++	if (ret < 0) {
++		TAP_LOG(ERR, "%s: ioctl(TUNSETCARRIER) failed: %s",
++			pmd->name, strerror(errno));
++		return ret;
++	}
++#else
++	(void)pmd;
++	(void)carrier;
++#endif
++	return 0;
++}
++
+ static int
+ tap_gso_ctx_setup(struct rte_gso_ctx *gso_ctx, struct rte_eth_dev *dev)
+ {
+@@ -1559,6 +1575,11 @@ tap_rx_queue_setup(struct rte_eth_dev *dev,
+ 		tmp = &(*tmp)->next;
+ 	}
+ 
++	/* set carrier after creating at least one rxq */
++	ret = tap_carrier_set(internals, 1);
++	if (ret < 0)
++		goto error;
++
+ 	TAP_LOG(DEBUG, "  RX TUNTAP device name %s, qid %d on fd %d",
+ 		internals->name, rx_queue_id,
+ 		process_private->fds[rx_queue_id]);
+@@ -1691,6 +1712,9 @@ tap_netns_change(struct rte_eth_dev *dev)
+ 		TAP_LOG(WARNING, "%s: failed to recreate LSC interrupt socket",
+ 			pmd->name);
+ 
++	/* Force carrier back after switching netns */
++	tap_carrier_set(pmd, 1);
++
+ 	/* Switch back to original namespace */
+ 	if (setns(orig_netns_fd, CLONE_NEWNET) < 0)
+ 		TAP_LOG(ERR, "%s: failed to return to original netns: %s",
+-- 
+2.51.1
+
