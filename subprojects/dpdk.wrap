@@ -2,6 +2,11 @@
 url = https://github.com/DPDK/dpdk-stable
 revision = v24.11.3
 depth = 1
+diff_files =
+	dpdk/0001-net-tap-add-netlink-helpers.patch,
+	dpdk/0002-net-tap-replace-ioctl-with-netlink.patch,
+	dpdk/0003-net-tap-detect-namespace-change.patch,
+	dpdk/0004-net-tap-configure-link-carrier.patch
 
 [provide]
 dependency_names = libdpdk
