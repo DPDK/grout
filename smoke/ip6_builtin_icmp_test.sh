@@ -21,11 +21,11 @@ done
 
 sleep 3  # wait for DAD
 
-grcli ping fd00:ba4:0::2 count 10 delay 100
-grcli ping fd00:ba4:1::2 count 3 delay 10
+grcli ping6 fd00:ba4:0::2 count 10 delay 100
+grcli ping6 fd00:ba4:1::2 count 3 delay 10
 
 # Expect this test to fail
-grcli ping fd00:baa::1 count 1 && fail "ping to unknown route succeeded"
-grcli ping fd00:ba4:1::3 count 1 && fail "ping to non-existent host succeeded"
+grcli ping6 fd00:baa::1 count 1 && fail "ping to unknown route succeeded"
+grcli ping6 fd00:ba4:1::3 count 1 && fail "ping to non-existent host succeeded"
 
-grcli traceroute fd00:ba4:1::2
+grcli traceroute6 fd00:ba4:1::2
