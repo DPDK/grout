@@ -62,6 +62,6 @@ grcli nexthop add srv6-local behavior end.dt4 id 666
 grcli route add fd00:202::100/128 via id 666
 
 # test
-ip netns exec n0 ping -c 3 192.168.60.1
+ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
 # check that sid is reachable
-ip netns exec n1 ping6 -c 3 fd00:202::100
+ip netns exec n1 ping6 -i0.01 -c3 -n fd00:202::100
