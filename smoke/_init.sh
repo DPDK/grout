@@ -17,6 +17,20 @@ else
 	run_grout=true
 fi
 
+: "${use_hardware_ports:=false}"
+# Usage example
+# export NET_INTERFACES="eno12399v1 eno12409v1"
+# export VFIO_PCI_PORTS="0000:8a:01.0 0000:8a:11.0"
+if [ -n "$NET_INTERFACES" ] && [ -n "$VFIO_PCI_PORTS" ]; then
+	net_interfaces=($NET_INTERFACES)
+        vfio_pci_ports=($VFIO_PCI_PORTS)
+        if [ "${#net_interfaces[@]}" -ne "${#vfio_pci_ports[@]}" ]; then
+		echo "error: NET_INTERFACES and VFIO_PCI_PORTS must have equal length" >&2
+                exit 1
+	fi
+	use_hardware_ports=true
+fi
+
 cleanup() {
 	status="$?"
 	set +e
@@ -33,6 +47,7 @@ cleanup() {
 	while read -r name _; do
 		grcli interface del "$name"
 	done
+	[ -s $tmp/restore_interfaces ] && sh -x $tmp/restore_interfaces
 
 	kill %?grcli
 	wait %?grcli
@@ -107,12 +122,22 @@ tap_counter=0
 port_add() {
 	local name="$1"
 	shift
-	grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
-	# Ensure the Linux net device has a different mac address from grout's.
-	# This is required to avoid Linux from wrongfully assuming the packets
-	# sent by grout originated locally.
-	local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
-	ip link set "$name" address "$mac"
+        if [ "$use_hardware_ports" = true ]; then
+		ip link set "${net_interfaces[$tap_counter]}" name $name
+		# When a namespace is deleted while a renamed kernel interface is inside it
+		# an 'altname' property with the interface original name is created.
+		# This causes an error on attempt to restore the original name. So we need to clear this 'altname' first.
+		echo "ip link property del dev $name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
+		echo "ip link set $name name ${net_interfaces[$tap_counter]}" >> $tmp/restore_interfaces
+		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
+	else
+		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
+		# Ensure the Linux net device has a different mac address from grout's.
+		# This is required to avoid Linux from wrongfully assuming the packets
+		# sent by grout originated locally.
+		local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
+		ip link set "$name" address "$mac"
+	fi
 	tap_counter=$((tap_counter + 1))
 }
 
@@ -158,13 +183,16 @@ if [ "$run_grout" = true ]; then
 		unset core_pattern
 	fi
 	export ASAN_OPTIONS=disable_coredump=0
+	if [ "$use_hardware_ports" = false ]; then
+		grout_extra_options+=" -t"
+	fi
 	if [ -t 1 ]; then
 		# print grout logs in blue (stderr in bold red)
-		taskset -c 0,1 grout -tvvx $grout_extra_options \
+		taskset -c 0,1 grout -vvx $grout_extra_options \
 			> >(awk '{print "\033[34m" $0 "\033[0m"}') \
 			2> >(awk '{print "\033[1;31m" $0 "\033[0m"}' >&2) &
 	else
-		taskset -c 0,1 grout -tvvx $grout_extra_options &
+		taskset -c 0,1 grout -vvx $grout_extra_options &
 	fi
 fi
 socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
