@@ -186,7 +186,7 @@ static int ctx_init(struct ec_node *root) {
 		CLI_CONTEXT(
 			root, CTX_ARG("ping", "Send IPv4 ICMP echo requests and wait for replies.")
 		),
-		"IP [vrf VRF] [count COUNT] [delay DELAY] [ident IDENT]",
+		"IP [(vrf VRF),(count COUNT),(delay DELAY),(ident IDENT)]",
 		ping,
 		"Send IPv4 ICMP echo requests and wait for replies.",
 		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
@@ -203,7 +203,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("traceroute", "Discover IPv4 intermediate gateways.")),
-		"IP [ident IDENT] [vrf VRF]",
+		"IP [(ident IDENT),(vrf VRF)]",
 		traceroute,
 		"Discover IPv4 intermediate gateways.",
 		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
