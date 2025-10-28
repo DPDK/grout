@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_bond.h>
+#include <gr_eth.h>
 #include <gr_event.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -190,6 +191,8 @@ static int bond_init_new_members(const struct iface *iface, const struct gr_ifac
 		}
 
 		LOG(DEBUG, "adding %s to bond %s", member->name, iface->name);
+		if (iface_add_eth_addr(member->id, &LACP_DST_MAC) < 0)
+			return errno_log(errno, "iface_add_eth_addr(lacp)");
 		port = iface_info_port(member);
 		port->bond_iface_id = iface->id;
 skip:;
@@ -225,17 +228,24 @@ static void bond_fini_old_members(const struct iface *iface, const struct gr_ifa
 			    member->name,
 			    strerror(errno));
 		}
+		if (iface_del_eth_addr(member->id, &LACP_DST_MAC) < 0) {
+			LOG(WARNING,
+			    "failed to unconfigure mac address on member %s: %s",
+			    member->name,
+			    strerror(errno));
+		}
 
 		port = iface_info_port(member);
 		port->bond_iface_id = GR_IFACE_ID_UNDEF;
+		memset(&bond->members[i], 0, sizeof(bond->members[i]));
 skip:;
 	}
 }
 
-static void bond_update_active_members(struct iface *iface) {
+void bond_update_active_members(struct iface *iface) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
-	uint8_t n_active_members = 0;
 	const struct iface *member;
+	uint8_t *active_ids = NULL;
 
 	switch (bond->mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP:
@@ -250,7 +260,7 @@ static void bond_update_active_members(struct iface *iface) {
 		for (uint8_t i = 0; i < bond->n_members; i++) {
 			member = bond->members[i].iface;
 			if (i == active_member) {
-				n_active_members = 1;
+				gr_vec_add(active_ids, i);
 				LOG(INFO,
 				    "bond %s active member is now %s",
 				    iface->name,
@@ -260,11 +270,66 @@ static void bond_update_active_members(struct iface *iface) {
 		}
 		bond->active_member = active_member;
 		break;
+	case GR_BOND_MODE_LACP:
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			struct bond_member *member = &bond->members[i];
+			const struct iface_info_port *port = iface_info_port(member->iface);
+
+			// The port_number must *never* be zero,
+			// otherwise some switches reject the LACP packets.
+			// Use a 1-based port_number.
+			member->local.port_number = rte_cpu_to_be_16(i + 1);
+			member->local.port_priority = RTE_BE16(0x8000);
+			member->local.system_priority = RTE_BE16(0x8000);
+			member->local.system_mac = bond->mac;
+			// Key based on port speed (in Mb/s): simplified encoding for aggregation
+			// Ports with same speed can aggregate together
+			member->local.key = rte_cpu_to_be_16(port->link_speed);
+			if (member->last_rx == 0) {
+				member->local.state = LACP_STATE_ACTIVE | LACP_STATE_AGGREGATABLE
+					| LACP_STATE_FAST | LACP_STATE_DEFAULTED
+					| LACP_STATE_EXPIRED;
+				member->active = false;
+				member->need_to_transmit = true;
+				member->next_tx = 0;
+				LOG(DEBUG,
+				    "bond %s member %s reset local state",
+				    iface->name,
+				    member->iface->name);
+			}
+
+			// Add to active members if link is up and LACP member is valid
+			if ((member->iface->flags & GR_IFACE_F_UP)
+			    && (member->iface->state & GR_IFACE_S_RUNNING) && member->active) {
+				LOG(DEBUG,
+				    "bond %s member %s active",
+				    iface->name,
+				    member->iface->name);
+				gr_vec_add(active_ids, i);
+			}
+		}
+		break;
 	}
-	if (n_active_members > 0)
-		iface->state |= GR_IFACE_S_RUNNING;
-	else
-		iface->state &= ~GR_IFACE_S_RUNNING;
+
+	if (gr_vec_len(active_ids) > 0) {
+		for (unsigned i = 0; i < ARRAY_DIM(bond->redirection_table); i++) {
+			bond->redirection_table[i] = active_ids[i % gr_vec_len(active_ids)];
+		}
+		if (!(iface->state & GR_IFACE_S_RUNNING)) {
+			iface->state |= GR_IFACE_S_RUNNING;
+			if (iface->flags & GR_IFACE_F_UP) {
+				gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+			}
+		}
+	} else {
+		memset(bond->redirection_table, UINT8_MAX, sizeof(bond->redirection_table));
+		if (iface->state & GR_IFACE_S_RUNNING) {
+			iface->state &= ~GR_IFACE_S_RUNNING;
+			gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+		}
+	}
+
+	gr_vec_free(active_ids);
 }
 
 static int bond_reconfig(
@@ -278,6 +343,9 @@ static int bond_reconfig(
 
 	if (set_attrs & GR_BOND_SET_MODE)
 		bond->mode = api->mode;
+
+	if (set_attrs & GR_BOND_SET_ALGO)
+		bond->algo = api->algo ?: GR_BOND_ALGO_RSS;
 
 	if (set_attrs & GR_BOND_SET_PRIMARY) {
 		uint8_t n_members = (set_attrs & GR_BOND_SET_MEMBERS) ?
@@ -342,6 +410,7 @@ static void bond_to_api(void *info, const struct iface *iface) {
 	struct gr_iface_info_bond *api = info;
 
 	api->mode = bond->mode;
+	api->algo = bond->algo;
 	api->mac = bond->mac;
 	api->n_members = bond->n_members;
 	api->primary_member = bond->primary_member;
@@ -350,6 +419,9 @@ static void bond_to_api(void *info, const struct iface *iface) {
 		switch (bond->mode) {
 		case GR_BOND_MODE_ACTIVE_BACKUP:
 			api->members[i].active = i == bond->active_member;
+			break;
+		case GR_BOND_MODE_LACP:
+			api->members[i].active = bond->members[i].active;
 			break;
 		}
 	}
@@ -393,11 +465,6 @@ static void bond_event(uint32_t, const void *obj) {
 	assert(b->type == GR_IFACE_TYPE_BOND);
 
 	bond_update_active_members(b);
-
-	if (b->state & GR_IFACE_S_RUNNING && b->flags & GR_IFACE_F_UP)
-		gr_event_push(GR_EVENT_IFACE_STATUS_UP, b);
-	else
-		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, b);
 }
 
 static struct gr_event_subscription bond_event_handler = {

@@ -122,12 +122,34 @@ struct gr_iface_info_vlan {
 // Bond operational modes
 typedef enum : uint8_t {
 	GR_BOND_MODE_ACTIVE_BACKUP = 1,
+	GR_BOND_MODE_LACP,
 } gr_bond_mode_t;
 
 static inline char *gr_bond_mode_name(gr_bond_mode_t mode) {
 	switch (mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP:
 		return "active-backup";
+	case GR_BOND_MODE_LACP:
+		return "lacp";
+	}
+	return "?";
+}
+
+// Bond balancing algorithms
+typedef enum : uint8_t {
+	GR_BOND_ALGO_RSS = 1,
+	GR_BOND_ALGO_L2,
+	GR_BOND_ALGO_L3_L4,
+} gr_bond_algo_t;
+
+static inline char *gr_bond_algo_name(gr_bond_algo_t algo) {
+	switch (algo) {
+	case GR_BOND_ALGO_RSS:
+		return "rss";
+	case GR_BOND_ALGO_L2:
+		return "l2";
+	case GR_BOND_ALGO_L3_L4:
+		return "l3+l4";
 	}
 	return "?";
 }
@@ -137,6 +159,7 @@ static inline char *gr_bond_mode_name(gr_bond_mode_t mode) {
 #define GR_BOND_SET_MEMBERS GR_BIT64(33)
 #define GR_BOND_SET_PRIMARY GR_BIT64(34)
 #define GR_BOND_SET_MAC GR_BIT64(35)
+#define GR_BOND_SET_ALGO GR_BIT64(36)
 
 struct gr_bond_member {
 	uint16_t iface_id;
@@ -146,6 +169,7 @@ struct gr_bond_member {
 // Info for GR_IFACE_TYPE_BOND interfaces
 struct gr_iface_info_bond {
 	gr_bond_mode_t mode;
+	gr_bond_algo_t algo; // Only for LACP
 	struct rte_ether_addr mac;
 
 	uint8_t primary_member;

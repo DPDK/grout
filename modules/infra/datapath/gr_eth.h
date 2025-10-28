@@ -38,5 +38,7 @@ int eth_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*
 
 void eth_output_register_interface_type(gr_iface_type_t, const char *next_node);
 
+int lacp_send_pdu(const struct iface *, const struct lacp_pdu *);
+
 #define GR_IPPROTO_EIGRP 88
 #define GR_IPPROTO_OSPF 89

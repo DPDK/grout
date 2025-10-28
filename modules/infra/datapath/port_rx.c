@@ -38,9 +38,10 @@ void register_interface_mode(gr_iface_mode_t mode, const char *next_node) {
 
 static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t /*count*/) {
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	const struct iface_info_port *port;
+	const struct rte_ether_hdr *eth;
 	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	uint16_t rx;
@@ -66,8 +67,12 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
 	for (r = 0; r < rx; r++) {
+		eth = rte_pktmbuf_mtod(mbufs[r], const struct rte_ether_hdr *);
 		d = eth_input_mbuf_data(mbufs[r]);
-		d->iface = iface;
+		if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+			d->iface = ctx->iface;
+		else
+			d->iface = iface;
 		d->domain = ETH_DOMAIN_UNKNOWN;
 	}
 

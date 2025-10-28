@@ -6,6 +6,7 @@
 #include <gr_bitops.h>
 
 #include <rte_ether.h>
+#include <rte_mbuf.h>
 
 #include <stdint.h>
 
@@ -96,3 +97,8 @@ struct lacp_pdu {
 	uint8_t terminator_len; // LACP_LEN_TERMINATOR
 	uint8_t __padding[50]; // Pad to minimum frame size
 } __rte_packed __rte_aligned(2);
+
+// Standard LACP destination multicast address
+#define LACP_DST_MAC ((struct rte_ether_addr) {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x02}})
+
+void lacp_input_cb(struct rte_mbuf *mbuf);
