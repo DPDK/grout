@@ -5,6 +5,7 @@
 #pragma once
 
 #include <gr_icmp6.h>
+#include <gr_lacp.h>
 
 #include <rte_arp.h>
 #include <rte_icmp.h>
@@ -39,6 +40,8 @@ bool gr_trace_all_enabled(void);
 int eth_type_format(char *buf, size_t len, rte_be16_t type);
 
 int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *, size_t data_len);
+
+int trace_lacp_format(char *buf, size_t len, const struct lacp_pdu *, size_t data_len);
 
 int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *, size_t data_len);
 
