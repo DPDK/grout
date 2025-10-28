@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_bond.h>
+#include <gr_eth.h>
 #include <gr_event.h>
 #include <gr_infra.h>
 #include <gr_log.h>
@@ -257,6 +258,43 @@ static void bond_update_active_members(struct iface *iface) {
 		}
 		bond->active_member = active_member;
 		break;
+	case GR_BOND_MODE_LACP:
+		bond->n_active_members = 0;
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			member = bond->members[i];
+			struct lacp_info *lacp = &bond->lacp[i];
+			const struct iface_info_port *port = iface_info_port(member);
+
+			// Initialize LACP state
+			lacp->local.port_number = rte_cpu_to_be_16(i);
+			lacp->local.port_priority = RTE_BE16(0x8000);
+			lacp->local.system_priority = RTE_BE16(0x8000);
+			lacp->local.system_mac = bond->mac;
+			// Key based on port speed (in Mb/s): simplified encoding for aggregation
+			// Ports with same speed can aggregate together
+			lacp->local.key = rte_cpu_to_be_16(port->link_speed);
+			if (lacp->last_rx == 0) {
+				lacp->local.state = LACP_STATE_ACTIVE | LACP_STATE_AGGREGATABLE
+					| LACP_STATE_FAST | LACP_STATE_DEFAULTED;
+				lacp->state = LACP_MEMBER_FAILED;
+				lacp->need_to_transmit = true;
+				lacp->next_tx = 0;
+				LOG(DEBUG,
+				    "bond %s member %s reset local state",
+				    iface->name,
+				    member->name);
+			}
+
+			// Add to active members if link is up and LACP member is valid
+			if ((member->flags & GR_IFACE_F_UP) && (member->state & GR_IFACE_S_RUNNING)
+			    && lacp->state == LACP_MEMBER_ACTIVE) {
+				LOG(DEBUG, "bond %s member %s active", iface->name, member->name);
+				bond->active_members[bond->n_active_members++] = member;
+			}
+		}
+		for (uint8_t i = bond->n_members; i < ARRAY_DIM(bond->members); i++)
+			memset(&bond->lacp[i], 0, sizeof(bond->lacp[i]));
+		break;
 	}
 	if (bond->n_active_members > 0)
 		iface->state |= GR_IFACE_S_RUNNING;
@@ -275,6 +313,9 @@ static int bond_reconfig(
 
 	if (set_attrs & GR_BOND_SET_MODE)
 		bond->mode = api->mode;
+
+	if (set_attrs & GR_BOND_SET_ALGO)
+		bond->algo = api->algo ?: GR_BOND_ALGO_RSS;
 
 	if (set_attrs & GR_BOND_SET_PRIMARY) {
 		uint8_t n_members = (set_attrs & GR_BOND_SET_MEMBERS) ?

@@ -6,6 +6,7 @@
 #include <gr_bitops.h>
 
 #include <rte_ether.h>
+#include <rte_mbuf.h>
 
 #include <stdint.h>
 
@@ -96,3 +97,5 @@ struct lacp_pdu {
 	uint8_t terminator_len; // LACP_LEN_TERMINATOR
 	uint8_t __padding[50]; // Pad to minimum frame size
 } __rte_packed __rte_aligned(2);
+
+void lacp_input_cb(struct rte_mbuf *mbuf);

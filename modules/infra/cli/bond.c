@@ -19,6 +19,8 @@ static void bond_show(struct gr_api_client *c, const struct gr_iface *iface) {
 
 	printf("mode: %s\n", gr_bond_mode_name(bond->mode));
 	printf("mac: " ETH_F "\n", &bond->mac);
+	if (bond->mode == GR_BOND_MODE_LACP)
+		printf("algo: %s\n", gr_bond_algo_name(bond->algo));
 	printf("members:\n");
 	for (uint8_t m = 0; m < bond->n_members; m++) {
 		struct gr_iface *member = iface_from_id(c, bond->member_iface_ids[m]);
@@ -69,6 +71,9 @@ bond_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 		else
 			SAFE_BUF(snprintf, len, " primary=%s", i->name);
 		break;
+	case GR_BOND_MODE_LACP:
+		SAFE_BUF(snprintf, len, " algo=%s", gr_bond_algo_name(bond->algo));
+		break;
 	}
 
 err:
@@ -86,7 +91,27 @@ static int bond_mode_from_str(const char *str, gr_bond_mode_t *mode) {
 		*mode = GR_BOND_MODE_ACTIVE_BACKUP;
 		return 0;
 	}
+	if (strcmp(str, "lacp") == 0) {
+		*mode = GR_BOND_MODE_LACP;
+		return 0;
+	}
 	return errno_set(EPROTONOSUPPORT);
+}
+
+static int bond_algo_from_str(const char *str, gr_bond_algo_t *algo) {
+	if (strcmp(str, "rss") == 0) {
+		*algo = GR_BOND_ALGO_RSS;
+		return 0;
+	}
+	if (strcmp(str, "l2") == 0) {
+		*algo = GR_BOND_ALGO_L2;
+		return 0;
+	}
+	if (strcmp(str, "l3+l4") == 0) {
+		*algo = GR_BOND_ALGO_L3_L4;
+		return 0;
+	}
+	return errno_set(ESOCKTNOSUPPORT);
 }
 
 static uint64_t parse_bond_args(
@@ -105,6 +130,16 @@ static uint64_t parse_bond_args(
 		if (bond_mode_from_str(str, &bond->mode) < 0)
 			goto err;
 		set_attrs |= GR_BOND_SET_MODE;
+	}
+
+	if ((str = arg_str(p, "ALGO")) != NULL) {
+		if (bond->mode != GR_BOND_MODE_ACTIVE_BACKUP) {
+			errno = EPROTOTYPE;
+			goto err;
+		}
+		if (bond_algo_from_str(str, &bond->algo) < 0)
+			goto err;
+		set_attrs |= GR_BOND_SET_ALGO;
 	}
 
 	if (arg_str(p, "MEMBER") != NULL) {
@@ -129,6 +164,10 @@ static uint64_t parse_bond_args(
 	}
 
 	if ((str = arg_str(p, "PRIMARY")) != NULL) {
+		if (bond->mode != GR_BOND_MODE_ACTIVE_BACKUP) {
+			errno = EPROTOTYPE;
+			goto err;
+		}
 		struct gr_iface *primary = iface_from_name(c, str);
 		if (primary == NULL)
 			goto err;
@@ -212,19 +251,36 @@ out:
 	return ret;
 }
 
-#define BOND_ATTRS_CMD IFACE_ATTRS_CMD ",(primary PRIMARY),(mac MAC)"
+#define BOND_ATTRS_CMD IFACE_ATTRS_CMD ",((primary PRIMARY)|(balance ALGO)),(mac MAC)"
 #define BOND_ATTRS_ARGS                                                                            \
 	IFACE_ATTRS_ARGS,                                                                          \
 		with_help(                                                                         \
 			"Bond mode.",                                                              \
 			EC_NODE_OR(                                                                \
 				"MODE",                                                            \
-				with_help("Active backup mode.", ec_node_str("", "active-backup")) \
+				with_help(                                                         \
+					"Active backup mode.", ec_node_str("", "active-backup")    \
+				),                                                                 \
+				with_help("LACP mode.", ec_node_str("", "lacp"))                   \
 			)                                                                          \
 		),                                                                                 \
 		with_help(                                                                         \
 			"Primary member.",                                                         \
 			ec_node_dyn("PRIMARY", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))  \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Balancing algorithm.",                                                    \
+			EC_NODE_OR(                                                                \
+				"ALGO",                                                            \
+				with_help("Reuse hardware RSS hash.", ec_node_str("", "rss")),     \
+				with_help(                                                         \
+					"Hash based on Ethernet and VLAN.", ec_node_str("", "l2")  \
+				),                                                                 \
+				with_help(                                                         \
+					"Hash based on IP/IPv6 and TCP/UDP.",                      \
+					ec_node_str("", "l3+l4")                                   \
+				)                                                                  \
+			)                                                                          \
 		),                                                                                 \
 		with_help("Set the bond MAC address.", ec_node_re("MAC", ETH_ADDR_RE))
 
