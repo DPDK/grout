@@ -9,6 +9,7 @@
 #include <gr_string.h>
 #include <gr_vec.h>
 
+#include <netlink_priv.h>
 #include <vrf_priv.h>
 
 struct vrf_info {
@@ -36,6 +37,12 @@ void vrf_incref(uint16_t vrf_id) {
 			    strerror(errno));
 			return;
 		}
+		if (netlink_add_del_vrf_rules(vrfs[vrf_id].iface->name, vrf_id, true) < 0) {
+			LOG(WARNING,
+			    "linux rules/routes for %s cannot be created: %s",
+			    vrfs[vrf_id].iface->name,
+			    strerror(errno));
+		}
 	}
 
 	vrfs[vrf_id].ref_count++;
@@ -46,6 +53,12 @@ void vrf_decref(uint16_t vrf_id) {
 		return;
 
 	if (vrfs[vrf_id].ref_count == 1) {
+		if (netlink_add_del_vrf_rules(vrfs[vrf_id].iface->name, vrf_id, false) < 0) {
+			LOG(WARNING,
+			    "linux rules/routes for %s cannot be deleted: %s",
+			    vrfs[vrf_id].iface->name,
+			    strerror(errno));
+		}
 		if (iface_loopback_delete(vrf_id) < 0) {
 			LOG(WARNING,
 			    "loopback for vrf %u cannot be deleted: %s",

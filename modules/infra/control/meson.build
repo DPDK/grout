@@ -7,6 +7,7 @@ src += files(
   'loopback.c',
   'mempool.c',
   'nexthop.c',
+  'netlink.c',
   'port.c',
   'worker.c',
   'graph.c',
