@@ -233,6 +233,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	cat >$builddir/frr_install/etc/frr/daemons <<EOF
 bgpd=yes
 isisd=yes
+ospfd=yes
 vtysh_enable=yes
 frr_global_options="-A 127.0.0.1 --log file:$flog"
 zebra_options="-s 90000000 -M dplane_grout"

@@ -10,4 +10,5 @@ sed -i -e '/^zebra_options=/ {
              /-M[[:space:]]*dplane_grout/! s/"$/ -M dplane_grout"/
            }' "$3"
 sed -i -e 's/isisd=no/isisd=yes/' "$3"
+sed -i -e 's/ospfd=no/ospfd=yes/' "$3"
 touch "$4"

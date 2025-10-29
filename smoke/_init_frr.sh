@@ -247,6 +247,7 @@ start_frr_on_namespace() {
 	cat >${frr_namespace_folder}/daemons <<EOF
 bgpd=yes
 isisd=yes
+ospfd=yes
 vtysh_enable=yes
 frr_global_options="--daemon -A 127.0.0.1 --log file:$flog"
 zebra_options="-s 90000000"
@@ -289,6 +290,14 @@ EOF
 	while ! pgrep -f "isisd -N $namespace"; do
 		if [ "$SECONDS" -ge "5" ]; then
 			fail "ISIS daemon not started for namespace $namespace"
+		fi
+		sleep 0.1
+	done
+
+	SECONDS=0
+	while ! pgrep -f "ospfd -N $namespace"; do
+		if [ "$SECONDS" -ge "5" ]; then
+			fail "OSPF daemon not started for namespace $namespace"
 		fi
 		sleep 0.1
 	done
