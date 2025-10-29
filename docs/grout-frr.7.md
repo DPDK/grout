@@ -86,21 +86,14 @@ router bgp 64513
  neighbor 192.168.210.3 remote-as 64513
  neighbor 192.168.210.3 interface gr-loop0
  neighbor 192.168.210.3 update-source 192.168.210.1
- neighbor 192.168.210.3 ip-transparent
 exit
 !
 end
 ```
 
-Note: The `IP_TRANSPARENT` socket option and FRR's BGP `neighbor <peer> ip-transparent` are supported
-only if the Linux kernel provides `IP_TRANSPARENT` and FRRouting supports the feature (added in FRR 10.4.0).
-The FRR daemon must run with sufficient network privileges to create raw/non‑local sockets and manage routing
-(for example, `CAP_NET_ADMIN` and `CAP_NET_RAW`), which shouldn't be an issue.
-
-Three additional configuration for a neighbor is required:
+Two additional configuration for a neighbor is required:
 - source interface, `gr-loop0`, only required for the default VRF
 - update source IP, local Grout IP
-- ip-transparent, to allow `bgpd` to bind on the non existent IP.
 
 With that configuration, BGP messages are properly exchanged, and routes are visible in grout:
 

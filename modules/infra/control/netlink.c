@@ -2,8 +2,13 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include <gr_errno.h>
+#include <gr_event.h>
+#include <gr_iface.h>
+#include <gr_ip4.h>
+#include <gr_ip6.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_net_types.h>
 
 #include <assert.h>
 #include <linux/fib_rules.h>
@@ -173,6 +178,82 @@ err1:
 	return -1;
 }
 
+static int netlink_add_del_addr(const char *ifname, const void *addr, size_t addr_len, bool add) {
+	bool is_ipv4 = (addr_len == sizeof(ip4_addr_t));
+	struct {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+		char buf[64];
+	} req = {0};
+	int ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return -1;
+
+	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg));
+	req.nlh.nlmsg_type = add ? RTM_NEWADDR : RTM_DELADDR;
+	req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		req.nlh.nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+
+	req.ifa.ifa_family = is_ipv4 ? AF_INET : AF_INET6;
+	req.ifa.ifa_prefixlen = is_ipv4 ? 32 : 128;
+	req.ifa.ifa_scope = RT_SCOPE_UNIVERSE;
+	req.ifa.ifa_index = ifindex;
+
+	if (is_ipv4)
+		netlink_addattr(&req.nlh, sizeof(req), IFA_LOCAL, addr, addr_len);
+	netlink_addattr(&req.nlh, sizeof(req), IFA_ADDRESS, addr, addr_len);
+
+	return netlink_send_req(&req.nlh);
+}
+
+static void addr_add_del_cb(uint32_t event, const void *obj) {
+	struct iface *vrf_iface;
+	struct iface *iface;
+	uint16_t iface_id;
+	bool add = false;
+	const void *addr;
+	size_t addr_len;
+
+	switch (event) {
+	case GR_EVENT_IP_ADDR_ADD:
+		add = true;
+		// fallthrough
+	case GR_EVENT_IP_ADDR_DEL: {
+		const struct gr_ip4_ifaddr *ifa4 = obj;
+
+		ifa4 = obj;
+		iface_id = ifa4->iface_id;
+		addr = &ifa4->addr.ip;
+		addr_len = sizeof(ifa4->addr.ip);
+		break;
+	}
+	case GR_EVENT_IP6_ADDR_ADD:
+		add = true;
+		// fallthrough
+	case GR_EVENT_IP6_ADDR_DEL: {
+		const struct gr_ip6_ifaddr *ifa6 = obj;
+
+		iface_id = ifa6->iface_id;
+		addr = &ifa6->addr.ip;
+		addr_len = sizeof(ifa6->addr.ip);
+		break;
+	}
+	default:
+		return;
+	}
+
+	if ((iface = iface_from_id(iface_id)) == NULL)
+		return;
+
+	if ((vrf_iface = get_vrf_iface(iface->vrf_id)) == NULL)
+		return;
+
+	netlink_add_del_addr(vrf_iface->name, addr, addr_len, add);
+}
+
 static void netlink_init(struct event_base *) {
 	nl_sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 	if (nl_sock == -1)
@@ -189,6 +270,18 @@ static struct gr_module netlink_module = {
 	.fini = netlink_fini,
 };
 
+static struct gr_event_subscription addr_add_del_subscription = {
+	.callback = addr_add_del_cb,
+	.ev_count = 4,
+	.ev_types = {
+		GR_EVENT_IP_ADDR_ADD,
+		GR_EVENT_IP_ADDR_DEL,
+		GR_EVENT_IP6_ADDR_ADD,
+		GR_EVENT_IP6_ADDR_DEL
+	}
+};
+
 RTE_INIT(netlink_constructor) {
 	gr_register_module(&netlink_module);
+	gr_event_subscribe(&addr_add_del_subscription);
 }
