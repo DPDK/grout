@@ -38,11 +38,15 @@ static uint16_t loopback_output_process(
 			goto next;
 		}
 
+		eth->dst_addr = eth_data->dst;
 		eth->ether_type = eth_data->ether_type;
 
 		co = control_output_mbuf_data(mbuf);
 		co->callback = loopback_tx;
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			gr_mbuf_trace_add(mbuf, node, 0);
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 	return nb_objs;
