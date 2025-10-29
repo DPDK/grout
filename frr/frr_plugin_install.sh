@@ -9,4 +9,5 @@ install -D -m 755 "$1" "$2"
 sed -i -e '/^zebra_options=/ {
              /-M[[:space:]]*dplane_grout/! s/"$/ -M dplane_grout"/
            }' "$3"
+sed -i -e 's/isisd=no/isisd=yes/' "$3"
 touch "$4"
