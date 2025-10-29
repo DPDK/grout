@@ -246,6 +246,7 @@ start_frr_on_namespace() {
 	touch ${frr_namespace_folder}/vtysh.conf
 	cat >${frr_namespace_folder}/daemons <<EOF
 bgpd=yes
+isisd=yes
 vtysh_enable=yes
 frr_global_options="--daemon -A 127.0.0.1 --log file:$flog"
 zebra_options="-s 90000000"
@@ -280,6 +281,14 @@ EOF
 	while ! pgrep -f "bgpd -N $namespace"; do
 		if [ "$SECONDS" -ge "5" ]; then
 			fail "BGP daemon not started for namespace $namespace"
+		fi
+		sleep 0.1
+	done
+
+	SECONDS=0
+	while ! pgrep -f "isisd -N $namespace"; do
+		if [ "$SECONDS" -ge "5" ]; then
+			fail "ISIS daemon not started for namespace $namespace"
 		fi
 		sleep 0.1
 	done
