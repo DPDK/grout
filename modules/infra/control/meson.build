@@ -7,11 +7,13 @@ src += files(
   'loopback.c',
   'mempool.c',
   'nexthop.c',
+  'netlink.c',
   'port.c',
   'worker.c',
   'graph.c',
   'vlan.c',
   'vrf.c',
+  'vrf_netlink.c',
 )
 inc += include_directories('.')
 
