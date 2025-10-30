@@ -12,7 +12,7 @@ STAILQ_HEAD(subscribers, gr_event_subscription);
 static struct subscribers subscribers = STAILQ_HEAD_INITIALIZER(subscribers);
 
 void gr_event_subscribe(struct gr_event_subscription *sub) {
-	STAILQ_INSERT_TAIL(&subscribers, sub, next);
+	STAILQ_INSERT_HEAD(&subscribers, sub, next);
 }
 
 void gr_event_push(uint32_t ev_type, const void *obj) {
