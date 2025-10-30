@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_log.h>
@@ -92,6 +93,10 @@ static inline const char *ip_proto_str(uint8_t proto) {
 		return "SCTP";
 	case IPPROTO_RAW:
 		return "Raw";
+	case GR_IPPROTO_EIGRP:
+		return "EIGRP";
+	case GR_IPPROTO_OSPF:
+		return "OSPF";
 	}
 	return NULL;
 }
