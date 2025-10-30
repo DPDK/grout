@@ -7,3 +7,4 @@
 
 int api_socket_start(struct event_base *);
 void api_socket_stop(struct event_base *);
+void api_send_notifications(uint32_t ev_type, const void *obj);
