@@ -7,3 +7,5 @@
 #include <stdint.h>
 
 int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data, void **rx_data);
+extern uint16_t frr_if_to_gr_if[];
+extern uint16_t gr_if_to_frr_if[];

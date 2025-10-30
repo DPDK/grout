@@ -19,6 +19,9 @@
 
 #define GROUT_NS NS_DEFAULT
 
+uint16_t frr_if_to_gr_if[UINT16_MAX] = {0};
+uint16_t gr_if_to_frr_if[UINT16_MAX] = {0};
+
 static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_type link_type) {
 	uint64_t frr_if_flags = 0;
 
@@ -51,6 +54,11 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	const struct rte_ether_addr *mac = NULL;
 	uint32_t txqlen = 1000;
 
+	if (gr_if->cp_id == 0) {
+		gr_if_to_frr_if[gr_if->base.id] = gr_if->base.id;
+		frr_if_to_gr_if[gr_if->base.id] = gr_if->cp_id;
+	}
+
 	switch (gr_if->base.type) {
 	case GR_IFACE_TYPE_VLAN:
 		gr_vlan = (const struct gr_iface_info_vlan *)&gr_if->info;
@@ -64,6 +72,9 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		txqlen = gr_port->base.txq_size;
 		mac = &gr_port->base.mac;
 		link_type = ZEBRA_LLT_ETHER;
+		link_ifindex = gr_if->base.id;
+		gr_if_to_frr_if[gr_if->base.id] = gr_if->cp_id;
+		frr_if_to_gr_if[gr_if->cp_id] = gr_if->base.id;
 		break;
 	case GR_IFACE_TYPE_IPIP:
 		link_type = ZEBRA_LLT_IPIP;
@@ -89,7 +100,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
-	dplane_ctx_set_ifindex(ctx, gr_if->base.id);
+	dplane_ctx_set_ifindex(ctx, gr_if_to_frr_if[gr_if->base.id]);
 	dplane_ctx_set_ifname(ctx, gr_if->name);
 	dplane_ctx_set_ifp_startup(ctx, startup);
 	dplane_ctx_set_ifp_family(ctx, AF_UNSPEC);
@@ -159,7 +170,7 @@ static void grout_interface_addr_change(
 	else
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_DEL);
 
-	dplane_ctx_set_ifindex(ctx, iface_id);
+	dplane_ctx_set_ifindex(ctx, gr_if_to_frr_if[iface_id]);
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 
 	// Convert addr to prefix
@@ -192,7 +203,7 @@ void grout_interface_addr6_change(bool new, const struct gr_ip6_ifaddr *ifa) {
 
 enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 	const struct prefix *p = dplane_ctx_get_intf_addr(ctx);
-	int gr_iface_id = dplane_ctx_get_ifindex(ctx);
+	int gr_iface_id = frr_if_to_gr_if[dplane_ctx_get_ifindex(ctx)];
 	union {
 		struct gr_ip4_addr_add_req ip4_add;
 		struct gr_ip4_addr_del_req ip4_del;

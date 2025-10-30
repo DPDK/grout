@@ -190,7 +190,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 	struct nexthop *nh,
 	int *nh_family
 ) {
-	nh->ifindex = gr_nh->iface_id;
+	nh->ifindex = gr_if_to_frr_if[gr_nh->iface_id];
 	nh->vrf_id = gr_nh->vrf_id;
 	nh->weight = 1;
 
@@ -290,7 +290,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		break;
 	}
 	case GR_NH_T_GROUP:
-		nh->ifindex = gr_nh->iface_id;
+		nh->ifindex = gr_if_to_frr_if[gr_nh->iface_id];
 		nh->vrf_id = gr_nh->vrf_id;
 		*nh_family = AF_UNSPEC;
 		nh->weight = 1;
@@ -668,7 +668,7 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	req->nh.origin = origin;
 	req->nh.type = type;
 	req->nh.vrf_id = nh->vrf_id;
-	req->nh.iface_id = nh->ifindex;
+	req->nh.iface_id = frr_if_to_gr_if[nh->ifindex];
 
 	switch (type) {
 	case GR_NH_T_L3:
