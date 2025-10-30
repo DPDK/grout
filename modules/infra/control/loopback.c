@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_config.h>
 #include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_eth.h>
@@ -15,7 +14,6 @@
 #include <event2/event.h>
 #include <rte_errno.h>
 #include <rte_malloc.h>
-#include <rte_net.h>
 
 #include <fcntl.h>
 #include <linux/if_tun.h>
@@ -34,7 +32,6 @@ static struct event_base *ev_base;
 GR_IFACE_INFO(GR_IFACE_TYPE_LOOPBACK, iface_info_loopback, {
 	int fd;
 	struct event *ev;
-	struct rte_ether_addr mac;
 });
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
@@ -43,25 +40,14 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-static int loopback_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
-	struct iface_info_loopback *lo = iface_info_loopback(iface);
-	*mac = lo->mac;
-	return 0;
-}
-
 void loopback_tx(struct rte_mbuf *m) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
-	struct rte_ether_hdr *eth;
-	struct iface_stats *stats;
-	char *data = NULL;
+	struct iovec iov[2];
+	struct tun_pi pi;
+	char *data;
 
 	lo = iface_info_loopback(d->iface);
-
-	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	if (rte_is_unicast_ether_addr(&eth->dst_addr))
-		loopback_mac_get(d->iface, &eth->dst_addr);
-	loopback_mac_get(d->iface, &eth->src_addr);
 
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
@@ -75,29 +61,32 @@ void loopback_tx(struct rte_mbuf *m) {
 		// to the user provided buffer.
 		rte_pktmbuf_read(m, 0, rte_pktmbuf_pkt_len(m), data);
 	}
-
+	pi.flags = 0;
+	if ((data[0] & 0xf0) == 0x40)
+		pi.proto = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+	else if ((data[0] & 0xf0) == 0x60)
+		pi.proto = RTE_BE16(RTE_ETHER_TYPE_IPV6);
+	else {
+		LOG(ERR, "Bad proto: 0x%x - drop packet", data[0]);
+		goto end;
+	}
 	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
 	// If the tun device queue is full, something really bad is
 	// already happening on the management plane side.
-	if (write(lo->fd, data, rte_pktmbuf_pkt_len(m)) != rte_pktmbuf_pkt_len(m)) {
+	iov[0].iov_base = &pi;
+	iov[0].iov_len = sizeof(pi);
+	iov[1].iov_base = data;
+	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
+
+	if (writev(lo->fd, iov, ARRAY_DIM(iov)) < 0) {
 		// The user messed up and removed gr-loopX
 		// release resources on our side to try to recover
 		if (errno == EBADFD) {
 			iface_destroy(d->iface->id);
 		}
-		LOG(ERR, "write to tap device failed %s", strerror(errno));
+		LOG(ERR, "write to tun device failed %s", strerror(errno));
 	}
 
-	stats = iface_get_stats(rte_lcore_id(), d->iface->id);
-	stats->tx_packets += 1;
-	stats->tx_bytes += rte_pktmbuf_pkt_len(m);
-
-	if (gr_config.log_packets)
-		trace_log_packet(m, "tx", d->iface->name);
-
-	// TODO: add a trace for that fake node
-	if (gr_mbuf_is_traced(m))
-		gr_mbuf_trace_finish(m);
 end:
 	if (!rte_pktmbuf_is_contiguous(m))
 		rte_free(data);
@@ -105,11 +94,9 @@ end:
 }
 
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
+	struct eth_input_mbuf_data *e;
 	struct iface_info_loopback *lo;
 	struct iface *iface = ev_iface;
-	struct eth_input_mbuf_data *e;
-	struct rte_ether_hdr *eth;
-	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
 	size_t read_len;
 	size_t len;
@@ -119,7 +106,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
-		LOG(ERR, "tap device %s deleted", iface->name);
+		LOG(ERR, "tun device %s deleted", iface->name);
 		iface_destroy(iface->id);
 		return;
 	}
@@ -130,7 +117,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	read_len = iface->mtu + RTE_ETHER_HDR_LEN + RTE_VLAN_HLEN;
+	read_len = iface->mtu + sizeof(struct tun_pi);
 	if ((data = rte_pktmbuf_append(mbuf, read_len)) == NULL) {
 		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
 		goto err;
@@ -144,27 +131,19 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	}
 
 	rte_pktmbuf_trim(mbuf, read_len - len);
-	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
-
-	if (rte_is_unicast_ether_addr(&eth->dst_addr))
-		loopback_mac_get(iface, &eth->dst_addr);
 
 	// packet sent from linux tun iface, no need to compute checksum;
 	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
-	mbuf->packet_type = rte_net_get_ptype(mbuf, NULL, RTE_PTYPE_ALL_MASK);
 
+	// We can't call rte_net_get_ptype directly as we do not have an ethernet frame.
+	// An option would be to prepend/adjust every buffer, but let's set directly
+	// the information we need instead.
+	mbuf->packet_type = data[0] == 6 ? RTE_PTYPE_L3_IPV6 : RTE_PTYPE_L3_IPV4;
+
+	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
 	e->iface = iface;
 	e->domain = ETH_DOMAIN_LOOPBACK;
-
-	stats = iface_get_stats(rte_lcore_id(), iface->id);
-	stats->rx_packets += 1;
-	stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
-
-	if (gr_config.log_packets)
-		trace_log_packet(mbuf, "rx", iface->name);
-
-	// TODO: add trace for that fake node
 
 	post_to_stack(loopback_get_control_id(), mbuf);
 	return;
@@ -197,7 +176,7 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
-	ifr.ifr_flags = IFF_TAP | IFF_ONE_QUEUE | IFF_NO_PI;
+	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT | IFF_ONE_QUEUE;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
@@ -231,17 +210,11 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
-	ifr.ifr_flags |= IFF_UP | IFF_NOARP;
+	ifr.ifr_flags |= IFF_UP;
 	if (ioctl(ioctl_sock, SIOCSIFFLAGS, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
 		goto err;
 	}
-
-	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
-	memcpy(&lo->mac, ifr.ifr_hwaddr.sa_data, sizeof(lo->mac));
 
 	iface->flags = GR_IFACE_F_UP;
 	iface->state = GR_IFACE_S_RUNNING;
@@ -296,7 +269,6 @@ static struct iface_type iface_type_loopback = {
 	.init = iface_loopback_init,
 	.fini = iface_loopback_fini,
 	.to_api = iface_loopback_to_api,
-	.get_eth_addr = loopback_mac_get,
 };
 
 static struct gr_module loopback_module = {
