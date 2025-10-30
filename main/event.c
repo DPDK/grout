@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "api.h"
+
 #include <gr_api.h>
 #include <gr_event.h>
 #include <gr_log.h>
@@ -26,6 +28,7 @@ void gr_event_push(uint32_t ev_type, const void *obj) {
 			}
 		}
 	}
+	api_send_notifications(ev_type, obj);
 }
 
 STAILQ_HEAD(serializers, gr_event_serializer);

@@ -83,7 +83,7 @@ static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
 
-static void api_send_notifications(uint32_t ev_type, const void *obj) {
+void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct subscription *ev_subs = NULL;
 	struct module_subscribers *subs;
 	struct subscription *s;
@@ -498,14 +498,7 @@ void api_socket_stop(struct event_base *) {
 		disconnect_client(ctx);
 }
 
-static struct gr_event_subscription ev_subscribtion = {
-	.callback = api_send_notifications,
-	.ev_count = 1,
-	.ev_types = {EVENT_TYPE_ALL},
-};
-
 RTE_INIT(init) {
-	gr_event_subscribe(&ev_subscribtion);
 	gr_register_api_handler(&subscribe_handler);
 	gr_register_api_handler(&unsubscribe_handler);
 	gr_register_api_handler(&hello_handler);
