@@ -61,7 +61,6 @@ dpdk_dep = dependency(
   version : '>= 24.11.1',
   fallback: ['dpdk', 'dpdk_dep'],
   default_options: [
-    'buildtype=release',
     'c_std=c11',
     'werror=false',
     'enable_kmods=false',
