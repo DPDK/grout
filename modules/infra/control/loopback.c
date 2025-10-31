@@ -53,6 +53,7 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 void loopback_tx(struct rte_mbuf *m) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
+	struct iface_stats *stats;
 	struct iovec iov[2];
 	struct tun_pi pi;
 	char *data;
@@ -97,6 +98,10 @@ void loopback_tx(struct rte_mbuf *m) {
 		LOG(ERR, "write to tun device failed %s", strerror(errno));
 	}
 
+	stats = iface_get_stats(rte_lcore_id(), d->iface->id);
+	stats->cp_tx_packets += 1;
+	stats->cp_tx_bytes += rte_pktmbuf_pkt_len(m);
+
 end:
 	if (!rte_pktmbuf_is_contiguous(m))
 		rte_free(data);
@@ -104,9 +109,10 @@ end:
 }
 
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
-	struct eth_input_mbuf_data *e;
-	struct iface_info_loopback *lo;
 	struct iface *iface = ev_iface;
+	struct iface_info_loopback *lo;
+	struct eth_input_mbuf_data *e;
+	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
 	size_t read_len;
 	size_t len;
@@ -154,6 +160,10 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	e = eth_input_mbuf_data(mbuf);
 	e->iface = iface;
 	e->domain = ETH_DOMAIN_LOOPBACK;
+
+	stats = iface_get_stats(rte_lcore_id(), iface->id);
+	stats->cp_rx_packets += 1;
+	stats->cp_rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 
 	post_to_stack(loopback_get_control_id(), mbuf);
 	return;
