@@ -94,11 +94,28 @@ static int bond_mtu_set(struct iface *iface, uint16_t mtu) {
 	const struct iface *member;
 	int ret;
 
-	for (uint8_t i = 0; i < bond->n_members; i++) {
-		member = bond->members[i];
-		if (mtu == 0 && member->mtu != 0) {
-			mtu = member->mtu;
-		} else {
+	if (mtu == 0) {
+		// use the smallest MTU
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			member = bond->members[i];
+			if (mtu == 0) {
+				mtu = member->mtu;
+			} else if (member->mtu < mtu) {
+				mtu = member->mtu;
+			}
+		}
+		// make sure every member has the same MTU
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			member = bond->members[i];
+			if (mtu == 0) {
+				mtu = member->mtu;
+			} else if (member->mtu < mtu) {
+				mtu = member->mtu;
+			}
+		}
+	} else {
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			member = bond->members[i];
 			if ((ret = iface_set_mtu(member->id, mtu)) < 0)
 				return ret;
 		}
@@ -419,7 +436,8 @@ static void bond_event(uint32_t, const void *obj) {
 		return;
 
 	b = iface_from_id(port->bond_iface_id);
-	assert(b != NULL);
+	if (b == NULL)
+		return;
 	assert(b->type == GR_IFACE_TYPE_BOND);
 
 	bond_update_active_members(b);

@@ -250,6 +250,11 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	int ret;
 
 	if (mtu != 0) {
+		if ((ret = port_unplug(p)) < 0)
+			return ret;
+		if (p->started && (ret = rte_eth_dev_stop(p->port_id)) < 0)
+			return errno_log(-ret, "rte_eth_dev_stop");
+		p->started = false;
 		ret = rte_eth_dev_set_mtu(p->port_id, mtu);
 		switch (ret) {
 		case 0:
@@ -259,6 +264,11 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 		default:
 			return errno_log(-ret, "rte_eth_dev_set_mtu");
 		}
+		if ((ret = rte_eth_dev_start(p->port_id)) < 0)
+			return errno_log(-ret, "rte_eth_dev_start");
+		if ((ret = port_plug(p)) < 0)
+			return ret;
+		p->started = true;
 		iface->mtu = mtu;
 	} else {
 		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
