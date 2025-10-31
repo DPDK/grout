@@ -250,6 +250,11 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	int ret;
 
 	if (mtu != 0) {
+		if ((ret = port_unplug(p)) < 0)
+			return ret;
+		if (p->started && (ret = rte_eth_dev_stop(p->port_id)) < 0)
+			return errno_log(-ret, "rte_eth_dev_stop");
+		p->started = false;
 		ret = rte_eth_dev_set_mtu(p->port_id, mtu);
 		switch (ret) {
 		case 0:
@@ -259,6 +264,11 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 		default:
 			return errno_log(-ret, "rte_eth_dev_set_mtu");
 		}
+		if ((ret = rte_eth_dev_start(p->port_id)) < 0)
+			return errno_log(-ret, "rte_eth_dev_start");
+		if ((ret = port_plug(p)) < 0)
+			return ret;
+		p->started = true;
 		iface->mtu = mtu;
 	} else {
 		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
@@ -519,7 +529,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		}
 	}
 	if (i == ARRAY_DIM(filter->mac))
-		return errno_log(ENOSPC, mac_type);
+		return errno_set(ENOSPC);
 
 	filter->mac[i] = *mac;
 	filter->refcnt[i] = 1;
@@ -539,14 +549,14 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		if (ret == -ENOSPC) {
 			filter->flags |= MAC_FILTER_F_NOSPC;
 			filter->hw_limit = filter->count - 1;
-			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 		} else {
 			filter->flags |= MAC_FILTER_F_UNSUPP;
-			LOG(NOTICE, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 		}
 
 		mac_type = multicast ? "allmulti" : "promisc";
-		LOG(NOTICE, "%s: enabling %s", iface->name, mac_type);
+		LOG(INFO, "%s: enabling %s", iface->name, mac_type);
 
 		// promisc and allmulti enable is a noop if already enabled
 		if (multicast)
@@ -593,7 +603,7 @@ static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 		if (rte_is_same_ether_addr(&filter->mac[i], mac))
 			goto found;
 	}
-	return errno_log(ENOENT, mac_type);
+	return errno_set(ENOENT);
 
 found:
 	if (--filter->refcnt[i] > 0) {
@@ -691,19 +701,6 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				continue;
 
 			port = iface_info_port(iface);
-
-			// XXX: net_tap devices are signaled down by the kernel when they
-			// are moved to another netns although they still can receive and
-			// transmit packets. Ignore link status updates for this driver and
-			// always assume they are running.
-			if (strncmp(port->devargs, "net_tap", strlen("net_tap")) == 0) {
-				if (!(iface->state & GR_IFACE_S_RUNNING)) {
-					LOG(INFO, "%s: link status up", iface->name);
-					iface->state |= GR_IFACE_S_RUNNING;
-					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
-				}
-				continue;
-			}
 
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
 				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));

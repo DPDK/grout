@@ -115,6 +115,29 @@ struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	return resp_ptr;
 }
 
+static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *iface) {
+	ssize_t n = 0;
+
+	if (iface->flags & GR_IFACE_F_UP)
+		SAFE_BUF(snprintf, len, "up");
+	else
+		SAFE_BUF(snprintf, len, "down");
+	if (iface->state & GR_IFACE_S_RUNNING)
+		SAFE_BUF(snprintf, len, " running");
+	if (iface->flags & GR_IFACE_F_PROMISC)
+		SAFE_BUF(snprintf, len, " promisc");
+	if (iface->flags & GR_IFACE_F_ALLMULTI)
+		SAFE_BUF(snprintf, len, " allmulti");
+	if (iface->flags & GR_IFACE_F_PACKET_TRACE)
+		SAFE_BUF(snprintf, len, " tracing");
+	if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
+		SAFE_BUF(snprintf, len, " snat");
+
+	return n;
+err:
+	return -1;
+}
+
 uint64_t parse_iface_args(
 	struct gr_api_client *c,
 	const struct ec_pnode *p,
@@ -221,8 +244,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		char buf[BUFSIZ];
-		size_t n = 0;
+		char buf[128];
 
 		// name
 		scols_line_set_data(line, 0, iface->name);
@@ -231,20 +253,10 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		scols_line_sprintf(line, 1, "%u", iface->id);
 
 		// flags
-		if (iface->flags & GR_IFACE_F_UP)
-			SAFE_BUF(snprintf, sizeof(buf), "up");
-		else
-			SAFE_BUF(snprintf, sizeof(buf), "down");
-		if (iface->state & GR_IFACE_S_RUNNING)
-			SAFE_BUF(snprintf, sizeof(buf), " running");
-		if (iface->flags & GR_IFACE_F_PROMISC)
-			SAFE_BUF(snprintf, sizeof(buf), " promisc");
-		if (iface->flags & GR_IFACE_F_ALLMULTI)
-			SAFE_BUF(snprintf, sizeof(buf), " allmulti");
-		if (iface->flags & GR_IFACE_F_PACKET_TRACE)
-			SAFE_BUF(snprintf, sizeof(buf), " tracing");
-		if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
-			SAFE_BUF(snprintf, sizeof(buf), " snat");
+		if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
+			ret = -1;
+			continue;
+		}
 		scols_line_set_data(line, 2, buf);
 
 		// mode
@@ -277,9 +289,6 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_unref_table(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
-err:
-	scols_unref_table(table);
-	return CMD_ERROR;
 }
 
 static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
@@ -426,6 +435,7 @@ end:
 
 static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct cli_iface_type *type;
+	char buf[128];
 
 	if (arg_str(p, "stats") != NULL) {
 		return iface_stats(c, p);
@@ -446,22 +456,11 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	printf("name: %s\n", iface->name);
 	printf("type: %s\n", gr_iface_type_name(iface->type));
 	printf("id: %u\n", iface->id);
-	printf("flags: ");
-	if (iface->flags & GR_IFACE_F_UP)
-		printf("up");
-	else
-		printf("down");
-	if (iface->state & GR_IFACE_S_RUNNING)
-		printf(" running");
-	if (iface->flags & GR_IFACE_F_PROMISC)
-		printf(" promisc");
-	if (iface->flags & GR_IFACE_F_ALLMULTI)
-		printf(" allmulti");
-	if (iface->flags & GR_IFACE_F_PACKET_TRACE)
-		printf(" tracing");
-	if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
-		printf(" nat");
-	printf("\n");
+	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
+		free(iface);
+		return CMD_ERROR;
+	}
+	printf("flags: %s\n", buf);
 	printf("vrf: %u\n", iface->vrf_id);
 	printf("mtu: %u\n", iface->mtu);
 

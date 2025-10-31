@@ -2,12 +2,15 @@
 # Copyright (c) 2023 Robin Jarry
 
 src += files(
+  'bond_output.c',
   'control_input.c',
   'control_output.c',
   'drop.c',
   'eth_input.c',
   'eth_output.c',
   'l1_xconnect.c',
+  'lacp_input.c',
+  'lacp_output.c',
   'loop_input.c',
   'loop_output.c',
   'loop_xvrf.c',
