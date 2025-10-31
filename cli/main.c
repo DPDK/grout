@@ -5,6 +5,7 @@
 #include "exec.h"
 #include "interact.h"
 #include "log.h"
+#include "man.h"
 
 #include <gr_api.h>
 #include <gr_api_client_impl.h>
@@ -27,6 +28,7 @@
 static void usage(const char *prog) {
 	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-V] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
+	printf("       %s -m|--man [COMMAND]\n", prog);
 }
 
 static void help(void) {
@@ -37,6 +39,8 @@ static void help(void) {
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
+	puts("  -m, --man [COMMAND]        Show man page for command or list all");
+	puts("                             commands.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
@@ -171,8 +175,18 @@ int main(int argc, char **argv) {
 	if ((cmdlist = init_commands()) == NULL)
 		goto end;
 
-	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete")))
-		return bash_complete(cmdlist);
+	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete"))) {
+		ret = bash_complete(cmdlist);
+		goto end;
+	}
+
+	if (argc >= 2 && (!strcmp(argv[1], "-m") || !strcmp(argv[1], "--man"))) {
+		if (argc == 2)
+			ret = print_main_man_page(cmdlist);
+		else
+			ret = print_man_page(cmdlist, argc, argv);
+		goto end;
+	}
 
 	if ((c = parse_args(argc, argv)) < 0)
 		goto end;
