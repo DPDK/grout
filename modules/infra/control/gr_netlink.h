@@ -9,3 +9,4 @@ void netlink_addattr(struct nlmsghdr *n, size_t maxlen, int type, const void *da
 struct rtattr *netlink_addattr_nest(struct nlmsghdr *n, size_t maxlen, int type);
 void netlink_addattr_nest_end(struct nlmsghdr *n, struct rtattr *nest);
 int netlink_send_req(struct nlmsghdr *nlh);
+int netlink_add_del_addr(const char *ifname, const void *addr, size_t addr_len, bool add);

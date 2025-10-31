@@ -2,6 +2,8 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include <gr_errno.h>
+#include <gr_ip4.h>
+#include <gr_ip6.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_netlink.h>
@@ -9,6 +11,7 @@
 #include <assert.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <net/if.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -89,6 +92,37 @@ again:
 		return errno_set(-err->error);
 
 	return 0;
+}
+
+int netlink_add_del_addr(const char *ifname, const void *addr, size_t addr_len, bool add) {
+	bool is_ipv4 = (addr_len == sizeof(ip4_addr_t));
+	struct {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+		char buf[64];
+	} req = {0};
+	int ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return -1;
+
+	req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg));
+	req.nlh.nlmsg_type = add ? RTM_NEWADDR : RTM_DELADDR;
+	req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		req.nlh.nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+
+	req.ifa.ifa_family = is_ipv4 ? AF_INET : AF_INET6;
+	req.ifa.ifa_prefixlen = is_ipv4 ? 32 : 128;
+	req.ifa.ifa_scope = RT_SCOPE_UNIVERSE;
+	req.ifa.ifa_index = ifindex;
+
+	if (is_ipv4)
+		netlink_addattr(&req.nlh, sizeof(req), IFA_LOCAL, addr, addr_len);
+	netlink_addattr(&req.nlh, sizeof(req), IFA_ADDRESS, addr, addr_len);
+
+	return netlink_send_req(&req.nlh);
 }
 
 static void netlink_init(struct event_base *) {
