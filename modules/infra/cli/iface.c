@@ -313,6 +313,10 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "TX_PACKETS", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "TX_BYTES", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "TX_ERRORS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_RX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_RX_BYTES", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_TX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_TX_BYTES", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
@@ -335,6 +339,10 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_packets);
 		scols_line_sprintf(line, 5, "%lu", resp->stats[i].tx_bytes);
 		scols_line_sprintf(line, 6, "%lu", resp->stats[i].tx_errors);
+		scols_line_sprintf(line, 7, "%lu", resp->stats[i].cp_rx_packets);
+		scols_line_sprintf(line, 8, "%lu", resp->stats[i].cp_rx_bytes);
+		scols_line_sprintf(line, 9, "%lu", resp->stats[i].cp_tx_packets);
+		scols_line_sprintf(line, 10, "%lu", resp->stats[i].cp_tx_bytes);
 	}
 
 	scols_print_table(table);
