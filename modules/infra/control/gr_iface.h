@@ -92,7 +92,13 @@ struct __rte_cache_aligned iface_stats {
 	uint64_t rx_bytes;
 	uint64_t tx_packets;
 	uint64_t tx_bytes;
+	uint64_t cp_rx_packets;
+	uint64_t cp_rx_bytes;
+	uint64_t cp_tx_packets;
+	uint64_t cp_tx_bytes;
 };
+
+void iface_cp_tx(struct rte_mbuf *m);
 
 #define MAX_IFACES 1024
 
