@@ -49,6 +49,12 @@ static int loopback_mac_get(const struct iface *iface, struct rte_ether_addr *ma
 	return 0;
 }
 
+static int loopback_mac_set(const struct iface *iface, struct rte_ether_addr *mac) {
+	struct iface_info_loopback *lo = iface_info_loopback(iface);
+	memcpy(&lo->mac, mac, sizeof(lo->mac));
+	return 0;
+}
+
 void loopback_tx(struct rte_mbuf *m) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
@@ -145,6 +151,15 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	rte_pktmbuf_trim(mbuf, read_len - len);
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+
+	if (!rte_is_same_ether_addr(&eth->src_addr, &lo->mac)) {
+		LOG(NOTICE,
+		    "src_addr(" ETH_F ") differs from interface address(" ETH_F "). updating %s",
+		    &eth->src_addr,
+		    &lo->mac,
+		    iface->name);
+		loopback_mac_set(iface, &eth->src_addr);
+	}
 
 	if (rte_is_unicast_ether_addr(&eth->dst_addr))
 		loopback_mac_get(iface, &eth->dst_addr);

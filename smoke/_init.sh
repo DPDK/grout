@@ -154,7 +154,7 @@ fi
 
 grout_extra_options=""
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-	chmod 0755 $tmp # to access on tmp
+	chmod 0777 $tmp # to access on tmp
 	grout_extra_options+="-m 0666"
 	export ZEBRA_DEBUG_DPLANE_GROUT=1
 	if [ -n "${builddir}" ]; then
@@ -163,6 +163,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 fi
 
 cat >> $tmp/cleanup <<EOF
+echo ================== CLEANUP ==================
 grcli stats show software
 grcli trace show count 50
 EOF
@@ -225,6 +226,10 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	else
 		tail -f "$zlog" &
 	fi
+
+	# Enable bgpd daemon
+	sed -i -e "s/bgpd=no/bgpd=yes/" "$builddir/frr_install/etc/frr/daemons"
+
 	frrinit.sh start
 	attempts=25
 
