@@ -5,5 +5,6 @@
 src += files(
   'control.c',
   'l2_datapath.c',
+  'l3_datapath.c',
 )
 inc += include_directories('.')
