@@ -18,6 +18,8 @@ struct __rte_cache_aligned iface {
 
 	gr_vec struct iface **subinterfaces;
 	char *name;
+	int cp_fd; // control plane fd
+	struct event *cp_ev; // libevent to poll cp_fd
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 
@@ -92,7 +94,13 @@ struct __rte_cache_aligned iface_stats {
 	uint64_t rx_bytes;
 	uint64_t tx_packets;
 	uint64_t tx_bytes;
+	uint64_t cp_rx_packets;
+	uint64_t cp_rx_bytes;
+	uint64_t cp_tx_packets;
+	uint64_t cp_tx_bytes;
 };
+
+void iface_cp_tx(struct rte_mbuf *m);
 
 #define MAX_IFACES 1024
 

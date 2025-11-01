@@ -5,6 +5,7 @@
 #include <gr_graph.h>
 #include <gr_log.h>
 #include <gr_rxtx.h>
+#include <gr_snap.h>
 #include <gr_trace.h>
 #include <gr_vlan.h>
 
@@ -17,6 +18,7 @@ enum {
 	UNKNOWN_VLAN,
 	INVALID_IFACE,
 	IFACE_DOWN,
+	SNAP,
 	NB_EDGES,
 };
 
@@ -101,6 +103,9 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		stats->rx_packets += 1;
 		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
 
+		if (unlikely(edge == SNAP))
+			goto snap;
+
 		if (unlikely(eth_in->domain == ETH_DOMAIN_LOOPBACK))
 			goto next;
 
@@ -109,12 +114,17 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				eth_in->domain = ETH_DOMAIN_BROADCAST;
 			else
 				eth_in->domain = ETH_DOMAIN_MULTICAST;
+
+		} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
+			eth_in->domain = ETH_DOMAIN_MULTICAST;
 		} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
 			eth_in->domain = ETH_DOMAIN_LOCAL;
 		} else {
 			eth_in->domain = ETH_DOMAIN_OTHER;
 		}
 next:
+		rte_pktmbuf_adj(m, l2_hdr_size);
+snap:
 		if (gr_mbuf_is_traced(m)
 		    || (vlan_iface && vlan_iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct eth_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
@@ -124,7 +134,6 @@ next:
 			t->vlan_id = vlan_id;
 			t->iface_id = eth_in->iface->id;
 		}
-		rte_pktmbuf_adj(m, l2_hdr_size);
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 	return nb_objs;
@@ -158,12 +167,16 @@ static struct rte_node_register node = {
 		[UNKNOWN_VLAN] = "eth_input_unknown_vlan",
 		[INVALID_IFACE] = "eth_input_invalid_iface",
 		[IFACE_DOWN] = "iface_input_admin_down",
+		[SNAP] = "snap_input",
 		// other edges are updated dynamically with gr_eth_input_add_type
 	},
 };
 
 static void eth_input_register(void) {
 	register_interface_mode(GR_IFACE_MODE_L3, "eth_input");
+	for (uint16_t i = 1; i < SNAP_MAX_LEN; i++) {
+		l2l3_edges[rte_cpu_to_be_16(i)] = SNAP;
+	}
 }
 
 static struct gr_node_info info = {

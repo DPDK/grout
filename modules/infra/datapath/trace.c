@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
 #include <gr_log.h>
@@ -92,6 +93,10 @@ static inline const char *ip_proto_str(uint8_t proto) {
 		return "SCTP";
 	case IPPROTO_RAW:
 		return "Raw";
+	case GR_IPPROTO_EIGRP:
+		return "IGRP";
+	case GR_IPPROTO_OSPF:
+		return "OSPF";
 	}
 	return NULL;
 }
@@ -353,10 +358,37 @@ static int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp
 	);
 }
 
-void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
+static int trace_snap_format(char *buf, size_t len, const struct rte_ether_addr *dst) {
 	static const struct rte_ether_addr stp_dst = {
 		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x00},
 	};
+	static const struct rte_ether_addr isis_level1 = {
+		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x14},
+	};
+	static const struct rte_ether_addr isis_level2 = {
+		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x15},
+	};
+	static const struct rte_ether_addr isis_all = {
+		.addr_bytes = {0x09, 0x00, 0x2B, 0x00, 0x00, 0x05},
+	};
+	size_t n = 0;
+
+	SAFE_BUF(snprintf, len, "SNAP");
+	if (rte_is_same_ether_addr(dst, &stp_dst)) {
+		SAFE_BUF(snprintf, len, " / STP");
+	} else if (rte_is_same_ether_addr(dst, &isis_level1)) {
+		SAFE_BUF(snprintf, len, " / IS-IS all Level 1 IS's");
+	} else if (rte_is_same_ether_addr(dst, &isis_level2)) {
+		SAFE_BUF(snprintf, len, " / IS-IS all Level 2 IS's");
+	} else if (rte_is_same_ether_addr(dst, &isis_all)) {
+		SAFE_BUF(snprintf, len, " / IS-IS all routers");
+	}
+	return n;
+err:
+	return -1;
+}
+
+void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	const struct rte_ether_hdr *eth;
 	struct rte_ether_addr src, dst;
 	rte_be16_t ether_type;
@@ -386,8 +418,10 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
 	}
 
-	if (rte_is_same_ether_addr(&dst, &stp_dst)) {
-		SAFE_BUF(snprintf, sizeof(buf), " / STP");
+	// ETHERTYPE are greater than 1536 (0x600)
+	// If this is not the case, this represent the len of the SNAP frame
+	if (RTE_BE16(ether_type) < 0x600) {
+		SAFE_BUF(trace_snap_format, sizeof(buf), &dst);
 		goto end;
 	}
 
