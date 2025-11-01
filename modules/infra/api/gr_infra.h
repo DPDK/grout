@@ -59,6 +59,7 @@ typedef enum : uint8_t {
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
 	uint16_t id; // Interface unique index.
+	int cp_id; // Control plane (Linux) port ID
 	gr_iface_type_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
 	gr_iface_mode_t mode;
 	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
