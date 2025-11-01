@@ -9,6 +9,7 @@ src += files(
   'eth_input.c',
   'eth_output.c',
   'l1_xconnect.c',
+  'l2_redirect.c',
   'lacp_input.c',
   'lacp_output.c',
   'loop_input.c',
