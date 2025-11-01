@@ -274,7 +274,7 @@ static void cp_create(struct iface *iface) {
 		goto err;
 	}
 
-	ifr.ifr_flags |= IFF_UP | IFF_NOARP;
+	ifr.ifr_flags |= IFF_NOARP;
 	if (ioctl(ioctl_sock, SIOCSIFFLAGS, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
 		goto err;
@@ -325,6 +325,57 @@ static void cp_delete(struct iface *iface) {
 		event_free_finalize(0, iface->cp_ev, finalize_fd);
 }
 
+static void cp_set_speed(struct iface *iface) {
+	struct ethtool_link_settings *els;
+	struct ifreq ifr = {0};
+	char buf[512] = {0};
+	int ioctl_sock;
+
+	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	els = (struct ethtool_link_settings *)buf;
+
+	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
+		goto err;
+	}
+
+	ifr.ifr_data = (caddr_t)els;
+	if (ioctl(ioctl_sock, SIOCETHTOOL, &ifr) < 0) {
+		LOG(ERR, "ETHTOOL_GLINKSETTINGS: %s", strerror(errno));
+		goto err;
+	}
+	els->link_mode_masks_nwords = -els->link_mode_masks_nwords;
+	if (ioctl(ioctl_sock, SIOCETHTOOL, &ifr) < 0) {
+		LOG(ERR, "ETHTOOL_GLINKSETTINGS: %s", strerror(errno));
+		goto err;
+	}
+
+	if (iface->type == GR_IFACE_TYPE_VLAN)
+		iface = iface_from_id(iface_info_vlan(iface)->parent_id);
+
+	if (iface->type == GR_IFACE_TYPE_PORT) {
+		els->speed = iface_info_port(iface)->link_speed;
+	} else {
+		// What about the other interfaces ?
+		els->speed = SPEED_10000;
+	}
+	if (els->speed == 0)
+		els->speed = SPEED_25000;
+
+	els->duplex = DUPLEX_FULL;
+	els->autoneg = AUTONEG_DISABLE;
+	els->cmd = ETHTOOL_SLINKSETTINGS;
+
+	if (ioctl(ioctl_sock, SIOCETHTOOL, &ifr) < 0) {
+		LOG(ERR, "ETHTOOL_SLINKSETTINGS: %s", strerror(errno));
+		goto err;
+	}
+
+err:
+	if (ioctl_sock > 0)
+		close(ioctl_sock);
+}
+
 static void iface_event(uint32_t event, const void *obj) {
 	struct iface *iface = (struct iface *)obj;
 	if (iface->type == GR_IFACE_TYPE_LOOPBACK || iface->type == GR_IFACE_TYPE_IPIP)
@@ -337,15 +388,24 @@ static void iface_event(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		cp_delete(iface);
 		break;
+	case GR_EVENT_IFACE_STATUS_UP:
+		cp_set_speed(iface);
+		netlink_link_set_admin_state(iface->name, true);
+		break;
+	case GR_EVENT_IFACE_STATUS_DOWN:
+		netlink_link_set_admin_state(iface->name, false);
+		break;
 	}
 }
 
 static struct gr_event_subscription iface_event_handler = {
 	.callback = iface_event,
-	.ev_count = 2,
+	.ev_count = 4,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_STATUS_DOWN,
 	},
 };
 
