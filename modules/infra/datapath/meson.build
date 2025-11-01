@@ -15,6 +15,7 @@ src += files(
   'port_output.c',
   'port_rx.c',
   'port_tx.c',
+  'snap_input.c',
   'trace.c',
 )
 inc += include_directories('.')
