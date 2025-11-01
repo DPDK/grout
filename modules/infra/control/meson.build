@@ -3,6 +3,7 @@
 
 src += files(
   'bond.c',
+  'ctlplane.c',
   'control_output.c',
   'iface.c',
   'lacp.c',
