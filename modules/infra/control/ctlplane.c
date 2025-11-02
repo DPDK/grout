@@ -34,6 +34,8 @@
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
+#define IFALIASZ 256 // Defined in linux/if.h, conflicting with net/if.h
+
 static struct rte_mempool *cp_pool;
 static struct event_base *ev_base;
 
@@ -239,6 +241,7 @@ err:
 
 static void cp_create(struct iface *iface) {
 	struct rte_ether_addr mac;
+	char ifalias[IFALIASZ];
 	struct ifreq ifr;
 	int ioctl_sock;
 	int flags;
@@ -302,6 +305,9 @@ static void cp_create(struct iface *iface) {
 		goto err;
 	}
 	iface->cp_id = ifr.ifr_ifindex;
+
+	snprintf(ifalias, IFALIASZ, "Grout control plane interface");
+	netlink_set_ifalias(iface->name, ifalias);
 
 	iface->cp_ev = event_new(
 		ev_base,
