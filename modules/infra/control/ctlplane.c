@@ -242,28 +242,10 @@ err:
 }
 
 static void cp_create(struct iface *iface) {
-	struct rte_ether_addr mac;
 	char ifalias[IFALIASZ];
 	struct ifreq ifr;
 	int ioctl_sock;
 	int flags;
-
-	switch (iface->type) {
-	case GR_IFACE_TYPE_PORT:
-		mac = iface_info_port(iface)->mac;
-		break;
-	case GR_IFACE_TYPE_VLAN:
-		mac = iface_info_vlan(iface)->mac;
-		break;
-	case GR_IFACE_TYPE_BOND:
-		mac = iface_info_bond(iface)->mac;
-		break;
-	case GR_IFACE_TYPE_LOOPBACK:
-	case GR_IFACE_TYPE_IPIP:
-	case GR_IFACE_TYPE_UNDEF:
-	case GR_IFACE_TYPE_COUNT:
-		return;
-	}
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
@@ -306,18 +288,6 @@ static void cp_create(struct iface *iface) {
 		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
 		goto err;
 	}
-
-	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
-
-	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
-	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
-
 	if (ioctl(ioctl_sock, SIOCGIFINDEX, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCGIFINDEX) %s", strerror(errno));
 		goto err;
@@ -368,8 +338,8 @@ static void cp_set_speed(struct iface *iface) {
 	char buf[512] = {0};
 	int ioctl_sock;
 
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
 	els = (struct ethtool_link_settings *)buf;
+	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
@@ -403,12 +373,61 @@ err:
 		close(ioctl_sock);
 }
 
+static void cp_update(struct iface *iface) {
+	struct rte_ether_addr mac;
+	struct ifreq ifr = {0};
+	int ioctl_sock;
+
+	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
+		goto err;
+	}
+
+	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	ifr.ifr_mtu = iface->mtu;
+
+	if (ioctl(ioctl_sock, SIOCSIFMTU, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCSIFMTU) %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
+		goto err;
+	}
+	iface_get_eth_addr(iface->id, &mac);
+	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
+	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCSIFHWADDR) %s", strerror(errno));
+		goto err;
+	}
+
+err:
+	if (ioctl_sock > 0)
+		close(ioctl_sock);
+}
+
 static void iface_event(uint32_t event, const void *obj) {
 	struct iface *iface = (struct iface *)obj;
+
+	switch (iface->type) {
+	case GR_IFACE_TYPE_PORT:
+	case GR_IFACE_TYPE_VLAN:
+	case GR_IFACE_TYPE_BOND:
+		break;
+	case GR_IFACE_TYPE_LOOPBACK:
+	case GR_IFACE_TYPE_IPIP:
+	case GR_IFACE_TYPE_UNDEF:
+	case GR_IFACE_TYPE_COUNT:
+		return;
+	}
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
 		cp_create(iface);
+		// fallthrough
+	case GR_EVENT_IFACE_POST_RECONFIG:
+		cp_update(iface);
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		cp_delete(iface);
@@ -427,12 +446,13 @@ static void iface_event(uint32_t event, const void *obj) {
 
 static struct gr_event_subscription iface_event_handler = {
 	.callback = iface_event,
-	.ev_count = 4,
+	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
+		GR_EVENT_IFACE_POST_RECONFIG,
 	},
 };
 
