@@ -12,7 +12,7 @@ grcli address add 172.16.0.1/24 iface p0.42
 grcli address add 172.16.1.1/24 iface p1.43
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	v=$p.$((n+42))
 	netns_add $ns

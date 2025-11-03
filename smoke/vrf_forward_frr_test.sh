@@ -10,7 +10,7 @@ create_interface p2 vrf 2
 create_interface p3 vrf 2
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns
@@ -25,7 +25,7 @@ set_ip_route 16.0.0.0/16 172.16.0.2 1
 set_ip_route 16.1.0.0/16 172.16.1.2 1
 
 for n in 2 3; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

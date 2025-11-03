@@ -18,7 +18,7 @@ grcli route add 16.0.0.0/16 via 172.16.0.2 vrf 2
 grcli route add 16.1.0.0/16 via 172.16.1.2 vrf 2
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns
@@ -31,7 +31,7 @@ ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec n0 ping -i0.01 -c3 -n 16.1.0.1
 
 for n in 2 3; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

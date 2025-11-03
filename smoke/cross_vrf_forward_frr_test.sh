@@ -8,7 +8,7 @@ create_interface p0 vrf 1
 create_interface p1 vrf 2
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

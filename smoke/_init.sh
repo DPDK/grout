@@ -132,12 +132,12 @@ port_add() {
 		echo "ip link set $name name ${net_interfaces[$tap_counter]}" >> $tmp/restore_interfaces
 		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
 	else
-		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
+		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=x-$name" "$@"
 		# Ensure the Linux net device has a different mac address from
 		# grout's. This is required to avoid Linux from wrongfully
 		# assuming the packets sent by grout originated locally.
 		local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
-		ip link set "$name" address "$mac"
+		ip link set "x-$name" address "$mac"
 	fi
 	tap_counter=$((tap_counter + 1))
 }

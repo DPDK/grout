@@ -13,7 +13,7 @@ grcli nexthop add l3 iface p1 id 45
 grcli route add 16.1.0.0/16 via id 45
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

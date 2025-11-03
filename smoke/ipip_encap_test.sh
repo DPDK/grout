@@ -12,15 +12,15 @@ grcli interface add ipip tun1 local 172.16.1.1 remote 172.16.1.2
 grcli address add 10.98.0.1/24 iface tun1
 
 netns_add n0
-ip link set p0 netns n0
-ip -n n0 link set p0 up
-ip -n n0 addr add 10.99.0.2/24 dev p0
+ip link set x-p0 netns n0
+ip -n n0 link set x-p0 up
+ip -n n0 addr add 10.99.0.2/24 dev x-p0
 ip -n n0 route add default via 10.99.0.1
 
 netns_add n1
-ip link set p1 netns n1
-ip -n n1 link set p1 up
-ip -n n1 addr add 172.16.1.2/24 dev p1
+ip link set x-p1 netns n1
+ip -n n1 link set x-p1 up
+ip -n n1 addr add 172.16.1.2/24 dev x-p1
 ip -n n1 tunnel add tun1 mode ipip local 172.16.1.2 remote 172.16.1.1
 ip -n n1 link set tun1 up
 ip -n n1 addr add 10.98.0.2/24 dev tun1
