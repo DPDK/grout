@@ -15,7 +15,7 @@ grcli route add 16.1.0.0/16 via id 2 vrf 1
 grcli route add 16.1.0.0/16 via id 2 vrf 2 # required for ARP resolution
 
 # from 16.1.0.1 to 16.0.0.1, two route lookup are done
-grcli nexthop add l3 iface gr-loop1 id 1
+grcli nexthop add l3 iface gr-vrf1 id 1
 grcli route add 16.0.0.0/16 via id 1 vrf 2
 grcli route add 16.0.0.0/16 via 172.16.0.2 vrf 1
 
