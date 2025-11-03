@@ -14,24 +14,30 @@
 #define FLAG(flags, help) with_help(help, EC_NODE_CMD(EC_NO_ID, flags))
 #define OPT(opts, help, ...) with_help(help, EC_NODE_CMD(EC_NO_ID, opts, __VA_ARGS__))
 
+struct ec_node *grcli_options_node(void) {
+	return EC_NODE_SUBSET(
+		EC_NO_ID,
+		FLAG("-h|--help", "Show usage help and exit."),
+		OPT("-s|--socket " SOCK_PATH_ID,
+		    "Path to the control plane API socket.",
+		    ec_node("file", SOCK_PATH_ID)),
+		FLAG("-e|--err-exit", "Abort on first error."),
+		FLAG("-x|--trace-commands", "Print executed commands."),
+		OPT("-f|--file PATH",
+		    "Read commands from _PATH_ instead of standard input.",
+		    ec_node("file", "PATH")),
+		FLAG("-V|--version", "Print version and exit."),
+		FLAG("-c|--bash-complete", "For use in bash completion.")
+	);
+}
+
 static struct ec_node *bash_complete_node(struct ec_node *cmdlist) {
 	return ec_node_sh_lex_expand(
 		EC_NO_ID,
 		EC_NODE_SEQ(
 			EC_NO_ID,
 			ec_node("any", "prog_name"),
-			ec_node_option(
-				EC_NO_ID,
-				EC_NODE_SUBSET(
-					EC_NO_ID,
-					FLAG("-h|--help", "Show usage help and exit."),
-					OPT("-s|--socket " SOCK_PATH_ID,
-					    "Path to the control plane API socket.",
-					    ec_node("file", SOCK_PATH_ID)),
-					FLAG("-e|--err-exit", "Abort on first error."),
-					FLAG("-x|--trace-commands", "Print executed commands.")
-				)
-			),
+			ec_node_option(EC_NO_ID, grcli_options_node()),
 			cmdlist
 		)
 	);
