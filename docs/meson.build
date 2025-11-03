@@ -67,3 +67,32 @@ custom_target(
   install_dir: '@0@/man1'.format(mandir),
   install_tag: 'man',
 )
+
+# Individual command man pages
+# The list is hardcoded since we can't run grcli during meson configuration.
+grcli_commands = [
+  'address', 'affinity', 'conntrack', 'dnat44', 'events',
+  'graph', 'interface', 'logging', 'nexthop', 'ping',
+  'quit', 'route', 'router-advert', 'snat44', 'stats',
+  'trace', 'traceroute', 'tunsrc',
+]
+
+foreach cmd : grcli_commands
+  cmd_md = custom_target(
+    'grcli-@0@.1.md'.format(cmd),
+    output: 'grcli-@0@.1.md'.format(cmd),
+    command: [grcli_exe, '--man', cmd],
+    capture: true,
+  )
+  custom_target(
+    'grcli-@0@.1'.format(cmd),
+    input: cmd_md,
+    output: 'grcli-@0@.1'.format(cmd),
+    command: md2man,
+    install: true,
+    feed: true,
+    capture: true,
+    install_dir: '@0@/man1'.format(mandir),
+    install_tag: 'man',
+  )
+endforeach
