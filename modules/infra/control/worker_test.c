@@ -13,6 +13,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
+#include <gr_rcu.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
 
@@ -36,6 +37,10 @@ void iface_type_register(struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
+struct rte_rcu_qsbr *gr_datapath_rcu(void) {
+	static struct rte_rcu_qsbr rcu;
+	return &rcu;
+}
 
 struct iface *iface_from_id(uint16_t ifid) {
 	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
