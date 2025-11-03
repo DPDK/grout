@@ -28,7 +28,9 @@ struct ec_node *grcli_options_node(void) {
 		    ec_node("file", "PATH")),
 		FLAG("-V|--version", "Print version and exit."),
 		FLAG("-c|--bash-complete", "For use in bash completion."),
-		FLAG("-m|--man", "Show man page.")
+		OPT("-m|--man COMMAND",
+		    "Show man page for **grcli-COMMAND** or for **grcli** if no argument.",
+		    ec_node_option("COMMAND", ec_node("str", "COMMAND")))
 	);
 }
 

@@ -3,4 +3,7 @@
 
 #pragma once
 
-int man_print_main_page(void);
+struct ec_node;
+
+int man_print_context_page(struct ec_node *cmdlist, char **argv);
+int man_print_main_page(struct ec_node *cmdlist);
