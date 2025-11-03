@@ -6,3 +6,4 @@
 #include <ecoli.h>
 
 int bash_complete(struct ec_node *cmdlist);
+struct ec_node *grcli_options_node(void);
