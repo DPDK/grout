@@ -8,7 +8,7 @@ create_interface p1
 create_interface p2
 
 for n in 1 2; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

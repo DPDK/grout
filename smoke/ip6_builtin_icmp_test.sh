@@ -10,7 +10,7 @@ grcli address add fd00:ba4:0::1/64 iface p0
 grcli address add fd00:ba4:1::1/64 iface p1
 
 for n in 0 1; do
-	p=p$n
+	p=x-p$n
 	ns=n$n
 	netns_add $ns
 	ip link set $p netns $ns

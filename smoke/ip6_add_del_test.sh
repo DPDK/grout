@@ -4,9 +4,9 @@
 
 . $(dirname $0)/_init.sh
 
-grcli interface add port p0 devargs net_tap0,iface=p0
+grcli interface add port p0 devargs net_tap0,iface=x-p0
 grcli interface del p0
-grcli interface add port p0 devargs net_tap0,iface=p0
+grcli interface add port p0 devargs net_tap0,iface=x-p0
 
 grcli address add 2001::1/64 iface p0
 grcli address show

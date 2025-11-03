@@ -14,22 +14,22 @@ port_add p1
 port_add p2
 
 netns_add n0
-ip link set p0 netns n0
-ip link set p1 netns n0
+ip link set x-p0 netns n0
+ip link set x-p1 netns n0
 ip -n n0 addr add 192.200.0.2/24 dev lo
-ip -n n0 link set p0 up
-ip -n n0 addr add 172.16.0.2/24 dev p0
-ip -n n0 link set p1 up
-ip -n n0 addr add 172.16.1.2/24 dev p1
-ip -n n0 nexthop add id 1601 via 172.16.0.1 dev p0
-ip -n n0 nexthop add id 1611 via 172.16.1.1 dev p1
+ip -n n0 link set x-p0 up
+ip -n n0 addr add 172.16.0.2/24 dev x-p0
+ip -n n0 link set x-p1 up
+ip -n n0 addr add 172.16.1.2/24 dev x-p1
+ip -n n0 nexthop add id 1601 via 172.16.0.1 dev x-p0
+ip -n n0 nexthop add id 1611 via 172.16.1.1 dev x-p1
 ip -n n0 nexthop add id 1620 group 1601/1611
 ip -n n0 route add 172.16.2.0/24 nhid 1620
 
 netns_add n1
-ip link set p2 netns n1
-ip -n n1 link set p2 up
-ip -n n1 addr add 172.16.2.2/24 dev p2
+ip link set x-p2 netns n1
+ip -n n1 link set x-p2 up
+ip -n n1 addr add 172.16.2.2/24 dev x-p2
 ip -n n1 route add default via 172.16.2.1
 
 grcli address add 172.16.0.1/24 iface p0
