@@ -31,42 +31,7 @@ If still unhandled (e.g., VXLAN Tunnel), the packet is sent to the corresponding
 
 ---
 
-## 2. Linux configuration
-
-To ensure all incoming packets from `gr-loop0` are accepted by the network stack, execute the following commands:
-```sh
-a) sysctl -w net.ipv4.conf.gr-loop0.rp_filter=0
-b) iptables -t mangle -A PREROUTING -i gr-loop0 -j MARK --set-mark 0x1
-c) ip rule add fwmark 0x1 lookup 42
-d) ip route add local default dev gr-loop0 table 42
-```
-a) Disables Reverse Path Filtering
-b) All packets received on the `gr-loop0` interface will have a specific mark
-c) based on this mark, lookup on a specific table
-d) accept ALL packets as if the destination was local.
-While we could mark only the packets matching the TCP port 179 (for BGP), we accept all packets for other applications.
-
-This can be automated with the following udev rules, and the proper `sysctl` config:
-
-```sh
-# /etc/udev/rules.d/99-gr-loop0.rules
-ACTION=="add", KERNEL=="gr-loop0", RUN+="/usr/sbin/iptables -t mangle -A PREROUTING -i gr-loop0 -j MARK --set-mark 0x1"
-ACTION=="add", KERNEL=="gr-loop0", RUN+="/usr/sbin/ip route replace local default dev gr-loop0 table 42"
-ACTION=="add", KERNEL=="gr-loop0", RUN+="/usr/sbin/ip rule add fwmark 0x1 lookup 42 priority 42"
-
-ACTION=="remove", KERNEL=="gr-loop0", RUN+="/usr/sbin/ip route del table 42 local default dev gr-loop0"
-ACTION=="remove", KERNEL=="gr-loop0", RUN+="/usr/sbin/ip rule del fwmark 0x1 lookup 42 priority 42"
-ACTION=="remove", KERNEL=="gr-loop0", RUN+="/usr/sbin/iptables -t mangle -D PREROUTING -i gr-loop0 -j MARK --set-mark 0x1"
-```
-
-```sh
-# cat /etc/sysctl.d/10-grout.conf
-net.ipv4.conf.gr-loop0.rp_filter = 0
-```
-
----
-
-## 3. FRR Configuration Overview
+## 2. FRR Configuration Overview
 
 Zebra must be run with the `-M` option to load the plugin:
 Edit the file `/etc/frr/daemons`, for example:
@@ -86,21 +51,14 @@ router bgp 64513
  neighbor 192.168.210.3 remote-as 64513
  neighbor 192.168.210.3 interface gr-loop0
  neighbor 192.168.210.3 update-source 192.168.210.1
- neighbor 192.168.210.3 ip-transparent
 exit
 !
 end
 ```
 
-Note: The `IP_TRANSPARENT` socket option and FRR's BGP `neighbor <peer> ip-transparent` are supported
-only if the Linux kernel provides `IP_TRANSPARENT` and FRRouting supports the feature (added in FRR 10.4.0).
-The FRR daemon must run with sufficient network privileges to create raw/non‑local sockets and manage routing
-(for example, `CAP_NET_ADMIN` and `CAP_NET_RAW`), which shouldn't be an issue.
-
-Three additional configuration for a neighbor is required:
+Two additional configurations for a neighbor are required:
 - source interface, `gr-loop0`, only required for the default VRF
 - update source IP, local Grout IP
-- ip-transparent, to allow `bgpd` to bind on the non existent IP.
 
 With that configuration, BGP messages are properly exchanged, and routes are visible in grout:
 
@@ -142,3 +100,4 @@ VRF  DESTINATION        NEXT_HOP
 # AUTHORS
 
 Created by Christophe Fontaine
+Updated by Maxime Leroy
