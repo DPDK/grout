@@ -12,13 +12,13 @@ config = configuration_data({
   'DATE': run_command('date', '+%Y-%m-%d', check: false, capture: true).stdout().strip(),
 })
 
-man_src = [
-  'grcli.1.md',
+# Static man pages
+static_man_src = [
   'grout.8.md',
   'grout-frr.7.md',
 ]
 
-foreach m : man_src
+foreach m : static_man_src
   topic = m.split('.')[-3].split('/')[-1]
   section = m.split('.')[-2]
   output = '@0@.@1@'.format(topic, section)
@@ -40,3 +40,30 @@ foreach m : man_src
     install_tag: 'man',
   )
 endforeach
+
+# Dynamic grcli man pages
+# During cross-compilation, skip man page generation since native dependencies
+# (libecoli, libsmartcols) are not available for the build machine.
+if meson.is_cross_build()
+  warning('Cross-compilation detected: skipping grcli man page generation')
+  subdir_done()
+endif
+
+# Main grcli man page
+grcli_md = custom_target(
+  'grcli.1.md',
+  output: 'grcli.1.md',
+  command: [grcli_exe, '--man'],
+  capture: true,
+)
+custom_target(
+  'grcli.1',
+  input: grcli_md,
+  output: 'grcli.1',
+  command: md2man,
+  install: true,
+  feed: true,
+  capture: true,
+  install_dir: '@0@/man1'.format(mandir),
+  install_tag: 'man',
+)

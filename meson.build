@@ -103,7 +103,6 @@ cli_cflags = []
 
 tests = []
 
-subdir('docs')
 subdir('api')
 subdir('main')
 subdir('modules')
@@ -125,6 +124,9 @@ grcli_exe = executable(
   c_args: cli_cflags,
   install: true,
 )
+
+# docs/ must come after grcli_exe since man pages are generated using grcli --man
+subdir('docs')
 
 install_headers(api_headers)
 
