@@ -26,12 +26,14 @@ static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct port_queue *ctx = port_queue(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	const struct iface_info_port *port;
 	const struct iface *iface;
 	uint16_t tx_ok;
 
 	iface = mbuf_data(mbufs[0])->iface;
+	port = iface_info_port(iface);
 
-	if (!(iface->flags & GR_IFACE_F_UP)) {
+	if (!(iface->flags & GR_IFACE_F_UP) || !port->started) {
 		for (unsigned i = 0; i < nb_objs; i++) {
 			if (gr_mbuf_is_traced(mbufs[i])) {
 				struct port_queue *t;

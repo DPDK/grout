@@ -39,11 +39,13 @@ static uint16_t
 rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t /*count*/) {
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	const struct iface_info_port *port;
 	struct eth_input_mbuf_data *d;
 	uint16_t rx;
 	unsigned r;
 
-	if (!(ctx->iface->flags & GR_IFACE_F_UP))
+	port = iface_info_port(ctx->iface);
+	if (!(ctx->iface->flags & GR_IFACE_F_UP) || !port->started)
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);

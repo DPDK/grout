@@ -13,6 +13,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
+#include <gr_rcu.h>
 #include <gr_vec.h>
 #include <gr_vlan.h>
 #include <gr_worker.h>
@@ -314,9 +315,6 @@ static int iface_port_reconfig(
 	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC)))
 		return 0;
 
-	if ((ret = port_unplug(p)) < 0)
-		return ret;
-
 	if (set_attrs & GR_PORT_SET_N_RXQS) {
 		p->n_rxq = api->n_rxq;
 		needs_configure = true;
@@ -332,12 +330,16 @@ static int iface_port_reconfig(
 	}
 
 	if (p->started && needs_configure) {
+		p->started = false;
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 		if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
 			return errno_log(-ret, "rte_eth_dev_stop");
-		p->started = false;
 	}
 
 	if (needs_configure) {
+		if ((ret = port_unplug(p)) < 0)
+			return ret;
+
 		if ((ret = port_configure(p, CPU_COUNT(&gr_config.datapath_cpus))) < 0)
 			return ret;
 
@@ -359,6 +361,9 @@ static int iface_port_reconfig(
 		gr_vec_free(ports);
 		if (ret < 0)
 			return ret;
+
+		if ((ret = port_plug(p)) < 0)
+			return ret;
 	}
 
 	if (set_attrs & GR_PORT_SET_MAC && (ret = port_mac_set(iface, &api->mac)) < 0)
@@ -369,7 +374,7 @@ static int iface_port_reconfig(
 
 	p->started = true;
 
-	return port_plug(p);
+	return 0;
 }
 
 static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
