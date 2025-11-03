@@ -240,7 +240,6 @@ err:
 }
 
 static void cp_create(struct iface *iface) {
-	struct rte_ether_addr mac;
 	char ifalias[IFALIASZ];
 	struct ifreq ifr;
 	int ioctl_sock;
@@ -285,18 +284,6 @@ static void cp_create(struct iface *iface) {
 	ifr.ifr_flags |= IFF_NOARP;
 	if (ioctl(ioctl_sock, SIOCSIFFLAGS, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
-		goto err;
-	}
-
-	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
-
-	iface_get_eth_addr(iface->id, &mac);
-	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
-	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
 		goto err;
 	}
 
@@ -386,6 +373,40 @@ err:
 		close(ioctl_sock);
 }
 
+static void cp_update(struct iface *iface) {
+	struct rte_ether_addr mac;
+	struct ifreq ifr = {0};
+	int ioctl_sock;
+
+	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
+		goto err;
+	}
+
+	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	ifr.ifr_mtu = iface->mtu;
+
+	if (ioctl(ioctl_sock, SIOCSIFMTU, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCSIFMTU) %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
+		goto err;
+	}
+	iface_get_eth_addr(iface->id, &mac);
+	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
+	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCSIFHWADDR) %s", strerror(errno));
+		goto err;
+	}
+
+err:
+	if (ioctl_sock > 0)
+		close(ioctl_sock);
+}
+
 static void iface_event(uint32_t event, const void *obj) {
 	struct iface *iface = (struct iface *)obj;
 
@@ -401,6 +422,9 @@ static void iface_event(uint32_t event, const void *obj) {
 	switch (event) {
 	case GR_EVENT_IFACE_ADD:
 		cp_create(iface);
+		// fallthrough
+	case GR_EVENT_IFACE_POST_RECONFIG:
+		cp_update(iface);
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		cp_delete(iface);
@@ -419,12 +443,13 @@ static void iface_event(uint32_t event, const void *obj) {
 
 static struct gr_event_subscription iface_event_handler = {
 	.callback = iface_event,
-	.ev_count = 4,
+	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
+		GR_EVENT_IFACE_POST_RECONFIG,
 	},
 };
 
