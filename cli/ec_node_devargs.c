@@ -10,6 +10,8 @@
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 EC_LOG_TYPE_REGISTER(node_devargs);

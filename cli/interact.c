@@ -74,7 +74,7 @@ int interact(struct gr_api_client *client, struct ec_node *cmdlist) {
 	ec_editline_set_node(edit, shlex);
 
 	for (;;) {
-		ec_free(line);
+		free(line);
 		errno = 0;
 		if ((line = ec_editline_gets(edit)) == NULL) {
 			switch (errno) {
@@ -107,7 +107,7 @@ int interact(struct gr_api_client *client, struct ec_node *cmdlist) {
 exit_ok:
 	ret = 0;
 end:
-	ec_free(line);
+	free(line);
 	ec_node_free(shlex);
 	ec_editline_free(edit);
 	return ret;
