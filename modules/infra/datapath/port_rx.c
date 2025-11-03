@@ -43,6 +43,9 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	uint16_t rx;
 	unsigned r;
 
+	if (!(ctx->iface->flags & GR_IFACE_F_UP))
+		return 0;
+
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
 	for (r = 0; r < rx; r++) {
 		d = eth_input_mbuf_data(mbufs[r]);
