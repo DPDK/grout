@@ -124,17 +124,18 @@ port_add() {
 	shift
         if [ "$use_hardware_ports" = true ]; then
 		ip link set "${net_interfaces[$tap_counter]}" name $name
-		# When a namespace is deleted while a renamed kernel interface is inside it
-		# an 'altname' property with the interface original name is created.
-		# This causes an error on attempt to restore the original name. So we need to clear this 'altname' first.
+		# When a namespace is deleted while a renamed kernel interface
+		# is inside it an 'altname' property with the interface original
+		# name is created. This causes an error on attempt to restore
+		# the original name. So we need to clear this 'altname' first.
 		echo "ip link property del dev $name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
 		echo "ip link set $name name ${net_interfaces[$tap_counter]}" >> $tmp/restore_interfaces
 		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
 	else
 		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=$name" "$@"
-		# Ensure the Linux net device has a different mac address from grout's.
-		# This is required to avoid Linux from wrongfully assuming the packets
-		# sent by grout originated locally.
+		# Ensure the Linux net device has a different mac address from
+		# grout's. This is required to avoid Linux from wrongfully
+		# assuming the packets sent by grout originated locally.
 		local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
 		ip link set "$name" address "$mac"
 	fi
