@@ -49,10 +49,6 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		iface = priv->iface;
 		vlan = NULL;
 
-		if (!(priv->iface->flags & GR_IFACE_F_UP)) {
-			edge = IFACE_DOWN;
-			goto next;
-		}
 		if (priv->iface->type == GR_IFACE_TYPE_VLAN) {
 			const struct iface_info_vlan *sub = iface_info_vlan(priv->iface);
 			priv->iface = iface_from_id(sub->parent_id);

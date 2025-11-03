@@ -18,6 +18,7 @@
 
 enum {
 	TX_ERROR = 0,
+	TX_DOWN,
 	NB_EDGES,
 };
 
@@ -25,7 +26,22 @@ static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct port_queue *ctx = port_queue(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
+	const struct iface *iface;
 	uint16_t tx_ok;
+
+	iface = mbuf_data(mbufs[0])->iface;
+
+	if (!(iface->flags & GR_IFACE_F_UP)) {
+		for (unsigned i = 0; i < nb_objs; i++) {
+			if (gr_mbuf_is_traced(mbufs[i])) {
+				struct port_queue *t;
+				t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
+				*t = *ctx;
+			}
+		}
+		rte_node_enqueue(graph, node, TX_DOWN, objs, nb_objs);
+		return 0;
+	}
 
 	if (unlikely(gr_config.log_packets)) {
 		for (unsigned i = 0; i < nb_objs; i++) {
@@ -60,6 +76,7 @@ static struct rte_node_register node = {
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
 		[TX_ERROR] = "port_tx_error",
+		[TX_DOWN] = "port_tx_down",
 	},
 };
 
@@ -71,3 +88,4 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(port_tx_error);
+GR_DROP_REGISTER(port_tx_down);
