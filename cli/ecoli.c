@@ -10,8 +10,6 @@
 #include <errno.h>
 #include <stdarg.h>
 
-#define HELP_ATTR "help"
-
 struct ec_node *with_help(const char *help, struct ec_node *node) {
 	if (node == NULL)
 		return NULL;

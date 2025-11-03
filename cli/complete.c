@@ -27,7 +27,8 @@ struct ec_node *grcli_options_node(void) {
 		    "Read commands from _PATH_ instead of standard input.",
 		    ec_node("file", "PATH")),
 		FLAG("-V|--version", "Print version and exit."),
-		FLAG("-c|--bash-complete", "For use in bash completion.")
+		FLAG("-c|--bash-complete", "For use in bash completion."),
+		FLAG("-m|--man", "Show man page.")
 	);
 }
 
