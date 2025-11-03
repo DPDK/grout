@@ -15,11 +15,11 @@ function color(code, s) {
 }
 function red(s) { return color("31", s) }
 function green(s) { return color("32", s) }
+function yellow(s) { return color("1;33", s) }
 function magenta(s) { return color("35", s) }
 function cyan(s) { return color("36", s) }
-function bg_red(s) { return color("41", s) }
 function hl_ws(s, pattern) {
-	gsub(pattern, bg_red("&"), s)
+	gsub(pattern, yellow("&"), s)
 	# convert tab characters to 8 spaces to allow coloring
 	gsub(/\t/, "        ", s)
 	return s
@@ -35,6 +35,14 @@ function hl_ws(s, pattern) {
 	retcode = 1
 	print magenta(FILENAME) cyan(":") green(FNR) cyan(":") \
 		hl_ws($0, "\\/\\*\\**$") red("<-- C block comment used")
+}
+
+length > 100 && ((FILENAME ~ /\.sh$/ && /#.+ .*$/) || (/\/\/.+ .*$/)) {
+	retcode = 1
+	prefix = substr($0, 1, 100)
+	rest = substr($0, 101)
+	print magenta(FILENAME) cyan(":") green(FNR) cyan(":") \
+		prefix hl_ws(rest, ".+") red("<-- comment too long")
 }
 
 END {

@@ -160,7 +160,7 @@ EOF
 	# --- wait until grout has the localsid ---------------------------------
 	# Expected "grcli route show" output pattern:
 	# VRF  DESTINATION        NEXT_HOP
-	# 0    fd00:202::100/128  type=SRv6-local id=12 iface=gr-loop0 vrf=0 origin=zebra behavior=end.dt4 out_vrf=0
+	# 0    fd00:202::100/128  type=SRv6-local id=12 .... behavior=end.dt4 ...
 	local grep_pattern="\\<${sid_local}/128[[:space:]]+type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
 	while ! grcli route show | grep -qE "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
