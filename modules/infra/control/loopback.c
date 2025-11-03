@@ -26,13 +26,22 @@
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
+#define GR_LOOPBACK_NAME_PATTERN "gr-vrf%d"
+#define GR_LOOPBACK_TUN_NAME_PATTERN "gr-loop%d"
+
 static struct rte_mempool *loopback_pool;
 static struct event_base *ev_base;
 
 GR_IFACE_INFO(GR_IFACE_TYPE_LOOPBACK, iface_info_loopback, {
 	int fd;
 	struct event *ev;
+	char tun_name[IFNAMSIZ];
 });
+
+const char *loopback_get_tun_name(const struct iface *iface) {
+	struct iface_info_loopback *lo = iface_info_loopback(iface);
+	return lo->tun_name;
+}
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -154,7 +163,12 @@ err:
 
 struct iface *iface_loopback_create(uint16_t vrf_id) {
 	struct gr_iface conf = {.type = GR_IFACE_TYPE_LOOPBACK, .mtu = 1500, .vrf_id = vrf_id};
-	snprintf(conf.name, sizeof(conf.name), "gr-loop%d", vrf_id);
+
+	if (vrf_id)
+		snprintf(conf.name, sizeof(conf.name), GR_LOOPBACK_NAME_PATTERN, vrf_id);
+	else
+		memccpy(conf.name, "gr-loop0", 0, sizeof(conf.name));
+
 	return iface_create(&conf, NULL);
 }
 
@@ -174,8 +188,18 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 	int err_save;
 	int flags;
 
+	if (iface->vrf_id)
+		snprintf(
+			lo->tun_name,
+			sizeof(lo->tun_name),
+			GR_LOOPBACK_TUN_NAME_PATTERN,
+			iface->vrf_id
+		);
+	else
+		memccpy(lo->tun_name, iface->name, 0, sizeof(lo->tun_name));
+
 	memset(&ifr, 0, sizeof(struct ifreq));
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	memccpy(ifr.ifr_name, lo->tun_name, 0, IFNAMSIZ);
 	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {

@@ -61,7 +61,7 @@ vrf_name_from_id() {
 	if [[ "$vrf_id" -eq 0 ]]; then
 		printf 'default\n'
 	else
-		printf 'gr-loop%s\n' "$vrf_id"
+		printf 'gr-vrf%s\n' "$vrf_id"
 	fi
 }
 
