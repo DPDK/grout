@@ -34,12 +34,13 @@ static uint16_t ip_loadbalance_process(
 		d = ip_output_mbuf_data(mbuf);
 		g = (struct nexthop_info_group *)d->nh->info;
 		edge = OUTPUT;
-		if (unlikely(g->n_members == 0)) {
+
+		// TODO: increment xstat on ! mbuf->ol_flags & RTE_MBUF_F_RX_RSS_HASH
+		d->nh = nexthop_group_get_nh(g, mbuf->hash.rss);
+		if (unlikely(d->nh == NULL)) {
 			edge = NO_NEXTHOP;
 			goto next;
 		}
-		// TODO: increment xstat on ! mbuf->ol_flags & RTE_MBUF_F_RX_RSS_HASH
-		d->nh = g->members[mbuf->hash.rss % g->n_members].nh;
 next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);

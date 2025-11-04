@@ -18,6 +18,8 @@ grcli nexthop add blackhole id 666
 grcli nexthop add reject id 123456
 grcli nexthop add group id 333 member 42 weight 102
 grcli nexthop add group id 333 member 45 member 47
+grcli nexthop add group id 334 member 42 weight 10000 member 45 weight 1
+grcli nexthop add group id 334
 grcli address add 10.0.0.1/24 iface p0
 grcli address add 10.1.0.1/24 iface p1
 grcli route add 0.0.0.0/0 via 10.0.0.2
@@ -43,6 +45,7 @@ grcli nexthop del 42
 grcli nexthop del 666
 grcli nexthop del 123456
 grcli nexthop del 333
+grcli nexthop del 334
 
 grcli interface del p0
 grcli interface del p1
