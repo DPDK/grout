@@ -198,6 +198,9 @@ static int port_promisc_set(struct iface *iface, bool enabled) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
+	if (iface->state & GR_IFACE_S_PROMISC_FIXED)
+		return 0; // promisc is forced to filter unicast addresses, leave it as-is
+
 	if (enabled)
 		ret = rte_eth_promiscuous_enable(p->port_id);
 	else
@@ -223,6 +226,9 @@ static int port_promisc_set(struct iface *iface, bool enabled) {
 static int port_allmulti_set(struct iface *iface, bool enabled) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
+
+	if (iface->state & GR_IFACE_S_ALLMULTI_FIXED)
+		return 0; // allmulti is forced to filter multicast addresses, leave it as-is
 
 	if (enabled)
 		ret = rte_eth_allmulticast_enable(p->port_id);
@@ -566,8 +572,12 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		else
 			ret = rte_eth_promiscuous_enable(port->port_id);
 
-		if (ret == 0)
+		if (ret == 0) {
 			filter->flags |= MAC_FILTER_F_ALL;
+			iface->state |= multicast ?
+				GR_IFACE_S_ALLMULTI_FIXED :
+				GR_IFACE_S_PROMISC_FIXED;
+		}
 	}
 
 	if (ret < 0) {
@@ -660,6 +670,10 @@ found:
 			    iface->name,
 			    multicast ? "allmulti" : "promisc",
 			    rte_strerror(-ret));
+		else
+			iface->state &= multicast ?
+				~GR_IFACE_S_ALLMULTI_FIXED :
+				~GR_IFACE_S_PROMISC_FIXED;
 
 		// Reinstall all addresses after disabling allmulti/promisc.
 		if (multicast) {
