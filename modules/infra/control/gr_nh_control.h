@@ -62,10 +62,20 @@ struct nh_group_member {
 	uint32_t weight;
 };
 
+#define MAX_NH_GROUP_RETA_SIZE 4096
 GR_NH_TYPE_INFO(GR_NH_T_GROUP, nexthop_info_group, {
-	uint32_t n_members;
+	uint16_t n_members;
+	uint16_t reta_size; // MUST BE A POWER OF TWO
 	struct nh_group_member *members;
+	struct nexthop **reta;
 });
+
+static inline struct nexthop *
+nexthop_group_get_nh(struct nexthop_info_group *nhg, uint32_t flow_id) {
+	if (unlikely(nhg->n_members == 0))
+		return NULL;
+	return nhg->reta[flow_id & (nhg->reta_size - 1)];
+}
 
 // Lookup a nexthop from the global pool that matches the specified criteria.
 struct nexthop *

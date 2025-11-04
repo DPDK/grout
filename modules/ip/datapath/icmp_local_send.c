@@ -48,9 +48,9 @@ int icmp_local_send(
 
 	if (gw->type == GR_NH_T_GROUP) {
 		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
-		if (g->n_members == 0)
+		gw = nexthop_group_get_nh(g, ident);
+		if (unlikely(gw == NULL))
 			return errno_set(EHOSTUNREACH);
-		gw = g->members[ident % g->n_members].nh;
 	}
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
