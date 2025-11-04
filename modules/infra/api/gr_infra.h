@@ -35,6 +35,8 @@ typedef enum : uint16_t {
 // Interface state flags
 typedef enum : uint16_t {
 	GR_IFACE_S_RUNNING = GR_BIT16(0),
+	GR_IFACE_S_PROMISC_FIXED = GR_BIT16(1),
+	GR_IFACE_S_ALLMULTI_FIXED = GR_BIT16(2),
 } gr_iface_state_t;
 
 // Interface reconfig attributes
