@@ -131,19 +131,13 @@ install_headers(api_headers)
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()
   fs = import('fs')
-  coverage_c_args = []
-  coverage_link_args = []
-  if compiler.get_id() == 'gcc'
-    coverage_c_args += ['-coverage']
-    coverage_link_args += ['-lgcov']
-  endif
   foreach t : tests
     name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
     t += {
       'sources': t['sources'] + files('api/string.c'),
       'include_directories': inc + api_inc,
-      'c_args': ['-D__GROUT_MAIN__', '-D__GROUT_UNIT_TEST__'] + coverage_c_args,
-      'link_args': t['link_args'] + coverage_link_args,
+      'c_args': ['-D__GROUT_MAIN__', '-D__GROUT_UNIT_TEST__'],
+      'link_args': t['link_args'],
       'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
     }
     test(name, executable(name, kwargs: t), suite: 'unit')

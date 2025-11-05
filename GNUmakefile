@@ -4,6 +4,7 @@
 BUILDDIR ?= build
 BUILDTYPE ?= debugoptimized
 SANITIZE ?= none
+COVERAGE ?= false
 V ?= 0
 ifeq ($V,1)
 ninja_opts = --verbose
@@ -19,6 +20,7 @@ all: $(BUILDDIR)/build.ninja
 .PHONY: debug
 debug: BUILDTYPE = debug
 debug: SANITIZE = address
+debug: COVERAGE = true
 debug: all
 
 .PHONY: unit-tests
@@ -42,8 +44,11 @@ update-graph: all
 coverage:
 	$Q mkdir -p $(BUILDDIR)/coverage
 	$Q gcovr --html-details $(BUILDDIR)/coverage/index.html --txt \
-		-e '.*_test.c' -e 'subprojects/*' --gcov-ignore-parse-errors \
-		-ur . $(BUILDDIR)
+		-e '.*_test.c' -e 'subprojects/.*' --gcov-ignore-parse-errors \
+		--gcov-executable `$(CC) -print-prog-name=gcov` \
+		--object-directory $(BUILDDIR) \
+		--sort uncovered-percent \
+		-r . $(BUILDDIR)
 	@echo Coverage data is present in $(BUILDDIR)/coverage/index.html
 
 .PHONY: all
@@ -55,7 +60,7 @@ install: $(BUILDDIR)/build.ninja
 	$Q meson install -C $(BUILDDIR) --skip-subprojects
 
 meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2
-meson_opts += -Db_sanitize=$(SANITIZE) -Ddpdk_static=true
+meson_opts += -Db_sanitize=$(SANITIZE) -Db_coverage=$(COVERAGE) -Ddpdk_static=true
 meson_opts += $(MESON_EXTRA_OPTS)
 
 $(BUILDDIR)/build.ninja:
