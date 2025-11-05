@@ -18,9 +18,19 @@ control_input_t loopback_get_control_id(void) {
 }
 
 enum {
-	ETH = 0,
+	UNKNOWN_PROTO = 0,
 	EDGE_COUNT,
 };
+
+static rte_edge_t l3_edges[1 << 16] = {UNKNOWN_PROTO};
+
+void loopback_input_add_type(rte_be16_t eth_type, const char *next_node) {
+	LOG(DEBUG, "loopback_input: type=0x%04x -> %s", rte_be_to_cpu_16(eth_type), next_node);
+	if (l3_edges[eth_type] != UNKNOWN_PROTO)
+		ABORT("next node already registered for ether type=0x%04x",
+		      rte_be_to_cpu_16(eth_type));
+	l3_edges[eth_type] = gr_node_attach_parent("loopback_input", next_node);
+}
 
 static uint16_t loopback_input_process(
 	struct rte_graph *graph,
@@ -29,16 +39,22 @@ static uint16_t loopback_input_process(
 	uint16_t nb_objs
 ) {
 	struct rte_mbuf *mbuf;
+	rte_be16_t eth_type;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
+
 		if (gr_mbuf_is_traced(mbuf)
 		    || mbuf_data(mbuf)->iface->flags & GR_IFACE_F_PACKET_TRACE) {
 			gr_mbuf_trace_add(mbuf, node, 0);
 		}
-	}
-	rte_node_enqueue(graph, node, ETH, objs, nb_objs);
 
+		eth_type = rte_pktmbuf_mtod(mbuf, struct tun_pi *)->proto;
+		rte_pktmbuf_adj(mbuf, sizeof(struct tun_pi));
+		edge = l3_edges[eth_type];
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
+	}
 	return nb_objs;
 }
 
@@ -47,7 +63,7 @@ static struct rte_node_register loopback_input_node = {
 	.process = loopback_input_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
-		[ETH] = "eth_input",
+		[UNKNOWN_PROTO] = "loopback_unknown_proto",
 	},
 };
 
@@ -61,3 +77,4 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
+GR_DROP_REGISTER(loopback_unknown_proto);
