@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "port_priv.h"
 #include "worker_priv.h"
 
 #include <gr_config.h>
@@ -194,7 +195,7 @@ static int port_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
 	return 0;
 }
 
-static int port_promisc_set(struct iface *iface, bool enabled) {
+int port_promisc_set(struct iface *iface, bool enabled) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
@@ -223,7 +224,7 @@ static int port_promisc_set(struct iface *iface, bool enabled) {
 	return 0;
 }
 
-static int port_allmulti_set(struct iface *iface, bool enabled) {
+int port_allmulti_set(struct iface *iface, bool enabled) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
@@ -502,7 +503,7 @@ static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
 	return 0;
 }
 
-static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
+int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
 	struct mac_filter *filter;
 	const char *mac_type;
@@ -600,7 +601,7 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	return 0;
 }
 
-static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
+int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
 	struct mac_filter *filter;
 	const char *mac_type;
