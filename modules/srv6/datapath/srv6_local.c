@@ -258,6 +258,10 @@ static int process_behav_decap(
 		return process_upper_layer(m, ip6_info);
 	}
 
+	// Update the mbuf hash with ip6 flow id
+	// to avoid computing a soft RSS
+	m->hash.usr = rte_be_to_cpu_32(ip6_info->ip6_hdr->vtc_flow) & RTE_IPV6_HDR_FL_MASK;
+
 	// remove tunnel ipv6 + ext headers
 	if (ip6_info->ext_offset && decap_outer(m, ip6_info) < 0)
 		return INVALID_PACKET;
