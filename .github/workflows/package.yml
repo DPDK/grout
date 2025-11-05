@@ -39,20 +39,11 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        if: ${{ !github.event.pull_request }}
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-deb-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-deb-refs/heads/main
       - uses: actions/cache/restore@v4
-        if: ${{ github.event.pull_request }}
+        id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-deb-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-deb-refs/heads/main
+          key: ccache-x86_64-deb
       - run: ccache -z
       - uses: ./.github/actions/frr-install
         with:
@@ -64,6 +55,11 @@ jobs:
           yangmodelsdir: /usr/share/frr-yang
       - run: make deb CC="ccache gcc"
       - run: ccache -sv
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: deb-packages
@@ -97,20 +93,11 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        if: ${{ !github.event.pull_request }}
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-rpm-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-rpm-refs/heads/main
       - uses: actions/cache/restore@v4
-        if: ${{ github.event.pull_request }}
+        id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-rpm-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-rpm-refs/heads/main
+          key: ccache-x86_64-rpm
       - run: ccache -z
       - uses: ./.github/actions/frr-install
         with:
@@ -122,6 +109,11 @@ jobs:
           yangmodelsdir: /usr/share/frr-yang
       - run: scl run gcc-toolset-13 -- make rpm CC="ccache gcc"
       - run: ccache -sv
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: rpm-packages

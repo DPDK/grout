@@ -94,26 +94,22 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        if: ${{ !github.event.pull_request }}
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-${{ matrix.conf.compiler }}-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-${{ matrix.conf.compiler }}-refs/heads/main
       - uses: actions/cache/restore@v4
-        if: ${{ github.event.pull_request }}
+        id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-${{ matrix.conf.compiler }}-${{ github.ref }}
-          restore-keys: |
-            ccache-x86_64-${{ matrix.conf.compiler }}-refs/heads/main
+          key: ccache-x86_64-${{ matrix.conf.compiler }}
       - run: ccache -z
       - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
       - run: make all unit-tests && sudo smoke/run.sh build
         if: ${{ ! matrix.conf.rebase || ! github.event.pull_request.commits }}
       - run: ccache -sv
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request.commits }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   build-cross-aarch64:
     if: ${{ github.actor != 'grout-bot' }}
@@ -141,26 +137,22 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        if: ${{ !github.event.pull_request }}
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-aarch64-${{ github.ref }}
-          restore-keys: |
-            ccache-aarch64-refs/heads/main
       - uses: actions/cache/restore@v4
-        if: ${{ github.event.pull_request }}
+        id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-aarch64-${{ github.ref }}
-          restore-keys: |
-            ccache-aarch64-refs/heads/main
+          key: ccache-aarch64
       - run: ccache -z
       - run: git rebase -x "git --no-pager log --oneline -1 && make" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
       - run: make
         if: ${{ ! github.event.pull_request.commits }}
       - run: ccache -sv
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request.commits }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   lint:
     if: ${{ github.actor != 'grout-bot' }}
