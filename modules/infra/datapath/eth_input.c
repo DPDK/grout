@@ -103,9 +103,6 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		stats->rx_packets += 1;
 		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
 
-		if (unlikely(eth_in->domain == ETH_DOMAIN_LOOPBACK))
-			goto next;
-
 		if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
 			if (rte_is_broadcast_ether_addr(&eth->dst_addr))
 				eth_in->domain = ETH_DOMAIN_BROADCAST;
