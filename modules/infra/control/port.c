@@ -575,6 +575,18 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		return errno_log(-ret, mac_type);
 	}
 
+	if (filter->flags & MAC_FILTER_F_ALL) {
+		// Purge the device from all explicit addresses.
+		// We will add them back when removing the forced allmulti/promisc.
+		// Ignore the return values. They don't matter.
+		if (multicast) {
+			rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, 0);
+		} else {
+			for (i = 0; i < filter->hw_limit; i++)
+				rte_eth_dev_mac_addr_remove(port->port_id, &filter->mac[i]);
+		}
+	}
+
 	return 0;
 }
 
@@ -648,15 +660,35 @@ found:
 			    iface->name,
 			    multicast ? "allmulti" : "promisc",
 			    rte_strerror(-ret));
+
+		// Reinstall all addresses after disabling allmulti/promisc.
+		if (multicast) {
+			ret = rte_eth_dev_set_mc_addr_list(
+				port->port_id, filter->mac, filter->count
+			);
+		} else {
+			for (i = 0; i < filter->count; i++) {
+				int r = rte_eth_dev_mac_addr_add(port->port_id, &filter->mac[i], 0);
+				if (r < 0 && ret == 0)
+					ret = r;
+			}
+		}
+		if (ret < 0)
+			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+
+	} else {
+		if (multicast)
+			ret = rte_eth_dev_set_mc_addr_list(
+				port->port_id, filter->mac, filter->count
+			);
+		else
+			ret = rte_eth_dev_mac_addr_remove(
+				port->port_id, (struct rte_ether_addr *)mac
+			);
+
+		if (ret < 0)
+			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 	}
-
-	if (multicast)
-		ret = rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, filter->count);
-	else
-		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
-
-	if (ret < 0)
-		LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
 
 	return 0;
 }
