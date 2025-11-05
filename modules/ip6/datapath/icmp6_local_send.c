@@ -79,11 +79,11 @@ static uint16_t icmp6_local_send_process(
 	void **objs,
 	uint16_t n_objs
 ) {
-	struct ip6_local_mbuf_data *data;
-	struct icmp6 *icmp6;
 	struct icmp6_echo_request *icmp6_echo;
+	struct ip6_local_mbuf_data *data;
 	struct ctl_to_stack *msg;
 	struct rte_mbuf *mbuf;
+	struct icmp6 *icmp6;
 	clock_t *payload;
 	rte_edge_t next;
 	size_t pkt_len;
@@ -119,8 +119,10 @@ static uint16_t icmp6_local_send_process(
 
 		next = OUTPUT;
 
-		if (gr_mbuf_is_traced(mbuf))
-			gr_mbuf_trace_add(mbuf, node, 0);
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *icmp6;
+		}
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 		free(msg);
 	}
@@ -144,6 +146,7 @@ static struct rte_node_register icmp6_local_send_node = {
 static struct gr_node_info icmp6_local_send_info = {
 	.node = &icmp6_local_send_node,
 	.register_callback = icmp6_local_send_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 
 GR_NODE_REGISTER(icmp6_local_send_info);

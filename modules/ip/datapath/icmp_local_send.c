@@ -127,8 +127,10 @@ static uint16_t icmp_local_send_process(
 
 		next = OUTPUT;
 
-		if (gr_mbuf_is_traced(mbuf))
-			gr_mbuf_trace_add(mbuf, node, 0);
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_icmp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *icmp;
+		}
 		rte_node_enqueue_x1(graph, node, next, mbuf);
 		free(msg);
 	}
@@ -152,6 +154,7 @@ static struct rte_node_register icmp_local_send_node = {
 static struct gr_node_info icmp_local_send_info = {
 	.node = &icmp_local_send_node,
 	.register_callback = icmp_local_send_register,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp_format,
 };
 
 GR_NODE_REGISTER(icmp_local_send_info);
