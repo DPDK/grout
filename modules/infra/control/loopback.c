@@ -176,7 +176,7 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
-	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT | IFF_ONE_QUEUE;
+	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
