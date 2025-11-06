@@ -121,9 +121,6 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->set_promisc != NULL
 	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
 		goto fail;
-	if (type->set_allmulti != NULL
-	    && type->set_allmulti(iface, iface->flags & GR_IFACE_F_ALLMULTI) < 0)
-		goto fail;
 	if (type->set_up_down != NULL && type->set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
 		goto fail;
 
@@ -210,8 +207,6 @@ int iface_reconfig(
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
 		if ((ret = iface_set_promisc(iface->id, conf->flags & GR_IFACE_F_PROMISC)) < 0)
-			return ret;
-		if ((ret = iface_set_allmulti(iface->id, conf->flags & GR_IFACE_F_ALLMULTI)) < 0)
 			return ret;
 		if ((ret = iface_set_up_down(iface->id, conf->flags & GR_IFACE_F_UP)) < 0)
 			return ret;
@@ -387,24 +382,6 @@ int iface_set_promisc(uint16_t ifid, bool enabled) {
 	assert(type != NULL);
 	if (type->set_promisc != NULL)
 		return type->set_promisc(iface, enabled);
-
-	if (enabled)
-		return errno_set(EOPNOTSUPP);
-
-	return 0;
-}
-
-int iface_set_allmulti(uint16_t ifid, bool enabled) {
-	struct iface *iface = iface_from_id(ifid);
-	const struct iface_type *type;
-
-	if (iface == NULL)
-		return -errno;
-
-	type = iface_type_get(iface->type);
-	assert(type != NULL);
-	if (type->set_allmulti != NULL)
-		return type->set_allmulti(iface, enabled);
 
 	if (enabled)
 		return errno_set(EOPNOTSUPP);

@@ -103,7 +103,6 @@ struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr 
 
 static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip) {
 	struct hoplist *maddrs = &iface_mcast_addrs[iface->id];
-	struct rte_ether_addr mac;
 	struct nexthop *nh;
 
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
@@ -129,15 +128,9 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 			.state = GR_NH_S_REACHABLE,
 			.flags = GR_NH_F_STATIC | GR_NH_F_MCAST,
 		};
-		rte_ether_mcast_from_ipv6(&l3.mac, ip);
 
 		if ((nh = nexthop_new(&base, &l3)) == NULL)
 			return errno_set(errno);
-
-		mac = l3.mac;
-	} else {
-		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		mac = l3->mac;
 	}
 
 	nexthop_incref(nh);
@@ -156,8 +149,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 		gr_vec_free(nhs_old);
 	}
 
-	// add ethernet filter
-	return iface_add_eth_addr(iface->id, &mac);
+	return 0;
 }
 
 static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip) {
@@ -180,12 +172,6 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	// shift remaining addresses
 	gr_vec_del(maddrs->nh, i);
 
-	if (nh->ref_count == 1) {
-		LOG(INFO, "%s: leaving multicast group " IP6_F, iface->name, ip);
-		// remove ethernet filter
-		l3 = nexthop_info_l3(nh);
-		ret = iface_del_eth_addr(iface->id, &l3->mac);
-	}
 	nexthop_decref(nh);
 
 	return ret;
