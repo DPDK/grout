@@ -151,8 +151,8 @@ int netlink_link_del_iface(const char *ifname) {
 }
 
 static int netlink_add_del_route(const char *ifname, uint32_t table, bool add) {
-	// nlmsghdr + rtmsg + 2x u32 attrs (RTA_TABLE, RTA_OIF)
-	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 2 * NLA_SPACE(sizeof(uint32_t))];
+	// nlmsghdr + rtmsg + 3x u32 attrs (RTA_TABLE, RTA_PRIORITY, RTA_OIF)
+	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 3 * NLA_SPACE(sizeof(uint32_t))];
 	struct nlmsghdr *nlh;
 	struct rtmsg *rtm;
 	uint32_t ifindex;
@@ -178,6 +178,10 @@ static int netlink_add_del_route(const char *ifname, uint32_t table, bool add) {
 	rtm->rtm_dst_len = 0;
 
 	mnl_attr_put_u32(nlh, RTA_TABLE, table);
+	if (table == RT_TABLE_MAIN) {
+		// avoid clash with other default routes in the default VRF
+		mnl_attr_put_u32(nlh, RTA_PRIORITY, UINT32_MAX);
+	}
 	mnl_attr_put_u32(nlh, RTA_OIF, ifindex);
 
 	ret = netlink_send_req(nlh);
