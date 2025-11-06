@@ -1,0 +1,224 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025 Maxime Leroy, Free Mobile
+
+#include <gr_errno.h>
+#include <gr_log.h>
+#include <gr_module.h>
+#include <gr_netlink.h>
+
+#include <libmnl/libmnl.h>
+#include <linux/if_link.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <net/if.h>
+#include <string.h>
+#include <unistd.h>
+
+static char socket_buf[BUFSIZ];
+static struct mnl_socket *nl_sock;
+static int nl_seq;
+
+#define NLA_SPACE(len) NLA_ALIGN(NLA_HDRLEN + len)
+
+static int netlink_send_req(struct nlmsghdr *nlh) {
+	int ret;
+
+	nlh->nlmsg_seq = nl_seq;
+	ret = mnl_socket_sendto(nl_sock, nlh, nlh->nlmsg_len);
+	if (ret < 0)
+		return ret;
+
+again:
+	ret = mnl_socket_recvfrom(nl_sock, socket_buf, sizeof(socket_buf));
+	if (ret < 0) {
+		if (errno == EINTR)
+			goto again;
+
+		return ret;
+	}
+
+	ret = mnl_cb_run(socket_buf, ret, nl_seq, 0, NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	nl_seq++;
+	return 0;
+}
+
+int netlink_link_set_admin_state(const char *ifname, bool up) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+	ifi->ifi_index = ifindex;
+	ifi->ifi_change = IFF_UP;
+	ifi->ifi_flags = up ? IFF_UP : 0;
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_set_master(const char *ifname, const char *master_ifname) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(sizeof(uint32_t)))];
+	uint32_t ifindex, master_ifindex = 0;
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	if (master_ifname) {
+		master_ifindex = if_nametoindex(master_ifname);
+		if (!master_ifindex)
+			return errno_set(ENODEV);
+	}
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_SETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+	ifi->ifi_index = ifindex;
+
+	mnl_attr_put_u32(nlh, IFLA_MASTER, master_ifindex);
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
+	char buf[NLMSG_SPACE(
+		sizeof(struct ifinfomsg) + NLA_SPACE(IFNAMSIZ) + // IFLA_IFNAME
+		NLA_SPACE(sizeof(uint32_t)) + // IFLA_VRF_TABLE
+		2 * NLA_HDRLEN
+	)]; // LNKINFO + INFO_DATA containers
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+	struct nlattr *linkinfo, *infodata;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL | NLM_F_ACK;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+
+	mnl_attr_put_strz(nlh, IFLA_IFNAME, vrf_name);
+	linkinfo = mnl_attr_nest_start(nlh, IFLA_LINKINFO);
+	mnl_attr_put_strz(nlh, IFLA_INFO_KIND, "vrf");
+	infodata = mnl_attr_nest_start(nlh, IFLA_INFO_DATA);
+	mnl_attr_put_u32(nlh, IFLA_VRF_TABLE, table_id);
+
+	mnl_attr_nest_end(nlh, infodata);
+	mnl_attr_nest_end(nlh, linkinfo);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_del_iface(const char *ifname) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_DELLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+	ifi->ifi_index = ifindex;
+
+	return netlink_send_req(nlh);
+}
+
+static int netlink_add_del_route(const char *ifname, uint32_t table, bool add) {
+	// nlmsghdr + rtmsg + 2x u32 attrs (RTA_TABLE, RTA_OIF)
+	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 2 * NLA_SPACE(sizeof(uint32_t))];
+	struct nlmsghdr *nlh;
+	struct rtmsg *rtm;
+	uint32_t ifindex;
+	int ret;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = add ? RTM_NEWROUTE : RTM_DELROUTE;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+
+	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
+	rtm->rtm_family = AF_INET;
+	rtm->rtm_table = RT_TABLE_UNSPEC;
+	rtm->rtm_protocol = RTPROT_BOOT;
+	rtm->rtm_scope = RT_SCOPE_UNIVERSE;
+	rtm->rtm_type = RTN_UNICAST;
+	rtm->rtm_dst_len = 0;
+
+	mnl_attr_put_u32(nlh, RTA_TABLE, table);
+	mnl_attr_put_u32(nlh, RTA_OIF, ifindex);
+
+	ret = netlink_send_req(nlh);
+	if (ret < 0)
+		return ret;
+
+	rtm->rtm_family = AF_INET6;
+	ret = netlink_send_req(nlh);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+int netlink_add_route(const char *ifname, uint32_t table) {
+	return netlink_add_del_route(ifname, table, true);
+}
+
+int netlink_del_route(const char *ifname, uint32_t table) {
+	return netlink_add_del_route(ifname, table, false);
+}
+
+static void netlink_init(struct event_base *) {
+	nl_sock = mnl_socket_open(NETLINK_ROUTE);
+	if (!nl_sock)
+		ABORT("mnl_socket_open(NETLINK_ROUTE)");
+
+	if (mnl_socket_bind(nl_sock, 0, 0) < 0)
+		ABORT("mnl_socket_bind(nl_socket, 0, 0)");
+}
+
+static void netlink_fini(struct event_base *) {
+	mnl_socket_close(nl_sock);
+}
+
+static struct gr_module netlink_module = {
+	.name = "netlink",
+	.init = netlink_init,
+	.fini = netlink_fini,
+};
+
+RTE_INIT(netlink_constructor) {
+	gr_register_module(&netlink_module);
+}

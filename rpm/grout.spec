@@ -22,6 +22,7 @@ BuildRequires: libarchive-devel
 BuildRequires: libcmocka-devel
 BuildRequires: libedit-devel
 BuildRequires: libevent-devel
+BuildRequires: libmnl-devel
 BuildRequires: libsmartcols-devel
 BuildRequires: make
 BuildRequires: meson

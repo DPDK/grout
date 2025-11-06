@@ -259,7 +259,7 @@ image.
 
 ```sh
 dnf install git gcc make meson ninja-build pkgconf \
-        python3-pyelftools golang-github-cpuguy83-md2man \
+        python3-pyelftools golang-github-cpuguy83-md2man libmnl-devel \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
         libsmartcols-devel libarchive-devel rdma-core-devel
 ```
@@ -269,7 +269,7 @@ or
 ```sh
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools go-md2man \
-        libcmocka-dev libedit-dev libevent-dev libnuma-dev \
+        libcmocka-dev libedit-dev libevent-dev libnuma-dev libmnl-dev \
         libsmartcols-dev libarchive-dev libibverbs-dev
 ```
 
@@ -367,6 +367,7 @@ Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 | Name | Type | License | Code |
 |------|------|---------|------|
 | DPDK | Build & Runtime | BSD-3-Clause | https://git.dpdk.org/dpdk/ |
+| libmnl | Build & Runtime | LGPL-2.1 | https://www.netfilter.org/projects/libmnl/index.html |
 | libnuma | Build & Runtime | LGPL-2.1 | https://github.com/numactl/numactl |
 | libevent | Build & Runtime | BSD-3-Clause | https://github.com/libevent/libevent |
 | libecoli | Build & Runtime | BSD-3-Clause | https://git.sr.ht/~rjarry/libecoli |
