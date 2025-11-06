@@ -240,9 +240,11 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
-	ifr.ifr_flags |= IFF_UP;
-	if (ioctl(ioctl_sock, SIOCSIFFLAGS, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCSIFFLAGS): %s", strerror(errno));
+	if (netlink_link_set_admin_state(lo->tun_name, true) < 0) {
+		LOG(ERR,
+		    "netlink_link_set_admin_state(%s, true): %s",
+		    lo->tun_name,
+		    strerror(errno));
 		goto err;
 	}
 
