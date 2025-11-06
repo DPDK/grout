@@ -10,6 +10,7 @@
 #include <gr_loopback.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
+#include <gr_netlink.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -231,6 +232,11 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 
 	if (ioctl(ioctl_sock, SIOCGIFFLAGS, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCGIFFLAGS): %s", strerror(errno));
+		goto err;
+	}
+
+	if (netlink_set_addr_gen_mode_none(lo->tun_name) < 0) {
+		LOG(ERR, "netlink_set_addr_gen_mode_none: %s", strerror(errno));
 		goto err;
 	}
 
