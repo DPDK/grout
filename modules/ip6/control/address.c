@@ -180,7 +180,6 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 static int
 iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct rte_ipv6_addr solicited_node;
-	const struct iface *vrf_iface;
 	struct hoplist *addrs;
 	struct nexthop *nh;
 	int ret;
@@ -231,8 +230,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (ret < 0)
 		return errno_set(-ret);
 
-	vrf_iface = get_vrf_iface(iface->vrf_id);
-	if (vrf_iface && netlink_add_addr6(vrf_iface->name, ip) < 0)
+	if (netlink_add_addr6(iface->name, ip) < 0)
 		LOG(WARNING, "add addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	// gr_vec_add may realloc() and free the old vector
@@ -279,7 +277,6 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 static int
 iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct rte_ipv6_addr solicited_node;
-	const struct iface *vrf_iface;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i = 0;
@@ -319,8 +316,7 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 			return errno_set(errno);
 	}
 
-	vrf_iface = get_vrf_iface(iface->vrf_id);
-	if (vrf_iface && netlink_del_addr6(vrf_iface->name, ip) < 0)
+	if (netlink_del_addr6(iface->name, ip) < 0)
 		LOG(WARNING, "delete addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	return 0;
