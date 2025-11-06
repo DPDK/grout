@@ -55,7 +55,10 @@ int complete_iface_names(
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
-		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
+		with_help(                                                                         \
+			"Enable/disable promiscuous mode.",                                        \
+			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))       \
+		),                                                                                 \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \
