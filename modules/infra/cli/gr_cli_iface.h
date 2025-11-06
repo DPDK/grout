@@ -51,12 +51,11 @@ int complete_iface_names(
 #define INTERFACE_SET_CTX(root)                                                                    \
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
-#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(allmulti ALLMULTI),(mtu MTU),(vrf VRF)"
+#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(mtu MTU),(vrf VRF)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
 		with_help("Enable/disable promiscuous mode.", ec_node_re("PROMISC", "on|off")),    \
-		with_help("Enable/disable all-multicast mode.", ec_node_re("ALLMULTI", "on|off")), \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \

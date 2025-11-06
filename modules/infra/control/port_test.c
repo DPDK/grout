@@ -82,32 +82,31 @@ static void mac_add_unicast(void **) {
 
 	assert_int_equal(port_mac_add(iface, NULL), -EINVAL);
 	assert_return_code(port_mac_add(iface, &default_mac), errno);
-	assert_int_equal(port->ucast_filter.count, 0);
+	assert_int_equal(port->filter.count, 0);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_add(iface, &ucast1), errno);
-	assert_int_equal(port->ucast_filter.count, 1);
-	assert_int_equal(port->ucast_filter.refcnt[0], 1);
+	assert_int_equal(port->filter.count, 1);
+	assert_int_equal(port->filter.macs[0].refcnt, 1);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_add(iface, &ucast2), errno);
-	assert_int_equal(port->ucast_filter.count, 2);
-	assert_int_equal(port->ucast_filter.refcnt[1], 1);
+	assert_int_equal(port->filter.count, 2);
+	assert_int_equal(port->filter.macs[1].refcnt, 1);
 
 	assert_return_code(port_mac_add(iface, &ucast1), errno);
-	assert_int_equal(port->ucast_filter.count, 2);
-	assert_int_equal(port->ucast_filter.refcnt[0], 2);
+	assert_int_equal(port->filter.count, 2);
+	assert_int_equal(port->filter.macs[0].refcnt, 2);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, -ENOSPC);
 	will_return(__wrap_rte_eth_promiscuous_enable, 0);
 	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
 	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
 	assert_return_code(port_mac_add(iface, &ucast3), errno);
-	assert_true(port->ucast_filter.flags & MAC_FILTER_F_NOSPC);
-	assert_true(port->ucast_filter.flags & MAC_FILTER_F_ALL);
+	assert_true(port->filter.flags & MAC_FILTER_F_NOSPC);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
-	assert_int_equal(port->ucast_filter.count, 3);
-	assert_int_equal(port->ucast_filter.hw_limit, 2);
+	assert_int_equal(port->filter.count, 3);
+	assert_int_equal(port->filter.hw_limit, 2);
 }
 
 static void mac_del_unicast(void **) {
@@ -124,69 +123,16 @@ static void mac_del_unicast(void **) {
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_del(iface, &ucast1), errno);
 	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
-	assert_int_equal(port->ucast_filter.count, 2);
-	assert_int_equal(port->ucast_filter.hw_limit, 0);
-	assert_memory_equal(&port->ucast_filter.mac[0], &ucast2, sizeof(ucast2));
-	assert_memory_equal(&port->ucast_filter.mac[1], &ucast3, sizeof(ucast3));
-}
-
-static const struct rte_ether_addr mcast1 = {{0x33, 0x33, 0x00, 0x00, 0x00, 0x01}};
-static const struct rte_ether_addr mcast2 = {{0x33, 0x33, 0x00, 0x00, 0x00, 0xfb}};
-static const struct rte_ether_addr mcast3 = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x02}};
-
-static void mac_add_multicast(void **) {
-	const struct iface_info_port *port = iface_info_port(iface);
-
-	will_return(__wrap_rte_eth_dev_set_mc_addr_list, 0);
-	assert_return_code(port_mac_add(iface, &mcast1), errno);
-	assert_int_equal(port->mcast_filter.count, 1);
-	assert_int_equal(port->mcast_filter.refcnt[0], 1);
-
-	will_return(__wrap_rte_eth_dev_set_mc_addr_list, 0);
-	assert_return_code(port_mac_add(iface, &mcast2), errno);
-	assert_int_equal(port->mcast_filter.count, 2);
-	assert_int_equal(port->mcast_filter.refcnt[1], 1);
-
-	assert_return_code(port_mac_add(iface, &mcast1), errno);
-	assert_int_equal(port->mcast_filter.count, 2);
-	assert_int_equal(port->mcast_filter.refcnt[0], 2);
-
-	will_return(__wrap_rte_eth_dev_set_mc_addr_list, -ENOSPC);
-	will_return(__wrap_rte_eth_allmulticast_enable, 0);
-	will_return(__wrap_rte_eth_dev_set_mc_addr_list, 0);
-	assert_return_code(port_mac_add(iface, &mcast3), errno);
-	assert_true(port->mcast_filter.flags & MAC_FILTER_F_NOSPC);
-	assert_true(port->mcast_filter.flags & MAC_FILTER_F_ALL);
-	assert_true(iface->state & GR_IFACE_S_ALLMULTI_FIXED);
-	assert_int_equal(port->mcast_filter.count, 3);
-	assert_int_equal(port->mcast_filter.hw_limit, 2);
-}
-
-static void mac_del_multicast(void **) {
-	const struct iface_info_port *port = iface_info_port(iface);
-
-	assert_return_code(port_allmulti_set(iface, false), errno);
-	assert_true(iface->state & GR_IFACE_S_ALLMULTI_FIXED);
-
-	assert_return_code(port_mac_del(iface, &mcast1), errno);
-	assert_true(iface->state & GR_IFACE_S_ALLMULTI_FIXED);
-
-	will_return(__wrap_rte_eth_allmulticast_disable, 0);
-	will_return(__wrap_rte_eth_dev_set_mc_addr_list, 0);
-	assert_return_code(port_mac_del(iface, &mcast1), errno);
-	assert_false(iface->state & GR_IFACE_S_ALLMULTI_FIXED);
-	assert_int_equal(port->mcast_filter.count, 2);
-	assert_int_equal(port->mcast_filter.hw_limit, 0);
-	assert_memory_equal(&port->mcast_filter.mac[0], &mcast2, sizeof(mcast2));
-	assert_memory_equal(&port->mcast_filter.mac[1], &mcast3, sizeof(mcast3));
+	assert_int_equal(port->filter.count, 2);
+	assert_int_equal(port->filter.hw_limit, 0);
+	assert_memory_equal(&port->filter.macs[0].mac, &ucast3, sizeof(ucast3));
+	assert_memory_equal(&port->filter.macs[1].mac, &ucast2, sizeof(ucast2));
 }
 
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(mac_add_unicast),
 		cmocka_unit_test(mac_del_unicast),
-		cmocka_unit_test(mac_add_multicast),
-		cmocka_unit_test(mac_del_multicast),
 	};
 	return cmocka_run_group_tests(tests, setup, teardown);
 }

@@ -224,35 +224,6 @@ int port_promisc_set(struct iface *iface, bool enabled) {
 	return 0;
 }
 
-int port_allmulti_set(struct iface *iface, bool enabled) {
-	struct iface_info_port *p = iface_info_port(iface);
-	int ret;
-
-	if (iface->state & GR_IFACE_S_ALLMULTI_FIXED)
-		return 0; // allmulti is forced to filter multicast addresses, leave it as-is
-
-	if (enabled)
-		ret = rte_eth_allmulticast_enable(p->port_id);
-	else
-		ret = rte_eth_allmulticast_disable(p->port_id);
-
-	switch (ret) {
-	case 0:
-	case -ENOSYS:
-	case -EOPNOTSUPP:
-		break;
-	default:
-		return errno_log(-ret, "rte_eth_allmulticast_{en,dis}able");
-	}
-
-	if (rte_eth_allmulticast_get(p->port_id) == 1)
-		iface->flags |= GR_IFACE_F_ALLMULTI;
-	else
-		iface->flags &= ~GR_IFACE_F_ALLMULTI;
-
-	return 0;
-}
-
 static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
@@ -375,6 +346,11 @@ static int iface_port_reconfig(
 		gr_vec_free(ports);
 		if (ret < 0)
 			return ret;
+
+		// always enable allmulti
+		if ((ret = rte_eth_allmulticast_enable(p->port_id)) < 0)
+			return errno_log(-ret, "rte_eth_allmulticast_enable");
+		iface->state |= GR_IFACE_S_ALLMULTI;
 
 		if ((ret = port_plug(p)) < 0)
 			return ret;
@@ -505,96 +481,70 @@ static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
 
 int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
-	struct mac_filter *filter;
-	const char *mac_type;
-	bool multicast;
-	uint8_t i;
+	struct port_mac *m;
 	int ret;
 
-	if (mac == NULL || !(rte_is_multicast_ether_addr(mac) || rte_is_unicast_ether_addr(mac)))
+	if (mac == NULL || !rte_is_unicast_ether_addr(mac))
 		return errno_set(EINVAL);
 
 	if (rte_is_same_ether_addr(mac, &port->mac))
 		return 0;
 
-	multicast = rte_is_multicast_ether_addr(mac);
-	if (multicast) {
-		mac_type = "multicast";
-		filter = &port->mcast_filter;
-	} else {
-		mac_type = "unicast";
-		filter = &port->ucast_filter;
-	}
-
-	for (i = 0; i < filter->count; i++) {
-		if (rte_is_same_ether_addr(&filter->mac[i], mac)) {
+	for (unsigned i = 0; i < port->filter.count; i++) {
+		m = &port->filter.macs[i];
+		if (rte_is_same_ether_addr(&m->mac, mac)) {
 			LOG(DEBUG,
-			    "%s: %s mac " ETH_F " already filtered (refs=%u)",
+			    "%s: mac " ETH_F " already filtered (refs=%u)",
 			    iface->name,
-			    mac_type,
 			    mac,
-			    filter->refcnt[i]++);
+			    m->refcnt);
+			m->refcnt++;
 			return 0;
 		}
 	}
-	if (i == ARRAY_DIM(filter->mac))
+	if (port->filter.count >= ARRAY_DIM(port->filter.macs))
 		return errno_set(ENOSPC);
 
-	filter->mac[i] = *mac;
-	filter->refcnt[i] = 1;
-	filter->count++;
+	m = &port->filter.macs[port->filter.count++];
+	m->refcnt = 1;
+	m->mac = *mac;
 
-	LOG(INFO, "%s: enabling %s " ETH_F " mac filter", iface->name, mac_type, mac);
+	LOG(INFO, "%s: enabling " ETH_F " mac filter", iface->name, mac);
 
-	if (filter->flags & MAC_FILTER_F_ALL)
+	if (iface->state & GR_IFACE_S_PROMISC_FIXED)
 		return 0;
 
-	if (multicast)
-		ret = rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, filter->count);
-	else
-		ret = rte_eth_dev_mac_addr_add(port->port_id, &filter->mac[i], 0);
-
+	ret = rte_eth_dev_mac_addr_add(port->port_id, (struct rte_ether_addr *)mac, 0);
 	if (ret == -ENOSPC || ret == -EOPNOTSUPP) {
 		if (ret == -ENOSPC) {
-			filter->flags |= MAC_FILTER_F_NOSPC;
-			filter->hw_limit = filter->count - 1;
-			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			port->filter.flags |= MAC_FILTER_F_NOSPC;
+			port->filter.hw_limit = port->filter.count - 1;
+			LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
 		} else {
-			filter->flags |= MAC_FILTER_F_UNSUPP;
-			LOG(INFO, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+			port->filter.flags |= MAC_FILTER_F_UNSUPP;
+			LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
 		}
 
-		mac_type = multicast ? "allmulti" : "promisc";
-		LOG(INFO, "%s: enabling %s", iface->name, mac_type);
+		LOG(INFO, "%s: enabling promisc", iface->name);
 
-		// promisc and allmulti enable is a noop if already enabled
-		if (multicast)
-			ret = rte_eth_allmulticast_enable(port->port_id);
-		else
-			ret = rte_eth_promiscuous_enable(port->port_id);
-
-		if (ret == 0) {
-			filter->flags |= MAC_FILTER_F_ALL;
-			iface->state |= multicast ?
-				GR_IFACE_S_ALLMULTI_FIXED :
-				GR_IFACE_S_PROMISC_FIXED;
-		}
+		// promisc enable is a noop if already enabled
+		ret = rte_eth_promiscuous_enable(port->port_id);
+		if (ret == 0)
+			iface->state |= GR_IFACE_S_PROMISC_FIXED;
 	}
 
 	if (ret < 0) {
-		filter->count--;
-		return errno_log(-ret, mac_type);
+		port->filter.count--;
+		return errno_set(-ret);
 	}
 
-	if (filter->flags & MAC_FILTER_F_ALL) {
+	if (iface->state & GR_IFACE_S_PROMISC_FIXED) {
 		// Purge the device from all explicit addresses.
 		// We will add them back when removing the forced allmulti/promisc.
 		// Ignore the return values. They don't matter.
-		if (multicast) {
-			rte_eth_dev_set_mc_addr_list(port->port_id, filter->mac, 0);
-		} else {
-			for (i = 0; i < filter->hw_limit; i++)
-				rte_eth_dev_mac_addr_remove(port->port_id, &filter->mac[i]);
+		for (unsigned i = 0; i < port->filter.count - 1; i++) {
+			m = &port->filter.macs[i];
+			rte_eth_dev_mac_addr_remove(port->port_id, &m->mac);
 		}
 	}
 
@@ -603,107 +553,68 @@ int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 
 int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
-	struct mac_filter *filter;
-	const char *mac_type;
-	bool multicast;
+	struct port_mac *m;
 	uint8_t i;
 	int ret;
 
-	if (mac == NULL || !(rte_is_multicast_ether_addr(mac) || rte_is_unicast_ether_addr(mac)))
+	if (mac == NULL || !rte_is_unicast_ether_addr(mac))
 		return errno_set(EINVAL);
 
 	if (rte_is_same_ether_addr(mac, &port->mac))
 		return 0;
 
-	multicast = rte_is_multicast_ether_addr(mac);
-	if (multicast) {
-		mac_type = "multicast";
-		filter = &port->mcast_filter;
-	} else {
-		mac_type = "unicast";
-		filter = &port->ucast_filter;
-	}
-
-	for (i = 0; i < filter->count; i++) {
-		if (rte_is_same_ether_addr(&filter->mac[i], mac))
+	for (i = 0; i < port->filter.count; i++) {
+		m = &port->filter.macs[i];
+		if (rte_is_same_ether_addr(&m->mac, mac))
 			goto found;
 	}
 	return errno_set(ENOENT);
 
 found:
-	if (--filter->refcnt[i] > 0) {
+	if (--m->refcnt > 0) {
 		LOG(DEBUG,
-		    "%s: %s mac " ETH_F " still filtered (refs=%u)",
+		    "%s: mac " ETH_F " still filtered (refs=%u)",
 		    iface->name,
-		    mac_type,
 		    mac,
-		    filter->refcnt[i]);
+		    m->refcnt);
 		return 0;
 	}
 
-	LOG(INFO, "%s: removing %s " ETH_F " mac filter", iface->name, mac_type, mac);
+	LOG(INFO, "%s: removing " ETH_F " mac filter", iface->name, mac);
 
-	if (i + 1 < filter->count) {
-		// shift other addresses and ref counts left
-		memmove(&filter->mac[i],
-			&filter->mac[i + 1],
-			(filter->count - i - 1) * sizeof(filter->mac[i]));
-		memmove(&filter->refcnt[i],
-			&filter->refcnt[i + 1],
-			(filter->count - i - 1) * sizeof(filter->refcnt[i]));
+	if (port->filter.count > 1) {
+		// Swap the removed address with the last one
+		port->filter.macs[i] = port->filter.macs[port->filter.count - 1];
 	}
-	filter->count--;
+	port->filter.count--;
 
-	if (filter->flags & MAC_FILTER_F_ALL) {
-		if (filter->count > 0 && filter->flags & MAC_FILTER_F_UNSUPP)
+	if (iface->state & GR_IFACE_S_PROMISC_FIXED) {
+		if (port->filter.count > 0 && port->filter.flags & MAC_FILTER_F_UNSUPP)
 			return 0;
-		if (filter->count > filter->hw_limit && filter->flags & MAC_FILTER_F_NOSPC)
+		if (port->filter.count > port->filter.hw_limit
+		    && port->filter.flags & MAC_FILTER_F_NOSPC)
 			return 0;
-		filter->flags = 0;
-		filter->hw_limit = 0;
-		if (multicast)
-			ret = rte_eth_allmulticast_disable(port->port_id);
-		else
-			ret = rte_eth_promiscuous_disable(port->port_id);
+		port->filter.flags = 0;
+		port->filter.hw_limit = 0;
+		ret = rte_eth_promiscuous_disable(port->port_id);
 		if (ret < 0)
-			LOG(WARNING,
-			    "%s: %s disable: %s",
-			    iface->name,
-			    multicast ? "allmulti" : "promisc",
-			    rte_strerror(-ret));
+			LOG(NOTICE, "%s: promisc disable: %s", iface->name, rte_strerror(-ret));
 		else
-			iface->state &= multicast ?
-				~GR_IFACE_S_ALLMULTI_FIXED :
-				~GR_IFACE_S_PROMISC_FIXED;
+			iface->state &= ~GR_IFACE_S_PROMISC_FIXED;
 
-		// Reinstall all addresses after disabling allmulti/promisc.
-		if (multicast) {
-			ret = rte_eth_dev_set_mc_addr_list(
-				port->port_id, filter->mac, filter->count
-			);
-		} else {
-			for (i = 0; i < filter->count; i++) {
-				int r = rte_eth_dev_mac_addr_add(port->port_id, &filter->mac[i], 0);
-				if (r < 0 && ret == 0)
-					ret = r;
-			}
+		// Reinstall all addresses after disabling promisc.
+		for (i = 0; i < port->filter.count; i++) {
+			m = &port->filter.macs[i];
+			int r = rte_eth_dev_mac_addr_add(port->port_id, &m->mac, 0);
+			if (r < 0 && ret == 0)
+				ret = r;
 		}
-		if (ret < 0)
-			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
-
 	} else {
-		if (multicast)
-			ret = rte_eth_dev_set_mc_addr_list(
-				port->port_id, filter->mac, filter->count
-			);
-		else
-			ret = rte_eth_dev_mac_addr_remove(
-				port->port_id, (struct rte_ether_addr *)mac
-			);
-
-		if (ret < 0)
-			LOG(WARNING, "%s: %s: %s", iface->name, mac_type, rte_strerror(-ret));
+		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
 	}
+
+	if (ret < 0)
+		LOG(WARNING, "%s: %s", iface->name, rte_strerror(-ret));
 
 	return 0;
 }
@@ -837,7 +748,6 @@ static struct iface_type iface_type_port = {
 	.set_mtu = port_mtu_set,
 	.set_up_down = port_up_down,
 	.set_promisc = port_promisc_set,
-	.set_allmulti = port_allmulti_set,
 	.add_vlan = port_vlan_add,
 	.del_vlan = port_vlan_del,
 	.to_api = port_to_api,

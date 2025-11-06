@@ -29,7 +29,7 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 		frr_if_flags |= IFF_UP;
 	if (gr_if->base.flags & GR_IFACE_F_PROMISC)
 		frr_if_flags |= IFF_PROMISC;
-	if (gr_if->base.flags & GR_IFACE_F_ALLMULTI)
+	if (gr_if->base.state & GR_IFACE_S_ALLMULTI)
 		frr_if_flags |= IFF_ALLMULTI;
 	if (gr_if->base.state & GR_IFACE_S_RUNNING)
 		frr_if_flags |= IFF_RUNNING | IFF_LOWER_UP;
