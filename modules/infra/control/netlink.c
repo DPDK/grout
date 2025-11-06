@@ -200,6 +200,59 @@ int netlink_del_route(const char *ifname, uint32_t table) {
 	return netlink_add_del_route(ifname, table, false);
 }
 
+static int netlink_add_del_addr(const char *ifname, const void *addr, size_t addr_len, bool add) {
+	char buf[NLMSG_SPACE(
+		sizeof(struct ifaddrmsg) + 2 * NLA_SPACE(sizeof(struct rte_ipv6_addr))
+		+ // IFA_LOCAL + IFA_ADDRESS
+		NLA_SPACE(IFNAMSIZ) // IFA_LABEL
+	)];
+	bool is_ipv4 = (addr_len == sizeof(ip4_addr_t));
+	struct nlmsghdr *nlh;
+	struct ifaddrmsg *ifa;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = add ? RTM_NEWADDR : RTM_DELADDR;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+
+	ifa = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifa));
+	ifa->ifa_family = is_ipv4 ? AF_INET : AF_INET6;
+	ifa->ifa_prefixlen = is_ipv4 ? 32 : 128;
+	ifa->ifa_scope = RT_SCOPE_UNIVERSE;
+	ifa->ifa_index = ifindex;
+
+	if (is_ipv4)
+		mnl_attr_put(nlh, IFA_LOCAL, addr_len, addr);
+
+	mnl_attr_put(nlh, IFA_ADDRESS, addr_len, addr);
+	mnl_attr_put_strz(nlh, IFA_LABEL, ifname);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_add_addr4(const char *ifname, ip4_addr_t ip) {
+	return netlink_add_del_addr(ifname, &ip, sizeof(ip), true);
+}
+
+int netlink_del_addr4(const char *ifname, ip4_addr_t ip) {
+	return netlink_add_del_addr(ifname, &ip, sizeof(ip), false);
+}
+
+int netlink_add_addr6(const char *ifname, const struct rte_ipv6_addr *ip) {
+	return netlink_add_del_addr(ifname, ip, sizeof(*ip), true);
+}
+
+int netlink_del_addr6(const char *ifname, const struct rte_ipv6_addr *ip) {
+	return netlink_add_del_addr(ifname, ip, sizeof(*ip), false);
+}
+
 static void netlink_init(struct event_base *) {
 	nl_sock = mnl_socket_open(NETLINK_ROUTE);
 	if (!nl_sock)
