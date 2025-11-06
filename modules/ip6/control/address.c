@@ -10,6 +10,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
+#include <gr_netlink.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
 #include <gr_vec.h>
@@ -193,6 +194,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 static int
 iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct rte_ipv6_addr solicited_node;
+	const struct iface *vrf_iface;
 	struct hoplist *addrs;
 	struct nexthop *nh;
 	int ret;
@@ -243,6 +245,10 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (ret < 0)
 		return errno_set(-ret);
 
+	vrf_iface = get_vrf_iface(iface->vrf_id);
+	if (vrf_iface && netlink_add_addr6(vrf_iface->name, ip) < 0)
+		LOG(WARNING, "add addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
+
 	// gr_vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
 	gr_vec struct nexthop **nhs_copy = NULL;
@@ -287,6 +293,7 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 static int
 iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	struct rte_ipv6_addr solicited_node;
+	const struct iface *vrf_iface;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i = 0;
@@ -325,6 +332,10 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		if (errno != EOPNOTSUPP && errno != ENOENT)
 			return errno_set(errno);
 	}
+
+	vrf_iface = get_vrf_iface(iface->vrf_id);
+	if (vrf_iface && netlink_del_addr6(vrf_iface->name, ip) < 0)
+		LOG(WARNING, "delete addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	return 0;
 }
@@ -477,6 +488,7 @@ static struct gr_event_subscription iface_event_subscription = {
 		GR_EVENT_IFACE_STATUS_UP,
 	},
 };
+
 static struct gr_event_serializer iface_addr_serializer = {
 	.size = sizeof(struct gr_ip6_ifaddr),
 	.ev_count = 2,

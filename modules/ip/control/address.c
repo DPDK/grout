@@ -10,6 +10,7 @@
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
+#include <gr_netlink.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
 #include <gr_vec.h>
@@ -64,8 +65,8 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 
 static struct api_out addr_add(const void *request, struct api_ctx *) {
 	const struct gr_ip4_addr_add_req *req = request;
+	const struct iface *vrf_iface, *iface;
 	struct hoplist *ifaddrs;
-	const struct iface *iface;
 	struct nexthop *nh;
 	int ret;
 
@@ -124,6 +125,13 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		gr_vec_free(nhs_old);
 	}
 
+	vrf_iface = get_vrf_iface(iface->vrf_id);
+	if (vrf_iface && netlink_add_addr4(vrf_iface->name, req->addr.addr.ip) < 0)
+		LOG(WARNING,
+		    "add addr " IP4_F " on linux has failed (%s)",
+		    &req->addr.addr.ip,
+		    strerror(errno));
+
 	gr_event_push(GR_EVENT_IP_ADDR_ADD, &req->addr);
 
 	return api_out(0, 0, NULL);
@@ -131,6 +139,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 
 static struct api_out addr_del(const void *request, struct api_ctx *) {
 	const struct gr_ip4_addr_del_req *req = request;
+	const struct iface *iface;
 	struct hoplist *addrs;
 	struct nexthop *nh;
 	unsigned i = 0;
@@ -157,6 +166,17 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
+
+	iface = iface_from_id(req->addr.iface_id);
+	if (iface) {
+		const struct iface *vrf_iface = get_vrf_iface(iface->vrf_id);
+
+		if (vrf_iface && netlink_del_addr4(vrf_iface->name, req->addr.addr.ip) < 0)
+			LOG(WARNING,
+			    "delete addr " IP4_F " on linux has failed (%s)",
+			    &req->addr.addr.ip,
+			    strerror(errno));
+	}
 
 	return api_out(0, 0, NULL);
 }
