@@ -28,7 +28,7 @@ jobs:
             autoconf automake bash-completion bison build-essential debhelper \
             ccache curl devscripts flex git go-md2man libarchive-dev libcap-dev \
             libcmocka-dev libedit-dev libelf-dev libevent-dev libibverbs-dev \
-            libjson-c-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
+            libjson-c-dev libmnl-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
             librtr-dev libsmartcols-dev libtool libyang-dev meson ninja-build \
             patch pkg-config protobuf-c-compiler python3-dev python3-pyelftools \
             systemd-dev texinfo
@@ -81,7 +81,7 @@ jobs:
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
             autoconf automake bison ccache elfutils-libelf-devel flex gcc-toolset-13 \
             git golang-github-cpuguy83-md2man json-c-devel libarchive-devel \
-            libcap-devel libcmocka-devel libedit-devel libevent-devel \
+            libcap-devel libcmocka-devel libedit-devel libevent-devel libmnl-devel \
             libsmartcols-devel libyang-devel libtool make meson ninja-build \
             numactl-devel pkgconf protobuf-c-compiler protobuf-c-devel \
             python3-pyelftools python3-devel rdma-core-devel readline-devel \
