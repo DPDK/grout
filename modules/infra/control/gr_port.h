@@ -13,18 +13,14 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-typedef enum : uint8_t {
+typedef enum {
 	MAC_FILTER_F_UNSUPP = GR_BIT8(0),
 	MAC_FILTER_F_NOSPC = GR_BIT8(1),
-	MAC_FILTER_F_ALL = GR_BIT8(2),
 } mac_filter_flags_t;
 
-struct mac_filter {
-	mac_filter_flags_t flags;
-	uint8_t count;
-	uint8_t hw_limit;
-	uint16_t refcnt[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
-	struct rte_ether_addr mac[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
+struct port_mac {
+	uint16_t refcnt;
+	struct rte_ether_addr mac;
 };
 
 GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
@@ -35,8 +31,12 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;
-	struct mac_filter ucast_filter;
-	struct mac_filter mcast_filter;
+	struct {
+		mac_filter_flags_t flags;
+		unsigned hw_limit;
+		unsigned count;
+		struct port_mac macs[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
+	} filter;
 });
 
 uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
