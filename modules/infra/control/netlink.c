@@ -253,6 +253,41 @@ int netlink_del_addr6(const char *ifname, const struct rte_ipv6_addr *ip) {
 	return netlink_add_del_addr(ifname, ip, sizeof(*ip), false);
 }
 
+int netlink_set_addr_gen_mode_none(const char *ifname) {
+	uint8_t mode = IN6_ADDR_GEN_MODE_NONE;
+	char buf[NLMSG_SPACE(
+		sizeof(struct ifinfomsg)
+		+ 3 * NLA_SPACE(sizeof(uint8_t)) // AF_SPEC, AF_INET6, ADDR_GEN_MODE
+	)];
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifm;
+	struct nlattr *af_spec;
+	struct nlattr *af_inet6;
+	int ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	// IFLA_AF_SPEC { AF_INET6 { IFLA_INET6_ADDR_GEN_MODE = NONE } }
+	af_spec = mnl_attr_nest_start(nlh, IFLA_AF_SPEC);
+	af_inet6 = mnl_attr_nest_start(nlh, AF_INET6);
+	mnl_attr_put_u8(nlh, IFLA_INET6_ADDR_GEN_MODE, mode);
+	mnl_attr_nest_end(nlh, af_inet6);
+	mnl_attr_nest_end(nlh, af_spec);
+
+	return netlink_send_req(nlh);
+}
+
 static void netlink_init(struct event_base *) {
 	nl_sock = mnl_socket_open(NETLINK_ROUTE);
 	if (!nl_sock)
