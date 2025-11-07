@@ -104,11 +104,11 @@ index 0000000..d26e979
 +    '--prefix="' + prefix + '" ' +
 +    '--with-moduledir="' + moduledir + '" ' +
 +    '--disable-doc --enable-multipath=128 ' +
-+    '--disable-ripd --disable-ripngd --disable-ospfd --disable-ospf6d ' +
++    '--disable-ripd --disable-ripngd ' +
 +    '--disable-ldpd --disable-nhrpd --disable-eigrpd --disable-babeld  ' +
-+    '--disable-isisd --disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
++    '--disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
 +    '--disable-vrrpd --disable-pathd --disable-ospfapi --disable-ospfclient ' +
-+    '--disable-bfdd --disable-python-runtime ' + extra_configure_option + ' ' +
++    '--disable-python-runtime ' + extra_configure_option + ' ' +
 +    '&&  touch "' + configure_stamp + '"'
 +  ],
 +  depends: bootstrap,
