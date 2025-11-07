@@ -89,8 +89,6 @@ ip -n ns-a link set to-host-a netns $frr_bgp_peer_namespace
 vtysh -N $frr_bgp_peer_namespace <<-EOF
 	configure terminal
 
-	log file $tmp/frr-bgp-peer.logs
-
 	interface p0
 		ip address 172.16.0.2/24
 	exit
@@ -122,25 +120,6 @@ ip route add 16.1.0.0/24 dev gr-loop0 via 16.1.0.1
 vtysh <<-EOF
 	configure terminal
 
-	log file $tmp/frr.logs
-
-	debug zebra events
-	debug zebra kernel
-	debug zebra rib
-	debug zebra nht detailed
-	debug zebra pseudowires
-	debug zebra pbr
-	debug zebra vxlan
-	debug zebra nexthop
-	debug bgp keepalives
-	debug bgp neighbor-events
-	debug bgp nht
-	debug bgp updates detail
-	debug bgp updates in
-	debug bgp updates out
-	debug bgp zebra
-	debug vrf
-
 	router bgp 44
 	bgp router-id 172.16.0.1
 	no bgp ebgp-requires-policy
@@ -156,34 +135,6 @@ vtysh <<-EOF
 	exit-address-family
 	exit
 EOF
-
-dump_test_info() {
-	# Debug BGP peer router
-	cat $tmp/frr-bgp-peer.logs
-	vtysh -N $frr_bgp_peer_namespace -c "show running-config"
-	vtysh -N $frr_bgp_peer_namespace -c "show interface"
-	vtysh -N $frr_bgp_peer_namespace -c "show ip route"
-	vtysh -N $frr_bgp_peer_namespace -c "show bgp summary"
-	vtysh -N $frr_bgp_peer_namespace -c "show bgp ipv4"
-	ip netns exec $frr_bgp_peer_namespace ip addr
-	ip netns exec $frr_bgp_peer_namespace ip route
-
-	# Debug grout+FRR router
-	cat $tmp/frr.logs
-	vtysh -c "show running-config"
-	vtysh -c "show interface"
-	vtysh -c "show ip route"
-	vtysh -c "show bgp summary"
-	vtysh -c "show bgp ipv4"
-
-	grcli route show
-	grcli interface show
-	grcli nexthop show
-
-	ip link
-}
-
-trap dump_test_info ERR
 
 # Wait for BGP routes to be exchanged
 SECONDS=0

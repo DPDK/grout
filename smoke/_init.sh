@@ -53,10 +53,6 @@ cleanup() {
 	wait %?grcli
 
 	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-		frrinit.sh stop
-		kill %?tail
-		wait %?tail
-
 		# should be already stopped
 		for daemon in watchfrr.sh zebra staticd mgmtd vtysh; do
 			pids=$(pgrep -f "$builddir/frr_install/.*/$daemon")
@@ -218,24 +214,37 @@ else
 fi
 
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-	zlog="$builddir/frr_install/var/log/frr/zebra.log"
-	rm -f "$zlog"
-	touch "$zlog"
+	flog="$builddir/frr_install/var/log/frr/frr.log"
+	cat >$builddir/frr_install/etc/frr/daemons <<EOF
+bgpd=yes
+vtysh_enable=yes
+zebra_options="-A 127.0.0.1 -s 90000000 --log file:$flog -M dplane_grout"
+bgpd_options="-A 127.0.0.1 --log file:$flog"
+EOF
+	cat >$builddir/frr_install/etc/frr/frr.conf <<EOF
+hostname grout
+EOF
+	rm -f "$flog"
+	touch "$flog"
+	sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ,,"
 	if [ -t 1 ]; then
-		# zebra logs in magenta
-		tail -f "$zlog" | awk '{print "\033[35m" $0 "\033[0m"}' &
+		# FRR logs in magenta
+		tail -f "$flog" | sed -E "$sed_expr" | awk '{print "\033[35m" $0 "\033[0m"}' &
 	else
-		tail -f "$zlog" &
+		tail -f "$flog" | sed -E "$sed_expr" &
 	fi
-
-	# Enable bgpd daemon
-	sed -i -e "s/bgpd=no/bgpd=yes/" "$builddir/frr_install/etc/frr/daemons"
+	tailpid=$(pgrep -g0 tail | tail -n1)
 
 	frrinit.sh start
 	attempts=25
 
+	cat >>$tmp/cleanup <<EOF
+frrinit.sh stop
+kill $tailpid
+EOF
+
 	# wait that zebra_dplane_grout get iface event from grout
-	while ! grep -q "GROUT:.*iface/ip events" "$zlog" 2>/dev/null; do
+	while ! grep -q "GROUT:.*iface/ip events" "$flog" 2>/dev/null; do
 		if [ "$attempts" -le 0 ]; then
 			fail "Zebra is not listening grout events."
 		fi
