@@ -64,6 +64,7 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "DESTINATION", 0, 0);
+	scols_table_new_column(table, "ORIGIN", 0, 0);
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
