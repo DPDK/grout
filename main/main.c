@@ -255,6 +255,14 @@ int main(int argc, char **argv) {
 	int ret = EXIT_FAILURE;
 	int err = 0;
 
+	if (setvbuf(stdout, NULL, _IOLBF, 0) < 0) {
+		perror("setvbuf(stdout)");
+		goto end;
+	}
+	if (setvbuf(stderr, NULL, _IOLBF, 0) < 0) {
+		perror("setvbuf(stderr)");
+		goto end;
+	}
 	if (setlocale(LC_ALL, "") == NULL) {
 		perror("setlocale(LC_ALL)");
 		goto end;
