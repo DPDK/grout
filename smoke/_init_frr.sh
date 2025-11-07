@@ -216,13 +216,13 @@ EOF
     # ----- make BRE pattern for Grout -------------------------------------
     # Expected output from grcli route show
     #
-    # VRF  DESTINATION      NEXT_HOP
-    # 0    192.168.0.0/16   type=SRv6 id=8 iface=geydsm1 vrf=0 origin=zebra h.encap fd00:202::2
+    # VRF  DESTINATION      ORIGIN        NEXT_HOP
+    # 0    192.168.0.0/16   zebra_static  type=SRv6 id=6 iface=p1 vrf=0 ...
     local sid_regex="${sids[0]}"
     for ((i=1; i<${#sids[@]}; i++)); do
 	    sid_regex+="[[:space:]]+${sids[i]}"
     done
-    local grep_pattern="\\<${prefix}[[:space:]]+type=SRv6\\>.*${sid_regex}"
+    local grep_pattern="\\<${prefix}[[:space:]]+zebra_static[[:space:]]+type=SRv6\\>.*${sid_regex}"
 
     # ----- wait until Grout shows it --------------------------------------
     while ! grcli route show | grep -qE "${grep_pattern}"; do
