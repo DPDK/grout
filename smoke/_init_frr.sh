@@ -238,24 +238,42 @@ EOF
 # pathspace and running in a network namespace with the same name.
 start_frr_on_namespace() {
 	local namespace=$1
+	local frr_namespace_folder="$builddir/frr_install/etc/frr/$namespace"
 
-	netns_add $namespace
+	mkdir -p $frr_namespace_folder
 
-	frr_namespace_folder="${builddir}/frr_install/etc/frr/${namespace}"
-
-	mkdir -p ${frr_namespace_folder}
-
+	local flog="$frr_namespace_folder/frr.log"
 	touch ${frr_namespace_folder}/vtysh.conf
+	cat >${frr_namespace_folder}/daemons <<EOF
+bgpd=yes
+vtysh_enable=yes
+zebra_options="--daemon -A 127.0.0.1 -s 90000000 --log file:$flog"
+bgpd_options="--daemon -A 127.0.0.1 --log file:$flog"
+watchfrr_options="--netns=$namespace"
+EOF
+	cat >$frr_namespace_folder/frr.conf <<EOF
+hostname $namespace
+EOF
 
-	cp $(dirname $0)/frr-bgp-peer/daemons ${frr_namespace_folder}/daemons
-	echo "watchfrr_options=\"--netns=${namespace}\"" >> ${frr_namespace_folder}/daemons
+	rm -f "$flog"
+	touch "$flog"
+	local sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[$namespace],"
+	if [ -t 1 ]; then
+		# FRR peer logs in green
+		tail -f "$flog" | sed -E "$sed_expr" | awk '{print "\033[32m" $0 "\033[0m"}' &
+	else
+		tail -f "$flog" | sed -E "$sed_expr" &
+	fi
+	tailpid=$(pgrep -g0 tail | tail -n1)
 
-	cp $(dirname $0)/frr-bgp-peer/frr.conf ${frr_namespace_folder}/frr.conf
-
+	ip netns add $namespace
 	frrinit.sh start $namespace
 
 	cat >> $tmp/cleanup <<EOF
 frrinit.sh stop $namespace
+kill $tailpid
+ip netns pids $namespace | xargs -r kill --timeout 500 KILL
+ip netns del $namespace
 EOF
 
 	SECONDS=0
