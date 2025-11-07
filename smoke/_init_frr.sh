@@ -159,9 +159,9 @@ EOF
 
 	# --- wait until grout has the localsid ---------------------------------
 	# Expected "grcli route show" output pattern:
-	# VRF  DESTINATION        NEXT_HOP
-	# 0    fd00:202::100/128  type=SRv6-local id=12 .... behavior=end.dt4 ...
-	local grep_pattern="\\<${sid_local}/128[[:space:]]+type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
+	# VRF  DESTINATION        ORIGIN        NEXT_HOP
+	# 0    fd00:202::100/128  zebra_static  type=SRv6-local id=12 .... behavior=end.dt4 ...
+	local grep_pattern="\\<${sid_local}/128\\>.+\\<type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
 	while ! grcli route show | grep -qE "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
@@ -216,13 +216,13 @@ EOF
     # ----- make BRE pattern for Grout -------------------------------------
     # Expected output from grcli route show
     #
-    # VRF  DESTINATION      NEXT_HOP
-    # 0    192.168.0.0/16   type=SRv6 id=8 iface=geydsm1 vrf=0 origin=zebra h.encap fd00:202::2
+    # VRF  DESTINATION      ORIGIN        NEXT_HOP
+    # 0    192.168.0.0/16   zebra_static  type=SRv6 id=6 iface=p1 vrf=0 ...
     local sid_regex="${sids[0]}"
     for ((i=1; i<${#sids[@]}; i++)); do
 	    sid_regex+="[[:space:]]+${sids[i]}"
     done
-    local grep_pattern="\\<${prefix}[[:space:]]+type=SRv6\\>.*${sid_regex}"
+    local grep_pattern="\\<${prefix}\\>.+\\<type=SRv6\\>.*${sid_regex}"
 
     # ----- wait until Grout shows it --------------------------------------
     while ! grcli route show | grep -qE "${grep_pattern}"; do
