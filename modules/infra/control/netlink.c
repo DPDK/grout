@@ -14,6 +14,9 @@
 #include <string.h>
 #include <unistd.h>
 
+// IFALIASZ is defined in linux/if.h
+#define IFALIASZ 256
+
 static char socket_buf[BUFSIZ];
 static struct mnl_socket *nl_sock;
 static int nl_seq;
@@ -288,6 +291,30 @@ int netlink_set_addr_gen_mode_none(const char *ifname) {
 	mnl_attr_put_u8(nlh, IFLA_INET6_ADDR_GEN_MODE, mode);
 	mnl_attr_nest_end(nlh, af_inet6);
 	mnl_attr_nest_end(nlh, af_spec);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_set_ifalias(const char *ifname, const char *ifalias) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(IFALIASZ))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+	int ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put_strz(nlh, IFLA_IFALIAS, ifalias);
 
 	return netlink_send_req(nlh);
 }

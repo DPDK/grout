@@ -18,3 +18,4 @@ int netlink_del_addr4(const char *ifname, ip4_addr_t ip);
 int netlink_add_addr6(const char *ifname, const struct rte_ipv6_addr *ip);
 int netlink_del_addr6(const char *ifname, const struct rte_ipv6_addr *ip);
 int netlink_set_addr_gen_mode_none(const char *ifname);
+int netlink_set_ifalias(const char *ifname, const char *ifalias);
