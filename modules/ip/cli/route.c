@@ -58,8 +58,9 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		scols_line_sprintf(line, 0, "%u", route->vrf_id);
 		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
+		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
-			scols_line_set_data(line, 2, buf);
+			scols_line_set_data(line, 3, buf);
 	}
 
 	return ret;
@@ -117,11 +118,12 @@ static void route_event_print(uint32_t event, const void *obj) {
 
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), NULL, &r->nh, true);
-	printf("route %s: vrf=%u " IP4_F "/%hhu via %s\n",
+	printf("route %s: vrf=%u " IP4_F "/%hhu origin=%s via %s\n",
 	       action,
 	       r->vrf_id,
 	       &r->dest.ip,
 	       r->dest.prefixlen,
+	       gr_nh_origin_name(r->origin),
 	       buf);
 }
 
