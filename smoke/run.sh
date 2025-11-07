@@ -28,6 +28,10 @@ if [ -n "${builddir+x}" ] && \
 	test_frr=true
 fi
 
+ip netns del grout 2>/dev/null || :
+ip netns add grout
+trap "ip netns del grout" EXIT
+
 for script in $here/*_test.sh; do
 	name=$(basename $script)
 	case "$name" in
@@ -42,20 +46,10 @@ for script in $here/*_test.sh; do
 
 	{
 		echo "====================================================="
-		echo "+ $script $builddir"
-		if ! "$script" "$builddir"; then
+		echo "+ ip netns exec grout $script $builddir"
+		if ! ip netns exec grout "$script" "$builddir"; then
 			res=FAILED
 		fi
-		for core in /tmp/grout-core.*.*; do
-			[ -s "$core" ] || continue
-			binary=$(file -b "$core" | sed -En "s/.*, execfn: '([^']+)',.*/\\1/p")
-			[ -x "$binary" ] || continue
-			gdb -ex 'info threads' \
-				-ex 'thread apply all bt full' \
-				-ex 'quit' \
-				"$binary" -c "$core" || true
-			rm -f "$core"
-		done
 		end=$(date +%s)
 		duration=$(date -d "@$((end - start))" "+%Mm%Ss")
 		echo "-----------------------------------------------------"

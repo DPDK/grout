@@ -13,6 +13,7 @@ EnvironmentFile=-/etc/default/grout
 ExecStartPre=/usr/bin/udevadm settle
 ExecStart=/usr/bin/grout $GROUT_OPTS
 ExecStartPost=/usr/bin/grcli -xef /etc/grout.init
+PrivateNetwork=true
 
 [Install]
 WantedBy=multi-user.target
