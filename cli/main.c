@@ -171,8 +171,10 @@ int main(int argc, char **argv) {
 	if ((cmdlist = init_commands()) == NULL)
 		goto end;
 
-	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete")))
-		return bash_complete(cmdlist);
+	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete"))) {
+		ret = bash_complete(cmdlist);
+		goto end;
+	}
 
 	if ((c = parse_args(argc, argv)) < 0)
 		goto end;
