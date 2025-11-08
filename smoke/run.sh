@@ -28,10 +28,6 @@ if [ -n "${builddir+x}" ] && \
 	test_frr=true
 fi
 
-ip netns del grout 2>/dev/null || :
-ip netns add grout
-trap "ip netns del grout" EXIT
-
 for script in $here/*_test.sh; do
 	name=$(basename $script)
 	case "$name" in
@@ -46,8 +42,8 @@ for script in $here/*_test.sh; do
 
 	{
 		echo "====================================================="
-		echo "+ ip netns exec grout $script $builddir"
-		if ! ip netns exec grout "$script" "$builddir"; then
+		echo "+ $script $builddir"
+		if ! "$script" "$builddir"; then
 			res=FAILED
 		fi
 		end=$(date +%s)

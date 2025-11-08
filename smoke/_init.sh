@@ -3,6 +3,12 @@
 
 set -e -o pipefail
 
+if [ -z "$(ip netns identify)" ]; then
+	set -x
+	ip netns add grout 2>/dev/null || :
+	exec ip netns exec grout "$0" "$@"
+fi
+
 : "${test_frr:=false}"
 
 if [ -n "$ZEBRA_DEBUG_DPLANE_GROUT" ]; then
