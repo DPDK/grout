@@ -125,13 +125,22 @@ port_add() {
 	local name="$1"
 	shift
         if [ "$use_hardware_ports" = true ]; then
+                if [ $tap_counter -ge ${#net_interfaces[@]} ]; then
+			fail "Can not create port. No more hardware ports available."
+		fi
+		nsenter -t 1 -n ip link set "${net_interfaces[$tap_counter]}" netns $(ip netns identify)
 		ip link set "${net_interfaces[$tap_counter]}" name "x-$name"
+                # When test fails prematurely due to insufficient number of ports
+                # we need to return them back to default namespace and wait a little
+                # before proceeding to ensure reliable execution
+		echo "ip link set x-$name netns 1 || :" >> $tmp/restore_interfaces
+		echo "sleep 1" >> $tmp/restore_interfaces
 		# When a namespace is deleted while a renamed kernel interface
 		# is inside it an 'altname' property with the interface original
 		# name is created. This causes an error on attempt to restore
 		# the original name. So we need to clear this 'altname' first.
-		echo "ip link property del dev x-$name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
-		echo "ip link set x-$name name ${net_interfaces[$tap_counter]}" >> $tmp/restore_interfaces
+		echo "nsenter -t 1 -n ip link property del dev x-$name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
+		echo "nsenter -t 1 -n ip link set x-$name name ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
 		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
 	else
 		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=x-$name" "$@"
