@@ -4,6 +4,7 @@
 #include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
+#include <gr_lacp.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_mbuf.h>
@@ -122,6 +123,31 @@ int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *arp, size_
 		return snprintf(buf, len, "reply " IP4_F " is at " ETH_F, &sip, &sha);
 	}
 	return snprintf(buf, len, "opcode=%u", rte_be_to_cpu_16(arp->arp_opcode));
+}
+
+int trace_lacp_format(char *buf, size_t len, const struct lacp_pdu *lacp, size_t /*data_len*/) {
+	size_t n = 0;
+
+	if (lacp->actor.state & LACP_STATE_ACTIVE)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "active");
+	if (lacp->actor.state & LACP_STATE_FAST)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "fast");
+	if (lacp->actor.state & LACP_STATE_AGGREGATABLE)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "aggreg");
+	if (lacp->actor.state & LACP_STATE_SYNCHRONIZED)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "sync");
+	if (lacp->actor.state & LACP_STATE_COLLECTING)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "collect");
+	if (lacp->actor.state & LACP_STATE_DISTRIBUTING)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "distrib");
+	if (lacp->actor.state & LACP_STATE_DEFAULTED)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "fault");
+	if (lacp->actor.state & LACP_STATE_EXPIRED)
+		SAFE_BUF(snprintf, len, "%s%s", n > 0 ? " " : "", "expired");
+
+	return n;
+err:
+	return -1;
 }
 
 int trace_ip_format(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t /*data_len*/) {
@@ -528,9 +554,13 @@ ipv4:
 	case RTE_BE16(RTE_ETHER_TYPE_MPLS):
 		SAFE_BUF(snprintf, sizeof(buf), " / MPLS");
 		break;
-	case RTE_BE16(RTE_ETHER_TYPE_SLOW):
-		SAFE_BUF(snprintf, sizeof(buf), " / LACP");
+	case RTE_BE16(RTE_ETHER_TYPE_SLOW): {
+		const struct lacp_pdu *lacp;
+		lacp = rte_pktmbuf_mtod_offset(m, const struct lacp_pdu *, offset);
+		SAFE_BUF(snprintf, sizeof(buf), " / LACP ");
+		SAFE_BUF(trace_lacp_format, sizeof(buf), lacp, sizeof(*lacp));
 		break;
+	}
 	default:
 		SAFE_BUF(snprintf, sizeof(buf), " type=");
 		SAFE_BUF(eth_type_format, sizeof(buf), ether_type);
