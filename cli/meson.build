@@ -10,6 +10,8 @@ cli_src += files(
   'interact.c',
   'log.c',
   'main.c',
+  'man_commands.c',
+  'man_main.c',
   'quit.c',
 )
 

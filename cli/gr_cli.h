@@ -106,4 +106,5 @@ typedef int (*ec_node_dyn_comp_t)(
 struct ec_node *ec_node_dyn(const char *id, ec_node_dyn_comp_t cb, void *cb_arg);
 
 #define CLIENT_ATTR "gr_api_client"
+#define HELP_ATTR "help"
 #define SOCK_PATH_ID "gr_api_sock_path"
