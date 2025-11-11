@@ -222,6 +222,9 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 	}
 
 	// Flush all held packets.
+	if (l3 == NULL)
+		goto free;
+
 	struct rte_mbuf *held = l3->held_pkts_head;
 	while (held != NULL) {
 		struct ip6_output_mbuf_data *o;
