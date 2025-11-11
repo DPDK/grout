@@ -365,12 +365,21 @@ static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
+#define GR_IPV6_ADDR_OSPF_ALL_SPF_ROUTERS RTE_IPV6(0xff02, 0, 0, 0, 0, 0, 0, 5)
+#define GR_IPV6_ADDR_OSPF_ALL_DR_ROUTERS RTE_IPV6(0xff02, 0, 0, 0, 0, 0, 0, 6)
+#define GR_IPV6_ADDR_ISIS_FOR_IPv6_ROUTERS RTE_IPV6(0xff02, 0, 0, 0, 0, 0, 0, 8)
+#define GR_IPV6_ADDR_MLDV2 RTE_IPV6(0xff02, 0, 0, 0, 0, 0, 0, 0x16)
+
 static const struct rte_ipv6_addr well_known_mcast_addrs[] = {
 	RTE_IPV6_ADDR_ALLNODES_IFACE_LOCAL,
 	RTE_IPV6_ADDR_ALLNODES_LINK_LOCAL,
 	RTE_IPV6_ADDR_ALLROUTERS_IFACE_LOCAL,
 	RTE_IPV6_ADDR_ALLROUTERS_LINK_LOCAL,
 	RTE_IPV6_ADDR_ALLROUTERS_SITE_LOCAL,
+	GR_IPV6_ADDR_OSPF_ALL_SPF_ROUTERS,
+	GR_IPV6_ADDR_OSPF_ALL_DR_ROUTERS,
+	GR_IPV6_ADDR_ISIS_FOR_IPv6_ROUTERS,
+	GR_IPV6_ADDR_MLDV2,
 };
 
 static void ip6_iface_event_handler(uint32_t event, const void *obj) {
