@@ -234,6 +234,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 bgpd=yes
 isisd=yes
 ospfd=yes
+ospf6d=yes
 vtysh_enable=yes
 frr_global_options="-A 127.0.0.1 --log file:$flog"
 zebra_options="-s 90000000 -M dplane_grout"
