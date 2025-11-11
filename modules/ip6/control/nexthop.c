@@ -199,7 +199,10 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 		l3 = nexthop_info_l3(nh);
 	}
 
-	if (l3 != NULL && !(l3->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
+	if (l3 == NULL)
+		goto free;
+
+	if (!(l3->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
 		l3->last_reply = gr_clock_us();
 		l3->state = GR_NH_S_REACHABLE;
