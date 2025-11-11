@@ -248,6 +248,7 @@ start_frr_on_namespace() {
 bgpd=yes
 isisd=yes
 ospfd=yes
+ospf6d=yes
 vtysh_enable=yes
 frr_global_options="--daemon -A 127.0.0.1 --log file:$flog"
 zebra_options="-s 90000000"
@@ -298,6 +299,14 @@ EOF
 	while ! pgrep -f "ospfd -N $namespace"; do
 		if [ "$SECONDS" -ge "5" ]; then
 			fail "OSPF daemon not started for namespace $namespace"
+		fi
+		sleep 0.1
+	done
+
+	SECONDS=0
+	while ! pgrep -f "ospf6d -N $namespace"; do
+		if [ "$SECONDS" -ge "5" ]; then
+			fail "OSPF6 daemon not started for namespace $namespace"
 		fi
 		sleep 0.1
 	done
