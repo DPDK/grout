@@ -231,7 +231,16 @@ static int netlink_add_del_addr(const char *ifname, const void *addr, size_t add
 
 	ifa = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifa));
 	ifa->ifa_family = is_ipv4 ? AF_INET : AF_INET6;
-	ifa->ifa_prefixlen = is_ipv4 ? 32 : 128;
+	if (is_ipv4) {
+		ifa->ifa_prefixlen = 32;
+	} else {
+		// For Link local address, a /64 is required
+		// to reach other nodes on the link
+		if (rte_ipv6_addr_is_linklocal(addr))
+			ifa->ifa_prefixlen = 64;
+		else
+			ifa->ifa_prefixlen = 128;
+	}
 	ifa->ifa_scope = RT_SCOPE_UNIVERSE;
 	ifa->ifa_index = ifindex;
 
