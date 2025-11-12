@@ -315,6 +315,8 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_NH_ADD);
 	case GR_NH_DEL:
 		return TOSTRING(GR_NH_DEL);
+	case GR_INFRA_IFACE_GET:
+		return TOSTRING(GR_INFRA_IFACE_GET);
 	case GR_INFRA_IFACE_LIST:
 		return TOSTRING(GR_INFRA_IFACE_LIST);
 	case GR_IP4_ADDR_LIST:
@@ -327,6 +329,8 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_IP4_ROUTE_LIST);
 	case GR_IP6_ROUTE_LIST:
 		return TOSTRING(GR_IP6_ROUTE_LIST);
+	case GR_SRV6_TUNSRC_SET:
+		return TOSTRING(GR_SRV6_TUNSRC_SET);
 	default:
 		return "unknown";
 	}

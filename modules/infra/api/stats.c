@@ -266,6 +266,10 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 		s.tx_packets = 0;
 		s.tx_bytes = 0;
 		s.tx_errors = 0;
+		s.cp_rx_packets = 0;
+		s.cp_rx_bytes = 0;
+		s.cp_tx_packets = 0;
+		s.cp_tx_bytes = 0;
 
 		// Aggregate per-core stats
 		for (int i = 0; i < RTE_MAX_LCORE; i++) {
@@ -274,6 +278,10 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 			s.rx_bytes += sw_stats->rx_bytes;
 			s.tx_packets += sw_stats->tx_packets;
 			s.tx_bytes += sw_stats->tx_bytes;
+			s.cp_rx_packets += sw_stats->cp_rx_packets;
+			s.cp_rx_bytes += sw_stats->cp_rx_bytes;
+			s.cp_tx_packets += sw_stats->cp_tx_packets;
+			s.cp_tx_bytes += sw_stats->cp_tx_bytes;
 		}
 
 		if (iface->type == GR_IFACE_TYPE_PORT) {
@@ -386,17 +394,26 @@ telemetry_ifaces_info_get(const char * /*cmd*/, const char * /*params*/, struct 
 
 			// Software stats
 			uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
+			uint64_t cp_rx_pkts = 0, cp_rx_bytes = 0, cp_tx_pkts = 0, cp_tx_bytes = 0;
 			for (int i = 0; i < RTE_MAX_LCORE; i++) {
 				struct iface_stats *sw_stats = iface_get_stats(i, iface->id);
 				rx_pkts += sw_stats->rx_packets;
 				rx_bytes += sw_stats->rx_bytes;
 				tx_pkts += sw_stats->tx_packets;
 				tx_bytes += sw_stats->tx_bytes;
+				cp_rx_pkts += sw_stats->cp_rx_packets;
+				cp_rx_bytes += sw_stats->cp_rx_bytes;
+				cp_tx_pkts += sw_stats->cp_tx_packets;
+				cp_tx_bytes += sw_stats->cp_tx_bytes;
 			}
 			rte_tel_data_add_dict_uint(stats_container, "rx_packets", rx_pkts);
 			rte_tel_data_add_dict_uint(stats_container, "rx_bytes", rx_bytes);
 			rte_tel_data_add_dict_uint(stats_container, "tx_packets", tx_pkts);
 			rte_tel_data_add_dict_uint(stats_container, "tx_bytes", tx_bytes);
+			rte_tel_data_add_dict_uint(stats_container, "cp_rx_packets", cp_rx_pkts);
+			rte_tel_data_add_dict_uint(stats_container, "cp_rx_bytes", cp_rx_bytes);
+			rte_tel_data_add_dict_uint(stats_container, "cp_tx_packets", cp_tx_pkts);
+			rte_tel_data_add_dict_uint(stats_container, "cp_tx_bytes", cp_tx_bytes);
 
 			// Get hardware stats for physical ports.
 			if (iface->type == GR_IFACE_TYPE_PORT) {
