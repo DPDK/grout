@@ -239,7 +239,7 @@ static void grout_sync_ifaces(struct event *) {
 static void dplane_grout_connect(struct event *) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	static const struct grout_evt gr_evts[] = {
-		{.type = GR_EVENT_IFACE_POST_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_STATUS_UP, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_STATUS_DOWN, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_POST_RECONFIG, .suppress_self_events = true},
@@ -379,6 +379,8 @@ retry:
 
 static const char *gr_evt_to_str(uint32_t e) {
 	switch (e) {
+	case GR_EVENT_IFACE_ADD:
+		return TOSTRING(GR_EVENT_IFACE_ADD);
 	case GR_EVENT_IFACE_POST_ADD:
 		return TOSTRING(GR_EVENT_IFACE_POST_ADD);
 	case GR_EVENT_IFACE_PRE_REMOVE:
@@ -435,7 +437,7 @@ static void dplane_read_notifications(struct event *event) {
 	}
 
 	switch (gr_e->ev_type) {
-	case GR_EVENT_IFACE_POST_ADD:
+	case GR_EVENT_IFACE_ADD:
 	case GR_EVENT_IFACE_STATUS_UP:
 	case GR_EVENT_IFACE_STATUS_DOWN:
 	case GR_EVENT_IFACE_POST_RECONFIG:
@@ -478,6 +480,9 @@ static void dplane_read_notifications(struct event *event) {
 			gr_evt_to_str(gr_e->ev_type)
 		);
 		grout_interface_addr6_change(new, ifa6);
+		break;
+	case GR_EVENT_IFACE_POST_ADD:
+		// iface creation already handled by IFACE_ADD
 		break;
 	default:
 		gr_log_debug(
