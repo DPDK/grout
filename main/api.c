@@ -62,7 +62,7 @@ static gr_vec struct subscription *all_events_subs;
 //                             +--------+
 //  GR_EVENT_IFACE_UNKNOWN     | 0x0000 |
 //                             |--------|
-//  GR_EVENT_IFACE_POST_ADD    | 0x0001 |
+//  GR_EVENT_IFACE_ADD         | 0x0001 |
 //                             |--------|
 //                             | ...... |
 //                             |--------|
