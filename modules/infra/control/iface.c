@@ -128,6 +128,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
 
+	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
 	return iface;

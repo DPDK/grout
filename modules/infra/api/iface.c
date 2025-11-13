@@ -163,8 +163,9 @@ static int iface_event_serialize(const void *obj, void **buf) {
 
 static struct gr_event_serializer iface_serializer = {
 	.callback = iface_event_serialize,
-	.ev_count = 5,
+	.ev_count = 6,
 	.ev_types = {
+		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_POST_RECONFIG,
