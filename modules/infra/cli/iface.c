@@ -324,6 +324,10 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "TX_PACKETS", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "TX_BYTES", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "TX_ERRORS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_RX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_RX_BYTES", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_TX_PACKETS", 0, SCOLS_FL_RIGHT);
+	scols_table_new_column(table, "CP_TX_BYTES", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
@@ -346,6 +350,10 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_packets);
 		scols_line_sprintf(line, 5, "%lu", resp->stats[i].tx_bytes);
 		scols_line_sprintf(line, 6, "%lu", resp->stats[i].tx_errors);
+		scols_line_sprintf(line, 7, "%lu", resp->stats[i].cp_rx_packets);
+		scols_line_sprintf(line, 8, "%lu", resp->stats[i].cp_rx_bytes);
+		scols_line_sprintf(line, 9, "%lu", resp->stats[i].cp_tx_packets);
+		scols_line_sprintf(line, 10, "%lu", resp->stats[i].cp_tx_bytes);
 	}
 
 	scols_print_table(table);
@@ -539,8 +547,11 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	const char *action;
 
 	switch (event) {
-	case GR_EVENT_IFACE_POST_ADD:
+	case GR_EVENT_IFACE_ADD:
 		action = "add";
+		break;
+	case GR_EVENT_IFACE_POST_ADD:
+		action = "post add";
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		action = "del";
@@ -565,8 +576,9 @@ static void iface_event_print(uint32_t event, const void *obj) {
 
 static struct cli_event_printer printer = {
 	.print = iface_event_print,
-	.ev_count = 5,
+	.ev_count = 6,
 	.ev_types = {
+		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
