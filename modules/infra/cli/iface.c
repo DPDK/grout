@@ -128,9 +128,7 @@ static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *
 		SAFE_BUF(snprintf, len, " promisc(fixed)");
 	else if (iface->flags & GR_IFACE_F_PROMISC)
 		SAFE_BUF(snprintf, len, " promisc");
-	if (iface->state & GR_IFACE_S_ALLMULTI_FIXED)
-		SAFE_BUF(snprintf, len, " allmulti(fixed)");
-	else if (iface->flags & GR_IFACE_F_ALLMULTI)
+	if (iface->state & GR_IFACE_S_ALLMULTI)
 		SAFE_BUF(snprintf, len, " allmulti");
 	if (iface->flags & GR_IFACE_F_PACKET_TRACE)
 		SAFE_BUF(snprintf, len, " tracing");
@@ -149,7 +147,7 @@ uint64_t parse_iface_args(
 	size_t info_size,
 	bool update
 ) {
-	const char *name, *promisc, *allmulti;
+	const char *name, *promisc;
 	uint64_t set_attrs = 0;
 
 	name = arg_str(p, "NAME");
@@ -184,15 +182,6 @@ uint64_t parse_iface_args(
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
 		iface->flags &= ~GR_IFACE_F_PROMISC;
-		set_attrs |= GR_IFACE_SET_FLAGS;
-	}
-
-	allmulti = arg_str(p, "ALLMULTI");
-	if (allmulti != NULL && strcmp(allmulti, "on") == 0) {
-		iface->flags |= GR_IFACE_F_ALLMULTI;
-		set_attrs |= GR_IFACE_SET_FLAGS;
-	} else if (allmulti != NULL && strcmp(allmulti, "off") == 0) {
-		iface->flags &= ~GR_IFACE_F_ALLMULTI;
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	}
 
