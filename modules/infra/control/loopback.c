@@ -141,7 +141,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	if ((len = read(lo->fd, data, read_len)) <= 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
+			goto err;
 		LOG(ERR, "read from tun device %s failed %s", iface->name, strerror(errno));
 		goto err;
 	}
