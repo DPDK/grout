@@ -112,10 +112,10 @@ builddir=${1-}
 
 netns_add() {
 	local ns="$1"
-	ip netns add "$ns"
+	nsenter -t 1 -n -m ip netns add "$ns"
 	cat >> $tmp/cleanup <<EOF
-ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
-ip netns del "$ns"
+nsenter -t 1 -n -m ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
+nsenter -t 1 -n -m ip netns del "$ns"
 EOF
 	ip -n "$ns" link set lo up
 }

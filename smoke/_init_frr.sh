@@ -266,14 +266,14 @@ EOF
 	fi
 	tailpid=$(pgrep -g0 tail | tail -n1)
 
-	ip netns add $namespace
+	nsenter -t 1 -n -m ip netns add $namespace
 	frrinit.sh start $namespace
 
 	cat >> $tmp/cleanup <<EOF
 frrinit.sh stop $namespace
 kill $tailpid
-ip netns pids $namespace | xargs -r kill --timeout 500 KILL
-ip netns del $namespace
+nsenter -t 1 -n -m ip netns pids $namespace | xargs -r kill --timeout 500 KILL
+nsenter -t 1 -n -m ip netns del $namespace
 EOF
 
 	SECONDS=0
