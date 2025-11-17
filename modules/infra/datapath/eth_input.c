@@ -67,6 +67,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 			vlan_id = m->vlan_tci & 0xfff;
+			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
 		} else if (eth_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
 			vlan = rte_pktmbuf_mtod_offset(m, struct rte_vlan_hdr *, l2_hdr_size);
 			l2_hdr_size += sizeof(*vlan);
