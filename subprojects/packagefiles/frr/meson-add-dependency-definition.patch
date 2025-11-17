@@ -1,7 +1,7 @@
-From 2e791176685f07dd04ae1a0e46db01262ce7d9bc Mon Sep 17 00:00:00 2001
+From aec682e71cb5ffe8344d351170428b67b7890f3c Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Thu, 7 Aug 2025 12:29:10 +0200
-Subject: [PATCH] meson add dependency definition
+Subject: [PATCH 1/4] meson add dependency definition
 
 Signed-off-by: Maxime Leroy <maxime@leroys.fr>
 ---
