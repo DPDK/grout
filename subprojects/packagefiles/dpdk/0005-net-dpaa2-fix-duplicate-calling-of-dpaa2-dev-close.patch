@@ -1,0 +1,61 @@
+From 2e13d514c2a1e0833c5d8405bce37510f784600c Mon Sep 17 00:00:00 2001
+From: Hemant Agrawal <hemant.agrawal@nxp.com>
+Date: Thu, 13 Nov 2025 17:13:52 +0530
+Subject: [PATCH 5/8] net/dpaa2: fix duplicate calling of dpaa2 dev close
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When rte_eth_dev_close() is called, it performs the following actions:
+
+Calls dev->dev_ops->dev_close(), which in this case is dpaa2_dev_close().
+Then calls rte_eth_dev_release_port(), which releases all device data
+and sets dev->data to NULL.
+
+Later, when rte_dev_remove() is called, the FSLMC bus invokes
+dev->remove() — that is, rte_dpaa2_remove().
+However, rte_dpaa2_remove() calls dpaa2_dev_close() again. Since dev->data
+was already set to NULL by the previous call, this second invocation
+causes a crash.
+
+Fixes: 5964d36a2904 ("net/dpaa2: release port upon close")
+Cc: sachin.saxena@nxp.com
+Cc: stable@dpdk.org
+
+Signed-off-by: Hemant Agrawal <hemant.agrawal@nxp.com>
+---
+ drivers/net/dpaa2/dpaa2_ethdev.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/dpaa2/dpaa2_ethdev.c b/drivers/net/dpaa2/dpaa2_ethdev.c
+index a9bce854c3..cc9bd7d408 100644
+--- a/drivers/net/dpaa2/dpaa2_ethdev.c
++++ b/drivers/net/dpaa2/dpaa2_ethdev.c
+@@ -3055,14 +3055,19 @@ static int
+ rte_dpaa2_remove(struct rte_dpaa2_device *dpaa2_dev)
+ {
+ 	struct rte_eth_dev *eth_dev;
+-	int ret;
++	int ret = 0;
++
++	eth_dev = rte_eth_dev_allocated(dpaa2_dev->device.name);
++	if (eth_dev) {
++		dpaa2_dev_close(eth_dev);
++		ret = rte_eth_dev_release_port(eth_dev);
++	}
+ 
+-	eth_dev = dpaa2_dev->eth_dev;
+-	dpaa2_dev_close(eth_dev);
+ 	dpaa2_valid_dev--;
+-	if (!dpaa2_valid_dev)
++	if (!dpaa2_valid_dev) {
+ 		rte_mempool_free(dpaa2_tx_sg_pool);
+-	ret = rte_eth_dev_release_port(eth_dev);
++		dpaa2_tx_sg_pool = NULL;
++	}
+ 
+ 	return ret;
+ }
+-- 
+2.43.0
+

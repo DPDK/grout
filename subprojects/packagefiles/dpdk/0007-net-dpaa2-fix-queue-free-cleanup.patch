@@ -1,0 +1,52 @@
+From ae2661c3ea2deb3c2c82c16cd29c4d36e3eb612e Mon Sep 17 00:00:00 2001
+From: Hemant Agrawal <hemant.agrawal@nxp.com>
+Date: Thu, 13 Nov 2025 17:13:54 +0530
+Subject: [PATCH 7/8] net/dpaa2: fix queue free cleanup
+
+The RX error queue was not being free.
+Also, set the free queues pointers to NULL.
+
+Fixes: 407ce3e5384b ("net/dpaa2: replace global variables with flags")
+Cc: hemant.agrawal@nxp.com
+
+Signed-off-by: Hemant Agrawal <hemant.agrawal@nxp.com>
+---
+ drivers/net/dpaa2/dpaa2_ethdev.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/net/dpaa2/dpaa2_ethdev.c b/drivers/net/dpaa2/dpaa2_ethdev.c
+index 92205a6f3a..383c15fcfd 100644
+--- a/drivers/net/dpaa2/dpaa2_ethdev.c
++++ b/drivers/net/dpaa2/dpaa2_ethdev.c
+@@ -520,11 +520,13 @@ dpaa2_free_rx_tx_queues(struct rte_eth_dev *dev)
+ 						RTE_MAX_LCORE);
+ 			dpaa2_queue_storage_free(dpaa2_q,
+ 				RTE_MAX_LCORE);
++			priv->rx_vq[i] = NULL;
+ 		}
+ 		/* cleanup tx queue cscn */
+ 		for (i = 0; i < priv->nb_tx_queues; i++) {
+ 			dpaa2_q = priv->tx_vq[i];
+ 			rte_free(dpaa2_q->cscn);
++			priv->tx_vq[i] = NULL;
+ 		}
+ 		if (priv->flags & DPAA2_TX_CONF_ENABLE) {
+ 			/* cleanup tx conf queue storage */
+@@ -532,8 +534,14 @@ dpaa2_free_rx_tx_queues(struct rte_eth_dev *dev)
+ 				dpaa2_q = priv->tx_conf_vq[i];
+ 				dpaa2_queue_storage_free(dpaa2_q,
+ 					RTE_MAX_LCORE);
++				priv->tx_conf_vq[i] = NULL;
+ 			}
+ 		}
++		if (dpaa2_enable_err_queue) {
++			dpaa2_q = priv->rx_err_vq;
++			dpaa2_queue_storage_free(dpaa2_q, RTE_MAX_LCORE);
++		}
++
+ 		/*free memory for all queues (RX+TX) */
+ 		rte_free(priv->rx_vq[0]);
+ 		priv->rx_vq[0] = NULL;
+-- 
+2.43.0
+

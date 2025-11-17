@@ -1,0 +1,125 @@
+From 8796584fc62a234b2823b1401920bd899eacd0de Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Thu, 13 Nov 2025 17:13:53 +0530
+Subject: [PATCH 6/8] net/dpaa2: clear active VDQ state when freeing Rx queues
+
+When using the prefetch Rx path (dpaa2_dev_prefetch_rx), the driver keeps
+track of one outstanding VDQCR command per DPIO portal in the global
+rte_global_active_dqs_list[] array. Each queue_storage_info_t also stores
+the active result buffer and portal index:
+
+  qs->active_dqs
+  qs->active_dpio_id
+
+Before issuing a new pull command, dpaa2_dev_prefetch_rx() checks for an
+active entry and spins on qbman_check_command_complete() until the
+corresponding VDQCR completes.
+
+On port close / hotplug remove, dpaa2_free_rx_tx_queues() frees all
+per-lcore queue_storage_info_t structures and their dq_storage[] buffers,
+but never clears the global rte_global_active_dqs_list[] entries. After a
+detach/attach sequence (or "del/add" in grout), the prefetch Rx path
+still sees an active entry for the portal and spins forever on a stale dq
+buffer that has been freed and will never be completed by hardware. In
+gdb, dq->dq.tok stays 0 and dpaa2_dev_prefetch_rx() loops in:
+
+  while (!qbman_check_command_complete(get_swp_active_dqs(idx)))
+      ;
+
+Fix this by clearing the active VDQ state before freeing queue storage.
+For each Rx queue and lcore, if qs->active_dqs is non-NULL, call
+clear_swp_active_dqs(qs->active_dpio_id) and set qs->active_dqs to NULL.
+Then dpaa2_queue_storage_free() can safely free q_storage and
+dq_storage[].
+
+After this change, a DPNI detach/attach sequence no longer leaves stale
+entries in rte_global_active_dqs_list[], and the prefetch Rx loop does
+not hang waiting for a completion from a previous device instance.
+
+Reproduction:
+  - grout:
+      grcli interface add  port dpni.1 devargs fslmc:dpni.1
+      grcli interface del  dpni.1
+      grcli interface add  port dpni.1 devargs fslmc:dpni.1
+    -> Rx was stuck in qbman_check_command_complete(), now works.
+
+  - testpmd:
+      dpdk-testpmd -n1 -a fslmc:dpni.65535 -- -i --forward-mode=rxonly
+      testpmd> port attach fslmc:dpni.1
+      testpmd> port start all
+      testpmd> start
+      testpmd> stop
+      testpmd> port stop all
+      testpmd> port detach 0
+      testpmd> port attach fslmc:dpni.1
+      testpmd> port start all
+      testpmd> start
+    -> Rx was hanging, now runs normal
+
+Fixes: 12d98eceb8ac ("bus/fslmc: enhance QBMAN DQ storage logic")
+Cc: jun.yang@nxp.com
+Cc: stable@dpdk.org
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ .mailmap                         |  2 +-
+ drivers/net/dpaa2/dpaa2_ethdev.c | 23 +++++++++++++++++++++++
+ 2 files changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/.mailmap b/.mailmap
+index 818798273f..83dbdd354e 100644
+--- a/.mailmap
++++ b/.mailmap
+@@ -980,7 +980,7 @@ Mauricio Vasquez B <mauricio.vasquez@polito.it> <mauricio.vasquezbernal@studenti
+ Mauro Annarumma <mauroannarumma@hotmail.it>
+ Maxime Coquelin <maxime.coquelin@redhat.com>
+ Maxime Gouin <maxime.gouin@6wind.com>
+-Maxime Leroy <maxime.leroy@6wind.com>
++Maxime Leroy <maxime@leroys.fr> <maxime.leroy@6wind.com>
+ Md Fahad Iqbal Polash <md.fahad.iqbal.polash@intel.com>
+ Megha Ajmera <megha.ajmera@intel.com>
+ Meijuan Zhao <meijuanx.zhao@intel.com>
+diff --git a/drivers/net/dpaa2/dpaa2_ethdev.c b/drivers/net/dpaa2/dpaa2_ethdev.c
+index cc9bd7d408..92205a6f3a 100644
+--- a/drivers/net/dpaa2/dpaa2_ethdev.c
++++ b/drivers/net/dpaa2/dpaa2_ethdev.c
+@@ -481,6 +481,27 @@ dpaa2_alloc_rx_tx_queues(struct rte_eth_dev *dev)
+ 	return ret;
+ }
+ 
++static void
++dpaa2_clear_queue_active_dps(struct dpaa2_queue *q, int num_lcores)
++{
++	int i;
++
++	for (i = 0; i < num_lcores; i++) {
++		struct queue_storage_info_t *qs = q->q_storage[i];
++
++		if (!qs)
++			continue;
++
++		if (qs->active_dqs) {
++			while (!qbman_check_command_complete(qs->active_dqs))
++				/* wait */;
++
++			clear_swp_active_dqs(qs->active_dpio_id);
++			qs->active_dqs = NULL;
++		}
++	}
++}
++
+ static void
+ dpaa2_free_rx_tx_queues(struct rte_eth_dev *dev)
+ {
+@@ -495,6 +516,8 @@ dpaa2_free_rx_tx_queues(struct rte_eth_dev *dev)
+ 		/* cleaning up queue storage */
+ 		for (i = 0; i < priv->nb_rx_queues; i++) {
+ 			dpaa2_q = priv->rx_vq[i];
++			dpaa2_clear_queue_active_dps(dpaa2_q,
++						RTE_MAX_LCORE);
+ 			dpaa2_queue_storage_free(dpaa2_q,
+ 				RTE_MAX_LCORE);
+ 		}
+-- 
+2.43.0
+

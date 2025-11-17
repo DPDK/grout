@@ -6,7 +6,11 @@ diff_files =
 	dpdk/0001-net-tap-add-netlink-helpers.patch,
 	dpdk/0002-net-tap-replace-ioctl-with-netlink.patch,
 	dpdk/0003-net-tap-detect-namespace-change.patch,
-	dpdk/0004-net-tap-configure-link-carrier.patch
+	dpdk/0004-net-tap-configure-link-carrier.patch,
+	dpdk/0005-net-dpaa2-fix-duplicate-calling-of-dpaa2-dev-close.patch,
+	dpdk/0006-net-dpaa2-clear-active-VDQ-state-when-freeing-Rx-que.patch,
+	dpdk/0007-net-dpaa2-fix-queue-free-cleanup.patch,
+	dpdk/0008-bus-fslmc-add-support-for-hotplug-of-dpni.patch
 
 [provide]
 dependency_names = libdpdk
