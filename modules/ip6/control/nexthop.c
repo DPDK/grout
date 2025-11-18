@@ -113,7 +113,7 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		}
 		return;
 	} else {
-		LOG(DEBUG, IP4_F " hold queue full", &dst);
+		LOG(DEBUG, IP6_F " hold queue full", dst);
 	}
 free:
 	rte_pktmbuf_free(m);
