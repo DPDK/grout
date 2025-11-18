@@ -66,10 +66,8 @@ struct __gr_iface_base {
 	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	union {
-		uint16_t vrf_id; // L3 addressing and routing domain
-		uint16_t domain_id; // L2 xconnect peer interface id
-	};
+	uint16_t vrf_id; // L3 addressing and routing domain
+	uint16_t domain_id; // L2 xconnect peer interface id
 	uint32_t speed; //!< Link speed in Megabit/sec.
 };
 
