@@ -17,7 +17,6 @@ frr_tag=$(sed -n 's/revision = //p' subprojects/frr.wrap)
 
 git clone --depth=1 --branch="$frr_tag" "$frr_url" frr_build
 cd frr_build
-curl -L https://github.com/FRRouting/frr/pull/19351.diff | patch -p1
 autoreconf -ivf
 ./configure \
 	--prefix="$PREFIX" \
