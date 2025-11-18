@@ -52,7 +52,7 @@ index 0000000000..1db51d4b58
 +# SPDX-License-Identifier: BSD-3-Clause
 +# Copyright (c) 2025 Maxime Leroy, Free Mobile
 +
-+project('frr', 'c', version: '10.4.1', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
++project('frr', 'c', version: '10.5.0', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
 +
 +srcdir = meson.current_source_dir()
 +builddir = meson.current_build_dir()
