@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/FRRouting/frr
-revision = frr-10.4.1
+revision = frr-10.5.0
 depth = 1
 diff_files =
 	frr/meson-add-dependency-definition.patch

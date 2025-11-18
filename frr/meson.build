@@ -6,7 +6,7 @@ if frr_opt.disabled()
   subdir_done()
 endif
 
-frr_dep = dependency('frr', version: '>= 10.4', required: false)
+frr_dep = dependency('frr', version: '>= 10.5', required: false)
 if not frr_dep.found()
   if get_option('frr').enabled()
     sp = subproject('frr')
