@@ -95,6 +95,7 @@ static int iface_ipip_init(struct iface *iface, const void *api_info) {
 	struct gr_iface conf;
 	int ret;
 
+	iface->speed = RTE_ETH_SPEED_NUM_10G;
 	if (iface->mtu == 0)
 		iface->mtu = 1480;
 
