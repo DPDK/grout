@@ -187,8 +187,6 @@ static int bond_init_new_members(const struct iface *iface, const struct gr_ifac
 		}
 
 		LOG(DEBUG, "adding %s to bond %s", member->name, iface->name);
-		if (iface_add_eth_addr(member->id, &LACP_DST_MAC) < 0)
-			return errno_log(errno, "iface_add_eth_addr(lacp)");
 		port = iface_info_port(member);
 		port->bond_iface_id = iface->id;
 skip:;
@@ -219,12 +217,6 @@ static void bond_fini_old_members(const struct iface *iface, const struct gr_ifa
 			}
 		}
 		if (iface_del_eth_addr(member->id, &bond->mac) < 0 && errno != ENOENT) {
-			LOG(WARNING,
-			    "failed to unconfigure mac address on member %s: %s",
-			    member->name,
-			    strerror(errno));
-		}
-		if (iface_del_eth_addr(member->id, &LACP_DST_MAC) < 0) {
 			LOG(WARNING,
 			    "failed to unconfigure mac address on member %s: %s",
 			    member->name,
