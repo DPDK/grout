@@ -104,22 +104,34 @@ hash_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bond) {
 			tuple.v4.dst_addr = l3.ip4->dst_addr;
 			switch (l3.ip4->next_proto_id) {
 			case IPPROTO_UDP:
-				l4.udp = rte_pktmbuf_mtod_offset(
-					m,
-					struct rte_udp_hdr *,
-					l3_offset + rte_ipv4_hdr_len(l3.ip4)
-				);
-				tuple.v4.sport = l4.udp->src_port;
-				tuple.v4.dport = l4.udp->dst_port;
+				if (l3.ip4->fragment_offset == 0) {
+					l4.udp = rte_pktmbuf_mtod_offset(
+						m,
+						struct rte_udp_hdr *,
+						l3_offset + rte_ipv4_hdr_len(l3.ip4)
+					);
+					tuple.v4.sport = l4.udp->src_port;
+					tuple.v4.dport = l4.udp->dst_port;
+				} else {
+					// ignore UDP header for IP fragments
+					tuple.v4.sport = 0;
+					tuple.v4.dport = 0;
+				}
 				break;
 			case IPPROTO_TCP:
-				l4.tcp = rte_pktmbuf_mtod_offset(
-					m,
-					struct rte_tcp_hdr *,
-					l3_offset + rte_ipv4_hdr_len(l3.ip4)
-				);
-				tuple.v4.sport = l4.tcp->src_port;
-				tuple.v4.dport = l4.tcp->dst_port;
+				if (l3.ip4->fragment_offset == 0) {
+					l4.tcp = rte_pktmbuf_mtod_offset(
+						m,
+						struct rte_tcp_hdr *,
+						l3_offset + rte_ipv4_hdr_len(l3.ip4)
+					);
+					tuple.v4.sport = l4.tcp->src_port;
+					tuple.v4.dport = l4.tcp->dst_port;
+				} else {
+					// ignore TCP header for IP fragments
+					tuple.v4.sport = 0;
+					tuple.v4.dport = 0;
+				}
 				break;
 			default:
 				tuple.v4.sport = 0;
