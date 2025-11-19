@@ -14,6 +14,7 @@
 
 #include <event2/event.h>
 #include <rte_errno.h>
+#include <rte_ethdev.h>
 #include <rte_malloc.h>
 
 #include <fcntl.h>
@@ -260,6 +261,7 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 
 	iface->flags = GR_IFACE_F_UP;
 	iface->state = GR_IFACE_S_RUNNING;
+	iface->speed = RTE_ETH_SPEED_NUM_10G;
 	lo->ev = event_new(
 		ev_base,
 		lo->fd,

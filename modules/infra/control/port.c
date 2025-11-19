@@ -643,7 +643,6 @@ static struct event *link_event;
 static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	unsigned max_sleep_us, rx_buffer_us;
 	struct rte_eth_rxq_info qinfo;
-	struct iface_info_port *port;
 	struct rte_eth_link link;
 	struct queue_map *qmap;
 	struct worker *worker;
@@ -664,13 +663,11 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			if (iface == NULL)
 				continue;
 
-			port = iface_info_port(iface);
-
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
 				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));
 				continue;
 			}
-			port->link_speed = link.link_speed;
+			iface->speed = link.link_speed;
 
 			if (link.link_status == RTE_ETH_LINK_UP) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {

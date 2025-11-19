@@ -28,10 +28,6 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 			printf("bond: %u\n", port->bond_iface_id);
 		free(bond);
 	}
-	if (port->link_speed == UINT32_MAX)
-		printf("speed: unknown\n");
-	else
-		printf("speed: %u Mb/s\n", port->link_speed);
 	printf("n_rxq: %u\n", port->n_rxq);
 	printf("n_txq: %u\n", port->n_txq);
 	printf("rxq_size: %u\n", port->rxq_size);

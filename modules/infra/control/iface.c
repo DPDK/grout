@@ -13,6 +13,7 @@
 #include <gr_vec.h>
 
 #include <event2/event.h>
+#include <rte_ethdev.h>
 #include <rte_malloc.h>
 
 #include <errno.h>
@@ -107,6 +108,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		goto fail;
 
 	iface->base = conf->base;
+	iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 	iface->id = ifid;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
 	iface->name = strndup(conf->name, GR_IFACE_NAME_SIZE);
@@ -513,6 +515,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		str = "STATUS_UP";
 		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state |= GR_IFACE_S_RUNNING;
+			s->speed = iface->speed;
 			gr_event_push(event, s);
 		}
 		break;
@@ -520,6 +523,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		str = "STATUS_DOWN";
 		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state &= ~GR_IFACE_S_RUNNING;
+			s->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 			gr_event_push(event, s);
 		}
 		break;
