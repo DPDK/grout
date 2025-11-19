@@ -234,6 +234,7 @@ void bond_update_active_members(struct iface *iface) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
 	const struct iface *member;
 	uint8_t *active_ids = NULL;
+	uint32_t speed = 0;
 
 	switch (bond->mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP:
@@ -248,6 +249,7 @@ void bond_update_active_members(struct iface *iface) {
 		for (uint8_t i = 0; i < bond->n_members; i++) {
 			member = bond->members[i].iface;
 			if (i == active_member) {
+				speed = member->speed;
 				gr_vec_add(active_ids, i);
 				LOG(INFO,
 				    "bond %s active member is now %s",
@@ -261,7 +263,6 @@ void bond_update_active_members(struct iface *iface) {
 	case GR_BOND_MODE_LACP:
 		for (uint8_t i = 0; i < bond->n_members; i++) {
 			struct bond_member *member = &bond->members[i];
-			const struct iface_info_port *port = iface_info_port(member->iface);
 
 			// The port_number must *never* be zero,
 			// otherwise some switches reject the LACP packets.
@@ -272,7 +273,7 @@ void bond_update_active_members(struct iface *iface) {
 			member->local.system_mac = bond->mac;
 			// Key based on port speed (in Mb/s): simplified encoding for aggregation
 			// Ports with same speed can aggregate together
-			member->local.key = rte_cpu_to_be_16(port->link_speed);
+			member->local.key = rte_cpu_to_be_16(member->iface->speed);
 			if (member->last_rx == 0) {
 				member->local.state = LACP_STATE_ACTIVE | LACP_STATE_AGGREGATABLE
 					| LACP_STATE_FAST | LACP_STATE_DEFAULTED
@@ -294,10 +295,17 @@ void bond_update_active_members(struct iface *iface) {
 				    iface->name,
 				    member->iface->name);
 				gr_vec_add(active_ids, i);
+				if (member->iface->speed != RTE_ETH_SPEED_NUM_UNKNOWN)
+					speed += member->iface->speed;
 			}
 		}
 		break;
 	}
+
+	if (speed != 0)
+		iface->speed = speed;
+	else
+		iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 
 	if (gr_vec_len(active_ids) > 0) {
 		for (unsigned i = 0; i < ARRAY_DIM(bond->redirection_table); i++) {

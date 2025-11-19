@@ -84,6 +84,7 @@ static int iface_vlan_reconfig(
 		iface_add_subinterface(next_parent, iface);
 		iface->state = next_parent->state;
 		iface->mtu = next_parent->mtu;
+		iface->speed = next_parent->speed;
 
 		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0)
 			return errno_log(-ret, "rte_hash_add_key_data");
