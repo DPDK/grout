@@ -29,8 +29,7 @@ void l4_input_register_port(uint8_t proto, rte_be16_t port, const char *next_nod
 	case IPPROTO_UDP:
 		if (udp_edges[port] != MANAGEMENT)
 			ABORT("next node already registered for udp port=%hu", p);
-		udp_edges[proto] = gr_node_attach_parent("ip_input_local", next_node);
-		gr_node_attach_parent("ip6_input_local", next_node);
+		udp_edges[port] = gr_node_attach_parent("l4_input_local", next_node);
 		break;
 	default:
 		ABORT("proto not supported %hhu", proto);
