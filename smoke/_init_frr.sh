@@ -247,8 +247,8 @@ start_frr_on_namespace() {
 	cat >${frr_namespace_folder}/daemons <<EOF
 bgpd=yes
 vtysh_enable=yes
-zebra_options="--daemon -A 127.0.0.1 -s 90000000 --log file:$flog"
-bgpd_options="--daemon -A 127.0.0.1 --log file:$flog"
+frr_global_options="--daemon -A 127.0.0.1 --log file:$flog"
+zebra_options="-s 90000000"
 watchfrr_options="--netns=$namespace"
 EOF
 	cat >$frr_namespace_folder/frr.conf <<EOF
