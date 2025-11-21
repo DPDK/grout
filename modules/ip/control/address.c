@@ -65,7 +65,7 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 
 static struct api_out addr_add(const void *request, struct api_ctx *) {
 	const struct gr_ip4_addr_add_req *req = request;
-	const struct iface *vrf_iface, *iface;
+	const struct iface *iface;
 	struct hoplist *ifaddrs;
 	struct nexthop *nh;
 	int ret;
@@ -125,8 +125,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		gr_vec_free(nhs_old);
 	}
 
-	vrf_iface = get_vrf_iface(iface->vrf_id);
-	if (vrf_iface && netlink_add_addr4(vrf_iface->name, req->addr.addr.ip) < 0)
+	if (netlink_add_addr4(iface->name, req->addr.addr.ip) < 0)
 		LOG(WARNING,
 		    "add addr " IP4_F " on linux has failed (%s)",
 		    &req->addr.addr.ip,
@@ -169,9 +168,7 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface) {
-		const struct iface *vrf_iface = get_vrf_iface(iface->vrf_id);
-
-		if (vrf_iface && netlink_del_addr4(vrf_iface->name, req->addr.addr.ip) < 0)
+		if (netlink_del_addr4(iface->name, req->addr.addr.ip) < 0)
 			LOG(WARNING,
 			    "delete addr " IP4_F " on linux has failed (%s)",
 			    &req->addr.addr.ip,

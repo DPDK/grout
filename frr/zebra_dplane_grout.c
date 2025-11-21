@@ -3,8 +3,10 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include "if_grout.h"
+#include "if_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
+#include "typesafe.h"
 
 #include <gr_api_client_impl.h>
 #include <gr_srv6.h>
@@ -737,6 +739,7 @@ static int zd_grout_start_sync(struct event_loop *) {
 static int zd_grout_module_init(void) {
 	hook_register(frr_late_init, zd_grout_plugin_init);
 	hook_register(frr_config_post, zd_grout_start_sync);
+	init_ifindex_mappings();
 	return 0;
 }
 

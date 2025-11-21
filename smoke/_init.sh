@@ -232,9 +232,15 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	flog="$builddir/frr_install/var/log/frr/frr.log"
 	cat >$builddir/frr_install/etc/frr/daemons <<EOF
 bgpd=yes
+isisd=yes
+ospfd=yes
+ospf6d=yes
 vtysh_enable=yes
 zebra_options="-A 127.0.0.1 -s 90000000 --log file:$flog -M dplane_grout"
 bgpd_options="-A 127.0.0.1 --log file:$flog"
+isisd_options="--daemon -A 127.0.0.1 --log file:$flog"
+ospfd_options="--daemon -A 127.0.0.1 --log file:$flog"
+ospf6d_options="--daemon -A 127.0.0.1 --log file:$flog"
 EOF
 	cat >$builddir/frr_install/etc/frr/frr.conf <<EOF
 hostname grout

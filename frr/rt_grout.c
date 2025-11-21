@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "if_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -190,8 +191,8 @@ static int grout_gr_nexthop_to_frr_nexthop(
 	struct nexthop *nh,
 	int *nh_family
 ) {
-	nh->ifindex = gr_nh->iface_id;
-	nh->vrf_id = gr_nh->vrf_id;
+	nh->ifindex = ifindex_grout_to_frr(gr_nh->iface_id);
+	nh->vrf_id = ifindex_grout_to_frr(gr_nh->vrf_id);
 	nh->weight = 1;
 
 	switch (gr_nh->type) {
@@ -267,7 +268,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 			break;
 		}
 
-		ctx.table = sr6->out_vrf_id;
+		ctx.table = ifindex_grout_to_frr(sr6->out_vrf_id);
 		nexthop_add_srv6_seg6local(nh, action, &ctx);
 		break;
 	}
@@ -290,8 +291,8 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		break;
 	}
 	case GR_NH_T_GROUP:
-		nh->ifindex = gr_nh->iface_id;
-		nh->vrf_id = gr_nh->vrf_id;
+		nh->ifindex = ifindex_grout_to_frr(gr_nh->iface_id);
+		nh->vrf_id = ifindex_grout_to_frr(gr_nh->vrf_id);
 		*nh_family = AF_UNSPEC;
 		nh->weight = 1;
 		break;
@@ -313,11 +314,11 @@ static void grout_route_change(
 	uint8_t dest_prefixlen,
 	struct gr_nexthop *gr_nh
 ) {
-	uint32_t vrf_id = gr_nh->vrf_id;
-	// Grout has no per‑VRF routing tables; table_id always equals vrf_id
-	uint32_t tableid = vrf_id;
+	uint32_t vrf_id = ifindex_grout_to_frr(gr_nh->vrf_id);
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
+	// Grout has no per‑VRF routing tables; table_id always equals vrf_id
+	uint32_t tableid = vrf_id;
 	struct nexthop *nh = NULL;
 	uint32_t flags = 0;
 	struct prefix p;
@@ -463,7 +464,7 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		struct gr_ip6_route_del_req r6_del;
 	} req;
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
-	uint32_t vrf_id = dplane_ctx_get_vrf(ctx);
+	uint32_t vrf_id = ifindex_frr_to_grout(dplane_ctx_get_vrf(ctx));
 	const struct prefix *p;
 	gr_nh_origin_t origin;
 	uint32_t req_type;
@@ -667,8 +668,8 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	req->nh.nh_id = nh_id;
 	req->nh.origin = origin;
 	req->nh.type = type;
-	req->nh.vrf_id = nh->vrf_id;
-	req->nh.iface_id = nh->ifindex;
+	req->nh.vrf_id = ifindex_frr_to_grout(nh->vrf_id);
+	req->nh.iface_id = ifindex_frr_to_grout(nh->ifindex);
 
 	switch (type) {
 	case GR_NH_T_L3:
@@ -703,19 +704,27 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_T:
 			sr6_local->behavior = SR_BEHAVIOR_END_T;
-			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			sr6_local->out_vrf_id = ifindex_frr_to_grout(
+				nh->nh_srv6->seg6local_ctx.table
+			);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT6;
-			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			sr6_local->out_vrf_id = ifindex_frr_to_grout(
+				nh->nh_srv6->seg6local_ctx.table
+			);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT4;
-			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			sr6_local->out_vrf_id = ifindex_frr_to_grout(
+				nh->nh_srv6->seg6local_ctx.table
+			);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT46;
-			sr6_local->out_vrf_id = nh->nh_srv6->seg6local_ctx.table;
+			sr6_local->out_vrf_id = ifindex_frr_to_grout(
+				nh->nh_srv6->seg6local_ctx.table
+			);
 			break;
 		default:
 			gr_log_err(
@@ -822,7 +831,7 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	}
 
 	if (!new) {
-		zebra_nhg_kernel_del(gr_nh->nh_id, gr_nh->vrf_id);
+		zebra_nhg_kernel_del(gr_nh->nh_id, ifindex_grout_to_frr(gr_nh->vrf_id));
 		return;
 	}
 
@@ -841,7 +850,17 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	type = origin2zebra(gr_nh->origin, family, false);
 	SET_FLAG(nh->flags, NEXTHOP_FLAG_ACTIVE);
 
-	zebra_nhg_kernel_find(gr_nh->nh_id, nh, NULL, 0, gr_nh->vrf_id, afi, type, startup, NULL);
+	zebra_nhg_kernel_find(
+		gr_nh->nh_id,
+		nh,
+		NULL,
+		0,
+		ifindex_grout_to_frr(gr_nh->vrf_id),
+		afi,
+		type,
+		startup,
+		NULL
+	);
 
 	// zebra_nhg_kernel_find() makes a *shallow* copy of the allocated nexthop.
 	// nexthop_free() must *NOT* be used to preserve the nh_srv6 context.
