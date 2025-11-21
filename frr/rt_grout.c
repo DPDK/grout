@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "if_grout.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -240,6 +241,9 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		struct seg6local_context ctx;
 
 		memset(&ctx, 0, sizeof(ctx));
+
+		if (gr_nh->vrf_id == VRF_DEFAULT)
+			nh->ifindex = GROUT_SRV6_IFINDEX;
 
 		sr6 = (const struct gr_nexthop_info_srv6_local *)gr_nh->info;
 
@@ -668,7 +672,10 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	req->nh.origin = origin;
 	req->nh.type = type;
 	req->nh.vrf_id = nh->vrf_id;
-	req->nh.iface_id = nh->ifindex;
+	if (nh->ifindex != GROUT_SRV6_IFINDEX)
+		req->nh.iface_id = nh->ifindex;
+	else
+		req->nh.iface_id = 0;
 
 	switch (type) {
 	case GR_NH_T_L3:

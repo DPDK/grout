@@ -218,6 +218,9 @@ static void grout_sync_ifaces(struct event *) {
 	if (grout_client_ensure_connect() < 0)
 		return;
 
+	// Fake sr0 to allows SRv6 (because linux kernel limitation)
+	grout_add_sr0_link();
+
 	gr_api_client_stream_foreach (
 		iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
 	) {
