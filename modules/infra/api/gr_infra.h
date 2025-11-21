@@ -70,6 +70,7 @@ struct __gr_iface_base {
 		uint16_t vrf_id; // L3 addressing and routing domain
 		uint16_t domain_id; // L2 xconnect peer interface id
 	};
+	uint32_t speed; //!< Link speed in Megabit/sec.
 };
 
 struct gr_iface {
@@ -93,7 +94,6 @@ struct __gr_iface_info_port_base {
 	uint16_t rxq_size;
 	uint16_t txq_size;
 	uint16_t bond_iface_id;
-	uint32_t link_speed; //!< Physical link speed in Megabit/sec.
 	struct rte_ether_addr mac;
 };
 

@@ -464,6 +464,10 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	printf("flags: %s\n", buf);
 	printf("vrf: %u\n", iface->vrf_id);
 	printf("mtu: %u\n", iface->mtu);
+	if (iface->speed == UINT32_MAX)
+		printf("speed: unknown\n");
+	else
+		printf("speed: %u Mb/s\n", iface->speed);
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);
