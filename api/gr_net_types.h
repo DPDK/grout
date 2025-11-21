@@ -73,6 +73,16 @@ static inline bool ip4_addr_same_subnet(ip4_addr_t a, ip4_addr_t b, uint8_t pref
 	return ((a ^ b) & mask) == 0;
 }
 
+#define IPV4_ADDR_BCAST RTE_BE32(0xffffffff)
+
+static inline bool ip4_addr_is_mcast(const ip4_addr_t ip) {
+	const union {
+		ip4_addr_t ip;
+		uint8_t u8[4];
+	} addr = {.ip = ip};
+	return addr.u8[0] >= 224 && addr.u8[0] <= 239;
+}
+
 static inline int ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;

@@ -25,6 +25,7 @@ enum edges {
 	LOCAL,
 	NO_ROUTE,
 	BAD_CHECKSUM,
+	BAD_ADDR,
 	BAD_LENGTH,
 	BAD_VERSION,
 	OTHER_HOST,
@@ -90,6 +91,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
+		if (unlikely(ip->dst_addr == RTE_IPV4_ANY)) {
+			edge = BAD_ADDR;
+			goto next;
+		}
+
 		// (3) The IP version number must be 4.  If the version number is not 4
 		//     then the packet may be another version of IP, such as IPng or
 		//     ST-II.
@@ -127,6 +133,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		case ETH_DOMAIN_UNKNOWN:
 			// Drop all packets not sent to our ethernet address
 			edge = OTHER_HOST;
+			goto next;
+		}
+
+		if (unlikely(ip->dst_addr == IPV4_ADDR_BCAST || ip4_addr_is_mcast(ip->dst_addr))) {
+			edge = LOCAL;
 			goto next;
 		}
 
@@ -200,6 +211,7 @@ static struct rte_node_register input_node = {
 		[LOCAL] = "ip_input_local",
 		[NO_ROUTE] = "ip_error_dest_unreach",
 		[BAD_CHECKSUM] = "ip_input_bad_checksum",
+		[BAD_ADDR] = "ip_input_bad_address",
 		[BAD_LENGTH] = "ip_input_bad_length",
 		[BAD_VERSION] = "ip_input_bad_version",
 		[OTHER_HOST] = "ip_input_other_host",
@@ -215,6 +227,7 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_input_bad_checksum);
+GR_DROP_REGISTER(ip_input_bad_address);
 GR_DROP_REGISTER(ip_input_bad_length);
 GR_DROP_REGISTER(ip_input_bad_version);
 GR_DROP_REGISTER(ip_input_other_host);
