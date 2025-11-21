@@ -113,6 +113,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
+		if (unlikely(ip->dst_addr == RTE_BE32(0xffffffff) || ip->dst_addr == RTE_BE32(0))) {
+			edge = LOCAL;
+			goto next;
+		}
+
 		switch (domain) {
 		case ETH_DOMAIN_LOOPBACK:
 		case ETH_DOMAIN_LOCAL:
