@@ -3,6 +3,7 @@
 
 cli_src += files(
   'complete.c',
+  'dump.c',
   'ec_node_devargs.c',
   'ec_node_dyn.c',
   'ecoli.c',

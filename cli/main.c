@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "complete.h"
+#include "dump.h"
 #include "exec.h"
 #include "interact.h"
 #include "log.h"
@@ -27,6 +28,7 @@
 static void usage(const char *prog) {
 	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-V] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
+	printf("       %s -d|--dump-commands\n", prog);
 }
 
 static void help(void) {
@@ -46,6 +48,8 @@ static void help(void) {
 	puts("external completion:");
 	puts("  -c, --bash-complete        For use in bash completion:");
 	puts("                             complete -o default -C 'grcli -c' grcli");
+	puts("for man page generation:");
+	puts("  -d, --dump-commands        Dump the command tree in JSON format.");
 }
 
 struct gr_cli_opts {
@@ -173,6 +177,11 @@ int main(int argc, char **argv) {
 
 	if (argc >= 2 && (!strcmp(argv[1], "-c") || !strcmp(argv[1], "--bash-complete"))) {
 		ret = bash_complete(cmdlist);
+		goto end;
+	}
+
+	if (argc == 2 && (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--dump-commands"))) {
+		ret = dump_command_tree(cmdlist);
 		goto end;
 	}
 
