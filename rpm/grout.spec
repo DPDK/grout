@@ -17,7 +17,7 @@ Source0: https://github.com/DPDK/grout/archive/%{branch}.tar.gz#/%{name}-%{versi
 
 BuildRequires: gcc
 BuildRequires: git
-BuildRequires: golang-github-cpuguy83-md2man
+BuildRequires: scdoc
 BuildRequires: libarchive-devel
 BuildRequires: libcmocka-devel
 BuildRequires: libedit-devel
