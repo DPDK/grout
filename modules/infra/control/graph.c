@@ -373,6 +373,10 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 			attrs = " [color=blue style=bold]";
 			if (fprintf(f, "%s", attrs) < 0)
 				goto err;
+		} else if (info->type & GR_NODE_T_CONTROL) {
+			attrs = " [color=dodgerblue shape=box margin=0.1]";
+			if (fprintf(f, "%s", attrs) < 0)
+				goto err;
 		} else if (nb_edges == 0) {
 			if (fprintf(f, " [fontcolor=darkorange shape=plain]") < 0)
 				goto err;
