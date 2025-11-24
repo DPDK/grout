@@ -318,12 +318,10 @@ struct gr_infra_stats_get_resp {
 // struct gr_infra_stats_reset_resp { };
 
 // graph ///////////////////////////////////////////////////////////////////////
-#define GR_INFRA_GRAPH_DUMP_F_ERRORS GR_BIT16(0) //!< include error nodes
-
 #define GR_INFRA_GRAPH_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0030)
 
 struct gr_infra_graph_dump_req {
-	uint16_t flags;
+	bool full;
 };
 
 // struct gr_infra_graph_dump_resp -> char[]; // nul terminated string
