@@ -344,6 +344,10 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 
 	if (fprintf(f, "digraph grout {\n\trankdir=LR;\n") < 0)
 		goto err;
+	if (!req->compact) {
+		if (fprintf(f, "\tnewrank=true;\n") < 0)
+			goto err;
+	}
 	if (fprintf(f, "\tnode [margin=0.02 fontsize=11 fontname=sans];\n") < 0)
 		goto err;
 

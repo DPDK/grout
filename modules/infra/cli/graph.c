@@ -12,12 +12,14 @@
 #include <unistd.h>
 
 static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_graph_dump_req req = {.full = false};
+	struct gr_infra_graph_dump_req req = {0};
 	void *resp_ptr = NULL;
 	const char *dot;
 
 	if (arg_str(p, "full"))
 		req.full = true;
+	if (arg_str(p, "compact"))
+		req.compact = true;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_GRAPH_DUMP, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
@@ -34,11 +36,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("graph", "Packet processing graph")),
-		"[show] [brief|full]",
+		"[show] [(brief|full),compact]",
 		graph_dump,
 		"Show packet processing graph info.",
 		with_help("Hide error nodes (default).", ec_node_str("brief", "brief")),
-		with_help("Show all nodes.", ec_node_str("full", "full"))
+		with_help("Show all nodes.", ec_node_str("full", "full")),
+		with_help("Make the graph more compact.", ec_node_str("compact", "compact"))
 	);
 	if (ret < 0)
 		return ret;
