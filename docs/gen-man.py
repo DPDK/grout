@@ -99,7 +99,97 @@ _DPRC_
 \tdevargs will not be available."""
     )
 
-    print_trailer(["*grout*(8)"])
+    pages = []
+
+    for ctx in tree.children[2].children:
+        if ctx.type != "seq":
+            continue
+        pages.append(f"*grcli-{ctx.children[0].desc}*(1)")
+
+    print_trailer(pages + ["*grout*(8)"])
+
+
+def walk_arguments(cmd: Node, options: dict, arguments: list, in_option: bool):
+    for c in cmd.children:
+        if c.type in ("or", "seq", "cmd", "option", "subset", "many"):
+            args = []
+            walk_arguments(
+                c, options, args, in_option or c.type in ("option", "subset")
+            )
+            if c.type == "or":
+                arguments.append("(" + "|".join(args) + ")")
+            elif c.type in ("seq", "cmd", "subset", "option"):
+                arg = " ".join(args)
+                if in_option:
+                    arg = f"[{arg}]"
+                arguments.append(arg)
+            elif c.type == "many":
+                arguments.append(" ".join(args) + "+")
+        elif c.type == "str":
+            arguments.append(f"*{c.desc}*")
+        else:
+            if c.help:
+                options[c.id] = c.help
+            arguments.append(f"_{c.id}_")
+
+
+def print_command_synopsis(node: Node, options: dict, stack: list):
+    arguments = [f"*{s}*" for s in stack]
+    walk_arguments(node, options, arguments, False)
+    print()
+    print(" ".join(arguments))
+    print(f"\t{node.help}")
+
+
+def walk_commands(node: Node, options: dict, stack: list):
+    if node.has_cb:
+        print_command_synopsis(node, options, stack)
+    else:
+        for c in node.children:
+            if c.type == "str":
+                stack.append(c.desc)
+            elif c.type in ("or", "seq", "cmd", "option", "subset"):
+                walk_commands(c, options, stack)
+        for c in node.children:
+            if c.type == "str":
+                stack.pop()
+
+
+def print_context_page(tree: Node, context: str):
+    for ctx in tree.children[2].children:
+        if ctx.type != "seq":
+            continue
+        if ctx.children[0].desc == context:
+            base = ctx
+            break
+    else:
+        raise FileNotFoundError(context)
+
+    print_header(f"grcli-{context}", base.children[0].help)
+
+    options = {}
+    walk_commands(ctx, options, [])
+
+    if options:
+        print()
+        print("# OPTIONS")
+
+    pages = {"*grcli*(1)"}
+
+    for opt, desc in options.items():
+        print()
+        print(f"_{opt}_")
+        print(f"\t{desc}")
+        if opt in ("IFACE", "INTERFACE", "NAME") and context != "interface":
+            pages.add("*grcli-interface*(1)")
+        elif opt in ("NH", "NH_ID", "SEGLIST") and context != "nexthop":
+            pages.add("*grcli-nexthop*(1)")
+        elif opt == "VRF" and context != "route":
+            pages.add("*grcli-route*(1)")
+        elif opt in ("ADDR", "IP", "DEST") and context != "address":
+            pages.add("*grcli-address*(1)")
+
+    print_trailer(pages)
 
 
 def dict_to_node(d: dict) -> Node:
@@ -116,6 +206,7 @@ def dict_to_node(d: dict) -> Node:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-f", "--file", default="-")
+    parser.add_argument("context", nargs="?")
     args = parser.parse_args()
 
     if args.file == "-":
@@ -123,7 +214,10 @@ def main():
     else:
         with open(args.file) as file:
             tree = json.load(file, object_hook=dict_to_node)
-    print_main_page(tree)
+    if args.context:
+        print_context_page(tree, args.context)
+    else:
+        print_main_page(tree)
 
 
 if __name__ == "__main__":
