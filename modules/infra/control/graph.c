@@ -332,7 +332,6 @@ const struct gr_node_info *gr_node_info_get(rte_node_t node_id) {
 
 static struct api_out graph_dump(const void *request, struct api_ctx *) {
 	const struct gr_infra_graph_dump_req *req = request;
-	bool errors = req->flags & GR_INFRA_GRAPH_DUMP_F_ERRORS;
 	gr_vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
 	char **edges = NULL;
@@ -357,10 +356,14 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		if (node_id == port_output_node)
 			nb_edges = info->node->nb_edges;
 
-		if (!errors) {
+		if (!req->full) {
 			if (nb_edges == 0)
 				continue;
 			if (strstr(name, "error"))
+				continue;
+			if (strcmp(name, "control_input") == 0)
+				continue;
+			if (strcmp(name, "control_output") == 0)
 				continue;
 		}
 		if (fprintf(f, "\t\"%s\"", name) < 0)
@@ -391,26 +394,25 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		for (unsigned i = 0; i < nb_edges; i++) {
 			const char *edge = edges[i];
 			const char *node_attrs = attrs;
+			rte_node_t id = rte_node_from_name(edge);
 
+			if (!req->full) {
+				if (strstr(edge, "error"))
+					continue;
+				if (strcmp(edge, "control_input") == 0)
+					continue;
+				if (strcmp(edge, "control_output") == 0)
+					continue;
+			}
+			if (rte_node_edge_count(id) == 0) {
+				if (id != port_output_node && !req->full)
+					continue;
+				attrs = " [color=darkorange]";
+			}
 			gr_vec_foreach (const char *e, seen_edges) {
 				if (strcmp(e, edge) == 0)
 					goto skip; // skip duplicate edges
 			}
-
-			const struct gr_node_info *n;
-			STAILQ_FOREACH (n, &node_infos, next) {
-				if (strcmp(n->node->name, edge) != 0)
-					continue;
-
-				rte_node_t id = rte_node_from_name(n->node->name);
-				if (id != port_output_node && rte_node_edge_count(id) == 0) {
-					if (!errors)
-						goto skip;
-					node_attrs = " [color=darkorange]";
-				}
-				break;
-			}
-
 			gr_vec_add(seen_edges, edge);
 
 			if (fprintf(f, "\t\"%s\" -> \"%s\"%s;\n", name, edge, node_attrs) < 0)
