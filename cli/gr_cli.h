@@ -31,6 +31,11 @@ typedef enum {
 
 typedef cmd_status_t (*cmd_cb_t)(struct gr_api_client *, const struct ec_pnode *);
 
+#define CALLBACK_ATTR "callback"
+#define CLIENT_ATTR "gr_api_client"
+#define HELP_ATTR "help"
+#define SOCK_PATH_ID "gr_api_sock_path"
+
 struct ec_node *with_help(const char *help, struct ec_node *node);
 
 struct ec_node *with_callback(cmd_cb_t cb, struct ec_node *node);
@@ -104,6 +109,3 @@ typedef int (*ec_node_dyn_comp_t)(
 );
 
 struct ec_node *ec_node_dyn(const char *id, ec_node_dyn_comp_t cb, void *cb_arg);
-
-#define CLIENT_ATTR "gr_api_client"
-#define SOCK_PATH_ID "gr_api_sock_path"

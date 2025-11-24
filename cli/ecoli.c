@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "exec.h"
-
 #include <gr_cli.h>
 
 #include <ecoli.h>
 
 #include <errno.h>
 #include <stdarg.h>
-
-#define HELP_ATTR "help"
 
 struct ec_node *with_help(const char *help, struct ec_node *node) {
 	if (node == NULL)

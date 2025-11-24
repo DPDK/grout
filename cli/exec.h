@@ -22,8 +22,6 @@ typedef enum {
 	EXEC_OTHER_ERROR, // other internal error
 } exec_status_t;
 
-#define CALLBACK_ATTR "callback"
-
 exec_status_t exec_args(
 	struct gr_api_client *,
 	const struct ec_node *,
