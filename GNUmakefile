@@ -104,7 +104,7 @@ rpm:
 CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'
 all_files = git ls-files ':!:subprojects'
-licensed_files = git ls-files ':!:*.svg' ':!:licenses' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian' ':!:.*'
+licensed_files = git ls-files ':!:*.svg' ':!:licenses' ':!:*.md' ':!:*.asc' ':!:subprojects' ':!:debian' ':!:.*' ':!:*.scdoc'
 
 .PHONY: lint
 lint:

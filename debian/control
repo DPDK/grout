@@ -8,7 +8,7 @@ Build-Depends:
  debhelper-compat (= 13),
  bash-completion,
  git,
- go-md2man,
+ scdoc,
  libarchive-dev,
  libcmocka-dev,
  libedit-dev,

@@ -259,7 +259,7 @@ image.
 
 ```sh
 dnf install git gcc make meson ninja-build pkgconf \
-        python3-pyelftools golang-github-cpuguy83-md2man libmnl-devel \
+        python3-pyelftools scdoc libmnl-devel \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
         libsmartcols-devel libarchive-devel rdma-core-devel
 ```
@@ -268,7 +268,7 @@ or
 
 ```sh
 apt install git gcc make meson ninja-build pkgconf \
-        python3-pyelftools go-md2man \
+        python3-pyelftools scdoc \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev libmnl-dev \
         libsmartcols-dev libarchive-dev libibverbs-dev
 ```
@@ -375,7 +375,7 @@ Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 | cmocka | Build | Apache-2.0 | https://github.com/clibs/cmocka |
 | meson | Build | Apache-2.0 | https://github.com/mesonbuild/meson |
 | ninja | Build | Apache-2.0 | https://github.com/ninja-build/ninja |
-| go-md2man | Build | MIT | https://github.com/cpuguy83/go-md2man |
+| scdoc | Build | MIT | https://git.sr.ht/~sircmpwn/scdoc |
 | libasan | Dev | MIT+BSD | https://github.com/gcc-mirror/gcc/tree/master/libsanitizer |
 | clang-format | Dev | MIT+BSD | https://clang.llvm.org/docs/ClangFormat.html |
 

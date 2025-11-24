@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Robin Jarry
 
-md2man = find_program('go-md2man', native: true, required: get_option('docs'))
-if not md2man.found()
+scdoc = find_program('scdoc', native: true, required: get_option('docs'))
+if not scdoc.found()
   subdir_done()
 endif
 
@@ -13,9 +13,9 @@ config = configuration_data({
 })
 
 man_src = [
-  'grcli.1.md',
-  'grout.8.md',
-  'grout-frr.7.md',
+  'grcli.1.scdoc',
+  'grout.8.scdoc',
+  'grout-frr.7.scdoc',
 ]
 
 foreach m : man_src
@@ -32,7 +32,7 @@ foreach m : man_src
     output,
     input: c,
     output: output,
-    command: md2man,
+    command: scdoc,
     install: true,
     feed: true,
     capture: true,

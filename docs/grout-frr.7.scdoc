@@ -1,68 +1,66 @@
-GROUT-FRR 7 @DATE@ "grout @VERSION@"
-================================
+GROUT-FRR(7)
 
-# FRR + Grout: Transparent BGP Peering via Loopback Interfaces
+# INTRODUCTION
 
-This guide demonstrates how to configure FRR (Free Range Routing) and Linux networking to establish BGP peering
-between Grout and an upstream router, without assigning IP addresses directly to the Linux interface.
+This guide demonstrates how to configure FRR (Free Range Routing) and Linux
+networking to establish BGP peering between Grout and an upstream router,
+without assigning IP addresses directly to the Linux interface.
 
-0. Context
-1. How packets are forwarded from Grout to `gr-loop0`
-2. Linux configuration to peer without adding a local ip
-3. BGPD configuration
----
+# CONTEXT
 
-## 0. Ease of Use
+By default, FRR daemons such as _bgpd_ require binding to a local IP address to
+accept incoming peer connections. This necessitates explicitly adding all Grout
+"local" IPs to the _gr-loop0_ interface. However, this approach is cumbersome
+and not ideal.
 
-By default, FRR daemons such as `bgpd` require binding to a local IP address to accept incoming peer connections.
-This necessitates explicitly adding all Grout "local" IPs to the `gr-loop0` interface.
-However, this approach is cumbersome and not ideal.
+The objective is to run _bgpd_ without assigning any IP address to the
+_gr-loop0_ network device. This is achieved by utilizing the _IP_TRANSPARENT_
+socket option and FRR's capability to bind to a specific interface.
 
-The objective is to run `bgpd` without assigning any IP address to the `gr-loop0` network device.
-This is achieved by utilizing the `IP_TRANSPARENT` socket option and FRR's capability to bind to a specific interface.
+# PACKETS FROM GROUT TO gr-loop0
 
----
+All packets received to a *local* IP configured in grout will be processed by
+the node _ip_input_local_/_ip6_input_local_. If the protocol isn't handled
+locally (ICMP, Neighbor Disc, ...), the packets are forwarded to
+_l4_input_local_. If still unhandled (e.g., VXLAN Tunnel), the packet is sent to
+the corresponding _gr-loopX_ interface associated with the VRF.
 
-## 1. Packets from grout to gr-loop0
+# FRR CONFIGURATION OVERVIEW
 
-All packets received to a **local** IP configured in grout will be processed by the node `ip_input_local/ip6_input_local`.
-If the protocol isn't handled locally (ICMP, Neighbor Disc, ...), the packets are forwarded to `l4_input_local`.
-If still unhandled (e.g., VXLAN Tunnel), the packet is sent to the corresponding `gr-loopX` interface associated with the VRF.
+Zebra must be run with the _-M_ option to load the plugin:
+Edit the file _/etc/frr/daemons_, for example:
 
----
-
-## 2. FRR Configuration Overview
-
-Zebra must be run with the `-M` option to load the plugin:
-Edit the file `/etc/frr/daemons`, for example:
-
-```ini
+```
 zebra_options="  -A 127.0.0.1 -s 90000000 -M dplane_grout"
 ```
 
-```frr
+And the corresponding _frr.conf_:
+
+```
 service integrated-vtysh-config
 !
 interface cv0
- ip address 192.168.210.1/24
+	ip address 192.168.210.1/24
 exit
 !
 router bgp 64513
- neighbor 192.168.210.3 remote-as 64513
- neighbor 192.168.210.3 interface gr-loop0
- neighbor 192.168.210.3 update-source 192.168.210.1
+	neighbor 192.168.210.3 remote-as 64513
+	neighbor 192.168.210.3 interface gr-loop0
+	neighbor 192.168.210.3 update-source 192.168.210.1
 exit
 !
 end
 ```
 
 Two additional configurations for a neighbor are required:
-- source interface, `gr-loop0`, only required for the default VRF
+
+- source interface, _gr-loop0_, only required for the default VRF
 - update source IP, local Grout IP
 
-With that configuration, BGP messages are properly exchanged, and routes are visible in grout:
+With that configuration, BGP messages are properly exchanged, and routes are
+visible in grout:
 
-```frr
+```
 vtysh# show bgp summary
 
 IPv4 Unicast Summary:
@@ -77,7 +75,7 @@ Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down Sta
 Total number of neighbors 1
 ```
 
-```grout
+```
 grout# route show
 VRF  DESTINATION        NEXT_HOP
 0    192.168.1.0/24     type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new

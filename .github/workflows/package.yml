@@ -26,7 +26,7 @@ jobs:
           apt-get update -qy
           apt-get install -qy --no-install-recommends \
             autoconf automake bash-completion bison build-essential debhelper \
-            ccache curl devscripts flex git go-md2man libarchive-dev libcap-dev \
+            ccache curl devscripts flex git scdoc libarchive-dev libcap-dev \
             libcmocka-dev libedit-dev libelf-dev libevent-dev libibverbs-dev \
             libjson-c-dev libmnl-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
             librtr-dev libsmartcols-dev libtool libyang-dev meson ninja-build \
@@ -80,7 +80,7 @@ jobs:
           dnf install -y epel-release
           dnf --enablerepo=crb install -y --nodocs --setopt=install_weak_deps=0 \
             autoconf automake bison ccache elfutils-libelf-devel flex gcc-toolset-13 \
-            git golang-github-cpuguy83-md2man json-c-devel libarchive-devel \
+            git scdoc json-c-devel libarchive-devel \
             libcap-devel libcmocka-devel libedit-devel libevent-devel libmnl-devel \
             libsmartcols-devel libyang-devel libtool make meson ninja-build \
             numactl-devel pkgconf protobuf-c-compiler protobuf-c-devel \
