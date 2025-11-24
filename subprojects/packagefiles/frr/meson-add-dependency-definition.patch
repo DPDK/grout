@@ -1,4 +1,4 @@
-From 2e791176685f07dd04ae1a0e46db01262ce7d9bc Mon Sep 17 00:00:00 2001
+From 62ccc3d5738ff8f8726e6ffa8e6b7e54c9a43d44 Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Thu, 7 Aug 2025 12:29:10 +0200
 Subject: [PATCH] meson add dependency definition
@@ -13,7 +13,7 @@ Signed-off-by: Maxime Leroy <maxime@leroys.fr>
 
 diff --git a/frr_install.sh b/frr_install.sh
 new file mode 100644
-index 0000000..1e40167
+index 0000000000..1e40167b58
 --- /dev/null
 +++ b/frr_install.sh
 @@ -0,0 +1,35 @@
@@ -54,7 +54,7 @@ index 0000000..1e40167
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000..d26e979
+index 0000000000..3957e0d7d8
 --- /dev/null
 +++ b/meson.build
 @@ -0,0 +1,86 @@
@@ -131,7 +131,7 @@ index 0000000..d26e979
 +frr_dep = declare_dependency(
 +  include_directories: include_directories('.', 'lib'),
 +  compile_args: [
-+    '-DHAVE_CONFIG_H',
++    '-DMULTIPATH_NUM=128',
 +    '-D_GNU_SOURCE',
 +    '-fms-extensions',
 +    '-Wno-missing-field-initializers',

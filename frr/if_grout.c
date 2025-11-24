@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "if_grout.h"
 #include "if_map.h"
 #include "log_grout.h"

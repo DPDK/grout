@@ -25,6 +25,7 @@ frr_plugin = shared_module(
     'rt_grout.c',
     'zebra_dplane_grout.c',
   ),
+  c_args: ['-DHAVE_NETLINK'],
   name_prefix: '',
   dependencies: [frr_dep],
   include_directories: api_inc + include_directories('.'),
