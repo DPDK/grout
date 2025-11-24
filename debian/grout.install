@@ -5,5 +5,5 @@
 /usr/lib/systemd/system/grout.service
 /usr/share/bash-completion/completions/grcli
 /usr/share/bash-completion/completions/grout
-/usr/share/man/man1/grcli.1
+/usr/share/man/man1/grcli*.1
 /usr/share/man/man8/grout.8
