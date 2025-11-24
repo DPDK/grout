@@ -109,6 +109,7 @@ static struct rte_node_register ipip_output_node = {
 
 static struct gr_node_info ipip_output_info = {
 	.node = &ipip_output_node,
+	.type = GR_NODE_T_L3,
 	.register_callback = ipip_output_register,
 	.trace_format = trace_ipip_format,
 };

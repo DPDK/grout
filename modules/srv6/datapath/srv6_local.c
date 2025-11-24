@@ -404,6 +404,7 @@ static struct rte_node_register srv6_local_node = {
 
 static struct gr_node_info srv6_local_info = {
 	.node = &srv6_local_node,
+	.type = GR_NODE_T_L3,
 	.trace_format = trace_srv6_format,
 	.register_callback = srv6_node_init,
 };

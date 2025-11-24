@@ -138,6 +138,7 @@ static struct rte_node_register control_input_node = {
 
 static struct gr_node_info info = {
 	.node = &control_input_node,
+	.type = GR_NODE_T_CONTROL,
 	.register_callback = control_input_register,
 	.unregister_callback = control_input_unregister,
 };

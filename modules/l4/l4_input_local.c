@@ -89,6 +89,7 @@ static struct rte_node_register input_node = {
 
 static struct gr_node_info info = {
 	.node = &input_node,
+	.type = GR_NODE_T_L4,
 	.register_callback = l4_input_local_register,
 };
 

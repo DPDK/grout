@@ -155,14 +155,17 @@ static struct rte_node_register frag_needed_node = {
 
 static struct gr_node_info info_ttl_exceeded = {
 	.node = &ip_forward_ttl_exceeded_node,
+	.type = GR_NODE_T_L3,
 };
 
 static struct gr_node_info info_no_route = {
 	.node = &no_route_node,
+	.type = GR_NODE_T_L3,
 };
 
 static struct gr_node_info info_frag_needed = {
 	.node = &frag_needed_node,
+	.type = GR_NODE_T_L3,
 };
 
 GR_NODE_REGISTER(info_ttl_exceeded);

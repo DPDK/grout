@@ -145,6 +145,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L4,
 	.register_callback = ndp_output_solicit_register,
 	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };

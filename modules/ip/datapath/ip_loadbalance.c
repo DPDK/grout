@@ -67,6 +67,7 @@ static struct rte_node_register ip_lb_node = {
 
 static struct gr_node_info info_loadbalance = {
 	.node = &ip_lb_node,
+	.type = GR_NODE_T_L3,
 	.register_callback = loadbalance_register,
 };
 

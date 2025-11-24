@@ -170,6 +170,7 @@ static void eth_input_register(void) {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.type = GR_NODE_T_L2,
 	.trace_format = eth_trace_format,
 	.register_callback = eth_input_register,
 };

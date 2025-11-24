@@ -154,10 +154,12 @@ static struct rte_node_register ttl_exceeded_node = {
 
 static struct gr_node_info dest_unreach_info = {
 	.node = &dest_unreach_node,
+	.type = GR_NODE_T_L3,
 };
 
 static struct gr_node_info ttl_exceeded_info = {
 	.node = &ttl_exceeded_node,
+	.type = GR_NODE_T_L3,
 };
 
 GR_NODE_REGISTER(dest_unreach_info);

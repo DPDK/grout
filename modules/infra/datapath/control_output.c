@@ -48,6 +48,7 @@ static struct rte_node_register control_output_node = {
 
 static struct gr_node_info info = {
 	.node = &control_output_node,
+	.type = GR_NODE_T_CONTROL,
 };
 
 GR_NODE_REGISTER(info);

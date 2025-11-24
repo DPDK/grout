@@ -78,6 +78,7 @@ static struct rte_node_register node = {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L2,
 };
 
 GR_NODE_REGISTER(info);

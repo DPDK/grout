@@ -253,6 +253,7 @@ static void bond_output_register(void) {
 
 static struct gr_node_info info = {
 	.node = &bond_output_node,
+	.type = GR_NODE_T_L1,
 	.register_callback = bond_output_register,
 	.trace_format = bond_trace_format,
 };

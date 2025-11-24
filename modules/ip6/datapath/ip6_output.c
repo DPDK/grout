@@ -142,6 +142,7 @@ static struct rte_node_register output_node = {
 
 static struct gr_node_info info = {
 	.node = &output_node,
+	.type = GR_NODE_T_L3,
 	.trace_format = (gr_trace_format_cb_t)trace_ip6_format,
 };
 

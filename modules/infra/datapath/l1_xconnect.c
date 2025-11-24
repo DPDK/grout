@@ -70,6 +70,7 @@ static void l1_xconnect_register(void) {
 
 static struct gr_node_info info = {
 	.node = &xconnect_node,
+	.type = GR_NODE_T_L1,
 	.register_callback = l1_xconnect_register,
 };
 
