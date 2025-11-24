@@ -322,6 +322,7 @@ struct gr_infra_stats_get_resp {
 
 struct gr_infra_graph_dump_req {
 	bool full;
+	bool by_layer;
 	bool compact;
 };
 

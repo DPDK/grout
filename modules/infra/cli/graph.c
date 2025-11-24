@@ -18,6 +18,8 @@ static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p
 
 	if (arg_str(p, "full"))
 		req.full = true;
+	if (arg_str(p, "layers"))
+		req.by_layer = true;
 	if (arg_str(p, "compact"))
 		req.compact = true;
 
@@ -36,11 +38,12 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("graph", "Packet processing graph")),
-		"[show] [(brief|full),compact]",
+		"[show] [(brief|full),layers,compact]",
 		graph_dump,
 		"Show packet processing graph info.",
 		with_help("Hide error nodes (default).", ec_node_str("brief", "brief")),
 		with_help("Show all nodes.", ec_node_str("full", "full")),
+		with_help("Group nodes by network layer.", ec_node_str("layers", "layers")),
 		with_help("Make the graph more compact.", ec_node_str("compact", "compact"))
 	);
 	if (ret < 0)
