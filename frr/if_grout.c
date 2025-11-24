@@ -9,6 +9,7 @@
 #include <gr_ip6.h>
 #include <gr_srv6.h>
 
+#include <lib/srv6.h>
 #include <linux/if.h>
 #include <net/if.h>
 #include <zebra/interface.h>
@@ -38,6 +39,50 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 	return frr_if_flags;
 }
 
+void grout_add_sr0_link(void) {
+	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
+	unsigned int sr0_ifindex;
+
+	sr0_ifindex = if_nametoindex(DEFAULT_SRV6_IFNAME);
+	if (!sr0_ifindex) {
+		gr_log_err(
+			"iface '%s' is not created on linux, skipping fake device creation on "
+			"zebra (no srv6 support)",
+			DEFAULT_SRV6_IFNAME
+		);
+		return;
+	}
+
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
+	dplane_ctx_set_ifp_zif_type(ctx, ZEBRA_IF_DUMMY);
+	dplane_ctx_set_ifindex(ctx, GROUT_SRV6_IFINDEX);
+	dplane_ctx_set_ifname(ctx, DEFAULT_SRV6_IFNAME);
+	dplane_ctx_set_ifp_startup(ctx, true);
+	dplane_ctx_set_ifp_family(ctx, AF_UNSPEC);
+	dplane_ctx_set_intf_txqlen(ctx, 1000);
+	dplane_ctx_set_ifp_link_ifindex(ctx, IFINDEX_INTERNAL);
+	dplane_ctx_set_op(ctx, DPLANE_OP_INTF_INSTALL);
+	dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
+	dplane_ctx_set_ifp_mtu(ctx, 1500);
+	dplane_ctx_set_ifp_zif_slave_type(ctx, ZEBRA_IF_SLAVE_NONE);
+	dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);
+	dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
+	dplane_ctx_set_ifp_bond_ifindex(ctx, IFINDEX_INTERNAL);
+	dplane_ctx_set_ifp_bypass(ctx, 0);
+	dplane_ctx_set_ifp_zltype(ctx, ZEBRA_LLT_ETHER);
+	dplane_ctx_set_ifp_flags(
+		ctx, IFF_UP | IFF_BROADCAST | IFF_MULTICAST | IFF_RUNNING | IFF_LOWER_UP
+	);
+	dplane_ctx_set_ifp_protodown_set(ctx, false);
+	dplane_ctx_set_ifp_table_id(ctx, 0);
+	dplane_ctx_set_ifp_vrf_id(ctx, 0);
+
+	dplane_provider_enqueue_to_zebra(ctx);
+
+	add_ifindex_mapping(GROUT_SRV6_IFINDEX, sr0_ifindex);
+}
+
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
@@ -47,6 +92,13 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	const struct rte_ether_addr *mac = NULL;
 	uint32_t txqlen = 1000;
+
+	if (strcmp(gr_if->name, DEFAULT_SRV6_IFNAME) == 0) {
+		gr_log_err(
+			"iface '%s' is reserved in FRR for srv6 support, skipping sync", gr_if->name
+		);
+		return;
+	}
 
 	if (new)
 		add_ifindex_mapping(gr_if->id, if_nametoindex(gr_if->name));
@@ -203,15 +255,20 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 	uint32_t req_type;
 	size_t req_len;
 
-	assert(gr_iface_id);
-
 	if (p->family != AF_INET && p->family != AF_INET6) {
 		gr_log_err(
 			"impossible to add/del address with family %u (not supported)", p->family
 		);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
-	if (gr_iface_id < 0 || gr_iface_id >= UINT16_MAX) {
+	if (gr_iface_id == GROUT_SRV6_IFINDEX) {
+		gr_log_err(
+			"impossible to add/del address on %s (fake device)", DEFAULT_SRV6_IFNAME
+		);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (gr_iface_id <= 0 || gr_iface_id >= UINT16_MAX) {
 		gr_log_err("impossible to add/del address with invalid ifindex %d", gr_iface_id);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}

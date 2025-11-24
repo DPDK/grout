@@ -4,6 +4,7 @@
 
 #include "if_grout.h"
 #include "if_map.h"
+#include "if_netlink.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 #include "typesafe.h"
@@ -13,6 +14,7 @@
 
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
+#include <lib/srv6.h>
 #include <zebra/zebra_dplane.h>
 #include <zebra/zebra_router.h>
 #include <zebra_dplane_grout.h>
@@ -219,6 +221,9 @@ static void grout_sync_ifaces(struct event *) {
 
 	if (grout_client_ensure_connect() < 0)
 		return;
+
+	// Fake sr0 to allows SRv6 (because linux kernel limitation)
+	grout_add_sr0_link();
 
 	gr_api_client_stream_foreach (
 		iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
@@ -640,8 +645,15 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 static void zd_grout_ns(struct event *t) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct vrf *default_vrf;
+	struct ns *default_ns;
 
-	zebra_ns_disabled(ns_get_default());
+	default_ns = ns_get_default();
+	if (!default_ns) {
+		gr_log_err("no default namespace");
+		exit(1);
+	}
+	netlink_add_dummy_link(default_ns->info, DEFAULT_SRV6_IFNAME);
+	zebra_ns_disabled(default_ns);
 
 	// Delete all vrfs including the default one
 	vrf_terminate();
