@@ -331,6 +331,15 @@ const struct gr_node_info *gr_node_info_get(rte_node_t node_id) {
 }
 
 static struct api_out graph_dump(const void *request, struct api_ctx *) {
+	static const struct {
+		gr_node_type_t type;
+		const char *name;
+	} layers[] = {
+		{GR_NODE_T_L1, "L1"},
+		{GR_NODE_T_L2, "L2"},
+		{GR_NODE_T_L3, "L3"},
+		{GR_NODE_T_L4, "L4"},
+	};
 	const struct gr_infra_graph_dump_req *req = request;
 	gr_vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
@@ -342,14 +351,83 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 	if ((f = open_memstream(&buf, &buf_len)) == NULL)
 		return api_out(errno, 0, NULL);
 
-	if (fprintf(f, "digraph grout {\n\trankdir=LR;\n") < 0)
+	if (fprintf(f, "digraph {\n") < 0)
 		goto err;
-	if (!req->compact) {
+	if (!req->by_layer) {
+		if (fprintf(f, "\trankdir=LR;\n") < 0)
+			goto err;
+	}
+	if (!req->compact || req->by_layer) {
 		if (fprintf(f, "\tnewrank=true;\n") < 0)
 			goto err;
 	}
 	if (fprintf(f, "\tnode [margin=0.02 fontsize=11 fontname=sans];\n") < 0)
 		goto err;
+	if (fprintf(f, "\tgraph [fontsize=11 fontname=sans compound=true style=dotted];\n") < 0)
+		goto err;
+
+	for (unsigned i = 0; i < ARRAY_DIM(layers); i++) {
+		if (req->by_layer) {
+			if (fprintf(f, "\tsubgraph \"cluster_%s\" {\n", layers[i].name) < 0)
+				goto err;
+			if (fprintf(f, "\t\tlabel=\"%s\";\n", layers[i].name) < 0)
+				goto err;
+			if (fprintf(f, "\t\tl%u [style=invis];\n", i + 1) < 0)
+				goto err;
+		}
+
+		STAILQ_FOREACH (info, &node_infos, next) {
+			rte_node_t node_id = rte_node_from_name(info->node->name);
+			unsigned nb_edges = rte_node_edge_count(node_id);
+			const char *name = info->node->name;
+			const char *attrs = "";
+
+			if (!(info->type & layers[i].type))
+				continue;
+
+			if (node_id == port_output_node)
+				nb_edges = info->node->nb_edges;
+
+			if (!req->full) {
+				if (nb_edges == 0)
+					continue;
+				if (strstr(name, "error"))
+					continue;
+				if (strcmp(name, "control_input") == 0)
+					continue;
+				if (strcmp(name, "control_output") == 0)
+					continue;
+			}
+			if (fprintf(f, "\t\t\"%s\"", name) < 0)
+				goto err;
+
+			if (info->node->flags & RTE_NODE_SOURCE_F) {
+				attrs = " [color=blue style=bold]";
+				if (fprintf(f, "%s", attrs) < 0)
+					goto err;
+			} else if (info->type & GR_NODE_T_CONTROL) {
+				attrs = " [color=dodgerblue shape=box margin=0.1]";
+				if (fprintf(f, "%s", attrs) < 0)
+					goto err;
+			} else if (nb_edges == 0) {
+				if (fprintf(f, " [fontcolor=darkorange shape=plain]") < 0)
+					goto err;
+			}
+
+			if (fprintf(f, ";\n") < 0)
+				goto err;
+		}
+
+		if (req->by_layer && fprintf(f, "\t}\n") < 0)
+			goto err;
+	}
+
+	if (req->by_layer) {
+		for (unsigned i = 1; i < ARRAY_DIM(layers); i++) {
+			if (fprintf(f, "\tl%u -> l%u [style=invis weight=10];\n", i, i + 1) < 0)
+				goto err;
+		}
+	}
 
 	STAILQ_FOREACH (info, &node_infos, next) {
 		rte_node_t node_id = rte_node_from_name(info->node->name);
@@ -360,9 +438,9 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		if (node_id == port_output_node)
 			nb_edges = info->node->nb_edges;
 
+		if (nb_edges == 0)
+			continue;
 		if (!req->full) {
-			if (nb_edges == 0)
-				continue;
 			if (strstr(name, "error"))
 				continue;
 			if (strcmp(name, "control_input") == 0)
@@ -370,27 +448,19 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 			if (strcmp(name, "control_output") == 0)
 				continue;
 		}
-		if (fprintf(f, "\t\"%s\"", name) < 0)
-			goto err;
 
 		if (info->node->flags & RTE_NODE_SOURCE_F) {
-			attrs = " [color=blue style=bold]";
-			if (fprintf(f, "%s", attrs) < 0)
-				goto err;
+			if (req->by_layer)
+				attrs = " [color=blue style=bold constraint=false]";
+			else
+				attrs = " [color=blue style=bold]";
 		} else if (info->type & GR_NODE_T_CONTROL) {
-			attrs = " [color=dodgerblue shape=box margin=0.1]";
-			if (fprintf(f, "%s", attrs) < 0)
-				goto err;
-		} else if (nb_edges == 0) {
-			if (fprintf(f, " [fontcolor=darkorange shape=plain]") < 0)
-				goto err;
+			if (req->by_layer)
+				attrs = " [color=dodgerblue constraint=false]";
+			else
+				attrs = " [color=dodgerblue]";
 		}
 
-		if (fprintf(f, ";\n") < 0)
-			goto err;
-
-		if (nb_edges == 0)
-			continue;
 		if ((edges = calloc(nb_edges, sizeof(char *))) == NULL)
 			goto err;
 		if (node_id == port_output_node) {
@@ -415,7 +485,10 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 			if (rte_node_edge_count(id) == 0) {
 				if (id != port_output_node && !req->full)
 					continue;
-				attrs = " [color=darkorange]";
+				if (req->by_layer)
+					node_attrs = " [color=darkorange constraint=false]";
+				else
+					node_attrs = " [color=darkorange]";
 			}
 			gr_vec_foreach (const char *e, seen_edges) {
 				if (strcmp(e, edge) == 0)
