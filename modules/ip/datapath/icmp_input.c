@@ -105,6 +105,7 @@ static struct rte_node_register icmp_input_node = {
 
 static struct gr_node_info icmp_input_info = {
 	.node = &icmp_input_node,
+	.type = GR_NODE_T_L4,
 	.register_callback = icmp_input_register,
 	.trace_format = (gr_trace_format_cb_t)trace_icmp_format,
 };

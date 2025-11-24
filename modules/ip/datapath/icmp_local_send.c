@@ -153,6 +153,7 @@ static struct rte_node_register icmp_local_send_node = {
 
 static struct gr_node_info icmp_local_send_info = {
 	.node = &icmp_local_send_node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L4,
 	.register_callback = icmp_local_send_register,
 	.trace_format = (gr_trace_format_cb_t)trace_icmp_format,
 };

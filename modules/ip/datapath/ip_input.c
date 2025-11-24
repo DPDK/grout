@@ -220,6 +220,7 @@ static struct rte_node_register input_node = {
 
 static struct gr_node_info info = {
 	.node = &input_node,
+	.type = GR_NODE_T_L3,
 	.register_callback = ip_input_register,
 	.trace_format = (gr_trace_format_cb_t)trace_ip_format,
 };

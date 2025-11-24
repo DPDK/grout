@@ -102,6 +102,7 @@ static struct rte_node_register icmp6_output_node = {
 
 static struct gr_node_info icmp6_output_info = {
 	.node = &icmp6_output_node,
+	.type = GR_NODE_T_L4,
 	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
 };
 

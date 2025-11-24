@@ -91,6 +91,7 @@ static struct rte_node_register icmp_output_node = {
 
 static struct gr_node_info icmp_output_info = {
 	.node = &icmp_output_node,
+	.type = GR_NODE_T_L4,
 };
 
 GR_NODE_REGISTER(icmp_output_info);

@@ -157,6 +157,7 @@ static struct rte_node_register arp_output_request_node = {
 
 static struct gr_node_info arp_output_request_info = {
 	.node = &arp_output_request_node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L2,
 	.register_callback = arp_output_request_register,
 	.trace_format = (gr_trace_format_cb_t)trace_arp_format,
 };

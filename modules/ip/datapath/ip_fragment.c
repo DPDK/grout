@@ -197,6 +197,7 @@ static struct rte_node_register fragment_node = {
 
 static struct gr_node_info info = {
 	.node = &fragment_node,
+	.type = GR_NODE_T_L3,
 	.trace_format = ip_fragment_trace_format,
 };
 

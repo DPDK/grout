@@ -96,6 +96,7 @@ static void lacp_output_register(void) {
 
 static struct gr_node_info info = {
 	.node = &node,
+	.type = GR_NODE_T_L2 | GR_NODE_T_CONTROL,
 	.register_callback = lacp_output_register,
 	.trace_format = (gr_trace_format_cb_t)trace_lacp_format,
 };

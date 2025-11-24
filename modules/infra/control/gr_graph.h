@@ -41,8 +41,17 @@ int drop_format(char *buf, size_t buf_len, const void *data, size_t data_len);
 
 typedef void (*gr_node_register_cb_t)(void);
 
+typedef enum : uint16_t {
+	GR_NODE_T_CONTROL = GR_BIT64(0),
+	GR_NODE_T_L1 = GR_BIT64(1),
+	GR_NODE_T_L2 = GR_BIT64(2),
+	GR_NODE_T_L3 = GR_BIT64(3),
+	GR_NODE_T_L4 = GR_BIT64(4),
+} gr_node_type_t;
+
 struct gr_node_info {
 	struct rte_node_register *node;
+	gr_node_type_t type;
 	gr_node_register_cb_t register_callback;
 	gr_node_register_cb_t unregister_callback;
 	gr_trace_format_cb_t trace_format;

@@ -88,6 +88,7 @@ static struct rte_node_register l4_loopback_output_node = {
 
 static struct gr_node_info info = {
 	.node = &l4_loopback_output_node,
+	.type = GR_NODE_T_L4,
 };
 
 GR_NODE_REGISTER(info);

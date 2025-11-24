@@ -73,6 +73,7 @@ static void loopback_input_register(void) {
 
 static struct gr_node_info info = {
 	.node = &loopback_input_node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L3,
 	.register_callback = loopback_input_register,
 };
 

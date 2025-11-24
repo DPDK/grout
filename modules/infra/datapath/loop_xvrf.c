@@ -75,6 +75,7 @@ static struct rte_node_register loop_xvrf_node = {
 
 static struct gr_node_info info = {
 	.node = &loop_xvrf_node,
+	.type = GR_NODE_T_L3,
 	.register_callback = loop_xvrf_register,
 	.trace_format = trace_vrf_format,
 };
