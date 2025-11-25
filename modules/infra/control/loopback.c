@@ -195,6 +195,7 @@ int iface_loopback_delete(uint16_t vrf_id) {
 
 static int iface_loopback_init(struct iface *iface, const void * /* api_info */) {
 	struct iface_info_loopback *lo = iface_info_loopback(iface);
+	char ifalias[IFALIASZ];
 	struct ifreq ifr;
 	int ioctl_sock;
 	int err_save;
@@ -274,6 +275,10 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		event_free(lo->ev);
 		goto err;
 	}
+
+	snprintf(ifalias, IFALIASZ, "Grout vrf%u interface", iface->vrf_id);
+	netlink_set_ifalias(lo->tun_name, ifalias);
+
 	close(ioctl_sock);
 	return 0;
 
