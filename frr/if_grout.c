@@ -39,13 +39,13 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 }
 
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
-	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	const struct rte_ether_addr *mac = NULL;
+	struct zebra_dplane_ctx *ctx;
 	uint32_t txqlen = 1000;
 
 	if (new)
@@ -56,6 +56,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		gr_vlan = (const struct gr_iface_info_vlan *)&gr_if->info;
 		mac = &gr_vlan->mac;
 		link_ifindex = ifindex_grout_to_frr(gr_vlan->parent_id);
+
 		zif_type = ZEBRA_IF_VLAN;
 		link_type = ZEBRA_LLT_ETHER;
 		break;
@@ -86,6 +87,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		return;
 	}
 
+	ctx = dplane_ctx_alloc();
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
