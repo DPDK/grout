@@ -14,7 +14,7 @@ PREDECL_HASH(frr_to_grout); // frr ifindex -> grout_ifindex
 struct ifindex_mapping {
 	struct grout_to_frr_item forward_item;
 	struct frr_to_grout_item reverse_item;
-	ifindex_t grout_ifindex;
+	uint16_t grout_ifindex;
 	ifindex_t frr_ifindex;
 };
 
@@ -55,7 +55,7 @@ static struct grout_to_frr_head grout_to_frr_mappings = INIT_HASH(grout_to_frr_m
 static struct frr_to_grout_head frr_to_grout_mappings = INIT_HASH(frr_to_grout_mappings);
 
 // Add bidirectional mapping
-bool add_ifindex_mapping(ifindex_t grout_ifindex, ifindex_t frr_ifindex) {
+bool add_ifindex_mapping(uint16_t grout_ifindex, ifindex_t frr_ifindex) {
 	struct ifindex_mapping *mapping = XCALLOC(MTYPE_GROUT_MEM, sizeof(*mapping));
 	mapping->grout_ifindex = grout_ifindex;
 	mapping->frr_ifindex = frr_ifindex;
@@ -81,7 +81,7 @@ bool add_ifindex_mapping(ifindex_t grout_ifindex, ifindex_t frr_ifindex) {
 	return true;
 }
 
-ifindex_t ifindex_grout_to_frr(int16_t grout_ifindex) {
+ifindex_t ifindex_grout_to_frr(uint16_t grout_ifindex) {
 	struct ifindex_mapping key = {.grout_ifindex = grout_ifindex};
 	struct ifindex_mapping *found = grout_to_frr_find(&grout_to_frr_mappings, &key);
 	return found ? found->frr_ifindex : IFINDEX_INTERNAL;
@@ -93,7 +93,7 @@ uint16_t ifindex_frr_to_grout(ifindex_t frr_ifindex) {
 	return found ? found->grout_ifindex : GR_IFACE_ID_UNDEF;
 }
 
-bool remove_mapping_by_grout_ifindex(ifindex_t grout_ifindex) {
+bool remove_mapping_by_grout_ifindex(uint16_t grout_ifindex) {
 	struct ifindex_mapping key = {.grout_ifindex = grout_ifindex};
 	struct ifindex_mapping *found = grout_to_frr_find(&grout_to_frr_mappings, &key);
 	if (!found)
