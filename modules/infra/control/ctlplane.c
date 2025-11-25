@@ -34,8 +34,6 @@
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
-#define IFALIASZ 256 // Defined in linux/if.h, conflicting with net/if.h
-
 static struct rte_mempool *cp_pool;
 static struct event_base *ev_base;
 

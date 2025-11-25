@@ -9,6 +9,8 @@
 
 #include <stdbool.h>
 
+#define IFALIASZ 256 // Defined in linux/if.h, conflicting with net/if.h
+
 int netlink_link_set_admin_state(const char *ifname, bool up);
 int netlink_link_set_master(const char *ifname, const char *master_ifname);
 int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id);
