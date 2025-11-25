@@ -21,9 +21,14 @@ static char socket_buf[BUFSIZ];
 static struct mnl_socket *nl_sock;
 static int nl_seq;
 
+struct link_info_cb_data {
+	uint32_t *mtu;
+	struct rte_ether_addr *hwaddr;
+};
+
 #define NLA_SPACE(len) NLA_ALIGN(NLA_HDRLEN + len)
 
-static int netlink_send_req(struct nlmsghdr *nlh) {
+static int netlink_send_recv(struct nlmsghdr *nlh, mnl_cb_t cb, void *cb_data) {
 	int ret;
 
 	nlh->nlmsg_seq = nl_seq;
@@ -40,12 +45,16 @@ again:
 		return ret;
 	}
 
-	ret = mnl_cb_run(socket_buf, ret, nl_seq, 0, NULL, NULL);
+	ret = mnl_cb_run(socket_buf, ret, nl_seq, mnl_socket_get_portid(nl_sock), cb, cb_data);
 	if (ret < 0)
 		return ret;
 
 	nl_seq++;
 	return 0;
+}
+
+static int netlink_send_req(struct nlmsghdr *nlh) {
+	return netlink_send_recv(nlh, NULL, NULL);
 }
 
 int netlink_link_set_admin_state(const char *ifname, bool up) {
@@ -326,6 +335,122 @@ int netlink_set_ifalias(const char *ifname, const char *ifalias) {
 	mnl_attr_put_strz(nlh, IFLA_IFALIAS, ifalias);
 
 	return netlink_send_req(nlh);
+}
+
+int netlink_link_set_mtu(const char *ifname, uint32_t mtu) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(sizeof(uint32_t)))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put_u32(nlh, IFLA_MTU, mtu);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_set_hwaddr(const char *ifname, const struct rte_ether_addr *addr) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(RTE_ETHER_ADDR_LEN))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put(nlh, IFLA_ADDRESS, RTE_ETHER_ADDR_LEN, addr->addr_bytes);
+
+	return netlink_send_req(nlh);
+}
+
+static int link_info_cb(const struct nlmsghdr *nlh, void *data) {
+	struct link_info_cb_data *cb_data = data;
+	struct ifinfomsg *ifm;
+	struct nlattr *attr;
+
+	if (nlh->nlmsg_type == NLMSG_ERROR) {
+		struct nlmsgerr *err = mnl_nlmsg_get_payload(nlh);
+		return errno_set(-err->error);
+	}
+
+	if (nlh->nlmsg_type != RTM_NEWLINK)
+		return MNL_CB_OK;
+
+	ifm = mnl_nlmsg_get_payload(nlh);
+
+	mnl_attr_for_each(attr, nlh, sizeof(*ifm)) {
+		int type = mnl_attr_get_type(attr);
+
+		switch (type) {
+		case IFLA_MTU:
+			if (cb_data->mtu && mnl_attr_validate(attr, MNL_TYPE_U32) >= 0)
+				*cb_data->mtu = mnl_attr_get_u32(attr);
+			break;
+		case IFLA_ADDRESS:
+			if (cb_data->hwaddr && mnl_attr_validate(attr, MNL_TYPE_BINARY) >= 0
+			    && mnl_attr_get_payload_len(attr) == RTE_ETHER_ADDR_LEN)
+				memcpy(cb_data->hwaddr->addr_bytes,
+				       mnl_attr_get_payload(attr),
+				       RTE_ETHER_ADDR_LEN);
+			break;
+		}
+	}
+
+	return MNL_CB_OK;
+}
+
+static int netlink_get_link_info(const char *ifname, struct link_info_cb_data *cb_data) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+	uint32_t ifindex;
+
+	ifindex = if_nametoindex(ifname);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_GETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+	ifi->ifi_index = ifindex;
+
+	return netlink_send_recv(nlh, link_info_cb, cb_data);
+}
+
+int netlink_link_get_mtu(const char *ifname, uint32_t *mtu) {
+	struct link_info_cb_data cb_data = {.mtu = mtu, .hwaddr = NULL};
+	return netlink_get_link_info(ifname, &cb_data);
+}
+
+int netlink_link_get_hwaddr(const char *ifname, struct rte_ether_addr *addr) {
+	struct link_info_cb_data cb_data = {.mtu = NULL, .hwaddr = addr};
+	return netlink_get_link_info(ifname, &cb_data);
 }
 
 static void netlink_init(struct event_base *) {
