@@ -56,7 +56,7 @@ ip -n ns-b route add default via 16.1.0.1
 ip -n ns-b addr show
 
 # Create and start an FRR instance for the BGP peer
-start_frr_on_namespace bgp-peer
+start_frr bgp-peer 0
 ip link set x-p0 netns bgp-peer
 ip netns exec bgp-peer sysctl -w net.vrf.strict_mode=1
 ip netns exec bgp-peer sysctl -w net.ipv6.conf.all.seg6_enabled=1

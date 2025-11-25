@@ -23,7 +23,7 @@
 create_interface p0
 set_ip_address p0 2001:db8::1/64
 
-start_frr_on_namespace ospf6-peer
+start_frr ospf6-peer 0
 ip link set x-p0 netns ospf6-peer
 
 ip -n grout l set p0 up

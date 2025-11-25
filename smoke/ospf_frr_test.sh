@@ -22,7 +22,7 @@
 create_interface p0
 set_ip_address p0 172.16.0.1/24
 
-start_frr_on_namespace ospf-peer
+start_frr ospf-peer 0
 ip link set x-p0 netns ospf-peer
 
 ip -n grout l set p0 up
