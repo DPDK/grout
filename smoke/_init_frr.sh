@@ -234,80 +234,137 @@ EOF
     done
 }
 
-# start_frr_on_namespace <namespace> starts an instance of FRR using the given
-# pathspace and running in a network namespace with the same name.
-start_frr_on_namespace() {
-	local namespace=$1
-	local frr_namespace_folder="$builddir/frr_install/etc/frr/$namespace"
+#   <namespace> : optional netns name ("" = root namespace)
+#   <use_grout> : "1" -> enable dplane_grout, anything else -> no grout
+start_frr() {
+	local namespace="$1"
+	local use_grout="$2"
 
-	mkdir -p $frr_namespace_folder
+	local frr_etc="$builddir/frr_install/etc/frr"
+	local frr_logdir="$builddir/frr_install/var/log/frr"
+	local conf_dir flog daemons_file frrconf_file frr_global_opts
+	local zebra_options="-s 90000000"
 
-	local flog="$frr_namespace_folder/frr.log"
-	touch ${frr_namespace_folder}/vtysh.conf
-	cat >${frr_namespace_folder}/daemons <<EOF
+	mkdir -p "$frr_etc"
+	mkdir -p "$frr_logdir"
+
+	# Common config dir + files + log file + opts
+	conf_dir="$frr_etc${namespace:+/$namespace}"
+	flog="$frr_logdir/frr-${namespace:-grout}.log"
+
+	mkdir -p "$conf_dir"
+	touch "$conf_dir/vtysh.conf"
+
+	daemons_file="$conf_dir/daemons"
+	frrconf_file="$conf_dir/frr.conf"
+	frr_global_opts="-A 127.0.0.1 --log file:$flog"
+
+	if [ "$use_grout" = "1" ]; then
+		zebra_options="$zebra_options -M dplane_grout"
+	fi
+
+	# daemons
+	cat >"$daemons_file" <<EOF
 bgpd=yes
 isisd=yes
 ospfd=yes
 ospf6d=yes
 vtysh_enable=yes
-frr_global_options="--daemon -A 127.0.0.1 --log file:$flog"
-zebra_options="-s 90000000"
+frr_global_options="$frr_global_opts"
+zebra_options="$zebra_options"
+EOF
+
+	# only namespaces use watchfrr in a netns
+	if [ -n "$namespace" ]; then
+		cat >>"$daemons_file" <<EOF
 watchfrr_options="--netns=$namespace"
 EOF
-	cat >$frr_namespace_folder/frr.conf <<EOF
-hostname $namespace
+	fi
+
+	# frr.conf
+	cat >"$frrconf_file" <<EOF
+hostname ${namespace:-grout}
 EOF
 
+	# reset log
 	rm -f "$flog"
 	touch "$flog"
-	local sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[$namespace],"
-	if [ -t 1 ]; then
-		# FRR peer logs in green
-		tail -f "$flog" | sed -E "$sed_expr" | awk '{print "\033[32m" $0 "\033[0m"}' &
+
+	# logging: root strips ts, ns gets [ns] prefix
+	local sed_expr color
+	if [ -n "$namespace" ]; then
+		sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[$namespace],"
+		color="\033[32m"
 	else
-		tail -f "$flog" | sed -E "$sed_expr" &
+		sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ,,"
+		color="\033[35m"
 	fi
-	tailpid=$(pgrep -g0 tail | tail -n1)
 
-	nsenter -t 1 -n -m ip netns add $namespace
-	frrinit.sh start $namespace
+	if [ -t 1 ]; then
+		tail -F "$flog" | sed -E "$sed_expr" | awk -v color="$color" '{print color $0 "\033[0m"}' &
+	else
+		tail -F "$flog" | sed -E "$sed_expr" &
+	fi
+	local tailpid=$!
 
-	cat >> $tmp/cleanup <<EOF
-frrinit.sh stop $namespace
-kill $tailpid
-nsenter -t 1 -n -m ip netns pids $namespace | xargs -r kill --timeout 500 KILL
-nsenter -t 1 -n -m ip netns del $namespace
+	if [ -n "$namespace" ]; then
+		nsenter -t 1 -n -m ip netns add "$namespace"
+	fi
+
+	# cleanup
+	cat >>"$tmp/cleanup" <<EOF
+frrinit.sh stop ${namespace:+$namespace}
+kill $tailpid 2>/dev/null || true
 EOF
+	if [ -n "$namespace" ]; then
+		cat >>"$tmp/cleanup" <<EOF
+nsenter -t 1 -n -m ip netns pids "$namespace" | xargs -r kill --timeout 500 KILL
+nsenter -t 1 -n -m ip netns del "$namespace"
+EOF
+	fi
 
-	SECONDS=0
-	while ! pgrep -f "bgpd -N $namespace"; do
-		if [ "$SECONDS" -ge "5" ]; then
-			fail "BGP daemon not started for namespace $namespace"
-		fi
-		sleep 0.1
+	# start FRR
+	frrinit.sh start ${namespace:+$namespace}
+
+	# wait for all daemons (staticd is always started by FRR init)
+	local daemon pattern
+	for daemon in staticd bgpd isisd ospfd ospf6d; do
+		SECONDS=0
+		pattern="$daemon"
+		[ -n "$namespace" ] && pattern="$daemon -N $namespace"
+
+		while ! pgrep -f "$pattern" >/dev/null 2>&1; do
+			if [ "$SECONDS" -ge 5 ]; then
+				if [ -n "$namespace" ]; then
+					fail "$daemon daemon not started for namespace $namespace"
+				else
+					fail "$daemon daemon not started"
+				fi
+			fi
+			sleep 0.1
+		done
 	done
 
-	SECONDS=0
-	while ! pgrep -f "isisd -N $namespace"; do
-		if [ "$SECONDS" -ge "5" ]; then
-			fail "ISIS daemon not started for namespace $namespace"
-		fi
-		sleep 0.1
-	done
-
-	SECONDS=0
-	while ! pgrep -f "ospfd -N $namespace"; do
-		if [ "$SECONDS" -ge "5" ]; then
-			fail "OSPF daemon not started for namespace $namespace"
-		fi
-		sleep 0.1
-	done
-
-	SECONDS=0
-	while ! pgrep -f "ospf6d -N $namespace"; do
-		if [ "$SECONDS" -ge "5" ]; then
-			fail "OSPF6 daemon not started for namespace $namespace"
-		fi
-		sleep 0.1
-	done
+	# extra check when using Grout: wait for iface/ip events
+	if [ "$use_grout" = "1" ]; then
+		local attempts=25
+		while ! grep -q "GROUT:.*iface/ip events" "$flog" 2>/dev/null; do
+			if [ "$attempts" -le 0 ]; then
+				fail "Zebra is not listening grout events."
+			fi
+			sleep 0.2
+			attempts=$((attempts - 1))
+		done
+	fi
 }
+
+if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
+	chmod 0777 $tmp # to access on tmp
+
+	if [ -n "${builddir}" ]; then
+		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+	fi
+
+	export ZEBRA_DEBUG_DPLANE_GROUT=1
+	start_frr "" 1
+fi

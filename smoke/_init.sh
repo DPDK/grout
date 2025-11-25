@@ -58,15 +58,6 @@ cleanup() {
 	kill %?grcli
 	wait %?grcli
 
-	if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-		# should be already stopped
-		for daemon in watchfrr.sh zebra staticd mgmtd vtysh; do
-			pids=$(pgrep -f "$builddir/frr_install/.*/$daemon")
-			if [ -n "$pids" ]; then
-				echo "$pids" | xargs -r kill -9
-			fi
-		done
-	fi
 	if [ "$run_grout" = true ]; then
 		set +x
 		kill -15 "$grout_pid"
@@ -166,12 +157,7 @@ fi
 
 grout_extra_options=""
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-	chmod 0777 $tmp # to access on tmp
 	grout_extra_options+="-m 0666"
-	export ZEBRA_DEBUG_DPLANE_GROUT=1
-	if [ -n "${builddir}" ]; then
-		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
-	fi
 fi
 
 cat >> $tmp/cleanup <<EOF
@@ -226,47 +212,4 @@ if [ -t 1 ]; then
 	grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
 else
 	grcli events &
-fi
-
-if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
-	flog="$builddir/frr_install/var/log/frr/frr.log"
-	cat >$builddir/frr_install/etc/frr/daemons <<EOF
-bgpd=yes
-isisd=yes
-ospfd=yes
-ospf6d=yes
-vtysh_enable=yes
-frr_global_options="-A 127.0.0.1 --log file:$flog"
-zebra_options="-s 90000000 -M dplane_grout"
-EOF
-	cat >$builddir/frr_install/etc/frr/frr.conf <<EOF
-hostname grout
-EOF
-	rm -f "$flog"
-	touch "$flog"
-	sed_expr="s,^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ,,"
-	if [ -t 1 ]; then
-		# FRR logs in magenta
-		tail -f "$flog" | sed -E "$sed_expr" | awk '{print "\033[35m" $0 "\033[0m"}' &
-	else
-		tail -f "$flog" | sed -E "$sed_expr" &
-	fi
-	tailpid=$(pgrep -g0 tail | tail -n1)
-
-	frrinit.sh start
-	attempts=25
-
-	cat >>$tmp/cleanup <<EOF
-frrinit.sh stop
-kill $tailpid
-EOF
-
-	# wait that zebra_dplane_grout get iface event from grout
-	while ! grep -q "GROUT:.*iface/ip events" "$flog" 2>/dev/null; do
-		if [ "$attempts" -le 0 ]; then
-			fail "Zebra is not listening grout events."
-		fi
-		sleep 0.2
-		attempts=$((attempts - 1))
-	done
 fi

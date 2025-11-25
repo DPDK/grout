@@ -43,7 +43,7 @@ exit
 !
 EOF
 
-start_frr_on_namespace isis-peer
+start_frr isis-peer 0
 ip link set x-p0 netns isis-peer
 
 # Configure FRR ISIS peer router
