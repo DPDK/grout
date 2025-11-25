@@ -96,7 +96,9 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Create and enqueue remaining fragments
 		for (i = 1; i < num_frags; i++) {
 			// Create new fragment, copying the original IPv4 header.
-			frag_mbuf = rte_pktmbuf_copy(mbuf, mbuf->pool, 0, ip_hdr_len);
+			frag_mbuf = gr_mbuf_copy(
+				mbuf, ip_hdr_len, sizeof(struct ip_output_mbuf_data)
+			);
 			if (unlikely(frag_mbuf == NULL)) {
 				break;
 			}
@@ -122,7 +124,6 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			frag_ip->hdr_checksum = 0;
 			frag_ip->hdr_checksum = rte_ipv4_cksum(frag_ip);
 
-			*ip_output_mbuf_data(frag_mbuf) = *ip_output_mbuf_data(mbuf);
 			frag_mbuf->packet_type = mbuf->packet_type;
 			if (gr_mbuf_is_traced(mbuf)) {
 				struct ip_fragment_trace_data *t;

@@ -618,6 +618,38 @@ void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_l
 	return trace->data;
 }
 
+void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src) {
+	struct gr_trace_head *src_traces = gr_mbuf_traces(src);
+	struct gr_trace_head *dst_traces = gr_mbuf_traces(dst);
+	struct gr_trace_item *src_trace, *dst_trace;
+	void *data;
+
+	// Reset trace head
+	STAILQ_INIT(dst_traces);
+
+	// Copy each trace item from source to destination
+	STAILQ_FOREACH (src_trace, src_traces, next) {
+		// Allocate new trace item for destination
+		while (rte_mempool_get(trace_pool, &data) < 0) {
+			void *oldest = NULL;
+			rte_ring_dequeue(traced_packets, &oldest);
+			free_trace(oldest);
+		}
+
+		dst_trace = data;
+
+		// Copy all trace item data
+		dst_trace->ts = src_trace->ts;
+		dst_trace->cpu_id = src_trace->cpu_id;
+		dst_trace->node_id = src_trace->node_id;
+		dst_trace->len = src_trace->len;
+		memcpy(dst_trace->data, src_trace->data, src_trace->len);
+
+		// Add to destination trace chain
+		STAILQ_INSERT_TAIL(dst_traces, dst_trace, next);
+	}
+}
+
 void gr_mbuf_trace_finish(struct rte_mbuf *m) {
 	struct gr_trace_head *traces = gr_mbuf_traces(m);
 	struct gr_trace_item *trace = STAILQ_FIRST(traces);

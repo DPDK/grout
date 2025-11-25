@@ -64,5 +64,22 @@ static inline bool gr_mbuf_is_traced(struct rte_mbuf *m) {
 // Returns a pointer to a gr_trace_item.data buffer.
 void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_len);
 
+// Copy all trace items from source mbuf to destination mbuf.
+//
+// This creates a deep copy of the entire trace chain, preserving timestamps,
+// node IDs, and trace data. Used when cloning packets to maintain trace history.
+void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src);
+
 // Detach the trace items from an mbuf and store them in the trace buffer.
 void gr_mbuf_trace_finish(struct rte_mbuf *m);
+
+// Deep copy of an mbuf: duplicates mbuf, copies mbuf priv data and traces
+static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len, size_t priv_len) {
+	struct rte_mbuf *copy = rte_pktmbuf_copy(m, m->pool, 0, data_len);
+	if (copy) {
+		memcpy(mbuf_data(copy), mbuf_data(m), priv_len);
+		if (gr_mbuf_is_traced(m))
+			gr_mbuf_trace_copy(copy, m);
+	}
+	return copy;
+}
