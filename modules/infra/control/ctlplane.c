@@ -325,8 +325,8 @@ static void cp_delete(struct iface *iface) {
 		event_free_finalize(0, iface->cp_ev, finalize_fd);
 }
 
-static void cp_set_carrier(struct iface *iface) {
-	int carrier = iface->flags & GR_IFACE_S_RUNNING ? 1 : 0;
+static void cp_set_carrier(struct iface *iface, bool up) {
+	int carrier = up ? 1 : 0;
 	if (ioctl(iface->cp_fd, TUNSETCARRIER, &carrier) < 0) {
 		LOG(ERR, "ioctl(TUNSETCARRIER): %s", strerror(errno));
 	}
@@ -374,37 +374,29 @@ err:
 }
 
 static void cp_update(struct iface *iface) {
-	struct rte_ether_addr mac;
-	struct ifreq ifr = {0};
-	int ioctl_sock;
+	struct rte_ether_addr mac, current_mac;
+	uint32_t current_mtu;
 
-	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
-		goto err;
+	if (netlink_link_get_mtu(iface->name, &current_mtu) < 0) {
+		LOG(ERR, "netlink_link_get_mtu(%s): %s", iface->name, strerror(errno));
+	} else if (current_mtu != iface->mtu) {
+		if (netlink_link_set_mtu(iface->name, iface->mtu) < 0) {
+			LOG(ERR,
+			    "netlink_link_set_mtu(%s, %u): %s",
+			    iface->name,
+			    iface->mtu,
+			    strerror(errno));
+		}
 	}
 
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
-	ifr.ifr_mtu = iface->mtu;
-
-	if (ioctl(ioctl_sock, SIOCSIFMTU, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCSIFMTU) %s", strerror(errno));
-		goto err;
-	}
-
-	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
 	iface_get_eth_addr(iface->id, &mac);
-	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
-	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCSIFHWADDR) %s", strerror(errno));
-		goto err;
+	if (netlink_link_get_hwaddr(iface->name, &current_mac) < 0) {
+		LOG(ERR, "netlink_link_get_hwaddr(%s): %s", iface->name, strerror(errno));
+	} else if (!rte_is_same_ether_addr(&current_mac, &mac)) {
+		if (netlink_link_set_hwaddr(iface->name, &mac) < 0) {
+			LOG(ERR, "netlink_link_set_hwaddr(%s): %s", iface->name, strerror(errno));
+		}
 	}
-
-err:
-	if (ioctl_sock > 0)
-		close(ioctl_sock);
 }
 
 static void iface_event(uint32_t event, const void *obj) {
@@ -431,11 +423,11 @@ static void iface_event(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		cp_set_speed(iface);
-		cp_set_carrier(iface);
+		cp_set_carrier(iface, !!(iface->flags & GR_IFACE_S_RUNNING));
 		netlink_link_set_admin_state(iface->name, true);
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
-		cp_set_carrier(iface);
+		cp_set_carrier(iface, !!(iface->flags & GR_IFACE_S_RUNNING));
 		netlink_link_set_admin_state(iface->name, false);
 		break;
 	}
