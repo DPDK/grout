@@ -456,6 +456,8 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	}
 
 	ret = iface_port_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
+	if (ret == 0)
+		ret = port_vlan_add(iface, 0);
 	if (ret < 0) {
 		iface_port_fini(iface);
 		errno = -ret;
