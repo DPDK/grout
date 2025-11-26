@@ -19,9 +19,6 @@
 static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_type link_type) {
 	uint64_t frr_if_flags = 0;
 
-	if (link_type == ZEBRA_LLT_LOOPBACK)
-		frr_if_flags |= IFF_LOOPBACK;
-
 	if (gr_if->base.flags & GR_IFACE_F_UP)
 		frr_if_flags |= IFF_UP;
 	if (gr_if->base.flags & GR_IFACE_F_PROMISC)
@@ -31,8 +28,10 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 	if (gr_if->base.state & GR_IFACE_S_RUNNING)
 		frr_if_flags |= IFF_RUNNING | IFF_LOWER_UP;
 
+	if (gr_if->base.type == GR_IFACE_TYPE_LOOPBACK)
+		frr_if_flags |= IFF_NOARP;
 	// Force BROADCAST and MULTICAST
-	if (link_type == ZEBRA_LLT_ETHER)
+	else if (link_type == ZEBRA_LLT_ETHER)
 		frr_if_flags |= IFF_BROADCAST | IFF_MULTICAST;
 
 	return frr_if_flags;
@@ -70,12 +69,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		link_type = ZEBRA_LLT_IPIP;
 		break;
 	case GR_IFACE_TYPE_LOOPBACK:
-		link_type = ZEBRA_LLT_LOOPBACK;
-		if (gr_if->base.vrf_id)
-			zif_type = ZEBRA_IF_VRF;
-
-		// In kernel, there is no vrf interface for default vrf
-		// So sync gr-vrf0, as IF_OTHER
+		link_type = ZEBRA_LLT_ETHER;
+		zif_type = ZEBRA_IF_VRF;
 		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
