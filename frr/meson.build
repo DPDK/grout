@@ -37,13 +37,7 @@ if install_build_flag
   install_plugin = custom_target(
     'install_frr_dplane_grout',
     output: '.install-stamp',
-    command: [
-      files('frr_plugin_install.sh'),
-      frr_plugin.full_path(), # compiled .so file
-      frr_dep.get_variable('moduledir') / 'dplane_grout.so', # target installation path
-      frr_dep.get_variable('prefix') / 'etc/frr/daemons', # frr daemons config
-      '@OUTPUT@', # stamp file
-    ],
+    command: ['install', '-Dt', frr_dep.get_variable('moduledir'), frr_plugin],
     depends: [frr_plugin],
     build_by_default: true,
   )

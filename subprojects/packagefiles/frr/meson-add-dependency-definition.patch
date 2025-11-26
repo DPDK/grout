@@ -1,22 +1,22 @@
-From 06a176e149561aaff019705d8daa8cf03cdacac6 Mon Sep 17 00:00:00 2001
+From 3aff87c44a8c203474e50d4e195515ec1af2aa6e Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Thu, 7 Aug 2025 12:29:10 +0200
 Subject: [PATCH] meson add dependency definition
 
 Signed-off-by: Maxime Leroy <maxime@leroys.fr>
 ---
- frr_install.sh | 35 +++++++++++++++++++++
+ frr_install.sh | 26 +++++++++++++++
  meson.build    | 85 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 120 insertions(+)
+ 2 files changed, 111 insertions(+)
  create mode 100644 frr_install.sh
  create mode 100644 meson.build
 
 diff --git a/frr_install.sh b/frr_install.sh
 new file mode 100644
-index 0000000000..1e40167b58
+index 0000000000..ed7cbf6492
 --- /dev/null
 +++ b/frr_install.sh
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,26 @@
 +#!/bin/sh
 +set -e
 +
@@ -43,15 +43,6 @@ index 0000000000..1e40167b58
 +if [ -f "$frr_srcdir/tools/etc/frr/watchfrr.conf" ]; then
 +    cp "$frr_srcdir/tools/etc/frr/watchfrr.conf" "$frr_installdir/etc/frr/"
 +fi
-+
-+# Add a log file for zebra
-+log_path="$frr_installdir/var/log/frr/zebra.log"
-+conf_file="$frr_installdir/etc/frr/daemons"
-+
-+sed -i -e "/^zebra_options=/{
-+    /--log[[:space:]]*$(printf '%s' "file:$log_path" | sed 's/[\/&]/\\&/g')/! \
-+        s|\"$| --log file:$log_path\"|
-+}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
 index 0000000000..1db51d4b58
