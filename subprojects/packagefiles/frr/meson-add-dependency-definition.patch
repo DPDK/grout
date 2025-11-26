@@ -1,4 +1,4 @@
-From 25fe2d3fdf111e229e96c83ab1168056877a2171 Mon Sep 17 00:00:00 2001
+From 06a176e149561aaff019705d8daa8cf03cdacac6 Mon Sep 17 00:00:00 2001
 From: Maxime Leroy <maxime@leroys.fr>
 Date: Thu, 7 Aug 2025 12:29:10 +0200
 Subject: [PATCH] meson add dependency definition
@@ -54,7 +54,7 @@ index 0000000000..1e40167b58
 +}" "$conf_file"
 diff --git a/meson.build b/meson.build
 new file mode 100644
-index 0000000000..443bb46e6e
+index 0000000000..1db51d4b58
 --- /dev/null
 +++ b/meson.build
 @@ -0,0 +1,85 @@
@@ -103,7 +103,7 @@ index 0000000000..443bb46e6e
 +    '"' + srcdir + '/configure" ' +
 +    '--prefix="' + prefix + '" ' +
 +    '--with-moduledir="' + moduledir + '" ' +
-+    '--disable-doc --enable-multipath=128 ' +
++    '--disable-doc --enable-multipath=256 ' +
 +    '--disable-ripd --disable-ripngd ' +
 +    '--disable-ldpd --disable-nhrpd --disable-eigrpd --disable-babeld  ' +
 +    '--disable-pimd --disable-pim6d --disable-pbrd --disable-fabricd ' +
@@ -132,7 +132,7 @@ index 0000000000..443bb46e6e
 +  include_directories: include_directories('.', 'lib'),
 +  compile_args: [
 +    '-fms-extensions',
-+    '-DMULTIPATH_NUM=128',
++    '-DMULTIPATH_NUM=256',
 +    '-Wno-missing-field-initializers',
 +    '-Wno-unused-parameter',
 +  ],
