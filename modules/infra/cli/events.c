@@ -54,8 +54,8 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 
 static int ctx_init(struct ec_node *root) {
 	return CLI_COMMAND(
-		root,
-		"events [show]",
+		CLI_CONTEXT(root, CTX_ARG("events", "Grout events")),
+		"[show]",
 		events_show,
 		"Subscribe to all events and dump them in real time"
 	);
