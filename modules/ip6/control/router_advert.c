@@ -230,7 +230,7 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 			ev_base, -1, EV_PERSIST, send_ra_cb, (void *)iface
 		);
 		break;
-	case GR_EVENT_IFACE_PRE_REMOVE:
+	case GR_EVENT_IFACE_REMOVE:
 		event_free(ra_conf[iface->id].timer);
 		ra_conf[iface->id].timer = NULL;
 		break;
@@ -240,7 +240,7 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 static struct gr_event_subscription iface_event_sub = {
 	.callback = iface_event_handler,
 	.ev_count = 2,
-	.ev_types = {GR_EVENT_IFACE_POST_ADD, GR_EVENT_IFACE_PRE_REMOVE},
+	.ev_types = {GR_EVENT_IFACE_POST_ADD, GR_EVENT_IFACE_REMOVE},
 };
 
 RTE_INIT(router_advertisement_init) {
