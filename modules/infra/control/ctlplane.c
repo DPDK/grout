@@ -426,7 +426,7 @@ static void iface_event(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		cp_update(iface);
 		break;
-	case GR_EVENT_IFACE_PRE_REMOVE:
+	case GR_EVENT_IFACE_REMOVE:
 		cp_delete(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
@@ -446,7 +446,7 @@ static struct gr_event_subscription iface_event_handler = {
 	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_ADD,
-		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
 		GR_EVENT_IFACE_POST_RECONFIG,

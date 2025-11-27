@@ -547,6 +547,9 @@ static void iface_event_print(uint32_t event, const void *obj) {
 		action = "post add";
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
+		action = "pre del";
+		break;
+	case GR_EVENT_IFACE_REMOVE:
 		action = "del";
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
@@ -574,6 +577,7 @@ static struct cli_event_printer printer = {
 		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
 		GR_EVENT_IFACE_POST_RECONFIG,

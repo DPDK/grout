@@ -433,12 +433,13 @@ int iface_destroy(uint16_t ifid) {
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 
+	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 	// interface is still up, send status down
 	if (iface->flags & GR_IFACE_F_UP) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
-	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
 		vrf_decref(iface->vrf_id);
 	nexthop_iface_cleanup(ifid);
@@ -502,11 +503,17 @@ static void iface_event(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	char *str = "";
 	switch (event) {
+	case GR_EVENT_IFACE_ADD:
+		str = "ADD";
+		break;
 	case GR_EVENT_IFACE_POST_ADD:
 		str = "POST_ADD";
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		str = "PRE_REMOVE";
+		break;
+	case GR_EVENT_IFACE_REMOVE:
+		str = "REMOVE";
 		break;
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		str = "POST_RECONFIG";
@@ -536,10 +543,12 @@ static void iface_event(uint32_t event, const void *obj) {
 
 static struct gr_event_subscription iface_event_handler = {
 	.callback = iface_event,
-	.ev_count = 5,
+	.ev_count = 7,
 	.ev_types = {
+		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
+		GR_EVENT_IFACE_REMOVE,
 		GR_EVENT_IFACE_POST_RECONFIG,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,

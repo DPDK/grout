@@ -243,7 +243,7 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IFACE_STATUS_UP, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_STATUS_DOWN, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_POST_RECONFIG, .suppress_self_events = true},
-		{.type = GR_EVENT_IFACE_PRE_REMOVE, .suppress_self_events = true},
+		{.type = GR_EVENT_IFACE_REMOVE, .suppress_self_events = true},
 		{.type = GR_EVENT_IP_ADDR_ADD, .suppress_self_events = false},
 		{.type = GR_EVENT_IP6_ADDR_ADD, .suppress_self_events = false},
 		{.type = GR_EVENT_IP_ADDR_DEL, .suppress_self_events = false},
@@ -383,8 +383,8 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_IFACE_ADD);
 	case GR_EVENT_IFACE_POST_ADD:
 		return TOSTRING(GR_EVENT_IFACE_POST_ADD);
-	case GR_EVENT_IFACE_PRE_REMOVE:
-		return TOSTRING(GR_EVENT_IFACE_PRE_REMOVE);
+	case GR_EVENT_IFACE_REMOVE:
+		return TOSTRING(GR_EVENT_IFACE_REMOVE);
 	case GR_EVENT_IFACE_STATUS_UP:
 		return TOSTRING(GR_EVENT_IFACE_STATUS_UP);
 	case GR_EVENT_IFACE_STATUS_DOWN:
@@ -443,7 +443,7 @@ static void dplane_read_notifications(struct event *event) {
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		new = true;
 		// fallthrough
-	case GR_EVENT_IFACE_PRE_REMOVE:
+	case GR_EVENT_IFACE_REMOVE:
 		iface = PAYLOAD(gr_e);
 
 		gr_log_debug(
