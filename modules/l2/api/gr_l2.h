@@ -132,5 +132,15 @@ struct gr_l2_bridge_config_set_req {
 	struct gr_l2_bridge_config config;
 };
 
+// Bridge interface info for GR_IFACE_TYPE_BRIDGE
+struct __gr_iface_info_bridge_base {
+	uint16_t bridge_id;
+	struct rte_ether_addr mac;
+};
+
+struct gr_iface_info_bridge {
+	BASE(__gr_iface_info_bridge_base);
+};
+
 // Bridge reconfig attributes
 #define GR_BRIDGE_SET_BRIDGE_ID GR_BIT64(32)

@@ -19,6 +19,7 @@
 enum edges {
 	PORT_OUTPUT = 0,
 	BOND_OUTPUT,
+	L2_INPUT,
 	DROP,
 	EDGE_COUNT
 };
@@ -89,6 +90,9 @@ l2_flood_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			case GR_IFACE_TYPE_BOND:
 				edges[flood_count] = BOND_OUTPUT;
 				break;
+			case GR_IFACE_TYPE_BRIDGE:
+				edges[flood_count] = L2_INPUT;
+				break;
 			default:
 				edges[flood_count] = DROP;
 				break;
@@ -155,6 +159,7 @@ static struct rte_node_register l2_flood_node = {
 	.next_nodes = {
 		[PORT_OUTPUT] = "port_output",
 		[BOND_OUTPUT] = "bond_output",
+		[L2_INPUT] = "eth_input",
 		[DROP] = "l2_flood_drop",
 	},
 };

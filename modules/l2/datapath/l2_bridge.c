@@ -19,6 +19,7 @@
 enum edges {
 	PORT_OUTPUT = 0, // Send to specific port
 	BOND_OUTPUT,
+	L2_INPUT, // Send to L3 processing (bridge interface)
 	FLOOD, // Flood to all bridge members
 	DROP, // Drop packet
 	EDGE_COUNT
@@ -108,9 +109,11 @@ l2_bridge_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			case GR_IFACE_TYPE_BOND:
 				edge = BOND_OUTPUT;
 				break;
+			case GR_IFACE_TYPE_BRIDGE:
+				edge = L2_INPUT;
+				break;
 			default:
 				edge = DROP;
-				break;
 			}
 		} else {
 			if (bridge->config.flood_unknown) {
@@ -169,6 +172,7 @@ static struct rte_node_register l2_bridge_node = {
 	.process = l2_bridge_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
+		[L2_INPUT] = "eth_input",
 		[PORT_OUTPUT] = "port_output",
 		[BOND_OUTPUT] = "bond_output",
 		[FLOOD] = "l2_flood",
@@ -178,6 +182,7 @@ static struct rte_node_register l2_bridge_node = {
 
 static void l2_bridge_register(void) {
 	register_interface_mode(GR_IFACE_MODE_L2_BRIDGE, "l2_bridge");
+	eth_output_register_interface_type(GR_IFACE_TYPE_BRIDGE, "l2_bridge");
 }
 
 static struct gr_node_info info = {
