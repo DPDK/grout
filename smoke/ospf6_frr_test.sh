@@ -40,6 +40,7 @@ ipv6 forwarding
 interface p0
 	ipv6 ospf6 area 0.0.0.1
 	ipv6 ospf6 hello-interval 1
+	ipv6 ospf6 network point-to-point
 exit
 !
 router ospf6
@@ -63,6 +64,7 @@ exit
 interface x-p0
 	ipv6 ospf6 area 0.0.0.1
 	ipv6 ospf6 hello-interval 1
+	ipv6 ospf6 network point-to-point
 exit
 !
 router ospf6
