@@ -25,6 +25,15 @@ grcli interface set p2 mode bridge testbr
 echo "Bridge configuration & members"
 grcli bridge show testbr
 
+# Create bridge interface for L3 integration
+echo "Creating bridge interface..."
+grcli interface add bridge br1 bridge testbr
+grcli interface set br1 mode bridge testbr
+
+# Assign IP address to bridge interface
+echo "Assigning IP to bridge interface..."
+grcli address add 192.168.100.1/24 iface br1
+
 # Set up test namespaces connected to bridge ports
 echo "Setting up test namespaces..."
 for n in 0 1 2; do
@@ -54,6 +63,15 @@ echo "Testing L2 connectivity (same subnet)..."
 ip netns exec n0 ping -i0.01 -c3 -W1 -n 192.168.100.11 || echo "L2 ping n0->n1 failed"
 ip netns exec n1 ping -i0.01 -c3 -W1 -n 192.168.100.12 || echo "L2 ping n1->n2 failed"
 ip netns exec n2 ping -i0.01 -c3 -W1 -n 192.168.100.10 || echo "L2 ping n2->n0 failed"
+
+echo "Testing L3 connectivity (from bridge interface)..."
+grcli ping 192.168.100.10 count 3 delay 10
+
+echo "Testing L3 connectivity (to bridge interface)..."
+# Test L3 connectivity to bridge interface
+ip netns exec n0 ping -i0.01 -c3 -W1 -n 192.168.100.1 || echo "L3 ping n0->bridge failed"
+ip netns exec n1 ping -i0.01 -c3 -W1 -n 192.168.100.1 || echo "L3 ping n1->bridge failed"
+ip netns exec n2 ping -i0.01 -c3 -W1 -n 192.168.100.1 || echo "L3 ping n2->bridge failed"
 
 # Check MAC learning
 echo "MAC table entries:"

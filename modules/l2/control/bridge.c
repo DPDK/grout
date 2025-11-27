@@ -218,6 +218,7 @@ int bridge_member_add(uint16_t bridge_id, uint16_t iface_id) {
 	iface->domain_id = bridge_id;
 	iface_set_promisc(iface->id, true);
 	LOG(INFO, "Added interface %u to bridge %u (%s)", iface_id, bridge_id, bridge->name);
+	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return 0;
 }
@@ -250,6 +251,7 @@ int bridge_member_del(uint16_t bridge_id, uint16_t iface_id) {
 				iface_set_promisc(iface->id, false);
 				iface->mode = GR_IFACE_MODE_L3;
 				iface->domain_id = 0;
+				gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 				return 0;
 			} else {
 				return errno_set(ENODEV);

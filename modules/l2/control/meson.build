@@ -3,6 +3,7 @@
 
 src += files(
     'bridge.c',
+    'bridge_iface.c',
     'mac_table.c',
     'api_handlers.c',
 )

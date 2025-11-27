@@ -18,6 +18,88 @@
 #include <stdio.h>
 #include <string.h>
 
+// Bridge interface type CLI support
+static void bridge_show(struct gr_api_client *, const struct gr_iface *iface) {
+	const struct gr_iface_info_bridge *bridge_info = PAYLOAD(iface);
+
+	printf("bridge_id: %u mac: " ETH_F "\n", bridge_info->bridge_id, &bridge_info->base.mac);
+}
+
+static void
+bridge_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
+	const struct gr_iface_info_bridge *bridge_info = PAYLOAD(iface);
+
+	snprintf(
+		buf,
+		len,
+		"bridge_id: %u mac: " ETH_F,
+		bridge_info->bridge_id,
+		&bridge_info->base.mac
+	);
+}
+
+static struct cli_iface_type bridge_iface_type = {
+	.type_id = GR_IFACE_TYPE_BRIDGE,
+	.show = bridge_show,
+	.list_info = bridge_list_info,
+};
+
+// Bridge interface creation command
+static cmd_status_t bridge_iface_add(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_infra_iface_add_req *req = NULL;
+	struct gr_l2_bridge *bridge;
+	const char *bridge_name;
+	void *resp_ptr = NULL;
+	size_t len;
+	int ret;
+
+	len = sizeof(*req) + sizeof(struct gr_iface_info_bridge);
+	if ((req = calloc(1, len)) == NULL) {
+		errno = ENOMEM;
+		ret = -1;
+		goto cleanup;
+	}
+
+	req->iface.type = GR_IFACE_TYPE_BRIDGE;
+	req->iface.flags = GR_IFACE_F_UP;
+	req->iface.mode = GR_IFACE_MODE_L3; // Bridge interfaces are L3 for IP processing
+	req->iface.mtu = 1500;
+
+	const char *name = arg_str(p, "NAME");
+	if (name == NULL) {
+		errno = EINVAL;
+		ret = -1;
+		goto cleanup;
+	}
+	strncpy(req->iface.name, name, sizeof(req->iface.name) - 1);
+
+	bridge_name = arg_str(p, "BRIDGE");
+	if (bridge_name == NULL) {
+		errno = EINVAL;
+		ret = -1;
+		goto cleanup;
+	}
+	bridge = bridge_from_name(c, bridge_name);
+	if (bridge == NULL) {
+		errno = ENOENT;
+		ret = -1;
+		goto cleanup;
+	}
+
+	req->iface.domain_id = bridge->bridge_id;
+
+	struct gr_iface_info_bridge *bridge_info = (struct gr_iface_info_bridge *)req->iface.info;
+	bridge_info->bridge_id = bridge->bridge_id;
+	free(bridge);
+
+	ret = gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, len, req, &resp_ptr);
+
+cleanup:
+	free(resp_ptr);
+	free(req);
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
+}
+
 // Bridge domain management commands
 static cmd_status_t bridge_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_l2_bridge_add_req req = {0};
@@ -300,6 +382,18 @@ int complete_bridge_names(
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
+	// Bridge interface creation command
+	ret = CLI_COMMAND(
+		INTERFACE_ADD_CTX(root),
+		"bridge NAME bridge BRIDGE",
+		bridge_iface_add,
+		"Create a new bridge interface.",
+		with_help("Interface name.", ec_node("any", "NAME")),
+		with_help("Bridge name.", ec_node_dyn("BRIDGE", complete_bridge_names, NULL))
+	);
+	if (ret < 0)
+		return ret;
+
 	// Bridge domain commands
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("bridge", "Layer 2 bridge configuration.")),
@@ -389,4 +483,5 @@ static struct cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	cli_context_register(&ctx);
+	register_iface_type(&bridge_iface_type);
 }
