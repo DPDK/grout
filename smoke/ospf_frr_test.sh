@@ -42,6 +42,7 @@ exit
 !
 interface p0
 	ip ospf hello-interval 1
+	ip ospf network point-to-point
 exit
 !
 !
@@ -67,6 +68,7 @@ exit
 interface x-p0
 	ip address 172.16.0.2/24
 	ip ospf hello-interval 1
+	ip ospf network point-to-point
 exit
 !
 router ospf
