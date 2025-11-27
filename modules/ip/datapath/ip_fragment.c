@@ -17,6 +17,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+// According to RFC 791:
+// Every internet destination must be able to receive a datagram of 576 octets
+// either in one piece or in fragments to be reassembled.
+// With a jumbo frame (MTU set to 9000), we'd need 16 fragments.
+#define MAX_FRAGMENTS 16
+
 struct ip_fragment_trace_data {
 	uint16_t packet_id;
 	uint16_t frag_num;
@@ -28,6 +34,7 @@ enum {
 	IP_OUTPUT = 0,
 	NO_MBUF,
 	ALREADY_FRAGMENTED,
+	TOO_MANY_FRAGMENTS,
 	ERROR,
 	EDGE_COUNT,
 };
@@ -37,6 +44,7 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_mbuf *mbuf, *frag_mbuf;
 	struct rte_ipv4_hdr *ip, *frag_ip;
 	uint16_t frag_size, frag_data_len;
+	void *frags[MAX_FRAGMENTS];
 	uint16_t data_len, offset;
 	const struct iface *iface;
 	uint16_t num_frags, i;
@@ -48,13 +56,15 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	for (uint16_t j = 0; j < nb_objs; j++) {
 		mbuf = objs[j];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		num_frags = 1;
+		frags[0] = mbuf;
 
 		// Check if packet is already a fragment - if so, just pass it through
 		if (ip->fragment_offset
 		    & RTE_BE16(RTE_IPV4_HDR_MF_FLAG | RTE_IPV4_HDR_OFFSET_MASK)) {
 			// This is already a fragment, drop it
 			edge = ALREADY_FRAGMENTED;
-			goto drop;
+			goto next;
 		}
 
 		iface = mbuf_data(mbuf)->iface;
@@ -68,11 +78,16 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		frag_size = RTE_ALIGN_FLOOR(max_payload, 8);
 		if (unlikely(frag_size < 8)) {
 			edge = ERROR;
-			goto drop;
+			goto next;
 		}
 
 		num_frags = (data_len + frag_size - 1) / frag_size;
 		assert(num_frags > 1);
+		if (num_frags > MAX_FRAGMENTS) {
+			edge = TOO_MANY_FRAGMENTS;
+			num_frags = 1;
+			goto next;
+		}
 
 		// Prepare and enqueue first fragment (using original mbuf)
 		ip->total_length = rte_cpu_to_be_16(ip_hdr_len + frag_size);
@@ -80,20 +95,9 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip->hdr_checksum = 0;
 		ip->hdr_checksum = rte_ipv4_cksum(ip);
 
-		if (gr_mbuf_is_traced(mbuf)) {
-			struct ip_fragment_trace_data *t;
-			t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
-			t->packet_id = rte_be_to_cpu_16(ip->packet_id);
-			t->frag_num = 0;
-			t->offset = 0;
-			t->more_frags = 1;
-		}
-
-		// Enqueue first fragment
-		rte_node_enqueue_x1(graph, node, IP_OUTPUT, mbuf);
-		sent++;
-
-		// Create and enqueue remaining fragments
+		// First fragment trace will be handled last, and is already part
+		// of the frags array at position 0.
+		// Create remaining fragments
 		for (i = 1; i < num_frags; i++) {
 			// Create new fragment, copying the original IPv4 header.
 			frag_mbuf = gr_mbuf_copy(
@@ -134,18 +138,32 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 				t->more_frags = (i < num_frags - 1) ? 1 : 0;
 			}
 
-			rte_node_enqueue_x1(graph, node, IP_OUTPUT, frag_mbuf);
-			sent++;
+			frags[i] = frag_mbuf;
+		}
+		// If we had an error, drop the whole mbuf.
+		if (unlikely(i != num_frags)) {
+			for (uint16_t j = 1; j < i; j++)
+				rte_pktmbuf_free(frags[j]);
+			edge = ERROR;
+			num_frags = 1;
+		} else {
+			// Trim first fragment to the right size
+			rte_pktmbuf_trim(mbuf, data_len - frag_size);
+			edge = IP_OUTPUT;
 		}
 
-		// Trim first fragment to the right size
-		rte_pktmbuf_trim(mbuf, data_len - frag_size);
+next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct ip_fragment_trace_data *t;
+			t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t->packet_id = rte_be_to_cpu_16(ip->packet_id);
+			t->frag_num = 0;
+			t->offset = 0;
+			t->more_frags = (num_frags > 1) ? 1 : 0;
+		}
 
-		continue;
-
-drop:
-		rte_node_enqueue_x1(graph, node, edge, mbuf);
-		sent++;
+		rte_node_enqueue(graph, node, edge, frags, num_frags);
+		sent += num_frags;
 	}
 
 	return sent;
@@ -172,7 +190,8 @@ static struct rte_node_register fragment_node = {
 		[IP_OUTPUT] = "ip_output",
 		[NO_MBUF] = "error_no_headroom",
 		[ALREADY_FRAGMENTED] = "ip_fragment_already_fragmented",
-		[ERROR] = "ip_fragment_error"
+		[ERROR] = "ip_fragment_error",
+		[TOO_MANY_FRAGMENTS] = "ip_fragment_too_many_fragments",
 	},
 };
 
@@ -185,3 +204,4 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_fragment_error);
 GR_DROP_REGISTER(ip_fragment_already_fragmented);
+GR_DROP_REGISTER(ip_fragment_too_many_fragments);
