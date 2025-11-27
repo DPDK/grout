@@ -256,17 +256,23 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		switch (iface->mode) {
 		case GR_IFACE_MODE_L1_XC:
 			scols_line_set_data(line, 3, "XC");
+			scols_line_set_data(line, 4, "");
 			break;
 		case GR_IFACE_MODE_L3:
 			scols_line_set_data(line, 3, "L3");
+			// VRF
+			scols_line_sprintf(line, 4, "vrf: %u", iface->vrf_id);
+			break;
+		case GR_IFACE_MODE_L2_BRIDGE:
+			scols_line_set_data(line, 3, "L2");
+			// Bridge domain
+			scols_line_sprintf(line, 4, "br: %u", iface->domain_id);
 			break;
 		default:
 			scols_line_sprintf(line, 3, "%u", iface->mode);
+			scols_line_set_data(line, 4, "");
 			break;
 		}
-
-		// vrf
-		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
 
 		// type
 		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));

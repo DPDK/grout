@@ -55,6 +55,7 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
 	GR_IFACE_MODE_L1_XC,
+	GR_IFACE_MODE_L2_BRIDGE,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -411,6 +412,8 @@ static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 		return "l3";
 	case GR_IFACE_MODE_L1_XC:
 		return "l1-xc";
+	case GR_IFACE_MODE_L2_BRIDGE:
+		return "l2-bridge";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}
