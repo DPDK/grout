@@ -70,7 +70,7 @@ struct lacp_participant {
 	rte_be16_t port_number;
 	lacp_state_flags_t state;
 	uint8_t __padding[3];
-} __rte_packed __rte_aligned(2);
+} __attribute__((packed)) __rte_aligned(2);
 
 struct lacp_pdu {
 	slow_subtype_t subtype; // LACP_SUBTYPE
@@ -96,7 +96,7 @@ struct lacp_pdu {
 	lacp_type_t terminator_type; // LACP_TYPE_TERMINATOR
 	uint8_t terminator_len; // LACP_LEN_TERMINATOR
 	uint8_t __padding[50]; // Pad to minimum frame size
-} __rte_packed __rte_aligned(2);
+} __attribute__((packed)) __rte_aligned(2);
 
 // Standard LACP destination multicast address
 #define LACP_DST_MAC ((struct rte_ether_addr) {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x02}})
