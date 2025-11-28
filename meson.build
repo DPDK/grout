@@ -58,14 +58,13 @@ endif
 
 dpdk_dep = dependency(
   'libdpdk',
-  version : '>= 24.11.1',
+  version : '>= 25.11',
   fallback: ['dpdk', 'dpdk_dep'],
   default_options: [
     'c_std=c11',
     'werror=false',
-    'enable_kmods=false',
     'tests=false',
-    'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,common/iavf,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
+    'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
     'enable_libs=graph,hash,fib,rib,pcapng,gso,vhost,cryptodev,dmadev,security',
     'disable_apps=*',
     'enable_docs=false',
