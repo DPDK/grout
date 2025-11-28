@@ -36,44 +36,44 @@ struct icmp6 {
 	icmp6_type_t type;
 	uint8_t code;
 	rte_be16_t cksum;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_ERR_DEST_UNREACH
 struct icmp6_err_dest_unreach {
 	uint32_t __unused;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_ERR_PKT_TOO_BIG
 struct icmp6_err_pkt_too_big {
 	rte_be32_t mtu;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_ERR_TTL_EXCEEDED
 struct icmp6_err_ttl_exceeded {
 	uint32_t __unused;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_ERR_PARAM_PROBLEM
 struct icmp6_err_param_problem {
 	rte_be32_t offset;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_TYPE_ECHO_REQUEST
 struct icmp6_echo_request {
 	rte_be16_t ident;
 	rte_be16_t seqnum;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_TYPE_ECHO_REPLY
 struct icmp6_echo_reply {
 	rte_be16_t ident;
 	rte_be16_t seqnum;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_TYPE_ROUTER_SOLICIT
 struct icmp6_router_solicit {
 	uint32_t __reserved;
-} __rte_packed;
+} __attribute__((packed));
 
 typedef enum : uint8_t {
 	ICMP6_RA_F_MANAGED_ADDR = GR_BIT8(0),
@@ -87,13 +87,13 @@ struct icmp6_router_advert {
 	rte_be16_t lifetime;
 	rte_be32_t reachable_time;
 	rte_be32_t retrans_timer;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6_TYPE_NEIGH_SOLICIT
 struct icmp6_neigh_solicit {
 	uint32_t __reserved;
 	struct rte_ipv6_addr target;
-} __rte_packed;
+} __attribute__((packed));
 
 typedef enum : uint8_t {
 	ICMP6_NA_F_ROUTER = GR_BIT8(0),
@@ -107,7 +107,7 @@ struct icmp6_neigh_advert {
 	uint8_t __reserved;
 	uint16_t __reserved2;
 	struct rte_ipv6_addr target;
-} __rte_packed;
+} __attribute__((packed));
 
 // ICMP6 options
 
@@ -123,7 +123,7 @@ typedef enum : uint8_t {
 struct icmp6_opt {
 	icmp6_opt_t type;
 	uint8_t len;
-} __rte_packed;
+} __attribute__((packed));
 
 // size of an option payload in units of 8 bytes
 // (add 7 and truncate down to the next multiple of 8)
@@ -132,7 +132,7 @@ struct icmp6_opt {
 // ICMP6_OPT_SRC_LLADDR | ICMP6_OPT_TARGET_LLADDR
 struct icmp6_opt_lladdr {
 	struct rte_ether_addr mac;
-} __rte_aligned(2) __rte_packed;
+} __attribute__((packed)) __rte_aligned(2);
 
 typedef enum {
 	ICMP6_OPT_INVAL = -1,

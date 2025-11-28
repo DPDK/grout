@@ -79,7 +79,7 @@ struct dhcp_packet {
 	uint8_t file[128];
 	rte_be32_t magic;
 	uint8_t options[];
-} __rte_packed;
+} __attribute__((packed));
 
 #define DHCP_MAGIC RTE_BE32(0x63825363) // RFC 2131 section 3
 #define BOOTREQUEST 1
