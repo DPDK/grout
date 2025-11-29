@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 # Hardening
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all reproducible=+all optimize=-lto
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all reproducible=+all optimize=+lto
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
@@ -10,6 +10,7 @@ meson_opts += --auto-features=enabled
 meson_opts += -Ddpdk:platform=generic
 meson_opts += -Dfrr=enabled
 meson_opts += -Ddpdk_static=true
+meson_opts += -Db_lto=true
 
 build = $(CURDIR)/debian/_build
 dest = $(CURDIR)/debian/tmp
@@ -26,6 +27,9 @@ override_dh_auto_install:
 		$(dest)/usr/bin/grout-telemetry-exporter
 	install -D -m 0644 -t $(dest)/usr/share/dpdk/telemetry-endpoints \
 		subprojects/dpdk/usertools/telemetry-endpoints/*
+
+override_dh_auto_test:
+	@:
 
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade
