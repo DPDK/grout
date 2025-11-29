@@ -2,7 +2,6 @@
 # Copyright (c) 2024 Robin Jarry
 
 %undefine _debugsource_packages
-%global _lto_cflags %nil
 %global branch main
 %global __meson_wrap_mode default
 
@@ -76,7 +75,7 @@ Requires: frr = %(sed -n "s/revision = frr-//p" subprojects/frr.wrap)
 FRR dplane plugin for grout
 
 %build
-%meson -Ddpdk:platform=generic -Dfrr=enabled -Ddpdk_static=true
+%meson -Ddpdk:platform=generic -Dfrr=enabled -Ddpdk_static=true -Db_lto=true
 %meson_build
 
 %install

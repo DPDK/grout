@@ -67,6 +67,7 @@ dpdk_dep = dependency(
     'tests=false',
     'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,common/iavf,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
     'enable_libs=graph,hash,fib,rib,pcapng,gso,vhost,cryptodev,dmadev,security',
+    'c_args=-Wno-stringop-overflow',
     'disable_apps=*',
     'enable_docs=false',
     'developer_mode=disabled',
