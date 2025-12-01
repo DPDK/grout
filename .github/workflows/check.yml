@@ -102,9 +102,9 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-x86_64-${{ matrix.conf.compiler }}
       - run: ccache -z
-      - run: git rebase -x "git --no-pager log --oneline -1 && make all unit-tests && sudo smoke/run.sh build" "HEAD~${{ github.event.pull_request.commits }}"
+      - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
-      - run: make all unit-tests && sudo smoke/run.sh build
+      - run: .github/workflows/check.sh
         if: ${{ ! matrix.conf.rebase || ! github.event.pull_request.commits }}
       - run: ccache -sv
       - uses: actions/cache/save@v4
@@ -145,9 +145,9 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-aarch64
       - run: ccache -z
-      - run: git rebase -x "git --no-pager log --oneline -1 && make" "HEAD~${{ github.event.pull_request.commits }}"
+      - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
-      - run: make
+      - run: .github/workflows/check.sh
         if: ${{ ! github.event.pull_request.commits }}
       - run: ccache -sv
       - uses: actions/cache/save@v4
@@ -169,9 +169,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
-      - run: git rebase -x "git --no-pager log --oneline -1 && make lint" "HEAD~${{ github.event.pull_request.commits }}"
+      - run: git rebase -x ".github/workflows/check.sh lint" "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ github.event.pull_request.commits }}
-      - run: make lint
+      - run: .github/workflows/check.sh lint
         if: ${{ ! github.event.pull_request.commits }}
 
   commits:
