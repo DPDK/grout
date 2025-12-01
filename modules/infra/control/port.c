@@ -121,7 +121,7 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 
 	// Limit configured rss hash functions to only those supported by hardware
 	conf.rx_adv_conf.rss_conf.rss_hf &= info.flow_type_rss_offloads;
-	if (conf.rx_adv_conf.rss_conf.rss_hf == 0)
+	if (conf.rx_adv_conf.rss_conf.rss_hf == 0 || p->n_rxq == 1)
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
