@@ -23,11 +23,16 @@ struct port_mac {
 	struct rte_ether_addr mac;
 };
 
+typedef enum : uint8_t {
+	PORT_F_VLAN_FILTER = GR_BIT8(0),
+} port_features_t;
+
 GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	BASE(__gr_iface_info_port_base);
 
 	uint16_t port_id;
 	bool started;
+	port_features_t features;
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;

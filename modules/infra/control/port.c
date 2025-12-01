@@ -129,9 +129,19 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
+	if (strncmp(info.driver_name, "mlx5", 4) == 0) {
+		// Hardware VLAN filtering is incompatible with mlx5 bifurcated driver mode.
+		// Skip it for mlx5 devices and rely on software filtering instead.
+		conf.rxmode.offloads &= ~RTE_ETH_RX_OFFLOAD_VLAN;
+	}
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
+
+	if (conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER)
+		p->features |= PORT_F_VLAN_FILTER;
+	else
+		p->features &= ~PORT_F_VLAN_FILTER;
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {
@@ -259,6 +269,8 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 
 static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
 	struct iface_info_port *p = iface_info_port(iface);
+	if (!(p->features & PORT_F_VLAN_FILTER))
+		return 0;
 	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, true);
 	switch (ret) {
 	case 0:
@@ -273,6 +285,8 @@ static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
 
 static int port_vlan_del(struct iface *iface, uint16_t vlan_id) {
 	struct iface_info_port *p = iface_info_port(iface);
+	if (!(p->features & PORT_F_VLAN_FILTER))
+		return 0;
 	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, false);
 	switch (ret) {
 	case 0:
