@@ -314,7 +314,8 @@ int worker_graph_reload_all(gr_vec struct iface_info_port **ports) {
 
 	// these port_rx and port_tx clones are now not referenced in any graph
 	// we can safely delete them
-	// FIXME: call rte_node_free on each one of them when updating to DPDK 25.11
+	gr_vec_foreach (rte_node_t node, unused_nodes)
+		rte_node_free(node);
 	gr_vec_free(unused_nodes);
 
 	return 0;
