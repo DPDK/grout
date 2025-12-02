@@ -43,7 +43,6 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 		// We currently do not have an explicit route entry for this
 		// destination IP.
 		struct nexthop *remote = nh6_lookup(nh->vrf_id, mbuf_data(m)->iface->id, dst);
-		struct nexthop_info_l3 *remote_l3;
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
@@ -59,32 +58,29 @@ void nh6_unreachable_cb(struct rte_mbuf *m) {
 					.ipv6 = *dst,
 				}
 			);
+			if (remote == NULL) {
+				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				goto free;
+			}
+			// Create an associated /128 route so that next packets take it
+			// in priority with a single route lookup.
+			int ret = rib6_insert(
+				nh->vrf_id,
+				nh->iface_id,
+				dst,
+				RTE_IPV6_MAX_DEPTH,
+				GR_NH_ORIGIN_INTERNAL,
+				remote
+			);
+			if (ret < 0) {
+				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				goto free;
+			}
 		}
 
-		if (remote == NULL) {
-			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
-			goto free;
-		}
-
-		remote_l3 = nexthop_info_l3(remote);
 		assert(remote->iface_id == nh->iface_id);
-
-		// Create an associated /128 route so that next packets take it
-		// in priority with a single route lookup.
-		int ret = rib6_insert(
-			nh->vrf_id,
-			nh->iface_id,
-			dst,
-			RTE_IPV6_MAX_DEPTH,
-			GR_NH_ORIGIN_INTERNAL,
-			remote
-		);
-		if (ret < 0) {
-			LOG(ERR, "failed to insert route: %s", strerror(errno));
-			goto free;
-		}
 		nh = remote;
-		l3 = remote_l3;
+		l3 = nexthop_info_l3(remote);
 	}
 
 	if (l3->state == GR_NH_S_REACHABLE) {
