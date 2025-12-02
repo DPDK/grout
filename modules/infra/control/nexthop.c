@@ -792,6 +792,14 @@ static int l3_import_info(struct nexthop *nh, const void *info) {
 		priv.flags |= GR_NH_F_STATIC;
 	}
 
+	// Check that the new address isn't already in use by a different nexthop
+	if (pub->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&pub->ipv6)) {
+		void *existing;
+		set_nexthop_key(&key, pub->af, nh->vrf_id, nh->iface_id, &pub->addr);
+		if (rte_hash_lookup_data(hash_by_addr, &key, &existing) >= 0 && existing != nh)
+			return errno_set(EADDRINUSE);
+	}
+
 	if (priv.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&priv.ipv6)) {
 		// Free old entry in the hash table.
 		set_nexthop_key(&key, priv.af, nh->vrf_id, nh->iface_id, &priv.addr);
