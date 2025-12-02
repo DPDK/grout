@@ -144,3 +144,8 @@ struct gr_iface_info_bridge {
 
 // Bridge reconfig attributes
 #define GR_BRIDGE_SET_BRIDGE_ID GR_BIT64(32)
+
+typedef enum {
+	GR_EVENT_BRIDGE_MAC_ADD = EVENT_TYPE(GR_L2_MODULE, 0x0001),
+	GR_EVENT_BRIDGE_MAC_DEL = EVENT_TYPE(GR_L2_MODULE, 0x0002),
+} gr_event_bridge_t;

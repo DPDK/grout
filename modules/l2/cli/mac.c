@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
 #include <gr_l2.h>
@@ -286,6 +287,37 @@ static struct cli_context ctx = {
 	.init = ctx_init,
 };
 
+static void mac_event_print(uint32_t event, const void *obj) {
+	const struct gr_l2_mac_entry *entry = obj;
+	const char *action;
+
+	switch (event) {
+	case GR_EVENT_BRIDGE_MAC_ADD:
+		action = "add";
+		break;
+	case GR_EVENT_BRIDGE_MAC_DEL:
+		action = "del";
+		break;
+	default:
+		action = "?";
+		break;
+	}
+	printf("mac %s: " ETH_F " bridge=%u iface=%u\n",
+	       action,
+	       &entry->mac,
+	       entry->bridge_id,
+	       entry->iface_id);
+}
+
+static struct cli_event_printer printer = {
+	.print = mac_event_print,
+	.ev_count = 2,
+	.ev_types = {
+		GR_EVENT_BRIDGE_MAC_ADD,
+		GR_EVENT_BRIDGE_MAC_DEL,
+	},
+};
 static void __attribute__((constructor, used)) init(void) {
+	cli_event_printer_register(&printer);
 	cli_context_register(&ctx);
 }

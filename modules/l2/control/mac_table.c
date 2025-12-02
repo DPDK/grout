@@ -24,10 +24,7 @@
 
 // MAC table entry structure
 struct mac_entry {
-	uint16_t bridge_id;
-	uint16_t iface_id;
-	struct rte_ether_addr mac;
-	gr_l2_mac_type_t type;
+	struct gr_l2_mac_entry;
 	time_t created;
 	time_t last_seen;
 	struct mac_entry *next; // For hash collision chaining
@@ -232,6 +229,7 @@ int mac_entry_add(
 	    bridge_id,
 	    type == GR_L2_MAC_STATIC ? "static" : "dynamic");
 
+	gr_event_push(GR_EVENT_BRIDGE_MAC_ADD, entry);
 	return 0;
 }
 
@@ -280,6 +278,7 @@ int mac_entry_del(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 	    "Deleted MAC entry " RTE_ETHER_ADDR_PRT_FMT " from bridge %u",
 	    RTE_ETHER_ADDR_BYTES(&entry->mac),
 	    bridge_id);
+	gr_event_push(GR_EVENT_BRIDGE_MAC_DEL, entry);
 
 	free_mac_entry(entry);
 	return 0;
@@ -368,6 +367,7 @@ int mac_table_flush(uint16_t bridge_id, uint16_t iface_id, bool dynamic_only) {
 			    RTE_ETHER_ADDR_BYTES(&entry->mac),
 			    bridge_id);
 
+			gr_event_push(GR_EVENT_BRIDGE_MAC_DEL, entry);
 			free_mac_entry(entry);
 		} else {
 			prev = entry;
@@ -465,6 +465,7 @@ static void mac_aging_callback(
 				    "Aged out MAC entry " RTE_ETHER_ADDR_PRT_FMT " from bridge %u",
 				    RTE_ETHER_ADDR_BYTES(&entry->mac),
 				    bridge_id);
+				gr_event_push(GR_EVENT_BRIDGE_MAC_DEL, entry);
 
 				free_mac_entry(entry);
 			} else {
@@ -534,7 +535,29 @@ static struct gr_module mac_table_module = {
 	.fini = mac_table_module_fini,
 };
 
+static int mac_serialize(const void *obj, void **buf) {
+	struct gr_l2_mac_entry *entry;
+	size_t len = sizeof(*entry);
+
+	if ((entry = malloc(len)) == NULL)
+		return 0;
+
+	mac_entry_to_api(entry, obj);
+	*buf = entry;
+	return len;
+}
+
+static struct gr_event_serializer mac_serializer = {
+	.callback = mac_serialize,
+	.ev_count = 2,
+	.ev_types = {
+		GR_EVENT_BRIDGE_MAC_ADD,
+		GR_EVENT_BRIDGE_MAC_DEL,
+	},
+};
+
 RTE_INIT(mac_table_constructor) {
+	gr_event_register_serializer(&mac_serializer);
 	gr_register_module(&mac_table_module);
 	gr_event_subscribe(&mac_table_event_sub);
 }
