@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <assert.h>
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -26,6 +28,10 @@ struct gr_api_response {
 #define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 #define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
 #define EVENT_TYPE_ALL UINT32_C(0xffffffff)
+
+// Document stream response types with compile-time type checking.
+// Stream responses are always terminated by an empty response (header only with payload_len=0).
+#define STREAM_RESP(type) static_assert(alignof(type) > 0)
 
 #define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
 

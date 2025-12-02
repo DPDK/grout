@@ -36,7 +36,7 @@ struct gr_dhcp_status {
 
 // struct gr_dhcp_list_req { };
 
-// STREAM(struct gr_dhcp_status);
+STREAM_RESP(struct gr_dhcp_status);
 
 // start ///////////////////////////////////////////////////////////////////////
 

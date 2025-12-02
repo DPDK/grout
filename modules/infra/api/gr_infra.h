@@ -242,7 +242,7 @@ struct gr_infra_iface_list_req {
 	gr_iface_type_t type; // use GR_IFACE_TYPE_UNDEF for all
 };
 
-// STREAM(struct gr_iface);
+STREAM_RESP(struct gr_iface);
 
 #define GR_INFRA_IFACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0005)
 
@@ -281,7 +281,7 @@ struct gr_infra_iface_stats_get_resp {
 
 // struct gr_infra_rxq_list_req { };
 
-// STREAM(struct gr_port_rxq_map);
+STREAM_RESP(struct gr_port_rxq_map);
 
 #define GR_INFRA_RXQ_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0011)
 

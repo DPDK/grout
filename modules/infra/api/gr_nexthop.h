@@ -315,4 +315,4 @@ struct gr_nh_list_req {
 	bool include_internal;
 };
 
-// STREAM(struct gr_nexthop);
+STREAM_RESP(struct gr_nexthop);

@@ -66,7 +66,7 @@ struct gr_ip4_route_list_req {
 	uint16_t vrf_id;
 };
 
-// STREAM(struct gr_ip4_route);
+STREAM_RESP(struct gr_ip4_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
@@ -95,7 +95,7 @@ struct gr_ip4_addr_list_req {
 	uint16_t iface_id;
 };
 
-// STREAM(struct gr_ip4_ifaddr);
+STREAM_RESP(struct gr_ip4_ifaddr);
 
 // icmp ////////////////////////////////////////////////////////////////////////
 
