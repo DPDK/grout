@@ -390,6 +390,9 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 			goto err;
 		}
 		nh->vrf_id = iface->vrf_id;
+	} else if (get_vrf_iface(nh->vrf_id) == NULL) {
+		ret = -errno;
+		goto err;
 	}
 
 	// Import type-specific info using callback

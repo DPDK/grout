@@ -24,6 +24,11 @@ struct vrf_info {
 static struct vrf_info vrfs[GR_MAX_VRFS];
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
+	if (vrf_id >= GR_MAX_VRFS)
+		return errno_set_null(EOVERFLOW);
+	if (vrfs[vrf_id].iface == NULL)
+		return errno_set_null(ENONET);
+
 	return vrfs[vrf_id].iface;
 }
 
