@@ -385,21 +385,27 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 
 	if (nh->iface_id != GR_IFACE_ID_UNDEF) {
 		const struct iface *iface = iface_from_id(nh->iface_id);
-		if (iface == NULL)
-			return -errno;
+		if (iface == NULL) {
+			ret = -errno;
+			goto err;
+		}
 		nh->vrf_id = iface->vrf_id;
 	}
 
 	// Import type-specific info using callback
 	if (ops != NULL && ops->import_info != NULL) {
 		if ((ret = ops->import_info(nh, info)) < 0)
-			return ret;
+			goto err;
 	}
 
 	if (nh->ref_count > 0 && nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 
 	return 0;
+
+err:
+	nexthop_id_put(nh);
+	return ret;
 }
 
 struct gr_nexthop *nexthop_to_api(const struct nexthop *nh, size_t *len) {
