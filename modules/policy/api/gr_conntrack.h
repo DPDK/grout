@@ -8,6 +8,7 @@
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
+// Connection tracking states for TCP state machine and UDP/ICMP tracking.
 typedef enum {
 	CONN_S_CLOSED = 0,
 	CONN_S_NEW,
@@ -23,6 +24,7 @@ typedef enum {
 	CONN_S_TIME_WAIT,
 } gr_conn_state_t;
 
+// Convert connection state enum to string representation.
 static inline const char *gr_conn_state_name(gr_conn_state_t state) {
 	switch (state) {
 	case CONN_S_CLOSED:
@@ -53,6 +55,7 @@ static inline const char *gr_conn_state_name(gr_conn_state_t state) {
 	return "?";
 }
 
+// Unidirectional connection flow (forward or reverse direction).
 struct gr_conntrack_flow {
 	ip4_addr_t src;
 	ip4_addr_t dst;
@@ -60,6 +63,7 @@ struct gr_conntrack_flow {
 	rte_be16_t dst_id;
 };
 
+// Tracked connection entry with bidirectional flows.
 struct gr_conntrack {
 	uint16_t iface_id;
 	addr_family_t af;
@@ -75,12 +79,14 @@ struct gr_conntrack {
 
 // conntrack list //////////////////////////////////////////////////////////////
 
+// List all tracked connections.
 #define GR_CONNTRACK_LIST REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0001)
 
 // struct gr_conntrack_list_req { };
 
 STREAM_RESP(struct gr_conntrack);
 
+// Flush (delete) all tracked connections.
 #define GR_CONNTRACK_FLUSH REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0002)
 
 // struct gr_conntrack_flush_req { };
@@ -89,23 +95,25 @@ STREAM_RESP(struct gr_conntrack);
 
 // conntrack timeouts config ///////////////////////////////////////////////////
 
+// Connection tracking configuration and timeout settings.
 struct gr_conntrack_config {
-	//! Maximum number of tracked connections (default: 16K).
+	// Maximum number of tracked connections (default: 16K).
 	uint32_t max_count;
-	//! Full closed states (default: 5 sec).
+	// Full closed states (default: 5 sec).
 	uint32_t timeout_closed_sec;
-	//! Unsynchronised states (default: 5 sec).
+	// Unsynchronised states (default: 5 sec).
 	uint32_t timeout_new_sec;
-	//! Established UDP connections. (default: 30 sec).
+	// Established UDP connections. (default: 30 sec).
 	uint32_t timeout_udp_established_sec;
-	//! Established TCP connections. (default: 5 min).
+	// Established TCP connections. (default: 5 min).
 	uint32_t timeout_tcp_established_sec;
-	//! Half-closed states. (default: 2 min).
+	// Half-closed states. (default: 2 min).
 	uint32_t timeout_half_close_sec;
-	//! TCP time-wait state. (default: 30 sec).
+	// TCP time-wait state. (default: 30 sec).
 	uint32_t timeout_time_wait_sec;
 };
 
+// Get connection tracking configuration and usage statistics.
 #define GR_CONNTRACK_CONF_GET REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0003)
 
 // struct gr_conntrack_conf_get_req { };
@@ -115,6 +123,8 @@ struct gr_conntrack_conf_get_resp {
 	uint32_t used_count;
 };
 
+// Set connection tracking configuration.
+// Only non-zero values are applied.
 #define GR_CONNTRACK_CONF_SET REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0004)
 
 struct gr_conntrack_conf_set_req {
