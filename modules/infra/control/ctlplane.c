@@ -6,6 +6,7 @@
 #include <gr_bond.h>
 #include <gr_config.h>
 #include <gr_control_input.h>
+#include <gr_control_output.h>
 #include <gr_eth.h>
 #include <gr_event.h>
 #include <gr_iface.h>
@@ -47,10 +48,14 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void iface_cp_tx(struct rte_mbuf *m) {
+void iface_cp_tx(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_stats *stats;
 	char *data = NULL;
+
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
+		goto end;
 
 	if (d->iface->cp_fd == 0)
 		goto end;

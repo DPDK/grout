@@ -85,7 +85,7 @@ struct dhcp_packet {
 #define BOOTREQUEST 1
 #define BOOTREPLY 2
 
-void dhcp_input_cb(struct rte_mbuf *mbuf);
+void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *);
 
 void dhcp_input_register_port(void);
 

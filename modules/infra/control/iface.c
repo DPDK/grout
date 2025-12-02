@@ -409,7 +409,6 @@ int iface_destroy(uint16_t ifid) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
-	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
 		vrf_decref(iface->vrf_id);
 	nexthop_iface_cleanup(ifid);
@@ -417,6 +416,12 @@ int iface_destroy(uint16_t ifid) {
 	ifaces[ifid] = NULL;
 
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
+	// Push IFACE_REMOVE event after RCU sync to ensure all datapath threads
+	// have seen that this iface is gone. At this point, only packets already
+	// in the control output ring may still reference it. The event triggers
+	// a drain that frees those packets before type->fini() frees the iface.
+	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);

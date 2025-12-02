@@ -27,13 +27,27 @@
 
 static control_input_t ip6_output_node;
 
-void nh6_unreachable_cb(struct rte_mbuf *m) {
+void nh6_unreachable_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 	const struct rte_ipv6_addr *dst = &ip->dst_addr;
 	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
 	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
+
+	if (drain != NULL) {
+		// Check if packet references deleted object.
+		switch (drain->event) {
+		case GR_EVENT_IFACE_REMOVE:
+			if (mbuf_data(m)->iface == drain->obj)
+				goto free;
+			break;
+		case GR_EVENT_NEXTHOP_DELETE:
+			if (nh == drain->obj)
+				goto free;
+			break;
+		}
+	}
 
 	l3 = nexthop_info_l3(nh);
 
@@ -114,7 +128,7 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-void ndp_probe_input_cb(struct rte_mbuf *m) {
+void ndp_probe_input_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
 	const struct rte_ipv6_addr *remote, *local;
 	const struct ip6_local_mbuf_data *d;
@@ -128,6 +142,10 @@ void ndp_probe_input_cb(struct rte_mbuf *m) {
 
 	d = (const struct ip6_local_mbuf_data *)control_output_mbuf_data(m)->cb_data;
 	iface = control_output_mbuf_data(m)->iface;
+
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
+		goto free;
 
 	switch (icmp6->type) {
 	case ICMP6_TYPE_NEIGH_SOLICIT:

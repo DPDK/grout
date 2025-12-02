@@ -105,10 +105,13 @@ static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-void ndp_router_sollicit_input_cb(struct rte_mbuf *m) {
-	uint16_t iface_id = mbuf_data(m)->iface->id;
+void ndp_router_sollicit_input_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
+	const struct iface *iface = mbuf_data(m)->iface;
 	rte_pktmbuf_free(m);
-	event_active(ra_conf[iface_id].timer, 0, 0);
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
+		return;
+	event_active(ra_conf[iface->id].timer, 0, 0);
 }
 
 static void build_ra_packet(struct rte_mbuf *m, const struct rte_ipv6_addr *src) {

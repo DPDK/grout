@@ -26,7 +26,7 @@
 
 static struct event *lacp_timer;
 
-void lacp_input_cb(struct rte_mbuf *mbuf) {
+void lacp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *drain) {
 	struct control_output_mbuf_data *ctrl_data = control_output_mbuf_data(mbuf);
 	const struct iface_info_port *port;
 	const struct iface *port_iface;
@@ -36,6 +36,9 @@ void lacp_input_cb(struct rte_mbuf *mbuf) {
 	struct iface *bond_iface;
 
 	memcpy(&port_iface, ctrl_data->cb_data, sizeof(struct iface *));
+	// Check if packet references deleted interface.
+	if (drain && drain->event == GR_EVENT_IFACE_REMOVE && port_iface == drain->obj)
+		goto out;
 	if (port_iface->type != GR_IFACE_TYPE_PORT) {
 		LOG(DEBUG, "interface %s is not a port", port_iface->name);
 		goto out;
