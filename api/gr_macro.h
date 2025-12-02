@@ -6,9 +6,16 @@
 #include <errno.h>
 #include <limits.h>
 
+// Get number of elements in a static array.
 #define ARRAY_DIM(array) (sizeof(array) / sizeof(array[0]))
+
+// Get size of a specific member in a struct type.
 #define MEMBER_SIZE(type, member) (sizeof(((type *)0)->member))
+
+// Get pointer to payload data immediately following a header.
 #define PAYLOAD(header) ((void *)(header + 1))
+
+// Get maximum number of values for an unsigned integer type (up to 32-bit).
 #define UINT_NUM_VALUES(type) (1ULL << (sizeof(type) * CHAR_BIT))
 
 // Define a structure as a base for another one using anonymous tagged structure extension.
