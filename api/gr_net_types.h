@@ -22,12 +22,14 @@
 #include <gr_net_compat.h>
 #endif
 
+// Address family enumeration.
 typedef enum : uint8_t {
 	GR_AF_UNSPEC = AF_UNSPEC,
 	GR_AF_IP4 = AF_INET,
 	GR_AF_IP6 = AF_INET6,
 } addr_family_t;
 
+// Convert address family enum to string representation.
 static inline const char *gr_af_name(addr_family_t af) {
 	switch (af) {
 	case GR_AF_UNSPEC:
@@ -40,7 +42,7 @@ static inline const char *gr_af_name(addr_family_t af) {
 	return "?";
 }
 
-// Custom printf specifiers
+// Custom printf specifiers for network addresses.
 
 // struct rte_ether_addr *
 #define ETH_F "%2p"
@@ -61,13 +63,16 @@ static inline const char *gr_af_name(addr_family_t af) {
 #define IPV4_RE "^" __IPV4_RE "$"
 #define IPV4_NET_RE "^" __IPV4_RE __IPV4_PREFIX_RE "$"
 
+// IPv4 address type (network byte order).
 typedef uint32_t ip4_addr_t;
 
+// IPv4 network with prefix length.
 struct ip4_net {
 	ip4_addr_t ip;
 	uint8_t prefixlen;
 };
 
+// Check if two IPv4 addresses are in the same subnet.
 static inline bool ip4_addr_same_subnet(ip4_addr_t a, ip4_addr_t b, uint8_t prefixlen) {
 	ip4_addr_t mask = htonl(~(UINT32_MAX >> prefixlen));
 	return ((a ^ b) & mask) == 0;
@@ -75,6 +80,7 @@ static inline bool ip4_addr_same_subnet(ip4_addr_t a, ip4_addr_t b, uint8_t pref
 
 #define IPV4_ADDR_BCAST RTE_BE32(0xffffffff)
 
+// Check if the provided IPv4 address is multicast.
 static inline bool ip4_addr_is_mcast(const ip4_addr_t ip) {
 	const union {
 		ip4_addr_t ip;
@@ -83,6 +89,7 @@ static inline bool ip4_addr_is_mcast(const ip4_addr_t ip) {
 	return addr.u8[0] >= 224 && addr.u8[0] <= 239;
 }
 
+// Parse IPv4 network string (e.g. "192.168.1.0/24") into ip4_net structure.
 static inline int ip4_net_parse(const char *s, struct ip4_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
@@ -115,11 +122,13 @@ out:
 #define IPV6_RE "^" __IPV6_RE "$"
 #define IPV6_NET_RE "^" __IPV6_RE __IPV6_PREFIX_RE "$"
 
+// IPv6 network with prefix length.
 struct ip6_net {
 	struct rte_ipv6_addr ip;
 	uint8_t prefixlen;
 };
 
+// Parse IPv6 network string (e.g. "2001:db8::/32") into ip6_net structure.
 static inline int ip6_net_parse(const char *s, struct ip6_net *net, bool zero_mask) {
 	char *addr = NULL;
 	int ret = -1;
