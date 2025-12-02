@@ -10,11 +10,13 @@
 
 #include <stdint.h>
 
+// IPv4 interface address assignment.
 struct gr_ip4_ifaddr {
 	uint16_t iface_id;
 	struct ip4_net addr;
 };
 
+// IPv4 route entry.
 struct gr_ip4_route {
 	struct ip4_net dest;
 	uint16_t vrf_id;
@@ -26,109 +28,120 @@ struct gr_ip4_route {
 
 // routes //////////////////////////////////////////////////////////////////////
 
+// Add a new IPv4 route.
 #define GR_IP4_ROUTE_ADD REQUEST_TYPE(GR_IP4_MODULE, 0x0010)
 
 struct gr_ip4_route_add_req {
 	uint16_t vrf_id;
-	struct ip4_net dest;
-	ip4_addr_t nh;
-	uint32_t nh_id;
+	struct ip4_net dest; // Route CIDR prefix.
+	ip4_addr_t nh; // Next hop address (auto-creates nexthop if needed).
+	uint32_t nh_id; // Use existing nexthop ID instead of nh address.
 	gr_nh_origin_t origin;
-	uint8_t exist_ok;
+	uint8_t exist_ok; // Do not fail if route already exists.
 };
 
 // struct gr_ip4_route_add_resp { };
 
+// Delete an existing IPv4 route.
 #define GR_IP4_ROUTE_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0011)
 
 struct gr_ip4_route_del_req {
 	uint16_t vrf_id;
-	struct ip4_net dest;
-	uint8_t missing_ok;
+	struct ip4_net dest; // Route CIDR prefix.
+	uint8_t missing_ok; // Do not fail if route does not exist.
 };
 
 // struct gr_ip4_route_del_resp { };
 
+// Get IPv4 route for a destination address (longest prefix match).
 #define GR_IP4_ROUTE_GET REQUEST_TYPE(GR_IP4_MODULE, 0x0012)
 
 struct gr_ip4_route_get_req {
 	uint16_t vrf_id;
-	ip4_addr_t dest;
+	ip4_addr_t dest; // Destination address for route lookup.
 };
 
 struct gr_ip4_route_get_resp {
-	struct gr_nexthop nh;
+	struct gr_nexthop nh; // Resolved next hop for the destination.
 };
 
+// List all IPv4 routes in a VRF.
 #define GR_IP4_ROUTE_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0013)
 
 struct gr_ip4_route_list_req {
-	uint16_t vrf_id;
+	uint16_t vrf_id; // Use GR_VRF_ID_ALL to list routes from all VRFs.
 };
 
 STREAM_RESP(struct gr_ip4_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
+// Add an IPv4 address to an interface.
 #define GR_IP4_ADDR_ADD REQUEST_TYPE(GR_IP4_MODULE, 0x0021)
 
 struct gr_ip4_addr_add_req {
 	struct gr_ip4_ifaddr addr;
-	uint8_t exist_ok;
+	uint8_t exist_ok; // Do not fail if address already exists.
 };
 
 // struct gr_ip4_addr_add_resp { };
 
+// Delete an IPv4 address from an interface.
 #define GR_IP4_ADDR_DEL REQUEST_TYPE(GR_IP4_MODULE, 0x0022)
 
 struct gr_ip4_addr_del_req {
 	struct gr_ip4_ifaddr addr;
-	uint8_t missing_ok;
+	uint8_t missing_ok; // Do not fail if address does not exist.
 };
 
 // struct gr_ip4_addr_del_resp { };
 
+// List IPv4 addresses on interfaces.
 #define GR_IP4_ADDR_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0023)
 
 struct gr_ip4_addr_list_req {
-	uint16_t vrf_id;
-	uint16_t iface_id;
+	uint16_t vrf_id; // Filter by VRF (use GR_VRF_ID_ALL for all VRFs).
+	uint16_t iface_id; // Filter by interface (use GR_IFACE_ID_UNDEF for all).
 };
 
 STREAM_RESP(struct gr_ip4_ifaddr);
 
 // icmp ////////////////////////////////////////////////////////////////////////
 
+// Send an ICMP echo request (ping).
 #define GR_IP4_ICMP_SEND REQUEST_TYPE(GR_IP4_MODULE, 0x0024)
 
 struct gr_ip4_icmp_send_req {
-	ip4_addr_t addr;
-	uint16_t vrf;
-	uint16_t ident;
-	uint16_t seq_num;
-	uint8_t ttl;
+	ip4_addr_t addr; // Destination address to ping.
+	uint16_t vrf; // VRF for source address selection.
+	uint16_t ident; // ICMP identifier for matching replies.
+	uint16_t seq_num; // ICMP sequence number for matching replies.
+	uint8_t ttl; // Time-to-live (used for traceroute).
 };
 
 // struct gr_ip4_icmp_send_resp { };
 
+// Receive an ICMP echo reply (ping response) or error.
 #define GR_IP4_ICMP_RECV REQUEST_TYPE(GR_IP4_MODULE, 0x0025)
 
 struct gr_ip4_icmp_recv_req {
-	uint16_t ident;
-	uint16_t seq_num;
+	uint16_t ident; // ICMP identifier to match.
+	uint16_t seq_num; // ICMP sequence number to match.
 };
 
 struct gr_ip4_icmp_recv_resp {
-	uint8_t type;
-	uint8_t code;
-	uint8_t ttl;
-	uint16_t ident;
-	uint16_t seq_num;
-	ip4_addr_t src_addr;
-	clock_t response_time;
+	uint8_t type; // ICMP message type (echo reply, dest unreachable, etc.).
+	uint8_t code; // ICMP message code (specific error condition).
+	uint8_t ttl; // TTL from received packet.
+	uint16_t ident; // ICMP identifier from request.
+	uint16_t seq_num; // ICMP sequence number from request.
+	ip4_addr_t src_addr; // Source address of the ICMP response.
+	clock_t response_time; // Round-trip time in microseconds.
 };
 
 // events //////////////////////////////////////////////////////////////////////
+
+// IPv4 module event types.
 typedef enum {
 	GR_EVENT_IP_ADDR_ADD = EVENT_TYPE(GR_IP4_MODULE, 0x0001),
 	GR_EVENT_IP_ADDR_DEL = EVENT_TYPE(GR_IP4_MODULE, 0x0002),
