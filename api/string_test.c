@@ -39,10 +39,11 @@ static void format(void **) {
 	cpu_set_t set;
 	char buf[256];
 
+	CPU_ZERO(&set);
+
 	assert_errno_equal(cpuset_format(buf, sizeof(buf), NULL), EINVAL);
 	assert_errno_equal(cpuset_format(NULL, 0, &set), EINVAL);
 
-	CPU_ZERO(&set);
 	assert_errno_equal(cpuset_format(buf, sizeof(buf), &set), 0);
 	assert_string_equal(buf, "");
 
