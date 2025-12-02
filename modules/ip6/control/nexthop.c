@@ -22,7 +22,6 @@
 #include <rte_ip6.h>
 
 #include <errno.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 

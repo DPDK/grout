@@ -11,8 +11,6 @@
 
 #include <assert.h>
 #include <fnmatch.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/queue.h>
 
 static STAILQ_HEAD(, gr_api_handler) handlers = STAILQ_HEAD_INITIALIZER(handlers);

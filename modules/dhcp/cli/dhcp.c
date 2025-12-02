@@ -10,10 +10,6 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
-
 static cmd_status_t dhcp_enable_cmd(struct gr_api_client *c, const struct ec_pnode *p) {
 	const char *iface_name = arg_str(p, "IFACE");
 	struct gr_dhcp_start_req req;
