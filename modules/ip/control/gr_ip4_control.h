@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_control_output.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
@@ -20,8 +21,8 @@ static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nexthop_lookup(GR_AF_IP4, vrf_id, GR_IFACE_ID_UNDEF, &ip);
 }
 
-void nh4_unreachable_cb(struct rte_mbuf *m);
-void arp_probe_input_cb(struct rte_mbuf *m);
+void nh4_unreachable_cb(struct rte_mbuf *m, const struct control_output_drain *);
+void arp_probe_input_cb(struct rte_mbuf *m, const struct control_output_drain *);
 
 struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
 struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen);

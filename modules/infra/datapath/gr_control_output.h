@@ -6,14 +6,23 @@
 #include <gr_mbuf.h>
 
 #include <sched.h>
+#include <stdint.h>
 #include <time.h>
+
+struct control_output_drain {
+	uint32_t event; // GR_EVENT_*
+	const void *obj; // Object being deleted
+};
 
 // Callback definition when a packet is sent from the data plane to the control plane.
 // It is up to the function to free the received mbuf.
 //
-// @param struct rte_mbuf *
+// @param m
 //   Packet with the data offset set to the OSI layer of the originating node.
-typedef void (*control_output_cb_t)(struct rte_mbuf *);
+// @param drain
+//   If not NULL, the callback should check if the deleted object is referenced by the
+//   mbuf. If it is, the mbuf should be freed without further processing.
+typedef void (*control_output_cb_t)(struct rte_mbuf *, const struct control_output_drain *);
 
 GR_MBUF_PRIV_DATA_TYPE(control_output_mbuf_data, {
 	control_output_cb_t callback;

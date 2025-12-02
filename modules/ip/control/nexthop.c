@@ -27,13 +27,27 @@
 
 static control_input_t ip_output_node;
 
-void nh4_unreachable_cb(struct rte_mbuf *m) {
+void nh4_unreachable_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 	ip4_addr_t dst = ip->dst_addr;
 	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
 	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
+
+	if (drain != NULL) {
+		// Check if packet references deleted object.
+		switch (drain->event) {
+		case GR_EVENT_IFACE_REMOVE:
+			if (mbuf_data(m)->iface == drain->obj)
+				goto free;
+			break;
+		case GR_EVENT_NEXTHOP_DELETE:
+			if (nh == drain->obj)
+				goto free;
+			break;
+		}
+	}
 
 	l3 = nexthop_info_l3(nh);
 
@@ -108,7 +122,7 @@ free:
 
 static control_input_t arp_output_reply_node;
 
-void arp_probe_input_cb(struct rte_mbuf *m) {
+void arp_probe_input_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
@@ -118,6 +132,10 @@ void arp_probe_input_cb(struct rte_mbuf *m) {
 
 	arp = rte_pktmbuf_mtod(m, struct rte_arp_hdr *);
 	iface = mbuf_data(m)->iface;
+
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
+		goto free;
 
 	sip = arp->arp_data.arp_sip;
 	nh = nh4_lookup(iface->vrf_id, sip);

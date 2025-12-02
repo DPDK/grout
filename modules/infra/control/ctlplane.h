@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_control_output.h>
 #include <gr_infra.h>
 
-void iface_cp_tx(struct rte_mbuf *m);
+void iface_cp_tx(struct rte_mbuf *m, const struct control_output_drain *);

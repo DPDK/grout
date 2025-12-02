@@ -51,13 +51,17 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void loopback_tx(struct rte_mbuf *m) {
+void loopback_tx(struct rte_mbuf *m, const struct control_output_drain *drain) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
 	struct iface_stats *stats;
 	struct iovec iov[2];
+	char *data = NULL;
 	struct tun_pi pi;
-	char *data;
+
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
+		goto end;
 
 	lo = iface_info_loopback(d->iface);
 

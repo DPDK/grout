@@ -275,41 +275,41 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	    client->iface_id);
 }
 
-void dhcp_input_cb(struct rte_mbuf *mbuf) {
+void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *drain) {
 	dhcp_message_type_t msg_type = 0;
 	const struct iface *iface = mbuf_data(mbuf)->iface;
 	struct dhcp_client *client;
 	struct rte_mbuf *response;
 
+	// Check if packet references deleted interface.
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
+		goto free;
+
 	LOG(DEBUG, "dhcp_input_cb: received packet");
 
 	if (iface == NULL) {
 		LOG(ERR, "dhcp_input_cb: no interface in mbuf");
-		rte_pktmbuf_free(mbuf);
-		return;
+		goto free;
 	}
 
 	LOG(DEBUG, "dhcp_input_cb: packet on iface %u", iface->id);
 
 	if (iface->id >= MAX_IFACES) {
 		LOG(ERR, "dhcp_input_cb: iface %u exceeds MAX_IFACES", iface->id);
-		rte_pktmbuf_free(mbuf);
-		return;
+		goto free;
 	}
 
 	client = dhcp_clients[iface->id];
 	if (client == NULL) {
 		LOG(DEBUG, "dhcp_input_cb: no DHCP client on iface %u, ignoring", iface->id);
-		rte_pktmbuf_free(mbuf);
-		return;
+		goto free;
 	}
 
 	LOG(DEBUG, "dhcp_input_cb: processing packet for client in state %d", client->state);
 
 	if (dhcp_parse_packet(mbuf, client, &msg_type) < 0) {
 		LOG(ERR, "dhcp_input_cb: failed to parse DHCP packet on iface %u", iface->id);
-		rte_pktmbuf_free(mbuf);
-		return;
+		goto free;
 	}
 
 	switch (client->state) {
@@ -436,6 +436,7 @@ void dhcp_input_cb(struct rte_mbuf *mbuf) {
 		break;
 	}
 
+free:
 	rte_pktmbuf_free(mbuf);
 }
 
