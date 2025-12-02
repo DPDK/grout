@@ -12,6 +12,9 @@ grcli interface add vlan v43 parent bond0 vlan_id 43
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
 grcli nexthop add l3 iface p0 id 45
 grcli nexthop add l3 iface p0 id 47 address 1.2.3.7
+grcli nexthop add l3 iface p0 id 42 address 1.2.3.7 && fail "duplicate address should fail"
+grcli nexthop show | grep -q '\<42\>.*addr=1.2.3.4' || fail "nexthop 42 should still have 1.2.3.4"
+grcli nexthop show | grep -q '\<47\>.*addr=1.2.3.7' || fail "nexthop 47 should still have 1.2.3.7"
 grcli nexthop add l3 iface p1 id 1042 address f00:ba4::1
 grcli nexthop add l3 iface p1 id 1047 address f00:ba4::100
 grcli nexthop add l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
