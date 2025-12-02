@@ -42,7 +42,6 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 		// We currently do not have an explicit route entry for this
 		// destination IP.
 		struct nexthop *remote = nh4_lookup(nh->vrf_id, dst);
-		struct nexthop_info_l3 *remote_l3;
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
@@ -58,24 +57,21 @@ void nh4_unreachable_cb(struct rte_mbuf *m) {
 					.ipv4 = dst,
 				}
 			);
+			if (remote == NULL) {
+				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				goto free;
+			}
+			// Create an associated /32 route so that next packets take it
+			// in priority with a single route lookup.
+			if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
+				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				goto free;
+			}
 		}
 
-		if (remote == NULL) {
-			LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
-			goto free;
-		}
-
-		remote_l3 = nexthop_info_l3(remote);
 		assert(remote->iface_id == nh->iface_id);
-
-		// Create an associated /32 route so that next packets take it
-		// in priority with a single route lookup.
-		if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
-			LOG(ERR, "failed to insert route: %s", strerror(errno));
-			goto free;
-		}
 		nh = remote;
-		l3 = remote_l3;
+		l3 = nexthop_info_l3(remote);
 	}
 
 	if (l3->state == GR_NH_S_REACHABLE) {
