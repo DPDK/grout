@@ -66,7 +66,7 @@ struct gr_ip6_route_list_req {
 	uint16_t vrf_id;
 };
 
-// STREAM(struct gr_ip6_route);
+STREAM_RESP(struct gr_ip6_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
@@ -95,7 +95,7 @@ struct gr_ip6_addr_list_req {
 	uint16_t iface_id;
 };
 
-// STREAM(struct gr_ip6_ifaddr);
+STREAM_RESP(struct gr_ip6_ifaddr);
 
 // router advertisement ////////////////////////////////////////////////////////
 
@@ -121,14 +121,14 @@ struct gr_ip6_ra_show_req {
 	uint16_t iface_id;
 };
 
-// STREAM(struct gr_ip6_ra_conf);
-
 struct gr_ip6_ra_conf {
 	bool enabled;
 	uint16_t iface_id;
 	uint16_t interval;
 	uint16_t lifetime;
 };
+
+STREAM_RESP(struct gr_ip6_ra_conf);
 
 // icmpv6 ////////////////////////////////////////////////////////////////////////
 

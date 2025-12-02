@@ -51,7 +51,7 @@ struct gr_dnat44_list_req {
 	uint16_t vrf_id;
 };
 
-// STREAM(struct gr_dnat44_policy);
+STREAM_RESP(struct gr_dnat44_policy);
 
 // snat44 //////////////////////////////////////////////////////////////////////
 
@@ -83,4 +83,4 @@ struct gr_snat44_del_req {
 
 // struct gr_snat44_list_req { };
 
-// STREAM(struct gr_snat44_policy);
+STREAM_RESP(struct gr_snat44_policy);
