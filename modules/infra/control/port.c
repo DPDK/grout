@@ -75,7 +75,7 @@ static struct rte_eth_conf default_port_config = {
 		},
 	},
 	.rxmode = {
-		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN,
+		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	},
 };
 
@@ -254,34 +254,6 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	gr_vec_foreach (struct iface *s, iface->subinterfaces)
 		s->mtu = iface->mtu;
 
-	return 0;
-}
-
-static int port_vlan_add(struct iface *iface, uint16_t vlan_id) {
-	struct iface_info_port *p = iface_info_port(iface);
-	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, true);
-	switch (ret) {
-	case 0:
-	case -ENOSYS:
-	case -EOPNOTSUPP:
-		break;
-	default:
-		return errno_log(-ret, "rte_eth_dev_vlan_filter");
-	}
-	return 0;
-}
-
-static int port_vlan_del(struct iface *iface, uint16_t vlan_id) {
-	struct iface_info_port *p = iface_info_port(iface);
-	int ret = rte_eth_dev_vlan_filter(p->port_id, vlan_id, false);
-	switch (ret) {
-	case 0:
-	case -ENOSYS:
-	case -EOPNOTSUPP:
-		break;
-	default:
-		return errno_log(-ret, "rte_eth_dev_vlan_filter");
-	}
 	return 0;
 }
 
@@ -734,8 +706,6 @@ static struct iface_type iface_type_port = {
 	.set_mtu = port_mtu_set,
 	.set_up_down = port_up_down,
 	.set_promisc = port_promisc_set,
-	.add_vlan = port_vlan_add,
-	.del_vlan = port_vlan_del,
 	.to_api = port_to_api,
 };
 

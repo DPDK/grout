@@ -72,13 +72,8 @@ static int iface_vlan_reconfig(
 
 			rte_hash_del_key(vlan_hash, &cur_key);
 			iface_del_subinterface(cur_parent, iface);
-
-			// remove previous vlan filter (ignore errors)
-			iface_del_vlan(cur->parent_id, cur->vlan_id);
 		}
 
-		if (iface_add_vlan(next->parent_id, next->vlan_id) < 0)
-			return -errno;
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
 		iface_add_subinterface(next_parent, iface);
@@ -110,9 +105,6 @@ static int iface_vlan_fini(struct iface *iface) {
 	int ret, status = 0;
 
 	rte_hash_del_key(vlan_hash, &(struct vlan_key) {vlan->parent_id, vlan->vlan_id});
-
-	if ((ret = iface_del_vlan(vlan->parent_id, vlan->vlan_id)) < 0)
-		status = ret;
 
 	if ((ret = iface_del_eth_addr(vlan->parent_id, &vlan->mac)) < 0)
 		status = status ?: ret;
