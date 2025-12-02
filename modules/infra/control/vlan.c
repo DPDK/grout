@@ -15,8 +15,6 @@
 #include <rte_ether.h>
 #include <rte_hash.h>
 
-#include <string.h>
-
 struct vlan_key {
 	uint16_t parent_id;
 	uint16_t vlan_id;

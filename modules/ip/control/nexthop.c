@@ -21,7 +21,6 @@
 #include <rte_mempool.h>
 
 #include <errno.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/queue.h>
 
