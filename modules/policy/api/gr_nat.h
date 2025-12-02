@@ -15,17 +15,20 @@
 
 // dnat44 //////////////////////////////////////////////////////////////////////
 
+// DNAT nexthop information for stateless destination address translation.
 struct gr_nexthop_info_dnat {
 	ip4_addr_t match;
 	ip4_addr_t replace;
 };
 
+// DNAT44 policy for stateless destination address translation.
 struct gr_dnat44_policy {
 	uint16_t iface_id;
 	ip4_addr_t match;
 	ip4_addr_t replace;
 };
 
+// Add a stateless DNAT44 policy.
 #define GR_DNAT44_ADD REQUEST_TYPE(GR_NAT_MODULE, 0x0001)
 
 struct gr_dnat44_add_req {
@@ -35,6 +38,7 @@ struct gr_dnat44_add_req {
 
 // struct gr_dnat44_add_resp { };
 
+// Delete a stateless DNAT44 policy.
 #define GR_DNAT44_DEL REQUEST_TYPE(GR_NAT_MODULE, 0x0002)
 
 struct gr_dnat44_del_req {
@@ -45,6 +49,7 @@ struct gr_dnat44_del_req {
 
 // struct gr_dnat44_del_resp { };
 
+// List DNAT44 policies.
 #define GR_DNAT44_LIST REQUEST_TYPE(GR_NAT_MODULE, 0x0003)
 
 struct gr_dnat44_list_req {
@@ -55,12 +60,14 @@ STREAM_RESP(struct gr_dnat44_policy);
 
 // snat44 //////////////////////////////////////////////////////////////////////
 
+// SNAT44 policy for source address translation (requires connection tracking).
 struct gr_snat44_policy {
 	uint16_t iface_id;
 	struct ip4_net net;
 	ip4_addr_t replace;
 };
 
+// Add a SNAT44 policy (requires connection tracking to be enabled).
 #define GR_SNAT44_ADD REQUEST_TYPE(GR_NAT_MODULE, 0x0011)
 
 struct gr_snat44_add_req {
@@ -70,6 +77,7 @@ struct gr_snat44_add_req {
 
 // struct gr_snat44_add_resp { };
 
+// Delete a SNAT44 policy.
 #define GR_SNAT44_DEL REQUEST_TYPE(GR_NAT_MODULE, 0x0012)
 
 struct gr_snat44_del_req {
@@ -79,6 +87,7 @@ struct gr_snat44_del_req {
 
 // struct gr_snat44_del_resp { };
 
+// List all SNAT44 policies.
 #define GR_SNAT44_LIST REQUEST_TYPE(GR_NAT_MODULE, 0x0013)
 
 // struct gr_snat44_list_req { };
