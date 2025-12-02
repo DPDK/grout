@@ -13,9 +13,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+// Network interface types.
 typedef enum : uint8_t {
 	GR_IFACE_TYPE_UNDEF = 0,
-	GR_IFACE_TYPE_LOOPBACK,
+	GR_IFACE_TYPE_LOOPBACK, // One per VRF, auto-created/deleted.
 	GR_IFACE_TYPE_PORT,
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
@@ -23,7 +24,7 @@ typedef enum : uint8_t {
 	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
-// Interface configure flags
+// Interface configuration flags.
 typedef enum : uint16_t {
 	GR_IFACE_F_UP = GR_BIT16(0),
 	GR_IFACE_F_PROMISC = GR_BIT16(1),
@@ -32,62 +33,66 @@ typedef enum : uint16_t {
 	GR_IFACE_F_SNAT_DYNAMIC = GR_BIT16(4),
 } gr_iface_flags_t;
 
-// Interface state flags
+// Interface state flags.
 typedef enum : uint16_t {
 	GR_IFACE_S_RUNNING = GR_BIT16(0),
 	GR_IFACE_S_PROMISC_FIXED = GR_BIT16(1),
 	GR_IFACE_S_ALLMULTI = GR_BIT16(2),
 } gr_iface_state_t;
 
-// Interface reconfig attributes
-#define GR_IFACE_SET_FLAGS GR_BIT64(0)
-#define GR_IFACE_SET_MTU GR_BIT64(1)
-#define GR_IFACE_SET_NAME GR_BIT64(2)
-#define GR_IFACE_SET_MODE GR_BIT64(3)
-#define GR_IFACE_SET_VRF GR_BIT64(4)
-#define GR_IFACE_SET_DOMAIN GR_BIT64(4) // Domain and VRF are aliases
-
+// Undefined interface ID.
 #define GR_IFACE_ID_UNDEF 0
 
+// Special VRF ID representing all VRFs.
 #define GR_VRF_ID_ALL UINT16_MAX
 #define GR_MAX_VRFS 256
 
+// Interface operating modes.
 typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
 	GR_IFACE_MODE_L1_XC,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
+// Interface reconfiguration attributes flags.
+#define GR_IFACE_SET_FLAGS GR_BIT64(0)
+#define GR_IFACE_SET_MTU GR_BIT64(1)
+#define GR_IFACE_SET_NAME GR_BIT64(2)
+#define GR_IFACE_SET_MODE GR_BIT64(3)
+#define GR_IFACE_SET_VRF GR_BIT64(4)
+#define GR_IFACE_SET_DOMAIN GR_IFACE_SET_VRF // Alias for VRF.
+
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
-	uint16_t id; // Interface unique index.
-	gr_iface_type_t type; // Interface type. Uses values from GR_IFACE_TYPE_*.
+	uint16_t id;
+	gr_iface_type_t type;
 	gr_iface_mode_t mode;
-	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
-	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
+	gr_iface_flags_t flags; // Bit mask of GR_IFACE_F_*.
+	gr_iface_state_t state; // Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
 	union {
 		uint16_t vrf_id; // L3 addressing and routing domain
 		uint16_t domain_id; // L2 xconnect peer interface id
 	};
-	uint32_t speed; //!< Link speed in Megabit/sec.
+	uint32_t speed; // Link speed in Megabit/sec.
 };
 
+// Complete interface structure including type-specific info.
 struct gr_iface {
 	BASE(__gr_iface_base);
 
 #define GR_IFACE_NAME_SIZE 64
-	char name[GR_IFACE_NAME_SIZE]; // Interface name (utf-8 encoded, nul terminated).
+	char name[GR_IFACE_NAME_SIZE]; // UTF-8 encoded, NUL terminated.
 	uint8_t info[]; // Type specific interface info.
 };
 
-// Port reconfig attributes
+// Port reconfiguration attribute flags.
 #define GR_PORT_SET_N_RXQS GR_BIT64(32)
 #define GR_PORT_SET_N_TXQS GR_BIT64(33)
 #define GR_PORT_SET_Q_SIZE GR_BIT64(34)
 #define GR_PORT_SET_MAC GR_BIT64(35)
 
-// Info for GR_IFACE_TYPE_PORT interfaces
+// Base info structure for GR_IFACE_TYPE_PORT interfaces.
 struct __gr_iface_info_port_base {
 	uint16_t n_rxq;
 	uint16_t n_txq;
@@ -97,6 +102,7 @@ struct __gr_iface_info_port_base {
 	struct rte_ether_addr mac;
 };
 
+// Complete port info structure including device arguments and driver name.
 struct gr_iface_info_port {
 	BASE(__gr_iface_info_port_base);
 
@@ -106,12 +112,12 @@ struct gr_iface_info_port {
 	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
 };
 
-// VLAN reconfig attributes
+// VLAN reconfiguration attribute flags.
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
 #define GR_VLAN_SET_VLAN GR_BIT64(33)
 #define GR_VLAN_SET_MAC GR_BIT64(34)
 
-// Info for GR_IFACE_TYPE_VLAN interfaces
+// Info structure for GR_IFACE_TYPE_VLAN interfaces.
 struct gr_iface_info_vlan {
 	uint16_t parent_id;
 	uint16_t vlan_id;
@@ -134,11 +140,11 @@ static inline char *gr_bond_mode_name(gr_bond_mode_t mode) {
 	return "?";
 }
 
-// Bond balancing algorithms
+// Bond balancing algorithms.
 typedef enum : uint8_t {
-	GR_BOND_ALGO_RSS = 1,
-	GR_BOND_ALGO_L2,
-	GR_BOND_ALGO_L3_L4,
+	GR_BOND_ALGO_RSS = 1, // Reuse hardware RSS hash (default if unset).
+	GR_BOND_ALGO_L2, // Toeplitz hash on ethernet + VLAN.
+	GR_BOND_ALGO_L3_L4, // Toeplitz hash on IP addresses and TCP/UDP ports.
 } gr_bond_algo_t;
 
 static inline char *gr_bond_algo_name(gr_bond_algo_t algo) {
@@ -153,7 +159,7 @@ static inline char *gr_bond_algo_name(gr_bond_algo_t algo) {
 	return "?";
 }
 
-// Bond reconfig attributes
+// Bond reconfiguration attribute flags.
 #define GR_BOND_SET_MODE GR_BIT64(32)
 #define GR_BOND_SET_MEMBERS GR_BIT64(33)
 #define GR_BOND_SET_PRIMARY GR_BIT64(34)
@@ -161,8 +167,8 @@ static inline char *gr_bond_algo_name(gr_bond_algo_t algo) {
 #define GR_BOND_SET_ALGO GR_BIT64(36)
 
 struct gr_bond_member {
-	uint16_t iface_id;
-	bool active;
+	uint16_t iface_id; // Must be a port interface.
+	bool active; // Can be used to transmit traffic.
 };
 
 // Info for GR_IFACE_TYPE_BOND interfaces
@@ -171,11 +177,13 @@ struct gr_iface_info_bond {
 	gr_bond_algo_t algo; // Only for LACP
 	struct rte_ether_addr mac;
 
-	uint8_t primary_member;
+	uint8_t primary_member; // Preferred for active-backup.
 	uint8_t n_members;
+
 	struct gr_bond_member members[8];
 };
 
+// Port RX queue to CPU mapping.
 struct gr_port_rxq_map {
 	uint16_t iface_id;
 	uint16_t rxq_id;
@@ -183,6 +191,7 @@ struct gr_port_rxq_map {
 	uint16_t enabled;
 };
 
+// Infrastructure statistics entry.
 struct gr_infra_stat {
 	char name[64];
 	uint64_t topo_order;
@@ -193,7 +202,7 @@ struct gr_infra_stat {
 
 #define GR_INFRA_MODULE 0xacdc
 
-//! Interface events.
+// Interface events.
 typedef enum {
 	GR_EVENT_IFACE_UNKNOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0000),
 	GR_EVENT_IFACE_ADD = EVENT_TYPE(GR_INFRA_MODULE, 0x0001),
@@ -205,7 +214,10 @@ typedef enum {
 	GR_EVENT_IFACE_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0007),
 } gr_event_iface_t;
 
-// ifaces ///////////////////////////////////////////////////////////////////////
+// interface management ///////////////////////////////////////////////////////
+
+// Create a new interface.
+// Loopback interfaces are auto-created when the first interface in a VRF is added.
 #define GR_INFRA_IFACE_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0001)
 
 struct gr_infra_iface_add_req {
@@ -214,9 +226,12 @@ struct gr_infra_iface_add_req {
 };
 
 struct gr_infra_iface_add_resp {
+	// Loopback for VRF N (1-255) is at ID N. VRF 0 is at ID 256. Other IDs start from 257.
 	uint16_t iface_id;
 };
 
+// Delete an existing interface.
+// Loopback interfaces are auto-deleted when the last interface in a VRF is removed.
 #define GR_INFRA_IFACE_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0002)
 
 struct gr_infra_iface_del_req {
@@ -225,34 +240,39 @@ struct gr_infra_iface_del_req {
 
 // struct gr_infra_iface_del_resp { };
 
+// Get one interface by ID or name.
 #define GR_INFRA_IFACE_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0003)
 
 struct gr_infra_iface_get_req {
-	uint16_t iface_id;
-	char name[GR_IFACE_NAME_SIZE];
+	uint16_t iface_id; // 0 to search by name.
+	char name[GR_IFACE_NAME_SIZE]; // Used if iface_id is 0.
 };
 
 struct gr_infra_iface_get_resp {
 	struct gr_iface iface;
 };
 
+// List interfaces.
 #define GR_INFRA_IFACE_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0004)
 
 struct gr_infra_iface_list_req {
-	gr_iface_type_t type; // use GR_IFACE_TYPE_UNDEF for all
+	gr_iface_type_t type; // GR_IFACE_TYPE_UNDEF for all.
 };
 
 STREAM_RESP(struct gr_iface);
 
+// Modify an existing interface.
+// MTU changes on parent interfaces propagate to VLAN sub-interfaces.
 #define GR_INFRA_IFACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0005)
 
 struct gr_infra_iface_set_req {
-	uint64_t set_attrs;
+	uint64_t set_attrs; // Bitmask of GR_IFACE_SET_* and type-specific flags.
 	struct gr_iface iface;
 };
 
 // struct gr_infra_iface_set_resp { };
 
+// Get interface statistics.
 #define GR_INFRA_IFACE_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0006)
 
 // struct gr_infra_iface_stats_get_req { };
@@ -277,16 +297,19 @@ struct gr_infra_iface_stats_get_resp {
 };
 
 // port rxqs ///////////////////////////////////////////////////////////////////
+
+// List RX queue to CPU mappings.
 #define GR_INFRA_RXQ_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0010)
 
 // struct gr_infra_rxq_list_req { };
 
 STREAM_RESP(struct gr_port_rxq_map);
 
+// Modify one RXQ to CPU mapping (only for GR_IFACE_TYPE_PORT).
 #define GR_INFRA_RXQ_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0011)
 
 struct gr_infra_rxq_set_req {
-	uint16_t iface_id;
+	uint16_t iface_id; // Must be a port interface.
 	uint16_t rxq_id;
 	uint16_t cpu_id;
 };
@@ -294,17 +317,21 @@ struct gr_infra_rxq_set_req {
 // struct gr_infra_rxq_set_resp { };
 
 // stats ///////////////////////////////////////////////////////////////////////
-#define GR_INFRA_STAT_F_SW GR_BIT16(0) //!< include software stats
-#define GR_INFRA_STAT_F_HW GR_BIT16(1) //!< include hardware stats
-#define GR_INFRA_STAT_F_ZERO GR_BIT16(2) //!< include zero value stats
-typedef uint16_t gr_infra_stats_flags_t;
 
+// Infrastructure statistics flags.
+typedef enum : uint16_t {
+	GR_INFRA_STAT_F_SW = GR_BIT16(0), // Include software stats.
+	GR_INFRA_STAT_F_HW = GR_BIT16(1), // Include hardware stats.
+	GR_INFRA_STAT_F_ZERO = GR_BIT16(2), // Include zero value stats.
+} gr_infra_stats_flags_t;
+
+// Get graph statistics.
 #define GR_INFRA_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0020)
 
 struct gr_infra_stats_get_req {
 	gr_infra_stats_flags_t flags;
-	uint16_t cpu_id; // use UINT16_MAX for all CPUs
-	char pattern[64]; // optional glob pattern
+	uint16_t cpu_id; // UINT16_MAX for all CPUs.
+	char pattern[64]; // Optional glob filter (uses fnmatch).
 };
 
 struct gr_infra_stats_get_resp {
@@ -312,30 +339,36 @@ struct gr_infra_stats_get_resp {
 	struct gr_infra_stat stats[/* n_stats */];
 };
 
+// Reset all statistics to 0.
 #define GR_INFRA_STATS_RESET REQUEST_TYPE(GR_INFRA_MODULE, 0x0021)
 
 // struct gr_infra_stats_reset_req { };
 // struct gr_infra_stats_reset_resp { };
 
 // graph ///////////////////////////////////////////////////////////////////////
+
+// Dump the packet processing graph in DOT format.
 #define GR_INFRA_GRAPH_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0030)
 
 struct gr_infra_graph_dump_req {
-	bool full;
-	bool by_layer;
-	bool compact;
+	bool full; // Include error and control nodes.
+	bool by_layer; // Group nodes by layer (L1/L2/L3/L4).
+	bool compact; // Compact layout.
 };
 
-// struct gr_infra_graph_dump_resp -> char[]; // nul terminated string
+// Response is a NUL-terminated DOT format string for GraphViz.
 
 // packet tracing //////////////////////////////////////////////////////////////
+
 #define GR_INFRA_PACKET_TRACE_BATCH 32
 
+// Clear the packet trace buffer.
 #define GR_INFRA_PACKET_TRACE_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0040)
 
 // struct gr_infra_trace_clear_req { };
 // struct gr_infra_trace_clear_resp { };
 
+// Dump the packet trace buffer.
 #define GR_INFRA_PACKET_TRACE_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0041)
 
 struct gr_infra_packet_trace_dump_req {
@@ -344,16 +377,18 @@ struct gr_infra_packet_trace_dump_req {
 
 struct gr_infra_packet_trace_dump_resp {
 	uint16_t n_packets;
-	uint32_t len;
-	char trace[/* len */];
+	uint32_t len; // Limited by GR_API_MAX_MSG_LEN.
+	char trace[/* len */]; // Text format.
 };
 
+// Control tracing status on interfaces.
+// When 'all' is true, affects existing and future interfaces.
 #define GR_INFRA_PACKET_TRACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0042)
 
 struct gr_infra_packet_trace_set_req {
 	bool enabled;
-	bool all;
-	uint16_t iface_id;
+	bool all; // Affects new interfaces too.
+	uint16_t iface_id; // Ignored if all is true.
 };
 
 // struct gr_infra_packet_trace_set_resp { };
@@ -368,6 +403,8 @@ struct gr_infra_packet_log_set_req {
 // struct gr_infra_packet_log_set_resp { };
 
 // cpu affinities //////////////////////////////////////////////////////////////
+
+// Get the current CPU affinity masks.
 #define GR_INFRA_CPU_AFFINITY_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0050)
 
 // struct gr_infra_cpu_affinity_get_req { };
@@ -377,11 +414,12 @@ struct gr_infra_cpu_affinity_get_resp {
 	cpu_set_t datapath_cpus;
 };
 
+// Update CPU affinity masks.
 #define GR_INFRA_CPU_AFFINITY_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0051)
 
 struct gr_infra_cpu_affinity_set_req {
-	cpu_set_t control_cpus;
-	cpu_set_t datapath_cpus;
+	cpu_set_t control_cpus; // Must have at least one CPU.
+	cpu_set_t datapath_cpus; // Triggers worker queue redistribution.
 };
 
 // struct gr_infra_cpu_affinity_set_resp { };
