@@ -55,6 +55,20 @@ jobs:
           yangmodelsdir: /usr/share/frr-yang
       - run: make deb CC="ccache gcc"
       - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
       - uses: actions/cache/save@v4
         if: ${{ ! github.event.pull_request }}
         with:
@@ -109,6 +123,20 @@ jobs:
           yangmodelsdir: /usr/share/frr-yang
       - run: scl run gcc-toolset-13 -- make rpm CC="ccache gcc"
       - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
       - uses: actions/cache/save@v4
         if: ${{ ! github.event.pull_request }}
         with:

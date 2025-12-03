@@ -19,6 +19,8 @@ concurrency:
 jobs:
   build-and-tests:
     if: ${{ github.actor != 'grout-bot' }}
+    permissions:
+      actions: write
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +109,20 @@ jobs:
       - run: .github/workflows/check.sh
         if: ${{ ! matrix.conf.rebase || ! github.event.pull_request.commits }}
       - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request.commits }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
       - uses: actions/cache/save@v4
         if: ${{ ! github.event.pull_request.commits }}
         with:
@@ -115,6 +131,8 @@ jobs:
 
   build-cross-aarch64:
     if: ${{ github.actor != 'grout-bot' }}
+    permissions:
+      actions: write
     runs-on: ubuntu-24.04
     container: debian:testing
     env:
@@ -150,6 +168,20 @@ jobs:
       - run: .github/workflows/check.sh
         if: ${{ ! github.event.pull_request.commits }}
       - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request.commits }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
       - uses: actions/cache/save@v4
         if: ${{ ! github.event.pull_request.commits }}
         with:
