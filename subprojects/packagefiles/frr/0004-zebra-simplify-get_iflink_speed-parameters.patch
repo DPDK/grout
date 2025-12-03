@@ -1,0 +1,64 @@
+From d50720eab0c66427f9bc0233c87d949f21454809 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 5 Sep 2025 09:09:58 +0200
+Subject: [PATCH 4/6] zebra: simplify get_iflink_speed parameters
+
+No need to pass a pointer to the interface structure; only ifname and
+vrf_id are required. This will be used in the next commit.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ zebra/if_netlink.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/zebra/if_netlink.c b/zebra/if_netlink.c
+index a214914171..3bd3835e50 100644
+--- a/zebra/if_netlink.c
++++ b/zebra/if_netlink.c
+@@ -256,13 +256,12 @@ static void netlink_vrf_change(struct nlmsghdr *h, struct rtattr *tb,
+ 		ctx, *(uint32_t *)RTA_DATA(attr[IFLA_VRF_TABLE]));
+ }
+ 
+-static uint32_t get_iflink_speed(struct interface *interface, int *error)
++static uint32_t get_iflink_speed(vrf_id_t vrf_id, const char *ifname, int *error)
+ {
+ 	struct ifreq ifdata;
+ 	struct ethtool_cmd ecmd;
+ 	int sd;
+ 	int rc;
+-	const char *ifname = interface->name;
+ 	uint32_t ret;
+ 
+ 	if (error)
+@@ -280,8 +279,7 @@ static uint32_t get_iflink_speed(struct interface *interface, int *error)
+ 
+ 	/* use ioctl to get speed of an interface */
+ 	frr_with_privs(&zserv_privs) {
+-		sd = vrf_socket(PF_INET, SOCK_DGRAM, IPPROTO_IP,
+-				interface->vrf->vrf_id, NULL);
++		sd = vrf_socket(PF_INET, SOCK_DGRAM, IPPROTO_IP, vrf_id, NULL);
+ 		if (sd < 0) {
+ 			if (IS_ZEBRA_DEBUG_KERNEL)
+ 				zlog_debug("Failure to read interface %s speed: %d %s",
+@@ -292,8 +290,7 @@ static uint32_t get_iflink_speed(struct interface *interface, int *error)
+ 			return 0;
+ 		}
+ 		/* Get the current link state for the interface */
+-		rc = vrf_ioctl(interface->vrf->vrf_id, sd, SIOCETHTOOL,
+-			       (char *)&ifdata);
++		rc = vrf_ioctl(vrf_id, sd, SIOCETHTOOL, (char *)&ifdata);
+ 	}
+ 	if (rc < 0) {
+ 		if (errno != EOPNOTSUPP && IS_ZEBRA_DEBUG_KERNEL)
+@@ -320,7 +317,7 @@ static uint32_t get_iflink_speed(struct interface *interface, int *error)
+ 
+ uint32_t kernel_get_speed(struct interface *ifp, int *error)
+ {
+-	return get_iflink_speed(ifp, error);
++	return get_iflink_speed(ifp->vrf->vrf_id, ifp->name, error);
+ }
+ 
+ static ssize_t
+-- 
+2.43.0
+

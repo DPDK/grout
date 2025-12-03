@@ -1,0 +1,59 @@
+From 7a7ffb060410a533efc6b5f54d5cd8b68e90d521 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Tue, 2 Dec 2025 18:12:57 +0100
+Subject: [PATCH 6/6] zebra: don't poll speed if dplane provides it with
+ DPLANE_OP_INTF_INSTALL
+
+There is no need to request the interface speed from the dataplane if it
+is already provided as part of the DPLANE_OP_INTF_INSTALL operation.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ zebra/interface.c | 5 +++++
+ zebra/interface.h | 7 ++++++-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/zebra/interface.c b/zebra/interface.c
+index 12f14cb009..3088b34807 100644
+--- a/zebra/interface.c
++++ b/zebra/interface.c
+@@ -69,6 +69,9 @@ static void if_zebra_speed_update(struct event *event)
+ 
+ static void zebra_if_schedule_speed_update(struct zebra_if *zif, int timeout_ms)
+ {
++	if (!CHECK_FLAG(zif->flags, ZIF_FLAG_SPEED_POLLING))
++		return;
++
+ 	if (event_is_scheduled(zif->speed_update))
+ 		return;
+ 
+@@ -2079,6 +2082,8 @@ static void zebra_if_dplane_ifp_handling(struct zebra_dplane_ctx *ctx)
+ 				speed = 0;
+ 				/* Query inital speed if not provided by dplane */
+ 				dplane_intf_speed_get(ifp);
++
++				SET_FLAG(zif->flags, ZIF_FLAG_SPEED_POLLING);
+ 			}
+ 			if_update_state_speed(ifp, speed);
+ 			ifp->ptm_status = ZEBRA_PTM_STATUS_UNKNOWN;
+diff --git a/zebra/interface.h b/zebra/interface.h
+index fa9dc24e32..0a64d9110b 100644
+--- a/zebra/interface.h
++++ b/zebra/interface.h
+@@ -90,7 +90,12 @@ enum zebra_if_flags {
+ 	 * and inherited by the bond (if one or more bond members are in
+ 	 * a bypass state the bond is placed in a bypass state)
+ 	 */
+-	ZIF_FLAG_LACP_BYPASS = (1 << 5)
++	ZIF_FLAG_LACP_BYPASS = (1 << 5),
++
++	/* Dataplane does not provide speed in DPLANE_OP_INTF_NEW,
++	 * so we must poll for it.
++	 */
++	ZIF_FLAG_SPEED_POLLING = (1 << 6),
+ };
+ 
+ #define ZEBRA_IF_IS_PROTODOWN(zif) ((zif)->flags & ZIF_FLAG_PROTODOWN)
+-- 
+2.43.0
+
