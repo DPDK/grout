@@ -36,7 +36,7 @@
 	} while (0)
 
 static void format(void **) {
-	cpu_set_t set;
+	cpu_set_t set = {};
 	char buf[256];
 
 	assert_errno_equal(cpuset_format(buf, sizeof(buf), NULL), EINVAL);
