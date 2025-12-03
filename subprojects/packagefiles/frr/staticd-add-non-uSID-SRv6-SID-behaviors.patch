@@ -1,0 +1,109 @@
+From a70eca948fb1bc1a56cc9b622fad42c26b613cd1 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Wed, 3 Dec 2025 15:36:33 +0100
+Subject: [PATCH] staticd: add non-uSID SRv6 SID behaviors
+
+Extend the `srv6 sid` CLI to support non-uSID SRv6 endpoint behaviors
+(End, End.X, End.DT6, End.DT4, End.DT46), including VRF/interface/nexthop
+handling when applicable.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ lib/command_lex.l    |  2 +-
+ staticd/static_vty.c | 30 +++++++++++++++++++++++++++++-
+ 2 files changed, 30 insertions(+), 2 deletions(-)
+
+diff --git a/lib/command_lex.l b/lib/command_lex.l
+index 42b1f440a7..03c82efd14 100644
+--- a/lib/command_lex.l
++++ b/lib/command_lex.l
+@@ -36,7 +36,7 @@ IPV6_PREFIX     X:X::X:X\/M
+ MAC             X:X:X:X:X:X
+ MAC_PREFIX      X:X:X:X:X:X\/M
+ VARIABLE        [A-Z][-_A-Z:0-9]+
+-WORD            (\-|\+)?[a-zA-Z0-9\*][-+_a-zA-Z0-9\*]*
++WORD            (\-|\+)?[a-zA-Z0-9\*][-+_a-zA-Z0-9\*\.]*
+ NUMBER          (\-|\+)?[0-9]{1,20}
+ RANGE           \({NUMBER}[ ]?\-[ ]?{NUMBER}\)
+ ASNUM           ASNUM
+diff --git a/staticd/static_vty.c b/staticd/static_vty.c
+index 858dda75af..8cfe6d397f 100644
+--- a/staticd/static_vty.c
++++ b/staticd/static_vty.c
+@@ -1278,26 +1278,41 @@ DEFPY_YANG_NOSH (static_srv6_sids, static_srv6_sids_cmd,
+ }
+ 
+ DEFPY_YANG(srv6_sid, srv6_sid_cmd,
+-      "sid X:X::X:X/M locator NAME$locator_name behavior <uN | uA interface INTERFACE$interface [nexthop X:X::X:X$nh6] | uDT6 vrf VIEWVRFNAME | uDT4 vrf VIEWVRFNAME | uDT46 vrf VIEWVRFNAME>",
++      "sid X:X::X:X/M locator NAME$locator_name behavior <uN | End | uA interface INTERFACE$interface [nexthop X:X::X:X$nh6] | End.X interface INTERFACE$interface [nexthop X:X::X:X$nh6] | uDT6 vrf VIEWVRFNAME | End.DT6 vrf VIEWVRFNAME | uDT4 vrf VIEWVRFNAME | End.DT4 vrf VIEWVRFNAME | uDT46 vrf VIEWVRFNAME | End.DT46 vrf VIEWVRFNAME>",
+ 	  "Configure SRv6 SID\n"
+       "Specify SRv6 SID\n"
+ 	  "Locator name\n"
+       "Specify Locator name\n"
+       "Specify SRv6 SID behavior\n"
+       "Apply the code to a uN SID\n"
++      "Apply the code to a END SID\n"
+       "Behavior uA\n"
+       "Configure the interface\n"
+       "Interface name\n"
+       "Configure the nexthop\n"
+       "IPv6 address of the nexthop\n"
++      "Behavior End.X\n"
++      "Configure the interface\n"
++      "Interface name\n"
++      "Configure the nexthop\n"
++      "IPv6 address of the nexthop\n"
+       "Apply the code to an uDT6 SID\n"
+       "Configure VRF name\n"
+       "Specify VRF name\n"
++      "Apply the code to an End.DT6 SID\n"
++      "Configure VRF name\n"
++      "Specify VRF name\n"
+       "Apply the code to an uDT4 SID\n"
+       "Configure VRF name\n"
+       "Specify VRF name\n"
++      "Apply the code to an End.DT4 SID\n"
++      "Configure VRF name\n"
++      "Specify VRF name\n"
+       "Apply the code to an uDT46 SID\n"
+       "Configure VRF name\n"
++      "Specify VRF name\n"
++      "Apply the code to an End.DT46 SID\n"
++      "Configure VRF name\n"
+       "Specify VRF name\n")
+ {
+ 	enum srv6_endpoint_behavior_codepoint behavior = SRV6_ENDPOINT_BEHAVIOR_RESERVED;
+@@ -1314,17 +1329,30 @@ DEFPY_YANG(srv6_sid, srv6_sid_cmd,
+ 
+ 	if (argv_find(argv, argc, "uN", &idx)) {
+ 		behavior = SRV6_ENDPOINT_BEHAVIOR_END_NEXT_CSID;
++	} else if (argv_find(argv, argc, "End", &idx)) {
++		behavior = SRV6_ENDPOINT_BEHAVIOR_END;
+ 	} else if (argv_find(argv, argc, "uDT6", &idx)) {
+ 		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT6_USID;
+ 		vrf_name = argv[idx + 2]->arg;
++	} else if (argv_find(argv, argc, "End.DT6", &idx)) {
++		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT6;
++		vrf_name = argv[idx + 2]->arg;
+ 	} else if (argv_find(argv, argc, "uDT4", &idx)) {
+ 		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT4_USID;
+ 		vrf_name = argv[idx + 2]->arg;
++	} else if (argv_find(argv, argc, "End.DT4", &idx)) {
++		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT4;
++		vrf_name = argv[idx + 2]->arg;
+ 	} else if (argv_find(argv, argc, "uDT46", &idx)) {
+ 		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT46_USID;
+ 		vrf_name = argv[idx + 2]->arg;
++	} else if (argv_find(argv, argc, "End.DT46", &idx)) {
++		behavior = SRV6_ENDPOINT_BEHAVIOR_END_DT46;
++		vrf_name = argv[idx + 2]->arg;
+ 	} else if (argv_find(argv, argc, "uA", &idx)) {
+ 		behavior = SRV6_ENDPOINT_BEHAVIOR_END_X_NEXT_CSID;
++	} else if (argv_find(argv, argc, "End.X", &idx)) {
++		behavior = SRV6_ENDPOINT_BEHAVIOR_END_X;
+ 	}
+ 
+ 	snprintf(xpath_srv6, sizeof(xpath_srv6), FRR_STATIC_SRV6_INFO_KEY_XPATH,
+-- 
+2.43.0
+
