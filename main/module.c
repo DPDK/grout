@@ -11,6 +11,7 @@
 
 #include <assert.h>
 #include <fnmatch.h>
+#include <string.h>
 #include <sys/queue.h>
 
 static STAILQ_HEAD(, gr_api_handler) handlers = STAILQ_HEAD_INITIALIZER(handlers);
@@ -61,11 +62,21 @@ void gr_register_module(struct gr_module *mod) {
 static bool module_is_child(const void *mod, const void *maybe_child) {
 	const struct gr_module *c = maybe_child;
 	const struct gr_module *m = mod;
+	char depends_on[512];
 
 	if (c->depends_on == NULL)
 		return false;
 
-	return fnmatch(c->depends_on, m->name, 0) == 0;
+	// split on commas
+	assert(strlen(c->depends_on) < sizeof(depends_on));
+	memccpy(depends_on, c->depends_on, 0, sizeof(depends_on));
+
+	for (char *dep = strtok(depends_on, ","); dep != NULL; dep = strtok(NULL, ",")) {
+		if (fnmatch(dep, m->name, 0) == 0)
+			return true;
+	}
+
+	return false;
 }
 
 void modules_init(struct event_base *ev_base) {
