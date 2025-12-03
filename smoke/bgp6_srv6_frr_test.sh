@@ -49,8 +49,7 @@ netns_add ns-a
 netns_add ns-b
 
 # Configure Host-B
-ip link set x-p1 netns ns-b
-ip -n ns-b link set x-p1 up
+move_to_netns x-p1 ns-b
 ip -n ns-b addr add 16.1.0.2/24 dev x-p1
 ip -n ns-b route add default via 16.1.0.1
 ip -n ns-b addr show
@@ -69,7 +68,6 @@ ip -n ns-a link set to-host-a up
 ip -n ns-a link set eth0 up
 
 # Configure Host-A
-ip -n ns-a link set eth0 up
 ip -n ns-a addr add 16.0.0.2/24 dev eth0
 ip -n ns-a route
 ip -n ns-a addr show

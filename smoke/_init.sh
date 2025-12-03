@@ -111,6 +111,22 @@ EOF
 	ip -n "$ns" link set lo up
 }
 
+move_to_netns() {
+	local iface="$1"
+	local netns="$2"
+
+	ip link set "$iface" netns "$netns"
+	ip -n "$netns" link set "$iface" up
+
+	SECONDS=0 # will be automatically incremented by bash
+	while ! ip -n "$netns" link show "$iface" | grep -qw LOWER_UP; do
+		if [ "$SECONDS" -gt 5 ]; then
+			fail "$iface link was not LOWER_UP after 5 seconds"
+		fi
+		sleep 0.2
+	done
+}
+
 tap_counter=0
 port_add() {
 	local name="$1"
