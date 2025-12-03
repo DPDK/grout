@@ -129,7 +129,7 @@ static void control_output_fini(struct event_base *) {
 
 static struct gr_module control_output_module = {
 	.name = "control_output",
-	.depends_on = "*",
+	.depends_on = "graph",
 	.init = control_output_init,
 	.fini = control_output_fini,
 };
