@@ -579,7 +579,6 @@ static void graph_fini(struct event_base *) {
 
 static struct gr_module graph_module = {
 	.name = "graph",
-	.depends_on = "iface",
 	.init = graph_init,
 	.fini = graph_fini,
 };
