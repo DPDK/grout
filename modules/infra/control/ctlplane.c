@@ -331,10 +331,14 @@ static void cp_delete(struct iface *iface) {
 }
 
 static void cp_set_carrier(struct iface *iface) {
+#ifdef TUNSETCARRIER
 	int carrier = iface->flags & GR_IFACE_S_RUNNING ? 1 : 0;
 	if (ioctl(iface->cp_fd, TUNSETCARRIER, &carrier) < 0) {
 		LOG(ERR, "ioctl(TUNSETCARRIER): %s", strerror(errno));
 	}
+#else
+	(void)iface;
+#endif
 }
 
 static void cp_set_speed(struct iface *iface) {
