@@ -10,9 +10,7 @@ netns_add dhcp-server
 
 port_add p0 mode l3
 
-ip link set x-p0 netns dhcp-server
-
-ip -n dhcp-server link set x-p0 up
+move_to_netns x-p0 dhcp-server
 ip -n dhcp-server addr add 192.168.100.1/24 dev x-p0
 
 cat > $tmp/dnsmasq.conf <<EOF

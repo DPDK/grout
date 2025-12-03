@@ -21,8 +21,7 @@ for n in 0 1; do
 	p=x-p$n
 	ns=n$n
 	netns_add $ns
-	ip link set $p netns $ns
-	ip -n $ns link set $p up
+	move_to_netns $p $ns
 	ip -n $ns addr add 172.16.$((n % 2)).2/24 dev $p
 	ip -n $ns addr add 16.$((n % 2)).0.1/16 dev lo
 	ip -n $ns route add default via 172.16.$((n % 2)).1
@@ -34,8 +33,7 @@ for n in 2 3; do
 	p=x-p$n
 	ns=n$n
 	netns_add $ns
-	ip link set $p netns $ns
-	ip -n $ns link set $p up
+	move_to_netns $p $ns
 	ip -n $ns addr add 172.16.$((n % 2)).2/24 dev $p
 	ip -n $ns addr add 16.$((n % 2)).0.1/16 dev lo
 	ip -n $ns route add default via 172.16.$((n % 2)).1

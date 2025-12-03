@@ -11,8 +11,7 @@ for n in 1 2; do
 	p=x-p$n
 	ns=n$n
 	netns_add $ns
-	ip link set $p netns $ns
-	ip -n $ns link set $p up
+	move_to_netns $p $ns
 	ip -n $ns addr add fd00:ba4:$n::2/64 dev $p
 	if [[ $n -eq 1 ]]; then
 		ip -n $ns addr add fd00:f00:$n::2/64 dev lo

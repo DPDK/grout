@@ -13,8 +13,7 @@ for n in 0 1; do
 	p=x-p$n
 	ns=n$n
 	netns_add $ns
-	ip link set $p netns $ns
-	ip -n $ns link set $p up
+	move_to_netns $p $ns
 	ip -n $ns addr add fd00:ba4:$n::2/64 dev $p
 	ip -n $ns route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
 done

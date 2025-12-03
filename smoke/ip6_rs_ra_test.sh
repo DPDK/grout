@@ -10,8 +10,7 @@ port_add p1
 grcli address add fd00:ba4:1::1/64 iface p1
 
 netns_add n1
-ip link set x-p1 netns n1
-ip -n n1 link set x-p1 up
+move_to_netns x-p1 n1
 ip -n n1 addr add fd00:ba4:1::2/64 dev x-p1
 
 sleep 3  # wait for DAD

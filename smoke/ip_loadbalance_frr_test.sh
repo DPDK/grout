@@ -14,18 +14,15 @@ create_interface p1
 create_interface p2
 
 netns_add n0
-ip link set x-p0 netns n0
-ip -n n0 link set x-p0 up
+move_to_netns x-p0 n0
 ip -n n0 addr add 172.16.0.2/24 dev x-p0
 ip -n n0 route add default via 172.16.0.1
 
 netns_add n1
-ip link set x-p1 netns n1
-ip link set x-p2 netns n1
+move_to_netns x-p1 n1
+move_to_netns x-p2 n1
 ip -n n1 addr add 192.0.0.2/32 dev lo
-ip -n n1 link set x-p1 up
 ip -n n1 addr add 172.16.1.2/24 dev x-p1
-ip -n n1 link set x-p2 up
 ip -n n1 addr add 172.16.2.2/24 dev x-p2
 
 set_ip_address p0 172.16.0.1/24

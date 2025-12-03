@@ -16,8 +16,7 @@ for n in 0 1; do
 	p=x-p$n
 	ns=n$n
 	netns_add $ns
-	ip link set $p netns $ns
-	ip -n $ns link set $p up
+	move_to_netns $p $ns
 done
 
 ip -n n0 addr add 172.16.0.2/24 dev x-p0
