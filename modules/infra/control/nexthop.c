@@ -693,7 +693,7 @@ static struct gr_event_serializer nh_serializer = {
 
 static struct gr_module module = {
 	.name = "nexthop",
-	.depends_on = "rcu",
+	.depends_on = "rcu,control_output",
 	.init = nh_init,
 	.fini = nh_fini,
 };

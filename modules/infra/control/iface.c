@@ -469,7 +469,7 @@ static void iface_fini(struct event_base *) {
 
 static struct gr_module iface_module = {
 	.name = "iface",
-	.depends_on = "*route",
+	.depends_on = "*route,control_output",
 	.init = iface_init,
 	.fini = iface_fini,
 };
