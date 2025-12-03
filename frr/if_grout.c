@@ -141,6 +141,10 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_INSTALL);
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 7, 0)
+		dplane_ctx_set_ifp_speed_set(ctx, true);
+		dplane_ctx_set_ifp_speed(ctx, gr_if->base.speed);
+#endif
 
 		switch (gr_if->mode) {
 		case GR_IFACE_MODE_VRF:
