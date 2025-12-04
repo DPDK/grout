@@ -60,6 +60,6 @@ void mac_aging_timer_start(void);
 void mac_aging_timer_stop(void);
 
 // Bridge interface management (for L3 integration)
-int bridge_iface_create(uint16_t bridge_id);
+int bridge_iface_create(uint16_t bridge_id, const char *name);
 int bridge_iface_destroy(uint16_t bridge_id);
 struct iface *bridge_get_iface(uint16_t bridge_id);

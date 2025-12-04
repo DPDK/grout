@@ -13,7 +13,7 @@ port_add p2
 
 # Create bridge domain
 echo "Creating bridge domain..."
-grcli bridge add testbr aging_time 300 max_mac_count 1024
+bridge_add testbr
 
 # Add interfaces to bridge
 echo "Adding interfaces to bridge..."
@@ -25,14 +25,9 @@ grcli interface set p2 mode bridge testbr
 echo "Bridge configuration & members"
 grcli bridge show testbr
 
-# Create bridge interface for L3 integration
-echo "Creating bridge interface..."
-grcli interface add bridge br1 bridge testbr
-grcli interface set br1 mode bridge testbr
-
 # Assign IP address to bridge interface
 echo "Assigning IP to bridge interface..."
-grcli address add 192.168.100.1/24 iface br1
+grcli address add 192.168.100.1/24 iface testbr
 
 # Set up test namespaces connected to bridge ports
 echo "Setting up test namespaces..."
@@ -89,6 +84,4 @@ echo "Cleaning up..."
 grcli interface set p0 mode l3
 grcli interface set p1 mode l3
 grcli interface set p2 mode l3
-grcli bridge del testbr
-
 echo "=== L2 Bridge Smoke Test Complete ==="

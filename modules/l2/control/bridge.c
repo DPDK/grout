@@ -97,7 +97,7 @@ struct bridge_info *bridge_get_by_name(const char *name) {
 struct bridge_info *bridge_add(const char *name, const struct gr_l2_bridge_config *config) {
 	struct bridge_info *bridge;
 	uint16_t bridge_id;
-	int ret;
+	int ret, iface_ret;
 
 	if (name == NULL || strlen(name) == 0 || strlen(name) >= GR_L2_BRIDGE_NAME_SIZE)
 		return errno_set_null(EBADMSG);
@@ -137,6 +137,26 @@ struct bridge_info *bridge_add(const char *name, const struct gr_l2_bridge_confi
 		return errno_set_null(-ret);
 	}
 
+	// Automatically create bridge interface (similar to Linux behavior)
+	iface_ret = bridge_iface_create(bridge_id, bridge->name);
+	if (iface_ret < 0) {
+		LOG(ERR,
+		    "Failed to create bridge interface for %s (id=%u): %s",
+		    name,
+		    bridge_id,
+		    strerror(-iface_ret));
+		// Continue without bridge interface - bridge domain still functional
+		bridge->active = false;
+		return errno_set_null(-ret);
+	} else {
+		LOG(INFO,
+		    "Created bridge interface %d for bridge domain %u (%s)",
+		    iface_ret,
+		    bridge_id,
+		    name);
+	}
+	bridge_member_add(bridge_id, iface_ret);
+
 	LOG(INFO, "Created bridge domain %u (%s)", bridge_id, name);
 	return bridge;
 }
@@ -166,8 +186,19 @@ int bridge_del(uint16_t bridge_id) {
 
 	// Clean up bridge interface if it exists
 	if (bridge->bridge_iface != NULL) {
-		// TODO: Destroy bridge interface
-		bridge->bridge_iface = NULL;
+		int iface_ret = bridge_iface_destroy(bridge_id);
+		if (iface_ret < 0) {
+			LOG(WARNING,
+			    "Failed to destroy bridge interface for bridge %u (%s): %s",
+			    bridge_id,
+			    bridge->name,
+			    strerror(-iface_ret));
+		} else {
+			LOG(INFO,
+			    "Destroyed bridge interface for bridge %u (%s)",
+			    bridge_id,
+			    bridge->name);
+		}
 	}
 
 	// Free member list

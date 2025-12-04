@@ -173,9 +173,8 @@ static struct iface_type iface_type_bridge = {
 };
 
 // Bridge interface management functions
-int bridge_iface_create(uint16_t bridge_id) {
+int bridge_iface_create(uint16_t bridge_id, const char *name) {
 	struct gr_iface_info_bridge bridge_info = {0};
-	char name[GR_IFACE_NAME_SIZE];
 	struct bridge_info *bridge;
 	struct gr_iface iface = {0};
 
@@ -185,9 +184,6 @@ int bridge_iface_create(uint16_t bridge_id) {
 
 	if (bridge->bridge_iface != NULL)
 		return errno_set(EEXIST);
-
-	// Create interface name
-	snprintf(name, sizeof(name), "br%u", bridge_id);
 
 	// Set up interface info
 	iface.type = GR_IFACE_TYPE_BRIDGE;
