@@ -539,32 +539,37 @@ void nexthop_iface_cleanup(uint16_t iface_id) {
 	nexthop_iter(nh_cleanup_interface_cb, &filter);
 }
 
+void nexthop_destroy(struct nexthop *nh) {
+	assert(nh->ref_count == 0);
+
+	nh_groups_remove_member(nh);
+	nexthop_id_put(nh);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+
+	// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
+	// threads have seen that this nexthop is gone. At this point, only
+	// packets already in the control output ring may still reference it.
+	// The event triggers a drain that frees those packets before we free
+	// the nexthop memory.
+	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+
+	assert(nh_stats.total > 0);
+	nh_stats.total--;
+	assert(nh_stats.by_type[nh->type] > 0);
+	nh_stats.by_type[nh->type]--;
+
+	const struct nexthop_type_ops *ops = type_ops[nh->type];
+	if (ops != NULL && ops->free != NULL)
+		ops->free(nh);
+	rte_mempool_put(pool, nh);
+}
+
 void nexthop_decref(struct nexthop *nh) {
 	assert(nh->ref_count > 0);
 	nh->ref_count--;
-	if (nh->ref_count == 0) {
-		nh_groups_remove_member(nh);
-		nexthop_id_put(nh);
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-
-		// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
-		// threads have seen that this nexthop is gone. At this point, only
-		// packets already in the control output ring may still reference it.
-		// The event triggers a drain that frees those packets before we free
-		// the nexthop memory.
-		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-			gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
-
-		assert(nh_stats.total > 0);
-		nh_stats.total--;
-		assert(nh_stats.by_type[nh->type] > 0);
-		nh_stats.by_type[nh->type]--;
-
-		const struct nexthop_type_ops *ops = type_ops[nh->type];
-		if (ops != NULL && ops->free != NULL)
-			ops->free(nh);
-		rte_mempool_put(pool, nh);
-	}
+	if (nh->ref_count == 0)
+		nexthop_destroy(nh);
 }
 
 void nexthop_incref(struct nexthop *nh) {

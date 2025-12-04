@@ -110,8 +110,11 @@ void nexthop_routes_cleanup(struct nexthop *);
 void nexthop_incref(struct nexthop *);
 
 // Decrement the reference counter of a nexthop.
-// When the counter drops to 0, the nexthop is marked as available in the global pool.
+// When the counter drops to 0, the nexthop is destroyed and returned to the global pool.
 void nexthop_decref(struct nexthop *);
+
+// Return the nexthop to the global pool regardless of its refcount.
+void nexthop_destroy(struct nexthop *);
 
 // Callback for nh_iter().
 typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
