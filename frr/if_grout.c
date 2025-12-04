@@ -329,3 +329,33 @@ enum zebra_dplane_result grout_set_sr_tunsrc(struct zebra_dplane_ctx *ctx) {
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
+
+void grout_bridge_mac_change(bool new, const struct gr_l2_mac_entry *entry) {
+	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
+	struct in_addr vtep_ip = {0};
+	struct ethaddr mac;
+
+	memcpy(&mac, entry->mac.addr_bytes, sizeof(mac));
+
+	dplane_ctx_set_op(ctx, new ? DPLANE_OP_NEIGH_INSTALL : DPLANE_OP_NEIGH_DELETE);
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(entry->iface_id));
+	dplane_ctx_mac_set_addr(ctx, &mac);
+	dplane_ctx_mac_set_nhg_id(ctx, 0);
+	dplane_ctx_mac_set_ndm_state(ctx, 0);
+	dplane_ctx_mac_set_ndm_flags(ctx, 0);
+	dplane_ctx_mac_set_dst_present(ctx, false);
+	dplane_ctx_mac_set_vtep_ip(ctx, &vtep_ip);
+	dplane_ctx_mac_set_vid(ctx, 0);
+	dplane_ctx_mac_set_dp_static(ctx, entry->age == 0);
+	dplane_ctx_mac_set_local_inactive(ctx, false);
+	dplane_ctx_mac_set_vni(ctx, 0);
+	dplane_ctx_mac_set_is_sticky(ctx, false);
+	dplane_provider_enqueue_to_zebra(ctx);
+	zlog_debug(
+		"grout_bridge_mac_change %s bridge %u iface %u mac",
+		new ? "add" : "del",
+		entry->bridge_id,
+		entry->iface_id
+	);
+}

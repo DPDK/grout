@@ -248,6 +248,8 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IP6_ADDR_ADD, .suppress_self_events = false},
 		{.type = GR_EVENT_IP_ADDR_DEL, .suppress_self_events = false},
 		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
+		{.type = GR_EVENT_BRIDGE_MAC_ADD, .suppress_self_events = false},
+		{.type = GR_EVENT_BRIDGE_MAC_DEL, .suppress_self_events = false},
 	};
 
 	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
@@ -415,6 +417,10 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_NEXTHOP_UPDATE);
 	case GR_EVENT_NEXTHOP_DELETE:
 		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
+	case GR_EVENT_BRIDGE_MAC_ADD:
+		return TOSTRING(GR_EVENT_BRIDGE_MAC_ADD);
+	case GR_EVENT_BRIDGE_MAC_DEL:
+		return TOSTRING(GR_EVENT_BRIDGE_MAC_DEL);
 	default:
 		return "unknown";
 	}
@@ -423,6 +429,7 @@ static const char *gr_evt_to_str(uint32_t e) {
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct gr_api_event *gr_e = NULL;
+	struct gr_l2_mac_entry *mac_entry;
 	struct gr_ip4_ifaddr *ifa4;
 	struct gr_ip6_ifaddr *ifa6;
 	struct gr_iface *iface;
@@ -482,6 +489,13 @@ static void dplane_read_notifications(struct event *event) {
 			gr_evt_to_str(gr_e->ev_type)
 		);
 		grout_interface_addr6_change(new, ifa6);
+		break;
+	case GR_EVENT_BRIDGE_MAC_ADD:
+		new = true;
+		// fallthrough
+	case GR_EVENT_BRIDGE_MAC_DEL:
+		mac_entry = PAYLOAD(gr_e);
+		grout_bridge_mac_change(new, mac_entry);
 		break;
 	default:
 		gr_log_debug(
