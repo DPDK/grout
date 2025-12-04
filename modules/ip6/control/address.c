@@ -220,8 +220,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	rte_ipv6_solnode_from_addr(&solicited_node, ip);
 	if (mcast6_addr_add(iface, &solicited_node) < 0) {
 		if (errno != EOPNOTSUPP && errno != EEXIST) {
-			nexthop_incref(nh);
-			nexthop_decref(nh);
+			nexthop_destroy(nh);
 			return errno_set(errno);
 		}
 	}
