@@ -7,10 +7,6 @@ if not scdoc.found()
 endif
 
 mandir = get_option('mandir')
-config = configuration_data({
-  'VERSION': meson.project_version(),
-  'DATE': run_command('date', '+%Y-%m-%d', check: false, capture: true).stdout().strip(),
-})
 
 # Static man pages
 static_man_src = [
@@ -23,14 +19,9 @@ foreach m : static_man_src
   section = m.split('.')[-2]
   output = '@0@.@1@'.format(topic, section)
 
-  c = configure_file(
-    input: m,
-    output: '@0@.md'.format(output),
-    configuration: config,
-  )
   custom_target(
     output,
-    input: c,
+    input: m,
     output: output,
     command: scdoc,
     install: true,
