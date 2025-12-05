@@ -123,6 +123,7 @@ typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 
 struct nexthop_af_ops {
+	struct nexthop *(*addr_get_preferred)(uint16_t iface_id, const void *addr);
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked to delete all routes which reference a given nexthop.
@@ -132,6 +133,8 @@ struct nexthop_af_ops {
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
 
 struct nexthop_type_ops {
+	// Get a source nexthop to reach this nexthop, MUST return a NH of type L3
+	const struct nexthop *(*local_nh)(const struct nexthop *);
 	// Callback that will be invoked the nexthop refcount reaches zero.
 	void (*free)(struct nexthop *);
 	bool (*equal)(const struct nexthop *, const struct nexthop *);
@@ -142,6 +145,8 @@ struct nexthop_type_ops {
 };
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
+
+const struct nexthop *nexthop_get_local_nh(const struct nexthop *nh);
 
 // Nexthop statistics structure
 struct nh_stats {

@@ -137,6 +137,18 @@ static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx 
 	return api_out(0, sizeof(*resp), resp);
 }
 
+static const struct nexthop *srv6_output_local_nh(const struct nexthop *nh) {
+	struct nexthop_info_srv6_output *srv6 = (struct nexthop_info_srv6_output *)nh->info;
+	struct nexthop *gw;
+
+	if (srv6->n_seglist == 0)
+		return NULL;
+	gw = rib6_lookup(nh->vrf_id, GR_IFACE_ID_UNDEF, &srv6->seglist[0]);
+	if (gw == 0)
+		return NULL;
+	return sr_tunsrc_get(gw->iface_id, &srv6->seglist[0]);
+}
+
 // srv6 headend module /////////////////////////////////////////////////////
 
 static struct gr_api_handler srv6_tunsrc_set_handler = {
@@ -156,6 +168,7 @@ static struct gr_api_handler srv6_tunsrc_show_handler = {
 };
 
 static struct nexthop_type_ops nh_ops = {
+	.local_nh = srv6_output_local_nh,
 	.free = srv6_output_nh_del,
 	.equal = srv6_output_nh_equal,
 	.import_info = srv6_output_nh_import_info,

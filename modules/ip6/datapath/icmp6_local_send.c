@@ -42,9 +42,10 @@ int icmp6_local_send(
 	uint16_t seq_num,
 	uint8_t hop_limit
 ) {
-	struct ctl_to_stack *msg;
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
-	int ret;
+	struct ctl_to_stack *msg;
+	int ret = 0;
 
 	if (gw->type == GR_NH_T_GROUP) {
 		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
@@ -53,24 +54,30 @@ int icmp6_local_send(
 			return errno_set(EHOSTUNREACH);
 	}
 
-	if ((local = addr6_get_preferred(gw->iface_id, &nexthop_info_l3(gw)->ipv6)) == NULL)
+	if ((local = nexthop_get_local_nh(gw)) == NULL)
 		return -errno;
+
+	if (local->type != GR_NH_T_L3)
+		return errno_set(ENOTCONN);
+
+	l3 = nexthop_info_l3(local);
+	if (l3->af != GR_AF_IP6)
+		return errno_set(EAFNOSUPPORT);
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
-	msg->iface_id = gw->iface_id;
+
+	msg->iface_id = local->iface_id;
 	msg->seq_num = seq_num;
 	msg->ident = ident;
 	msg->hop_limit = hop_limit;
 	msg->dst = *dst;
-	msg->src = nexthop_info_l3(local)->ipv6;
+	msg->src = l3->ipv6;
 
-	if ((ret = post_to_stack(ctl_icmp6_request, msg)) < 0) {
+	if ((ret = post_to_stack(ctl_icmp6_request, msg)) < 0)
 		free(msg);
-		return ret;
-	}
 
-	return 0;
+	return ret;
 }
 
 static uint16_t icmp6_local_send_process(
