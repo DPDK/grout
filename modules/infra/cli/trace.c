@@ -58,7 +58,7 @@ static cmd_status_t trace_show(struct gr_api_client *c, const struct ec_pnode *p
 	void *resp_ptr = NULL;
 	int ret;
 
-	if (arg_u16(p, "COUNT", &max_packets) < 0)
+	if (arg_u16(p, "COUNT", &max_packets) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	do {
