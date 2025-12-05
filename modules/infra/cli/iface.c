@@ -572,7 +572,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 
 static struct cli_event_printer printer = {
 	.print = iface_event_print,
-	.ev_count = 6,
+	.ev_count = 7,
 	.ev_types = {
 		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
