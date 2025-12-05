@@ -333,6 +333,8 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_IP6_ROUTE_LIST);
 	case GR_SRV6_TUNSRC_SET:
 		return TOSTRING(GR_SRV6_TUNSRC_SET);
+	case GR_L2_BRIDGE_GET:
+		return TOSTRING(GR_L2_BRIDGE_GET);
 	default:
 		return "unknown";
 	}

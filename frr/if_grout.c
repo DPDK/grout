@@ -37,6 +37,27 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 	return frr_if_flags;
 }
 
+static ifindex_t gr_bridge_id_to_if_index(uint16_t domain_id) {
+	struct gr_l2_bridge_get_req req = {.bridge_id = domain_id};
+	struct gr_l2_bridge *bridge_info = NULL;
+	ifindex_t idx = IFINDEX_INTERNAL;
+	void *resp_ptr;
+
+	if (grout_client_send_recv(GR_L2_BRIDGE_GET, sizeof(req), &req, &resp_ptr) < 0) {
+		gr_log_err("error requesting bridge_info with id %u", domain_id);
+		goto cleanup;
+	}
+	bridge_info = resp_ptr;
+	if (bridge_info->iface_id == 0) {
+		printf("No bridge interface for domain %u\n", domain_id);
+		goto cleanup;
+	}
+	idx = ifindex_grout_to_frr(bridge_info->iface_id);
+cleanup:
+	free(bridge_info);
+	return idx;
+}
+
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
@@ -44,8 +65,11 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
+	const struct gr_iface_info_bridge *gr_bridge = NULL;
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	ifindex_t bond_ifindex = IFINDEX_INTERNAL;
+	ifindex_t bridge_ifindex = IFINDEX_INTERNAL;
+	ifindex_t master_ifindex = IFINDEX_INTERNAL;
 	const struct rte_ether_addr *mac = NULL;
 	struct zebra_dplane_ctx *ctx;
 	uint32_t txqlen = 1000;
@@ -85,6 +109,13 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VRF;
 		break;
+	case GR_IFACE_TYPE_BRIDGE:
+		gr_bridge = (struct gr_iface_info_bridge *)&gr_if->info;
+		link_type = ZEBRA_LLT_ETHER;
+		zif_type = ZEBRA_IF_BRIDGE;
+		mac = &gr_bridge->base.mac;
+		// bridge_ifindex = ifindex_grout_to_frr(gr_if->id);
+		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
 		gr_log_err(
@@ -93,6 +124,13 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 			gr_if->base.type
 		);
 		return;
+	}
+
+	if (gr_if->mode == GR_IFACE_MODE_L2_BRIDGE) {
+		master_ifindex = gr_bridge_id_to_if_index(gr_if->domain_id);
+		if (master_ifindex == IFINDEX_INTERNAL)
+			return;
+		slave_type = ZEBRA_IF_SLAVE_BRIDGE;
 	}
 
 	ctx = dplane_ctx_alloc();
@@ -111,9 +149,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
 
-		// no bridge support in grout
-		dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
-		dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);
+		dplane_ctx_set_ifp_bridge_ifindex(ctx, bridge_ifindex);
+		dplane_ctx_set_ifp_master_ifindex(ctx, master_ifindex);
 		dplane_ctx_set_ifp_bond_ifindex(ctx, bond_ifindex);
 		dplane_ctx_set_ifp_zif_slave_type(ctx, slave_type);
 		dplane_ctx_set_ifp_bypass(ctx, 0);
