@@ -41,6 +41,7 @@ static struct rte_mempool *cp_pool;
 static struct event_base *ev_base;
 
 static control_input_t port_output_id;
+static control_input_t bridge_output_id;
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -108,9 +109,12 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct rte_vlan_hdr *vlan;
 	struct rte_mbuf *mbuf;
 	rte_be16_t ether_type;
+	control_input_t node;
 	size_t read_len;
 	size_t len;
 	char *data;
+
+	node = port_output_id;
 
 	if (reason & EV_CLOSED) {
 		LOG(ERR, "tap device %s deleted", iface->name);
@@ -227,7 +231,10 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 			goto err;
 		}
 		iface = child_iface;
+	} else if (iface->type == GR_IFACE_TYPE_BRIDGE) {
+		node = bridge_output_id;
 	}
+
 	mbuf_data(mbuf)->iface = iface;
 
 	stats = iface_get_stats(rte_lcore_id(), iface->id);
@@ -237,7 +244,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	if (gr_config.log_packets)
 		trace_log_packet(mbuf, "cp rx", iface->name);
 
-	post_to_stack(port_output_id, mbuf);
+	post_to_stack(node, mbuf);
 	return;
 
 err:
@@ -423,6 +430,7 @@ static void iface_event(uint32_t event, const void *obj) {
 	case GR_IFACE_TYPE_PORT:
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_BOND:
+	case GR_IFACE_TYPE_BRIDGE:
 		break;
 	default:
 		return;
@@ -468,6 +476,7 @@ static void cp_module_init(struct event_base *base) {
 		ABORT("pktmbuf_pool returned NULL");
 	ev_base = base;
 	port_output_id = gr_control_input_register_handler("port_output", true);
+	bridge_output_id = gr_control_input_register_handler("l2_bridge", true);
 }
 
 static void cp_module_fini(struct event_base *) {
