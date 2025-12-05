@@ -440,6 +440,16 @@ bool nexthop_equal(const struct nexthop *a, const struct nexthop *b) {
 	return true;
 }
 
+const struct nexthop *nexthop_get_local_nh(const struct nexthop *nh) {
+	const struct nexthop_type_ops *ops = type_ops[nh->type];
+	if (ops->local_nh) {
+		const struct nexthop *local = ops->local_nh(nh);
+		assert(local->type == GR_NH_T_L3);
+		return local;
+	}
+	return NULL;
+}
+
 struct pool_iterator {
 	nh_iter_cb_t user_cb;
 	void *priv;
@@ -830,7 +840,17 @@ static struct gr_nexthop *l3_to_api(const struct nexthop *nh, size_t *len) {
 	return pub;
 }
 
+static const struct nexthop *l3_local_nh(const struct nexthop *nh) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	const struct nexthop_af_ops *ops = af_ops[l3->af];
+	if (ops->addr_get_preferred)
+		return ops->addr_get_preferred(nh->iface_id, &nexthop_info_l3(nh)->ipv6);
+	else
+		return NULL;
+}
+
 static struct nexthop_type_ops l3_nh_ops = {
+	.local_nh = l3_local_nh,
 	.free = l3_free,
 	.equal = l3_equal,
 	.import_info = l3_import_info,

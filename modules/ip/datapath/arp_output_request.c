@@ -85,7 +85,7 @@ static uint16_t arp_output_request_process(
 		if (is_garp) {
 			local = nh;
 		} else {
-			local = addr4_get_preferred(nh->iface_id, l3->ipv4);
+			local = addr4_get_preferred(nh->iface_id, &l3->ipv4);
 			if (local == NULL) {
 				edge = ERROR;
 				goto next;

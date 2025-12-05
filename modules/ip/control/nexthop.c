@@ -226,6 +226,7 @@ static struct gr_module nh4_module = {
 };
 
 static struct nexthop_af_ops nh_ops = {
+	.addr_get_preferred = addr4_get_preferred,
 	.solicit = arp_output_request_solicit,
 	.cleanup_routes = rib4_cleanup,
 };
