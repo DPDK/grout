@@ -6,11 +6,13 @@
 #include <errno.h>
 #include <stddef.h>
 
+// Set errno and return negative error code.
 static inline int errno_set(int errnum) {
 	errno = errnum;
 	return -errnum;
 }
 
+// Set errno and return NULL pointer.
 static inline void *errno_set_null(int errnum) {
 	errno = errnum;
 	return NULL;

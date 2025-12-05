@@ -10,11 +10,13 @@
 
 #include <stdint.h>
 
+// IPv6 interface address assignment.
 struct gr_ip6_ifaddr {
 	uint16_t iface_id;
 	struct ip6_net addr;
 };
 
+// IPv6 route entry.
 struct gr_ip6_route {
 	struct ip6_net dest;
 	uint16_t vrf_id;
@@ -26,140 +28,153 @@ struct gr_ip6_route {
 
 // routes //////////////////////////////////////////////////////////////////////
 
+// Add a new IPv6 route.
 #define GR_IP6_ROUTE_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0010)
 
 struct gr_ip6_route_add_req {
 	uint16_t vrf_id;
-	struct ip6_net dest;
-	struct rte_ipv6_addr nh;
-	uint32_t nh_id;
+	struct ip6_net dest; // Route CIDR prefix.
+	struct rte_ipv6_addr nh; // Next hop address (auto-creates nexthop if needed).
+	uint32_t nh_id; // Use existing nexthop ID instead of nh address.
 	gr_nh_origin_t origin;
-	uint8_t exist_ok;
+	uint8_t exist_ok; // Do not fail if route already exists.
 };
 
 // struct gr_ip6_route_add_resp { };
 
+// Delete an existing IPv6 route.
 #define GR_IP6_ROUTE_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0011)
 
 struct gr_ip6_route_del_req {
 	uint16_t vrf_id;
-	struct ip6_net dest;
-	uint8_t missing_ok;
+	struct ip6_net dest; // Route CIDR prefix.
+	uint8_t missing_ok; // Do not fail if route does not exist.
 };
 
 // struct gr_ip6_route_del_resp { };
 
+// Get IPv6 route for a destination address (longest prefix match).
 #define GR_IP6_ROUTE_GET REQUEST_TYPE(GR_IP6_MODULE, 0x0012)
 
 struct gr_ip6_route_get_req {
 	uint16_t vrf_id;
-	struct rte_ipv6_addr dest;
+	struct rte_ipv6_addr dest; // Destination address for route lookup.
 };
 
 struct gr_ip6_route_get_resp {
-	struct gr_nexthop nh;
+	struct gr_nexthop nh; // Resolved next hop for the destination.
 };
 
+// List all IPv6 routes in a VRF.
 #define GR_IP6_ROUTE_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0013)
 
 struct gr_ip6_route_list_req {
-	uint16_t vrf_id;
+	uint16_t vrf_id; // Use GR_VRF_ID_ALL to list routes from all VRFs.
 };
 
-// STREAM(struct gr_ip6_route);
+STREAM_RESP(struct gr_ip6_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
+// Add an IPv6 address to an interface.
 #define GR_IP6_ADDR_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0021)
 
 struct gr_ip6_addr_add_req {
 	struct gr_ip6_ifaddr addr;
-	uint8_t exist_ok;
+	uint8_t exist_ok; // Do not fail if address already exists.
 };
 
 // struct gr_ip6_addr_add_resp { };
 
+// Delete an IPv6 address from an interface.
 #define GR_IP6_ADDR_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0022)
 
 struct gr_ip6_addr_del_req {
 	struct gr_ip6_ifaddr addr;
-	uint8_t missing_ok;
+	uint8_t missing_ok; // Do not fail if address does not exist.
 };
 
 // struct gr_ip6_addr_del_resp { };
 
+// List IPv6 addresses on interfaces.
 #define GR_IP6_ADDR_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0023)
 
 struct gr_ip6_addr_list_req {
-	uint16_t vrf_id;
-	uint16_t iface_id;
+	uint16_t vrf_id; // Filter by VRF (use GR_VRF_ID_ALL for all VRFs).
+	uint16_t iface_id; // Filter by interface (use GR_IFACE_ID_UNDEF for all).
 };
 
-// STREAM(struct gr_ip6_ifaddr);
+STREAM_RESP(struct gr_ip6_ifaddr);
 
 // router advertisement ////////////////////////////////////////////////////////
 
+// Configure IPv6 router advertisement on an interface.
 #define GR_IP6_IFACE_RA_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0030)
 struct gr_ip6_ra_set_req {
 	uint16_t iface_id;
-	uint16_t set_interval : 1;
-	uint16_t set_lifetime : 1;
+	uint16_t set_interval : 1; // Update advertisement interval.
+	uint16_t set_lifetime : 1; // Update router lifetime.
 
-	uint16_t interval;
-	uint16_t lifetime;
+	uint16_t interval; // Advertisement interval in seconds (default 600).
+	uint16_t lifetime; // Router lifetime in seconds (default 1800).
 };
 // struct gr_ip6_ra_set_resp { };
 
+// Disable IPv6 router advertisement on an interface.
 #define GR_IP6_IFACE_RA_CLEAR REQUEST_TYPE(GR_IP6_MODULE, 0x0031)
 struct gr_ip6_ra_clear_req {
 	uint16_t iface_id;
 };
 // struct gr_ip6_ra_clear_resp { };
 
+// Show IPv6 router advertisement configuration.
 #define GR_IP6_IFACE_RA_SHOW REQUEST_TYPE(GR_IP6_MODULE, 0x0032)
 struct gr_ip6_ra_show_req {
-	uint16_t iface_id;
+	uint16_t iface_id; // Filter by interface (use GR_IFACE_ID_UNDEF for all).
 };
 
-// STREAM(struct gr_ip6_ra_conf);
-
+// IPv6 router advertisement configuration.
 struct gr_ip6_ra_conf {
-	bool enabled;
+	bool enabled; // Router advertisement is active on this interface.
 	uint16_t iface_id;
-	uint16_t interval;
-	uint16_t lifetime;
+	uint16_t interval; // Advertisement interval in seconds.
+	uint16_t lifetime; // Router lifetime in seconds.
 };
 
-// icmpv6 ////////////////////////////////////////////////////////////////////////
+STREAM_RESP(struct gr_ip6_ra_conf);
 
+// icmpv6 //////////////////////////////////////////////////////////////////////
+
+// Send an ICMPv6 echo request (ping6).
 #define GR_IP6_ICMP6_SEND REQUEST_TYPE(GR_IP6_MODULE, 0x0041)
 
 struct gr_ip6_icmp_send_req {
-	struct rte_ipv6_addr addr;
-	uint16_t iface;
-	uint16_t vrf;
-	uint16_t ident;
-	uint16_t seq_num;
-	uint8_t ttl;
+	struct rte_ipv6_addr addr; // Destination address to ping.
+	uint16_t iface; // Source interface (required for link-local addresses).
+	uint16_t vrf; // VRF for source address selection.
+	uint16_t ident; // ICMPv6 identifier for matching replies.
+	uint16_t seq_num; // ICMPv6 sequence number for matching replies.
+	uint8_t ttl; // Hop limit (used for traceroute6).
 };
 
 // struct gr_ip6_icmp_send_resp { };
 
+// Receive an ICMPv6 echo reply (ping6 response) or error.
 #define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
 
 struct gr_ip6_icmp_recv_req {
-	uint16_t ident;
-	uint16_t seq_num;
+	uint16_t ident; // ICMPv6 identifier to match.
+	uint16_t seq_num; // ICMPv6 sequence number to match.
 };
 
 struct gr_ip6_icmp_recv_resp {
-	uint8_t type;
-	uint8_t code;
-	uint8_t ttl;
-	uint16_t ident;
-	uint16_t seq_num;
-	struct rte_ipv6_addr src_addr;
-	clock_t response_time;
+	uint8_t type; // ICMPv6 message type (echo reply, dest unreachable, etc.).
+	uint8_t code; // ICMPv6 message code (specific error condition).
+	uint8_t ttl; // Hop limit from received packet.
+	uint16_t ident; // ICMPv6 identifier from request.
+	uint16_t seq_num; // ICMPv6 sequence number from request.
+	struct rte_ipv6_addr src_addr; // Source address of the ICMPv6 response.
+	clock_t response_time; // Round-trip time in microseconds.
 };
 
 typedef enum {
