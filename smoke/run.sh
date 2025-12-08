@@ -28,6 +28,11 @@ if [ -n "${builddir+x}" ] && \
 	test_frr=true
 fi
 
+# in case there is a need to skip some tests add their file names to /tmp/skip_list
+if [ -s /tmp/skip_list ]; then
+	mapfile -t skip_list < /tmp/skip_list
+fi
+
 for script in $here/*_test.sh; do
 	name=$(basename $script)
 	case "$name" in
@@ -37,6 +42,10 @@ for script in $here/*_test.sh; do
 	esac
 
 	printf "%s ... " "$name"
+        if [[ " ${skip_list[@]} " =~ " ${name} " ]]; then
+		echo "SKIPPED"
+		continue
+        fi
 	start=$(date +%s)
 	res=OK
 
