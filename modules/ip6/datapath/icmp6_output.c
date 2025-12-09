@@ -42,7 +42,7 @@ static uint16_t icmp6_output_process(
 		d = ip6_local_mbuf_data(mbuf);
 
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
-		ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+		ip = gr_mbuf_prepend(mbuf, ip);
 		if (unlikely(ip == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;

@@ -40,7 +40,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		icmp->icmp_cksum = 0;
 		icmp->icmp_cksum = ~rte_raw_cksum(icmp, local_data->len);
 
-		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+		ip = gr_mbuf_prepend(mbuf, ip);
 		if (unlikely(ip == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;

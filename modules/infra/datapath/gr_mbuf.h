@@ -86,3 +86,27 @@ static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len,
 
 #undef rte_pktmbuf_copy
 #define rte_pktmbuf_copy GR_SYMBOL_FORBIDDEN(rte_pktmbuf_copy, gr_mbuf_copy)
+
+// Prepend data when possible, and when not, move the entire data forward
+// Slow, but this doesn't require to manage indirect mbufs.
+static inline void *__gr_mbuf_prepend(struct rte_mbuf *m, uint16_t len) {
+	void *data = rte_pktmbuf_prepend(m, len);
+	if (unlikely(data == NULL)) {
+		uint16_t sz = RTE_ALIGN_MUL_CEIL(len, RTE_PKTMBUF_HEADROOM);
+		if (rte_pktmbuf_append(m, sz) != NULL) {
+			data = rte_pktmbuf_mtod(m, void *);
+			memmove(data + sz, data, rte_pktmbuf_data_len(m) - sz);
+			data = rte_pktmbuf_adj(m, sz - len);
+		}
+	}
+	return data;
+}
+
+#define _gr_mbuf_prepend(m, ptr, opt_len) (typeof(ptr))__gr_mbuf_prepend(m, sizeof(*ptr) + opt_len)
+#define _gr_mbuf_prepend_0(m, ptr) _gr_mbuf_prepend(m, ptr, 0)
+#define _GET_MACRO(_1, _2, _3, NAME, ...) NAME
+#define gr_mbuf_prepend(...)                                                                       \
+	_GET_MACRO(__VA_ARGS__, _gr_mbuf_prepend, _gr_mbuf_prepend_0)(__VA_ARGS__)
+
+#undef rte_pktmbuf_prepend
+#define rte_pktmbuf_prepend GR_SYMBOL_FORBIDDEN(rte_pktmbuf_prepend, gr_mbuf_prepend)

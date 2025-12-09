@@ -47,7 +47,7 @@ static uint16_t ospf_redirect_process(
 			struct rte_ipv4_hdr *ip;
 			struct nexthop *nh;
 			uint32_t ip_dst;
-			ip = (struct rte_ipv4_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+			ip = gr_mbuf_prepend(mbuf, ip);
 			if (ip == NULL) {
 				edge = NO_HEADROOM;
 				goto next;
@@ -69,7 +69,7 @@ static uint16_t ospf_redirect_process(
 			struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(mbuf);
 			struct rte_ipv6_hdr *ip;
 			struct nexthop *nh;
-			ip = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*ip));
+			ip = gr_mbuf_prepend(mbuf, ip);
 			if (ip == NULL) {
 				edge = NO_HEADROOM;
 				goto next;
@@ -101,7 +101,7 @@ static uint16_t ospf_redirect_process(
 		}
 		edge = L2_REDIRECT;
 
-		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
+		eth = gr_mbuf_prepend(mbuf, eth);
 		if (unlikely(eth == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;

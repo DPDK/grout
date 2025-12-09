@@ -60,7 +60,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 				edge = IFACE_DOWN;
 				goto next;
 			}
-			vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
+			vlan = gr_mbuf_prepend(mbuf, vlan);
 			if (unlikely(vlan == NULL)) {
 				edge = NO_HEADROOM;
 				goto next;
@@ -78,7 +78,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (edge == INVAL)
 			goto next;
 
-		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
+		eth = gr_mbuf_prepend(mbuf, eth);
 		if (unlikely(eth == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;

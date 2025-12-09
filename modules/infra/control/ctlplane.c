@@ -178,7 +178,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		ether_type = eth->ether_type;
 		rte_pktmbuf_adj(mbuf, sizeof(*eth));
 
-		vlan = (struct rte_vlan_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*vlan));
+		vlan = gr_mbuf_prepend(mbuf, vlan);
 		if (vlan == NULL) {
 			LOG(ERR, "ctlplane vlan_hdr insertion: no headroom");
 			goto err;
@@ -187,7 +187,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		vlan->vlan_tci = rte_cpu_to_be_16(iface_info_vlan(iface)->vlan_id);
 		vlan->eth_proto = ether_type;
 
-		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*eth));
+		eth = gr_mbuf_prepend(mbuf, eth);
 		if (eth == NULL) {
 			LOG(ERR, "ctlplane ether_hdr insertion: no headroom");
 			goto err;
