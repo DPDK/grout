@@ -70,7 +70,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		case ICMP6_ERR_TTL_EXCEEDED:
 			// clang-format off
 			te = (struct icmp6_err_ttl_exceeded *)
-				rte_pktmbuf_prepend(mbuf, sizeof(*du));
+				rte_pktmbuf_prepend(mbuf, sizeof(*te));
 			// clang-format on
 			if (unlikely(te == NULL)) {
 				edge = NO_HEADROOM;
