@@ -3,22 +3,9 @@
 # Copyright (c) 2024 Robin Jarry
 
 here=$(dirname $0)
-if [ "$1" = "--coredump" ]; then
-	coredump=true
-	ulimit -c unlimited
-	trap "sysctl -qw 'kernel.core_pattern=$(sysctl -n kernel.core_pattern)'" EXIT
-	sysctl -qw kernel.core_pattern=/tmp/grout-core.%e.%p
-	shift
-fi
 builddir=${1-}
 log=$(mktemp)
 result=0
-
-run() {
-	local script="$1"
-	local res=0
-	return $res
-}
 
 test_frr=false
 # running test frr is only supported when grout is built, not installed
