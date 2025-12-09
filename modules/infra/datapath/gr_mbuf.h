@@ -83,3 +83,6 @@ static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len,
 	}
 	return copy;
 }
+
+#undef rte_pktmbuf_copy
+#define rte_pktmbuf_copy GR_SYMBOL_FORBIDDEN(rte_pktmbuf_copy, gr_mbuf_copy)
