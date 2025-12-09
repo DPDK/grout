@@ -47,7 +47,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
 	const struct nexthop *nh;
-	uint32_t hdrlen, plen;
+	uint32_t optlen, plen;
 	struct rte_mbuf *m;
 	uint8_t proto, reduc;
 	rte_edge_t edge;
@@ -98,12 +98,12 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 
 		// Encapsulate with another IPv6 header
-		hdrlen = sizeof(*outer_ip6);
+		optlen = 0;
 		reduc = d->encap == SR_H_ENCAPS_RED ? 1 : 0;
 		if (d->n_seglist > reduc)
-			hdrlen += sizeof(*srh) + (d->n_seglist * sizeof(d->seglist[0]));
+			optlen += sizeof(*srh) + (d->n_seglist * sizeof(d->seglist[0]));
 
-		outer_ip6 = (struct rte_ipv6_hdr *)rte_pktmbuf_prepend(m, hdrlen);
+		outer_ip6 = gr_mbuf_prepend(m, outer_ip6, optlen);
 		if (unlikely(outer_ip6 == NULL)) {
 			edge = NO_HEADROOM;
 			goto next;
@@ -115,7 +115,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 			srh = (struct rte_ipv6_routing_ext *)(outer_ip6 + 1);
 			srh->next_hdr = proto;
-			srh->hdr_len = (hdrlen - sizeof(*outer_ip6)) / 8 - 1;
+			srh->hdr_len = optlen / 8 - 1;
 			srh->type = RTE_IPV6_SRCRT_TYPE_4;
 			srh->segments_left = d->n_seglist - 1;
 			srh->last_entry = d->n_seglist - 1;
@@ -126,7 +126,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			for (k = reduc; k < d->n_seglist; k++)
 				segments[d->n_seglist - k - 1] = d->seglist[k];
 			proto = IPPROTO_ROUTING;
-			plen += hdrlen - sizeof(*outer_ip6);
+			plen += optlen;
 		}
 
 		// Resolve nexthop for the encapsulated packet.

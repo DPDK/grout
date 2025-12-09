@@ -42,7 +42,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		mbuf = objs[i];
 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
-		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_prepend(mbuf, sizeof(*icmp));
+		icmp = gr_mbuf_prepend(mbuf, icmp);
 
 		if (unlikely(icmp == NULL)) {
 			edge = NO_HEADROOM;
