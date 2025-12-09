@@ -38,3 +38,6 @@
 		}                                                                                  \
 		n += __s;                                                                          \
 	} while (0)
+
+#define GR_SYMBOL_FORBIDDEN(func, new_func)                                                        \
+	sorry_##func##_is_a_banned_function_use_##new_func##_instead
