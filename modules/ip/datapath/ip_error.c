@@ -62,7 +62,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			src = ip->src_addr;
 		}
 		// Select preferred source IP address to reply with
-		if ((local = addr4_get_preferred(nh->iface_id, src)) == NULL) {
+		if ((local = addr4_get_preferred(nh->iface_id, &src)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}

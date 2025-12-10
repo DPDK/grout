@@ -47,7 +47,7 @@ typedef void (*rib4_iter_cb_t)(
 void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv);
 
 // get the default address for a given interface
-struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
+struct nexthop *addr4_get_preferred(uint16_t iface_id, const void *dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
 

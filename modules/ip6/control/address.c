@@ -44,8 +44,9 @@ struct hoplist *addr6_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
-struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
+struct nexthop *addr6_get_preferred(uint16_t iface_id, const void *addr) {
 	struct hoplist *addrs = addr6_get_all(iface_id);
+	const struct rte_ipv6_addr *dst = addr;
 	const struct nexthop_info_l3 *l3;
 	struct nexthop *pref = NULL, *nh;
 

@@ -45,9 +45,10 @@ struct hoplist *addr4_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
-struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+struct nexthop *addr4_get_preferred(uint16_t iface_id, const void *addr) {
 	struct hoplist *addrs = addr4_get_all(iface_id);
 	const struct nexthop_info_l3 *l3;
+	const ip4_addr_t *dst = addr;
 	struct nexthop *nh;
 
 	if (addrs == NULL)
@@ -55,7 +56,7 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 
 	gr_vec_foreach (nh, addrs->nh) {
 		l3 = nexthop_info_l3(nh);
-		if (ip4_addr_same_subnet(dst, l3->ipv4, l3->prefixlen))
+		if (ip4_addr_same_subnet(*dst, l3->ipv4, l3->prefixlen))
 			return nh;
 	}
 

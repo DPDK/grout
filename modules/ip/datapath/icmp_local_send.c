@@ -44,7 +44,7 @@ int icmp_local_send(
 	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
 	struct ctl_to_stack *msg;
-	int ret;
+	int ret = 0;
 
 	if (gw->type == GR_NH_T_GROUP) {
 		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
@@ -52,6 +52,16 @@ int icmp_local_send(
 		if (unlikely(gw == NULL))
 			return errno_set(EHOSTUNREACH);
 	}
+
+	if ((local = nexthop_get_local_nh(gw)) == NULL)
+		return errno_set(errno);
+
+	if (local->type != GR_NH_T_L3)
+		return errno_set(ENOTCONN);
+
+	l3 = nexthop_info_l3(local);
+	if (l3->af != GR_AF_IP4)
+		return errno_set(EAFNOSUPPORT);
 
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
@@ -61,25 +71,12 @@ int icmp_local_send(
 	msg->ident = ident;
 	msg->ttl = ttl;
 	msg->dst = dst;
-
-	assert(gw->type == GR_NH_T_L3);
-	l3 = nexthop_info_l3(gw);
-
-	if ((local = addr4_get_preferred(gw->iface_id, l3->ipv4)) == NULL) {
-		free(msg);
-		return -errno;
-	}
-
-	assert(local->type == GR_NH_T_L3);
-	l3 = nexthop_info_l3(local);
 	msg->src = l3->ipv4;
 
-	if ((ret = post_to_stack(ip4_icmp_request, msg)) < 0) {
+	if ((ret = post_to_stack(ip4_icmp_request, msg)) < 0)
 		free(msg);
-		return ret;
-	}
 
-	return 0;
+	return ret;
 }
 
 static uint16_t icmp_local_send_process(
