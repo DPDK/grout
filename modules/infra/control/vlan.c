@@ -124,6 +124,26 @@ static int iface_vlan_init(struct iface *iface, const void *api_info) {
 	return ret;
 }
 
+static int iface_vlan_up_down(struct iface *iface, bool up) {
+	struct iface_info_vlan *v = iface_info_vlan(iface);
+
+	if (up) {
+		const struct iface *parent = iface_from_id(v->parent_id);
+		assert(parent != NULL);
+		iface->flags |= GR_IFACE_F_UP;
+		if (parent->state & GR_IFACE_S_RUNNING) {
+			iface->state |= GR_IFACE_S_RUNNING;
+			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+		}
+	} else {
+		iface->flags &= ~GR_IFACE_F_UP;
+		iface->state &= ~GR_IFACE_S_RUNNING;
+		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+	}
+
+	return 0;
+}
+
 static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	*mac = vlan->mac;
@@ -163,6 +183,7 @@ static struct iface_type iface_type_vlan = {
 	.init = iface_vlan_init,
 	.reconfig = iface_vlan_reconfig,
 	.fini = iface_vlan_fini,
+	.set_up_down = iface_vlan_up_down,
 	.get_eth_addr = iface_vlan_get_eth_addr,
 	.add_eth_addr = iface_vlan_add_eth_addr,
 	.del_eth_addr = iface_vlan_del_eth_addr,
