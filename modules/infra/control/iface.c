@@ -123,8 +123,6 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->set_promisc != NULL
 	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
 		goto fail;
-	if (type->set_up_down != NULL && type->set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
-		goto fail;
 
 	ifaces[ifid] = iface;
 
@@ -132,6 +130,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
+
+	if (iface_set_up_down(iface->id, iface->flags & GR_IFACE_F_UP) < 0)
+		goto fail;
 
 	return iface;
 fail:
@@ -366,10 +367,15 @@ int iface_set_up_down(uint16_t ifid, bool up) {
 	if (type->set_up_down != NULL)
 		return type->set_up_down(iface, up);
 
-	if (!(iface->flags & GR_IFACE_F_UP) && up)
+	if (!(iface->flags & GR_IFACE_F_UP) && up) {
 		iface->flags |= GR_IFACE_F_UP;
-	else if ((iface->flags & GR_IFACE_F_UP) && !up)
+		iface->state |= GR_IFACE_S_RUNNING;
+		gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+	} else if ((iface->flags & GR_IFACE_F_UP) && !up) {
 		iface->flags &= ~GR_IFACE_F_UP;
+		iface->state &= ~GR_IFACE_S_RUNNING;
+		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+	}
 
 	return 0;
 }
