@@ -626,7 +626,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			}
 			iface->speed = link.link_speed;
 
-			if (link.link_status == RTE_ETH_LINK_UP) {
+			if (link.link_status == RTE_ETH_LINK_UP && (iface->flags & GR_IFACE_F_UP)) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
 					LOG(INFO, "%s: link status up", iface->name);
 					iface->state |= GR_IFACE_S_RUNNING;
