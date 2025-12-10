@@ -70,17 +70,23 @@ static int iface_vlan_reconfig(
 
 			rte_hash_del_key(vlan_hash, &cur_key);
 			iface_del_subinterface(cur_parent, iface);
+			iface->state &= ~GR_IFACE_S_RUNNING;
 		}
 
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
 		iface_add_subinterface(next_parent, iface);
-		iface->state = next_parent->state;
 		iface->mtu = next_parent->mtu;
 		iface->speed = next_parent->speed;
 
 		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0)
 			return errno_log(-ret, "rte_hash_add_key_data");
+
+		if (!(set_attrs & GR_IFACE_SET_FLAGS) && (iface->flags & GR_IFACE_F_UP)
+		    && (next_parent->state & GR_IFACE_S_RUNNING)) {
+			iface->state |= GR_IFACE_S_RUNNING;
+			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+		}
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
