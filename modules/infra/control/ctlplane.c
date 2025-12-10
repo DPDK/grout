@@ -330,17 +330,6 @@ static void cp_delete(struct iface *iface) {
 		event_free_finalize(0, iface->cp_ev, finalize_fd);
 }
 
-static void cp_set_carrier(struct iface *iface) {
-#ifdef TUNSETCARRIER
-	int carrier = iface->flags & GR_IFACE_S_RUNNING ? 1 : 0;
-	if (ioctl(iface->cp_fd, TUNSETCARRIER, &carrier) < 0) {
-		LOG(ERR, "ioctl(TUNSETCARRIER): %s", strerror(errno));
-	}
-#else
-	(void)iface;
-#endif
-}
-
 static void cp_set_speed(struct iface *iface) {
 	struct ethtool_link_settings *els;
 	struct ifreq ifr = {0};
@@ -447,12 +436,10 @@ static void iface_event(uint32_t event, const void *obj) {
 		cp_delete(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
-		cp_set_speed(iface);
-		cp_set_carrier(iface);
 		netlink_link_set_admin_state(iface->name, true);
+		cp_set_speed(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
-		cp_set_carrier(iface);
 		netlink_link_set_admin_state(iface->name, false);
 		break;
 	}
