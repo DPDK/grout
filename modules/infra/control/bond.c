@@ -300,6 +300,19 @@ void bond_update_active_members(struct iface *iface) {
 	gr_vec_free(active_ids);
 }
 
+static int bond_up_down(struct iface *iface, bool up) {
+	if (up && !(iface->flags & GR_IFACE_F_UP)) {
+		iface->flags |= GR_IFACE_F_UP;
+		bond_update_active_members(iface);
+	} else if (!up && (iface->flags & GR_IFACE_F_UP)) {
+		iface->flags &= ~GR_IFACE_F_UP;
+		iface->state &= ~GR_IFACE_S_RUNNING;
+		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+	}
+
+	return 0;
+}
+
 static int bond_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -403,6 +416,7 @@ static struct iface_type iface_type_bond = {
 	.init = bond_init,
 	.reconfig = bond_reconfig,
 	.fini = bond_fini,
+	.set_up_down = bond_up_down,
 	.set_eth_addr = bond_mac_set,
 	.get_eth_addr = bond_mac_get,
 	.add_eth_addr = bond_mac_add,
