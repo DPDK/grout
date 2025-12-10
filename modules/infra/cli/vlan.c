@@ -63,7 +63,11 @@ static uint64_t parse_vlan_args(
 		struct gr_iface *parent = iface_from_name(c, parent_name);
 		if (parent == NULL)
 			return 0;
-		if (parent->type != GR_IFACE_TYPE_PORT) {
+		switch (parent->type) {
+		case GR_IFACE_TYPE_PORT:
+		case GR_IFACE_TYPE_BOND:
+			break;
+		default:
 			errno = EMEDIUMTYPE;
 			free(parent);
 			return 0;
@@ -81,15 +85,23 @@ static uint64_t parse_vlan_args(
 	} else if (!update) {
 		struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
 		const struct gr_iface_info_port *port;
+		const struct gr_iface_info_bond *bond;
 		if (parent == NULL)
 			return 0;
-		if (parent->type != GR_IFACE_TYPE_PORT) {
+		switch (parent->type) {
+		case GR_IFACE_TYPE_PORT:
+			port = (const struct gr_iface_info_port *)parent->info;
+			vlan->mac = port->mac;
+			break;
+		case GR_IFACE_TYPE_BOND:
+			bond = (const struct gr_iface_info_bond *)parent->info;
+			vlan->mac = bond->mac;
+			break;
+		default:
 			errno = EMEDIUMTYPE;
 			free(parent);
 			return 0;
 		}
-		port = (const struct gr_iface_info_port *)parent->info;
-		vlan->mac = port->mac;
 		set_attrs |= GR_VLAN_SET_MAC;
 		free(parent);
 	}

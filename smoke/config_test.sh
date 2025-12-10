@@ -6,6 +6,9 @@
 
 grcli interface add port p0 devargs net_null0,no-rx=1
 grcli interface add port p1 devargs net_null1,no-rx=1
+grcli interface add bond bond0 mode lacp member p0 member p1
+grcli interface add vlan v42 parent bond0 vlan_id 42
+grcli interface add vlan v43 parent bond0 vlan_id 43
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
 grcli nexthop add l3 iface p0 id 45
 grcli nexthop add l3 iface p0 id 47 address 1.2.3.7
@@ -47,6 +50,9 @@ grcli nexthop del 123456
 grcli nexthop del 333
 grcli nexthop del 334
 
+grcli interface del v42
+grcli interface del v43
+grcli interface del bond0
 grcli interface del p0
 grcli interface del p1
 
