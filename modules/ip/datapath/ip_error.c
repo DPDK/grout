@@ -67,7 +67,6 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		assert(local->type == GR_NH_T_L3);
 		l3 = nexthop_info_l3(local);
 
 		ip_data = ip_local_mbuf_data(mbuf);

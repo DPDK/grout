@@ -10,13 +10,8 @@
 #include <gr_vec.h>
 
 static bool dnat44_nh_equal(const struct nexthop *a, const struct nexthop *b) {
-	struct nexthop_info_dnat *ad, *bd;
-
-	assert(a->type == GR_NH_T_DNAT);
-	assert(b->type == GR_NH_T_DNAT);
-
-	ad = nexthop_info_dnat(a);
-	bd = nexthop_info_dnat(b);
+	struct nexthop_info_dnat *ad = nexthop_info_dnat(a);
+	struct nexthop_info_dnat *bd = nexthop_info_dnat(b);
 
 	return ad->match == bd->match && ad->replace == bd->replace;
 }
