@@ -49,7 +49,7 @@ again:
 }
 
 int netlink_link_set_admin_state(const char *ifname, bool up) {
-	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg)) + NLA_SPACE(sizeof(uint8_t))];
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
 	uint32_t ifindex;
@@ -68,6 +68,8 @@ int netlink_link_set_admin_state(const char *ifname, bool up) {
 	ifi->ifi_index = ifindex;
 	ifi->ifi_change = IFF_UP;
 	ifi->ifi_flags = up ? IFF_UP : 0;
+
+	mnl_attr_put_u8(nlh, IFLA_CARRIER, up ? 1 : 0);
 
 	return netlink_send_req(nlh);
 }
