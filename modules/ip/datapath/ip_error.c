@@ -35,13 +35,16 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
+	ip4_addr_t src, dst;
 	rte_edge_t edge;
-	ip4_addr_t src;
+	unsigned len;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		src = ip->src_addr;
+		len = rte_ipv4_hdr_len(ip);
 		icmp = gr_mbuf_prepend(mbuf, icmp);
 
 		if (unlikely(icmp == NULL)) {
@@ -51,18 +54,18 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// Get the local router IP address from the input iface
 		iface = ip_output_mbuf_data(mbuf)->iface;
-		if (iface == NULL || (nh = fib4_lookup(iface->vrf_id, ip->src_addr)) == NULL) {
+		if (iface == NULL || (nh = fib4_lookup(iface->vrf_id, src)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
 		if (nh->type == GR_NH_T_L3) {
 			l3 = nexthop_info_l3(nh);
-			src = l3->ipv4;
+			dst = l3->ipv4;
 		} else {
-			src = ip->src_addr;
+			dst = src;
 		}
 		// Select preferred source IP address to reply with
-		if ((local = addr4_get_preferred(nh->iface_id, src)) == NULL) {
+		if ((local = addr4_get_preferred(nh->iface_id, dst)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
@@ -72,10 +75,10 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		ip_data = ip_local_mbuf_data(mbuf);
 		ip_data->vrf_id = iface->vrf_id;
 		ip_data->src = l3->ipv4;
-		ip_data->dst = ip->src_addr;
+		ip_data->dst = src;
 
 		// RFC792 payload size: ip header + 64 bits of original datagram
-		ip_data->len = sizeof(*icmp) + rte_ipv4_hdr_len(ip) + 8;
+		ip_data->len = sizeof(*icmp) + len + 8;
 		ip_data->proto = IPPROTO_ICMP;
 
 		icmp->icmp_type = ctx->icmp_type;
