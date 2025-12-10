@@ -62,7 +62,6 @@ int icmp_local_send(
 	msg->ttl = ttl;
 	msg->dst = dst;
 
-	assert(gw->type == GR_NH_T_L3);
 	l3 = nexthop_info_l3(gw);
 
 	if ((local = addr4_get_preferred(gw->iface_id, l3->ipv4)) == NULL) {
@@ -70,7 +69,6 @@ int icmp_local_send(
 		return -errno;
 	}
 
-	assert(local->type == GR_NH_T_L3);
 	l3 = nexthop_info_l3(local);
 	msg->src = l3->ipv4;
 

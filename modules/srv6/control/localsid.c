@@ -10,13 +10,8 @@
 #include <gr_srv6_nexthop.h>
 
 static bool srv6_local_nh_equal(const struct nexthop *a, const struct nexthop *b) {
-	struct nexthop_info_srv6_local *ad, *bd;
-
-	assert(a->type == GR_NH_T_SR6_LOCAL);
-	assert(b->type == GR_NH_T_SR6_LOCAL);
-
-	ad = nexthop_info_srv6_local(a);
-	bd = nexthop_info_srv6_local(b);
+	struct nexthop_info_srv6_local *ad = nexthop_info_srv6_local(a);
+	struct nexthop_info_srv6_local *bd = nexthop_info_srv6_local(b);
 
 	return ad->behavior == bd->behavior && ad->out_vrf_id == bd->out_vrf_id
 		&& ad->flags == bd->flags;
