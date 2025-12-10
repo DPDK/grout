@@ -300,6 +300,7 @@ static void cp_create(struct iface *iface) {
 
 	snprintf(ifalias, IFALIASZ, "Grout control plane interface");
 	netlink_set_ifalias(iface->name, ifalias);
+	netlink_link_set_admin_state(iface->name, false);
 
 	iface->cp_ev = event_new(
 		ev_base,
