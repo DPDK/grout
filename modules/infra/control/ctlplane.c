@@ -383,9 +383,17 @@ err:
 }
 
 static void cp_update(struct iface *iface) {
+	char current_name[IFNAMSIZ];
 	struct rte_ether_addr mac;
 	struct ifreq ifr = {0};
 	int ioctl_sock;
+
+	if (iface->cp_id > 0) {
+		if (if_indextoname(iface->cp_id, current_name) != NULL
+		    && strcmp(current_name, iface->name) != 0) {
+			netlink_link_set_name(iface->cp_id, iface->name);
+		}
+	}
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));

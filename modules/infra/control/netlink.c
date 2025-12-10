@@ -328,6 +328,25 @@ int netlink_set_ifalias(const char *ifname, const char *ifalias) {
 	return netlink_send_req(nlh);
 }
 
+int netlink_link_set_name(uint32_t ifindex, const char *ifname) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(IFNAMSIZ))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_SETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put_strz(nlh, IFLA_IFNAME, ifname);
+
+	return netlink_send_req(nlh);
+}
+
 static void netlink_init(struct event_base *) {
 	nl_sock = mnl_socket_open(NETLINK_ROUTE);
 	if (!nl_sock)
