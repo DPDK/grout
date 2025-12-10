@@ -40,3 +40,6 @@ ip netns exec n0 ping -i0.01 -c3 -s 1260 -M do -n 172.16.1.2 && fail "ping with 
 # Expected: Packet is fragmented into 2 fragments (1276 + 32 bytes) and ping succeeds
 ip netns exec n0 ip route flush cache
 ip netns exec n0 ping -i0.01 -c3 -s 1260 -M dont -n 172.16.1.2
+
+# Test 4: run tracepath to do PMTU discovery
+ip netns exec n0 tracepath -n 172.16.1.2

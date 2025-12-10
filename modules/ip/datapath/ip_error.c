@@ -44,7 +44,9 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		src = ip->src_addr;
-		len = rte_ipv4_hdr_len(ip);
+		// RFC792 payload size: ip header + 64 bits of original datagram
+		len = rte_ipv4_hdr_len(ip) + 8;
+		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf) - len);
 		icmp = gr_mbuf_prepend(mbuf, icmp);
 
 		if (unlikely(icmp == NULL)) {
@@ -77,8 +79,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		ip_data->src = l3->ipv4;
 		ip_data->dst = src;
 
-		// RFC792 payload size: ip header + 64 bits of original datagram
-		ip_data->len = sizeof(*icmp) + len + 8;
+		ip_data->len = rte_pktmbuf_pkt_len(mbuf);
 		ip_data->proto = IPPROTO_ICMP;
 
 		icmp->icmp_type = ctx->icmp_type;
