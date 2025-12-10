@@ -60,11 +60,6 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_type = eth->ether_type;
 		vlan_id = 0;
 
-		if (unlikely(rte_be_to_cpu_16(eth_type) < SNAP_MAX_LEN)) {
-			edge = SNAP;
-			goto snap;
-		}
-
 		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
 			vlan_id = m->vlan_tci & 0xfff;
 			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
@@ -90,6 +85,12 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			}
 			eth_in->iface = vlan_iface;
 		}
+
+		if (unlikely(rte_be_to_cpu_16(eth_type) < SNAP_MAX_LEN)) {
+			edge = SNAP;
+			goto snap;
+		}
+
 		edge = l2l3_edges[eth_type];
 
 		if (iface == NULL || iface->id != eth_in->iface->id) {
