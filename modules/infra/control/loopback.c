@@ -255,6 +255,14 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
+	if (netlink_link_set_admin_state(lo->tun_name, false) < 0) {
+		LOG(ERR,
+		    "netlink_link_set_admin_state(%s, false): %s",
+		    lo->tun_name,
+		    strerror(errno));
+		goto err;
+	}
+
 	if (netlink_link_set_admin_state(lo->tun_name, true) < 0) {
 		LOG(ERR,
 		    "netlink_link_set_admin_state(%s, true): %s",
