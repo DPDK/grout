@@ -51,6 +51,7 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
 	GR_IFACE_MODE_L1_XC,
+	GR_IFACE_MODE_SRV6_XC,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -74,6 +75,7 @@ struct __gr_iface_base {
 		uint16_t vrf_id; // L3 addressing and routing domain
 		uint16_t domain_id; // L2 xconnect peer interface id
 	};
+	uint32_t mode_data; // Abstract mode data
 	uint32_t speed; // Link speed in Megabit/sec.
 };
 
@@ -452,6 +454,8 @@ static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 		return "l3";
 	case GR_IFACE_MODE_L1_XC:
 		return "l1-xc";
+	case GR_IFACE_MODE_SRV6_XC:
+		return "srv6-evpn";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}

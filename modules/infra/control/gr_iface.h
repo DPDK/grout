@@ -18,6 +18,7 @@ struct __rte_cache_aligned iface {
 
 	gr_vec struct iface **subinterfaces;
 	char *name;
+	void *mode_info;
 	int cp_id; // Control plane (Linux) port ID
 	int cp_fd; // control plane fd
 	struct event *cp_ev; // libevent to poll cp_fd
