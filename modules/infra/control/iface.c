@@ -341,7 +341,9 @@ int iface_set_mtu(struct iface *iface, uint16_t mtu) {
 	if (iface == NULL)
 		return errno_set(EINVAL);
 
-	if (mtu > gr_config.max_mtu)
+	if (mtu == 0)
+		mtu = 1500;
+	if (mtu < 1280 || mtu > gr_config.max_mtu)
 		return errno_set(ERANGE);
 
 	type = iface_type_get(iface->type);

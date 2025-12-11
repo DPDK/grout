@@ -228,28 +228,23 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
-	if (mtu != 0) {
-		p->started = false;
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
-			return errno_log(-ret, "rte_eth_dev_stop");
-		ret = rte_eth_dev_set_mtu(p->port_id, mtu);
-		switch (ret) {
-		case 0:
-		case -ENOSYS:
-		case -EOPNOTSUPP:
-			break;
-		default:
-			return errno_log(-ret, "rte_eth_dev_set_mtu");
-		}
-		if ((ret = rte_eth_dev_start(p->port_id)) < 0)
-			return errno_log(-ret, "rte_eth_dev_start");
-		p->started = true;
-		iface->mtu = mtu;
-	} else {
-		if ((ret = rte_eth_dev_get_mtu(p->port_id, &iface->mtu)) < 0)
-			return errno_log(-ret, "rte_eth_dev_get_mtu");
+	p->started = false;
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
+		return errno_log(-ret, "rte_eth_dev_stop");
+	ret = rte_eth_dev_set_mtu(p->port_id, mtu);
+	switch (ret) {
+	case 0:
+	case -ENOSYS:
+	case -EOPNOTSUPP:
+		break;
+	default:
+		return errno_log(-ret, "rte_eth_dev_set_mtu");
 	}
+	if ((ret = rte_eth_dev_start(p->port_id)) < 0)
+		return errno_log(-ret, "rte_eth_dev_start");
+	p->started = true;
+	iface->mtu = mtu;
 
 	gr_vec_foreach (struct iface *s, iface->subinterfaces)
 		s->mtu = iface->mtu;
