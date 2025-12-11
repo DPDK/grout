@@ -118,12 +118,6 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->init(iface, api_info) < 0)
 		goto fail;
 
-	if (type->set_mtu != NULL && type->set_mtu(iface, iface->mtu) < 0)
-		goto fail;
-	if (type->set_promisc != NULL
-	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
-		goto fail;
-
 	ifaces[ifid] = iface;
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
@@ -131,8 +125,15 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
+	if (type->set_mtu != NULL && type->set_mtu(iface, iface->mtu) < 0)
+		goto destroy;
+
+	if (type->set_promisc != NULL
+	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
+		goto destroy;
+
 	if (iface_set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
-		goto fail;
+		goto destroy;
 
 	return iface;
 fail:
@@ -143,6 +144,9 @@ fail:
 		free(iface->name);
 	}
 	rte_free(iface);
+	return NULL;
+destroy:
+	iface_destroy(iface);
 	return NULL;
 }
 
