@@ -266,6 +266,9 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		case SR_BEHAVIOR_END_DT46:
 			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT46;
 			break;
+		case SR_BEHAVIOR_END_DX2:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DX2;
+			break;
 		}
 
 		ctx.table = ifindex_grout_to_frr(sr6->out_vrf_id);
@@ -725,6 +728,11 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			sr6_local->out_vrf_id = ifindex_frr_to_grout(
 				nh->nh_srv6->seg6local_ctx.table
 			);
+			break;
+		case ZEBRA_SEG6_LOCAL_ACTION_END_DX2:
+			sr6_local->behavior = SR_BEHAVIOR_END_DX2;
+			// FIXME
+			sr6_local->out_vrf_id = ifindex_frr_to_grout(GR_VRF_ID_ALL);
 			break;
 		default:
 			gr_log_err(

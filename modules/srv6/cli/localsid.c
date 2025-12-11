@@ -23,6 +23,7 @@ static struct {
 	{SR_BEHAVIOR_END_DT6, "end.dt6"},
 	{SR_BEHAVIOR_END_DT4, "end.dt4"},
 	{SR_BEHAVIOR_END_DT46, "end.dt46"},
+	{SR_BEHAVIOR_END_DX2, "end.dx2"},
 };
 
 static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
@@ -114,6 +115,9 @@ static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void 
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT46:
 		SAFE_BUF(snprintf, len, " %s", vrf);
+		break;
+	case SR_BEHAVIOR_END_DX2:
+		SAFE_BUF(snprintf, len, " out_iface=%d", sr6->out_vrf_id);
 		break;
 	}
 	return n;

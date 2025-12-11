@@ -62,6 +62,7 @@ typedef enum : uint16_t {
 	SR_BEHAVIOR_END_DT6 = 0x0012, // Decaps and IPv6 table lookup.
 	SR_BEHAVIOR_END_DT4 = 0x0013, // Decaps and IPv4 table lookup.
 	SR_BEHAVIOR_END_DT46 = 0x0014, // Decaps and IPv4/IPv6 table lookup.
+	SR_BEHAVIOR_END_DX2 = 0x0015, // Decaps and output to a specific interface.
 } gr_srv6_behavior_t;
 
 // Convert SRv6 behavior enum to string representation.
@@ -77,6 +78,8 @@ static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 		return "end.dt4";
 	case SR_BEHAVIOR_END_DT46:
 		return "end.dt46";
+	case SR_BEHAVIOR_END_DX2:
+		return "end.dx2";
 	}
 	return "?";
 }
