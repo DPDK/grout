@@ -125,11 +125,10 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
-	if (type->set_mtu != NULL && type->set_mtu(iface, iface->mtu) < 0)
+	if (iface_set_mtu(iface, iface->mtu) < 0)
 		goto destroy;
 
-	if (type->set_promisc != NULL
-	    && type->set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
+	if (iface_set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
 		goto destroy;
 
 	if (iface_set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
