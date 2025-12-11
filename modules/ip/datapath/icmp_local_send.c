@@ -53,6 +53,10 @@ int icmp_local_send(
 			return errno_set(EHOSTUNREACH);
 	}
 
+	// FIXME
+	if (gw->type != GR_NH_T_L3)
+		return errno_set(ENONET);
+
 	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
 		return errno_set(ENOMEM);
 
