@@ -14,11 +14,11 @@
 
 static int
 bond_all_member_add_mac(const struct iface_info_bond *bond, const struct rte_ether_addr *mac) {
-	const struct iface *member;
+	struct iface *member;
 
 	for (uint8_t i = 0; i < bond->n_members; i++) {
 		member = bond->members[i].iface;
-		if (iface_add_eth_addr(member->id, mac) < 0)
+		if (iface_add_eth_addr(member, mac) < 0)
 			return errno_set(errno);
 	}
 
@@ -27,11 +27,11 @@ bond_all_member_add_mac(const struct iface_info_bond *bond, const struct rte_eth
 
 static int
 bond_all_member_del_mac(const struct iface_info_bond *bond, const struct rte_ether_addr *mac) {
-	const struct iface *member;
+	struct iface *member;
 
 	for (uint8_t i = 0; i < bond->n_members; i++) {
 		member = bond->members[i].iface;
-		if (iface_del_eth_addr(member->id, mac) < 0 && errno != ENOENT)
+		if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT)
 			return errno_set(errno);
 	}
 
@@ -104,7 +104,7 @@ static int bond_mtu_set(struct iface *iface, uint16_t mtu) {
 		member = &bond->members[i];
 		if (member->iface->mtu == mtu)
 			continue;
-		if ((ret = iface_set_mtu(member->iface->id, mtu)) < 0)
+		if ((ret = iface_set_mtu(member->iface, mtu)) < 0)
 			return ret;
 	}
 
@@ -117,7 +117,7 @@ static int bond_all_members_set_flag(
 	struct iface *iface,
 	gr_iface_flags_t flag,
 	bool enabled,
-	int (*func)(uint16_t, bool)
+	int (*func)(struct iface *, bool)
 ) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
 	const struct iface *member;
@@ -125,7 +125,7 @@ static int bond_all_members_set_flag(
 
 	for (uint8_t i = 0; i < bond->n_members; i++) {
 		member = bond->members[i].iface;
-		if ((ret = func(member->id, enabled)) < 0)
+		if ((ret = func((struct iface *)member, enabled)) < 0)
 			return ret;
 	}
 
@@ -172,7 +172,7 @@ static void bond_fini_old_members(const struct iface *iface, const struct gr_ifa
 	struct iface_info_port *port;
 
 	for (uint8_t i = 0; i < bond->n_members; i++) {
-		const struct iface *member = bond->members[i].iface;
+		struct iface *member = bond->members[i].iface;
 
 		for (uint8_t j = 0; j < new->n_members; j++) {
 			if (new->members[j].iface_id == member->id)
@@ -181,14 +181,14 @@ static void bond_fini_old_members(const struct iface *iface, const struct gr_ifa
 
 		LOG(DEBUG, "removing %s from bond %s", member->name, iface->name);
 		gr_vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
-			if (iface_del_eth_addr(member->id, mac) < 0 && errno != ENOENT) {
+			if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT) {
 				LOG(WARNING,
 				    "failed to unconfigure mac address on member %s: %s",
 				    member->name,
 				    strerror(errno));
 			}
 		}
-		if (iface_del_eth_addr(member->id, &bond->mac) < 0 && errno != ENOENT) {
+		if (iface_del_eth_addr(member, &bond->mac) < 0 && errno != ENOENT) {
 			LOG(WARNING,
 			    "failed to unconfigure mac address on member %s: %s",
 			    member->name,
@@ -357,7 +357,7 @@ static int bond_reconfig(
 		struct rte_ether_addr mac;
 		if (rte_is_zero_ether_addr(&api->mac)) {
 			const struct iface *primary = bond->members[bond->primary_member].iface;
-			if (iface_get_eth_addr(primary->id, &mac) < 0)
+			if (iface_get_eth_addr(primary, &mac) < 0)
 				return errno_set(errno);
 		} else {
 			mac = api->mac;

@@ -80,7 +80,7 @@ void iface_cp_tx(struct rte_mbuf *m, const struct control_output_drain *drain) {
 		// The user messed up and removed the tap interface
 		// release resources on our side to try to recover
 		if (errno == EBADF) {
-			iface_destroy(d->iface->id);
+			iface_destroy((struct iface *)d->iface);
 		}
 		LOG(ERR, "write to tap device failed %s", strerror(errno));
 	}
@@ -114,7 +114,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	if (reason & EV_CLOSED) {
 		LOG(ERR, "tap device %s deleted", iface->name);
-		iface_destroy(iface->id);
+		iface_destroy(iface);
 		return;
 	}
 
@@ -402,7 +402,7 @@ static void cp_update(struct iface *iface) {
 		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
 		goto err;
 	}
-	iface_get_eth_addr(iface->id, &mac);
+	iface_get_eth_addr(iface, &mac);
 	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
 	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
 		LOG(ERR, "ioctl(SIOCSIFHWADDR) %s", strerror(errno));

@@ -49,7 +49,7 @@ static int iface_vlan_reconfig(
 		if (set_attrs & GR_VLAN_SET_MAC) {
 			// reconfig, *not initial config*
 			// remove previous mac filter (ignore errors)
-			iface_del_eth_addr(cur->parent_id, &cur->mac);
+			iface_del_eth_addr(cur_parent, &cur->mac);
 		}
 	} else {
 		cur_parent = NULL;
@@ -90,11 +90,12 @@ static int iface_vlan_reconfig(
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
+		struct iface *parent = iface_from_id(cur->parent_id);
 		if (rte_is_zero_ether_addr(&next->mac)) {
-			if ((ret = iface_get_eth_addr(next->parent_id, &cur->mac)) < 0)
+			if ((ret = iface_get_eth_addr(parent, &cur->mac)) < 0)
 				return ret;
 		} else {
-			if ((ret = iface_add_eth_addr(next->parent_id, &next->mac)) < 0)
+			if ((ret = iface_add_eth_addr(parent, &next->mac)) < 0)
 				return ret;
 			cur->mac = next->mac;
 		}
@@ -110,7 +111,7 @@ static int iface_vlan_fini(struct iface *iface) {
 
 	rte_hash_del_key(vlan_hash, &(struct vlan_key) {vlan->parent_id, vlan->vlan_id});
 
-	if ((ret = iface_del_eth_addr(vlan->parent_id, &vlan->mac)) < 0)
+	if ((ret = iface_del_eth_addr(parent, &vlan->mac)) < 0)
 		status = status ?: ret;
 
 	iface_del_subinterface(parent, iface);
@@ -158,20 +159,22 @@ static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_a
 
 static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	struct iface *parent = iface_from_id(vlan->parent_id);
 
 	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
 		return errno_set(EINVAL);
 
-	return iface_add_eth_addr(vlan->parent_id, mac);
+	return iface_add_eth_addr(parent, mac);
 }
 
 static int iface_vlan_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	struct iface *parent = iface_from_id(vlan->parent_id);
 
 	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
 		return errno_set(EINVAL);
 
-	return iface_del_eth_addr(vlan->parent_id, mac);
+	return iface_del_eth_addr(parent, mac);
 }
 
 static void vlan_to_api(void *info, const struct iface *iface) {

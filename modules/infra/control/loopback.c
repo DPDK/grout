@@ -98,7 +98,7 @@ void loopback_tx(struct rte_mbuf *m, const struct control_output_drain *drain) {
 		// The user messed up and removed gr-loopX
 		// release resources on our side to try to recover
 		if (errno == EBADFD) {
-			iface_destroy(d->iface->id);
+			iface_destroy((struct iface *)d->iface);
 		}
 		LOG(ERR, "write to tun device failed %s", strerror(errno));
 	}
@@ -128,7 +128,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
 		LOG(ERR, "tun device %s deleted", iface->name);
-		iface_destroy(iface->id);
+		iface_destroy(iface);
 		return;
 	}
 
@@ -189,10 +189,10 @@ struct iface *iface_loopback_create(uint16_t vrf_id) {
 }
 
 int iface_loopback_delete(uint16_t vrf_id) {
-	const struct iface *i = NULL;
+	struct iface *i = NULL;
 	while ((i = iface_next(GR_IFACE_TYPE_LOOPBACK, i)) != NULL)
 		if (i->vrf_id == vrf_id)
-			return iface_destroy(i->id);
+			return iface_destroy(i);
 
 	return errno_set(ENODEV);
 }

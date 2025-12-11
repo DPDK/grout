@@ -69,7 +69,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			vlan->eth_proto = priv->ether_type;
 			priv->ether_type = RTE_BE16(RTE_ETHER_TYPE_VLAN);
 			src_mac = sub->mac;
-		} else if (iface_get_eth_addr(priv->iface->id, &src_mac) < 0) {
+		} else if (iface_get_eth_addr(priv->iface, &src_mac) < 0) {
 			edge = NO_MAC;
 			goto next;
 		}

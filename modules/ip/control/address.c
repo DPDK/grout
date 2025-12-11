@@ -98,7 +98,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		.flags = NH_LOCAL_ADDR_FLAGS,
 		.state = GR_NH_S_REACHABLE,
 	};
-	if (iface_get_eth_addr(iface->id, &l3.mac) < 0 && errno != EOPNOTSUPP)
+	if (iface_get_eth_addr(iface, &l3.mac) < 0 && errno != EOPNOTSUPP)
 		return api_out(errno, 0, NULL);
 
 	if ((nh = nexthop_new(&base, &l3)) == NULL)

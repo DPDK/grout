@@ -35,7 +35,7 @@ static struct api_out iface_add(const void *request, struct api_ctx *) {
 		return api_out(errno, 0, NULL);
 
 	if ((resp = malloc(sizeof(*resp))) == NULL) {
-		iface_destroy(iface->id);
+		iface_destroy(iface);
 		return api_out(ENOMEM, 0, NULL);
 	}
 
@@ -57,7 +57,7 @@ static struct api_out iface_del(const void *request, struct api_ctx *) {
 	if (iface->type == GR_IFACE_TYPE_LOOPBACK)
 		return api_out(EINVAL, 0, NULL);
 
-	ret = iface_destroy(req->iface_id);
+	ret = iface_destroy(iface);
 
 	return api_out(-ret, 0, NULL);
 }

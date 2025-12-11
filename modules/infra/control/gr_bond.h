@@ -13,7 +13,7 @@
 #define MEMBERS_MAX_LEN ARRAY_DIM(((struct gr_iface_info_bond *)0)->members)
 
 struct bond_member {
-	const struct iface *iface;
+	struct iface *iface;
 	bool active;
 	bool need_to_transmit; // Need to send immediately
 	clock_t next_tx; // Next time we need to send a LACP packet

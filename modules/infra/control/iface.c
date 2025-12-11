@@ -131,7 +131,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
-	if (iface_set_up_down(iface->id, iface->flags & GR_IFACE_F_UP) < 0)
+	if (iface_set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
 		goto fail;
 
 	return iface;
@@ -205,14 +205,14 @@ int iface_reconfig(
 	}
 
 	if (set_attrs & GR_IFACE_SET_MTU) {
-		if ((ret = iface_set_mtu(iface->id, conf->mtu)) < 0)
+		if ((ret = iface_set_mtu(iface, conf->mtu)) < 0)
 			return ret;
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
-		if ((ret = iface_set_promisc(iface->id, conf->flags & GR_IFACE_F_PROMISC)) < 0)
+		if ((ret = iface_set_promisc(iface, conf->flags & GR_IFACE_F_PROMISC)) < 0)
 			return ret;
-		if ((ret = iface_set_up_down(iface->id, conf->flags & GR_IFACE_F_UP)) < 0)
+		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
 			return ret;
 	}
 
@@ -259,12 +259,11 @@ struct iface *iface_from_id(uint16_t ifid) {
 	return iface;
 }
 
-int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *mac) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -291,12 +290,11 @@ void iface_del_subinterface(struct iface *parent, struct iface *sub) {
 	}
 }
 
-int iface_set_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -306,12 +304,11 @@ int iface_set_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	return type->set_eth_addr(iface, mac);
 }
 
-int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -321,12 +318,11 @@ int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	return type->add_eth_addr(iface, mac);
 }
 
-int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -336,12 +332,11 @@ int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *mac) {
 	return type->del_eth_addr(iface, mac);
 }
 
-int iface_set_mtu(uint16_t ifid, uint16_t mtu) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_set_mtu(struct iface *iface, uint16_t mtu) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	if (mtu > gr_config.max_mtu)
 		return errno_set(ERANGE);
@@ -355,12 +350,11 @@ int iface_set_mtu(uint16_t ifid, uint16_t mtu) {
 	return 0;
 }
 
-int iface_set_up_down(uint16_t ifid, bool up) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_set_up_down(struct iface *iface, bool up) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -380,12 +374,11 @@ int iface_set_up_down(uint16_t ifid, bool up) {
 	return 0;
 }
 
-int iface_set_promisc(uint16_t ifid, bool enabled) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_set_promisc(struct iface *iface, bool enabled) {
 	const struct iface_type *type;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -398,13 +391,12 @@ int iface_set_promisc(uint16_t ifid, bool enabled) {
 	return 0;
 }
 
-int iface_destroy(uint16_t ifid) {
-	struct iface *iface = iface_from_id(ifid);
+int iface_destroy(struct iface *iface) {
 	const struct iface_type *type;
 	int ret;
 
 	if (iface == NULL)
-		return -errno;
+		return errno_set(EINVAL);
 
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
@@ -417,9 +409,9 @@ int iface_destroy(uint16_t ifid) {
 	}
 	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
 		vrf_decref(iface->vrf_id);
-	nexthop_iface_cleanup(ifid);
+	nexthop_iface_cleanup(iface->id);
 
-	ifaces[ifid] = NULL;
+	ifaces[iface->id] = NULL;
 
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
@@ -454,7 +446,7 @@ static void iface_fini(struct event_base *) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
 		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
-			if (iface_destroy(ifid) < 0)
+			if (iface_destroy(iface) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
 		}
@@ -465,7 +457,7 @@ static void iface_fini(struct event_base *) {
 		iface = ifaces[ifid];
 		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
 			continue;
-		if (iface_destroy(ifid) < 0)
+		if (iface_destroy(iface) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));
 	}
 
