@@ -53,6 +53,10 @@ int icmp6_local_send(
 			return errno_set(EHOSTUNREACH);
 	}
 
+	// FIXME
+	if (gw->type != GR_NH_T_L3)
+		return errno_set(ENONET);
+
 	if ((local = addr6_get_preferred(gw->iface_id, &nexthop_info_l3(gw)->ipv6)) == NULL)
 		return -errno;
 
