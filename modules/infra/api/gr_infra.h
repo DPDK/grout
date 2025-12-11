@@ -20,6 +20,7 @@ typedef enum : uint8_t {
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
 	GR_IFACE_TYPE_BOND,
+	GR_IFACE_TYPE_BRIDGE,
 	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
@@ -55,6 +56,7 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_IFACE_MODE_L3 = 0,
 	GR_IFACE_MODE_L1_XC,
+	GR_IFACE_MODE_L2_BRIDGE,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -66,10 +68,8 @@ struct __gr_iface_base {
 	gr_iface_flags_t flags; // Interface flags. Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Interface state. Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	union {
-		uint16_t vrf_id; // L3 addressing and routing domain
-		uint16_t domain_id; // L2 xconnect peer interface id
-	};
+	uint16_t vrf_id; // L3 addressing and routing domain
+	uint16_t domain_id; // L2 xconnect peer interface id
 	uint32_t speed; //!< Link speed in Megabit/sec.
 };
 
@@ -400,6 +400,8 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 		return "ipip";
 	case GR_IFACE_TYPE_BOND:
 		return "bond";
+	case GR_IFACE_TYPE_BRIDGE:
+		return "bridge";
 	case GR_IFACE_TYPE_COUNT:
 		break;
 	}
@@ -413,6 +415,8 @@ static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 		return "l3";
 	case GR_IFACE_MODE_L1_XC:
 		return "l1-xc";
+	case GR_IFACE_MODE_L2_BRIDGE:
+		return "l2-bridge";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}

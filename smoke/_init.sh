@@ -163,6 +163,12 @@ port_add() {
 	tap_counter=$((tap_counter + 1))
 }
 
+bridge_add() {
+	local name="$1"
+	grcli bridge add $name aging_time 300 max_mac_count 1024
+	echo "grcli bridge del $name" >>  $tmp/cleanup
+}
+
 llocal_addr() {
 	grcli address show iface "$1" | sed -En "s/^$1[[:space:]]+(fe80:.+)\\/64\$/\\1/p"
 }
