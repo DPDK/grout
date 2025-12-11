@@ -32,30 +32,15 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	printf("n_txq: %u\n", port->n_txq);
 	printf("rxq_size: %u\n", port->rxq_size);
 	printf("txq_size: %u\n", port->txq_size);
-
-	if (iface->mode == GR_IFACE_MODE_L1_XC) {
-		struct gr_iface *peer = iface_from_id(c, iface->domain_id);
-		if (peer != NULL)
-			printf("xc_peer: %s\n", peer->name);
-		else
-			printf("xc_peer: %u\n", iface->domain_id);
-		free(peer);
-	}
 }
 
 static void
 port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
-	struct gr_iface *peer = NULL, *bond = NULL;
+	struct gr_iface *bond = NULL;
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
-	if (iface->mode == GR_IFACE_MODE_L1_XC) {
-		if ((peer = iface_from_id(c, iface->domain_id)) != NULL)
-			SAFE_BUF(snprintf, len, " xc_peer=%s", peer->name);
-		else
-			SAFE_BUF(snprintf, len, " xc_peer=%u", iface->domain_id);
-	}
 	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
 		if ((bond = iface_from_id(c, port->bond_iface_id)) != NULL)
 			SAFE_BUF(snprintf, len, " bond=%s", bond->name);
@@ -63,7 +48,6 @@ port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 			SAFE_BUF(snprintf, len, " bond=%u", port->bond_iface_id);
 	}
 err:
-	free(peer);
 	free(bond);
 }
 
@@ -102,25 +86,6 @@ static uint64_t parse_port_args(
 	if (arg_u16(p, "Q_SIZE", &port->rxq_size) == 0) {
 		port->txq_size = port->rxq_size;
 		set_attrs |= GR_PORT_SET_Q_SIZE;
-	}
-
-	if (arg_str(p, "l3")) {
-		set_attrs |= GR_IFACE_SET_MODE;
-		set_attrs |= GR_IFACE_SET_VRF;
-		iface->mode = GR_IFACE_MODE_L3;
-		iface->vrf_id = 0;
-	} else if (arg_str(p, "xconnect")) {
-		struct gr_iface *peer = iface_from_name(c, arg_str(p, "PEER"));
-		if (peer == NULL) {
-			errno = ENODEV;
-			goto err;
-		}
-
-		set_attrs |= GR_IFACE_SET_MODE;
-		set_attrs |= GR_IFACE_SET_DOMAIN;
-		iface->mode = GR_IFACE_MODE_L1_XC;
-		iface->domain_id = peer->id;
-		free(peer);
 	}
 
 	if (set_attrs == 0)
@@ -180,19 +145,12 @@ out:
 	return ret;
 }
 
-#define PORT_ATTRS_CMD                                                                             \
-	IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE),(mode l3|(xconnect PEER))"
+#define PORT_ATTRS_CMD IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE)"
 
 #define PORT_ATTRS_ARGS                                                                            \
 	IFACE_ATTRS_ARGS, with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),  \
 		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),   \
-		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10)),    \
-		with_help("mode: \"l3\" or \"xconnect\"", ec_node_str("l3", "l3")),                \
-		with_help("mode: \"l3\" or \"xconnect\"", ec_node_str("xconnect", "xconnect")),    \
-		with_help(                                                                         \
-			"Peer interface for xconnect",                                             \
-			ec_node_dyn("PEER", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))     \
-		)
+		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -231,7 +189,89 @@ static struct cli_context ctx = {
 	.init = ctx_init,
 };
 
+static cmd_status_t l1_xc_set_peer(
+	struct gr_api_client *c,
+	struct gr_iface *iface,
+	const struct ec_pnode *p,
+	uint64_t *set_attrs
+) {
+	struct gr_iface *peer = iface_from_name(c, arg_str(p, "PEER"));
+	cmd_status_t ret = CMD_ERROR;
+	if (peer == NULL) {
+		errno = ENODEV;
+		goto err;
+	}
+
+	if (iface->type != GR_IFACE_TYPE_PORT || peer->type != GR_IFACE_TYPE_PORT) {
+		errno = EXDEV;
+		goto err;
+	}
+
+	*set_attrs |= GR_IFACE_SET_MODE;
+	*set_attrs |= GR_IFACE_SET_DOMAIN;
+	iface->mode = GR_IFACE_MODE_L1_XC;
+	iface->domain_id = peer->id;
+	ret = CMD_SUCCESS;
+err:
+	free(peer);
+	return ret;
+}
+
+static int l1_xc_init(struct ec_node *mode) {
+	return ec_node_or_add(
+		mode,
+		with_help(
+			"L1 cross connect.",
+			EC_NODE_SEQ(
+				"",
+				ec_node_str("", "xconnect"),
+				with_iface_set_callback(
+					l1_xc_set_peer,
+					with_help(
+						"Peer interface for xconnect",
+						ec_node_dyn(
+							"PEER",
+							complete_iface_names,
+							INT2PTR(GR_IFACE_TYPE_PORT)
+						)
+					)
+				)
+			)
+		)
+	);
+}
+
+static void l1_xc_show(struct gr_api_client *c, const struct gr_iface *iface) {
+	struct gr_iface *peer = iface_from_id(c, iface->domain_id);
+	if (peer != NULL)
+		printf("xc_peer: %s\n", peer->name);
+	else
+		printf("xc_peer: %u\n", iface->domain_id);
+	free(peer);
+}
+
+static void
+l1_xc_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
+	struct gr_iface *peer = NULL;
+	size_t n = 0;
+	if ((peer = iface_from_id(c, iface->domain_id)) != NULL)
+		SAFE_BUF(snprintf, len, " xc_peer=%s", peer->name);
+	else
+		SAFE_BUF(snprintf, len, " xc_peer=%u", iface->domain_id);
+err:
+	free(peer);
+}
+
+static struct cli_iface_mode iface_mode_l1xc = {
+	.mode_id = GR_IFACE_MODE_L1_XC,
+	.str = "L1 XC",
+	.init = l1_xc_init,
+	.show = l1_xc_show,
+	.list_info = l1_xc_list_info,
+};
+
 static void __attribute__((constructor, used)) init(void) {
+	register_iface_mode(&iface_mode_l1xc);
 	cli_context_register(&ctx);
 	register_iface_type(&port_type);
 }

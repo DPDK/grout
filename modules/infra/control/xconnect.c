@@ -35,6 +35,11 @@ static struct gr_api_handler l2_mode_set_handler = {
 	.callback = l2_mode_set,
 };
 
+static struct iface_mode iface_mode_xconnect = {
+	.id = GR_IFACE_MODE_L1_XC,
+};
+
 RTE_INIT(l2_constructor) {
+	iface_mode_register(&iface_mode_xconnect);
 	gr_register_api_handler(&l2_mode_set_handler);
 }

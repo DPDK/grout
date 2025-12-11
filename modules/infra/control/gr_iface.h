@@ -57,8 +57,22 @@ struct iface_type {
 	STAILQ_ENTRY(iface_type) next;
 };
 
+struct iface_mode {
+	gr_iface_mode_t id;
+	int (*init)(struct iface *, const void *api_info);
+	int (*reconfig)(
+		struct iface *,
+		uint64_t set_attrs,
+		const struct gr_iface *,
+		const void *api_info
+	);
+	STAILQ_ENTRY(iface_mode) next;
+};
+
 void iface_type_register(struct iface_type *);
+void iface_mode_register(struct iface_mode *);
 const struct iface_type *iface_type_get(gr_iface_type_t type_id);
+const struct iface_mode *iface_mode_get(gr_iface_mode_t type_id);
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info);
 int iface_reconfig(
 	uint16_t ifid,
