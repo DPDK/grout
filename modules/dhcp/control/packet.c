@@ -113,7 +113,7 @@ static struct rte_mbuf *dhcp_build_packet_common(
 		return NULL;
 	}
 
-	if (iface_get_eth_addr(iface_id, &mac) < 0) {
+	if (iface_get_eth_addr(iface, &mac) < 0) {
 		LOG(ERR, "%s: failed to get MAC for iface %u", caller, iface_id);
 		return NULL;
 	}

@@ -40,7 +40,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	if (iface == NULL)
 		return errno_set(ENODEV);
 
-	if (iface_get_eth_addr(iface->id, &mac) < 0 && errno != EOPNOTSUPP)
+	if (iface_get_eth_addr(iface, &mac) < 0 && errno != EOPNOTSUPP)
 		return -errno;
 
 	if (client->subnet_mask == 0) {

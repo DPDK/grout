@@ -210,7 +210,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		.flags = NH_LOCAL_ADDR_FLAGS,
 		.state = GR_NH_S_REACHABLE,
 	};
-	if ((ret = iface_get_eth_addr(iface->id, &l3.mac)) < 0 && errno != EOPNOTSUPP)
+	if ((ret = iface_get_eth_addr(iface, &l3.mac)) < 0 && errno != EOPNOTSUPP)
 		return errno_set(-ret);
 
 	if ((nh = nexthop_new(&base, &l3)) == NULL)
@@ -392,7 +392,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
-		if (iface_get_eth_addr(iface->id, &mac) == 0) {
+		if (iface_get_eth_addr(iface, &mac) == 0) {
 			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
 			if (iface6_addr_add(iface, &link_local, 64) < 0)
 				errno_log(errno, "iface_addr_add");

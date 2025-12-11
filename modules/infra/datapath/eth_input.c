@@ -94,7 +94,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		edge = l2l3_edges[eth_type];
 
 		if (iface == NULL || iface->id != eth_in->iface->id) {
-			if (iface_get_eth_addr(eth_in->iface->id, &iface_mac) < 0) {
+			if (iface_get_eth_addr(eth_in->iface, &iface_mac) < 0) {
 				edge = INVALID_IFACE;
 				goto next;
 			}

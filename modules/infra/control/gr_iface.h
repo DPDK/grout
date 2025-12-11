@@ -66,17 +66,17 @@ int iface_reconfig(
 	const struct gr_iface *conf,
 	const void *api_info
 );
-int iface_destroy(uint16_t ifid);
+int iface_destroy(struct iface *);
 struct iface *iface_from_id(uint16_t ifid);
 void iface_add_subinterface(struct iface *parent, struct iface *sub);
 void iface_del_subinterface(struct iface *parent, struct iface *sub);
-int iface_get_eth_addr(uint16_t ifid, struct rte_ether_addr *);
-int iface_set_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
-int iface_add_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
-int iface_del_eth_addr(uint16_t ifid, const struct rte_ether_addr *);
-int iface_set_mtu(uint16_t ifid, uint16_t mtu);
-int iface_set_up_down(uint16_t ifid, bool up);
-int iface_set_promisc(uint16_t ifid, bool enabled);
+int iface_get_eth_addr(const struct iface *, struct rte_ether_addr *);
+int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *);
+int iface_add_eth_addr(struct iface *, const struct rte_ether_addr *);
+int iface_del_eth_addr(struct iface *, const struct rte_ether_addr *);
+int iface_set_mtu(struct iface *, uint16_t mtu);
+int iface_set_up_down(struct iface *, bool up);
+int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 

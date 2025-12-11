@@ -61,6 +61,7 @@ static uint16_t arp_output_request_process(
 	const struct nexthop *local, *nh;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *mbuf;
+	struct iface *iface;
 	rte_edge_t edge;
 	uint16_t sent;
 	bool is_garp;
@@ -104,7 +105,8 @@ static uint16_t arp_output_request_process(
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REQUEST);
 		arp->arp_hlen = sizeof(struct rte_ether_addr);
 		arp->arp_plen = sizeof(ip4_addr_t);
-		if (iface_get_eth_addr(local->iface_id, &arp->arp_data.arp_sha) < 0) {
+		iface = iface_from_id(local->iface_id);
+		if (iface_get_eth_addr(iface, &arp->arp_data.arp_sha) < 0) {
 			edge = ERROR;
 			goto next;
 		}

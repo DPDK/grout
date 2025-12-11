@@ -142,7 +142,7 @@ static void build_ra_packet(struct rte_mbuf *m, const struct rte_ipv6_addr *src)
 
 	payload_len = sizeof(*icmp6) + sizeof(*ra);
 
-	if (iface_get_eth_addr(mbuf_data(m)->iface->id, &mac) == 0) {
+	if (iface_get_eth_addr(mbuf_data(m)->iface, &mac) == 0) {
 		opt = (struct icmp6_opt *)rte_pktmbuf_append(m, sizeof(*opt));
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
