@@ -134,7 +134,7 @@ jobs:
     permissions:
       actions: write
     runs-on: ubuntu-24.04
-    container: debian:testing
+    container: debian:stable
     env:
       MESON_EXTRA_OPTS: --cross-file=devtools/cross/aarch64.ini
       DEBIAN_FRONTEND: noninteractive
