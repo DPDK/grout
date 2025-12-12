@@ -57,6 +57,7 @@ static struct rte_node_register l2_redirect_node = {
 
 static struct gr_node_info l2_redirect_info = {
 	.node = &l2_redirect_node,
+	.type = GR_NODE_T_L2 | GR_NODE_T_CONTROL,
 	.register_callback = l2_redirect_register,
 };
 

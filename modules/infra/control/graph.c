@@ -474,6 +474,7 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 			const char *edge = edges[i];
 			const char *node_attrs = attrs;
 			rte_node_t id = rte_node_from_name(edge);
+			unsigned num = rte_node_edge_count(id);
 
 			if (!req->full) {
 				if (strstr(edge, "error"))
@@ -483,8 +484,11 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 				if (strcmp(edge, "control_output") == 0)
 					continue;
 			}
-			if (rte_node_edge_count(id) == 0) {
-				if (id != port_output_node && !req->full)
+			if (id == port_output_node) {
+				num = gr_node_info_get(id)->node->nb_edges;
+			}
+			if (num == 0) {
+				if (!req->full)
 					continue;
 				if (req->by_layer)
 					node_attrs = " [color=darkorange constraint=false]";

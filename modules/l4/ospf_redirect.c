@@ -138,6 +138,7 @@ static struct rte_node_register ospf_redirect_node = {
 
 static struct gr_node_info ospf_redirect_info = {
 	.node = &ospf_redirect_node,
+	.type = GR_NODE_T_L2,
 	.register_callback = ospf_redirect_register,
 };
 
