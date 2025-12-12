@@ -23,8 +23,8 @@
 <!-- bond_output&#45;&gt;port_output -->
 <g id="edge1" class="edge">
 <title>bond_output&#45;&gt;port_output</title>
-<path fill="none" stroke="darkorange" d="M2051.45,-269.09C2064.7,-274.56 2080.55,-281.1 2094.77,-286.98"/>
-<polygon fill="darkorange" stroke="darkorange" points="2093.28,-290.15 2103.86,-290.73 2095.95,-283.68 2093.28,-290.15"/>
+<path fill="none" stroke="black" d="M2051.45,-269.09C2064.7,-274.56 2080.55,-281.1 2094.77,-286.98"/>
+<polygon fill="black" stroke="black" points="2093.28,-290.15 2103.86,-290.73 2095.95,-283.68 2093.28,-290.15"/>
 </g>
 <!-- l1_xconnect -->
 <g id="node2" class="node">
@@ -35,8 +35,8 @@
 <!-- l1_xconnect&#45;&gt;port_output -->
 <g id="edge9" class="edge">
 <title>l1_xconnect&#45;&gt;port_output</title>
-<path fill="none" stroke="darkorange" d="M933.21,-793.85C973.01,-812.01 1051.23,-843 1121.42,-843 1121.42,-843 1121.42,-843 1911.37,-843 2022.76,-843 2106.62,-445.13 2128.14,-332.43"/>
-<polygon fill="darkorange" stroke="darkorange" points="2131.55,-333.24 2129.97,-322.76 2124.67,-331.94 2131.55,-333.24"/>
+<path fill="none" stroke="black" d="M933.21,-793.85C973.01,-812.01 1051.23,-843 1121.42,-843 1121.42,-843 1121.42,-843 1911.37,-843 2022.76,-843 2106.62,-445.13 2128.14,-332.43"/>
+<polygon fill="black" stroke="black" points="2131.55,-333.24 2129.97,-322.76 2124.67,-331.94 2131.55,-333.24"/>
 </g>
 <!-- port_tx -->
 <g id="node5" class="node">
@@ -149,8 +149,8 @@
 <!-- eth_output&#45;&gt;port_output -->
 <g id="edge8" class="edge">
 <title>eth_output&#45;&gt;port_output</title>
-<path fill="none" stroke="darkorange" d="M1937.43,-268.82C1950.36,-274.23 1966.37,-280.26 1981.26,-284 2015.74,-292.67 2055.66,-297.47 2085.97,-300.07"/>
-<polygon fill="darkorange" stroke="darkorange" points="2085.33,-303.53 2095.58,-300.84 2085.89,-296.55 2085.33,-303.53"/>
+<path fill="none" stroke="black" d="M1937.43,-268.82C1950.36,-274.23 1966.37,-280.26 1981.26,-284 2015.74,-292.67 2055.66,-297.47 2085.97,-300.07"/>
+<polygon fill="black" stroke="black" points="2085.33,-303.53 2095.58,-300.84 2085.89,-296.55 2085.33,-303.53"/>
 </g>
 <!-- lacp_output -->
 <g id="node9" class="node">
