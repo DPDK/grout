@@ -407,7 +407,8 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 	return 0;
 
 err:
-	nexthop_id_put(nh);
+	if (nh->ref_count == 0)
+		nexthop_id_put(nh); // nexthop was just created, release the ID
 	return ret;
 }
 
