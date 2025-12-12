@@ -43,13 +43,13 @@ cleanup() {
 	sh -x $tmp/cleanup
 
 	if socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; then
-		# delete all non-port interfaces first
+		# delete all non-port, non-bond interfaces first
 		grcli interface show |
-		grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<loopback\>' |
+		grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<bond\>' -e '\<loopback\>' |
 		while read -r name _; do
 			grcli interface del "$name"
 		done
-		# then delete all ports
+		# then delete all ports and bonds
 		grcli interface show |
 		grep -ve ^NAME -e '\<loopback\>' |
 		while read -r name _; do
