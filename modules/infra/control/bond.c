@@ -426,7 +426,7 @@ static struct iface_type iface_type_bond = {
 	.to_api = bond_to_api,
 };
 
-static void bond_event(uint32_t, const void *obj) {
+static void bond_event(uint32_t event, const void *obj) {
 	const struct iface_info_port *port;
 	const struct iface *iface = obj;
 	struct iface *b;
@@ -441,15 +441,44 @@ static void bond_event(uint32_t, const void *obj) {
 	b = iface_from_id(port->bond_iface_id);
 	if (b == NULL)
 		return;
-	assert(b->type == GR_IFACE_TYPE_BOND);
+
+	if (event == GR_EVENT_IFACE_PRE_REMOVE) {
+		// Remove port from bond
+		struct iface_info_bond *bond = iface_info_bond(b);
+		const struct iface *primary;
+
+		assert(bond->n_members > 0);
+		assert(bond->primary_member < bond->n_members);
+		primary = bond->members[bond->primary_member].iface;
+
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			if (bond->members[i].iface == iface && i != bond->n_members - 1) {
+				// Replace the deleted member with the last one in the list
+				bond->members[i] = bond->members[bond->n_members - 1];
+				break;
+			}
+		}
+
+		bond->n_members--;
+
+		// Update the primary member index after deletion
+		bond->primary_member = 0;
+		for (uint8_t i = 0; i < bond->n_members; i++) {
+			if (bond->members[i].iface == primary) {
+				bond->primary_member = i;
+				break;
+			}
+		}
+	}
 
 	bond_update_active_members(b);
 }
 
 static struct gr_event_subscription bond_event_handler = {
 	.callback = bond_event,
-	.ev_count = 2,
+	.ev_count = 3,
 	.ev_types = {
+		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
 	},
