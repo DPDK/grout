@@ -367,6 +367,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 
 int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const void *info) {
 	const struct nexthop_type_ops *ops = type_ops[base->type];
+	struct gr_nexthop_base backup = nh->base;
 	int ret;
 
 	nexthop_id_put(nh);
@@ -409,6 +410,7 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 err:
 	if (nh->ref_count == 0)
 		nexthop_id_put(nh); // nexthop was just created, release the ID
+	nh->base = backup;
 	return ret;
 }
 
