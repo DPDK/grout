@@ -8,6 +8,7 @@
 #include <rte_common.h>
 #include <rte_graph.h>
 
+#include <assert.h>
 #include <sys/queue.h>
 
 #ifdef __GROUT_UNIT_TEST__
@@ -65,6 +66,8 @@ extern struct node_infos node_infos;
 
 #define GR_NODE_REGISTER(info)                                                                     \
 	RTE_INIT(gr_node_register_##info) {                                                        \
+		assert(info.node != NULL);                                                         \
+		assert(info.type != 0);                                                            \
 		STAILQ_INSERT_TAIL(&node_infos, &info, next);                                      \
 	}
 
