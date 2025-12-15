@@ -28,6 +28,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 
 	uint16_t port_id;
 	bool started;
+	bool needs_reset;
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;

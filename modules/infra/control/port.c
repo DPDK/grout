@@ -28,6 +28,7 @@
 #include <rte_malloc.h>
 
 #include <arpa/inet.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -281,11 +282,17 @@ static int iface_port_reconfig(
 		needs_configure = true;
 	}
 
-	if (p->started && needs_configure) {
+	if (p->started && (needs_configure || p->needs_reset)) {
 		p->started = false;
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
+		if (p->needs_reset) {
+			p->needs_reset = false;
+			needs_configure = true;
+			if ((ret = rte_eth_dev_reset(p->port_id)) < 0)
+				return errno_log(-ret, "rte_eth_dev_reset");
+		} else if ((ret = rte_eth_dev_stop(p->port_id)) < 0) {
 			return errno_log(-ret, "rte_eth_dev_stop");
+		}
 	}
 
 	if (needs_configure) {
@@ -668,6 +675,51 @@ static int lsc_port_cb(
 	return 0;
 }
 
+static struct event *reset_event;
+static gr_vec uint16_t *reset_ports;
+static pthread_mutex_t reset_ports_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int intr_reset_cb(
+	uint16_t port_id,
+	enum rte_eth_event_type,
+	void * /*cb_arg*/,
+	void * /*ret_param*/
+) {
+	// Multiple VFs may be reset before reset_event is fired in the main loop.
+	// Queue the port IDs in a vector protected by a mutex so that they are all
+	// processed in port_reset_cb().
+	pthread_mutex_lock(&reset_ports_lock);
+	gr_vec_add(reset_ports, port_id);
+	pthread_mutex_unlock(&reset_ports_lock);
+	// This callback may be executed from any dataplane or DPDK thread.
+	// In order to serialize the reset of the port, propagate the callback
+	// event to the event loop running in the main lcore.
+	event_active(reset_event, 0, 0);
+	return 0;
+}
+
+static void port_reset_cb(evutil_socket_t, short, void * /*priv*/) {
+	gr_vec uint16_t *port_ids;
+
+	// reset the port_id queue
+	pthread_mutex_lock(&reset_ports_lock);
+	port_ids = reset_ports;
+	reset_ports = NULL;
+	pthread_mutex_unlock(&reset_ports_lock);
+
+	gr_vec_foreach (uint16_t pid, port_ids) {
+		struct iface *iface = (struct iface *)port_get_iface(pid);
+		if (iface != NULL) {
+			struct iface_info_port *port = iface_info_port(iface);
+			struct gr_iface_info_port api = {.mac = {{0}}};
+			LOG(INFO, "%s: port %u reset", iface->name, pid);
+			port->needs_reset = true;
+			iface_port_reconfig(iface, GR_PORT_SET_MAC, NULL, &api);
+		}
+	}
+	gr_vec_free(port_ids);
+}
+
 static void port_init(struct event_base *base) {
 	link_event = event_new(base, -1, EV_PERSIST | EV_FINALIZE, link_event_cb, NULL);
 	if (link_event == NULL)
@@ -678,12 +730,22 @@ static void port_init(struct event_base *base) {
 	if (event_add(link_event, &tv) < 0)
 		ABORT("event_add() failed");
 	rte_eth_dev_callback_register(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
+
+	// register an interrupt callback for port hardware reset events
+	reset_event = event_new(base, -1, EV_PERSIST | EV_FINALIZE, port_reset_cb, NULL);
+	if (reset_event == NULL)
+		ABORT("event_new() failed");
+	rte_eth_dev_callback_register(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_RESET, intr_reset_cb, NULL);
 }
 
 static void port_fini(struct event_base *) {
 	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
 	event_free(link_event);
 	link_event = NULL;
+	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_RESET, intr_reset_cb, NULL);
+	event_free(reset_event);
+	reset_event = NULL;
+	gr_vec_free(reset_ports);
 }
 
 static struct iface_type iface_type_port = {
