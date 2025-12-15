@@ -18,10 +18,6 @@ struct snat44_key {
 
 int snat44_static_policy_add(struct iface *iface, ip4_addr_t match, ip4_addr_t replace) {
 	const struct snat44_key key = {iface->id, match};
-	void *data = NULL;
-
-	if (rte_hash_lookup_data(snat_hash, &key, &data) >= 0)
-		return errno_set(EEXIST);
 
 	int ret = rte_hash_add_key_data(snat_hash, &key, (void *)(uintptr_t)replace);
 	if (ret < 0)

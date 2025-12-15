@@ -32,62 +32,59 @@ static void dnat44_nh_free(struct nexthop *nh) {
 static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 	struct nexthop_info_dnat *priv = nexthop_info_dnat(nh);
 	const struct gr_nexthop_info_dnat *pub = info;
+	ip4_addr_t old_replace = priv->replace;
+	ip4_addr_t old_match = priv->match;
 	struct nexthop *arp = NULL;
 	struct iface *iface;
-	int ret;
 
 	iface = iface_from_id(nh->iface_id);
 	if (iface == NULL)
 		return -errno;
 
-	if (priv->replace != 0 && priv->match != 0)
-		snat44_static_policy_del(iface, priv->replace);
+	if (priv->arp == NULL || pub->match != old_match) {
+		// Add an internal L3 nexthop to respond to ARP requests.
+		arp = nexthop_new(
+			&(struct gr_nexthop_base) {
+				.type = GR_NH_T_L3,
+				.iface_id = iface->id,
+				.vrf_id = iface->vrf_id,
+				.origin = GR_NH_ORIGIN_INTERNAL,
+			},
+			&(struct gr_nexthop_info_l3) {
+				.af = GR_AF_IP4,
+				.flags = GR_NH_F_STATIC | GR_NH_F_LOCAL,
+				.ipv4 = pub->match,
+			}
+		);
+		if (arp == NULL)
+			return -errno;
+	}
 
-	ret = snat44_static_policy_add(iface, pub->replace, pub->match);
-	if (ret < 0)
-		return -errno;
-
-	// Add an internal L3 nexthop to respond to ARP requests.
-	arp = nexthop_new(
-		&(struct gr_nexthop_base) {
-			.type = GR_NH_T_L3,
-			.iface_id = iface->id,
-			.vrf_id = iface->vrf_id,
-			.origin = GR_NH_ORIGIN_INTERNAL,
-		},
-		&(struct gr_nexthop_info_l3) {
-			.af = GR_AF_IP4,
-			.flags = GR_NH_F_STATIC | GR_NH_F_LOCAL,
-			.ipv4 = pub->match,
+	// Add new SNAT policy if addresses have changed.
+	if (pub->replace != old_replace || pub->match != old_match) {
+		int ret = snat44_static_policy_add(iface, pub->replace, pub->match);
+		if (ret < 0) {
+			if (arp != NULL)
+				nexthop_destroy(arp);
+			return errno_set(-ret);
 		}
-	);
-	if (arp == NULL) {
-		ret = -errno;
-		goto fail;
 	}
 
-	if (priv->match != 0)
-		rib4_delete(iface->vrf_id, priv->match, 32, GR_NH_T_DNAT);
-
-	ret = rib4_insert(iface->vrf_id, pub->match, 32, GR_NH_ORIGIN_INTERNAL, nh);
-	if (ret < 0)
-		goto fail;
-
+	// Update all fields.
 	priv->base = *pub;
-
-	if (priv->arp != NULL) {
-		nexthop_decref(priv->arp);
-		priv->arp = NULL;
+	if (arp != NULL) {
+		struct nexthop *old_arp = priv->arp;
+		priv->arp = arp;
+		nexthop_incref(arp);
+		if (old_arp != NULL)
+			nexthop_decref(old_arp);
 	}
-	priv->arp = arp;
-	nexthop_incref(arp);
+
+	// Delete old policy if any.
+	if (pub->replace != old_replace && old_replace != 0)
+		snat44_static_policy_del(iface, old_replace);
 
 	return 0;
-fail:
-	snat44_static_policy_del(iface, pub->replace);
-	if (arp != NULL)
-		nexthop_decref(arp);
-	return errno_set(-ret);
 }
 
 static struct gr_nexthop *dnat44_nh_to_api(const struct nexthop *nh, size_t *len) {
@@ -143,6 +140,9 @@ static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 		}
 	);
 	if (nh == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0)
 		return api_out(errno, 0, NULL);
 
 	return api_out(0, 0, NULL);
