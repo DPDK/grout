@@ -758,7 +758,8 @@ static bool l3_equal(const struct nexthop *a, const struct nexthop *b) {
 static int l3_import_info(struct nexthop *nh, const void *info) {
 	struct nexthop_info_l3 priv = *nexthop_info_l3(nh);
 	const struct gr_nexthop_info_l3 *pub = info;
-	struct nexthop_key key;
+	struct nexthop_key old_key, key;
+	bool has_old_addr, has_new_addr;
 	int ret;
 
 	priv.flags = pub->flags;
@@ -793,30 +794,32 @@ static int l3_import_info(struct nexthop *nh, const void *info) {
 	}
 
 	// Check that the new address isn't already in use by a different nexthop
-	if (pub->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&pub->ipv6)) {
+	has_new_addr = pub->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&pub->ipv6);
+	if (has_new_addr) {
 		void *existing;
 		set_nexthop_key(&key, pub->af, nh->vrf_id, nh->iface_id, &pub->addr);
 		if (rte_hash_lookup_data(hash_by_addr, &key, &existing) >= 0 && existing != nh)
 			return errno_set(EADDRINUSE);
 	}
 
-	if (priv.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&priv.ipv6)) {
-		// Free old entry in the hash table.
-		set_nexthop_key(&key, priv.af, nh->vrf_id, nh->iface_id, &priv.addr);
-		rte_hash_del_key(hash_by_addr, &key);
-	}
+	has_old_addr = priv.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&priv.ipv6);
+	if (has_old_addr)
+		set_nexthop_key(&old_key, priv.af, nh->vrf_id, nh->iface_id, &priv.addr);
 
 	// Copy new fields in the private info section.
 	priv.ipv6 = pub->ipv6; // ipv6 encompasses ipv4
 	priv.af = pub->af;
 	priv.prefixlen = pub->prefixlen;
 
-	if (priv.ipv4 != 0 || !rte_ipv6_addr_is_unspec(&priv.ipv6)) {
+	if (has_new_addr) {
 		// Add new entry in hash table for fast lookup.
-		set_nexthop_key(&key, priv.af, nh->vrf_id, nh->iface_id, &priv.addr);
 		if ((ret = rte_hash_add_key_data(hash_by_addr, &key, nh)) < 0)
 			return errno_set(-ret);
 	}
+
+	// Delete old entry only if key has changed.
+	if (has_old_addr && (!has_new_addr || memcmp(&old_key, &key, sizeof(old_key)) != 0))
+		rte_hash_del_key(hash_by_addr, &old_key);
 
 	*nexthop_info_l3(nh) = priv;
 
