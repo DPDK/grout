@@ -37,7 +37,7 @@ static void print_string(const char *str) {
 }
 
 static void print_tree(const struct ec_node *tree, unsigned depth) {
-	unsigned n_children, indent, refs;
+	unsigned n_children, indent;
 	struct ec_node *node;
 	cmd_cb_t cb;
 	char *desc;
@@ -70,7 +70,7 @@ static void print_tree(const struct ec_node *tree, unsigned depth) {
 	printf("%*s\"children\": [", indent, " ");
 	n_children = ec_node_get_children_count(tree);
 	for (unsigned i = 0; i < n_children; i++) {
-		if (ec_node_get_child(tree, i, &node, &refs) < 0)
+		if (ec_node_get_child(tree, i, &node) < 0)
 			continue;
 		if (i == 0)
 			printf("\n");
