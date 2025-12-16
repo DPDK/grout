@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/rjarry/libecoli
-revision = v0.9.1
+revision = v0.10.1
 depth = 1
 
 [provide]
