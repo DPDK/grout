@@ -133,26 +133,9 @@ static int ctx_init(struct ec_node *root) {
 
 	flavor_node = EC_NODE_CMD(
 		"FLAVORS",
-		"FLAVOR+",
-		EC_NODE_OR(
-			"FLAVOR",
-			EC_NODE_CMD(
-				EC_NO_ID,
-				"psp",
-				with_help(
-					"Penultimate Segment Pop of the SRH",
-					ec_node_str("psp", "psp")
-				)
-			),
-			EC_NODE_CMD(
-				EC_NO_ID,
-				"usd",
-				with_help(
-					"Ultimate Segment Decapsulation of the SRH",
-					ec_node_str("usd", "usd")
-				)
-			)
-		)
+		"(psp,usd)",
+		with_help("Penultimate Segment Pop of the SRH", ec_node_str("psp", "psp")),
+		with_help("Ultimate Segment Decapsulation of the SRH", ec_node_str("usd", "usd"))
 	);
 	if (flavor_node == NULL)
 		return -1;
