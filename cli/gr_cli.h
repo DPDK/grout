@@ -96,7 +96,7 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 	ec_node_or_add(                                                                            \
 		ctx,                                                                               \
 		with_callback(                                                                     \
-			cb, with_help(help, EC_NODE_CMD(cmd, cmd __VA_OPT__(, ) __VA_ARGS__))      \
+			cb, with_help(help, EC_NODE_CMD(EC_NO_ID, cmd __VA_OPT__(, ) __VA_ARGS__)) \
 		)                                                                                  \
 	)
 
