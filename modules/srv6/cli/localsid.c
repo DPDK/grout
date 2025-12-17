@@ -154,6 +154,8 @@ static int ctx_init(struct ec_node *root) {
 			)
 		)
 	);
+	if (flavor_node == NULL)
+		return -1;
 	beh_node = EC_NODE_OR(
 		"BEHAVIOR",
 		EC_NODE_CMD(
@@ -196,6 +198,8 @@ static int ctx_init(struct ec_node *root) {
 			)
 		)
 	);
+	if (beh_node == NULL)
+		return -1;
 	ret = CLI_COMMAND(
 		NEXTHOP_ADD_CTX(root),
 		"srv6-local behavior BEHAVIOR [(id ID),(vrf VRF)]",
