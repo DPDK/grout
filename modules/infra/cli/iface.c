@@ -561,6 +561,9 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		action = "reconf";
 		break;
+	case GR_EVENT_IFACE_MAC_CHANGE:
+		action = "mac change";
+		break;
 	default:
 		action = "?";
 		break;
@@ -572,7 +575,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 
 static struct cli_event_printer printer = {
 	.print = iface_event_print,
-	.ev_count = 7,
+	.ev_count = 8,
 	.ev_types = {
 		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
@@ -581,6 +584,7 @@ static struct cli_event_printer printer = {
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
 		GR_EVENT_IFACE_POST_RECONFIG,
+		GR_EVENT_IFACE_MAC_CHANGE,
 	},
 };
 
