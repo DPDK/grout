@@ -37,13 +37,7 @@ static struct event_base *ev_base;
 GR_IFACE_INFO(GR_IFACE_TYPE_LOOPBACK, iface_info_loopback, {
 	int fd;
 	struct event *ev;
-	char tun_name[IFNAMSIZ];
 });
-
-const char *loopback_get_tun_name(const struct iface *iface) {
-	struct iface_info_loopback *lo = iface_info_loopback(iface);
-	return lo->tun_name;
-}
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -199,23 +193,19 @@ int iface_loopback_delete(uint16_t vrf_id) {
 
 static int iface_loopback_init(struct iface *iface, const void * /* api_info */) {
 	struct iface_info_loopback *lo = iface_info_loopback(iface);
+	char tun_name[IFNAMSIZ];
 	struct ifreq ifr;
 	int ioctl_sock;
 	int err_save;
 	int flags;
 
 	if (iface->vrf_id)
-		snprintf(
-			lo->tun_name,
-			sizeof(lo->tun_name),
-			GR_LOOPBACK_TUN_NAME_PATTERN,
-			iface->vrf_id
-		);
+		snprintf(tun_name, sizeof(tun_name), GR_LOOPBACK_TUN_NAME_PATTERN, iface->vrf_id);
 	else
-		memccpy(lo->tun_name, iface->name, 0, sizeof(lo->tun_name));
+		memccpy(tun_name, iface->name, 0, sizeof(tun_name));
 
 	memset(&ifr, 0, sizeof(struct ifreq));
-	memccpy(ifr.ifr_name, lo->tun_name, 0, IFNAMSIZ);
+	memccpy(ifr.ifr_name, tun_name, 0, IFNAMSIZ);
 	ifr.ifr_flags = IFF_TUN | IFF_POINTOPOINT;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -233,6 +223,12 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
+	if (ioctl(ioctl_sock, SIOCGIFINDEX, &ifr) < 0) {
+		LOG(ERR, "ioctl(SIOCGIFINDEX): %s", strerror(errno));
+		goto err;
+	}
+	iface->cp_id = ifr.ifr_ifindex;
+
 	flags = fcntl(lo->fd, F_GETFL);
 	if (flags == -1) {
 		LOG(ERR, "fcntl(F_GETFL): %s", strerror(errno));
@@ -245,29 +241,18 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
-	if (ioctl(ioctl_sock, SIOCGIFFLAGS, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFFLAGS): %s", strerror(errno));
-		goto err;
-	}
-
-	if (netlink_set_addr_gen_mode_none(lo->tun_name) < 0) {
+	if (netlink_set_addr_gen_mode_none(iface->cp_id) < 0) {
 		LOG(ERR, "netlink_set_addr_gen_mode_none: %s", strerror(errno));
 		goto err;
 	}
 
-	if (netlink_link_set_admin_state(lo->tun_name, false) < 0) {
-		LOG(ERR,
-		    "netlink_link_set_admin_state(%s, false): %s",
-		    lo->tun_name,
-		    strerror(errno));
+	if (netlink_link_set_admin_state(iface->cp_id, false) < 0) {
+		LOG(ERR, "netlink_link_set_admin_state(false): %s", strerror(errno));
 		goto err;
 	}
 
-	if (netlink_link_set_admin_state(lo->tun_name, true) < 0) {
-		LOG(ERR,
-		    "netlink_link_set_admin_state(%s, true): %s",
-		    lo->tun_name,
-		    strerror(errno));
+	if (netlink_link_set_admin_state(iface->cp_id, true) < 0) {
+		LOG(ERR, "netlink_link_set_admin_state(true): %s", strerror(errno));
 		goto err;
 	}
 

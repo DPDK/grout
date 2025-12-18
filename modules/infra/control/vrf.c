@@ -5,7 +5,6 @@
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
-#include <gr_loopback.h>
 #include <gr_macro.h>
 #include <gr_module.h>
 #include <gr_netlink.h>
@@ -18,6 +17,7 @@
 struct vrf_info {
 	int ref_count;
 	struct iface *iface;
+	uint32_t vrf_ifindex;
 };
 
 // we have the same number of VRFs for IP4 and IP6
@@ -32,41 +32,47 @@ struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return vrfs[vrf_id].iface;
 }
 
-static int
-netlink_create_vrf_and_enslave(const char *vrf_name, uint32_t vrf_table, const char *loop_name) {
+static int netlink_create_vrf_and_enslave(
+	const char *vrf_name,
+	uint32_t vrf_table,
+	uint32_t loop_ifindex,
+	uint32_t *vrf_ifindex
+) {
 	int ret;
 
 	ret = netlink_link_add_vrf(vrf_name, vrf_table);
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_master(loop_name, vrf_name);
+	*vrf_ifindex = ret;
+
+	ret = netlink_link_set_master(loop_ifindex, *vrf_ifindex);
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(vrf_name, true);
+	ret = netlink_link_set_admin_state(*vrf_ifindex, true);
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(loop_name, true);
+	ret = netlink_link_set_admin_state(loop_ifindex, true);
 	if (ret < 0)
 		return ret;
 
 	return 0;
 }
 
-static int netlink_delete_vrf_and_unslave(const char *vrf_name, const char *loop_name) {
+static int netlink_delete_vrf_and_unslave(uint32_t vrf_ifindex, uint32_t loop_ifindex) {
 	int ret;
 
-	ret = netlink_link_set_master(loop_name, NULL);
+	ret = netlink_link_set_master(loop_ifindex, 0);
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(loop_name, false);
+	ret = netlink_link_set_admin_state(loop_ifindex, false);
 	if (ret < 0)
 		return ret;
 
-	return netlink_link_del_iface(vrf_name);
+	return netlink_link_del_iface(vrf_ifindex);
 }
 
 static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
@@ -77,13 +83,14 @@ static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
 	return vrf_id + 1000;
 }
 
-static void netlink_vrf_add(const struct iface *loop_iface) {
+static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *loop_iface) {
 	uint32_t table_id = vrf_id_to_table_id(loop_iface->vrf_id);
-	const char *loop_name = loopback_get_tun_name(loop_iface);
 	int ret;
 
 	if (loop_iface->vrf_id) {
-		ret = netlink_create_vrf_and_enslave(loop_iface->name, table_id, loop_name);
+		ret = netlink_create_vrf_and_enslave(
+			loop_iface->name, table_id, loop_iface->cp_id, &vrf->vrf_ifindex
+		);
 		if (ret < 0) {
 			LOG(WARNING,
 			    "create vrf %u for %s failed: %s",
@@ -94,26 +101,26 @@ static void netlink_vrf_add(const struct iface *loop_iface) {
 		}
 	}
 
-	ret = netlink_add_route(loop_name, table_id);
+	ret = netlink_add_route(loop_iface->cp_id, table_id);
 	if (ret < 0)
 		LOG(WARNING, "add route on %s failed: %s", loop_iface->name, strerror(errno));
 }
 
-static void netlink_vrf_del(const struct iface *loop_iface) {
+static void netlink_vrf_del(struct vrf_info *vrf, const struct iface *loop_iface) {
 	uint32_t table_id = vrf_id_to_table_id(loop_iface->vrf_id);
-	const char *loop_name = loopback_get_tun_name(loop_iface);
 	int ret;
 
 	if (loop_iface->vrf_id) {
-		ret = netlink_delete_vrf_and_unslave(loop_iface->name, loop_name);
+		ret = netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, loop_iface->cp_id);
 		if (ret < 0)
 			LOG(WARNING,
 			    "delete vrf %u for %s failed: %s",
 			    loop_iface->vrf_id,
 			    loop_iface->name,
 			    strerror(errno));
+		vrf->vrf_ifindex = 0;
 	} else {
-		ret = netlink_del_route(loop_name, table_id);
+		ret = netlink_del_route(loop_iface->cp_id, table_id);
 		if (ret < 0)
 			LOG(WARNING,
 			    "delete route on %s failed: %s",
@@ -136,7 +143,7 @@ void vrf_incref(uint16_t vrf_id) {
 			return;
 		}
 
-		netlink_vrf_add(vrfs[vrf_id].iface);
+		netlink_vrf_add(&vrfs[vrf_id], vrfs[vrf_id].iface);
 	}
 
 	vrfs[vrf_id].ref_count++;
@@ -148,7 +155,7 @@ void vrf_decref(uint16_t vrf_id) {
 
 	if (vrfs[vrf_id].ref_count == 1) {
 		if (vrfs[vrf_id].iface != NULL)
-			netlink_vrf_del(vrfs[vrf_id].iface);
+			netlink_vrf_del(&vrfs[vrf_id], vrfs[vrf_id].iface);
 
 		if (iface_loopback_delete(vrf_id) < 0) {
 			LOG(WARNING,

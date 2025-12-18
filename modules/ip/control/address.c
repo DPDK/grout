@@ -124,7 +124,7 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		gr_vec_free(nhs_old);
 	}
 
-	if (netlink_add_addr4(iface->name, req->addr.addr.ip) < 0)
+	if (netlink_add_addr4(iface->cp_id, req->addr.addr.ip) < 0)
 		LOG(WARNING,
 		    "add addr " IP4_F " on linux has failed (%s)",
 		    &req->addr.addr.ip,
@@ -167,7 +167,7 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 
 	iface = iface_from_id(req->addr.iface_id);
 	if (iface) {
-		if (netlink_del_addr4(iface->name, req->addr.addr.ip) < 0)
+		if (netlink_del_addr4(iface->cp_id, req->addr.addr.ip) < 0)
 			LOG(WARNING,
 			    "delete addr " IP4_F " on linux has failed (%s)",
 			    &req->addr.addr.ip,
