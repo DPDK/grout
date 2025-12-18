@@ -373,45 +373,27 @@ err:
 }
 
 static void cp_update(struct iface *iface) {
-	char current_name[IFNAMSIZ];
 	struct rte_ether_addr mac;
-	struct ifreq ifr = {0};
-	int ioctl_sock;
+	char cur_name[IFNAMSIZ];
 
-	if (iface->cp_id > 0) {
-		if (if_indextoname(iface->cp_id, current_name) != NULL
-		    && strcmp(current_name, iface->name) != 0) {
-			netlink_link_set_name(iface->cp_id, iface->name);
-		}
+	if (iface->cp_id == 0)
+		return;
+
+	if (if_indextoname(iface->cp_id, cur_name) != NULL && strcmp(cur_name, iface->name) != 0) {
+		if (netlink_link_set_name(iface->cp_id, iface->name) < 0)
+			LOG(ERR,
+			    "netlink_link_set_name(%s, %s): %s",
+			    cur_name,
+			    iface->name,
+			    strerror(errno));
 	}
 
-	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
-		goto err;
-	}
+	if (netlink_link_set_mtu(iface->cp_id, iface->mtu) < 0)
+		LOG(ERR, "netlink_link_set_mtu: %s", strerror(errno));
 
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
-	ifr.ifr_mtu = iface->mtu;
-
-	if (ioctl(ioctl_sock, SIOCSIFMTU, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCSIFMTU) %s", strerror(errno));
-		goto err;
-	}
-
-	if (ioctl(ioctl_sock, SIOCGIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCGIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
 	iface_get_eth_addr(iface, &mac);
-	memcpy(ifr.ifr_hwaddr.sa_data, mac.addr_bytes, sizeof(mac));
-	if (ioctl(ioctl_sock, SIOCSIFHWADDR, &ifr) < 0) {
-		LOG(ERR, "ioctl(SIOCSIFHWADDR) %s", strerror(errno));
-		goto err;
-	}
-
-err:
-	if (ioctl_sock > 0)
-		close(ioctl_sock);
+	if (netlink_link_set_mac(iface->cp_id, &mac) < 0)
+		LOG(ERR, "netlink_link_set_mac: %s", strerror(errno));
 }
 
 static void iface_event(uint32_t event, const void *obj) {
