@@ -48,15 +48,10 @@ again:
 	return 0;
 }
 
-int netlink_link_set_admin_state(const char *ifname, bool up) {
+int netlink_link_set_admin_state(uint32_t ifindex, bool up) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg)) + NLA_SPACE(sizeof(uint8_t))];
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
-	uint32_t ifindex;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -74,21 +69,10 @@ int netlink_link_set_admin_state(const char *ifname, bool up) {
 	return netlink_send_req(nlh);
 }
 
-int netlink_link_set_master(const char *ifname, const char *master_ifname) {
+int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(sizeof(uint32_t)))];
-	uint32_t ifindex, master_ifindex = 0;
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
-
-	if (master_ifname) {
-		master_ifindex = if_nametoindex(master_ifname);
-		if (!master_ifindex)
-			return errno_set(ENODEV);
-	}
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -112,6 +96,7 @@ int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
 	struct nlattr *linkinfo, *infodata;
+	int ifindex;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -130,18 +115,20 @@ int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
 	mnl_attr_nest_end(nlh, infodata);
 	mnl_attr_nest_end(nlh, linkinfo);
 
-	return netlink_send_req(nlh);
+	if (netlink_send_req(nlh) < 0)
+		return errno_set(errno);
+
+	ifindex = if_nametoindex(vrf_name);
+	if (!ifindex)
+		return errno_set(ENODEV);
+
+	return ifindex;
 }
 
-int netlink_link_del_iface(const char *ifname) {
+int netlink_link_del_iface(uint32_t ifindex) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
-	uint32_t ifindex;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -155,17 +142,12 @@ int netlink_link_del_iface(const char *ifname) {
 	return netlink_send_req(nlh);
 }
 
-static int netlink_add_del_route(const char *ifname, uint32_t table, bool add) {
+static int netlink_add_del_route(uint32_t ifindex, uint32_t table, bool add) {
 	// nlmsghdr + rtmsg + 3x u32 attrs (RTA_TABLE, RTA_PRIORITY, RTA_OIF)
 	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 3 * NLA_SPACE(sizeof(uint32_t))];
 	struct nlmsghdr *nlh;
 	struct rtmsg *rtm;
-	uint32_t ifindex;
 	int ret;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -201,28 +183,22 @@ static int netlink_add_del_route(const char *ifname, uint32_t table, bool add) {
 	return 0;
 }
 
-int netlink_add_route(const char *ifname, uint32_t table) {
-	return netlink_add_del_route(ifname, table, true);
+int netlink_add_route(uint32_t ifindex, uint32_t table) {
+	return netlink_add_del_route(ifindex, table, true);
 }
 
-int netlink_del_route(const char *ifname, uint32_t table) {
-	return netlink_add_del_route(ifname, table, false);
+int netlink_del_route(uint32_t ifindex, uint32_t table) {
+	return netlink_add_del_route(ifindex, table, false);
 }
 
-static int netlink_add_del_addr(const char *ifname, const void *addr, size_t addr_len, bool add) {
+static int netlink_add_del_addr(uint32_t ifindex, const void *addr, size_t addr_len, bool add) {
 	char buf[NLMSG_SPACE(
 		sizeof(struct ifaddrmsg) + 2 * NLA_SPACE(sizeof(struct rte_ipv6_addr))
-		+ // IFA_LOCAL + IFA_ADDRESS
-		NLA_SPACE(IFNAMSIZ) // IFA_LABEL
+		// IFA_LOCAL + IFA_ADDRESS
 	)];
 	bool is_ipv4 = (addr_len == sizeof(ip4_addr_t));
 	struct nlmsghdr *nlh;
 	struct ifaddrmsg *ifa;
-	uint32_t ifindex;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -250,28 +226,27 @@ static int netlink_add_del_addr(const char *ifname, const void *addr, size_t add
 		mnl_attr_put(nlh, IFA_LOCAL, addr_len, addr);
 
 	mnl_attr_put(nlh, IFA_ADDRESS, addr_len, addr);
-	mnl_attr_put_strz(nlh, IFA_LABEL, ifname);
 
 	return netlink_send_req(nlh);
 }
 
-int netlink_add_addr4(const char *ifname, ip4_addr_t ip) {
-	return netlink_add_del_addr(ifname, &ip, sizeof(ip), true);
+int netlink_add_addr4(uint32_t ifindex, ip4_addr_t ip) {
+	return netlink_add_del_addr(ifindex, &ip, sizeof(ip), true);
 }
 
-int netlink_del_addr4(const char *ifname, ip4_addr_t ip) {
-	return netlink_add_del_addr(ifname, &ip, sizeof(ip), false);
+int netlink_del_addr4(uint32_t ifindex, ip4_addr_t ip) {
+	return netlink_add_del_addr(ifindex, &ip, sizeof(ip), false);
 }
 
-int netlink_add_addr6(const char *ifname, const struct rte_ipv6_addr *ip) {
-	return netlink_add_del_addr(ifname, ip, sizeof(*ip), true);
+int netlink_add_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip) {
+	return netlink_add_del_addr(ifindex, ip, sizeof(*ip), true);
 }
 
-int netlink_del_addr6(const char *ifname, const struct rte_ipv6_addr *ip) {
-	return netlink_add_del_addr(ifname, ip, sizeof(*ip), false);
+int netlink_del_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip) {
+	return netlink_add_del_addr(ifindex, ip, sizeof(*ip), false);
 }
 
-int netlink_set_addr_gen_mode_none(const char *ifname) {
+int netlink_set_addr_gen_mode_none(uint32_t ifindex) {
 	uint8_t mode = IN6_ADDR_GEN_MODE_NONE;
 	char buf[NLMSG_SPACE(
 		sizeof(struct ifinfomsg)
@@ -281,11 +256,6 @@ int netlink_set_addr_gen_mode_none(const char *ifname) {
 	struct ifinfomsg *ifm;
 	struct nlattr *af_spec;
 	struct nlattr *af_inet6;
-	int ifindex;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -306,15 +276,10 @@ int netlink_set_addr_gen_mode_none(const char *ifname) {
 	return netlink_send_req(nlh);
 }
 
-int netlink_set_ifalias(const char *ifname, const char *ifalias) {
+int netlink_set_ifalias(uint32_t ifindex, const char *ifalias) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(IFALIASZ))];
 	struct ifinfomsg *ifm;
 	struct nlmsghdr *nlh;
-	int ifindex;
-
-	ifindex = if_nametoindex(ifname);
-	if (!ifindex)
-		return errno_set(ENODEV);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
