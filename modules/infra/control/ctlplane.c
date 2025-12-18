@@ -388,12 +388,23 @@ static void cp_update(struct iface *iface) {
 			    strerror(errno));
 	}
 
-	if (netlink_link_set_mtu(iface->cp_id, iface->mtu) < 0)
-		LOG(ERR, "netlink_link_set_mtu: %s", strerror(errno));
+	if (iface->mtu != 0) {
+		if (netlink_link_set_mtu(iface->cp_id, iface->mtu) < 0)
+			LOG(ERR,
+			    "netlink_link_set_mtu(%s, %u): %s",
+			    iface->name,
+			    iface->mtu,
+			    strerror(errno));
+	}
 
-	iface_get_eth_addr(iface, &mac);
-	if (netlink_link_set_mac(iface->cp_id, &mac) < 0)
-		LOG(ERR, "netlink_link_set_mac: %s", strerror(errno));
+	if (iface_get_eth_addr(iface, &mac) == 0) {
+		if (netlink_link_set_mac(iface->cp_id, &mac) < 0)
+			LOG(ERR,
+			    "netlink_link_set_mac(%s, " ETH_F "): %s",
+			    iface->name,
+			    &mac,
+			    strerror(errno));
+	}
 }
 
 static void iface_event(uint32_t event, const void *obj) {
