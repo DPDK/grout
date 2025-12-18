@@ -221,6 +221,7 @@ typedef enum {
 	GR_EVENT_IFACE_POST_RECONFIG = EVENT_TYPE(GR_INFRA_MODULE, 0x0005),
 	GR_EVENT_IFACE_STATUS_UP = EVENT_TYPE(GR_INFRA_MODULE, 0x0006),
 	GR_EVENT_IFACE_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0007),
+	GR_EVENT_IFACE_MAC_CHANGE = EVENT_TYPE(GR_INFRA_MODULE, 0x0008),
 } gr_event_iface_t;
 
 // interface management ///////////////////////////////////////////////////////

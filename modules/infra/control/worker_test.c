@@ -73,6 +73,10 @@ struct iface *iface_next(gr_iface_type_t /*type_id*/, const struct iface *prev) 
 	return NULL;
 }
 
+int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *) {
+	return 0;
+}
+
 mock_func(int, worker_graph_reload(struct worker *, gr_vec struct iface_info_port **));
 mock_func(int, worker_graph_reload_all(gr_vec struct iface_info_port **));
 mock_func(void, worker_graph_free(struct worker *));

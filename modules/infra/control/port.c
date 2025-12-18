@@ -354,7 +354,7 @@ static int iface_port_reconfig(
 			return ret;
 	}
 
-	if (set_attrs & GR_PORT_SET_MAC && (ret = port_mac_set(iface, &api->mac)) < 0)
+	if (set_attrs & GR_PORT_SET_MAC && (ret = iface_set_eth_addr(iface, &api->mac)) < 0)
 		return ret;
 
 	if (!p->started && (ret = rte_eth_dev_start(p->port_id)) < 0)

@@ -47,9 +47,14 @@ static int iface_vlan_reconfig(
 		if ((cur_parent = iface_from_id(cur->parent_id)) == NULL)
 			return -errno;
 		if (set_attrs & GR_VLAN_SET_MAC) {
-			// reconfig, *not initial config*
-			// remove previous mac filter (ignore errors)
-			iface_del_eth_addr(cur_parent, &cur->mac);
+			struct rte_ether_addr parent_mac;
+			if (iface_get_eth_addr(cur_parent, &parent_mac) == 0
+			    && rte_is_same_ether_addr(&parent_mac, &cur->mac)) {
+				// inherited/primary MAC: nothing to delete
+			} else {
+				// remove previous mac filter (ignore errors)
+				iface_del_eth_addr(cur_parent, &cur->mac);
+			}
 		}
 	} else {
 		cur_parent = NULL;
@@ -92,15 +97,8 @@ static int iface_vlan_reconfig(
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
-		struct iface *parent = iface_from_id(cur->parent_id);
-		if (rte_is_zero_ether_addr(&next->mac)) {
-			if ((ret = iface_get_eth_addr(parent, &cur->mac)) < 0)
-				return ret;
-		} else {
-			if ((ret = iface_add_eth_addr(parent, &next->mac)) < 0)
-				return ret;
-			cur->mac = next->mac;
-		}
+		if ((ret = iface_set_eth_addr(iface, &next->mac)) < 0)
+			return ret;
 	}
 
 	return 0;
@@ -160,6 +158,23 @@ static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_a
 	return 0;
 }
 
+static int iface_vlan_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	struct iface *parent = iface_from_id(vlan->parent_id);
+	int ret;
+
+	if (rte_is_zero_ether_addr(mac)) {
+		if ((ret = iface_get_eth_addr(parent, &vlan->mac)) < 0)
+			return ret;
+	} else {
+		if ((ret = iface_add_eth_addr(parent, mac)) < 0)
+			return ret;
+		vlan->mac = *mac;
+	}
+
+	return 0;
+}
+
 static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct iface *parent = iface_from_id(vlan->parent_id);
@@ -196,6 +211,7 @@ static const struct iface_type iface_type_vlan = {
 	.fini = iface_vlan_fini,
 	.set_up_down = iface_vlan_up_down,
 	.get_eth_addr = iface_vlan_get_eth_addr,
+	.set_eth_addr = iface_vlan_set_eth_addr,
 	.add_eth_addr = iface_vlan_add_eth_addr,
 	.del_eth_addr = iface_vlan_del_eth_addr,
 	.to_api = vlan_to_api,

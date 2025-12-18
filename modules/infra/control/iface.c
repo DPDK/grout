@@ -463,6 +463,7 @@ int iface_del_subinterface(struct iface *parent, struct iface *sub) {
 
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
+	int ret;
 
 	if (iface == NULL)
 		return errno_set(EINVAL);
@@ -472,7 +473,11 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	if (type->set_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
-	return type->set_eth_addr(iface, mac);
+	ret = type->set_eth_addr(iface, mac);
+	if (ret == 0)
+		gr_event_push(GR_EVENT_IFACE_MAC_CHANGE, iface);
+
+	return ret;
 }
 
 int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
@@ -693,6 +698,11 @@ static void iface_event(uint32_t event, const void *obj) {
 			gr_event_push(event, s);
 		}
 		break;
+	case GR_EVENT_IFACE_MAC_CHANGE:
+		str = "MAC_CHANGE";
+		gr_vec_foreach (struct iface *s, iface->subinterfaces)
+			gr_event_push(event, s);
+		break;
 	default:
 		str = "?";
 		break;
@@ -702,7 +712,7 @@ static void iface_event(uint32_t event, const void *obj) {
 
 static struct gr_event_subscription iface_event_handler = {
 	.callback = iface_event,
-	.ev_count = 7,
+	.ev_count = 8,
 	.ev_types = {
 		GR_EVENT_IFACE_ADD,
 		GR_EVENT_IFACE_POST_ADD,
@@ -711,6 +721,7 @@ static struct gr_event_subscription iface_event_handler = {
 		GR_EVENT_IFACE_POST_RECONFIG,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
+		GR_EVENT_IFACE_MAC_CHANGE,
 	},
 };
 

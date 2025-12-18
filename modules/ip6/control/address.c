@@ -478,6 +478,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		ip6_iface_addrs_flush(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
+	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
 		gr_vec_foreach (nh, addrs->nh) {
 			if (nh6_advertise(nh, NULL) < 0)
@@ -543,6 +544,7 @@ static struct gr_event_subscription iface_event_subscription = {
 		GR_EVENT_IFACE_POST_RECONFIG,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_MAC_CHANGE,
 	},
 };
 

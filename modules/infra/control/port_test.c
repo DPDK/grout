@@ -36,6 +36,9 @@ uint16_t vrf_default_get_or_create(void) {
 int vrf_incref(uint16_t) {
 	return 0;
 }
+int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *) {
+	return 0;
+}
 mock_func(struct iface *, iface_from_id(uint16_t));
 mock_func(struct iface *, iface_next(gr_iface_type_t, const struct iface *));
 mock_func(int, port_unplug(struct iface_info_port *));
