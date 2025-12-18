@@ -6,6 +6,8 @@
 #include <gr_module.h>
 #include <gr_netlink.h>
 
+#include <rte_ether.h>
+
 #include <libmnl/libmnl.h>
 #include <linux/if_link.h>
 #include <linux/netlink.h>
@@ -310,6 +312,44 @@ int netlink_link_set_name(uint32_t ifindex, const char *ifname) {
 	ifm->ifi_index = ifindex;
 
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, ifname);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_set_mtu(uint32_t ifindex, uint32_t mtu) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(sizeof(uint32_t)))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_SETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put_u32(nlh, IFLA_MTU, mtu);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_link_set_mac(uint32_t ifindex, const struct rte_ether_addr *mac) {
+	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(RTE_ETHER_ADDR_LEN))];
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_SETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+	ifm = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifm));
+	ifm->ifi_family = AF_UNSPEC;
+	ifm->ifi_index = ifindex;
+
+	mnl_attr_put(nlh, IFLA_ADDRESS, RTE_ETHER_ADDR_LEN, mac);
 
 	return netlink_send_req(nlh);
 }
