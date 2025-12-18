@@ -336,8 +336,8 @@ static struct gr_event_subscription iface_pre_rm_subscription = {
 };
 static struct gr_event_subscription iface_up_subscription = {
 	.callback = iface_up_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_STATUS_UP},
+	.ev_count = 2,
+	.ev_types = {GR_EVENT_IFACE_STATUS_UP, GR_EVENT_IFACE_MAC_CHANGE},
 };
 static struct gr_event_serializer iface_addr_serializer = {
 	.size = sizeof(struct gr_ip4_ifaddr),
