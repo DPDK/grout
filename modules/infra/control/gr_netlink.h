@@ -5,10 +5,14 @@
 
 #include <gr_net_types.h>
 
+#include <rte_ether.h>
+
 #include <stdbool.h>
 
 int netlink_link_set_admin_state(uint32_t ifindex, bool up);
+int netlink_link_set_mac(uint32_t ifindex, const struct rte_ether_addr *mac);
 int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex);
+int netlink_link_set_mtu(uint32_t ifindex, uint32_t mtu);
 int netlink_link_set_name(uint32_t ifindex, const char *ifname);
 int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id);
 int netlink_link_del_iface(uint32_t ifindex);
