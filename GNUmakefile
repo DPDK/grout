@@ -77,7 +77,7 @@ debversion = $(subst $(space),+,$(version))
 deb:
 	$Q rm -f debian/changelog
 	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
-	dpkg-buildpackage -b
+	GROUT_VERSION='$(debversion)' dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
 	mv -vf ../grout-dev_$(debversion)_all.deb grout-dev_all.deb && \
 	mv -vf ../grout-prometheus_$(debversion)_all.deb grout-prometheus_all.deb && \
@@ -91,7 +91,8 @@ rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID=
 
 .PHONY: rpm
 rpm:
-	rpmbuild -bb --build-in-place -D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
+	GROUT_VERSION="$(rpmversion)-$(rpmrelease)" rpmbuild -bb --build-in-place \
+		-D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
