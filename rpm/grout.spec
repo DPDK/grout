@@ -52,13 +52,13 @@ also in scripts one command at a time, or by batches.
 %debug_package
 %endif
 
-%package devel
-Summary: Development headers for building %{name} API clients
+%package headers
+Summary: Development headers for building grout API clients
 BuildArch: noarch
 Suggests: %{name}
 
-%description devel
-This package contains the development headers to build %{grout} API clients.
+%description headers
+This package contains the development headers to build grout API clients.
 
 %package prometheus
 Summary: Prometheus exporter for DPDK/grout
@@ -104,7 +104,7 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %attr(644, root, root) %{_mandir}/man1/grcli*.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*
 
-%files devel
+%files headers
 %doc README.md
 %license licenses/BSD-3-clause.txt
 %{_includedir}/gr_*.h
