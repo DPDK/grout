@@ -128,7 +128,14 @@ grcli_exe = executable(
 # docs/ must come after grcli_exe since man pages are generated using grcli --man
 subdir('docs')
 
-install_headers(api_headers)
+install_headers(api_headers, subdir: 'grout')
+pkg = import('pkgconfig')
+pkg.generate(
+  name: 'grout',
+  description: 'grout API headers',
+  subdirs: ['grout'],
+  install_dir: get_option('datadir') / 'pkgconfig',
+)
 
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()

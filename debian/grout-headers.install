@@ -1,1 +1,2 @@
-/usr/include/gr_*.h
+/usr/share/pkgconfig/grout.pc
+/usr/include/grout/gr_*.h
