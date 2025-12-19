@@ -107,7 +107,8 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %files headers
 %doc README.md
 %license licenses/BSD-3-clause.txt
-%{_includedir}/gr_*.h
+%{_datadir}/pkgconfig/grout.pc
+%{_includedir}/grout/gr_*.h
 
 %files prometheus
 %doc README.md
