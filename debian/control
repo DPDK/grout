@@ -50,7 +50,7 @@ Description: Graph router based on DPDK
  a CLI that uses that library. The CLI can be used as an interactive shell, but
  also in scripts one command at a time, or by batches.
 
-Package: grout-dev
+Package: grout-headers
 Architecture: all
 Depends:
  ${misc:Depends},

@@ -79,7 +79,7 @@ deb:
 	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
 	GROUT_VERSION='$(debversion)' dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
-	mv -vf ../grout-dev_$(debversion)_all.deb grout-dev_all.deb && \
+	mv -vf ../grout-headers_$(debversion)_all.deb grout-headers_all.deb && \
 	mv -vf ../grout-prometheus_$(debversion)_all.deb grout-prometheus_all.deb && \
 	mv -vf ../grout_$(debversion)_$$arch.deb grout_$$arch.deb && \
 	mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb && \
@@ -95,7 +95,7 @@ rpm:
 		-D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
-	mv -vf ~/rpmbuild/RPMS/noarch/grout-devel-$$version.noarch.rpm grout-devel.noarch.rpm && \
+	mv -vf ~/rpmbuild/RPMS/noarch/grout-headers-$$version.noarch.rpm grout-headers.noarch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-prometheus-$$version.noarch.rpm grout-prometheus.noarch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/$$arch/grout-$$version.$$arch.rpm grout.$$arch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/$$arch/grout-debuginfo-$$version.$$arch.rpm grout-debuginfo.$$arch.rpm && \
