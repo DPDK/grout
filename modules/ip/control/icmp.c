@@ -186,9 +186,6 @@ static void icmp_init(struct event_base *) {
 
 static void icmp_fini(struct event_base *) {
 	if (pool != NULL) {
-		struct icmp_queue_item *i, *tmp;
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp_queue_pop(i, true);
 		rte_mempool_free(pool);
 		pool = NULL;
 	}

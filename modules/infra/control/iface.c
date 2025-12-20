@@ -23,6 +23,7 @@
 #include <wchar.h>
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+static STAILQ_HEAD(, iface_mode) modes = STAILQ_HEAD_INITIALIZER(modes);
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
@@ -44,6 +45,23 @@ void iface_type_register(struct iface_type *type) {
 }
 
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
+
+const struct iface_mode *iface_mode_get(gr_iface_mode_t mode_id) {
+	struct iface_mode *m;
+	STAILQ_FOREACH (m, &modes, next)
+		if (m->id == mode_id)
+			return m;
+	errno = ENODEV;
+	return NULL;
+}
+
+void iface_mode_register(struct iface_mode *mode) {
+	if (iface_mode_get(mode->id) != NULL)
+		ABORT("duplicate iface mode id: %u", mode->id);
+	if (mode->id >= GR_IFACE_MODE_COUNT)
+		ABORT("invalid iface mode id: %u", mode->id);
+	STAILQ_INSERT_TAIL(&modes, mode, next);
+}
 
 // the first slot is wasted by GR_IFACE_ID_UNDEF
 static struct iface **ifaces;
@@ -75,11 +93,14 @@ static int next_ifid(uint16_t *ifid) {
 
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	const struct iface_type *type = iface_type_get(conf->type);
+	const struct iface_mode *mode = iface_mode_get(conf->mode);
 	struct iface *iface = NULL;
 	bool vrf_ref = false;
 	uint16_t ifid;
 
 	if (type == NULL)
+		goto fail;
+	if (mode == NULL)
 		goto fail;
 	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
@@ -121,6 +142,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	ifaces[ifid] = iface;
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
+
+	if (mode->init && mode->init(iface, api_info) < 0)
+		goto fail;
 
 	gr_event_push(GR_EVENT_IFACE_ADD, iface);
 	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
@@ -205,6 +229,10 @@ int iface_reconfig(
 
 	if (set_attrs & GR_IFACE_SET_MODE) {
 		iface->mode = conf->mode;
+		const struct iface_mode *mode = iface_mode_get(conf->mode);
+		assert(mode != NULL);
+		if (mode->reconfig)
+			mode->reconfig(iface, set_attrs, conf, api_info);
 	}
 
 	if (set_attrs & GR_IFACE_SET_MTU) {
@@ -533,7 +561,12 @@ static struct gr_event_subscription iface_event_handler = {
 	},
 };
 
+static struct iface_mode iface_mode_l3 = {
+	.id = GR_IFACE_MODE_L3,
+};
+
 RTE_INIT(iface_constructor) {
+	iface_mode_register(&iface_mode_l3);
 	gr_register_module(&iface_module);
 	gr_event_subscribe(&iface_event_handler);
 }

@@ -3,6 +3,7 @@
 
 #include <gr_eth.h>
 #include <gr_graph.h>
+#include <gr_iface.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
@@ -17,6 +18,8 @@ enum {
 	IP_INPUT = 0,
 	IP6_INPUT,
 	IP6_LOCAL,
+	BOND_OUTPUT,
+	PORT_OUTPUT,
 	INVALID_PACKET,
 	UNEXPECTED_UPPER,
 	NOT_ALLOWED_UPPER,
@@ -253,7 +256,21 @@ static int process_behav_decap(
 			return UNEXPECTED_UPPER;
 		edge = IP_INPUT;
 		break;
-
+	case IPPROTO_ETHERNET:
+		if (sr_d->behavior != SR_BEHAVIOR_END_DX2)
+			return UNEXPECTED_UPPER;
+		iface = iface_from_id(sr_d->out_vrf_id);
+		if (iface && iface->type == GR_IFACE_TYPE_PORT)
+			edge = PORT_OUTPUT;
+		else if (iface && iface->type == GR_IFACE_TYPE_BOND)
+			edge = BOND_OUTPUT;
+		else
+			edge = DEST_UNREACH;
+		mbuf_data(m)->iface = iface;
+		m->hash.usr = rte_be_to_cpu_32(ip6_info->ip6_hdr->vtc_flow) & RTE_IPV6_HDR_FL_MASK;
+		rte_pktmbuf_adj(m, ip6_info->ext_offset);
+		return edge;
+		break;
 	default:
 		return process_upper_layer(m, ip6_info);
 	}
@@ -336,6 +353,7 @@ static inline rte_edge_t srv6_local_process_pkt(
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT6:
 	case SR_BEHAVIOR_END_DT46:
+	case SR_BEHAVIOR_END_DX2:
 		return process_behav_decap(m, sr_d, ip6_info);
 
 	default:
@@ -394,6 +412,8 @@ static struct rte_node_register srv6_local_node = {
 		[IP_INPUT] = "ip_input",
 		[IP6_INPUT] = "ip6_input",
 		[IP6_LOCAL] = "ip6_input_local",
+		[PORT_OUTPUT] = "port_output",
+		[BOND_OUTPUT] = "bond_output",
 		[INVALID_PACKET] = "sr6_local_invalid",
 		[UNEXPECTED_UPPER] = "sr6_local_unexpected_upper",
 		[NOT_ALLOWED_UPPER] = "sr6_local_not_allowed_upper",
@@ -427,6 +447,7 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void, ip6_input_register_nexthop_type(gr_nh_type_t, const char *));
 mock_func(struct iface *, get_vrf_iface(uint16_t));
+mock_func(struct iface *, iface_from_id(uint16_t));
 
 struct ipv6_ext_base {
 	uint8_t next_hdr;

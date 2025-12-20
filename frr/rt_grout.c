@@ -266,6 +266,9 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		case SR_BEHAVIOR_END_DT46:
 			action = ZEBRA_SEG6_LOCAL_ACTION_END_DT46;
 			break;
+		case SR_BEHAVIOR_END_DX2:
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_DX2;
+			break;
 		}
 
 		ctx.table = ifindex_grout_to_frr(sr6->out_vrf_id);

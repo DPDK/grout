@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 src += files(
+  'iface_nh.c',
   'localsid.c',
   'route.c',
 )

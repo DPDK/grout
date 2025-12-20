@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "srv6.h"
+
 #include <gr_fib6.h>
 #include <gr_graph.h>
 #include <gr_ip4_datapath.h>
@@ -85,7 +87,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip6->payload_len);
 			proto = IPPROTO_IPV6;
-
+		} else if (m->packet_type & RTE_PTYPE_L2_ETHER) {
+			nh = srv6_dx2_mbuf_data(m)->nh;
+			plen = rte_pktmbuf_data_len(m);
+			proto = IPPROTO_ETHERNET;
 		} else {
 			edge = INVALID;
 			goto next;

@@ -62,6 +62,7 @@ typedef enum : uint16_t {
 	SR_BEHAVIOR_END_DT6 = 0x0012, // Decaps and IPv6 table lookup.
 	SR_BEHAVIOR_END_DT4 = 0x0013, // Decaps and IPv4 table lookup.
 	SR_BEHAVIOR_END_DT46 = 0x0014, // Decaps and IPv4/IPv6 table lookup.
+	SR_BEHAVIOR_END_DX2 = 0x0015, // Decaps and output to a specific interface.
 } gr_srv6_behavior_t;
 
 // Convert SRv6 behavior enum to string representation.
@@ -77,6 +78,8 @@ static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 		return "end.dt4";
 	case SR_BEHAVIOR_END_DT46:
 		return "end.dt46";
+	case SR_BEHAVIOR_END_DX2:
+		return "end.dx2";
 	}
 	return "?";
 }
@@ -93,4 +96,19 @@ struct gr_nexthop_info_srv6_local {
 	uint16_t out_vrf_id;
 	gr_srv6_behavior_t behavior;
 	gr_srv6_flags_t flags;
+};
+
+// interface nexthop mapping ///////////////////////////////////
+
+// Set interface to nexthop mapping for SRv6 L2 encapsulation.
+#define GR_SRV6_IFACE_NH_SET REQUEST_TYPE(GR_SRV6_MODULE, 0x0008)
+struct gr_srv6_iface_nh_set_req {
+	uint16_t iface_id;
+	uint32_t nh_id;
+};
+
+// Delete interface to nexthop mapping.
+#define GR_SRV6_IFACE_NH_DEL REQUEST_TYPE(GR_SRV6_MODULE, 0x0009)
+struct gr_srv6_iface_nh_del_req {
+	uint16_t iface_id;
 };

@@ -152,7 +152,7 @@ static struct gr_api_handler ip6_icmp_recv_handler = {
 
 #define ICMP6_LOCAL_QUEUE_SIZE 1024
 
-static void icmp_init(struct event_base *) {
+static void icmp6_init(struct event_base *) {
 	pool = rte_mempool_create(
 		"icmp6_queue",
 		ICMP6_LOCAL_QUEUE_SIZE,
@@ -170,11 +170,8 @@ static void icmp_init(struct event_base *) {
 		ABORT("rte_mempool_create(icmp6_queue) failed");
 }
 
-static void icmp_fini(struct event_base *) {
+static void icmp6_fini(struct event_base *) {
 	if (pool != NULL) {
-		struct icmp_queue_item *i, *tmp;
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp6_queue_pop(i, true);
 		rte_mempool_free(pool);
 		pool = NULL;
 	}
@@ -182,8 +179,8 @@ static void icmp_fini(struct event_base *) {
 
 static struct gr_module icmp6_module = {
 	.name = "icmp6",
-	.init = icmp_init,
-	.fini = icmp_fini,
+	.init = icmp6_init,
+	.fini = icmp6_fini,
 };
 
 RTE_INIT(icmp_module_init) {
