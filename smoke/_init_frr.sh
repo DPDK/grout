@@ -135,9 +135,9 @@ set_srv6_localsid() {
 	# map:  end.dt4 -> uDT4,  end.dt6 -> uDT6,  end.dt46 -> uDT46
 	local frr_behavior
 	case "${grout_behavior,,}" in           # ,, = lower-case
-		end.dt4)  frr_behavior="uDT4" ;;
-		end.dt6)  frr_behavior="uDT6" ;;
-		end.dt46) frr_behavior="uDT46" ;;
+		end.dt4)  frr_behavior="End.DT4" ;;
+		end.dt6)  frr_behavior="End.DT6" ;;
+		end.dt46) frr_behavior="End.DT46" ;;
 		*) echo "Unsupported behavior '${grout_behavior}'. Use end.dt4, end.dt6, end.dt46."; exit 1 ;;
 	esac
 
