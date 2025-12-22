@@ -48,28 +48,13 @@ void iface_type_register(struct iface_type *type) {
 // the first slot is wasted by GR_IFACE_ID_UNDEF
 static struct iface **ifaces;
 
-// Reserve a specific interface id.
-// Returns 0 on success, -errno on failure.
-static int reserve_ifid(uint16_t ifid) {
-	if (ifid >= MAX_IFACES)
-		return errno_set(EINVAL);
-
-	if (ifaces[ifid] == NULL)
-		return 0;
-
-	return errno_set(EBUSY);
-}
-
-// The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = GR_MAX_VRFS; i < MAX_IFACES; i++) {
-		if (reserve_ifid(i) < 0)
-			continue;
-
-		*ifid = i;
-		return 0;
+	for (uint16_t i = IFACE_ID_FIRST; i < MAX_IFACES; i++) {
+		if (ifaces[i] == NULL) {
+			*ifid = i;
+			return 0;
+		}
 	}
-
 	return errno_set(ENOSPC);
 }
 
@@ -100,11 +85,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 		vrf_incref(conf->vrf_id);
 		vrf_ref = true;
 	}
-	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
-		ifid = conf->vrf_id;
-		if (reserve_ifid(ifid) < 0)
-			goto fail;
-	} else if (next_ifid(&ifid) < 0)
+	if (next_ifid(&ifid) < 0)
 		goto fail;
 
 	iface->base = conf->base;
