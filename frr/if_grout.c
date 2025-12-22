@@ -110,6 +110,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_INSTALL);
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
+		dplane_ctx_set_ifp_speed_set(ctx, true);
+		dplane_ctx_set_ifp_speed(ctx, gr_if->base.speed);
 
 		// no bridge support in grout
 		dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
