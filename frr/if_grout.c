@@ -120,18 +120,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_ifp_zltype(ctx, link_type);
 		dplane_ctx_set_ifp_flags(ctx, gr_if_flags_to_netlink(gr_if, link_type));
 		dplane_ctx_set_ifp_protodown_set(ctx, false);
-
-		if (gr_if->base.vrf_id != 0) {
-			dplane_ctx_set_ifp_table_id(ctx, ifindex_grout_to_frr(gr_if->base.vrf_id));
-
-			// In Linux, vrf_id equals the interface index; in Grout we model a VRF
-			// with its gr‑vrf interface
-			// The gr‑vrf’s ifindex is guaranteed to match vrf_id
-			dplane_ctx_set_ifp_vrf_id(ctx, ifindex_grout_to_frr(gr_if->base.vrf_id));
-		} else {
-			dplane_ctx_set_ifp_table_id(ctx, 0);
-			dplane_ctx_set_ifp_vrf_id(ctx, 0);
-		}
+		dplane_ctx_set_ifp_table_id(ctx, gr_if->base.vrf_id);
+		dplane_ctx_set_ifp_vrf_id(ctx, gr_if->base.vrf_id);
 
 		if (mac)
 			dplane_ctx_set_ifp_hw_addr(
