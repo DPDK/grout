@@ -130,7 +130,7 @@ typedef enum : uint8_t {
 	GR_BOND_MODE_LACP,
 } gr_bond_mode_t;
 
-static inline char *gr_bond_mode_name(gr_bond_mode_t mode) {
+static inline const char *gr_bond_mode_name(gr_bond_mode_t mode) {
 	switch (mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP:
 		return "active-backup";
@@ -147,7 +147,7 @@ typedef enum : uint8_t {
 	GR_BOND_ALGO_L3_L4, // Toeplitz hash on IP addresses and TCP/UDP ports.
 } gr_bond_algo_t;
 
-static inline char *gr_bond_algo_name(gr_bond_algo_t algo) {
+static inline const char *gr_bond_algo_name(gr_bond_algo_t algo) {
 	switch (algo) {
 	case GR_BOND_ALGO_RSS:
 		return "rss";
