@@ -9,6 +9,11 @@ if [ -z "$(ip netns identify)" ]; then
 	exec ip netns exec grout "$0" "$@"
 fi
 
+ip link set lo up
+if ! ip -o addr show dev lo | grep -qF 'inet 127.0.0.1'; then
+	ip addr add 127.0.0.1/8 dev lo
+fi
+
 : "${test_frr:=false}"
 
 if [ -n "$ZEBRA_DEBUG_DPLANE_GROUT" ]; then
