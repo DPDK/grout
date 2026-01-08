@@ -192,7 +192,7 @@ static inline const char *gr_nh_type_name(const gr_nh_type_t type) {
 static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 	switch (origin) {
 	case GR_NH_ORIGIN_UNSPEC:
-		return "";
+		return "UNSPEC";
 	case GR_NH_ORIGIN_REDIRECT:
 		return "redirect";
 	case GR_NH_ORIGIN_LINK:
