@@ -21,7 +21,6 @@
 #include <rte_common.h>
 #include <rte_ethdev.h>
 #include <rte_graph.h>
-#include <rte_lcore.h>
 #include <rte_malloc.h>
 
 #include <errno.h>
@@ -421,24 +420,7 @@ end:
 	return ret;
 }
 
-static int lcore_usage_cb(unsigned int lcore_id, struct rte_lcore_usage *usage) {
-	const struct worker_stats *stats;
-	struct worker *worker;
-	STAILQ_FOREACH (worker, &workers, next) {
-		if (worker->lcore_id == lcore_id) {
-			stats = atomic_load(&worker->stats);
-			if (stats == NULL)
-				return -EIO;
-			usage->busy_cycles = stats->busy_cycles;
-			usage->total_cycles = stats->total_cycles;
-			return 0;
-		}
-	}
-	return -ENODEV;
-}
-
 static void worker_init(struct event_base *) {
-	rte_lcore_register_usage_cb(lcore_usage_cb);
 	if (worker_queue_distribute(&gr_config.datapath_cpus, NULL) < 0)
 		ABORT("initial worker start failed");
 }

@@ -19,7 +19,6 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 #include <rte_rib.h>
-#include <rte_telemetry.h>
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -29,7 +28,6 @@
 #include <sys/queue.h>
 
 static struct rte_rib **vrf_ribs;
-static struct rib4_stats stats[GR_MAX_VRFS];
 
 static struct rte_rib_conf rib_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -175,9 +173,6 @@ static int rib4_insert_or_replace(
 
 	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib_get_ext(rn);
-	gr_nh_origin_t old_origin = origin;
-	if (existing)
-		old_origin = *o;
 	*o = origin;
 	fib4_insert(vrf_id, ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
@@ -192,14 +187,8 @@ static int rib4_insert_or_replace(
 		);
 	}
 
-	if (existing) {
+	if (existing)
 		nexthop_decref(existing);
-		assert(stats[vrf_id].by_origin[old_origin] > 0);
-		stats[vrf_id].by_origin[old_origin]--;
-	} else {
-		stats[vrf_id].total_routes++;
-	}
-	stats[vrf_id].by_origin[origin]++;
 
 	return 0;
 fail:
@@ -252,11 +241,6 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t 
 			}
 		);
 	}
-	// Update statistics
-	assert(stats[vrf_id].total_routes > 0);
-	stats[vrf_id].total_routes--;
-	assert(stats[vrf_id].by_origin[origin] > 0);
-	stats[vrf_id].by_origin[origin]--;
 
 	nexthop_decref(nh);
 
@@ -427,7 +411,6 @@ static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 }
 
 static void route4_init(struct event_base *) {
-	memset(stats, 0, sizeof(stats));
 	vrf_ribs = rte_calloc(__func__, GR_MAX_VRFS, sizeof(struct rte_rib *), RTE_CACHE_LINE_SIZE);
 	if (vrf_ribs == NULL)
 		ABORT("rte_calloc(vrf_ribs): %s", rte_strerror(rte_errno));
@@ -459,54 +442,6 @@ static void rib4_cleanup_nh(
 
 void rib4_cleanup(struct nexthop *nh) {
 	rib4_iter(GR_VRF_ID_ALL, rib4_cleanup_nh, nh);
-}
-
-const struct rib4_stats *rib4_get_stats(uint16_t vrf_id) {
-	if (vrf_id >= GR_MAX_VRFS)
-		return NULL;
-	return &stats[vrf_id];
-}
-
-static int
-telemetry_rib4_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	rte_tel_data_start_dict(d);
-
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
-		const struct rib4_stats *vrf_stats = rib4_get_stats(vrf_id);
-
-		if (vrf_id != 0 && (vrf_stats == NULL || vrf_stats->total_routes == 0))
-			continue;
-
-		char vrf_key[32];
-		snprintf(vrf_key, sizeof(vrf_key), "%u", vrf_id);
-
-		struct rte_tel_data *vrf_data = rte_tel_data_alloc();
-		if (vrf_data == NULL)
-			continue;
-
-		rte_tel_data_start_dict(vrf_data);
-		rte_tel_data_add_dict_uint(vrf_data, "vrf_id", vrf_id);
-
-		struct rte_tel_data *ipv4_data = rte_tel_data_alloc();
-		if (ipv4_data != NULL) {
-			rte_tel_data_start_dict(ipv4_data);
-			rte_tel_data_add_dict_uint(ipv4_data, "total", vrf_stats->total_routes);
-			for (unsigned o = 0; o < ARRAY_DIM(vrf_stats->by_origin); o++) {
-				const char *name = gr_nh_origin_name(o);
-				uint32_t count = vrf_stats->by_origin[o];
-				if (count > 0 && strcmp(name, "") != 0 && strcmp(name, "?") != 0)
-					rte_tel_data_add_dict_uint(ipv4_data, name, count);
-			}
-			rte_tel_data_add_dict_container(vrf_data, "ipv4", ipv4_data, 1);
-		}
-
-		if (rte_tel_data_add_dict_container(d, vrf_key, vrf_data, 0) != 0) {
-			rte_tel_data_free(vrf_data);
-			continue;
-		}
-	}
-
-	return 0;
 }
 
 static int serialize_route4_event(const void *obj, void **buf) {
@@ -578,7 +513,4 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_list_handler);
 	gr_event_register_serializer(&route_serializer);
 	gr_register_module(&route4_module);
-	rte_telemetry_register_cmd(
-		"/grout/rib4/stats", telemetry_rib4_stats_get, "Get IPv4 RIB statistics"
-	);
 }

@@ -15,7 +15,6 @@
 #include <rte_hash.h>
 #include <rte_malloc.h>
 #include <rte_mempool.h>
-#include <rte_telemetry.h>
 
 #include <stdint.h>
 
@@ -33,7 +32,6 @@ static struct rte_hash *hash_by_id;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 static const struct nexthop_type_ops *type_ops[256];
-static struct nh_stats nh_stats;
 
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
@@ -385,9 +383,6 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 		return errno_set_null(-ret);
 	}
 
-	nh_stats.total++;
-	nh_stats.by_type[nh->type]++;
-
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
@@ -405,12 +400,6 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 		return errno_set(EPFNOSUPPORT);
 
 	nexthop_id_put(nh);
-
-	if (nh->ref_count > 0 && base->type != nh->type) {
-		assert(nh_stats.by_type[nh->type] > 0);
-		nh_stats.by_type[nh->type]--;
-		nh_stats.by_type[base->type]++;
-	}
 
 	// Copy base fields
 	nh->base = *base;
@@ -591,11 +580,6 @@ void nexthop_destroy(struct nexthop *nh) {
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
-	assert(nh_stats.total > 0);
-	nh_stats.total--;
-	assert(nh_stats.by_type[nh->type] > 0);
-	nh_stats.by_type[nh->type]--;
-
 	const struct nexthop_type_ops *ops = type_ops[nh->type];
 	if (ops != NULL && ops->free != NULL)
 		ops->free(nh);
@@ -673,10 +657,6 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	nexthop_iter(nexthop_ageing_cb, NULL);
 }
 
-const struct nh_stats *nexthop_get_stats(void) {
-	return &nh_stats;
-}
-
 static void nh_init(struct event_base *ev_base) {
 	pool = create_mempool(&nh_conf);
 	if (pool == NULL)
@@ -739,19 +719,6 @@ static struct gr_module module = {
 	.init = nh_init,
 	.fini = nh_fini,
 };
-
-static int
-telemetry_nexthop_stats_get(const char * /*cmd*/, const char * /*params*/, struct rte_tel_data *d) {
-	rte_tel_data_start_dict(d);
-
-	rte_tel_data_add_dict_uint(d, "total", nh_stats.total);
-	for (unsigned t = 0; t < ARRAY_DIM(nh_stats.by_type); t++) {
-		if (nh_stats.by_type[t] > 0)
-			rte_tel_data_add_dict_uint(d, gr_nh_type_name(t), nh_stats.by_type[t]);
-	}
-
-	return 0;
-}
 
 static void l3_free(struct nexthop *nh) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
@@ -1058,9 +1025,6 @@ static struct nexthop_type_ops group_nh_ops = {
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
-	rte_telemetry_register_cmd(
-		"/grout/nexthop/stats", telemetry_nexthop_stats_get, "Get nexthop statistics"
-	);
 	nexthop_type_ops_register(GR_NH_T_L3, &l3_nh_ops);
 	nexthop_type_ops_register(GR_NH_T_GROUP, &group_nh_ops);
 }

@@ -137,6 +137,7 @@ int dpdk_init(void) {
 	gr_vec_add(eal_args, "");
 	gr_vec_add(eal_args, "-l");
 	gr_vec_add(eal_args, main_lcore);
+	gr_vec_add(eal_args, "--no-telemetry");
 #ifdef RTE_BUS_PCI
 	gr_vec_add(eal_args, "-a");
 	gr_vec_add(eal_args, "pci:0000:00:00.0");

@@ -60,14 +60,6 @@ Suggests: %{name}
 %description headers
 This package contains the development headers to build grout API clients.
 
-%package prometheus
-Summary: Prometheus exporter for DPDK/grout
-BuildArch: noarch
-Requires: python3
-
-%description prometheus
-Prometheus exporter for grout.
-
 %package frr
 Summary: FRR dplane plugin for grout
 Requires: frr = %(sed -n "s/revision = frr-//p" subprojects/frr.wrap)
@@ -81,9 +73,6 @@ FRR dplane plugin for grout
 
 %install
 %meson_install --skip-subprojects
-
-install -D -m 0755 subprojects/dpdk/usertools/dpdk-telemetry-exporter.py %{buildroot}%{_bindir}/grout-telemetry-exporter
-install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojects/dpdk/usertools/telemetry-endpoints/*
 
 %post
 %systemd_post %{name}.service
@@ -109,12 +98,6 @@ install -D -m 0644 -t %{buildroot}%{_datadir}/dpdk/telemetry-endpoints subprojec
 %license licenses/BSD-3-clause.txt
 %{_datadir}/pkgconfig/grout.pc
 %{_includedir}/grout/gr_*.h
-
-%files prometheus
-%doc README.md
-%license licenses/BSD-3-clause.txt
-%attr(755, root, root) %{_bindir}/grout-telemetry-exporter
-%attr(644, root, root) %{_datadir}/dpdk/telemetry-endpoints/*
 
 %files frr
 %doc README.md

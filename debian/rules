@@ -22,10 +22,6 @@ override_dh_auto_configure:
 
 override_dh_auto_install:
 	meson install -C $(build) --skip-subprojects --destdir=$(dest)
-	install -D -m 0755 subprojects/dpdk/usertools/dpdk-telemetry-exporter.py \
-		$(dest)/usr/bin/grout-telemetry-exporter
-	install -D -m 0644 -t $(dest)/usr/share/dpdk/telemetry-endpoints \
-		subprojects/dpdk/usertools/telemetry-endpoints/*
 
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade

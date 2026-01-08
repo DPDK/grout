@@ -149,14 +149,5 @@ struct nexthop_type_ops {
 
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
 
-// Nexthop statistics structure
-struct nh_stats {
-	uint32_t total;
-	uint32_t by_type[UINT_NUM_VALUES(gr_nh_type_t)];
-};
-
-// Get nexthop statistics.
-const struct nh_stats *nexthop_get_stats(void);
-
 // Local IP address nexthops will have these flags set.
 #define NH_LOCAL_ADDR_FLAGS (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC)
