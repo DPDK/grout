@@ -222,16 +222,29 @@ int port_plug(struct iface_info_port *p) {
 	return ret;
 }
 
-static uint16_t worker_txq_id(const cpu_set_t *affinity, unsigned cpu_id) {
-	uint16_t txq = 0;
-	for (unsigned cpu = 0; cpu < CPU_SETSIZE; cpu++) {
-		if (CPU_ISSET(cpu, affinity)) {
-			if (cpu == cpu_id)
-				break;
-			txq++;
+static void worker_txq_distribute(gr_vec struct iface_info_port **ports) {
+	struct iface_info_port *port;
+	struct worker *worker;
+
+	// clear all TX queue assignments
+	STAILQ_FOREACH (worker, &workers, next)
+		gr_vec_free(worker->txqs);
+
+	// assign TX queues only to workers that have RX queues
+	gr_vec_foreach (port, ports) {
+		uint16_t txq_idx = 0;
+		STAILQ_FOREACH (worker, &workers, next) {
+			if (gr_vec_len(worker->rxqs) == 0)
+				continue;
+			struct queue_map txq = {
+				.port_id = port->port_id,
+				.queue_id = txq_idx,
+				.enabled = port->started,
+			};
+			gr_vec_add(worker->txqs, txq);
+			txq_idx++;
 		}
 	}
-	return txq;
 }
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
@@ -275,16 +288,7 @@ move:
 		break;
 	}
 
-	gr_vec struct iface_info_port **ports = NULL;
-	struct iface *iface = NULL;
-	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
-		gr_vec_add(ports, iface_info_port(iface));
-
-	// ensure source worker has released the rxq
-	if ((ret = worker_graph_reload(src_worker, ports)) < 0)
-		goto end;
-
-	// now it is safe to assign rxq to dst_worker
+	// assign rxq to dst_worker
 	struct queue_map rx_qmap = {
 		.port_id = port_id,
 		.queue_id = rxq_id,
@@ -292,9 +296,16 @@ move:
 	};
 	gr_vec_add(dst_worker->rxqs, rx_qmap);
 
-	ret = worker_graph_reload(dst_worker, ports);
+	// reassign TX queues and reload all graphs
+	gr_vec struct iface_info_port **ports = NULL;
+	struct iface *iface = NULL;
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
+		gr_vec_add(ports, iface_info_port(iface));
 
-end:
+	worker_txq_distribute(ports);
+
+	ret = worker_graph_reload_all(ports);
+
 	gr_vec_free(ports);
 	return ret;
 }
@@ -315,12 +326,9 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
 		if (CPU_ISSET(worker->cpu_id, affinity)) {
 			// Remove all RXQ/TXQ from that worker to have a clean slate.
+			// worker_graph_reload_all() will stop all workers first.
 			gr_vec_free(worker->rxqs);
 			gr_vec_free(worker->txqs);
-			if ((ret = worker_graph_reload(worker, ports)) < 0) {
-				errno_log(errno, "worker_graph_reload");
-				goto end;
-			}
 		} else {
 			// This CPU is out of the affinity mask.
 			if ((ret = worker_destroy(worker->cpu_id)) < 0) {
@@ -404,18 +412,7 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 		}
 	}
 
-	// Assign one txq of each port to each worker.
-	// Must be done in a separate loop after all workers have been created.
-	gr_vec_foreach (port, ports) {
-		STAILQ_FOREACH (worker, &workers, next) {
-			struct queue_map txq = {
-				.port_id = port->port_id,
-				.queue_id = worker_txq_id(affinity, worker->cpu_id),
-				.enabled = port->started,
-			};
-			gr_vec_add(worker->txqs, txq);
-		}
-	}
+	worker_txq_distribute(ports);
 
 	ret = worker_graph_reload_all(ports);
 end:
