@@ -275,7 +275,7 @@ static void rxq_assign_existing_worker(void **) {
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w3.txqs);
 }
 
 static void rxq_assign_existing_worker_destroy(void **) {
@@ -288,7 +288,7 @@ static void rxq_assign_existing_worker_destroy(void **) {
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w3.txqs);
 
 	assert_int_equal(worker_rxq_assign(2, 1, 1), 0);
 	assert_int_equal(worker_count(), 3);
@@ -296,8 +296,8 @@ static void rxq_assign_existing_worker_destroy(void **) {
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(1, 0), q(2, 0), q(0, 0));
-	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w2.txqs);
+	assert_qmaps(w3.txqs);
 }
 
 static void rxq_assign_new_worker(void **) {
@@ -310,7 +310,7 @@ static void rxq_assign_new_worker(void **) {
 	assert_qmaps(w3.rxqs);
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w3.txqs);
 }
 
 static void rxq_assign_new_worker_destroy(void **) {
@@ -322,8 +322,8 @@ static void rxq_assign_new_worker_destroy(void **) {
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs, q(2, 1));
 	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
-	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w2.txqs);
+	assert_qmaps(w3.txqs, q(0, 1), q(1, 1), q(2, 1));
 }
 
 static void rxq_assign_new_worker2(void **) {
@@ -399,11 +399,11 @@ static void queue_distribute_increase(void **) {
 	assert_qmaps(w3.rxqs, q(1, 0));
 	assert_qmaps(w4.rxqs, q(1, 1));
 	assert_qmaps(w5.rxqs, q(2, 0));
-	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
-	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
-	assert_qmaps(w3.txqs, q(0, 2), q(1, 2), q(2, 2));
-	assert_qmaps(w4.txqs, q(0, 3), q(1, 3), q(2, 3));
-	assert_qmaps(w5.txqs, q(0, 4), q(1, 4), q(2, 4));
+	assert_qmaps(w1.txqs, q(0, 2), q(1, 2), q(2, 2));
+	assert_qmaps(w2.txqs, q(0, 3), q(1, 3), q(2, 3));
+	assert_qmaps(w3.txqs, q(0, 4), q(1, 4), q(2, 4));
+	assert_qmaps(w4.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
 
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
 		struct iface_info_port *p = iface_info_port(ifaces[i]);
