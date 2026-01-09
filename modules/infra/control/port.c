@@ -103,9 +103,12 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	// cap number of queues to device maximum
 	p->n_txq = RTE_MIN(n_txq_min, info.max_tx_queues);
 
-	if (strcmp(info.driver_name, "net_tap") == 0) {
-		p->n_txq = RTE_MAX(p->n_txq, p->n_rxq);
-		p->n_rxq = p->n_txq;
+	if (strcmp(info.driver_name, "net_tap") == 0
+	    || strcmp(info.driver_name, "net_virtio") == 0) {
+		// force number of TX queues equal to requested RX queues
+		p->n_txq = p->n_rxq;
+		if (p->n_txq > info.max_tx_queues)
+			return errno_set(EOVERFLOW);
 	}
 
 	if (p->n_txq < n_txq_min)
