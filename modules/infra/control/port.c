@@ -97,6 +97,9 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	if (p->n_rxq == 0)
 		p->n_rxq = 1;
 
+	if (p->n_rxq > info.max_rx_queues)
+		return errno_set(EOVERFLOW);
+
 	// cap number of queues to device maximum
 	p->n_txq = RTE_MIN(n_txq_min, info.max_tx_queues);
 
