@@ -2,6 +2,7 @@
 url = https://github.com/DPDK/dpdk-stable
 revision = v25.11
 depth = 1
+diff_files = dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch
 
 [provide]
 dependency_names = libdpdk
