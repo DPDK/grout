@@ -6,6 +6,7 @@ src += files(
   'dpdk.c',
   'event.c',
   'main.c',
+  'metrics.c',
   'module.c',
   'sd_notify.c',
   'signals.c',

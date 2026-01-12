@@ -11,6 +11,7 @@ Grout is a software router based on DPDK _rte_graph_.
 # SYNOPSIS
 
 *grout*
+\[*-M* _ADDR_:_PORT_]
 \[*-S*]
 \[*-V*]
 \[*-h*]
@@ -28,6 +29,12 @@ Grout is a software router based on DPDK _rte_graph_.
 
 *-h*, *--help*
 	Display usage help.
+
+*-M*, *--metrics* _ADDR_:_PORT_
+	Change the listen address and port where openmetrics will be exported
+	via HTTP GET in a dedicated thread. To disable, use *-M* _:0_.
+
+	Default: _[::]:9111_
 
 *-m*, *--socket-mode* _PERMISSIONS_
 	Change the API socket file permissions after creating it. Only octal
