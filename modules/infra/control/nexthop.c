@@ -7,6 +7,7 @@
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_nh_control.h>
 #include <gr_rcu.h>
@@ -720,6 +721,33 @@ static struct gr_module module = {
 	.fini = nh_fini,
 };
 
+METRIC_GAUGE(m_count, "nexthop_count", "Number of nexthops by type.");
+
+static void count_types(struct nexthop *nh, void *priv) {
+	uint32_t *counts = priv;
+	counts[nh->type]++;
+}
+
+static void nexthop_metrics_collect(struct gr_metrics_writer *w) {
+	uint32_t counts[UINT_NUM_VALUES(gr_nh_type_t)];
+	struct gr_metrics_ctx ctx;
+
+	memset(counts, 0, sizeof(counts));
+	nexthop_iter(count_types, counts);
+
+	for (unsigned t = 0; t < UINT_NUM_VALUES(gr_nh_type_t); t++) {
+		if (!nexthop_type_valid(t))
+			continue;
+		gr_metrics_ctx_init(&ctx, w, "type", gr_nh_type_name(t), NULL);
+		gr_metric_emit(&ctx, &m_count, counts[t]);
+	}
+}
+
+static struct gr_metrics_collector nexthop_collector = {
+	.name = "nexthop",
+	.collect = nexthop_metrics_collect,
+};
+
 static void l3_free(struct nexthop *nh) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 
@@ -1025,6 +1053,7 @@ static struct nexthop_type_ops group_nh_ops = {
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
 	gr_register_module(&module);
+	gr_metrics_register(&nexthop_collector);
 	nexthop_type_ops_register(GR_NH_T_L3, &l3_nh_ops);
 	nexthop_type_ops_register(GR_NH_T_GROUP, &group_nh_ops);
 }
