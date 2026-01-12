@@ -43,6 +43,9 @@ mock_func(int, __wrap_rte_eth_dev_set_mc_addr_list(uint16_t, struct rte_ether_ad
 mock_func(int, __wrap_rte_eth_promiscuous_disable(uint16_t));
 mock_func(int, __wrap_rte_eth_promiscuous_enable(uint16_t));
 mock_func(int, __wrap_rte_eth_promiscuous_get(uint16_t));
+void gr_metrics_ctx_init(struct gr_metrics_ctx *, struct gr_metrics_writer *, ...) { }
+void gr_metrics_labels_add(struct gr_metrics_ctx *, ...) { }
+void gr_metric_emit(struct gr_metrics_ctx *, const struct gr_metric *, uint64_t) { }
 
 // test harness init
 static const struct rte_ether_addr default_mac = {{0x02, 0xf0, 0x00, 0xb4, 0x47, 0x01}};

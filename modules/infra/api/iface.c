@@ -6,6 +6,7 @@
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_queue.h>
 #include <gr_worker.h>
@@ -175,6 +176,82 @@ static struct gr_event_serializer iface_serializer = {
 	},
 };
 
+METRIC_GAUGE(m_up, "iface_up", "Interface administrative state.");
+METRIC_GAUGE(m_running, "iface_running", "Interface operational state.");
+METRIC_GAUGE(m_mtu, "iface_mtu", "Interface maximum transmission unit.");
+METRIC_GAUGE(m_promisc, "iface_promisc", "Interface promiscuous mode.");
+METRIC_COUNTER(m_rx_packets, "iface_rx_packets", "Number of received packets.");
+METRIC_COUNTER(m_rx_bytes, "iface_rx_bytes", "Number of received bytes.");
+METRIC_COUNTER(m_tx_packets, "iface_tx_packets", "Number of transmitted packets.");
+METRIC_COUNTER(m_tx_bytes, "iface_tx_bytes", "Number of transmitted bytes.");
+METRIC_COUNTER(
+	m_cp_rx_packets,
+	"iface_cp_rx_packets",
+	"Number of packets received by control plane."
+);
+METRIC_COUNTER(m_cp_rx_bytes, "iface_cp_rx_bytes", "Number of bytes received by control plane.");
+METRIC_COUNTER(
+	m_cp_tx_packets,
+	"iface_cp_tx_packets",
+	"Number of packets transmitted by control plane."
+);
+METRIC_COUNTER(m_cp_tx_bytes, "iface_cp_tx_bytes", "Number of bytes transmitted by control plane.");
+
+static void iface_metrics_collect(struct gr_metrics_writer *w) {
+	struct iface *iface = NULL;
+	struct gr_metrics_ctx ctx;
+	char vrf[16];
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		const struct iface_type *type = iface_type_get(iface->type);
+
+		snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
+
+		gr_metrics_ctx_init(
+			&ctx, w, "name", iface->name, "type", type->name, "vrf", vrf, NULL
+		);
+
+		gr_metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
+		gr_metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
+		gr_metric_emit(&ctx, &m_mtu, iface->mtu);
+		gr_metric_emit(&ctx, &m_promisc, !!(iface->flags & GR_IFACE_F_PROMISC));
+
+		// Aggregate per-core stats
+		uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
+		uint64_t cp_rx_pkts = 0, cp_rx_bytes = 0, cp_tx_pkts = 0, cp_tx_bytes = 0;
+
+		for (int i = 0; i < RTE_MAX_LCORE; i++) {
+			struct iface_stats *s = iface_get_stats(i, iface->id);
+			rx_pkts += s->rx_packets;
+			rx_bytes += s->rx_bytes;
+			tx_pkts += s->tx_packets;
+			tx_bytes += s->tx_bytes;
+			cp_rx_pkts += s->cp_rx_packets;
+			cp_rx_bytes += s->cp_rx_bytes;
+			cp_tx_pkts += s->cp_tx_packets;
+			cp_tx_bytes += s->cp_tx_bytes;
+		}
+
+		gr_metric_emit(&ctx, &m_rx_packets, rx_pkts);
+		gr_metric_emit(&ctx, &m_rx_bytes, rx_bytes);
+		gr_metric_emit(&ctx, &m_tx_packets, tx_pkts);
+		gr_metric_emit(&ctx, &m_tx_bytes, tx_bytes);
+		gr_metric_emit(&ctx, &m_cp_rx_packets, cp_rx_pkts);
+		gr_metric_emit(&ctx, &m_cp_rx_bytes, cp_rx_bytes);
+		gr_metric_emit(&ctx, &m_cp_tx_packets, cp_tx_pkts);
+		gr_metric_emit(&ctx, &m_cp_tx_bytes, cp_tx_bytes);
+
+		// Dispatch to type-specific collector
+		if (type->metrics_collect != NULL)
+			type->metrics_collect(&ctx, iface);
+	}
+}
+
+static struct gr_metrics_collector iface_collector = {
+	.name = "iface",
+	.collect = iface_metrics_collect,
+};
+
 RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_add_handler);
 	gr_register_api_handler(&iface_del_handler);
@@ -182,4 +259,5 @@ RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_list_handler);
 	gr_register_api_handler(&iface_set_handler);
 	gr_event_register_serializer(&iface_serializer);
+	gr_metrics_register(&iface_collector);
 }

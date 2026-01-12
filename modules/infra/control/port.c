@@ -11,6 +11,7 @@
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_mempool.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_queue.h>
@@ -610,6 +611,34 @@ static void port_to_api(void *info, const struct iface *iface) {
 	}
 }
 
+METRIC_GAUGE(m_rxqs, "iface_port_rxqs", "Number of RX queues.");
+METRIC_GAUGE(m_txqs, "iface_port_txqs", "Number of TX queues.");
+METRIC_GAUGE(m_rxq_size, "iface_port_rxq_size", "Number of descriptors in RX queues.");
+METRIC_GAUGE(m_txq_size, "iface_port_txq_size", "Number of descriptors in TX queues.");
+METRIC_COUNTER(m_rx_missed, "iface_port_rx_missed", "Number of packets dropped by HW.");
+METRIC_COUNTER(m_tx_errors, "iface_port_tx_errors", "Number of TX failures.");
+
+static void port_metrics_collect(struct gr_metrics_ctx *ctx, const struct iface *iface) {
+	const struct iface_info_port *port = iface_info_port(iface);
+	struct rte_eth_dev_info dev_info;
+	struct rte_eth_stats stats;
+
+	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0)
+		gr_metrics_labels_add(ctx, "driver", dev_info.driver_name, NULL);
+	else
+		gr_metrics_labels_add(ctx, "driver", "?", NULL);
+
+	gr_metric_emit(ctx, &m_rxqs, port->n_rxq);
+	gr_metric_emit(ctx, &m_txqs, port->n_txq);
+	gr_metric_emit(ctx, &m_rxq_size, port->rxq_size);
+	gr_metric_emit(ctx, &m_txq_size, port->txq_size);
+
+	if (rte_eth_stats_get(port->port_id, &stats) == 0) {
+		gr_metric_emit(ctx, &m_rx_missed, stats.imissed);
+		gr_metric_emit(ctx, &m_tx_errors, stats.oerrors);
+	}
+}
+
 static struct event *link_event;
 
 static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
@@ -777,6 +806,7 @@ static struct iface_type iface_type_port = {
 	.set_up_down = port_up_down,
 	.set_promisc = port_promisc_set,
 	.to_api = port_to_api,
+	.metrics_collect = port_metrics_collect,
 };
 
 static struct gr_module port_module = {

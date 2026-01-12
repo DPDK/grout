@@ -5,6 +5,7 @@
 
 #include <gr_bitops.h>
 #include <gr_infra.h>
+#include <gr_metrics.h>
 #include <gr_vec.h>
 
 #include <rte_ether.h>
@@ -53,6 +54,7 @@ struct iface_type {
 	int (*set_mtu)(struct iface *, uint16_t mtu);
 	int (*set_promisc)(struct iface *, bool enabled);
 	void (*to_api)(void *api_info, const struct iface *);
+	void (*metrics_collect)(struct gr_metrics_ctx *, const struct iface *);
 	const char *name;
 	STAILQ_ENTRY(iface_type) next;
 };
