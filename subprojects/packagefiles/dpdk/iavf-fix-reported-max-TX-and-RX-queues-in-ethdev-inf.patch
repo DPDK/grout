@@ -1,0 +1,50 @@
+From 637aa38ece33cb7fe214e8cfe0940b89160b6fa2 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Fri, 9 Jan 2026 15:17:50 +0100
+Subject: [PATCH dpdk] iavf: fix reported max TX and RX queues in ethdev info
+
+With a regular iavf device, rte_eth_dev_info_get reports 256 maximum TX
+and RX queues. Trying to configure a port with 20 queues returns an
+error:
+
+  ERR: IAVF_DRIVER: iavf_dev_configure(): large VF is not supported
+
+When the large VF feature isn't supported by the PF kernel driver,
+ethdev info must not report 256 supported queues but 16.
+
+Fixes: e436cd43835b ("net/iavf: negotiate large VF and request more queues")
+Cc: stable@dpdk.org
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ drivers/net/intel/iavf/iavf_ethdev.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/intel/iavf/iavf_ethdev.c b/drivers/net/intel/iavf/iavf_ethdev.c
+index 15e49fe24814..59328ebc5ad2 100644
+--- a/drivers/net/intel/iavf/iavf_ethdev.c
++++ b/drivers/net/intel/iavf/iavf_ethdev.c
+@@ -1126,12 +1126,18 @@ iavf_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
+ 	struct iavf_adapter *adapter =
+ 		IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+ 	struct iavf_info *vf = &adapter->vf;
++	uint16_t max_queue_pairs;
+ 
+ 	if (adapter->closed)
+ 		return -EIO;
+ 
+-	dev_info->max_rx_queues = IAVF_MAX_NUM_QUEUES_LV;
+-	dev_info->max_tx_queues = IAVF_MAX_NUM_QUEUES_LV;
++	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_LARGE_NUM_QPAIRS)
++		max_queue_pairs = IAVF_MAX_NUM_QUEUES_LV;
++	else
++		max_queue_pairs = IAVF_MAX_NUM_QUEUES_DFLT;
++
++	dev_info->max_rx_queues = max_queue_pairs;
++	dev_info->max_tx_queues = max_queue_pairs;
+ 	dev_info->min_rx_bufsize = IAVF_BUF_SIZE_MIN;
+ 	dev_info->max_rx_pktlen = IAVF_FRAME_SIZE_MAX;
+ 	dev_info->max_mtu = dev_info->max_rx_pktlen - IAVF_ETH_OVERHEAD;
+-- 
+2.52.0
+
