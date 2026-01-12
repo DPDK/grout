@@ -257,8 +257,32 @@ static struct gr_api_handler iface_stats_get_handler = {
 	.callback = iface_stats_get,
 };
 
+METRIC_COUNTER(m_packets, "node_packets", "Number of packets processed by a node.");
+METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.");
+METRIC_COUNTER(m_cycles, "node_cycles", "Number of cycles spent per node.");
+
+static void graph_metrics_collect(struct gr_metrics_writer *w) {
+	gr_vec struct gr_infra_stat *stats = worker_dump_stats(UINT16_MAX);
+	struct gr_metrics_ctx ctx;
+
+	gr_vec_foreach_ref (const struct gr_infra_stat *s, stats) {
+		gr_metrics_ctx_init(&ctx, w, "name", s->name, NULL);
+		gr_metric_emit(&ctx, &m_packets, s->packets);
+		gr_metric_emit(&ctx, &m_batches, s->batches);
+		gr_metric_emit(&ctx, &m_cycles, s->cycles);
+	}
+
+	gr_vec_free(stats);
+}
+
+static struct gr_metrics_collector graph_collector = {
+	.name = "graph",
+	.collect = graph_metrics_collect,
+};
+
 RTE_INIT(infra_stats_init) {
 	gr_register_api_handler(&stats_get_handler);
 	gr_register_api_handler(&stats_reset_handler);
 	gr_register_api_handler(&iface_stats_get_handler);
+	gr_metrics_register(&graph_collector);
 }
