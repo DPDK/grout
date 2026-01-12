@@ -13,6 +13,7 @@
 #include <rte_build_config.h>
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
+#include <rte_spinlock.h>
 
 #include <stdint.h>
 
@@ -53,7 +54,14 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		}
 	}
 
-	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
+	if (likely(ctx->lock == NULL)) {
+		tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
+	} else {
+		rte_spinlock_lock(ctx->lock);
+		tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
+		rte_spinlock_unlock(ctx->lock);
+	}
+
 	if (tx_ok < nb_objs)
 		rte_node_enqueue(graph, node, TX_ERROR, &objs[tx_ok], nb_objs - tx_ok);
 

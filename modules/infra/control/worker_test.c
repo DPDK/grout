@@ -26,7 +26,12 @@ static struct worker w2 = {.cpu_id = 2};
 static struct worker w3 = {.cpu_id = 3};
 static struct worker w4 = {.cpu_id = 4};
 static struct worker w5 = {.cpu_id = 5};
-static struct rte_eth_dev_info dev_info = {.driver_name = "net_null", .nb_rx_queues = 2};
+static struct rte_eth_dev_info dev_info = {
+	.driver_name = "net_null",
+	.nb_rx_queues = 2,
+	.max_rx_queues = 4,
+	.max_tx_queues = 4,
+};
 
 // mocked types/functions
 int gr_rte_log_type;
@@ -167,6 +172,7 @@ static int setup(void **) {
 		port->started = true;
 		port->port_id = i;
 		port->n_rxq = 2;
+		port->n_txq = 3;
 		ifaces[i] = iface;
 	}
 	STAILQ_INSERT_TAIL(&workers, &w1, next);
@@ -401,14 +407,9 @@ static void queue_distribute_increase(void **) {
 	assert_qmaps(w5.rxqs, q(2, 0));
 	assert_qmaps(w1.txqs, q(0, 2), q(1, 2), q(2, 2));
 	assert_qmaps(w2.txqs, q(0, 3), q(1, 3), q(2, 3));
-	assert_qmaps(w3.txqs, q(0, 4), q(1, 4), q(2, 4));
+	assert_qmaps(w3.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w4.txqs, q(0, 0), q(1, 0), q(2, 0));
 	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
-
-	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++) {
-		struct iface_info_port *p = iface_info_port(ifaces[i]);
-		assert_int_equal(p->n_txq, CPU_COUNT(&affinity));
-	}
 }
 
 int main(void) {

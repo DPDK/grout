@@ -164,6 +164,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		struct tx_node_ctx *ctx = tx_node_ctx(node);
 		ctx->txq.port_id = UINT16_MAX;
 		ctx->txq.queue_id = UINT16_MAX;
+		ctx->lock = NULL;
 	}
 
 	// initialize the port_output node context to point to invalid edges
@@ -190,6 +191,26 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		struct tx_node_ctx *ctx = tx_node_ctx(node);
 		ctx->txq.port_id = qmap->port_id;
 		ctx->txq.queue_id = qmap->queue_id;
+
+		// set spinlock only if multiple workers share this TX queue
+		unsigned txq_users = 0;
+		struct worker *w = NULL;
+		STAILQ_FOREACH (w, &workers, next) {
+			gr_vec_foreach_ref (struct queue_map *q, w->txqs) {
+				if (q->port_id == qmap->port_id && q->queue_id == qmap->queue_id)
+					txq_users++;
+			}
+		}
+		if (txq_users > 1) {
+			struct iface_info_port *port = find_port(ports, qmap->port_id);
+			ctx->lock = &port->txq_locks[qmap->queue_id];
+			LOG(WARNING,
+			    "[CPU %d] port %s txq %u shared by %u workers",
+			    worker->cpu_id,
+			    port->devargs,
+			    qmap->queue_id,
+			    txq_users);
+		}
 
 		for (rte_edge_t edge = 0; edge < gr_vec_len(tx_node_names); edge++) {
 			if (strcmp(tx_node_names[edge], node_name) == 0) {

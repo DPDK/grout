@@ -9,6 +9,7 @@
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_mempool.h>
+#include <rte_spinlock.h>
 
 #include <stdint.h>
 #include <sys/queue.h>
@@ -32,6 +33,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	struct rte_mempool *pool;
 	char *devargs;
 	uint32_t pool_size;
+	rte_spinlock_t txq_locks[RTE_MAX_QUEUES_PER_PORT];
 	struct {
 		mac_filter_flags_t flags;
 		unsigned hw_limit;

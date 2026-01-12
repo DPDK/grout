@@ -8,6 +8,7 @@
 
 #include <rte_build_config.h>
 #include <rte_graph.h>
+#include <rte_spinlock.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -28,7 +29,10 @@ GR_NODE_CTX_TYPE(rx_node_ctx, {
 	uint16_t burst_size;
 });
 
-GR_NODE_CTX_TYPE(tx_node_ctx, { struct port_queue txq; });
+GR_NODE_CTX_TYPE(tx_node_ctx, {
+	struct port_queue txq;
+	rte_spinlock_t *lock;
+});
 
 struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];
