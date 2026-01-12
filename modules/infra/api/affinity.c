@@ -5,6 +5,7 @@
 #include <gr_config.h>
 #include <gr_control_output.h>
 #include <gr_infra.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_vec.h>
@@ -37,6 +38,10 @@ static struct api_out affinity_set(const void *request, struct api_ctx *) {
 			goto out;
 
 		ret = -control_output_set_affinity(CPU_SETSIZE, &req->control_cpus);
+		if (ret < 0)
+			goto out;
+
+		ret = -gr_metrics_set_affinity(CPU_SETSIZE, &req->control_cpus);
 		if (ret < 0)
 			goto out;
 

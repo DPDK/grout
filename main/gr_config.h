@@ -24,6 +24,8 @@ struct gr_config {
 	gr_vec char **eal_extra_args;
 	cpu_set_t control_cpus; // control plane threads allowed CPUs
 	cpu_set_t datapath_cpus; // datapath threads allowed CPUs
+	const char *metrics_addr; // openmetrics listen address (NULL to disable)
+	uint16_t metrics_port; // openmetrics listen port (0 to disable)
 };
 
 extern struct gr_config gr_config;

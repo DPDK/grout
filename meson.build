@@ -74,6 +74,7 @@ dpdk_dep = dependency(
 )
 
 ev_core_dep = dependency('libevent_core')
+ev_extra_dep = dependency('libevent_extra')
 ev_thread_dep = dependency('libevent_pthreads')
 mnl_dep = dependency('libmnl')
 numa_dep = dependency('numa')
@@ -112,7 +113,7 @@ subdir('frr')
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_thread_dep, mnl_dep, numa_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep],
   c_args: ['-D__GROUT_MAIN__'],
   install: true,
 )

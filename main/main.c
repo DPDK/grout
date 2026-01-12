@@ -3,6 +3,7 @@
 
 #include "api.h"
 #include "dpdk.h"
+#include "gr_metrics.h"
 #include "module.h"
 #include "sd_notify.h"
 #include "signals.h"
@@ -33,6 +34,7 @@
 
 static void usage(void) {
 	printf("Usage: grout");
+	printf(" [-M ADDR:PORT]");
 	printf(" [-S]");
 	printf(" [-V]");
 	printf(" [-h]");
@@ -51,6 +53,8 @@ static void usage(void) {
 	printf("  Graph router version %s (%s).\n", GROUT_VERSION, rte_version());
 	puts("");
 	puts("options:");
+	puts("  -M, --metrics ADDR:PORT        Serve openmetrics via HTTP on ADDR:PORT");
+	puts("                                 (default [::]:9111).");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -V, --version                  Print version and exit.");
 	puts("  -h, --help                     Display this help message and exit.");
@@ -101,6 +105,36 @@ parse_uint(unsigned int *v, const char *s, uint8_t base, unsigned long min, unsi
 
 struct gr_config gr_config;
 
+static int parse_metrics_addr(char *addr_port_str) {
+	char *port_str, *colon, *brace;
+	unsigned port;
+
+	colon = strrchr(addr_port_str, ':');
+	if (colon == NULL)
+		return perr("--metrics: missing ':' (expected ADDR:PORT)");
+
+	*colon = '\0';
+	port_str = colon + 1;
+
+	if (parse_uint(&port, port_str, 10, 0, 65535) < 0)
+		return perr("--metrics: invalid port: %s", strerror(errno));
+
+	// Strip brackets around address
+	while (addr_port_str[0] == '[')
+		addr_port_str++;
+	while ((brace = strrchr(addr_port_str, ']')) != NULL)
+		*brace = '\0';
+
+	// If address is empty, default to "::"
+	if (strlen(addr_port_str) == 0)
+		strcpy(addr_port_str, "::");
+
+	gr_config.metrics_addr = addr_port_str;
+	gr_config.metrics_port = port;
+
+	return 0;
+}
+
 static int parse_sock_owner(char *user_group_str) {
 	char *group_str, *user_str = user_group_str;
 	struct passwd *pw;
@@ -136,10 +170,11 @@ static int parse_sock_owner(char *user_group_str) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":Vhm:o:pSs:tu:vx"
+#define FLAGS ":M:Vhm:o:pSs:tu:vx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"max-mtu", required_argument, NULL, 'u'},
+		{"metrics", required_argument, NULL, 'M'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"socket-mode", required_argument, NULL, 'm'},
@@ -163,6 +198,8 @@ static int parse_args(int argc, char **argv) {
 	gr_config.max_mtu = 1800;
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
+	gr_config.metrics_addr = "::";
+	gr_config.metrics_port = 9111;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
@@ -180,6 +217,10 @@ static int parse_args(int argc, char **argv) {
 			break;
 		case 'p':
 			gr_config.poll_mode = true;
+			break;
+		case 'M':
+			if (parse_metrics_addr(optarg) < 0)
+				return errno_set(EINVAL);
 			break;
 		case 'S':
 			gr_config.log_syslog = true;
@@ -271,6 +312,8 @@ int main(int argc, char **argv) {
 		goto shutdown;
 	}
 
+	gr_metrics_start();
+
 	if (register_signals(ev_base) < 0) {
 		err = errno;
 		goto shutdown;
@@ -290,6 +333,7 @@ int main(int argc, char **argv) {
 
 shutdown:
 	unregister_signals();
+	gr_metrics_stop();
 	if (ev_base) {
 		api_socket_stop(ev_base);
 		modules_fini(ev_base);
