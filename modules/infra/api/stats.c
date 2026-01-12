@@ -15,82 +15,6 @@
 
 #include <fnmatch.h>
 
-static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const char *name) {
-	struct gr_infra_stat *s;
-
-	gr_vec_foreach_ref (s, stats) {
-		if (strncmp(s->name, name, sizeof(s->name)) == 0)
-			return s;
-	}
-
-	return errno_set_null(ENOENT);
-}
-
-static gr_vec struct gr_infra_stat *graph_stats(uint16_t cpu_id) {
-	uint64_t loop_cycles = 0, node_cycles = 0, n_loops = 0, pkts = 0;
-	gr_vec struct gr_infra_stat *stats = NULL;
-	struct gr_infra_stat *s;
-	struct worker *worker;
-
-	STAILQ_FOREACH (worker, &workers, next) {
-		const struct worker_stats *w_stats = atomic_load(&worker->stats);
-		if (w_stats == NULL)
-			continue;
-		if (cpu_id != UINT16_MAX && worker->cpu_id != cpu_id)
-			continue;
-		for (unsigned i = 0; i < w_stats->n_stats; i++) {
-			const struct node_stats *n = &w_stats->stats[i];
-			const char *name = rte_node_id_to_name(n->node_id);
-			s = find_stat(stats, name);
-			if (s != NULL) {
-				s->packets += n->packets;
-				s->batches += n->batches;
-				s->cycles += n->cycles;
-			} else {
-				struct gr_infra_stat stat = {
-					.packets = n->packets,
-					.batches = n->batches,
-					.cycles = n->cycles,
-					.topo_order = n->topo_order,
-				};
-				memccpy(stat.name, name, 0, sizeof(stat.name));
-				gr_vec_add(stats, stat);
-			}
-			if (strncmp(name, "port_rx-", strlen("port_rx-")) == 0
-			    || strcmp(name, "control_input") == 0)
-				pkts += n->packets;
-			node_cycles += n->cycles;
-		}
-		s = find_stat(stats, "idle");
-		if (s != NULL) {
-			s->batches += w_stats->n_sleeps;
-			s->cycles += w_stats->sleep_cycles;
-		} else {
-			struct gr_infra_stat stat = {
-				.packets = 0,
-				.batches = w_stats->n_sleeps,
-				.cycles = w_stats->sleep_cycles,
-				.topo_order = UINT64_MAX,
-			};
-			memccpy(stat.name, "idle", 0, sizeof(stat.name));
-			gr_vec_add(stats, stat);
-		}
-		loop_cycles += w_stats->loop_cycles - w_stats->sleep_cycles;
-		n_loops += w_stats->n_loops;
-	}
-
-	struct gr_infra_stat stat = {
-		.packets = pkts,
-		.batches = n_loops,
-		.cycles = loop_cycles - node_cycles,
-		.topo_order = UINT64_MAX - 1,
-	};
-	memccpy(stat.name, "overhead", 0, sizeof(stat.name));
-	gr_vec_add(stats, stat);
-
-	return stats;
-}
-
 static bool skip_stat(const struct gr_infra_stat *s, gr_infra_stats_flags_t flags) {
 	if (flags & GR_INFRA_STAT_F_ZERO)
 		return false;
@@ -115,7 +39,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 	int ret;
 
 	if (req->flags & GR_INFRA_STAT_F_SW) {
-		stats = graph_stats(req->cpu_id);
+		stats = worker_dump_stats(req->cpu_id);
 		if (stats == NULL && req->cpu_id != UINT16_MAX)
 			return api_out(ENODEV, 0, NULL);
 	}

@@ -78,3 +78,4 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
 int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_port **ports);
 void worker_wait_ready(struct worker *);
 void worker_signal_ready(struct worker *);
+gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id);
