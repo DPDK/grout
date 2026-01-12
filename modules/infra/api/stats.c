@@ -280,9 +280,37 @@ static struct gr_metrics_collector graph_collector = {
 	.collect = graph_metrics_collect,
 };
 
+METRIC_COUNTER(m_idle_cycles, "idle_cycles", "Number of idle CPU cycles.");
+METRIC_COUNTER(m_busy_cycles, "busy_cycles", "Number of busy CPU cycles.");
+
+static void cpu_collect_metrics(struct gr_metrics_writer *w) {
+	struct gr_metrics_ctx ctx;
+	char cpu[16], numa[16];
+	struct worker *worker;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		const struct worker_stats *stats = atomic_load(&worker->stats);
+		if (stats == NULL)
+			continue;
+
+		snprintf(cpu, sizeof(cpu), "%u", worker->cpu_id);
+		snprintf(numa, sizeof(numa), "%u", rte_lcore_to_socket_id(worker->lcore_id));
+
+		gr_metrics_ctx_init(&ctx, w, "cpu", cpu, "numa", numa, NULL);
+		gr_metric_emit(&ctx, &m_idle_cycles, stats->total_cycles - stats->busy_cycles);
+		gr_metric_emit(&ctx, &m_busy_cycles, stats->busy_cycles);
+	}
+}
+
+static struct gr_metrics_collector cpu_collector = {
+	.name = "cpu",
+	.collect = cpu_collect_metrics,
+};
+
 RTE_INIT(infra_stats_init) {
 	gr_register_api_handler(&stats_get_handler);
 	gr_register_api_handler(&stats_reset_handler);
 	gr_register_api_handler(&iface_stats_get_handler);
 	gr_metrics_register(&graph_collector);
+	gr_metrics_register(&cpu_collector);
 }
