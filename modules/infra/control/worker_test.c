@@ -34,6 +34,9 @@ struct gr_config gr_config;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(struct iface_type *) { }
+void gr_metrics_ctx_init(struct gr_metrics_ctx *, struct gr_metrics_writer *, ...) { }
+void gr_metrics_labels_add(struct gr_metrics_ctx *, ...) { }
+void gr_metric_emit(struct gr_metrics_ctx *, const struct gr_metric *, uint64_t) { }
 void gr_event_push(uint32_t, const void *) { }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
