@@ -31,8 +31,4 @@ interface set port p0 rxqs 2
 interface set port p1 rxqs 2
 EOF
 
-kill -INT "$grout_pid"
-wait "$grout_pid" || fail "grout crashed on shutdown"
-
-# grout has been shutdown, avoid running any grcli command
-sed -i '/^grcli/d' $tmp/cleanup
+shutdown_grout

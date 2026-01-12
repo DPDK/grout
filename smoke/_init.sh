@@ -223,6 +223,20 @@ if [ "$run_grout" = true ]; then
 	grout_pid=$(pgrep -g0 grout)
 fi
 
+shutdown_grout(){
+       if [ "$run_grout" = true ]; then
+               kill -INT "$grout_pid"
+               wait "$grout_pid" || fail "grout crashed on shutdown"
+       else
+               systemctl kill grout.service
+               echo "systemctl start grout.service" >> $tmp/cleanup
+               sleep 2
+               journalctl -u grout -n 20 | grep -q 'Deactivated successfully' || fail "shutdown was not successful"
+       fi
+       # grout has been shutdown, avoid running any grcli command
+       sed -i '/^grcli/d' $tmp/cleanup
+}
+
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh)
 	;;
