@@ -9,6 +9,7 @@
 #include <gr_ip6.h>
 #include <gr_ip6_control.h>
 #include <gr_log.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
@@ -27,6 +28,8 @@
 #include <sys/queue.h>
 
 static struct rte_rib6 **vrf_ribs;
+
+static uint32_t route_counts[GR_MAX_VRFS][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 static struct rte_rib6_conf rib6_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -187,7 +190,13 @@ static int rib6_insert_or_replace(
 
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
 	o = rte_rib6_get_ext(rn);
+	if (existing) {
+		assert(route_counts[vrf_id][*o] > 0);
+		route_counts[vrf_id][*o]--;
+	}
 	*o = origin;
+	route_counts[vrf_id][origin]++;
+
 	fib6_insert(vrf_id, iface_id, scoped_ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -265,6 +274,9 @@ int rib6_delete(
 			}
 		);
 	}
+
+	assert(route_counts[vrf_id][origin] > 0);
+	route_counts[vrf_id][origin]--;
 
 	nexthop_decref(nh);
 
@@ -484,6 +496,34 @@ void rib6_cleanup(struct nexthop *nh) {
 	rib6_iter(GR_VRF_ID_ALL, rib6_cleanup_nh, nh);
 }
 
+METRIC_GAUGE(m_routes, "rib6_routes", "Number of IPv6 routes by origin.");
+
+static void rib6_metrics_collect(struct gr_metrics_writer *w) {
+	struct gr_metrics_ctx ctx;
+	char vrf[16];
+
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
+		if (vrf_ribs[vrf_id] == NULL)
+			continue;
+
+		snprintf(vrf, sizeof(vrf), "%u", vrf_id);
+
+		for (unsigned o = 0; o < UINT_NUM_VALUES(gr_nh_origin_t); o++) {
+			if (!nexthop_origin_valid(o))
+				continue;
+			gr_metrics_ctx_init(
+				&ctx, w, "vrf", vrf, "origin", gr_nh_origin_name(o), NULL
+			);
+			gr_metric_emit(&ctx, &m_routes, route_counts[vrf_id][o]);
+		}
+	}
+}
+
+static struct gr_metrics_collector rib6_collector = {
+	.name = "rib6",
+	.collect = rib6_metrics_collect,
+};
+
 static int serialize_route6_event(const void *obj, void **buf) {
 	const struct route6_event *priv = obj;
 	struct gr_ip6_route *r;
@@ -553,4 +593,5 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route6_list_handler);
 	gr_event_register_serializer(&route6_serializer);
 	gr_register_module(&route6_module);
+	gr_metrics_register(&rib6_collector);
 }
