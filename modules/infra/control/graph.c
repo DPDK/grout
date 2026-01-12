@@ -74,6 +74,18 @@ void worker_graph_free(struct worker *worker) {
 	}
 }
 
+static struct iface_info_port *find_port(gr_vec struct iface_info_port **ports, uint16_t port_id) {
+	struct iface_info_port *port = NULL;
+	gr_vec_foreach (struct iface_info_port *p, ports) {
+		if (p->port_id == port_id) {
+			port = p;
+			break;
+		}
+	}
+	assert(port != NULL);
+	return port;
+}
+
 static int
 worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_port **ports) {
 	gr_vec const char **graph_nodes = NULL;
@@ -139,13 +151,8 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		snprintf(node_name, sizeof(node_name), RX_NODE_FMT, qmap->port_id, qmap->queue_id);
 		node = rte_graph_node_get_by_name(graph_name, node_name);
 		struct rx_node_ctx *ctx = rx_node_ctx(node);
-		gr_vec_foreach (struct iface_info_port *p, ports) {
-			if (p->port_id == qmap->port_id) {
-				ctx->iface = RTE_PTR_SUB(p, offsetof(struct iface, info));
-				break;
-			}
-		}
-		assert(ctx->iface != NULL);
+		struct iface_info_port *port = find_port(ports, qmap->port_id);
+		ctx->iface = RTE_PTR_SUB(port, offsetof(struct iface, info));
 		ctx->rxq.port_id = qmap->port_id;
 		ctx->rxq.queue_id = qmap->queue_id;
 		ctx->burst_size = RTE_GRAPH_BURST_SIZE / gr_vec_len(worker->rxqs);
