@@ -17,16 +17,18 @@
 #define TX_NODE_BASE "port_tx"
 #define TX_NODE_FMT TX_NODE_BASE "-p%uq%u"
 
-GR_NODE_CTX_TYPE(port_queue, {
+struct port_queue {
 	uint16_t port_id;
 	uint16_t queue_id;
-});
+};
 
 GR_NODE_CTX_TYPE(rx_node_ctx, {
 	const struct iface *iface;
 	struct port_queue rxq;
 	uint16_t burst_size;
 });
+
+GR_NODE_CTX_TYPE(tx_node_ctx, { struct port_queue txq; });
 
 struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];

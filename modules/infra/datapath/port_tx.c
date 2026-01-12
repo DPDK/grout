@@ -24,7 +24,7 @@ enum {
 
 static uint16_t
 tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct port_queue *ctx = port_queue(node);
+	const struct tx_node_ctx *ctx = tx_node_ctx(node);
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
 	const struct iface_info_port *port;
 	const struct iface *iface;
@@ -38,7 +38,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			if (gr_mbuf_is_traced(mbufs[i])) {
 				struct port_queue *t;
 				t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
-				*t = *ctx;
+				*t = ctx->txq;
 			}
 		}
 		rte_node_enqueue(graph, node, TX_DOWN, objs, nb_objs);
@@ -53,7 +53,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		}
 	}
 
-	tx_ok = rte_eth_tx_burst(ctx->port_id, ctx->queue_id, mbufs, nb_objs);
+	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
 	if (tx_ok < nb_objs)
 		rte_node_enqueue(graph, node, TX_ERROR, &objs[tx_ok], nb_objs - tx_ok);
 
@@ -62,7 +62,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		if (gr_mbuf_is_traced(mbufs[i])) {
 			struct port_queue *t;
 			t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
-			*t = *ctx;
+			*t = ctx->txq;
 			gr_mbuf_trace_finish(mbufs[i]);
 		}
 	}

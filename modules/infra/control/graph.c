@@ -154,9 +154,9 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	// initialize all tx nodes context to invalid ports and queues
 	gr_vec_foreach (const char *name, tx_node_names) {
 		node = rte_graph_node_get_by_name(graph_name, name);
-		struct port_queue *ctx = port_queue(node);
-		ctx->port_id = UINT16_MAX;
-		ctx->queue_id = UINT16_MAX;
+		struct tx_node_ctx *ctx = tx_node_ctx(node);
+		ctx->txq.port_id = UINT16_MAX;
+		ctx->txq.queue_id = UINT16_MAX;
 	}
 
 	// initialize the port_output node context to point to invalid edges
@@ -180,15 +180,15 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		snprintf(node_name, sizeof(node_name), TX_NODE_FMT, qmap->port_id, qmap->queue_id);
 		node = rte_graph_node_get_by_name(graph_name, node_name);
 		// and update its context data to correct values
-		struct port_queue *ctx = port_queue(node);
-		ctx->port_id = qmap->port_id;
-		ctx->queue_id = qmap->queue_id;
+		struct tx_node_ctx *ctx = tx_node_ctx(node);
+		ctx->txq.port_id = qmap->port_id;
+		ctx->txq.queue_id = qmap->queue_id;
 
 		for (rte_edge_t edge = 0; edge < gr_vec_len(tx_node_names); edge++) {
 			if (strcmp(tx_node_names[edge], node_name) == 0) {
 				// update the port_output context data to map this port to the
 				// correct edge
-				out->edges[ctx->port_id] = edge;
+				out->edges[ctx->txq.port_id] = edge;
 				break;
 			}
 		}
