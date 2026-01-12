@@ -236,9 +236,10 @@ static void worker_txq_distribute(gr_vec struct iface_info_port **ports) {
 		STAILQ_FOREACH (worker, &workers, next) {
 			if (gr_vec_len(worker->rxqs) == 0)
 				continue;
+			assert(port->n_txq > 0);
 			struct queue_map txq = {
 				.port_id = port->port_id,
-				.queue_id = txq_idx,
+				.queue_id = txq_idx % port->n_txq,
 				.enabled = port->started,
 			};
 			gr_vec_add(worker->txqs, txq);

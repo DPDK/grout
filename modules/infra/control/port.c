@@ -91,18 +91,25 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	if (numa_available() != -1)
 		socket_id = rte_eth_dev_socket_id(p->port_id);
 
-	// FIXME: deal with drivers that do not support more than 1 (or N) tx queues
-	p->n_txq = n_txq_min;
+	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
+		return errno_log(-ret, "rte_eth_dev_info_get");
+
 	if (p->n_rxq == 0)
 		p->n_rxq = 1;
 
-	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
-		return errno_log(-ret, "rte_eth_dev_info_get");
+	// cap number of queues to device maximum
+	p->n_txq = RTE_MIN(n_txq_min, info.max_tx_queues);
 
 	if (strcmp(info.driver_name, "net_tap") == 0) {
 		p->n_txq = RTE_MAX(p->n_txq, p->n_rxq);
 		p->n_rxq = p->n_txq;
 	}
+
+	if (p->n_txq < n_txq_min)
+		LOG(NOTICE, "port %s TX queues limited to %u", p->devargs, p->n_txq);
+
+	for (uint16_t q = 0; q < p->n_txq; q++)
+		rte_spinlock_init(&p->txq_locks[q]);
 
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
