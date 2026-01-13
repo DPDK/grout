@@ -129,6 +129,58 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
+  node-complexity:
+    if: ${{ github.actor != 'grout-bot' }}
+    permissions:
+      actions: write
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
+      CC: ccache gcc
+      BUILDTYPE: debugoptimized
+      SANITIZE: none
+      MESON_EXTRA_OPTS: -Ddpdk:cpu_instruction_set=x86-64-v3
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          dnf install -y ccache git gcc make meson ninja-build \
+                pkgconf python3-pyelftools scdoc libmnl-devel binutils \
+                libcmocka-devel libedit-devel libevent-devel numactl-devel \
+                libsmartcols-devel libarchive-devel rdma-core-devel llvm
+      - uses: actions/checkout@v4
+      - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-x86_64-gcc-node-complexity
+      - run: ccache -z
+      - run: make
+      - run: devtools/node-complexity --mcpu=x86-64-v3 --compare devtools/complexity.json
+      - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request.commits }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request.commits }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
   build-cross-aarch64:
     if: ${{ github.actor != 'grout-bot' }}
     permissions:
