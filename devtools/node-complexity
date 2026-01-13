@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+"""
+Analyze datapath node complexity using llvm-mca for cycle estimation.
+
+Reports estimated cycles per invocation (BlockRThroughput) for each node
+processing function, both local (function only) and total (including callees).
+"""
+
+import argparse
+import json
+import pathlib
+import re
+import subprocess
+import sys
+
+EXCLUDED_FUNCS = frozenset(
+    [
+        "rte_log",
+        "rte_vlog",
+        "gr_mbuf_trace_add",
+        "gr_mbuf_trace_copy",
+        "gr_mbuf_trace_finish",
+        "gr_trace_all_enabled",
+        "trace_log_packet",
+        "__rte_node_stream_alloc_size",
+    ]
+)
+
+
+def extract_functions(binary_path: pathlib.Path) -> tuple[dict, dict]:
+    """
+    Extract assembly and call graph for each function from objdump output.
+
+    Returns a tuple of:
+    - functions: dict mapping function names to their assembly lines
+    - call_graph: dict mapping function names to list of called functions
+    """
+    result = subprocess.run(
+        ["objdump", "-d", "--no-show-raw-insn", binary_path],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    functions = {}
+    call_graph = {}
+    current_func = None
+    lines = []
+    calls = []
+
+    func_pattern = re.compile(r"^[0-9a-f]+\s+<([^>]+)>:$")
+    insn_pattern = re.compile(r"^\s+[0-9a-f]+:\s+(.+)$")
+    call_pattern = re.compile(r"call[q]?\s+[0-9a-f]+\s+<([^>@]+)(?:@plt)?>")
+
+    for line in result.stdout.splitlines():
+        func_match = func_pattern.match(line)
+        if func_match:
+            if current_func and lines:
+                functions[current_func] = lines
+                call_graph[current_func] = calls
+            current_func = func_match.group(1)
+            lines = []
+            calls = []
+        elif current_func:
+            insn_match = insn_pattern.match(line)
+            if insn_match:
+                insn = insn_match.group(1)
+                lines.append(insn)
+                call_match = call_pattern.search(insn)
+                if call_match:
+                    c = call_match.group(1)
+                    if c not in EXCLUDED_FUNCS:
+                        calls.append(call_match.group(1))
+
+    if current_func and lines:
+        functions[current_func] = lines
+        call_graph[current_func] = calls
+
+    return functions, call_graph
+
+
+def run_llvm_mca(asm_lines: list[str], mcpu: str = "native") -> dict | None:
+    """
+    Run llvm-mca on assembly and return local metrics.
+
+    Returns dict with cycles, uops, ipc.
+    """
+    # Clean assembly for llvm-mca consumption.
+    # Remove call instructions (we account for them separately) and replace
+    # jump targets with dummy labels.
+    jump_pattern = re.compile(r"(j[a-z]+)\s+[0-9a-f]+\s+<[^>]+>")
+    call_pattern = re.compile(r"call[q]?\s+")
+    cleaned = []
+    for line in asm_lines:
+        # Skip call instructions - we handle them via call graph
+        if call_pattern.match(line):
+            continue
+        line = jump_pattern.sub(r"\1 .Ldummy", line)
+        cleaned.append(line)
+    if not cleaned:
+        return None
+
+    asm_text = "\n".join(cleaned)
+
+    result = subprocess.run(
+        [
+            "llvm-mca",
+            f"-mcpu={mcpu}",
+            "--json",
+            "-skip-unsupported-instructions=parse-failure",
+        ],
+        input=asm_text,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(result.stdout)
+    summary = data["CodeRegions"][0]["SummaryView"]
+    return {
+        "cycles": round(summary["BlockRThroughput"], 1),
+        "uops": summary["TotaluOps"] // summary["Iterations"],
+        "ipc": round(summary["IPC"], 2),
+    }
+
+
+def extract_source_functions(source_dir: pathlib.Path) -> set[str]:
+    """
+    Extract node process function names from source code.
+    """
+    functions = set()
+
+    for filepath in source_dir.rglob("*.c"):
+        text = filepath.read_text(encoding="utf-8", errors="ignore")
+        for f in re.finditer(r"^\t\.process = (\w+)", text, re.MULTILINE):
+            functions.add(f.group(1))
+
+    return functions
+
+
+def collect_reachable(target_funcs: set[str], call_graph: dict) -> set[str]:
+    """
+    Collect all functions reachable from target functions via call graph.
+    """
+    reachable = set()
+    worklist = list(target_funcs)
+    while worklist:
+        func = worklist.pop()
+        if func in reachable:
+            continue
+        reachable.add(func)
+        for callee in call_graph.get(func, []):
+            if callee not in reachable:
+                worklist.append(callee)
+    return reachable
+
+
+def analyze_functions(
+    all_functions: dict, call_graph: dict, target_funcs: set[str], mcpu: str
+) -> dict:
+    """
+    Run llvm-mca analysis and compute total cycles including callees.
+
+    Returns dict mapping function names to their metrics, including
+    flattened first-level callees with their total cycles.
+    """
+    # Only analyze functions reachable from targets
+    reachable = collect_reachable(target_funcs, call_graph)
+
+    # First pass: get local metrics for reachable functions
+    local_metrics = {}
+    for func_name in reachable:
+        if func_name not in all_functions:
+            continue
+        metrics = run_llvm_mca(all_functions[func_name], mcpu)
+        if metrics:
+            local_metrics[func_name] = metrics
+
+    def get_total_cycles(func_name: str, visited: set[str]) -> float:
+        if func_name not in local_metrics or func_name in visited:
+            return 0.0
+
+        visited.add(func_name)
+        total = local_metrics[func_name]["cycles"]
+
+        for callee in call_graph.get(func_name, []):
+            total += get_total_cycles(callee, visited)
+
+        return round(total, 1)
+
+    def get_first_level_callees(func_name: str) -> list[dict]:
+        """Get deduplicated first-level callees with their total cycles."""
+        seen = set()
+        result = []
+        for callee in call_graph.get(func_name, []):
+            if callee in seen or callee not in local_metrics:
+                continue
+            seen.add(callee)
+            m = local_metrics[callee]
+            result.append(
+                {
+                    "name": callee,
+                    "self_cycles": m["cycles"],
+                    "total_cycles": get_total_cycles(callee, {func_name}),
+                    "uops": m["uops"],
+                    "ipc": m["ipc"],
+                }
+            )
+        result.sort(key=lambda x: x["total_cycles"], reverse=True)
+        return result
+
+    # Build results for target functions
+    results = {}
+    for func_name in target_funcs:
+        if func_name not in local_metrics:
+            continue
+        local = local_metrics[func_name]
+        total_cycles = get_total_cycles(func_name, set())
+        callees = get_first_level_callees(func_name)
+        results[func_name] = {
+            "self_cycles": local["cycles"],
+            "total_cycles": round(total_cycles, 1),
+            "uops": local["uops"],
+            "ipc": local["ipc"],
+        }
+        if callees:
+            results[func_name]["callees"] = callees
+
+    return results
+
+
+def print_table(functions: dict, baseline: dict | None = None):
+    """Print metrics in a human-readable table format."""
+    if not functions:
+        print("No matching functions found.")
+        return
+
+    columns = ["FUNCTION", "SELF_CYCLES", "TOTAL_CYCLES", "UOPS", "IPC"]
+    widths = [max(len(c), 5) for c in columns]
+
+    for name, m in functions.items():
+        if len(name) > widths[0]:
+            widths[0] = len(name)
+        for callee in m.get("callees", []):
+            if len(callee["name"]) + 2 > widths[0]:
+                widths[0] = len(callee["name"]) + 2
+
+    if baseline is not None:
+        widths[1] = max(widths[1], 15)
+        widths[2] = max(widths[2], 15)
+        widths[3] = max(widths[3], 12)
+        widths[4] = max(widths[4], 12)
+
+    widths = [f"{i and '>' or '<'}{w}" for i, w in enumerate(widths)]
+
+    def print_row(cells: list[str]):
+        row = []
+        for c, w in zip(cells, widths):
+            row.append(f"{{:{w}}}".format(c))
+        print("  ".join(row))
+
+    def format_col(
+        current: int | str | float, baseline: dict | None = None, is_float: bool = False
+    ) -> str:
+        if baseline is None:
+            return f"{current:.1f}" if is_float else str(current)
+        if current == baseline:
+            return f"{current:.1f}" if is_float else str(current)
+        diff = current - baseline
+        if is_float:
+            return f"{current:.1f}({diff:+.1f})"
+        return f"{current}({diff:+d})"
+
+    def print_func(
+        name: str, metrics: dict, indent: str = "", base: dict | None = None
+    ):
+        b = base or {}
+        padded_name = f"{indent}{name}"
+        row = [
+            padded_name,
+            format_col(metrics["self_cycles"], b.get("self_cycles"), True),
+            format_col(metrics["total_cycles"], b.get("total_cycles"), True),
+            format_col(metrics["uops"], b.get("uops")),
+            format_col(metrics["ipc"], b.get("ipc"), True),
+        ]
+        print_row(row)
+
+    toplevel_funcs = list(functions.items())
+    toplevel_funcs.sort(key=lambda x: x[1]["total_cycles"], reverse=True)
+
+    print_row(columns)
+
+    for name, m in toplevel_funcs:
+        b = (baseline or {}).get(name, {})
+        print_func(name, m, "", b)
+        for callee in m.get("callees", []):
+            print_func(callee["name"], callee, "  ")
+
+
+def compare_baseline(
+    functions: dict, baseline_path: pathlib.Path, threshold: float
+) -> int:
+    """
+    Compare current metrics against a baseline file.
+    """
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+
+    print_table(functions, baseline=baseline)
+
+    regressions = []
+    for name, metrics in functions.items():
+        base = baseline.get(name, {})
+        base_cycles = base.get("total_cycles", 0)
+        if base_cycles == 0:
+            continue
+        diff = (metrics["total_cycles"] - base_cycles) / base_cycles
+        if diff > threshold:
+            regressions.append(f"{name}: total_cycles +{diff:.1%}")
+
+    print()
+    if regressions:
+        print(f"Regressions detected (threshold: {threshold:.1%}):")
+        for r in regressions:
+            print(f"  {r}")
+        return 1
+
+    print(f"No regressions detected (threshold: {threshold:.1%}).")
+    return 0
+
+
+def main():
+    root_dir = pathlib.Path(__file__).resolve().parent.parent
+
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-b",
+        "--binary",
+        type=pathlib.Path,
+        default=root_dir / "build" / "grout",
+        help="Path to the compiled binary.",
+    )
+    parser.add_argument(
+        "-s",
+        "--source-dir",
+        type=pathlib.Path,
+        default=root_dir / "modules",
+        help="Source directory for .process= extraction.",
+    )
+    parser.add_argument(
+        "-m",
+        "--mcpu",
+        default="native",
+        help="CPU model for llvm-mca (use 'native' for current CPU).",
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Output in JSON format instead of table.",
+    )
+    parser.add_argument(
+        "-c",
+        "--compare",
+        metavar="BASELINE",
+        type=pathlib.Path,
+        help="Compare against baseline JSON file.",
+    )
+    parser.add_argument(
+        "-t",
+        "--threshold",
+        type=float,
+        default=5.0,
+        help="Regression threshold percentage.",
+    )
+
+    args = parser.parse_args()
+    args.threshold /= 100  # convert to percent
+
+    try:
+        all_functions, call_graph = extract_functions(args.binary)
+        source_funcs = extract_source_functions(args.source_dir)
+        functions = analyze_functions(
+            all_functions, call_graph, source_funcs, args.mcpu
+        )
+    except subprocess.CalledProcessError as e:
+        print(e.stderr, file=sys.stderr)
+        print(f"error: {e.cmd[0]}: command failed", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"error: {e.filename}: {e.strerror}", file=sys.stderr)
+        sys.exit(1)
+
+    missing = source_funcs - set(all_functions.keys())
+    if missing:
+        print(
+            f"warning: {len(missing)} source functions not found in binary:",
+            file=sys.stderr,
+        )
+        for name in sorted(missing):
+            print(f"  {name}", file=sys.stderr)
+
+    if args.compare:
+        sys.exit(compare_baseline(functions, args.compare, args.threshold))
+    elif args.json:
+        print(json.dumps(functions, indent=2, sort_keys=True))
+    else:
+        print_table(functions)
+
+
+if __name__ == "__main__":
+    main()
