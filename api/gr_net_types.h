@@ -42,6 +42,17 @@ static inline const char *gr_af_name(addr_family_t af) {
 	return "?";
 }
 
+// Check if address family value is valid.
+static inline bool gr_af_valid(addr_family_t af) {
+	switch (af) {
+	case GR_AF_UNSPEC:
+	case GR_AF_IP4:
+	case GR_AF_IP6:
+		return true;
+	}
+	return false;
+}
+
 // Custom printf specifiers for network addresses.
 
 // struct rte_ether_addr *

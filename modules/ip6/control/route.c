@@ -166,6 +166,10 @@ static int rib6_insert_or_replace(
 		ret = -errno;
 		goto fail;
 	}
+	if (!nexthop_origin_valid(origin)) {
+		ret = -EPFNOSUPPORT;
+		goto fail;
+	}
 
 	if ((rn = rte_rib6_lookup_exact(rib, scoped_ip, prefixlen)) == NULL) {
 		rn = rte_rib6_insert(rib, scoped_ip, prefixlen);
