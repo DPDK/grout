@@ -598,20 +598,11 @@ void nexthop_incref(struct nexthop *nh) {
 	nh->ref_count++;
 }
 
-static void nexthop_ageing_cb(struct nexthop *nh, void *) {
+static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
 	const struct nexthop_af_ops *ops;
 	clock_t now = gr_clock_us();
 	unsigned probes, max_probes;
-	struct nexthop_info_l3 *l3;
 	time_t reply_age;
-
-	if (nh->type != GR_NH_T_L3)
-		return;
-
-	l3 = nexthop_info_l3(nh);
-
-	if (l3->flags & GR_NH_F_STATIC)
-		return;
 
 	ops = af_ops[l3->af];
 	reply_age = (now - l3->last_reply) / CLOCKS_PER_SEC;
@@ -655,7 +646,19 @@ static void nexthop_ageing_cb(struct nexthop *nh, void *) {
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	nexthop_iter(nexthop_ageing_cb, NULL);
+	struct nexthop_info_l3 *l3;
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(hash_by_addr, &key, &data, &next) >= 0) {
+		l3 = nexthop_info_l3(data);
+
+		if (l3->flags & GR_NH_F_STATIC)
+			continue;
+
+		l3_age(data, l3);
+	}
 }
 
 static void nh_init(struct event_base *ev_base) {
