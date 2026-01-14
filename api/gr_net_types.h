@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #ifdef __GROUT_MAIN__
 #include <rte_ether.h>

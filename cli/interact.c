@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <string.h>
 #include <wordexp.h>
 
 #define __PROMPT "grout#"

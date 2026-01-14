@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 EC_LOG_TYPE_REGISTER(node_dyn);
 

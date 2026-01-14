@@ -11,6 +11,8 @@
 #include <ecoli.h>
 #include <libsmartcols.h>
 
+#include <string.h>
+
 static cmd_status_t affinity_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_cpu_affinity_set_req req = {0};
 	const char *arg;

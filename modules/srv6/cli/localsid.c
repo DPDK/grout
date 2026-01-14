@@ -13,6 +13,7 @@
 #include <libsmartcols.h>
 
 #include <errno.h>
+#include <string.h>
 
 static struct {
 	gr_srv6_behavior_t behavior;

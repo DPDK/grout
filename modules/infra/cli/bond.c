@@ -12,6 +12,7 @@
 #include <libsmartcols.h>
 
 #include <errno.h>
+#include <string.h>
 #include <sys/queue.h>
 
 static void bond_show(struct gr_api_client *c, const struct gr_iface *iface) {

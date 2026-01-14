@@ -7,6 +7,7 @@
 
 #include <errno.h>
 #include <stdarg.h>
+#include <string.h>
 
 struct ec_node *with_help(const char *help, struct ec_node *node) {
 	if (node == NULL)
