@@ -87,6 +87,12 @@ struct nexthop *nexthop_lookup_by_id(uint32_t nh_id);
 // Compare two nexthops, return True if the same, else False
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
 
+// Check if a nexthop type value is valid.
+bool nexthop_type_valid(gr_nh_type_t);
+
+// Check if an origin value is valid.
+bool nexthop_origin_valid(gr_nh_origin_t);
+
 // Allocate a new nexthop from the global pool with the provided initial values.
 struct nexthop *nexthop_new(const struct gr_nexthop_base *, const void *info);
 

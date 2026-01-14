@@ -290,22 +290,7 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 	return 0;
 }
 
-void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
-	switch (af) {
-	case GR_AF_UNSPEC:
-	case GR_AF_IP4:
-	case GR_AF_IP6:
-		if (ops == NULL || ops->cleanup_routes == NULL || ops->solicit == NULL)
-			ABORT("invalid af ops");
-		if (af_ops[af] != NULL)
-			ABORT("duplicate af ops %hhu", af);
-		af_ops[af] = ops;
-		return;
-	}
-	ABORT("invalid nexthop family %hhu", af);
-}
-
-void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
+bool nexthop_type_valid(gr_nh_type_t type) {
 	switch (type) {
 	case GR_NH_T_L3:
 	case GR_NH_T_SR6_OUTPUT:
@@ -314,14 +299,68 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
 	case GR_NH_T_GROUP:
-		if (ops == NULL)
-			ABORT("invalid type ops");
-		if (type_ops[type] != NULL)
-			ABORT("duplicate type ops %hhu", type);
-		type_ops[type] = ops;
-		return;
+		return true;
 	}
-	ABORT("invalid nexthop type %hhu", type);
+	return false;
+}
+
+bool nexthop_origin_valid(gr_nh_origin_t origin) {
+	switch (origin) {
+	case GR_NH_ORIGIN_UNSPEC:
+	case GR_NH_ORIGIN_REDIRECT:
+	case GR_NH_ORIGIN_LINK:
+	case GR_NH_ORIGIN_BOOT:
+	case GR_NH_ORIGIN_USER:
+	case GR_NH_ORIGIN_GATED:
+	case GR_NH_ORIGIN_RA:
+	case GR_NH_ORIGIN_MRT:
+	case GR_NH_ORIGIN_ZEBRA:
+	case GR_NH_ORIGIN_BIRD:
+	case GR_NH_ORIGIN_DNROUTED:
+	case GR_NH_ORIGIN_XORP:
+	case GR_NH_ORIGIN_NTK:
+	case GR_NH_ORIGIN_DHCP:
+	case GR_NH_ORIGIN_MROUTED:
+	case GR_NH_ORIGIN_KEEPALIVED:
+	case GR_NH_ORIGIN_BABEL:
+	case GR_NH_ORIGIN_OPENR:
+	case GR_NH_ORIGIN_BGP:
+	case GR_NH_ORIGIN_ISIS:
+	case GR_NH_ORIGIN_OSPF:
+	case GR_NH_ORIGIN_RIP:
+	case GR_NH_ORIGIN_RIPNG:
+	case GR_NH_ORIGIN_NHRP:
+	case GR_NH_ORIGIN_EIGRP:
+	case GR_NH_ORIGIN_LDP:
+	case GR_NH_ORIGIN_SHARP:
+	case GR_NH_ORIGIN_PBR:
+	case GR_NH_ORIGIN_ZSTATIC:
+	case GR_NH_ORIGIN_OPENFABRIC:
+	case GR_NH_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_INTERNAL:
+		return true;
+	}
+	return false;
+}
+
+void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
+	if (!gr_af_valid(af))
+		ABORT("invalid af value %hhu", af);
+	if (ops == NULL || ops->cleanup_routes == NULL || ops->solicit == NULL)
+		ABORT("invalid af ops");
+	if (af_ops[af] != NULL)
+		ABORT("duplicate af ops %s", gr_af_name(af));
+	af_ops[af] = ops;
+}
+
+void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *ops) {
+	if (!nexthop_type_valid(type))
+		ABORT("invalid type value %hhu", type);
+	if (ops == NULL)
+		ABORT("invalid type ops");
+	if (type_ops[type] != NULL)
+		ABORT("duplicate type ops %hhu", type);
+	type_ops[type] = ops;
 }
 
 struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info) {
@@ -329,18 +368,8 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 	void *data;
 	int ret;
 
-	switch (base->type) {
-	case GR_NH_T_L3:
-	case GR_NH_T_SR6_OUTPUT:
-	case GR_NH_T_SR6_LOCAL:
-	case GR_NH_T_DNAT:
-	case GR_NH_T_BLACKHOLE:
-	case GR_NH_T_REJECT:
-	case GR_NH_T_GROUP:
-		break;
-	default:
-		ABORT("invalid nexthop type %hhu", base->type);
-	}
+	if (base == NULL || info == NULL)
+		return errno_set_null(EINVAL);
 
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
 		ABORT("nexthop created from datapath thread");
@@ -369,6 +398,11 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 	const struct nexthop_type_ops *ops = type_ops[base->type];
 	struct gr_nexthop_base backup = nh->base;
 	int ret;
+
+	if (!nexthop_type_valid(base->type))
+		return errno_set(ESOCKTNOSUPPORT);
+	if (!nexthop_origin_valid(base->origin))
+		return errno_set(EPFNOSUPPORT);
 
 	nexthop_id_put(nh);
 

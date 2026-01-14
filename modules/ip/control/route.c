@@ -152,6 +152,10 @@ static int rib4_insert_or_replace(
 		ret = -errno;
 		goto fail;
 	}
+	if (!nexthop_origin_valid(origin)) {
+		ret = -EPFNOSUPPORT;
+		goto fail;
+	}
 
 	if ((rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
 		rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen);
