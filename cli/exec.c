@@ -10,6 +10,7 @@
 #include <ecoli.h>
 
 #include <errno.h>
+#include <string.h>
 
 static STAILQ_HEAD(, cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 

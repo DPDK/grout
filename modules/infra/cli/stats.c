@@ -11,6 +11,7 @@
 #include <libsmartcols.h>
 
 #include <inttypes.h>
+#include <string.h>
 #include <unistd.h>
 
 static int stats_order_name(const void *sa, const void *sb) {
