@@ -64,7 +64,7 @@ static void print_tree(const struct ec_node *tree, unsigned depth) {
 	printf(",\n");
 
 	printf("%*s\"help\": ", indent, " ");
-	print_string(ec_dict_get(ec_node_attrs(tree), HELP_ATTR));
+	print_string(ec_dict_get(ec_node_attrs(tree), EC_EDITLINE_HELP_ATTR));
 	printf(",\n");
 
 	printf("%*s\"children\": [", indent, " ");

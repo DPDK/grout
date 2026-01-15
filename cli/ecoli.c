@@ -12,7 +12,7 @@ struct ec_node *with_help(const char *help, struct ec_node *node) {
 	if (node == NULL)
 		return NULL;
 	struct ec_dict *attrs = ec_node_attrs(node);
-	if (attrs == NULL || ec_dict_set(attrs, HELP_ATTR, (void *)help, NULL) < 0) {
+	if (attrs == NULL || ec_dict_set(attrs, EC_EDITLINE_HELP_ATTR, (void *)help, NULL) < 0) {
 		ec_node_free(node);
 		node = NULL;
 	}
