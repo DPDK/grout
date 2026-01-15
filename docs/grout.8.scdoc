@@ -11,12 +11,7 @@ Grout is a software router based on DPDK _rte_graph_.
 # SYNOPSIS
 
 *grout*
-\[*-B* _SIZE_]
-\[*-D* _PATH_]
-\[*-L* _TYPE_:_LEVEL_]
-\[*-M* _MODE_]
 \[*-S*]
-\[*-T* _REGEXP_]
 \[*-V*]
 \[*-h*]
 \[*-m* _PERMISSIONS_]
@@ -27,53 +22,12 @@ Grout is a software router based on DPDK _rte_graph_.
 \[*-u* _MTU_]
 \[*-v*]
 \[*-x*]
+\[*--* _EAL ARGS_...]
 
 # OPTIONS
 
-*-B*, *--trace-bufsz* _SIZE_
-	Specify maximum size of allocated memory for trace output for each
-	thread. Valid unit can be either B or K or M for Bytes, KBytes and
-	MBytes respectively. For example:
-
-	```
-	--trace-bufsz 2M
-	```
-
-	By default, size of trace output file is 1MB and parameter must be
-	specified once only.
-
-*-D*, *--trace-dir* _PATH_
-	Specify trace directory for trace output. For example:
-
-	```
-	--trace-dir /tmp
-	```
-
-	By default, trace output will created at home directory and parameter
-	must be specified once only.
-
 *-h*, *--help*
 	Display usage help.
-
-*-L*, *--log-level* _TYPE_:_LEVEL_
-	Specify log level for a specific component. For example:
-
-	```
-	--log-level lib.eal:debug
-	```
-
-	Can be specified multiple times.
-
-*-M*, *--trace-mode* _o_|_overwrite_|_d_|_discard_
-	Specify the mode of update of trace output file. Either update on a file
-	can be wrapped or discarded when file size reaches its maximum limit.
-	For example:
-
-	```
-	--trace-mode discard
-	```
-
-	Default mode is _overwrite_ and parameter must be specified once only.
 
 *-m*, *--socket-mode* _PERMISSIONS_
 	Change the API socket file permissions after creating it. Only octal
@@ -101,25 +55,6 @@ Grout is a software router based on DPDK _rte_graph_.
 *-t*, *--test-mode*
 	Run in test mode (no huge pages).
 
-*-T*, *--trace* _REGEXP_
-	Enable trace based on regular expression trace name. By default, the
-	trace is disabled. User must specify this option to enable trace. For
-	example:
-
-	Global trace configuration for EAL only:
-
-	```
-	--trace eal
-	```
-
-	Global trace configuration for ALL the components:
-
-	```
-	--trace ".*"
-	```
-
-	Can be specified multiple times up to 32 times.
-
 *-u*, *--max-mtu* _MTU_
 	Maximum Transmission Unit.
 
@@ -133,6 +68,12 @@ Grout is a software router based on DPDK _rte_graph_.
 
 *-x*, *--trace-packets*
 	Print all ingress/egress packets (for debugging purposes).
+
+# EXTRA EAL ARGUMENTS
+
+Any DPDK EAL argument can be specified after an optional *--*. This is an
+advanced debugging/development feature that can break things. Use with great
+care.
 
 # SEE ALSO
 

@@ -33,34 +33,25 @@
 
 static void usage(void) {
 	printf("Usage: grout");
-	printf(" [-B SIZE]");
-	printf(" [-D PATH]");
-	printf(" [-L TYPE:LEVEL]");
-	printf(" [-M MODE]");
 	printf(" [-S]");
-	printf(" [-T REGEXP]");
 	printf(" [-V]");
 	printf(" [-h]");
-	printf("\n            ");
 	printf(" [-m PERMISSIONS]");
 	printf(" [-o USER:GROUP]");
+	printf("\n            ");
 	printf(" [-p]");
 	printf(" [-s PATH]");
 	printf(" [-t]");
 	printf(" [-u MTU]");
 	printf(" [-v]");
 	printf(" [-x]");
+	printf(" [-- EAL ARGS...]");
 	puts("");
 	puts("");
 	printf("  Graph router version %s (%s).\n", GROUT_VERSION, rte_version());
 	puts("");
 	puts("options:");
-	puts("  -B, --trace-bufsz SIZE         Maximum size of allocated memory for trace output.");
-	puts("  -D, --trace-dir PATH           Change path for trace output.");
-	puts("  -L, --log-level TYPE:LEVEL     Specify log level for a specific component.");
-	puts("  -M, --trace-mode MODE          Specify the mode of update of trace output file.");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
-	puts("  -T, --trace REGEXO             Enable trace matching the regular expression.");
 	puts("  -V, --version                  Print version and exit.");
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
@@ -73,6 +64,7 @@ static void usage(void) {
 	puts("  -u, --max-mtu MTU              Maximum Transmission Unit (default 1800).");
 	puts("  -v, --verbose                  Increase verbosity.");
 	puts("  -x, --trace-packets            Print all ingress/egress packets.");
+	puts("  EAL ARGS...                    Extra DPDK EAL arguments. Use with care.");
 }
 
 static int perr(const char *fmt, ...) {
@@ -144,10 +136,9 @@ static int parse_sock_owner(char *user_group_str) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":B:D:L:M:T:Vhm:o:pSs:tu:vx"
+#define FLAGS ":Vhm:o:pSs:tu:vx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
-		{"log-level", required_argument, NULL, 'L'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
@@ -155,10 +146,6 @@ static int parse_args(int argc, char **argv) {
 		{"socket-owner", required_argument, NULL, 'o'},
 		{"syslog", no_argument, NULL, 'S'},
 		{"test-mode", no_argument, NULL, 't'},
-		{"trace", required_argument, NULL, 'T'},
-		{"trace-bufsz", required_argument, NULL, 'B'},
-		{"trace-dir", required_argument, NULL, 'D'},
-		{"trace-mode", required_argument, NULL, 'M'},
 		{"trace-packets", no_argument, NULL, 'x'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"version", no_argument, NULL, 'V'},
@@ -183,10 +170,6 @@ static int parse_args(int argc, char **argv) {
 			usage();
 			exit(EXIT_SUCCESS);
 			break;
-		case 'L':
-			gr_vec_add(gr_config.eal_extra_args, "--log-level");
-			gr_vec_add(gr_config.eal_extra_args, optarg);
-			break;
 		case 'm':
 			if (parse_uint(&gr_config.api_sock_mode, optarg, 8, 0, 07777) < 0)
 				return perr("--socket-mode: %s", strerror(errno));
@@ -207,18 +190,6 @@ static int parse_args(int argc, char **argv) {
 		case 't':
 			gr_config.test_mode = true;
 			break;
-		case 'T':
-			gr_vec_add(gr_config.eal_extra_args, "--trace");
-			gr_vec_add(gr_config.eal_extra_args, optarg);
-			break;
-		case 'D':
-			gr_vec_add(gr_config.eal_extra_args, "--trace-dir");
-			gr_vec_add(gr_config.eal_extra_args, optarg);
-			break;
-		case 'M':
-			gr_vec_add(gr_config.eal_extra_args, "--trace-mode");
-			gr_vec_add(gr_config.eal_extra_args, optarg);
-			break;
 		case 'x':
 			gr_config.log_packets = true;
 			break;
@@ -237,13 +208,11 @@ static int parse_args(int argc, char **argv) {
 			return perr("-%c requires a value", optopt);
 		case '?':
 			return perr("-%c unknown option", optopt);
-		default:
-			goto end;
 		}
 	}
-end:
-	if (optind < argc)
-		return perr("invalid arguments");
+
+	for (c = optind; c < argc; c++)
+		gr_vec_add(gr_config.eal_extra_args, argv[c]);
 
 	return 0;
 }
