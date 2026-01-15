@@ -57,7 +57,7 @@ static const char *find_help(const struct ec_comp_item *item) {
 		type = ec_node_get_type_name(node);
 		if (strcmp(type, "devargs") == 0)
 			break;
-		help = ec_dict_get(ec_node_attrs(node), "help");
+		help = ec_dict_get(ec_node_attrs(node), EC_EDITLINE_HELP_ATTR);
 		pstate = ec_pnode_get_parent(pstate);
 	}
 
