@@ -467,7 +467,7 @@ void gr_conn_snat44_purge(struct snat44_policy *policy) {
 void gr_conn_destroy(struct conn *conn) {
 	rte_hash_del_key(conn_hash, &conn->fwd_key);
 	rte_hash_del_key(conn_hash, &conn->rev_key);
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 	gr_conn_snat44_free_port(conn->nat.policy, conn->fwd_key.proto, conn->nat.tran_id);
 	rte_mempool_put(rte_mempool_from_obj(conn), conn);
 }
@@ -530,7 +530,7 @@ static int config_update(const struct gr_conntrack_config *new_conf) {
 		conn_hash = h;
 
 		// Wait until all datapath workers have done a round of main loop before freeing.
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 		rte_mempool_free(old_pool);
 		rte_hash_free(old_hash);
 

@@ -499,7 +499,7 @@ int iface_destroy(struct iface *iface) {
 
 	ifaces[iface->id] = NULL;
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
 	// Drain the control queue after RCU sync to ensure all datapath threads
 	// have seen that this iface is gone. At this point, only packets already
