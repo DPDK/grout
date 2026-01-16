@@ -40,4 +40,4 @@ struct port_output_edges {
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
 
-void register_interface_mode(gr_iface_mode_t mode, const char *next_node);
+void iface_input_mode_register(gr_iface_mode_t, const char *next_node);

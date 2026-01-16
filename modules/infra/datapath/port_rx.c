@@ -30,7 +30,7 @@ int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len
 
 static rte_edge_t edges[GR_IFACE_MODE_COUNT] = {IFACE_MODE_UNKNOWN};
 
-void register_interface_mode(gr_iface_mode_t mode, const char *next_node) {
+void iface_input_mode_register(gr_iface_mode_t mode, const char *next_node) {
 	if (edges[mode] != IFACE_MODE_UNKNOWN)
 		ABORT("next node already registered for interface mode %u", mode);
 	edges[mode] = gr_node_attach_parent(RX_NODE_BASE, next_node);
