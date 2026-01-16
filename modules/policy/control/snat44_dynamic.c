@@ -76,7 +76,7 @@ int snat44_dynamic_policy_del(const struct gr_snat44_policy *policy) {
 	if (iface_count == 0)
 		iface->flags &= ~GR_IFACE_F_SNAT_DYNAMIC;
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
 	gr_conn_snat44_purge(found);
 	gr_id_pool_destroy(found->tcp_ports);

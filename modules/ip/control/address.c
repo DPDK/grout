@@ -118,7 +118,7 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 	ifaddrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 		gr_vec_free(nhs_old);
 	}
 

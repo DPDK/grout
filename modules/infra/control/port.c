@@ -253,7 +253,7 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	int ret;
 
 	p->started = false;
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 	if ((ret = rte_eth_dev_stop(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_stop");
 	ret = rte_eth_dev_set_mtu(p->port_id, mtu);
@@ -307,7 +307,7 @@ static int iface_port_reconfig(
 
 	if (p->started && (needs_configure || p->needs_reset)) {
 		p->started = false;
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 		if (p->needs_reset) {
 			p->needs_reset = false;
 			needs_configure = true;

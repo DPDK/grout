@@ -470,7 +470,7 @@ void nexthop_destroy(struct nexthop *nh) {
 	}
 	nexthop_id_put(nh);
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
 	// Drain the control queue after RCU sync to ensure all datapath
 	// threads have seen that this nexthop is gone. At this point, only
