@@ -2,11 +2,11 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_bond.h>
-#include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_rxtx.h>
 
 #include <rte_ether.h>
 #include <rte_ip4.h>
@@ -248,7 +248,7 @@ static struct rte_node_register bond_output_node = {
 };
 
 static void bond_output_register(void) {
-	eth_output_register_interface_type(GR_IFACE_TYPE_BOND, "bond_output");
+	iface_output_type_register(GR_IFACE_TYPE_BOND, "bond_output");
 }
 
 static struct gr_node_info info = {

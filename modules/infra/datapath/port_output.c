@@ -50,7 +50,7 @@ static struct rte_node_register node = {
 };
 
 static void port_output_register(void) {
-	eth_output_register_interface_type(GR_IFACE_TYPE_PORT, "port_output");
+	iface_output_type_register(GR_IFACE_TYPE_PORT, "port_output");
 }
 
 static struct gr_node_info info = {
