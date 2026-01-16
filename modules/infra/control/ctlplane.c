@@ -3,7 +3,6 @@
 
 #include "ctlplane.h"
 
-#include <gr_bond.h>
 #include <gr_config.h>
 #include <gr_control_input.h>
 #include <gr_control_queue.h>
@@ -16,7 +15,6 @@
 #include <gr_module.h>
 #include <gr_netlink.h>
 #include <gr_nh_control.h>
-#include <gr_port.h>
 #include <gr_vlan.h>
 
 #include <event2/event.h>
@@ -40,7 +38,7 @@
 static struct rte_mempool *cp_pool;
 static struct event_base *ev_base;
 
-static control_input_t port_output_id;
+static control_input_t iface_output;
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -197,38 +195,18 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		eth->dst_addr = dst;
 		eth->ether_type = RTE_BE16(RTE_ETHER_TYPE_VLAN);
 
+		stats = iface_get_stats(rte_lcore_id(), iface->id);
+		stats->tx_packets += 1;
+		stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
+
 		const uint32_t parent_id = iface_info_vlan(iface)->parent_id;
 		iface = iface_from_id(parent_id);
 		if (iface == NULL) {
 			LOG(ERR, "iface_from_id: no iface for id %u", parent_id);
 			goto err;
 		}
-	} else if (iface->type == GR_IFACE_TYPE_BOND) {
-		// For bond interface, find either the active interface
-		// or the first active member (for LACP)
-		struct iface_info_bond *b = iface_info_bond(iface);
-		struct iface *child_iface = NULL;
-		if (b->mode == GR_BOND_MODE_ACTIVE_BACKUP) {
-			if (b->n_members == 0 || b->active_member >= b->n_members)
-				goto err;
-			child_iface = (struct iface *)b->members[b->active_member].iface;
-		} else if (b->mode == GR_BOND_MODE_LACP) {
-			for (uint8_t i = 0; i < b->n_members; i++) {
-				struct bond_member *member = &b->members[i];
-				if (member->active) {
-					child_iface = (struct iface *)member->iface;
-					break;
-				}
-			}
-		} else {
-			ABORT("unknown bond mode");
-		}
-		if (child_iface == NULL) {
-			LOG(ERR, "No active member in bond %s", iface->name);
-			goto err;
-		}
-		iface = child_iface;
 	}
+
 	mbuf_data(mbuf)->iface = iface;
 
 	stats = iface_get_stats(rte_lcore_id(), iface->id);
@@ -238,7 +216,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	if (gr_config.log_packets)
 		trace_log_packet(mbuf, "cp rx", iface->name);
 
-	post_to_stack(port_output_id, mbuf);
+	post_to_stack(iface_output, mbuf);
 	return;
 
 err:
@@ -457,7 +435,7 @@ static void cp_module_init(struct event_base *base) {
 	if (!cp_pool)
 		ABORT("pktmbuf_pool returned NULL");
 	ev_base = base;
-	port_output_id = gr_control_input_register_handler("port_output", true);
+	iface_output = gr_control_input_register_handler("iface_output", true);
 }
 
 static void cp_module_fini(struct event_base *) {

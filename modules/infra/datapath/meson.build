@@ -8,6 +8,7 @@ src += files(
   'drop.c',
   'eth_input.c',
   'eth_output.c',
+  'iface_output.c',
   'l1_xconnect.c',
   'l2_redirect.c',
   'lacp_input.c',
