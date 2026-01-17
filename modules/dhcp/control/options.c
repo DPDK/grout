@@ -13,6 +13,7 @@ int dhcp_parse_options(
 ) {
 	dhcp_option_code_t opt;
 	uint16_t pos = 0;
+	ip4_addr_t mask;
 	uint8_t len;
 
 	*msg_type = 0;
@@ -51,7 +52,8 @@ int dhcp_parse_options(
 				LOG(ERR, "invalid subnet mask length %u", len);
 				break;
 			}
-			memcpy(&client->subnet_mask, &options[pos], 4);
+			memcpy(&mask, &options[pos], 4);
+			client->prefixlen = __builtin_popcount(rte_be_to_cpu_32(mask));
 			break;
 
 		case DHCP_OPT_ROUTER:

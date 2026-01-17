@@ -33,7 +33,6 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	const struct iface *iface;
 	struct rte_ether_addr mac;
 	struct nexthop *nh;
-	uint8_t prefixlen;
 	int ret;
 
 	iface = iface_from_id(client->iface_id);
@@ -43,12 +42,10 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	if (iface_get_eth_addr(iface, &mac) < 0 && errno != EOPNOTSUPP)
 		return -errno;
 
-	if (client->subnet_mask == 0) {
+	if (client->prefixlen == 0) {
 		LOG(ERR, "server did not provide subnet mask, rejecting offer");
 		return errno_set(EINVAL);
 	}
-
-	prefixlen = __builtin_popcount(rte_be_to_cpu_32(client->subnet_mask));
 
 	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
@@ -59,7 +56,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	struct gr_nexthop_info_l3 l3 = {
 		.af = GR_AF_IP4,
 		.ipv4 = client->offered_ip,
-		.prefixlen = prefixlen,
+		.prefixlen = client->prefixlen,
 		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK,
 		.state = GR_NH_S_REACHABLE,
 		.mac = mac,
@@ -68,7 +65,9 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	if ((nh = nexthop_new(&base, &l3)) == NULL)
 		return -errno;
 
-	ret = rib4_insert(iface->vrf_id, client->offered_ip, prefixlen, GR_NH_ORIGIN_LINK, nh);
+	ret = rib4_insert(
+		iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_ORIGIN_LINK, nh
+	);
 	if (ret < 0) {
 		LOG(ERR, "failed to configure address: %s", strerror(errno));
 		return ret;
@@ -77,7 +76,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	LOG(INFO,
 	    "configured address " IP4_F "/%hhu on iface %s",
 	    &client->offered_ip,
-	    prefixlen,
+	    client->prefixlen,
 	    iface->name);
 
 	// Add default route if router option was provided
@@ -166,7 +165,6 @@ static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
 static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	struct dhcp_client *client = arg;
 	const struct iface *iface;
-	uint8_t prefixlen;
 
 	LOG(WARNING, "lease expired on iface %u", client->iface_id);
 
@@ -174,25 +172,22 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	if (iface == NULL)
 		return;
 
-	if (client->subnet_mask == 0) {
+	if (client->prefixlen == 0) {
 		LOG(ERR, "lease expired but no subnet mask stored, cannot delete routes");
 		client->state = DHCP_STATE_INIT;
 		return;
 	}
 
-	prefixlen = __builtin_popcount(rte_be_to_cpu_32(client->subnet_mask));
-
 	if (client->offered_ip != 0)
-		rib4_delete(iface->vrf_id, client->offered_ip, prefixlen, GR_NH_T_L3);
+		rib4_delete(iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_T_L3);
 	if (client->router_ip != 0)
 		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
 	client->state = DHCP_STATE_INIT;
 	client->offered_ip = 0;
 	client->server_ip = 0;
-	client->subnet_mask = 0;
+	client->prefixlen = 0;
 	client->router_ip = 0;
-
 	client->xid = rte_rand();
 	struct rte_mbuf *m = dhcp_build_discover(client->iface_id, client->xid);
 	if (m != NULL) {
@@ -380,29 +375,19 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 
 			dhcp_cancel_timers(client);
 
-			if (client->subnet_mask != 0) {
-				uint8_t prefixlen = __builtin_popcount(
-					rte_be_to_cpu_32(client->subnet_mask)
+			if (client->offered_ip != 0 && client->prefixlen != 0)
+				rib4_delete(
+					iface->vrf_id,
+					client->offered_ip,
+					client->prefixlen,
+					GR_NH_T_L3
 				);
-				if (client->offered_ip != 0)
-					rib4_delete(
-						iface->vrf_id,
-						client->offered_ip,
-						prefixlen,
-						GR_NH_T_L3
-					);
-			} else if (client->offered_ip != 0) {
-				LOG(ERR,
-				    "NAK received but no subnet mask stored, cannot delete "
-				    "address route");
-			}
 			if (client->router_ip != 0)
 				rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
 			client->state = DHCP_STATE_INIT;
 			client->offered_ip = 0;
 			client->server_ip = 0;
-
 			client->xid = rte_rand();
 			response = dhcp_build_discover(client->iface_id, client->xid);
 			if (response != NULL) {
@@ -493,8 +478,6 @@ int dhcp_start(uint16_t iface_id) {
 void dhcp_stop(uint16_t iface_id) {
 	struct dhcp_client *client;
 	const struct iface *iface;
-	uint8_t prefixlen;
-	int ret;
 
 	errno = 0;
 
@@ -515,34 +498,10 @@ void dhcp_stop(uint16_t iface_id) {
 		return;
 	}
 
-	if (client->offered_ip != 0) {
-		if (client->subnet_mask == 0) {
-			LOG(ERR,
-			    "stopping client but no subnet mask stored, cannot delete "
-			    "address route");
-		} else {
-			prefixlen = __builtin_popcount(rte_be_to_cpu_32(client->subnet_mask));
-			ret = rib4_delete(iface->vrf_id, client->offered_ip, prefixlen, GR_NH_T_L3);
-			if (ret < 0) {
-				LOG(WARNING, "failed to remove address route: %s", strerror(-ret));
-			} else {
-				LOG(INFO,
-				    "removed address " IP4_F "/%u from iface %u",
-				    &client->offered_ip,
-				    prefixlen,
-				    iface_id);
-			}
-		}
-	}
-
-	if (client->router_ip != 0) {
-		ret = rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
-		if (ret < 0) {
-			LOG(WARNING, "failed to remove default route: %s", strerror(-ret));
-		} else {
-			LOG(INFO, "removed default route via " IP4_F, &client->router_ip);
-		}
-	}
+	if (client->offered_ip != 0 && client->prefixlen != 0)
+		rib4_delete(iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_T_L3);
+	if (client->router_ip != 0)
+		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
 	dhcp_cancel_timers(client);
 
