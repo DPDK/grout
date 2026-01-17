@@ -90,7 +90,41 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	return 0;
 }
 
-static void dhcp_send_request(struct dhcp_client *client);
+static int dhcp_send_request(struct dhcp_client *client) {
+	struct rte_mbuf *m;
+
+	m = dhcp_build_request(
+		client->iface_id, client->xid, client->server_ip, client->offered_ip
+	);
+	if (m == NULL)
+		return -errno;
+
+	if (post_to_stack(dhcp_output, m) < 0) {
+		rte_pktmbuf_free(m);
+		return -errno;
+	}
+
+	LOG(INFO, "iface=%u state=%s", client->iface_id, gr_dhcp_state_name(client->state));
+
+	return 0;
+}
+
+static int dhcp_send_discover(struct dhcp_client *client) {
+	struct rte_mbuf *m;
+
+	m = dhcp_build_discover(client->iface_id, client->xid);
+	if (m == NULL)
+		return -errno;
+
+	if (post_to_stack(dhcp_output, m) < 0) {
+		rte_pktmbuf_free(m);
+		return -errno;
+	}
+
+	LOG(INFO, "iface=%u state=%s", client->iface_id, gr_dhcp_state_name(client->state));
+
+	return 0;
+}
 
 static void dhcp_cancel_timers(struct dhcp_client *client) {
 	if (client->t1_timer != NULL) {
@@ -120,7 +154,8 @@ static void dhcp_t1_callback(evutil_socket_t, short, void *arg) {
 	LOG(INFO, "T1 timer expired, transitioning to RENEWING (iface=%u)", client->iface_id);
 	client->state = DHCP_STATE_RENEWING;
 
-	dhcp_send_request(client);
+	if (dhcp_send_request(client) < 0)
+		LOG(ERR, "dhcp_send_request: %s", strerror(errno));
 }
 
 static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
@@ -136,7 +171,8 @@ static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
 	LOG(INFO, "T2 timer expired, transitioning to REBINDING (iface=%u)", client->iface_id);
 	client->state = DHCP_STATE_REBINDING;
 
-	dhcp_send_request(client);
+	if (dhcp_send_request(client) < 0)
+		LOG(ERR, "dhcp_send_request: %s", strerror(errno));
 }
 
 static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
@@ -160,30 +196,14 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	client->prefixlen = 0;
 	client->router_ip = 0;
 	client->xid = rte_rand();
-	struct rte_mbuf *m = dhcp_build_discover(client->iface_id, client->xid);
-	if (m != NULL) {
-		post_to_stack(dhcp_output, m);
-		client->state = DHCP_STATE_SELECTING;
-		LOG(INFO, "lease expired, sent new DISCOVER (iface=%u)", client->iface_id);
-	}
-}
 
-static void dhcp_send_request(struct dhcp_client *client) {
-	struct rte_mbuf *m;
-
-	m = dhcp_build_request(
-		client->iface_id, client->xid, client->server_ip, client->offered_ip
-	);
-	if (m == NULL) {
-		LOG(ERR, "failed to build REQUEST for renewal");
+	if (dhcp_send_discover(client) < 0) {
+		LOG(ERR, "dhcp_send_discover: %s", strerror(errno));
 		return;
 	}
 
-	post_to_stack(dhcp_output, m);
-	LOG(INFO,
-	    "sent REQUEST for renewal (iface=%u, state=%s)",
-	    client->iface_id,
-	    gr_dhcp_state_name(client->state));
+	client->state = DHCP_STATE_SELECTING;
+	LOG(INFO, "lease expired, sent new DISCOVER (iface=%u)", client->iface_id);
 }
 
 static void dhcp_schedule_timers(struct dhcp_client *client) {
@@ -243,7 +263,6 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 	dhcp_message_type_t msg_type = 0;
 	const struct iface *iface = mbuf_data(mbuf)->iface;
 	struct dhcp_client *client;
-	struct rte_mbuf *response;
 
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
@@ -271,17 +290,8 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 
 			LOG(INFO, "received OFFER, sending REQUEST (iface=%s)", iface->name);
 
-			response = dhcp_build_request(
-				client->iface_id, client->xid, client->server_ip, client->offered_ip
-			);
-			if (response == NULL) {
-				LOG(ERR, "failed to build REQUEST");
-				break;
-			}
-
-			if (post_to_stack(dhcp_output, response) < 0) {
-				LOG(ERR, "failed to send REQUEST");
-				rte_pktmbuf_free(response);
+			if (dhcp_send_request(client) < 0) {
+				LOG(ERR, "dhcp_send_request: %s", strerror(errno));
 				break;
 			}
 
@@ -355,11 +365,13 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 			client->offered_ip = 0;
 			client->server_ip = 0;
 			client->xid = rte_rand();
-			response = dhcp_build_discover(client->iface_id, client->xid);
-			if (response != NULL) {
-				post_to_stack(dhcp_output, response);
-				client->state = DHCP_STATE_SELECTING;
+
+			if (dhcp_send_discover(client) < 0) {
+				LOG(ERR, "dhcp_send_discover: %s", strerror(errno));
+				break;
 			}
+
+			client->state = DHCP_STATE_SELECTING;
 		}
 		break;
 
@@ -386,7 +398,6 @@ static void dhcp_init(struct event_base *ev_base) {
 
 int dhcp_start(uint16_t iface_id) {
 	struct dhcp_client *client;
-	struct rte_mbuf *m;
 	uint32_t xid;
 
 	if (iface_id >= MAX_IFACES) {
@@ -418,20 +429,11 @@ int dhcp_start(uint16_t iface_id) {
 
 	dhcp_clients[iface_id] = client;
 
-	m = dhcp_build_discover(iface_id, xid);
-	if (m == NULL) {
+	if (dhcp_send_discover(client) < 0) {
+		LOG(ERR, "dhcp_send_discover: %s", strerror(errno));
 		free(client);
 		dhcp_clients[iface_id] = NULL;
-		errno = ENOMEM;
-		return -1;
-	}
-
-	if (post_to_stack(dhcp_output, m) < 0) {
-		rte_pktmbuf_free(m);
-		free(client);
-		dhcp_clients[iface_id] = NULL;
-		errno = EIO;
-		return -1;
+		return errno_set(EIO);
 	}
 
 	client->state = DHCP_STATE_SELECTING;
