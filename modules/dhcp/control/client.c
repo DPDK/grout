@@ -31,15 +31,10 @@ static struct rte_mempool *dhcp_mp;
 
 static int dhcp_configure_interface(struct dhcp_client *client) {
 	const struct iface *iface;
-	struct rte_ether_addr mac;
-	struct nexthop *nh;
 	int ret;
 
 	iface = iface_from_id(client->iface_id);
 	if (iface == NULL)
-		return errno_set(ENODEV);
-
-	if (iface_get_eth_addr(iface, &mac) < 0 && errno != EOPNOTSUPP)
 		return -errno;
 
 	if (client->prefixlen == 0) {
@@ -47,27 +42,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 		return errno_set(EINVAL);
 	}
 
-	struct gr_nexthop_base base = {
-		.type = GR_NH_T_L3,
-		.origin = GR_NH_ORIGIN_DHCP,
-		.iface_id = iface->id,
-		.vrf_id = iface->vrf_id,
-	};
-	struct gr_nexthop_info_l3 l3 = {
-		.af = GR_AF_IP4,
-		.ipv4 = client->offered_ip,
-		.prefixlen = client->prefixlen,
-		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK,
-		.state = GR_NH_S_REACHABLE,
-		.mac = mac,
-	};
-
-	if ((nh = nexthop_new(&base, &l3)) == NULL)
-		return -errno;
-
-	ret = rib4_insert(
-		iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_ORIGIN_LINK, nh
-	);
+	ret = addr4_add(client->iface_id, client->offered_ip, client->prefixlen, GR_NH_ORIGIN_DHCP);
 	if (ret < 0) {
 		LOG(ERR, "failed to configure address: %s", strerror(errno));
 		return ret;
@@ -172,14 +147,8 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	if (iface == NULL)
 		return;
 
-	if (client->prefixlen == 0) {
-		LOG(ERR, "lease expired but no subnet mask stored, cannot delete routes");
-		client->state = DHCP_STATE_INIT;
-		return;
-	}
-
-	if (client->offered_ip != 0)
-		rib4_delete(iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_T_L3);
+	if (client->offered_ip != 0 && client->prefixlen != 0)
+		addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 	if (client->router_ip != 0)
 		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
@@ -376,12 +345,7 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 			dhcp_cancel_timers(client);
 
 			if (client->offered_ip != 0 && client->prefixlen != 0)
-				rib4_delete(
-					iface->vrf_id,
-					client->offered_ip,
-					client->prefixlen,
-					GR_NH_T_L3
-				);
+				addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 			if (client->router_ip != 0)
 				rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
@@ -499,7 +463,7 @@ void dhcp_stop(uint16_t iface_id) {
 	}
 
 	if (client->offered_ip != 0 && client->prefixlen != 0)
-		rib4_delete(iface->vrf_id, client->offered_ip, client->prefixlen, GR_NH_T_L3);
+		addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 	if (client->router_ip != 0)
 		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 
