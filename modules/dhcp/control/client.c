@@ -44,7 +44,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 		return -errno;
 
 	if (client->subnet_mask == 0) {
-		LOG(ERR, "dhcp: server did not provide subnet mask, rejecting offer");
+		LOG(ERR, "server did not provide subnet mask, rejecting offer");
 		return errno_set(EINVAL);
 	}
 
@@ -70,15 +70,15 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 
 	ret = rib4_insert(iface->vrf_id, client->offered_ip, prefixlen, GR_NH_ORIGIN_LINK, nh);
 	if (ret < 0) {
-		LOG(ERR, "dhcp: failed to add address to RIB: %s", strerror(-ret));
+		LOG(ERR, "failed to configure address: %s", strerror(errno));
 		return ret;
 	}
 
 	LOG(INFO,
-	    "dhcp: configured address " IP4_F "/%u on iface %u",
+	    "configured address " IP4_F "/%hhu on iface %s",
 	    &client->offered_ip,
 	    prefixlen,
-	    iface->id);
+	    iface->name);
 
 	// Add default route if router option was provided
 	if (client->router_ip != 0) {
@@ -99,15 +99,15 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 		};
 
 		if ((gw_nh = nexthop_new(&gw_base, &gw_l3)) == NULL) {
-			LOG(WARNING, "dhcp: failed to create gateway nexthop: %s", strerror(errno));
+			LOG(WARNING, "failed to create gateway nexthop: %s", strerror(errno));
 			return 0; // Continue even if gateway creation fails
 		}
 
 		ret = rib4_insert(iface->vrf_id, 0, 0, GR_NH_ORIGIN_DHCP, gw_nh);
 		if (ret < 0) {
-			LOG(WARNING, "dhcp: failed to add default route: %s", strerror(-ret));
+			LOG(WARNING, "failed to add default route: %s", strerror(-ret));
 		} else {
-			LOG(INFO, "dhcp: added default route via " IP4_F, &client->router_ip);
+			LOG(INFO, "added default route via " IP4_F, &client->router_ip);
 		}
 	}
 
@@ -136,12 +136,12 @@ static void dhcp_t1_callback(evutil_socket_t, short, void *arg) {
 
 	if (client->state != DHCP_STATE_BOUND) {
 		LOG(WARNING,
-		    "dhcp: T1 timer fired but not in BOUND state (state=%d)",
-		    client->state);
+		    "T1 timer fired but not in BOUND state (state=%s)",
+		    gr_dhcp_state_name(client->state));
 		return;
 	}
 
-	LOG(INFO, "dhcp: T1 timer expired, transitioning to RENEWING (iface=%u)", client->iface_id);
+	LOG(INFO, "T1 timer expired, transitioning to RENEWING (iface=%u)", client->iface_id);
 	client->state = DHCP_STATE_RENEWING;
 
 	dhcp_send_request(client);
@@ -152,14 +152,12 @@ static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
 
 	if (client->state != DHCP_STATE_RENEWING) {
 		LOG(WARNING,
-		    "dhcp: T2 timer fired but not in RENEWING state (state=%d)",
-		    client->state);
+		    "T2 timer fired but not in RENEWING state (state=%s)",
+		    gr_dhcp_state_name(client->state));
 		return;
 	}
 
-	LOG(INFO,
-	    "dhcp: T2 timer expired, transitioning to REBINDING (iface=%u)",
-	    client->iface_id);
+	LOG(INFO, "T2 timer expired, transitioning to REBINDING (iface=%u)", client->iface_id);
 	client->state = DHCP_STATE_REBINDING;
 
 	dhcp_send_request(client);
@@ -170,14 +168,14 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	const struct iface *iface;
 	uint8_t prefixlen;
 
-	LOG(WARNING, "dhcp: lease expired on iface %u", client->iface_id);
+	LOG(WARNING, "lease expired on iface %u", client->iface_id);
 
 	iface = iface_from_id(client->iface_id);
 	if (iface == NULL)
 		return;
 
 	if (client->subnet_mask == 0) {
-		LOG(ERR, "dhcp: lease expired but no subnet mask stored, cannot delete routes");
+		LOG(ERR, "lease expired but no subnet mask stored, cannot delete routes");
 		client->state = DHCP_STATE_INIT;
 		return;
 	}
@@ -200,7 +198,7 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	if (m != NULL) {
 		post_to_stack(dhcp_output, m);
 		client->state = DHCP_STATE_SELECTING;
-		LOG(INFO, "dhcp: lease expired, sent new DISCOVER (iface=%u)", client->iface_id);
+		LOG(INFO, "lease expired, sent new DISCOVER (iface=%u)", client->iface_id);
 	}
 }
 
@@ -211,13 +209,13 @@ static void dhcp_send_request(struct dhcp_client *client) {
 		client->iface_id, client->xid, client->server_ip, client->offered_ip
 	);
 	if (m == NULL) {
-		LOG(ERR, "dhcp: failed to build REQUEST for renewal");
+		LOG(ERR, "failed to build REQUEST for renewal");
 		return;
 	}
 
 	post_to_stack(dhcp_output, m);
 	LOG(INFO,
-	    "dhcp: sent REQUEST for renewal (iface=%u, state=%s)",
+	    "sent REQUEST for renewal (iface=%u, state=%s)",
 	    client->iface_id,
 	    gr_dhcp_state_name(client->state));
 }
@@ -246,7 +244,7 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	if (client->t1_timer != NULL) {
 		evtimer_add(client->t1_timer, &t1_tv);
 	} else {
-		LOG(WARNING, "dhcp: failed to create T1 timer");
+		LOG(WARNING, "failed to create T1 timer");
 	}
 
 	t2_tv.tv_sec = t2_secs;
@@ -255,7 +253,7 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	if (client->t2_timer != NULL) {
 		evtimer_add(client->t2_timer, &t2_tv);
 	} else {
-		LOG(WARNING, "dhcp: failed to create T2 timer");
+		LOG(WARNING, "failed to create T2 timer");
 	}
 
 	expire_tv.tv_sec = client->lease_time;
@@ -264,11 +262,11 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	if (client->expire_timer != NULL) {
 		evtimer_add(client->expire_timer, &expire_tv);
 	} else {
-		LOG(WARNING, "dhcp: failed to create expire timer");
+		LOG(WARNING, "failed to create expire timer");
 	}
 
 	LOG(INFO,
-	    "dhcp: scheduled timers T1=%us, T2=%us, expire=%us (iface=%u)",
+	    "scheduled timers T1=%us, T2=%us, expire=%us (iface=%u)",
 	    t1_secs,
 	    t2_secs,
 	    client->lease_time,
@@ -285,102 +283,85 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
 		goto free;
 
-	LOG(DEBUG, "dhcp_input_cb: received packet");
-
-	if (iface == NULL) {
-		LOG(ERR, "dhcp_input_cb: no interface in mbuf");
+	if (iface == NULL)
 		goto free;
-	}
-
-	LOG(DEBUG, "dhcp_input_cb: packet on iface %u", iface->id);
-
-	if (iface->id >= MAX_IFACES) {
-		LOG(ERR, "dhcp_input_cb: iface %u exceeds MAX_IFACES", iface->id);
-		goto free;
-	}
 
 	client = dhcp_clients[iface->id];
 	if (client == NULL) {
-		LOG(DEBUG, "dhcp_input_cb: no DHCP client on iface %u, ignoring", iface->id);
+		LOG(DEBUG, "no DHCP client on iface %s, ignoring", iface->name);
 		goto free;
 	}
 
-	LOG(DEBUG, "dhcp_input_cb: processing packet for client in state %d", client->state);
-
-	if (dhcp_parse_packet(mbuf, client, &msg_type) < 0) {
-		LOG(ERR, "dhcp_input_cb: failed to parse DHCP packet on iface %u", iface->id);
+	if (dhcp_parse_packet(mbuf, client, &msg_type) < 0)
 		goto free;
-	}
 
 	switch (client->state) {
 	case DHCP_STATE_SELECTING:
 		if (msg_type == DHCP_OFFER) {
 			if (client->server_ip == 0 || client->offered_ip == 0) {
-				LOG(ERR, "dhcp: invalid OFFER (no server IP or offered IP)");
+				LOG(ERR, "invalid OFFER (no server IP or offered IP)");
 				break;
 			}
 
-			LOG(INFO, "dhcp: received OFFER, sending REQUEST (iface=%u)", iface->id);
+			LOG(INFO, "received OFFER, sending REQUEST (iface=%s)", iface->name);
 
 			response = dhcp_build_request(
 				client->iface_id, client->xid, client->server_ip, client->offered_ip
 			);
 			if (response == NULL) {
-				LOG(ERR, "dhcp: failed to build REQUEST");
+				LOG(ERR, "failed to build REQUEST");
 				break;
 			}
 
 			if (post_to_stack(dhcp_output, response) < 0) {
-				LOG(ERR, "dhcp: failed to send REQUEST");
+				LOG(ERR, "failed to send REQUEST");
 				rte_pktmbuf_free(response);
 				break;
 			}
 
 			client->state = DHCP_STATE_REQUESTING;
-			LOG(INFO, "dhcp: transitioned to REQUESTING state (iface=%u)", iface->id);
+			LOG(INFO, "transitioned to REQUESTING state (iface=%u)", iface->id);
 		}
 		break;
 
 	case DHCP_STATE_REQUESTING:
 		if (msg_type == DHCP_ACK) {
 			if (client->offered_ip == 0) {
-				LOG(ERR, "dhcp: invalid ACK (no offered IP)");
+				LOG(ERR, "invalid ACK (no offered IP)");
 				break;
 			}
 
-			LOG(INFO,
-			    "dhcp: received ACK, transitioning to BOUND (iface=%u)",
-			    iface->id);
+			LOG(INFO, "received ACK, transitioning to BOUND (iface=%u)", iface->id);
 
 			if (dhcp_configure_interface(client) < 0) {
-				LOG(ERR, "dhcp: failed to configure interface");
+				LOG(ERR, "failed to configure interface");
 				break;
 			}
 
 			client->state = DHCP_STATE_BOUND;
 			dhcp_schedule_timers(client);
 			LOG(INFO,
-			    "dhcp: acquired IP " IP4_F " (lease=%u, T1=%u, T2=%u)",
+			    "acquired IP " IP4_F " (lease=%u, T1=%u, T2=%u)",
 			    &client->offered_ip,
 			    client->lease_time,
 			    client->renewal_time,
 			    client->rebind_time);
 		} else if (msg_type == DHCP_NAK) {
-			LOG(WARNING, "dhcp: received NAK, returning to INIT (iface=%u)", iface->id);
+			LOG(WARNING, "received NAK, returning to INIT (iface=%u)", iface->id);
 			client->state = DHCP_STATE_INIT;
 		}
 		break;
 
 	case DHCP_STATE_BOUND:
 		// Shouldn't receive DHCP messages while bound (unless it's a rogue server)
-		LOG(DEBUG, "dhcp: ignoring message in BOUND state");
+		LOG(DEBUG, "ignoring message in BOUND state");
 		break;
 
 	case DHCP_STATE_RENEWING:
 	case DHCP_STATE_REBINDING:
 		if (msg_type == DHCP_ACK) {
 			LOG(INFO,
-			    "dhcp: lease renewed (state=%s, iface=%u)",
+			    "lease renewed (state=%s, iface=%u)",
 			    client->state == DHCP_STATE_RENEWING ? "RENEWING" : "REBINDING",
 			    iface->id);
 
@@ -388,13 +369,13 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 			dhcp_schedule_timers(client);
 
 			LOG(INFO,
-			    "dhcp: lease extended (lease=%u, T1=%u, T2=%u)",
+			    "lease extended (lease=%u, T1=%u, T2=%u)",
 			    client->lease_time,
 			    client->renewal_time,
 			    client->rebind_time);
 		} else if (msg_type == DHCP_NAK) {
 			LOG(WARNING,
-			    "dhcp: received NAK during renewal, returning to INIT (iface=%u)",
+			    "received NAK during renewal, returning to INIT (iface=%u)",
 			    iface->id);
 
 			dhcp_cancel_timers(client);
@@ -412,7 +393,7 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 					);
 			} else if (client->offered_ip != 0) {
 				LOG(ERR,
-				    "dhcp: NAK received but no subnet mask stored, cannot delete "
+				    "NAK received but no subnet mask stored, cannot delete "
 				    "address route");
 			}
 			if (client->router_ip != 0)
@@ -432,7 +413,7 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 		break;
 
 	default:
-		LOG(WARNING, "dhcp: received message in unexpected state %d", client->state);
+		LOG(WARNING, "received message in unexpected state %d", client->state);
 		break;
 	}
 
@@ -449,9 +430,7 @@ static void dhcp_init(struct event_base *ev_base) {
 
 	dhcp_mp = gr_pktmbuf_pool_get(SOCKET_ID_ANY, 512);
 	if (dhcp_mp == NULL)
-		ABORT("dhcp: failed to get mempool");
-
-	LOG(INFO, "dhcp: module initialized");
+		ABORT("failed to get mempool");
 }
 
 int dhcp_start(uint16_t iface_id) {
@@ -470,14 +449,12 @@ int dhcp_start(uint16_t iface_id) {
 	}
 
 	if (dhcp_clients[iface_id] != NULL) {
-		LOG(WARNING, "dhcp: client already running on iface %u", iface_id);
 		errno = EEXIST;
 		return -1;
 	}
 
 	client = calloc(1, sizeof(*client));
 	if (client == NULL) {
-		LOG(ERR, "dhcp: failed to allocate client for iface %u", iface_id);
 		errno = ENOMEM;
 		return -1;
 	}
@@ -492,7 +469,6 @@ int dhcp_start(uint16_t iface_id) {
 
 	m = dhcp_build_discover(iface_id, xid);
 	if (m == NULL) {
-		LOG(ERR, "dhcp: failed to build DISCOVER for iface %u", iface_id);
 		free(client);
 		dhcp_clients[iface_id] = NULL;
 		errno = ENOMEM;
@@ -500,7 +476,6 @@ int dhcp_start(uint16_t iface_id) {
 	}
 
 	if (post_to_stack(dhcp_output, m) < 0) {
-		LOG(ERR, "dhcp: failed to send DISCOVER for iface %u", iface_id);
 		rte_pktmbuf_free(m);
 		free(client);
 		dhcp_clients[iface_id] = NULL;
@@ -510,7 +485,8 @@ int dhcp_start(uint16_t iface_id) {
 
 	client->state = DHCP_STATE_SELECTING;
 
-	LOG(INFO, "dhcp: sent DISCOVER on iface %u (xid=0x%08x)", iface_id, xid);
+	LOG(INFO, "sent DISCOVER on iface %u (xid=0x%08x)", client->iface_id, client->xid);
+
 	return 0;
 }
 
@@ -529,7 +505,6 @@ void dhcp_stop(uint16_t iface_id) {
 
 	client = dhcp_clients[iface_id];
 	if (client == NULL) {
-		LOG(WARNING, "dhcp: no client running on iface %u", iface_id);
 		errno = ENOENT;
 		return;
 	}
@@ -543,18 +518,16 @@ void dhcp_stop(uint16_t iface_id) {
 	if (client->offered_ip != 0) {
 		if (client->subnet_mask == 0) {
 			LOG(ERR,
-			    "dhcp: stopping client but no subnet mask stored, cannot delete "
+			    "stopping client but no subnet mask stored, cannot delete "
 			    "address route");
 		} else {
 			prefixlen = __builtin_popcount(rte_be_to_cpu_32(client->subnet_mask));
 			ret = rib4_delete(iface->vrf_id, client->offered_ip, prefixlen, GR_NH_T_L3);
 			if (ret < 0) {
-				LOG(WARNING,
-				    "dhcp: failed to remove address route: %s",
-				    strerror(-ret));
+				LOG(WARNING, "failed to remove address route: %s", strerror(-ret));
 			} else {
 				LOG(INFO,
-				    "dhcp: removed address " IP4_F "/%u from iface %u",
+				    "removed address " IP4_F "/%u from iface %u",
 				    &client->offered_ip,
 				    prefixlen,
 				    iface_id);
@@ -565,9 +538,9 @@ void dhcp_stop(uint16_t iface_id) {
 	if (client->router_ip != 0) {
 		ret = rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
 		if (ret < 0) {
-			LOG(WARNING, "dhcp: failed to remove default route: %s", strerror(-ret));
+			LOG(WARNING, "failed to remove default route: %s", strerror(-ret));
 		} else {
-			LOG(INFO, "dhcp: removed default route via " IP4_F, &client->router_ip);
+			LOG(INFO, "removed default route via " IP4_F, &client->router_ip);
 		}
 	}
 
@@ -576,7 +549,7 @@ void dhcp_stop(uint16_t iface_id) {
 	free(client);
 	dhcp_clients[iface_id] = NULL;
 
-	LOG(INFO, "dhcp: stopped client on iface %u", iface_id);
+	LOG(INFO, "stopped client on iface %s", iface->name);
 }
 
 struct rte_mempool *dhcp_get_mempool(void) {
@@ -633,7 +606,6 @@ static struct api_out dhcp_stop_handler(const void *request, struct api_ctx *) {
 
 static void dhcp_fini(struct event_base *) {
 	gr_pktmbuf_pool_release(dhcp_mp, 512);
-	LOG(INFO, "dhcp: module finalized");
 }
 
 static struct gr_module dhcp_module = {

@@ -37,32 +37,29 @@ int dhcp_parse_packet(
 	pkt_len = rte_pktmbuf_data_len(mbuf);
 
 	if (pkt_len < sizeof(*udp)) {
-		LOG(ERR, "dhcp_parse_packet: packet too short for UDP header");
 		return -1;
 	}
 	udp = (struct rte_udp_hdr *)pkt_data;
 
 	if (pkt_len < sizeof(*udp) + sizeof(*dhcp)) {
-		LOG(ERR, "dhcp_parse_packet: packet too short for DHCP header");
 		return -1;
 	}
 	dhcp = (struct dhcp_packet *)(pkt_data + sizeof(*udp));
 
 	if (dhcp->magic != DHCP_MAGIC) {
-		LOG(ERR, "dhcp_parse_packet: invalid DHCP magic cookie");
 		return -1;
 	}
 
 	if (dhcp->xid != rte_cpu_to_be_32(client->xid)) {
 		LOG(DEBUG,
-		    "dhcp_parse_packet: transaction ID mismatch (got 0x%x, expected 0x%x)",
+		    "transaction ID mismatch (got 0x%x, expected 0x%x)",
 		    rte_be_to_cpu_32(dhcp->xid),
 		    client->xid);
 		return -1;
 	}
 
 	if (dhcp->op != BOOTREPLY) {
-		LOG(ERR, "dhcp_parse_packet: not a BOOTREPLY");
+		LOG(DEBUG, "not a BOOTREPLY");
 		return -1;
 	}
 
@@ -70,14 +67,13 @@ int dhcp_parse_packet(
 	options_len = pkt_len - sizeof(*udp) - sizeof(*dhcp);
 
 	if (dhcp_parse_options(options, options_len, client, &msg_type) < 0) {
-		LOG(ERR, "dhcp_parse_packet: failed to parse options");
 		return -1;
 	}
 
 	client->offered_ip = dhcp->yiaddr;
 
 	LOG(INFO,
-	    "dhcp: received %s from server (xid=0x%08x, offered_ip=" IP4_F ")",
+	    "received %s from server (xid=0x%08x, offered_ip=" IP4_F ")",
 	    dhcp_message_type_name(msg_type),
 	    client->xid,
 	    &client->offered_ip);
@@ -94,7 +90,7 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	dhcp_message_type_t msg_type,
 	ip4_addr_t server_ip,
 	ip4_addr_t requested_ip,
-	const char *caller
+	const char *
 ) {
 	const struct iface *iface;
 	struct rte_ether_addr mac;
@@ -106,19 +102,14 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	int opt_len;
 
 	iface = iface_from_id(iface_id);
-	if (iface == NULL) {
-		LOG(ERR, "%s: interface %u not found", caller, iface_id);
+	if (iface == NULL)
 		return NULL;
-	}
 
-	if (iface_get_eth_addr(iface, &mac) < 0) {
-		LOG(ERR, "%s: failed to get MAC for iface %u", caller, iface_id);
-		return NULL;
-	}
+	if (iface_get_eth_addr(iface, &mac) < 0)
+		return errno_set_null(EMEDIUMTYPE);
 
 	m = rte_pktmbuf_alloc(dhcp_get_mempool());
 	if (m == NULL) {
-		LOG(ERR, "%s: failed to allocate mbuf", caller);
 		return NULL;
 	}
 
@@ -131,21 +122,18 @@ static struct rte_mbuf *dhcp_build_packet_common(
 
 	ip = (struct rte_ipv4_hdr *)rte_pktmbuf_append(m, sizeof(*ip));
 	if (ip == NULL) {
-		LOG(ERR, "%s: failed to append IP header", caller);
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
 
 	udp = (struct rte_udp_hdr *)rte_pktmbuf_append(m, sizeof(*udp));
 	if (udp == NULL) {
-		LOG(ERR, "%s: failed to append UDP header", caller);
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
 
 	dhcp = (struct dhcp_packet *)rte_pktmbuf_append(m, sizeof(*dhcp));
 	if (dhcp == NULL) {
-		LOG(ERR, "%s: failed to append DHCP packet", caller);
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
@@ -162,14 +150,12 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	// Allocate space for options (worst case: 22 bytes, see dhcp_build_options_ex)
 	options = (uint8_t *)rte_pktmbuf_append(m, 22);
 	if (options == NULL) {
-		LOG(ERR, "%s: failed to append options", caller);
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
 
 	opt_len = dhcp_build_options_ex(options, 22, msg_type, server_ip, requested_ip);
 	if (opt_len < 0) {
-		LOG(ERR, "%s: failed to build options", caller);
 		rte_pktmbuf_free(m);
 		return NULL;
 	}

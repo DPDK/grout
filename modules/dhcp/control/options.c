@@ -27,23 +27,20 @@ int dhcp_parse_options(
 			continue;
 
 		if (pos >= options_len) {
-			LOG(ERR, "dhcp_parse_options: truncated option %u", opt);
+			LOG(ERR, "truncated option %u", opt);
 			return -1;
 		}
 		len = options[pos++];
 
 		if (pos + len > options_len) {
-			LOG(ERR,
-			    "dhcp_parse_options: option %u length %u exceeds packet",
-			    opt,
-			    len);
+			LOG(ERR, "option %u length %u exceeds packet", opt, len);
 			return -1;
 		}
 
 		switch (opt) {
 		case DHCP_OPT_MESSAGE_TYPE:
 			if (len != 1) {
-				LOG(ERR, "dhcp_parse_options: invalid message type length %u", len);
+				LOG(ERR, "invalid message type length %u", len);
 				return -1;
 			}
 			*msg_type = options[pos];
@@ -51,7 +48,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_SUBNET_MASK:
 			if (len != 4) {
-				LOG(ERR, "dhcp_parse_options: invalid subnet mask length %u", len);
+				LOG(ERR, "invalid subnet mask length %u", len);
 				break;
 			}
 			memcpy(&client->subnet_mask, &options[pos], 4);
@@ -59,7 +56,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_ROUTER:
 			if (len < 4) {
-				LOG(ERR, "dhcp_parse_options: invalid router length %u", len);
+				LOG(ERR, "invalid router length %u", len);
 				break;
 			}
 			memcpy(&client->router_ip, &options[pos], 4);
@@ -67,7 +64,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_SERVER_ID:
 			if (len != 4) {
-				LOG(ERR, "dhcp_parse_options: invalid server ID length %u", len);
+				LOG(ERR, "invalid server ID length %u", len);
 				break;
 			}
 			memcpy(&client->server_ip, &options[pos], 4);
@@ -75,7 +72,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_LEASE_TIME:
 			if (len != 4) {
-				LOG(ERR, "dhcp_parse_options: invalid lease time length %u", len);
+				LOG(ERR, "invalid lease time length %u", len);
 				break;
 			}
 			client->lease_time = (options[pos] << 24) | (options[pos + 1] << 16)
@@ -84,7 +81,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_RENEWAL_TIME:
 			if (len != 4) {
-				LOG(ERR, "dhcp_parse_options: invalid renewal time length %u", len);
+				LOG(ERR, "invalid renewal time length %u", len);
 				break;
 			}
 			client->renewal_time = (options[pos] << 24) | (options[pos + 1] << 16)
@@ -93,7 +90,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_REBIND_TIME:
 			if (len != 4) {
-				LOG(ERR, "dhcp_parse_options: invalid rebind time length %u", len);
+				LOG(ERR, "invalid rebind time length %u", len);
 				break;
 			}
 			client->rebind_time = (options[pos] << 24) | (options[pos + 1] << 16)
@@ -101,7 +98,7 @@ int dhcp_parse_options(
 			break;
 
 		default:
-			LOG(DEBUG, "dhcp_parse_options: ignoring option %u (len=%u)", opt, len);
+			LOG(DEBUG, "ignoring option %u (len=%u)", opt, len);
 			break;
 		}
 
@@ -109,7 +106,7 @@ int dhcp_parse_options(
 	}
 
 	if (*msg_type == 0) {
-		LOG(ERR, "dhcp_parse_options: no message type found");
+		LOG(ERR, "no message type found");
 		return -1;
 	}
 
