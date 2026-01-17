@@ -73,8 +73,8 @@ struct dhcp_client {
 	uint32_t xid;
 	ip4_addr_t server_ip;
 	ip4_addr_t offered_ip;
-	ip4_addr_t subnet_mask;
 	ip4_addr_t router_ip;
+	uint8_t prefixlen;
 	uint32_t lease_time;
 	uint32_t renewal_time; // T1 time in seconds
 	uint32_t rebind_time; // T2 time in seconds
