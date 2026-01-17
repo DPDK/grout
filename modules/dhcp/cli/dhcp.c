@@ -46,25 +46,6 @@ static cmd_status_t dhcp_disable_cmd(struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static const char *dhcp_state_str(enum dhcp_state state) {
-	switch (state) {
-	case DHCP_STATE_INIT:
-		return "INIT";
-	case DHCP_STATE_SELECTING:
-		return "SELECTING";
-	case DHCP_STATE_REQUESTING:
-		return "REQUESTING";
-	case DHCP_STATE_BOUND:
-		return "BOUND";
-	case DHCP_STATE_RENEWING:
-		return "RENEWING";
-	case DHCP_STATE_REBINDING:
-		return "REBINDING";
-	default:
-		return "UNKNOWN";
-	}
-}
-
 static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_dhcp_status *status;
 	struct libscols_table *table;
@@ -91,7 +72,7 @@ static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode
 			scols_line_sprintf(line, 0, "%u", status->iface_id);
 		}
 
-		scols_line_sprintf(line, 1, "%s", dhcp_state_str(status->state));
+		scols_line_sprintf(line, 1, "%s", gr_dhcp_state_name(status->state));
 
 		if (status->assigned_ip != 0) {
 			scols_line_sprintf(line, 2, IP4_F, &status->assigned_ip);

@@ -219,7 +219,7 @@ static void dhcp_send_request(struct dhcp_client *client) {
 	LOG(INFO,
 	    "dhcp: sent REQUEST for renewal (iface=%u, state=%s)",
 	    client->iface_id,
-	    client->state == DHCP_STATE_RENEWING ? "RENEWING" : "REBINDING");
+	    gr_dhcp_state_name(client->state));
 }
 
 static void dhcp_schedule_timers(struct dhcp_client *client) {
