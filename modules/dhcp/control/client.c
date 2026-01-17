@@ -398,28 +398,19 @@ static void dhcp_init(struct event_base *ev_base) {
 
 int dhcp_start(uint16_t iface_id) {
 	struct dhcp_client *client;
+	const struct iface *iface;
 	uint32_t xid;
 
-	if (iface_id >= MAX_IFACES) {
-		errno = EINVAL;
-		return -1;
-	}
+	iface = iface_from_id(iface_id);
+	if (iface == NULL)
+		return -errno;
 
-	if (iface_from_id(iface_id) == NULL) {
-		errno = ENODEV;
-		return -1;
-	}
-
-	if (dhcp_clients[iface_id] != NULL) {
-		errno = EEXIST;
-		return -1;
-	}
+	if (dhcp_clients[iface_id] != NULL)
+		return errno_set(EEXIST);
 
 	client = calloc(1, sizeof(*client));
-	if (client == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
+	if (client == NULL)
+		return errno_set(ENOMEM);
 
 	xid = rte_rand();
 
@@ -443,28 +434,17 @@ int dhcp_start(uint16_t iface_id) {
 	return 0;
 }
 
-void dhcp_stop(uint16_t iface_id) {
+int dhcp_stop(uint16_t iface_id) {
 	struct dhcp_client *client;
 	const struct iface *iface;
 
-	errno = 0;
-
-	if (iface_id >= MAX_IFACES) {
-		errno = EINVAL;
-		return;
-	}
+	iface = iface_from_id(iface_id);
+	if (iface == NULL)
+		return -errno;
 
 	client = dhcp_clients[iface_id];
-	if (client == NULL) {
-		errno = ENOENT;
-		return;
-	}
-
-	iface = iface_from_id(iface_id);
-	if (iface == NULL) {
-		errno = ENODEV;
-		return;
-	}
+	if (client == NULL)
+		return errno_set(ENOENT);
 
 	if (client->offered_ip != 0 && client->prefixlen != 0)
 		addr4_delete(iface->id, client->offered_ip, client->prefixlen);
@@ -477,6 +457,8 @@ void dhcp_stop(uint16_t iface_id) {
 	dhcp_clients[iface_id] = NULL;
 
 	LOG(INFO, "stopped client on iface %s", iface->name);
+
+	return 0;
 }
 
 struct rte_mempool *dhcp_get_mempool(void) {
@@ -524,8 +506,7 @@ static struct api_out dhcp_start_handler(const void *request, struct api_ctx *) 
 static struct api_out dhcp_stop_handler(const void *request, struct api_ctx *) {
 	const struct gr_dhcp_stop_req *req = request;
 
-	dhcp_stop(req->iface_id);
-	if (errno != 0)
+	if (dhcp_stop(req->iface_id) < 0)
 		return api_out(errno, 0, NULL);
 
 	return api_out(0, 0, NULL);

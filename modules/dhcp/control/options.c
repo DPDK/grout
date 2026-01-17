@@ -30,26 +30,27 @@ int dhcp_parse_options(
 
 		if (pos >= options_len) {
 			LOG(ERR, "truncated option %u", opt);
-			return -1;
+			return errno_set(EBADMSG);
 		}
+
 		len = options[pos++];
 
 		if (pos + len > options_len) {
 			LOG(ERR, "option %u length %u exceeds packet", opt, len);
-			return -1;
+			return errno_set(E2BIG);
 		}
 
 		switch (opt) {
 		case DHCP_OPT_MESSAGE_TYPE:
-			if (len != 1) {
+			if (len != sizeof(*msg_type)) {
 				LOG(ERR, "invalid message type length %u", len);
-				return -1;
+				return errno_set(EBADMSG);
 			}
 			*msg_type = options[pos];
 			break;
 
 		case DHCP_OPT_SUBNET_MASK:
-			if (len != 4) {
+			if (len != sizeof(mask)) {
 				LOG(ERR, "invalid subnet mask length %u", len);
 				break;
 			}
@@ -110,7 +111,7 @@ int dhcp_parse_options(
 
 	if (*msg_type == 0) {
 		LOG(ERR, "no message type found");
-		return -1;
+		return errno_set(EBADMSG);
 	}
 
 	return 0;
@@ -130,10 +131,8 @@ int dhcp_build_options_ex(
 	uint16_t pos = 0;
 
 	// Worst case: 3 (msg type) + 6 (server id) + 6 (requested ip) + 6 (param req) + 1 (end) = 22
-	if (buf_len < 22) {
-		LOG(ERR, "dhcp_build_options: buffer too small");
-		return -1;
-	}
+	if (buf_len < 22)
+		return errno_set(ENOBUFS);
 
 	// Option 53: DHCP Message Type
 	buf[pos++] = DHCP_OPT_MESSAGE_TYPE;

@@ -37,17 +37,16 @@ int dhcp_parse_packet(
 	pkt_len = rte_pktmbuf_data_len(mbuf);
 
 	if (pkt_len < sizeof(*udp)) {
-		return -1;
+		return errno_set(ENOBUFS);
 	}
 	udp = (struct rte_udp_hdr *)pkt_data;
-
 	if (pkt_len < sizeof(*udp) + sizeof(*dhcp)) {
-		return -1;
+		return errno_set(ENOBUFS);
 	}
 	dhcp = (struct dhcp_packet *)(pkt_data + sizeof(*udp));
 
 	if (dhcp->magic != DHCP_MAGIC) {
-		return -1;
+		return errno_set(EBADMSG);
 	}
 
 	if (dhcp->xid != rte_cpu_to_be_32(client->xid)) {
@@ -55,19 +54,19 @@ int dhcp_parse_packet(
 		    "transaction ID mismatch (got 0x%x, expected 0x%x)",
 		    rte_be_to_cpu_32(dhcp->xid),
 		    client->xid);
-		return -1;
+		return errno_set(EIDRM);
 	}
 
 	if (dhcp->op != BOOTREPLY) {
 		LOG(DEBUG, "not a BOOTREPLY");
-		return -1;
+		return errno_set(EOPNOTSUPP);
 	}
 
 	options = dhcp->options;
 	options_len = pkt_len - sizeof(*udp) - sizeof(*dhcp);
 
 	if (dhcp_parse_options(options, options_len, client, &msg_type) < 0) {
-		return -1;
+		return -errno;
 	}
 
 	client->offered_ip = dhcp->yiaddr;
@@ -109,9 +108,8 @@ static struct rte_mbuf *dhcp_build_packet_common(
 		return errno_set_null(EMEDIUMTYPE);
 
 	m = rte_pktmbuf_alloc(dhcp_get_mempool());
-	if (m == NULL) {
-		return NULL;
-	}
+	if (m == NULL)
+		return errno_set_null(ENOMEM);
 
 	mbuf_data(m)->iface = iface;
 
@@ -122,20 +120,20 @@ static struct rte_mbuf *dhcp_build_packet_common(
 
 	ip = (struct rte_ipv4_hdr *)rte_pktmbuf_append(m, sizeof(*ip));
 	if (ip == NULL) {
-		rte_pktmbuf_free(m);
-		return NULL;
+		errno = ENOBUFS;
+		goto err;
 	}
 
 	udp = (struct rte_udp_hdr *)rte_pktmbuf_append(m, sizeof(*udp));
 	if (udp == NULL) {
-		rte_pktmbuf_free(m);
-		return NULL;
+		errno = ENOBUFS;
+		goto err;
 	}
 
 	dhcp = (struct dhcp_packet *)rte_pktmbuf_append(m, sizeof(*dhcp));
 	if (dhcp == NULL) {
-		rte_pktmbuf_free(m);
-		return NULL;
+		errno = ENOBUFS;
+		goto err;
 	}
 
 	memset(dhcp, 0, sizeof(*dhcp));
@@ -150,14 +148,14 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	// Allocate space for options (worst case: 22 bytes, see dhcp_build_options_ex)
 	options = (uint8_t *)rte_pktmbuf_append(m, 22);
 	if (options == NULL) {
-		rte_pktmbuf_free(m);
-		return NULL;
+		errno = ENOBUFS;
+		goto err;
 	}
 
 	opt_len = dhcp_build_options_ex(options, 22, msg_type, server_ip, requested_ip);
 	if (opt_len < 0) {
-		rte_pktmbuf_free(m);
-		return NULL;
+		errno = -opt_len;
+		goto err;
 	}
 
 	udp->src_port = RTE_BE16(68);
@@ -178,6 +176,10 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
 
 	return m;
+
+err:
+	rte_pktmbuf_free(m);
+	return NULL;
 }
 
 struct rte_mbuf *dhcp_build_discover(uint16_t iface_id, uint32_t xid) {
