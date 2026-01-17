@@ -113,7 +113,7 @@ void dhcp_input_register_port(void);
 
 int dhcp_start(uint16_t iface_id);
 
-void dhcp_stop(uint16_t iface_id);
+int dhcp_stop(uint16_t iface_id);
 
 struct rte_mempool *dhcp_get_mempool(void);
 control_input_t dhcp_get_output(void);
