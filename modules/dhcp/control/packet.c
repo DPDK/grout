@@ -78,9 +78,7 @@ int dhcp_parse_packet(
 
 	LOG(INFO,
 	    "dhcp: received %s from server (xid=0x%08x, offered_ip=" IP4_F ")",
-	    msg_type == DHCP_OFFER	 ? "OFFER" :
-		    msg_type == DHCP_ACK ? "ACK" :
-					   "other",
+	    dhcp_message_type_name(msg_type),
 	    client->xid,
 	    &client->offered_ip);
 

@@ -16,7 +16,7 @@
 struct event;
 
 // DHCP message types (RFC 2132 option 53)
-typedef enum dhcp_message_type : uint8_t {
+typedef enum : uint8_t {
 	DHCP_DISCOVER = 1,
 	DHCP_OFFER = 2,
 	DHCP_REQUEST = 3,
@@ -27,8 +27,30 @@ typedef enum dhcp_message_type : uint8_t {
 	DHCP_INFORM = 8,
 } dhcp_message_type_t;
 
+static inline const char *dhcp_message_type_name(dhcp_message_type_t type) {
+	switch (type) {
+	case DHCP_DISCOVER:
+		return "DISCOVER";
+	case DHCP_OFFER:
+		return "OFFER";
+	case DHCP_REQUEST:
+		return "REQUEST";
+	case DHCP_DECLINE:
+		return "DECLINE";
+	case DHCP_ACK:
+		return "ACK";
+	case DHCP_NAK:
+		return "NAK";
+	case DHCP_RELEASE:
+		return "RELEASE";
+	case DHCP_INFORM:
+		return "INFORM";
+	}
+	return "?";
+}
+
 // DHCP options (RFC 2132)
-typedef enum dhcp_option_code : uint8_t {
+typedef enum : uint8_t {
 	DHCP_OPT_PAD = 0,
 	DHCP_OPT_SUBNET_MASK = 1,
 	DHCP_OPT_ROUTER = 3,

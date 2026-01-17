@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // DHCP client state machine states (RFC 2131).
-typedef enum dhcp_state : uint8_t {
+typedef enum : uint8_t {
 	DHCP_STATE_INIT = 0, // Initial state, no configuration.
 	DHCP_STATE_SELECTING, // Waiting for DHCPOFFER messages.
 	DHCP_STATE_REQUESTING, // Waiting for DHCPACK message.
@@ -18,6 +18,24 @@ typedef enum dhcp_state : uint8_t {
 	DHCP_STATE_RENEWING, // Renewing lease with original server (T1 expired).
 	DHCP_STATE_REBINDING, // Rebinding with any server (T2 expired).
 } dhcp_state_t;
+
+static inline const char *gr_dhcp_state_name(dhcp_state_t state) {
+	switch (state) {
+	case DHCP_STATE_INIT:
+		return "INIT";
+	case DHCP_STATE_SELECTING:
+		return "SELECTING";
+	case DHCP_STATE_REQUESTING:
+		return "REQUESTING";
+	case DHCP_STATE_BOUND:
+		return "BOUND";
+	case DHCP_STATE_RENEWING:
+		return "RENEWING";
+	case DHCP_STATE_REBINDING:
+		return "REBINDING";
+	}
+	return "?";
+}
 
 // DHCP client status information for an interface.
 struct gr_dhcp_status {
