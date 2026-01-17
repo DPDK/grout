@@ -56,28 +56,30 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 
 	// Add default route if router option was provided
 	if (client->router_ip != 0) {
-		struct nexthop *gw_nh;
+		struct nexthop *nh = nh4_lookup(iface->vrf_id, client->router_ip);
 
-		struct gr_nexthop_base gw_base = {
-			.type = GR_NH_T_L3,
-			.origin = GR_NH_ORIGIN_DHCP,
-			.iface_id = iface->id,
-			.vrf_id = iface->vrf_id,
-		};
-		struct gr_nexthop_info_l3 gw_l3 = {
-			.af = GR_AF_IP4,
-			.ipv4 = client->router_ip,
-			.prefixlen = 0,
-			.flags = GR_NH_F_GATEWAY,
-			.state = GR_NH_S_REACHABLE,
-		};
-
-		if ((gw_nh = nexthop_new(&gw_base, &gw_l3)) == NULL) {
-			LOG(WARNING, "failed to create gateway nexthop: %s", strerror(errno));
-			return 0; // Continue even if gateway creation fails
+		if (nh == NULL) {
+			struct gr_nexthop_base base = {
+				.type = GR_NH_T_L3,
+				.origin = GR_NH_ORIGIN_DHCP,
+				.iface_id = iface->id,
+				.vrf_id = iface->vrf_id,
+			};
+			struct gr_nexthop_info_l3 l3 = {
+				.af = GR_AF_IP4,
+				.ipv4 = client->router_ip,
+				.prefixlen = 0,
+				.flags = GR_NH_F_GATEWAY,
+			};
+			if ((nh = nexthop_new(&base, &l3)) == NULL) {
+				LOG(WARNING,
+				    "failed to create gateway nexthop: %s",
+				    strerror(errno));
+				return 0; // Continue even if gateway creation fails
+			}
 		}
 
-		ret = rib4_insert(iface->vrf_id, 0, 0, GR_NH_ORIGIN_DHCP, gw_nh);
+		ret = rib4_insert(iface->vrf_id, 0, 0, GR_NH_ORIGIN_DHCP, nh);
 		if (ret < 0) {
 			LOG(WARNING, "failed to add default route: %s", strerror(-ret));
 		} else {
