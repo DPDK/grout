@@ -50,3 +50,6 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv);
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
+
+int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin_t);
+int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen);

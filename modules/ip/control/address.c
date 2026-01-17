@@ -62,28 +62,26 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	return addrs->nh[0];
 }
 
-static struct api_out addr_add(const void *request, struct api_ctx *) {
-	const struct gr_ip4_addr_add_req *req = request;
+int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin_t origin) {
 	const struct iface *iface;
 	struct hoplist *ifaddrs;
 	struct nexthop *nh;
 	int ret;
 
-	iface = iface_from_id(req->addr.iface_id);
+	iface = iface_from_id(iface_id);
 	if (iface == NULL)
-		return api_out(errno, 0, NULL);
+		return -errno;
 
 	ifaddrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, ifaddrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if (req->exist_ok && req->addr.addr.ip == l3->ipv4
-		    && req->addr.addr.prefixlen == l3->prefixlen)
-			return api_out(0, 0, NULL);
+		if (ip == l3->ipv4 && prefixlen == l3->prefixlen)
+			return errno_set(EEXIST);
 	}
 
-	if (nh4_lookup(iface->vrf_id, req->addr.addr.ip) != NULL)
-		return api_out(EADDRINUSE, 0, NULL);
+	if (nh4_lookup(iface->vrf_id, ip) != NULL)
+		return errno_set(EADDRINUSE);
 
 	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
@@ -93,22 +91,20 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 	};
 	struct gr_nexthop_info_l3 l3 = {
 		.af = GR_AF_IP4,
-		.ipv4 = req->addr.addr.ip,
-		.prefixlen = req->addr.addr.prefixlen,
+		.ipv4 = ip,
+		.prefixlen = prefixlen,
 		.flags = NH_LOCAL_ADDR_FLAGS,
 		.state = GR_NH_S_REACHABLE,
 	};
 	if (iface_get_eth_addr(iface, &l3.mac) < 0 && errno != EOPNOTSUPP)
-		return api_out(errno, 0, NULL);
+		return -errno;
 
 	if ((nh = nexthop_new(&base, &l3)) == NULL)
-		return api_out(errno, 0, NULL);
+		return -errno;
 
-	ret = rib4_insert(
-		iface->vrf_id, req->addr.addr.ip, req->addr.addr.prefixlen, GR_NH_ORIGIN_LINK, nh
-	);
+	ret = rib4_insert(iface->vrf_id, ip, prefixlen, origin, nh);
 	if (ret < 0)
-		return api_out(-ret, 0, NULL);
+		return ret;
 
 	// gr_vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
@@ -124,56 +120,82 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 		gr_vec_free(nhs_old);
 	}
 
-	if (netlink_add_addr4(iface->cp_id, req->addr.addr.ip) < 0)
-		LOG(WARNING,
-		    "add addr " IP4_F " on linux has failed (%s)",
-		    &req->addr.addr.ip,
-		    strerror(errno));
+	if (netlink_add_addr4(iface->cp_id, ip) < 0)
+		LOG(WARNING, "add addr " IP4_F " on linux has failed (%s)", &ip, strerror(errno));
 
-	gr_event_push(GR_EVENT_IP_ADDR_ADD, &req->addr);
+	gr_event_push(
+		GR_EVENT_IP_ADDR_ADD,
+		&(struct gr_ip4_ifaddr) {
+			.addr = {ip, prefixlen},
+			.iface_id = iface_id,
+		}
+	);
 
+	return 0;
+}
+
+static struct api_out addr_add(const void *request, struct api_ctx *) {
+	const struct gr_ip4_addr_add_req *req = request;
+	int ret = addr4_add(
+		req->addr.iface_id, req->addr.addr.ip, req->addr.addr.prefixlen, GR_NH_ORIGIN_LINK
+	);
+	if (ret < 0) {
+		if (errno != EEXIST || !req->exist_ok)
+			return api_out(errno, 0, NULL);
+	}
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out addr_del(const void *request, struct api_ctx *) {
-	const struct gr_ip4_addr_del_req *req = request;
+int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	const struct iface *iface;
 	struct hoplist *addrs;
 	struct nexthop *nh;
 	unsigned i = 0;
 
-	if ((addrs = addr4_get_all(req->addr.iface_id)) == NULL)
-		return api_out(ENODEV, 0, NULL);
+	if ((addrs = addr4_get_all(iface_id)) == NULL)
+		return -errno;
 
 	gr_vec_foreach (nh, addrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if (l3->ipv4 == req->addr.addr.ip && l3->prefixlen == req->addr.addr.prefixlen) {
+		if (l3->ipv4 == ip && l3->prefixlen == prefixlen) {
 			break;
 		}
 		nh = NULL;
 		i++;
 	}
-	if (nh == NULL) {
-		if (req->missing_ok)
-			return api_out(0, 0, NULL);
-		return api_out(ENOENT, 0, NULL);
-	}
+	if (nh == NULL)
+		return errno_set(ENOENT);
 
-	gr_event_push(GR_EVENT_IP_ADDR_DEL, &req->addr);
+	gr_event_push(
+		GR_EVENT_IP_ADDR_DEL,
+		&(struct gr_ip4_ifaddr) {
+			.addr = {ip, prefixlen},
+			.iface_id = iface_id,
+		}
+	);
 
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
 
-	iface = iface_from_id(req->addr.iface_id);
+	iface = iface_from_id(iface_id);
 	if (iface) {
-		if (netlink_del_addr4(iface->cp_id, req->addr.addr.ip) < 0)
+		if (netlink_del_addr4(iface->cp_id, ip) < 0)
 			LOG(WARNING,
 			    "delete addr " IP4_F " on linux has failed (%s)",
-			    &req->addr.addr.ip,
+			    &ip,
 			    strerror(errno));
 	}
 
+	return 0;
+}
+
+static struct api_out addr_del(const void *request, struct api_ctx *) {
+	const struct gr_ip4_addr_del_req *req = request;
+	if (addr4_delete(req->addr.iface_id, req->addr.addr.ip, req->addr.addr.prefixlen) < 0) {
+		if (errno != ENOENT || !req->missing_ok)
+			return api_out(errno, 0, NULL);
+	}
 	return api_out(0, 0, NULL);
 }
 
