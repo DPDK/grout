@@ -13,6 +13,7 @@ int dhcp_parse_options(
 ) {
 	dhcp_option_code_t opt;
 	uint16_t pos = 0;
+	rte_be32_t time;
 	ip4_addr_t mask;
 	uint8_t len;
 
@@ -77,8 +78,8 @@ int dhcp_parse_options(
 				LOG(ERR, "invalid lease time length %u", len);
 				break;
 			}
-			client->lease_time = (options[pos] << 24) | (options[pos + 1] << 16)
-				| (options[pos + 2] << 8) | options[pos + 3];
+			memcpy(&time, &options[pos], 4);
+			client->lease_time = rte_be_to_cpu_32(time);
 			break;
 
 		case DHCP_OPT_RENEWAL_TIME:
@@ -86,8 +87,8 @@ int dhcp_parse_options(
 				LOG(ERR, "invalid renewal time length %u", len);
 				break;
 			}
-			client->renewal_time = (options[pos] << 24) | (options[pos + 1] << 16)
-				| (options[pos + 2] << 8) | options[pos + 3];
+			memcpy(&time, &options[pos], 4);
+			client->renewal_time = rte_be_to_cpu_32(time);
 			break;
 
 		case DHCP_OPT_REBIND_TIME:
@@ -95,8 +96,8 @@ int dhcp_parse_options(
 				LOG(ERR, "invalid rebind time length %u", len);
 				break;
 			}
-			client->rebind_time = (options[pos] << 24) | (options[pos + 1] << 16)
-				| (options[pos + 2] << 8) | options[pos + 3];
+			memcpy(&time, &options[pos], 4);
+			client->rebind_time = rte_be_to_cpu_32(time);
 			break;
 
 		default:
