@@ -107,22 +107,13 @@ struct dhcp_packet {
 #define BOOTREQUEST 1
 #define BOOTREPLY 2
 
-void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *);
+void dhcp_input_cb(struct rte_mbuf *, const struct control_output_drain *);
 
 void dhcp_input_register_port(void);
 
-int dhcp_start(uint16_t iface_id);
-
-int dhcp_stop(uint16_t iface_id);
-
 struct rte_mempool *dhcp_get_mempool(void);
-control_input_t dhcp_get_output(void);
 
-int dhcp_parse_packet(
-	struct rte_mbuf *mbuf,
-	struct dhcp_client *client,
-	dhcp_message_type_t *msg_type_out
-);
+int dhcp_parse_packet(struct rte_mbuf *, struct dhcp_client *, dhcp_message_type_t *);
 struct rte_mbuf *dhcp_build_discover(uint16_t iface_id, uint32_t xid);
 struct rte_mbuf *
 dhcp_build_request(uint16_t iface_id, uint32_t xid, ip4_addr_t server_ip, ip4_addr_t requested_ip);
@@ -130,14 +121,13 @@ dhcp_build_request(uint16_t iface_id, uint32_t xid, ip4_addr_t server_ip, ip4_ad
 int dhcp_parse_options(
 	const uint8_t *options,
 	uint16_t options_len,
-	struct dhcp_client *client,
-	dhcp_message_type_t *msg_type
+	struct dhcp_client *,
+	dhcp_message_type_t *
 );
-int dhcp_build_options(uint8_t *buf, uint16_t buf_len, dhcp_message_type_t msg_type);
-int dhcp_build_options_ex(
+int dhcp_build_options(
 	uint8_t *buf,
-	uint16_t buf_len,
-	dhcp_message_type_t msg_type,
+	uint16_t len,
+	dhcp_message_type_t,
 	ip4_addr_t server_ip,
 	ip4_addr_t requested_ip
 );

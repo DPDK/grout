@@ -23,31 +23,17 @@
 int dhcp_parse_packet(
 	struct rte_mbuf *mbuf,
 	struct dhcp_client *client,
-	dhcp_message_type_t *msg_type_out
+	dhcp_message_type_t *msg_type
 ) {
-	dhcp_message_type_t msg_type;
 	struct dhcp_packet *dhcp;
-	struct rte_udp_hdr *udp;
 	uint16_t options_len;
-	uint8_t *pkt_data;
-	uint16_t pkt_len;
-	uint8_t *options;
 
-	pkt_data = rte_pktmbuf_mtod(mbuf, uint8_t *);
-	pkt_len = rte_pktmbuf_data_len(mbuf);
-
-	if (pkt_len < sizeof(*udp)) {
+	if (rte_pktmbuf_data_len(mbuf) < sizeof(struct rte_udp_hdr) + sizeof(*dhcp))
 		return errno_set(ENOBUFS);
-	}
-	udp = (struct rte_udp_hdr *)pkt_data;
-	if (pkt_len < sizeof(*udp) + sizeof(*dhcp)) {
-		return errno_set(ENOBUFS);
-	}
-	dhcp = (struct dhcp_packet *)(pkt_data + sizeof(*udp));
 
-	if (dhcp->magic != DHCP_MAGIC) {
+	dhcp = rte_pktmbuf_mtod_offset(mbuf, struct dhcp_packet *, sizeof(struct rte_udp_hdr));
+	if (dhcp->magic != DHCP_MAGIC)
 		return errno_set(EBADMSG);
-	}
 
 	if (dhcp->xid != rte_cpu_to_be_32(client->xid)) {
 		LOG(DEBUG,
@@ -56,41 +42,35 @@ int dhcp_parse_packet(
 		    client->xid);
 		return errno_set(EIDRM);
 	}
-
 	if (dhcp->op != BOOTREPLY) {
 		LOG(DEBUG, "not a BOOTREPLY");
 		return errno_set(EOPNOTSUPP);
 	}
 
-	options = dhcp->options;
-	options_len = pkt_len - sizeof(*udp) - sizeof(*dhcp);
-
-	if (dhcp_parse_options(options, options_len, client, &msg_type) < 0) {
+	options_len = rte_pktmbuf_data_len(mbuf) - sizeof(struct rte_udp_hdr) - sizeof(*dhcp);
+	if (dhcp_parse_options(dhcp->options, options_len, client, msg_type) < 0)
 		return -errno;
-	}
 
 	client->offered_ip = dhcp->yiaddr;
 
 	LOG(INFO,
 	    "received %s from server (xid=0x%08x, offered_ip=" IP4_F ")",
-	    dhcp_message_type_name(msg_type),
+	    dhcp_message_type_name(*msg_type),
 	    client->xid,
 	    &client->offered_ip);
-
-	if (msg_type_out != NULL)
-		*msg_type_out = msg_type;
 
 	return 0;
 }
 
-static struct rte_mbuf *dhcp_build_packet_common(
+static struct rte_mbuf *dhcp_build_packet(
 	uint16_t iface_id,
 	uint32_t xid,
 	dhcp_message_type_t msg_type,
 	ip4_addr_t server_ip,
-	ip4_addr_t requested_ip,
-	const char *
+	ip4_addr_t requested_ip
 ) {
+	static const struct rte_ether_addr broadcast_mac = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}};
+	struct eth_output_mbuf_data *data;
 	const struct iface *iface;
 	struct rte_ether_addr mac;
 	struct dhcp_packet *dhcp;
@@ -111,25 +91,21 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	if (m == NULL)
 		return errno_set_null(ENOMEM);
 
-	mbuf_data(m)->iface = iface;
-
-	struct rte_ether_addr broadcast_mac;
-	memset(&broadcast_mac, 0xFF, RTE_ETHER_ADDR_LEN);
-	eth_output_mbuf_data(m)->dst = broadcast_mac;
-	eth_output_mbuf_data(m)->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+	data = eth_output_mbuf_data(m);
+	data->iface = iface;
+	data->dst = broadcast_mac;
+	data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 
 	ip = (struct rte_ipv4_hdr *)rte_pktmbuf_append(m, sizeof(*ip));
 	if (ip == NULL) {
 		errno = ENOBUFS;
 		goto err;
 	}
-
 	udp = (struct rte_udp_hdr *)rte_pktmbuf_append(m, sizeof(*udp));
 	if (udp == NULL) {
 		errno = ENOBUFS;
 		goto err;
 	}
-
 	dhcp = (struct dhcp_packet *)rte_pktmbuf_append(m, sizeof(*dhcp));
 	if (dhcp == NULL) {
 		errno = ENOBUFS;
@@ -145,18 +121,19 @@ static struct rte_mbuf *dhcp_build_packet_common(
 	rte_ether_addr_copy(&mac, (struct rte_ether_addr *)dhcp->chaddr);
 	dhcp->magic = DHCP_MAGIC;
 
-	// Allocate space for options (worst case: 22 bytes, see dhcp_build_options_ex)
+	// Allocate space for options (worst case: 22 bytes, see dhcp_build_options)
 	options = (uint8_t *)rte_pktmbuf_append(m, 22);
 	if (options == NULL) {
 		errno = ENOBUFS;
 		goto err;
 	}
 
-	opt_len = dhcp_build_options_ex(options, 22, msg_type, server_ip, requested_ip);
+	opt_len = dhcp_build_options(options, 22, msg_type, server_ip, requested_ip);
 	if (opt_len < 0) {
 		errno = -opt_len;
 		goto err;
 	}
+	rte_pktmbuf_trim(m, 22 - opt_len);
 
 	udp->src_port = RTE_BE16(68);
 	udp->dst_port = RTE_BE16(67);
@@ -183,12 +160,10 @@ err:
 }
 
 struct rte_mbuf *dhcp_build_discover(uint16_t iface_id, uint32_t xid) {
-	return dhcp_build_packet_common(iface_id, xid, DHCP_DISCOVER, 0, 0, "dhcp_build_discover");
+	return dhcp_build_packet(iface_id, xid, DHCP_DISCOVER, 0, 0);
 }
 
 struct rte_mbuf *
 dhcp_build_request(uint16_t iface_id, uint32_t xid, ip4_addr_t server_ip, ip4_addr_t requested_ip) {
-	return dhcp_build_packet_common(
-		iface_id, xid, DHCP_REQUEST, server_ip, requested_ip, "dhcp_build_request"
-	);
+	return dhcp_build_packet(iface_id, xid, DHCP_REQUEST, server_ip, requested_ip);
 }
