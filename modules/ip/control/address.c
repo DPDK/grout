@@ -177,6 +177,8 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	rib4_cleanup(nh);
 
 	gr_vec_del(addrs->nh, i);
+	if (gr_vec_len(addrs->nh) == 0)
+		gr_vec_free(addrs->nh);
 
 	iface = iface_from_id(iface_id);
 	if (iface) {
@@ -229,17 +231,17 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 
 static void iface_pre_remove_cb(uint32_t /*event*/, const void *obj) {
 	const struct iface *iface = obj;
+	struct nexthop_info_l3 *l3;
 	struct hoplist *ifaddrs;
-	struct nexthop *nh;
 
 	ifaddrs = addr4_get_all(iface->id);
 	if (ifaddrs == NULL)
 		return;
 
-	gr_vec_foreach (nh, ifaddrs->nh)
-		rib4_cleanup(nh);
-
-	gr_vec_free(ifaddrs->nh);
+	while (gr_vec_len(ifaddrs->nh) > 0) {
+		l3 = nexthop_info_l3(ifaddrs->nh[gr_vec_len(ifaddrs->nh) - 1]);
+		addr4_delete(iface->id, l3->ipv4, l3->prefixlen);
+	}
 }
 
 static void iface_up_cb(uint32_t /*event*/, const void *obj) {
