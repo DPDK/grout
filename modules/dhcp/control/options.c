@@ -59,45 +59,45 @@ int dhcp_parse_options(
 			break;
 
 		case DHCP_OPT_ROUTER:
-			if (len < 4) {
+			if (len < sizeof(client->router_ip)) {
 				LOG(ERR, "invalid router length %u", len);
 				break;
 			}
-			memcpy(&client->router_ip, &options[pos], 4);
+			memcpy(&client->router_ip, &options[pos], sizeof(client->router_ip));
 			break;
 
 		case DHCP_OPT_SERVER_ID:
-			if (len != 4) {
+			if (len != sizeof(client->server_ip)) {
 				LOG(ERR, "invalid server ID length %u", len);
 				break;
 			}
-			memcpy(&client->server_ip, &options[pos], 4);
+			memcpy(&client->server_ip, &options[pos], sizeof(client->server_ip));
 			break;
 
 		case DHCP_OPT_LEASE_TIME:
-			if (len != 4) {
+			if (len != sizeof(time)) {
 				LOG(ERR, "invalid lease time length %u", len);
 				break;
 			}
-			memcpy(&time, &options[pos], 4);
+			memcpy(&time, &options[pos], sizeof(time));
 			client->lease_time = rte_be_to_cpu_32(time);
 			break;
 
 		case DHCP_OPT_RENEWAL_TIME:
-			if (len != 4) {
+			if (len != sizeof(time)) {
 				LOG(ERR, "invalid renewal time length %u", len);
 				break;
 			}
-			memcpy(&time, &options[pos], 4);
+			memcpy(&time, &options[pos], sizeof(time));
 			client->renewal_time = rte_be_to_cpu_32(time);
 			break;
 
 		case DHCP_OPT_REBIND_TIME:
-			if (len != 4) {
+			if (len != sizeof(time)) {
 				LOG(ERR, "invalid rebind time length %u", len);
 				break;
 			}
-			memcpy(&time, &options[pos], 4);
+			memcpy(&time, &options[pos], sizeof(time));
 			client->rebind_time = rte_be_to_cpu_32(time);
 			break;
 
@@ -117,11 +117,7 @@ int dhcp_parse_options(
 	return 0;
 }
 
-int dhcp_build_options(uint8_t *buf, uint16_t buf_len, dhcp_message_type_t msg_type) {
-	return dhcp_build_options_ex(buf, buf_len, msg_type, 0, 0);
-}
-
-int dhcp_build_options_ex(
+int dhcp_build_options(
 	uint8_t *buf,
 	uint16_t buf_len,
 	dhcp_message_type_t msg_type,
@@ -136,23 +132,23 @@ int dhcp_build_options_ex(
 
 	// Option 53: DHCP Message Type
 	buf[pos++] = DHCP_OPT_MESSAGE_TYPE;
-	buf[pos++] = 1; // Length
+	buf[pos++] = sizeof(msg_type); // Length
 	buf[pos++] = msg_type;
 
 	// Option 54: Server Identifier
 	if (msg_type == DHCP_REQUEST && server_ip != 0) {
 		buf[pos++] = DHCP_OPT_SERVER_ID;
-		buf[pos++] = 4; // Length
-		memcpy(&buf[pos], &server_ip, 4);
-		pos += 4;
+		buf[pos++] = sizeof(server_ip); // Length
+		memcpy(&buf[pos], &server_ip, sizeof(server_ip));
+		pos += sizeof(server_ip);
 	}
 
 	// Option 50: Requested IP Address
 	if (msg_type == DHCP_REQUEST && requested_ip != 0) {
 		buf[pos++] = DHCP_OPT_REQUESTED_IP;
-		buf[pos++] = 4; // Length
-		memcpy(&buf[pos], &requested_ip, 4);
-		pos += 4;
+		buf[pos++] = sizeof(requested_ip); // Length
+		memcpy(&buf[pos], &requested_ip, sizeof(requested_ip));
+		pos += sizeof(requested_ip);
 	}
 
 	// Option 55: Parameter Request List

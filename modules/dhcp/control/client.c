@@ -260,8 +260,8 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 }
 
 void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *drain) {
-	dhcp_message_type_t msg_type = 0;
 	const struct iface *iface = mbuf_data(mbuf)->iface;
+	dhcp_message_type_t msg_type = 0;
 	struct dhcp_client *client;
 
 	// Check if packet references deleted interface.
@@ -363,7 +363,9 @@ void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *dra
 
 			client->state = DHCP_STATE_INIT;
 			client->offered_ip = 0;
+			client->prefixlen = 0;
 			client->server_ip = 0;
+			client->router_ip = 0;
 			client->xid = rte_rand();
 
 			if (dhcp_send_discover(client) < 0) {
@@ -396,10 +398,9 @@ static void dhcp_init(struct event_base *ev_base) {
 		ABORT("failed to get mempool");
 }
 
-int dhcp_start(uint16_t iface_id) {
+static int dhcp_start(uint16_t iface_id) {
 	struct dhcp_client *client;
 	const struct iface *iface;
-	uint32_t xid;
 
 	iface = iface_from_id(iface_id);
 	if (iface == NULL)
@@ -412,11 +413,9 @@ int dhcp_start(uint16_t iface_id) {
 	if (client == NULL)
 		return errno_set(ENOMEM);
 
-	xid = rte_rand();
-
 	client->iface_id = iface_id;
 	client->state = DHCP_STATE_INIT;
-	client->xid = xid;
+	client->xid = rte_rand();
 
 	dhcp_clients[iface_id] = client;
 
@@ -434,7 +433,7 @@ int dhcp_start(uint16_t iface_id) {
 	return 0;
 }
 
-int dhcp_stop(uint16_t iface_id) {
+static int dhcp_stop(uint16_t iface_id) {
 	struct dhcp_client *client;
 	const struct iface *iface;
 
@@ -463,10 +462,6 @@ int dhcp_stop(uint16_t iface_id) {
 
 struct rte_mempool *dhcp_get_mempool(void) {
 	return dhcp_mp;
-}
-
-control_input_t dhcp_get_output(void) {
-	return dhcp_output;
 }
 
 static struct api_out dhcp_list_handler(const void *, struct api_ctx *ctx) {
