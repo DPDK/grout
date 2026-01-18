@@ -508,14 +508,18 @@ static struct api_out dhcp_stop_handler(const void *request, struct api_ctx *) {
 }
 
 static void dhcp_fini(struct event_base *) {
+	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
+		if (dhcp_clients[iface_id] != NULL)
+			dhcp_stop(iface_id);
+	}
 	gr_pktmbuf_pool_release(dhcp_mp, 512);
 }
 
 static struct gr_module dhcp_module = {
 	.name = "dhcp",
+	.depends_on = "graph,ipv4 address",
 	.init = dhcp_init,
 	.fini = dhcp_fini,
-	.depends_on = "graph",
 };
 
 static struct gr_api_handler dhcp_list_api = {
