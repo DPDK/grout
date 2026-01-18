@@ -170,6 +170,8 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 
 	// shift remaining addresses
 	gr_vec_del(maddrs->nh, i);
+	if (gr_vec_len(maddrs->nh) == 0)
+		gr_vec_free(maddrs->nh);
 
 	nexthop_decref(nh);
 
@@ -307,6 +309,8 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	// shift the remaining addresses
 	gr_vec_del(addrs->nh, i);
+	if (gr_vec_len(addrs->nh) == 0)
+		gr_vec_free(addrs->nh);
 
 	// leave the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, ip);
@@ -405,18 +409,16 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_PRE_REMOVE:
 		addrs = &iface_addrs[iface->id];
 		while (gr_vec_len(addrs->nh) > 0) {
-			nh = addrs->nh[0];
-			l3 = (const struct nexthop_info_l3 *)nh->info;
+			nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
+			l3 = nexthop_info_l3(nh);
 			iface6_addr_del(iface, &l3->ipv6, l3->prefixlen);
 		}
-		gr_vec_free(addrs->nh);
 		addrs = &iface_mcast_addrs[iface->id];
 		while (gr_vec_len(addrs->nh) > 0) {
-			nh = addrs->nh[0];
-			l3 = (const struct nexthop_info_l3 *)nh->info;
+			nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
+			l3 = nexthop_info_l3(nh);
 			mcast6_addr_del(iface, &l3->ipv6);
 		}
-		gr_vec_free(addrs->nh);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		addrs = &iface_addrs[iface->id];
