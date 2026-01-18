@@ -27,11 +27,12 @@ int control_output_enqueue(struct rte_mbuf *m) {
 static void control_output_poll(evutil_socket_t, short, void *priv) {
 	struct control_output_drain *drain = priv;
 	struct control_output_mbuf_data *data;
-	struct rte_mbuf *mbuf;
-	void *ring_item;
+	void *mbufs[RTE_GRAPH_BURST_SIZE];
+	unsigned count;
 
-	while (rte_ring_dequeue(ctrlout_ring, &ring_item) == 0) {
-		mbuf = ring_item;
+	count = rte_ring_dequeue_burst(ctrlout_ring, mbufs, ARRAY_DIM(mbufs), NULL);
+	for (unsigned i = 0; i < count; i++) {
+		struct rte_mbuf *mbuf = mbufs[i];
 		data = control_output_mbuf_data(mbuf);
 
 		if (data->callback != NULL)
