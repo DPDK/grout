@@ -18,6 +18,7 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 
+#define CONTROL_OUTPUT_RING_SIZE RTE_GRAPH_BURST_SIZE * 4
 static struct rte_ring *ctrlout_ring;
 
 int control_output_enqueue(struct rte_mbuf *m) {
@@ -27,18 +28,21 @@ int control_output_enqueue(struct rte_mbuf *m) {
 static void control_output_poll(evutil_socket_t, short, void *priv) {
 	struct control_output_drain *drain = priv;
 	struct control_output_mbuf_data *data;
-	struct rte_mbuf *mbuf;
-	void *ring_item;
+	void *mbufs[RTE_GRAPH_BURST_SIZE];
+	unsigned count, drained = 0;
 
-	while (rte_ring_dequeue(ctrlout_ring, &ring_item) == 0) {
-		mbuf = ring_item;
+again:
+	count = rte_ring_dequeue_burst(ctrlout_ring, mbufs, ARRAY_DIM(mbufs), NULL);
+	for (unsigned i = 0; i < count; i++) {
+		struct rte_mbuf *mbuf = mbufs[i];
 		data = control_output_mbuf_data(mbuf);
-
-		if (data->callback != NULL)
-			data->callback(mbuf, drain);
-		else
-			rte_pktmbuf_free(mbuf);
+		assert(data->callback != NULL);
+		data->callback(mbuf, drain);
 	}
+	drained += ARRAY_DIM(mbufs);
+
+	if (drain != NULL && count == ARRAY_DIM(mbufs) && drained < CONTROL_OUTPUT_RING_SIZE)
+		goto again;
 }
 
 static atomic_bool thread_shutdown;
@@ -101,7 +105,7 @@ static void control_output_init(struct event_base *ev_base) {
 
 	ctrlout_ring = rte_ring_create(
 		"control_output",
-		RTE_GRAPH_BURST_SIZE * 4,
+		CONTROL_OUTPUT_RING_SIZE,
 		SOCKET_ID_ANY,
 		RING_F_MP_RTS_ENQ | RING_F_SC_DEQ
 	);
