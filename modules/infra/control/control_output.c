@@ -12,11 +12,9 @@
 #include <gr_nexthop.h>
 
 #include <event2/event.h>
-#include <rte_ether.h>
 
-#include <pthread.h>
-#include <stdatomic.h>
-#include <stdlib.h>
+#include <sys/eventfd.h>
+#include <unistd.h>
 
 static struct rte_ring *ctrlout_ring;
 
@@ -24,11 +22,18 @@ int control_output_enqueue(struct rte_mbuf *m) {
 	return rte_ring_enqueue(ctrlout_ring, m);
 }
 
-static void control_output_poll(evutil_socket_t, short, void *priv) {
+static void control_output_poll(evutil_socket_t fd, short what, void *priv) {
 	struct control_output_drain *drain = priv;
 	struct control_output_mbuf_data *data;
 	void *mbufs[RTE_GRAPH_BURST_SIZE];
+	eventfd_t efd_counter;
 	unsigned count;
+
+	if (!(what & EV_READ))
+		return;
+
+	eventfd_read(fd, &efd_counter);
+	errno = 0; // silence errors
 
 	count = rte_ring_dequeue_burst(ctrlout_ring, mbufs, ARRAY_DIM(mbufs), NULL);
 	for (unsigned i = 0; i < count; i++) {
@@ -42,31 +47,11 @@ static void control_output_poll(evutil_socket_t, short, void *priv) {
 	}
 }
 
-static atomic_bool thread_shutdown;
-static pthread_t thread_id;
-static pthread_cond_t cond;
-static pthread_mutex_t mutex;
 static struct event *ctrlout_ev;
+static int event_fd = -1;
 
 void control_output_done(void) {
-	pthread_cond_signal(&cond);
-}
-
-int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity) {
-	return pthread_setaffinity_np(thread_id, set_size, affinity);
-}
-
-static void *cond_wait_to_event(void *) {
-	pthread_setname_np(pthread_self(), "grout:ctrl");
-
-	while (!atomic_load(&thread_shutdown)) {
-		pthread_mutex_lock(&mutex);
-		if (pthread_cond_wait(&cond, &mutex) == 0)
-			evuser_trigger(ctrlout_ev);
-		pthread_mutex_unlock(&mutex);
-	}
-
-	return NULL;
+	eventfd_write(event_fd, 1);
 }
 
 // When interfaces or nexthops are deleted, drain the control output ring
@@ -74,7 +59,7 @@ static void *cond_wait_to_event(void *) {
 // callbacks from being invoked with dangling pointers.
 static void event_handler(uint32_t event, const void *obj) {
 	struct control_output_drain drain = {event, obj};
-	control_output_poll(0, 0, &drain);
+	control_output_poll(event_fd, EV_READ, &drain);
 }
 
 static struct gr_event_subscription event_sub = {
@@ -86,20 +71,7 @@ static struct gr_event_subscription event_sub = {
 	},
 };
 
-static pthread_attr_t attr;
-
 static void control_output_init(struct event_base *ev_base) {
-	atomic_init(&thread_shutdown, false);
-
-	if (pthread_attr_init(&attr))
-		ABORT("pthread_attr_init");
-
-	if (pthread_mutex_init(&mutex, NULL))
-		ABORT("pthread_mutex_init failed");
-
-	if (pthread_cond_init(&cond, NULL))
-		ABORT("pthread_cond_init failed");
-
 	ctrlout_ring = rte_ring_create(
 		"control_output",
 		RTE_GRAPH_BURST_SIZE * 4,
@@ -109,23 +81,24 @@ static void control_output_init(struct event_base *ev_base) {
 	if (ctrlout_ring == NULL)
 		ABORT("rte_ring_create(ctrl_output): %s", rte_strerror(rte_errno));
 
-	ctrlout_ev = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, control_output_poll, NULL);
+	event_fd = eventfd(0, EFD_NONBLOCK);
+	if (event_fd < 0)
+		ABORT("eventfd(): %s", strerror(errno));
+
+	ctrlout_ev = event_new(ev_base, event_fd, EV_READ | EV_PERSIST, control_output_poll, NULL);
 	if (ctrlout_ev == NULL)
 		ABORT("event_new() failed");
 
-	if (pthread_create(&thread_id, &attr, cond_wait_to_event, NULL))
-		ABORT("pthread_create() failed");
+	if (event_add(ctrlout_ev, NULL) < 0)
+		ABORT("event_add() failed");
 }
 
 static void control_output_fini(struct event_base *) {
-	atomic_store(&thread_shutdown, true);
-	control_output_done();
-	pthread_join(thread_id, NULL);
-	pthread_attr_destroy(&attr);
-	pthread_cond_destroy(&cond);
-	event_free(ctrlout_ev);
+	if (event_fd != -1)
+		close(event_fd);
+	if (ctrlout_ev != NULL)
+		event_free(ctrlout_ev);
 	rte_ring_free(ctrlout_ring);
-	pthread_mutex_destroy(&mutex);
 }
 
 static struct gr_module control_output_module = {
