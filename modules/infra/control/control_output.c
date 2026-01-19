@@ -15,6 +15,7 @@
 #include <rte_ether.h>
 
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 
@@ -47,26 +48,30 @@ again:
 
 static atomic_bool thread_shutdown;
 static pthread_t thread_id;
-static pthread_cond_t cond;
-static pthread_mutex_t mutex;
+static sem_t sem;
 static struct event *ctrlout_ev;
 
 void control_output_done(void) {
-	pthread_cond_signal(&cond);
+	sem_post(&sem);
 }
 
 int control_output_set_affinity(size_t set_size, const cpu_set_t *affinity) {
 	return pthread_setaffinity_np(thread_id, set_size, affinity);
 }
 
-static void *cond_wait_to_event(void *) {
+static void *sem_wait_to_event(void *) {
 	pthread_setname_np(pthread_self(), "grout:ctrl");
 
 	while (!atomic_load(&thread_shutdown)) {
-		pthread_mutex_lock(&mutex);
-		if (pthread_cond_wait(&cond, &mutex) == 0)
-			evuser_trigger(ctrlout_ev);
-		pthread_mutex_unlock(&mutex);
+		sem_wait(&sem);
+		for (unsigned i = 0; i < RTE_GRAPH_BURST_SIZE; i++) {
+			// Drain the semaphore to coalesce control_output_poll calls.
+			// Only drain up to RTE_GRAPH_BURST_SIZE to prevent the ring
+			// from getting full before control_output_poll is invoked.
+			if (sem_trywait(&sem) < 0)
+				break;
+		}
+		evuser_trigger(ctrlout_ev);
 	}
 
 	return NULL;
@@ -89,19 +94,11 @@ static struct gr_event_subscription event_sub = {
 	},
 };
 
-static pthread_attr_t attr;
-
 static void control_output_init(struct event_base *ev_base) {
 	atomic_init(&thread_shutdown, false);
 
-	if (pthread_attr_init(&attr))
-		ABORT("pthread_attr_init");
-
-	if (pthread_mutex_init(&mutex, NULL))
-		ABORT("pthread_mutex_init failed");
-
-	if (pthread_cond_init(&cond, NULL))
-		ABORT("pthread_cond_init failed");
+	if (sem_init(&sem, 0, 0))
+		ABORT("sem_init");
 
 	ctrlout_ring = rte_ring_create(
 		"control_output",
@@ -116,7 +113,7 @@ static void control_output_init(struct event_base *ev_base) {
 	if (ctrlout_ev == NULL)
 		ABORT("event_new() failed");
 
-	if (pthread_create(&thread_id, &attr, cond_wait_to_event, NULL))
+	if (pthread_create(&thread_id, NULL, sem_wait_to_event, NULL))
 		ABORT("pthread_create() failed");
 }
 
@@ -124,11 +121,9 @@ static void control_output_fini(struct event_base *) {
 	atomic_store(&thread_shutdown, true);
 	control_output_done();
 	pthread_join(thread_id, NULL);
-	pthread_attr_destroy(&attr);
-	pthread_cond_destroy(&cond);
+	sem_destroy(&sem);
 	event_free(ctrlout_ev);
 	rte_ring_free(ctrlout_ring);
-	pthread_mutex_destroy(&mutex);
 }
 
 static struct gr_module control_output_module = {
