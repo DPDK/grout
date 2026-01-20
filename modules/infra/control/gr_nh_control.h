@@ -106,9 +106,6 @@ struct gr_nexthop *nexthop_to_api(const struct nexthop *, size_t *len);
 // Uses nexthop_export to serve as callback for gr_event_serializer.
 int nexthop_serialize(const void *obj, void **buf);
 
-// Clean all next hop related to an interface.
-void nexthop_iface_cleanup(uint16_t iface_id);
-
 // Clean all routes that reference a given nexthop.
 void nexthop_routes_cleanup(struct nexthop *);
 

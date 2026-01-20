@@ -418,7 +418,6 @@ int iface_destroy(struct iface *iface) {
 	}
 	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
 		vrf_decref(iface->vrf_id);
-	nexthop_iface_cleanup(iface->id);
 
 	ifaces[iface->id] = NULL;
 

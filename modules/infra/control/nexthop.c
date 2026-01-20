@@ -410,15 +410,6 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
 	rte_mempool_obj_iter(pool, nh_pool_iter_cb, &it);
 }
 
-struct lookup_filter {
-	addr_family_t af;
-	uint16_t vrf_id;
-	uint16_t iface_id;
-	uint32_t nh_id;
-	const void *addr;
-	struct nexthop *nh;
-};
-
 struct nexthop *nexthop_lookup_id(uint32_t nh_id) {
 	void *data;
 
@@ -451,18 +442,23 @@ static void nh_groups_remove_member(const struct nexthop *nh) {
 }
 
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
-	struct lookup_filter *filter = priv;
-	if (nh->iface_id == filter->iface_id) {
+	if (nh->iface_id == (uintptr_t)priv) {
 		nexthop_routes_cleanup(nh);
 		while (nh->ref_count)
 			nexthop_decref(nh);
 	}
 }
 
-void nexthop_iface_cleanup(uint16_t iface_id) {
-	struct lookup_filter filter = {.iface_id = iface_id};
-	nexthop_iter(nh_cleanup_interface_cb, &filter);
+static void nexthop_iface_cleanup(uint32_t /*ev_type*/, const void *data) {
+	const struct iface *iface = data;
+	nexthop_iter(nh_cleanup_interface_cb, (void *)(uintptr_t)iface->id);
 }
+
+static struct gr_event_subscription iface_subscription = {
+	.callback = nexthop_iface_cleanup,
+	.ev_count = 1,
+	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
+};
 
 void nexthop_destroy(struct nexthop *nh) {
 	assert(nh->ref_count == 0);
@@ -563,6 +559,7 @@ static struct gr_metrics_collector nexthop_collector = {
 
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
+	gr_event_subscribe(&iface_subscription);
 	gr_register_module(&module);
 	gr_metrics_register(&nexthop_collector);
 }
