@@ -138,6 +138,7 @@ struct nexthop_af_ops {
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
 
 struct nexthop_type_ops {
+	int (*reconfig)(const struct gr_nexthop_config *);
 	// Callback that will be invoked the nexthop refcount reaches zero.
 	void (*free)(struct nexthop *);
 	bool (*equal)(const struct nexthop *, const struct nexthop *);
