@@ -43,11 +43,11 @@ static struct api_out nh_add(const void *request, struct api_ctx *) {
 	int ret = 0;
 
 	if (req->nh.nh_id != GR_NH_ID_UNSET)
-		nh = nexthop_lookup_by_id(req->nh.nh_id);
+		nh = nexthop_lookup_id(req->nh.nh_id);
 
 	if (nh == NULL && req->nh.type == GR_NH_T_L3) {
 		struct gr_nexthop_info_l3 *l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-		nh = nexthop_lookup(l3->af, req->nh.vrf_id, req->nh.iface_id, &l3->addr);
+		nh = nexthop_lookup_l3(l3->af, req->nh.vrf_id, req->nh.iface_id, &l3->addr);
 	}
 
 	if (nh == NULL) {
@@ -74,7 +74,7 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 	const struct gr_nh_del_req *req = request;
 	struct nexthop *nh;
 
-	nh = nexthop_lookup_by_id(req->nh_id);
+	nh = nexthop_lookup_id(req->nh_id);
 	if (nh == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0, NULL);

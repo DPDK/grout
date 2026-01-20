@@ -77,12 +77,12 @@ nexthop_group_get_nh(struct nexthop_info_group *nhg, uint32_t flow_id) {
 	return nhg->reta[flow_id & (nhg->reta_size - 1)];
 }
 
-// Lookup a nexthop from the global pool that matches the specified criteria.
+// Lookup an L3 nexthop that matches the specified criteria.
 struct nexthop *
-nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+nexthop_lookup_l3(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
-// Lookup a nexthop from the global pool from its user provided ID.
-struct nexthop *nexthop_lookup_by_id(uint32_t nh_id);
+// Lookup a nexthop from its user provided ID.
+struct nexthop *nexthop_lookup_id(uint32_t nh_id);
 
 // Compare two nexthops, return True if the same, else False
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
