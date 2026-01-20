@@ -121,7 +121,7 @@ static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 	if (iface == NULL)
 		return api_out(ENODEV, 0, NULL);
 
-	nh = nexthop_lookup(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
+	nh = nexthop_lookup_l3(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
 	if (nh != NULL) {
 		if (nh->type == GR_NH_T_DNAT && req->exist_ok)
 			return api_out(0, 0, NULL);

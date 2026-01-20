@@ -138,7 +138,7 @@ int cq_priv_offset;
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
-mock_func(struct nexthop *, nexthop_lookup(addr_family_t, uint16_t, uint16_t, const void *));
+mock_func(struct nexthop *, nexthop_lookup_l3(addr_family_t, uint16_t, uint16_t, const void *));
 mock_func(void, ndp_probe_input_cb(void *, uintptr_t, const struct control_queue_drain *));
 
 struct fake_ndp_na_mbuf {
@@ -269,7 +269,7 @@ static void ndp_na_input_tlla_opt_type_invalid(void **) {
 	// Invalid option type
 	ndp_mbuf.tlla_opt_hdr.type = ICMP6_OPT_MTU;
 
-	will_return(nexthop_lookup, &test_nexthop);
+	will_return(nexthop_lookup_l3, &test_nexthop);
 
 	expect_value(rte_node_enqueue_x1, next, INVAL);
 
@@ -285,7 +285,7 @@ static void ndp_na_input_tlla_opt_len_invalid(void **) {
 	// Invalid option length
 	ndp_mbuf.tlla_opt_hdr.len = 0;
 
-	will_return(nexthop_lookup, &test_nexthop);
+	will_return(nexthop_lookup_l3, &test_nexthop);
 
 	expect_value(rte_node_enqueue_x1, next, INVAL);
 

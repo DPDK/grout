@@ -63,7 +63,7 @@ static uint16_t ospf_redirect_process(
 				dst.addr_bytes[4] = (ip_dst >> 8) & 0xff;
 				dst.addr_bytes[5] = ip_dst & 0xff;
 			}
-			nh = nexthop_lookup(AF_INET, d->iface->vrf_id, d->iface->id, &d->src);
+			nh = nexthop_lookup_l3(AF_INET, d->iface->vrf_id, d->iface->id, &d->src);
 			src = nh && nh->type == GR_NH_T_L3 ? nexthop_info_l3(nh)->mac : dummy;
 		} else if (mbuf->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(mbuf);
@@ -88,7 +88,7 @@ static uint16_t ospf_redirect_process(
 				src.addr_bytes[4] = d->src.a[14];
 				src.addr_bytes[5] = d->src.a[15];
 			} else {
-				nh = nexthop_lookup(
+				nh = nexthop_lookup_l3(
 					AF_INET6, d->iface->vrf_id, d->iface->id, &d->src
 				);
 				src = nh && nh->type == GR_NH_T_L3 ?

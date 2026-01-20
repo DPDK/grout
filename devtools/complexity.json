@@ -9,7 +9,7 @@
     "callees": [
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
@@ -24,7 +24,7 @@
     "callees": [
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
@@ -259,7 +259,7 @@
     "callees": [
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
@@ -641,7 +641,7 @@
       },
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
@@ -669,7 +669,7 @@
       },
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
@@ -712,7 +712,7 @@
     "callees": [
       {
         "ipc": 3.14,
-        "name": "nexthop_lookup",
+        "name": "nexthop_lookup_l3",
         "self_cycles": 12.2,
         "total_cycles": 18.5,
         "uops": 49
