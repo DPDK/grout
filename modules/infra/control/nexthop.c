@@ -497,7 +497,7 @@ struct lookup_filter {
 };
 
 struct nexthop *
-nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
+nexthop_lookup_l3(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct nexthop_key key;
 	void *data;
 
@@ -512,7 +512,7 @@ nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void 
 	return data;
 }
 
-struct nexthop *nexthop_lookup_by_id(uint32_t nh_id) {
+struct nexthop *nexthop_lookup_id(uint32_t nh_id) {
 	void *data;
 
 	if (rte_hash_lookup_data(hash_by_id, &nh_id, &data) < 0)
@@ -931,7 +931,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 	}
 
 	for (uint16_t i = 0; i < group->n_members; i++) {
-		struct nexthop *nh = nexthop_lookup_by_id(group->members[i].nh_id);
+		struct nexthop *nh = nexthop_lookup_id(group->members[i].nh_id);
 		if (nh) {
 			members[i].nh = nh;
 			members[i].weight = group->members[i].weight;

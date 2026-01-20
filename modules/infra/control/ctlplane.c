@@ -151,7 +151,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 				mbuf, const struct rte_ipv4_hdr *, sizeof(*eth)
 			);
 			if (ip)
-				nh = nexthop_lookup(
+				nh = nexthop_lookup_l3(
 					AF_INET, iface->vrf_id, iface->id, &ip->dst_addr
 				);
 		} else if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6)) {
@@ -160,7 +160,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 				mbuf, const struct rte_ipv6_hdr *, sizeof(*eth)
 			);
 			if (ip)
-				nh = nexthop_lookup(
+				nh = nexthop_lookup_l3(
 					AF_INET6, iface->vrf_id, iface->id, &ip->dst_addr
 				);
 		}
