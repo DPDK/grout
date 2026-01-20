@@ -10,8 +10,8 @@ mandir = get_option('mandir')
 
 # Static man pages
 static_man_src = [
-  'grout.8.scdoc',
   'grout-frr.7.scdoc',
+  'grout.8.scdoc',
 ]
 
 foreach m : static_man_src
