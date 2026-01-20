@@ -375,10 +375,10 @@
     "uops": 209
   },
   "ip6_loadbalance_process": {
-    "ipc": 1.7,
-    "self_cycles": 27.5,
-    "total_cycles": 27.5,
-    "uops": 110
+    "ipc": 1.62,
+    "self_cycles": 26.5,
+    "total_cycles": 26.5,
+    "uops": 106
   },
   "ip6_output_process": {
     "callees": [
@@ -505,7 +505,7 @@
         "ipc": 1.67,
         "name": "snat44_static_process",
         "self_cycles": 30,
-        "total_cycles": 44.8,
+        "total_cycles": 44.1,
         "uops": 120
       },
       {
@@ -518,7 +518,7 @@
     ],
     "ipc": 2.53,
     "self_cycles": 48,
-    "total_cycles": 866.8,
+    "total_cycles": 866.1,
     "uops": 192
   },
   "ipip_input_process": {
@@ -724,10 +724,10 @@
     "uops": 543
   },
   "port_output_process": {
-    "ipc": 1.57,
-    "self_cycles": 26.5,
-    "total_cycles": 26.5,
-    "uops": 106
+    "ipc": 1.72,
+    "self_cycles": 28.5,
+    "total_cycles": 28.5,
+    "uops": 114
   },
   "rx_process": {
     "callees": [
@@ -788,10 +788,10 @@
         "uops": 27
       }
     ],
-    "ipc": 2.67,
-    "self_cycles": 71.8,
-    "total_cycles": 155.9,
-    "uops": 287
+    "ipc": 2.71,
+    "self_cycles": 72.8,
+    "total_cycles": 156.9,
+    "uops": 291
   },
   "srv6_output_process": {
     "callees": [
