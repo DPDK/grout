@@ -109,8 +109,6 @@ struct dhcp_packet {
 
 void dhcp_input_cb(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
-void dhcp_input_register_port(void);
-
 struct rte_mempool *dhcp_get_mempool(void);
 
 int dhcp_parse_packet(struct rte_mbuf *, struct dhcp_client *, dhcp_message_type_t *);

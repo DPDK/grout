@@ -122,6 +122,10 @@ static int dhcp_input_trace_format(char *buf, size_t len, const void *data, size
 	);
 }
 
+static void dhcp_input_register_port(void) {
+	l4_input_register_port(IPPROTO_UDP, RTE_BE16(68), "dhcp_input");
+}
+
 static struct rte_node_register node = {
 	.name = "dhcp_input",
 	.process = dhcp_input_process,
@@ -135,11 +139,7 @@ static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L4 | GR_NODE_T_CONTROL,
 	.trace_format = dhcp_input_trace_format,
+	.register_callback = dhcp_input_register_port,
 };
 
 GR_NODE_REGISTER(info);
-
-void dhcp_input_register_port(void) {
-	l4_input_register_port(IPPROTO_UDP, RTE_BE16(68), "dhcp_input");
-	LOG(INFO, "dhcp_input_register_port: registered UDP port 68 for dhcp_input node");
-}
