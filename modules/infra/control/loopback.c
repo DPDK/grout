@@ -161,11 +161,15 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	e->iface = iface;
 	e->domain = ETH_DOMAIN_LOOPBACK;
 
+	if (post_to_stack(loopback_get_control_id(), mbuf) < 0) {
+		LOG(ERR, "post_to_stack: %s", strerror(errno));
+		goto err;
+	}
+
 	stats = iface_get_stats(rte_lcore_id(), iface->id);
 	stats->cp_rx_packets += 1;
 	stats->cp_rx_bytes += rte_pktmbuf_pkt_len(mbuf);
 
-	post_to_stack(loopback_get_control_id(), mbuf);
 	return;
 
 err:

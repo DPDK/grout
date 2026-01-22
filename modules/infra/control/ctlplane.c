@@ -209,6 +209,11 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	mbuf_data(mbuf)->iface = iface;
 
+	if (post_to_stack(iface_output, mbuf) < 0) {
+		LOG(ERR, "post_to_stack: %s", strerror(errno));
+		goto err;
+	}
+
 	stats = iface_get_stats(rte_lcore_id(), iface->id);
 	stats->cp_rx_packets += 1;
 	stats->cp_rx_bytes += rte_pktmbuf_pkt_len(mbuf);
@@ -216,7 +221,6 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	if (gr_config.log_packets)
 		trace_log_packet(mbuf, "cp rx", iface->name);
 
-	post_to_stack(iface_output, mbuf);
 	return;
 
 err:

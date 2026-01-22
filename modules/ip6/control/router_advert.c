@@ -180,7 +180,10 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 		}
 		mbuf_data(m)->iface = iface;
 		build_ra_packet(m, &l3->ipv6);
-		post_to_stack(ra_output, m);
+		if (post_to_stack(ra_output, m) < 0) {
+			rte_pktmbuf_free(m);
+			LOG(ERR, "post_to_stack: %s", strerror(errno));
+		}
 	}
 }
 
