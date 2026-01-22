@@ -390,8 +390,6 @@ free:
 static void dhcp_init(struct event_base *ev_base) {
 	dhcp_ev_base = ev_base;
 
-	dhcp_input_register_port();
-
 	dhcp_output = gr_control_input_register_handler("eth_output", true);
 
 	dhcp_mp = gr_pktmbuf_pool_get(SOCKET_ID_ANY, 512);
