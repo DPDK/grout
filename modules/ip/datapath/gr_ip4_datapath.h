@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <gr_control_output.h>
+#include <gr_control_queue.h>
 #include <gr_iface.h>
 #include <gr_ip4_control.h>
 #include <gr_mbuf.h>
@@ -66,4 +66,4 @@ int icmp_local_send(
 	uint8_t ttl
 );
 
-void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb);
+void icmp_input_register_callback(uint8_t icmp_type, control_queue_cb_t cb);

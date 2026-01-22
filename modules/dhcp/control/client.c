@@ -5,7 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_control_input.h>
-#include <gr_control_output.h>
+#include <gr_control_queue.h>
 #include <gr_dhcp.h>
 #include <gr_iface.h>
 #include <gr_ip4_control.h>
@@ -259,7 +259,7 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	    client->iface_id);
 }
 
-void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *drain) {
+void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_queue_drain *drain) {
 	const struct iface *iface = mbuf_data(mbuf)->iface;
 	dhcp_message_type_t msg_type = 0;
 	struct dhcp_client *client;

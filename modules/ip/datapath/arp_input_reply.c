@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_output.h>
 #include <gr_eth.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>

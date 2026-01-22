@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <gr_control_output.h>
+#include <gr_control_queue.h>
 #include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6_control.h>
@@ -67,4 +67,4 @@ int icmp6_local_send(
 	uint8_t hop_limit
 );
 
-void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb);
+void icmp6_input_register_callback(uint8_t icmp6_type, control_queue_cb_t cb);

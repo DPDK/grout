@@ -426,7 +426,7 @@ int iface_destroy(struct iface *iface) {
 
 	// Push IFACE_REMOVE event after RCU sync to ensure all datapath threads
 	// have seen that this iface is gone. At this point, only packets already
-	// in the control output ring may still reference it. The event triggers
+	// in the control queue may still reference it. The event triggers
 	// a drain that frees those packets before type->fini() frees the iface.
 	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 
@@ -476,7 +476,7 @@ static void iface_fini(struct event_base *) {
 
 static struct gr_module iface_module = {
 	.name = "iface",
-	.depends_on = "*route,control_output",
+	.depends_on = "*route,control_queue",
 	.init = iface_init,
 	.fini = iface_fini,
 };

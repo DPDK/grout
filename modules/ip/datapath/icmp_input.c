@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_clock.h>
+#include <gr_control_output.h>
 #include <gr_datapath.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
@@ -25,7 +26,7 @@ enum {
 
 #define ICMP_MIN_SIZE 8
 
-static control_output_cb_t icmp_cb[UINT8_MAX];
+static control_queue_cb_t icmp_cb[UINT8_MAX];
 
 static uint16_t
 icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -76,7 +77,7 @@ next:
 	return nb_objs;
 }
 
-void icmp_input_register_callback(uint8_t icmp_type, control_output_cb_t cb) {
+void icmp_input_register_callback(uint8_t icmp_type, control_queue_cb_t cb) {
 	if (icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST)
 		ABORT("cannot register callback for echo request");
 	if (icmp_cb[icmp_type])

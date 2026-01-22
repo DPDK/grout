@@ -3,8 +3,8 @@
 
 src += files(
   'bond.c',
+  'control_queue.c',
   'ctlplane.c',
-  'control_output.c',
   'iface.c',
   'lacp.c',
   'loopback.c',

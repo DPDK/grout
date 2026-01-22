@@ -2,7 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_control_input.h>
-#include <gr_control_output.h>
+#include <gr_control_queue.h>
 #include <gr_eth.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
@@ -45,7 +45,7 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void loopback_tx(struct rte_mbuf *m, const struct control_output_drain *drain) {
+void loopback_tx(struct rte_mbuf *m, const struct control_queue_drain *drain) {
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
 	struct iface_stats *stats;

@@ -29,7 +29,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static control_output_cb_t icmp6_cb[UINT8_MAX];
+static control_queue_cb_t icmp6_cb[UINT8_MAX];
 
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -103,7 +103,7 @@ next:
 	return nb_objs;
 }
 
-void icmp6_input_register_callback(uint8_t icmp6_type, control_output_cb_t cb) {
+void icmp6_input_register_callback(uint8_t icmp6_type, control_queue_cb_t cb) {
 	if (icmp6_type == ICMP6_TYPE_ECHO_REQUEST)
 		ABORT("cannot register callback for echo request");
 	if (icmp6_cb[icmp6_type])
