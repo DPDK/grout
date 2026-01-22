@@ -7,6 +7,6 @@
 
 #include <rte_byteorder.h>
 
-void loopback_tx(struct rte_mbuf *m, const struct control_queue_drain *);
+void loopback_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
 control_input_t loopback_get_control_id(void);
 void loopback_input_add_type(rte_be16_t eth_type, const char *next_node);

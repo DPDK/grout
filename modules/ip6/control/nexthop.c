@@ -27,7 +27,8 @@
 
 static control_input_t ip6_output_node;
 
-void nh6_unreachable_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void nh6_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *m = obj;
 	struct rte_ipv6_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 	const struct rte_ipv6_addr *dst = &ip->dst_addr;
 	struct nexthop_info_l3 *l3;
@@ -128,7 +129,8 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-void ndp_probe_input_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *m = obj;
 	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
 	const struct rte_ipv6_addr *remote, *local;
 	const struct ip6_local_mbuf_data *d;

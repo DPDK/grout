@@ -27,7 +27,8 @@
 
 static control_input_t ip_output_node;
 
-void nh4_unreachable_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *m = obj;
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 	ip4_addr_t dst = ip->dst_addr;
 	struct nexthop_info_l3 *l3;
@@ -122,9 +123,10 @@ free:
 
 static control_input_t arp_output_reply_node;
 
-void arp_probe_input_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
+	struct rte_mbuf *m = obj;
 	struct rte_arp_hdr *arp;
 	struct rte_mbuf *held;
 	struct nexthop *nh;

@@ -1,48 +1,59 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control_output.h>
 #include <gr_control_queue.h>
 #include <gr_event.h>
-#include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_mbuf.h>
 #include <gr_module.h>
 #include <gr_nexthop.h>
 
 #include <event2/event.h>
+#include <rte_ring.h>
 
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 
+struct control_queue_item {
+	control_queue_cb_t callback;
+	void *obj;
+	uintptr_t priv;
+};
+
 #define CONTROL_QUEUE_SIZE RTE_GRAPH_BURST_SIZE * 4
 static struct rte_ring *ctrlq_ring;
 
-int control_queue_push(struct rte_mbuf *m) {
-	return rte_ring_enqueue(ctrlq_ring, m);
+int control_queue_push(control_queue_cb_t cb, void *obj, uintptr_t priv) {
+	struct control_queue_item item = {
+		.callback = cb,
+		.obj = obj,
+		.priv = priv,
+	};
+
+	assert(cb != NULL);
+	assert(obj != NULL);
+
+	return rte_ring_enqueue_elem(ctrlq_ring, &item, sizeof(item));
 }
 
 static void control_queue_poll(evutil_socket_t, short, void *priv) {
+	struct control_queue_item items[RTE_GRAPH_BURST_SIZE];
 	struct control_queue_drain *drain = priv;
-	struct control_output_mbuf_data *data;
-	void *mbufs[RTE_GRAPH_BURST_SIZE];
 	unsigned count, drained = 0;
 
 again:
-	count = rte_ring_dequeue_burst(ctrlq_ring, mbufs, ARRAY_DIM(mbufs), NULL);
+	count = rte_ring_dequeue_burst_elem(
+		ctrlq_ring, items, sizeof(items[0]), ARRAY_DIM(items), NULL
+	);
 	for (unsigned i = 0; i < count; i++) {
-		struct rte_mbuf *mbuf = mbufs[i];
-		data = control_output_mbuf_data(mbuf);
-		assert(data->callback != NULL);
-		data->callback(mbuf, drain);
+		items[i].callback(items[i].obj, items[i].priv, drain);
 	}
-	drained += ARRAY_DIM(mbufs);
+	drained += ARRAY_DIM(items);
 
-	if (drain != NULL && count == ARRAY_DIM(mbufs) && drained < CONTROL_QUEUE_SIZE)
+	if (drain != NULL && count == ARRAY_DIM(items) && drained < CONTROL_QUEUE_SIZE)
 		goto again;
 }
 
@@ -100,8 +111,9 @@ static void control_queue_init(struct event_base *ev_base) {
 	if (sem_init(&sem, 0, 0))
 		ABORT("sem_init");
 
-	ctrlq_ring = rte_ring_create(
+	ctrlq_ring = rte_ring_create_elem(
 		"control_queue",
+		sizeof(struct control_queue_item),
 		CONTROL_QUEUE_SIZE,
 		SOCKET_ID_ANY,
 		RING_F_MP_RTS_ENQ | RING_F_SC_DEQ
