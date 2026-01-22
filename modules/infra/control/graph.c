@@ -329,19 +329,24 @@ static gr_vec rte_node_t *worker_graph_nodes_add_missing(gr_vec struct iface_inf
 	return unused_nodes;
 }
 
+int worker_graph_stop_all(void) {
+	struct worker *worker;
+	int ret;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		if ((ret = worker_graph_reload(worker, NULL)) < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
 int worker_graph_reload_all(gr_vec struct iface_info_port **ports) {
 	struct worker *worker;
 	int ret;
 
 	gr_vec rte_node_t *unused_nodes = worker_graph_nodes_add_missing(ports);
 
-	// stop all workers by switching them to NULL graphs
-	STAILQ_FOREACH (worker, &workers, next) {
-		if ((ret = worker_graph_reload(worker, NULL)) < 0)
-			return ret;
-	}
-
-	// create new graphs and start all workers
 	STAILQ_FOREACH (worker, &workers, next) {
 		if ((ret = worker_graph_reload(worker, ports)) < 0)
 			return ret;
