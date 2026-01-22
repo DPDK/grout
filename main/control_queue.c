@@ -2,14 +2,12 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include <gr_control_queue.h>
-#include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_module.h>
-#include <gr_nexthop.h>
 
 #include <event2/event.h>
+#include <rte_lcore.h>
 #include <rte_ring.h>
 
 #include <pthread.h>
@@ -88,22 +86,10 @@ static void *sem_wait_to_event(void *) {
 	return NULL;
 }
 
-// When interfaces or nexthops are deleted, drain the control queue
-// to free any packets that reference the deleted object. This prevents
-// callbacks from being invoked with dangling pointers.
-static void event_handler(uint32_t event, const void *obj) {
+void control_queue_drain(uint32_t event, const void *obj) {
 	struct control_queue_drain drain = {event, obj};
 	control_queue_poll(0, 0, &drain);
 }
-
-static struct gr_event_subscription event_sub = {
-	.callback = event_handler,
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_IFACE_REMOVE,
-		GR_EVENT_NEXTHOP_DELETE,
-	},
-};
 
 static void control_queue_init(struct event_base *ev_base) {
 	atomic_init(&thread_shutdown, false);
@@ -146,5 +132,4 @@ static struct gr_module module = {
 
 RTE_INIT(control_queue_module_init) {
 	gr_register_module(&module);
-	gr_event_subscribe(&event_sub);
 }
