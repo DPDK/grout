@@ -3,7 +3,6 @@
 
 #include <gr_bond.h>
 #include <gr_clock.h>
-#include <gr_control_input.h>
 #include <gr_control_output.h>
 #include <gr_eth.h>
 #include <gr_event.h>
@@ -26,7 +25,7 @@
 
 static struct event *lacp_timer;
 
-void lacp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *drain) {
+void lacp_input_cb(struct rte_mbuf *mbuf, const struct control_queue_drain *drain) {
 	struct control_output_mbuf_data *ctrl_data = control_output_mbuf_data(mbuf);
 	const struct iface_info_port *port;
 	const struct iface *port_iface;

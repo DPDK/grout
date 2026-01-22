@@ -575,7 +575,7 @@ void nexthop_destroy(struct nexthop *nh) {
 
 	// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
 	// threads have seen that this nexthop is gone. At this point, only
-	// packets already in the control output ring may still reference it.
+	// packets already in the control queue may still reference it.
 	// The event triggers a drain that frees those packets before we free
 	// the nexthop memory.
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
@@ -719,7 +719,7 @@ static struct gr_event_serializer nh_serializer = {
 
 static struct gr_module module = {
 	.name = "nexthop",
-	.depends_on = "rcu,control_output",
+	.depends_on = "rcu,control_queue",
 	.init = nh_init,
 	.fini = nh_fini,
 };

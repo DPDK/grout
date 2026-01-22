@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gr_bitops.h>
+#include <gr_control_queue.h>
 
 #include <rte_ether.h>
 #include <rte_mbuf.h>
@@ -101,6 +102,4 @@ struct lacp_pdu {
 // Standard LACP destination multicast address
 #define LACP_DST_MAC ((struct rte_ether_addr) {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x02}})
 
-// forward declaration to avoid circular include
-struct control_output_drain;
-void lacp_input_cb(struct rte_mbuf *mbuf, const struct control_output_drain *);
+void lacp_input_cb(struct rte_mbuf *mbuf, const struct control_queue_drain *);

@@ -20,7 +20,7 @@ static uint16_t control_output_process(
 	unsigned sent = 0;
 
 	for (unsigned i = 0; i < n_objs; i++) {
-		if (control_output_enqueue(objs[i]) < 0)
+		if (control_queue_push(objs[i]) < 0)
 			rte_node_enqueue_x1(graph, node, ERROR, objs[i]);
 		else {
 			sent++;
@@ -32,7 +32,7 @@ static uint16_t control_output_process(
 		}
 	}
 	if (sent > 0)
-		control_output_done();
+		control_queue_done();
 
 	return n_objs;
 }

@@ -140,7 +140,7 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
 mock_func(struct nexthop *, nexthop_lookup(addr_family_t, uint16_t, uint16_t, const void *));
-mock_func(void, ndp_probe_input_cb(struct rte_mbuf *, const struct control_output_drain *));
+mock_func(void, ndp_probe_input_cb(struct rte_mbuf *, const struct control_queue_drain *));
 
 struct fake_ndp_na_mbuf {
 	struct icmp6 icmp6_hdr;

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <gr_control_output.h>
+#include <gr_control_queue.h>
 #include <gr_ip6.h>
 #include <gr_net_types.h>
 #include <gr_nh_control.h>
@@ -21,9 +21,9 @@ nh6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
 	return nexthop_lookup(GR_AF_IP6, vrf_id, iface_id, ip);
 }
 
-void nh6_unreachable_cb(struct rte_mbuf *m, const struct control_output_drain *);
-void ndp_probe_input_cb(struct rte_mbuf *m, const struct control_output_drain *);
-void ndp_router_sollicit_input_cb(struct rte_mbuf *m, const struct control_output_drain *);
+void nh6_unreachable_cb(struct rte_mbuf *m, const struct control_queue_drain *);
+void ndp_probe_input_cb(struct rte_mbuf *m, const struct control_queue_drain *);
+void ndp_router_sollicit_input_cb(struct rte_mbuf *m, const struct control_queue_drain *);
 
 int rib6_insert(
 	uint16_t vrf_id,

@@ -34,7 +34,7 @@ static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 
 // Callback invoked by control plane for each ICMP packet received for a local address.
 // The packet is added at the end of a linked list.
-static void icmp_input_cb(struct rte_mbuf *m, const struct control_output_drain *) {
+static void icmp_input_cb(struct rte_mbuf *m, const struct control_queue_drain *) {
 	struct icmp_queue_item *i;
 	void *data;
 

@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_clock.h>
 #include <gr_control_input.h>
+#include <gr_control_output.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
 #include <gr_ip4_control.h>
@@ -26,7 +27,7 @@
 
 static control_input_t ip_output_node;
 
-void nh4_unreachable_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
+void nh4_unreachable_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
 	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 	ip4_addr_t dst = ip->dst_addr;
 	struct nexthop_info_l3 *l3;
@@ -121,7 +122,7 @@ free:
 
 static control_input_t arp_output_reply_node;
 
-void arp_probe_input_cb(struct rte_mbuf *m, const struct control_output_drain *drain) {
+void arp_probe_input_cb(struct rte_mbuf *m, const struct control_queue_drain *drain) {
 	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	struct rte_arp_hdr *arp;
