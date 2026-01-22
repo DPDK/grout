@@ -13,6 +13,10 @@ struct control_queue_drain {
 	const void *obj; // Object being deleted
 };
 
+// Force drain the control queue from all items.
+// Pass ev_type and deleted_obj to item callbacks so that they can ignore/free references.
+void control_queue_drain(uint32_t ev_type, const void *deleted_obj);
+
 // Callback definition to pass arbitrary data to be processed by the control plane event loop.
 // It is up to the function to free any data referenced by the pointer if necessary.
 //

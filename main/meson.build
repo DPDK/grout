@@ -3,6 +3,7 @@
 
 src += files(
   'api.c',
+  'control_queue.c',
   'dpdk.c',
   'event.c',
   'main.c',
