@@ -249,7 +249,10 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		o = ip6_output_mbuf_data(held);
 		o->nh = nh;
 		o->iface = NULL;
-		post_to_stack(ip6_output_node, held);
+		if (post_to_stack(ip6_output_node, held) < 0) {
+			LOG(ERR, "post_to_stack: %s", strerror(errno));
+			rte_pktmbuf_free(held);
+		}
 		held = next;
 	}
 	l3->held_pkts_head = NULL;
