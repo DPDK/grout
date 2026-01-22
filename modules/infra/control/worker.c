@@ -326,9 +326,17 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
 		if (CPU_ISSET(worker->cpu_id, affinity)) {
 			// Remove all RXQ/TXQ from that worker to have a clean slate.
-			// worker_graph_reload_all() will stop all workers first.
 			gr_vec_free(worker->rxqs);
 			gr_vec_free(worker->txqs);
+			if (CPU_COUNT(affinity) != CPU_COUNT(&gr_config.datapath_cpus)) {
+				// Affinity was changed and contains a different number of CPUs.
+				// Ports will need to be stopped to be reconfigured.
+				// Pause worker to make it stop polling RXQs.
+				if ((ret = worker_graph_reload(worker, NULL)) < 0) {
+					errno_log(errno, "worker_graph_reload");
+					goto end;
+				}
+			}
 		} else {
 			// This CPU is out of the affinity mask.
 			if ((ret = worker_destroy(worker->cpu_id)) < 0) {
