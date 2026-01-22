@@ -20,7 +20,8 @@ static uint16_t control_output_process(
 	unsigned sent = 0;
 
 	for (unsigned i = 0; i < n_objs; i++) {
-		if (control_queue_push(objs[i]) < 0)
+		const struct control_output_mbuf_data *d = control_output_mbuf_data(objs[i]);
+		if (control_queue_push(d->callback, objs[i], 0) < 0)
 			rte_node_enqueue_x1(graph, node, ERROR, objs[i]);
 		else {
 			sent++;

@@ -32,7 +32,7 @@ static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 }
 
 // called from dataplane context
-static void icmp6_input_cb(struct rte_mbuf *m, const struct control_queue_drain *) {
+static void icmp6_input_cb(void *m, uintptr_t, const struct control_queue_drain *) {
 	struct icmp_queue_item *i;
 	void *data;
 

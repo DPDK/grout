@@ -48,7 +48,8 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void iface_cp_tx(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *m = obj;
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_stats *stats;
 	char *data = NULL;

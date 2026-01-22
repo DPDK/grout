@@ -103,11 +103,11 @@
   "control_output_process": {
     "callees": [
       {
-        "ipc": 2.91,
+        "ipc": 3.54,
         "name": "control_queue_push",
-        "self_cycles": 56,
-        "total_cycles": 56,
-        "uops": 224
+        "self_cycles": 118.8,
+        "total_cycles": 118.8,
+        "uops": 475
       },
       {
         "ipc": 3.85,
@@ -117,10 +117,10 @@
         "uops": 3
       }
     ],
-    "ipc": 1.52,
-    "self_cycles": 25.8,
-    "total_cycles": 82.6,
-    "uops": 103
+    "ipc": 1.54,
+    "self_cycles": 26,
+    "total_cycles": 145.6,
+    "uops": 104
   },
   "dhcp_input_process": {
     "ipc": 1.91,

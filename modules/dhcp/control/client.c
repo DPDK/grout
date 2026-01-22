@@ -259,7 +259,8 @@ static void dhcp_schedule_timers(struct dhcp_client *client) {
 	    client->iface_id);
 }
 
-void dhcp_input_cb(struct rte_mbuf *mbuf, const struct control_queue_drain *drain) {
+void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *mbuf = obj;
 	const struct iface *iface = mbuf_data(mbuf)->iface;
 	dhcp_message_type_t msg_type = 0;
 	struct dhcp_client *client;

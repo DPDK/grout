@@ -45,7 +45,8 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 		close(fd);
 }
 
-void loopback_tx(struct rte_mbuf *m, const struct control_queue_drain *drain) {
+void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	struct rte_mbuf *m = obj;
 	struct mbuf_data *d = mbuf_data(m);
 	struct iface_info_loopback *lo;
 	struct iface_stats *stats;
