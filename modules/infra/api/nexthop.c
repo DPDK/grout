@@ -39,16 +39,10 @@ static struct gr_api_handler config_set_handler = {
 
 static struct api_out nh_add(const void *request, struct api_ctx *) {
 	const struct gr_nh_add_req *req = request;
-	struct nexthop *nh = NULL;
+	struct nexthop *nh;
 	int ret = 0;
 
-	if (req->nh.nh_id != GR_NH_ID_UNSET)
-		nh = nexthop_lookup_id(req->nh.nh_id);
-
-	if (nh == NULL && req->nh.type == GR_NH_T_L3) {
-		struct gr_nexthop_info_l3 *l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-		nh = nexthop_lookup_l3(l3->af, req->nh.vrf_id, req->nh.iface_id, &l3->addr);
-	}
+	nh = nexthop_lookup(&req->nh.base, req->nh.info);
 
 	if (nh == NULL) {
 		nh = nexthop_new(&req->nh.base, req->nh.info);

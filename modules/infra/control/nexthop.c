@@ -285,8 +285,25 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 	type_ops[type] = ops;
 }
 
-struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info) {
+struct nexthop *nexthop_lookup(const struct gr_nexthop_base *base, const void *info) {
+	const struct nexthop_type_ops *ops;
 	struct nexthop *nh = NULL;
+
+	if (base == NULL)
+		return errno_set_null(EINVAL);
+
+	if (base->nh_id != GR_NH_ID_UNSET)
+		nh = nexthop_lookup_id(base->nh_id);
+
+	ops = type_ops[base->type];
+	if (nh == NULL && ops != NULL && ops->lookup != NULL)
+		nh = ops->lookup(base, info);
+
+	return nh;
+}
+
+struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info) {
+	struct nexthop *nh;
 	void *data;
 	int ret;
 
