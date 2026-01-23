@@ -130,14 +130,20 @@ void nexthop_routes_cleanup(struct nexthop *nh) {
 	}
 }
 
+static void l3_remove_references(struct nexthop *nh) {
+	if (nh->type == GR_NH_T_L3) {
+		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+
+		if (l3->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&l3->ipv6)) {
+			struct nexthop_key key;
+			set_nexthop_key(&key, l3->af, nh->vrf_id, nh->iface_id, &l3->addr);
+			rte_hash_del_key(l3_hash, &key);
+		}
+	}
+}
+
 static void l3_free(struct nexthop *nh) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-
-	if (l3->ipv4 != 0 || !rte_ipv6_addr_is_unspec(&l3->ipv6)) {
-		struct nexthop_key key;
-		set_nexthop_key(&key, l3->af, nh->vrf_id, nh->iface_id, &l3->addr);
-		rte_hash_del_key(l3_hash, &key);
-	}
 
 	// Flush all held packets.
 	struct rte_mbuf *m = l3->held_pkts_head;
@@ -258,6 +264,7 @@ static struct gr_nexthop *l3_to_api(const struct nexthop *nh, size_t *len) {
 static struct nexthop_type_ops l3_nh_ops = {
 	.reconfig = l3_reconfig,
 	.lookup = l3_lookup,
+	.remove_references = l3_remove_references,
 	.free = l3_free,
 	.equal = l3_equal,
 	.import_info = l3_import_info,
