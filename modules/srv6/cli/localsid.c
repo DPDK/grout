@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
 #include <gr_errno.h>
 #include <gr_net_types.h>
@@ -24,6 +25,7 @@ static struct {
 	{SR_BEHAVIOR_END_DT6, "end.dt6"},
 	{SR_BEHAVIOR_END_DT4, "end.dt4"},
 	{SR_BEHAVIOR_END_DT46, "end.dt46"},
+	{SR_BEHAVIOR_END_DX2, "end.dx2"},
 };
 
 static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
@@ -79,8 +81,22 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 	n = ec_pnode_find(p, "BEHAVIOR");
 	if (n == NULL || ec_pnode_len(n) < 1)
 		goto out;
+
 	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &sr6->behavior) < 0)
 		goto out;
+
+	if (sr6->behavior == SR_BEHAVIOR_END_DX2) {
+		const char *iface_name = arg_str(p, "IFACE");
+		struct gr_iface *iface;
+
+		if (iface_name == NULL)
+			goto out;
+		iface = iface_from_name(c, iface_name);
+		if (iface == NULL)
+			goto out;
+		sr6->out_vrf_id = iface->id;
+		free(iface);
+	}
 
 	if (arg_u16(n, "TABLE", &sr6->out_vrf_id) < 0 && errno != ENOENT)
 		goto out;
@@ -115,6 +131,9 @@ static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void 
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT46:
 		SAFE_BUF(snprintf, len, " %s", vrf);
+		break;
+	case SR_BEHAVIOR_END_DX2:
+		SAFE_BUF(snprintf, len, " out_iface=%d", sr6->out_vrf_id);
 		break;
 	}
 	return n;
@@ -163,10 +182,20 @@ static int ctx_init(struct ec_node *root) {
 		),
 		EC_NODE_CMD(
 			EC_NO_ID,
-			"(end.dt4|end.dt6|end.dt46) [table TABLE]",
+			"(end.dx2 IFACE) | ((end.dt4|end.dt6|end.dt46) [table TABLE])",
 			with_help(
 				"L3 routing domain ID.",
 				ec_node_uint("TABLE", 0, UINT16_MAX - 1, 10)
+			),
+			with_help(
+				"Endpoint with decapsulation and specific interface output.",
+				ec_node_str("end.dx2", "end.dx2")
+			),
+			with_help(
+				"Interface to send decapsulated frames.",
+				ec_node_dyn(
+					"IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF)
+				)
 			),
 			with_help(
 				"Endpoint with decapsulation and specific IPv4 table lookup.",

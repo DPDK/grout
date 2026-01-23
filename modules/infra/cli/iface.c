@@ -19,9 +19,38 @@
 #include <unistd.h>
 
 static STAILQ_HEAD(, cli_iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+static STAILQ_HEAD(, cli_iface_mode) modes = STAILQ_HEAD_INITIALIZER(modes);
 
 void register_iface_type(struct cli_iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
+}
+
+void register_iface_mode(struct cli_iface_mode *mode) {
+	STAILQ_INSERT_TAIL(&modes, mode, next);
+}
+
+struct ec_node *with_iface_set_callback(cmd_iface_set_cb_t cb, struct ec_node *node) {
+	if (node == NULL)
+		return NULL;
+	struct ec_dict *attrs = ec_node_attrs(node);
+	if (attrs == NULL || ec_dict_set(attrs, CALLBACK_ATTR_IFACE_MODE, cb, NULL) < 0) {
+		ec_node_free(node);
+		node = NULL;
+	}
+	return node;
+}
+
+static cmd_iface_set_cb_t find_cmd_iface_mode_callback(const struct ec_pnode *parsed) {
+	const struct ec_pnode *p;
+
+	for (p = parsed; p != NULL; p = EC_PNODE_ITER_NEXT(parsed, p, true)) {
+		const struct ec_node *node = ec_pnode_get_node(p);
+		cmd_iface_set_cb_t cb = ec_dict_get(ec_node_attrs(node), CALLBACK_ATTR_IFACE_MODE);
+		if (cb != NULL)
+			return cb;
+	}
+
+	return errno_set_null(EOPNOTSUPP);
 }
 
 const struct cli_iface_type *type_from_name(const char *name) {
@@ -58,12 +87,24 @@ int complete_iface_types(
 	}
 	return 0;
 }
+
 const struct cli_iface_type *type_from_id(gr_iface_type_t type_id) {
 	const struct cli_iface_type *type;
 
 	STAILQ_FOREACH (type, &types, next) {
 		if (type->type_id == type_id)
 			return type;
+	}
+	errno = ENODEV;
+	return NULL;
+}
+
+const struct cli_iface_mode *mode_from_id(gr_iface_mode_t mode_id) {
+	const struct cli_iface_mode *mode;
+
+	STAILQ_FOREACH (mode, &modes, next) {
+		if (mode->mode_id == mode_id)
+			return mode;
 	}
 	errno = ENODEV;
 	return NULL;
@@ -148,6 +189,7 @@ uint64_t parse_iface_args(
 	size_t info_size,
 	bool update
 ) {
+	const struct ec_pnode *node;
 	const char *name, *promisc;
 	uint64_t set_attrs = 0;
 
@@ -192,6 +234,19 @@ uint64_t parse_iface_args(
 	if (arg_u16(p, "VRF", &iface->vrf_id) == 0)
 		set_attrs |= GR_IFACE_SET_VRF;
 
+	if ((node = ec_pnode_find(p, "IFACE_MODE")) != NULL) {
+		if (ec_pnode_find(node, "l3")) {
+			set_attrs |= GR_IFACE_SET_MODE;
+			set_attrs |= GR_IFACE_SET_VRF;
+			iface->mode = GR_IFACE_MODE_L3;
+			iface->vrf_id = 0;
+		} else {
+			cmd_iface_set_cb_t cb = find_cmd_iface_mode_callback(node);
+			if (cb)
+				cb(c, iface, node, &set_attrs);
+		}
+	}
+
 	return set_attrs;
 err:
 	return 0;
@@ -233,10 +288,12 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_table_new_column(table, "DOMAIN", 0, 0);
 	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "INFO", 0, 0);
+	scols_table_new_column(table, "", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
 	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
+		const struct cli_iface_mode *mode = mode_from_id(iface->mode);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		char buf[128];
 
@@ -254,17 +311,8 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		scols_line_set_data(line, 2, buf);
 
 		// mode
-		switch (iface->mode) {
-		case GR_IFACE_MODE_L1_XC:
-			scols_line_set_data(line, 3, "XC");
-			break;
-		case GR_IFACE_MODE_L3:
-			scols_line_set_data(line, 3, "L3");
-			break;
-		default:
-			scols_line_sprintf(line, 3, "%u", iface->mode);
-			break;
-		}
+		assert(mode != NULL);
+		scols_line_sprintf(line, 3, "%s", mode->str);
 
 		// vrf
 		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
@@ -277,6 +325,11 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		buf[0] = 0;
 		type->list_info(c, iface, buf, sizeof(buf));
 		scols_line_set_data(line, 6, buf);
+		if (mode->list_info) {
+			buf[0] = 0;
+			mode->list_info(c, iface, buf, sizeof(buf));
+			scols_line_set_data(line, 7, buf);
+		}
 	}
 
 	scols_print_table(table);
@@ -437,6 +490,7 @@ end:
 
 static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct cli_iface_type *type;
+	const struct cli_iface_mode *mode;
 	char buf[128];
 
 	if (arg_str(p, "stats") != NULL) {
@@ -474,12 +528,19 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	assert(type != NULL);
 	type->show(c, iface);
 
+	mode = mode_from_id(iface->mode);
+	assert(mode);
+	if (mode->show)
+		mode->show(c, iface);
+
 	free(iface);
 
 	return CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {
+	struct ec_node *iface_mode = NULL;
+	struct cli_iface_mode *mode;
 	int ret;
 
 	if (INTERFACE_ADD_CTX(root) == NULL)
@@ -487,6 +548,17 @@ static int ctx_init(struct ec_node *root) {
 
 	if (INTERFACE_SET_CTX(root) == NULL)
 		return -1;
+
+	// IFACE_MODE is present many times in the ecoli cli tree:
+	// It can be configured with "interface add" and "interface set".
+	// Also, each interface type (port, vlan, ... ) will need to be attached
+	// all interface modes.
+	while ((iface_mode = ec_node_find_next(root, iface_mode, "IFACE_MODE"))) {
+		STAILQ_FOREACH (mode, &modes, next) {
+			if ((ret = mode->init(iface_mode)) < 0)
+				return ret;
+		}
+	}
 
 	ret = CLI_COMMAND(
 		INTERFACE_CTX(root),
@@ -585,7 +657,19 @@ static struct cli_event_printer printer = {
 	},
 };
 
+static int l3_mode_init(struct ec_node *) {
+	// This default l3 mode is handled statically
+	return 0;
+}
+
+static struct cli_iface_mode iface_mode_l3 = {
+	.mode_id = GR_IFACE_MODE_L3,
+	.str = "L3",
+	.init = l3_mode_init,
+};
+
 static void __attribute__((constructor, used)) init(void) {
 	cli_context_register(&ctx);
 	cli_event_printer_register(&printer);
+	register_iface_mode(&iface_mode_l3);
 }
