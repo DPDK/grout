@@ -15,10 +15,10 @@
         "uops": 49
       }
     ],
-    "ipc": 1.92,
-    "self_cycles": 33.8,
-    "total_cycles": 52.3,
-    "uops": 135
+    "ipc": 1.87,
+    "self_cycles": 29.5,
+    "total_cycles": 48.0,
+    "uops": 118
   },
   "arp_input_request_process": {
     "callees": [
@@ -31,9 +31,9 @@
       }
     ],
     "ipc": 1.72,
-    "self_cycles": 28.2,
-    "total_cycles": 46.7,
-    "uops": 113
+    "self_cycles": 28,
+    "total_cycles": 46.5,
+    "uops": 112
   },
   "arp_output_reply_process": {
     "callees": [
@@ -117,16 +117,16 @@
         "uops": 3
       }
     ],
-    "ipc": 1.54,
-    "self_cycles": 26,
-    "total_cycles": 145.6,
-    "uops": 104
+    "ipc": 1.65,
+    "self_cycles": 27,
+    "total_cycles": 146.6,
+    "uops": 108
   },
   "dhcp_input_process": {
-    "ipc": 1.91,
-    "self_cycles": 35.5,
-    "total_cycles": 35.5,
-    "uops": 142
+    "ipc": 1.96,
+    "self_cycles": 36.2,
+    "total_cycles": 36.2,
+    "uops": 145
   },
   "dnat44_dynamic_process": {
     "callees": [
@@ -219,10 +219,10 @@
         "uops": 42
       }
     ],
-    "ipc": 2.64,
-    "self_cycles": 55.2,
-    "total_cycles": 73.5,
-    "uops": 221
+    "ipc": 2.62,
+    "self_cycles": 54.5,
+    "total_cycles": 72.8,
+    "uops": 218
   },
   "icmp6_local_send_process": {
     "callees": [
@@ -262,10 +262,10 @@
     "uops": 402
   },
   "icmp_input_process": {
-    "ipc": 2.97,
-    "self_cycles": 59.8,
-    "total_cycles": 59.8,
-    "uops": 239
+    "ipc": 3.02,
+    "self_cycles": 60.8,
+    "total_cycles": 60.8,
+    "uops": 243
   },
   "icmp_local_send_process": {
     "ipc": 2.4,
@@ -310,10 +310,10 @@
     "uops": 112
   },
   "ip6_hold_process": {
-    "ipc": 1.28,
-    "self_cycles": 21.8,
-    "total_cycles": 21.8,
-    "uops": 87
+    "ipc": 2.85,
+    "self_cycles": 63.2,
+    "total_cycles": 63.2,
+    "uops": 253
   },
   "ip6_input_local_process": {
     "callees": [
@@ -353,10 +353,10 @@
     "uops": 209
   },
   "ip6_loadbalance_process": {
-    "ipc": 1.78,
-    "self_cycles": 28.5,
-    "total_cycles": 28.5,
-    "uops": 114
+    "ipc": 1.7,
+    "self_cycles": 27.5,
+    "total_cycles": 27.5,
+    "uops": 110
   },
   "ip6_output_process": {
     "callees": [
@@ -424,10 +424,10 @@
     "uops": 697
   },
   "ip_hold_process": {
-    "ipc": 1.28,
-    "self_cycles": 21.8,
-    "total_cycles": 21.8,
-    "uops": 87
+    "ipc": 2.91,
+    "self_cycles": 65.8,
+    "total_cycles": 65.8,
+    "uops": 263
   },
   "ip_input_local_process": {
     "ipc": 1.87,
@@ -483,7 +483,7 @@
         "ipc": 1.67,
         "name": "snat44_static_process",
         "self_cycles": 30,
-        "total_cycles": 44.1,
+        "total_cycles": 44.8,
         "uops": 120
       },
       {
@@ -496,7 +496,7 @@
     ],
     "ipc": 2.53,
     "self_cycles": 48,
-    "total_cycles": 866.1,
+    "total_cycles": 866.8,
     "uops": 192
   },
   "ipip_input_process": {
@@ -552,10 +552,10 @@
     "uops": 127
   },
   "l2_redirect_process": {
-    "ipc": 1.28,
-    "self_cycles": 21.8,
-    "total_cycles": 21.8,
-    "uops": 87
+    "ipc": 2.85,
+    "self_cycles": 63.2,
+    "total_cycles": 63.2,
+    "uops": 253
   },
   "l4_input_local_process": {
     "ipc": 1.57,
@@ -579,10 +579,10 @@
     "uops": 307
   },
   "lacp_input_process": {
-    "ipc": 2.07,
-    "self_cycles": 37.5,
-    "total_cycles": 37.5,
-    "uops": 150
+    "ipc": 2.05,
+    "self_cycles": 37.8,
+    "total_cycles": 37.8,
+    "uops": 151
   },
   "lacp_output_process": {
     "ipc": 2.32,
@@ -591,10 +591,10 @@
     "uops": 159
   },
   "loop_xvrf_process": {
-    "ipc": 1.82,
-    "self_cycles": 30,
-    "total_cycles": 30,
-    "uops": 120
+    "ipc": 1.74,
+    "self_cycles": 29,
+    "total_cycles": 29,
+    "uops": 116
   },
   "loopback_input_process": {
     "ipc": 1.64,
@@ -603,10 +603,10 @@
     "uops": 108
   },
   "loopback_output_process": {
-    "ipc": 1.19,
-    "self_cycles": 21.2,
-    "total_cycles": 21.2,
-    "uops": 85
+    "ipc": 2.85,
+    "self_cycles": 63.2,
+    "total_cycles": 63.2,
+    "uops": 253
   },
   "ndp_na_input_process": {
     "callees": [
@@ -625,10 +625,10 @@
         "uops": 49
       }
     ],
-    "ipc": 2.4,
-    "self_cycles": 40.8,
-    "total_cycles": 126.3,
-    "uops": 163
+    "ipc": 2.42,
+    "self_cycles": 38.8,
+    "total_cycles": 124.3,
+    "uops": 155
   },
   "ndp_na_output_process": {
     "ipc": 3.08,
@@ -653,10 +653,10 @@
         "uops": 49
       }
     ],
-    "ipc": 2.87,
-    "self_cycles": 64.2,
-    "total_cycles": 149.7,
-    "uops": 257
+    "ipc": 2.93,
+    "self_cycles": 62.2,
+    "total_cycles": 147.7,
+    "uops": 249
   },
   "ndp_ns_output_process": {
     "callees": [
@@ -681,10 +681,10 @@
     "uops": 195
   },
   "ndp_rs_input_process": {
-    "ipc": 1.48,
-    "self_cycles": 25.5,
-    "total_cycles": 25.5,
-    "uops": 102
+    "ipc": 1.5,
+    "self_cycles": 25.2,
+    "total_cycles": 25.2,
+    "uops": 101
   },
   "ospf_redirect_process": {
     "callees": [
@@ -702,10 +702,10 @@
     "uops": 543
   },
   "port_output_process": {
-    "ipc": 1.72,
-    "self_cycles": 28.5,
-    "total_cycles": 28.5,
-    "uops": 114
+    "ipc": 1.57,
+    "self_cycles": 26.5,
+    "total_cycles": 26.5,
+    "uops": 106
   },
   "rx_process": {
     "callees": [

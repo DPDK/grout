@@ -105,9 +105,9 @@ static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-void ndp_router_sollicit_input_cb(void *m, uintptr_t, const struct control_queue_drain *drain) {
-	const struct iface *iface = mbuf_data(m)->iface;
-	rte_pktmbuf_free(m);
+void ndp_router_sollicit_input_cb(void *mbuf, uintptr_t, const struct control_queue_drain *drain) {
+	const struct iface *iface = mbuf_data(mbuf)->iface;
+	rte_pktmbuf_free(mbuf);
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
 		return;

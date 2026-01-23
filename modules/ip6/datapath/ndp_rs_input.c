@@ -26,7 +26,6 @@ static uint16_t ndp_rs_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *co;
 	struct ip6_local_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
@@ -60,8 +59,8 @@ static uint16_t ndp_rs_input_process(
 		ASSERT_NDP(d->len >= 8);
 
 		next = CONTROL;
-		co = control_output_mbuf_data(mbuf);
-		co->callback = ndp_router_sollicit_input_cb;
+
+		control_output_set_cb(mbuf, ndp_router_sollicit_input_cb, 0);
 next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);

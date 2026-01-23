@@ -20,15 +20,17 @@ static uint16_t loopback_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *co;
 	struct rte_mbuf *mbuf;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		co = control_output_mbuf_data(mbuf);
-		co->callback = loopback_tx;
-		rte_node_enqueue_x1(graph, node, CONTROL_OUTPUT, mbuf);
+		control_output_set_cb(mbuf, loopback_tx, 0);
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
 	}
+
+	rte_node_next_stream_move(graph, node, CONTROL_OUTPUT);
+
 	return nb_objs;
 }
 

@@ -18,6 +18,7 @@
 
 struct icmp_queue_item {
 	struct rte_mbuf *mbuf;
+	clock_t timestamp;
 	STAILQ_ENTRY(icmp_queue_item) next;
 };
 
@@ -32,7 +33,7 @@ static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 }
 
 // called from dataplane context
-static void icmp6_input_cb(void *m, uintptr_t, const struct control_queue_drain *) {
+static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *) {
 	struct icmp_queue_item *i;
 	void *data;
 
@@ -41,14 +42,19 @@ static void icmp6_input_cb(void *m, uintptr_t, const struct control_queue_drain 
 
 	i = data;
 	i->mbuf = m;
+	i->timestamp = timestamp;
 	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
 }
 
 #define ICMP6_ERROR_PKT_LEN                                                                        \
 	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(clock_t))
 
-static struct rte_mbuf *
-get_icmp6_echo_reply(uint16_t ident, uint16_t seq_num, struct icmp6 **out_icmp6) {
+static struct rte_mbuf *get_icmp6_echo_reply(
+	uint16_t ident,
+	uint16_t seq_num,
+	struct icmp6 **out_icmp6,
+	clock_t *timestamp
+) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
@@ -80,6 +86,7 @@ get_icmp6_echo_reply(uint16_t ident, uint16_t seq_num, struct icmp6 **out_icmp6)
 		    && rte_be_to_cpu_16(icmp6_echo->seqnum) == seq_num) {
 			icmp6_queue_pop(i, false);
 			*out_icmp6 = icmp6;
+			*timestamp = i->timestamp;
 			return mbuf;
 		}
 
@@ -105,22 +112,20 @@ static struct api_out icmp6_send(const void *request, struct api_ctx *) {
 static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip6_icmp_recv_req *recvreq = request;
 	struct gr_ip6_icmp_recv_resp *resp;
-	struct control_output_mbuf_data *d_ctl;
 	struct ip6_local_mbuf_data *d_ip6;
 	struct icmp6 *icmp6;
 	struct icmp6_echo_reply *icmp6_echo;
-	clock_t *timestamp;
+	clock_t *pkt_timestamp, rcv_timestamp;
 	struct rte_mbuf *m;
 	int ret = 0;
 
-	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6);
+	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6, &rcv_timestamp);
 	if (m == NULL)
 		return api_out(0, 0, NULL);
 
-	d_ctl = control_output_mbuf_data(m);
-	d_ip6 = (struct ip6_local_mbuf_data *)d_ctl->cb_data;
+	d_ip6 = ip6_local_mbuf_data(m);
 	icmp6_echo = PAYLOAD(icmp6);
-	timestamp = PAYLOAD(icmp6_echo);
+	pkt_timestamp = PAYLOAD(icmp6_echo);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL)
 		return api_out(ENOMEM, 0, NULL);
@@ -128,7 +133,7 @@ static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	resp->ttl = d_ip6->hop_limit;
 	resp->ident = rte_be_to_cpu_16(icmp6_echo->ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp6_echo->seqnum);
-	resp->response_time = d_ctl->timestamp - *timestamp;
+	resp->response_time = rcv_timestamp - *pkt_timestamp;
 	icmp6 = rte_pktmbuf_mtod(m, struct icmp6 *);
 	resp->type = icmp6->type;
 	resp->code = icmp6->code;
