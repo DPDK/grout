@@ -107,6 +107,8 @@ struct dhcp_packet {
 #define BOOTREQUEST 1
 #define BOOTREPLY 2
 
+bool dhcp_enabled(uint16_t iface_id);
+
 void dhcp_input_cb(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
 struct rte_mempool *dhcp_get_mempool(void);

@@ -10,6 +10,7 @@
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_mbuf.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -25,17 +26,19 @@ struct dhcp_input_trace_data {
 
 enum {
 	CONTROL = 0,
+	NO_HEADROOM,
 	EDGE_COUNT,
 };
 
 static uint16_t
 dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-
-		control_output_set_cb(mbuf, dhcp_input_cb, 0);
+		iface = mbuf_data(mbuf)->iface;
 
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct dhcp_input_trace_data *t;
@@ -79,7 +82,35 @@ dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			}
 		}
 
-		rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
+		if (dhcp_enabled(iface->id)) {
+			control_output_set_cb(mbuf, dhcp_input_cb, 0);
+		} else {
+			struct ip_local_mbuf_data *d = ip_local_mbuf_data(mbuf);
+
+			// reconstruct the IP and Ethernet headers before sending to control plane
+			// interface
+			struct rte_ipv4_hdr *ip = gr_mbuf_prepend(mbuf, ip);
+			if (ip == NULL) {
+				edge = NO_HEADROOM;
+				goto next;
+			}
+			ip_set_fields(ip, d);
+
+			struct rte_ether_hdr *eth = gr_mbuf_prepend(mbuf, eth);
+			if (eth == NULL) {
+				edge = NO_HEADROOM;
+				goto next;
+			}
+			memset(&eth->src_addr, 0, sizeof(eth->src_addr));
+			iface_get_eth_addr(iface, &eth->dst_addr);
+			eth->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+
+			control_output_set_cb(mbuf, iface_cp_tx, 0);
+		}
+
+		edge = CONTROL;
+next:
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
@@ -132,6 +163,7 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[CONTROL] = "control_output",
+		[NO_HEADROOM] = "error_no_headroom",
 	},
 };
 

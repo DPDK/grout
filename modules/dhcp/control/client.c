@@ -29,6 +29,12 @@ static struct dhcp_client *dhcp_clients[MAX_IFACES];
 static control_input_t dhcp_output;
 static struct rte_mempool *dhcp_mp;
 
+bool dhcp_enabled(uint16_t iface_id) {
+	if (iface_id < MAX_IFACES)
+		return dhcp_clients[iface_id] != NULL;
+	return false;
+}
+
 static int dhcp_configure_interface(struct dhcp_client *client) {
 	const struct iface *iface;
 	int ret;
