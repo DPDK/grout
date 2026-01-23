@@ -9,6 +9,21 @@
 #include <gr_nat_datapath.h>
 #include <gr_vec.h>
 
+static struct nexthop *dnat44_nh_lookup(const struct gr_nexthop_base *base, const void *info) {
+	const struct iface *iface = iface_from_id(base->iface_id);
+	const struct gr_nexthop_info_dnat *dnat = info;
+	struct nexthop *nh;
+
+	if (iface == NULL)
+		return NULL;
+
+	nh = rib4_lookup_exact(iface->vrf_id, dnat->match, 32);
+	if (nh == NULL || nh->type != GR_NH_T_DNAT)
+		return NULL;
+
+	return nh;
+}
+
 static bool dnat44_nh_equal(const struct nexthop *a, const struct nexthop *b) {
 	struct nexthop_info_dnat *ad = nexthop_info_dnat(a);
 	struct nexthop_info_dnat *bd = nexthop_info_dnat(b);
@@ -222,6 +237,7 @@ static struct gr_api_handler list_handler = {
 };
 
 static struct nexthop_type_ops nh_ops = {
+	.lookup = dnat44_nh_lookup,
 	.equal = dnat44_nh_equal,
 	.free = dnat44_nh_free,
 	.import_info = dnat44_nh_import_info,
