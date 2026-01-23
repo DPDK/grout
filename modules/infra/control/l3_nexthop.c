@@ -79,6 +79,17 @@ nexthop_lookup_l3(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const vo
 	return data;
 }
 
+static struct nexthop *l3_lookup(const struct gr_nexthop_base *base, const void *info) {
+	const struct iface *iface = iface_from_id(base->iface_id);
+	const struct gr_nexthop_info_l3 *l3 = info;
+	uint16_t vrf_id = base->vrf_id;
+
+	if (iface != NULL)
+		vrf_id = iface->vrf_id;
+
+	return nexthop_lookup_l3(l3->af, vrf_id, base->iface_id, &l3->addr);
+}
+
 static int l3_reconfig(const struct gr_nexthop_config *c) {
 	char name[64];
 	snprintf(name, sizeof(name), "nexthop-l3-%u", c->max_count);
@@ -246,6 +257,7 @@ static struct gr_nexthop *l3_to_api(const struct nexthop *nh, size_t *len) {
 
 static struct nexthop_type_ops l3_nh_ops = {
 	.reconfig = l3_reconfig,
+	.lookup = l3_lookup,
 	.free = l3_free,
 	.equal = l3_equal,
 	.import_info = l3_import_info,
