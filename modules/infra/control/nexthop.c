@@ -311,9 +311,6 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 	if (base == NULL)
 		return errno_set_null(EINVAL);
 
-	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
-		ABORT("nexthop created from datapath thread");
-
 	if ((ret = rte_mempool_get(pool, &data)) < 0)
 		return errno_set_null(-ret);
 
