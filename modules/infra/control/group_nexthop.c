@@ -22,6 +22,24 @@ static bool group_equal(const struct nexthop *a, const struct nexthop *b) {
 	return true;
 }
 
+static void remove_group_member_cb(struct nexthop *nh, void *deleted) {
+	if (nh->type != GR_NH_T_GROUP)
+		return;
+
+	struct nexthop_info_group *g = nexthop_info_group(nh);
+	for (uint32_t i = 0; i < g->n_members; i++) {
+		if (g->members[i].nh == deleted) {
+			g->members[i].nh = g->members[g->n_members - 1].nh;
+			g->members[i].weight = g->members[g->n_members - 1].weight;
+			g->n_members--;
+		}
+	}
+}
+
+static void group_remove_references(struct nexthop *nh) {
+	nexthop_iter(remove_group_member_cb, nh);
+}
+
 static void group_free(struct nexthop *nh) {
 	struct nexthop_info_group *pvt = nexthop_info_group(nh);
 
@@ -174,6 +192,7 @@ static struct gr_nexthop *group_to_api(const struct nexthop *nh, size_t *len) {
 
 static struct nexthop_type_ops group_nh_ops = {
 	.equal = group_equal,
+	.remove_references = group_remove_references,
 	.free = group_free,
 	.import_info = group_import_info,
 	.to_api = group_to_api,

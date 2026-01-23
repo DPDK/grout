@@ -141,6 +141,7 @@ struct nexthop_type_ops {
 	int (*reconfig)(const struct gr_nexthop_config *);
 	struct nexthop *(*lookup)(const struct gr_nexthop_base *, const void *info);
 	// Callback that will be invoked the nexthop refcount reaches zero.
+	void (*remove_references)(struct nexthop *);
 	void (*free)(struct nexthop *);
 	bool (*equal)(const struct nexthop *, const struct nexthop *);
 	// Copy public info structure to internal info structure.

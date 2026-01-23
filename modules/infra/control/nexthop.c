@@ -438,28 +438,6 @@ struct nexthop *nexthop_lookup_id(uint32_t nh_id) {
 	return data;
 }
 
-static void nh_groups_remove_member(const struct nexthop *nh) {
-	struct nexthop_info_group *info;
-	struct nexthop *group;
-	uint32_t next = 0;
-	const void *key;
-	void *data;
-
-	while (rte_hash_iterate(hash_by_id, &key, &data, &next) >= 0) {
-		group = data;
-		if (group->type != GR_NH_T_GROUP)
-			continue;
-		info = nexthop_info_group(group);
-		for (uint32_t i = 0; i < info->n_members; i++) {
-			if (info->members[i].nh == nh) {
-				info->members[i].nh = info->members[info->n_members - 1].nh;
-				info->members[i].weight = info->members[info->n_members - 1].weight;
-				info->n_members--;
-			}
-		}
-	}
-}
-
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	if (nh->iface_id == (uintptr_t)priv) {
 		nexthop_routes_cleanup(nh);
@@ -480,10 +458,17 @@ static struct gr_event_subscription iface_subscription = {
 };
 
 void nexthop_destroy(struct nexthop *nh) {
+	const struct nexthop_type_ops *ops;
+
 	assert(nh->ref_count == 0);
 
-	nh_groups_remove_member(nh);
+	for (gr_nh_type_t t = 0; nexthop_type_valid(t); t++) {
+		ops = type_ops[t];
+		if (ops != NULL && ops->remove_references != NULL)
+			ops->remove_references(nh);
+	}
 	nexthop_id_put(nh);
+
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
 	// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
@@ -494,7 +479,7 @@ void nexthop_destroy(struct nexthop *nh) {
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
-	const struct nexthop_type_ops *ops = type_ops[nh->type];
+	ops = type_ops[nh->type];
 	if (ops != NULL && ops->free != NULL)
 		ops->free(nh);
 	rte_mempool_put(pool, nh);
