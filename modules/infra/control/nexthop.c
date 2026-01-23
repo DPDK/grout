@@ -226,6 +226,7 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 bool nexthop_type_valid(gr_nh_type_t type) {
 	switch (type) {
 	case GR_NH_T_L3:
+	case GR_NH_T_L2:
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
@@ -270,6 +271,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_ZSTATIC:
 	case GR_NH_ORIGIN_OPENFABRIC:
 	case GR_NH_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_BRIDGE:
 	case GR_NH_ORIGIN_INTERNAL:
 		return true;
 	}
