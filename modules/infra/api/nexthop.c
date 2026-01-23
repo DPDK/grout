@@ -45,10 +45,8 @@ static struct api_out nh_add(const void *request, struct api_ctx *) {
 	nh = nexthop_lookup(&req->nh.base, req->nh.info);
 
 	if (nh == NULL) {
-		nh = nexthop_new(&req->nh.base, req->nh.info);
-		if (nh == NULL)
-			return api_out(errno, 0, NULL);
-		nexthop_incref(nh);
+		if (nexthop_new(&req->nh.base, req->nh.info) == NULL)
+			ret = -errno;
 	} else if (!req->exist_ok) {
 		ret = -EEXIST;
 	} else {

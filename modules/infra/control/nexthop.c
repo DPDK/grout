@@ -324,6 +324,8 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 		return errno_set_null(-ret);
 	}
 
+	nexthop_incref(nh);
+
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
 

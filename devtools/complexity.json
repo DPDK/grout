@@ -788,10 +788,10 @@
         "uops": 27
       }
     ],
-    "ipc": 2.71,
-    "self_cycles": 72.8,
-    "total_cycles": 156.9,
-    "uops": 291
+    "ipc": 2.67,
+    "self_cycles": 71.8,
+    "total_cycles": 155.9,
+    "uops": 287
   },
   "srv6_output_process": {
     "callees": [
