@@ -38,6 +38,11 @@ static uint16_t arp_input_request_process(
 		mbuf = objs[i];
 
 		arp = rte_pktmbuf_mtod(mbuf, struct rte_arp_hdr *);
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct rte_arp_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			*t = *arp;
+		}
+
 		iface = mbuf_data(mbuf)->iface;
 		if ((local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip)) == NULL) {
 			// Unknown IP address
@@ -54,8 +59,6 @@ static uint16_t arp_input_request_process(
 		control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 		edge = CONTROL;
 next:
-		if (gr_mbuf_is_traced(mbuf))
-			gr_mbuf_trace_add(mbuf, node, 0);
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -78,6 +81,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_CONTROL | GR_NODE_T_L2,
+	.trace_format = (gr_trace_format_cb_t)trace_arp_format,
 };
 
 GR_NODE_REGISTER(info);
