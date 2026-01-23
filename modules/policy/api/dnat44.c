@@ -31,17 +31,21 @@ static bool dnat44_nh_equal(const struct nexthop *a, const struct nexthop *b) {
 	return ad->match == bd->match && ad->replace == bd->replace;
 }
 
+static void dnat44_nh_remove_references(struct nexthop *nh) {
+	if (nh->type == GR_NH_T_DNAT) {
+		struct nexthop_info_dnat *dnat = nexthop_info_dnat(nh);
+		struct iface *iface = iface_from_id(nh->iface_id);
+		if (iface == NULL)
+			return;
+		snat44_static_policy_del(iface, dnat->replace);
+	}
+}
+
 static void dnat44_nh_free(struct nexthop *nh) {
 	struct nexthop_info_dnat *dnat = nexthop_info_dnat(nh);
-	struct iface *iface;
-
-	nexthop_decref(dnat->arp);
-
-	iface = iface_from_id(nh->iface_id);
-	if (iface == NULL)
-		return;
-
-	snat44_static_policy_del(iface, dnat->replace);
+	if (dnat->arp)
+		nexthop_decref(dnat->arp);
+	dnat->arp = NULL;
 }
 
 static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
@@ -240,6 +244,7 @@ static struct gr_api_handler list_handler = {
 static struct nexthop_type_ops nh_ops = {
 	.lookup = dnat44_nh_lookup,
 	.equal = dnat44_nh_equal,
+	.remove_references = dnat44_nh_remove_references,
 	.free = dnat44_nh_free,
 	.import_info = dnat44_nh_import_info,
 	.to_api = dnat44_nh_to_api,
