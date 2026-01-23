@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include "ctlplane.h"
-
 #include <gr_config.h>
 #include <gr_control_input.h>
 #include <gr_control_queue.h>
@@ -15,6 +13,7 @@
 #include <gr_module.h>
 #include <gr_netlink.h>
 #include <gr_nh_control.h>
+#include <gr_rxtx.h>
 #include <gr_vlan.h>
 
 #include <event2/event.h>

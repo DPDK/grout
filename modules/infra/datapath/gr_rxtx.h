@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_control_queue.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
 
@@ -43,3 +44,5 @@ int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len
 void iface_input_mode_register(gr_iface_mode_t, const char *next_node);
 
 void iface_output_type_register(gr_iface_type_t, const char *next_node);
+
+void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
