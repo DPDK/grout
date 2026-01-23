@@ -79,6 +79,7 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			// Create an associated /32 route so that next packets take it
 			// in priority with a single route lookup.
 			if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
+				nexthop_decref(remote);
 				LOG(ERR, "failed to insert route: %s", strerror(errno));
 				goto free;
 			}

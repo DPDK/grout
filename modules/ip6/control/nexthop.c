@@ -87,6 +87,7 @@ void nh6_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 				remote
 			);
 			if (ret < 0) {
+				nexthop_decref(remote);
 				LOG(ERR, "failed to insert route: %s", strerror(errno));
 				goto free;
 			}
@@ -207,6 +208,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 				nh
 			);
 			if (ret < 0) {
+				nexthop_decref(nh);
 				LOG(ERR, "ip6_route_insert: %s", strerror(errno));
 				goto free;
 			}

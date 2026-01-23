@@ -158,34 +158,25 @@ static int rib6_insert_or_replace(
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
 	gr_nh_origin_t *o;
-	int ret;
 
-	nexthop_incref(nh);
 	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
 
-	if (rib == NULL) {
-		ret = -errno;
-		goto fail;
-	}
-	if (!nexthop_origin_valid(origin)) {
-		ret = -EPFNOSUPPORT;
-		goto fail;
-	}
+	if (rib == NULL)
+		return -errno;
+
+	if (!nexthop_origin_valid(origin))
+		return errno_set(EPFNOSUPPORT);
 
 	if ((rn = rte_rib6_lookup_exact(rib, scoped_ip, prefixlen)) == NULL) {
 		rn = rte_rib6_insert(rib, scoped_ip, prefixlen);
-		if (rn == NULL) {
-			ret = -rte_errno;
-			goto fail;
-		}
+		if (rn == NULL)
+			return errno_set(rte_errno);
 	} else {
 		uintptr_t nh_id;
 		rte_rib6_get_nh(rn, &nh_id);
 		existing = nh_id_to_ptr(nh_id);
-		if (!replace) {
-			ret = nexthop_equal(nh, existing) ? -EEXIST : -EBUSY;
-			goto fail;
-		}
+		if (!replace)
+			return errno_set(nexthop_equal(nh, existing) ? -EEXIST : -EBUSY);
 	}
 
 	rte_rib6_set_nh(rn, nh_ptr_to_id(nh));
@@ -210,13 +201,11 @@ static int rib6_insert_or_replace(
 		);
 	}
 
+	nexthop_incref(nh);
 	if (existing)
 		nexthop_decref(existing);
 
 	return 0;
-fail:
-	nexthop_decref(nh);
-	return errno_set(-ret);
 }
 
 int rib6_insert(
@@ -285,6 +274,7 @@ int rib6_delete(
 
 static struct api_out route6_add(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_add_req *req = request;
+	bool created = false;
 	struct nexthop *nh;
 	int ret;
 
@@ -320,6 +310,7 @@ static struct api_out route6_add(const void *request, struct api_ctx *) {
 				);
 				if (nh == NULL)
 					return api_out(errno, 0, NULL);
+				created = true;
 			}
 		}
 	}
@@ -334,6 +325,8 @@ static struct api_out route6_add(const void *request, struct api_ctx *) {
 		nh,
 		req->exist_ok
 	);
+	if (ret < 0 && created)
+		nexthop_decref(nh);
 
 	return api_out(-ret, 0, NULL);
 }

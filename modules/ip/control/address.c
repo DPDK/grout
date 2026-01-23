@@ -103,8 +103,10 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 		return -errno;
 
 	ret = rib4_insert(iface->vrf_id, ip, prefixlen, origin, nh);
-	if (ret < 0)
+	if (ret < 0) {
+		nexthop_decref(nh);
 		return ret;
+	}
 
 	// gr_vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
@@ -174,7 +176,8 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		}
 	);
 
-	rib4_cleanup(nh);
+	while (nh->ref_count > 0)
+		nexthop_decref(nh);
 
 	gr_vec_del(addrs->nh, i);
 	if (gr_vec_len(addrs->nh) == 0)

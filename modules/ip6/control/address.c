@@ -130,9 +130,9 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 
 		if ((nh = nexthop_new(&base, &l3)) == NULL)
 			return errno_set(errno);
+	} else {
+		nexthop_incref(nh);
 	}
-
-	nexthop_incref(nh);
 
 	// gr_vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
@@ -222,7 +222,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	rte_ipv6_solnode_from_addr(&solicited_node, ip);
 	if (mcast6_addr_add(iface, &solicited_node) < 0) {
 		if (errno != EOPNOTSUPP && errno != EEXIST) {
-			nexthop_destroy(nh);
+			nexthop_decref(nh);
 			return errno_set(errno);
 		}
 	}
@@ -305,7 +305,8 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		}
 	);
 
-	rib6_cleanup(nh);
+	while (nh->ref_count > 0)
+		nexthop_decref(nh);
 
 	// shift the remaining addresses
 	gr_vec_del(addrs->nh, i);
