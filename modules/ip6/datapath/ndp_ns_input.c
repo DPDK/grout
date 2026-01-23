@@ -27,7 +27,6 @@ static uint16_t ndp_ns_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *c;
 	const struct nexthop_info_l3 *l3;
 	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_solicit *ns;
@@ -91,10 +90,7 @@ static uint16_t ndp_ns_input_process(
 			ASSERT_NDP(lladdr_found == ICMP6_OPT_NOT_FOUND);
 		}
 
-		c = control_output_mbuf_data(mbuf);
-		c->iface = d.iface;
-		c->callback = ndp_probe_input_cb;
-		memcpy(c->cb_data, &d, sizeof(d));
+		control_output_set_cb(mbuf, ndp_probe_input_cb, 0);
 		next = CONTROL;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {

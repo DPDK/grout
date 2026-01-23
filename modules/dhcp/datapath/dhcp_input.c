@@ -30,14 +30,12 @@ enum {
 
 static uint16_t
 dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct control_output_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
-		d = control_output_mbuf_data(mbuf);
-		d->callback = dhcp_input_cb;
+		control_output_set_cb(mbuf, dhcp_input_cb, 0);
 
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct dhcp_input_trace_data *t;

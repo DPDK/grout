@@ -59,9 +59,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			ip_data->src = ip;
 			edge = OUTPUT;
 		} else if (icmp_cb[icmp->icmp_type]) {
-			struct control_output_mbuf_data *c = control_output_mbuf_data(mbuf);
-			c->callback = icmp_cb[icmp->icmp_type];
-			c->timestamp = gr_clock_us();
+			control_output_set_cb(mbuf, icmp_cb[icmp->icmp_type], gr_clock_us());
 			edge = CONTROL;
 		} else {
 			edge = UNSUPPORTED;

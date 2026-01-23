@@ -34,7 +34,7 @@ void nh6_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
-	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
+	nh = (struct nexthop *)ip6_output_mbuf_data(m)->nh;
 
 	if (drain != NULL) {
 		// Check if packet references deleted object.
@@ -142,8 +142,8 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	struct rte_ether_addr mac;
 	struct nexthop *nh = NULL;
 
-	d = (const struct ip6_local_mbuf_data *)control_output_mbuf_data(m)->cb_data;
-	iface = control_output_mbuf_data(m)->iface;
+	d = ip6_local_mbuf_data(m);
+	iface = mbuf_data(m)->iface;
 
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)

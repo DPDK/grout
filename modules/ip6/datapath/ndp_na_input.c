@@ -27,7 +27,6 @@ static uint16_t ndp_na_input_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *ctrl_data;
 	icmp6_opt_found_t lladdr_found;
 	struct icmp6_neigh_advert *na;
 	struct ip6_local_mbuf_data *d;
@@ -94,9 +93,7 @@ static uint16_t ndp_na_input_process(
 		// received advertisement.
 		ASSERT_NDP(lladdr_found == ICMP6_OPT_FOUND);
 
-		ctrl_data = control_output_mbuf_data(mbuf);
-		ctrl_data->iface = iface;
-		ctrl_data->callback = ndp_probe_input_cb;
+		control_output_set_cb(mbuf, ndp_probe_input_cb, 0);
 		edge = CONTROL;
 next:
 		if (gr_mbuf_is_traced(mbuf))
@@ -136,6 +133,8 @@ GR_DROP_REGISTER(ndp_na_input_drop);
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 
+int cq_callback_offset;
+int cq_priv_offset;
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));

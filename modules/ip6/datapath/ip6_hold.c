@@ -16,20 +16,16 @@ enum {
 
 static uint16_t
 ip6_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct control_output_mbuf_data *d;
-	const struct nexthop *nh;
 	struct rte_mbuf *mbuf;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		nh = ip6_output_mbuf_data(mbuf)->nh;
-		d = control_output_mbuf_data(mbuf);
-		d->callback = nh6_unreachable_cb;
-		memcpy(d->cb_data, &nh, sizeof(const struct nexthop *));
+		control_output_set_cb(mbuf, nh6_unreachable_cb, 0);
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
-		rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
 	}
+
+	rte_node_next_stream_move(graph, node, CONTROL);
 
 	return nb_objs;
 }

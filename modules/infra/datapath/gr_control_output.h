@@ -5,10 +5,14 @@
 #pragma once
 
 #include <gr_control_queue.h>
-#include <gr_mbuf.h>
 
-GR_MBUF_PRIV_DATA_TYPE(control_output_mbuf_data, {
-	control_queue_cb_t callback;
-	clock_t timestamp;
-	uint8_t cb_data[GR_MBUF_PRIV_MAX_SIZE - 6 * sizeof(size_t)];
-});
+#include <rte_mbuf.h>
+
+extern int cq_callback_offset;
+extern int cq_priv_offset;
+
+static inline void
+control_output_set_cb(struct rte_mbuf *m, control_queue_cb_t cb, uintptr_t priv) {
+	*RTE_MBUF_DYNFIELD(m, cq_callback_offset, control_queue_cb_t *) = cb;
+	*RTE_MBUF_DYNFIELD(m, cq_priv_offset, uintptr_t *) = priv;
+}

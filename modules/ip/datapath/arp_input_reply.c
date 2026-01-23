@@ -42,9 +42,7 @@ static uint16_t arp_input_reply_process(
 			gr_mbuf_trace_add(mbuf, node, 0);
 
 		if (remote != NULL) {
-			struct control_output_mbuf_data *d = control_output_mbuf_data(mbuf);
-			d->callback = arp_probe_input_cb;
-			d->iface = iface;
+			control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 			rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
 		} else {
 			rte_node_enqueue_x1(graph, node, DROP, mbuf);

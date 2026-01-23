@@ -14,8 +14,6 @@
 #include <rte_byteorder.h>
 #include <rte_ether.h>
 
-void lacp_rx(struct rte_mbuf *m);
-
 enum {
 	TO_CONTROL = 0,
 	INVALID_PDU,
@@ -25,7 +23,6 @@ enum {
 
 static uint16_t
 lacp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct control_output_mbuf_data *ctrl_data;
 	struct eth_input_mbuf_data *eth_data;
 	struct lacp_pdu *lacp;
 	struct rte_mbuf *mbuf;
@@ -57,9 +54,7 @@ lacp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 
 		// Forward LACP PDU to control plane for processing
-		ctrl_data = control_output_mbuf_data(mbuf);
-		ctrl_data->callback = lacp_input_cb;
-		memcpy(ctrl_data->cb_data, &eth_data->iface, sizeof(struct iface *));
+		control_output_set_cb(mbuf, lacp_input_cb, 0);
 
 		edge = TO_CONTROL;
 next:

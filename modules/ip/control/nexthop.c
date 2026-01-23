@@ -34,7 +34,7 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
-	memcpy(&nh, control_output_mbuf_data(m)->cb_data, sizeof(struct nexthop *));
+	nh = (struct nexthop *)ip_output_mbuf_data(m)->nh;
 
 	if (drain != NULL) {
 		// Check if packet references deleted object.

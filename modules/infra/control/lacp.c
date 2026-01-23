@@ -26,7 +26,6 @@
 static struct event *lacp_timer;
 
 void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct control_output_mbuf_data *ctrl_data = control_output_mbuf_data(obj);
 	const struct iface_info_port *port;
 	const struct iface *port_iface;
 	struct iface_info_bond *bond;
@@ -35,7 +34,8 @@ void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 	struct bond_member *member;
 	struct iface *bond_iface;
 
-	memcpy(&port_iface, ctrl_data->cb_data, sizeof(struct iface *));
+	port_iface = mbuf_data(mbuf)->iface;
+
 	// Check if packet references deleted interface.
 	if (drain && drain->event == GR_EVENT_IFACE_REMOVE && port_iface == drain->obj)
 		goto out;

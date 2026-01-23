@@ -27,7 +27,6 @@ static uint16_t arp_input_request_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct control_output_mbuf_data *ctrl_data;
 	const struct nexthop_info_l3 *l3;
 	const struct nexthop *local;
 	const struct iface *iface;
@@ -51,9 +50,8 @@ static uint16_t arp_input_request_process(
 			edge = DROP;
 			goto next;
 		}
-		ctrl_data = control_output_mbuf_data(mbuf);
-		ctrl_data->callback = arp_probe_input_cb;
-		ctrl_data->iface = iface;
+
+		control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 		edge = CONTROL;
 next:
 		if (gr_mbuf_is_traced(mbuf))

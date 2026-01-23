@@ -19,6 +19,7 @@
 
 struct icmp_queue_item {
 	struct rte_mbuf *mbuf;
+	clock_t timestamp;
 	STAILQ_ENTRY(icmp_queue_item) next;
 };
 
@@ -34,7 +35,7 @@ static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 
 // Callback invoked by control plane for each ICMP packet received for a local address.
 // The packet is added at the end of a linked list.
-static void icmp_input_cb(void *m, uintptr_t, const struct control_queue_drain *) {
+static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *) {
 	struct icmp_queue_item *i;
 	void *data;
 
@@ -43,12 +44,13 @@ static void icmp_input_cb(void *m, uintptr_t, const struct control_queue_drain *
 
 	i = data;
 	i->mbuf = m;
+	i->timestamp = timestamp;
 	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
 }
 
 // Search for the oldest ICMP response matching the given identifier.
 // If found, the packet is removed from the queue.
-static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num) {
+static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num, clock_t *timestamp) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf = NULL;
 
@@ -80,6 +82,7 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num) {
 		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident
 		    && rte_be_to_cpu_16(icmp->icmp_seq_nb) == seq_num) {
 			mbuf = i->mbuf;
+			*timestamp = i->timestamp;
 			icmp_queue_pop(i, false);
 			break;
 		}
@@ -106,14 +109,14 @@ out:
 static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
+	clock_t *pkt_timestamp, rcv_timestamp;
 	struct rte_icmp_hdr *icmp;
 	struct rte_ipv4_hdr *ip;
-	clock_t *timestamp;
 	struct rte_mbuf *m;
 	size_t len = 0;
 	int ret = 0;
 
-	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num);
+	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num, &rcv_timestamp);
 	if (m == NULL)
 		return api_out(0, 0, NULL);
 
@@ -143,8 +146,8 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	// icmp either points to an echo request or reply (checked in get_icmp_response())
 	resp->ident = rte_be_to_cpu_16(icmp->icmp_ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp->icmp_seq_nb);
-	timestamp = PAYLOAD(icmp);
-	resp->response_time = control_output_mbuf_data(m)->timestamp - *timestamp;
+	pkt_timestamp = PAYLOAD(icmp);
+	resp->response_time = rcv_timestamp - *pkt_timestamp;
 
 	len = sizeof(*resp);
 out:
