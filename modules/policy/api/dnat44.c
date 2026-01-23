@@ -80,7 +80,7 @@ static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 		int ret = snat44_static_policy_add(iface, pub->replace, pub->match);
 		if (ret < 0) {
 			if (arp != NULL)
-				nexthop_destroy(arp);
+				nexthop_decref(arp);
 			return errno_set(-ret);
 		}
 	}
@@ -90,7 +90,6 @@ static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 	if (arp != NULL) {
 		struct nexthop *old_arp = priv->arp;
 		priv->arp = arp;
-		nexthop_incref(arp);
 		if (old_arp != NULL)
 			nexthop_decref(old_arp);
 	}
@@ -157,8 +156,10 @@ static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 	if (nh == NULL)
 		return api_out(errno, 0, NULL);
 
-	if (rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0)
+	if (rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+		nexthop_decref(nh);
 		return api_out(errno, 0, NULL);
+	}
 
 	return api_out(0, 0, NULL);
 }
