@@ -2,5 +2,6 @@
 # Copyright (c) 2026 Robin Jarry
 
 cli_src += files(
+    'bridge.c',
     'nexthop.c',
 )

@@ -7,6 +7,8 @@
 #include <gr_l2.h>
 #include <gr_nh_control.h>
 
+#include <rte_mbuf.h>
+
 #include <stdint.h>
 
 // Internal L2 nexthop info structure with ageing timestamp.
@@ -33,3 +35,12 @@ void nexthop_l2_purge_iface(uint16_t iface_id);
 
 // Delete all L2 nexthops referencing the provided bridge.
 void nexthop_l2_purge_bridge(uint16_t bridge_id);
+
+// Internal bridge info structure.
+GR_IFACE_INFO(GR_IFACE_TYPE_BRIDGE, iface_info_bridge, {
+	uint16_t ageing_time;
+	gr_bridge_flags_t flags;
+	struct rte_ether_addr mac;
+	uint16_t n_members;
+	struct iface *members[GR_BRIDGE_MAX_MEMBERS];
+});

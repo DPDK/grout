@@ -91,6 +91,9 @@ static int l2_import_info(struct nexthop *nh, const void *info) {
 	if (bridge == NULL)
 		return -errno;
 
+	if (bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return errno_set(EOPNOTSUPP);
+
 	rte_spinlock_lock(&l2_lock);
 	if (rte_hash_lookup_data(l2_hash, pub, &existing) >= 0) {
 		if (existing != nh) {
@@ -220,14 +223,14 @@ void nexthop_l2_purge_bridge(uint16_t bridge_id) {
 	}
 }
 
-#define L2_LEARN_MAX_AGE 300
-
 static void l2_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	clock_t now = gr_clock_us();
+	const struct iface *bridge;
 	struct nexthop_info_l2 *l2;
 	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
+	uint16_t max_age;
 	void *data;
 	time_t age;
 
@@ -240,7 +243,13 @@ static void l2_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		l2 = nexthop_info_l2(nh);
 		age = (now - l2->last_seen) / CLOCKS_PER_SEC;
 
-		if (age > L2_LEARN_MAX_AGE) {
+		bridge = iface_from_id(l2->bridge_id);
+		if (bridge != NULL)
+			max_age = iface_info_bridge(bridge)->ageing_time;
+		else
+			max_age = GR_BRIDGE_DEFAULT_AGEING;
+
+		if (age > max_age) {
 			LOG(DEBUG,
 			    ETH_F " vlan=%u bridge=%u iface=%u: aged out (%ld sec)",
 			    &l2->mac,
