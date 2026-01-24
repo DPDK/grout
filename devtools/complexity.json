@@ -85,6 +85,57 @@
     "total_cycles": 69.8,
     "uops": 279
   },
+  "bridge_flood_process": {
+    "callees": [
+      {
+        "ipc": 3.0,
+        "name": "rte_pktmbuf_copy",
+        "self_cycles": 84.8,
+        "total_cycles": 175.6,
+        "uops": 339
+      },
+      {
+        "ipc": 3.04,
+        "name": "iface_from_id",
+        "self_cycles": 5.2,
+        "total_cycles": 5.2,
+        "uops": 21
+      }
+    ],
+    "ipc": 2.88,
+    "self_cycles": 65.2,
+    "total_cycles": 246.0,
+    "uops": 261
+  },
+  "bridge_input_process": {
+    "callees": [
+      {
+        "ipc": 2.44,
+        "name": "nexthop_learn_l2",
+        "self_cycles": 19.5,
+        "total_cycles": 693.2,
+        "uops": 78
+      },
+      {
+        "ipc": 2.96,
+        "name": "nexthop_lookup_l2",
+        "self_cycles": 6.2,
+        "total_cycles": 12.5,
+        "uops": 25
+      },
+      {
+        "ipc": 3.04,
+        "name": "iface_from_id",
+        "self_cycles": 5.2,
+        "total_cycles": 5.2,
+        "uops": 21
+      }
+    ],
+    "ipc": 2.68,
+    "self_cycles": 45,
+    "total_cycles": 744.4,
+    "uops": 180
+  },
   "control_input_process": {
     "callees": [
       {
@@ -103,11 +154,11 @@
   "control_output_process": {
     "callees": [
       {
-        "ipc": 3.54,
+        "ipc": 3.55,
         "name": "control_queue_push",
-        "self_cycles": 118.8,
-        "total_cycles": 118.8,
-        "uops": 475
+        "self_cycles": 120,
+        "total_cycles": 120,
+        "uops": 480
       },
       {
         "ipc": 3.85,
@@ -119,7 +170,7 @@
     ],
     "ipc": 1.65,
     "self_cycles": 27,
-    "total_cycles": 146.6,
+    "total_cycles": 147.8,
     "uops": 108
   },
   "dhcp_input_process": {
@@ -773,10 +824,10 @@
         "uops": 27
       }
     ],
-    "ipc": 2.67,
-    "self_cycles": 71.8,
-    "total_cycles": 155.9,
-    "uops": 287
+    "ipc": 2.64,
+    "self_cycles": 71.2,
+    "total_cycles": 155.3,
+    "uops": 285
   },
   "srv6_output_process": {
     "callees": [
