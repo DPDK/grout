@@ -26,20 +26,34 @@ static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
+static bool iface_type_valid(gr_iface_type_t type) {
+	switch (type) {
+	case GR_IFACE_TYPE_LOOPBACK:
+	case GR_IFACE_TYPE_PORT:
+	case GR_IFACE_TYPE_VLAN:
+	case GR_IFACE_TYPE_IPIP:
+	case GR_IFACE_TYPE_BOND:
+		return true;
+	case GR_IFACE_TYPE_UNDEF:
+	case GR_IFACE_TYPE_COUNT:
+		break;
+	}
+	return false;
+}
+
 const struct iface_type *iface_type_get(gr_iface_type_t type_id) {
 	struct iface_type *t;
 	STAILQ_FOREACH (t, &types, next)
 		if (t->id == type_id)
 			return t;
-	errno = ENODEV;
-	return NULL;
+	return errno_set_null(ENODEV);
 }
 
 void iface_type_register(struct iface_type *type) {
+	if (!iface_type_valid(type->id))
+		ABORT("invalid iface type id: %u", type->id);
 	if (iface_type_get(type->id) != NULL)
 		ABORT("duplicate iface type id: %u", type->id);
-	if (type->id >= GR_IFACE_TYPE_COUNT)
-		ABORT("invalid iface type id: %u", type->id);
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
