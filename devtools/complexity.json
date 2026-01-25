@@ -558,21 +558,6 @@
     "total_cycles": 79.5,
     "uops": 250
   },
-  "l1_xconnect_process": {
-    "callees": [
-      {
-        "ipc": 3.04,
-        "name": "iface_from_id",
-        "self_cycles": 5.2,
-        "total_cycles": 5.2,
-        "uops": 21
-      }
-    ],
-    "ipc": 1.82,
-    "self_cycles": 31.8,
-    "total_cycles": 37.0,
-    "uops": 127
-  },
   "l2_redirect_process": {
     "ipc": 2.85,
     "self_cycles": 63.2,
@@ -836,5 +821,20 @@
     "self_cycles": 58,
     "total_cycles": 129.7,
     "uops": 232
+  },
+  "xconnect_process": {
+    "callees": [
+      {
+        "ipc": 3.04,
+        "name": "iface_from_id",
+        "self_cycles": 5.2,
+        "total_cycles": 5.2,
+        "uops": 21
+      }
+    ],
+    "ipc": 1.82,
+    "self_cycles": 31.8,
+    "total_cycles": 37.0,
+    "uops": 127
   }
 }

@@ -254,17 +254,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		scols_line_set_data(line, 2, buf);
 
 		// mode
-		switch (iface->mode) {
-		case GR_IFACE_MODE_L1_XC:
-			scols_line_set_data(line, 3, "XC");
-			break;
-		case GR_IFACE_MODE_L3:
-			scols_line_set_data(line, 3, "L3");
-			break;
-		default:
-			scols_line_sprintf(line, 3, "%u", iface->mode);
-			break;
-		}
+		scols_line_set_data(line, 3, gr_iface_mode_name(iface->mode));
 
 		// vrf
 		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
@@ -463,6 +453,7 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 	}
 	printf("flags: %s\n", buf);
+	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
 	printf("vrf: %u\n", iface->vrf_id);
 	printf("mtu: %u\n", iface->mtu);
 	if (iface->speed == UINT32_MAX)

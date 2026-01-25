@@ -9,7 +9,6 @@ src += files(
   'eth_input.c',
   'eth_output.c',
   'iface_output.c',
-  'l1_xconnect.c',
   'l2_redirect.c',
   'lacp_input.c',
   'lacp_output.c',
@@ -22,5 +21,6 @@ src += files(
   'port_tx.c',
   'snap_input.c',
   'trace.c',
+  'xconnect.c',
 )
 inc += include_directories('.')
