@@ -442,6 +442,26 @@ fail:
 	return ret;
 }
 
+static int iface_port_attach_peer(struct iface *master, struct iface *iface) {
+	if (iface->type != GR_IFACE_TYPE_PORT)
+		return errno_set(EMEDIUMTYPE);
+
+	iface->mode = GR_IFACE_MODE_XC;
+	iface->master_id = master->id;
+
+	return 0;
+}
+
+static int iface_port_detach_peer(struct iface *, struct iface *iface) {
+	if (iface->type != GR_IFACE_TYPE_PORT)
+		return errno_set(EMEDIUMTYPE);
+
+	iface->mode = GR_IFACE_MODE_VRF;
+	iface->master_id = GR_IFACE_ID_UNDEF;
+
+	return 0;
+}
+
 const struct iface *port_get_iface(uint16_t port_id) {
 	return port_ifaces[port_id];
 }
@@ -798,6 +818,8 @@ static struct iface_type iface_type_port = {
 	.init = iface_port_init,
 	.reconfig = iface_port_reconfig,
 	.fini = iface_port_fini,
+	.attach_master = iface_port_attach_peer,
+	.detach_master = iface_port_detach_peer,
 	.get_eth_addr = port_mac_get,
 	.add_eth_addr = port_mac_add,
 	.del_eth_addr = port_mac_del,

@@ -27,7 +27,7 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		iface = mbuf_data(mbuf)->iface;
-		peer = iface_from_id(iface->domain_id);
+		peer = iface_from_id(iface->master_id);
 
 		struct iface_stats *rx_stats = iface_get_stats(rte_lcore_id(), iface->id);
 		rx_stats->rx_packets++;

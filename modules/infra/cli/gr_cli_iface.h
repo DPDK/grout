@@ -51,7 +51,7 @@ int complete_iface_names(
 #define INTERFACE_SET_CTX(root)                                                                    \
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
-#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(mtu MTU),(vrf VRF)"
+#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(master MASTER))"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
@@ -66,7 +66,11 @@ int complete_iface_names(
 		),                                                                                 \
 		with_help(                                                                         \
 			"L3 addressing/routing domain ID.",                                        \
-			ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)                                 \
+			ec_node_uint("VRF", 0, GR_MAX_VRFS, 10)                                    \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Master interface.",                                                       \
+			ec_node_dyn("MASTER", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))  \
 		)
 
 uint64_t parse_iface_args(
