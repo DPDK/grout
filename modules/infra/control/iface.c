@@ -104,19 +104,20 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 			goto fail;
 		}
 	}
-	if (conf->vrf_id >= GR_MAX_VRFS) {
-		errno = EOVERFLOW;
-		goto fail;
+	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
+		if (conf->vrf_id >= GR_MAX_VRFS) {
+			errno = EOVERFLOW;
+			goto fail;
+		}
+		if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
+			vrf_incref(conf->vrf_id);
+			vrf_ref = true;
+		}
 	}
-
 	iface = rte_zmalloc(__func__, sizeof(*iface) + type->priv_size, RTE_CACHE_LINE_SIZE);
 	if (iface == NULL) {
 		errno = ENOMEM;
 		goto fail;
-	}
-	if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
-		vrf_incref(conf->vrf_id);
-		vrf_ref = true;
 	}
 	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
 		ifid = conf->vrf_id;
@@ -136,6 +137,30 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (type->init(iface, api_info) < 0)
 		goto fail;
 
+	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
+		iface->mode = GR_IFACE_MODE_VRF;
+	} else {
+		const struct iface_type *t;
+		struct iface *domain;
+
+		domain = iface_from_id(conf->domain_id);
+		if (domain == NULL)
+			goto fail;
+
+		t = iface_type_get(domain->type);
+		assert(t != NULL);
+
+		if (t->attach_domain == NULL) {
+			errno = EMEDIUMTYPE;
+			goto fail;
+		}
+		if (t->attach_domain(domain, iface) < 0)
+			goto fail;
+
+		assert(iface->domain_id != GR_IFACE_ID_UNDEF);
+		assert(iface->mode != GR_IFACE_MODE_VRF);
+	}
+
 	ifaces[ifid] = iface;
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
@@ -154,17 +179,38 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	return iface;
 fail:
-	if (iface != NULL) {
-		if (vrf_ref)
-			vrf_decref(iface->vrf_id);
-
+	if (vrf_ref)
+		vrf_decref(conf->vrf_id);
+	if (iface != NULL)
 		free(iface->name);
-	}
 	rte_free(iface);
 	return NULL;
 destroy:
 	iface_destroy(iface);
 	return NULL;
+}
+
+static void detach_domain(struct iface *iface) {
+	const struct iface_type *type;
+	struct iface *domain;
+
+	if (iface->mode == GR_IFACE_MODE_VRF) {
+		if (iface->type != GR_IFACE_TYPE_LOOPBACK)
+			vrf_decref(iface->vrf_id);
+		return;
+	}
+
+	domain = iface_from_id(iface->domain_id);
+	if (domain == NULL)
+		return;
+
+	type = iface_type_get(domain->type);
+	assert(type != NULL);
+
+	if (type->detach_domain == NULL)
+		iface->domain_id = GR_IFACE_ID_UNDEF;
+	else if (type->detach_domain(domain, iface) < 0)
+		LOG(WARNING, "%s: detach from %s: %s", iface->name, domain->name, strerror(errno));
 }
 
 int iface_reconfig(
@@ -175,7 +221,6 @@ int iface_reconfig(
 ) {
 	const struct iface_type *type;
 	struct iface *iface;
-	uint16_t old_vrf_id;
 	int ret;
 
 	if (set_attrs == 0)
@@ -183,6 +228,7 @@ int iface_reconfig(
 
 	if ((iface = iface_from_id(ifid)) == NULL)
 		return -errno;
+
 	if (set_attrs & GR_IFACE_SET_NAME) {
 		if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 			return -errno;
@@ -205,39 +251,57 @@ int iface_reconfig(
 	if (set_attrs & GR_IFACE_SET_VRF) {
 		if (conf->vrf_id >= GR_MAX_VRFS)
 			return errno_set(EOVERFLOW);
-		old_vrf_id = iface->vrf_id;
 		vrf_incref(conf->vrf_id);
 	}
-
 	ret = type->reconfig(iface, set_attrs, conf, api_info);
-	if (ret < 0) {
-		if (set_attrs & GR_IFACE_SET_VRF)
-			vrf_decref(conf->vrf_id);
-		return ret;
-	}
-
-	if (set_attrs & GR_IFACE_SET_VRF) {
-		iface->vrf_id = conf->vrf_id;
-		vrf_decref(old_vrf_id);
-	}
-
-	if (set_attrs & GR_IFACE_SET_MODE) {
-		iface->mode = conf->mode;
-	}
+	if (ret < 0)
+		goto err;
 
 	if (set_attrs & GR_IFACE_SET_MTU) {
 		if ((ret = iface_set_mtu(iface, conf->mtu)) < 0)
-			return ret;
+			goto err;
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
 		if ((ret = iface_set_promisc(iface, conf->flags & GR_IFACE_F_PROMISC)) < 0)
-			return ret;
+			goto err;
 		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
-			return ret;
+			goto err;
+	}
+
+	if (set_attrs & GR_IFACE_SET_VRF) {
+		detach_domain(iface);
+		assert(iface->domain_id == GR_IFACE_ID_UNDEF);
+		iface->vrf_id = conf->vrf_id;
+		iface->mode = GR_IFACE_MODE_VRF;
+	} else if (set_attrs & GR_IFACE_SET_DOMAIN) {
+		struct iface *domain = iface_from_id(conf->domain_id);
+		if (domain == NULL)
+			goto err;
+
+		type = iface_type_get(domain->type);
+		assert(type != NULL);
+
+		if (type->attach_domain == NULL) {
+			errno = EMEDIUMTYPE;
+			goto err;
+		}
+
+		detach_domain(iface);
+
+		if ((ret = type->attach_domain(domain, iface)) < 0)
+			goto err;
+
+		assert(iface->domain_id != GR_IFACE_ID_UNDEF);
+		assert(iface->mode != GR_IFACE_MODE_VRF);
 	}
 
 	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
+
+	return 0;
+err:
+	if (set_attrs & GR_IFACE_SET_VRF)
+		vrf_decref(conf->vrf_id);
 
 	return ret;
 }
@@ -430,8 +494,7 @@ int iface_destroy(struct iface *iface) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
-	if (iface->type != GR_IFACE_TYPE_LOOPBACK)
-		vrf_decref(iface->vrf_id);
+	detach_domain(iface);
 
 	ifaces[iface->id] = NULL;
 

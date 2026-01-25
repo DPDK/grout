@@ -47,7 +47,7 @@ struct iface *ipip_get_iface(ip4_addr_t local, ip4_addr_t remote, uint16_t vrf_i
 
 static int iface_ipip_reconfig(
 	struct iface *iface,
-	uint64_t set_attrs,
+	uint64_t /*set_attrs*/,
 	const struct gr_iface *conf,
 	const void *api_info
 ) {
@@ -57,10 +57,7 @@ static int iface_ipip_reconfig(
 	struct ipip_key next_key = {next->local, next->remote, conf->vrf_id};
 	int ret;
 
-	if (set_attrs & (GR_IFACE_SET_VRF | GR_IPIP_SET_LOCAL | GR_IPIP_SET_REMOTE)) {
-		if (conf->vrf_id >= GR_MAX_VRFS)
-			return errno_set(EOVERFLOW);
-
+	if (memcmp(&cur_key, &next_key, sizeof(cur_key)) != 0) {
 		if (rte_hash_lookup(ipip_hash, &next_key) >= 0)
 			return errno_set(EADDRINUSE);
 
@@ -69,8 +66,7 @@ static int iface_ipip_reconfig(
 		if (fib4_lookup(conf->vrf_id, next->remote) == NULL)
 			return -errno;
 
-		if (memcmp(&cur_key, &next_key, sizeof(cur_key)) != 0)
-			rte_hash_del_key(ipip_hash, &cur_key);
+		rte_hash_del_key(ipip_hash, &cur_key);
 
 		if ((ret = rte_hash_add_key_data(ipip_hash, &next_key, iface)) < 0)
 			return errno_log(-ret, "rte_hash_add_key_data");

@@ -8,7 +8,7 @@ command -v dnsmasq || fail "dnsmasq is not installed"
 
 netns_add dhcp-server
 
-port_add p0 mode l3
+port_add p0
 
 move_to_netns x-p0 dhcp-server
 ip -n dhcp-server addr add 192.168.100.1/24 dev x-p0
