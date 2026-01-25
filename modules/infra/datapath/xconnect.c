@@ -18,7 +18,7 @@ enum edges {
 };
 
 static uint16_t
-l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct iface_info_port *port;
 	const struct iface *iface, *peer;
 	struct rte_mbuf *mbuf;
@@ -55,8 +55,8 @@ l1_xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 }
 
 static struct rte_node_register xconnect_node = {
-	.name = "l1_xconnect",
-	.process = l1_xconnect_process,
+	.name = "xconnect",
+	.process = xconnect_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "port_output",
@@ -64,14 +64,14 @@ static struct rte_node_register xconnect_node = {
 	},
 };
 
-static void l1_xconnect_register(void) {
-	iface_input_mode_register(GR_IFACE_MODE_L1_XC, "l1_xconnect");
+static void xconnect_register(void) {
+	iface_input_mode_register(GR_IFACE_MODE_XC, "xconnect");
 }
 
 static struct gr_node_info info = {
 	.node = &xconnect_node,
 	.type = GR_NODE_T_L1,
-	.register_callback = l1_xconnect_register,
+	.register_callback = xconnect_register,
 };
 
 GR_NODE_REGISTER(info);
