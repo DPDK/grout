@@ -65,7 +65,7 @@ static struct rte_node_register xconnect_node = {
 };
 
 static void l1_xconnect_register(void) {
-	iface_input_mode_register(GR_IFACE_MODE_L1_XC, "l1_xconnect");
+	iface_input_mode_register(GR_IFACE_MODE_XC, "l1_xconnect");
 }
 
 static struct gr_node_info info = {

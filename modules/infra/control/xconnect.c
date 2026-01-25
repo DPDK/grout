@@ -17,13 +17,13 @@ static struct api_out l2_mode_set(const void *request, void ** /* response */) {
 		return api_out(errno, 0);
 
 	// Clean all L3 related info
-	if (req->mode != GR_IFACE_MODE_L3)
+	if (req->mode != GR_IFACE_MODE_VRF)
 		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 
 	iface->mode = req->mode;
 	iface->bridge_domain = req->domain_id;
 
-	if (req->mode == GR_IFACE_MODE_L3)
+	if (req->mode == GR_IFACE_MODE_VRF)
 		gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 
 	return api_out(0, 0);

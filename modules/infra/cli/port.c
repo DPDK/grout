@@ -34,7 +34,7 @@ static void port_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	printf("rxq_size: %u\n", port->rxq_size);
 	printf("txq_size: %u\n", port->txq_size);
 
-	if (iface->mode == GR_IFACE_MODE_L1_XC) {
+	if (iface->mode == GR_IFACE_MODE_XC) {
 		struct gr_iface *peer = iface_from_id(c, iface->domain_id);
 		if (peer != NULL)
 			printf("xc_peer: %s\n", peer->name);
@@ -51,7 +51,7 @@ port_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, "devargs=%s mac=" ETH_F, port->devargs, &port->mac);
-	if (iface->mode == GR_IFACE_MODE_L1_XC) {
+	if (iface->mode == GR_IFACE_MODE_XC) {
 		if ((peer = iface_from_id(c, iface->domain_id)) != NULL)
 			SAFE_BUF(snprintf, len, " xc_peer=%s", peer->name);
 		else
@@ -108,7 +108,7 @@ static uint64_t parse_port_args(
 	if (arg_str(p, "l3")) {
 		set_attrs |= GR_IFACE_SET_MODE;
 		set_attrs |= GR_IFACE_SET_VRF;
-		iface->mode = GR_IFACE_MODE_L3;
+		iface->mode = GR_IFACE_MODE_VRF;
 		iface->vrf_id = 0;
 	} else if (arg_str(p, "xconnect")) {
 		struct gr_iface *peer = iface_from_name(c, arg_str(p, "PEER"));
@@ -119,7 +119,7 @@ static uint64_t parse_port_args(
 
 		set_attrs |= GR_IFACE_SET_MODE;
 		set_attrs |= GR_IFACE_SET_DOMAIN;
-		iface->mode = GR_IFACE_MODE_L1_XC;
+		iface->mode = GR_IFACE_MODE_XC;
 		iface->domain_id = peer->id;
 		free(peer);
 	}
