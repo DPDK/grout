@@ -38,16 +38,16 @@
   "arp_output_reply_process": {
     "callees": [
       {
-        "ipc": 3.51,
+        "ipc": 3.56,
         "name": "iface_get_eth_addr",
-        "self_cycles": 8.8,
-        "total_cycles": 8.8,
-        "uops": 35
+        "self_cycles": 9.8,
+        "total_cycles": 9.8,
+        "uops": 39
       }
     ],
     "ipc": 2.85,
     "self_cycles": 45.8,
-    "total_cycles": 54.6,
+    "total_cycles": 55.6,
     "uops": 183
   },
   "arp_output_request_process": {
@@ -60,11 +60,11 @@
         "uops": 51
       },
       {
-        "ipc": 3.51,
+        "ipc": 3.56,
         "name": "iface_get_eth_addr",
-        "self_cycles": 8.8,
-        "total_cycles": 8.8,
-        "uops": 35
+        "self_cycles": 9.8,
+        "total_cycles": 9.8,
+        "uops": 39
       },
       {
         "ipc": 3.04,
@@ -76,7 +76,7 @@
     ],
     "ipc": 3.07,
     "self_cycles": 55,
-    "total_cycles": 89.6,
+    "total_cycles": 90.6,
     "uops": 220
   },
   "bond_output_process": {
@@ -191,26 +191,26 @@
         "uops": 17
       },
       {
-        "ipc": 3.51,
+        "ipc": 3.56,
         "name": "iface_get_eth_addr",
-        "self_cycles": 8.8,
-        "total_cycles": 8.8,
-        "uops": 35
+        "self_cycles": 9.8,
+        "total_cycles": 9.8,
+        "uops": 39
       }
     ],
     "ipc": 2.99,
     "self_cycles": 70.5,
-    "total_cycles": 89.8,
+    "total_cycles": 90.8,
     "uops": 282
   },
   "eth_output_process": {
     "callees": [
       {
-        "ipc": 3.51,
+        "ipc": 3.56,
         "name": "iface_get_eth_addr",
-        "self_cycles": 8.8,
-        "total_cycles": 8.8,
-        "uops": 35
+        "self_cycles": 9.8,
+        "total_cycles": 9.8,
+        "uops": 39
       },
       {
         "ipc": 3.04,
@@ -222,7 +222,7 @@
     ],
     "ipc": 3.05,
     "self_cycles": 79.8,
-    "total_cycles": 93.8,
+    "total_cycles": 94.8,
     "uops": 319
   },
   "icmp6_input_process": {
