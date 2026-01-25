@@ -21,6 +21,9 @@
 static STAILQ_HEAD(, cli_iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
 void register_iface_type(struct cli_iface_type *type) {
+	assert(type != NULL);
+	assert(type->list_info != NULL);
+	assert(type->show != NULL);
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
@@ -189,8 +192,18 @@ uint64_t parse_iface_args(
 	if (arg_u16(p, "MTU", &iface->mtu) == 0)
 		set_attrs |= GR_IFACE_SET_MTU;
 
-	if (arg_u16(p, "VRF", &iface->vrf_id) == 0)
+	if (arg_u16(p, "VRF", &iface->vrf_id) == 0) {
 		set_attrs |= GR_IFACE_SET_VRF;
+	} else if ((name = arg_str(p, "DOMAIN")) != NULL) {
+		struct gr_iface *domain = iface_from_name(c, name);
+		if (domain == NULL) {
+			errno = ENODEV;
+			goto err;
+		}
+		iface->domain_id = domain->id;
+		set_attrs |= GR_IFACE_SET_DOMAIN;
+		free(domain);
+	}
 
 	return set_attrs;
 err:
@@ -256,8 +269,14 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		// mode
 		scols_line_set_data(line, 3, gr_iface_mode_name(iface->mode));
 
-		// vrf
-		scols_line_sprintf(line, 4, "%u", iface->vrf_id);
+		// domain
+		if (iface->mode == GR_IFACE_MODE_VRF) {
+			scols_line_sprintf(line, 4, "%u", iface->vrf_id);
+		} else {
+			struct gr_iface *domain = iface_from_id(c, iface->domain_id);
+			scols_line_sprintf(line, 4, "%s", domain ? domain->name : "[deleted]");
+			free(domain);
+		}
 
 		// type
 		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));
@@ -454,8 +473,17 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	}
 	printf("flags: %s\n", buf);
 	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
-	printf("vrf: %u\n", iface->vrf_id);
+
+	if (iface->mode == GR_IFACE_MODE_VRF) {
+		printf("vrf: %u\n", iface->vrf_id);
+	} else {
+		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
+		printf("domain: %s\n", domain ? domain->name : "[deleted]");
+		free(domain);
+	}
+
 	printf("mtu: %u\n", iface->mtu);
+
 	if (iface->speed == UINT32_MAX)
 		printf("speed: unknown\n");
 	else

@@ -46,6 +46,8 @@ struct iface_type {
 		const void *api_info
 	);
 	int (*fini)(struct iface *);
+	int (*attach_domain)(struct iface *domain, struct iface *iface);
+	int (*detach_domain)(struct iface *domain, struct iface *iface);
 	int (*get_eth_addr)(const struct iface *, struct rte_ether_addr *);
 	int (*set_eth_addr)(struct iface *, const struct rte_ether_addr *);
 	int (*add_eth_addr)(struct iface *, const struct rte_ether_addr *);

@@ -58,9 +58,8 @@ typedef enum : uint8_t {
 #define GR_IFACE_SET_FLAGS GR_BIT64(0)
 #define GR_IFACE_SET_MTU GR_BIT64(1)
 #define GR_IFACE_SET_NAME GR_BIT64(2)
-#define GR_IFACE_SET_MODE GR_BIT64(3)
-#define GR_IFACE_SET_VRF GR_BIT64(4)
-#define GR_IFACE_SET_DOMAIN GR_IFACE_SET_VRF // Alias for VRF.
+#define GR_IFACE_SET_VRF GR_BIT64(3)
+#define GR_IFACE_SET_DOMAIN GR_BIT64(4)
 
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
@@ -70,10 +69,8 @@ struct __gr_iface_base {
 	gr_iface_flags_t flags; // Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	union {
-		uint16_t vrf_id; // L3 addressing and routing domain
-		uint16_t domain_id; // L2 xconnect peer interface id
-	};
+	uint16_t vrf_id; // L3 addressing and routing domain (GR_IFACE_MODE_VRF).
+	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
 };
 
