@@ -49,8 +49,8 @@ typedef enum : uint16_t {
 
 // Interface operating modes.
 typedef enum : uint8_t {
-	GR_IFACE_MODE_L3 = 0,
-	GR_IFACE_MODE_L1_XC,
+	GR_IFACE_MODE_VRF = 0,
+	GR_IFACE_MODE_XC,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -448,10 +448,10 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 // Helper function to convert iface mode enum to string
 static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 	switch (mode) {
-	case GR_IFACE_MODE_L3:
-		return "l3";
-	case GR_IFACE_MODE_L1_XC:
-		return "l1-xc";
+	case GR_IFACE_MODE_VRF:
+		return "VRF";
+	case GR_IFACE_MODE_XC:
+		return "XC";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}
