@@ -231,7 +231,7 @@ static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p)
 
 	req->exist_ok = true;
 	req->nh.type = GR_NH_T_L3;
-	req->nh.origin = GR_NH_ORIGIN_USER;
+	req->nh.origin = GR_NH_ORIGIN_STATIC;
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;
 
@@ -275,7 +275,7 @@ static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pn
 		.nh = {
 			.type = GR_NH_T_BLACKHOLE,
 			.iface_id = GR_IFACE_ID_UNDEF,
-			.origin = GR_NH_ORIGIN_USER,
+			.origin = GR_NH_ORIGIN_STATIC,
 		},
 	};
 
@@ -325,7 +325,7 @@ static cmd_status_t nh_group_add(struct gr_api_client *c, const struct ec_pnode 
 
 	req->exist_ok = true;
 	req->nh.type = GR_NH_T_GROUP;
-	req->nh.origin = GR_NH_ORIGIN_USER;
+	req->nh.origin = GR_NH_ORIGIN_STATIC;
 
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;

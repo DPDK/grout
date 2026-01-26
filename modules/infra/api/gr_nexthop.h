@@ -46,7 +46,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_REDIRECT = 1, // Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
 	GR_NH_ORIGIN_LINK = 2, // For local addresses, no ID allocation (NH_ORIGIN_KERNEL).
 	GR_NH_ORIGIN_BOOT = 3, // Installed at boot?? (NH_ORIGIN_BOOT).
-	GR_NH_ORIGIN_USER = 4, // Installed explicitly by user (NH_ORIGIN_STATIC).
+	GR_NH_ORIGIN_STATIC = 4, // Installed explicitly by user (NH_ORIGIN_STATIC).
 	// Values 5 to 254 are allowed and are used by routing daemons.
 	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
 	GR_NH_ORIGIN_RA = 9, // (RTPROT_RA)
@@ -199,8 +199,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "link";
 	case GR_NH_ORIGIN_BOOT:
 		return "boot";
-	case GR_NH_ORIGIN_USER:
-		return "user";
+	case GR_NH_ORIGIN_STATIC:
+		return "static";
 	case GR_NH_ORIGIN_GATED:
 		return "gated";
 	case GR_NH_ORIGIN_RA:
