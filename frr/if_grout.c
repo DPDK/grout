@@ -67,10 +67,6 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		txqlen = gr_port->base.txq_size;
 		mac = &gr_port->base.mac;
 		link_type = ZEBRA_LLT_ETHER;
-		if (gr_port->bond_iface_id != GR_IFACE_ID_UNDEF) {
-			bond_ifindex = ifindex_grout_to_frr(gr_port->bond_iface_id);
-			slave_type = ZEBRA_IF_SLAVE_BOND;
-		}
 		break;
 	case GR_IFACE_TYPE_BOND:
 		gr_bond = (const struct gr_iface_info_bond *)&gr_if->info;
@@ -111,6 +107,31 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
 		dplane_ctx_set_ifp_mtu(ctx, gr_if->base.mtu);
 
+		switch (gr_if->mode) {
+		case GR_IFACE_MODE_VRF:
+			if (gr_if->base.vrf_id != 0) {
+				dplane_ctx_set_ifp_table_id(
+					ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
+				);
+				// In Linux, vrf_id equals the interface index; in Grout we model
+				// a VRF with its gr‑vrf interface.
+				// The gr‑vrf’s ifindex is guaranteed to match vrf_id
+				dplane_ctx_set_ifp_vrf_id(
+					ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
+				);
+			} else {
+				dplane_ctx_set_ifp_table_id(ctx, 0);
+				dplane_ctx_set_ifp_vrf_id(ctx, 0);
+			}
+			break;
+		case GR_IFACE_MODE_BOND:
+			bond_ifindex = ifindex_grout_to_frr(gr_if->domain_id);
+			slave_type = ZEBRA_IF_SLAVE_BOND;
+			break;
+		default:
+			break;
+		}
+
 		// no bridge support in grout
 		dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
 		dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);
@@ -120,18 +141,6 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		dplane_ctx_set_ifp_zltype(ctx, link_type);
 		dplane_ctx_set_ifp_flags(ctx, gr_if_flags_to_netlink(gr_if, link_type));
 		dplane_ctx_set_ifp_protodown_set(ctx, false);
-
-		if (gr_if->base.vrf_id != 0) {
-			dplane_ctx_set_ifp_table_id(ctx, ifindex_grout_to_frr(gr_if->base.vrf_id));
-
-			// In Linux, vrf_id equals the interface index; in Grout we model a VRF
-			// with its gr‑vrf interface
-			// The gr‑vrf’s ifindex is guaranteed to match vrf_id
-			dplane_ctx_set_ifp_vrf_id(ctx, ifindex_grout_to_frr(gr_if->base.vrf_id));
-		} else {
-			dplane_ctx_set_ifp_table_id(ctx, 0);
-			dplane_ctx_set_ifp_vrf_id(ctx, 0);
-		}
 
 		if (mac)
 			dplane_ctx_set_ifp_hw_addr(
