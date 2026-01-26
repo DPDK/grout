@@ -309,7 +309,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_REDIRECT:
 	case GR_NH_ORIGIN_LINK:
 	case GR_NH_ORIGIN_BOOT:
-	case GR_NH_ORIGIN_USER:
+	case GR_NH_ORIGIN_STATIC:
 	case GR_NH_ORIGIN_GATED:
 	case GR_NH_ORIGIN_RA:
 	case GR_NH_ORIGIN_MRT:
