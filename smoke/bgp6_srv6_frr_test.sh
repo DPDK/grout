@@ -60,6 +60,7 @@ ip link set x-p0 netns bgp-peer
 ip netns exec bgp-peer sysctl -w net.vrf.strict_mode=1
 ip netns exec bgp-peer sysctl -w net.ipv6.conf.all.seg6_enabled=1
 ip netns exec bgp-peer sysctl -w net.ipv6.conf.all.forwarding=1
+ip netns exec bgp-peer sysctl -w net.ipv4.conf.all.forwarding=1
 ip netns exec bgp-peer sysctl -w net.ipv4.conf.all.rp_filter=0
 ip netns exec bgp-peer sysctl -w net.ipv4.conf.default.rp_filter=0
 
