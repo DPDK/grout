@@ -150,7 +150,7 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	case GR_NH_ORIGIN_SRTE:
 		proto = ZEBRA_ROUTE_SRTE;
 		break;
-	case GR_NH_ORIGIN_USER:
+	case GR_NH_ORIGIN_STATIC:
 	case GR_NH_ORIGIN_UNSPEC:
 	case GR_NH_ORIGIN_REDIRECT:
 	case GR_NH_ORIGIN_LINK:

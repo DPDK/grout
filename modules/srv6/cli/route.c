@@ -36,7 +36,7 @@ static cmd_status_t srv6_nh_add(struct gr_api_client *c, const struct ec_pnode *
 
 	req->exist_ok = true;
 	req->nh.type = GR_NH_T_SR6_OUTPUT;
-	req->nh.origin = GR_NH_ORIGIN_USER;
+	req->nh.origin = GR_NH_ORIGIN_STATIC;
 
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;

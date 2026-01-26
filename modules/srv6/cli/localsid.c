@@ -53,7 +53,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 
 	req->exist_ok = true;
 	req->nh.type = GR_NH_T_SR6_LOCAL;
-	req->nh.origin = GR_NH_ORIGIN_USER;
+	req->nh.origin = GR_NH_ORIGIN_STATIC;
 
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;
