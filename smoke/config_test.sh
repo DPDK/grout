@@ -4,9 +4,9 @@
 
 . $(dirname $0)/_init.sh
 
-grcli interface add port p0 devargs net_null0,no-rx=1
-grcli interface add port p1 devargs net_null1,no-rx=1
-grcli interface add bond bond0 mode lacp member p0 member p1
+grcli interface add bond bond0 mode lacp
+grcli interface add port p0 devargs net_null0,no-rx=1 master bond0
+grcli interface add port p1 devargs net_null1,no-rx=1 master bond0
 grcli interface add vlan v42 parent bond0 vlan_id 42
 grcli interface add vlan v43 parent bond0 vlan_id 43
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.4

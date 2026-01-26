@@ -51,6 +51,7 @@ typedef enum : uint16_t {
 typedef enum : uint8_t {
 	GR_IFACE_MODE_VRF = 0,
 	GR_IFACE_MODE_XC,
+	GR_IFACE_MODE_BOND,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -95,7 +96,6 @@ struct __gr_iface_info_port_base {
 	uint16_t n_txq;
 	uint16_t rxq_size;
 	uint16_t txq_size;
-	uint16_t bond_iface_id;
 	struct rte_ether_addr mac;
 };
 
@@ -158,10 +158,9 @@ static inline const char *gr_bond_algo_name(gr_bond_algo_t algo) {
 
 // Bond reconfiguration attribute flags.
 #define GR_BOND_SET_MODE GR_BIT64(32)
-#define GR_BOND_SET_MEMBERS GR_BIT64(33)
-#define GR_BOND_SET_PRIMARY GR_BIT64(34)
-#define GR_BOND_SET_MAC GR_BIT64(35)
-#define GR_BOND_SET_ALGO GR_BIT64(36)
+#define GR_BOND_SET_PRIMARY GR_BIT64(33)
+#define GR_BOND_SET_MAC GR_BIT64(34)
+#define GR_BOND_SET_ALGO GR_BIT64(35)
 
 struct gr_bond_member {
 	uint16_t iface_id; // Must be a port interface.
@@ -449,6 +448,8 @@ static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 		return "VRF";
 	case GR_IFACE_MODE_XC:
 		return "XC";
+	case GR_IFACE_MODE_BOND:
+		return "bond";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}

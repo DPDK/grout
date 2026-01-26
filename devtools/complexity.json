@@ -731,9 +731,9 @@
       }
     ],
     "ipc": 3.06,
-    "self_cycles": 98.5,
-    "total_cycles": 118.2,
-    "uops": 394
+    "self_cycles": 99.2,
+    "total_cycles": 118.9,
+    "uops": 397
   },
   "snap_input_process": {
     "ipc": 3.2,

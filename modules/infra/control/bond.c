@@ -69,16 +69,28 @@ static int bond_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 
 static int bond_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
+	struct rte_ether_addr e;
 	int ret;
+
+	if (rte_is_zero_ether_addr(mac)) {
+		if (bond->primary_member >= bond->n_members)
+			return 0;
+		if (iface_get_eth_addr(bond->members[bond->primary_member].iface, &e) < 0)
+			return -errno;
+	} else if (rte_is_same_ether_addr(mac, &bond->mac)) {
+		return 0;
+	} else {
+		e = *mac;
+	}
 
 	if (!rte_is_zero_ether_addr(&bond->mac)) {
 		if ((ret = bond_all_member_del_mac(bond, &bond->mac)) < 0)
 			return ret;
 	}
-	if ((ret = bond_all_member_add_mac(bond, mac)) < 0)
+	if ((ret = bond_all_member_add_mac(bond, &e)) < 0)
 		return ret;
 
-	bond->mac = *mac;
+	bond->mac = e;
 
 	return 0;
 }
@@ -141,65 +153,86 @@ static int bond_promisc_set(struct iface *iface, bool enabled) {
 	return bond_all_members_set_flag(iface, GR_IFACE_F_PROMISC, enabled, iface_set_promisc);
 }
 
-static int bond_init_new_members(const struct iface *iface, const struct gr_iface_info_bond *new) {
+static int bond_attach_member(struct iface *iface, struct iface *member) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
-	struct iface_info_port *port;
 
-	for (uint8_t i = 0; i < new->n_members; i++) {
-		struct iface *member = iface_from_id(new->members[i].iface_id);
-		if (member == NULL)
-			return errno_set(errno);
+	if (member->type != GR_IFACE_TYPE_PORT)
+		return errno_set(EMEDIUMTYPE);
 
-		if (member->type != GR_IFACE_TYPE_PORT)
-			return errno_set(EMEDIUMTYPE);
-
-		for (uint8_t j = 0; j < bond->n_members; j++) {
-			if (bond->members[j].iface->id == member->id)
-				goto skip;
-		}
-
-		LOG(DEBUG, "adding %s to bond %s", member->name, iface->name);
-		port = iface_info_port(member);
-		port->bond_iface_id = iface->id;
-skip:;
+	for (unsigned i = 0; i < bond->n_members; i++) {
+		if (bond->members[i].iface == member)
+			return 0; // already a member
 	}
+
+	if (bond->n_members == ARRAY_DIM(bond->members))
+		return errno_set(EUSERS);
+
+	if (rte_is_zero_ether_addr(&bond->mac))
+		iface_get_eth_addr(member, &bond->mac);
+	else if (iface_add_eth_addr(member, &bond->mac) < 0)
+		return errno_log(errno, "iface_add_eth_addr(member)");
+
+	gr_vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
+		if (iface_add_eth_addr(member, mac) < 0)
+			return errno_log(errno, "iface_add_eth_addr(member)");
+	}
+
+	if (iface->flags & GR_IFACE_F_PROMISC && iface_set_promisc(member, true) < 0)
+		return errno_log(errno, "iface_set_promisc(member)");
+
+	if (bond->n_members == 0)
+		bond->primary_member = 0;
+	struct bond_member *m = &bond->members[bond->n_members];
+	memset(m, 0, sizeof(*m));
+	m->iface = member;
+	bond->n_members++;
+
+	bond_update_active_members(iface);
+
+	member->mode = GR_IFACE_MODE_BOND;
+	member->master_id = iface->id;
 
 	return 0;
 }
 
-static void bond_fini_old_members(const struct iface *iface, const struct gr_iface_info_bond *new) {
+static int bond_detach_member(struct iface *iface, struct iface *member) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
-	struct iface_info_port *port;
 
-	for (uint8_t i = 0; i < bond->n_members; i++) {
-		struct iface *member = bond->members[i].iface;
+	LOG(DEBUG, "removing %s from bond %s", member->name, iface->name);
 
-		for (uint8_t j = 0; j < new->n_members; j++) {
-			if (new->members[j].iface_id == member->id)
-				goto skip;
-		}
-
-		LOG(DEBUG, "removing %s from bond %s", member->name, iface->name);
-		gr_vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
-			if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT) {
+	for (unsigned i = 0; i < bond->n_members; i++) {
+		if (bond->members[i].iface == member) {
+			unsigned last = bond->n_members - 1;
+			if (i < last) {
+				if (bond->primary_member == last)
+					bond->primary_member = i;
+				bond->members[i] = bond->members[last];
+			}
+			bond->n_members--;
+			if (bond->primary_member >= bond->n_members)
+				bond->primary_member--;
+			gr_vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
+				if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT) {
+					LOG(WARNING,
+					    "failed to unconfigure mac address on member %s: %s",
+					    member->name,
+					    strerror(errno));
+				}
+			}
+			if (iface_del_eth_addr(member, &bond->mac) < 0 && errno != ENOENT) {
 				LOG(WARNING,
 				    "failed to unconfigure mac address on member %s: %s",
 				    member->name,
 				    strerror(errno));
 			}
+			member->mode = GR_IFACE_MODE_VRF;
+			member->master_id = GR_IFACE_ID_UNDEF;
+			bond_update_active_members(iface);
+			break;
 		}
-		if (iface_del_eth_addr(member, &bond->mac) < 0 && errno != ENOENT) {
-			LOG(WARNING,
-			    "failed to unconfigure mac address on member %s: %s",
-			    member->name,
-			    strerror(errno));
-		}
-
-		port = iface_info_port(member);
-		port->bond_iface_id = GR_IFACE_ID_UNDEF;
-		memset(&bond->members[i], 0, sizeof(bond->members[i]));
-skip:;
 	}
+
+	return 0;
 }
 
 void bond_update_active_members(struct iface *iface) {
@@ -329,60 +362,34 @@ static int bond_reconfig(
 		bond->algo = api->algo ?: GR_BOND_ALGO_RSS;
 
 	if (set_attrs & GR_BOND_SET_PRIMARY) {
-		uint8_t n_members = (set_attrs & GR_BOND_SET_MEMBERS) ?
-			api->n_members :
-			bond->n_members;
-
-		if (api->primary_member >= n_members)
+		if (api->primary_member >= bond->n_members)
 			return errno_set(ERANGE);
 
 		bond->primary_member = api->primary_member;
-	}
-
-	if (set_attrs & GR_BOND_SET_MEMBERS) {
-		if (api->n_members > ARRAY_DIM(bond->members))
-			return errno_set(ERANGE);
-
-		if (bond_init_new_members(iface, api) < 0)
-			return errno_set(errno);
-
-		bond_fini_old_members(iface, api);
-
-		for (uint8_t i = 0; i < api->n_members; i++)
-			bond->members[i].iface = iface_from_id(api->members[i].iface_id);
-		bond->n_members = api->n_members;
-	}
-
-	if (set_attrs & (GR_BOND_SET_MAC | GR_BOND_SET_MEMBERS | GR_BOND_SET_PRIMARY)) {
-		struct rte_ether_addr mac;
-		if (rte_is_zero_ether_addr(&api->mac)) {
-			const struct iface *primary = bond->members[bond->primary_member].iface;
-			if (iface_get_eth_addr(primary, &mac) < 0)
-				return errno_set(errno);
-		} else {
-			mac = api->mac;
-		}
-		if (bond_mac_set(iface, &mac) < 0)
-			return errno_set(errno);
-		bond->mac = mac;
-	}
-
-	if (set_attrs & (GR_BOND_SET_MEMBERS | GR_BOND_SET_PRIMARY))
 		bond_update_active_members(iface);
+	}
+
+	if (set_attrs & (GR_BOND_SET_MAC | GR_BOND_SET_PRIMARY)) {
+		if (iface_set_eth_addr(iface, &api->mac) < 0)
+			return -errno;
+	}
 
 	return 0;
 }
 
 static int bond_init(struct iface *iface, const void *api_info) {
 	struct gr_iface conf = {.base = iface->base};
-	return bond_reconfig(iface, IFACE_SET_ALL, &conf, api_info);
+	return bond_reconfig(iface, IFACE_SET_ALL & ~GR_BOND_SET_PRIMARY, &conf, api_info);
 }
 
 static int bond_fini(struct iface *iface) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
-	struct gr_iface_info_bond zero = {.n_members = 0};
-	bond_fini_old_members(iface, &zero);
+
+	while (bond->n_members > 0)
+		bond_detach_member(iface, bond->members[bond->n_members - 1].iface);
+
 	gr_vec_free(bond->extra_macs);
+
 	return 0;
 }
 
@@ -416,6 +423,8 @@ static struct iface_type iface_type_bond = {
 	.init = bond_init,
 	.reconfig = bond_reconfig,
 	.fini = bond_fini,
+	.attach_master = bond_attach_member,
+	.detach_master = bond_detach_member,
 	.set_up_down = bond_up_down,
 	.set_eth_addr = bond_mac_set,
 	.get_eth_addr = bond_mac_get,
@@ -426,59 +435,24 @@ static struct iface_type iface_type_bond = {
 	.to_api = bond_to_api,
 };
 
-static void bond_event(uint32_t event, const void *obj) {
-	const struct iface_info_port *port;
+static void bond_event(uint32_t /*event*/, const void *obj) {
 	const struct iface *iface = obj;
-	struct iface *b;
+	struct iface *bond;
 
-	if (iface->type != GR_IFACE_TYPE_PORT)
+	if (iface->mode != GR_IFACE_MODE_BOND)
 		return;
 
-	port = iface_info_port(iface);
-	if (port->bond_iface_id == GR_IFACE_ID_UNDEF)
+	bond = iface_from_id(iface->master_id);
+	if (bond == NULL)
 		return;
 
-	b = iface_from_id(port->bond_iface_id);
-	if (b == NULL)
-		return;
-
-	if (event == GR_EVENT_IFACE_PRE_REMOVE) {
-		// Remove port from bond
-		struct iface_info_bond *bond = iface_info_bond(b);
-		const struct iface *primary;
-
-		assert(bond->n_members > 0);
-		assert(bond->primary_member < bond->n_members);
-		primary = bond->members[bond->primary_member].iface;
-
-		for (uint8_t i = 0; i < bond->n_members; i++) {
-			if (bond->members[i].iface == iface && i != bond->n_members - 1) {
-				// Replace the deleted member with the last one in the list
-				bond->members[i] = bond->members[bond->n_members - 1];
-				break;
-			}
-		}
-
-		bond->n_members--;
-
-		// Update the primary member index after deletion
-		bond->primary_member = 0;
-		for (uint8_t i = 0; i < bond->n_members; i++) {
-			if (bond->members[i].iface == primary) {
-				bond->primary_member = i;
-				break;
-			}
-		}
-	}
-
-	bond_update_active_members(b);
+	bond_update_active_members(bond);
 }
 
 static struct gr_event_subscription bond_event_handler = {
 	.callback = bond_event,
-	.ev_count = 3,
+	.ev_count = 2,
 	.ev_types = {
-		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 		GR_EVENT_IFACE_STATUS_DOWN,
 	},

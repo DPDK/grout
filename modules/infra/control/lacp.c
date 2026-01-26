@@ -26,27 +26,27 @@
 static struct event *lacp_timer;
 
 void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	const struct iface_info_port *port;
-	const struct iface *port_iface;
 	struct iface_info_bond *bond;
 	struct rte_mbuf *mbuf = obj;
 	const struct lacp_pdu *pdu;
 	struct bond_member *member;
+	const struct iface *iface;
 	struct iface *bond_iface;
 
-	port_iface = mbuf_data(mbuf)->iface;
+	iface = mbuf_data(mbuf)->iface;
 
 	// Check if packet references deleted interface.
-	if (drain && drain->event == GR_EVENT_IFACE_REMOVE && port_iface == drain->obj)
+	if (drain && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
 		goto out;
-	if (port_iface->type != GR_IFACE_TYPE_PORT) {
-		LOG(DEBUG, "interface %s is not a port", port_iface->name);
+	if (iface->mode != GR_IFACE_MODE_BOND) {
+		LOG(DEBUG, "interface %s is not part of a bond", iface->name);
 		goto out;
 	}
-	port = iface_info_port(port_iface);
-	bond_iface = iface_from_id(port->bond_iface_id);
+	bond_iface = iface_from_id(iface->master_id);
+	if (drain && drain->event == GR_EVENT_IFACE_REMOVE && bond_iface == drain->obj)
+		goto out;
 	if (bond_iface == NULL) {
-		LOG(DEBUG, "bond %u has disappeared", port->bond_iface_id);
+		LOG(DEBUG, "bond %u has disappeared", iface->master_id);
 		goto out;
 	}
 	bond = iface_info_bond(bond_iface);
@@ -57,13 +57,13 @@ void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 
 	member = NULL;
 	for (uint8_t i = 0; i < bond->n_members; i++) {
-		if (bond->members[i].iface == port_iface) {
+		if (bond->members[i].iface == iface) {
 			member = &bond->members[i];
 			break;
 		}
 	}
 	if (member == NULL) {
-		LOG(DEBUG, "port %s is not part of bond %s", port_iface->name, bond_iface->name);
+		LOG(DEBUG, "port %s is not part of bond %s", iface->name, bond_iface->name);
 		goto out;
 	}
 

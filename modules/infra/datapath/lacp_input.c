@@ -23,7 +23,7 @@ enum {
 
 static uint16_t
 lacp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct eth_input_mbuf_data *eth_data;
+	const struct iface *iface;
 	struct lacp_pdu *lacp;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
@@ -43,12 +43,8 @@ lacp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		}
 
 		// Check that the RX interface is a port member of a bond
-		eth_data = eth_input_mbuf_data(mbuf);
-		if (eth_data->iface->type != GR_IFACE_TYPE_PORT) {
-			edge = NO_BOND;
-			goto next;
-		}
-		if (iface_info_port(eth_data->iface)->bond_iface_id == GR_IFACE_ID_UNDEF) {
+		iface = mbuf_data(mbuf)->iface;
+		if (iface->mode != GR_IFACE_MODE_BOND || iface->master_id == GR_IFACE_ID_UNDEF) {
 			edge = NO_BOND;
 			goto next;
 		}

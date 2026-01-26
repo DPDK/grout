@@ -17,11 +17,15 @@ wait_member_active() {
 
 . $(dirname $0)/_init.sh
 
-port_add p0
-port_add p1
-port_add p2
+grcli interface add bond bond0 mode active-backup
+
+port_add p0 master bond0
+port_add p1 master bond0
+port_add p2 master bond0
 
 mac=02:f0:00:b4:44:44
+
+grcli interface set bond bond0 mac $mac primary p1
 
 netns_add n0
 ip -n n0 link add br0 type bridge vlan_filtering 1
@@ -33,8 +37,6 @@ done
 ip -n n0 link set br0 up
 ip -n n0 addr add 172.16.0.2/24 dev br0
 
-grcli interface add bond bond0 mode active-backup member p0
-grcli interface set bond bond0 mode active-backup member p0 member p1 member p2 mac $mac primary p1
 grcli address add 172.16.0.1/24 iface bond0
 
 wait_member_active x-p1

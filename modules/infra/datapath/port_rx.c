@@ -50,8 +50,8 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	port = iface_info_port(ctx->iface);
 	if (!port->started)
 		return 0;
-	if (port->bond_iface_id != GR_IFACE_ID_UNDEF) {
-		iface = iface_from_id(port->bond_iface_id);
+	if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
+		iface = iface_from_id(ctx->iface->master_id);
 		if (iface == NULL)
 			return 0;
 		const struct iface_info_bond *bond = iface_info_bond(iface);
