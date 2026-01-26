@@ -6,9 +6,9 @@
 
 # configure a bunch of stuff
 grcli -xe <<EOF
-interface add port p0 devargs net_null0,no-rx=1 rxqs 2
-interface add port p1 devargs net_null1,no-rx=1 rxqs 2
-interface add bond bond0 mode lacp member p0 member p1
+interface add bond bond0 mode lacp
+interface add port p0 devargs net_null0,no-rx=1 rxqs 2 domain bond0
+interface add port p1 devargs net_null1,no-rx=1 rxqs 2 domain bond0
 interface add vlan v42 parent bond0 vlan_id 42 vrf 1
 interface add vlan v43 parent bond0 vlan_id 43 vrf 2
 nexthop add l3 iface v42 id 42 address 1.2.3.4

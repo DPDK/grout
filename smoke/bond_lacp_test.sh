@@ -22,10 +22,10 @@ wait_member_sync() {
 
 . $(dirname $0)/_init.sh
 
-port_add p0
-port_add p1
-port_add p2
-grcli interface add bond bond0 mode lacp member p0 member p1 member p2
+grcli interface add bond bond0 mode lacp
+port_add p0 domain bond0
+port_add p1 domain bond0
+port_add p2 domain bond0
 grcli address add 172.16.0.1/24 iface bond0
 
 netns_add n0
