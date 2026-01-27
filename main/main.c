@@ -53,7 +53,9 @@ static void usage(void) {
 	printf("  Graph router version %s (%s).\n", GROUT_VERSION, rte_version());
 	puts("");
 	puts("options:");
-	puts("  -M, --metrics ADDR:PORT        Serve openmetrics via HTTP on ADDR:PORT");
+	puts("  -M, --metrics unix:PATH | [tcp:]ADDR:PORT");
+	puts("                                 Serve openmetrics via HTTP on ADDR:PORT");
+	puts("                                 or create UNIX socket on PATH");
 	puts("                                 (default [::]:9111).");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -V, --version                  Print version and exit.");
@@ -105,9 +107,25 @@ parse_uint(unsigned int *v, const char *s, uint8_t base, unsigned long min, unsi
 
 struct gr_config gr_config;
 
+#define STR_METRICS_TCP "tcp:"
+#define STR_METRICS_UNIX "unix:"
+
 static int parse_metrics_addr(char *addr_port_str) {
 	char *port_str, *colon, *brace;
 	unsigned port;
+
+	if (strncmp(addr_port_str, STR_METRICS_UNIX, strlen(STR_METRICS_UNIX)) == 0) {
+		addr_port_str += strlen(STR_METRICS_UNIX);
+		if (strlen(addr_port_str) == 0) {
+			return perr("--metrics: missing socket path");
+		}
+		gr_config.metrics_addr = addr_port_str;
+		gr_config.metrics_port = 0;
+		return 0;
+
+	} else if (strncmp(addr_port_str, STR_METRICS_TCP, strlen(STR_METRICS_TCP)) == 0) {
+		addr_port_str += strlen(STR_METRICS_TCP);
+	}
 
 	colon = strrchr(addr_port_str, ':');
 	if (colon == NULL)
@@ -118,6 +136,12 @@ static int parse_metrics_addr(char *addr_port_str) {
 
 	if (parse_uint(&port, port_str, 10, 0, 65535) < 0)
 		return perr("--metrics: invalid port: %s", strerror(errno));
+
+	if (port == 0) {
+		//disable metrics
+		gr_config.metrics_addr = NULL;
+		return 0;
+	}
 
 	// Strip brackets around address
 	while (addr_port_str[0] == '[')
