@@ -362,9 +362,8 @@ static int bond_reconfig(
 		} else {
 			mac = api->mac;
 		}
-		if (bond_mac_set(iface, &mac) < 0)
+		if (iface_set_eth_addr(iface, &mac) < 0)
 			return errno_set(errno);
-		bond->mac = mac;
 	}
 
 	if (set_attrs & (GR_BOND_SET_MEMBERS | GR_BOND_SET_PRIMARY))

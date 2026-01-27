@@ -421,6 +421,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		}
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
+	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
 		gr_vec_foreach (nh, addrs->nh) {
 			if (nh6_advertise(nh, NULL) < 0)
@@ -473,11 +474,12 @@ static struct gr_module addr6_module = {
 
 static struct gr_event_subscription iface_event_subscription = {
 	.callback = ip6_iface_event_handler,
-	.ev_count = 3,
+	.ev_count = 4,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
+		GR_EVENT_IFACE_MAC_CHANGE,
 	},
 };
 

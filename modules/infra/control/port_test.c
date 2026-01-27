@@ -28,6 +28,9 @@ struct rte_rcu_qsbr *gr_datapath_rcu(void) {
 	static struct rte_rcu_qsbr rcu;
 	return &rcu;
 }
+int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *) {
+	return 0;
+}
 mock_func(struct iface *, iface_from_id(uint16_t));
 mock_func(struct iface *, iface_next(gr_iface_type_t, const struct iface *));
 mock_func(int, port_unplug(struct iface_info_port *));
