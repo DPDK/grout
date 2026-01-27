@@ -11,6 +11,7 @@ src += files(
   'sd_notify.c',
   'signals.c',
   'sort.c',
+  'unix.c'
 )
 
 inc += include_directories('.')
