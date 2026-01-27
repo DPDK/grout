@@ -1,0 +1,79 @@
+From c1a3f47c4014100000e2005dbf2b425d713e8711 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 12 Dec 2025 15:28:23 +0100
+Subject: [PATCH 6/7] zebra: schedule speed-query timer only when the interface
+ exists
+
+The 15-second timer used to re-query interface speed is currently
+scheduled in if_zebra_new_hook() for every newly created
+interface. However, at that point the interface may not yet exist in the
+OS, and in some cases it may never be created.
+
+Because of this, the speed query will usually
+fail (e.g. INTERFACE_SPEED_ERROR_READ) since the interface doesn't
+exist. There is also a race condition: even if the interface is created,
+the timer may run before the RTM_NEWLINK message is processed.
+
+As a result, ifp->ifp_index can remain IFINDEX_INTERNAL (0). When
+if_add_update() calls zebra_ns_link_ifp(), the interface tree is updated
+with this incorrect index. If this happens for multiple interfaces, the
+tree can end up with duplicate keys, eventually causing a zebra crash.
+
+A check was added to zebra_ns_link_ifp() to avoid adding an interface
+with an IFINDEX_INTERNAL index, but the root cause remained.
+
+This change fixes the underlying issue by scheduling the speed-update
+timer only when a valid RTM_NEWLINK has been received. The scheduling
+logic is moved from if_zebra_new_hook() to
+zebra_if_dplane_ifp_handling(), and runs only once the interface has a
+correct ifindex.
+
+Fixes: dc7b3ca ("zebra: Add one-shot thread to recheck speed")
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ zebra/interface.c | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/zebra/interface.c b/zebra/interface.c
+index 4c37e13170..16d522b8c4 100644
+--- a/zebra/interface.c
++++ b/zebra/interface.c
+@@ -205,17 +205,6 @@ static int if_zebra_new_hook(struct interface *ifp)
+ 
+ 	ifp->info = zebra_if;
+ 
+-	/*
+-	 * Some platforms are telling us that the interface is
+-	 * up and ready to go.  When we check the speed we
+-	 * sometimes get the wrong value.  Wait a couple
+-	 * of seconds and ask again.  Hopefully it's all settled
+-	 * down upon startup.
+-	 */
+-	zebra_if->speed_update_count = 0;
+-	zebra_if->speed_checked = 0;
+-	zebra_if_schedule_speed_update(zebra_if, 15);
+-
+ 	return 0;
+ }
+ 
+@@ -2059,6 +2048,17 @@ static void zebra_if_dplane_ifp_handling(struct zebra_dplane_ctx *ctx)
+ 				speed = 0;
+ 				/* Query initial speed if not provided by dplane */
+ 				dplane_intf_speed_get(ifp);
++
++				/*
++				 * Some platforms are telling us that the interface is
++				 * up and ready to go.  When we check the speed we
++				 * sometimes get the wrong value.  Wait a couple
++				 * of seconds and ask again.  Hopefully it's all settled
++				 * down upon startup.
++				 */
++				zif->speed_update_count = 0;
++				zif->speed_checked = 0;
++				zebra_if_schedule_speed_update(zif, 15);
+ 			} else
+ 				zif->speed_checked++;
+ 			if_update_state_speed(ifp, speed);
+-- 
+2.43.0
+

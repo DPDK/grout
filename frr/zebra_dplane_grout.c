@@ -607,6 +607,11 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
 		return grout_set_sr_tunsrc(ctx);
 
+	case DPLANE_OP_INTF_SPEED_GET:
+		// Workaround: return fail INTF_SPEED_GET to stop zebra from repeatedly polling.
+		// Speed is already provided via INTF_INSTALL/UPDATE.
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
 	case DPLANE_OP_NONE:
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 

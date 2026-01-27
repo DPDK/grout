@@ -1,0 +1,88 @@
+From 303e2dfa63f11863c80f9151d3795b34683b3428 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Wed, 14 Jan 2026 10:15:30 +0100
+Subject: [PATCH 7/7] zebra: skip kernel provider work when skip_kernel is set
+
+skip_kernel was only applied in the netlink batch send path. As a result,
+operations processed by dedicated handlers (notably DPLANE_OP_INTF_SPEED_GET)
+were still executed by the kernel provider even when a previous provider
+plugin requested to skip kernel updates.
+
+Handle skip_kernel early in kernel_dplane_process_func() so it applies to
+all kernel provider operations, and remove the scattered checks from the
+netlink helpers.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ zebra/kernel_netlink.c |  3 ---
+ zebra/kernel_socket.c  | 11 -----------
+ zebra/zebra_dplane.c   | 10 ++++++++++
+ 3 files changed, 10 insertions(+), 14 deletions(-)
+
+diff --git a/zebra/kernel_netlink.c b/zebra/kernel_netlink.c
+index d7e8ca9451..332dea8a92 100644
+--- a/zebra/kernel_netlink.c
++++ b/zebra/kernel_netlink.c
+@@ -1562,9 +1562,6 @@ enum netlink_msg_status netlink_batch_add_msg(
+ static enum netlink_msg_status nl_put_msg(struct nl_batch *bth,
+ 					  struct zebra_dplane_ctx *ctx)
+ {
+-	if (dplane_ctx_is_skip_kernel(ctx))
+-		return FRR_NETLINK_SUCCESS;
+-
+ 	switch (dplane_ctx_get_op(ctx)) {
+ 
+ 	case DPLANE_OP_ROUTE_INSTALL:
+diff --git a/zebra/kernel_socket.c b/zebra/kernel_socket.c
+index 6b3e2f381d..840b33cec9 100644
+--- a/zebra/kernel_socket.c
++++ b/zebra/kernel_socket.c
+@@ -1521,16 +1521,6 @@ void kernel_update_multi(struct dplane_ctx_list_head *ctx_list)
+ 		ctx = dplane_ctx_dequeue(ctx_list);
+ 		if (ctx == NULL)
+ 			break;
+-
+-		/*
+-		 * A previous provider plugin may have asked to skip the
+-		 * kernel update.
+-		 */
+-		if (dplane_ctx_is_skip_kernel(ctx)) {
+-			res = ZEBRA_DPLANE_REQUEST_SUCCESS;
+-			goto skip_one;
+-		}
+-
+ 		switch (dplane_ctx_get_op(ctx)) {
+ 
+ 		case DPLANE_OP_ROUTE_INSTALL:
+@@ -1633,7 +1623,6 @@ void kernel_update_multi(struct dplane_ctx_list_head *ctx_list)
+ 			res = ZEBRA_DPLANE_REQUEST_FAILURE;
+ 		}
+ 
+-	skip_one:
+ 		dplane_ctx_set_status(ctx, res);
+ 
+ 		dplane_ctx_enqueue_tail(&handled_list, ctx);
+diff --git a/zebra/zebra_dplane.c b/zebra/zebra_dplane.c
+index 48d07bff37..cebb3cbfdf 100644
+--- a/zebra/zebra_dplane.c
++++ b/zebra/zebra_dplane.c
+@@ -7377,6 +7377,16 @@ static int kernel_dplane_process_func(struct zebra_dplane_provider *prov)
+ 		if (IS_ZEBRA_DEBUG_DPLANE_DETAIL)
+ 			kernel_dplane_log_detail(ctx);
+ 
++		/*
++		 * A previous provider plugin may have asked to skip the
++		 * kernel update.
++		 */
++		if (dplane_ctx_is_skip_kernel(ctx)) {
++			dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_SUCCESS);
++			dplane_provider_enqueue_out_ctx(prov, ctx);
++			continue;
++		}
++
+ 		if ((dplane_ctx_get_op(ctx) == DPLANE_OP_IPTABLE_ADD
+ 		     || dplane_ctx_get_op(ctx) == DPLANE_OP_IPTABLE_DELETE))
+ 			kernel_dplane_process_iptable(prov, ctx);
+-- 
+2.43.0
+
