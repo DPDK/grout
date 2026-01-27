@@ -67,6 +67,7 @@ struct iface *iface_next(gr_iface_type_t /*type_id*/, const struct iface *prev) 
 
 mock_func(int, worker_graph_reload(struct worker *, gr_vec struct iface_info_port **));
 mock_func(int, worker_graph_reload_all(gr_vec struct iface_info_port **));
+mock_func(int, worker_graph_stop_all(void));
 mock_func(void, worker_graph_free(struct worker *));
 mock_func(void *, gr_datapath_loop(void *));
 mock_func(void, __wrap_rte_free(void *));
@@ -220,6 +221,7 @@ static void common_mocks(void) {
 	will_return_maybe(worker_graph_free, 0);
 	will_return_maybe(worker_graph_reload, 0);
 	will_return_maybe(worker_graph_reload_all, 0);
+	will_return_maybe(worker_graph_stop_all, 0);
 	will_return_maybe(__wrap_numa_available, 0);
 	will_return_maybe(__wrap_numa_node_of_cpu, 0);
 	will_return_maybe(__wrap_pthread_cond_wait, 0);
