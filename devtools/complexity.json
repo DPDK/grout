@@ -204,10 +204,10 @@
         "uops": 21
       }
     ],
-    "ipc": 3.12,
-    "self_cycles": 134,
-    "total_cycles": 148.0,
-    "uops": 536
+    "ipc": 3.05,
+    "self_cycles": 79.8,
+    "total_cycles": 93.8,
+    "uops": 319
   },
   "icmp6_input_process": {
     "callees": [
@@ -289,10 +289,10 @@
     "uops": 331
   },
   "iface_output_process": {
-    "ipc": 3.23,
-    "self_cycles": 95.8,
-    "total_cycles": 95.8,
-    "uops": 383
+    "ipc": 2.03,
+    "self_cycles": 32,
+    "total_cycles": 32,
+    "uops": 128
   },
   "ip6_error_process": {
     "callees": [
@@ -730,10 +730,10 @@
         "uops": 21
       }
     ],
-    "ipc": 3.02,
-    "self_cycles": 95.8,
-    "total_cycles": 115.5,
-    "uops": 383
+    "ipc": 3.06,
+    "self_cycles": 98.5,
+    "total_cycles": 118.2,
+    "uops": 394
   },
   "snap_input_process": {
     "ipc": 3.2,
