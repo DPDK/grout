@@ -20,8 +20,8 @@ install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'fa
 frr_plugin = shared_module(
   'dplane_grout',
   files(
-    'if_map.c',
     'if_grout.c',
+    'if_map.c',
     'rt_grout.c',
     'zebra_dplane_grout.c',
   ),

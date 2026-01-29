@@ -63,6 +63,7 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 	// Add default route if router option was provided
 	if (client->router_ip != 0) {
 		struct nexthop *nh = nh4_lookup(iface->vrf_id, client->router_ip);
+		bool created = false;
 
 		if (nh == NULL) {
 			struct gr_nexthop_base base = {
@@ -83,10 +84,13 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 				    strerror(errno));
 				return 0; // Continue even if gateway creation fails
 			}
+			created = true;
 		}
 
 		ret = rib4_insert(iface->vrf_id, 0, 0, GR_NH_ORIGIN_DHCP, nh);
 		if (ret < 0) {
+			if (created)
+				nexthop_decref(nh);
 			LOG(WARNING, "failed to add default route: %s", strerror(-ret));
 		} else {
 			LOG(INFO, "added default route via " IP4_F, &client->router_ip);

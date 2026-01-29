@@ -17,7 +17,7 @@
 #include <errno.h>
 
 static cmd_status_t route6_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_route_add_req req = {.exist_ok = true, .origin = GR_NH_ORIGIN_USER};
+	struct gr_ip6_route_add_req req = {.exist_ok = true, .origin = GR_NH_ORIGIN_STATIC};
 
 	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;

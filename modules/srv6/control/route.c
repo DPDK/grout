@@ -114,7 +114,6 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 
 	old_nh = tunsrc_nh;
 	tunsrc_nh = nh;
-	nexthop_incref(nh);
 	if (old_nh != NULL)
 		nexthop_decref(old_nh);
 

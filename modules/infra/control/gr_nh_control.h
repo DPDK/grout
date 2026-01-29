@@ -77,12 +77,15 @@ nexthop_group_get_nh(struct nexthop_info_group *nhg, uint32_t flow_id) {
 	return nhg->reta[flow_id & (nhg->reta_size - 1)];
 }
 
-// Lookup a nexthop from the global pool that matches the specified criteria.
+// Lookup an L3 nexthop that matches the specified criteria.
 struct nexthop *
-nexthop_lookup(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
+nexthop_lookup_l3(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr);
 
-// Lookup a nexthop from the global pool from its user provided ID.
-struct nexthop *nexthop_lookup_by_id(uint32_t nh_id);
+// Lookup a nexthop from its user provided ID.
+struct nexthop *nexthop_lookup_id(uint32_t nh_id);
+
+// Generic lookup based on base and type specific info.
+struct nexthop *nexthop_lookup(const struct gr_nexthop_base *, const void *info);
 
 // Compare two nexthops, return True if the same, else False
 bool nexthop_equal(const struct nexthop *, const struct nexthop *);
@@ -105,9 +108,6 @@ struct gr_nexthop *nexthop_to_api(const struct nexthop *, size_t *len);
 
 // Uses nexthop_export to serve as callback for gr_event_serializer.
 int nexthop_serialize(const void *obj, void **buf);
-
-// Clean all next hop related to an interface.
-void nexthop_iface_cleanup(uint16_t iface_id);
 
 // Clean all routes that reference a given nexthop.
 void nexthop_routes_cleanup(struct nexthop *);
@@ -138,7 +138,10 @@ struct nexthop_af_ops {
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
 
 struct nexthop_type_ops {
+	int (*reconfig)(const struct gr_nexthop_config *);
+	struct nexthop *(*lookup)(const struct gr_nexthop_base *, const void *info);
 	// Callback that will be invoked the nexthop refcount reaches zero.
+	void (*remove_references)(struct nexthop *);
 	void (*free)(struct nexthop *);
 	bool (*equal)(const struct nexthop *, const struct nexthop *);
 	// Copy public info structure to internal info structure.

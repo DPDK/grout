@@ -9,6 +9,21 @@
 #include <gr_nat_datapath.h>
 #include <gr_vec.h>
 
+static struct nexthop *dnat44_nh_lookup(const struct gr_nexthop_base *base, const void *info) {
+	const struct iface *iface = iface_from_id(base->iface_id);
+	const struct gr_nexthop_info_dnat *dnat = info;
+	struct nexthop *nh;
+
+	if (iface == NULL)
+		return NULL;
+
+	nh = rib4_lookup_exact(iface->vrf_id, dnat->match, 32);
+	if (nh == NULL || nh->type != GR_NH_T_DNAT)
+		return NULL;
+
+	return nh;
+}
+
 static bool dnat44_nh_equal(const struct nexthop *a, const struct nexthop *b) {
 	struct nexthop_info_dnat *ad = nexthop_info_dnat(a);
 	struct nexthop_info_dnat *bd = nexthop_info_dnat(b);
@@ -16,17 +31,21 @@ static bool dnat44_nh_equal(const struct nexthop *a, const struct nexthop *b) {
 	return ad->match == bd->match && ad->replace == bd->replace;
 }
 
+static void dnat44_nh_remove_references(struct nexthop *nh) {
+	if (nh->type == GR_NH_T_DNAT) {
+		struct nexthop_info_dnat *dnat = nexthop_info_dnat(nh);
+		struct iface *iface = iface_from_id(nh->iface_id);
+		if (iface == NULL)
+			return;
+		snat44_static_policy_del(iface, dnat->replace);
+	}
+}
+
 static void dnat44_nh_free(struct nexthop *nh) {
 	struct nexthop_info_dnat *dnat = nexthop_info_dnat(nh);
-	struct iface *iface;
-
-	nexthop_decref(dnat->arp);
-
-	iface = iface_from_id(nh->iface_id);
-	if (iface == NULL)
-		return;
-
-	snat44_static_policy_del(iface, dnat->replace);
+	if (dnat->arp)
+		nexthop_decref(dnat->arp);
+	dnat->arp = NULL;
 }
 
 static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
@@ -65,7 +84,7 @@ static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 		int ret = snat44_static_policy_add(iface, pub->replace, pub->match);
 		if (ret < 0) {
 			if (arp != NULL)
-				nexthop_destroy(arp);
+				nexthop_decref(arp);
 			return errno_set(-ret);
 		}
 	}
@@ -75,7 +94,6 @@ static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 	if (arp != NULL) {
 		struct nexthop *old_arp = priv->arp;
 		priv->arp = arp;
-		nexthop_incref(arp);
 		if (old_arp != NULL)
 			nexthop_decref(old_arp);
 	}
@@ -121,7 +139,7 @@ static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 	if (iface == NULL)
 		return api_out(ENODEV, 0, NULL);
 
-	nh = nexthop_lookup(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
+	nh = nexthop_lookup_l3(GR_AF_IP4, iface->vrf_id, iface->id, &req->policy.match);
 	if (nh != NULL) {
 		if (nh->type == GR_NH_T_DNAT && req->exist_ok)
 			return api_out(0, 0, NULL);
@@ -142,8 +160,10 @@ static struct api_out dnat44_add(const void *request, struct api_ctx *) {
 	if (nh == NULL)
 		return api_out(errno, 0, NULL);
 
-	if (rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0)
+	if (rib4_insert(iface->vrf_id, req->policy.match, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+		nexthop_decref(nh);
 		return api_out(errno, 0, NULL);
+	}
 
 	return api_out(0, 0, NULL);
 }
@@ -222,7 +242,9 @@ static struct gr_api_handler list_handler = {
 };
 
 static struct nexthop_type_ops nh_ops = {
+	.lookup = dnat44_nh_lookup,
 	.equal = dnat44_nh_equal,
+	.remove_references = dnat44_nh_remove_references,
 	.free = dnat44_nh_free,
 	.import_info = dnat44_nh_import_info,
 	.to_api = dnat44_nh_to_api,
