@@ -145,27 +145,6 @@ static uint64_t parse_bond_args(
 		set_attrs |= GR_BOND_SET_ALGO;
 	}
 
-	if (arg_str(p, "MEMBER") != NULL) {
-		const struct ec_pnode *m = NULL;
-		bond->n_members = 0;
-		while ((m = ec_pnode_find_next(p, m, "MEMBER", true)) != NULL) {
-			if (bond->n_members >= ARRAY_DIM(bond->members)) {
-				errno = EUSERS;
-				goto err;
-			}
-			const struct ec_strvec *v = ec_pnode_get_strvec(m);
-			assert(v != NULL);
-			assert(ec_strvec_len(v) == 1);
-			struct gr_iface *member = iface_from_name(c, ec_strvec_val(v, 0));
-			if (member == NULL) {
-				goto err;
-			}
-			bond->members[bond->n_members++].iface_id = member->id;
-			free(member);
-		}
-		set_attrs |= GR_BOND_SET_MEMBERS;
-	}
-
 	if ((str = arg_str(p, "PRIMARY")) != NULL) {
 		if (bond->mode != GR_BOND_MODE_ACTIVE_BACKUP) {
 			errno = EPROTOTYPE;
@@ -254,7 +233,7 @@ out:
 	return ret;
 }
 
-#define BOND_ATTRS_CMD IFACE_ATTRS_CMD ",((primary PRIMARY)|(balance ALGO)),(mac MAC)"
+#define BOND_ATTRS_CMD IFACE_ATTRS_CMD ",(balance ALGO),(mac MAC)"
 #define BOND_ATTRS_ARGS                                                                            \
 	IFACE_ATTRS_ARGS,                                                                          \
 		with_help(                                                                         \
@@ -266,10 +245,6 @@ out:
 				),                                                                 \
 				with_help("LACP mode.", ec_node_str("", "lacp"))                   \
 			)                                                                          \
-		),                                                                                 \
-		with_help(                                                                         \
-			"Primary member.",                                                         \
-			ec_node_dyn("PRIMARY", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))  \
 		),                                                                                 \
 		with_help(                                                                         \
 			"Balancing algorithm.",                                                    \
@@ -292,21 +267,17 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		INTERFACE_ADD_CTX(root),
-		"bond NAME mode MODE (member MEMBER)+ [" BOND_ATTRS_CMD "]",
+		"bond NAME mode MODE [" BOND_ATTRS_CMD "]",
 		bond_add,
 		"Create a new bond interface.",
 		with_help("Interface name.", ec_node("any", "NAME")),
-		with_help(
-			"Member port interface.",
-			ec_node_dyn("MEMBER", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))
-		),
 		BOND_ATTRS_ARGS
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		INTERFACE_SET_CTX(root),
-		"bond NAME (name NEW_NAME),(member MEMBER)+,(mode MODE)," BOND_ATTRS_CMD,
+		"bond NAME (name NEW_NAME),(primary PRIMARY),(mode MODE)," BOND_ATTRS_CMD,
 		bond_set,
 		"Modify bond parameters.",
 		with_help(
@@ -314,10 +285,6 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_dyn("NAME", complete_iface_names, INT2PTR(GR_IFACE_TYPE_BOND))
 		),
 		with_help("New interface name.", ec_node("any", "NEW_NAME")),
-		with_help(
-			"Member port interface.",
-			ec_node_dyn("MEMBER", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))
-		),
 		with_help(
 			"Primary member.",
 			ec_node_dyn("PRIMARY", complete_iface_names, INT2PTR(GR_IFACE_TYPE_PORT))

@@ -37,10 +37,10 @@ wait_bond_in_frr() {
 
 . $(dirname $0)/_init_frr.sh
 
-port_add p0
-port_add p1
-port_add p2
-grcli interface add bond bond0 mode lacp member p0 member p1 member p2
+grcli interface add bond bond0 mode lacp
+port_add p0 domain bond0
+port_add p1 domain bond0
+port_add p2 domain bond0
 
 wait_bond_in_frr bond0
 

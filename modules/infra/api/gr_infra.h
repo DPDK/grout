@@ -49,8 +49,9 @@ typedef enum : uint16_t {
 
 // Interface operating modes.
 typedef enum : uint8_t {
-	GR_IFACE_MODE_L3 = 0,
-	GR_IFACE_MODE_L1_XC,
+	GR_IFACE_MODE_VRF = 0,
+	GR_IFACE_MODE_XC,
+	GR_IFACE_MODE_BOND,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -58,9 +59,8 @@ typedef enum : uint8_t {
 #define GR_IFACE_SET_FLAGS GR_BIT64(0)
 #define GR_IFACE_SET_MTU GR_BIT64(1)
 #define GR_IFACE_SET_NAME GR_BIT64(2)
-#define GR_IFACE_SET_MODE GR_BIT64(3)
-#define GR_IFACE_SET_VRF GR_BIT64(4)
-#define GR_IFACE_SET_DOMAIN GR_IFACE_SET_VRF // Alias for VRF.
+#define GR_IFACE_SET_VRF GR_BIT64(3)
+#define GR_IFACE_SET_DOMAIN GR_BIT64(4)
 
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
@@ -70,10 +70,8 @@ struct __gr_iface_base {
 	gr_iface_flags_t flags; // Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	union {
-		uint16_t vrf_id; // L3 addressing and routing domain
-		uint16_t domain_id; // L2 xconnect peer interface id
-	};
+	uint16_t vrf_id; // L3 addressing and routing domain (GR_IFACE_MODE_VRF).
+	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
 };
 
@@ -98,7 +96,6 @@ struct __gr_iface_info_port_base {
 	uint16_t n_txq;
 	uint16_t rxq_size;
 	uint16_t txq_size;
-	uint16_t bond_iface_id;
 	struct rte_ether_addr mac;
 };
 
@@ -161,10 +158,9 @@ static inline const char *gr_bond_algo_name(gr_bond_algo_t algo) {
 
 // Bond reconfiguration attribute flags.
 #define GR_BOND_SET_MODE GR_BIT64(32)
-#define GR_BOND_SET_MEMBERS GR_BIT64(33)
-#define GR_BOND_SET_PRIMARY GR_BIT64(34)
-#define GR_BOND_SET_MAC GR_BIT64(35)
-#define GR_BOND_SET_ALGO GR_BIT64(36)
+#define GR_BOND_SET_PRIMARY GR_BIT64(33)
+#define GR_BOND_SET_MAC GR_BIT64(34)
+#define GR_BOND_SET_ALGO GR_BIT64(35)
 
 struct gr_bond_member {
 	uint16_t iface_id; // Must be a port interface.
@@ -448,10 +444,12 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 // Helper function to convert iface mode enum to string
 static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 	switch (mode) {
-	case GR_IFACE_MODE_L3:
-		return "l3";
-	case GR_IFACE_MODE_L1_XC:
-		return "l1-xc";
+	case GR_IFACE_MODE_VRF:
+		return "VRF";
+	case GR_IFACE_MODE_XC:
+		return "XC";
+	case GR_IFACE_MODE_BOND:
+		return "bond";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}
