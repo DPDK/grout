@@ -38,6 +38,7 @@ int gr_rte_log_type;
 struct gr_config gr_config;
 void gr_register_api_handler(struct gr_api_handler *) { }
 void gr_register_module(struct gr_module *) { }
+void gr_event_subscribe(struct gr_event_subscription *) { }
 void iface_type_register(struct iface_type *) { }
 void gr_metrics_ctx_init(struct gr_metrics_ctx *, struct gr_metrics_writer *, ...) { }
 void gr_metrics_labels_add(struct gr_metrics_ctx *, ...) { }
