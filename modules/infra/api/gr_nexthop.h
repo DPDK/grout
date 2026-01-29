@@ -30,6 +30,7 @@ typedef enum : uint8_t {
 // Nexthop types for different forwarding behaviors.
 typedef enum : uint8_t {
 	GR_NH_T_L3 = 0, // Standard L3 forwarding.
+	GR_NH_T_L2, // L2 switching nexthop.
 	GR_NH_T_SR6_OUTPUT, // SRv6 output nexthop.
 	GR_NH_T_SR6_LOCAL, // SRv6 local nexthop.
 	GR_NH_T_DNAT, // DNAT transformation.
@@ -74,6 +75,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
 	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
 	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
+	GR_NH_ORIGIN_BRIDGE = 254, // MAC address learned from bridge.
 	GR_NH_ORIGIN_INTERNAL = 255, // Reserved for internal use (no events, no ID allocation).
 } gr_nh_origin_t;
 
@@ -172,6 +174,8 @@ static inline const char *gr_nh_type_name(const gr_nh_type_t type) {
 	switch (type) {
 	case GR_NH_T_L3:
 		return "L3";
+	case GR_NH_T_L2:
+		return "L2";
 	case GR_NH_T_SR6_OUTPUT:
 		return "SRv6";
 	case GR_NH_T_SR6_LOCAL:
@@ -253,6 +257,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "openfabric";
 	case GR_NH_ORIGIN_SRTE:
 		return "srte";
+	case GR_NH_ORIGIN_BRIDGE:
+		return "bridge";
 	case GR_NH_ORIGIN_INTERNAL:
 		return "INTERNAL";
 	}

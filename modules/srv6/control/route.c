@@ -43,7 +43,7 @@ static int srv6_output_nh_import_info(struct nexthop *nh, const void *info) {
 	priv->n_seglist = pub->n_seglist;
 	tmp = priv->seglist;
 	priv->seglist = seglist;
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 	rte_free(tmp);
 
 	return 0;

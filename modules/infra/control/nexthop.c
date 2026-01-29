@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_id_pool.h>
 #include <gr_iface.h>
@@ -225,6 +226,7 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 bool nexthop_type_valid(gr_nh_type_t type) {
 	switch (type) {
 	case GR_NH_T_L3:
+	case GR_NH_T_L2:
 	case GR_NH_T_SR6_OUTPUT:
 	case GR_NH_T_SR6_LOCAL:
 	case GR_NH_T_DNAT:
@@ -269,6 +271,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_ZSTATIC:
 	case GR_NH_ORIGIN_OPENFABRIC:
 	case GR_NH_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_BRIDGE:
 	case GR_NH_ORIGIN_INTERNAL:
 		return true;
 	}
@@ -309,9 +312,6 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 
 	if (base == NULL)
 		return errno_set_null(EINVAL);
-
-	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL))
-		ABORT("nexthop created from datapath thread");
 
 	if ((ret = rte_mempool_get(pool, &data)) < 0)
 		return errno_set_null(-ret);
@@ -469,13 +469,13 @@ void nexthop_destroy(struct nexthop *nh) {
 	}
 	nexthop_id_put(nh);
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
-	// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
+	// Drain the control queue after RCU sync to ensure all datapath
 	// threads have seen that this nexthop is gone. At this point, only
 	// packets already in the control queue may still reference it.
-	// The event triggers a drain that frees those packets before we free
-	// the nexthop memory.
+	control_queue_drain(GR_EVENT_NEXTHOP_DELETE, nh);
+
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
