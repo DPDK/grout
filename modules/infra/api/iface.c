@@ -205,11 +205,27 @@ static void iface_metrics_collect(struct gr_metrics_writer *w) {
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		const struct iface_type *type = iface_type_get(iface->type);
 
-		snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
-
 		gr_metrics_ctx_init(
-			&ctx, w, "name", iface->name, "type", type->name, "vrf", vrf, NULL
+			&ctx,
+			w,
+			"name",
+			iface->name,
+			"type",
+			gr_iface_type_name(iface->type),
+			"mode",
+			gr_iface_mode_name(iface->mode),
+			NULL
 		);
+
+		if (iface->mode == GR_IFACE_MODE_VRF) {
+			snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
+			gr_metrics_labels_add(&ctx, "vrf", vrf, NULL);
+		} else {
+			const struct iface *domain = iface_from_id(iface->domain_id);
+			gr_metrics_labels_add(
+				&ctx, "domain", domain ? domain->name : "[deleted]", NULL
+			);
+		}
 
 		gr_metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
 		gr_metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
