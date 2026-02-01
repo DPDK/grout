@@ -117,12 +117,8 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 next:
 		if (gr_mbuf_is_traced(m)
 		    || (vlan_iface && vlan_iface->flags & GR_IFACE_F_PACKET_TRACE)) {
-			struct eth_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
-			t->eth.dst_addr = eth->dst_addr;
-			t->eth.src_addr = eth->src_addr;
-			t->eth.ether_type = eth_type;
-			t->vlan_id = vlan_id;
-			t->iface_id = eth_in->iface->id;
+			struct rte_ether_hdr *t = gr_mbuf_trace_add(m, node, sizeof(*t));
+			*t = *eth;
 		}
 		rte_pktmbuf_adj(m, l2_hdr_size);
 snap:
@@ -135,18 +131,11 @@ snap:
 }
 
 int eth_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
-	const struct eth_trace_data *t = data;
-	const struct iface *iface = iface_from_id(t->iface_id);
-	const char *ifname = iface ? iface->name : "[deleted]";
+	const struct rte_ether_hdr *t = data;
 	size_t n = 0;
 
-	SAFE_BUF(snprintf, len, ETH_F " > " ETH_F " type=", &t->eth.src_addr, &t->eth.dst_addr);
-	SAFE_BUF(eth_type_format, len, t->eth.ether_type);
-
-	if (t->vlan_id != 0)
-		SAFE_BUF(snprintf, len, " vlan=%u", t->vlan_id);
-
-	SAFE_BUF(snprintf, len, " iface=%s", ifname);
+	SAFE_BUF(snprintf, len, ETH_F " > " ETH_F " type=", &t->src_addr, &t->dst_addr);
+	SAFE_BUF(eth_type_format, len, t->ether_type);
 
 	return n;
 err:
