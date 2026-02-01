@@ -16,14 +16,15 @@ enum {
 	NB_EDGES,
 };
 
-static rte_edge_t iface_type_edges[GR_IFACE_TYPE_COUNT] = {INVAL};
+static rte_edge_t iface_type_edges[UINT_NUM_VALUES(gr_iface_type_t)] = {INVAL};
 
 void iface_output_type_register(gr_iface_type_t type, const char *next_node) {
-	LOG(DEBUG, "iface_output: iface_type=%s -> %s", gr_iface_type_name(type), next_node);
-	if (type == GR_IFACE_TYPE_UNDEF || type >= ARRAY_DIM(iface_type_edges))
+	const char *type_name = gr_iface_type_name(type);
+	if (strcmp(type_name, "?") == 0)
 		ABORT("invalid iface type=%u", type);
 	if (iface_type_edges[type] != INVAL)
-		ABORT("next node already registered for iface type=%s", gr_iface_type_name(type));
+		ABORT("next node already registered for iface type=%s", type_name);
+	LOG(DEBUG, "iface_output: iface_type=%s -> %s", type_name, next_node);
 	iface_type_edges[type] = gr_node_attach_parent("iface_output", next_node);
 }
 
@@ -42,7 +43,7 @@ static uint16_t iface_output_process(
 		m = objs[i];
 
 		iface = mbuf_data(m)->iface;
-		if (iface == NULL || iface->type >= ARRAY_DIM(iface_type_edges)) {
+		if (iface == NULL) {
 			edge = INVAL;
 			goto next;
 		}

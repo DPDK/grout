@@ -32,14 +32,15 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static rte_edge_t nh_type_edges[256] = {FORWARD};
+static rte_edge_t nh_type_edges[UINT_NUM_VALUES(gr_nh_type_t)] = {FORWARD};
 
 void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
-	LOG(DEBUG, "ip_input: nexthop type=%u -> %s", type, next_node);
-	if (type == 0)
+	const char *type_name = gr_nh_type_name(type);
+	if (strcmp(type_name, "?") == 0)
 		ABORT("invalid nexthop type=%u", type);
 	if (nh_type_edges[type] != FORWARD)
-		ABORT("next node already registered for nexthop type=%u", type);
+		ABORT("next node already registered for nexthop type=%s", type_name);
+	LOG(DEBUG, "ip_input: nh_type=%s -> %s", type_name, next_node);
 	nh_type_edges[type] = gr_node_attach_parent("ip_input", next_node);
 }
 

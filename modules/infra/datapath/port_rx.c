@@ -28,11 +28,15 @@ int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len
 	return snprintf(buf, len, "port=%u queue=%u", t->port_id, t->queue_id);
 }
 
-static rte_edge_t edges[GR_IFACE_MODE_COUNT] = {IFACE_MODE_UNKNOWN};
+static rte_edge_t edges[UINT_NUM_VALUES(gr_iface_mode_t)] = {IFACE_MODE_UNKNOWN};
 
 void iface_input_mode_register(gr_iface_mode_t mode, const char *next_node) {
+	const char *mode_name = gr_iface_mode_name(mode);
+	if (strcmp(mode_name, "?") == 0)
+		ABORT("invalid iface mode=%u", mode);
 	if (edges[mode] != IFACE_MODE_UNKNOWN)
-		ABORT("next node already registered for interface mode %u", mode);
+		ABORT("next node already registered for interface mode %s", mode_name);
+	LOG(DEBUG, "iface_input: mode=%s -> %s", mode_name, next_node);
 	edges[mode] = gr_node_attach_parent(RX_NODE_BASE, next_node);
 }
 
