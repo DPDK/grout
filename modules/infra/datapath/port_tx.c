@@ -34,7 +34,7 @@ tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	iface = mbuf_data(mbufs[0])->iface;
 	port = iface_info_port(iface);
 
-	if (!(iface->flags & GR_IFACE_F_UP) || !port->started) {
+	if (!port->started) {
 		for (unsigned i = 0; i < nb_objs; i++) {
 			if (gr_mbuf_is_traced(mbufs[i])) {
 				struct port_queue *t;

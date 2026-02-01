@@ -6,6 +6,7 @@
 #include <gr_control_queue.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
+#include <gr_mbuf.h>
 
 #include <rte_build_config.h>
 #include <rte_graph.h>
@@ -38,6 +39,8 @@ GR_NODE_CTX_TYPE(tx_node_ctx, {
 struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];
 };
+
+GR_MBUF_PRIV_DATA_TYPE(iface_inout_mbuf_data, { uint16_t vlan_id; });
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
 
