@@ -24,8 +24,17 @@ enum {
 };
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
-	const struct port_queue *t = data;
-	return snprintf(buf, len, "port=%u queue=%u", t->port_id, t->queue_id);
+	rxtx_flags_t flags = *(const rxtx_flags_t *)data;
+	size_t n = 0;
+
+	if (flags & RXTX_F_VLAN_OFFLOAD)
+		SAFE_BUF(snprintf, len, "vlan_offload");
+	if (flags & RXTX_F_TXQ_SHARED)
+		SAFE_BUF(snprintf, len, "%sshared", n ? " " : "");
+
+	return n;
+err:
+	return -1;
 }
 
 static rte_edge_t edges[UINT_NUM_VALUES(gr_iface_mode_t)] = {IFACE_MODE_UNKNOWN};
