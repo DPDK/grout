@@ -48,6 +48,8 @@ struct iface_type {
 	int (*fini)(struct iface *);
 	int (*attach_domain)(struct iface *domain, struct iface *iface);
 	int (*detach_domain)(struct iface *domain, struct iface *iface);
+	int (*add_subinterface)(struct iface *parent, struct iface *sub);
+	int (*del_subinterface)(struct iface *parent, struct iface *sub);
 	int (*get_eth_addr)(const struct iface *, struct rte_ether_addr *);
 	int (*set_eth_addr)(struct iface *, const struct rte_ether_addr *);
 	int (*add_eth_addr)(struct iface *, const struct rte_ether_addr *);
@@ -70,8 +72,8 @@ int iface_reconfig(
 );
 int iface_destroy(struct iface *);
 struct iface *iface_from_id(uint16_t ifid);
-void iface_add_subinterface(struct iface *parent, struct iface *sub);
-void iface_del_subinterface(struct iface *parent, struct iface *sub);
+int iface_add_subinterface(struct iface *parent, struct iface *sub);
+int iface_del_subinterface(struct iface *parent, struct iface *sub);
 int iface_get_eth_addr(const struct iface *, struct rte_ether_addr *);
 int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *);
 int iface_add_eth_addr(struct iface *, const struct rte_ether_addr *);
