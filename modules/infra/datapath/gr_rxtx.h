@@ -6,6 +6,7 @@
 #include <gr_control_queue.h>
 #include <gr_graph.h>
 #include <gr_infra.h>
+#include <gr_mbuf.h>
 
 #include <rte_build_config.h>
 #include <rte_graph.h>
@@ -39,6 +40,8 @@ struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];
 };
 
+GR_MBUF_PRIV_DATA_TYPE(iface_mbuf_data, { uint16_t vlan_id; });
+
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
 
 void iface_input_mode_register(gr_iface_mode_t, const char *next_node);
@@ -46,6 +49,16 @@ void iface_input_mode_register(gr_iface_mode_t, const char *next_node);
 void iface_output_type_register(gr_iface_type_t, const char *next_node);
 
 void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
+
+typedef enum : uint16_t {
+	RXTX_F_VLAN_OFFLOAD = GR_BIT16(0),
+	RXTX_F_TXQ_SHARED = GR_BIT16(1),
+} rxtx_flags_t;
+
+uint16_t tx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t tx_shared_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t tx_shared_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
 #define IFACE_STATS_VARS(dir)                                                                      \
 	struct iface_stats *dir##_stats;                                                           \
