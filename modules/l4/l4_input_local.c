@@ -20,7 +20,7 @@ enum edges {
 	EDGE_COUNT,
 };
 
-static rte_edge_t udp_edges[65536] = {MANAGEMENT};
+static rte_edge_t udp_edges[UINT_NUM_VALUES(rte_be16_t)] = {MANAGEMENT};
 
 void l4_input_register_port(uint8_t proto, rte_be16_t port, const char *next_node) {
 	uint16_t p = rte_be_to_cpu_16(port);
