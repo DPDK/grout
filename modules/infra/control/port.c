@@ -810,7 +810,7 @@ static void port_fini(struct event_base *) {
 	gr_vec_free(reset_ports);
 }
 
-static struct iface_type iface_type_port = {
+static const struct iface_type iface_type_port = {
 	.id = GR_IFACE_TYPE_PORT,
 	.pub_size = sizeof(struct gr_iface_info_port),
 	.priv_size = sizeof(struct iface_info_port),

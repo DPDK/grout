@@ -113,7 +113,7 @@ static void ipip_to_api(void *info, const struct iface *iface) {
 	*api = ipip->base;
 }
 
-static struct iface_type iface_type_ipip = {
+static const struct iface_type iface_type_ipip = {
 	.id = GR_IFACE_TYPE_IPIP,
 	.pub_size = sizeof(struct gr_iface_info_ipip),
 	.priv_size = sizeof(struct iface_info_ipip),
