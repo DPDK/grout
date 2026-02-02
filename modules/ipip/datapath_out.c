@@ -11,6 +11,7 @@
 #include <gr_ipip.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -37,6 +38,8 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
+
+	IFACE_STATS_VARS(tx);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -74,9 +77,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip_set_fields(outer, &tunnel);
 
-		struct iface_stats *stats = iface_get_stats(rte_lcore_id(), iface->id);
-		stats->tx_packets += 1;
-		stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		IFACE_STATS_INC(tx, mbuf, iface);
 
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);
@@ -85,6 +86,8 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
+
+	IFACE_STATS_FLUSH(tx);
 
 	return nb_objs;
 }
