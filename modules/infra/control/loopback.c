@@ -307,7 +307,7 @@ static void loopback_module_fini(struct event_base *) {
 
 static void iface_loopback_to_api(void * /* info */, const struct iface * /* iface */) { }
 
-static struct iface_type iface_type_loopback = {
+static const struct iface_type iface_type_loopback = {
 	.id = GR_IFACE_TYPE_LOOPBACK,
 	.pub_size = 0,
 	.priv_size = sizeof(struct iface_info_loopback),

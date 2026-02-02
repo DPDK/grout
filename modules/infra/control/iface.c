@@ -22,7 +22,7 @@
 #include <vrf_priv.h>
 #include <wchar.h>
 
-static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
@@ -42,19 +42,15 @@ static bool iface_type_valid(gr_iface_type_t type) {
 }
 
 const struct iface_type *iface_type_get(gr_iface_type_t type_id) {
-	struct iface_type *t;
-	STAILQ_FOREACH (t, &types, next)
-		if (t->id == type_id)
-			return t;
-	return errno_set_null(ENODEV);
+	return iface_types[type_id];
 }
 
-void iface_type_register(struct iface_type *type) {
+void iface_type_register(const struct iface_type *type) {
 	if (!iface_type_valid(type->id))
 		ABORT("invalid iface type id: %u", type->id);
 	if (iface_type_get(type->id) != NULL)
 		ABORT("duplicate iface type id: %u", type->id);
-	STAILQ_INSERT_TAIL(&types, type, next);
+	iface_types[type->id] = type;
 }
 
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
@@ -93,8 +89,10 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	bool vrf_ref = false;
 	uint16_t ifid;
 
-	if (type == NULL)
+	if (type == NULL) {
+		errno = ENODEV;
 		goto fail;
+	}
 	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
