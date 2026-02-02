@@ -34,10 +34,16 @@ static uint16_t iface_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
+	uint16_t last_iface_id, packets;
 	const struct iface *iface;
 	struct iface_stats *stats;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
+	uint64_t bytes;
+
+	last_iface_id = GR_IFACE_ID_UNDEF;
+	packets = 0;
+	bytes = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -53,9 +59,18 @@ static uint16_t iface_output_process(
 			goto next;
 		}
 
-		stats = iface_get_stats(rte_lcore_id(), iface->id);
-		stats->tx_packets += 1;
-		stats->tx_bytes += rte_pktmbuf_pkt_len(m);
+		if (iface->id != last_iface_id) {
+			if (packets > 0) {
+				stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+				stats->tx_packets += packets;
+				stats->tx_bytes += bytes;
+			}
+			last_iface_id = iface->id;
+			packets = 0;
+			bytes = 0;
+		}
+		packets += 1;
+		bytes += rte_pktmbuf_pkt_len(m);
 
 		edge = iface_type_edges[iface->type];
 
@@ -65,6 +80,12 @@ next:
 			*iface_id = iface ? iface->id : 0;
 		}
 		rte_node_enqueue_x1(graph, node, edge, m);
+	}
+
+	if (packets > 0) {
+		stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+		stats->tx_packets += packets;
+		stats->tx_bytes += bytes;
 	}
 
 	return nb_objs;

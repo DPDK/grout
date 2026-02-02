@@ -34,7 +34,7 @@ void gr_eth_input_add_type(rte_be16_t eth_type, const char *next_node) {
 
 static uint16_t
 eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	uint16_t vlan_id, last_iface_id, last_vlan_id;
+	uint16_t vlan_id, last_iface_id, last_vlan_id, packets;
 	const struct iface *vlan_iface, *iface;
 	struct eth_input_mbuf_data *eth_in;
 	struct rte_ether_addr iface_mac;
@@ -45,11 +45,14 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_mbuf *m;
 	size_t l2_hdr_size;
 	rte_edge_t edge;
+	uint64_t bytes;
 
 	iface = NULL;
 	vlan_iface = NULL;
-	last_iface_id = UINT16_MAX;
+	last_iface_id = GR_IFACE_ID_UNDEF;
 	last_vlan_id = UINT16_MAX;
+	packets = 0;
+	bytes = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -86,34 +89,38 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			eth_in->iface = vlan_iface;
 		}
 
-		if (unlikely(rte_be_to_cpu_16(eth_type) < SNAP_MAX_LEN)) {
-			edge = SNAP;
-			goto snap;
-		}
-
-		edge = l2l3_edges[eth_type];
-
 		if (iface == NULL || iface->id != eth_in->iface->id) {
 			if (iface_get_eth_addr(eth_in->iface, &iface_mac) < 0) {
 				edge = INVALID_IFACE;
 				goto next;
 			}
+			if (packets > 0) {
+				stats = iface_get_stats(rte_lcore_id(), iface->id);
+				stats->rx_packets += packets;
+				stats->rx_bytes += bytes;
+			}
 			iface = eth_in->iface;
-			stats = iface_get_stats(rte_lcore_id(), eth_in->iface->id);
+			packets = 0;
+			bytes = 0;
 		}
+		packets += 1;
+		bytes += rte_pktmbuf_pkt_len(m);
 
-		stats->rx_packets += 1;
-		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
-
-		if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
-			if (rte_is_broadcast_ether_addr(&eth->dst_addr))
-				eth_in->domain = ETH_DOMAIN_BROADCAST;
-			else
-				eth_in->domain = ETH_DOMAIN_MULTICAST;
-		} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
-			eth_in->domain = ETH_DOMAIN_LOCAL;
+		if (unlikely(rte_be_to_cpu_16(eth_type) < SNAP_MAX_LEN)) {
+			edge = SNAP;
 		} else {
-			eth_in->domain = ETH_DOMAIN_OTHER;
+			if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
+				if (rte_is_broadcast_ether_addr(&eth->dst_addr))
+					eth_in->domain = ETH_DOMAIN_BROADCAST;
+				else
+					eth_in->domain = ETH_DOMAIN_MULTICAST;
+			} else if (rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
+				eth_in->domain = ETH_DOMAIN_LOCAL;
+			} else {
+				eth_in->domain = ETH_DOMAIN_OTHER;
+			}
+			rte_pktmbuf_adj(m, l2_hdr_size);
+			edge = l2l3_edges[eth_type];
 		}
 next:
 		if (gr_mbuf_is_traced(m)
@@ -125,10 +132,15 @@ next:
 			t->vlan_id = vlan_id;
 			t->iface_id = eth_in->iface->id;
 		}
-		rte_pktmbuf_adj(m, l2_hdr_size);
-snap:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
+
+	if (packets > 0) {
+		stats = iface_get_stats(rte_lcore_id(), iface->id);
+		stats->rx_packets += packets;
+		stats->rx_bytes += bytes;
+	}
+
 	return nb_objs;
 }
 
