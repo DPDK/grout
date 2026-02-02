@@ -219,7 +219,6 @@ static void iface_vrf_to_api(void * /* info */, const struct iface * /* iface */
 
 static struct iface_type iface_type_vrf = {
 	.id = GR_IFACE_TYPE_VRF,
-	.name = "vrf",
 	.pub_size = 0,
 	.priv_size = sizeof(struct iface_info_vrf),
 	.init = iface_vrf_init,

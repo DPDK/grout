@@ -417,7 +417,6 @@ static void bond_to_api(void *info, const struct iface *iface) {
 
 static struct iface_type iface_type_bond = {
 	.id = GR_IFACE_TYPE_BOND,
-	.name = "bond",
 	.pub_size = sizeof(struct gr_iface_info_bond),
 	.priv_size = sizeof(struct iface_info_bond),
 	.init = bond_init,

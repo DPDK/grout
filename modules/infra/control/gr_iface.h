@@ -57,7 +57,6 @@ struct iface_type {
 	int (*set_promisc)(struct iface *, bool enabled);
 	void (*to_api)(void *api_info, const struct iface *);
 	void (*metrics_collect)(struct gr_metrics_ctx *, const struct iface *);
-	const char *name;
 	STAILQ_ENTRY(iface_type) next;
 };
 
