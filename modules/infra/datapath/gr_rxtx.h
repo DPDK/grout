@@ -46,3 +46,36 @@ void iface_input_mode_register(gr_iface_mode_t, const char *next_node);
 void iface_output_type_register(gr_iface_type_t, const char *next_node);
 
 void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
+
+#define IFACE_STATS_VARS(dir)                                                                      \
+	struct iface_stats *dir##_stats;                                                           \
+	uint16_t dir##_last_iface_id = GR_IFACE_ID_UNDEF;                                          \
+	uint16_t dir##_packets = 0;                                                                \
+	uint64_t dir##_bytes = 0;
+
+#define IFACE_STATS_INC(dir, mbuf, iface)                                                          \
+	do {                                                                                       \
+		if (iface->id != dir##_last_iface_id) {                                            \
+			if (dir##_packets != 0) {                                                  \
+				dir##_stats = iface_get_stats(                                     \
+					rte_lcore_id(), dir##_last_iface_id                        \
+				);                                                                 \
+				dir##_stats->dir##_packets += dir##_packets;                       \
+				dir##_stats->dir##_bytes += dir##_bytes;                           \
+				dir##_packets = 0;                                                 \
+				dir##_bytes = 0;                                                   \
+			}                                                                          \
+			dir##_last_iface_id = iface->id;                                           \
+		}                                                                                  \
+		dir##_packets += 1;                                                                \
+		dir##_bytes += rte_pktmbuf_pkt_len(mbuf);                                          \
+	} while (0)
+
+#define IFACE_STATS_FLUSH(dir)                                                                     \
+	do {                                                                                       \
+		if (dir##_packets != 0) {                                                          \
+			dir##_stats = iface_get_stats(rte_lcore_id(), dir##_last_iface_id);        \
+			dir##_stats->dir##_packets += dir##_packets;                               \
+			dir##_stats->dir##_bytes += dir##_bytes;                                   \
+		}                                                                                  \
+	} while (0)
