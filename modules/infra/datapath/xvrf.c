@@ -8,6 +8,7 @@
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 enum {
@@ -28,9 +29,10 @@ static int trace_vrf_format(char *buf, size_t len, const void *data, size_t /*da
 static uint16_t
 xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_input_mbuf_data *eth_data;
-	struct iface_stats *stats;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
+
+	IFACE_STATS_VARS(rx);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -44,9 +46,7 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 
 		// XXX: increment tx stats on source VRF
-		stats = iface_get_stats(rte_lcore_id(), eth_data->iface->id);
-		stats->rx_packets += 1;
-		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
+		IFACE_STATS_INC(rx, m, eth_data->iface);
 
 		if (gr_mbuf_is_traced(m) || (eth_data->iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_vrf_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
@@ -55,6 +55,9 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
+
+	IFACE_STATS_FLUSH(rx);
+
 	return nb_objs;
 }
 

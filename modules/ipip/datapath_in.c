@@ -10,6 +10,7 @@
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -36,11 +37,12 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct eth_input_mbuf_data *eth_data;
 	struct ip_local_mbuf_data *ip_data;
 	ip4_addr_t last_src, last_dst;
-	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
 	uint16_t last_vrf_id;
 	struct iface *ipip;
 	rte_edge_t edge;
+
+	IFACE_STATS_VARS(rx);
 
 	ipip = NULL;
 	last_src = 0;
@@ -73,9 +75,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
-		stats = iface_get_stats(rte_lcore_id(), ipip->id);
-		stats->rx_packets += 1;
-		stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		IFACE_STATS_INC(rx, mbuf, ipip);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -83,6 +83,8 @@ next:
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
+
+	IFACE_STATS_FLUSH(rx);
 
 	return nb_objs;
 }

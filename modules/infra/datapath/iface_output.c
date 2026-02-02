@@ -35,9 +35,10 @@ static uint16_t iface_output_process(
 	uint16_t nb_objs
 ) {
 	const struct iface *iface;
-	struct iface_stats *stats;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
+
+	IFACE_STATS_VARS(tx);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -53,9 +54,7 @@ static uint16_t iface_output_process(
 			goto next;
 		}
 
-		stats = iface_get_stats(rte_lcore_id(), iface->id);
-		stats->tx_packets += 1;
-		stats->tx_bytes += rte_pktmbuf_pkt_len(m);
+		IFACE_STATS_INC(tx, m, iface);
 
 		edge = iface_type_edges[iface->type];
 
@@ -66,6 +65,8 @@ next:
 		}
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
+
+	IFACE_STATS_FLUSH(tx);
 
 	return nb_objs;
 }
