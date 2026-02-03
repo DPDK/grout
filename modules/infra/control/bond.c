@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "worker_priv.h"
+
 #include <gr_bond.h>
 #include <gr_eth.h>
 #include <gr_event.h>
@@ -205,6 +207,12 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 
 	member->mode = GR_IFACE_MODE_BOND;
 	member->domain_id = iface->id;
+
+	// reload the graphs to update the process callbacks for bond support
+	if ((ret = port_unplug(iface_info_port(member))) < 0)
+		return ret;
+	if ((ret = port_plug(iface_info_port(member))) < 0)
+		return ret;
 
 	return 0;
 }

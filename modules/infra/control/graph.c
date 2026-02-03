@@ -152,11 +152,23 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		snprintf(node_name, sizeof(node_name), RX_NODE_FMT, qmap->port_id, qmap->queue_id);
 		node = rte_graph_node_get_by_name(graph_name, node_name);
 		struct rx_node_ctx *ctx = rx_node_ctx(node);
-		struct iface_info_port *port = find_port(ports, qmap->port_id);
+		port = find_port(ports, qmap->port_id);
 		ctx->iface = RTE_PTR_SUB(port, offsetof(struct iface, info));
 		ctx->rxq.port_id = qmap->port_id;
 		ctx->rxq.queue_id = qmap->queue_id;
 		ctx->burst_size = RTE_GRAPH_BURST_SIZE / gr_vec_len(worker->rxqs);
+		// select the appropriate node process callback
+		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
+			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+				node->process = rx_bond_offload_process;
+			else
+				node->process = rx_bond_process;
+		} else {
+			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+				node->process = rx_offload_process;
+			else
+				node->process = rx_process;
+		}
 	}
 
 	// initialize all tx nodes context to invalid ports and queues

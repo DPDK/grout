@@ -50,6 +50,11 @@ void iface_output_type_register(gr_iface_type_t, const char *next_node);
 
 void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
+uint16_t rx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+
 uint16_t tx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_shared_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
