@@ -53,7 +53,13 @@ void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
 typedef enum : uint16_t {
 	RXTX_F_VLAN_OFFLOAD = GR_BIT16(0),
 	RXTX_F_TXQ_SHARED = GR_BIT16(1),
+	RXTX_F_BOND = GR_BIT16(2),
 } rxtx_flags_t;
+
+uint16_t rx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
 uint16_t tx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);

@@ -9,6 +9,7 @@
 #include <gr_log.h>
 #include <gr_mbuf.h>
 #include <gr_port.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 #include <rte_byteorder.h>
@@ -66,6 +67,8 @@ next:
 
 static void lacp_input_register(void) {
 	gr_eth_input_add_type(RTE_BE16(RTE_ETHER_TYPE_SLOW), "lacp_input");
+	// Bond member ports need L2 processing for LACP frames
+	iface_input_mode_register(GR_IFACE_MODE_BOND, "eth_input");
 }
 
 static struct rte_node_register node = {
