@@ -250,9 +250,12 @@ reconfig:
 	timestamp = rte_rdtsc();
 	for (;;) {
 		rte_graph_walk(graph);
-		rte_rcu_qsbr_quiescent(rcu, rte_lcore_id());
 
 		if (++loop == HOUSEKEEPING_INTERVAL) {
+			// When RCU reclamation will be done in datapath workers,
+			// this will probably need to be called for every loop.
+			rte_rcu_qsbr_quiescent(rcu, rte_lcore_id());
+
 			if (atomic_load(&w->shutdown) || atomic_load(&w->next_config) != cur) {
 				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 				goto reconfig;
