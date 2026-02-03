@@ -46,7 +46,6 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	const struct iface_info_port *port;
 	const struct rte_ether_hdr *eth;
-	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	uint16_t rx;
 	unsigned r;
@@ -70,14 +69,19 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	for (r = 0; r < rx; r++) {
-		eth = rte_pktmbuf_mtod(mbufs[r], const struct rte_ether_hdr *);
-		d = eth_input_mbuf_data(mbufs[r]);
-		if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
-			d->iface = ctx->iface;
-		else
-			d->iface = iface;
-		d->domain = ETH_DOMAIN_UNKNOWN;
+	if (rx == 0)
+		return 0;
+	if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
+		for (r = 0; r < rx; r++) {
+			eth = rte_pktmbuf_mtod(mbufs[r], const struct rte_ether_hdr *);
+			if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+				mbuf_data(mbufs[r])->iface = ctx->iface;
+			else
+				mbuf_data(mbufs[r])->iface = iface;
+		}
+	} else {
+		for (r = 0; r < rx; r++)
+			mbuf_data(mbufs[r])->iface = iface;
 	}
 
 	if (unlikely(ctx->iface->flags & GR_IFACE_F_PACKET_TRACE)) {
