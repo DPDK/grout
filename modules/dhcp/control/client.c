@@ -25,12 +25,12 @@
 #include <time.h>
 
 static struct event_base *dhcp_ev_base;
-static struct dhcp_client *dhcp_clients[MAX_IFACES];
+static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
 static control_input_t dhcp_output;
 static struct rte_mempool *dhcp_mp;
 
 bool dhcp_enabled(uint16_t iface_id) {
-	if (iface_id < MAX_IFACES)
+	if (iface_id < GR_MAX_IFACES)
 		return dhcp_clients[iface_id] != NULL;
 	return false;
 }
@@ -477,7 +477,7 @@ static struct api_out dhcp_list_handler(const void *, struct api_ctx *ctx) {
 	struct dhcp_client *client;
 	uint16_t iface_id;
 
-	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
 		client = dhcp_clients[iface_id];
 		if (client == NULL)
 			continue;
@@ -517,7 +517,7 @@ static struct api_out dhcp_stop_handler(const void *request, struct api_ctx *) {
 }
 
 static void dhcp_fini(struct event_base *) {
-	for (uint16_t iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
+	for (uint16_t iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
 		if (dhcp_clients[iface_id] != NULL)
 			dhcp_stop(iface_id);
 	}
