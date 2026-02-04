@@ -127,7 +127,7 @@ static struct iface_type iface_type_ipip = {
 static void ipip_init(struct event_base *) {
 	struct rte_hash_parameters params = {
 		.name = "ipip",
-		.entries = MAX_IFACES,
+		.entries = GR_MAX_IFACES,
 		.key_len = sizeof(struct ipip_key),
 		.socket_id = SOCKET_ID_ANY,
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF

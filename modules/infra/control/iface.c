@@ -24,7 +24,7 @@
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
-struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
+struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];
 
 static bool iface_type_valid(gr_iface_type_t type) {
 	switch (type) {
@@ -79,7 +79,7 @@ static struct iface **ifaces;
 // Reserve a specific interface id.
 // Returns 0 on success, -errno on failure.
 static int reserve_ifid(uint16_t ifid) {
-	if (ifid >= MAX_IFACES)
+	if (ifid >= GR_MAX_IFACES)
 		return errno_set(EINVAL);
 
 	if (ifaces[ifid] == NULL)
@@ -90,7 +90,7 @@ static int reserve_ifid(uint16_t ifid) {
 
 // The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = GR_MAX_VRFS; i < MAX_IFACES; i++) {
+	for (uint16_t i = GR_MAX_VRFS; i < GR_MAX_IFACES; i++) {
 		if (reserve_ifid(i) < 0)
 			continue;
 
@@ -327,7 +327,7 @@ err:
 uint16_t ifaces_count(gr_iface_type_t type_id) {
 	uint16_t count = 0;
 
-	for (uint16_t ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	for (uint16_t ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			count++;
@@ -344,7 +344,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 	else
 		start_id = prev->id + 1;
 
-	for (uint16_t ifid = start_id; ifid < MAX_IFACES; ifid++) {
+	for (uint16_t ifid = start_id; ifid < GR_MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			return iface;
@@ -355,7 +355,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 
 struct iface *iface_from_id(uint16_t ifid) {
 	struct iface *iface = NULL;
-	if (ifid != GR_IFACE_ID_UNDEF && ifid < MAX_IFACES)
+	if (ifid != GR_IFACE_ID_UNDEF && ifid < GR_MAX_IFACES)
 		iface = ifaces[ifid];
 	if (iface == NULL)
 		errno = ENODEV;
@@ -535,7 +535,7 @@ int iface_destroy(struct iface *iface) {
 }
 
 static void iface_init(struct event_base *) {
-	ifaces = rte_calloc(__func__, MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
+	ifaces = rte_calloc(__func__, GR_MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
 	if (ifaces == NULL)
 		ABORT("rte_calloc(ifaces)");
 }
@@ -545,7 +545,7 @@ static void iface_fini(struct event_base *) {
 	uint16_t ifid;
 
 	// Destroy all virtual interface first before removing DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
 		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
@@ -556,7 +556,7 @@ static void iface_fini(struct event_base *) {
 	}
 
 	// Finally, destroy DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
 			continue;
