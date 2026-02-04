@@ -188,6 +188,9 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (iface == NULL || ip == NULL || prefixlen > RTE_IPV6_MAX_DEPTH)
 		return errno_set(EINVAL);
 
+	if (iface->mode != GR_IFACE_MODE_VRF)
+		return errno_set(EMEDIUMTYPE);
+
 	addrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, addrs->nh) {
