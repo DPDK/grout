@@ -90,6 +90,7 @@ static int next_ifid(uint16_t *ifid) {
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	const struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
+	bool type_init = false;
 	bool vrf_ref = false;
 	uint16_t ifid;
 
@@ -136,6 +137,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	if (type->init(iface, api_info) < 0)
 		goto fail;
+	type_init = true;
 
 	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
 		iface->mode = GR_IFACE_MODE_VRF;
@@ -181,6 +183,8 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 fail:
 	if (vrf_ref)
 		vrf_decref(conf->vrf_id);
+	if (type_init)
+		type->fini(iface);
 	if (iface != NULL)
 		free(iface->name);
 	rte_free(iface);
