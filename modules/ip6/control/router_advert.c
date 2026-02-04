@@ -37,7 +37,7 @@ struct ra_iface_conf {
 	uint16_t lifetime;
 };
 
-static struct ra_iface_conf ra_conf[MAX_IFACES];
+static struct ra_iface_conf ra_conf[GR_MAX_IFACES];
 
 static struct api_out iface_ra_set(const void *request, struct api_ctx *) {
 	const struct gr_ip6_ra_set_req *req = request;
@@ -82,7 +82,7 @@ static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	else if (iface_from_id(req->iface_id) == NULL)
 		return api_out(errno, 0, NULL);
 
-	for (iface_id = 0; iface_id < MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL || gr_vec_len(addrs->nh) == 0)
 			continue;

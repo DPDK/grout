@@ -104,9 +104,7 @@ struct __rte_cache_aligned iface_stats {
 	uint64_t cp_tx_bytes;
 };
 
-#define MAX_IFACES 1024
-
-extern struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
+extern struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];
 static inline struct iface_stats *iface_get_stats(uint16_t lcore_id, uint16_t ifid) {
 	return &iface_stats[ifid][lcore_id];
 }

@@ -47,6 +47,9 @@ typedef enum : uint16_t {
 #define GR_VRF_ID_ALL UINT16_MAX
 #define GR_MAX_VRFS 256
 
+// Maximum number of interfaces.
+#define GR_MAX_IFACES 1024
+
 // Interface operating modes.
 typedef enum : uint8_t {
 	GR_IFACE_MODE_VRF = 0,
