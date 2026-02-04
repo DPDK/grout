@@ -72,6 +72,9 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 	if (iface == NULL)
 		return -errno;
 
+	if (iface->mode != GR_IFACE_MODE_VRF)
+		return errno_set(EMEDIUMTYPE);
+
 	ifaddrs = &iface_addrs[iface->id];
 
 	gr_vec_foreach (nh, ifaddrs->nh) {
