@@ -5,7 +5,8 @@ set -e -o pipefail
 
 if [ -z "$(ip netns identify)" ]; then
 	set -x
-	ip netns add grout 2>/dev/null || :
+	ip netns del grout 2>/dev/null || :
+	ip netns add grout
 	exec ip netns exec grout "$0" "$@"
 fi
 
