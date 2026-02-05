@@ -46,6 +46,18 @@ fi
 cleanup() {
 	status="$?"
 	set +e
+
+	if [ "$status" -ne 0 ] && [ "$PAUSE_ON_FAILURE" = true ]; then
+		echo >/dev/tty
+		[ -n "$SMOKE_LOG" ] && cat "$SMOKE_LOG" >/dev/tty
+		echo >/dev/tty
+		echo "Test failed. To debug, run:" >/dev/tty
+		echo "  sudo $builddir/grcli -s $GROUT_SOCK_PATH" >/dev/tty
+		echo >/dev/tty
+		echo "Press Enter to continue cleanup or Ctrl-C to abort..." >/dev/tty
+		read -r </dev/tty
+	fi
+
 	sh -x $tmp/cleanup
 
 	if socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; then
