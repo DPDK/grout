@@ -6,14 +6,23 @@ set -eu
 
 here=$(dirname $0)
 skip_patterns=()
+match_pattern="*_test.sh"
 log=$(mktemp)
 result=0
+pause_on_failure=false
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-s|--skip)
 		shift
 		skip_patterns+=("$1")
+		;;
+	-m|--match)
+		shift
+		match_pattern="$1"
+		;;
+	-p|--pause-on-failure)
+		pause_on_failure=true
 		;;
 	-*)
 		echo "error: invalid option: $1" >&2
@@ -45,7 +54,7 @@ if [ -n "${builddir+x}" ] && \
 	test_frr=true
 fi
 
-for script in $here/*_test.sh; do
+for script in $here/$match_pattern; do
 	name=$(basename $script)
 	case "$name" in
 	*_frr_test.sh)
@@ -64,7 +73,7 @@ for script in $here/*_test.sh; do
 	{
 		echo "====================================================="
 		echo "+ $script $builddir"
-		if ! "$script" "$builddir"; then
+		if ! PAUSE_ON_FAILURE=$pause_on_failure SMOKE_LOG=$log "$script" "$builddir"; then
 			res=FAILED
 		fi
 		end=$(date +%s)
@@ -76,8 +85,10 @@ for script in $here/*_test.sh; do
 
 	if [ "$res" = FAILED ]; then
 		result=1
-		echo
-		cat $log
+		if [ "$pause_on_failure" != true ]; then
+			echo
+			cat $log
+		fi
 		rm -f $log
 	else
 		printf 'OK (%s)\n' "$duration"

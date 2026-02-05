@@ -29,7 +29,7 @@ unit-tests: $(BUILDDIR)/build.ninja
 
 .PHONY: smoke-tests
 smoke-tests: all
-	./smoke/run.sh $(BUILDDIR)
+	./smoke/run.sh $(SMOKE_OPTS) $(BUILDDIR)
 
 .PHONY: update-graph
 update-graph: all
