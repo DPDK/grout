@@ -3,23 +3,15 @@
 
 #include <gr_bond.h>
 #include <gr_config.h>
-#include <gr_eth.h>
 #include <gr_graph.h>
-#include <gr_iface.h>
 #include <gr_log.h>
+#include <gr_mbuf.h>
 #include <gr_port.h>
 #include <gr_rxtx.h>
 #include <gr_trace.h>
 
-#include <rte_build_config.h>
-#include <rte_ethdev.h>
-#include <rte_malloc.h>
-
-#include <stdbool.h>
-#include <sys/queue.h>
-
 enum {
-	IFACE_MODE_UNKNOWN = 0,
+	IFACE_INPUT = 0,
 	NB_EDGES,
 };
 
@@ -28,12 +20,80 @@ int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len
 	return snprintf(buf, len, "port=%u queue=%u", t->port_id, t->queue_id);
 }
 
-static rte_edge_t edges[GR_IFACE_MODE_COUNT] = {IFACE_MODE_UNKNOWN};
+static inline uint16_t strip_vlan(struct rte_mbuf *m, const struct rte_ether_hdr *eth) {
+	const struct rte_vlan_hdr *vlan;
+	uint16_t vlan_id;
 
-void iface_input_mode_register(gr_iface_mode_t mode, const char *next_node) {
-	if (edges[mode] != IFACE_MODE_UNKNOWN)
-		ABORT("next node already registered for interface mode %u", mode);
-	edges[mode] = gr_node_attach_parent(RX_NODE_BASE, next_node);
+	vlan = rte_pktmbuf_mtod_offset(m, const struct rte_vlan_hdr *, sizeof(*eth));
+	vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
+
+	memmove(RTE_PTR_ADD(eth, sizeof(*vlan)), eth, sizeof(*eth) - sizeof(eth->ether_type));
+	rte_pktmbuf_adj(m, sizeof(*vlan));
+
+	return vlan_id;
+}
+
+static inline void
+set_bond_vlan_offload(struct rte_mbuf *m, const struct iface *port, const struct iface *bond) {
+	struct iface_inout_mbuf_data *d = iface_inout_mbuf_data(m);
+	const struct rte_ether_hdr *eth;
+
+	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+		d->vlan_id = m->vlan_tci & 0xfff;
+		m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+		d->iface = port;
+	} else {
+		d->vlan_id = 0;
+		eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+		if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+			d->iface = port;
+		else
+			d->iface = bond;
+	}
+}
+
+static inline void
+set_bond_vlan(struct rte_mbuf *m, const struct iface *port, const struct iface *bond) {
+	const struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+	struct iface_inout_mbuf_data *d = iface_inout_mbuf_data(m);
+
+	switch (eth->ether_type) {
+	case RTE_BE16(RTE_ETHER_TYPE_VLAN):
+		d->iface = port;
+		d->vlan_id = strip_vlan(m, eth);
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_SLOW):
+		d->iface = port;
+		d->vlan_id = 0;
+		break;
+	default:
+		d->iface = bond;
+		d->vlan_id = 0;
+	}
+}
+
+static inline void set_port_vlan_offload(struct rte_mbuf *m, const struct iface *port) {
+	struct iface_inout_mbuf_data *d = iface_inout_mbuf_data(m);
+
+	d->iface = port;
+	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+		d->vlan_id = m->vlan_tci & 0xfff;
+		m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+	} else {
+		d->vlan_id = 0;
+	}
+}
+
+static inline void set_port_vlan(struct rte_mbuf *m, const struct iface *port) {
+	const struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+	struct iface_inout_mbuf_data *d = iface_inout_mbuf_data(m);
+
+	d->iface = port;
+	if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
+		d->vlan_id = strip_vlan(m, eth);
+	} else {
+		d->vlan_id = 0;
+	}
 }
 
 static uint16_t
@@ -41,8 +101,6 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	const struct iface_info_port *port;
-	const struct rte_ether_hdr *eth;
-	struct eth_input_mbuf_data *d;
 	const struct iface *iface;
 	uint16_t rx;
 	unsigned r;
@@ -62,19 +120,10 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 	} else {
 		iface = ctx->iface;
 	}
-	if (!(iface->flags & GR_IFACE_F_UP))
-		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	for (r = 0; r < rx; r++) {
-		eth = rte_pktmbuf_mtod(mbufs[r], const struct rte_ether_hdr *);
-		d = eth_input_mbuf_data(mbufs[r]);
-		if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
-			d->iface = ctx->iface;
-		else
-			d->iface = iface;
-		d->domain = ETH_DOMAIN_UNKNOWN;
-	}
+	if (rx == 0)
+		return 0;
 
 	if (unlikely(ctx->iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 		struct port_queue *q;
@@ -89,7 +138,26 @@ rx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t
 			trace_log_packet(mbufs[r], "rx", ctx->iface->name);
 	}
 
-	rte_node_enqueue(graph, node, edges[iface->mode], objs, rx);
+	if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
+		if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP) {
+			for (r = 0; r < rx; r++)
+				set_bond_vlan_offload(mbufs[r], ctx->iface, iface);
+		} else {
+			for (r = 0; r < rx; r++)
+				set_bond_vlan(mbufs[r], ctx->iface, iface);
+		}
+	} else {
+		if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP) {
+			for (r = 0; r < rx; r++)
+				set_port_vlan_offload(mbufs[r], iface);
+		} else {
+			for (r = 0; r < rx; r++)
+				set_port_vlan(mbufs[r], iface);
+		}
+	}
+
+	node->idx = rx;
+	rte_node_next_stream_move(graph, node, IFACE_INPUT);
 
 	return rx;
 }
@@ -102,7 +170,7 @@ static struct rte_node_register node = {
 
 	.nb_edges = NB_EDGES,
 	.next_nodes = {
-		[IFACE_MODE_UNKNOWN] = "port_rx_mode_unknown",
+		[IFACE_INPUT] = "iface_input",
 	},
 };
 
@@ -113,5 +181,3 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
-
-GR_DROP_REGISTER(port_rx_mode_unknown);

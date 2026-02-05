@@ -37,15 +37,21 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct ip_local_mbuf_data *ip_data;
 	ip4_addr_t last_src, last_dst;
 	struct iface_stats *stats;
+	uint16_t last_iface_id;
 	struct rte_mbuf *mbuf;
 	uint16_t last_vrf_id;
 	struct iface *ipip;
+	uint16_t packets;
 	rte_edge_t edge;
+	uint64_t bytes;
 
-	ipip = NULL;
+	last_iface_id = GR_IFACE_ID_UNDEF;
+	last_vrf_id = GR_VRF_ID_ALL;
 	last_src = 0;
 	last_dst = 0;
-	last_vrf_id = GR_VRF_ID_ALL;
+	packets = 0;
+	ipip = NULL;
+	bytes = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -53,10 +59,19 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		if (ip_data->dst != last_dst || ip_data->src != last_src
 		    || ip_data->vrf_id != last_vrf_id) {
+			if (packets > 0) {
+				stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+				stats->rx_packets += packets;
+				stats->rx_bytes += bytes;
+				packets = 0;
+				bytes = 0;
+			}
 			ipip = ipip_get_iface(ip_data->dst, ip_data->src, ip_data->vrf_id);
 			last_dst = ip_data->dst;
 			last_src = ip_data->src;
 			last_vrf_id = ip_data->vrf_id;
+			if (ipip != NULL)
+				last_iface_id = ipip->id;
 		}
 		if (ipip == NULL) {
 			edge = NO_TUNNEL;
@@ -73,15 +88,20 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
-		stats = iface_get_stats(rte_lcore_id(), ipip->id);
-		stats->rx_packets += 1;
-		stats->rx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		packets += 1;
+		bytes += rte_pktmbuf_pkt_len(mbuf);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			t->iface_id = ipip ? ipip->id : 0;
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
+	}
+
+	if (packets > 0) {
+		stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+		stats->rx_packets += packets;
+		stats->rx_bytes += bytes;
 	}
 
 	return nb_objs;

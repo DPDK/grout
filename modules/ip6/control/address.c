@@ -144,7 +144,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 	maddrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 		gr_vec_free(nhs_old);
 	}
 
@@ -244,7 +244,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	addrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 		gr_vec_free(nhs_old);
 	}
 

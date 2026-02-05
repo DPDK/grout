@@ -35,8 +35,16 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct rte_ipv4_hdr *inner;
 	struct rte_ipv4_hdr *outer;
 	const struct iface *iface;
+	struct iface_stats *stats;
+	uint16_t last_iface_id;
 	struct rte_mbuf *mbuf;
+	uint16_t packets;
 	rte_edge_t edge;
+	uint64_t bytes;
+
+	last_iface_id = GR_IFACE_ID_UNDEF;
+	packets = 0;
+	bytes = 0;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -74,9 +82,18 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip_set_fields(outer, &tunnel);
 
-		struct iface_stats *stats = iface_get_stats(rte_lcore_id(), iface->id);
-		stats->tx_packets += 1;
-		stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		if (iface->id != last_iface_id) {
+			if (packets > 0) {
+				stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+				stats->tx_packets += packets;
+				stats->tx_bytes += bytes;
+			}
+			last_iface_id = iface->id;
+			packets = 0;
+			bytes = 0;
+		}
+		packets += 1;
+		bytes += rte_pktmbuf_pkt_len(mbuf);
 
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);
@@ -84,6 +101,12 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
+	}
+
+	if (packets > 0) {
+		stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+		stats->tx_packets += packets;
+		stats->tx_bytes += bytes;
 	}
 
 	return nb_objs;

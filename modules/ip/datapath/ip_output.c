@@ -31,25 +31,27 @@ enum {
 	EDGE_COUNT,
 };
 
-static rte_edge_t iface_type_edges[GR_IFACE_TYPE_COUNT] = {ETH_OUTPUT};
+static rte_edge_t iface_type_edges[UINT_NUM_VALUES(gr_iface_type_t)] = {ETH_OUTPUT};
 
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node) {
-	LOG(DEBUG, "ip_output: iface_type=%u -> %s", type, next_node);
-	if (type == GR_IFACE_TYPE_UNDEF || type >= ARRAY_DIM(iface_type_edges))
+	const char *type_name = gr_iface_type_name(type);
+	if (strcmp(type_name, "?") == 0)
 		ABORT("invalid iface type=%u", type);
 	if (iface_type_edges[type] != ETH_OUTPUT)
-		ABORT("next node already registered for iface type=%u", type);
+		ABORT("next node already registered for iface type=%s", type_name);
+	LOG(DEBUG, "ip_output: iface_type=%s -> %s", type_name, next_node);
 	iface_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
 }
 
-static rte_edge_t nh_type_edges[256] = {ETH_OUTPUT};
+static rte_edge_t nh_type_edges[UINT_NUM_VALUES(gr_nh_type_t)] = {ETH_OUTPUT};
 
 void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
-	LOG(DEBUG, "ip_output: nexthop type=%u -> %s", type, next_node);
-	if (type == 0)
+	const char *type_name = gr_nh_type_name(type);
+	if (strcmp(type_name, "?") == 0)
 		ABORT("invalid nexthop type=%u", type);
 	if (nh_type_edges[type] != ETH_OUTPUT)
-		ABORT("next node already registered for nexthop type=%u", type);
+		ABORT("next node already registered for nexthop type=%s", type_name);
+	LOG(DEBUG, "ip_output: nh_type=%s -> %s", type_name, next_node);
 	nh_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
 }
 

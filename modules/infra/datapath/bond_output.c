@@ -202,13 +202,19 @@ bond_select_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bo
 static uint16_t
 bond_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct iface_info_bond *bond;
-	const struct iface *iface, *member;
+	uint16_t packets, last_iface_id;
+	const struct iface *member;
+	struct iface_stats *stats;
 	rte_edge_t edge;
+	uint64_t bytes;
+
+	last_iface_id = GR_IFACE_ID_UNDEF;
+	packets = 0;
+	bytes = 0;
 
 	for (unsigned i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
-		iface = mbuf_data(mbuf)->iface;
-		bond = iface_info_bond(iface);
+		bond = iface_info_bond(mbuf_data(mbuf)->iface);
 
 		// Select output member port
 		member = bond_select_tx_member(mbuf, bond);
@@ -224,14 +230,28 @@ bond_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			t->member_iface_id = member->id;
 		}
 
-		// Update bond statistics
-		struct iface_stats *stats = iface_get_stats(rte_lcore_id(), iface->id);
-		stats->tx_packets += 1;
-		stats->tx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		if (member->id != last_iface_id) {
+			if (packets > 0) {
+				stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+				stats->tx_packets += packets;
+				stats->tx_bytes += bytes;
+			}
+			last_iface_id = member->id;
+			packets = 0;
+			bytes = 0;
+		}
+		packets += 1;
+		bytes += rte_pktmbuf_pkt_len(mbuf);
 
 		edge = PORT_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
+	}
+
+	if (packets > 0) {
+		stats = iface_get_stats(rte_lcore_id(), last_iface_id);
+		stats->tx_packets += packets;
+		stats->tx_bytes += bytes;
 	}
 
 	return nb_objs;

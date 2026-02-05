@@ -149,7 +149,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 	pvt->reta_size = reta_size;
 	pvt->reta = reta;
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
 	for (uint32_t i = 0; i < n_tmp; i++)
 		nexthop_decref(tmp[i].nh);

@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_config.h>
+#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
@@ -22,7 +23,7 @@
 #include <vrf_priv.h>
 #include <wchar.h>
 
-static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 
 struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
 
@@ -33,6 +34,7 @@ static bool iface_type_valid(gr_iface_type_t type) {
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_IPIP:
 	case GR_IFACE_TYPE_BOND:
+	case GR_IFACE_TYPE_BRIDGE:
 		return true;
 	case GR_IFACE_TYPE_UNDEF:
 	case GR_IFACE_TYPE_COUNT:
@@ -42,19 +44,15 @@ static bool iface_type_valid(gr_iface_type_t type) {
 }
 
 const struct iface_type *iface_type_get(gr_iface_type_t type_id) {
-	struct iface_type *t;
-	STAILQ_FOREACH (t, &types, next)
-		if (t->id == type_id)
-			return t;
-	return errno_set_null(ENODEV);
+	return iface_types[type_id];
 }
 
-void iface_type_register(struct iface_type *type) {
+void iface_type_register(const struct iface_type *type) {
 	if (!iface_type_valid(type->id))
 		ABORT("invalid iface type id: %u", type->id);
 	if (iface_type_get(type->id) != NULL)
 		ABORT("duplicate iface type id: %u", type->id);
-	STAILQ_INSERT_TAIL(&types, type, next);
+	iface_types[type->id] = type;
 }
 
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
@@ -93,8 +91,10 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	bool vrf_ref = false;
 	uint16_t ifid;
 
-	if (type == NULL)
+	if (type == NULL) {
+		errno = ENODEV;
 		goto fail;
+	}
 	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
 		goto fail;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
@@ -358,21 +358,40 @@ int iface_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	return type->get_eth_addr(iface, mac);
 }
 
-void iface_add_subinterface(struct iface *parent, struct iface *sub) {
+int iface_add_subinterface(struct iface *parent, struct iface *sub) {
+	const struct iface_type *type;
+	int ret;
+
 	gr_vec_foreach (struct iface *s, parent->subinterfaces) {
 		if (s == sub)
-			return;
+			return 0;
 	}
+
+	type = iface_type_get(parent->type);
+	if (type != NULL && type->add_subinterface != NULL) {
+		ret = type->add_subinterface(parent, sub);
+		if (ret < 0)
+			return ret;
+	}
+
 	gr_vec_add(parent->subinterfaces, sub);
+	return 0;
 }
 
-void iface_del_subinterface(struct iface *parent, struct iface *sub) {
+int iface_del_subinterface(struct iface *parent, struct iface *sub) {
+	const struct iface_type *type;
+
 	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
 			gr_vec_del_swap(parent->subinterfaces, i);
-			return;
+			type = iface_type_get(parent->type);
+			if (type != NULL && type->del_subinterface != NULL) {
+				return type->del_subinterface(parent, sub);
+			}
+			return 0;
 		}
 	}
+	return 0;
 }
 
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
@@ -498,12 +517,13 @@ int iface_destroy(struct iface *iface) {
 
 	ifaces[iface->id] = NULL;
 
-	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 
-	// Push IFACE_REMOVE event after RCU sync to ensure all datapath threads
+	// Drain the control queue after RCU sync to ensure all datapath threads
 	// have seen that this iface is gone. At this point, only packets already
-	// in the control queue may still reference it. The event triggers
-	// a drain that frees those packets before type->fini() frees the iface.
+	// in the control queue may still reference it.
+	control_queue_drain(GR_EVENT_IFACE_REMOVE, iface);
+
 	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 
 	type = iface_type_get(iface->type);
