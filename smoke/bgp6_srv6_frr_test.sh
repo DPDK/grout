@@ -39,7 +39,6 @@
 
 create_interface p0
 create_interface p1 vrf 1
-set_vrf_iface 1
 
 set_ip_address p0 fd00:102::2/64
 set_ip_address p1 16.1.0.1/24

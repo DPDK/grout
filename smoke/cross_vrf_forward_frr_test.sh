@@ -19,8 +19,6 @@ done
 
 set_ip_address p0 172.16.0.1/24
 set_ip_address p1 172.16.1.1/24
-set_vrf_iface 1
-set_vrf_iface 2
 
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 set_ip_route 16.1.0.0/16 172.16.1.2 1 2
