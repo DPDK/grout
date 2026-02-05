@@ -9,7 +9,7 @@
 
 #include <stdbool.h>
 
-int netlink_link_set_admin_state(uint32_t ifindex, bool up);
+int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier);
 int netlink_link_set_mac(uint32_t ifindex, const struct rte_ether_addr *mac);
 int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex);
 int netlink_link_set_mtu(uint32_t ifindex, uint32_t mtu);

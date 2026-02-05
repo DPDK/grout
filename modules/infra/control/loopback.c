@@ -251,12 +251,12 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		goto err;
 	}
 
-	if (netlink_link_set_admin_state(iface->cp_id, false) < 0) {
+	if (netlink_link_set_admin_state(iface->cp_id, false, false) < 0) {
 		LOG(ERR, "netlink_link_set_admin_state(false): %s", strerror(errno));
 		goto err;
 	}
 
-	if (netlink_link_set_admin_state(iface->cp_id, true) < 0) {
+	if (netlink_link_set_admin_state(iface->cp_id, true, false) < 0) {
 		LOG(ERR, "netlink_link_set_admin_state(true): %s", strerror(errno));
 		goto err;
 	}

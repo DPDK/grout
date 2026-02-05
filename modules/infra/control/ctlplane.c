@@ -282,7 +282,7 @@ static void cp_create(struct iface *iface) {
 
 	snprintf(ifalias, IFALIASZ, "Grout control plane interface");
 	netlink_set_ifalias(iface->cp_id, ifalias);
-	netlink_link_set_admin_state(iface->cp_id, false);
+	netlink_link_set_admin_state(iface->cp_id, false, true);
 
 	iface->cp_ev = event_new(
 		ev_base,
@@ -412,11 +412,11 @@ static void iface_event(uint32_t event, const void *obj) {
 		cp_delete(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
-		netlink_link_set_admin_state(iface->cp_id, true);
+		netlink_link_set_admin_state(iface->cp_id, true, true);
 		cp_set_speed(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
-		netlink_link_set_admin_state(iface->cp_id, false);
+		netlink_link_set_admin_state(iface->cp_id, false, true);
 		break;
 	}
 }

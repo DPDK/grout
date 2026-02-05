@@ -50,11 +50,11 @@ static int netlink_create_vrf_and_enslave(
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(*vrf_ifindex, true);
+	ret = netlink_link_set_admin_state(*vrf_ifindex, true, false);
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(loop_ifindex, true);
+	ret = netlink_link_set_admin_state(loop_ifindex, true, false);
 	if (ret < 0)
 		return ret;
 
@@ -68,7 +68,7 @@ static int netlink_delete_vrf_and_unslave(uint32_t vrf_ifindex, uint32_t loop_if
 	if (ret < 0)
 		return ret;
 
-	ret = netlink_link_set_admin_state(loop_ifindex, false);
+	ret = netlink_link_set_admin_state(loop_ifindex, false, false);
 	if (ret < 0)
 		return ret;
 
