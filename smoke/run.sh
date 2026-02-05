@@ -6,6 +6,7 @@ set -eu
 
 here=$(dirname $0)
 skip_patterns=()
+match_patterns=()
 log=$(mktemp)
 result=0
 pause_on_failure=false
@@ -15,6 +16,10 @@ while [ $# -gt 0 ]; do
 	-s|--skip)
 		shift
 		skip_patterns+=("$1")
+		;;
+	-m|--match)
+		shift
+		match_patterns+=("$1")
 		;;
 	-p|--pause-on-failure)
 		pause_on_failure=true
@@ -31,9 +36,27 @@ done
 
 skip_test() {
 	local name=$1
+	if [ ${#skip_patterns[@]} -eq 0 ]; then
+		return 1
+	fi
 	for pattern in "${skip_patterns[@]}"; do
 		case "$name" in
 		$pattern)
+			return 0
+			;;
+		esac
+	done
+	return 1
+}
+
+match_test() {
+	local name=$1
+	if [ ${#match_patterns[@]} -eq 0 ]; then
+		return 0
+	fi
+	for pattern in "${match_patterns[@]}"; do
+		case "$name" in
+		*${pattern}*)
 			return 0
 			;;
 		esac
@@ -58,7 +81,7 @@ for script in $here/*_test.sh; do
 	esac
 
 	printf "%s ... " "$name"
-	if skip_test "$name"; then
+	if ! match_test "$name" || skip_test "$name"; then
 		echo "SKIPPED"
 		continue
 	fi
