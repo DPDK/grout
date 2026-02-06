@@ -57,6 +57,20 @@ void iface_type_register(struct iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
+static gr_vec const char **reserved_prefixes;
+
+void iface_name_reserve(const char *prefix) {
+	gr_vec_add(reserved_prefixes, prefix);
+}
+
+bool iface_name_is_reserved(const char *name) {
+	gr_vec_foreach (const char *prefix, reserved_prefixes) {
+		if (strncmp(name, prefix, strlen(prefix)) == 0)
+			return true;
+	}
+	return false;
+}
+
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
 
 // the first slot is wasted by GR_IFACE_ID_UNDEF
