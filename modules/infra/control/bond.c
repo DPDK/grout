@@ -153,8 +153,17 @@ static int bond_promisc_set(struct iface *iface, bool enabled) {
 	return bond_all_members_set_flag(iface, GR_IFACE_F_PROMISC, enabled, iface_set_promisc);
 }
 
+static bool bond_has_vlan_subinterfaces(const struct iface *iface, const struct iface *exclude) {
+	gr_vec_foreach (const struct iface *sub, iface->subinterfaces) {
+		if (sub != exclude && sub->type == GR_IFACE_TYPE_VLAN)
+			return true;
+	}
+	return false;
+}
+
 static int bond_attach_member(struct iface *iface, struct iface *member) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
+	int ret;
 
 	if (member->type != GR_IFACE_TYPE_PORT)
 		return errno_set(EMEDIUMTYPE);
@@ -179,6 +188,11 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 
 	if (iface->flags & GR_IFACE_F_PROMISC && iface_set_promisc(member, true) < 0)
 		return errno_log(errno, "iface_set_promisc(member)");
+
+	if (bond_has_vlan_subinterfaces(iface, NULL)) {
+		if ((ret = port_set_vlan_offload(member, true)) < 0)
+			return ret;
+	}
 
 	if (bond->n_members == 0)
 		bond->primary_member = 0;
@@ -224,6 +238,14 @@ static int bond_detach_member(struct iface *iface, struct iface *member) {
 				    "failed to unconfigure mac address on member %s: %s",
 				    member->name,
 				    strerror(errno));
+			}
+			if (!bond_has_vlan_subinterfaces(iface, NULL)) {
+				if (port_set_vlan_offload(member, false) < 0) {
+					LOG(WARNING,
+					    "failed to disable vlan offload on member %s: %s",
+					    member->name,
+					    strerror(errno));
+				}
 			}
 			member->mode = GR_IFACE_MODE_VRF;
 			member->domain_id = GR_IFACE_ID_UNDEF;
@@ -415,6 +437,36 @@ static void bond_to_api(void *info, const struct iface *iface) {
 	}
 }
 
+static int bond_add_subinterface(struct iface *parent, struct iface *sub) {
+	struct iface_info_bond *bond = iface_info_bond(parent);
+
+	if (sub->type != GR_IFACE_TYPE_VLAN)
+		return 0;
+
+	for (uint8_t i = 0; i < bond->n_members; i++) {
+		int ret = port_set_vlan_offload(bond->members[i].iface, true);
+		if (ret < 0)
+			return ret;
+	}
+	return 0;
+}
+
+static int bond_del_subinterface(struct iface *parent, struct iface *sub) {
+	struct iface_info_bond *bond = iface_info_bond(parent);
+
+	if (sub->type != GR_IFACE_TYPE_VLAN)
+		return 0;
+	if (bond_has_vlan_subinterfaces(parent, sub))
+		return 0;
+
+	for (uint8_t i = 0; i < bond->n_members; i++) {
+		int ret = port_set_vlan_offload(bond->members[i].iface, false);
+		if (ret < 0)
+			return ret;
+	}
+	return 0;
+}
+
 static const struct iface_type iface_type_bond = {
 	.id = GR_IFACE_TYPE_BOND,
 	.pub_size = sizeof(struct gr_iface_info_bond),
@@ -424,6 +476,8 @@ static const struct iface_type iface_type_bond = {
 	.fini = bond_fini,
 	.attach_domain = bond_attach_member,
 	.detach_domain = bond_detach_member,
+	.add_subinterface = bond_add_subinterface,
+	.del_subinterface = bond_del_subinterface,
 	.set_up_down = bond_up_down,
 	.set_eth_addr = bond_mac_set,
 	.get_eth_addr = bond_mac_get,
