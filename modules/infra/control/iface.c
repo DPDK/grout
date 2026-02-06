@@ -421,21 +421,40 @@ int iface_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	return type->get_eth_addr(iface, mac);
 }
 
-void iface_add_subinterface(struct iface *parent, struct iface *sub) {
+int iface_add_subinterface(struct iface *parent, struct iface *sub) {
+	const struct iface_type *type;
+	int ret;
+
 	gr_vec_foreach (struct iface *s, parent->subinterfaces) {
 		if (s == sub)
-			return;
+			return 0;
 	}
+
+	type = iface_type_get(parent->type);
+	if (type != NULL && type->add_subinterface != NULL) {
+		ret = type->add_subinterface(parent, sub);
+		if (ret < 0)
+			return ret;
+	}
+
 	gr_vec_add(parent->subinterfaces, sub);
+	return 0;
 }
 
-void iface_del_subinterface(struct iface *parent, struct iface *sub) {
+int iface_del_subinterface(struct iface *parent, struct iface *sub) {
+	const struct iface_type *type;
+
 	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
 			gr_vec_del_swap(parent->subinterfaces, i);
-			return;
+			type = iface_type_get(parent->type);
+			if (type != NULL && type->del_subinterface != NULL) {
+				return type->del_subinterface(parent, sub);
+			}
+			return 0;
 		}
 	}
+	return 0;
 }
 
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
