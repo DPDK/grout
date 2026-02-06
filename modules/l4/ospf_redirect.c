@@ -33,7 +33,7 @@ static uint16_t ospf_redirect_process(
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		if (mbuf_data(mbuf)->iface->type == GR_IFACE_TYPE_LOOPBACK
+		if (mbuf_data(mbuf)->iface->type == GR_IFACE_TYPE_VRF
 		    || mbuf_data(mbuf)->iface->type == GR_IFACE_TYPE_IPIP) {
 			edge = IFACE_NOT_L2;
 			goto next;

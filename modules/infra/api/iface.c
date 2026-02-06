@@ -31,7 +31,7 @@ static struct api_out iface_add(const void *request, struct api_ctx *) {
 	struct gr_infra_iface_add_resp *resp;
 	struct iface *iface;
 
-	if (iface_name_is_reserved(req->iface.name))
+	if (req->iface.type != GR_IFACE_TYPE_VRF && iface_name_is_reserved(req->iface.name))
 		return api_out(EINVAL, 0, NULL);
 
 	iface = iface_create(&req->iface, req->iface.info);
@@ -114,8 +114,13 @@ static struct api_out iface_set(const void *request, struct api_ctx *) {
 	const struct gr_infra_iface_set_req *req = request;
 	int ret;
 
-	if ((req->set_attrs & GR_IFACE_SET_NAME) && iface_name_is_reserved(req->iface.name))
-		return api_out(EINVAL, 0, NULL);
+	if (req->set_attrs & GR_IFACE_SET_NAME) {
+		struct iface *iface = iface_from_id(req->iface.id);
+		if (iface == NULL)
+			return api_out(ENODEV, 0, NULL);
+		if (iface->type != GR_IFACE_TYPE_VRF && iface_name_is_reserved(req->iface.name))
+			return api_out(EINVAL, 0, NULL);
+	}
 
 	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, req->iface.info);
 	if (ret < 0)

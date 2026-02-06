@@ -3,6 +3,7 @@
 
 #include <gr_errno.h>
 #include <gr_iface.h>
+#include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_loopback.h>
 #include <gr_netlink.h>
@@ -26,6 +27,13 @@ struct iface *get_vrf_iface(uint16_t vrf_id) {
 		return errno_set_null(ENONET);
 
 	return vrfs[vrf_id].iface;
+}
+
+bool vrf_is_default(const struct iface *iface) {
+	if (iface->type != GR_IFACE_TYPE_VRF)
+		return false;
+
+	return iface_info_vrf(iface)->default_vrf;
 }
 
 static int netlink_create_vrf_and_enslave(
@@ -72,7 +80,7 @@ static int netlink_delete_vrf_and_unslave(uint32_t vrf_ifindex, uint32_t loop_if
 }
 
 static uint32_t iface_to_table_id(const struct iface *iface) {
-	if (loopback_is_default(iface))
+	if (vrf_is_default(iface))
 		return RT_TABLE_MAIN;
 
 	// Reserved values for table_id are 0, 252, 253, 254 and 255.
@@ -86,7 +94,7 @@ static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *loop_iface
 	int ret;
 
 	// Only create kernel VRF device for non-default VRFs
-	if (!loopback_is_default(loop_iface)) {
+	if (!vrf_is_default(loop_iface)) {
 		ret = netlink_create_vrf_and_enslave(
 			loop_iface->name, table_id, loop_iface->cp_id, &vrf->vrf_ifindex
 		);
@@ -128,7 +136,7 @@ static void netlink_vrf_del(struct vrf_info *vrf) {
 	int ret;
 
 	table_id = iface_to_table_id(loop_iface);
-	if (!loopback_is_default(loop_iface)) {
+	if (!vrf_is_default(loop_iface)) {
 		ret = netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, loop_iface->cp_id);
 		if (ret < 0)
 			LOG(WARNING,
@@ -189,4 +197,61 @@ void vrf_decref(uint16_t vrf_id) {
 
 	if (vrfs[vrf_id].ref_count > 0)
 		vrfs[vrf_id].ref_count--;
+}
+
+// VRF interface type //////////////////////////////////////////////////////////
+
+static int iface_vrf_init(struct iface *iface, const void *api_info) {
+	const struct gr_iface_info_vrf *api = api_info;
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+
+	// VRF's vrf_id is its own iface_id (VRF identifier)
+	iface->vrf_id = iface->id;
+	vrf->default_vrf = api->default_vrf;
+
+	if (iface_loopback_create(iface) < 0)
+		return -errno;
+
+	if (vrf_add(iface) < 0) {
+		iface_loopback_destroy(iface);
+		return -errno;
+	}
+
+	return 0;
+}
+
+static int iface_vrf_fini(struct iface *iface) {
+	vrf_del(iface->vrf_id);
+	return iface_loopback_destroy(iface);
+}
+
+static void iface_vrf_to_api(void *info, const struct iface *iface) {
+	struct gr_iface_info_vrf *api = info;
+	const struct iface_info_vrf *priv = iface_info_vrf(iface);
+	*api = priv->base;
+}
+
+static int
+iface_vrf_reconfig(struct iface *, uint64_t set_attrs, const struct gr_iface *, const void *) {
+	// VRF only supports name changes
+	if (set_attrs & ~GR_IFACE_SET_NAME)
+		return errno_set(EOPNOTSUPP);
+
+	return 0;
+}
+
+static struct iface_type iface_type_vrf = {
+	.id = GR_IFACE_TYPE_VRF,
+	.name = "vrf",
+	.pub_size = sizeof(struct gr_iface_info_vrf),
+	.priv_size = sizeof(struct iface_info_vrf),
+	.init = iface_vrf_init,
+	.reconfig = iface_vrf_reconfig,
+	.fini = iface_vrf_fini,
+	.to_api = iface_vrf_to_api,
+};
+
+RTE_INIT(vrf_type_constructor) {
+	iface_type_register(&iface_type_vrf);
+	iface_name_reserve(GR_DEFAULT_VRF_NAME, false);
 }

@@ -54,7 +54,7 @@ DECLARE_HASH(
 static struct grout_to_frr_head grout_to_frr_mappings = INIT_HASH(grout_to_frr_mappings);
 static struct frr_to_grout_head frr_to_grout_mappings = INIT_HASH(frr_to_grout_mappings);
 
-// Default VRF interface ID (gr-loop0). 0 means not set yet.
+// Default VRF interface ID (main). 0 means not set yet.
 static uint16_t default_vrf_id;
 
 // Add bidirectional mapping

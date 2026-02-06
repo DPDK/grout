@@ -10,8 +10,8 @@ static void loopback_show(struct gr_api_client *, const struct gr_iface *) { }
 
 static void loopback_list_info(struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
 
-static struct cli_iface_type loopback_type = {
-	.type_id = GR_IFACE_TYPE_LOOPBACK,
+static struct cli_iface_type vrf_type = {
+	.type_id = GR_IFACE_TYPE_VRF,
 	.show = loopback_show,
 	.list_info = loopback_list_info,
 };
@@ -24,7 +24,7 @@ static uint64_t parse_vrf_args(
 ) {
 	uint64_t set_attrs;
 
-	set_attrs = parse_iface_args(c, p, iface, sizeof(struct gr_iface_info_loopback), update);
+	set_attrs = parse_iface_args(c, p, iface, sizeof(struct gr_iface_info_vrf), update);
 
 	// VRF only supports name changes, reject any other attributes
 	if (set_attrs & ~GR_IFACE_SET_NAME) {
@@ -41,11 +41,11 @@ static cmd_status_t vrf_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	void *resp_ptr = NULL;
 	size_t len;
 
-	len = sizeof(*req) + sizeof(struct gr_iface_info_loopback);
+	len = sizeof(*req) + sizeof(struct gr_iface_info_vrf);
 	if ((req = calloc(1, len)) == NULL)
 		return CMD_ERROR;
 
-	req->iface.type = GR_IFACE_TYPE_LOOPBACK;
+	req->iface.type = GR_IFACE_TYPE_VRF;
 	req->iface.flags = GR_IFACE_F_UP;
 
 	if (parse_vrf_args(c, p, &req->iface, false) == 0)
@@ -69,7 +69,7 @@ static cmd_status_t vrf_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	cmd_status_t ret = CMD_ERROR;
 	size_t len;
 
-	len = sizeof(*req) + sizeof(struct gr_iface_info_loopback);
+	len = sizeof(*req) + sizeof(struct gr_iface_info_vrf);
 	if ((req = calloc(1, len)) == NULL)
 		goto out;
 
@@ -92,7 +92,7 @@ static int ctx_init(struct ec_node *root) {
 		INTERFACE_ADD_CTX(root),
 		"vrf NAME",
 		vrf_add,
-		"Create a new VRF (loopback interface).",
+		"Create a new VRF.",
 		with_help("VRF name.", ec_node("any", "NAME"))
 	);
 	if (ret < 0)
@@ -105,7 +105,7 @@ static int ctx_init(struct ec_node *root) {
 		"Rename a VRF.",
 		with_help(
 			"VRF name.",
-			ec_node_dyn("NAME", complete_iface_names, INT2PTR(GR_IFACE_TYPE_LOOPBACK))
+			ec_node_dyn("NAME", complete_iface_names, INT2PTR(GR_IFACE_TYPE_VRF))
 		),
 		with_help("New VRF name.", ec_node("any", "NEW_NAME"))
 	);
@@ -120,5 +120,5 @@ static struct cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	cli_context_register(&ctx);
-	register_iface_type(&loopback_type);
+	register_iface_type(&vrf_type);
 }
