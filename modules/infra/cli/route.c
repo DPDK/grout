@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_cli_l3.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
@@ -58,7 +59,7 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 	struct cli_route_ops *ops;
 	int ret = 0;
 
-	if (arg_u16(p, "VRF", &vrf_id) < 0 && errno != ENOENT)
+	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &vrf_id) < 0)
 		return CMD_ERROR;
 
 	struct libscols_table *table = scols_new_table();
@@ -105,7 +106,7 @@ static int ctx_init(struct ec_node *root) {
 		with_help("IP destination prefix.", ec_node_re("DEST", IP_ANY_NET_RE)),
 		with_help("IP next hop address.", ec_node_re("NH", IP_ANY_RE)),
 		with_help("Next hop user ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
@@ -115,7 +116,7 @@ static int ctx_init(struct ec_node *root) {
 		route_del,
 		"Delete a route.",
 		with_help("IP destination prefix.", ec_node_re("DEST", IP_ANY_NET_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
@@ -125,7 +126,7 @@ static int ctx_init(struct ec_node *root) {
 		route_get,
 		"Get the route associated with a destination IP address.",
 		with_help("IP destination address.", ec_node_re("DEST", IP_ANY_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
@@ -134,7 +135,7 @@ static int ctx_init(struct ec_node *root) {
 		"[show] [vrf VRF]",
 		route_list,
 		"Show IP routes.",
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;

@@ -41,6 +41,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
+	const struct gr_iface_info_loopback *gr_lo = NULL;
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
@@ -80,6 +81,15 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_LOOPBACK:
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VRF;
+
+		gr_lo = (const struct gr_iface_info_loopback *)&gr_if->info;
+		if (gr_lo->default_vrf) {
+			// Default VRF loopback maps to FRR's default VRF.
+			if (new)
+				set_default_vrf_id(gr_if->id);
+			else
+				set_default_vrf_id(GR_IFACE_ID_UNDEF);
+		}
 		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
@@ -109,25 +119,13 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 
 		switch (gr_if->mode) {
 		case GR_IFACE_MODE_VRF:
-			if (gr_if->base.vrf_id != 0) {
-				// In Linux, vrf_id equals the interface index; in Grout we model
-				// a VRF with its gr‑vrf interface.
-				// The gr‑vrf’s ifindex is guaranteed to match vrf_id
-				dplane_ctx_set_ifp_vrf_id(
-					ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
-				);
-			} else
-				dplane_ctx_set_ifp_vrf_id(ctx, 0);
+			dplane_ctx_set_ifp_vrf_id(ctx, vrf_grout_to_frr(gr_if->base.vrf_id));
 
 			// For VRF interface, we must set the table_id
-			if (zif_type == ZEBRA_IF_VRF) {
-				if (gr_if->base.vrf_id != 0)
-					dplane_ctx_set_ifp_table_id(
-						ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
-					);
-				else
-					dplane_ctx_set_ifp_table_id(ctx, 0);
-			}
+			if (zif_type == ZEBRA_IF_VRF)
+				dplane_ctx_set_ifp_table_id(
+					ctx, vrf_grout_to_frr(gr_if->base.vrf_id)
+				);
 			break;
 		case GR_IFACE_MODE_BOND:
 			bond_ifindex = ifindex_grout_to_frr(gr_if->domain_id);

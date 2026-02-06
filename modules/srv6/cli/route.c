@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
@@ -40,7 +41,7 @@ static cmd_status_t srv6_nh_add(struct gr_api_client *c, const struct ec_pnode *
 
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;
-	if (arg_u16(p, "VRF", &req->nh.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req->nh.vrf_id) < 0)
 		goto out;
 
 	sr6 = (struct gr_nexthop_info_srv6 *)req->nh.info;
@@ -145,7 +146,7 @@ static int ctx_init(struct ec_node *root) {
 		with_help("Encaps Reduced.", ec_node_str("h.encaps.red", "h.encaps.red")),
 		with_help("Next SID to visit.", ec_node_re("SEGLIST", IPV6_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;

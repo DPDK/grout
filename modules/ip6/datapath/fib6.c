@@ -27,7 +27,7 @@ static struct rte_fib6_conf fib6_conf = {
 static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 	struct rte_fib6 *fib;
 
-	if (vrf_id >= GR_MAX_VRFS)
+	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -40,7 +40,7 @@ static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 static struct rte_fib6 *get_or_create_fib6(uint16_t vrf_id) {
 	struct rte_fib6 *fib;
 
-	if (vrf_id >= GR_MAX_VRFS)
+	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
 	fib = vrf_fibs[vrf_id];
@@ -151,14 +151,14 @@ int fib6_remove(
 
 static void fib6_init(struct event_base *) {
 	vrf_fibs = rte_calloc(
-		__func__, GR_MAX_VRFS, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE
+		__func__, GR_MAX_IFACES, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE
 	);
 	if (vrf_fibs == NULL)
 		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
 }
 
 static void fib6_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
 		rte_fib6_free(vrf_fibs[vrf_id]);
 		vrf_fibs[vrf_id] = NULL;
 	}

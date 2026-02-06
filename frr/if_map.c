@@ -54,6 +54,9 @@ DECLARE_HASH(
 static struct grout_to_frr_head grout_to_frr_mappings = INIT_HASH(grout_to_frr_mappings);
 static struct frr_to_grout_head frr_to_grout_mappings = INIT_HASH(frr_to_grout_mappings);
 
+// Default VRF interface ID (gr-loop0). 0 means not set yet.
+static uint16_t default_vrf_id;
+
 // Add bidirectional mapping
 bool add_ifindex_mapping(uint16_t grout_ifindex, ifindex_t frr_ifindex) {
 	struct ifindex_mapping *mapping = XCALLOC(MTYPE_GROUT_MEM, sizeof(*mapping));
@@ -103,6 +106,22 @@ bool remove_mapping_by_grout_ifindex(uint16_t grout_ifindex) {
 	frr_to_grout_del(&frr_to_grout_mappings, found);
 	XFREE(MTYPE_GROUT_MEM, found);
 	return true;
+}
+
+void set_default_vrf_id(uint16_t vrf_id) {
+	default_vrf_id = vrf_id;
+}
+
+vrf_id_t vrf_grout_to_frr(uint16_t gr_vrf_id) {
+	if (default_vrf_id != GR_IFACE_ID_UNDEF && gr_vrf_id == default_vrf_id)
+		return VRF_DEFAULT;
+	return ifindex_grout_to_frr(gr_vrf_id);
+}
+
+uint16_t vrf_frr_to_grout(vrf_id_t frr_vrf_id) {
+	if (frr_vrf_id == VRF_DEFAULT)
+		return default_vrf_id;
+	return ifindex_frr_to_grout(frr_vrf_id);
 }
 
 // Initialize the mapping tables
