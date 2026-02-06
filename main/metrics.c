@@ -16,6 +16,9 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unix_socket.h>
 
 static STAILQ_HEAD(, gr_metrics_collector) collectors = STAILQ_HEAD_INITIALIZER(collectors);
 
@@ -145,9 +148,61 @@ int gr_metrics_set_affinity(size_t set_size, const cpu_set_t *affinity) {
 	return pthread_setaffinity_np(thread_id, set_size, affinity);
 }
 
+static int metrics_bind_http(struct evhttp *http) {
+	char addr[256];
+
+	if (strchr(gr_config.metrics_addr, ':'))
+		snprintf(addr, sizeof(addr), "[%s]", gr_config.metrics_addr);
+	else
+		snprintf(addr, sizeof(addr), "%s", gr_config.metrics_addr);
+
+	errno = 0;
+	if (evhttp_bind_socket(http, gr_config.metrics_addr, gr_config.metrics_port) < 0) {
+		errno = errno ?: EADDRNOTAVAIL;
+		LOG(ERR, "bind %s:%u: %s", addr, gr_config.metrics_port, strerror(errno));
+		return errno_set(errno);
+	}
+
+	LOG(NOTICE, "openmetrics exporter listening on %s:%u", addr, gr_config.metrics_port);
+
+	if (event_base_dispatch(ev_base) < 0) {
+		errno = errno ?: EIO;
+		LOG(ERR, "event_base_dispatch: %s", strerror(errno));
+		return errno_set(errno);
+	}
+	return 0;
+}
+
+static int metrics_bind_unix(struct evhttp *http) {
+	int fd;
+
+	if ((fd = unix_socket_listen(gr_config.metrics_addr)) < 0) {
+		LOG(ERR, "Cannot bind metrics socket %s", gr_config.metrics_addr);
+		return fd;
+	}
+
+	if (evhttp_accept_socket(http, fd) < 0) {
+		LOG(ERR, "accept: %s: %s", gr_config.metrics_addr, strerror(errno));
+		goto end;
+	}
+
+	LOG(NOTICE, "openmetrics exporter listening on unix socket %s", gr_config.metrics_addr);
+
+	if (event_base_dispatch(ev_base) < 0) {
+		errno = errno ?: EIO;
+		LOG(ERR, "event_base_dispatch: %s", strerror(errno));
+		goto end;
+	}
+	errno = 0;
+
+end:
+	if (fd >= 0)
+		close(fd);
+	return errno_set(errno);
+}
+
 static void *metrics_thread(void *) {
 	struct evhttp *http = NULL;
-	char addr[256];
 
 	pthread_setname_np(pthread_self(), "grout:metrics");
 	pthread_setaffinity_np(
@@ -174,24 +229,11 @@ static void *metrics_thread(void *) {
 	evhttp_set_gencb(http, metrics_handler, NULL);
 	evhttp_set_default_content_type(http, "text/plain; version=0.0.4; charset=utf-8");
 
-	if (strchr(gr_config.metrics_addr, ':'))
-		snprintf(addr, sizeof(addr), "[%s]", gr_config.metrics_addr);
+	if (gr_config.metrics_port != 0)
+		metrics_bind_http(http);
+
 	else
-		snprintf(addr, sizeof(addr), "%s", gr_config.metrics_addr);
-
-	errno = 0;
-	if (evhttp_bind_socket(http, gr_config.metrics_addr, gr_config.metrics_port) < 0) {
-		errno = errno ?: EADDRNOTAVAIL;
-		LOG(ERR, "bind %s:%u: %s", addr, gr_config.metrics_port, strerror(errno));
-		goto end;
-	}
-
-	LOG(NOTICE, "openmetrics exporter listening on %s:%u", addr, gr_config.metrics_port);
-
-	if (event_base_dispatch(ev_base) < 0) {
-		errno = errno ?: EIO;
-		LOG(ERR, "event_base_dispatch: %s", strerror(errno));
-	}
+		metrics_bind_unix(http);
 
 end:
 	if (http != NULL)
@@ -203,7 +245,7 @@ end:
 }
 
 void gr_metrics_start(void) {
-	if (gr_config.metrics_addr != NULL && gr_config.metrics_port != 0) {
+	if (gr_config.metrics_addr != NULL) {
 		if (pthread_create(&thread_id, NULL, metrics_thread, NULL) != 0) {
 			LOG(ERR, "pthread_create: %s", strerror(errno));
 			thread_id = 0;
