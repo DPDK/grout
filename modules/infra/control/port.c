@@ -79,6 +79,9 @@ static struct rte_eth_conf default_port_config = {
 	.rxmode = {
 		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	},
+	.txmode = {
+		.offloads = 0,
+	},
 };
 
 int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
@@ -141,12 +144,16 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 	conf.rxmode.offloads &= info.rx_offload_capa;
+	conf.txmode.offloads &= info.tx_offload_capa;
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
+
+	p->rx_offloads = conf.rxmode.offloads;
+	p->tx_offloads = conf.txmode.offloads;
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {
