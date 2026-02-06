@@ -10,14 +10,14 @@ without assigning IP addresses directly to the Linux interface.
 
 By default, FRR daemons such as _bgpd_ require binding to a local IP address to
 accept incoming peer connections. This necessitates explicitly adding all Grout
-"local" IPs to the _gr-loop0_ interface. However, this approach is cumbersome
+"local" IPs to the _main_ interface. However, this approach is cumbersome
 and not ideal.
 
 The objective is to run _bgpd_ without assigning any IP address to the
-_gr-loop0_ network device. This is achieved by utilizing the _IP_TRANSPARENT_
+_main_ network device. This is achieved by utilizing the _IP_TRANSPARENT_
 socket option and FRR's capability to bind to a specific interface.
 
-# PACKETS FROM GROUT TO gr-loop0
+# PACKETS FROM GROUT TO main
 
 All packets received to a *local* IP configured in grout will be processed by
 the node _ip_input_local_/_ip6_input_local_. If the protocol isn't handled
@@ -45,7 +45,7 @@ exit
 !
 router bgp 64513
 	neighbor 192.168.210.3 remote-as 64513
-	neighbor 192.168.210.3 interface gr-loop0
+	neighbor 192.168.210.3 interface main
 	neighbor 192.168.210.3 update-source 192.168.210.1
 exit
 !
@@ -54,7 +54,7 @@ end
 
 Two additional configurations for a neighbor are required:
 
-- source interface, _gr-loop0_, only required for the default VRF
+- source interface, _main_, only required for the default VRF
 - update source IP, local Grout IP
 
 With that configuration, BGP messages are properly exchanged, and routes are

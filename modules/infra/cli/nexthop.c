@@ -281,7 +281,7 @@ static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pn
 
 	if (arg_str(p, "reject") != NULL)
 		req.nh.type = GR_NH_T_REJECT;
-	if (arg_u16(p, "VRF", &req.nh.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.nh.vrf_id) < 0)
 		return CMD_ERROR;
 	if (arg_u32(p, "ID", &req.nh.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -359,7 +359,7 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	char buf[128];
 	int ret;
 
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
 	type = arg_str(p, "TYPE");
@@ -380,7 +380,13 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
-		scols_line_sprintf(line, 0, "%u", nh->vrf_id);
+		if (nh->vrf_id == GR_VRF_ID_ALL) {
+			scols_line_set_data(line, 0, "-");
+		} else {
+			struct gr_iface *vrf = iface_from_id(c, nh->vrf_id);
+			scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
+			free(vrf);
+		}
 		if (nh->nh_id != GR_NH_ID_UNSET)
 			scols_line_sprintf(line, 1, "%u", nh->nh_id);
 		else
@@ -478,7 +484,7 @@ static int ctx_init(struct ec_node *root) {
 		nh_blackhole_add,
 		"Add a new blackhole nexthop.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("VRF ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help("Blackhole nexthop.", ec_node_str("blackhole", "blackhole")),
 		with_help("Reject nexthop sending ICMP UNREACH.", ec_node_str("reject", "reject"))
 	);
@@ -516,7 +522,7 @@ static int ctx_init(struct ec_node *root) {
 		"[show] [(vrf VRF),(type TYPE),(internal)]",
 		nh_list,
 		"List all next hops.",
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
 		),

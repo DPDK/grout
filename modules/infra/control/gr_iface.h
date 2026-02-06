@@ -84,9 +84,17 @@ int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
+// Get the VRF interface.
+// vrf_id is the VRF interface ID.
 struct iface *get_vrf_iface(uint16_t vrf_id);
-struct iface *iface_loopback_create(uint16_t vrf_id);
-int iface_loopback_delete(uint16_t vrf_id);
+
+// Register a reserved interface name.
+// If prefix is true, any name starting with the string is reserved.
+// If prefix is false, only the exact name is reserved.
+void iface_name_reserve(const char *name, bool prefix);
+
+// Check if a name matches any registered reserved name.
+bool iface_name_is_reserved(const char *name);
 
 struct __rte_cache_aligned iface_stats {
 	uint64_t rx_packets;
@@ -99,9 +107,7 @@ struct __rte_cache_aligned iface_stats {
 	uint64_t cp_tx_bytes;
 };
 
-#define MAX_IFACES 1024
-
-extern struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
+extern struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];
 static inline struct iface_stats *iface_get_stats(uint16_t lcore_id, uint16_t ifid) {
 	return &iface_stats[ifid][lcore_id];
 }

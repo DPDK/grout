@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
 
@@ -136,7 +137,7 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	if (arg_ip4(p, "IP", &req.addr) < 0)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "COUNT", &count)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
@@ -165,7 +166,7 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
@@ -190,7 +191,7 @@ static int ctx_init(struct ec_node *root) {
 		ping,
 		"Send IPv4 ICMP echo requests and wait for replies.",
 		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
 		with_help("Delay in ms between icmp echo.", ec_node_uint("DELAY", 0, 10000, 10)),
 		with_help(
@@ -211,7 +212,7 @@ static int ctx_init(struct ec_node *root) {
 			"Icmp ident field (default: random).",
 			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
 		),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 
 	return ret;

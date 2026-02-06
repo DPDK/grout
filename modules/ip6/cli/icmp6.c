@@ -147,7 +147,7 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "COUNT", &count)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
@@ -182,7 +182,7 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "VRF", &req.vrf)) < 0 && ret != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
@@ -220,7 +220,7 @@ static int ctx_init(struct ec_node *root) {
 			"Output interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
 		with_help("Delay in ms between icmp6 echo.", ec_node_uint("DELAY", 0, 10000, 10)),
 		with_help(
@@ -237,7 +237,7 @@ static int ctx_init(struct ec_node *root) {
 		traceroute,
 		"Discover IPv6 intermediate gateways.",
 		with_help("IPv6 destination address.", ec_node_re("DEST", IPV6_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10)),
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Output interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))

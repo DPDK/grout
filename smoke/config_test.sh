@@ -26,14 +26,16 @@ grcli nexthop add group id 333 member 42 weight 102
 grcli nexthop add group id 333 member 45 member 47
 grcli nexthop add group id 334 member 42 weight 10000 member 45 weight 1
 grcli nexthop add group id 334
-grcli address add 10.0.0.1/24 iface p0
-grcli address add 10.1.0.1/24 iface p1
+grcli interface add port p2 devargs net_null2,no-rx=1
+grcli interface add port p3 devargs net_null3,no-rx=1
+grcli address add 10.0.0.1/24 iface p2
+grcli address add 10.1.0.1/24 iface p3
 grcli route add 0.0.0.0/0 via 10.0.0.2
 grcli route add 0.0.0.0/0 via 10.0.0.1 || fail "route replace should succeed"
 grcli route add 4.5.21.2/27 via id 47
 grcli route add 172.16.47.0/24 via id 1047
-grcli address add 2345::1/24 iface p0
-grcli address add 2346::1/24 iface p1
+grcli address add 2345::1/24 iface p2
+grcli address add 2346::1/24 iface p3
 grcli route add ::/0 via 2345::2
 grcli route add ::/0 via 2345::1 || fail "route replace should succeed"
 grcli route add 2521:111::4/37 via id 1047
@@ -58,6 +60,8 @@ grcli interface del v43
 grcli interface del bond0
 grcli interface del p0
 grcli interface del p1
+grcli interface del p2
+grcli interface del p3
 
 if [ "$(grcli nexthop show | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
 if [ "$(grcli route show | wc -l)" -ne 0 ]; then fail "route list is not empty" ; fi

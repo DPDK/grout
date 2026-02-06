@@ -25,7 +25,7 @@ static cmd_status_t route6_add(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 	if (arg_u32(p, "ID", &req.nh_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP6_ROUTE_ADD, sizeof(req), &req, NULL) < 0)
@@ -39,7 +39,7 @@ static cmd_status_t route6_del(struct gr_api_client *c, const struct ec_pnode *p
 
 	if (arg_ip6_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP6_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
@@ -56,7 +56,9 @@ static int route6_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP6_ROUTE_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%u", route->vrf_id);
+		struct gr_iface *vrf = iface_from_id(c, route->vrf_id);
+		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
+		free(vrf);
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
@@ -74,8 +76,7 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 
 	if (arg_ip6(p, "DEST", &req.dest) < 0)
 		return CMD_ERROR;
-
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP6_ROUTE_GET, sizeof(req), &req, &resp_ptr) < 0)

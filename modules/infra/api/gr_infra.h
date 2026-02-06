@@ -16,7 +16,7 @@
 // Network interface types.
 typedef enum : uint8_t {
 	GR_IFACE_TYPE_UNDEF = 0,
-	GR_IFACE_TYPE_LOOPBACK, // One per VRF, auto-created/deleted.
+	GR_IFACE_TYPE_VRF,
 	GR_IFACE_TYPE_PORT,
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
@@ -45,7 +45,9 @@ typedef enum : uint16_t {
 
 // Special VRF ID representing all VRFs.
 #define GR_VRF_ID_ALL UINT16_MAX
-#define GR_MAX_VRFS 256
+
+// Maximum number of interfaces.
+#define GR_MAX_IFACES 1024
 
 // Interface operating modes.
 typedef enum : uint8_t {
@@ -70,7 +72,10 @@ struct __gr_iface_base {
 	gr_iface_flags_t flags; // Bit mask of GR_IFACE_F_*.
 	gr_iface_state_t state; // Bit mask of GR_IFACE_S_*.
 	uint16_t mtu; // Maximum transmission unit size (incl. headers).
-	uint16_t vrf_id; // L3 addressing and routing domain (GR_IFACE_MODE_VRF).
+	// L3 addressing and routing domain (GR_IFACE_MODE_VRF).
+	// On iface creation, if vrf_id is 0 the interface is assigned
+	// to the default VRF (auto-created if it does not exist yet).
+	uint16_t vrf_id;
 	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
 };
@@ -108,6 +113,14 @@ struct gr_iface_info_port {
 #define GR_PORT_DRIVER_NAME_SIZE 32
 	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
 };
+
+// Info structure for GR_IFACE_TYPE_VRF interfaces.
+struct gr_iface_info_vrf {
+	bool default_vrf; // True if this is the auto-created default VRF.
+};
+
+// Reserved name for the auto-created default VRF.
+#define GR_DEFAULT_VRF_NAME "main"
 
 // VLAN reconfiguration attribute flags.
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
@@ -213,7 +226,7 @@ typedef enum {
 // interface management ///////////////////////////////////////////////////////
 
 // Create a new interface.
-// Loopback interfaces are auto-created when the first interface in a VRF is added.
+// VRFs must be created before other interfaces can use them.
 #define GR_INFRA_IFACE_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0001)
 
 struct gr_infra_iface_add_req {
@@ -222,12 +235,11 @@ struct gr_infra_iface_add_req {
 };
 
 struct gr_infra_iface_add_resp {
-	// Loopback for VRF N (1-255) is at ID N. VRF 0 is at ID 256. Other IDs start from 257.
+	// The allocated interface ID. For VRFs, this ID also serves as the VRF identifier.
 	uint16_t iface_id;
 };
 
 // Delete an existing interface.
-// Loopback interfaces are auto-deleted when the last interface in a VRF is removed.
 #define GR_INFRA_IFACE_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0002)
 
 struct gr_infra_iface_del_req {
@@ -425,8 +437,8 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 	switch (type) {
 	case GR_IFACE_TYPE_UNDEF:
 		return "undef";
-	case GR_IFACE_TYPE_LOOPBACK:
-		return "loopback";
+	case GR_IFACE_TYPE_VRF:
+		return "vrf";
 	case GR_IFACE_TYPE_PORT:
 		return "port";
 	case GR_IFACE_TYPE_VLAN:

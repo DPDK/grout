@@ -4,20 +4,22 @@
 
 . $(dirname $0)/_init.sh
 
-port_add p0 vrf 1
-port_add p1 vrf 2
+grcli interface add vrf gr-vrf1
+grcli interface add vrf gr-vrf2
+port_add p0 vrf gr-vrf1
+port_add p1 vrf gr-vrf2
 grcli address add 172.16.0.1/24 iface p0
 grcli address add 172.16.1.1/24 iface p1
 
 # from 16.0.0.1 to 16.1.0.1, only one route lookup is done
 grcli nexthop add l3 iface p1 id 2 address 172.16.1.2
-grcli route add 16.1.0.0/16 via id 2 vrf 1
-grcli route add 16.1.0.0/16 via id 2 vrf 2 # required for ARP resolution
+grcli route add 16.1.0.0/16 via id 2 vrf gr-vrf1
+grcli route add 16.1.0.0/16 via id 2 vrf gr-vrf2 # required for ARP resolution
 
 # from 16.1.0.1 to 16.0.0.1, two route lookup are done
 grcli nexthop add l3 iface gr-vrf1 id 1
-grcli route add 16.0.0.0/16 via id 1 vrf 2
-grcli route add 16.0.0.0/16 via 172.16.0.2 vrf 1
+grcli route add 16.0.0.0/16 via id 1 vrf gr-vrf2
+grcli route add 16.0.0.0/16 via 172.16.0.2 vrf gr-vrf1
 
 for n in 0 1; do
 	p=x-p$n

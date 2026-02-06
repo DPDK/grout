@@ -24,11 +24,11 @@
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
-struct iface_stats iface_stats[MAX_IFACES][RTE_MAX_LCORE];
+struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];
 
 static bool iface_type_valid(gr_iface_type_t type) {
 	switch (type) {
-	case GR_IFACE_TYPE_LOOPBACK:
+	case GR_IFACE_TYPE_VRF:
 	case GR_IFACE_TYPE_PORT:
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_IPIP:
@@ -57,6 +57,31 @@ void iface_type_register(struct iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
+struct reserved_name {
+	const char *name;
+	bool prefix;
+};
+
+static gr_vec struct reserved_name *reserved_names;
+
+void iface_name_reserve(const char *name, bool prefix) {
+	struct reserved_name r = {.name = name, .prefix = prefix};
+	gr_vec_add(reserved_names, r);
+}
+
+bool iface_name_is_reserved(const char *name) {
+	gr_vec_foreach (struct reserved_name r, reserved_names) {
+		if (r.prefix) {
+			if (strncmp(name, r.name, strlen(r.name)) == 0)
+				return true;
+		} else {
+			if (strncmp(name, r.name, GR_IFACE_NAME_SIZE) == 0)
+				return true;
+		}
+	}
+	return false;
+}
+
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
 
 // the first slot is wasted by GR_IFACE_ID_UNDEF
@@ -65,7 +90,7 @@ static struct iface **ifaces;
 // Reserve a specific interface id.
 // Returns 0 on success, -errno on failure.
 static int reserve_ifid(uint16_t ifid) {
-	if (ifid >= MAX_IFACES)
+	if (ifid >= GR_MAX_IFACES)
 		return errno_set(EINVAL);
 
 	if (ifaces[ifid] == NULL)
@@ -74,9 +99,8 @@ static int reserve_ifid(uint16_t ifid) {
 	return errno_set(EBUSY);
 }
 
-// The slot 1 to 255 are reserved for gr_loopback
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = GR_MAX_VRFS; i < MAX_IFACES; i++) {
+	for (uint16_t i = IFACE_ID_FIRST; i < GR_MAX_IFACES; i++) {
 		if (reserve_ifid(i) < 0)
 			continue;
 
@@ -87,9 +111,35 @@ static int next_ifid(uint16_t *ifid) {
 	return errno_set(ENOSPC);
 }
 
+// Get or create the default VRF. Returns the default VRF's iface_id, or 0 on error.
+static uint16_t get_or_create_default_vrf(void) {
+	struct iface *vrf = NULL;
+
+	// Look for existing default VRF
+	while ((vrf = iface_next(GR_IFACE_TYPE_VRF, vrf)) != NULL) {
+		if (vrf_is_default(vrf))
+			return vrf->id;
+	}
+
+	// Create the default VRF
+	struct gr_iface vrf_conf = {
+		.type = GR_IFACE_TYPE_VRF,
+		.flags = GR_IFACE_F_UP,
+	};
+	struct gr_iface_info_vrf lo_info = {.default_vrf = true};
+	memcpy(vrf_conf.name, GR_DEFAULT_VRF_NAME, sizeof(GR_DEFAULT_VRF_NAME));
+
+	vrf = iface_create(&vrf_conf, &lo_info);
+	if (vrf == NULL)
+		return 0;
+
+	return vrf->id;
+}
+
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	const struct iface_type *type = iface_type_get(conf->type);
 	struct iface *iface = NULL;
+	bool type_init = false;
 	bool vrf_ref = false;
 	uint16_t ifid;
 
@@ -104,31 +154,37 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 			goto fail;
 		}
 	}
-	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
-		if (conf->vrf_id >= GR_MAX_VRFS) {
-			errno = EOVERFLOW;
-			goto fail;
-		}
-		if (conf->type != GR_IFACE_TYPE_LOOPBACK) {
-			vrf_incref(conf->vrf_id);
-			vrf_ref = true;
-		}
-	}
+
 	iface = rte_zmalloc(__func__, sizeof(*iface) + type->priv_size, RTE_CACHE_LINE_SIZE);
 	if (iface == NULL) {
 		errno = ENOMEM;
 		goto fail;
 	}
-	if (conf->type == GR_IFACE_TYPE_LOOPBACK && conf->vrf_id) {
-		ifid = conf->vrf_id;
-		if (reserve_ifid(ifid) < 0)
-			goto fail;
-	} else if (next_ifid(&ifid) < 0)
+	iface->base = conf->base;
+
+	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
+		if (conf->type != GR_IFACE_TYPE_VRF) {
+			uint16_t vrf_id = conf->vrf_id;
+
+			// Auto-create default VRF if no VRF specified
+			if (vrf_id == 0) {
+				vrf_id = get_or_create_default_vrf();
+				if (vrf_id == 0)
+					goto fail;
+			}
+			if (vrf_incref(vrf_id) < 0)
+				goto fail;
+			vrf_ref = true;
+			iface->vrf_id = vrf_id;
+		}
+
+		iface->mode = GR_IFACE_MODE_VRF;
+	}
+	if (next_ifid(&ifid) < 0)
 		goto fail;
 
-	iface->base = conf->base;
-	iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 	iface->id = ifid;
+	iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
 	iface->name = strndup(conf->name, GR_IFACE_NAME_SIZE);
 	if (iface->name == NULL)
@@ -136,10 +192,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	if (type->init(iface, api_info) < 0)
 		goto fail;
+	type_init = true;
 
-	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
-		iface->mode = GR_IFACE_MODE_VRF;
-	} else {
+	if (conf->domain_id != GR_IFACE_ID_UNDEF) {
 		const struct iface_type *t;
 		struct iface *domain;
 
@@ -180,7 +235,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	return iface;
 fail:
 	if (vrf_ref)
-		vrf_decref(conf->vrf_id);
+		vrf_decref(iface->vrf_id);
+	if (type_init)
+		type->fini(iface);
 	if (iface != NULL)
 		free(iface->name);
 	rte_free(iface);
@@ -195,7 +252,7 @@ static void detach_domain(struct iface *iface) {
 	struct iface *domain;
 
 	if (iface->mode == GR_IFACE_MODE_VRF) {
-		if (iface->type != GR_IFACE_TYPE_LOOPBACK)
+		if (iface->type != GR_IFACE_TYPE_VRF)
 			vrf_decref(iface->vrf_id);
 		return;
 	}
@@ -249,9 +306,8 @@ int iface_reconfig(
 	assert(type != NULL);
 
 	if (set_attrs & GR_IFACE_SET_VRF) {
-		if (conf->vrf_id >= GR_MAX_VRFS)
-			return errno_set(EOVERFLOW);
-		vrf_incref(conf->vrf_id);
+		if (vrf_incref(conf->vrf_id) < 0)
+			return -errno;
 	}
 	ret = type->reconfig(iface, set_attrs, conf, api_info);
 	if (ret < 0)
@@ -309,7 +365,7 @@ err:
 uint16_t ifaces_count(gr_iface_type_t type_id) {
 	uint16_t count = 0;
 
-	for (uint16_t ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	for (uint16_t ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			count++;
@@ -326,7 +382,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 	else
 		start_id = prev->id + 1;
 
-	for (uint16_t ifid = start_id; ifid < MAX_IFACES; ifid++) {
+	for (uint16_t ifid = start_id; ifid < GR_MAX_IFACES; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			return iface;
@@ -337,7 +393,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 
 struct iface *iface_from_id(uint16_t ifid) {
 	struct iface *iface = NULL;
-	if (ifid != GR_IFACE_ID_UNDEF && ifid < MAX_IFACES)
+	if (ifid != GR_IFACE_ID_UNDEF && ifid < GR_MAX_IFACES)
 		iface = ifaces[ifid];
 	if (iface == NULL)
 		errno = ENODEV;
@@ -487,6 +543,8 @@ int iface_destroy(struct iface *iface) {
 
 	if (gr_vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
+	if (iface->type == GR_IFACE_TYPE_VRF && vrf_has_interfaces(iface->id))
+		return errno_set(EBUSY);
 
 	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 	// interface is still up, send status down
@@ -517,7 +575,7 @@ int iface_destroy(struct iface *iface) {
 }
 
 static void iface_init(struct event_base *) {
-	ifaces = rte_calloc(__func__, MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
+	ifaces = rte_calloc(__func__, GR_MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
 	if (ifaces == NULL)
 		ABORT("rte_calloc(ifaces)");
 }
@@ -527,21 +585,32 @@ static void iface_fini(struct event_base *) {
 	uint16_t ifid;
 
 	// Destroy all virtual interface first before removing DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
 		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
-		    && iface->type != GR_IFACE_TYPE_LOOPBACK) {
+		    && iface->type != GR_IFACE_TYPE_VRF) {
 			if (iface_destroy(iface) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
 			ifaces[ifid] = NULL;
 		}
 	}
 
-	// Finally, destroy DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < MAX_IFACES; ifid++) {
+	// Then, destroy DPDK ports.
+	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
 		iface = ifaces[ifid];
-		if (iface == NULL || iface->type == GR_IFACE_TYPE_LOOPBACK)
+		if (iface == NULL || iface->type == GR_IFACE_TYPE_VRF)
 			continue;
+		if (iface_destroy(iface) < 0)
+			LOG(ERR, "iface_destroy: %s", strerror(errno));
+	}
+
+	// Finally, destroy VRF interfaces.
+	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
+		iface = ifaces[ifid];
+		if (iface == NULL)
+			continue;
+		assert(iface->type == GR_IFACE_TYPE_VRF);
+
 		if (iface_destroy(iface) < 0)
 			LOG(ERR, "iface_destroy: %s", strerror(errno));
 	}
