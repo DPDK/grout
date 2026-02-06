@@ -154,8 +154,7 @@ static int ctx_init(struct ec_node *root) {
 		"set SRC",
 		srv6_tunsrc_set,
 		"Set Segment Routing SRv6 source address",
-		with_help("Ipv6 address to use as source.", ec_node_re("SRC", IPV6_RE)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("Ipv6 address to use as source.", ec_node_re("SRC", IPV6_RE))
 	);
 	if (ret < 0)
 		return ret;
