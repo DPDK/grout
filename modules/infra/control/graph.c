@@ -92,6 +92,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	char graph_name[RTE_GRAPH_NAMESIZE];
 	char node_name[RTE_NODE_NAMESIZE];
 	gr_vec char **rx_nodes = NULL;
+	struct iface_info_port *port;
 	struct queue_map *qmap;
 	struct rte_node *node;
 	uint16_t graph_uid;
@@ -151,11 +152,23 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		snprintf(node_name, sizeof(node_name), RX_NODE_FMT, qmap->port_id, qmap->queue_id);
 		node = rte_graph_node_get_by_name(graph_name, node_name);
 		struct rx_node_ctx *ctx = rx_node_ctx(node);
-		struct iface_info_port *port = find_port(ports, qmap->port_id);
+		port = find_port(ports, qmap->port_id);
 		ctx->iface = RTE_PTR_SUB(port, offsetof(struct iface, info));
 		ctx->rxq.port_id = qmap->port_id;
 		ctx->rxq.queue_id = qmap->queue_id;
 		ctx->burst_size = RTE_GRAPH_BURST_SIZE / gr_vec_len(worker->rxqs);
+		// select the appropriate node process callback
+		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
+			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+				node->process = rx_bond_offload_process;
+			else
+				node->process = rx_bond_process;
+		} else {
+			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+				node->process = rx_offload_process;
+			else
+				node->process = rx_process;
+		}
 	}
 
 	// initialize all tx nodes context to invalid ports and queues
@@ -191,6 +204,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		struct tx_node_ctx *ctx = tx_node_ctx(node);
 		ctx->txq.port_id = qmap->port_id;
 		ctx->txq.queue_id = qmap->queue_id;
+		port = find_port(ports, qmap->port_id);
 
 		// set spinlock only if multiple workers share this TX queue
 		unsigned txq_users = 0;
@@ -202,14 +216,22 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 			}
 		}
 		if (txq_users > 1) {
-			struct iface_info_port *port = find_port(ports, qmap->port_id);
 			ctx->lock = &port->txq_locks[qmap->queue_id];
+			if (port->tx_offloads & RTE_ETH_TX_OFFLOAD_VLAN_INSERT)
+				node->process = tx_shared_offload_process;
+			else
+				node->process = tx_shared_process;
 			LOG(WARNING,
 			    "[CPU %d] port %s txq %u shared by %u workers",
 			    worker->cpu_id,
 			    port->devargs,
 			    qmap->queue_id,
 			    txq_users);
+		} else {
+			if (port->tx_offloads & RTE_ETH_TX_OFFLOAD_VLAN_INSERT)
+				node->process = tx_offload_process;
+			else
+				node->process = tx_process;
 		}
 
 		for (rte_edge_t edge = 0; edge < gr_vec_len(tx_node_names); edge++) {

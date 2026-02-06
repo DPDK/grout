@@ -48,6 +48,8 @@ struct iface_type {
 	int (*fini)(struct iface *);
 	int (*attach_domain)(struct iface *domain, struct iface *iface);
 	int (*detach_domain)(struct iface *domain, struct iface *iface);
+	int (*add_subinterface)(struct iface *parent, struct iface *sub);
+	int (*del_subinterface)(struct iface *parent, struct iface *sub);
 	int (*get_eth_addr)(const struct iface *, struct rte_ether_addr *);
 	int (*set_eth_addr)(struct iface *, const struct rte_ether_addr *);
 	int (*add_eth_addr)(struct iface *, const struct rte_ether_addr *);
@@ -57,11 +59,9 @@ struct iface_type {
 	int (*set_promisc)(struct iface *, bool enabled);
 	void (*to_api)(void *api_info, const struct iface *);
 	void (*metrics_collect)(struct gr_metrics_ctx *, const struct iface *);
-	const char *name;
-	STAILQ_ENTRY(iface_type) next;
 };
 
-void iface_type_register(struct iface_type *);
+void iface_type_register(const struct iface_type *);
 const struct iface_type *iface_type_get(gr_iface_type_t type_id);
 struct iface *iface_create(const struct gr_iface *conf, const void *api_info);
 int iface_reconfig(
@@ -72,8 +72,8 @@ int iface_reconfig(
 );
 int iface_destroy(struct iface *);
 struct iface *iface_from_id(uint16_t ifid);
-void iface_add_subinterface(struct iface *parent, struct iface *sub);
-void iface_del_subinterface(struct iface *parent, struct iface *sub);
+int iface_add_subinterface(struct iface *parent, struct iface *sub);
+int iface_del_subinterface(struct iface *parent, struct iface *sub);
 int iface_get_eth_addr(const struct iface *, struct rte_ether_addr *);
 int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *);
 int iface_add_eth_addr(struct iface *, const struct rte_ether_addr *);

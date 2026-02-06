@@ -17,7 +17,7 @@ enum {
 	ERROR,
 	EDGE_COUNT,
 };
-static rte_edge_t edges[256] = {UNKNOWN_PROTO};
+static rte_edge_t edges[UINT_NUM_VALUES(uint8_t)] = {UNKNOWN_PROTO};
 
 void ip6_input_local_add_proto(uint8_t proto, const char *next_node) {
 	LOG(DEBUG, "ip6_input_local: proto=%hhu -> %s", proto, next_node);

@@ -22,7 +22,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static rte_edge_t l3_edges[1 << 16] = {UNKNOWN_PROTO};
+static rte_edge_t l3_edges[UINT_NUM_VALUES(rte_be16_t)] = {UNKNOWN_PROTO};
 
 void loopback_input_add_type(rte_be16_t eth_type, const char *next_node) {
 	LOG(DEBUG, "loopback_input: type=0x%04x -> %s", rte_be_to_cpu_16(eth_type), next_node);

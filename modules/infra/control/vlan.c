@@ -69,13 +69,15 @@ static int iface_vlan_reconfig(
 			struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
 
 			rte_hash_del_key(vlan_hash, &cur_key);
-			iface_del_subinterface(cur_parent, iface);
+			if ((ret = iface_del_subinterface(cur_parent, iface)) < 0)
+				return ret;
 			iface->state &= ~GR_IFACE_S_RUNNING;
 		}
 
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
-		iface_add_subinterface(next_parent, iface);
+		if ((ret = iface_add_subinterface(next_parent, iface)) < 0)
+			return ret;
 		iface->mtu = next_parent->mtu;
 		iface->speed = next_parent->speed;
 
@@ -114,7 +116,8 @@ static int iface_vlan_fini(struct iface *iface) {
 	if ((ret = iface_del_eth_addr(parent, &vlan->mac)) < 0)
 		status = status ?: ret;
 
-	iface_del_subinterface(parent, iface);
+	if ((ret = iface_del_subinterface(parent, iface)) < 0)
+		status = status ?: ret;
 
 	return status;
 }
@@ -184,9 +187,8 @@ static void vlan_to_api(void *info, const struct iface *iface) {
 	*api = vlan->base;
 }
 
-static struct iface_type iface_type_vlan = {
+static const struct iface_type iface_type_vlan = {
 	.id = GR_IFACE_TYPE_VLAN,
-	.name = "vlan",
 	.pub_size = sizeof(struct gr_iface_info_vlan),
 	.priv_size = sizeof(struct iface_info_vlan),
 	.init = iface_vlan_init,

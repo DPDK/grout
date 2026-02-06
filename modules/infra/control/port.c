@@ -79,6 +79,9 @@ static struct rte_eth_conf default_port_config = {
 	.rxmode = {
 		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	},
+	.txmode = {
+		.offloads = 0,
+	},
 };
 
 int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
@@ -141,12 +144,18 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	else
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 	conf.rxmode.offloads &= info.rx_offload_capa;
+	if (p->want_vlan_offload)
+		conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_VLAN_INSERT;
+	conf.txmode.offloads &= info.tx_offload_capa;
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
+
+	p->rx_offloads = conf.rxmode.offloads;
+	p->tx_offloads = conf.txmode.offloads;
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {
@@ -810,9 +819,47 @@ static void port_fini(struct event_base *) {
 	gr_vec_free(reset_ports);
 }
 
-static struct iface_type iface_type_port = {
+int port_set_vlan_offload(struct iface *iface, bool enable) {
+	struct iface_info_port *p = iface_info_port(iface);
+	struct gr_iface_info_port api = {0};
+	int ret = 0;
+
+	if (p->want_vlan_offload == enable)
+		return 0;
+
+	p->want_vlan_offload = enable;
+
+	if (p->started) {
+		// Trigger port reconfiguration to apply the new offload setting.
+		// Use GR_PORT_SET_N_RXQS as a dummy flag to force reconfiguration.
+		api.n_rxq = p->n_rxq;
+		ret = iface_port_reconfig(iface, GR_PORT_SET_N_RXQS, NULL, &api);
+	}
+
+	return ret;
+}
+
+static int port_add_subinterface(struct iface *parent, struct iface *sub) {
+	if (sub->type != GR_IFACE_TYPE_VLAN)
+		return 0;
+
+	return port_set_vlan_offload(parent, true);
+}
+
+static int port_del_subinterface(struct iface *parent, struct iface *sub) {
+	if (sub->type != GR_IFACE_TYPE_VLAN)
+		return 0;
+
+	gr_vec_foreach (const struct iface *s, parent->subinterfaces) {
+		if (s != sub && s->type == GR_IFACE_TYPE_VLAN)
+			return 0; // port still has at least one VLAN sub interface
+	}
+
+	return port_set_vlan_offload(parent, false);
+}
+
+static const struct iface_type iface_type_port = {
 	.id = GR_IFACE_TYPE_PORT,
-	.name = "port",
 	.pub_size = sizeof(struct gr_iface_info_port),
 	.priv_size = sizeof(struct iface_info_port),
 	.init = iface_port_init,
@@ -820,6 +867,8 @@ static struct iface_type iface_type_port = {
 	.fini = iface_port_fini,
 	.attach_domain = iface_port_attach_peer,
 	.detach_domain = iface_port_detach_peer,
+	.add_subinterface = port_add_subinterface,
+	.del_subinterface = port_del_subinterface,
 	.get_eth_addr = port_mac_get,
 	.add_eth_addr = port_mac_add,
 	.del_eth_addr = port_mac_del,
