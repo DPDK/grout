@@ -35,4 +35,4 @@ route add 2521:113::/64 via id 47 vrf 1
 EOF
 
 # dump all metrics
-curl --fail http://localhost:9111/metrics
+curl --fail --noproxy '*' http://localhost:9111/metrics
