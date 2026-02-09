@@ -6,11 +6,11 @@
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_netlink.h>
+#include <gr_vrf.h>
 
 #include <rte_ethdev.h>
 
 #include <linux/rtnetlink.h>
-#include <vrf_priv.h>
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	struct iface *iface = iface_from_id(vrf_id);

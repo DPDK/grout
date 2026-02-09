@@ -11,6 +11,7 @@
 #include <gr_mempool.h>
 #include <gr_module.h>
 #include <gr_netlink.h>
+#include <gr_vrf.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -24,7 +25,6 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#include <vrf_priv.h>
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
