@@ -57,6 +57,19 @@ void iface_type_register(struct iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
+static int iface_name_is_valid(const struct gr_iface *conf, const struct iface *exclude) {
+	const struct iface *iface = NULL;
+
+	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+		return -errno;
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		if (iface != exclude && strcmp(conf->name, iface->name) == 0)
+			return errno_set(EEXIST);
+	}
+
+	return 0;
+}
+
 #define IFACE_ID_FIRST GR_IFACE_ID_UNDEF + 1
 
 // the first slot is wasted by GR_IFACE_ID_UNDEF
@@ -96,15 +109,8 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	if (type == NULL)
 		goto fail;
-	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+	if (iface_name_is_valid(conf, NULL) < 0)
 		goto fail;
-	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		if (strcmp(conf->name, iface->name) == 0) {
-			iface = NULL;
-			errno = EEXIST;
-			goto fail;
-		}
-	}
 	if (conf->domain_id == GR_IFACE_ID_UNDEF) {
 		if (conf->vrf_id >= GR_MAX_VRFS) {
 			errno = EOVERFLOW;
@@ -234,13 +240,8 @@ int iface_reconfig(
 		return -errno;
 
 	if (set_attrs & GR_IFACE_SET_NAME) {
-		if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+		if (iface_name_is_valid(conf, iface) < 0)
 			return -errno;
-
-		const struct iface *i = NULL;
-		while ((i = iface_next(GR_IFACE_TYPE_UNDEF, i)) != NULL)
-			if (i != iface && strcmp(conf->name, i->name) == 0)
-				return errno_set(EEXIST);
 
 		char *new_name = strndup(conf->name, GR_IFACE_NAME_SIZE);
 		if (new_name == NULL)
