@@ -88,6 +88,11 @@ struct iface *get_vrf_iface(uint16_t vrf_id);
 struct iface *iface_loopback_create(uint16_t vrf_id);
 int iface_loopback_delete(uint16_t vrf_id);
 
+// Register a name prefix reserved for internal use.
+// Interfaces with names starting with a reserved prefix cannot be created
+// or renamed by users (except for the loopback type).
+void iface_name_reserve(const char *prefix);
+
 struct __rte_cache_aligned iface_stats {
 	uint64_t rx_packets;
 	uint64_t rx_bytes;

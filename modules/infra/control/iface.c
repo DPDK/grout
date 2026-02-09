@@ -57,6 +57,20 @@ void iface_type_register(struct iface_type *type) {
 	STAILQ_INSERT_TAIL(&types, type, next);
 }
 
+static gr_vec const char **reserved_prefixes;
+
+void iface_name_reserve(const char *prefix) {
+	gr_vec_add(reserved_prefixes, prefix);
+}
+
+static bool iface_name_is_reserved(const char *name) {
+	gr_vec_foreach (const char *prefix, reserved_prefixes) {
+		if (strncmp(name, prefix, strlen(prefix)) == 0)
+			return true;
+	}
+	return false;
+}
+
 static int iface_name_is_valid(const struct gr_iface *conf, const struct iface *exclude) {
 	const struct iface *iface = NULL;
 
@@ -66,6 +80,8 @@ static int iface_name_is_valid(const struct gr_iface *conf, const struct iface *
 		if (iface != exclude && strcmp(conf->name, iface->name) == 0)
 			return errno_set(EEXIST);
 	}
+	if (conf->type != GR_IFACE_TYPE_LOOPBACK && iface_name_is_reserved(conf->name))
+		return errno_set(EINVAL);
 
 	return 0;
 }
@@ -551,6 +567,7 @@ static void iface_fini(struct event_base *) {
 			LOG(ERR, "iface_destroy: %s", strerror(errno));
 	}
 
+	gr_vec_free(reserved_prefixes);
 	rte_free(ifaces);
 	ifaces = NULL;
 }
