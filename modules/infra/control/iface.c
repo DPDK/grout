@@ -11,6 +11,7 @@
 #include <gr_rcu.h>
 #include <gr_string.h>
 #include <gr_vec.h>
+#include <gr_vrf.h>
 
 #include <event2/event.h>
 #include <rte_ethdev.h>
@@ -19,7 +20,6 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
-#include <vrf_priv.h>
 #include <wchar.h>
 
 static STAILQ_HEAD(, iface_type) types = STAILQ_HEAD_INITIALIZER(types);
