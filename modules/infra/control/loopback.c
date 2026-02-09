@@ -28,8 +28,10 @@
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
-#define GR_LOOPBACK_NAME_PATTERN "gr-vrf%d"
-#define GR_LOOPBACK_TUN_NAME_PATTERN "gr-loop%d"
+#define GR_LOOPBACK_NAME_PREFIX "gr-vrf"
+#define GR_LOOPBACK_NAME_PATTERN GR_LOOPBACK_NAME_PREFIX "%d"
+#define GR_LOOPBACK_TUN_NAME_PREFIX "gr-loop"
+#define GR_LOOPBACK_TUN_NAME_PATTERN GR_LOOPBACK_TUN_NAME_PREFIX "%d"
 
 static struct rte_mempool *loopback_pool;
 static struct event_base *ev_base;
@@ -325,5 +327,7 @@ static struct gr_module loopback_module = {
 
 RTE_INIT(loopback_constructor) {
 	iface_type_register(&iface_type_loopback);
+	iface_name_reserve(GR_LOOPBACK_NAME_PREFIX);
+	iface_name_reserve(GR_LOOPBACK_TUN_NAME_PREFIX);
 	gr_register_module(&loopback_module);
 }
