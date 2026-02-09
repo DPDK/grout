@@ -37,8 +37,10 @@
 
 . $(dirname $0)/_init_frr.sh
 
+create_vrf gr-vrf1
+
 create_interface p0
-create_interface p1 vrf 1
+create_interface p1 vrf gr-vrf1
 
 set_ip_address p0 fd00:102::2/64
 set_ip_address p1 16.1.0.1/24

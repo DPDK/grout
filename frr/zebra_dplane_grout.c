@@ -213,7 +213,7 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 
 static void grout_sync_ifaces(struct event *) {
 	struct gr_infra_iface_list_req if_req = {.type = GR_IFACE_TYPE_UNDEF};
-	bool sync_vrf[GR_MAX_VRFS] = {false};
+	bool sync_vrf[GR_MAX_IFACES] = {false};
 	struct gr_iface *iface;
 	int ret;
 
@@ -230,7 +230,7 @@ static void grout_sync_ifaces(struct event *) {
 	if (ret < 0)
 		gr_log_err("GR_INFRA_IFACE_LIST: %s", strerror(errno));
 
-	for (unsigned i = 0; i < GR_MAX_VRFS; i++) {
+	for (unsigned i = 0; i < GR_MAX_IFACES; i++) {
 		if (sync_vrf[i])
 			event_add_event(zrouter.master, grout_sync_ifaces_addresses, NULL, i, NULL);
 	}

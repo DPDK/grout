@@ -30,7 +30,7 @@
 
 static struct rte_rib **vrf_ribs;
 
-static uint32_t route_counts[GR_MAX_VRFS][UINT_NUM_VALUES(gr_nh_origin_t)];
+static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 static struct rte_rib_conf rib_conf = {
 	.ext_sz = sizeof(gr_nh_origin_t),
@@ -40,7 +40,7 @@ static struct rte_rib_conf rib_conf = {
 static struct rte_rib *get_rib(uint16_t vrf_id) {
 	struct rte_rib *rib;
 
-	if (vrf_id >= GR_MAX_VRFS)
+	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
 	rib = vrf_ribs[vrf_id];
@@ -53,7 +53,7 @@ static struct rte_rib *get_rib(uint16_t vrf_id) {
 static struct rte_rib *get_or_create_rib(uint16_t vrf_id) {
 	struct rte_rib *rib;
 
-	if (vrf_id >= GR_MAX_VRFS)
+	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
 	rib = vrf_ribs[vrf_id];
@@ -337,7 +337,7 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	uintptr_t nh_id;
 	uint32_t ip;
 
-	for (uint16_t v = 0; v < GR_MAX_VRFS; v++) {
+	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		rib = vrf_ribs[v];
 		if (rib == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_ALL))
 			continue;
@@ -415,13 +415,15 @@ static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 }
 
 static void route4_init(struct event_base *) {
-	vrf_ribs = rte_calloc(__func__, GR_MAX_VRFS, sizeof(struct rte_rib *), RTE_CACHE_LINE_SIZE);
+	vrf_ribs = rte_calloc(
+		__func__, GR_MAX_IFACES, sizeof(struct rte_rib *), RTE_CACHE_LINE_SIZE
+	);
 	if (vrf_ribs == NULL)
 		ABORT("rte_calloc(vrf_ribs): %s", rte_strerror(rte_errno));
 }
 
 static void route4_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
 		rte_rib_free(vrf_ribs[vrf_id]);
 		vrf_ribs[vrf_id] = NULL;
 	}
@@ -454,7 +456,7 @@ static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 	struct gr_metrics_ctx ctx;
 	char vrf[16];
 
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_VRFS; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
 		if (vrf_ribs[vrf_id] == NULL)
 			continue;
 

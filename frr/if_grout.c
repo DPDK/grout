@@ -109,26 +109,13 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 
 		switch (gr_if->mode) {
 		case GR_IFACE_MODE_VRF:
-			if (gr_if->base.vrf_id != 0) {
-				// In Linux, vrf_id equals the interface index; in Grout we model
-				// a VRF with its gr‑vrf interface.
-				// The gr‑vrf’s ifindex is guaranteed to match vrf_id
-				dplane_ctx_set_ifp_vrf_id(
-					ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
-				);
-			} else {
-				dplane_ctx_set_ifp_vrf_id(ctx, 0);
-			}
+			dplane_ctx_set_ifp_vrf_id(ctx, vrf_grout_to_frr(gr_if->base.vrf_id));
 
 			// For VRF interface, we must set the table_id
-			if (zif_type == ZEBRA_IF_VRF) {
-				if (gr_if->base.vrf_id != 0)
-					dplane_ctx_set_ifp_table_id(
-						ctx, ifindex_grout_to_frr(gr_if->base.vrf_id)
-					);
-				else
-					dplane_ctx_set_ifp_table_id(ctx, 0);
-			}
+			if (zif_type == ZEBRA_IF_VRF)
+				dplane_ctx_set_ifp_table_id(
+					ctx, vrf_grout_to_frr(gr_if->base.vrf_id)
+				);
 			break;
 		case GR_IFACE_MODE_BOND:
 			bond_ifindex = ifindex_grout_to_frr(gr_if->domain_id);

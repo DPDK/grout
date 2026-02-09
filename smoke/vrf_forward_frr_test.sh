@@ -4,10 +4,13 @@
 
 . $(dirname $0)/_init_frr.sh
 
-create_interface p0 vrf 1
-create_interface p1 vrf 1
-create_interface p2 vrf 2
-create_interface p3 vrf 2
+create_vrf gr-vrf1
+create_vrf gr-vrf2
+
+create_interface p0 vrf gr-vrf1
+create_interface p1 vrf gr-vrf1
+create_interface p2 vrf gr-vrf2
+create_interface p3 vrf gr-vrf2
 
 for n in 0 1; do
 	p=x-p$n
@@ -20,8 +23,8 @@ for n in 0 1; do
 done
 set_ip_address p0 172.16.0.1/24
 set_ip_address p1 172.16.1.1/24
-set_ip_route 16.0.0.0/16 172.16.0.2 1
-set_ip_route 16.1.0.0/16 172.16.1.2 1
+set_ip_route 16.0.0.0/16 172.16.0.2 gr-vrf1
+set_ip_route 16.1.0.0/16 172.16.1.2 gr-vrf1
 
 for n in 2 3; do
 	p=x-p$n
@@ -34,8 +37,8 @@ for n in 2 3; do
 done
 set_ip_address p2 172.16.0.1/24
 set_ip_address p3 172.16.1.1/24
-set_ip_route 16.0.0.0/16 172.16.0.2 2
-set_ip_route 16.1.0.0/16 172.16.1.2 2
+set_ip_route 16.0.0.0/16 172.16.0.2 gr-vrf2
+set_ip_route 16.1.0.0/16 172.16.1.2 gr-vrf2
 
 ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec n0 ping -i0.01 -c3 -n 16.1.0.1

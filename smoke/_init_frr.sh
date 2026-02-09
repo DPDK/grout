@@ -5,6 +5,22 @@ test_frr=true
 
 . $(dirname $0)/_init.sh
 
+create_vrf() {
+	local name="$1"
+	local max_tries=5
+	local count=0
+
+	grcli interface add vrf "$name"
+
+	while vtysh -c "show interface $name" 2>&1 | grep -q "% Can't find interface"; do
+		if [ "$count" -ge "$max_tries" ]; then
+			fail "VRF $name not found after $max_tries attempts."
+		fi
+		sleep 0.2
+		count=$((count + 1))
+	done
+}
+
 create_interface() {
 	local p="$1"
 	shift
@@ -55,30 +71,17 @@ EOF
 	done
 }
 
-vrf_name_from_id() {
-	local vrf_id="${1:-0}"
-
-	if [[ "$vrf_id" -eq 0 ]]; then
-		printf 'default\n'
-	else
-		printf 'gr-vrf%s\n' "$vrf_id"
-	fi
-}
-
 set_ip_route() {
 	local prefix="$1"
 	local next_hop="$2"
-	local vrf_id="${3:-0}"
-	local nexthop_vrf_id="${4:-}"
+	local vrf_name="${3:-default}"
+	local nexthop_vrf_name="${4:-}"
 	local max_tries=5
 	local count=0
-	local vrf_name="$(vrf_name_from_id "$vrf_id")"
 
 	local nexthop_vrf_clause=""
-	if [[ -n "$nexthop_vrf_id" ]]; then
-		    local nexthop_vrf_name
-		    nexthop_vrf_name="$(vrf_name_from_id "$nexthop_vrf_id")"
-		    nexthop_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
+	if [[ -n "$nexthop_vrf_name" ]]; then
+		nexthop_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
 	fi
 
 	if echo "$prefix" | grep -q ':'; then
@@ -89,7 +92,7 @@ set_ip_route() {
 		local frr_ip="ip"
 	fi
 
-	local grep_pattern="^${vrf_id}[[:space:]]\\+${prefix}\\>.*\\<${next_hop}\\>"
+	local grep_pattern="\\<${prefix}\\>.*\\<${next_hop}\\>"
 
 	vtysh <<-EOF
 	configure terminal
@@ -97,7 +100,10 @@ set_ip_route() {
 	exit
 EOF
 
-	while ! grcli route show vrf ${vrf_id} | grep -q "${grep_pattern}"; do
+	local gr_vrf_name="${vrf_name}"
+	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="gr-loop0"
+
+	while ! grcli route show vrf ${gr_vrf_name} | grep -q "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
@@ -205,8 +211,8 @@ EOF
     # ----- make BRE pattern for Grout -------------------------------------
     # Expected output from grcli route show
     #
-    # VRF  DESTINATION      ORIGIN        NEXT_HOP
-    # 0    192.168.0.0/16   zebra_static  type=SRv6 id=6 iface=p1 vrf=0 ...
+    # VRF       DESTINATION      ORIGIN        NEXT_HOP
+    # gr-loop0  192.168.0.0/16   zebra_static  type=SRv6 id=6 iface=p1 vrf=1 ...
     local sid_regex="${sids[0]}"
     for ((i=1; i<${#sids[@]}; i++)); do
 	    sid_regex+="[[:space:]]+${sids[i]}"
