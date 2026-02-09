@@ -84,9 +84,9 @@ int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
+// Get the loopback interface for a VRF.
+// vrf_id is the loopback interface ID.
 struct iface *get_vrf_iface(uint16_t vrf_id);
-struct iface *iface_loopback_create(uint16_t vrf_id);
-int iface_loopback_delete(uint16_t vrf_id);
 
 // Register a name prefix reserved for internal use.
 // Interfaces with names starting with a reserved prefix cannot be created

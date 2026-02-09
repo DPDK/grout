@@ -41,6 +41,17 @@ int complete_iface_names(
 	const char *arg,
 	void *cb_arg
 );
+int complete_vrf_names(
+	struct gr_api_client *c,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void *cb_arg
+);
+
+// Parse VRF name argument, look up loopback interface and return its iface_id.
+// Defaults to GR_DEFAULT_VRF_NAME if argument not present.
+int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id);
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 
@@ -65,8 +76,8 @@ int complete_iface_names(
 			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
 		),                                                                                 \
 		with_help(                                                                         \
-			"L3 addressing/routing domain ID.",                                        \
-			ec_node_uint("VRF", 0, GR_MAX_VRFS, 10)                                    \
+			"L3 addressing/routing domain name.",                                      \
+			ec_node_dyn("VRF", complete_vrf_names, NULL)                               \
 		),                                                                                 \
 		with_help(                                                                         \
 			"Link domain interface.",                                                  \

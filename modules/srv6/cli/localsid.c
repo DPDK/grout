@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
 #include <gr_errno.h>
 #include <gr_net_types.h>
@@ -57,7 +58,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 
 	if (arg_u32(p, "ID", &req->nh.nh_id) < 0 && errno != ENOENT)
 		goto out;
-	if (arg_u16(p, "VRF", &req->nh.vrf_id) < 0 && errno != ENOENT)
+	if (arg_vrf(c, p, "VRF", &req->nh.vrf_id) < 0)
 		goto out;
 
 	sr6 = (struct gr_nexthop_info_srv6_local *)req->nh.info;
@@ -82,7 +83,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 	if (str_to_behavior(ec_strvec_val(ec_pnode_get_strvec(n), 0), &sr6->behavior) < 0)
 		goto out;
 
-	if (arg_u16(n, "TABLE", &sr6->out_vrf_id) < 0 && errno != ENOENT)
+	if (arg_str(n, "TABLE") != NULL && arg_vrf(c, n, "TABLE", &sr6->out_vrf_id) < 0)
 		goto out;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
@@ -152,8 +153,8 @@ static int ctx_init(struct ec_node *root) {
 			EC_NO_ID,
 			"end.t [flavor FLAVORS] table TABLE",
 			with_help(
-				"L3 routing domain ID.",
-				ec_node_uint("TABLE", 0, UINT16_MAX - 1, 10)
+				"L3 routing domain name.",
+				ec_node_dyn("TABLE", complete_vrf_names, NULL)
 			),
 			with_help(
 				"Transit endpoint with specific IPv6 table lookup.",
@@ -165,8 +166,8 @@ static int ctx_init(struct ec_node *root) {
 			EC_NO_ID,
 			"(end.dt4|end.dt6|end.dt46) [table TABLE]",
 			with_help(
-				"L3 routing domain ID.",
-				ec_node_uint("TABLE", 0, UINT16_MAX - 1, 10)
+				"L3 routing domain name.",
+				ec_node_dyn("TABLE", complete_vrf_names, NULL)
 			),
 			with_help(
 				"Endpoint with decapsulation and specific IPv4 table lookup.",
@@ -191,7 +192,7 @@ static int ctx_init(struct ec_node *root) {
 		"Create a new local endpoint.",
 		with_help("Node behavior", beh_node),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;

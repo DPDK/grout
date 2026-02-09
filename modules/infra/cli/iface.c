@@ -94,6 +94,37 @@ int complete_iface_names(
 	return ret < 0 ? -1 : result;
 }
 
+int complete_vrf_names(
+	struct gr_api_client *c,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void * /*cb_arg*/
+) {
+	return complete_iface_names(c, node, comp, arg, INT2PTR(GR_IFACE_TYPE_LOOPBACK));
+}
+
+int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
+	const char *name = arg_str(p, id);
+	if (name == NULL) {
+		*vrf_id = GR_VRF_DEFAULT_ID;
+		return 0;
+	}
+
+	struct gr_iface *iface = iface_from_name(c, name);
+	if (iface == NULL)
+		return -errno;
+
+	if (iface->type != GR_IFACE_TYPE_LOOPBACK) {
+		free(iface);
+		return errno_set(EMEDIUMTYPE);
+	}
+
+	*vrf_id = iface->id;
+	free(iface);
+	return 0;
+}
+
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 	struct gr_infra_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
 	void *resp_ptr = NULL;
@@ -192,7 +223,9 @@ uint64_t parse_iface_args(
 	if (arg_u16(p, "MTU", &iface->mtu) == 0)
 		set_attrs |= GR_IFACE_SET_MTU;
 
-	if (arg_u16(p, "VRF", &iface->vrf_id) == 0) {
+	if (arg_str(p, "VRF") != NULL) {
+		if (arg_vrf(c, p, "VRF", &iface->vrf_id) < 0)
+			goto err;
 		set_attrs |= GR_IFACE_SET_VRF;
 	} else if ((name = arg_str(p, "DOMAIN")) != NULL) {
 		struct gr_iface *domain = iface_from_name(c, name);
@@ -271,7 +304,9 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 
 		// domain
 		if (iface->mode == GR_IFACE_MODE_VRF) {
-			scols_line_sprintf(line, 4, "%u", iface->vrf_id);
+			struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
+			scols_line_sprintf(line, 4, "%s", vrf ? vrf->name : "[deleted]");
+			free(vrf);
 		} else {
 			struct gr_iface *domain = iface_from_id(c, iface->domain_id);
 			scols_line_sprintf(line, 4, "%s", domain ? domain->name : "[deleted]");
@@ -475,7 +510,9 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
 
 	if (iface->mode == GR_IFACE_MODE_VRF) {
-		printf("vrf: %u\n", iface->vrf_id);
+		struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
+		printf("vrf: %s\n", vrf ? vrf->name : "[deleted]");
+		free(vrf);
 	} else {
 		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
 		printf("domain: %s\n", domain ? domain->name : "[deleted]");
@@ -586,8 +623,12 @@ static void iface_event_print(uint32_t event, const void *obj) {
 		break;
 	}
 
-	printf("iface %s: %s type=%s", action, iface->name, gr_iface_type_name(iface->type));
-	printf(" id=%u vrf=%u mtu=%u\n", iface->id, iface->vrf_id, iface->mtu);
+	printf("iface %s: %s type=%s id=%u mtu=%u\n",
+	       action,
+	       iface->name,
+	       gr_iface_type_name(iface->type),
+	       iface->id,
+	       iface->mtu);
 }
 
 static struct cli_event_printer printer = {

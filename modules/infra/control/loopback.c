@@ -25,12 +25,12 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <vrf_priv.h>
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
-#define GR_LOOPBACK_NAME_PREFIX "gr-vrf"
-#define GR_LOOPBACK_NAME_PATTERN GR_LOOPBACK_NAME_PREFIX "%d"
 #define GR_LOOPBACK_TUN_NAME_PREFIX "gr-loop"
+// TUN device naming pattern: gr-loop{iface_id}
 #define GR_LOOPBACK_TUN_NAME_PATTERN GR_LOOPBACK_TUN_NAME_PREFIX "%d"
 
 static struct rte_mempool *loopback_pool;
@@ -178,27 +178,7 @@ err:
 	rte_pktmbuf_free(mbuf);
 }
 
-struct iface *iface_loopback_create(uint16_t vrf_id) {
-	struct gr_iface conf = {.type = GR_IFACE_TYPE_LOOPBACK, .mtu = 1500, .vrf_id = vrf_id};
-
-	if (vrf_id)
-		snprintf(conf.name, sizeof(conf.name), GR_LOOPBACK_NAME_PATTERN, vrf_id);
-	else
-		memccpy(conf.name, "gr-loop0", 0, sizeof(conf.name));
-
-	return iface_create(&conf, NULL);
-}
-
-int iface_loopback_delete(uint16_t vrf_id) {
-	struct iface *i = NULL;
-	while ((i = iface_next(GR_IFACE_TYPE_LOOPBACK, i)) != NULL)
-		if (i->vrf_id == vrf_id)
-			return iface_destroy(i);
-
-	return errno_set(ENODEV);
-}
-
-static int iface_loopback_init(struct iface *iface, const void * /* api_info */) {
+static int iface_loopback_init(struct iface *iface, const void *) {
 	struct iface_info_loopback *lo = iface_info_loopback(iface);
 	char tun_name[IFNAMSIZ];
 	struct ifreq ifr;
@@ -206,10 +186,14 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 	int err_save;
 	int flags;
 
-	if (iface->vrf_id)
-		snprintf(tun_name, sizeof(tun_name), GR_LOOPBACK_TUN_NAME_PATTERN, iface->vrf_id);
-	else
+	// Loopback's vrf_id = its own iface_id (VRF identifier)
+	iface->vrf_id = iface->id;
+	lo->ev = NULL;
+
+	if (iface->id == GR_VRF_DEFAULT_ID)
 		memccpy(tun_name, iface->name, 0, sizeof(tun_name));
+	else
+		snprintf(tun_name, sizeof(tun_name), GR_LOOPBACK_TUN_NAME_PATTERN, iface->vrf_id);
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	memccpy(ifr.ifr_name, tun_name, 0, IFNAMSIZ);
@@ -274,15 +258,21 @@ static int iface_loopback_init(struct iface *iface, const void * /* api_info */)
 		iface
 	);
 
-	if (lo->ev == NULL || event_add(lo->ev, NULL) < 0) {
-		event_free(lo->ev);
+	if (lo->ev == NULL || event_add(lo->ev, NULL) < 0)
 		goto err;
-	}
+
+	if (vrf_add(iface) < 0)
+		goto err;
+
 	close(ioctl_sock);
 	return 0;
 
 err:
 	err_save = errno;
+	if (lo->ev) {
+		event_del(lo->ev);
+		event_free(lo->ev);
+	}
 	if (lo->fd > 0)
 		close(lo->fd);
 	if (ioctl_sock > 0)
@@ -292,6 +282,9 @@ err:
 
 static int iface_loopback_fini(struct iface *iface) {
 	struct iface_info_loopback *lo = iface_info_loopback(iface);
+
+	vrf_del(iface->vrf_id);
+
 	event_free_finalize(0, lo->ev, finalize_fd);
 	return 0;
 }
@@ -309,12 +302,29 @@ static void loopback_module_fini(struct event_base *) {
 
 static void iface_loopback_to_api(void * /* info */, const struct iface * /* iface */) { }
 
+static int iface_loopback_reconfig(
+	struct iface *iface,
+	uint64_t set_attrs,
+	const struct gr_iface *conf,
+	const void *
+) {
+	// Loopback only supports name changes
+	if (set_attrs & ~GR_IFACE_SET_NAME)
+		return errno_set(EOPNOTSUPP);
+
+	if (set_attrs & GR_IFACE_SET_NAME)
+		return vrf_rename(iface->vrf_id, conf->name);
+
+	return 0;
+}
+
 static struct iface_type iface_type_loopback = {
 	.id = GR_IFACE_TYPE_LOOPBACK,
 	.name = "loopback",
 	.pub_size = 0,
 	.priv_size = sizeof(struct iface_info_loopback),
 	.init = iface_loopback_init,
+	.reconfig = iface_loopback_reconfig,
 	.fini = iface_loopback_fini,
 	.to_api = iface_loopback_to_api,
 };
@@ -327,7 +337,6 @@ static struct gr_module loopback_module = {
 
 RTE_INIT(loopback_constructor) {
 	iface_type_register(&iface_type_loopback);
-	iface_name_reserve(GR_LOOPBACK_NAME_PREFIX);
 	iface_name_reserve(GR_LOOPBACK_TUN_NAME_PREFIX);
 	gr_register_module(&loopback_module);
 }

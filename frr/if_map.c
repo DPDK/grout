@@ -105,6 +105,18 @@ bool remove_mapping_by_grout_ifindex(uint16_t grout_ifindex) {
 	return true;
 }
 
+vrf_id_t vrf_grout_to_frr(uint16_t gr_vrf_id) {
+	if (gr_vrf_id == GR_VRF_DEFAULT_ID)
+		return VRF_DEFAULT;
+	return ifindex_grout_to_frr(gr_vrf_id);
+}
+
+uint16_t vrf_frr_to_grout(vrf_id_t frr_vrf_id) {
+	if (frr_vrf_id == VRF_DEFAULT)
+		return GR_VRF_DEFAULT_ID;
+	return ifindex_frr_to_grout(frr_vrf_id);
+}
+
 // Initialize the mapping tables
 void init_ifindex_mappings(void) {
 	grout_to_frr_init(&grout_to_frr_mappings);

@@ -57,7 +57,7 @@ static cmd_status_t dnat44_list(struct gr_api_client *c, const struct ec_pnode *
 	const struct gr_dnat44_policy *pol;
 	int ret;
 
-	if (arg_u16(p, "VRF", &req.vrf_id) < 0 && errno != ENOENT)
+	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
 	struct libscols_table *table = scols_new_table();
@@ -128,7 +128,7 @@ static int ctx_init(struct ec_node *root) {
 		"[show] [vrf VRF]",
 		dnat44_list,
 		"Display DNAT44 rules.",
-		with_help("L3 addressing domain ID.", ec_node_uint("VRF", 0, UINT16_MAX - 1, 10))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
