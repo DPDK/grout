@@ -6,7 +6,11 @@
 #include <gr_iface.h>
 #include <gr_loopback.h>
 
-GR_IFACE_INFO(GR_IFACE_TYPE_VRF, iface_info_vrf, { struct iface_info_loopback lo; });
+GR_IFACE_INFO(GR_IFACE_TYPE_VRF, iface_info_vrf, {
+	struct iface_info_loopback lo;
+	uint16_t ref_count;
+	uint32_t vrf_ifindex;
+});
 
 // Increment VRF reference count.
 // vrf_id is the VRF interface ID.
