@@ -82,7 +82,7 @@ static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
 	return vrf_id + 1000;
 }
 
-static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
+static int netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
 	uint32_t table_id = vrf_id_to_table_id(iface->vrf_id);
 	uint16_t vrf_id = iface->vrf_id;
 	int ret;
@@ -98,13 +98,19 @@ static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
 			    iface->name,
 			    vrf_id,
 			    strerror(errno));
-			return;
+			return ret;
 		}
 	}
 
 	ret = netlink_add_route(iface->cp_id, table_id);
-	if (ret < 0)
+	if (ret < 0) {
 		LOG(WARNING, "add route on %s failed: %s", iface->name, strerror(errno));
+		if (iface->id != GR_VRF_DEFAULT_ID)
+			netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, iface->cp_id);
+		return ret;
+	}
+
+	return 0;
 }
 
 static int vrf_add(struct iface *iface) {
@@ -116,7 +122,8 @@ static int vrf_add(struct iface *iface) {
 		return errno_set(EEXIST);
 	}
 
-	netlink_vrf_add(vrf, iface);
+	if (netlink_vrf_add(vrf, iface) < 0)
+		return -errno;
 
 	vrf->iface = iface;
 	vrf->ref_count = 0;
@@ -124,26 +131,32 @@ static int vrf_add(struct iface *iface) {
 	return 0;
 }
 
-static void netlink_vrf_del(struct vrf_info *vrf) {
+static int netlink_vrf_del(struct vrf_info *vrf) {
 	const struct iface *iface = vrf->iface;
 	int ret;
 
 	if (iface->id != GR_VRF_DEFAULT_ID) {
 		ret = netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, iface->cp_id);
-		if (ret < 0)
+		if (ret < 0) {
 			LOG(WARNING,
 			    "delete vrf %s (id %u) failed: %s",
 			    iface->name,
 			    iface->vrf_id,
 			    strerror(errno));
+			return ret;
+		}
 		vrf->vrf_ifindex = 0;
 	} else {
 		uint32_t table_id = vrf_id_to_table_id(iface->vrf_id);
 
 		ret = netlink_del_route(iface->cp_id, table_id);
-		if (ret < 0)
+		if (ret < 0) {
 			LOG(WARNING, "delete route on %s failed: %s", iface->name, strerror(errno));
+			return ret;
+		}
 	}
+
+	return 0;
 }
 
 static int vrf_del(uint16_t vrf_id) {
@@ -156,7 +169,8 @@ static int vrf_del(uint16_t vrf_id) {
 	if (vrf->iface == NULL)
 		return 0;
 
-	netlink_vrf_del(vrf);
+	if (netlink_vrf_del(vrf) < 0)
+		return -errno;
 
 	vrf->iface = NULL;
 	vrf->ref_count = 0;
@@ -211,7 +225,9 @@ static int iface_vrf_init(struct iface *iface, const void *) {
 }
 
 static int iface_vrf_fini(struct iface *iface) {
-	vrf_del(iface->vrf_id);
+	if (vrf_del(iface->vrf_id) < 0)
+		return -errno;
+
 	return iface_loopback_destroy(iface);
 }
 
