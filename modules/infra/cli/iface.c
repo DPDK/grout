@@ -101,7 +101,7 @@ int complete_vrf_names(
 	const char *arg,
 	void * /*cb_arg*/
 ) {
-	return complete_iface_names(c, node, comp, arg, INT2PTR(GR_IFACE_TYPE_LOOPBACK));
+	return complete_iface_names(c, node, comp, arg, INT2PTR(GR_IFACE_TYPE_VRF));
 }
 
 int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
@@ -115,7 +115,7 @@ int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, u
 	if (iface == NULL)
 		return -errno;
 
-	if (iface->type != GR_IFACE_TYPE_LOOPBACK) {
+	if (iface->type != GR_IFACE_TYPE_VRF) {
 		free(iface);
 		return errno_set(EMEDIUMTYPE);
 	}

@@ -8,7 +8,7 @@ cli_src += files(
   'events.c',
   'graph.c',
   'iface.c',
-  'loopback.c',
+  'vrf.c',
   'nexthop.c',
   'port.c',
   'route.c',

@@ -6,14 +6,14 @@
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
 
-static void loopback_show(struct gr_api_client *, const struct gr_iface *) { }
+static void vrf_show(struct gr_api_client *, const struct gr_iface *) { }
 
-static void loopback_list_info(struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
+static void vrf_list_info(struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
 
-static struct cli_iface_type loopback_type = {
-	.type_id = GR_IFACE_TYPE_LOOPBACK,
-	.show = loopback_show,
-	.list_info = loopback_list_info,
+static struct cli_iface_type vrf_type = {
+	.type_id = GR_IFACE_TYPE_VRF,
+	.show = vrf_show,
+	.list_info = vrf_list_info,
 };
 
 static uint64_t parse_vrf_args(
@@ -43,7 +43,7 @@ static cmd_status_t vrf_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	if ((req = calloc(1, sizeof(*req))) == NULL)
 		return CMD_ERROR;
 
-	req->iface.type = GR_IFACE_TYPE_LOOPBACK;
+	req->iface.type = GR_IFACE_TYPE_VRF;
 	req->iface.flags = GR_IFACE_F_UP;
 
 	if (parse_vrf_args(c, p, &req->iface, false) == 0)
@@ -88,7 +88,7 @@ static int ctx_init(struct ec_node *root) {
 		INTERFACE_ADD_CTX(root),
 		"vrf NAME",
 		vrf_add,
-		"Create a new VRF (loopback interface).",
+		"Create a new VRF.",
 		with_help("VRF name.", ec_node("any", "NAME"))
 	);
 	if (ret < 0)
@@ -107,11 +107,11 @@ static int ctx_init(struct ec_node *root) {
 }
 
 static struct cli_context ctx = {
-	.name = "infra loopback",
+	.name = "infra vrf",
 	.init = ctx_init,
 };
 
 static void __attribute__((constructor, used)) init(void) {
 	cli_context_register(&ctx);
-	register_iface_type(&loopback_type);
+	register_iface_type(&vrf_type);
 }
