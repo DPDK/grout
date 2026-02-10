@@ -417,40 +417,65 @@ static const struct rte_ipv6_addr well_known_mcast_addrs[] = {
 	GR_IPV6_ADDR_MLDV2,
 };
 
-static void ip6_iface_event_handler(uint32_t event, const void *obj) {
-	const struct nexthop_info_l3 *l3;
-	const struct iface *iface = obj;
+static void ip6_iface_llocal_init(const struct iface *iface) {
 	struct rte_ipv6_addr link_local;
 	struct rte_ether_addr mac;
+	unsigned i;
+
+	if (iface_get_eth_addr(iface, &mac) == 0) {
+		rte_ipv6_llocal_from_ethernet(&link_local, &mac);
+		if (iface6_addr_add(iface, &link_local, 64) < 0)
+			errno_log(errno, "iface_addr_add");
+	}
+	for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
+		if (mcast6_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
+			LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
+	}
+}
+
+static void ip6_iface_addrs_flush(const struct iface *iface) {
+	const struct nexthop_info_l3 *l3;
 	const struct nexthop *nh;
 	struct hoplist *addrs;
-	unsigned i;
+
+	addrs = &iface_addrs[iface->id];
+	while (gr_vec_len(addrs->nh) > 0) {
+		nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
+		l3 = nexthop_info_l3(nh);
+		iface6_addr_del(iface, &l3->ipv6, l3->prefixlen);
+	}
+	addrs = &iface_mcast_addrs[iface->id];
+	while (gr_vec_len(addrs->nh) > 0) {
+		nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
+		l3 = nexthop_info_l3(nh);
+		mcast6_addr_del(iface, &l3->ipv6);
+	}
+}
+
+static void ip6_iface_event_handler(uint32_t event, const void *obj) {
+	const struct iface *iface = obj;
+	const struct nexthop *nh;
+	struct hoplist *addrs;
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
-		if (iface_get_eth_addr(iface, &mac) == 0) {
-			rte_ipv6_llocal_from_ethernet(&link_local, &mac);
-			if (iface6_addr_add(iface, &link_local, 64) < 0)
-				errno_log(errno, "iface_addr_add");
-		}
-		for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
-			if (mcast6_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
-				LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
+		ip6_iface_llocal_init(iface);
+		break;
+	case GR_EVENT_IFACE_POST_RECONFIG:
+		if (iface->mode != GR_IFACE_MODE_VRF) {
+			// changing mode from VRF -> !VRF
+			ip6_iface_addrs_flush(iface);
+		} else if (gr_vec_len(iface_addrs[iface->id].nh) == 0) {
+			// changing mode from !VRF -> VRF
+			ip6_iface_llocal_init(iface);
+		} else if (iface_addrs[iface->id].nh[0]->vrf_id != iface->vrf_id) {
+			// changing to a different VRF
+			ip6_iface_addrs_flush(iface);
+			ip6_iface_llocal_init(iface);
 		}
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
-		addrs = &iface_addrs[iface->id];
-		while (gr_vec_len(addrs->nh) > 0) {
-			nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
-			l3 = nexthop_info_l3(nh);
-			iface6_addr_del(iface, &l3->ipv6, l3->prefixlen);
-		}
-		addrs = &iface_mcast_addrs[iface->id];
-		while (gr_vec_len(addrs->nh) > 0) {
-			nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
-			l3 = nexthop_info_l3(nh);
-			mcast6_addr_del(iface, &l3->ipv6);
-		}
+		ip6_iface_addrs_flush(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		addrs = &iface_addrs[iface->id];
@@ -512,9 +537,10 @@ static struct gr_module addr6_module = {
 
 static struct gr_event_subscription iface_event_subscription = {
 	.callback = ip6_iface_event_handler,
-	.ev_count = 3,
+	.ev_count = 4,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
+		GR_EVENT_IFACE_POST_RECONFIG,
 		GR_EVENT_IFACE_PRE_REMOVE,
 		GR_EVENT_IFACE_STATUS_UP,
 	},

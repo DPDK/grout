@@ -257,15 +257,22 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static void iface_pre_remove_cb(uint32_t /*event*/, const void *obj) {
+static void iface_event_cb(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	struct nexthop_info_l3 *l3;
 	struct hoplist *ifaddrs;
 
 	ifaddrs = addr4_get_all(iface->id);
-	if (ifaddrs == NULL)
+	if (ifaddrs == NULL || gr_vec_len(ifaddrs->nh) == 0)
 		return;
 
+	if (event == GR_EVENT_IFACE_POST_RECONFIG) {
+		if (iface->mode == GR_IFACE_MODE_VRF && iface->vrf_id == ifaddrs->nh[0]->vrf_id)
+			return;
+	}
+
+	// interface is either being deleted, mode changed to !VRF, or changed to another VRF
+	// delete all configured addresses
 	while (gr_vec_len(ifaddrs->nh) > 0) {
 		l3 = nexthop_info_l3(ifaddrs->nh[gr_vec_len(ifaddrs->nh) - 1]);
 		addr4_delete(iface->id, l3->ipv4, l3->prefixlen);
@@ -323,9 +330,9 @@ static struct gr_module addr_module = {
 };
 
 static struct gr_event_subscription iface_pre_rm_subscription = {
-	.callback = iface_pre_remove_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
+	.callback = iface_event_cb,
+	.ev_count = 2,
+	.ev_types = {GR_EVENT_IFACE_POST_RECONFIG, GR_EVENT_IFACE_PRE_REMOVE},
 };
 static struct gr_event_subscription iface_up_subscription = {
 	.callback = iface_up_cb,
