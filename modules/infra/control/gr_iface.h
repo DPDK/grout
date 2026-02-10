@@ -84,14 +84,14 @@ int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
-// Get the loopback interface for a VRF.
-// vrf_id is the loopback interface ID.
+// Get the VRF interface.
+// vrf_id is the VRF interface ID.
 struct iface *get_vrf_iface(uint16_t vrf_id);
 
-// Register a name prefix reserved for internal use.
-// Interfaces with names starting with a reserved prefix cannot be created
-// or renamed by users (except for the loopback type).
-void iface_name_reserve(const char *prefix);
+// Register a reserved interface name.
+// If prefix is true, any name starting with the string is reserved.
+// If prefix is false, only the exact name is reserved.
+void iface_name_reserve(const char *name, bool prefix);
 
 struct __rte_cache_aligned iface_stats {
 	uint64_t rx_packets;

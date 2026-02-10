@@ -49,7 +49,7 @@ int complete_vrf_names(
 	void *cb_arg
 );
 
-// Parse VRF name argument, look up loopback interface and return its iface_id.
+// Parse VRF name argument, look up VRF interface and return its iface_id.
 // Defaults to GR_DEFAULT_VRF_NAME if argument not present.
 int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id);
 

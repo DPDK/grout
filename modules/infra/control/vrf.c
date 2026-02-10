@@ -3,8 +3,11 @@
 
 #include <gr_errno.h>
 #include <gr_iface.h>
+#include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_netlink.h>
+
+#include <rte_ethdev.h>
 
 #include <linux/rtnetlink.h>
 #include <vrf_priv.h>
@@ -105,7 +108,7 @@ static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *loop_iface
 		LOG(WARNING, "add route on %s failed: %s", loop_iface->name, strerror(errno));
 }
 
-int vrf_add(struct iface *loop_iface) {
+static int vrf_add(struct iface *loop_iface) {
 	uint16_t vrf_id = loop_iface->vrf_id;
 	struct vrf_info *vrf = &vrfs[vrf_id];
 
@@ -147,7 +150,7 @@ static void netlink_vrf_del(struct vrf_info *vrf) {
 	}
 }
 
-int vrf_del(uint16_t vrf_id) {
+static int vrf_del(uint16_t vrf_id) {
 	struct vrf_info *vrf;
 
 	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
@@ -163,27 +166,6 @@ int vrf_del(uint16_t vrf_id) {
 	vrf->ref_count = 0;
 
 	return 0;
-}
-
-int vrf_rename(uint16_t vrf_id, const char *new_name) {
-	struct vrf_info *vrf;
-
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
-		return errno_set(EOVERFLOW);
-
-	vrf = &vrfs[vrf_id];
-	if (vrf->iface == NULL)
-		return errno_set(ENONET);
-
-	// Default VRF: TUN device uses the VRF name directly.
-	// Non-default VRFs: kernel VRF device uses the VRF name.
-	uint32_t ifindex;
-	if (vrf_id == GR_VRF_DEFAULT_ID)
-		ifindex = vrf->iface->cp_id;
-	else
-		ifindex = vrf->vrf_ifindex;
-
-	return netlink_link_set_name(ifindex, new_name);
 }
 
 bool vrf_has_interfaces(uint16_t vrf_id) {
@@ -210,4 +192,74 @@ void vrf_decref(uint16_t vrf_id) {
 
 	if (vrfs[vrf_id].ref_count > 0)
 		vrfs[vrf_id].ref_count--;
+}
+
+// VRF interface type //////////////////////////////////////////////////////////
+
+static int iface_vrf_init(struct iface *iface, const void *) {
+	// VRF's vrf_id is its own iface_id (VRF identifier)
+	iface->vrf_id = iface->id;
+
+	if (iface_loopback_create(iface) < 0)
+		return -errno;
+
+	if (vrf_add(iface) < 0) {
+		iface_loopback_destroy(iface);
+		return -errno;
+	}
+
+	iface->flags = GR_IFACE_F_UP;
+	iface->state = GR_IFACE_S_RUNNING;
+	iface->speed = RTE_ETH_SPEED_NUM_10G;
+	return 0;
+}
+
+static int iface_vrf_fini(struct iface *iface) {
+	vrf_del(iface->vrf_id);
+	return iface_loopback_destroy(iface);
+}
+
+static int iface_vrf_reconfig(
+	struct iface *iface,
+	uint64_t set_attrs,
+	const struct gr_iface *conf,
+	const void *
+) {
+	// VRF only supports name changes
+	if (set_attrs & ~GR_IFACE_SET_NAME)
+		return errno_set(EOPNOTSUPP);
+
+	if (set_attrs & GR_IFACE_SET_NAME) {
+		struct vrf_info *vrf = &vrfs[iface->vrf_id];
+		uint32_t ifindex;
+
+		// Default VRF: TUN device uses the VRF name directly.
+		// Non-default VRFs: kernel VRF device uses the VRF name.
+		if (iface->id == GR_VRF_DEFAULT_ID)
+			ifindex = iface->cp_id;
+		else
+			ifindex = vrf->vrf_ifindex;
+
+		return netlink_link_set_name(ifindex, conf->name);
+	}
+
+	return 0;
+}
+
+static void iface_vrf_to_api(void * /* info */, const struct iface * /* iface */) { }
+
+static struct iface_type iface_type_vrf = {
+	.id = GR_IFACE_TYPE_VRF,
+	.name = "vrf",
+	.pub_size = 0,
+	.priv_size = sizeof(struct iface_info_vrf),
+	.init = iface_vrf_init,
+	.reconfig = iface_vrf_reconfig,
+	.fini = iface_vrf_fini,
+	.to_api = iface_vrf_to_api,
+};
+
+RTE_INIT(vrf_type_constructor) {
+	iface_type_register(&iface_type_vrf);
+	iface_name_reserve(GR_DEFAULT_VRF_NAME, false);
 }

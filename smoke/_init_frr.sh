@@ -101,7 +101,7 @@ set_ip_route() {
 EOF
 
 	local gr_vrf_name="${vrf_name}"
-	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="gr-loop0"
+	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
 	while ! grcli route show vrf ${gr_vrf_name} | grep -q "${grep_pattern}"; do
 		if [ "$count" -ge "$max_tries" ]; then
@@ -211,8 +211,8 @@ EOF
     # ----- make BRE pattern for Grout -------------------------------------
     # Expected output from grcli route show
     #
-    # VRF       DESTINATION      ORIGIN        NEXT_HOP
-    # gr-loop0  192.168.0.0/16   zebra_static  type=SRv6 id=6 iface=p1 vrf=1 ...
+    # VRF   DESTINATION      ORIGIN        NEXT_HOP
+    # main  192.168.0.0/16  zebra_static  type=SRv6 id=6 iface=p1 vrf=1 ...
     local sid_regex="${sids[0]}"
     for ((i=1; i<${#sids[@]}; i++)); do
 	    sid_regex+="[[:space:]]+${sids[i]}"

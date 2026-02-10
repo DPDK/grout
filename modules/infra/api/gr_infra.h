@@ -16,7 +16,7 @@
 // Network interface types.
 typedef enum : uint8_t {
 	GR_IFACE_TYPE_UNDEF = 0,
-	GR_IFACE_TYPE_LOOPBACK, // Represents a VRF.
+	GR_IFACE_TYPE_VRF,
 	GR_IFACE_TYPE_PORT,
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
@@ -119,7 +119,7 @@ struct gr_iface_info_port {
 };
 
 // Reserved name for the auto-created default VRF.
-#define GR_DEFAULT_VRF_NAME "gr-loop0"
+#define GR_DEFAULT_VRF_NAME "main"
 
 // VLAN reconfiguration attribute flags.
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
@@ -225,7 +225,7 @@ typedef enum {
 // interface management ///////////////////////////////////////////////////////
 
 // Create a new interface.
-// VRFs (loopback interfaces) must be created before other interfaces can use them.
+// VRFs must be created before other interfaces can use them.
 #define GR_INFRA_IFACE_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0001)
 
 struct gr_infra_iface_add_req {
@@ -234,7 +234,7 @@ struct gr_infra_iface_add_req {
 };
 
 struct gr_infra_iface_add_resp {
-	// The allocated interface ID. For loopbacks, this ID also serves as the VRF identifier.
+	// The allocated interface ID. For VRFs, this ID also serves as the VRF identifier.
 	uint16_t iface_id;
 };
 
@@ -436,8 +436,8 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 	switch (type) {
 	case GR_IFACE_TYPE_UNDEF:
 		return "undef";
-	case GR_IFACE_TYPE_LOOPBACK:
-		return "loopback";
+	case GR_IFACE_TYPE_VRF:
+		return "vrf";
 	case GR_IFACE_TYPE_PORT:
 		return "port";
 	case GR_IFACE_TYPE_VLAN:

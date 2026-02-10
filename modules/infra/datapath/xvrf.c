@@ -26,7 +26,7 @@ static int trace_vrf_format(char *buf, size_t len, const void *data, size_t /*da
 }
 
 static uint16_t
-loop_xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct eth_input_mbuf_data *eth_data;
 	struct iface_stats *stats;
 	struct rte_mbuf *m;
@@ -43,7 +43,7 @@ loop_xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		eth_data = eth_input_mbuf_data(m);
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 
-		// XXX: increment tx stats of gr-loopX on initial vrf
+		// XXX: increment tx stats on source VRF
 		stats = iface_get_stats(rte_lcore_id(), eth_data->iface->id);
 		stats->rx_packets += 1;
 		stats->rx_bytes += rte_pktmbuf_pkt_len(m);
@@ -58,14 +58,14 @@ loop_xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	return nb_objs;
 }
 
-static void loop_xvrf_register(void) {
-	ip_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loop_xvrf");
-	ip6_output_register_interface_type(GR_IFACE_TYPE_LOOPBACK, "loop_xvrf");
+static void xvrf_register(void) {
+	ip_output_register_interface_type(GR_IFACE_TYPE_VRF, "xvrf");
+	ip6_output_register_interface_type(GR_IFACE_TYPE_VRF, "xvrf");
 }
 
-static struct rte_node_register loop_xvrf_node = {
-	.name = "loop_xvrf",
-	.process = loop_xvrf_process,
+static struct rte_node_register xvrf_node = {
+	.name = "xvrf",
+	.process = xvrf_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[IP_INPUT] = "ip_input",
@@ -74,9 +74,9 @@ static struct rte_node_register loop_xvrf_node = {
 };
 
 static struct gr_node_info info = {
-	.node = &loop_xvrf_node,
+	.node = &xvrf_node,
 	.type = GR_NODE_T_L3,
-	.register_callback = loop_xvrf_register,
+	.register_callback = xvrf_register,
 	.trace_format = trace_vrf_format,
 };
 

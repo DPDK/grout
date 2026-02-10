@@ -28,7 +28,7 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 	if (gr_if->base.state & GR_IFACE_S_RUNNING)
 		frr_if_flags |= IFF_RUNNING | IFF_LOWER_UP;
 
-	if (gr_if->base.type == GR_IFACE_TYPE_LOOPBACK)
+	if (gr_if->base.type == GR_IFACE_TYPE_VRF)
 		frr_if_flags |= IFF_NOARP;
 	// Force BROADCAST and MULTICAST
 	else if (link_type == ZEBRA_LLT_ETHER)
@@ -77,7 +77,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_IPIP:
 		link_type = ZEBRA_LLT_IPIP;
 		break;
-	case GR_IFACE_TYPE_LOOPBACK:
+	case GR_IFACE_TYPE_VRF:
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VRF;
 		break;
