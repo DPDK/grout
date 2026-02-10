@@ -46,8 +46,7 @@ typedef enum : uint16_t {
 // Default VRF interface ID (always 1).
 #define GR_VRF_DEFAULT_ID 1
 
-// Special VRF ID representing all VRFs.
-#define GR_VRF_ID_ALL UINT16_MAX
+#define GR_VRF_ID_UNDEF GR_IFACE_ID_UNDEF
 
 // Maximum number of interfaces.
 #define GR_MAX_IFACES 1024

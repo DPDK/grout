@@ -55,7 +55,7 @@ static cmd_status_t route_del(struct gr_api_client *c, const struct ec_pnode *p)
 }
 
 static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	uint16_t vrf_id = GR_VRF_ID_ALL;
+	uint16_t vrf_id = GR_VRF_ID_UNDEF;
 	struct cli_route_ops *ops;
 	int ret = 0;
 

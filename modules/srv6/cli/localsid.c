@@ -63,7 +63,7 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 
 	sr6 = (struct gr_nexthop_info_srv6_local *)req->nh.info;
 
-	sr6->out_vrf_id = GR_VRF_ID_ALL;
+	sr6->out_vrf_id = GR_VRF_ID_UNDEF;
 
 	n = ec_pnode_find(p, "FLAVORS");
 	if (n != NULL) {
@@ -102,7 +102,7 @@ static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void 
 
 	SAFE_BUF(snprintf, len, "behavior=%s", gr_srv6_behavior_name(sr6->behavior));
 	vrf[0] = 0;
-	if (sr6->out_vrf_id != GR_VRF_ID_ALL)
+	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
 		snprintf(vrf, sizeof(vrf), "out_vrf=%d", sr6->out_vrf_id);
 
 	switch (sr6->behavior) {

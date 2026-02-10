@@ -353,7 +353,7 @@ out:
 }
 
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_ALL, .type = GR_NH_T_ALL};
+	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .type = GR_NH_T_ALL};
 	const struct gr_nexthop *nh;
 	const char *type;
 	char buf[128];
@@ -380,7 +380,7 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
-		if (nh->vrf_id == GR_VRF_ID_ALL) {
+		if (nh->vrf_id == GR_VRF_ID_UNDEF) {
 			scols_line_set_data(line, 0, "-");
 		} else {
 			struct gr_iface *vrf = iface_from_id(c, nh->vrf_id);
