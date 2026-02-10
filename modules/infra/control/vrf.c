@@ -12,22 +12,12 @@
 #include <linux/rtnetlink.h>
 #include <vrf_priv.h>
 
-struct vrf_info {
-	int ref_count;
-	struct iface *iface;
-	uint32_t vrf_ifindex;
-};
-
-// we have the same number of VRFs for IP4 and IP6
-static struct vrf_info vrfs[GR_MAX_IFACES];
-
 struct iface *get_vrf_iface(uint16_t vrf_id) {
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
-		return errno_set_null(EOVERFLOW);
-	if (vrfs[vrf_id].iface == NULL)
+	struct iface *iface = iface_from_id(vrf_id);
+	if (iface == NULL || iface->type != GR_IFACE_TYPE_VRF)
 		return errno_set_null(ENONET);
 
-	return vrfs[vrf_id].iface;
+	return iface;
 }
 
 static int netlink_create_vrf_and_enslave(
@@ -82,9 +72,9 @@ static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
 	return vrf_id + 1000;
 }
 
-static int netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
+static int netlink_vrf_add(const struct iface *iface) {
 	uint32_t table_id = vrf_id_to_table_id(iface->vrf_id);
-	uint16_t vrf_id = iface->vrf_id;
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
 	int ret;
 
 	// Only create kernel VRF device for non-default VRFs
@@ -96,7 +86,7 @@ static int netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
 			LOG(WARNING,
 			    "create vrf %s (id %u) failed: %s",
 			    iface->name,
-			    vrf_id,
+			    iface->vrf_id,
 			    strerror(errno));
 			return ret;
 		}
@@ -113,26 +103,8 @@ static int netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
 	return 0;
 }
 
-static int vrf_add(struct iface *iface) {
-	uint16_t vrf_id = iface->vrf_id;
-	struct vrf_info *vrf = &vrfs[vrf_id];
-
-	if (vrf->iface != NULL) {
-		LOG(WARNING, "vrf %s (id %u) already exists", iface->name, vrf_id);
-		return errno_set(EEXIST);
-	}
-
-	if (netlink_vrf_add(vrf, iface) < 0)
-		return -errno;
-
-	vrf->iface = iface;
-	vrf->ref_count = 0;
-
-	return 0;
-}
-
-static int netlink_vrf_del(struct vrf_info *vrf) {
-	const struct iface *iface = vrf->iface;
+static int netlink_vrf_del(const struct iface *iface) {
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
 	int ret;
 
 	if (iface->id != GR_VRF_DEFAULT_ID) {
@@ -159,61 +131,46 @@ static int netlink_vrf_del(struct vrf_info *vrf) {
 	return 0;
 }
 
-static int vrf_del(uint16_t vrf_id) {
-	struct vrf_info *vrf;
-
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
-		return errno_set(EOVERFLOW);
-
-	vrf = &vrfs[vrf_id];
-	if (vrf->iface == NULL)
-		return 0;
-
-	if (netlink_vrf_del(vrf) < 0)
-		return -errno;
-
-	vrf->iface = NULL;
-	vrf->ref_count = 0;
-
-	return 0;
-}
-
 bool vrf_has_interfaces(uint16_t vrf_id) {
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
+	struct iface *iface = get_vrf_iface(vrf_id);
+	if (iface == NULL)
 		return false;
 
-	return vrfs[vrf_id].ref_count > 0;
+	return iface_info_vrf(iface)->ref_count > 0;
 }
 
 int vrf_incref(uint16_t vrf_id) {
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
-		return errno_set(EOVERFLOW);
+	struct iface *iface = get_vrf_iface(vrf_id);
+	if (iface == NULL)
+		return -errno;
 
-	if (vrfs[vrf_id].iface == NULL)
-		return errno_set(ENONET);
-
-	vrfs[vrf_id].ref_count++;
+	iface_info_vrf(iface)->ref_count++;
 	return 0;
 }
 
 void vrf_decref(uint16_t vrf_id) {
-	if (vrf_id == 0 || vrf_id >= GR_MAX_IFACES)
+	struct iface *iface = get_vrf_iface(vrf_id);
+	if (iface == NULL)
 		return;
 
-	if (vrfs[vrf_id].ref_count > 0)
-		vrfs[vrf_id].ref_count--;
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+	if (vrf->ref_count > 0)
+		vrf->ref_count--;
 }
 
 // VRF interface type //////////////////////////////////////////////////////////
 
 static int iface_vrf_init(struct iface *iface, const void *) {
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+
 	// VRF's vrf_id is its own iface_id (VRF identifier)
 	iface->vrf_id = iface->id;
+	vrf->ref_count = 0;
 
 	if (iface_loopback_create(iface) < 0)
 		return -errno;
 
-	if (vrf_add(iface) < 0) {
+	if (netlink_vrf_add(iface) < 0) {
 		iface_loopback_destroy(iface);
 		return -errno;
 	}
@@ -225,7 +182,7 @@ static int iface_vrf_init(struct iface *iface, const void *) {
 }
 
 static int iface_vrf_fini(struct iface *iface) {
-	if (vrf_del(iface->vrf_id) < 0)
+	if (netlink_vrf_del(iface) < 0)
 		return -errno;
 
 	return iface_loopback_destroy(iface);
@@ -242,7 +199,7 @@ static int iface_vrf_reconfig(
 		return errno_set(EOPNOTSUPP);
 
 	if (set_attrs & GR_IFACE_SET_NAME) {
-		struct vrf_info *vrf = &vrfs[iface->vrf_id];
+		struct iface_info_vrf *vrf = iface_info_vrf(iface);
 		uint32_t ifindex;
 
 		// Default VRF: TUN device uses the VRF name directly.
