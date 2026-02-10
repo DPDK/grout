@@ -92,9 +92,10 @@ int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex) {
 int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
 	char buf[NLMSG_SPACE(
 		sizeof(struct ifinfomsg) + NLA_SPACE(IFNAMSIZ) + // IFLA_IFNAME
+		NLA_SPACE(sizeof(uint32_t)) + // IFLA_INFO_KIND "vrf"
 		NLA_SPACE(sizeof(uint32_t)) + // IFLA_VRF_TABLE
-		2 * NLA_HDRLEN
-	)]; // LNKINFO + INFO_DATA containers
+		2 * NLA_HDRLEN // LNKINFO + INFO_DATA containers
+	)];
 	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
 	struct nlattr *linkinfo, *infodata;
