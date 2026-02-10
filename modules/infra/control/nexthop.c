@@ -351,7 +351,7 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 		return ret;
 
 	if (nh->type == GR_NH_T_GROUP) {
-		nh->vrf_id = GR_VRF_ID_ALL;
+		nh->vrf_id = GR_VRF_ID_UNDEF;
 	} else if (nh->iface_id != GR_IFACE_ID_UNDEF) {
 		const struct iface *iface = iface_from_id(nh->iface_id);
 		if (iface == NULL) {

@@ -52,7 +52,7 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 }
 
 static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols_table *table) {
-	struct gr_ip6_addr_list_req req = {.vrf_id = GR_VRF_ID_ALL, .iface_id = iface_id};
+	struct gr_ip6_addr_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .iface_id = iface_id};
 	const struct gr_ip6_ifaddr *addr;
 	int ret;
 

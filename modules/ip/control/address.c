@@ -220,7 +220,7 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 		if (addrs == NULL)
 			continue;
 		gr_vec_foreach (nh, addrs->nh) {
-			if (req->vrf_id != GR_VRF_ID_ALL && nh->vrf_id != req->vrf_id)
+			if (req->vrf_id != GR_VRF_ID_UNDEF && nh->vrf_id != req->vrf_id)
 				continue;
 			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 			struct gr_ip4_ifaddr addr = {

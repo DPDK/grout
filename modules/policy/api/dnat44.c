@@ -202,7 +202,7 @@ static void dnat44_list_iter(struct nexthop *nh, void *priv) {
 	if (iface == NULL)
 		return;
 
-	if (iter->vrf_id != GR_VRF_ID_ALL && iface->vrf_id != iter->vrf_id)
+	if (iter->vrf_id != GR_VRF_ID_UNDEF && iface->vrf_id != iter->vrf_id)
 		return;
 
 	struct gr_dnat44_policy policy = {

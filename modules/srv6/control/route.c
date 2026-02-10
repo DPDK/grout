@@ -98,7 +98,7 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
 		.iface_id = GR_IFACE_ID_UNDEF,
-		.vrf_id = GR_VRF_ID_ALL,
+		.vrf_id = GR_VRF_ID_UNDEF,
 		.origin = GR_NH_ORIGIN_INTERNAL,
 	};
 	struct gr_nexthop_info_l3 l3 = {

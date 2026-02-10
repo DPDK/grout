@@ -339,7 +339,7 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		rib = vrf_ribs[v];
-		if (rib == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_ALL))
+		if (rib == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF))
 			continue;
 
 		rn = NULL;
@@ -447,7 +447,7 @@ static void rib4_cleanup_nh(
 }
 
 void rib4_cleanup(struct nexthop *nh) {
-	rib4_iter(GR_VRF_ID_ALL, rib4_cleanup_nh, nh);
+	rib4_iter(GR_VRF_ID_UNDEF, rib4_cleanup_nh, nh);
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");

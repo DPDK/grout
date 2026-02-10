@@ -700,7 +700,7 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		switch (nh->nh_srv6->seg6local_action) {
 		case ZEBRA_SEG6_LOCAL_ACTION_END:
 			sr6_local->behavior = SR_BEHAVIOR_END;
-			sr6_local->out_vrf_id = GR_VRF_ID_ALL;
+			sr6_local->out_vrf_id = GR_VRF_ID_UNDEF;
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_T:
 			sr6_local->behavior = SR_BEHAVIOR_END_T;

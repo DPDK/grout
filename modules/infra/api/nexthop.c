@@ -111,7 +111,7 @@ static void nh_list_cb(struct nexthop *nh, void *priv) {
 
 	if (ctx->ret != 0)
 		return;
-	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_ALL)
+	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_UNDEF)
 		return;
 	if (ctx->type != GR_NH_T_ALL && nh->type != ctx->type)
 		return;
