@@ -82,71 +82,67 @@ static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
 	return vrf_id + 1000;
 }
 
-static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *loop_iface) {
-	uint32_t table_id = vrf_id_to_table_id(loop_iface->vrf_id);
-	uint16_t vrf_id = loop_iface->vrf_id;
-
+static void netlink_vrf_add(struct vrf_info *vrf, const struct iface *iface) {
+	uint32_t table_id = vrf_id_to_table_id(iface->vrf_id);
+	uint16_t vrf_id = iface->vrf_id;
 	int ret;
 
 	// Only create kernel VRF device for non-default VRFs
-	if (loop_iface->id != GR_VRF_DEFAULT_ID) {
+	if (iface->id != GR_VRF_DEFAULT_ID) {
 		ret = netlink_create_vrf_and_enslave(
-			loop_iface->name, table_id, loop_iface->cp_id, &vrf->vrf_ifindex
+			iface->name, table_id, iface->cp_id, &vrf->vrf_ifindex
 		);
 		if (ret < 0) {
 			LOG(WARNING,
 			    "create vrf %s (id %u) failed: %s",
-			    loop_iface->name,
+			    iface->name,
 			    vrf_id,
 			    strerror(errno));
 			return;
 		}
 	}
 
-	ret = netlink_add_route(loop_iface->cp_id, table_id);
+	ret = netlink_add_route(iface->cp_id, table_id);
 	if (ret < 0)
-		LOG(WARNING, "add route on %s failed: %s", loop_iface->name, strerror(errno));
+		LOG(WARNING, "add route on %s failed: %s", iface->name, strerror(errno));
 }
 
-static int vrf_add(struct iface *loop_iface) {
-	uint16_t vrf_id = loop_iface->vrf_id;
+static int vrf_add(struct iface *iface) {
+	uint16_t vrf_id = iface->vrf_id;
 	struct vrf_info *vrf = &vrfs[vrf_id];
 
 	if (vrf->iface != NULL) {
-		LOG(WARNING, "vrf %s (id %u) already exists", loop_iface->name, vrf_id);
+		LOG(WARNING, "vrf %s (id %u) already exists", iface->name, vrf_id);
 		return errno_set(EEXIST);
 	}
 
-	netlink_vrf_add(vrf, loop_iface);
+	netlink_vrf_add(vrf, iface);
 
-	vrf->iface = loop_iface;
+	vrf->iface = iface;
 	vrf->ref_count = 0;
 
 	return 0;
 }
 
 static void netlink_vrf_del(struct vrf_info *vrf) {
-	const struct iface *loop_iface = vrf->iface;
+	const struct iface *iface = vrf->iface;
 	int ret;
 
-	if (loop_iface->id != GR_VRF_DEFAULT_ID) {
-		ret = netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, loop_iface->cp_id);
+	if (iface->id != GR_VRF_DEFAULT_ID) {
+		ret = netlink_delete_vrf_and_unslave(vrf->vrf_ifindex, iface->cp_id);
 		if (ret < 0)
 			LOG(WARNING,
 			    "delete vrf %s (id %u) failed: %s",
-			    loop_iface->name,
-			    loop_iface->vrf_id,
+			    iface->name,
+			    iface->vrf_id,
 			    strerror(errno));
 		vrf->vrf_ifindex = 0;
 	} else {
-		uint32_t table_id = vrf_id_to_table_id(loop_iface->vrf_id);
+		uint32_t table_id = vrf_id_to_table_id(iface->vrf_id);
 
-		ret = netlink_del_route(loop_iface->cp_id, table_id);
+		ret = netlink_del_route(iface->cp_id, table_id);
 		if (ret < 0)
-			LOG(WARNING,
-			    "delete route on %s failed: %s",
-			    loop_iface->name,
-			    strerror(errno));
+			LOG(WARNING, "delete route on %s failed: %s", iface->name, strerror(errno));
 	}
 }
 
