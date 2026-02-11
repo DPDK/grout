@@ -212,25 +212,45 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 }
 
 static void grout_sync_ifaces(struct event *) {
-	struct gr_infra_iface_list_req if_req = {.type = GR_IFACE_TYPE_UNDEF};
+	// Sync interfaces in dependency order: VRF first (no deps), then bond
+	// and ipip (need VRF only), port (needs VRF, may be bond member), vlan
+	// (needs parent port or bond).
+	static const gr_iface_type_t types[] = {
+		GR_IFACE_TYPE_VRF,
+		GR_IFACE_TYPE_BOND,
+		GR_IFACE_TYPE_IPIP,
+		GR_IFACE_TYPE_PORT,
+		GR_IFACE_TYPE_VLAN,
+	};
+	struct gr_infra_iface_list_req if_req;
 	bool sync_vrf[GR_MAX_IFACES] = {false};
 	struct gr_iface *iface;
+	unsigned int i;
 	int ret;
 
 	if (grout_client_ensure_connect() < 0)
 		return;
 
-	gr_api_client_stream_foreach (
-		iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
-	) {
-		gr_log_debug("sync iface %s", iface->name);
-		grout_link_change(iface, true, true);
-		sync_vrf[iface->vrf_id] = true;
-	}
-	if (ret < 0)
-		gr_log_err("GR_INFRA_IFACE_LIST: %s", strerror(errno));
+	for (i = 0; i < ARRAY_SIZE(types); i++) {
+		if_req.type = types[i];
 
-	for (unsigned i = 0; i < GR_MAX_IFACES; i++) {
+		gr_api_client_stream_foreach (
+			iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
+		) {
+			gr_log_debug("sync iface %s", iface->name);
+			grout_link_change(iface, true, true);
+			sync_vrf[iface->vrf_id] = true;
+		}
+
+		if (ret < 0)
+			gr_log_err(
+				"GR_INFRA_IFACE_LIST(%s): %s",
+				gr_iface_type_name(types[i]),
+				strerror(errno)
+			);
+	}
+
+	for (i = 0; i < GR_MAX_IFACES; i++) {
 		if (sync_vrf[i])
 			event_add_event(zrouter.master, grout_sync_ifaces_addresses, NULL, i, NULL);
 	}
