@@ -34,7 +34,7 @@ xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		IFACE_STATS_INC(rx, mbuf, iface);
 
-		if (peer->type == GR_IFACE_TYPE_PORT) {
+		if (peer != NULL && peer->type == GR_IFACE_TYPE_PORT) {
 			port = iface_info_port(peer);
 			mbuf->port = port->port_id;
 			edge = OUTPUT;
