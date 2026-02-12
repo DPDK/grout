@@ -2,9 +2,9 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_datapath.h>
-#include <gr_fib6.h>
 #include <gr_graph.h>
 #include <gr_icmp6.h>
+#include <gr_ip6_control.h>
 #include <gr_ip6_datapath.h>
 #include <gr_log.h>
 #include <gr_mbuf.h>
