@@ -106,6 +106,15 @@ struct gr_ip6_addr_list_req {
 
 STREAM_RESP(struct gr_ip6_ifaddr);
 
+// Remove all IPv6 addresses from an interface.
+#define GR_IP6_ADDR_FLUSH REQUEST_TYPE(GR_IP6_MODULE, 0x0026)
+
+struct gr_ip6_addr_flush_req {
+	uint16_t iface_id;
+};
+
+// struct gr_ip6_addr_flush_resp { };
+
 // router advertisement ////////////////////////////////////////////////////////
 
 // Configure IPv6 router advertisement on an interface.

@@ -54,6 +54,22 @@ grcli address del 10.1.0.1/24 iface p3
 grcli route show | grep -q '10.1.0.0/24' && fail "connected route should be removed after address del"
 grcli address del 2346::1/24 iface p3
 grcli route show | grep -q '2346::/24' && fail "connected route should be removed after address del"
+# Test address flush with family filter
+grcli address add 10.2.0.1/24 iface p3
+grcli address add 2347::1/24 iface p3
+grcli address flush ip4 iface p3
+grcli address show iface p3 | grep -q '10.' && fail "p3 should have no IPv4 after ip4 flush"
+grcli address show iface p3 | grep -q '2347::' || fail "p3 should still have IPv6 after ip4 flush"
+grcli address flush ip6 iface p3
+grcli address show iface p3 | grep -q '2347::' && fail "p3 should have no user IPv6 after ip6 flush"
+grcli address show iface p3 | grep -q 'fe80::' || fail "p3 should still have link-local after ip6 flush"
+# Test flush all families (default)
+grcli address add 10.3.0.1/24 iface p3
+grcli address add 2348::1/24 iface p3
+grcli address flush iface p3
+grcli address show iface p3 | grep -q '10.' && fail "p3 should have no IPv4 after flush"
+grcli address show iface p3 | grep -q '2348::' && fail "p3 should have no user IPv6 after flush"
+grcli address show iface p3 | grep -q 'fe80::' || fail "p3 should still have link-local after flush"
 
 grcli nexthop del 42
 grcli nexthop del 666

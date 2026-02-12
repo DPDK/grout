@@ -24,6 +24,7 @@ struct cli_addr_ops {
 	cmd_cb_t add;
 	cmd_cb_t del;
 	int (*list)(struct gr_api_client *, uint16_t iface_id, struct libscols_table *);
+	int (*flush)(struct gr_api_client *, uint16_t iface_id);
 	STAILQ_ENTRY(cli_addr_ops) next;
 };
 
