@@ -49,6 +49,12 @@ grcli nexthop show
 grcli graph show full
 grcli stats show software
 grcli stats show hardware
+# Test address del cleans up connected routes
+grcli address del 10.1.0.1/24 iface p3
+grcli route show | grep -q '10.1.0.0/24' && fail "connected route should be removed after address del"
+grcli address del 2346::1/24 iface p3
+grcli route show | grep -q '2346::/24' && fail "connected route should be removed after address del"
+
 grcli nexthop del 42
 grcli nexthop del 666
 grcli nexthop del 123456
