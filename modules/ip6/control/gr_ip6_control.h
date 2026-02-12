@@ -16,6 +16,36 @@
 
 #include <stdint.h>
 
+const struct nexthop *
+fib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip);
+
+static inline const struct rte_ipv6_addr *addr6_linklocal_scope(
+	const struct rte_ipv6_addr *ip,
+	struct rte_ipv6_addr *scoped_ip,
+	uint16_t iface_id
+) {
+	if (rte_ipv6_addr_is_linklocal(ip)) {
+		*scoped_ip = *ip;
+		scoped_ip->a[2] = (iface_id >> 8) & 0xff;
+		scoped_ip->a[3] = iface_id & 0xff;
+		return scoped_ip;
+	} else {
+		return ip;
+	}
+}
+
+static inline const struct rte_ipv6_addr *
+addr6_linklocal_unscope(const struct rte_ipv6_addr *ip, struct rte_ipv6_addr *unscoped_ip) {
+	if (rte_ipv6_addr_is_linklocal(ip)) {
+		*unscoped_ip = *ip;
+		unscoped_ip->a[2] = 0;
+		unscoped_ip->a[3] = 0;
+		return unscoped_ip;
+	} else {
+		return ip;
+	}
+}
+
 static inline struct nexthop *
 nh6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip) {
 	return nexthop_lookup_l3(GR_AF_IP6, vrf_id, iface_id, ip);
