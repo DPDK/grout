@@ -3,7 +3,6 @@
 
 #include <gr_conntrack_control.h>
 #include <gr_eth.h>
-#include <gr_fib4.h>
 #include <gr_graph.h>
 #include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
