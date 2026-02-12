@@ -84,6 +84,8 @@ int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
 
+uint16_t vrf_default_get_or_create(void);
+
 // Get the VRF interface.
 // vrf_id is the VRF interface ID.
 struct iface *get_vrf_iface(uint16_t vrf_id);

@@ -15,6 +15,7 @@
 #include <gr_queue.h>
 #include <gr_rcu.h>
 #include <gr_vec.h>
+#include <gr_vrf.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -49,6 +50,12 @@ void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 struct rte_rcu_qsbr *gr_datapath_rcu(void) {
 	static struct rte_rcu_qsbr rcu;
 	return &rcu;
+}
+uint16_t vrf_default_get_or_create(void) {
+	return 0;
+}
+int vrf_incref(uint16_t) {
+	return 0;
 }
 
 struct iface *iface_from_id(uint16_t ifid) {

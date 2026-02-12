@@ -128,7 +128,7 @@ static int next_ifid(uint16_t *ifid) {
 }
 
 // Get or create the default VRF. Returns GR_VRF_DEFAULT_ID, or 0 on error.
-static uint16_t get_or_create_default_vrf(void) {
+uint16_t vrf_default_get_or_create(void) {
 	if (iface_from_id(GR_VRF_DEFAULT_ID) != NULL)
 		return GR_VRF_DEFAULT_ID;
 
@@ -174,7 +174,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 			// Auto-create default VRF if no VRF specified
 			if (vrf_id == GR_IFACE_ID_UNDEF) {
-				vrf_id = get_or_create_default_vrf();
+				vrf_id = vrf_default_get_or_create();
 				if (vrf_id == GR_IFACE_ID_UNDEF)
 					goto fail;
 			}
