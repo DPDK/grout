@@ -12,6 +12,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_rcu.h>
+#include <gr_vrf.h>
 #include <gr_worker.h>
 
 // mocked types/functions
@@ -28,6 +29,12 @@ void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 struct rte_rcu_qsbr *gr_datapath_rcu(void) {
 	static struct rte_rcu_qsbr rcu;
 	return &rcu;
+}
+uint16_t vrf_default_get_or_create(void) {
+	return 0;
+}
+int vrf_incref(uint16_t) {
+	return 0;
 }
 mock_func(struct iface *, iface_from_id(uint16_t));
 mock_func(struct iface *, iface_next(gr_iface_type_t, const struct iface *));

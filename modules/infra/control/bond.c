@@ -11,6 +11,7 @@
 #include <gr_module.h>
 #include <gr_port.h>
 #include <gr_rcu.h>
+#include <gr_vrf.h>
 
 #include <rte_ether.h>
 
@@ -415,8 +416,14 @@ static int bond_init(struct iface *iface, const void *api_info) {
 static int bond_fini(struct iface *iface) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
 
-	while (bond->n_members > 0)
-		bond_detach_member(iface, bond->members[bond->n_members - 1].iface);
+	while (bond->n_members > 0) {
+		struct iface *member = bond->members[bond->n_members - 1].iface;
+		bond_detach_member(iface, member);
+		member->vrf_id = vrf_default_get_or_create();
+		if (member->vrf_id != GR_VRF_ID_UNDEF)
+			vrf_incref(member->vrf_id);
+		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
+	}
 
 	gr_vec_free(bond->extra_macs);
 

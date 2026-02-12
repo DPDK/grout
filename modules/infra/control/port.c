@@ -18,6 +18,7 @@
 #include <gr_rcu.h>
 #include <gr_vec.h>
 #include <gr_vlan.h>
+#include <gr_vrf.h>
 #include <gr_worker.h>
 
 #include <numa.h>
@@ -384,6 +385,17 @@ static int iface_port_fini(struct iface *iface) {
 		gr_vec_free(ports);
 		if (ret < 0)
 			return errno_log(-ret, "worker_queue_reassign");
+	}
+
+	while ((i = iface_next(GR_IFACE_TYPE_UNDEF, i)) != NULL) {
+		if (i->domain_id == iface->id) {
+			i->vrf_id = vrf_default_get_or_create();
+			if (i->vrf_id != GR_VRF_ID_UNDEF)
+				vrf_incref(i->vrf_id);
+			i->mode = GR_IFACE_MODE_VRF;
+			i->domain_id = GR_IFACE_ID_UNDEF;
+			gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, i);
+		}
 	}
 
 	port_ifaces[port->port_id] = NULL;
