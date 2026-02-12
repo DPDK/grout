@@ -1,0 +1,46 @@
+From 182f9223b9d407db31de3e54833572be554f08dc Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Fri, 13 Feb 2026 11:20:19 +0100
+Subject: [PATCH dpdk] hash: avoid leaking entries on RCU defer queue failure
+
+When rte_rcu_qsbr_dq_enqueue() fails in DQ mode, the deleted key slot
+is never freed and becomes permanently leaked. Fall back to synchronous
+reclamation instead of only logging an error.
+
+Cc: stable@dpdk.org
+Fixes: 769b2de7fb52 ("hash: implement RCU resources reclamation")
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ lib/hash/rte_cuckoo_hash.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/lib/hash/rte_cuckoo_hash.c b/lib/hash/rte_cuckoo_hash.c
+index da12825c6ed2..8189bde024be 100644
+--- a/lib/hash/rte_cuckoo_hash.c
++++ b/lib/hash/rte_cuckoo_hash.c
+@@ -1870,18 +1870,15 @@ __rte_hash_del_key_with_hash(const struct rte_hash *h, const void *key,
+ 		/* Key index where key is stored, adding the first dummy index */
+ 		rcu_dq_entry.key_idx = ret + 1;
+ 		rcu_dq_entry.ext_bkt_idx = index;
+-		if (h->dq == NULL) {
++		if (h->dq == NULL || rte_rcu_qsbr_dq_enqueue(h->dq, &rcu_dq_entry) != 0) {
+ 			/* Wait for quiescent state change if using
+-			 * RTE_HASH_QSBR_MODE_SYNC
++			 * RTE_HASH_QSBR_MODE_SYNC or if RCU enqueue failed.
+ 			 */
+ 			rte_rcu_qsbr_synchronize(h->hash_rcu_cfg->v,
+ 						 RTE_QSBR_THRID_INVALID);
+ 			__hash_rcu_qsbr_free_resource((void *)((uintptr_t)h),
+ 						      &rcu_dq_entry, 1);
+-		} else if (h->dq)
+-			/* Push into QSBR FIFO if using RTE_HASH_QSBR_MODE_DQ */
+-			if (rte_rcu_qsbr_dq_enqueue(h->dq, &rcu_dq_entry) != 0)
+-				HASH_LOG(ERR, "Failed to push QSBR FIFO");
++		}
+ 	}
+ 	__hash_rw_writer_unlock(h);
+ 	return ret;
+-- 
+2.53.0
+
