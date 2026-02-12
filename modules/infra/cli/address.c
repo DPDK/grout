@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/queue.h>
 
 static STAILQ_HEAD(, cli_addr_ops) addr_ops = STAILQ_HEAD_INITIALIZER(addr_ops);
@@ -21,6 +22,7 @@ void cli_addr_ops_register(struct cli_addr_ops *ops) {
 	assert(ops->add != NULL);
 	assert(ops->del != NULL);
 	assert(ops->list != NULL);
+	assert(ops->flush != NULL);
 	struct cli_addr_ops *o;
 	STAILQ_FOREACH (o, &addr_ops, next)
 		assert(ops->af != o->af);
@@ -51,6 +53,36 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 
 	errno = ENOPROTOOPT;
 	return CMD_ERROR;
+}
+
+static cmd_status_t addr_flush(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+	const char *family = arg_str(p, "FAMILY");
+	addr_family_t af = GR_AF_UNSPEC;
+	struct cli_addr_ops *ops;
+	int ret = 0;
+
+	if (iface == NULL)
+		return CMD_ERROR;
+
+	uint16_t iface_id = iface->id;
+	free(iface);
+
+	if (family != NULL) {
+		if (strncmp(family, "ip4", sizeof("ip4")) == 0)
+			af = GR_AF_IP4;
+		else if (strncmp(family, "ip6", sizeof("ip6")) == 0)
+			af = GR_AF_IP6;
+	}
+
+	STAILQ_FOREACH (ops, &addr_ops, next) {
+		if (af != GR_AF_UNSPEC && ops->af != af)
+			continue;
+		if ((ret = ops->flush(c, iface_id)) < 0)
+			break;
+	}
+
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -107,6 +139,19 @@ static int ctx_init(struct ec_node *root) {
 		addr_del,
 		"Remove an address from an interface.",
 		with_help("IP address with prefix length.", ec_node_re("ADDR", IP_ANY_NET_RE)),
+		with_help(
+			"Interface name.",
+			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		ADDR_CTX(root),
+		"flush [FAMILY] iface IFACE",
+		addr_flush,
+		"Remove all addresses from an interface.",
+		with_help("Address family.", ec_node_re("FAMILY", "ip4|ip6")),
 		with_help(
 			"Interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))

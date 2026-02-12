@@ -208,6 +208,27 @@ static struct api_out addr_del(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out addr_flush(const void *request, struct api_ctx *) {
+	const struct gr_ip4_addr_flush_req *req = request;
+	struct nexthop_info_l3 *l3;
+	struct hoplist *ifaddrs;
+
+	ifaddrs = addr4_get_all(req->iface_id);
+	if (ifaddrs == NULL) {
+		if (errno == ENOENT)
+			return api_out(0, 0, NULL);
+		return api_out(errno, 0, NULL);
+	}
+
+	while (gr_vec_len(ifaddrs->nh) > 0) {
+		l3 = nexthop_info_l3(ifaddrs->nh[gr_vec_len(ifaddrs->nh) - 1]);
+		if (addr4_delete(req->iface_id, l3->ipv4, l3->prefixlen) < 0)
+			return api_out(errno, 0, NULL);
+	}
+
+	return api_out(0, 0, NULL);
+}
+
 static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip4_addr_list_req *req = request;
 	const struct hoplist *addrs;
@@ -285,6 +306,11 @@ static struct gr_api_handler addr_del_handler = {
 	.request_type = GR_IP4_ADDR_DEL,
 	.callback = addr_del,
 };
+static struct gr_api_handler addr_flush_handler = {
+	.name = "ipv4 address flush",
+	.request_type = GR_IP4_ADDR_FLUSH,
+	.callback = addr_flush,
+};
 static struct gr_api_handler addr_list_handler = {
 	.name = "ipv4 address list",
 	.request_type = GR_IP4_ADDR_LIST,
@@ -315,6 +341,7 @@ static struct gr_event_serializer iface_addr_serializer = {
 RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr_add_handler);
 	gr_register_api_handler(&addr_del_handler);
+	gr_register_api_handler(&addr_flush_handler);
 	gr_register_api_handler(&addr_list_handler);
 	gr_register_module(&addr_module);
 	gr_event_subscribe(&iface_pre_rm_subscription);

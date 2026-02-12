@@ -106,6 +106,15 @@ struct gr_ip4_addr_list_req {
 
 STREAM_RESP(struct gr_ip4_ifaddr);
 
+// Remove all IPv4 addresses from an interface.
+#define GR_IP4_ADDR_FLUSH REQUEST_TYPE(GR_IP4_MODULE, 0x0026)
+
+struct gr_ip4_addr_flush_req {
+	uint16_t iface_id;
+};
+
+// struct gr_ip4_addr_flush_resp { };
+
 // icmp ////////////////////////////////////////////////////////////////////////
 
 // Send an ICMP echo request (ping).

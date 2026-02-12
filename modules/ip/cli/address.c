@@ -51,6 +51,12 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 	return CMD_SUCCESS;
 }
 
+static int addr_flush(struct gr_api_client *c, uint16_t iface_id) {
+	struct gr_ip4_addr_flush_req req = {.iface_id = iface_id};
+
+	return gr_api_client_send_recv(c, GR_IP4_ADDR_FLUSH, sizeof(req), &req, NULL);
+}
+
 static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols_table *table) {
 	struct gr_ip4_addr_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .iface_id = iface_id};
 	const struct gr_ip4_ifaddr *addr;
@@ -77,6 +83,7 @@ static struct cli_addr_ops addr_ops = {
 	.add = addr_add,
 	.del = addr_del,
 	.list = addr_list,
+	.flush = addr_flush,
 };
 
 static void addr_event_print(uint32_t event, const void *obj) {

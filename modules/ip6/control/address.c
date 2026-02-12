@@ -345,6 +345,33 @@ static struct api_out addr6_del(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out addr6_flush(const void *request, struct api_ctx *) {
+	const struct gr_ip6_addr_flush_req *req = request;
+	const struct nexthop_info_l3 *l3;
+	const struct iface *iface;
+	struct hoplist *addrs;
+	const struct nexthop *nh;
+	unsigned i = 0;
+
+	iface = iface_from_id(req->iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0, NULL);
+
+	addrs = &iface_addrs[iface->id];
+	while (i < gr_vec_len(addrs->nh)) {
+		nh = addrs->nh[i];
+		l3 = nexthop_info_l3(nh);
+		if (rte_ipv6_addr_is_linklocal(&l3->ipv6)) {
+			i++;
+			continue;
+		}
+		if (iface6_addr_del(iface, &l3->ipv6, l3->prefixlen) < 0)
+			return api_out(errno, 0, NULL);
+	}
+
+	return api_out(0, 0, NULL);
+}
+
 static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip6_addr_list_req *req = request;
 	const struct hoplist *addrs;
@@ -467,6 +494,11 @@ static struct gr_api_handler addr6_del_handler = {
 	.request_type = GR_IP6_ADDR_DEL,
 	.callback = addr6_del,
 };
+static struct gr_api_handler addr6_flush_handler = {
+	.name = "ipv6 address flush",
+	.request_type = GR_IP6_ADDR_FLUSH,
+	.callback = addr6_flush,
+};
 static struct gr_api_handler addr6_list_handler = {
 	.name = "ipv6 address list",
 	.request_type = GR_IP6_ADDR_LIST,
@@ -500,6 +532,7 @@ static struct gr_event_serializer iface_addr_serializer = {
 RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr6_add_handler);
 	gr_register_api_handler(&addr6_del_handler);
+	gr_register_api_handler(&addr6_flush_handler);
 	gr_register_api_handler(&addr6_list_handler);
 	gr_register_module(&addr6_module);
 	gr_event_subscribe(&iface_event_subscription);
