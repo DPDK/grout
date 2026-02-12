@@ -40,3 +40,91 @@ struct gr_iface_info_bridge {
 	BASE(__gr_iface_info_bridge_base);
 	uint16_t members[GR_BRIDGE_MAX_MEMBERS]; // Interface IDs of bridge members.
 };
+
+// FDB (L2 Forwarding Database) management /////////////////////////////////////
+
+// FDB entry flags.
+typedef enum : uint8_t {
+	GR_FDB_F_STATIC = GR_BIT8(0), // User-configured, never aged out.
+	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
+} gr_fdb_flags_t;
+
+// Forwarding database entry associating a MAC+VLAN to a bridge member interface.
+struct gr_fdb_entry {
+	uint16_t bridge_id;
+	struct rte_ether_addr mac;
+	uint16_t vlan_id;
+	uint16_t iface_id; // Updated automatically when a MAC moves between members.
+	gr_fdb_flags_t flags;
+	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
+};
+
+enum {
+	GR_EVENT_FDB_ADD = EVENT_TYPE(GR_L2_MODULE, 0x0001),
+	GR_EVENT_FDB_DEL = EVENT_TYPE(GR_L2_MODULE, 0x0002),
+	GR_EVENT_FDB_UPDATE = EVENT_TYPE(GR_L2_MODULE, 0x0003),
+};
+
+// Add an FDB entry. The bridge_id is resolved from the member interface's domain.
+// Entries without GR_FDB_F_STATIC are subject to ageing like learned entries.
+#define GR_FDB_ADD REQUEST_TYPE(GR_L2_MODULE, 0x0001)
+
+struct gr_fdb_add_req {
+	struct gr_fdb_entry fdb;
+	bool exist_ok; // If true, update existing entry instead of returning EEXIST.
+};
+
+// struct gr_fdb_add_resp { };
+
+// Delete an FDB entry by key.
+#define GR_FDB_DEL REQUEST_TYPE(GR_L2_MODULE, 0x0002)
+
+struct gr_fdb_del_req {
+	uint16_t bridge_id;
+	struct rte_ether_addr mac;
+	uint16_t vlan_id;
+	bool missing_ok; // If true, ignore ENOENT.
+};
+
+// Flush FDB entries. All non-zero fields are ANDed as filters.
+#define GR_FDB_FLUSH REQUEST_TYPE(GR_L2_MODULE, 0x0003)
+
+struct gr_fdb_flush_req {
+	uint16_t bridge_id; // GR_IFACE_ID_UNDEF to match all bridges.
+	struct rte_ether_addr mac; // Zero address to match all MACs.
+	uint16_t iface_id; // GR_IFACE_ID_UNDEF to match all interfaces.
+	gr_fdb_flags_t flags; // GR_FDB_F_STATIC: flush all. Otherwise, only dynamic entries.
+};
+
+// struct gr_fdb_flush_resp { };
+
+// List FDB entries with optional filtering.
+#define GR_FDB_LIST REQUEST_TYPE(GR_L2_MODULE, 0x0004)
+
+struct gr_fdb_list_req {
+	uint16_t bridge_id; // GR_IFACE_ID_UNDEF to list all bridges.
+	uint16_t iface_id; // GR_IFACE_ID_UNDEF to match all interfaces.
+	gr_fdb_flags_t flags; // GR_FDB_F_STATIC: only static. Otherwise, list all entries.
+};
+
+STREAM_RESP(struct gr_fdb_entry);
+
+// Get FDB subsystem configuration and usage.
+#define GR_FDB_CONFIG_GET REQUEST_TYPE(GR_L2_MODULE, 0x0005)
+
+// struct gr_fdb_config_get_req { };
+
+struct gr_fdb_config_get_resp {
+	uint32_t max_entries;
+	uint32_t used_entries;
+};
+
+// Set FDB subsystem configuration.
+// Changing max_entries requires the FDB to be empty (returns EBUSY otherwise).
+#define GR_FDB_CONFIG_SET REQUEST_TYPE(GR_L2_MODULE, 0x0006)
+
+struct gr_fdb_config_set_req {
+	uint32_t max_entries;
+};
+
+// struct gr_fdb_config_set_resp { };

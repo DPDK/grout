@@ -3,6 +3,7 @@
 
 src += files(
   'bridge.c',
+  'fdb.c',
 )
 
 inc += include_directories('.')

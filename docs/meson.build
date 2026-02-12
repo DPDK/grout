@@ -74,9 +74,10 @@ custom_target(
 # Individual command man pages
 # The list is hardcoded since we can't run grcli during meson configuration.
 grcli_commands = [
-  'address', 'affinity', 'conntrack', 'dnat44', 'events', 'graph', 'interface',
-  'logging', 'nexthop', 'ping', 'ping6', 'route', 'router-advert', 'snat44',
-  'stats', 'trace', 'traceroute', 'traceroute6', 'tunsrc',
+  'address', 'affinity', 'conntrack', 'dnat44', 'events', 'fdb', 'graph',
+  'interface', 'logging', 'nexthop', 'ping', 'ping6', 'route',
+  'router-advert', 'snat44', 'stats', 'trace', 'traceroute', 'traceroute6',
+  'tunsrc',
 ]
 
 foreach cmd : grcli_commands
