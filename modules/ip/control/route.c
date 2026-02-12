@@ -3,7 +3,6 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
-#include <gr_fib4.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip4.h>
@@ -13,11 +12,14 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_queue.h>
+#include <gr_rcu.h>
 #include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_build_config.h>
+#include <rte_errno.h>
 #include <rte_ethdev.h>
+#include <rte_fib.h>
 #include <rte_malloc.h>
 #include <rte_rib.h>
 
@@ -28,60 +30,79 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_rib **vrf_ribs;
+static struct rte_fib **vrf_fibs;
 
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
-static struct rte_rib_conf rib_conf = {
-	.ext_sz = sizeof(gr_nh_origin_t),
-	.max_nodes = IP4_MAX_ROUTES,
+// TODO: make this configurable
+#define IP4_MAX_ROUTES (1 << 16)
+
+static struct rte_fib_conf fib_conf = {
+	.type = RTE_FIB_DIR24_8,
+	.default_nh = 0,
+	.max_routes = IP4_MAX_ROUTES,
+	.rib_ext_sz = sizeof(gr_nh_origin_t),
+	.dir24_8 = {
+		.nh_sz = RTE_FIB_DIR24_8_8B,
+		.num_tbl8 = 1 << 15,
+	},
 };
 
-static struct rte_rib *get_rib(uint16_t vrf_id) {
-	struct rte_rib *rib;
+static struct rte_fib *get_fib(uint16_t vrf_id) {
+	struct rte_fib *fib;
 
 	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
-	rib = vrf_ribs[vrf_id];
-	if (rib == NULL)
+	fib = vrf_fibs[vrf_id];
+	if (fib == NULL)
 		return errno_set_null(ENONET);
 
-	return rib;
+	return fib;
 }
 
-static struct rte_rib *get_or_create_rib(uint16_t vrf_id) {
-	struct rte_rib *rib;
+static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
+	struct rte_fib *fib;
+	int ret;
 
 	if (vrf_id >= GR_MAX_IFACES)
 		return errno_set_null(EOVERFLOW);
 
-	rib = vrf_ribs[vrf_id];
-	if (rib == NULL) {
+	fib = vrf_fibs[vrf_id];
+	if (fib == NULL) {
 		char name[64];
 
-		snprintf(name, sizeof(name), "rib4_vrf_%u", vrf_id);
-		rib = rte_rib_create(name, SOCKET_ID_ANY, &rib_conf);
-		if (rib == NULL)
+		snprintf(name, sizeof(name), "fib4_vrf_%u", vrf_id);
+		fib = rte_fib_create(name, SOCKET_ID_ANY, &fib_conf);
+		if (fib == NULL)
 			return errno_set_null(rte_errno);
 
-		vrf_ribs[vrf_id] = rib;
+		struct rte_fib_rcu_config rcu_config = {
+			.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_SYNC
+		};
+		ret = rte_fib_rcu_qsbr_add(fib, &rcu_config);
+		if (ret < 0) {
+			rte_fib_free(fib);
+			return errno_set_null(-ret);
+		}
+
+		vrf_fibs[vrf_id] = fib;
 	}
 
-	return rib;
+	return fib;
 }
 
-static inline uintptr_t nh_ptr_to_id(struct nexthop *nh) {
+static inline uintptr_t nh_ptr_to_id(const struct nexthop *nh) {
 	uintptr_t id = (uintptr_t)nh;
 
-	// rte_rib stores the nexthop ID on 8 bytes minus one bit which is used
+	// rte_fib stores the nexthop ID on 8 bytes minus one bit which is used
 	// to store metadata about the routing table.
 	//
 	// Address mappings in userspace are guaranteed on x86_64 and aarch64
 	// to use at most 47 bits, leaving at least 17 bits of headroom filled
 	// with zeroes.
 	//
-	// rte_rib_add already checks that the nexthop value does not exceed the
+	// rte_fib_add already checks that the nexthop value does not exceed the
 	// maximum allowed value. For clarity, we explicitly fail if the MSB is
 	// not zero.
 	if (id & GR_BIT64(63))
@@ -94,14 +115,31 @@ static inline struct nexthop *nh_id_to_ptr(uintptr_t id) {
 	return (struct nexthop *)id;
 }
 
-struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
-	struct rte_rib *rib = get_rib(vrf_id);
-	struct rte_rib_node *rn;
+const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
+	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
+	struct rte_fib *fib = get_fib(vrf_id);
 	uintptr_t nh_id;
 
-	if (rib == NULL)
+	if (fib == NULL)
 		return NULL;
 
+	rte_fib_lookup_bulk(fib, &host_order_ip, &nh_id, 1);
+	if (nh_id == 0)
+		return errno_set_null(EHOSTUNREACH);
+
+	return nh_id_to_ptr(nh_id);
+}
+
+struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
+	struct rte_fib *fib = get_fib(vrf_id);
+	struct rte_rib_node *rn;
+	struct rte_rib *rib;
+	uintptr_t nh_id;
+
+	if (fib == NULL)
+		return NULL;
+
+	rib = rte_fib_get_rib(fib);
 	rn = rte_rib_lookup(rib, rte_be_to_cpu_32(ip));
 	if (rn == NULL)
 		return errno_set_null(ENETUNREACH);
@@ -111,13 +149,15 @@ struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 }
 
 struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
-	struct rte_rib *rib = get_rib(vrf_id);
+	struct rte_fib *fib = get_fib(vrf_id);
 	struct rte_rib_node *rn;
+	struct rte_rib *rib;
 	uintptr_t nh_id;
 
-	if (rib == NULL)
+	if (fib == NULL)
 		return NULL;
 
+	rib = rte_fib_get_rib(fib);
 	rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen);
 	if (rn == NULL)
 		return errno_set_null(ENETUNREACH);
@@ -141,22 +181,22 @@ static int rib4_insert_or_replace(
 	struct nexthop *nh,
 	bool replace
 ) {
-	struct rte_rib *rib = get_or_create_rib(vrf_id);
+	struct rte_fib *fib = get_or_create_fib(vrf_id);
 	struct nexthop *existing = NULL;
 	struct rte_rib_node *rn;
+	struct rte_rib *rib;
 	gr_nh_origin_t *o;
+	int ret;
 
-	if (rib == NULL)
+	if (fib == NULL)
 		return -errno;
 
 	if (!nexthop_origin_valid(origin))
 		return errno_set(EPFNOSUPPORT);
 
-	if ((rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen)) == NULL) {
-		rn = rte_rib_insert(rib, rte_be_to_cpu_32(ip), prefixlen);
-		if (rn == NULL)
-			return errno_set(rte_errno);
-	} else {
+	rib = rte_fib_get_rib(fib);
+
+	if ((rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen)) != NULL) {
 		uintptr_t nh_id;
 		rte_rib_get_nh(rn, &nh_id);
 		existing = nh_id_to_ptr(nh_id);
@@ -164,7 +204,10 @@ static int rib4_insert_or_replace(
 			return errno_set(nexthop_equal(nh, existing) ? EEXIST : EBUSY);
 	}
 
-	rte_rib_set_nh(rn, nh_ptr_to_id(nh));
+	if ((ret = rte_fib_add(fib, rte_be_to_cpu_32(ip), prefixlen, nh_ptr_to_id(nh))) < 0)
+		return errno_set(-ret);
+
+	rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen);
 	o = rte_rib_get_ext(rn);
 	if (existing) {
 		assert(route_counts[vrf_id][*o] > 0);
@@ -173,7 +216,6 @@ static int rib4_insert_or_replace(
 	*o = origin;
 	route_counts[vrf_id][origin]++;
 
-	fib4_insert(vrf_id, ip, prefixlen, nh);
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
 			GR_EVENT_IP_ROUTE_ADD,
@@ -204,15 +246,18 @@ int rib4_insert(
 }
 
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type) {
-	struct rte_rib *rib = get_rib(vrf_id);
+	struct rte_fib *fib = get_fib(vrf_id);
 	gr_nh_origin_t *o, origin;
 	struct rte_rib_node *rn;
 	struct nexthop *nh;
+	struct rte_rib *rib;
 	uintptr_t nh_id;
+	int ret;
 
-	if (rib == NULL)
+	if (fib == NULL)
 		return -errno;
 
+	rib = rte_fib_get_rib(fib);
 	rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen);
 	if (rn == NULL)
 		return errno_set(ENOENT);
@@ -224,8 +269,8 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t 
 	if (nh->type != nh_type)
 		return errno_set(EINVAL);
 
-	rte_rib_remove(rib, rte_be_to_cpu_32(ip), prefixlen);
-	fib4_remove(vrf_id, ip, prefixlen);
+	if ((ret = rte_fib_delete(fib, rte_be_to_cpu_32(ip), prefixlen)) < 0)
+		return errno_set(-ret);
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		gr_event_push(
@@ -338,10 +383,10 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	uint32_t ip;
 
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
-		rib = vrf_ribs[v];
-		if (rib == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF))
+		if (vrf_fibs[v] == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF))
 			continue;
 
+		rib = rte_fib_get_rib(vrf_fibs[v]);
 		rn = NULL;
 		while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
 			rte_rib_get_ip(rn, &ip);
@@ -415,20 +460,20 @@ static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 }
 
 static void route4_init(struct event_base *) {
-	vrf_ribs = rte_calloc(
-		__func__, GR_MAX_IFACES, sizeof(struct rte_rib *), RTE_CACHE_LINE_SIZE
+	vrf_fibs = rte_calloc(
+		__func__, GR_MAX_IFACES, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE
 	);
-	if (vrf_ribs == NULL)
-		ABORT("rte_calloc(vrf_ribs): %s", rte_strerror(rte_errno));
+	if (vrf_fibs == NULL)
+		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
 }
 
 static void route4_fini(struct event_base *) {
 	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
-		rte_rib_free(vrf_ribs[vrf_id]);
-		vrf_ribs[vrf_id] = NULL;
+		rte_fib_free(vrf_fibs[vrf_id]);
+		vrf_fibs[vrf_id] = NULL;
 	}
-	rte_free(vrf_ribs);
-	vrf_ribs = NULL;
+	rte_free(vrf_fibs);
+	vrf_fibs = NULL;
 }
 
 static void rib4_cleanup_nh(
@@ -457,7 +502,7 @@ static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 	char vrf[16];
 
 	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
-		if (vrf_ribs[vrf_id] == NULL)
+		if (vrf_fibs[vrf_id] == NULL)
 			continue;
 
 		snprintf(vrf, sizeof(vrf), "%u", vrf_id);
@@ -535,7 +580,7 @@ static struct gr_event_serializer route_serializer = {
 
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
-	.depends_on = "fib4",
+	.depends_on = "nexthop",
 	.init = route4_init,
 	.fini = route4_fini,
 };

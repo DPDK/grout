@@ -2,8 +2,8 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include <gr_conntrack_control.h>
-#include <gr_fib4.h>
 #include <gr_id_pool.h>
+#include <gr_ip4_control.h>
 #include <gr_ip4_datapath.h>
 #include <gr_log.h>
 #include <gr_module.h>

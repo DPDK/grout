@@ -3,7 +3,6 @@
 
 #include <gr_datapath.h>
 #include <gr_eth.h>
-#include <gr_fib4.h>
 #include <gr_graph.h>
 #include <gr_iface.h>
 #include <gr_ip4.h>
