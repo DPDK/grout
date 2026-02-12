@@ -36,6 +36,7 @@ static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 // TODO: make this configurable
 #define IP4_MAX_ROUTES (1 << 16)
+#define IP4_NUM_TBL8 ((IP4_MAX_ROUTES) < (1 << 16) ? (IP4_MAX_ROUTES) : (IP4_MAX_ROUTES) / 4)
 
 static struct rte_fib_conf fib_conf = {
 	.type = RTE_FIB_DIR24_8,
@@ -44,7 +45,7 @@ static struct rte_fib_conf fib_conf = {
 	.rib_ext_sz = sizeof(gr_nh_origin_t),
 	.dir24_8 = {
 		.nh_sz = RTE_FIB_DIR24_8_8B,
-		.num_tbl8 = 1 << 15,
+		.num_tbl8 = IP4_NUM_TBL8,
 	},
 };
 
