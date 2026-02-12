@@ -67,6 +67,7 @@ static int bridge_detach_member(struct iface *bridge, struct iface *member) {
 			br->n_members--;
 			member->domain_id = GR_IFACE_ID_UNDEF;
 			member->mode = GR_IFACE_MODE_VRF;
+			fdb_purge_iface(member->id);
 			break;
 		}
 	}
@@ -86,6 +87,8 @@ static int bridge_fini(struct iface *iface) {
 		member->mode = GR_IFACE_MODE_VRF;
 		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
+
+	fdb_purge_bridge(iface->id);
 
 	return 0;
 }
