@@ -442,6 +442,11 @@ struct nexthop *nexthop_lookup_id(uint32_t nh_id) {
 
 static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 	if (nh->iface_id == (uintptr_t)priv) {
+		if (nh->type == GR_NH_T_L3) {
+			struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if ((l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS)
+				return; // addresses are cleaned per address family
+		}
 		nexthop_routes_cleanup(nh);
 		while (nh->ref_count)
 			nexthop_decref(nh);
