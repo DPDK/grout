@@ -35,6 +35,7 @@ static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 // TODO: make this configurable
 #define IP6_MAX_ROUTES (1 << 16)
+#define IP6_NUM_TBL8 ((IP6_MAX_ROUTES) < (1 << 16) ? (IP6_MAX_ROUTES) : (IP6_MAX_ROUTES) / 4)
 
 static struct rte_fib6_conf fib6_conf = {
 	.type = RTE_FIB6_TRIE,
@@ -43,7 +44,7 @@ static struct rte_fib6_conf fib6_conf = {
 	.rib_ext_sz = sizeof(gr_nh_origin_t),
 	.trie = {
 		.nh_sz = RTE_FIB6_TRIE_8B,
-		.num_tbl8 = 1 << 15,
+		.num_tbl8 = IP6_NUM_TBL8,
 	},
 };
 
