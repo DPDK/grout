@@ -179,6 +179,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		}
 	);
 
+	nexthop_routes_cleanup(nh);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 

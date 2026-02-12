@@ -308,6 +308,7 @@ iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 		}
 	);
 
+	nexthop_routes_cleanup(nh);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 
