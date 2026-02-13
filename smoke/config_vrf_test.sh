@@ -12,7 +12,7 @@ grcli interface del p4
 grcli interface del testvrf
 
 # reserved name rejection
-grcli interface add port p4 devargs net_null2,no-rx=1 name gr-loop99 \
+grcli interface add port gr-loop99 devargs net_null2,no-rx=1 \
 	&& fail "reserved name gr-loop99 should be rejected"
 grcli interface add vrf gr-loop99 \
 	&& fail "reserved name gr-loop99 should be rejected for VRF"
