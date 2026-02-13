@@ -121,6 +121,8 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "VLAN", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
+	scols_table_new_column(table, "VTEP", 0, 0);
+	scols_table_new_column(table, "TYPE", 0, 0);
 	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
@@ -140,11 +142,17 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
 		free(iface);
 
+		if (fdb->vtep != 0) {
+			scols_line_sprintf(line, 4, IP4_F, &fdb->vtep);
+			scols_line_sprintf(
+				line, 5, "%s", (fdb->flags & GR_FDB_F_LOCAL) ? "local" : "remote"
+			);
+		}
 		if (fdb->flags & GR_FDB_F_STATIC) {
-			scols_line_set_data(line, 4, "static");
+			scols_line_set_data(line, 6, "static");
 		} else {
 			scols_line_sprintf(
-				line, 4, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
+				line, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
 			);
 		}
 	}
@@ -306,6 +314,9 @@ static void fdb_event_print(uint32_t event, const void *obj) {
 	if (fdb->vlan_id != 0)
 		printf(" vlan=%u", fdb->vlan_id);
 	printf(" iface=%u", fdb->iface_id);
+	if (fdb->vtep != 0)
+		printf(" vtep=" IP4_F, &fdb->vtep);
+	printf(" %s", (fdb->flags & GR_FDB_F_LOCAL) ? "local" : "remote");
 	printf(" %s\n", (fdb->flags & GR_FDB_F_STATIC) ? "static" : "dynamic");
 }
 

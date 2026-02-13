@@ -16,6 +16,7 @@
 typedef enum : uint16_t {
 	GR_BRIDGE_F_NO_FLOOD = GR_BIT16(0),
 	GR_BRIDGE_F_NO_LEARN = GR_BIT16(1),
+	GR_BRIDGE_F_NO_LEARN_VTEP = GR_BIT16(2),
 } gr_bridge_flags_t;
 
 #define GR_BRIDGE_MAX_MEMBERS 64
@@ -78,6 +79,7 @@ struct gr_fdb_entry {
 		struct gr_fdb_key;
 	};
 	uint16_t iface_id; // Updated automatically when a MAC moves between members.
+	ip4_addr_t vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
 	gr_fdb_flags_t flags;
 	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
 };

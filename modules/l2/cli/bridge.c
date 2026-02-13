@@ -16,9 +16,10 @@
 static void bridge_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	const struct gr_iface_info_bridge *bridge = PAYLOAD(iface);
 
-	printf("flags: %sflood %slearn\n",
+	printf("flags: %sflood %slearn %slearn_vtep\n",
 	       (bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-	       (bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : "");
+	       (bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : "",
+	       (bridge->flags & GR_BRIDGE_F_NO_LEARN_VTEP) ? "no_" : "");
 
 	printf("ageing_time: %u seconds\n", bridge->ageing_time);
 	printf("mac: " ETH_F "\n", &bridge->mac);
@@ -38,10 +39,11 @@ bridge_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf
 	snprintf(
 		buf,
 		len,
-		"members=%u %sflood %slearn",
+		"members=%u %sflood %slearn %slearn_vtep",
 		bridge->n_members,
 		(bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : ""
+		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : "",
+		(bridge->flags & GR_BRIDGE_F_NO_LEARN_VTEP) ? "no_" : ""
 	);
 }
 
@@ -74,6 +76,13 @@ static uint64_t parse_bridge_args(
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
 	} else if (arg_str(p, "no_learn")) {
 		bridge->flags |= GR_BRIDGE_F_NO_LEARN;
+		set_attrs |= GR_BRIDGE_SET_FLAGS;
+	}
+	if (arg_str(p, "learn_vtep")) {
+		bridge->flags &= ~GR_BRIDGE_F_NO_LEARN_VTEP;
+		set_attrs |= GR_BRIDGE_SET_FLAGS;
+	} else if (arg_str(p, "no_learn_vtep")) {
+		bridge->flags |= GR_BRIDGE_F_NO_LEARN_VTEP;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
 	}
 
@@ -143,7 +152,7 @@ out:
 	return ret;
 }
 
-#define BRIDGE_ATTRS_CMD IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC),FLOOD,LEARN"
+#define BRIDGE_ATTRS_CMD IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC),FLOOD,LEARN,LEARN_VTEP"
 
 #define BRIDGE_ATTRS_ARGS                                                                          \
 	IFACE_ATTRS_ARGS,                                                                          \
@@ -166,6 +175,17 @@ out:
 			"LEARN",                                                                   \
 			with_help("Enable MAC learning.", ec_node_str("learn", "learn")),          \
 			with_help("Disable MAC learning.", ec_node_str("no_learn", "no_learn"))    \
+		),                                                                                 \
+		EC_NODE_OR(                                                                        \
+			"LEARN_VTEP",                                                              \
+			with_help(                                                                 \
+				"Enable remote VTEP learning.",                                    \
+				ec_node_str("learn_vtep", "learn_vtep")                            \
+			),                                                                         \
+			with_help(                                                                 \
+				"Disable remote VTEP learning.",                                   \
+				ec_node_str("no_learn_vtep", "no_learn_vtep")                      \
+			)                                                                          \
 		)
 
 static int ctx_init(struct ec_node *root) {

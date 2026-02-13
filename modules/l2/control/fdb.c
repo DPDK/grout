@@ -101,7 +101,8 @@ void fdb_learn(
 	uint16_t bridge_id,
 	uint16_t iface_id,
 	const struct rte_ether_addr *mac,
-	uint16_t vlan_id
+	uint16_t vlan_id,
+	ip4_addr_t vtep
 ) {
 	const struct gr_fdb_key key = {
 		.bridge_id = bridge_id,
@@ -119,6 +120,7 @@ void fdb_learn(
 		fdb->key = key;
 		fdb->flags = GR_FDB_F_LOCAL;
 		fdb->iface_id = iface_id;
+		fdb->vtep = vtep;
 
 		if (rte_hash_add_key_data(fdb_hash, &key, fdb) < 0) {
 			// no space left in hash
