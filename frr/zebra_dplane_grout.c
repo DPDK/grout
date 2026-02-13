@@ -254,6 +254,7 @@ static void grout_sync_ifaces(struct event *) {
 		GR_IFACE_TYPE_VRF, // no dependencies
 		GR_IFACE_TYPE_BRIDGE, // needs VRF domain
 		GR_IFACE_TYPE_IPIP, // needs VRF domain
+		GR_IFACE_TYPE_VXLAN, // needs bridge domain and encap VRF
 		GR_IFACE_TYPE_BOND, // needs VRF/bridge domain
 		GR_IFACE_TYPE_PORT, // needs bond/VRF/bridge domain
 		GR_IFACE_TYPE_VLAN, // needs parent port/bond and VRF/bridge domain
