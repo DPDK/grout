@@ -200,7 +200,7 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 static void grout_sync_ifaces(struct event *) {
 	// Sync interfaces in dependency order: VRF first (no deps), then bridge, bond
 	// and ipip (need VRF only), port (needs VRF, may be bond or bridge member), vlan
-	// (needs parent port or bond).
+	// (needs parent port or bond) and vxlan (needs VRF and bridge).
 	static const gr_iface_type_t types[] = {
 		GR_IFACE_TYPE_VRF,
 		GR_IFACE_TYPE_BRIDGE,
@@ -208,6 +208,7 @@ static void grout_sync_ifaces(struct event *) {
 		GR_IFACE_TYPE_IPIP,
 		GR_IFACE_TYPE_PORT,
 		GR_IFACE_TYPE_VLAN,
+		GR_IFACE_TYPE_VXLAN,
 	};
 	struct gr_infra_iface_list_req if_req;
 	bool sync_vrf[GR_MAX_IFACES] = {false};
