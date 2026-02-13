@@ -7,6 +7,7 @@
 
 #include <gr_ip4.h>
 #include <gr_ip6.h>
+#include <gr_l2.h>
 #include <gr_srv6.h>
 
 #include <linux/if.h>
@@ -43,9 +44,11 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
+	const struct gr_iface_info_bridge *gr_bridge = NULL;
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
+	ifindex_t bridge_ifindex = IFINDEX_INTERNAL;
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	ifindex_t bond_ifindex = IFINDEX_INTERNAL;
 	const struct rte_ether_addr *mac = NULL;
@@ -82,6 +85,12 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_VRF:
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VRF;
+		break;
+	case GR_IFACE_TYPE_BRIDGE:
+		gr_bridge = (const struct gr_iface_info_bridge *)&gr_if->info;
+		link_type = ZEBRA_LLT_ETHER;
+		zif_type = ZEBRA_IF_BRIDGE;
+		mac = &gr_bridge->mac;
 		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
@@ -123,12 +132,15 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 			bond_ifindex = ifindex_grout_to_frr(gr_if->domain_id);
 			slave_type = ZEBRA_IF_SLAVE_BOND;
 			break;
+		case GR_IFACE_MODE_BRIDGE:
+			bridge_ifindex = ifindex_grout_to_frr(gr_if->domain_id);
+			slave_type = ZEBRA_IF_SLAVE_BRIDGE;
+			break;
 		default:
 			break;
 		}
 
-		// no bridge support in grout
-		dplane_ctx_set_ifp_bridge_ifindex(ctx, IFINDEX_INTERNAL);
+		dplane_ctx_set_ifp_bridge_ifindex(ctx, bridge_ifindex);
 		dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);
 		dplane_ctx_set_ifp_bond_ifindex(ctx, bond_ifindex);
 		dplane_ctx_set_ifp_zif_slave_type(ctx, slave_type);
