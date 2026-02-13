@@ -8,6 +8,7 @@
 #include "rt_grout.h"
 
 #include <gr_api_client_impl.h>
+#include <gr_l2.h>
 #include <gr_srv6.h>
 
 #include <lib/frr_pthread.h>
@@ -83,6 +84,29 @@ static int grout_client_ensure_connect(void) {
 		return -errno;
 	}
 	return 0;
+}
+
+static void grout_sync_fdb(struct event *) {
+	struct gr_fdb_list_req req = {.bridge_id = GR_IFACE_ID_UNDEF};
+	struct gr_fdb_entry *fdb;
+	int ret;
+
+	gr_log_debug("sync FDB entries");
+
+	if (grout_client_ensure_connect() < 0)
+		return;
+
+	gr_api_client_stream_foreach (fdb, ret, grout_ctx.client, GR_FDB_LIST, sizeof(req), &req) {
+		gr_log_debug(
+			"sync fdb bridge %u iface %u mac %pEA",
+			fdb->bridge_id,
+			fdb->iface_id,
+			&fdb->mac
+		);
+		grout_macfdb_change(fdb, true);
+	}
+	if (ret < 0)
+		gr_log_err("GR_FDB_LIST: %s", strerror(errno));
 }
 
 static void grout_sync_routes(struct event *e) {
@@ -241,6 +265,8 @@ static void grout_sync_ifaces(struct event *) {
 		if (sync_vrf[i])
 			event_add_event(zrouter.master, grout_sync_ifaces_addresses, NULL, i, NULL);
 	}
+
+	event_add_event(zrouter.master, grout_sync_fdb, NULL, 0, NULL);
 }
 
 static void dplane_grout_connect(struct event *) {
@@ -256,6 +282,9 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IP6_ADDR_ADD, .suppress_self_events = false},
 		{.type = GR_EVENT_IP_ADDR_DEL, .suppress_self_events = false},
 		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
+		{.type = GR_EVENT_FDB_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_FDB_DEL, .suppress_self_events = true},
+		{.type = GR_EVENT_FDB_UPDATE, .suppress_self_events = true},
 	};
 
 	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0)
@@ -345,6 +374,12 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_IP6_ROUTE_LIST);
 	case GR_SRV6_TUNSRC_SET:
 		return TOSTRING(GR_SRV6_TUNSRC_SET);
+	case GR_FDB_ADD:
+		return TOSTRING(GR_FDB_ADD);
+	case GR_FDB_DEL:
+		return TOSTRING(GR_FDB_DEL);
+	case GR_FDB_LIST:
+		return TOSTRING(GR_FDB_LIST);
 	default:
 		snprintf(buf, sizeof(buf), "0x%x", e);
 		return buf;
@@ -423,6 +458,12 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_NEXTHOP_UPDATE);
 	case GR_EVENT_NEXTHOP_DELETE:
 		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
+	case GR_EVENT_FDB_ADD:
+		return TOSTRING(GR_EVENT_FDB_ADD);
+	case GR_EVENT_FDB_UPDATE:
+		return TOSTRING(GR_EVENT_FDB_UPDATE);
+	case GR_EVENT_FDB_DEL:
+		return TOSTRING(GR_EVENT_FDB_DEL);
 	default:
 		snprintf(buf, sizeof(buf), "event 0x%x", e);
 		return buf;
@@ -468,6 +509,14 @@ static void dplane_read_notifications(struct event *event) {
 		// fallthrough
 	case GR_EVENT_IP6_ADDR_DEL:
 		grout_interface_addr6_change(new, PAYLOAD(gr_e));
+		break;
+
+	case GR_EVENT_FDB_ADD:
+	case GR_EVENT_FDB_UPDATE:
+		new = true;
+		// fallthrough
+	case GR_EVENT_FDB_DEL:
+		grout_macfdb_change(PAYLOAD(gr_e), new);
 		break;
 	}
 
@@ -547,6 +596,10 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_NH_UPDATE:
 	case DPLANE_OP_NH_DELETE:
 		return grout_add_del_nexthop(ctx);
+
+	case DPLANE_OP_MAC_INSTALL:
+	case DPLANE_OP_MAC_DELETE:
+		return grout_macfdb_update_ctx(ctx);
 
 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
 		return grout_set_sr_tunsrc(ctx);

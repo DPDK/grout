@@ -16,8 +16,6 @@
 #include <zebra/zebra_vxlan.h>
 #include <zebra_dplane_grout.h>
 
-#define GROUT_NS NS_DEFAULT
-
 static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_type link_type) {
 	uint64_t frr_if_flags = 0;
 
