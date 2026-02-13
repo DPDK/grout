@@ -5,6 +5,7 @@
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip4_control.h>
+#include <gr_ip4_datapath.h>
 #include <gr_l2_control.h>
 #include <gr_l4.h>
 #include <gr_log.h>
@@ -117,6 +118,15 @@ static int iface_vxlan_reconfig(
 		if (iface_set_eth_addr(iface, &next->mac) < 0)
 			return -errno;
 	}
+
+	// Update the datapath template from the current config.
+	cur->template.ip.version_ihl = IPV4_VERSION_IHL;
+	cur->template.ip.time_to_live = IPV4_DEFAULT_TTL;
+	cur->template.ip.next_proto_id = IPPROTO_UDP;
+	cur->template.ip.src_addr = cur->local;
+	cur->template.udp.dst_port = rte_cpu_to_be_16(cur->dst_port);
+	cur->template.vxlan.vx_flags = VXLAN_FLAGS_VNI;
+	cur->template.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
 
 	return 0;
 }
