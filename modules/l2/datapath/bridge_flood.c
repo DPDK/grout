@@ -19,6 +19,7 @@
 enum edges {
 	OUTPUT = 0,
 	ETH_IN,
+	VXLAN_FLOOD,
 	DROP,
 	EDGE_COUNT
 };
@@ -86,7 +87,11 @@ static uint16_t bridge_flood_process(
 			if (clone == NULL)
 				continue;
 
-			rte_node_enqueue_x1(graph, node, OUTPUT, clone);
+			if (member->type == GR_IFACE_TYPE_VXLAN)
+				rte_node_enqueue_x1(graph, node, VXLAN_FLOOD, clone);
+			else
+				rte_node_enqueue_x1(graph, node, OUTPUT, clone);
+
 			flood_count++;
 		}
 		if (iface != br && (br->flags & GR_IFACE_F_UP)) {
@@ -118,6 +123,7 @@ static struct rte_node_register node = {
 	.next_nodes = {
 		[OUTPUT] = "iface_output",
 		[ETH_IN] = "eth_input",
+		[VXLAN_FLOOD] = "vxlan_flood",
 		[DROP] = "bridge_flood_drop",
 	},
 };
