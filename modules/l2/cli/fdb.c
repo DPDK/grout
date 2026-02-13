@@ -93,7 +93,7 @@ static cmd_status_t fdb_flush(struct gr_api_client *c, const struct ec_pnode *p)
 		return CMD_ERROR;
 
 	if (arg_str(p, "all") != NULL)
-		req.flags |= GR_FDB_F_STATIC;
+		req.flags |= (GR_FDB_F_STATIC | GR_FDB_F_EXTERN);
 
 	if (gr_api_client_send_recv(c, GR_FDB_FLUSH, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -108,6 +108,8 @@ static size_t fdb_format_flags(char *buf, size_t len, gr_fdb_flags_t flags) {
 		SAFE_BUF(snprintf, len, "%slearn", n ? " " : "");
 	if (flags & GR_FDB_F_STATIC)
 		SAFE_BUF(snprintf, len, "%sstatic", n ? " " : "");
+	if (flags & GR_FDB_F_EXTERN)
+		SAFE_BUF(snprintf, len, "%sextern", n ? " " : "");
 err:
 	return n;
 }
@@ -134,12 +136,15 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		req.flags |= GR_FDB_F_STATIC;
 	if (arg_str(p, "learn") != NULL)
 		req.flags |= GR_FDB_F_LEARN;
+	if (arg_str(p, "extern") != NULL)
+		req.flags |= GR_FDB_F_EXTERN;
 
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "BRIDGE", 0, 0);
 	scols_table_new_column(table, "MAC", 0, 0);
 	scols_table_new_column(table, "VLAN", 0, 0);
 	scols_table_new_column(table, "IFACE", 0, 0);
+	scols_table_new_column(table, "VTEP", 0, 0);
 	scols_table_new_column(table, "FLAGS", 0, 0);
 	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
@@ -160,11 +165,14 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
 		free(iface);
 
+		if (fdb->vtep != 0)
+			scols_line_sprintf(line, 4, IP4_F, &fdb->vtep);
+
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
-			scols_line_set_data(line, 4, flags);
+			scols_line_set_data(line, 5, flags);
 
 		scols_line_sprintf(
-			line, 5, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
+			line, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
 		);
 	}
 
@@ -256,7 +264,9 @@ static int ctx_init(struct ec_node *root) {
 			"Flush only entries matching this MAC address.",
 			ec_node_re("MAC", ETH_ADDR_RE)
 		),
-		with_help("Flush all entries including static.", ec_node_str("all", "all"))
+		with_help(
+			"Flush all entries including static and extern.", ec_node_str("all", "all")
+		)
 	);
 	if (ret < 0)
 		return ret;
@@ -282,7 +292,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn)]",
+		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn|extern)]",
 		fdb_show,
 		"Show FDB entries.",
 		with_help(
@@ -294,7 +304,8 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		),
 		with_help("Show only static entries.", ec_node_str("static", "static")),
-		with_help("Show only learned entries.", ec_node_str("learn", "learn"))
+		with_help("Show only learned entries.", ec_node_str("learn", "learn")),
+		with_help("Show only extern entries.", ec_node_str("extern", "extern"))
 	);
 	if (ret < 0)
 		return ret;
@@ -331,6 +342,8 @@ static void fdb_event_print(uint32_t event, const void *obj) {
 	if (fdb->vlan_id != 0)
 		printf(" vlan=%u", fdb->vlan_id);
 	printf(" iface=%u", fdb->iface_id);
+	if (fdb->vtep != 0)
+		printf(" vtep=" IP4_F, &fdb->vtep);
 	if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
 		printf(" %s", flags);
 	printf("\n");
