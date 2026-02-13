@@ -8,6 +8,11 @@
 #include <gr_module.h>
 #include <gr_net_types.h>
 
+#include <rte_ip.h>
+#include <rte_mbuf.h>
+#include <rte_udp.h>
+#include <rte_vxlan.h>
+
 #include <stdint.h>
 
 // Internal bridge info structure.
@@ -36,8 +41,16 @@ void fdb_purge_iface(uint16_t iface_id);
 // Delete all FDB entries referencing the provided bridge.
 void fdb_purge_bridge(uint16_t bridge_id);
 
+struct vxlan_template {
+	struct rte_ipv4_hdr ip;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+};
+
 GR_IFACE_INFO(GR_IFACE_TYPE_VXLAN, iface_info_vxlan, {
 	BASE(gr_iface_info_vxlan);
+
+	struct vxlan_template template;
 
 	uint16_t n_flood_vteps;
 	ip4_addr_t *flood_vteps;
@@ -54,3 +67,21 @@ struct flood_type_ops {
 };
 
 void flood_type_register(const struct flood_type_ops *);
+
+#define VXLAN_FLAGS_VNI RTE_BE32(GR_BIT32(27))
+
+static inline rte_be32_t vxlan_decode_vni(rte_be32_t vx_vni) {
+#if RTE_BYTE_ORDER == RTE_BIG_ENDIAN
+	return (rte_be32_t)((uint32_t)vx_vni >> 8);
+#else
+	return (rte_be32_t)((uint32_t)(vx_vni & RTE_BE32(0xffffff00)) << 8);
+#endif
+}
+
+static inline rte_be32_t vxlan_encode_vni(uint32_t vni) {
+#if RTE_BYTE_ORDER == RTE_BIG_ENDIAN
+	return (rte_be32_t)((uint32_t)vni << 8);
+#else
+	return (rte_be32_t)((uint32_t)rte_cpu_to_be_32(vni) >> 8);
+#endif
+}
