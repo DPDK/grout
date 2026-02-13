@@ -105,7 +105,8 @@ void fdb_learn(
 	uint16_t bridge_id,
 	uint16_t iface_id,
 	const struct rte_ether_addr *mac,
-	uint16_t vlan_id
+	uint16_t vlan_id,
+	ip4_addr_t vtep
 ) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
 	struct gr_fdb_entry *fdb;
@@ -121,6 +122,7 @@ void fdb_learn(
 		fdb->mac = *mac;
 		fdb->flags = GR_FDB_F_LEARN;
 		fdb->iface_id = iface_id;
+		fdb->vtep = vtep;
 
 		if (rte_hash_add_key_data(fdb_hash, &key, fdb) < 0) {
 			// no space left in hash
@@ -135,9 +137,10 @@ void fdb_learn(
 
 	fdb->last_seen = gr_clock_us();
 
-	if ((fdb->flags & GR_FDB_F_LEARN) && fdb->iface_id != iface_id) {
+	if ((fdb->flags & GR_FDB_F_LEARN) && (fdb->iface_id != iface_id || fdb->vtep != vtep)) {
 		// update in case the mac address has moved
 		fdb->iface_id = iface_id;
+		fdb->vtep = vtep;
 		gr_event_push(GR_EVENT_FDB_UPDATE, fdb);
 	}
 }
@@ -177,7 +180,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 	void *data;
 	int ret;
 
-	if (req->fdb.flags & ~GR_FDB_F_STATIC)
+	if (req->fdb.flags & ~(GR_FDB_F_STATIC | GR_FDB_F_EXTERN))
 		return api_out(EINVAL, 0, NULL);
 
 	iface = iface_from_id(req->fdb.iface_id);
@@ -258,6 +261,8 @@ static inline bool fdb_match(
 	if ((flags & GR_FDB_F_STATIC) && !(e->flags & GR_FDB_F_STATIC))
 		return false;
 	if ((flags & GR_FDB_F_LEARN) && !(e->flags & GR_FDB_F_LEARN))
+		return false;
+	if ((flags & GR_FDB_F_EXTERN) && !(e->flags & GR_FDB_F_EXTERN))
 		return false;
 	if (bridge_id != GR_IFACE_ID_UNDEF && e->bridge_id != bridge_id)
 		return false;

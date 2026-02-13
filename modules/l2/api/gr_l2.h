@@ -63,6 +63,7 @@ struct gr_iface_info_vxlan {
 typedef enum : uint8_t {
 	GR_FDB_F_STATIC = GR_BIT8(0), // User-configured, never aged out.
 	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
+	GR_FDB_F_EXTERN = GR_BIT8(2), // Programmed by external control plane.
 } gr_fdb_flags_t;
 
 // Forwarding database entry associating a MAC+VLAN to a bridge member interface.
@@ -71,6 +72,7 @@ struct gr_fdb_entry {
 	struct rte_ether_addr mac;
 	uint16_t vlan_id;
 	uint16_t iface_id; // Updated automatically when a MAC moves between members.
+	ip4_addr_t vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
 	gr_fdb_flags_t flags;
 	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
 };

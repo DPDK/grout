@@ -6,6 +6,7 @@
 #include <gr_iface.h>
 #include <gr_l2.h>
 #include <gr_module.h>
+#include <gr_net_types.h>
 
 #include <stdint.h>
 
@@ -25,7 +26,8 @@ void fdb_learn(
 	uint16_t bridge_id,
 	uint16_t iface_id,
 	const struct rte_ether_addr *,
-	uint16_t vlan_id
+	uint16_t vlan_id,
+	ip4_addr_t vtep
 );
 
 // Delete all FDB entries referencing the provided interface.
