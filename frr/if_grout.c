@@ -13,6 +13,7 @@
 #include <linux/if.h>
 #include <net/if.h>
 #include <zebra/interface.h>
+#include <zebra/zebra_l2.h>
 #include <zebra/zebra_vxlan.h>
 #include <zebra_dplane_grout.h>
 
@@ -321,4 +322,72 @@ enum zebra_dplane_result grout_set_sr_tunsrc(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+void grout_fdb_change(const struct gr_fdb_entry *fdb, bool new) {
+	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
+	struct ethaddr mac;
+
+	memcpy(&mac, &fdb->mac, sizeof(mac));
+
+	dplane_ctx_set_op(ctx, new ? DPLANE_OP_MAC_INSTALL : DPLANE_OP_MAC_DELETE);
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(fdb->iface_id));
+	dplane_ctx_mac_set_addr(ctx, &mac);
+	dplane_ctx_mac_set_nhg_id(ctx, 0);
+	dplane_ctx_mac_set_ndm_state(ctx, 0);
+	dplane_ctx_mac_set_ndm_flags(ctx, 0);
+	dplane_ctx_mac_set_dst_present(ctx, fdb->vtep != 0);
+	dplane_ctx_mac_set_vtep_ip(ctx, &(struct in_addr) {fdb->vtep});
+	dplane_ctx_mac_set_vid(ctx, fdb->vlan_id);
+	dplane_ctx_mac_set_dp_static(ctx, fdb->flags & GR_FDB_F_STATIC);
+	dplane_ctx_mac_set_local_inactive(ctx, false);
+	dplane_ctx_mac_set_is_sticky(ctx, false);
+	dplane_provider_enqueue_to_zebra(ctx);
+	zlog_debug(
+		"grout_fdb_change %s bridge %u iface %u",
+		new ? "add" : "del",
+		fdb->bridge_id,
+		fdb->iface_id
+	);
+}
+
+enum zebra_dplane_result grout_add_del_mac(struct zebra_dplane_ctx *ctx) {
+	bool add = dplane_ctx_get_op(ctx) == DPLANE_OP_MAC_INSTALL;
+	uint32_t req_type;
+	size_t len;
+	void *req;
+	int ret;
+
+	len = add ? sizeof(struct gr_fdb_add_req) : sizeof(struct gr_fdb_del_req);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("failed to allocate memory");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (add) {
+		struct gr_fdb_add_req *add = req;
+		add->exist_ok = true;
+		add->fdb.iface_id = ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx));
+		add->fdb.bridge_id = ifindex_frr_to_grout(dplane_ctx_mac_get_br_ifindex(ctx));
+		add->fdb.vlan_id = dplane_ctx_mac_get_vlan(ctx);
+		add->fdb.flags = dplane_ctx_mac_get_dp_static(ctx) ? GR_FDB_F_STATIC : 0;
+		memcpy(&add->fdb.mac, dplane_ctx_mac_get_addr(ctx), sizeof(add->fdb.mac));
+		add->fdb.vtep = dplane_ctx_mac_get_vtep_ip(ctx)->s_addr;
+		req_type = GR_FDB_ADD;
+	} else {
+		struct gr_fdb_del_req *del = req;
+		del->missing_ok = true;
+		del->key.bridge_id = ifindex_frr_to_grout(dplane_ctx_mac_get_br_ifindex(ctx));
+		del->key.vlan_id = dplane_ctx_mac_get_vlan(ctx);
+		memcpy(&del->key.mac, dplane_ctx_mac_get_addr(ctx), sizeof(del->key.mac));
+		req_type = GR_FDB_DEL;
+	}
+
+	ret = grout_client_send_recv(req_type, len, req, NULL);
+
+	free(req);
+
+	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
 }
