@@ -4,4 +4,5 @@
 cli_src += files(
     'bridge.c',
     'fdb.c',
+    'vxlan.c',
 )

@@ -32,3 +32,7 @@ void fdb_purge_iface(uint16_t iface_id);
 
 // Delete all FDB entries referencing the provided bridge.
 void fdb_purge_bridge(uint16_t bridge_id);
+
+GR_IFACE_INFO(GR_IFACE_TYPE_VXLAN, iface_info_vxlan, { BASE(gr_iface_info_vxlan); });
+
+struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id);
