@@ -654,6 +654,10 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_MAC_DELETE:
 		return grout_add_del_mac(ctx);
 
+	case DPLANE_OP_VTEP_ADD:
+	case DPLANE_OP_VTEP_DELETE:
+		return grout_add_del_vtep(ctx);
+
 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
 		return grout_set_sr_tunsrc(ctx);
 
