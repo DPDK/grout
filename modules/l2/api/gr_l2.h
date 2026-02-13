@@ -41,6 +41,22 @@ struct gr_iface_info_bridge {
 	uint16_t members[GR_BRIDGE_MAX_MEMBERS]; // Interface IDs of bridge members.
 };
 
+// VXLAN reconfiguration attribute flags.
+#define GR_VXLAN_SET_VNI GR_BIT64(32)
+#define GR_VXLAN_SET_ENCAP_VRF GR_BIT64(33)
+#define GR_VXLAN_SET_DST_PORT GR_BIT64(34)
+#define GR_VXLAN_SET_LOCAL GR_BIT64(35)
+#define GR_VXLAN_SET_MAC GR_BIT64(37)
+
+// Info structure for GR_IFACE_TYPE_VXLAN interfaces.
+struct gr_iface_info_vxlan {
+	uint32_t vni; // VXLAN Network Identifier (24-bit).
+	uint16_t encap_vrf_id; // L3 domain for underlay routing.
+	uint16_t dst_port; // UDP destination port (default 4789).
+	ip4_addr_t local; // Local VTEP IP address (must be a configured address in encap_vrf_id).
+	struct rte_ether_addr mac; // Default to random address.
+};
+
 // FDB (L2 Forwarding Database) management /////////////////////////////////////
 
 // FDB entry flags.

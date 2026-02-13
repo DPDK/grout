@@ -34,6 +34,7 @@ static bool iface_type_valid(gr_iface_type_t type) {
 	case GR_IFACE_TYPE_IPIP:
 	case GR_IFACE_TYPE_BOND:
 	case GR_IFACE_TYPE_BRIDGE:
+	case GR_IFACE_TYPE_VXLAN:
 		return true;
 	case GR_IFACE_TYPE_UNDEF:
 	case GR_IFACE_TYPE_COUNT:
@@ -650,6 +651,7 @@ static void iface_fini(struct event_base *) {
 		GR_IFACE_TYPE_VLAN, // needs parent port/bond and VRF/bridge domain
 		GR_IFACE_TYPE_PORT, // needs bond/VRF/bridge domain
 		GR_IFACE_TYPE_BOND, // needs VRF/bridge domain
+		GR_IFACE_TYPE_VXLAN, // needs bridge domain and encap VRF
 		GR_IFACE_TYPE_IPIP, // needs VRF domain
 		GR_IFACE_TYPE_BRIDGE, // needs VRF domain
 		GR_IFACE_TYPE_VRF, // no dependencies
