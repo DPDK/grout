@@ -380,6 +380,10 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_FDB_DEL);
 	case GR_FDB_LIST:
 		return TOSTRING(GR_FDB_LIST);
+	case GR_FLOOD_ADD:
+		return TOSTRING(GR_FLOOD_ADD);
+	case GR_FLOOD_DEL:
+		return TOSTRING(GR_FLOOD_DEL);
 	default:
 		snprintf(buf, sizeof(buf), "0x%x", e);
 		return buf;
@@ -464,6 +468,10 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_FDB_UPDATE);
 	case GR_EVENT_FDB_DEL:
 		return TOSTRING(GR_EVENT_FDB_DEL);
+	case GR_EVENT_FLOOD_ADD:
+		return TOSTRING(GR_EVENT_FLOOD_ADD);
+	case GR_EVENT_FLOOD_DEL:
+		return TOSTRING(GR_EVENT_FLOOD_DEL);
 	default:
 		snprintf(buf, sizeof(buf), "event 0x%x", e);
 		return buf;
@@ -600,6 +608,10 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_MAC_INSTALL:
 	case DPLANE_OP_MAC_DELETE:
 		return grout_macfdb_update_ctx(ctx);
+
+	case DPLANE_OP_VTEP_ADD:
+	case DPLANE_OP_VTEP_DELETE:
+		return grout_vxlan_flood_update_ctx(ctx);
 
 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
 		return grout_set_sr_tunsrc(ctx);
