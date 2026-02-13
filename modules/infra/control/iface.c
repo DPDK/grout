@@ -241,7 +241,9 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (iface_set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
 		goto destroy;
 
-	if (iface_set_up_down(iface, iface->flags & GR_IFACE_F_UP) < 0)
+	bool up = iface->flags & GR_IFACE_F_UP;
+	iface->flags &= ~GR_IFACE_F_UP;
+	if (iface_set_up_down(iface, up) < 0)
 		goto destroy;
 
 	return iface;
