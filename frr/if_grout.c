@@ -13,6 +13,7 @@
 #include <linux/if.h>
 #include <net/if.h>
 #include <zebra/interface.h>
+#include <zebra/zebra_vxlan.h>
 #include <zebra_dplane_grout.h>
 
 #define GROUT_NS NS_DEFAULT
@@ -45,6 +46,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
 	const struct gr_iface_info_bridge *gr_bridge = NULL;
+	const struct gr_iface_info_vxlan *gr_vxlan = NULL;
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
@@ -91,6 +93,12 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_BRIDGE;
 		mac = &gr_bridge->mac;
+		break;
+	case GR_IFACE_TYPE_VXLAN:
+		gr_vxlan = (const struct gr_iface_info_vxlan *)&gr_if->info;
+		link_type = ZEBRA_LLT_ETHER;
+		zif_type = ZEBRA_IF_VXLAN;
+		mac = &gr_vxlan->mac;
 		break;
 	case GR_IFACE_TYPE_UNDEF:
 	default:
@@ -161,6 +169,14 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 
 			vlan_info.vid = gr_vlan->vlan_id;
 			dplane_ctx_set_ifp_vlan_info(ctx, &vlan_info);
+		}
+		if (gr_vxlan) {
+			struct zebra_l2info_vxlan vi = {0};
+			vi.vni_info.iftype = ZEBRA_VXLAN_IF_VNI;
+			vi.vni_info.vni.vni = gr_vxlan->vni;
+			vi.ifindex_link = ifindex_grout_to_frr(gr_vxlan->encap_vrf_id);
+			vi.vtep_ip.s_addr = gr_vxlan->local;
+			dplane_ctx_set_ifp_vxlan_info(ctx, &vi);
 		}
 	} else {
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_DELETE);
