@@ -206,7 +206,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		}
 	}
 
-	mbuf_data(mbuf)->iface = iface;
+	iface_mbuf_data(mbuf)->iface = iface;
+	iface_mbuf_data(mbuf)->vlan_id = 0;
 
 	if (post_to_stack(iface_output, mbuf) < 0) {
 		LOG(ERR, "post_to_stack: %s", strerror(errno));

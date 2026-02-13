@@ -51,6 +51,8 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth->src_addr = src_mac;
 		eth->ether_type = priv->ether_type;
 
+		iface_mbuf_data(mbuf)->vlan_id = 0;
+
 		edge = OUTPUT;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
