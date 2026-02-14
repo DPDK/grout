@@ -144,3 +144,62 @@ struct gr_fdb_config_set_req {
 };
 
 // struct gr_fdb_config_set_resp { };
+
+// Flood list management for BUM (Broadcast, Unknown unicast, Multicast) //////
+
+typedef enum : uint8_t {
+	GR_FLOOD_T_VTEP = 1, // VXLAN remote VTEP
+} gr_flood_type_t;
+
+static inline const char *gr_flood_type_name(gr_flood_type_t type) {
+	switch (type) {
+	case GR_FLOOD_T_VTEP:
+		return "vtep";
+	}
+	return "?";
+}
+
+struct gr_flood_vtep {
+	uint32_t vni;
+	ip4_addr_t addr;
+};
+
+struct gr_flood_entry {
+	gr_flood_type_t type;
+	uint16_t vrf_id;
+	union {
+		struct gr_flood_vtep vtep;
+	};
+};
+
+enum {
+	GR_EVENT_FLOOD_ADD = EVENT_TYPE(GR_L2_MODULE, 0x0011),
+	GR_EVENT_FLOOD_DEL = EVENT_TYPE(GR_L2_MODULE, 0x0012),
+};
+
+#define GR_FLOOD_ADD REQUEST_TYPE(GR_L2_MODULE, 0x0011)
+
+struct gr_flood_add_req {
+	struct gr_flood_entry entry;
+	bool exist_ok;
+};
+
+// struct gr_flood_add_resp { };
+
+#define GR_FLOOD_DEL REQUEST_TYPE(GR_L2_MODULE, 0x0012)
+
+struct gr_flood_del_req {
+	struct gr_flood_entry entry;
+	bool missing_ok;
+};
+
+// struct gr_flood_del_resp { };
+
+#define GR_FLOOD_LIST REQUEST_TYPE(GR_L2_MODULE, 0x0013)
+
+struct gr_flood_list_req {
+	gr_flood_type_t type; // 0 for all types
+	uint16_t vrf_id; // GR_VRF_ID_UNDEF for all
+};
+
+STREAM_RESP(struct gr_flood_entry);
