@@ -21,6 +21,8 @@ typedef enum : uint8_t {
 	GR_IFACE_TYPE_VLAN,
 	GR_IFACE_TYPE_IPIP,
 	GR_IFACE_TYPE_BOND,
+	GR_IFACE_TYPE_BRIDGE,
+	GR_IFACE_TYPE_VXLAN,
 	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
@@ -56,6 +58,7 @@ typedef enum : uint8_t {
 	GR_IFACE_MODE_VRF = 0,
 	GR_IFACE_MODE_XC,
 	GR_IFACE_MODE_BOND,
+	GR_IFACE_MODE_BRIDGE,
 	GR_IFACE_MODE_COUNT
 } gr_iface_mode_t;
 
@@ -433,8 +436,6 @@ struct gr_infra_cpu_affinity_set_req {
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 	switch (type) {
-	case GR_IFACE_TYPE_UNDEF:
-		return "undef";
 	case GR_IFACE_TYPE_VRF:
 		return "vrf";
 	case GR_IFACE_TYPE_PORT:
@@ -445,6 +446,11 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 		return "ipip";
 	case GR_IFACE_TYPE_BOND:
 		return "bond";
+	case GR_IFACE_TYPE_BRIDGE:
+		return "bridge";
+	case GR_IFACE_TYPE_VXLAN:
+		return "vxlan";
+	case GR_IFACE_TYPE_UNDEF:
 	case GR_IFACE_TYPE_COUNT:
 		break;
 	}
@@ -460,6 +466,8 @@ static inline const char *gr_iface_mode_name(gr_iface_mode_t mode) {
 		return "XC";
 	case GR_IFACE_MODE_BOND:
 		return "bond";
+	case GR_IFACE_MODE_BRIDGE:
+		return "bridge";
 	case GR_IFACE_MODE_COUNT:
 		break;
 	}

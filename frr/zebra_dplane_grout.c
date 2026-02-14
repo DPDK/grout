@@ -9,6 +9,7 @@
 #include "typesafe.h"
 
 #include <gr_api_client_impl.h>
+#include <gr_l2.h>
 #include <gr_srv6.h>
 
 #include <lib/frr_pthread.h>
@@ -268,6 +269,9 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IP6_ADDR_ADD, .suppress_self_events = false},
 		{.type = GR_EVENT_IP_ADDR_DEL, .suppress_self_events = false},
 		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
+		{.type = GR_EVENT_FDB_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_FDB_DEL, .suppress_self_events = true},
+		{.type = GR_EVENT_FDB_UPDATE, .suppress_self_events = true},
 	};
 
 	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
@@ -433,6 +437,12 @@ static const char *gr_evt_to_str(uint32_t e) {
 		return TOSTRING(GR_EVENT_NEXTHOP_UPDATE);
 	case GR_EVENT_NEXTHOP_DELETE:
 		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
+	case GR_EVENT_FDB_ADD:
+		return TOSTRING(GR_EVENT_FDB_ADD);
+	case GR_EVENT_FDB_UPDATE:
+		return TOSTRING(GR_EVENT_FDB_UPDATE);
+	case GR_EVENT_FDB_DEL:
+		return TOSTRING(GR_EVENT_FDB_DEL);
 	default:
 		return "unknown";
 	}
@@ -443,6 +453,7 @@ static void dplane_read_notifications(struct event *event) {
 	struct gr_api_event *gr_e = NULL;
 	struct gr_ip4_ifaddr *ifa4;
 	struct gr_ip6_ifaddr *ifa6;
+	struct gr_fdb_entry *fdb;
 	struct gr_iface *iface;
 	bool new = false;
 
@@ -501,6 +512,21 @@ static void dplane_read_notifications(struct event *event) {
 		);
 		grout_interface_addr6_change(new, ifa6);
 		break;
+
+	case GR_EVENT_FDB_ADD:
+	case GR_EVENT_FDB_UPDATE:
+		new = true;
+		// fallthrough
+	case GR_EVENT_FDB_DEL:
+		fdb = PAYLOAD(gr_e);
+		gr_log_debug(
+			"%s fdb notification (%s)",
+			new ? "add" : "del",
+			gr_evt_to_str(gr_e->ev_type)
+		);
+		grout_fdb_change(fdb, new);
+		break;
+
 	default:
 		gr_log_debug(
 			"Unknown notification %s (0x%x) received",
@@ -623,6 +649,14 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_NH_UPDATE:
 	case DPLANE_OP_NH_DELETE:
 		return grout_add_del_nexthop(ctx);
+
+	case DPLANE_OP_MAC_INSTALL:
+	case DPLANE_OP_MAC_DELETE:
+		return grout_add_del_mac(ctx);
+
+	case DPLANE_OP_VTEP_ADD:
+	case DPLANE_OP_VTEP_DELETE:
+		return grout_add_del_vtep(ctx);
 
 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
 		return grout_set_sr_tunsrc(ctx);

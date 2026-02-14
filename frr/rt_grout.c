@@ -5,6 +5,7 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <gr_l2.h>
 #include <gr_srv6.h>
 
 #include <lib/srv6.h>
@@ -808,6 +809,60 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 		return grout_add_nexthop_group(ctx);
 
 	return grout_add_nexthop(nh_id, origin, dplane_ctx_get_nhe_ng(ctx)->nexthop);
+}
+
+enum zebra_dplane_result grout_add_del_vtep(struct zebra_dplane_ctx *ctx) {
+	const struct ipaddr *addr = dplane_ctx_neigh_get_ipaddr(ctx);
+	bool add = dplane_ctx_get_op(ctx) == DPLANE_OP_VTEP_ADD;
+	struct gr_flood_entry *entry;
+	uint32_t req_type;
+	size_t len;
+	void *req;
+	int ret;
+
+	if (addr->ipa_type != IPADDR_V4) {
+		gr_log_err("IPv6 flood list entries are not supported");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	len = add ? sizeof(struct gr_flood_add_req) : sizeof(struct gr_flood_del_req);
+
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("failed to allocate memory");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (add) {
+		struct gr_flood_add_req *a = req;
+		entry = &a->entry;
+		a->exist_ok = true;
+		req_type = GR_FLOOD_ADD;
+	} else {
+		struct gr_flood_del_req *d = req;
+		entry = &d->entry;
+		d->missing_ok = true;
+		req_type = GR_FLOOD_DEL;
+	}
+
+	entry->type = GR_FLOOD_T_VTEP;
+	entry->vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+	entry->vtep.vni = dplane_ctx_neigh_get_vni(ctx);
+	entry->vtep.addr = addr->ipaddr_v4.s_addr;
+
+	gr_log_debug(
+		"%s flood %pI4 vni %u vrf %u",
+		add ? "add" : "del",
+		&entry->vtep.addr,
+		dplane_ctx_neigh_get_vni(ctx),
+		dplane_ctx_get_vrf(ctx)
+	);
+
+	ret = grout_client_send_recv(req_type, len, req, NULL);
+
+	free(req);
+
+	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
 }
 
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {

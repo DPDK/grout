@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_id_pool.h>
 #include <gr_iface.h>
@@ -478,11 +479,11 @@ void nexthop_destroy(struct nexthop *nh) {
 
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
-	// Push NEXTHOP_DELETE event after RCU sync to ensure all datapath
+	// Drain the control queue after RCU sync to ensure all datapath
 	// threads have seen that this nexthop is gone. At this point, only
 	// packets already in the control queue may still reference it.
-	// The event triggers a drain that frees those packets before we free
-	// the nexthop memory.
+	control_queue_drain(GR_EVENT_NEXTHOP_DELETE, nh);
+
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
