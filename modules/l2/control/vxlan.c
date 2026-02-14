@@ -6,6 +6,7 @@
 #include <gr_infra.h>
 #include <gr_ip4_control.h>
 #include <gr_l2_control.h>
+#include <gr_l4.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_rcu.h>
@@ -80,7 +81,19 @@ static int iface_vxlan_reconfig(
 	}
 
 	if (set_attrs & GR_VXLAN_SET_DST_PORT) {
-		cur->dst_port = next->dst_port ?: RTE_VXLAN_DEFAULT_PORT;
+		uint16_t port = next->dst_port ?: RTE_VXLAN_DEFAULT_PORT;
+		if (cur->dst_port != 0 && cur->dst_port != RTE_VXLAN_DEFAULT_PORT
+		    && port != cur->dst_port) {
+			l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(cur->dst_port));
+		}
+		if (port != RTE_VXLAN_DEFAULT_PORT && port != cur->dst_port) {
+			l4_input_alias_port(
+				IPPROTO_UDP,
+				RTE_BE16(RTE_VXLAN_DEFAULT_PORT),
+				rte_cpu_to_be_16(port)
+			);
+		}
+		cur->dst_port = port;
 	}
 
 	if (set_attrs & (GR_VXLAN_SET_LOCAL | GR_VXLAN_SET_ENCAP_VRF)) {
@@ -111,6 +124,9 @@ static int iface_vxlan_fini(struct iface *iface) {
 
 	if (vxlan->encap_vrf_id != GR_VRF_ID_UNDEF)
 		vrf_decref(vxlan->encap_vrf_id);
+
+	if (vxlan->dst_port != RTE_VXLAN_DEFAULT_PORT)
+		l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(vxlan->dst_port));
 
 	return 0;
 }
