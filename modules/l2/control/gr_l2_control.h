@@ -5,6 +5,7 @@
 
 #include <gr_iface.h>
 #include <gr_l2.h>
+#include <gr_module.h>
 
 #include <stdint.h>
 
@@ -33,6 +34,21 @@ void fdb_purge_iface(uint16_t iface_id);
 // Delete all FDB entries referencing the provided bridge.
 void fdb_purge_bridge(uint16_t bridge_id);
 
-GR_IFACE_INFO(GR_IFACE_TYPE_VXLAN, iface_info_vxlan, { BASE(gr_iface_info_vxlan); });
+GR_IFACE_INFO(GR_IFACE_TYPE_VXLAN, iface_info_vxlan, {
+	BASE(gr_iface_info_vxlan);
+
+	uint16_t n_flood_vteps;
+	ip4_addr_t *flood_vteps;
+});
 
 struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id);
+
+// Flood list type callbacks, registered per gr_flood_t.
+struct flood_type_ops {
+	gr_flood_type_t type;
+	int (*add)(const struct gr_flood_entry *, bool exist_ok);
+	int (*del)(const struct gr_flood_entry *, bool missing_ok);
+	int (*list)(uint16_t vrf_id, struct api_ctx *);
+};
+
+void flood_type_register(const struct flood_type_ops *);

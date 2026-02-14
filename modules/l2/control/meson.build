@@ -4,6 +4,7 @@
 src += files(
   'bridge.c',
   'fdb.c',
+  'flood.c',
   'vxlan.c',
 )
 

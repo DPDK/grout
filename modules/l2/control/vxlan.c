@@ -14,7 +14,9 @@
 
 #include <rte_ethdev.h>
 #include <rte_hash.h>
+#include <rte_malloc.h>
 
+#include <stdatomic.h>
 #include <string.h>
 
 struct vxlan_key {
@@ -121,12 +123,24 @@ static int iface_vxlan_reconfig(
 
 static int iface_vxlan_fini(struct iface *iface) {
 	struct iface_info_vxlan *vxlan = iface_info_vxlan(iface);
+	struct gr_flood_entry entry = {
+		.type = GR_FLOOD_T_VTEP,
+		.vrf_id = vxlan->encap_vrf_id,
+		.vtep.vni = vxlan->vni,
+	};
+
+	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
+		entry.vtep.addr = vxlan->flood_vteps[i];
+		gr_event_push(GR_EVENT_FLOOD_DEL, &entry);
+	}
 
 	if (vxlan->encap_vrf_id != GR_VRF_ID_UNDEF)
 		vrf_decref(vxlan->encap_vrf_id);
 
 	if (vxlan->dst_port != RTE_VXLAN_DEFAULT_PORT)
 		l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(vxlan->dst_port));
+
+	rte_free(vxlan->flood_vteps);
 
 	return 0;
 }
@@ -205,6 +219,105 @@ static struct gr_event_subscription vxlan_subscription = {
 	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
 };
 
+static int vtep_flood_add(const struct gr_flood_entry *entry, bool exist_ok) {
+	struct iface_info_vxlan *vxlan;
+	ip4_addr_t *vteps, *old_vteps;
+	struct iface *iface;
+
+	iface = vxlan_get_iface(rte_cpu_to_be_32(entry->vtep.vni), entry->vrf_id);
+	if (iface == NULL)
+		return errno_set(ENODEV);
+
+	vxlan = iface_info_vxlan(iface);
+
+	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
+		if (vxlan->flood_vteps[i] == entry->vtep.addr) {
+			if (exist_ok)
+				return 0;
+			return errno_set(EEXIST);
+		}
+	}
+
+	vteps = rte_calloc(__func__, vxlan->n_flood_vteps + 1, sizeof(*vteps), 0);
+	if (vteps == NULL)
+		return errno_set(ENOMEM);
+
+	memcpy(vteps, vxlan->flood_vteps, vxlan->n_flood_vteps * sizeof(*vteps));
+	vteps[vxlan->n_flood_vteps] = entry->vtep.addr;
+	old_vteps = vxlan->flood_vteps;
+	vxlan->flood_vteps = vteps;
+	// ensure n_flood_vteps is incremented *after* flood_vteps is updated
+	atomic_thread_fence(memory_order_release);
+	vxlan->n_flood_vteps++;
+
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
+	rte_free(old_vteps);
+
+	gr_event_push(GR_EVENT_FLOOD_ADD, entry);
+
+	return 0;
+}
+
+static int vtep_flood_del(const struct gr_flood_entry *entry, bool missing_ok) {
+	struct iface_info_vxlan *vxlan;
+	struct iface *iface;
+
+	iface = vxlan_get_iface(rte_cpu_to_be_32(entry->vtep.vni), entry->vrf_id);
+	if (iface == NULL) {
+		if (missing_ok)
+			return 0;
+		return errno_set(ENOENT);
+	}
+
+	vxlan = iface_info_vxlan(iface);
+
+	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
+		if (vxlan->flood_vteps[i] == entry->vtep.addr) {
+			vxlan->flood_vteps[i] = vxlan->flood_vteps[vxlan->n_flood_vteps - 1];
+			vxlan->n_flood_vteps--;
+			gr_event_push(GR_EVENT_FLOOD_DEL, entry);
+			return 0;
+		}
+	}
+
+	if (missing_ok)
+		return 0;
+
+	return errno_set(ENOENT);
+}
+
+static int vtep_flood_list(uint16_t vrf_id, struct api_ctx *ctx) {
+	struct gr_flood_entry entry = {.type = GR_FLOOD_T_VTEP};
+	const struct iface_info_vxlan *vxlan;
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(vxlan_hash, &key, &data, &next) >= 0) {
+		struct iface *iface = data;
+		vxlan = iface_info_vxlan(iface);
+
+		if (vrf_id != GR_VRF_ID_UNDEF && vxlan->encap_vrf_id != vrf_id)
+			continue;
+
+		for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
+			entry.vrf_id = vxlan->encap_vrf_id;
+			entry.vtep.vni = vxlan->vni;
+			entry.vtep.addr = vxlan->flood_vteps[i];
+			api_send(ctx, sizeof(entry), &entry);
+		}
+	}
+
+	return 0;
+}
+
+static const struct flood_type_ops vtep_flood_ops = {
+	.type = GR_FLOOD_T_VTEP,
+	.add = vtep_flood_add,
+	.del = vtep_flood_del,
+	.list = vtep_flood_list,
+};
+
 static void vxlan_init(struct event_base *) {
 	struct rte_hash_parameters params = {
 		.name = "vxlan",
@@ -240,4 +353,5 @@ RTE_INIT(vxlan_constructor) {
 	gr_register_module(&vxlan_module);
 	iface_type_register(&iface_type_vxlan);
 	gr_event_subscribe(&vxlan_subscription);
+	flood_type_register(&vtep_flood_ops);
 }
