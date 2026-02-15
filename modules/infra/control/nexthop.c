@@ -136,6 +136,8 @@ static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
 		.socket_id = SOCKET_ID_ANY,
 		.key_len = sizeof(uint32_t),
 		.entries = c->max_count,
+		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
+			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
 	};
 
 	struct rte_hash *h = rte_hash_create(&params);
