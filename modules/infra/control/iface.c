@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include <gr_config.h>
+#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_iface.h>
 #include <gr_log.h>
@@ -33,6 +34,7 @@ static bool iface_type_valid(gr_iface_type_t type) {
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_IPIP:
 	case GR_IFACE_TYPE_BOND:
+	case GR_IFACE_TYPE_BRIDGE:
 		return true;
 	case GR_IFACE_TYPE_UNDEF:
 	case GR_IFACE_TYPE_COUNT:
@@ -586,10 +588,11 @@ int iface_destroy(struct iface *iface) {
 
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
-	// Push IFACE_REMOVE event after RCU sync to ensure all datapath threads
+	// Drain the control queue after RCU sync to ensure all datapath threads
 	// have seen that this iface is gone. At this point, only packets already
-	// in the control queue may still reference it. The event triggers
-	// a drain that frees those packets before type->fini() frees the iface.
+	// in the control queue may still reference it.
+	control_queue_drain(GR_EVENT_IFACE_REMOVE, iface);
+
 	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
 
 	type = iface_type_get(iface->type);

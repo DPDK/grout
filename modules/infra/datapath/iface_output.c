@@ -56,8 +56,8 @@ static uint16_t iface_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	uint16_t iface_id, vlan_id;
 	const struct iface *iface;
+	struct iface_mbuf_data *d;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
@@ -65,36 +65,33 @@ static uint16_t iface_output_process(
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
-		iface = mbuf_data(m)->iface;
-		iface_id = iface->id;
+		d = iface_mbuf_data(m);
+		iface = d->iface;
 
 		if (iface->type == GR_IFACE_TYPE_VLAN) {
 			const struct iface_info_vlan *vlan = iface_info_vlan(iface);
-			vlan_id = vlan->vlan_id;
+			d->vlan_id = vlan->vlan_id;
 			iface = iface_from_id(vlan->parent_id);
-		} else {
-			vlan_id = 0;
 		}
 
 		if (gr_mbuf_is_traced(m)) {
 			struct iface_output_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
-			t->iface_id = iface_id;
-			t->vlan_id = vlan_id;
+			t->iface_id = d->iface->id;
+			t->vlan_id = d->vlan_id;
 		}
 
 		if (iface == NULL) {
 			edge = NO_PARENT;
 			goto next;
 		}
-		if (!(iface->flags & GR_IFACE_F_UP)) {
+		if (!(d->iface->flags & GR_IFACE_F_UP)) {
 			edge = IFACE_DOWN;
 			goto next;
 		}
 
-		IFACE_STATS_INC(tx, m, iface);
+		IFACE_STATS_INC(tx, m, d->iface);
 
-		iface_mbuf_data(m)->iface = iface;
-		iface_mbuf_data(m)->vlan_id = vlan_id;
+		d->iface = iface;
 		edge = iface_type_edges[iface->type];
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);

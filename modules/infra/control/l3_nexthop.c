@@ -99,6 +99,8 @@ static int l3_reconfig(const struct gr_nexthop_config *c) {
 		.socket_id = SOCKET_ID_ANY,
 		.key_len = sizeof(struct nexthop_key),
 		.entries = c->max_count,
+		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF
+			| RTE_HASH_EXTRA_FLAGS_TRANS_MEM_SUPPORT,
 	};
 
 	struct rte_hash *h = rte_hash_create(&params);

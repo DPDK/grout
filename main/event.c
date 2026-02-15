@@ -4,9 +4,12 @@
 #include "api.h"
 
 #include <gr_api.h>
+#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_log.h>
 #include <gr_queue.h>
+
+#include <rte_lcore.h>
 
 #include <string.h>
 
@@ -17,7 +20,7 @@ void gr_event_subscribe(struct gr_event_subscription *sub) {
 	STAILQ_INSERT_TAIL(&subscribers, sub, next);
 }
 
-void gr_event_push(uint32_t ev_type, const void *obj) {
+static void notify_subscribers(void *obj, uintptr_t ev_type, const struct control_queue_drain *) {
 	const struct gr_event_subscription *sub;
 
 	STAILQ_FOREACH (sub, &subscribers, next) {
@@ -28,7 +31,22 @@ void gr_event_push(uint32_t ev_type, const void *obj) {
 			}
 		}
 	}
+
 	api_send_notifications(ev_type, obj);
+}
+
+void gr_event_push(uint32_t ev_type, const void *obj) {
+	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL)) {
+		// Called from a dataplane worker thread.
+		// Defer the notification to the control plane thread.
+		if (control_queue_push(notify_subscribers, (void *)obj, ev_type) < 0) {
+			// XXX: add error stat if push fails?
+		}
+	} else {
+		// Called from the control plane thread.
+		// Notify subscribers immediately.
+		notify_subscribers((void *)obj, ev_type, NULL);
+	}
 }
 
 STAILQ_HEAD(serializers, gr_event_serializer);
