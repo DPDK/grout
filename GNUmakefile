@@ -73,17 +73,23 @@ version := $(shell { git describe --long --abbrev=8 --dirty 2>/dev/null || \
 	sed 's/^v//;s/-/ /')
 debversion = $(subst $(space),+,$(version))
 
+# Build deb packages. Use NO_FRR=1 to disable FRR support.
 .PHONY: deb
 deb:
 	$Q rm -f debian/changelog
 	dch --create --package grout --newversion '$(debversion)' -M Development snapshot.
-	GROUT_VERSION='$(debversion)' dpkg-buildpackage -b
+	NO_FRR='$(NO_FRR)' GROUT_VERSION='$(debversion)' dpkg-buildpackage -b
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
 	mv -vf ../grout-headers_$(debversion)_all.deb grout-headers_all.deb && \
 	mv -vf ../grout_$(debversion)_$$arch.deb grout_$$arch.deb && \
-	mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb && \
+	{ mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb 2>/dev/null || \
+	  mv -vf ../grout-dbgsym_$(debversion)_$$arch.ddeb grout-dbgsym_$$arch.ddeb 2>/dev/null || true; }
+ifndef NO_FRR
+	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
 	mv -vf ../grout-frr_$(debversion)_$$arch.deb grout-frr_$$arch.deb && \
-	mv -vf ../grout-frr-dbgsym_$(debversion)_$$arch.deb grout-frr-dbgsym_$$arch.deb
+	{ mv -vf ../grout-frr-dbgsym_$(debversion)_$$arch.deb grout-frr-dbgsym_$$arch.deb 2>/dev/null || \
+	  mv -vf ../grout-frr-dbgsym_$(debversion)_$$arch.ddeb grout-frr-dbgsym_$$arch.ddeb 2>/dev/null || true; }
+endif
 
 rpmversion = $(firstword $(version))
 rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)

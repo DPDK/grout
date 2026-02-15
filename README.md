@@ -298,6 +298,43 @@ cd grout
 make
 ```
 
+### Build distribution packages
+
+#### Debian/Ubuntu
+
+Install packaging dependencies:
+
+```sh
+apt install debhelper devscripts bash-completion scdoc \
+        libarchive-dev libcmocka-dev libedit-dev libevent-dev \
+        libibverbs-dev libmnl-dev libnuma-dev libsmartcols-dev \
+        meson ninja-build python3-pyelftools systemd-dev
+```
+
+Build packages (with FRR support):
+
+```sh
+gmake deb
+```
+
+Build packages (without FRR):
+
+```sh
+NO_FRR=1 gmake deb
+```
+
+Output packages:
+
+- `grout_<arch>.deb` — main daemon and CLI
+- `grout-headers_all.deb` — API headers for clients
+- `grout-frr_<arch>.deb` — FRR dplane plugin (only with FRR enabled)
+
+#### RHEL/Fedora
+
+```sh
+gmake rpm
+```
+
 ### Start the router daemon
 
 The binaries are located in the build directory:
