@@ -838,7 +838,7 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 		family = AF_INET;
 
 	afi = family2afi(family);
-	type = origin2zebra(gr_nh->origin, family, false);
+	type = origin2zebra(gr_nh->origin, family, true);
 	SET_FLAG(nh->flags, NEXTHOP_FLAG_ACTIVE);
 
 	zebra_nhg_kernel_find(
