@@ -290,6 +290,8 @@ static void zebra_grout_connect(struct event *) {
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IP_ROUTE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IP_ROUTE_DEL, .suppress_self_events = true},
+		{.type = GR_EVENT_IP6_ROUTE_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_IP6_ROUTE_DEL, .suppress_self_events = true},
 		{.type = GR_EVENT_NEXTHOP_NEW, .suppress_self_events = true},
 		{.type = GR_EVENT_NEXTHOP_DELETE, .suppress_self_events = true},
 		{.type = GR_EVENT_NEXTHOP_UPDATE, .suppress_self_events = true},
