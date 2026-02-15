@@ -6,4 +6,4 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data, void **rx_data);
+int zg_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data, void **rx_data);
