@@ -279,6 +279,7 @@ EOF
 	# frr.conf
 	cat >"$frrconf_file" <<EOF
 hostname ${namespace:-grout}
+debug zebra dplane
 EOF
 
 	# reset log
@@ -295,10 +296,13 @@ EOF
 		color="\033[35m"
 	fi
 
+	# Run the log tail pipeline in a subshell so we can kill all
+	# pipeline processes by killing the subshell's children.
 	if [ -t 1 ]; then
-		tail -F "$flog" | sed -E "$sed_expr" | awk -v color="$color" '{print color $0 "\033[0m"}' &
+		(tail -F "$flog" | sed -u -E "$sed_expr" | \
+			stdbuf -oL awk -v color="$color" '{print color $0 "\033[0m"}') &
 	else
-		tail -F "$flog" | sed -E "$sed_expr" &
+		(tail -F "$flog" | sed -u -E "$sed_expr") &
 	fi
 	local tailpid=$!
 
@@ -306,10 +310,10 @@ EOF
 		nsenter -t 1 -n -m ip netns add "$namespace"
 	fi
 
-	# cleanup
+	# cleanup -- kill the subshell children (tail, sed, awk)
 	cat >>"$tmp/cleanup" <<EOF
 frrinit.sh stop ${namespace:+$namespace}
-kill $tailpid 2>/dev/null || true
+pkill -P $tailpid 2>/dev/null || true
 EOF
 	if [ -n "$namespace" ]; then
 		cat >>"$tmp/cleanup" <<EOF
@@ -360,6 +364,5 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
 	fi
 
-	export ZEBRA_DEBUG_DPLANE_GROUT=1
 	start_frr "" 1
 fi
