@@ -283,8 +283,7 @@ enum zebra_dplane_result grout_set_sr_tunsrc(struct zebra_dplane_ctx *ctx) {
 	struct gr_srv6_tunsrc_set_req req;
 
 	if (tunsrc_addr == NULL) {
-		if (IS_ZEBRA_DEBUG_DPLANE_GROUT)
-			zlog_debug("sr tunsrc set failed: SRv6 encap source address not set");
+		gr_log_debug("sr tunsrc set failed: SRv6 encap source address not set");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 	memcpy(&req.addr, tunsrc_addr, sizeof(req.addr));

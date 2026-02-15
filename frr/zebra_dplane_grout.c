@@ -19,7 +19,6 @@
 
 #define TOSTRING(x) #x
 
-unsigned long zebra_debug_dplane_grout;
 static const char *gr_sock_path = GR_DEFAULT_SOCK_PATH;
 
 struct grout_ctx_t {
@@ -280,7 +279,7 @@ static void dplane_grout_connect(struct event *) {
 		&grout_ctx.dg_t_dplane_update
 	);
 
-	gr_log_debug("monitor iface/ip events");
+	gr_log(LOG_NOTICE, "monitor iface/ip events");
 	return;
 
 reschedule_connect:
@@ -307,7 +306,7 @@ static void zebra_grout_connect(struct event *) {
 		&grout_ctx.dg_t_zebra_update
 	);
 
-	gr_log_debug("monitor route events");
+	gr_log(LOG_NOTICE, "monitor route events");
 	return;
 
 reschedule_connect:
@@ -687,7 +686,6 @@ static void zd_grout_ns(struct event *t) {
 }
 
 static int zd_grout_start(struct zebra_dplane_provider *prov) {
-	const char *debug = getenv("ZEBRA_DEBUG_DPLANE_GROUT");
 	const char *sock_path = getenv("GROUT_SOCK_PATH");
 
 	if (vrf_is_backend_netns()) {
@@ -695,19 +693,12 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 		exit(1); // Exit because zebra_dplane_start() does not check the return value
 	}
 
-	if (debug)
-		zebra_debug_dplane_grout = (strcmp(debug, "1") == 0 || strcmp(debug, "true") == 0);
 	if (sock_path)
 		gr_sock_path = sock_path;
 
 	event_add_timer(zrouter.master, zd_grout_ns, NULL, 0, NULL);
 
-	gr_log_debug(
-		"%s start (debug=%lu, gr_sock_path=%s)",
-		dplane_provider_get_name(prov),
-		zebra_debug_dplane_grout,
-		gr_sock_path
-	);
+	gr_log_debug("%s start sock_path=%s", dplane_provider_get_name(prov), gr_sock_path);
 
 	return 0;
 }

@@ -279,6 +279,7 @@ EOF
 	# frr.conf
 	cat >"$frrconf_file" <<EOF
 hostname ${namespace:-grout}
+debug zebra dplane dpdk
 EOF
 
 	# reset log
@@ -360,6 +361,5 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
 	fi
 
-	export ZEBRA_DEBUG_DPLANE_GROUT=1
 	start_frr "" 1
 fi
