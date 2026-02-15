@@ -457,6 +457,7 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 }
 
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
+	bool new = dplane_ctx_get_op(ctx) != DPLANE_OP_ROUTE_DELETE;
 	union {
 		struct gr_ip4_route_add_req r4_add;
 		struct gr_ip4_route_del_req r4_del;
@@ -469,7 +470,16 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	gr_nh_origin_t origin;
 	uint32_t req_type;
 	size_t req_len;
-	bool new;
+
+	origin = zebra2origin(dplane_ctx_get_type(ctx));
+	if (!is_selfroute(origin)) {
+		gr_log_debug("no frr route, skip it");
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+	if (new && nh_id == 0) {
+		gr_log_err("impossible to add route with no nexthop id");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
 
 	p = dplane_ctx_get_dest(ctx);
 	if (p->family != AF_INET && p->family != AF_INET6) {
@@ -481,14 +491,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 	// TODO: other check for metric, distance, and so-on
-
-	origin = zebra2origin(dplane_ctx_get_type(ctx));
-	new = dplane_ctx_get_op(ctx) != DPLANE_OP_ROUTE_DELETE;
-
-	if (new && nh_id == 0) {
-		gr_log_err("impossible to add route with no nexthop id");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
 
 	if (p->family == AF_INET) {
 		struct ip4_net *dest;
@@ -566,11 +568,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 			nh_id,
 			vrf_id
 		);
-	}
-
-	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr route, skip it");
-		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
 
 	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
