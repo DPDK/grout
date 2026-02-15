@@ -50,7 +50,7 @@ void zg_iface_in(struct gr_iface *iface, bool new, bool startup) {
 	struct zebra_dplane_ctx *ctx;
 	uint32_t txqlen = 1000;
 
-	zg_log_debug(
+	zg_log_info(
 		"%s %s type=%s id=%u",
 		new ? "add" : "del",
 		iface->name,
@@ -187,7 +187,7 @@ zg_iface_addr_in(bool new, uint16_t iface_id, int af, const void *addr, uint8_t 
 }
 
 void zg_iface_addr4_in(bool new, const struct gr_ip4_ifaddr *ifa) {
-	zg_log_debug(
+	zg_log_info(
 		"%s %pI4/%u iface=%u",
 		new ? "add" : "del",
 		&ifa->addr.ip,
@@ -198,7 +198,7 @@ void zg_iface_addr4_in(bool new, const struct gr_ip4_ifaddr *ifa) {
 }
 
 void zg_iface_addr6_in(bool new, const struct gr_ip6_ifaddr *ifa) {
-	zg_log_debug(
+	zg_log_info(
 		"%s %pI6/%u iface=%u",
 		new ? "add" : "del",
 		&ifa->addr.ip,
@@ -249,7 +249,7 @@ enum zebra_dplane_result zg_addr_out(struct zebra_dplane_ctx *ctx) {
 		addr->addr.prefixlen = p->prefixlen;
 		addr->iface_id = iface_id;
 
-		zg_log_debug(
+		zg_log_info(
 			"%s %pI4/%u iface=%u",
 			add ? "add" : "del",
 			&addr->addr.ip,
@@ -275,7 +275,7 @@ enum zebra_dplane_result zg_addr_out(struct zebra_dplane_ctx *ctx) {
 		addr->addr.prefixlen = p->prefixlen;
 		addr->iface_id = iface_id;
 
-		zg_log_debug(
+		zg_log_info(
 			"%s %pI6/%u iface=%u",
 			add ? "add" : "del",
 			&addr->addr.ip,
@@ -300,7 +300,7 @@ enum zebra_dplane_result zg_srv6_tunsrc_out(struct zebra_dplane_ctx *ctx) {
 	}
 	memcpy(&req.addr, tunsrc_addr, sizeof(req.addr));
 
-	zg_log_debug("set %pI6", tunsrc_addr);
+	zg_log_info("set %pI6", tunsrc_addr);
 
 	if (zg_send_recv(GR_SRV6_TUNSRC_SET, sizeof(req), &req, NULL) < 0)
 		return ZEBRA_DPLANE_REQUEST_FAILURE;

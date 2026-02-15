@@ -17,11 +17,7 @@ fi
 
 : "${test_frr:=false}"
 
-if [ -n "$ZEBRA_DEBUG_DPLANE_GROUT" ]; then
-	run_frr=false
-else
-	run_frr=true
-fi
+: "${run_frr:=true}"
 
 if [ -S "$GROUT_SOCK_PATH" ]; then
 	run_grout=false

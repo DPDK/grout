@@ -17,7 +17,6 @@
 #include <zebra/zebra_dplane.h>
 #include <zebra/zebra_router.h>
 
-unsigned long zg_debug;
 static const char *zg_sock_path = GR_DEFAULT_SOCK_PATH;
 
 struct zg_ctx_t {
@@ -88,7 +87,7 @@ static void zg_route_sync_in(struct event *e) {
 	bool link;
 	int ret;
 
-	zg_log_debug("vrf %u", EVENT_VAL(e));
+	zg_log_notice("vrf %u", EVENT_VAL(e));
 
 	if (zg_ensure_connect() < 0)
 		return;
@@ -140,7 +139,7 @@ static void zg_nh_sync_in(struct event *e) {
 	struct gr_nexthop *nh;
 	int ret;
 
-	zg_log_debug("vrf %u", EVENT_VAL(e));
+	zg_log_notice("vrf %u", EVENT_VAL(e));
 
 	if (zg_ensure_connect() < 0)
 		return;
@@ -162,7 +161,7 @@ static void zg_addr_sync_in(struct event *e) {
 	const struct gr_ip4_ifaddr *addr4;
 	int ret;
 
-	zg_log_debug("vrf %u", EVENT_VAL(e));
+	zg_log_notice("vrf %u", EVENT_VAL(e));
 
 	if (zg_ensure_connect() < 0)
 		return;
@@ -257,7 +256,7 @@ static void zg_dplane_connect(struct event *) {
 		&zg_ctx.dg_t_dplane_update
 	);
 
-	zg_log_debug("monitor iface/ip events");
+	zg_log_notice("connected, monitoring iface/ip events");
 	return;
 
 reschedule_connect:
@@ -284,7 +283,7 @@ static void zg_zebra_connect(struct event *) {
 		&zg_ctx.dg_t_zebra_update
 	);
 
-	zg_log_debug("monitor route events");
+	zg_log_notice("connected, monitoring route/nh events");
 	return;
 
 reschedule_connect:
@@ -511,7 +510,6 @@ static void zg_ns_init(struct event *t) {
 }
 
 static int zg_start(struct zebra_dplane_provider *prov) {
-	const char *debug = getenv("ZEBRA_DEBUG_DPLANE_GROUT");
 	const char *sock_path = getenv("GROUT_SOCK_PATH");
 
 	if (vrf_is_backend_netns()) {
@@ -519,19 +517,12 @@ static int zg_start(struct zebra_dplane_provider *prov) {
 		exit(1);
 	}
 
-	if (debug)
-		zg_debug = (strcmp(debug, "1") == 0 || strcmp(debug, "true") == 0);
 	if (sock_path)
 		zg_sock_path = sock_path;
 
 	event_add_timer(zrouter.master, zg_ns_init, NULL, 0, NULL);
 
-	zg_log_debug(
-		"%s (debug=%lu, sock_path=%s)",
-		dplane_provider_get_name(prov),
-		zg_debug,
-		zg_sock_path
-	);
+	zg_log_notice("%s started (sock_path=%s)", dplane_provider_get_name(prov), zg_sock_path);
 
 	return 0;
 }
@@ -568,8 +559,6 @@ static int zg_plugin_init(struct event_loop *) {
 
 	if (ret != 0)
 		zg_log_err("unable to register grout dplane provider: %d", ret);
-
-	zg_log_debug("%s register status %d", zg_plugin_name, ret);
 
 	return 0;
 }
