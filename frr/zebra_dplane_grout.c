@@ -17,7 +17,6 @@
 #include <zebra/zebra_router.h>
 #include <zebra_dplane_grout.h>
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define TOSTRING(x) #x
 
 unsigned long zebra_debug_dplane_grout;
@@ -231,7 +230,7 @@ static void grout_sync_ifaces(struct event *) {
 	if (grout_client_ensure_connect() < 0)
 		return;
 
-	for (i = 0; i < ARRAY_SIZE(types); i++) {
+	for (i = 0; i < ARRAY_DIM(types); i++) {
 		if_req.type = types[i];
 
 		gr_api_client_stream_foreach (
@@ -270,7 +269,7 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
+	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0)
 		goto reschedule_connect;
 
 	event_add_read(
@@ -297,7 +296,7 @@ static void zebra_grout_connect(struct event *) {
 		{.type = GR_EVENT_NEXTHOP_UPDATE, .suppress_self_events = true},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_SIZE(gr_evts)) < 0)
+	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0)
 		goto reschedule_connect;
 
 	event_add_read(
