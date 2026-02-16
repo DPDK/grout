@@ -17,13 +17,9 @@
 
 static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_addr_add_req req = {.exist_ok = true};
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.addr.iface_id) < 0)
 		return CMD_ERROR;
-	req.addr.iface_id = iface->id;
-	free(iface);
-
 	if (arg_ip4_net(p, "ADDR", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 
@@ -35,13 +31,9 @@ static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) 
 
 static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_addr_del_req req = {.missing_ok = true};
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.addr.iface_id) < 0)
 		return CMD_ERROR;
-	req.addr.iface_id = iface->id;
-	free(iface);
-
 	if (arg_ip4_net(p, "ADDR", &req.addr.addr, false) < 0)
 		return CMD_ERROR;
 

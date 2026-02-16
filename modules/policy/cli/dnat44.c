@@ -15,14 +15,10 @@
 #include <stdint.h>
 
 static cmd_status_t dnat44_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 	struct gr_dnat44_add_req req = {.exist_ok = true};
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.policy.iface_id) < 0)
 		return CMD_ERROR;
-	req.policy.iface_id = iface->id;
-	free(iface);
-
 	if (arg_ip4(p, "DEST", &req.policy.match) < 0)
 		return CMD_ERROR;
 	if (arg_ip4(p, "REPLACE", &req.policy.replace) < 0)
@@ -35,14 +31,10 @@ static cmd_status_t dnat44_add(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t dnat44_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 	struct gr_dnat44_del_req req = {.missing_ok = true};
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-	req.iface_id = iface->id;
-	free(iface);
-
 	if (arg_ip4(p, "DEST", &req.match) < 0)
 		return CMD_ERROR;
 

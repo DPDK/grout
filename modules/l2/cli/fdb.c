@@ -15,31 +15,6 @@
 
 #include <errno.h>
 
-static int arg_iface(
-	struct gr_api_client *c,
-	const struct ec_pnode *p,
-	const char *id,
-	gr_iface_type_t type,
-	uint16_t *iface_id
-) {
-	const char *name = arg_str(p, id);
-	if (name == NULL)
-		return -errno;
-
-	struct gr_iface *iface = iface_from_name(c, name);
-	if (iface == NULL)
-		return -errno;
-
-	if (type != GR_IFACE_TYPE_UNDEF && iface->type != type) {
-		free(iface);
-		return errno_set(EMEDIUMTYPE);
-	}
-
-	*iface_id = iface->id;
-	free(iface);
-	return 0;
-}
-
 static cmd_status_t fdb_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_fdb_add_req req = {.exist_ok = true};
 
