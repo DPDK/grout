@@ -145,23 +145,23 @@ static uint64_t parse_bond_args(
 		set_attrs |= GR_BOND_SET_ALGO;
 	}
 
-	if ((str = arg_str(p, "PRIMARY")) != NULL) {
+	if (arg_str(p, "PRIMARY") != NULL) {
 		if (bond->mode != GR_BOND_MODE_ACTIVE_BACKUP) {
 			errno = EPROTOTYPE;
 			goto err;
 		}
-		struct gr_iface *primary = iface_from_name(c, str);
-		if (primary == NULL)
+		uint16_t iface_id;
+
+		if (arg_iface(c, p, "PRIMARY", GR_IFACE_TYPE_PORT, &iface_id) < 0)
 			goto err;
 
 		uint8_t primary_id = UINT8_MAX;
 		for (uint8_t i = 0; i < bond->n_members; i++) {
-			if (bond->members[i].iface_id == primary->id) {
+			if (bond->members[i].iface_id == iface_id) {
 				primary_id = i;
 				break;
 			}
 		}
-		free(primary);
 		if (primary_id == UINT8_MAX) {
 			errno = ENOLINK;
 			goto err;

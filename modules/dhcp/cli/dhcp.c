@@ -11,16 +11,10 @@
 #include <libsmartcols.h>
 
 static cmd_status_t dhcp_enable_cmd(struct gr_api_client *c, const struct ec_pnode *p) {
-	const char *iface_name = arg_str(p, "IFACE");
 	struct gr_dhcp_start_req req;
-	struct gr_iface *iface;
 
-	iface = iface_from_name(c, iface_name);
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_DHCP_START, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -29,16 +23,10 @@ static cmd_status_t dhcp_enable_cmd(struct gr_api_client *c, const struct ec_pno
 }
 
 static cmd_status_t dhcp_disable_cmd(struct gr_api_client *c, const struct ec_pnode *p) {
-	const char *iface_name = arg_str(p, "IFACE");
 	struct gr_dhcp_stop_req req;
-	struct gr_iface *iface;
 
-	iface = iface_from_name(c, iface_name);
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_DHCP_STOP, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
