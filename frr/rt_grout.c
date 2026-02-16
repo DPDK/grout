@@ -96,7 +96,7 @@ static inline gr_nh_origin_t zebra2origin(int proto) {
 		// to let them know to do something about it.  This
 		// is intentionally a warn because we should see
 		// this as part of development of a new protocol.
-		gr_log_debug("Please add this protocol(%d) to grout", proto);
+		gr_log_debug("unhandled protocol %d, defaulting to GR_NH_ORIGIN_ZEBRA", proto);
 		origin = GR_NH_ORIGIN_ZEBRA;
 		break;
 	}
@@ -179,7 +179,7 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 		// to let them know to do something about it.  This
 		// is intentionally a warn because we should see
 		// this as part of development of a new protocol
-		gr_log_debug("Please add this protocol(%d) to proper rt_grout.c handling", origin);
+		gr_log_debug("unhandled origin %d, defaulting to ZEBRA_ROUTE_KERNEL", origin);
 		proto = ZEBRA_ROUTE_KERNEL;
 		break;
 	}
@@ -230,7 +230,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 			*nh_family = AF_UNSPEC;
 			break;
 		default:
-			gr_log_debug("inval nexthop family %u, nexthop not sync", l3->af);
+			gr_log_err("unsupported nexthop family %u", l3->af);
 			return -1;
 		}
 		break;
@@ -299,9 +299,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		nh->weight = 1;
 		break;
 	default:
-		gr_log_err(
-			"sync %s nexthops from grout not supported", gr_nh_type_name(gr_nh->type)
-		);
+		gr_log_err("unsupported nexthop type %s", gr_nh_type_name(gr_nh->type));
 		return -1;
 	}
 
@@ -327,33 +325,13 @@ static void grout_route_change(
 	size_t sz;
 	afi_t afi;
 
-	if (family == AF_INET)
-		gr_log_debug(
-			"get notification '%s route %pI4/%u (origin %s)'",
-			new ? "add" : "del",
-			dest_addr,
-			dest_prefixlen,
-			gr_nh_origin_name(origin)
-		);
-	else
-		gr_log_debug(
-			"get notification '%s route %pI6/%u (origin %s)'",
-			new ? "add" : "del",
-			dest_addr,
-			dest_prefixlen,
-			gr_nh_origin_name(origin)
-		);
-
 	if (new && is_selfroute(origin)) {
-		gr_log_debug(
-			"'%s' route received that we think we have originated, ignoring",
-			gr_nh_origin_name(origin)
-		);
+		gr_log_debug("self-originated %s route, skip", gr_nh_origin_name(origin));
 		return;
 	}
 
 	if (origin == GR_NH_ORIGIN_LINK) {
-		gr_log_debug("'%s' route intentionally ignoring", gr_nh_origin_name(origin));
+		gr_log_debug("link route, skip");
 		return;
 	}
 
@@ -364,17 +342,14 @@ static void grout_route_change(
 		nh = nexthop_new();
 
 		if (grout_gr_nexthop_to_frr_nexthop(gr_nh, nh, &nh_family) < 0) {
-			gr_log_debug("route received has invalid nexthop, ignoring");
+			gr_log_debug("invalid nexthop, skip route");
 			nexthop_free(nh);
 			return;
 		}
 
 		if (nh_family != AF_UNSPEC && nh_family != family) {
 			gr_log_debug(
-				"nexthop family %u different that route family %u nexthop, "
-				"ignoring",
-				nh_family,
-				family
+				"nexthop family %u != route family %u, skip", nh_family, family
 			);
 			nexthop_free(nh);
 			return;
@@ -437,6 +412,15 @@ static void grout_route_change(
 }
 
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
+	gr_log_debug(
+		"%s %pI4/%u origin %s nh_id %u vrf %u",
+		new ? "add" : "del",
+		&gr_r4->dest.ip,
+		gr_r4->dest.prefixlen,
+		gr_nh_origin_name(gr_r4->origin),
+		gr_r4->nh.nh_id,
+		gr_r4->nh.vrf_id
+	);
 	grout_route_change(
 		new,
 		gr_r4->origin,
@@ -448,6 +432,15 @@ void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
 }
 
 void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
+	gr_log_debug(
+		"%s %pI6/%u origin %s nh_id %u vrf %u",
+		new ? "add" : "del",
+		&gr_r6->dest.ip,
+		gr_r6->dest.prefixlen,
+		gr_nh_origin_name(gr_r6->origin),
+		gr_r6->nh.nh_id,
+		gr_r6->nh.vrf_id
+	);
 	grout_route_change(
 		new,
 		gr_r6->origin,
@@ -474,22 +467,32 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	size_t req_len;
 
 	origin = zebra2origin(dplane_ctx_get_type(ctx));
+	p = dplane_ctx_get_dest(ctx);
+
+	gr_log_debug(
+		"%s %pFX origin %s nh_id %u vrf %u",
+		new ? "add" : "del",
+		p,
+		gr_nh_origin_name(origin),
+		nh_id,
+		vrf_id
+	);
+
 	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr route, skip it");
+		gr_log_debug("non-frr origin, skip");
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
+
 	if (new && nh_id == 0) {
-		gr_log_err("impossible to add route with no nexthop id");
+		gr_log_err("no nh_id, skip");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
-
-	p = dplane_ctx_get_dest(ctx);
 	if (p->family != AF_INET && p->family != AF_INET6) {
-		gr_log_err("impossible to add/del route with family %u (not supported)", p->family);
+		gr_log_err("unsupported family %u, skip", p->family);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 	if (dplane_ctx_get_src(ctx) != NULL) {
-		gr_log_err("impossible to add/del route with src (not supported)");
+		gr_log_err("src routes not supported, skip");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 	// TODO: other check for metric, distance, and so-on
@@ -522,16 +525,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 
 		dest->ip = p->u.prefix4.s_addr;
 		dest->prefixlen = p->prefixlen;
-
-		gr_log_debug(
-			"%s route %pI4/%u (origin %s, nh_id %u) on vrf %u",
-			new ? "add" : "del",
-			&dest->ip,
-			dest->prefixlen,
-			gr_nh_origin_name(origin),
-			nh_id,
-			vrf_id
-		);
 	} else {
 		struct ip6_net *dest;
 
@@ -560,16 +553,6 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 
 		memcpy(dest->ip.a, p->u.prefix6.s6_addr, sizeof(dest->ip.a));
 		dest->prefixlen = p->prefixlen;
-
-		gr_log_debug(
-			"%s route %pI6/%u (origin %s, nh_id %u) on vrf %u",
-			new ? "add" : "del",
-			&dest->ip,
-			dest->prefixlen,
-			gr_nh_origin_name(origin),
-			nh_id,
-			vrf_id
-		);
 	}
 
 	if (grout_client_send_recv(req_type, req_len, &req, NULL) < 0)
@@ -585,10 +568,14 @@ static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx 
 	struct gr_nh_add_req *req = NULL;
 	size_t len;
 
+	gr_log_debug("nh_id %u", nh_id);
+
 	len = sizeof(*req) + sizeof(*group)
 		+ dplane_ctx_get_nhe_nh_grp_count(ctx) * sizeof(group->members[0]);
-	if ((req = calloc(1, len)) == NULL)
+	if ((req = calloc(1, len)) == NULL) {
+		gr_log_debug("calloc: %s", strerror(errno));
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
 
 	group = (struct gr_nexthop_info_group *)req->nh.info;
 	group->n_members = dplane_ctx_get_nhe_nh_grp_count(ctx);
@@ -612,6 +599,8 @@ static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx 
 }
 
 static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
+	gr_log_debug("nh_id %u", nh_id);
+
 	struct gr_nh_del_req req = {.missing_ok = true, .nh_id = nh_id};
 
 	if (grout_client_send_recv(GR_NH_DEL, sizeof(req), &req, NULL) < 0)
@@ -653,13 +642,15 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		type = nh->bh_type == BLACKHOLE_REJECT ? GR_NH_T_REJECT : GR_NH_T_BLACKHOLE;
 		break;
 	default:
-		gr_log_err("unsupported nexthop type: %u", nh->type);
+		gr_log_err("unsupported nexthop type %u", nh->type);
 		goto out;
 	}
 
+	gr_log_debug("nh_id %u type %s", nh_id, gr_nh_type_name(type));
+
 	req = calloc(1, len);
 	if (req == NULL) {
-		gr_log_err("cannot allocate memory");
+		gr_log_err("calloc: %s", strerror(errno));
 		goto out;
 	}
 
@@ -719,8 +710,7 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			break;
 		default:
 			gr_log_err(
-				"not supported srv6 local behaviour action=%u",
-				nh->nh_srv6->seg6local_action
+				"unsupported seg6local action %u", nh->nh_srv6->seg6local_action
 			);
 			goto out;
 		}
@@ -730,11 +720,11 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
 			sr6_local->flags |= GR_SR_FL_FLAVOR_PSP;
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
-			gr_log_debug("USP is always configured");
+			gr_log_debug("USP always enabled, ignoring flag");
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
 			sr6_local->flags |= GR_SR_FL_FLAVOR_USD;
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
-			gr_log_debug("not supported next-c-sid for srv6 local");
+			gr_log_debug("next-c-sid not supported, ignoring flag");
 
 		break;
 	case GR_NH_T_SR6_OUTPUT:
@@ -749,7 +739,7 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			break;
 		default:
 			gr_log_err(
-				"encap behavior '%s' not supported by grout",
+				"unsupported encap behavior %s",
 				srv6_headend_behavior2str(
 					nh->nh_srv6->seg6_segs->encap_behavior, true
 				)
@@ -769,11 +759,9 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		req->nh.iface_id = GR_IFACE_ID_UNDEF;
 		break;
 	default:
-		gr_log_err("unsupported nexthop type: %s", gr_nh_type_name(type));
+		gr_log_err("unsupported nh type %s", gr_nh_type_name(type));
 		goto out;
 	}
-
-	gr_log_debug("add nexthop id %u with type %s", nh_id, gr_nh_type_name(type));
 
 	if (grout_client_send_recv(GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
@@ -785,18 +773,23 @@ out:
 }
 
 enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
+	gr_nh_origin_t origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
-	gr_nh_origin_t origin;
 
-	origin = zebra2origin(dplane_ctx_get_nhe_type(ctx));
+	gr_log_debug(
+		"%s nh_id %u origin %s",
+		dplane_ctx_get_op(ctx) == DPLANE_OP_NH_DELETE ? "del" : "add",
+		nh_id,
+		gr_nh_origin_name(origin)
+	);
+
 	if (!is_selfroute(origin)) {
-		gr_log_debug("no frr nexthop, skip it");
+		gr_log_debug("non-frr origin, skip");
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
-
 	if (!nh_id) {
 		// it's supported by grout, but not by the linux kernel
-		gr_log_err("impossible to add/del nexthop in grout that does not have an ID");
+		gr_log_err("no nh_id, skip");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 
@@ -814,10 +807,12 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
+	gr_log_debug("%s nh_id %u", new ? "add" : "del", gr_nh->nh_id);
+
 	// XXX: grout is optional to have an ID for nexthop
 	// but in FRR, it's mandatory
 	if (gr_nh->nh_id == 0) {
-		gr_log_err("impossible to sync nexthop from grout that does not have an ID");
+		gr_log_err("nexthop without ID, skip");
 		return;
 	}
 

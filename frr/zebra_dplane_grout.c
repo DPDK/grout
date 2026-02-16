@@ -6,7 +6,6 @@
 #include "if_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
-#include "typesafe.h"
 
 #include <gr_api_client_impl.h>
 #include <gr_srv6.h>
@@ -52,9 +51,7 @@ static int grout_notif_subscribe(
 
 	*pgr_client = gr_api_client_connect(gr_sock_path);
 	if (*pgr_client == NULL) {
-		gr_log_err(
-			"connect failed on grout sock %s error: %s", gr_sock_path, strerror(errno)
-		);
+		gr_log_err("gr_api_client_connect(%s): %s", gr_sock_path, strerror(errno));
 		return -1;
 	}
 
@@ -66,11 +63,7 @@ static int grout_notif_subscribe(
 			    *pgr_client, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL
 		    )
 		    < 0) {
-			gr_log_err(
-				"subscribe on event failed on grout sock %s error: %s",
-				gr_sock_path,
-				strerror(errno)
-			);
+			gr_log_err("gr_api_client_send_recv: %s", strerror(errno));
 
 			gr_api_client_disconnect(*pgr_client);
 			*pgr_client = NULL;
@@ -98,7 +91,7 @@ static void grout_sync_routes(struct event *e) {
 	bool link;
 	int ret;
 
-	gr_log_debug("sync routes for vrf %u", EVENT_VAL(e));
+	gr_log_info("vrf %u", EVENT_VAL(e));
 
 	if (grout_client_ensure_connect() < 0)
 		return;
@@ -112,7 +105,6 @@ route4:
 			continue;
 		if (link && r4->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		gr_log_debug("sync route %pI4/%u", &r4->dest.ip, r4->dest.prefixlen);
 		grout_route4_change(true, r4);
 	}
 	if (ret < 0)
@@ -134,7 +126,6 @@ route6:
 			continue;
 		if (link && r6->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		gr_log_debug("sync route %pI6/%u", &r6->dest.ip, r6->dest.prefixlen);
 		grout_route6_change(true, r6);
 	}
 	if (ret < 0)
@@ -152,7 +143,7 @@ static void grout_sync_nhs(struct event *e) {
 	struct gr_nexthop *nh;
 	int ret;
 
-	gr_log_debug("sync nexthops for vrf %u", EVENT_VAL(e));
+	gr_log_info("vrf %u", EVENT_VAL(e));
 
 	if (grout_client_ensure_connect() < 0)
 		return;
@@ -160,7 +151,6 @@ static void grout_sync_nhs(struct event *e) {
 	gr_api_client_stream_foreach (
 		nh, ret, grout_ctx.client, GR_NH_LIST, sizeof(nh_req), &nh_req
 	) {
-		gr_log_debug("sync nexthop %d", nh->nh_id);
 		grout_nexthop_change(true, nh, true);
 	}
 	if (ret < 0) {
@@ -178,7 +168,7 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	const struct gr_ip4_ifaddr *ip_addr;
 	int ret;
 
-	gr_log_debug("sync ifaces addresses for vrf %u", EVENT_VAL(e));
+	gr_log_info("vrf %u", EVENT_VAL(e));
 
 	if (grout_client_ensure_connect() < 0)
 		return;
@@ -186,7 +176,6 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip_addr, ret, grout_ctx.client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
 	) {
-		gr_log_debug("sync addr %pI4", &ip_addr->addr.ip);
 		grout_interface_addr4_change(true, ip_addr);
 	}
 	if (ret < 0)
@@ -200,7 +189,6 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	gr_api_client_stream_foreach (
 		ip6_addr, ret, grout_ctx.client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
 	) {
-		gr_log_debug("sync addr %pI6", &ip6_addr->addr.ip);
 		grout_interface_addr6_change(true, ip6_addr);
 	}
 	if (ret < 0)
@@ -235,7 +223,6 @@ static void grout_sync_ifaces(struct event *) {
 		gr_api_client_stream_foreach (
 			iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
 		) {
-			gr_log_debug("sync iface %s", iface->name);
 			grout_link_change(iface, true, true);
 			sync_vrf[iface->vrf_id] = true;
 		}
@@ -279,7 +266,7 @@ static void dplane_grout_connect(struct event *) {
 		&grout_ctx.dg_t_dplane_update
 	);
 
-	gr_log(LOG_NOTICE, "monitor iface/ip events");
+	gr_log_notice("connected, monitoring iface/ip events");
 	return;
 
 reschedule_connect:
@@ -308,7 +295,7 @@ static void zebra_grout_connect(struct event *) {
 		&grout_ctx.dg_t_zebra_update
 	);
 
-	gr_log(LOG_NOTICE, "monitor route events");
+	gr_log_notice("connected, monitoring route/nexthop events");
 	return;
 
 reschedule_connect:
@@ -316,6 +303,8 @@ reschedule_connect:
 }
 
 static const char *gr_req_type_to_str(uint32_t e) {
+	static __thread char buf[64];
+
 	switch (e) {
 	case GR_IP4_ADDR_ADD:
 		return TOSTRING(GR_IP4_ADDR_ADD);
@@ -354,7 +343,8 @@ static const char *gr_req_type_to_str(uint32_t e) {
 	case GR_SRV6_TUNSRC_SET:
 		return TOSTRING(GR_SRV6_TUNSRC_SET);
 	default:
-		return "unknown";
+		snprintf(buf, sizeof(buf), "0x%x", e);
+		return buf;
 	}
 }
 
@@ -365,14 +355,10 @@ int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data
 retry:
 	ret = gr_api_client_send_recv(grout_ctx.client, req_type, tx_len, tx_data, rx_data);
 	if (ret == 0) {
-		gr_log_debug("'%s' request has success", gr_req_type_to_str(req_type));
+		gr_log_debug("%s: success", gr_req_type_to_str(req_type));
 		return 0;
 	} else if (!first) {
-		gr_log_err(
-			"'%s' request has failed (errno=%s)",
-			gr_req_type_to_str(req_type),
-			strerror(errno)
-		);
+		gr_log_err("%s: %s", gr_req_type_to_str(req_type), strerror(errno));
 		return ret;
 	}
 
@@ -386,10 +372,7 @@ retry:
 
 	grout_ctx.client = gr_api_client_connect(gr_sock_path);
 	if (!grout_ctx.client) {
-		gr_log_debug(
-			"connect failed on grout sock for '%s' request",
-			gr_req_type_to_str(req_type)
-		);
+		gr_log_err("gr_api_client_connect: %s", strerror(errno));
 		return -1;
 	}
 
@@ -398,6 +381,8 @@ retry:
 }
 
 static const char *gr_evt_to_str(uint32_t e) {
+	static __thread char buf[64];
+
 	switch (e) {
 	case GR_EVENT_IFACE_ADD:
 		return TOSTRING(GR_EVENT_IFACE_ADD);
@@ -434,16 +419,14 @@ static const char *gr_evt_to_str(uint32_t e) {
 	case GR_EVENT_NEXTHOP_DELETE:
 		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
 	default:
-		return "unknown";
+		snprintf(buf, sizeof(buf), "event 0x%x", e);
+		return buf;
 	}
 }
 
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct gr_api_event *gr_e = NULL;
-	struct gr_ip4_ifaddr *ifa4;
-	struct gr_ip6_ifaddr *ifa6;
-	struct gr_iface *iface;
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.dplane_notifs, &gr_e) < 0 || gr_e == NULL) {
@@ -456,6 +439,8 @@ static void dplane_read_notifications(struct event *event) {
 		return;
 	}
 
+	gr_log_debug("%s", gr_evt_to_str(gr_e->ev_type));
+
 	switch (gr_e->ev_type) {
 	case GR_EVENT_IFACE_ADD:
 	case GR_EVENT_IFACE_STATUS_UP:
@@ -464,49 +449,19 @@ static void dplane_read_notifications(struct event *event) {
 		new = true;
 		// fallthrough
 	case GR_EVENT_IFACE_REMOVE:
-		iface = PAYLOAD(gr_e);
-
-		gr_log_debug(
-			"%s iface %s notification (%s)",
-			new ? "add" : "del",
-			iface->name,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-
-		grout_link_change(iface, new, false);
+		grout_link_change(PAYLOAD(gr_e), new, false);
 		break;
 	case GR_EVENT_IP_ADDR_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP_ADDR_DEL:
-		ifa4 = PAYLOAD(gr_e);
-		gr_log_debug(
-			"%s addr %pI4 notification (%s)",
-			new ? "add" : "del",
-			&ifa4->addr.ip,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-		grout_interface_addr4_change(new, ifa4);
+		grout_interface_addr4_change(new, PAYLOAD(gr_e));
 		break;
 	case GR_EVENT_IP6_ADDR_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP6_ADDR_DEL:
-		ifa6 = PAYLOAD(gr_e);
-		gr_log_debug(
-			"%s addr %pI6 notification (%s)",
-			new ? "add" : "del",
-			&ifa6->addr.ip,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-		grout_interface_addr6_change(new, ifa6);
-		break;
-	default:
-		gr_log_debug(
-			"Unknown notification %s (0x%x) received",
-			gr_evt_to_str(gr_e->ev_type),
-			gr_e->ev_type
-		);
+		grout_interface_addr6_change(new, PAYLOAD(gr_e));
 		break;
 	}
 
@@ -523,9 +478,6 @@ static void dplane_read_notifications(struct event *event) {
 
 static void zebra_read_notifications(struct event *event) {
 	struct gr_api_event *gr_e = NULL;
-	struct gr_ip4_route *gr_r4;
-	struct gr_ip6_route *gr_r6;
-	struct gr_nexthop *gr_nh;
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.zebra_notifs, &gr_e) < 0 || gr_e == NULL) {
@@ -538,61 +490,27 @@ static void zebra_read_notifications(struct event *event) {
 		return;
 	}
 
+	gr_log_debug("%s", gr_evt_to_str(gr_e->ev_type));
+
 	switch (gr_e->ev_type) {
 	case GR_EVENT_IP_ROUTE_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP_ROUTE_DEL:
-		gr_r4 = PAYLOAD(gr_e);
-
-		gr_log_debug(
-			"%s route %pI4/%u notification (%s)",
-			new ? "add" : "del",
-			&gr_r4->dest.ip,
-			gr_r4->dest.prefixlen,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-
-		grout_route4_change(new, gr_r4);
+		grout_route4_change(new, PAYLOAD(gr_e));
 		break;
 	case GR_EVENT_IP6_ROUTE_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP6_ROUTE_DEL:
-		gr_r6 = PAYLOAD(gr_e);
-
-		gr_log_debug(
-			"%s route %pI6/%u notification (%s)",
-			new ? "add" : "del",
-			&gr_r6->dest.ip,
-			gr_r6->dest.prefixlen,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-
-		grout_route6_change(new, gr_r6);
+		grout_route6_change(new, PAYLOAD(gr_e));
 		break;
 	case GR_EVENT_NEXTHOP_NEW:
 	case GR_EVENT_NEXTHOP_UPDATE:
 		new = true;
 		// fallthrough
 	case GR_EVENT_NEXTHOP_DELETE:
-		gr_nh = PAYLOAD(gr_e);
-
-		gr_log_debug(
-			"%s nexthop %u notification (%s)",
-			new ? "add" : "del",
-			gr_nh->nh_id,
-			gr_evt_to_str(gr_e->ev_type)
-		);
-
-		grout_nexthop_change(new, gr_nh, false);
-		break;
-	default:
-		gr_log_debug(
-			"Unknown notification %s (0x%x) received",
-			gr_evt_to_str(gr_e->ev_type),
-			gr_e->ev_type
-		);
+		grout_nexthop_change(new, PAYLOAD(gr_e), false);
 		break;
 	}
 
@@ -639,8 +557,6 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 	struct zebra_dplane_ctx *ctx;
 	enum zebra_dplane_result ret;
 	int counter, limit;
-
-	gr_log_debug("processing %s", dplane_provider_get_name(prov));
 
 	limit = dplane_provider_get_work_limit(prov);
 	for (counter = 0; counter < limit; counter++) {
