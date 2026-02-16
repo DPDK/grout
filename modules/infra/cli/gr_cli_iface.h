@@ -53,6 +53,14 @@ int complete_vrf_names(
 // Defaults to GR_DEFAULT_VRF_NAME if argument not present.
 int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id);
 
+int arg_iface(
+	struct gr_api_client *,
+	const struct ec_pnode *,
+	const char *id,
+	gr_iface_type_t type,
+	uint16_t *iface_id
+);
+
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 
 #define INTERFACE_ARG CTX_ARG("interface", "Interfaces.")

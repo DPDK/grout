@@ -58,14 +58,9 @@ static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode
 
 static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_affinity_rxq_set_req req;
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "NAME", GR_IFACE_TYPE_PORT, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
-
 	if (arg_u16(p, "RXQ", &req.rxq_id) < 0)
 		return CMD_ERROR;
 	if (arg_u16(p, "CPU", &req.cpu_id) < 0)

@@ -53,28 +53,15 @@ static uint64_t parse_vlan_args(
 	bool update
 ) {
 	struct gr_iface_info_vlan *vlan;
-	const char *parent_name;
 	uint64_t set_attrs;
 
 	set_attrs = parse_iface_args(c, p, iface, sizeof(*vlan), update);
 	vlan = (struct gr_iface_info_vlan *)iface->info;
-	parent_name = arg_str(p, "PARENT");
-	if (parent_name != NULL) {
-		struct gr_iface *parent = iface_from_name(c, parent_name);
-		if (parent == NULL)
+
+	if (arg_str(p, "PARENT") != NULL) {
+		if (arg_iface(c, p, "PARENT", GR_IFACE_TYPE_UNDEF, &vlan->parent_id) < 0)
 			return 0;
-		switch (parent->type) {
-		case GR_IFACE_TYPE_PORT:
-		case GR_IFACE_TYPE_BOND:
-			break;
-		default:
-			errno = EMEDIUMTYPE;
-			free(parent);
-			return 0;
-		}
-		vlan->parent_id = parent->id;
 		set_attrs |= GR_VLAN_SET_PARENT;
-		free(parent);
 	}
 
 	if (arg_u16(p, "VLAN", &vlan->vlan_id) == 0)

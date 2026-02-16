@@ -104,25 +104,38 @@ int complete_vrf_names(
 	return complete_iface_names(c, node, comp, arg, INT2PTR(GR_IFACE_TYPE_VRF));
 }
 
-int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
+int arg_iface(
+	struct gr_api_client *c,
+	const struct ec_pnode *p,
+	const char *id,
+	gr_iface_type_t type,
+	uint16_t *iface_id
+) {
 	const char *name = arg_str(p, id);
-	if (name == NULL) {
-		*vrf_id = GR_VRF_DEFAULT_ID;
-		return 0;
-	}
+	if (name == NULL)
+		return -errno;
 
 	struct gr_iface *iface = iface_from_name(c, name);
 	if (iface == NULL)
 		return -errno;
 
-	if (iface->type != GR_IFACE_TYPE_VRF) {
+	if (type != GR_IFACE_TYPE_UNDEF && iface->type != type) {
 		free(iface);
 		return errno_set(EMEDIUMTYPE);
 	}
 
-	*vrf_id = iface->id;
+	*iface_id = iface->id;
 	free(iface);
 	return 0;
+}
+
+int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
+	int ret = arg_iface(c, p, id, GR_IFACE_TYPE_VRF, vrf_id);
+	if (ret == -ENOENT) {
+		*vrf_id = GR_VRF_DEFAULT_ID;
+		ret = 0;
+	}
+	return ret;
 }
 
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
@@ -223,15 +236,10 @@ uint64_t parse_iface_args(
 		if (arg_vrf(c, p, "VRF", &iface->vrf_id) < 0)
 			goto err;
 		set_attrs |= GR_IFACE_SET_VRF;
-	} else if ((name = arg_str(p, "DOMAIN")) != NULL) {
-		struct gr_iface *domain = iface_from_name(c, name);
-		if (domain == NULL) {
-			errno = ENODEV;
+	} else if (arg_str(p, "DOMAIN") != NULL) {
+		if (arg_iface(c, p, "DOMAIN", GR_IFACE_TYPE_UNDEF, &iface->domain_id) < 0)
 			goto err;
-		}
-		iface->domain_id = domain->id;
 		set_attrs |= GR_IFACE_SET_DOMAIN;
-		free(domain);
 	}
 
 	name = arg_str(p, "DESCR");
@@ -246,14 +254,10 @@ err:
 }
 
 static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
 	struct gr_iface_del_req req;
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "NAME", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_IFACE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
