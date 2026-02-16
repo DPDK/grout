@@ -10,6 +10,10 @@ if [ -z "$(ip netns identify)" ]; then
 	exec ip netns exec grout "$0" "$@"
 fi
 
+if [ "${GDB:-false}" = true ]; then
+	export INTERACTIVE=true
+fi
+
 if [ "${INTERACTIVE:-false}" = true ] && [ -z "${SMOKE_TMUX_SOCK:-}" ]; then
 	export SMOKE_TMUX_SOCK="grout-smoke-$$"
 	exec tmux -L "$SMOKE_TMUX_SOCK" new-session -n test "$0" "$@"
@@ -83,11 +87,17 @@ stop_grout() {
 		return
 	fi
 
-	kill -15 "$grout_pid"
-	wait "$grout_pid"
+	kill -TERM "$grout_pid"
 
 	set +x
+	echo "Waiting for grout (PID $grout_pid) to terminate ..."
+	wait "$grout_pid"
 	local ret="$?"
+
+	if [ "${GDB:-false}" = true ]; then
+		tmux kill-window -t gdb
+	fi
+
 	if [ "$ret" -ne 0 ]; then
 		status="$ret"
 		if [ "$ret" -gt 128 ]; then
@@ -274,18 +284,29 @@ if [ "$run_grout" = true ]; then
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
-	if [ -t 1 ]; then
+	local_grout_cmd="taskset -c 0,1 grout -vvx $grout_extra_options"
+	if [ "${GDB:-false}" = true ]; then
+		tmux new-window -d -n gdb gdb \
+			-ex 'handle SIGTERM nostop print pass' \
+			--args $local_grout_cmd
+	elif [ -t 1 ]; then
 		# print grout logs in blue (stderr in bold red)
-		taskset -c 0,1 grout -vvx $grout_extra_options \
+		$local_grout_cmd \
 			> >(awk '{print "\033[34m" $0 "\033[0m"}') \
 			2> >(awk '{print "\033[1;31m" $0 "\033[0m"}' >&2) &
+		grout_pid=$!
 	else
-		taskset -c 0,1 grout -vvx $grout_extra_options &
+		$local_grout_cmd &
+		grout_pid=$!
 	fi
 fi
-socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
-if [ "$run_grout" = true ]; then
-	grout_pid=$(pgrep -g0 grout)
+if [ "${GDB:-false}" = true ]; then
+	echo "Waiting for gdb start. Switch to the grout window and configure breakpoints."
+	socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,forever
+	gdb_pid=$(tmux list-windows -F '#{window_name} #{pane_pid}' | awk '/gdb/{print $2}')
+	grout_pid=$(pgrep -P $gdb_pid | head -n1)
+else
+	socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
 fi
 
 case "$(basename $0)" in
