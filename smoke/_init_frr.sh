@@ -361,7 +361,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	chmod 0777 $tmp # to access on tmp
 
 	if [ -n "${builddir}" ]; then
-		export PATH=$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH
+		smoke_setenv PATH "$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH"
 	fi
 
 	start_frr "" 1

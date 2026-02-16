@@ -39,20 +39,65 @@ if [ -n "$NET_INTERFACES" ] && [ -n "$VFIO_PCI_PORTS" ]; then
 	use_hardware_ports=true
 fi
 
+pause_for_debug() {
+	if [ "${status:-0}" -eq 0 ]; then
+		return
+	fi
+	if ! [ "${PAUSE_ON_FAILURE:-false}" = true ]; then
+		return
+	fi
+
+	echo >/dev/tty
+	[ -n "${SMOKE_LOG:-}" ] && [ -f "$SMOKE_LOG" ] && cat "$SMOKE_LOG" >/dev/tty
+	echo >/dev/tty
+	echo "Test failed. To debug, run:" >/dev/tty
+	echo "  grcli -s $GROUT_SOCK_PATH" >/dev/tty
+	echo >/dev/tty
+	echo "Press Enter to continue cleanup or Ctrl-C to abort..." >/dev/tty
+	read -r </dev/tty
+}
+
+stop_grout() {
+	kill %?grcli
+	wait %?grcli
+
+	if [ "$run_grout" = false ]; then
+		return
+	fi
+
+	kill -15 "$grout_pid"
+	wait "$grout_pid"
+
+	set +x
+	local ret="$?"
+	if [ "$ret" -ne 0 ]; then
+		status="$ret"
+		if [ "$ret" -gt 128 ]; then
+			local sig=$((ret - 128))
+			echo "fail: grout terminated by signal SIG$(kill -l $sig)"
+		else
+			echo "fail: grout exited with an error status $ret"
+		fi >&2
+		if [ -n "$core_pattern" ]; then
+			for core in $tmp/core.*.*; do
+				[ -f "$core" ] || continue
+				gdb -c "$core" -batch \
+					-ex "info threads" \
+					-ex "thread apply all bt"
+			done
+			sysctl -w kernel.core_pattern="$core_pattern"
+		else
+			coredumpctl info --no-pager "$grout_pid"
+		fi
+	fi
+	set -x
+}
+
 cleanup() {
 	status="$?"
 	set +e
 
-	if [ "$status" -ne 0 ] && [ "$PAUSE_ON_FAILURE" = true ]; then
-		echo >/dev/tty
-		[ -n "$SMOKE_LOG" ] && cat "$SMOKE_LOG" >/dev/tty
-		echo >/dev/tty
-		echo "Test failed. To debug, run:" >/dev/tty
-		echo "  sudo $builddir/grcli -s $GROUT_SOCK_PATH" >/dev/tty
-		echo >/dev/tty
-		echo "Press Enter to continue cleanup or Ctrl-C to abort..." >/dev/tty
-		read -r </dev/tty
-	fi
+	pause_for_debug
 
 	sh -x $tmp/cleanup
 
@@ -78,39 +123,8 @@ cleanup() {
 	fi
 	[ -s $tmp/restore_interfaces ] && sh -x $tmp/restore_interfaces
 
-	kill %?grcli
-	wait %?grcli
+	stop_grout
 
-	if [ "$run_grout" = true ]; then
-		set +x
-		kill -15 "$grout_pid"
-		wait "$grout_pid"
-		ret="$?"
-		if [ "$ret" -ne 0 ]; then
-			status="$ret"
-			if [ "$ret" -gt 128 ]; then
-				sig=$((ret - 128))
-				echo "fail: grout terminated by signal SIG$(kill -l $sig)"
-			else
-				echo "fail: grout exited with an error status $ret"
-			fi >&2
-			if [ -n "$core_pattern" ]; then
-				# core dumps written to files
-				for core in $tmp/core.*.*; do
-					[ -f "$core" ] || continue
-					gdb -c "$core" -batch \
-						-ex "info threads" \
-						-ex "thread apply all bt"
-				done
-				 # restore original core pattern
-				sysctl -w kernel.core_pattern="$core_pattern"
-			else
-				# fallback to systemd-coredump, if available
-				coredumpctl info --no-pager "$grout_pid"
-			fi
-		fi
-		set -x
-	fi
 	rm -rf -- "$tmp"
 	exit $status
 }
@@ -123,6 +137,10 @@ fail() {
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
+
+smoke_setenv() {
+	export "$1=$2"
+}
 
 netns_add() {
 	local ns="$1"
@@ -188,10 +206,10 @@ llocal_addr() {
 }
 
 if [ "$run_grout" = true ]; then
-	export GROUT_SOCK_PATH=$tmp/grout.sock
+	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
 fi
 if [ -n "${builddir}" ]; then
-	export PATH=$builddir:$PATH
+	smoke_setenv PATH "$builddir:$PATH"
 fi
 
 grout_extra_options=""
@@ -220,7 +238,7 @@ if [ "$run_grout" = true ]; then
 	if ! sysctl -w kernel.core_pattern="$tmp/core.%e.%p"; then
 		unset core_pattern
 	fi
-	export ASAN_OPTIONS=disable_coredump=0
+	smoke_setenv ASAN_OPTIONS disable_coredump=0
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
