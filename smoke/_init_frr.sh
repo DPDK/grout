@@ -355,6 +355,14 @@ EOF
 			attempts=$((attempts - 1))
 		done
 	fi
+
+	if [ "${INTERACTIVE:-false}" = true ]; then
+		if [ -n "$namespace" ]; then
+			tmux_new_window "vtysh-$namespace" vtysh -N "$namespace"
+		else
+			tmux_new_window vtysh vtysh
+		fi
+	fi
 }
 
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then

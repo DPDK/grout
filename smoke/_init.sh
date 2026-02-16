@@ -10,6 +10,11 @@ if [ -z "$(ip netns identify)" ]; then
 	exec ip netns exec grout "$0" "$@"
 fi
 
+if [ "${INTERACTIVE:-false}" = true ] && [ -z "${SMOKE_TMUX_SOCK:-}" ]; then
+	export SMOKE_TMUX_SOCK="grout-smoke-$$"
+	exec tmux -L "$SMOKE_TMUX_SOCK" new-session -n test "$0" "$@"
+fi
+
 ip link set lo up
 if ! ip -o addr show dev lo | grep -qF 'inet 127.0.0.1'; then
 	ip addr add 127.0.0.1/8 dev lo
@@ -40,6 +45,16 @@ if [ -n "$NET_INTERFACES" ] && [ -n "$VFIO_PCI_PORTS" ]; then
 fi
 
 pause_for_debug() {
+	if [ "${INTERACTIVE:-false}" = true ]; then
+		if [ "$status" -ne 0 ]; then
+			echo "Test FAILED (status=$status)." >/dev/tty
+		else
+			echo "Test PASSED." >/dev/tty
+		fi
+		echo "Debug windows are available. Press Enter to cleanup..." >/dev/tty
+		read -r </dev/tty
+		return
+	fi
 	if [ "${status:-0}" -eq 0 ]; then
 		return
 	fi
@@ -58,6 +73,9 @@ pause_for_debug() {
 }
 
 stop_grout() {
+	for name in "${tmux_windows[@]}"; do
+		tmux kill-window -t "$name"
+	done
 	kill %?grcli
 	wait %?grcli
 
@@ -137,9 +155,20 @@ fail() {
 tmp=$(mktemp -d)
 trap cleanup EXIT
 builddir=${1-}
+tmux_windows=()
 
 smoke_setenv() {
 	export "$1=$2"
+	if [ "${INTERACTIVE:-false}" = true ]; then
+		tmux set-environment "$1" "$2"
+	fi
+}
+
+tmux_new_window() {
+	local name="$1"
+	shift
+	tmux new-window -d -n "$name" "$@"
+	tmux_windows+=("$name")
 }
 
 netns_add() {
@@ -150,6 +179,9 @@ nsenter -t 1 -n -m ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
 nsenter -t 1 -n -m ip netns del "$ns"
 EOF
 	ip -n "$ns" link set lo up
+	if [ "${INTERACTIVE:-false}" = true ]; then
+		tmux_new_window "$ns" ip netns exec "$ns" bash
+	fi
 }
 
 move_to_netns() {
@@ -269,4 +301,8 @@ if [ -t 1 ]; then
 	grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
 else
 	grcli events &
+fi
+
+if [ "${INTERACTIVE:-false}" = true ]; then
+	tmux_new_window grcli grcli
 fi
