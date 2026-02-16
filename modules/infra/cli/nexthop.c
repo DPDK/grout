@@ -251,12 +251,8 @@ static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p)
 		break;
 	}
 
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req->nh.iface_id) < 0)
 		goto out;
-	req->nh.iface_id = iface->id;
-	free(iface);
-
 	if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
 		goto out;
 

@@ -12,16 +12,13 @@
 #include <libsmartcols.h>
 
 static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
+	struct gr_ip6_ra_show_req req = {.iface_id = GR_IFACE_ID_UNDEF};
 	const struct gr_ip6_ra_conf *ra;
-	struct gr_ip6_ra_show_req req;
+	struct gr_iface *iface;
 	int ret;
 
-	if (iface != NULL)
-		req.iface_id = iface->id;
-	else
-		req.iface_id = GR_IFACE_ID_UNDEF;
-	free(iface);
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	struct libscols_table *table = scols_new_table();
 	scols_table_new_column(table, "IFACE", 0, 0);
@@ -49,18 +46,12 @@ static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 }
 
 static cmd_status_t ra_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 	struct gr_ip6_ra_set_req req = {0};
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
-
 	if (!arg_u16(p, "IT", &req.interval))
 		req.set_interval = 1;
-
 	if (!arg_u16(p, "LT", &req.lifetime))
 		req.set_lifetime = 1;
 
@@ -70,14 +61,10 @@ static cmd_status_t ra_set(struct gr_api_client *c, const struct ec_pnode *p) {
 }
 
 static cmd_status_t ra_clear(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
 	struct gr_ip6_ra_clear_req req;
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_IP6_IFACE_RA_CLEAR, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
