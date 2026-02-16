@@ -6,10 +6,12 @@
 #include <lib/zlog.h>
 #include <zebra/debug.h>
 
-#define gr_log(priority, fmt, ...) zlog(priority, "GROUT: " fmt, ##__VA_ARGS__)
+#define gr_log(priority, fmt, ...) zlog(priority, "GROUT: %s: " fmt, __func__, ##__VA_ARGS__)
 #define gr_log_err(fmt, ...) gr_log(LOG_ERR, fmt, ##__VA_ARGS__)
+#define gr_log_notice(fmt, ...) gr_log(LOG_NOTICE, fmt, ##__VA_ARGS__)
+#define gr_log_info(fmt, ...) gr_log(LOG_INFO, fmt, ##__VA_ARGS__)
 #define gr_log_debug(fmt, ...)                                                                     \
 	do {                                                                                       \
 		if (IS_ZEBRA_DEBUG_DPLANE_DPDK)                                                    \
-			gr_log(LOG_DEBUG, "%s: " fmt, __func__, ##__VA_ARGS__);                    \
+			gr_log(LOG_DEBUG, fmt, ##__VA_ARGS__);                                     \
 	} while (0)

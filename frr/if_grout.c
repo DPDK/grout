@@ -38,6 +38,8 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 }
 
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
+	gr_log_debug("%s iface %s", new ? "add" : "del", gr_if->name);
+
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
@@ -84,9 +86,9 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	case GR_IFACE_TYPE_UNDEF:
 	default:
 		gr_log_err(
-			"iface '%s' unknown type (%u) can not be sync",
+			"iface %s: unsupported type %s",
 			gr_if->name,
-			gr_if->base.type
+			gr_iface_type_name(gr_if->type)
 		);
 		return;
 	}
@@ -192,12 +194,26 @@ static void grout_interface_addr_change(
 }
 
 void grout_interface_addr4_change(bool new, const struct gr_ip4_ifaddr *ifa) {
+	gr_log_debug(
+		"%s %pI4/%u iface %u",
+		new ? "add" : "del",
+		&ifa->addr.ip,
+		ifa->addr.prefixlen,
+		ifa->iface_id
+	);
 	grout_interface_addr_change(
 		new, ifa->iface_id, AF_INET, &ifa->addr.ip, ifa->addr.prefixlen
 	);
 }
 
 void grout_interface_addr6_change(bool new, const struct gr_ip6_ifaddr *ifa) {
+	gr_log_debug(
+		"%s %pI6/%u iface %u",
+		new ? "add" : "del",
+		&ifa->addr.ip,
+		ifa->addr.prefixlen,
+		ifa->iface_id
+	);
 	grout_interface_addr_change(
 		new, ifa->iface_id, AF_INET6, &ifa->addr.ip, ifa->addr.prefixlen
 	);
@@ -216,15 +232,20 @@ enum zebra_dplane_result grout_add_del_address(struct zebra_dplane_ctx *ctx) {
 	size_t req_len;
 
 	if (p->family != AF_INET && p->family != AF_INET6) {
-		gr_log_err(
-			"impossible to add/del address with family %u (not supported)", p->family
-		);
+		gr_log_err("unsupported family %u", p->family);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
 	if (gr_iface_id <= GR_IFACE_ID_UNDEF || gr_iface_id >= UINT16_MAX) {
-		gr_log_err("impossible to add/del address with invalid ifindex %d", gr_iface_id);
+		gr_log_err("invalid ifindex %d", gr_iface_id);
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
+
+	gr_log_debug(
+		"%s %pFX iface %d",
+		dplane_ctx_get_op(ctx) == DPLANE_OP_ADDR_INSTALL ? "add" : "del",
+		p,
+		gr_iface_id
+	);
 
 	if (p->family == AF_INET) {
 		struct gr_ip4_ifaddr *ip4_addr;
@@ -283,9 +304,12 @@ enum zebra_dplane_result grout_set_sr_tunsrc(struct zebra_dplane_ctx *ctx) {
 	struct gr_srv6_tunsrc_set_req req;
 
 	if (tunsrc_addr == NULL) {
-		gr_log_debug("sr tunsrc set failed: SRv6 encap source address not set");
+		gr_log_err("no source address");
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
 	}
+
+	gr_log_debug("set %pI6", tunsrc_addr);
+
 	memcpy(&req.addr, tunsrc_addr, sizeof(req.addr));
 
 	if (grout_client_send_recv(GR_SRV6_TUNSRC_SET, sizeof(req), &req, NULL) < 0)
