@@ -298,6 +298,26 @@ cd grout
 make
 ```
 
+### Build distribution packages
+
+#### Debian/Ubuntu
+
+```sh
+make deb
+```
+
+To build without FRR support:
+
+```sh
+DEB_BUILD_OPTIONS=nofrr make deb
+```
+
+#### RHEL/Fedora
+
+```sh
+make rpm
+```
+
 ### Start the router daemon
 
 The binaries are located in the build directory:
