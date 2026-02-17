@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Robin Jarry
 
@@ -17,7 +17,7 @@ for wrap in subprojects/*.wrap; do
 done
 
 # Always check compilation.
-make "$@"
+time make "$@"
 
 if [ "$#" -eq 0 ] && ! echo "$MESON_EXTRA_OPTS" | grep -q -- --cross-file; then
 	# If the script was invoked without any argument (e.g. not with "lint")
@@ -25,9 +25,9 @@ if [ "$#" -eq 0 ] && ! echo "$MESON_EXTRA_OPTS" | grep -q -- --cross-file; then
 	echo -------------------------------------------------------------------
 	echo unit-tests
 	echo -------------------------------------------------------------------
-	make unit-tests
+	time make unit-tests
 	echo -------------------------------------------------------------------
 	echo smoke-tests "($(nproc) parallel jobs)"
 	echo -------------------------------------------------------------------
-	make smoke-tests -j$(nproc) -k
+	time make smoke-tests -j$(nproc) -k
 fi
