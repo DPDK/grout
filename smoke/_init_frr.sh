@@ -307,7 +307,7 @@ EOF
 	local tailpid=$!
 
 	if [ -n "$namespace" ]; then
-		nsenter -t 1 -n -m ip netns add "$namespace"
+		ip netns add "$namespace"
 	fi
 
 	# cleanup -- kill the subshell children (tail, sed, awk)
@@ -317,8 +317,8 @@ pkill -P $tailpid 2>/dev/null || true
 EOF
 	if [ -n "$namespace" ]; then
 		cat >>"$tmp/cleanup" <<EOF
-nsenter -t 1 -n -m ip netns pids "$namespace" | xargs -r kill --timeout 500 KILL
-nsenter -t 1 -n -m ip netns del "$namespace"
+ip netns pids "$namespace" | xargs -r kill --timeout 500 KILL
+ip netns del "$namespace"
 EOF
 	fi
 
@@ -370,6 +370,12 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 
 	if [ -n "${builddir}" ]; then
 		smoke_setenv PATH "$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH"
+		# isolate FRR state dirs so parallel tests don't collide;
+		# FRR daemons drop privileges to the user that compiled
+		# them (--enable-user), use mode=1777 so they can write
+		for d in etc/frr var/log/frr var/run/frr var/lib/frr; do
+			mount -t tmpfs -o mode=1777 tmpfs "$builddir/frr_install/$d"
+		done
 	fi
 
 	start_frr "" 1
