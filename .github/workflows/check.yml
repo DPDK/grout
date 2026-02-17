@@ -73,7 +73,7 @@ jobs:
             libibverbs-dev libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libsmartcols-dev libmnl-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq \
-            dnsmasq \
+            dnsmasq systemd-coredump \
             "linux-modules-extra-$(uname -r)"
           if echo $MESON_EXTRA_OPTS | grep -q frr=enabled ; then
             sudo apt-get install -qy --no-install-recommends \

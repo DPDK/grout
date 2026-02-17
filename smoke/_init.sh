@@ -3,11 +3,24 @@
 
 set -e -o pipefail
 
-if [ -z "$(ip netns identify)" ]; then
-	set -x
-	ip netns del grout 2>/dev/null || :
-	ip netns add grout
-	exec ip netns exec grout "$0" "$@"
+ulimit -c unlimited
+
+if [ "${_SMOKE_UNSHARED:-}" != 1 ]; then
+	# pass the host netns as fd 3 so we can reference it after unshare
+	export _SMOKE_UNSHARED=1
+	exec unshare --mount --net -- "$0" "$@" 3</proc/1/ns/net
+fi
+
+if [ "${_SMOKE_MOUNTS_DONE:-}" != 1 ]; then
+	# prevent any mount events from leaking to the host
+	mount --make-rprivate /
+	# start with a clean /run/netns, free of any stale host entries
+	mkdir -p /run/netns
+	mount -t tmpfs tmpfs /run/netns
+	# register the host netns so hardware port tests can move devices in/out
+	touch /run/netns/host
+	mount --bind /proc/self/fd/3 /run/netns/host
+	export _SMOKE_MOUNTS_DONE=1
 fi
 
 if [ "${GDB:-false}" = true ]; then
@@ -20,9 +33,6 @@ if [ "${INTERACTIVE:-false}" = true ] && [ -z "${SMOKE_TMUX_SOCK:-}" ]; then
 fi
 
 ip link set lo up
-if ! ip -o addr show dev lo | grep -qF 'inet 127.0.0.1'; then
-	ip addr add 127.0.0.1/8 dev lo
-fi
 
 : "${test_frr:=false}"
 
@@ -106,17 +116,8 @@ stop_grout() {
 		else
 			echo "fail: grout exited with an error status $ret"
 		fi >&2
-		if [ -n "$core_pattern" ]; then
-			for core in $tmp/core.*.*; do
-				[ -f "$core" ] || continue
-				gdb -c "$core" -batch \
-					-ex "info threads" \
-					-ex "thread apply all bt"
-			done
-			sysctl -w kernel.core_pattern="$core_pattern"
-		else
-			coredumpctl info --no-pager "$grout_pid"
-		fi
+		coredumpctl debug --no-pager -q "$grout_pid" \
+			--debugger-arguments="-batch -ex 'thread apply all bt'"
 	fi
 	set -x
 }
@@ -183,10 +184,10 @@ tmux_new_window() {
 
 netns_add() {
 	local ns="$1"
-	nsenter -t 1 -n -m ip netns add "$ns"
+	ip netns add "$ns"
 	cat >> $tmp/cleanup <<EOF
-nsenter -t 1 -n -m ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
-nsenter -t 1 -n -m ip netns del "$ns"
+ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
+ip netns del "$ns"
 EOF
 	ip -n "$ns" link set lo up
 	if [ "${INTERACTIVE:-false}" = true ]; then
@@ -218,19 +219,19 @@ port_add() {
                 if [ $tap_counter -ge ${#net_interfaces[@]} ]; then
 			fail "Can not create port. No more hardware ports available."
 		fi
-		nsenter -t 1 -n ip link set "${net_interfaces[$tap_counter]}" netns $(ip netns identify)
+		ip -n host link set "${net_interfaces[$tap_counter]}" netns $$
 		ip link set "${net_interfaces[$tap_counter]}" name "x-$name"
                 # When test fails prematurely due to insufficient number of ports
                 # we need to return them back to default namespace and wait a little
                 # before proceeding to ensure reliable execution
-		echo "ip link set x-$name netns 1 || :" >> $tmp/restore_interfaces
+		echo "ip link set x-$name netns host || :" >> $tmp/restore_interfaces
 		echo "sleep 1" >> $tmp/restore_interfaces
 		# When a namespace is deleted while a renamed kernel interface
 		# is inside it an 'altname' property with the interface original
 		# name is created. This causes an error on attempt to restore
 		# the original name. So we need to clear this 'altname' first.
-		echo "nsenter -t 1 -n ip link property del dev x-$name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
-		echo "nsenter -t 1 -n ip link set x-$name name ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
+		echo "ip -n host link property del dev x-$name altname ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
+		echo "ip -n host link set x-$name name ${net_interfaces[$tap_counter]} || :" >> $tmp/restore_interfaces
 		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
 	else
 		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=x-$name" "$@"
@@ -275,11 +276,6 @@ fi
 set -x
 
 if [ "$run_grout" = true ]; then
-	ulimit -c unlimited
-	core_pattern=$(sysctl -n kernel.core_pattern)
-	if ! sysctl -w kernel.core_pattern="$tmp/core.%e.%p"; then
-		unset core_pattern
-	fi
 	smoke_setenv ASAN_OPTIONS disable_coredump=0
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
