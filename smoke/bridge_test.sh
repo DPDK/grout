@@ -49,6 +49,13 @@ grcli bridge stats br0 | grep -q "fdb:" || fail "bridge stats missing fdb sectio
 grcli bridge stats reset br0
 grcli bridge stats br0 | grep -q "unicast:.*0" || fail "bridge stats not reset"
 
+# Verify port security CLI works
+grcli port-security set p0 max-macs 10
+grcli port-security p0 | grep -q "max_macs: 10" || fail "port security max_macs not set"
+grcli port-security p0 | grep -q "status: active" || fail "port security should be active"
+grcli port-security set p0 max-macs 0
+grcli port-security p0 | grep -q "unlimited" || fail "port security should be unlimited"
+
 grcli interface set port p1 vrf main
 if grcli fdb show iface p1 | grep .; then
 	fail "fdb still contains entries for removed interface"

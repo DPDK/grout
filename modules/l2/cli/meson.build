@@ -5,6 +5,7 @@ cli_src += files(
     'bridge.c',
     'flood.c',
     'fdb.c',
+    'iface_security.c',
     'l2_stats.c',
     'vxlan.c',
 )

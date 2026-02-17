@@ -5,6 +5,7 @@ src += files(
   'bridge.c',
   'fdb.c',
   'flood.c',
+  'iface_security.c',
   'l2_stats.c',
   'vxlan.c',
 )
