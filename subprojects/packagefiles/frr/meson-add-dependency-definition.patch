@@ -25,10 +25,10 @@ index 0000000000..ed7cbf6492
 +
 +# Create config dir
 +mkdir -p "$frr_installdir/etc/frr"
-+mkdir -p "$frr_installdir/var/lib/frr"
 +
 +mkdir -m 0755 -p "$frr_installdir/var/log/frr"
 +mkdir -m 0700 -p "$frr_installdir/var/lib/frr"
++mkdir -m 0700 -p "$frr_installdir/var/run/frr"
 +
 +# Copy main config files
 +cp "$frr_srcdir/tools/etc/frr/frr.conf" "$frr_installdir/etc/frr/"
