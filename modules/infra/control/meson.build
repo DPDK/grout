@@ -61,4 +61,8 @@ tests += [
       '-Wl,--wrap=rte_eth_promiscuous_get',
     ],
   },
+  {
+    'sources': files('bond_bridge_test.c', 'bond.c'),
+    'link_args': [],
+  },
 ]

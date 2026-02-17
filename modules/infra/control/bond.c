@@ -275,6 +275,7 @@ void bond_update_active_members(struct iface *iface) {
 	switch (bond->mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP:
 		uint8_t active_member = UINT8_MAX;
+		uint8_t old_active_member = bond->active_member;
 		for (uint8_t i = 0; i < bond->n_members; i++) {
 			member = bond->members[i].iface;
 			if ((member->flags & GR_IFACE_F_UP) && (member->state & GR_IFACE_S_RUNNING)
@@ -295,6 +296,11 @@ void bond_update_active_members(struct iface *iface) {
 			}
 		}
 		bond->active_member = active_member;
+		// Send gratuitous ARP when active member changes
+		if (old_active_member != active_member && active_member != UINT8_MAX
+		    && (iface->state & GR_IFACE_S_RUNNING)) {
+			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+		}
 		break;
 	case GR_BOND_MODE_LACP:
 		for (uint8_t i = 0; i < bond->n_members; i++) {
@@ -343,13 +349,27 @@ void bond_update_active_members(struct iface *iface) {
 	else
 		iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 
-	if (gr_vec_len(active_ids) > 0) {
+	// Update cached active member count for bridge integration
+	uint8_t n_active = gr_vec_len(active_ids);
+	bond->bridge_int.n_active_members = n_active;
+
+	// Check minimum active links threshold for bridge members
+	bool meets_min_links = true;
+	if (bond->bridge_int.is_bridge_member && bond->bridge_int.min_active_links > 0) {
+		meets_min_links = n_active >= bond->bridge_int.min_active_links;
+	}
+
+	if (n_active > 0 && meets_min_links) {
 		for (unsigned i = 0; i < ARRAY_DIM(bond->redirection_table); i++) {
-			bond->redirection_table[i] = active_ids[i % gr_vec_len(active_ids)];
+			bond->redirection_table[i] = active_ids[i % n_active];
 		}
 		if (!(iface->state & GR_IFACE_S_RUNNING)) {
 			iface->state |= GR_IFACE_S_RUNNING;
 			if (iface->flags & GR_IFACE_F_UP) {
+				LOG(INFO,
+				    "bond %s is now RUNNING (%u active members)",
+				    iface->name,
+				    n_active);
 				gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 			}
 		}
@@ -357,6 +377,15 @@ void bond_update_active_members(struct iface *iface) {
 		memset(bond->redirection_table, UINT8_MAX, sizeof(bond->redirection_table));
 		if (iface->state & GR_IFACE_S_RUNNING) {
 			iface->state &= ~GR_IFACE_S_RUNNING;
+			if (bond->bridge_int.is_bridge_member && bond->bridge_int.min_active_links > 0) {
+				LOG(WARNING,
+				    "bond %s is DOWN (active=%u < min_links=%u)",
+				    iface->name,
+				    n_active,
+				    bond->bridge_int.min_active_links);
+			} else {
+				LOG(INFO, "bond %s is DOWN (no active members)", iface->name);
+			}
 			gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 		}
 	}
@@ -525,6 +554,46 @@ static struct gr_event_subscription bond_event_handler = {
 		GR_EVENT_IFACE_STATUS_DOWN,
 	},
 };
+
+// Bridge integration helper functions
+void bond_set_bridge_member(struct iface *iface, uint16_t bridge_id) {
+	struct iface_info_bond *bond = iface_info_bond(iface);
+	bond->bridge_int.is_bridge_member = true;
+	bond->bridge_int.bridge_id = bridge_id;
+}
+
+void bond_clear_bridge_member(struct iface *iface) {
+	struct iface_info_bond *bond = iface_info_bond(iface);
+	bond->bridge_int.is_bridge_member = false;
+	bond->bridge_int.bridge_id = 0;
+}
+
+void bond_set_min_links(struct iface *iface, uint8_t min_links) {
+	struct iface_info_bond *bond = iface_info_bond(iface);
+	bond->bridge_int.min_active_links = min_links;
+	// Trigger update to check if we meet the new threshold
+	bond_update_active_members(iface);
+}
+
+uint8_t bond_get_active_member_count(const struct iface *iface) {
+	const struct iface_info_bond *bond = iface_info_bond(iface);
+	return bond->bridge_int.n_active_members;
+}
+
+bool bond_is_operationally_up(const struct iface *iface) {
+	const struct iface_info_bond *bond = iface_info_bond(iface);
+
+	// If not in a bridge, use default behavior
+	if (!bond->bridge_int.is_bridge_member)
+		return (iface->state & GR_IFACE_S_RUNNING) != 0;
+
+	// If min_active_links is 0, use default behavior
+	if (bond->bridge_int.min_active_links == 0)
+		return (iface->state & GR_IFACE_S_RUNNING) != 0;
+
+	// Check if we have enough active members
+	return bond->bridge_int.n_active_members >= bond->bridge_int.min_active_links;
+}
 
 RTE_INIT(bond_constructor) {
 	iface_type_register(&iface_type_bond);

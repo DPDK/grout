@@ -23,6 +23,14 @@ struct bond_member {
 	struct lacp_participant remote;
 };
 
+// Bridge integration for LAG
+struct bond_bridge_integration {
+	bool is_bridge_member;
+	uint16_t bridge_id;
+	uint8_t min_active_links; // Minimum active members before bond goes down
+	uint8_t n_active_members; // Cached count of active members
+};
+
 GR_IFACE_INFO(GR_IFACE_TYPE_BOND, iface_info_bond, {
 	gr_bond_mode_t mode;
 	gr_bond_algo_t algo;
@@ -36,6 +44,16 @@ GR_IFACE_INFO(GR_IFACE_TYPE_BOND, iface_info_bond, {
 	gr_vec struct rte_ether_addr *extra_macs;
 
 	uint8_t redirection_table[256];
+
+	// Bridge integration
+	struct bond_bridge_integration bridge_int;
 });
 
 void bond_update_active_members(struct iface *);
+
+// Bridge integration helper functions
+void bond_set_bridge_member(struct iface *, uint16_t bridge_id);
+void bond_clear_bridge_member(struct iface *);
+void bond_set_min_links(struct iface *, uint8_t min_links);
+uint8_t bond_get_active_member_count(const struct iface *);
+bool bond_is_operationally_up(const struct iface *);
