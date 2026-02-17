@@ -9,6 +9,107 @@
 #include <rte_ether.h>
 #include <rte_hash.h>
 
+#include <string.h>
+
+// Global statistics and security arrays.
+struct bridge_stats l2_bridge_stats[L2_MAX_BRIDGES][RTE_MAX_LCORE];
+struct fdb_stats l2_fdb_stats[L2_MAX_BRIDGES][RTE_MAX_LCORE];
+struct iface_security l2_iface_security[L2_MAX_IFACES];
+struct iface_mac_count l2_iface_mac_counts[L2_MAX_IFACES][RTE_MAX_LCORE];
+
+// Interface security functions.
+uint32_t iface_get_max_macs(uint16_t iface_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return 0;
+	return l2_iface_security[iface_id].max_macs;
+}
+
+bool iface_get_shutdown_on_violation(uint16_t iface_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return false;
+	return l2_iface_security[iface_id].shutdown_on_violation;
+}
+
+bool iface_is_shutdown(uint16_t iface_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return false;
+	return l2_iface_security[iface_id].is_shutdown;
+}
+
+void iface_shutdown_violation(uint16_t iface_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return;
+	l2_iface_security[iface_id].is_shutdown = true;
+}
+
+void iface_increment_mac_count(uint16_t iface_id, uint16_t lcore_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return;
+	l2_iface_mac_counts[iface_id][lcore_id].dynamic_macs++;
+}
+
+void iface_decrement_mac_count(uint16_t iface_id, uint16_t lcore_id) {
+	if (iface_id >= L2_MAX_IFACES)
+		return;
+	if (l2_iface_mac_counts[iface_id][lcore_id].dynamic_macs > 0)
+		l2_iface_mac_counts[iface_id][lcore_id].dynamic_macs--;
+}
+
+uint32_t iface_get_total_macs(uint16_t iface_id) {
+	uint32_t total = 0;
+	if (iface_id >= L2_MAX_IFACES)
+		return 0;
+	for (unsigned i = 0; i < RTE_MAX_LCORE; i++)
+		total += l2_iface_mac_counts[iface_id][i].dynamic_macs;
+	return total;
+}
+
+// Feature accessor helpers.
+struct rstp_bridge *bridge_get_rstp(const struct iface *bridge) {
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return NULL;
+	return iface_info_bridge(bridge)->rstp;
+}
+
+struct mcast_snooping *bridge_get_mcast_snooping(const struct iface *bridge) {
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return NULL;
+	return iface_info_bridge(bridge)->mcast_snoop;
+}
+
+struct vlan_filtering *bridge_get_vlan_filtering(const struct iface *bridge) {
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return NULL;
+	return iface_info_bridge(bridge)->vlan_filter;
+}
+
+struct lldp_config *bridge_get_lldp_config(const struct iface *bridge) {
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return NULL;
+	return iface_info_bridge(bridge)->lldp;
+}
+
+// RSTP datapath helpers. Default to allowing when RSTP is not configured.
+bool rstp_port_is_forwarding(const struct iface *bridge, uint16_t iface_id) {
+	(void)iface_id;
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return true;
+	if (iface_info_bridge(bridge)->rstp == NULL)
+		return true;
+	// When RSTP feature is loaded, this will be overridden.
+	return true;
+}
+
+bool rstp_port_is_learning(const struct iface *bridge, uint16_t iface_id) {
+	(void)iface_id;
+	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
+		return true;
+	if (iface_info_bridge(bridge)->rstp == NULL)
+		return true;
+	// When RSTP feature is loaded, this will be overridden.
+	return true;
+}
+
 static int bridge_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -81,12 +182,21 @@ static int bridge_fini(struct iface *iface) {
 
 	for (unsigned i = 0; i < bridge->n_members; i++) {
 		struct iface *member = bridge->members[i];
+		// Clear per-interface security state.
+		if (member->id < L2_MAX_IFACES)
+			memset(&l2_iface_security[member->id], 0, sizeof(l2_iface_security[0]));
 		member->vrf_id = vrf_default_get_or_create();
 		if (member->vrf_id != GR_VRF_ID_UNDEF)
 			vrf_incref(member->vrf_id);
 		member->domain_id = GR_IFACE_ID_UNDEF;
 		member->mode = GR_IFACE_MODE_VRF;
 		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
+	}
+
+	// Clear bridge statistics.
+	if (iface->id < L2_MAX_BRIDGES) {
+		memset(l2_bridge_stats[iface->id], 0, sizeof(l2_bridge_stats[0]));
+		memset(l2_fdb_stats[iface->id], 0, sizeof(l2_fdb_stats[0]));
 	}
 
 	fdb_purge_bridge(iface->id);

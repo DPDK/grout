@@ -9,3 +9,10 @@ src += files(
 )
 
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('l2_hooks_test.c', 'bridge.c'),
+    'link_args': [],
+  },
+]

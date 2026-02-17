@@ -10,6 +10,7 @@
 #include <gr_trace.h>
 
 #include <rte_ether.h>
+#include <rte_lcore.h>
 
 enum edges {
 	OUTPUT = 0,
@@ -61,8 +62,42 @@ static uint16_t bridge_input_process(
 		}
 		br = iface_info_bridge(bridge);
 
+		// RSTP: skip learning and forwarding on blocked ports.
+		if (br->rstp != NULL && !rstp_port_is_learning(bridge, d->iface->id)) {
+			struct bridge_stats *st = bridge_get_stats(bridge->id, rte_lcore_id());
+			if (st != NULL)
+				st->rstp_learn_skip++;
+			edge = BRIDGE_INVAL;
+			goto next;
+		}
+
+		// Port security: check if interface is shutdown due to violation.
+		if (iface_is_shutdown(d->iface->id)) {
+			struct bridge_stats *st = bridge_get_stats(bridge->id, rte_lcore_id());
+			if (st != NULL)
+				st->learn_shutdown++;
+			edge = BRIDGE_INVAL;
+			goto next;
+		}
+
 		if (rte_is_unicast_ether_addr(&eth->src_addr)
 		    && !(br->flags & GR_BRIDGE_F_NO_LEARN)) {
+			// Port security: check MAC limits before learning.
+			uint32_t max_macs = iface_get_max_macs(d->iface->id);
+			if (max_macs > 0) {
+				uint32_t cur = iface_get_total_macs(d->iface->id);
+				if (cur >= max_macs) {
+					struct bridge_stats *st = bridge_get_stats(
+						bridge->id, rte_lcore_id()
+					);
+					if (st != NULL)
+						st->learn_limit_iface++;
+					if (iface_get_shutdown_on_violation(d->iface->id))
+						iface_shutdown_violation(d->iface->id);
+					edge = BRIDGE_INVAL;
+					goto next;
+				}
+			}
 			vtep = (d->iface->type == GR_IFACE_TYPE_VXLAN) ? d->vtep : 0;
 			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id, vtep);
 		}

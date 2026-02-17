@@ -80,6 +80,11 @@ static uint16_t bridge_flood_process(
 			if (!(member->flags & GR_IFACE_F_UP))
 				continue; // Skip down interfaces
 
+			// RSTP: skip ports not in forwarding state.
+			if (bridge->rstp != NULL
+			    && !rstp_port_is_forwarding(br, member->id))
+				continue;
+
 			clone = clone_packet(m, flood_count, member);
 			if (clone == NULL)
 				continue;
