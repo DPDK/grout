@@ -43,6 +43,12 @@ ip netns exec n0 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n0->bridge f
 ip netns exec n1 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n1->bridge failed"
 ip netns exec n2 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n2->bridge failed"
 
+# Verify bridge stats are available after traffic
+grcli bridge stats br0 | grep -q "unicast:" || fail "bridge stats missing unicast counter"
+grcli bridge stats br0 | grep -q "fdb:" || fail "bridge stats missing fdb section"
+grcli bridge stats reset br0
+grcli bridge stats br0 | grep -q "unicast:.*0" || fail "bridge stats not reset"
+
 grcli interface set port p1 vrf main
 if grcli fdb show iface p1 | grep .; then
 	fail "fdb still contains entries for removed interface"
