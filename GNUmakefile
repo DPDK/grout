@@ -27,9 +27,33 @@ debug: all
 unit-tests: $(BUILDDIR)/build.ninja
 	$Q meson test -C $(BUILDDIR) --print-errorlogs $(if $(filter 1,$V),--verbose)
 
-.PHONY: smoke-tests
-smoke-tests: all
-	./smoke/run.sh $(SMOKE_OPTS) $(BUILDDIR)
+smoke_scripts := $(sort $(wildcard smoke/*_test.sh))
+smoke_frr := $(filter %_frr_test.sh,$(smoke_scripts))
+test_frr := $(shell jq -e '.[] | select(.name == "frr" and .value == "enabled")' \
+	$(BUILDDIR)/meson-info/intro-buildoptions.json >/dev/null 2>&1 && echo yes)
+ifneq ($(test_frr),yes)
+smoke_scripts := $(filter-out $(smoke_frr),$(smoke_scripts))
+endif
+
+.PHONY: smoke-tests smoke smoke/
+smoke-tests smoke smoke/: $(smoke_scripts)
+
+.PHONY: $(smoke_scripts)
+$(smoke_scripts):
+	$Q log=$$(mktemp); \
+	printf '%s\n' $@; \
+	if sudo $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; then \
+		rm -f "$$log"; \
+	else \
+		printf '%s\n' '==================================================='; \
+		printf '+ %s\n' $@; \
+		cat "$$log"; \
+		printf '%s\n' '---------------------------------------------------'; \
+		printf '%s ... FAILED\n' $@; \
+		printf '%s\n' '---------------------------------------------------'; \
+		rm -f "$$log"; \
+		false; \
+	fi
 
 .PHONY: update-graph
 update-graph: all

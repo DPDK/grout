@@ -280,7 +280,10 @@ if [ "$run_grout" = true ]; then
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
-	local_grout_cmd="taskset -c 0,1 grout -vvx $grout_extra_options"
+	# try to spread load on all CPUs
+	cpu="$(($RANDOM % ($(nproc) - 1)))"
+	affinity="$cpu,$((cpu+1))"
+	local_grout_cmd="taskset -c $affinity grout -vvx $grout_extra_options"
 	if [ "${GDB:-false}" = true ]; then
 		tmux new-window -d -n gdb gdb \
 			-ex 'handle SIGTERM nostop print pass' \
@@ -302,7 +305,14 @@ if [ "${GDB:-false}" = true ]; then
 	gdb_pid=$(tmux list-windows -F '#{window_name} #{pane_pid}' | awk '/gdb/{print $2}')
 	grout_pid=$(pgrep -P $gdb_pid | head -n1)
 else
-	socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH,retry=10
+	SECONDS=0
+	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
+		if [ "$SECONDS" -gt 30 ]; then
+			fail "grout took more than 30s to start"
+		fi
+		kill -0 "$grout_pid"
+		sleep 1
+	done
 fi
 
 case "$(basename $0)" in

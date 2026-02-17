@@ -27,7 +27,7 @@ if [ "$#" -eq 0 ] && ! echo "$MESON_EXTRA_OPTS" | grep -q -- --cross-file; then
 	echo -------------------------------------------------------------------
 	make unit-tests
 	echo -------------------------------------------------------------------
-	echo smoke-tests
+	echo smoke-tests "($(nproc) parallel jobs)"
 	echo -------------------------------------------------------------------
-	sudo make smoke-tests
+	make smoke-tests -j$(nproc) -k
 fi
