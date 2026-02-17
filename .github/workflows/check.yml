@@ -30,13 +30,13 @@ jobs:
             buildtype: debugoptimized
             os: ubuntu-24.04
             extra_opts: -Dfrr=enabled
-            rebase: false
+            rebase: true
           - compiler: gcc-14
             sanitize: address
             buildtype: debug
             os: ubuntu-24.04
             extra_opts: -Dfrr=enabled
-            rebase: true
+            rebase: false
           - compiler: clang-15
             sanitize: none
             buildtype: debugoptimized
