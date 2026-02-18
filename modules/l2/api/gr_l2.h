@@ -633,6 +633,12 @@ struct gr_l2_mirror_stats {
 
 // QoS (802.1p CoS) //////////////////////////////////////////////////////////
 
+enum gr_qos_scheduling_mode {
+	GR_QOS_SCHED_STRICT = 0,
+	GR_QOS_SCHED_WRR,
+	GR_QOS_SCHED_DWRR,
+};
+
 #define GR_L2_QOS_PORT_SET REQUEST_TYPE(GR_L2_MODULE, 0x0090)
 
 struct gr_l2_qos_port_req {
@@ -645,6 +651,30 @@ struct gr_l2_qos_port_req {
 	uint8_t default_priority;
 };
 
+#define GR_L2_QOS_QUEUE_SET REQUEST_TYPE(GR_L2_MODULE, 0x0091)
+
+struct gr_l2_qos_queue_req {
+	uint16_t iface_id;
+	uint8_t priority;
+	uint32_t rate_limit_kbps;
+	uint32_t weight;
+	uint32_t min_rate_kbps;
+};
+
+#define GR_L2_QOS_DSCP_MAP_SET REQUEST_TYPE(GR_L2_MODULE, 0x0092)
+
+struct gr_l2_qos_dscp_map_req {
+	uint16_t iface_id;
+	uint8_t dscp_to_cos[64];
+};
+
+#define GR_L2_QOS_COS_REMAP_SET REQUEST_TYPE(GR_L2_MODULE, 0x0093)
+
+struct gr_l2_qos_cos_remap_req {
+	uint16_t iface_id;
+	uint8_t cos_to_cos[8];
+};
+
 #define GR_L2_QOS_PORT_GET REQUEST_TYPE(GR_L2_MODULE, 0x0094)
 
 struct gr_l2_qos_port_status {
@@ -655,6 +685,24 @@ struct gr_l2_qos_port_status {
 	uint8_t trust_cos;
 	uint8_t trust_dscp;
 	uint8_t default_priority;
+	uint8_t dscp_to_cos[64];
+	uint8_t cos_to_cos[8];
+	struct {
+		uint32_t rate_limit_kbps;
+		uint32_t weight;
+		uint32_t min_rate_kbps;
+	} queues[8];
+};
+
+#define GR_L2_QOS_STATS_GET REQUEST_TYPE(GR_L2_MODULE, 0x0095)
+
+struct gr_l2_qos_stats {
+	uint16_t iface_id;
+	uint64_t classified[8];
+	uint64_t remarked[8];
+	uint64_t dropped[8];
+	uint64_t tx[8];
+	uint64_t port_dropped;
 };
 
 // DHCP snooping //////////////////////////////////////////////////////////////

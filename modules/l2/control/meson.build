@@ -9,6 +9,7 @@ src += files(
   'l2_stats.c',
   'mcast_snooping.c',
   'port_mirror.c',
+  'qos.c',
   'rstp.c',
   'storm_control.c',
   'vlan_filtering.c',
@@ -43,6 +44,11 @@ tests += [
   {
     'sources': files('port_mirror_test.c', 'port_mirror.c'),
     'link_args': [],
+  },
+  {
+    'sources': files('qos_test.c', 'qos.c'),
+    'link_args': [],
+    'c_args': ['-D__GROUT_UNIT_TEST__'],
   },
   {
     'sources': files('storm_control_test.c', 'storm_control.c'),
