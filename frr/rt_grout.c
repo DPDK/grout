@@ -249,6 +249,11 @@ static int grout_gr_nexthop_to_frr_nexthop(
 			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_PSP);
 		if (sr6->flags & GR_SR_FL_FLAVOR_USD)
 			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_USD);
+		if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+			SET_SRV6_FLV_OP(ctx.flv.flv_ops, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID);
+			ctx.flv.lcblock_len = sr6->block_bits;
+			ctx.flv.lcnode_func_len = sr6->csid_bits;
+		}
 
 		switch (sr6->behavior) {
 		case SR_BEHAVIOR_END:
@@ -723,8 +728,11 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			gr_log_debug("USP always enabled, ignoring flag");
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USD))
 			sr6_local->flags |= GR_SR_FL_FLAVOR_USD;
-		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID))
-			gr_log_debug("next-c-sid not supported, ignoring flag");
+		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID)) {
+			sr6_local->flags |= GR_SR_FL_FLAVOR_NEXT_CSID;
+			sr6_local->block_bits = nh->nh_srv6->seg6local_ctx.flv.lcblock_len;
+			sr6_local->csid_bits = nh->nh_srv6->seg6local_ctx.flv.lcnode_func_len;
+		}
 
 		break;
 	case GR_NH_T_SR6_OUTPUT:
