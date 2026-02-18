@@ -7,6 +7,7 @@ src += files(
   'flood.c',
   'iface_security.c',
   'l2_stats.c',
+  'mcast_snooping.c',
   'port_mirror.c',
   'rstp.c',
   'storm_control.c',
@@ -34,6 +35,10 @@ tests += [
       '-Wl,--wrap=rte_zmalloc',
       '-Wl,--wrap=rte_free',
     ],
+  },
+  {
+    'sources': files('mcast_snooping_test.c', 'mcast_snooping.c'),
+    'link_args': [],
   },
   {
     'sources': files('port_mirror_test.c', 'port_mirror.c'),
