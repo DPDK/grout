@@ -8,6 +8,7 @@ cli_src += files(
     'flood.c',
     'fdb.c',
     'iface_security.c',
+    'ipsg.c',
     'l2_stats.c',
     'mcast_snooping.c',
     'port_mirror.c',
