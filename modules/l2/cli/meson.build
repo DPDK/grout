@@ -3,6 +3,7 @@
 
 cli_src += files(
     'bridge.c',
+    'dhcp_snooping.c',
     'flood.c',
     'fdb.c',
     'iface_security.c',

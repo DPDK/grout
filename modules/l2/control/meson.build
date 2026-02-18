@@ -3,6 +3,7 @@
 
 src += files(
   'bridge.c',
+  'dhcp_snooping.c',
   'fdb.c',
   'flood.c',
   'iface_security.c',

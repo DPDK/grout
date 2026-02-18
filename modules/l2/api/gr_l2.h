@@ -753,6 +753,27 @@ struct gr_l2_dhcp_trusted_port_req {
 	uint8_t trusted;
 };
 
+#define GR_L2_DHCP_SNOOPING_STATS_GET REQUEST_TYPE(GR_L2_MODULE, 0x00A4)
+
+struct gr_l2_dhcp_snooping_stats_req {
+	uint16_t bridge_id;
+};
+
+struct gr_l2_dhcp_snooping_stats {
+	uint16_t bridge_id;
+	uint64_t dhcp_discover;
+	uint64_t dhcp_offer;
+	uint64_t dhcp_request;
+	uint64_t dhcp_ack;
+	uint64_t dhcp_nak;
+	uint64_t dhcp_release;
+	uint64_t binding_added;
+	uint64_t binding_removed;
+	uint64_t mac_verify_fail;
+	uint64_t untrusted_server;
+	uint64_t max_bindings_drop;
+};
+
 // Dynamic ARP Inspection /////////////////////////////////////////////////////
 
 #define GR_L2_DAI_CONFIG_SET REQUEST_TYPE(GR_L2_MODULE, 0x00A5)
