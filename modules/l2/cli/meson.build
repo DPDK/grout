@@ -10,6 +10,7 @@ cli_src += files(
     'iface_security.c',
     'ipsg.c',
     'l2_stats.c',
+    'lldp.c',
     'mcast_snooping.c',
     'port_mirror.c',
     'qos.c',

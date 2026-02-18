@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "lldp_priv.h"
 #include "mcast_snooping_priv.h"
 #include "rstp_priv.h"
 #include "vlan_filtering_priv.h"
@@ -199,6 +200,10 @@ static int bridge_fini(struct iface *iface) {
 	if (bridge->mcast_snoop != NULL) {
 		mcast_snooping_free(bridge->mcast_snoop);
 		bridge->mcast_snoop = NULL;
+	}
+	if (bridge->lldp != NULL) {
+		lldp_config_free(bridge->lldp);
+		bridge->lldp = NULL;
 	}
 
 	// Clear bridge statistics.

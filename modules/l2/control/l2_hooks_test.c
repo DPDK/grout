@@ -36,6 +36,9 @@ void vlan_filtering_free(struct vlan_filtering *vf) { (void)vf; }
 // Multicast snooping stubs needed by bridge.c.
 #include "mcast_snooping_priv.h"
 void mcast_snooping_free(struct mcast_snooping *m) { (void)m; }
+// LLDP stubs needed by bridge.c.
+#include "lldp_priv.h"
+void lldp_config_free(struct lldp_config *c) { (void)c; }
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	(void)iface;
 	(void)mac;
