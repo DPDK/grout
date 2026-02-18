@@ -74,7 +74,16 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 				sr6->flags |= GR_SR_FL_FLAVOR_PSP;
 			if (!strcmp(str, "usd"))
 				sr6->flags |= GR_SR_FL_FLAVOR_USD;
+			if (!strcmp(str, "next-csid"))
+				sr6->flags |= GR_SR_FL_FLAVOR_NEXT_CSID;
 		}
+	}
+
+	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		if (arg_u8(p, "BLOCK_BITS", &sr6->block_bits) < 0 && errno != ENOENT)
+			goto out;
+		if (arg_u8(p, "CSID_BITS", &sr6->csid_bits) < 0 && errno != ENOENT)
+			goto out;
 	}
 
 	n = ec_pnode_find(p, "BEHAVIOR");
@@ -97,25 +106,54 @@ out:
 
 static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void *info) {
 	const struct gr_nexthop_info_srv6_local *sr6 = info;
-	ssize_t n = 0;
-	char vrf[64];
+	char flavors[64], vrf[64];
+	ssize_t n = 0, f = 0;
 
 	SAFE_BUF(snprintf, len, "behavior=%s", gr_srv6_behavior_name(sr6->behavior));
 	vrf[0] = 0;
 	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
 		snprintf(vrf, sizeof(vrf), "out_vrf=%d", sr6->out_vrf_id);
 
+	flavors[0] = 0;
+	if (sr6->flags & GR_SR_FL_FLAVOR_PSP)
+		f += snprintf(flavors + f, sizeof(flavors) - f, "psp,");
+	if (sr6->flags & GR_SR_FL_FLAVOR_USD)
+		f += snprintf(flavors + f, sizeof(flavors) - f, "usd,");
+	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
+		f += snprintf(flavors + f, sizeof(flavors) - f, "next-csid,");
+	if (f > 0)
+		flavors[f - 1] = 0; // trim trailing comma
+
 	switch (sr6->behavior) {
 	case SR_BEHAVIOR_END:
-		SAFE_BUF(snprintf, len, " flavor=%#02x", sr6->flags);
-		break;
 	case SR_BEHAVIOR_END_T:
-		SAFE_BUF(snprintf, len, " flavor=%#02x %s", sr6->flags, vrf);
+		SAFE_BUF(snprintf, len, " flavor=%s", flavors[0] ? flavors : "none");
+		if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
+			SAFE_BUF(
+				snprintf,
+				len,
+				" block-bits=%u csid-bits=%u",
+				sr6->block_bits,
+				sr6->csid_bits
+			);
+		if (vrf[0])
+			SAFE_BUF(snprintf, len, " %s", vrf);
 		break;
 	case SR_BEHAVIOR_END_DT6:
 	case SR_BEHAVIOR_END_DT4:
 	case SR_BEHAVIOR_END_DT46:
-		SAFE_BUF(snprintf, len, " %s", vrf);
+		if (flavors[0])
+			SAFE_BUF(snprintf, len, " flavor=%s", flavors);
+		if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
+			SAFE_BUF(
+				snprintf,
+				len,
+				" block-bits=%u csid-bits=%u",
+				sr6->block_bits,
+				sr6->csid_bits
+			);
+		if (vrf[0])
+			SAFE_BUF(snprintf, len, " %s", vrf);
 		break;
 	}
 	return n;
@@ -135,9 +173,10 @@ static int ctx_init(struct ec_node *root) {
 
 	flavor_node = EC_NODE_CMD(
 		"FLAVORS",
-		"(psp,usd)",
+		"(psp,usd,next-csid)",
 		with_help("Penultimate Segment Pop of the SRH", ec_node_str("psp", "psp")),
-		with_help("Ultimate Segment Decapsulation of the SRH", ec_node_str("usd", "usd"))
+		with_help("Ultimate Segment Decapsulation of the SRH", ec_node_str("usd", "usd")),
+		with_help("NEXT-CSID uSID flavor (RFC 9800)", ec_node_str("next-csid", "next-csid"))
 	);
 	if (flavor_node == NULL)
 		return -1;
@@ -145,13 +184,22 @@ static int ctx_init(struct ec_node *root) {
 		"BEHAVIOR",
 		EC_NODE_CMD(
 			EC_NO_ID,
-			"end [flavor FLAVORS]",
+			"end [(flavor FLAVORS),(block-bits BLOCK_BITS),(csid-bits CSID_BITS)]",
 			with_help("Transit endpoint.", ec_node_str("end", "end")),
-			with_help("Endpoint flavor(s).", ec_node_clone(flavor_node))
+			with_help("Endpoint flavor(s).", ec_node_clone(flavor_node)),
+			with_help(
+				"Locator-block length in bits.",
+				ec_node_uint("BLOCK_BITS", 8, 120, 10)
+			),
+			with_help(
+				"Compressed SID length in bits.",
+				ec_node_uint("CSID_BITS", 8, 64, 10)
+			)
 		),
 		EC_NODE_CMD(
 			EC_NO_ID,
-			"end.t [flavor FLAVORS] table TABLE",
+			"end.t [(flavor FLAVORS),(block-bits BLOCK_BITS),(csid-bits CSID_BITS)]"
+			" table TABLE",
 			with_help(
 				"L3 routing domain name.",
 				ec_node_dyn("TABLE", complete_vrf_names, NULL)
@@ -160,7 +208,15 @@ static int ctx_init(struct ec_node *root) {
 				"Transit endpoint with specific IPv6 table lookup.",
 				ec_node_str("end.t", "end.t")
 			),
-			with_help("Endpoint flavor(s).", flavor_node)
+			with_help("Endpoint flavor(s).", flavor_node),
+			with_help(
+				"Locator-block length in bits.",
+				ec_node_uint("BLOCK_BITS", 8, 120, 10)
+			),
+			with_help(
+				"Compressed SID length in bits.",
+				ec_node_uint("CSID_BITS", 8, 64, 10)
+			)
 		),
 		EC_NODE_CMD(
 			EC_NO_ID,
