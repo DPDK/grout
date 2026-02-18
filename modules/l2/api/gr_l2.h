@@ -543,6 +543,19 @@ struct gr_l2_storm_control_reenable_req {
 	uint16_t iface_id;
 };
 
+#define GR_L2_STORM_CONTROL_STATS_GET REQUEST_TYPE(GR_L2_MODULE, 0x0073)
+
+struct gr_l2_storm_control_stats {
+	uint16_t iface_id;
+	uint64_t bcast_passed;
+	uint64_t bcast_dropped;
+	uint64_t mcast_passed;
+	uint64_t mcast_dropped;
+	uint64_t unknown_uc_passed;
+	uint64_t unknown_uc_dropped;
+	uint64_t shutdown_events;
+};
+
 // Port mirroring /////////////////////////////////////////////////////////////
 
 enum gr_mirror_direction {

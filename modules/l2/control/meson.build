@@ -8,6 +8,7 @@ src += files(
   'iface_security.c',
   'l2_stats.c',
   'rstp.c',
+  'storm_control.c',
   'vlan_filtering.c',
   'vxlan.c',
 )
@@ -32,5 +33,14 @@ tests += [
       '-Wl,--wrap=rte_zmalloc',
       '-Wl,--wrap=rte_free',
     ],
+  },
+  {
+    'sources': files('storm_control_test.c', 'storm_control.c'),
+    'link_args': [
+      '-Wl,--wrap=rte_rdtsc',
+      '-Wl,--wrap=rte_meter_trtcm_profile_config',
+      '-Wl,--wrap=rte_meter_trtcm_config',
+    ],
+    'c_args': ['-D__GROUT_UNIT_TEST__'],
   },
 ]
