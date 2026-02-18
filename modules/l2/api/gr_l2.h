@@ -799,6 +799,33 @@ struct gr_l2_dai_status {
 	uint16_t num_trusted_ports;
 };
 
+#define GR_L2_DAI_PORT_SET REQUEST_TYPE(GR_L2_MODULE, 0x00A7)
+
+struct gr_l2_dai_port_req {
+	uint16_t bridge_id;
+	uint16_t iface_id;
+	uint8_t trusted;
+	uint32_t rate_limit;
+};
+
+#define GR_L2_DAI_STATS_GET REQUEST_TYPE(GR_L2_MODULE, 0x00A8)
+
+struct gr_l2_dai_stats_req {
+	uint16_t bridge_id;
+};
+
+struct gr_l2_dai_stats {
+	uint16_t bridge_id;
+	uint64_t arp_request_rx;
+	uint64_t arp_reply_rx;
+	uint64_t valid_packets;
+	uint64_t drops_src_mac_mismatch;
+	uint64_t drops_dst_mac_mismatch;
+	uint64_t drops_ip_not_in_bindings;
+	uint64_t drops_rate_limit;
+	uint64_t drops_trusted_port_bypass;
+};
+
 // IP Source Guard ////////////////////////////////////////////////////////////
 
 #define GR_L2_IPSG_CONFIG_SET REQUEST_TYPE(GR_L2_MODULE, 0x00A9)

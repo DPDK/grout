@@ -3,6 +3,7 @@
 
 cli_src += files(
     'bridge.c',
+    'dai.c',
     'dhcp_snooping.c',
     'flood.c',
     'fdb.c',
