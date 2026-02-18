@@ -127,16 +127,21 @@ set_srv6_localsid() {
 	local count=0
 
 	# ---- translate behaviour aliases --------------------------------------
-	# map:  end.dt4 -> uDT4,  end.dt6 -> uDT6,  end.dt46 -> uDT46
 	local frr_behavior
 	case "${grout_behavior,,}" in           # ,, = lower-case
+		end)      frr_behavior="uN" ;;
 		end.dt4)  frr_behavior="uDT4" ;;
 		end.dt6)  frr_behavior="uDT6" ;;
 		end.dt46) frr_behavior="uDT46" ;;
-		*) echo "Unsupported behavior '${grout_behavior}'. Use end.dt4, end.dt6, end.dt46."; exit 1 ;;
+		*) echo "Unsupported behavior '${grout_behavior}'."; exit 1 ;;
 	esac
 
 	# --- push the config into FRR ------------------------------------------
+	local vrf_clause="vrf default"
+	case "${frr_behavior}" in
+		uN) vrf_clause="" ;;
+	esac
+
 	vtysh <<-EOF
 	configure terminal
 	 segment-routing
@@ -147,7 +152,7 @@ set_srv6_localsid() {
 	    exit
 	   exit
 	   static-sids
-	    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} vrf default
+	    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} ${vrf_clause}
 	   exit
 	 exit
 EOF
