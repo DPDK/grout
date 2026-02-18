@@ -23,6 +23,13 @@ uint16_t vrf_default_get_or_create(void) { return 0; }
 int vrf_incref(uint16_t) { return 0; }
 void fdb_purge_iface(uint16_t) { }
 void fdb_purge_bridge(uint16_t) { }
+// RSTP stubs needed by bridge.c.
+#include "rstp_priv.h"
+enum rstp_port_state rstp_get_port_state(const struct iface *bridge, uint16_t iface_id) {
+	(void)bridge; (void)iface_id;
+	return RSTP_STATE_FORWARDING;
+}
+void rstp_bridge_free(struct rstp_bridge *rstp) { (void)rstp; }
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	(void)iface;
 	(void)mac;

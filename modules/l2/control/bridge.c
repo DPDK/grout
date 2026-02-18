@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "rstp_priv.h"
+
 #include <gr_event.h>
 #include <gr_l2_control.h>
 #include <gr_rcu.h>
@@ -89,25 +91,15 @@ struct lldp_config *bridge_get_lldp_config(const struct iface *bridge) {
 	return iface_info_bridge(bridge)->lldp;
 }
 
-// RSTP datapath helpers. Default to allowing when RSTP is not configured.
+// RSTP datapath helpers.
 bool rstp_port_is_forwarding(const struct iface *bridge, uint16_t iface_id) {
-	(void)iface_id;
-	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
-		return true;
-	if (iface_info_bridge(bridge)->rstp == NULL)
-		return true;
-	// When RSTP feature is loaded, this will be overridden.
-	return true;
+	enum rstp_port_state state = rstp_get_port_state(bridge, iface_id);
+	return state == RSTP_STATE_FORWARDING;
 }
 
 bool rstp_port_is_learning(const struct iface *bridge, uint16_t iface_id) {
-	(void)iface_id;
-	if (bridge == NULL || bridge->type != GR_IFACE_TYPE_BRIDGE)
-		return true;
-	if (iface_info_bridge(bridge)->rstp == NULL)
-		return true;
-	// When RSTP feature is loaded, this will be overridden.
-	return true;
+	enum rstp_port_state state = rstp_get_port_state(bridge, iface_id);
+	return state == RSTP_STATE_LEARNING || state == RSTP_STATE_FORWARDING;
 }
 
 static int bridge_reconfig(
@@ -191,6 +183,12 @@ static int bridge_fini(struct iface *iface) {
 		member->domain_id = GR_IFACE_ID_UNDEF;
 		member->mode = GR_IFACE_MODE_VRF;
 		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
+	}
+
+	// Free optional feature subsystems.
+	if (bridge->rstp != NULL) {
+		rstp_bridge_free(bridge->rstp);
+		bridge->rstp = NULL;
 	}
 
 	// Clear bridge statistics.

@@ -7,5 +7,6 @@ cli_src += files(
     'fdb.c',
     'iface_security.c',
     'l2_stats.c',
+    'rstp.c',
     'vxlan.c',
 )

@@ -7,6 +7,7 @@ src += files(
   'flood.c',
   'iface_security.c',
   'l2_stats.c',
+  'rstp.c',
   'vxlan.c',
 )
 
@@ -16,5 +17,12 @@ tests += [
   {
     'sources': files('l2_hooks_test.c', 'bridge.c'),
     'link_args': [],
+  },
+  {
+    'sources': files('rstp_test.c', 'rstp.c', 'bridge.c'),
+    'link_args': [
+      '-Wl,--wrap=rte_zmalloc',
+      '-Wl,--wrap=rte_free',
+    ],
   },
 ]
