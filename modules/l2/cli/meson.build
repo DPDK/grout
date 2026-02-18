@@ -7,6 +7,7 @@ cli_src += files(
     'fdb.c',
     'iface_security.c',
     'l2_stats.c',
+    'port_mirror.c',
     'rstp.c',
     'storm_control.c',
     'vlan_filtering.c',

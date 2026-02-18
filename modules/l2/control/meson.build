@@ -7,6 +7,7 @@ src += files(
   'flood.c',
   'iface_security.c',
   'l2_stats.c',
+  'port_mirror.c',
   'rstp.c',
   'storm_control.c',
   'vlan_filtering.c',
@@ -33,6 +34,10 @@ tests += [
       '-Wl,--wrap=rte_zmalloc',
       '-Wl,--wrap=rte_free',
     ],
+  },
+  {
+    'sources': files('port_mirror_test.c', 'port_mirror.c'),
+    'link_args': [],
   },
   {
     'sources': files('storm_control_test.c', 'storm_control.c'),
