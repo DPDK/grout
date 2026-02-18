@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Robin Jarry
 
 #include "rstp_priv.h"
+#include "vlan_filtering_priv.h"
 
 #include <gr_event.h>
 #include <gr_l2_control.h>
@@ -189,6 +190,10 @@ static int bridge_fini(struct iface *iface) {
 	if (bridge->rstp != NULL) {
 		rstp_bridge_free(bridge->rstp);
 		bridge->rstp = NULL;
+	}
+	if (bridge->vlan_filter != NULL) {
+		vlan_filtering_free(bridge->vlan_filter);
+		bridge->vlan_filter = NULL;
 	}
 
 	// Clear bridge statistics.

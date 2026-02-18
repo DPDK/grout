@@ -8,6 +8,7 @@ src += files(
   'iface_security.c',
   'l2_stats.c',
   'rstp.c',
+  'vlan_filtering.c',
   'vxlan.c',
 )
 
@@ -20,6 +21,13 @@ tests += [
   },
   {
     'sources': files('rstp_test.c', 'rstp.c', 'bridge.c'),
+    'link_args': [
+      '-Wl,--wrap=rte_zmalloc',
+      '-Wl,--wrap=rte_free',
+    ],
+  },
+  {
+    'sources': files('vlan_filtering_test.c', 'vlan_filtering.c'),
     'link_args': [
       '-Wl,--wrap=rte_zmalloc',
       '-Wl,--wrap=rte_free',

@@ -8,5 +8,6 @@ cli_src += files(
     'iface_security.c',
     'l2_stats.c',
     'rstp.c',
+    'vlan_filtering.c',
     'vxlan.c',
 )

@@ -25,6 +25,9 @@ uint16_t vrf_default_get_or_create(void) { return 0; }
 int vrf_incref(uint16_t) { return 0; }
 void fdb_purge_iface(uint16_t) { }
 void fdb_purge_bridge(uint16_t) { }
+// VLAN filtering stubs needed by bridge.c.
+#include "vlan_filtering_priv.h"
+void vlan_filtering_free(struct vlan_filtering *vf) { (void)vf; }
 int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	(void)iface; (void)mac; return 0;
 }

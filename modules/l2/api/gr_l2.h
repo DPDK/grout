@@ -477,6 +477,12 @@ struct gr_l2_vlan_stats {
 	uint64_t pvid_added;
 	uint64_t tag_removed;
 	uint64_t translated;
+	uint64_t egress_translated;
+	uint64_t qinq_added;
+	uint64_t qinq_removed;
+	uint64_t mode_access;
+	uint64_t mode_trunk;
+	uint64_t mode_hybrid;
 };
 
 #define GR_L2_VLAN_EGRESS_TRANSLATION_SET REQUEST_TYPE(GR_L2_MODULE, 0x0066)
