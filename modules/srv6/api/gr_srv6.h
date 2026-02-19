@@ -85,6 +85,7 @@ static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 typedef enum : uint8_t {
 	GR_SR_FL_FLAVOR_PSP = GR_BIT8(0), // Penultimate Segment Popping.
 	GR_SR_FL_FLAVOR_USD = GR_BIT8(1), // Ultimate Segment Decapsulation.
+	GR_SR_FL_FLAVOR_NEXT_CSID = GR_BIT8(2), // Compressed SID (RFC 9800).
 } gr_srv6_flags_t;
 
 // SRv6 local nexthop information for Local SID processing.
@@ -93,4 +94,6 @@ struct gr_nexthop_info_srv6_local {
 	uint16_t out_vrf_id;
 	gr_srv6_behavior_t behavior;
 	gr_srv6_flags_t flags;
+	uint8_t block_bits; // Locator-block length in bits (default 32).
+	uint8_t csid_bits; // Compressed SID length in bits (default 16).
 };

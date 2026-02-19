@@ -64,3 +64,23 @@ grcli route add fd00:202:100::/48 via id 666
 ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
 # check that sid is reachable
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:202:100::
+
+#
+# NEXT-CSID transit test
+#
+# A CSID container fd00:202:0300:0100:: packs two CSIDs (0300 and 0100)
+# with block-bits=32, csid-bits=16. Grout matches fd00:202:0300::/48 as
+# a NEXT-CSID End transit node, shifts the DA to fd00:202:0100::
+# (= fd00:202:100::), and the second lookup hits the existing End.DT4
+# endpoint.
+#
+
+# NEXT-CSID End transit node
+grcli nexthop add srv6-local behavior end flavor next-csid id 700
+grcli route add fd00:202:300::/48 via id 700
+
+# linux sends to the CSID container instead of the single SID
+ip -n n1 route replace 192.168.61.0/24 encap seg6 mode encap segs fd00:202:0300:0100:: dev x-p1
+
+# test: ping goes through the NEXT-CSID transit node
+ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1

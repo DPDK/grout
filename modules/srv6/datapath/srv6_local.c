@@ -280,6 +280,49 @@ static int process_behav_decap(
 }
 
 //
+// Compressed SID shift-and-lookup (RFC 9800, Section 4.1.1).
+//
+// A CSID container packs multiple compressed SIDs after the locator block:
+//
+//   |<-- block -->|<-- csid -->|<--- argument (remaining csids) --->|
+//   0             ^            ^                                    15
+//             block_end      arg_off
+//
+// If the argument portion is non-zero, shift it left into the active CSID
+// position and zero the vacated tail. This exposes the next CSID in the
+// container as the new destination for FIB lookup. E.g.:
+//
+//   Before:  fd00:0202 : 0300 : 0100 : 0000 : 0000 : 0000 : 0000
+//               block    csid  ~~~~ argument (next csid) ~~~~~~~
+//
+//   After:   fd00:0202 : 0100 : 0000 : 0000 : 0000 : 0000 : 0000
+//               block    csid  ~~~~~~~~ zeroed tail ~~~~~~~~~~~~
+//
+// Returns true if the shift was performed, false if the container is exhausted
+// (argument is all zeros, fall through to standard End).
+//
+static inline bool csid_shift(struct rte_ipv6_addr *da, uint8_t block_bits, uint8_t csid_bits) {
+	uint8_t block_end = block_bits / CHAR_BIT;
+	uint8_t csid_len = csid_bits / CHAR_BIT;
+	uint8_t arg_off = block_end + csid_len;
+	uint8_t arg = 0;
+
+	assert(arg_off <= ARRAY_DIM(da->a));
+
+	for (uint8_t i = arg_off; i < ARRAY_DIM(da->a); i++)
+		arg |= da->a[i];
+	if (arg == 0)
+		return false; // argument portion is all zeros
+
+	// shift argument left into the active CSID position
+	memmove(&da->a[block_end], &da->a[arg_off], ARRAY_DIM(da->a) - arg_off);
+	// zero the vacated tail
+	memset(&da->a[ARRAY_DIM(da->a) - csid_len], 0, csid_len);
+
+	return true;
+}
+
+//
 // End behavior
 //
 static int process_behav_end(
@@ -289,6 +332,23 @@ static int process_behav_end(
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	const struct iface *iface;
+
+	// NEXT-CSID processing (RFC 9800)
+	if (sr_d->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
+
+		if (csid_shift(&ip6->dst_addr, sr_d->block_bits, sr_d->csid_bits)) {
+			if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
+				iface = get_vrf_iface(sr_d->out_vrf_id);
+				if (iface == NULL)
+					return DEST_UNREACH;
+				mbuf_data(m)->iface = iface;
+			}
+			eth_input_mbuf_data(m)->domain = ETH_DOMAIN_LOCAL;
+			return IP6_INPUT;
+		}
+		// container exhausted, fall through to standard End
+	}
 
 	// at the end of the tunnel
 	if (sr == NULL || sr->segments_left == 0) {
