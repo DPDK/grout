@@ -581,6 +581,15 @@ static void zd_grout_ns(struct event *t) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct vrf *default_vrf;
 
+	// zebra_ns_disabled() calls event_cancel_async() on the dplane event
+	// loop which asserts that the caller is not its owner. At startup, the
+	// dplane event loop owner is still the main thread until the dplane
+	// pthread has actually started and claimed it. Retry until it has.
+	if (dg_master->owner == pthread_self()) {
+		event_add_timer_msec(zrouter.master, zd_grout_ns, NULL, 10, NULL);
+		return;
+	}
+
 	zebra_ns_disabled(ns_get_default());
 
 	// Delete all vrfs including the default one
