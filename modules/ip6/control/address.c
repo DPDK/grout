@@ -278,14 +278,16 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static int
-iface6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+	const struct iface *iface = iface_from_id(iface_id);
 	struct rte_ipv6_addr solicited_node;
 	struct nexthop *nh = NULL;
 	struct hoplist *addrs;
 	unsigned i = 0;
 
-	if (iface == NULL || ip == NULL || prefixlen > RTE_IPV6_MAX_DEPTH)
+	if (iface == NULL)
+		return -errno;
+	if (ip == NULL || prefixlen > RTE_IPV6_MAX_DEPTH)
 		return errno_set(EINVAL);
 
 	addrs = &iface_addrs[iface->id];
@@ -338,7 +340,7 @@ static struct api_out addr6_del(const void *request, struct api_ctx *) {
 	if (iface == NULL)
 		return api_out(errno, 0, NULL);
 
-	if (iface6_addr_del(iface, &req->addr.addr.ip, req->addr.addr.prefixlen) < 0)
+	if (addr6_delete(iface->id, &req->addr.addr.ip, req->addr.addr.prefixlen) < 0)
 		if (errno != ENOENT || !req->missing_ok)
 			return api_out(errno, 0, NULL);
 
@@ -365,7 +367,7 @@ static struct api_out addr6_flush(const void *request, struct api_ctx *) {
 			i++;
 			continue;
 		}
-		if (iface6_addr_del(iface, &l3->ipv6, l3->prefixlen) < 0)
+		if (addr6_delete(iface->id, &l3->ipv6, l3->prefixlen) < 0)
 			return api_out(errno, 0, NULL);
 	}
 
@@ -442,7 +444,7 @@ static void ip6_iface_addrs_flush(const struct iface *iface) {
 	while (gr_vec_len(addrs->nh) > 0) {
 		nh = addrs->nh[gr_vec_len(addrs->nh) - 1];
 		l3 = nexthop_info_l3(nh);
-		iface6_addr_del(iface, &l3->ipv6, l3->prefixlen);
+		addr6_delete(iface->id, &l3->ipv6, l3->prefixlen);
 	}
 	addrs = &iface_mcast_addrs[iface->id];
 	while (gr_vec_len(addrs->nh) > 0) {
