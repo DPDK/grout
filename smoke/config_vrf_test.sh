@@ -35,3 +35,35 @@ grcli interface set vrf tmpname name main
 grcli interface show name main
 ip link show main
 grcli interface del p4
+
+# FIB config defaults
+grcli route config show
+
+# FIB config set and show
+grcli interface add vrf fibtest
+grcli route config set vrf fibtest fib4-size 512 fib6-size 512
+grcli route config show vrf fibtest
+
+# FIB resize with routes
+grcli interface add port p5 devargs net_null2,no-rx=1 vrf fibtest
+for i in $(seq 8); do
+	grcli address add $i.0.0.1/24 iface p5
+	grcli address add fd00:$i::1/48 iface p5
+done
+grcli route show vrf fibtest
+count=$(grcli route show vrf fibtest | grep -wc fibtest)
+[ "$count" -eq 17 ]
+count=$(grcli address | grep -wc p5)
+[ "$count" -eq 17 ]
+
+# Ensure addresses were deleted
+grcli route config set vrf fibtest fib4-size 1 fib6-size 8
+grcli route show vrf fibtest
+count=$(grcli route show vrf fibtest | grep -wc fibtest)
+[ "$count" -eq 6 ]
+count=$(grcli address | grep -wc p5)
+[ "$count" -eq 6 ]
+
+# cleanup
+grcli interface del p5
+grcli interface del fibtest
