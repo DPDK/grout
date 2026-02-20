@@ -277,6 +277,7 @@ set -x
 
 if [ "$run_grout" = true ]; then
 	smoke_setenv ASAN_OPTIONS disable_coredump=0
+	smoke_setenv GROUT_MAX_ROUTES_DEFAULT 128
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi

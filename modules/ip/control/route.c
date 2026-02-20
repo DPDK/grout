@@ -13,6 +13,7 @@
 #include <gr_net_types.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 
 #include <event2/event.h>
@@ -34,20 +35,29 @@ static struct rte_fib **vrf_fibs;
 
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
-// TODO: make this configurable
-#define IP4_MAX_ROUTES (1 << 16)
-#define IP4_NUM_TBL8 ((IP4_MAX_ROUTES) < (1 << 16) ? (IP4_MAX_ROUTES) : (IP4_MAX_ROUTES) / 4)
+static struct {
+	uint32_t max_routes; // 0 = default
+	uint32_t num_tbl8; // 0 = auto
+} fib4_conf[GR_MAX_IFACES];
 
-static struct rte_fib_conf fib_conf = {
-	.type = RTE_FIB_DIR24_8,
-	.default_nh = 0,
-	.max_routes = IP4_MAX_ROUTES,
-	.rib_ext_sz = sizeof(gr_nh_origin_t),
-	.dir24_8 = {
-		.nh_sz = RTE_FIB_DIR24_8_8B,
-		.num_tbl8 = IP4_NUM_TBL8,
-	},
-};
+static uint32_t max_routes_default = 1 << 16;
+
+static inline uint32_t fib4_get_max_routes(uint16_t vrf_id) {
+	return fib4_conf[vrf_id].max_routes ?: max_routes_default;
+}
+
+// Derive num_tbl8 from max_routes for IPv4 DIR24_8.
+// Only prefixes longer than /24 consume tbl8 groups. In real-world BGP
+// tables, less than 0.1% of prefixes are longer than /24. A ratio of
+// 1/500 with a minimum of 256 provides ample headroom.
+static inline uint32_t fib4_auto_tbl8(uint32_t max_routes) {
+	uint32_t n = max_routes / 500;
+	return n < 256 ? 256 : n;
+}
+
+static inline uint32_t fib4_get_num_tbl8(uint16_t vrf_id) {
+	return fib4_conf[vrf_id].num_tbl8 ?: fib4_auto_tbl8(fib4_get_max_routes(vrf_id));
+}
 
 static struct rte_fib *get_fib(uint16_t vrf_id) {
 	struct rte_fib *fib;
@@ -62,31 +72,57 @@ static struct rte_fib *get_fib(uint16_t vrf_id) {
 	return fib;
 }
 
-static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
+static struct rte_fib *create_fib(uint16_t vrf_id) {
+	struct rte_fib_conf conf = {
+		.type = RTE_FIB_DIR24_8,
+		.default_nh = 0,
+		.max_routes = fib4_get_max_routes(vrf_id),
+		.rib_ext_sz = sizeof(gr_nh_origin_t),
+		.dir24_8 = {
+			.nh_sz = RTE_FIB_DIR24_8_8B,
+			.num_tbl8 = fib4_get_num_tbl8(vrf_id),
+		},
+	};
 	struct rte_fib *fib;
+	static unsigned seq;
+	char name[16];
 	int ret;
 
-	if (vrf_id >= GR_MAX_IFACES)
-		return errno_set_null(EOVERFLOW);
+	snprintf(name, sizeof(name), "fib4_%x-%x", vrf_id, seq++);
+	fib = rte_fib_create(name, SOCKET_ID_ANY, &conf);
+	if (fib == NULL)
+		return errno_set_null(rte_errno);
+
+	struct rte_fib_rcu_config rcu_config = {
+		.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_SYNC
+	};
+	ret = rte_fib_rcu_qsbr_add(fib, &rcu_config);
+	if (ret < 0) {
+		rte_fib_free(fib);
+		return errno_set_null(-ret);
+	}
+
+	return fib;
+}
+
+static struct rte_fib *get_or_create_fib(uint16_t vrf_id) {
+	const struct iface *iface = get_vrf_iface(vrf_id);
+	struct rte_fib *fib;
+
+	if (iface == NULL)
+		return NULL;
 
 	fib = vrf_fibs[vrf_id];
 	if (fib == NULL) {
-		char name[64];
-
-		snprintf(name, sizeof(name), "fib4_vrf_%u", vrf_id);
-		fib = rte_fib_create(name, SOCKET_ID_ANY, &fib_conf);
+		LOG(INFO,
+		    "creating IPv4 FIB for VRF %s(%u) max_routes=%u num_tbl8=%u",
+		    iface->name,
+		    vrf_id,
+		    fib4_get_max_routes(vrf_id),
+		    fib4_get_num_tbl8(vrf_id));
+		fib = create_fib(vrf_id);
 		if (fib == NULL)
-			return errno_set_null(rte_errno);
-
-		struct rte_fib_rcu_config rcu_config = {
-			.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_SYNC
-		};
-		ret = rte_fib_rcu_qsbr_add(fib, &rcu_config);
-		if (ret < 0) {
-			rte_fib_free(fib);
-			return errno_set_null(-ret);
-		}
-
+			return NULL;
 		vrf_fibs[vrf_id] = fib;
 	}
 
@@ -463,6 +499,7 @@ static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 }
 
 static void route4_init(struct event_base *) {
+	parse_uint(&max_routes_default, getenv("GROUT_MAX_ROUTES_DEFAULT"), 10, 1, UINT32_MAX);
 	vrf_fibs = rte_calloc(
 		__func__, GR_MAX_IFACES, sizeof(struct rte_fib *), RTE_CACHE_LINE_SIZE
 	);
@@ -499,6 +536,9 @@ void rib4_cleanup(struct nexthop *nh) {
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");
+METRIC_GAUGE(m_max_routes, "rib4_max_routes", "Maximum number of IPv4 routes.");
+METRIC_GAUGE(m_max_tbl8, "fib4_max_tbl8", "Maximum number of IPv4 FIB tbl8 groups.");
+METRIC_GAUGE(m_used_tbl8, "fib4_used_tbl8", "Used IPv4 FIB tbl8 groups.");
 
 static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 	struct gr_metrics_ctx ctx;
@@ -518,6 +558,14 @@ static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 			);
 			gr_metric_emit(&ctx, &m_routes, route_counts[vrf_id][o]);
 		}
+
+		uint32_t used_tbl8, total_tbl8;
+		rte_fib_tbl8_get_stats(vrf_fibs[vrf_id], &used_tbl8, &total_tbl8);
+
+		gr_metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
+		gr_metric_emit(&ctx, &m_max_routes, fib4_get_max_routes(vrf_id));
+		gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
+		gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
 	}
 }
 
@@ -554,6 +602,142 @@ static int serialize_route4_event(const void *obj, void **buf) {
 	return len;
 }
 
+struct fib4_migrate_ctx {
+	struct rte_fib *new_fib;
+	uint32_t counts[UINT_NUM_VALUES(gr_nh_origin_t)];
+};
+
+static void fib4_migrate_cb(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh,
+	void *priv
+) {
+	uint32_t host_ip = rte_be_to_cpu_32(ip);
+	struct fib4_migrate_ctx *ctx = priv;
+	int ret;
+
+	ret = rte_fib_add(ctx->new_fib, host_ip, prefixlen, nh_ptr_to_id(nh));
+	if (ret < 0) {
+		if (nh->type == GR_NH_T_L3 && (nexthop_info_l3(nh)->flags & NH_LOCAL_ADDR_FLAGS)) {
+			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			LOG(WARNING,
+			    "iface %u: dropping local address " IP4_F "/%hhu: %s",
+			    nh->iface_id,
+			    &l3->ipv4,
+			    l3->prefixlen,
+			    rte_strerror(-ret));
+			addr4_delete(nh->iface_id, l3->ipv4, l3->prefixlen);
+		} else {
+			LOG(WARNING,
+			    "vrf %u: dropping route " IP4_F "/%hhu: %s",
+			    vrf_id,
+			    &ip,
+			    prefixlen,
+			    rte_strerror(-ret));
+			if (origin != GR_NH_ORIGIN_INTERNAL) {
+				gr_event_push(
+					GR_EVENT_IP_ROUTE_DEL,
+					&(const struct route4_event) {
+						.dest = {ip, prefixlen},
+						.vrf_id = vrf_id,
+						.origin = origin,
+						.nh = nh,
+					}
+				);
+			}
+			nexthop_decref((void *)nh);
+		}
+		return;
+	}
+
+	struct rte_rib *rib = rte_fib_get_rib(ctx->new_fib);
+	struct rte_rib_node *rn = rte_rib_lookup_exact(rib, host_ip, prefixlen);
+	gr_nh_origin_t *o = rte_rib_get_ext(rn);
+	*o = origin;
+	ctx->counts[origin]++;
+}
+
+static uint32_t fib4_total_routes(uint16_t vrf_id) {
+	uint32_t total = 0;
+	for (unsigned o = 0; o < UINT_NUM_VALUES(gr_nh_origin_t); o++)
+		total += route_counts[vrf_id][o];
+	return total;
+}
+
+static struct api_out fib4_conf_set(const void *request, struct api_ctx *) {
+	const struct gr_ip4_fib_conf_set_req *req = request;
+	uint32_t old_max, old_tbl8, new_max, new_tbl8;
+	struct rte_fib *old_fib, *new_fib;
+	const struct iface *vrf;
+
+	if (req->vrf_id >= GR_MAX_IFACES)
+		return api_out(EOVERFLOW, 0, NULL);
+
+	old_max = fib4_get_max_routes(req->vrf_id);
+	old_tbl8 = fib4_get_num_tbl8(req->vrf_id);
+	new_max = req->max_routes ?: old_max;
+	new_tbl8 = req->num_tbl8 ?: fib4_auto_tbl8(new_max);
+	old_fib = vrf_fibs[req->vrf_id];
+
+	if (new_max == old_max && new_tbl8 && old_tbl8 && old_fib != NULL)
+		return api_out(0, 0, NULL);
+
+	fib4_conf[req->vrf_id].max_routes = new_max;
+	fib4_conf[req->vrf_id].num_tbl8 = new_tbl8;
+
+	if (old_fib == NULL)
+		return api_out(0, 0, NULL);
+
+	vrf = get_vrf_iface(req->vrf_id);
+
+	LOG(INFO,
+	    "resizing IPv4 FIB VRF %s(%u) max_routes %u -> %u num_tbl8 %u -> %u",
+	    vrf ? vrf->name : "?",
+	    req->vrf_id,
+	    old_max,
+	    new_max,
+	    old_tbl8,
+	    new_tbl8);
+
+	new_fib = create_fib(req->vrf_id);
+	if (new_fib == NULL)
+		return api_out(errno, 0, NULL);
+
+	struct fib4_migrate_ctx ctx = {.new_fib = new_fib};
+	rib4_iter_one(rte_fib_get_rib(vrf_fibs[req->vrf_id]), req->vrf_id, fib4_migrate_cb, &ctx);
+
+	vrf_fibs[req->vrf_id] = new_fib;
+	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+	rte_fib_free(old_fib);
+
+	memcpy(route_counts[req->vrf_id], ctx.counts, sizeof(ctx.counts));
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
+	const struct gr_ip4_fib_info_list_req *req = request;
+
+	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
+		if (v != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
+			continue;
+		if (vrf_fibs[v] == NULL)
+			continue;
+		struct gr_fib4_info info = {
+			.vrf_id = v,
+			.max_routes = fib4_get_max_routes(v),
+			.used_routes = fib4_total_routes(v),
+		};
+		rte_fib_tbl8_get_stats(vrf_fibs[v], &info.used_tbl8, &info.num_tbl8);
+		api_send(ctx, sizeof(info), &info);
+	}
+
+	return api_out(0, 0, NULL);
+}
+
 static struct gr_api_handler route4_add_handler = {
 	.name = "ipv4 route add",
 	.request_type = GR_IP4_ROUTE_ADD,
@@ -573,6 +757,16 @@ static struct gr_api_handler route4_list_handler = {
 	.name = "ipv4 route list",
 	.request_type = GR_IP4_ROUTE_LIST,
 	.callback = route4_list,
+};
+static struct gr_api_handler fib4_conf_set_handler = {
+	.name = "ipv4 fib conf set",
+	.request_type = GR_IP4_FIB_CONF_SET,
+	.callback = fib4_conf_set,
+};
+static struct gr_api_handler fib4_info_list_handler = {
+	.name = "ipv4 fib info list",
+	.request_type = GR_IP4_FIB_INFO_LIST,
+	.callback = fib4_info_list,
 };
 
 static struct gr_event_serializer route_serializer = {
@@ -621,6 +815,7 @@ static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
 	if (iface->type != GR_IFACE_TYPE_VRF)
 		return;
 
+	memset(&fib4_conf[iface->id], 0, sizeof(fib4_conf[0]));
 	fib = vrf_fibs[iface->id];
 	vrf_fibs[iface->id] = NULL;
 	if (fib != NULL) {
@@ -642,6 +837,8 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_del_handler);
 	gr_register_api_handler(&route4_get_handler);
 	gr_register_api_handler(&route4_list_handler);
+	gr_register_api_handler(&fib4_conf_set_handler);
+	gr_register_api_handler(&fib4_info_list_handler);
 	gr_event_register_serializer(&route_serializer);
 	gr_register_module(&route4_module);
 	gr_metrics_register(&rib4_collector);
