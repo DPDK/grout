@@ -375,35 +375,37 @@ static struct api_out route4_get(const void *request, struct api_ctx *) {
 	return api_out(0, len, pub);
 }
 
-void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
+static void rib4_iter_one(struct rte_rib *rib, uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	struct rte_rib_node *rn;
 	gr_nh_origin_t *origin;
-	struct rte_rib *rib;
 	uint8_t prefixlen;
 	uintptr_t nh_id;
 	uint32_t ip;
 
+	rn = NULL;
+	while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
+		rte_rib_get_ip(rn, &ip);
+		rte_rib_get_depth(rn, &prefixlen);
+		origin = rte_rib_get_ext(rn);
+		rte_rib_get_nh(rn, &nh_id);
+		cb(vrf_id, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+	}
+
+	// check if there is a default route configured
+	if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
+		rte_rib_get_ip(rn, &ip);
+		rte_rib_get_depth(rn, &prefixlen);
+		origin = rte_rib_get_ext(rn);
+		rte_rib_get_nh(rn, &nh_id);
+		cb(vrf_id, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
+	}
+}
+
+void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		if (vrf_fibs[v] == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF))
 			continue;
-
-		rib = rte_fib_get_rib(vrf_fibs[v]);
-		rn = NULL;
-		while ((rn = rte_rib_get_nxt(rib, 0, 0, rn, RTE_RIB_GET_NXT_ALL)) != NULL) {
-			rte_rib_get_ip(rn, &ip);
-			rte_rib_get_depth(rn, &prefixlen);
-			origin = rte_rib_get_ext(rn);
-			rte_rib_get_nh(rn, &nh_id);
-			cb(v, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
-		}
-		// check if there is a default route configured
-		if ((rn = rte_rib_lookup_exact(rib, 0, 0)) != NULL) {
-			rte_rib_get_ip(rn, &ip);
-			rte_rib_get_depth(rn, &prefixlen);
-			origin = rte_rib_get_ext(rn);
-			rte_rib_get_nh(rn, &nh_id);
-			cb(v, rte_cpu_to_be_32(ip), prefixlen, *origin, nh_id_to_ptr(nh_id), priv);
-		}
+		rib4_iter_one(rte_fib_get_rib(vrf_fibs[v]), v, cb, priv);
 	}
 }
 
@@ -586,6 +588,55 @@ static struct gr_module route4_module = {
 	.fini = route4_fini,
 };
 
+static void route4_vrf_rm(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t depth,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh,
+	void *priv
+) {
+	const struct iface *vrf = priv;
+
+	LOG(DEBUG, "VRF %s(%u): " IP4_F "/%hhu", vrf->name, vrf->id, &ip, depth);
+
+	if (origin != GR_NH_ORIGIN_INTERNAL) {
+		gr_event_push(
+			GR_EVENT_IP_ROUTE_DEL,
+			&(const struct route4_event) {
+				.dest = {ip, depth},
+				.vrf_id = vrf_id,
+				.origin = origin,
+				.nh = nh,
+			}
+		);
+	}
+	nexthop_decref((void *)nh);
+}
+
+static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
+	const struct iface *iface = obj;
+	struct rte_fib *fib;
+
+	if (iface->type != GR_IFACE_TYPE_VRF)
+		return;
+
+	fib = vrf_fibs[iface->id];
+	vrf_fibs[iface->id] = NULL;
+	if (fib != NULL) {
+		LOG(INFO, "destroying IPv4 FIB for VRF %s(%u)", iface->name, iface->id);
+		rib4_iter_one(rte_fib_get_rib(fib), iface->id, route4_vrf_rm, (void *)iface);
+		rte_fib_free(fib);
+	}
+	memset(route_counts[iface->id], 0, sizeof(route_counts[iface->id]));
+}
+
+static struct gr_event_subscription iface_subscription = {
+	.callback = iface_rm_cb,
+	.ev_count = 1,
+	.ev_types = {GR_EVENT_IFACE_REMOVE},
+};
+
 RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_add_handler);
 	gr_register_api_handler(&route4_del_handler);
@@ -594,4 +645,5 @@ RTE_INIT(control_ip_init) {
 	gr_event_register_serializer(&route_serializer);
 	gr_register_module(&route4_module);
 	gr_metrics_register(&rib4_collector);
+	gr_event_subscribe(&iface_subscription);
 }
