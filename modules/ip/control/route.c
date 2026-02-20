@@ -586,6 +586,27 @@ static struct gr_module route4_module = {
 	.fini = route4_fini,
 };
 
+static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
+	const struct iface *iface = obj;
+	struct rte_fib *fib;
+
+	if (iface->type != GR_IFACE_TYPE_VRF)
+		return;
+
+	fib = vrf_fibs[iface->id];
+	vrf_fibs[iface->id] = NULL;
+	if (fib != NULL) {
+		LOG(INFO, "destroying IPv4 FIB for VRF %s(%u)", iface->name, iface->id);
+		rte_fib_free(fib);
+	}
+}
+
+static struct gr_event_subscription iface_subscription = {
+	.callback = iface_rm_cb,
+	.ev_count = 1,
+	.ev_types = {GR_EVENT_IFACE_REMOVE},
+};
+
 RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_add_handler);
 	gr_register_api_handler(&route4_del_handler);
@@ -594,4 +615,5 @@ RTE_INIT(control_ip_init) {
 	gr_event_register_serializer(&route_serializer);
 	gr_register_module(&route4_module);
 	gr_metrics_register(&rib4_collector);
+	gr_event_subscribe(&iface_subscription);
 }
