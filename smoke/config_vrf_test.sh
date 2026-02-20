@@ -22,16 +22,16 @@ grcli interface add vrf main \
 # VRF rename
 grcli interface add vrf renameme
 grcli interface set vrf renameme name renamed
-grcli interface show | grep -q renamed || fail "VRF should be renamed"
-ip link show renamed || fail "kernel VRF device should be renamed"
+grcli interface show name renamed
+ip link show renamed
 grcli interface del renamed
 
 # default VRF rename and rename back
 grcli interface add port p4 devargs net_null2,no-rx=1
 grcli interface set vrf main name tmpname
-grcli interface show | grep -q tmpname || fail "default VRF should be renamed"
-ip link show tmpname || fail "kernel TUN device should be renamed"
+grcli interface show name tmpname
+ip link show tmpname
 grcli interface set vrf tmpname name main
-grcli interface show | grep -q main || fail "default VRF should be renamed back to main"
-ip link show main || fail "kernel TUN device should be renamed back"
+grcli interface show name main
+ip link show main
 grcli interface del p4
