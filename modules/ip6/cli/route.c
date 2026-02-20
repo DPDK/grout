@@ -91,12 +91,50 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t route6_config_set(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip6_fib_conf_set_req req = {0};
+
+	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
+		return CMD_ERROR;
+
+	if (arg_u32(p, "FIB6_SIZE", &req.fib_size) < 0) {
+		if (errno == ENOENT)
+			return CMD_SUCCESS;
+		return CMD_ERROR;
+	}
+
+	if (gr_api_client_send_recv(c, GR_IP6_FIB_CONF_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static int
+route6_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_table *table) {
+	struct gr_ip6_fib_conf_list_req req = {.vrf_id = vrf_id};
+	const struct gr_fib6_conf *conf;
+	int ret;
+
+	gr_api_client_stream_foreach (conf, ret, c, GR_IP6_FIB_CONF_LIST, sizeof(req), &req) {
+		struct libscols_line *line = scols_table_new_line(table, NULL);
+		struct gr_iface *vrf = iface_from_id(c, conf->vrf_id);
+		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
+		free(vrf);
+		scols_line_set_data(line, 1, "IPv6");
+		scols_line_sprintf(line, 2, "%u", conf->fib_size);
+	}
+
+	return ret;
+}
+
 static struct cli_route_ops route_ops = {
 	.af = GR_AF_IP6,
 	.add = route6_add,
 	.del = route6_del,
 	.list = route6_list,
 	.get = route6_get,
+	.config_set = route6_config_set,
+	.config_show = route6_config_show,
 };
 
 static void route_event_print(uint32_t event, const void *obj) {
