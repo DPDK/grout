@@ -7,6 +7,7 @@
 #include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_mbuf.h>
+#include <gr_net_types.h>
 
 #include <rte_build_config.h>
 #include <rte_graph.h>
@@ -40,7 +41,10 @@ struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];
 };
 
-GR_MBUF_PRIV_DATA_TYPE(iface_mbuf_data, { uint16_t vlan_id; });
+GR_MBUF_PRIV_DATA_TYPE(iface_mbuf_data, {
+	uint16_t vlan_id;
+	ip4_addr_t vtep;
+});
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
 

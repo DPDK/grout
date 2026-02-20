@@ -398,6 +398,7 @@ static void iface_event(uint32_t event, const void *obj) {
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_BOND:
 	case GR_IFACE_TYPE_BRIDGE:
+	case GR_IFACE_TYPE_VXLAN:
 		break;
 	default:
 		return;

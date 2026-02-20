@@ -41,12 +41,29 @@ struct gr_iface_info_bridge {
 	uint16_t members[GR_BRIDGE_MAX_MEMBERS]; // Interface IDs of bridge members.
 };
 
+// VXLAN reconfiguration attribute flags.
+#define GR_VXLAN_SET_VNI GR_BIT64(32)
+#define GR_VXLAN_SET_ENCAP_VRF GR_BIT64(33)
+#define GR_VXLAN_SET_DST_PORT GR_BIT64(34)
+#define GR_VXLAN_SET_LOCAL GR_BIT64(35)
+#define GR_VXLAN_SET_MAC GR_BIT64(37)
+
+// Info structure for GR_IFACE_TYPE_VXLAN interfaces.
+struct gr_iface_info_vxlan {
+	uint32_t vni; // VXLAN Network Identifier (24-bit).
+	uint16_t encap_vrf_id; // L3 domain for underlay routing.
+	uint16_t dst_port; // UDP destination port (default 4789).
+	ip4_addr_t local; // Local VTEP IP address (must be a configured address in encap_vrf_id).
+	struct rte_ether_addr mac; // Default to random address.
+};
+
 // FDB (L2 Forwarding Database) management /////////////////////////////////////
 
 // FDB entry flags.
 typedef enum : uint8_t {
 	GR_FDB_F_STATIC = GR_BIT8(0), // User-configured, never aged out.
 	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
+	GR_FDB_F_EXTERN = GR_BIT8(2), // Programmed by external control plane.
 } gr_fdb_flags_t;
 
 // Forwarding database entry associating a MAC+VLAN to a bridge member interface.
@@ -55,6 +72,7 @@ struct gr_fdb_entry {
 	struct rte_ether_addr mac;
 	uint16_t vlan_id;
 	uint16_t iface_id; // Updated automatically when a MAC moves between members.
+	ip4_addr_t vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
 	gr_fdb_flags_t flags;
 	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
 };
@@ -128,3 +146,62 @@ struct gr_fdb_config_set_req {
 };
 
 // struct gr_fdb_config_set_resp { };
+
+// Flood list management for BUM (Broadcast, Unknown unicast, Multicast) //////
+
+typedef enum : uint8_t {
+	GR_FLOOD_T_VTEP = 1, // VXLAN remote VTEP
+} gr_flood_type_t;
+
+static inline const char *gr_flood_type_name(gr_flood_type_t type) {
+	switch (type) {
+	case GR_FLOOD_T_VTEP:
+		return "vtep";
+	}
+	return "?";
+}
+
+struct gr_flood_vtep {
+	uint32_t vni;
+	ip4_addr_t addr;
+};
+
+struct gr_flood_entry {
+	gr_flood_type_t type;
+	uint16_t vrf_id;
+	union {
+		struct gr_flood_vtep vtep;
+	};
+};
+
+enum {
+	GR_EVENT_FLOOD_ADD = EVENT_TYPE(GR_L2_MODULE, 0x0011),
+	GR_EVENT_FLOOD_DEL = EVENT_TYPE(GR_L2_MODULE, 0x0012),
+};
+
+#define GR_FLOOD_ADD REQUEST_TYPE(GR_L2_MODULE, 0x0011)
+
+struct gr_flood_add_req {
+	struct gr_flood_entry entry;
+	bool exist_ok;
+};
+
+// struct gr_flood_add_resp { };
+
+#define GR_FLOOD_DEL REQUEST_TYPE(GR_L2_MODULE, 0x0012)
+
+struct gr_flood_del_req {
+	struct gr_flood_entry entry;
+	bool missing_ok;
+};
+
+// struct gr_flood_del_resp { };
+
+#define GR_FLOOD_LIST REQUEST_TYPE(GR_L2_MODULE, 0x0013)
+
+struct gr_flood_list_req {
+	gr_flood_type_t type; // 0 for all types
+	uint16_t vrf_id; // GR_VRF_ID_UNDEF for all
+};
+
+STREAM_RESP(struct gr_flood_entry);

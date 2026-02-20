@@ -39,6 +39,7 @@ static uint16_t bridge_input_process(
 	struct iface_mbuf_data *d;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *m;
+	ip4_addr_t vtep;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -61,8 +62,10 @@ static uint16_t bridge_input_process(
 		br = iface_info_bridge(bridge);
 
 		if (rte_is_unicast_ether_addr(&eth->src_addr)
-		    && !(br->flags & GR_BRIDGE_F_NO_LEARN))
-			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id);
+		    && !(br->flags & GR_BRIDGE_F_NO_LEARN)) {
+			vtep = (d->iface->type == GR_IFACE_TYPE_VXLAN) ? d->vtep : 0;
+			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id, vtep);
+		}
 
 		if (rte_is_unicast_ether_addr(&eth->dst_addr)) {
 			fdb = fdb_lookup(bridge->id, &eth->dst_addr, d->vlan_id);
@@ -83,6 +86,8 @@ static uint16_t bridge_input_process(
 			}
 			// Direct output to learned interface
 			d->iface = iface;
+			d->vtep = fdb->vtep;
+
 			if (iface->type == GR_IFACE_TYPE_BRIDGE) {
 				edge = INPUT;
 			} else {

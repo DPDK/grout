@@ -5,9 +5,11 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <gr_l2.h>
 #include <gr_srv6.h>
 
 #include <lib/srv6.h>
+#include <linux/neighbour.h>
 #include <zebra/rib.h>
 #include <zebra/table_manager.h>
 #include <zebra_dplane_grout.h>
@@ -843,4 +845,155 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	// zebra_nhg_kernel_find() makes a *shallow* copy of the allocated nexthop.
 	// nexthop_free() must *NOT* be used to preserve the nh_srv6 context.
 	free(nh);
+}
+
+void grout_macfdb_change(const struct gr_fdb_entry *fdb, bool new) {
+	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
+	struct ethaddr mac;
+
+	gr_log_debug(
+		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pI4",
+		new ? "add" : "del",
+		fdb->bridge_id,
+		fdb->iface_id,
+		&fdb->mac,
+		fdb->vlan_id,
+		&fdb->vtep
+	);
+
+	memcpy(&mac, &fdb->mac, sizeof(mac));
+
+	// Zebra's dplane API is asymmetric for FDB entries:
+	//
+	// - DPLANE_OP_MAC_INSTALL/DELETE is the downward path (zebra pushing
+	//   MACs to dplane providers). The result handler is a no-op.
+	// - DPLANE_OP_NEIGH_INSTALL/DELETE is the upward path (dplane providers
+	//   notifying zebra of learned MACs). This goes through
+	//   zebra_neigh_macfdb_update() which triggers EVPN type-2 routes.
+	//
+	// It is NOT a bug to use dplane_ctx_mac_set_*() with DPLANE_OP_NEIGH_*
+	// ops. The macinfo and neigh fields are separate union members in the
+	// dplane context, and zebra's own netlink provider does the same thing
+	// (see rt_netlink.c netlink_macfdb_change()).
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(fdb->iface_id));
+	dplane_ctx_mac_set_addr(ctx, &mac);
+	dplane_ctx_mac_set_nhg_id(ctx, 0);
+	dplane_ctx_mac_set_ndm_state(ctx, NUD_REACHABLE);
+	dplane_ctx_mac_set_ndm_flags(ctx, NTF_MASTER);
+	dplane_ctx_mac_set_dst_present(ctx, fdb->vtep != 0);
+	dplane_ctx_mac_set_vtep_ip(ctx, &(struct in_addr) {fdb->vtep});
+	dplane_ctx_mac_set_vid(ctx, fdb->vlan_id);
+	dplane_ctx_mac_set_dp_static(ctx, fdb->flags & GR_FDB_F_STATIC);
+	dplane_ctx_mac_set_local_inactive(ctx, false);
+	dplane_ctx_mac_set_is_sticky(ctx, false);
+	dplane_ctx_set_op(ctx, new ? DPLANE_OP_NEIGH_INSTALL : DPLANE_OP_NEIGH_DELETE);
+
+	dplane_provider_enqueue_to_zebra(ctx);
+}
+
+enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx) {
+	bool add = dplane_ctx_get_op(ctx) == DPLANE_OP_MAC_INSTALL;
+	uint32_t req_type;
+	size_t len;
+	void *req;
+	int ret;
+
+	gr_log_debug(
+		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pI4",
+		add ? "add" : "del",
+		ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx)),
+		ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx)),
+		dplane_ctx_mac_get_addr(ctx),
+		dplane_ctx_mac_get_vlan(ctx),
+		dplane_ctx_mac_get_vtep_ip(ctx)
+	);
+
+	len = add ? sizeof(struct gr_fdb_add_req) : sizeof(struct gr_fdb_del_req);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("failed to allocate memory");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (add) {
+		struct gr_fdb_add_req *add = req;
+		add->exist_ok = true;
+		add->fdb.iface_id = ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx));
+		add->fdb.bridge_id = ifindex_frr_to_grout(dplane_ctx_mac_get_br_ifindex(ctx));
+		add->fdb.vlan_id = dplane_ctx_mac_get_vlan(ctx);
+		add->fdb.flags = GR_FDB_F_EXTERN;
+		if (dplane_ctx_mac_get_dp_static(ctx))
+			add->fdb.flags |= GR_FDB_F_STATIC;
+		memcpy(&add->fdb.mac, dplane_ctx_mac_get_addr(ctx), sizeof(add->fdb.mac));
+		add->fdb.vtep = dplane_ctx_mac_get_vtep_ip(ctx)->s_addr;
+		req_type = GR_FDB_ADD;
+	} else {
+		struct gr_fdb_del_req *del = req;
+		del->missing_ok = true;
+		del->bridge_id = ifindex_frr_to_grout(dplane_ctx_mac_get_br_ifindex(ctx));
+		del->vlan_id = dplane_ctx_mac_get_vlan(ctx);
+		memcpy(&del->mac, dplane_ctx_mac_get_addr(ctx), sizeof(del->mac));
+		req_type = GR_FDB_DEL;
+	}
+
+	ret = grout_client_send_recv(req_type, len, req, NULL);
+
+	free(req);
+
+	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
+}
+
+enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *ctx) {
+	const struct ipaddr *addr = dplane_ctx_neigh_get_ipaddr(ctx);
+	bool add = dplane_ctx_get_op(ctx) == DPLANE_OP_VTEP_ADD;
+	struct gr_flood_entry *entry;
+	uint32_t req_type;
+	size_t len;
+	void *req;
+	int ret;
+
+	gr_log_debug(
+		"%s %pIA vni=%u vrf=%u",
+		add ? "add" : "del",
+		addr,
+		dplane_ctx_neigh_get_vni(ctx),
+		vrf_frr_to_grout(dplane_ctx_get_vrf(ctx))
+	);
+
+	if (addr->ipa_type != IPADDR_V4) {
+		gr_log_err("IPv6 flood list entries are not supported");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	len = add ? sizeof(struct gr_flood_add_req) : sizeof(struct gr_flood_del_req);
+
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("failed to allocate memory");
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (add) {
+		struct gr_flood_add_req *a = req;
+		entry = &a->entry;
+		a->exist_ok = true;
+		req_type = GR_FLOOD_ADD;
+	} else {
+		struct gr_flood_del_req *d = req;
+		entry = &d->entry;
+		d->missing_ok = true;
+		req_type = GR_FLOOD_DEL;
+	}
+
+	entry->type = GR_FLOOD_T_VTEP;
+	entry->vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+	entry->vtep.vni = dplane_ctx_neigh_get_vni(ctx);
+	entry->vtep.addr = addr->ipaddr_v4.s_addr;
+
+	ret = grout_client_send_recv(req_type, len, req, NULL);
+
+	free(req);
+
+	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
 }

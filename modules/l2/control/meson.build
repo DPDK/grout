@@ -4,6 +4,8 @@
 src += files(
   'bridge.c',
   'fdb.c',
+  'flood.c',
+  'vxlan.c',
 )
 
 inc += include_directories('.')

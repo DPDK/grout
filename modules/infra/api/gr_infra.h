@@ -22,6 +22,7 @@ typedef enum : uint8_t {
 	GR_IFACE_TYPE_IPIP,
 	GR_IFACE_TYPE_BOND,
 	GR_IFACE_TYPE_BRIDGE,
+	GR_IFACE_TYPE_VXLAN,
 	GR_IFACE_TYPE_COUNT
 } gr_iface_type_t;
 
@@ -448,6 +449,8 @@ static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 		return "bond";
 	case GR_IFACE_TYPE_BRIDGE:
 		return "bridge";
+	case GR_IFACE_TYPE_VXLAN:
+		return "vxlan";
 	case GR_IFACE_TYPE_UNDEF:
 	case GR_IFACE_TYPE_COUNT:
 		break;
