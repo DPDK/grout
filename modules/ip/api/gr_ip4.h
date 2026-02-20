@@ -148,6 +148,33 @@ struct gr_ip4_icmp_recv_resp {
 	clock_t response_time;
 };
 
+// fib config //////////////////////////////////////////////////////////////////
+
+// FIB configuration for a VRF.
+struct gr_fib4_conf {
+	uint16_t vrf_id;
+	uint32_t fib_size; // num_tbl8 (0 = default 16384)
+};
+
+// Set FIB configuration for a VRF.
+#define GR_IP4_FIB_CONF_SET REQUEST_TYPE(GR_IP4_MODULE, 0x0030)
+
+struct gr_ip4_fib_conf_set_req {
+	uint16_t vrf_id;
+	uint32_t fib_size;
+};
+
+// struct gr_ip4_fib_conf_set_resp { };
+
+// Get FIB configuration for a VRF.
+#define GR_IP4_FIB_CONF_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0031)
+
+struct gr_ip4_fib_conf_list_req {
+	uint16_t vrf_id; // GR_VRF_ID_UNDEF for all
+};
+
+STREAM_RESP(struct gr_fib4_conf);
+
 // events //////////////////////////////////////////////////////////////////////
 
 // IPv4 module event types.
