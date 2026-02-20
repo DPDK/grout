@@ -115,6 +115,37 @@ struct gr_ip6_addr_flush_req {
 
 // struct gr_ip6_addr_flush_resp { };
 
+// fib info ////////////////////////////////////////////////////////////////////
+
+// FIB status for a VRF.
+struct gr_fib6_info {
+	uint16_t vrf_id;
+	uint32_t max_routes; // configured maximum number of routes
+	uint32_t used_routes; // number of routes currently installed
+	uint32_t num_tbl8; // allocated tbl8 groups (total)
+	uint32_t used_tbl8; // tbl8 groups currently in use
+};
+
+// Set FIB configuration for a VRF.
+#define GR_IP6_FIB_CONF_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0050)
+
+struct gr_ip6_fib_conf_set_req {
+	uint16_t vrf_id;
+	uint32_t max_routes; // maximum number of routes
+	uint32_t num_tbl8; // 0 = auto-derive from max_routes
+};
+
+// struct gr_ip6_fib_conf_set_resp { };
+
+// List FIB info for VRFs.
+#define GR_IP6_FIB_INFO_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0051)
+
+struct gr_ip6_fib_info_list_req {
+	uint16_t vrf_id; // GR_VRF_ID_UNDEF for all
+};
+
+STREAM_RESP(struct gr_fib6_info);
+
 // router advertisement ////////////////////////////////////////////////////////
 
 // Configure IPv6 router advertisement on an interface.

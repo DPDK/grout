@@ -95,5 +95,8 @@ struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_add
 struct nexthop *addr6_get_linklocal(uint16_t iface_id);
 // get all addresses for a given interface
 struct hoplist *addr6_get_all(uint16_t iface_id);
+// delete an ipv6 address from an interface
+int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *, uint8_t prefixlen);
+
 // determine if the given interface is member of the provided multicast address group
 struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast);
