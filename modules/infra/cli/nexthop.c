@@ -53,12 +53,15 @@ ssize_t cli_nexthop_format(
 		if (nh->nh_id != GR_NH_ID_UNSET)
 			SAFE_BUF(snprintf, len, " id=%u", nh->nh_id);
 		if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-			struct gr_iface *iface = NULL;
-			if (c != NULL && (iface = iface_from_id(c, nh->iface_id)) != NULL)
-				SAFE_BUF(snprintf, len, " iface=%s", iface->name);
+			if (c != NULL)
+				SAFE_BUF(
+					snprintf,
+					len,
+					" iface=%s",
+					iface_name_from_id(c, nh->iface_id)
+				);
 			else
 				SAFE_BUF(snprintf, len, " iface=%u", nh->iface_id);
-			free(iface);
 		}
 		SAFE_BUF(snprintf, len, " vrf=%u", nh->vrf_id);
 		SAFE_BUF(snprintf, len, " origin=%s", gr_nh_origin_name(nh->origin));
@@ -376,30 +379,14 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
-		if (nh->vrf_id == GR_VRF_ID_UNDEF) {
-			scols_line_set_data(line, 0, "-");
-		} else {
-			struct gr_iface *vrf = iface_from_id(c, nh->vrf_id);
-			scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-			free(vrf);
-		}
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, nh->vrf_id));
 		if (nh->nh_id != GR_NH_ID_UNSET)
 			scols_line_sprintf(line, 1, "%u", nh->nh_id);
 		else
 			scols_line_set_data(line, 1, "");
-
 		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(nh->origin));
-
-		if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-			struct gr_iface *iface = iface_from_id(c, nh->iface_id);
-			if (iface != NULL)
-				scols_line_sprintf(line, 3, "%s", iface->name);
-			else
-				scols_line_sprintf(line, 3, "%u", nh->iface_id);
-			free(iface);
-		}
+		scols_line_sprintf(line, 3, "%s", iface_name_from_id(c, nh->iface_id));
 		scols_line_sprintf(line, 4, "%s", gr_nh_type_name(nh->type));
-
 		if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
 			scols_line_set_data(line, 5, buf);
 	}

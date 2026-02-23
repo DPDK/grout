@@ -23,6 +23,7 @@ const struct cli_iface_type *type_from_name(const char *name);
 const struct cli_iface_type *type_from_id(gr_iface_type_t type_id);
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name);
 struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t ifid);
+const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid);
 
 struct ec_node;
 struct ec_comp;
