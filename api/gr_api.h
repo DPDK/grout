@@ -45,7 +45,15 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path);
 
 // Disconnect from the API server.
 // Automatically unsubscribes from all events.
+// Also frees the private data pointer if set.
 int gr_api_client_disconnect(struct gr_api_client *);
+
+// Get private data pointer associated with this client.
+void *gr_api_client_get_priv(struct gr_api_client *);
+
+// Set private data pointer associated with this client.
+// Will be freed automatically on disconnect.
+void gr_api_client_set_priv(struct gr_api_client *, void *);
 
 // Send an API request.
 // Returns request ID on success, negative errno on failure.

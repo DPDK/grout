@@ -24,12 +24,8 @@ static void bridge_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	printf("mac: " ETH_F "\n", &bridge->mac);
 	printf("members:\n");
 
-	for (uint8_t i = 0; i < bridge->n_members; i++) {
-		struct gr_iface *member = iface_from_id(c, bridge->members[i]);
-		if (member != NULL)
-			printf("- %s\n", member->name);
-		free(member);
-	}
+	for (uint8_t i = 0; i < bridge->n_members; i++)
+		printf("- %s\n", iface_name_from_id(c, bridge->members[i]));
 }
 
 static void

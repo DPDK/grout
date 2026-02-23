@@ -56,12 +56,7 @@ static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols
 
 	gr_api_client_stream_foreach (addr, ret, c, GR_IP6_ADDR_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *iface = iface_from_id(c, addr->iface_id);
-		if (iface != NULL)
-			scols_line_sprintf(line, 0, "%s", iface->name);
-		else
-			scols_line_sprintf(line, 0, "%u", addr->iface_id);
-		free(iface);
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, addr->iface_id));
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &addr->addr, addr->addr.prefixlen);
 	}
 

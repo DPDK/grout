@@ -69,13 +69,8 @@ static cmd_status_t vtep_show(struct gr_api_client *c, const struct ec_pnode *p)
 
 	gr_api_client_stream_foreach (entry, ret, c, GR_FLOOD_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-
 		scols_line_sprintf(line, 0, "%u", entry->vtep.vni);
-
-		struct gr_iface *vrf = iface_from_id(c, entry->vrf_id);
-		scols_line_sprintf(line, 1, "%s", vrf ? vrf->name : "[deleted]");
-		free(vrf);
-
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, entry->vrf_id));
 		scols_line_sprintf(line, 2, IP4_F, &entry->vtep.addr);
 	}
 

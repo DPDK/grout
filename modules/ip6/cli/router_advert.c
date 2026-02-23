@@ -14,7 +14,6 @@
 static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_ra_show_req req = {.iface_id = GR_IFACE_ID_UNDEF};
 	const struct gr_ip6_ra_conf *ra;
-	struct gr_iface *iface;
 	int ret;
 
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0 && errno != ENOENT)
@@ -29,12 +28,7 @@ static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	gr_api_client_stream_foreach (ra, ret, c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		iface = iface_from_id(c, ra->iface_id);
-		if (iface != NULL)
-			scols_line_sprintf(line, 0, "%s", iface->name);
-		else
-			scols_line_sprintf(line, 0, "%u", ra->iface_id);
-		free(iface);
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, ra->iface_id));
 		scols_line_sprintf(line, 1, "%u", ra->enabled);
 		scols_line_sprintf(line, 2, "%u", ra->interval);
 		scols_line_sprintf(line, 3, "%u", ra->lifetime);
