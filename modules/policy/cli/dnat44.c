@@ -60,14 +60,7 @@ static cmd_status_t dnat44_list(struct gr_api_client *c, const struct ec_pnode *
 
 	gr_api_client_stream_foreach (pol, ret, c, GR_DNAT44_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *iface = iface_from_id(c, pol->iface_id);
-
-		if (iface == NULL)
-			scols_line_sprintf(line, 0, "%u", pol->iface_id);
-		else
-			scols_line_sprintf(line, 0, "%s", iface->name);
-		free(iface);
-
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, pol->iface_id));
 		scols_line_sprintf(line, 1, IP4_F, &pol->match);
 		scols_line_sprintf(line, 2, IP4_F, &pol->replace);
 	}

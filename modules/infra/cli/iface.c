@@ -20,6 +20,51 @@
 
 static STAILQ_HEAD(, cli_iface_type) types = STAILQ_HEAD_INITIALIZER(types);
 
+struct iface_cache_item {
+	bool valid;
+	gr_iface_type_t type;
+	char name[IFNAMSIZ];
+};
+
+struct iface_cache {
+	struct iface_cache_item items[GR_MAX_IFACES];
+};
+
+static struct iface_cache *iface_cache_get(struct gr_api_client *c) {
+	struct iface_cache *cache = gr_api_client_get_priv(c);
+	if (cache == NULL) {
+		cache = calloc(1, sizeof(*cache));
+		gr_api_client_set_priv(c, cache);
+	}
+	return cache;
+}
+
+static struct iface_cache_item *
+iface_cache_update(struct gr_api_client *c, const struct gr_iface *iface) {
+	struct iface_cache *cache = iface_cache_get(c);
+	struct iface_cache_item *item;
+
+	assert(iface != NULL);
+	assert(cache != NULL);
+	assert(iface->id < ARRAY_DIM(cache->items));
+
+	item = &cache->items[iface->id];
+	item->valid = true;
+	item->type = iface->type;
+	snprintf(item->name, sizeof(item->name), "%s", iface->name);
+
+	return item;
+}
+
+static void iface_cache_del(struct gr_api_client *c, uint16_t ifid) {
+	struct iface_cache *cache = iface_cache_get(c);
+	assert(cache != NULL);
+
+	assert(ifid < ARRAY_DIM(cache->items));
+
+	memset(&cache->items[ifid], 0, sizeof(cache->items[ifid]));
+}
+
 void register_iface_type(struct cli_iface_type *type) {
 	assert(type != NULL);
 	assert(type->list_info != NULL);
@@ -79,19 +124,39 @@ int complete_iface_names(
 	const char *arg,
 	void *cb_arg
 ) {
-	struct gr_iface_list_req req = {.type = (uintptr_t)cb_arg};
+	struct gr_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
+	const struct iface_cache *cache = iface_cache_get(c);
+	gr_iface_type_t type = (uintptr_t)cb_arg;
 	const struct gr_iface *iface;
+	unsigned cached;
 	int result = 0;
 	int ret;
 
-	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
-		if (ec_str_startswith(iface->name, arg)) {
-			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
-				result = -1;
-		}
+again:
+	cached = 0;
+	for (unsigned i = 0; i < ARRAY_DIM(cache->items); i++) {
+		const struct iface_cache_item *item = &cache->items[i];
+		if (!item->valid)
+			continue;
+		cached++;
+		if (type != GR_IFACE_TYPE_UNDEF && item->type != type)
+			continue;
+		if (!ec_str_startswith(item->name, arg))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, item->name))
+			result = -1;
 	}
+	if (cached > 0)
+		return result;
 
-	return ret < 0 ? -1 : result;
+	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
+		iface_cache_update(c, iface);
+		cached++;
+	}
+	if (cached > 0)
+		goto again;
+
+	return ret;
 }
 
 int complete_vrf_names(
@@ -150,6 +215,7 @@ struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
+	iface_cache_update(c, resp_ptr);
 	return resp_ptr;
 }
 
@@ -160,7 +226,34 @@ struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
+	iface_cache_update(c, resp_ptr);
 	return resp_ptr;
+}
+
+const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
+	const struct iface_cache_item *item;
+	const struct iface_cache *cache;
+
+	if (ifid == GR_IFACE_ID_UNDEF)
+		return "-";
+	if (ifid >= GR_MAX_IFACES)
+		return "[???]";
+
+	cache = iface_cache_get(c);
+	if (cache == NULL)
+		return "[nomem]";
+
+	item = &cache->items[ifid];
+	if (item->valid)
+		return item->name;
+
+	struct gr_iface *iface = iface_from_id(c, ifid);
+	if (iface == NULL)
+		return "[deleted]";
+	item = iface_cache_update(c, iface);
+	free(iface);
+
+	return item->name;
 }
 
 static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *iface) {
@@ -262,6 +355,8 @@ static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p)
 	if (gr_api_client_send_recv(c, GR_IFACE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
+	iface_cache_del(c, req.iface_id);
+
 	return CMD_SUCCESS;
 }
 
@@ -293,6 +388,8 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
+		iface_cache_update(c, iface);
+
 		// name
 		scols_line_set_data(line, 0, iface->name);
 
@@ -308,15 +405,10 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		scols_line_set_data(line, 3, gr_iface_mode_name(iface->mode));
 
 		// domain
-		if (iface->mode == GR_IFACE_MODE_VRF) {
-			struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-			scols_line_sprintf(line, 4, "%s", vrf ? vrf->name : "[deleted]");
-			free(vrf);
-		} else {
-			struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-			scols_line_sprintf(line, 4, "%s", domain ? domain->name : "[deleted]");
-			free(domain);
-		}
+		if (iface->mode == GR_IFACE_MODE_VRF)
+			scols_line_sprintf(line, 4, "%s", iface_name_from_id(c, iface->vrf_id));
+		else
+			scols_line_sprintf(line, 4, "%s", iface_name_from_id(c, iface->domain_id));
 
 		// type
 		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));
@@ -389,13 +481,7 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 			goto end;
 		}
 
-		struct gr_iface *iface = iface_from_id(c, resp->stats[i].iface_id);
-		if (iface != NULL)
-			scols_line_set_data(line, 0, iface->name);
-		else
-			scols_line_sprintf(line, 0, "%u", resp->stats[i].iface_id);
-		free(iface);
-
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
 		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
 		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
 		scols_line_sprintf(line, 3, "%lu", resp->stats[i].rx_drops);
@@ -529,15 +615,10 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	printf("flags: %s\n", buf);
 	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
 
-	if (iface->mode == GR_IFACE_MODE_VRF) {
-		struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-		printf("vrf: %s\n", vrf ? vrf->name : "[deleted]");
-		free(vrf);
-	} else {
-		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-		printf("domain: %s\n", domain ? domain->name : "[deleted]");
-		free(domain);
-	}
+	if (iface->mode == GR_IFACE_MODE_VRF)
+		printf("vrf: %s\n", iface_name_from_id(c, iface->vrf_id));
+	else
+		printf("domain: %s\n", iface_name_from_id(c, iface->domain_id));
 
 	printf("mtu: %u\n", iface->mtu);
 

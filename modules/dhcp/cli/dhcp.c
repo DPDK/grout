@@ -51,15 +51,8 @@ static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode
 
 	gr_api_client_stream_foreach (status, ret, c, GR_DHCP_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *iface = iface_from_id(c, status->iface_id);
 
-		if (iface != NULL) {
-			scols_line_sprintf(line, 0, "%s", iface->name);
-			free(iface);
-		} else {
-			scols_line_sprintf(line, 0, "%u", status->iface_id);
-		}
-
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, status->iface_id));
 		scols_line_sprintf(line, 1, "%s", gr_dhcp_state_name(status->state));
 
 		if (status->assigned_ip != 0) {
