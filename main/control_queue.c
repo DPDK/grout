@@ -4,6 +4,7 @@
 #include <gr_control_queue.h>
 #include <gr_log.h>
 #include <gr_macro.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 
 #include <event2/event.h>
@@ -22,6 +23,9 @@ struct control_queue_item {
 };
 
 #define CONTROL_QUEUE_SIZE RTE_GRAPH_BURST_SIZE * 4
+static atomic_uint_fast64_t push_failed_items;
+static atomic_uint_fast64_t pushed_items;
+static atomic_uint_fast64_t popped_items;
 static struct rte_ring *ctrlq_ring;
 
 int control_queue_push(control_queue_cb_t cb, void *obj, uintptr_t priv) {
@@ -30,11 +34,18 @@ int control_queue_push(control_queue_cb_t cb, void *obj, uintptr_t priv) {
 		.obj = obj,
 		.priv = priv,
 	};
+	int ret;
 
 	assert(cb != NULL);
 	assert(obj != NULL);
 
-	return rte_ring_enqueue_elem(ctrlq_ring, &item, sizeof(item));
+	ret = rte_ring_enqueue_elem(ctrlq_ring, &item, sizeof(item));
+	if (ret == 0)
+		atomic_fetch_add_explicit(&pushed_items, 1, memory_order_relaxed);
+	else
+		atomic_fetch_add_explicit(&push_failed_items, 1, memory_order_relaxed);
+
+	return ret;
 }
 
 static void control_queue_poll(evutil_socket_t, short, void *priv) {
@@ -46,6 +57,9 @@ again:
 	count = rte_ring_dequeue_burst_elem(
 		ctrlq_ring, items, sizeof(items[0]), ARRAY_DIM(items), NULL
 	);
+
+	atomic_fetch_add_explicit(&popped_items, count, memory_order_relaxed);
+
 	for (unsigned i = 0; i < count; i++) {
 		items[i].callback(items[i].obj, items[i].priv, drain);
 	}
@@ -91,6 +105,30 @@ void control_queue_drain(uint32_t event, const void *obj) {
 	control_queue_poll(0, 0, &drain);
 }
 
+METRIC_COUNTER(m_cqueue_fail, "control_queue_fail", "Total number of enqueue failures");
+METRIC_COUNTER(m_cqueue_push, "control_queue_push", "Total number of enqueued items");
+METRIC_COUNTER(m_cqueue_pop, "control_queue_pop", "Total number of enqueued items");
+
+static void control_queue_metrics_collect(struct gr_metrics_writer *w) {
+	struct gr_metrics_ctx ctx;
+
+	gr_metrics_ctx_init(&ctx, w, NULL);
+	gr_metric_emit(
+		&ctx, &m_cqueue_push, atomic_load_explicit(&pushed_items, memory_order_relaxed)
+	);
+	gr_metric_emit(
+		&ctx, &m_cqueue_pop, atomic_load_explicit(&popped_items, memory_order_relaxed)
+	);
+	gr_metric_emit(
+		&ctx, &m_cqueue_fail, atomic_load_explicit(&push_failed_items, memory_order_relaxed)
+	);
+}
+
+static struct gr_metrics_collector control_queue_collector = {
+	.name = "control queue",
+	.collect = control_queue_metrics_collect,
+};
+
 static void control_queue_init(struct event_base *ev_base) {
 	atomic_init(&thread_shutdown, false);
 
@@ -132,4 +170,5 @@ static struct gr_module module = {
 
 RTE_INIT(control_queue_module_init) {
 	gr_register_module(&module);
+	gr_metrics_register(&control_queue_collector);
 }
