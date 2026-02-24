@@ -1,0 +1,145 @@
+From f5ae6fbe403f9638e08c24e4b9c6a3858bc87041 Mon Sep 17 00:00:00 2001
+From: Robin Jarry <rjarry@redhat.com>
+Date: Tue, 24 Feb 2026 14:27:12 +0100
+Subject: [PATCH dpdk] fib: expose tbl8 usage statistics
+
+Both dir24_8 (IPv4) and trie (IPv6) algorithms already track tbl8 group
+allocation internally but there is no way for applications to query this
+information. Monitoring tbl8 usage is important to detect exhaustion
+before route insertions start failing.
+
+Add rte_fib_tbl8_get_stats() and rte_fib6_tbl8_get_stats() to let
+applications retrieve the number of tbl8 groups currently in use and the
+total capacity. For dir24_8, the used count comes from cur_tbl8s. For
+trie, it comes from tbl8_pool_pos which reflects the actual number of
+allocated entries since the pool is a stack.
+
+Signed-off-by: Robin Jarry <rjarry@redhat.com>
+---
+ lib/fib/rte_fib.c  | 22 ++++++++++++++++++++++
+ lib/fib/rte_fib.h  | 18 ++++++++++++++++++
+ lib/fib/rte_fib6.c | 22 ++++++++++++++++++++++
+ lib/fib/rte_fib6.h | 18 ++++++++++++++++++
+ 4 files changed, 80 insertions(+)
+
+diff --git a/lib/fib/rte_fib.c b/lib/fib/rte_fib.c
+index 184210f38070..a7e8615f052f 100644
+--- a/lib/fib/rte_fib.c
++++ b/lib/fib/rte_fib.c
+@@ -364,3 +364,25 @@ rte_fib_rcu_qsbr_add(struct rte_fib *fib, struct rte_fib_rcu_config *cfg)
+ 		return -ENOTSUP;
+ 	}
+ }
++
++RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_fib_tbl8_get_stats, 26.07)
++int
++rte_fib_tbl8_get_stats(struct rte_fib *fib, uint32_t *used, uint32_t *total)
++{
++	struct dir24_8_tbl *dp;
++
++	if (fib == NULL)
++		return -EINVAL;
++
++	switch (fib->type) {
++	case RTE_FIB_DIR24_8:
++		dp = fib->dp;
++		if (used != NULL)
++			*used = dp->cur_tbl8s;
++		if (total != NULL)
++			*total = dp->number_tbl8s;
++		return 0;
++	default:
++		return -ENOTSUP;
++	}
++}
+diff --git a/lib/fib/rte_fib.h b/lib/fib/rte_fib.h
+index b16a653535cf..a79389cd4087 100644
+--- a/lib/fib/rte_fib.h
++++ b/lib/fib/rte_fib.h
+@@ -283,6 +283,24 @@ __rte_experimental
+ int
+ rte_fib_rcu_qsbr_add(struct rte_fib *fib, struct rte_fib_rcu_config *cfg);
+ 
++/**
++ * Retrieve tbl8 allocation statistics from the FIB.
++ *
++ * @param fib
++ *   FIB object handle
++ * @param used
++ *   Number of tbl8 groups currently in use (can be NULL)
++ * @param total
++ *   Total number of tbl8 groups allocated at creation (can be NULL)
++ * @return
++ *   0 on success
++ *   -EINVAL if fib is NULL
++ *   -ENOTSUP if the FIB type does not support tbl8 statistics
++ */
++__rte_experimental
++int
++rte_fib_tbl8_get_stats(struct rte_fib *fib, uint32_t *used, uint32_t *total);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/lib/fib/rte_fib6.c b/lib/fib/rte_fib6.c
+index 770becdb611e..8a586710f429 100644
+--- a/lib/fib/rte_fib6.c
++++ b/lib/fib/rte_fib6.c
+@@ -361,3 +361,25 @@ rte_fib6_rcu_qsbr_add(struct rte_fib6 *fib, struct rte_fib6_rcu_config *cfg)
+ 		return -ENOTSUP;
+ 	}
+ }
++
++RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_fib6_tbl8_get_stats, 26.07)
++int
++rte_fib6_tbl8_get_stats(struct rte_fib6 *fib, uint32_t *used, uint32_t *total)
++{
++	struct rte_trie_tbl *dp;
++
++	if (fib == NULL)
++		return -EINVAL;
++
++	switch (fib->type) {
++	case RTE_FIB6_TRIE:
++		dp = fib->dp;
++		if (used != NULL)
++			*used = dp->tbl8_pool_pos;
++		if (total != NULL)
++			*total = dp->number_tbl8s;
++		return 0;
++	default:
++		return -ENOTSUP;
++	}
++}
+diff --git a/lib/fib/rte_fib6.h b/lib/fib/rte_fib6.h
+index 4527328bf00d..17fea82e8aee 100644
+--- a/lib/fib/rte_fib6.h
++++ b/lib/fib/rte_fib6.h
+@@ -272,6 +272,24 @@ __rte_experimental
+ int
+ rte_fib6_rcu_qsbr_add(struct rte_fib6 *fib, struct rte_fib6_rcu_config *cfg);
+ 
++/**
++ * Retrieve tbl8 allocation statistics from the FIB.
++ *
++ * @param fib
++ *   FIB object handle
++ * @param used
++ *   Number of tbl8 groups currently in use (can be NULL)
++ * @param total
++ *   Total number of tbl8 groups allocated at creation (can be NULL)
++ * @return
++ *   0 on success
++ *   -EINVAL if fib is NULL
++ *   -ENOTSUP if the FIB type does not support tbl8 statistics
++ */
++__rte_experimental
++int
++rte_fib6_tbl8_get_stats(struct rte_fib6 *fib, uint32_t *used, uint32_t *total);
++
+ #ifdef __cplusplus
+ }
+ #endif
+-- 
+2.53.0
+

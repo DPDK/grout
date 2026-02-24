@@ -4,6 +4,7 @@ revision = v25.11
 depth = 1
 diff_files =
 	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
+	dpdk/fib-expose-tbl8-usage-statistics.patch,
 	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
 	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch
 
