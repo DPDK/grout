@@ -16,16 +16,13 @@
 #include <string.h>
 #include <unistd.h>
 
-// IFALIASZ is defined in linux/if.h
-#define IFALIASZ 256
-
 static char socket_buf[BUFSIZ];
 static struct mnl_socket *nl_sock;
 static int nl_seq;
 
 #define NLA_SPACE(len) NLA_ALIGN(NLA_HDRLEN + len)
 
-static int netlink_send_req(struct nlmsghdr *nlh) {
+static int netlink_send_req_cb(struct nlmsghdr *nlh, mnl_cb_t cb, void *data) {
 	int ret;
 
 	nlh->nlmsg_seq = nl_seq;
@@ -42,12 +39,16 @@ again:
 		return ret;
 	}
 
-	ret = mnl_cb_run(socket_buf, ret, nl_seq, 0, NULL, NULL);
+	ret = mnl_cb_run(socket_buf, ret, nl_seq, 0, cb, data);
 	if (ret < 0)
 		return ret;
 
 	nl_seq++;
 	return 0;
+}
+
+static int netlink_send_req(struct nlmsghdr *nlh) {
+	return netlink_send_req_cb(nlh, NULL, NULL);
 }
 
 int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier) {
@@ -297,6 +298,75 @@ int netlink_set_ifalias(uint32_t ifindex, const char *ifalias) {
 	mnl_attr_put_strz(nlh, IFLA_IFALIAS, ifalias);
 
 	return netlink_send_req(nlh);
+}
+
+struct link_info {
+	char *alias;
+	size_t alias_len;
+	char *kind;
+	size_t kind_len;
+};
+
+static int link_info_cb(const struct nlmsghdr *nlh, void *data) {
+	struct link_info *info = data;
+	struct ifinfomsg *ifi = mnl_nlmsg_get_payload(nlh);
+	struct nlattr *attr;
+
+	mnl_attr_for_each(attr, nlh, sizeof(*ifi)) {
+		switch (mnl_attr_get_type(attr)) {
+		case IFLA_IFALIAS:
+			snprintf(info->alias, info->alias_len, "%s", mnl_attr_get_str(attr));
+			break;
+		case IFLA_LINKINFO: {
+			struct nlattr *nested;
+			mnl_attr_for_each_nested(nested, attr) {
+				if (mnl_attr_get_type(nested) == IFLA_INFO_KIND)
+					snprintf(
+						info->kind,
+						info->kind_len,
+						"%s",
+						mnl_attr_get_str(nested)
+					);
+			}
+			break;
+		}
+		}
+	}
+
+	return MNL_CB_OK;
+}
+
+static int netlink_link_get_info(const char *ifname, struct link_info *info) {
+	char req[NLMSG_SPACE(sizeof(struct ifinfomsg)) + NLA_SPACE(IFNAMSIZ)];
+	struct nlmsghdr *nlh;
+	struct ifinfomsg *ifi;
+
+	if (info->alias)
+		info->alias[0] = '\0';
+	if (info->kind)
+		info->kind[0] = '\0';
+
+	memset(req, 0, sizeof(req));
+	nlh = mnl_nlmsg_put_header(req);
+	nlh->nlmsg_type = RTM_GETLINK;
+	nlh->nlmsg_flags = NLM_F_REQUEST;
+
+	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifi));
+	ifi->ifi_family = AF_UNSPEC;
+
+	mnl_attr_put_strz(nlh, IFLA_IFNAME, ifname);
+
+	return netlink_send_req_cb(nlh, link_info_cb, info);
+}
+
+int netlink_get_ifalias(const char *ifname, char *buf, size_t len) {
+	struct link_info info = {.alias = buf, .alias_len = len};
+	return netlink_link_get_info(ifname, &info);
+}
+
+int netlink_link_get_kind(const char *ifname, char *buf, size_t len) {
+	struct link_info info = {.kind = buf, .kind_len = len};
+	return netlink_link_get_info(ifname, &info);
 }
 
 int netlink_link_set_name(uint32_t ifindex, const char *ifname) {
