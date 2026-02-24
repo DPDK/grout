@@ -9,6 +9,9 @@
 
 #include <stdbool.h>
 
+// IFALIASZ is defined in linux/if.h, conflicting with net/if.h
+#define IFALIASZ 256
+
 int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier);
 int netlink_link_set_mac(uint32_t ifindex, const struct rte_ether_addr *mac);
 int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex);
@@ -24,3 +27,5 @@ int netlink_add_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip);
 int netlink_del_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip);
 int netlink_set_addr_gen_mode_none(uint32_t ifindex);
 int netlink_set_ifalias(uint32_t ifindex, const char *ifalias);
+int netlink_get_ifalias(const char *ifname, char *buf, size_t len);
+int netlink_link_get_kind(const char *ifname, char *buf, size_t len);

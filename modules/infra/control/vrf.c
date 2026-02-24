@@ -11,6 +11,7 @@
 #include <rte_ethdev.h>
 
 #include <linux/rtnetlink.h>
+#include <net/if.h>
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	struct iface *iface = iface_from_id(vrf_id);
@@ -20,19 +21,45 @@ struct iface *get_vrf_iface(uint16_t vrf_id) {
 	return iface;
 }
 
+#define GR_VRF_IFALIAS "Grout control plane vrf"
+
 static int netlink_create_vrf_and_enslave(
 	const char *vrf_name,
 	uint32_t vrf_table,
 	uint32_t loop_ifindex,
 	uint32_t *vrf_ifindex
 ) {
+	char ifalias[IFALIASZ];
+	char kind[IFNAMSIZ];
+	uint32_t ifindex;
 	int ret;
+
+	// Check for a stale VRF device left behind by a previous crash.
+	ifindex = if_nametoindex(vrf_name);
+	if (ifindex != 0) {
+		ret = netlink_link_get_kind(vrf_name, kind, sizeof(kind));
+		if (ret < 0 || strcmp(kind, "vrf") != 0)
+			return errno_set(EEXIST);
+
+		ret = netlink_get_ifalias(vrf_name, ifalias, sizeof(ifalias));
+		if (ret < 0 || strcmp(ifalias, GR_VRF_IFALIAS) != 0)
+			return errno_set(EEXIST);
+
+		LOG(WARNING, "deleting stale VRF device %s (ifindex %u)", vrf_name, ifindex);
+		ret = netlink_link_del_iface(ifindex);
+		if (ret < 0)
+			return ret;
+	}
 
 	ret = netlink_link_add_vrf(vrf_name, vrf_table);
 	if (ret < 0)
 		return ret;
 
 	*vrf_ifindex = ret;
+
+	ret = netlink_set_ifalias(*vrf_ifindex, GR_VRF_IFALIAS);
+	if (ret < 0)
+		return ret;
 
 	ret = netlink_link_set_master(loop_ifindex, *vrf_ifindex);
 	if (ret < 0)
