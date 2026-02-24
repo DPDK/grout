@@ -155,18 +155,16 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		LOGGING_CTX(root),
-		"enable",
+		"enable|disable",
 		packet_logging_set,
-		"Enable logging of ingress/egress packets."
-	);
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		LOGGING_CTX(root),
-		"disable",
-		packet_logging_set,
-		"Disable logging of ingress/egress packets."
+		"Control logging of ingress/egress packets.",
+		with_help(
+			"Enable logging of ingress/egress packets.", ec_node_str("enable", "enable")
+		),
+		with_help(
+			"Disable logging of ingress/egress packets.",
+			ec_node_str("disable", "disable")
+		)
 	);
 	if (ret < 0)
 		return ret;
