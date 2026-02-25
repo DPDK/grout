@@ -217,10 +217,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		}
 		if (txq_users > 1) {
 			ctx->lock = &port->txq_locks[qmap->queue_id];
-			if (port->tx_offloads & RTE_ETH_TX_OFFLOAD_VLAN_INSERT)
-				node->process = tx_shared_offload_process;
-			else
-				node->process = tx_shared_process;
+			node->process = tx_shared_process;
 			LOG(WARNING,
 			    "[CPU %d] port %s txq %u shared by %u workers",
 			    worker->cpu_id,
@@ -228,10 +225,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 			    qmap->queue_id,
 			    txq_users);
 		} else {
-			if (port->tx_offloads & RTE_ETH_TX_OFFLOAD_VLAN_INSERT)
-				node->process = tx_offload_process;
-			else
-				node->process = tx_process;
+			node->process = tx_process;
 		}
 
 		for (rte_edge_t edge = 0; edge < gr_vec_len(tx_node_names); edge++) {

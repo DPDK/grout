@@ -117,20 +117,6 @@ static inline uint16_t tx_add_vlan(
 	return ok;
 }
 
-static inline void tx_offload_add_vlan(void **objs, uint16_t nb_objs) {
-	const struct iface_mbuf_data *d;
-	struct rte_mbuf *m;
-
-	for (unsigned i = 0; i < nb_objs; i++) {
-		m = objs[i];
-		d = iface_mbuf_data(m);
-		if (d->vlan_id != 0) {
-			m->ol_flags |= RTE_MBUF_F_TX_VLAN;
-			m->vlan_tci = d->vlan_id;
-		}
-	}
-}
-
 uint16_t tx_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct tx_node_ctx *ctx = tx_node_ctx(node);
 	struct rte_mbuf *mbufs[RTE_GRAPH_BURST_SIZE];
@@ -168,50 +154,6 @@ tx_shared_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	rte_spinlock_unlock(ctx->lock);
 
 	tx_finish(graph, node, (void *)mbufs, nb_objs, tx_ok, RXTX_F_TXQ_SHARED);
-
-	return nb_objs;
-}
-
-uint16_t tx_shared_offload_process(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	void **objs,
-	uint16_t nb_objs
-) {
-	const struct tx_node_ctx *ctx = tx_node_ctx(node);
-	uint16_t tx_ok;
-
-	if (unlikely(!tx_begin(ctx, graph, node, objs, nb_objs)))
-		return 0;
-
-	tx_offload_add_vlan(objs, nb_objs);
-
-	rte_spinlock_lock(ctx->lock);
-	tx_ok = rte_eth_tx_burst(
-		ctx->txq.port_id, ctx->txq.queue_id, (struct rte_mbuf **)objs, nb_objs
-	);
-	rte_spinlock_unlock(ctx->lock);
-
-	tx_finish(graph, node, objs, nb_objs, tx_ok, RXTX_F_TXQ_SHARED | RXTX_F_VLAN_OFFLOAD);
-
-	return nb_objs;
-}
-
-uint16_t
-tx_offload_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct tx_node_ctx *ctx = tx_node_ctx(node);
-	uint16_t tx_ok;
-
-	if (unlikely(!tx_begin(ctx, graph, node, objs, nb_objs)))
-		return 0;
-
-	tx_offload_add_vlan(objs, nb_objs);
-
-	tx_ok = rte_eth_tx_burst(
-		ctx->txq.port_id, ctx->txq.queue_id, (struct rte_mbuf **)objs, nb_objs
-	);
-
-	tx_finish(graph, node, objs, nb_objs, tx_ok, RXTX_F_VLAN_OFFLOAD);
 
 	return nb_objs;
 }
