@@ -10,6 +10,7 @@
 #include <gr_api_client_impl.h>
 #include <gr_srv6.h>
 
+#include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
 #include <zebra/zebra_dplane.h>
@@ -29,6 +30,11 @@ struct grout_ctx_t {
 	// Event/'thread' pointer for queued updates
 	struct event *dg_t_zebra_update;
 	struct event *dg_t_dplane_update;
+
+	// Per-VRF sync chain event pointers
+	struct event *dg_t_dplane_sync;
+	struct event *dg_t_zebra_sync;
+	bitfield_t sync_vrf;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
@@ -36,6 +42,8 @@ static const char *plugin_name = "zebra_dplane_grout";
 
 static void dplane_read_notifications(struct event *event);
 static void zebra_read_notifications(struct event *event);
+static void grout_sync_ifaces(struct event *);
+static void grout_sync_addrs(struct event *);
 
 struct grout_evt {
 	uint32_t type;
@@ -135,6 +143,20 @@ route6:
 		link = false;
 		goto route6;
 	}
+
+	// Chain to next VRF
+	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				dplane_get_thread_master(),
+				grout_sync_addrs,
+				NULL,
+				i,
+				&grout_ctx.dg_t_dplane_sync
+			);
+			return;
+		}
+	}
 }
 
 static void grout_sync_nhs(struct event *e) {
@@ -159,10 +181,12 @@ static void grout_sync_nhs(struct event *e) {
 		// No nexthop, we won't be able to add routes.
 		return;
 	}
-	event_add_event(zrouter.master, grout_sync_routes, NULL, EVENT_VAL(e), NULL);
+	event_add_event(
+		zrouter.master, grout_sync_routes, NULL, EVENT_VAL(e), &grout_ctx.dg_t_zebra_sync
+	);
 }
 
-static void grout_sync_ifaces_addresses(struct event *e) {
+static void grout_sync_addrs(struct event *e) {
 	struct gr_ip4_addr_list_req ip_req = {
 		.vrf_id = EVENT_VAL(e), .iface_id = GR_IFACE_ID_UNDEF
 	};
@@ -195,7 +219,9 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	if (ret < 0)
 		gr_log_err("GR_IP6_ADDR_LIST: %s", strerror(errno));
 
-	event_add_event(zrouter.master, grout_sync_nhs, NULL, EVENT_VAL(e), NULL);
+	event_add_event(
+		zrouter.master, grout_sync_nhs, NULL, EVENT_VAL(e), &grout_ctx.dg_t_zebra_sync
+	);
 }
 
 static void grout_sync_ifaces(struct event *) {
@@ -210,10 +236,12 @@ static void grout_sync_ifaces(struct event *) {
 		GR_IFACE_TYPE_VLAN,
 	};
 	struct gr_infra_iface_list_req if_req;
-	bool sync_vrf[GR_MAX_IFACES] = {false};
 	struct gr_iface *iface;
 	unsigned int i;
 	int ret;
+
+	memset(grout_ctx.sync_vrf.data, 0, grout_ctx.sync_vrf.m * sizeof(word_t));
+	grout_ctx.sync_vrf.n = 0;
 
 	if (grout_client_ensure_connect() < 0)
 		return;
@@ -230,7 +258,7 @@ static void grout_sync_ifaces(struct event *) {
 			&if_req
 		) {
 			grout_link_change(iface, true, true);
-			sync_vrf[iface->vrf_id] = true;
+			bf_set_bit(grout_ctx.sync_vrf, iface->vrf_id);
 		}
 
 		if (ret < 0)
@@ -241,9 +269,18 @@ static void grout_sync_ifaces(struct event *) {
 			);
 	}
 
+	// Start per-VRF sync chain with the first VRF
 	for (i = 0; i < GR_MAX_IFACES; i++) {
-		if (sync_vrf[i])
-			event_add_event(zrouter.master, grout_sync_ifaces_addresses, NULL, i, NULL);
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				dplane_get_thread_master(),
+				grout_sync_addrs,
+				NULL,
+				i,
+				&grout_ctx.dg_t_dplane_sync
+			);
+			return;
+		}
 	}
 }
 
@@ -643,9 +680,13 @@ static int zd_grout_start(struct zebra_dplane_provider *prov) {
 static int zd_grout_finish(struct zebra_dplane_provider *, bool early) {
 	if (early) {
 		event_cancel(&grout_ctx.dg_t_zebra_update);
+		event_cancel(&grout_ctx.dg_t_zebra_sync);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
+		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_sync, NULL);
 		return 0;
 	}
+
+	bf_free(grout_ctx.sync_vrf);
 
 	gr_api_client_disconnect(grout_ctx.client);
 	gr_api_client_disconnect(grout_ctx.sync_client);
@@ -681,7 +722,9 @@ static int zd_grout_plugin_init(struct event_loop *) {
 }
 
 static int zd_grout_start_sync(struct event_loop *) {
-	event_add_timer(zrouter.master, grout_sync_ifaces, NULL, 0, NULL);
+	event_add_timer(
+		dplane_get_thread_master(), grout_sync_ifaces, NULL, 0, &grout_ctx.dg_t_dplane_sync
+	);
 	return 0;
 }
 
@@ -689,6 +732,7 @@ static int zd_grout_module_init(void) {
 	hook_register(frr_late_init, zd_grout_plugin_init);
 	hook_register(frr_config_post, zd_grout_start_sync);
 	init_ifindex_mappings();
+	bf_init(grout_ctx.sync_vrf, GR_MAX_IFACES);
 	return 0;
 }
 
