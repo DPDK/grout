@@ -19,4 +19,5 @@ uint16_t ifindex_frr_to_grout(ifindex_t frr_ifindex);
 vrf_id_t vrf_grout_to_frr(uint16_t gr_vrf_id);
 uint16_t vrf_frr_to_grout(vrf_id_t frr_vrf_id);
 
+void clear_ifindex_mappings(void);
 void init_ifindex_mappings(void);

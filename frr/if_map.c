@@ -140,6 +140,18 @@ uint16_t vrf_frr_to_grout(vrf_id_t frr_vrf_id) {
 	return ifindex_frr_to_grout(frr_vrf_id);
 }
 
+void clear_ifindex_mappings(void) {
+	struct ifindex_mapping *m;
+
+	frr_with_mutex(&ifindex_mtx) {
+		frr_each_safe(grout_to_frr, &grout_to_frr_mappings, m) {
+			grout_to_frr_del(&grout_to_frr_mappings, m);
+			frr_to_grout_del(&frr_to_grout_mappings, m);
+			XFREE(MTYPE_GROUT_MEM, m);
+		}
+	}
+}
+
 // Initialize the mapping tables
 void init_ifindex_mappings(void) {
 	grout_to_frr_init(&grout_to_frr_mappings);
