@@ -22,6 +22,7 @@ static const char *gr_sock_path = GR_DEFAULT_SOCK_PATH;
 
 struct grout_ctx_t {
 	struct gr_api_client *client;
+	struct gr_api_client *sync_client;
 	struct gr_api_client *dplane_notifs;
 	struct gr_api_client *zebra_notifs;
 
@@ -75,10 +76,10 @@ static int grout_notif_subscribe(
 }
 
 static int grout_client_ensure_connect(void) {
-	if (grout_ctx.client != NULL)
+	if (grout_ctx.sync_client != NULL)
 		return 0;
-	grout_ctx.client = gr_api_client_connect(gr_sock_path);
-	if (grout_ctx.client == NULL) {
+	grout_ctx.sync_client = gr_api_client_connect(gr_sock_path);
+	if (grout_ctx.sync_client == NULL) {
 		gr_log_err("gr_api_client_connect: %s", strerror(errno));
 		return -errno;
 	}
@@ -99,7 +100,7 @@ static void grout_sync_routes(struct event *e) {
 	link = true;
 route4:
 	gr_api_client_stream_foreach (
-		r4, ret, grout_ctx.client, GR_IP4_ROUTE_LIST, sizeof(r4_req), &r4_req
+		r4, ret, grout_ctx.sync_client, GR_IP4_ROUTE_LIST, sizeof(r4_req), &r4_req
 	) {
 		if (!link && r4->origin == GR_NH_ORIGIN_LINK)
 			continue;
@@ -120,7 +121,7 @@ route4:
 	link = true;
 route6:
 	gr_api_client_stream_foreach (
-		r6, ret, grout_ctx.client, GR_IP6_ROUTE_LIST, sizeof(r6_req), &r6_req
+		r6, ret, grout_ctx.sync_client, GR_IP6_ROUTE_LIST, sizeof(r6_req), &r6_req
 	) {
 		if (!link && r6->origin == GR_NH_ORIGIN_LINK)
 			continue;
@@ -149,7 +150,7 @@ static void grout_sync_nhs(struct event *e) {
 		return;
 
 	gr_api_client_stream_foreach (
-		nh, ret, grout_ctx.client, GR_NH_LIST, sizeof(nh_req), &nh_req
+		nh, ret, grout_ctx.sync_client, GR_NH_LIST, sizeof(nh_req), &nh_req
 	) {
 		grout_nexthop_change(true, nh, true);
 	}
@@ -174,7 +175,7 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 		return;
 
 	gr_api_client_stream_foreach (
-		ip_addr, ret, grout_ctx.client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
+		ip_addr, ret, grout_ctx.sync_client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
 	) {
 		grout_interface_addr4_change(true, ip_addr);
 	}
@@ -187,7 +188,7 @@ static void grout_sync_ifaces_addresses(struct event *e) {
 	const struct gr_ip6_ifaddr *ip6_addr;
 
 	gr_api_client_stream_foreach (
-		ip6_addr, ret, grout_ctx.client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
+		ip6_addr, ret, grout_ctx.sync_client, GR_IP6_ADDR_LIST, sizeof(ip6_req), &ip6_req
 	) {
 		grout_interface_addr6_change(true, ip6_addr);
 	}
@@ -221,7 +222,12 @@ static void grout_sync_ifaces(struct event *) {
 		if_req.type = types[i];
 
 		gr_api_client_stream_foreach (
-			iface, ret, grout_ctx.client, GR_INFRA_IFACE_LIST, sizeof(if_req), &if_req
+			iface,
+			ret,
+			grout_ctx.sync_client,
+			GR_INFRA_IFACE_LIST,
+			sizeof(if_req),
+			&if_req
 		) {
 			grout_link_change(iface, true, true);
 			sync_vrf[iface->vrf_id] = true;
@@ -642,11 +648,13 @@ static int zd_grout_finish(struct zebra_dplane_provider *, bool early) {
 	}
 
 	gr_api_client_disconnect(grout_ctx.client);
+	gr_api_client_disconnect(grout_ctx.sync_client);
 	gr_api_client_disconnect(grout_ctx.dplane_notifs);
 	gr_api_client_disconnect(grout_ctx.zebra_notifs);
+	grout_ctx.client = NULL;
+	grout_ctx.sync_client = NULL;
 	grout_ctx.dplane_notifs = NULL;
 	grout_ctx.zebra_notifs = NULL;
-	grout_ctx.client = NULL;
 	return 0;
 }
 
