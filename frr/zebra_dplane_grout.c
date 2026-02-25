@@ -8,6 +8,7 @@
 #include "rt_grout.h"
 
 #include <gr_api_client_impl.h>
+#include <gr_errno.h>
 #include <gr_srv6.h>
 
 #include <lib/bitfield.h>
@@ -30,6 +31,8 @@ struct grout_ctx_t {
 	// Event/'thread' pointer for queued updates
 	struct event *dg_t_zebra_update;
 	struct event *dg_t_dplane_update;
+	struct event *dg_t_sync;
+	struct event *dg_t_reconnect;
 
 	// Per-VRF sync chain event pointers
 	struct event *dg_t_dplane_sync;
@@ -42,8 +45,12 @@ static const char *plugin_name = "zebra_dplane_grout";
 
 static void dplane_read_notifications(struct event *event);
 static void zebra_read_notifications(struct event *event);
+static void dplane_grout_connect(struct event *);
+static void zebra_grout_connect(struct event *);
+static void grout_sync(struct event *);
 static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
+static void grout_reconnect(struct event *);
 
 struct grout_evt {
 	uint32_t type;
@@ -58,6 +65,7 @@ static int grout_notif_subscribe(
 	struct gr_event_subscribe_req req;
 	unsigned int i;
 
+	gr_api_client_disconnect(*pgr_client);
 	*pgr_client = gr_api_client_connect(gr_sock_path);
 	if (*pgr_client == NULL) {
 		gr_log_err("gr_api_client_connect(%s): %s", gr_sock_path, strerror(errno));
@@ -83,17 +91,6 @@ static int grout_notif_subscribe(
 	return 0;
 }
 
-static int grout_client_ensure_connect(void) {
-	if (grout_ctx.sync_client != NULL)
-		return 0;
-	grout_ctx.sync_client = gr_api_client_connect(gr_sock_path);
-	if (grout_ctx.sync_client == NULL) {
-		gr_log_err("gr_api_client_connect: %s", strerror(errno));
-		return -errno;
-	}
-	return 0;
-}
-
 static void grout_sync_routes(struct event *e) {
 	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e)};
 	struct gr_ip4_route *r4;
@@ -101,9 +98,6 @@ static void grout_sync_routes(struct event *e) {
 	int ret;
 
 	gr_log_info("vrf %u", EVENT_VAL(e));
-
-	if (grout_client_ensure_connect() < 0)
-		return;
 
 	link = true;
 route4:
@@ -116,8 +110,10 @@ route4:
 			continue;
 		grout_route4_change(true, r4);
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		gr_log_err("GR_IP4_ROUTE_LIST: %s", strerror(errno));
+		goto err;
+	}
 	if (link) {
 		link = false;
 		goto route4;
@@ -137,8 +133,10 @@ route6:
 			continue;
 		grout_route6_change(true, r6);
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		gr_log_err("GR_IP6_ROUTE_LIST: %s", strerror(errno));
+		goto err;
+	}
 	if (link) {
 		link = false;
 		goto route6;
@@ -157,6 +155,10 @@ route6:
 			return;
 		}
 	}
+	return;
+
+err:
+	event_add_timer(zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync);
 }
 
 static void grout_sync_nhs(struct event *e) {
@@ -168,9 +170,6 @@ static void grout_sync_nhs(struct event *e) {
 
 	gr_log_info("vrf %u", EVENT_VAL(e));
 
-	if (grout_client_ensure_connect() < 0)
-		return;
-
 	gr_api_client_stream_foreach (
 		nh, ret, grout_ctx.sync_client, GR_NH_LIST, sizeof(nh_req), &nh_req
 	) {
@@ -178,7 +177,9 @@ static void grout_sync_nhs(struct event *e) {
 	}
 	if (ret < 0) {
 		gr_log_err("GR_NH_LIST: %s", strerror(errno));
-		// No nexthop, we won't be able to add routes.
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync
+		);
 		return;
 	}
 	event_add_event(
@@ -195,16 +196,15 @@ static void grout_sync_addrs(struct event *e) {
 
 	gr_log_info("vrf %u", EVENT_VAL(e));
 
-	if (grout_client_ensure_connect() < 0)
-		return;
-
 	gr_api_client_stream_foreach (
 		ip_addr, ret, grout_ctx.sync_client, GR_IP4_ADDR_LIST, sizeof(ip_req), &ip_req
 	) {
 		grout_interface_addr4_change(true, ip_addr);
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		gr_log_err("GR_IP4_ADDR_LIST: %s", strerror(errno));
+		goto err;
+	}
 
 	struct gr_ip6_addr_list_req ip6_req = {
 		.vrf_id = EVENT_VAL(e), .iface_id = GR_IFACE_ID_UNDEF
@@ -216,11 +216,34 @@ static void grout_sync_addrs(struct event *e) {
 	) {
 		grout_interface_addr6_change(true, ip6_addr);
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		gr_log_err("GR_IP6_ADDR_LIST: %s", strerror(errno));
+		goto err;
+	}
 
 	event_add_event(
 		zrouter.master, grout_sync_nhs, NULL, EVENT_VAL(e), &grout_ctx.dg_t_zebra_sync
+	);
+	return;
+
+err:
+	event_add_timer(zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync);
+}
+
+static void grout_sync(struct event *) {
+	gr_api_client_disconnect(grout_ctx.sync_client);
+	grout_ctx.sync_client = gr_api_client_connect(gr_sock_path);
+	if (grout_ctx.sync_client == NULL) {
+		gr_log_info("waiting for grout at %s", gr_sock_path);
+		event_add_timer(zrouter.master, grout_sync, NULL, 1, &grout_ctx.dg_t_sync);
+		return;
+	}
+
+	// grout is available, schedule notification channels and sync
+	event_add_timer(dplane_get_thread_master(), dplane_grout_connect, NULL, 0, NULL);
+	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
+	event_add_event(
+		dplane_get_thread_master(), grout_sync_ifaces, NULL, 0, &grout_ctx.dg_t_dplane_sync
 	);
 }
 
@@ -243,9 +266,6 @@ static void grout_sync_ifaces(struct event *) {
 	memset(grout_ctx.sync_vrf.data, 0, grout_ctx.sync_vrf.m * sizeof(word_t));
 	grout_ctx.sync_vrf.n = 0;
 
-	if (grout_client_ensure_connect() < 0)
-		return;
-
 	for (i = 0; i < ARRAY_DIM(types); i++) {
 		if_req.type = types[i];
 
@@ -261,12 +281,14 @@ static void grout_sync_ifaces(struct event *) {
 			bf_set_bit(grout_ctx.sync_vrf, iface->vrf_id);
 		}
 
-		if (ret < 0)
+		if (ret < 0) {
 			gr_log_err(
 				"GR_INFRA_IFACE_LIST(%s): %s",
 				gr_iface_type_name(types[i]),
 				strerror(errno)
 			);
+			goto err;
+		}
 	}
 
 	// Start per-VRF sync chain with the first VRF
@@ -282,6 +304,10 @@ static void grout_sync_ifaces(struct event *) {
 			return;
 		}
 	}
+	return;
+
+err:
+	event_add_timer(zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync);
 }
 
 static void dplane_grout_connect(struct event *) {
@@ -299,8 +325,24 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_IP6_ADDR_DEL, .suppress_self_events = false},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0)
-		goto reschedule_connect;
+	gr_api_client_disconnect(grout_ctx.client);
+	grout_ctx.client = gr_api_client_connect(gr_sock_path);
+	if (grout_ctx.client == NULL) {
+		gr_log_err("gr_api_client_connect: %s", strerror(errno));
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
+		);
+		return;
+	}
+
+	if (grout_notif_subscribe(&grout_ctx.dplane_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0) {
+		gr_api_client_disconnect(grout_ctx.client);
+		grout_ctx.client = NULL;
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
+		);
+		return;
+	}
 
 	event_add_read(
 		dg_master,
@@ -311,10 +353,6 @@ static void dplane_grout_connect(struct event *) {
 	);
 
 	gr_log_notice("connected, monitoring iface/ip events");
-	return;
-
-reschedule_connect:
-	event_add_timer(dg_master, dplane_grout_connect, NULL, 1, &grout_ctx.dg_t_dplane_update);
 }
 
 static void zebra_grout_connect(struct event *) {
@@ -328,8 +366,12 @@ static void zebra_grout_connect(struct event *) {
 		{.type = GR_EVENT_NEXTHOP_UPDATE, .suppress_self_events = true},
 	};
 
-	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0)
-		goto reschedule_connect;
+	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0) {
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
+		);
+		return;
+	}
 
 	event_add_read(
 		zrouter.master,
@@ -340,10 +382,6 @@ static void zebra_grout_connect(struct event *) {
 	);
 
 	gr_log_notice("connected, monitoring route/nexthop events");
-	return;
-
-reschedule_connect:
-	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 1, &grout_ctx.dg_t_zebra_update);
 }
 
 static const char *gr_req_type_to_str(uint32_t e) {
@@ -393,35 +431,28 @@ static const char *gr_req_type_to_str(uint32_t e) {
 }
 
 int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data, void **rx_data) {
-	bool first = true;
 	int ret;
 
-retry:
+	if (grout_ctx.client == NULL)
+		return errno_set(ENOTCONN);
+
 	ret = gr_api_client_send_recv(grout_ctx.client, req_type, tx_len, tx_data, rx_data);
 	if (ret == 0) {
 		gr_log_debug("%s: success", gr_req_type_to_str(req_type));
 		return 0;
-	} else if (!first) {
-		gr_log_err("%s: %s", gr_req_type_to_str(req_type), strerror(errno));
-		return ret;
 	}
 
-	if (grout_ctx.client && errno != ECONNRESET && errno != EPIPE && errno != ENOTCONN)
-		return ret;
+	gr_log_err("%s: %s", gr_req_type_to_str(req_type), strerror(errno));
 
-	if (grout_ctx.client) {
+	if (errno == ECONNRESET || errno == EPIPE || errno == ENOTCONN) {
 		gr_api_client_disconnect(grout_ctx.client);
 		grout_ctx.client = NULL;
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
+		);
 	}
 
-	grout_ctx.client = gr_api_client_connect(gr_sock_path);
-	if (!grout_ctx.client) {
-		gr_log_err("gr_api_client_connect: %s", strerror(errno));
-		return -1;
-	}
-
-	first = false;
-	goto retry;
+	return ret;
 }
 
 static const char *gr_evt_to_str(uint32_t e) {
@@ -476,11 +507,12 @@ static void dplane_read_notifications(struct event *event) {
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.dplane_notifs, &gr_e) < 0 || gr_e == NULL) {
-		// On any error, reconnect
 		gr_api_client_disconnect(grout_ctx.dplane_notifs);
 		grout_ctx.dplane_notifs = NULL;
+		gr_api_client_disconnect(grout_ctx.client);
+		grout_ctx.client = NULL;
 		event_add_timer(
-			dg_master, dplane_grout_connect, NULL, 1, &grout_ctx.dg_t_dplane_update
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
 		);
 		return;
 	}
@@ -528,11 +560,10 @@ static void zebra_read_notifications(struct event *event) {
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.zebra_notifs, &gr_e) < 0 || gr_e == NULL) {
-		// On any error, reconnect
 		gr_api_client_disconnect(grout_ctx.zebra_notifs);
 		grout_ctx.zebra_notifs = NULL;
 		event_add_timer(
-			zrouter.master, zebra_grout_connect, NULL, 1, &grout_ctx.dg_t_zebra_update
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
 		);
 		return;
 	}
@@ -620,18 +651,8 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 	return 0;
 }
 
-static void zd_grout_ns(struct event *t) {
-	struct event_loop *dg_master = dplane_get_thread_master();
+static void grout_ns_reset(void) {
 	struct vrf *default_vrf;
-
-	// zebra_ns_disabled() calls event_cancel_async() on the dplane event
-	// loop which asserts that the caller is not its owner. At startup, the
-	// dplane event loop owner is still the main thread until the dplane
-	// pthread has actually started and claimed it. Retry until it has.
-	if (dg_master->owner == pthread_self()) {
-		event_add_timer_msec(zrouter.master, zd_grout_ns, NULL, 10, NULL);
-		return;
-	}
 
 	zebra_ns_disabled(ns_get_default());
 
@@ -653,10 +674,39 @@ static void zd_grout_ns(struct event *t) {
 		gr_log_err("failed to re-enable the default VRF!");
 		exit(1);
 	}
+}
 
-	// Add timer to connect on grout socket to get events
-	event_add_timer(dg_master, dplane_grout_connect, NULL, 0, NULL);
-	event_add_timer(zrouter.master, zebra_grout_connect, NULL, 0, NULL);
+static void grout_reconnect(struct event *) {
+	gr_log_notice("grout disconnected, performing full re-sync");
+
+	event_cancel(&grout_ctx.dg_t_zebra_update);
+	event_cancel(&grout_ctx.dg_t_zebra_sync);
+	event_cancel(&grout_ctx.dg_t_reconnect);
+	event_cancel(&grout_ctx.dg_t_sync);
+	event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
+	event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_sync, NULL);
+
+	gr_api_client_disconnect(grout_ctx.sync_client);
+	grout_ctx.sync_client = NULL;
+	clear_ifindex_mappings();
+
+	grout_ns_reset();
+	event_add_event(zrouter.master, grout_sync, NULL, 0, &grout_ctx.dg_t_sync);
+}
+
+static void zd_grout_ns(struct event *) {
+	struct event_loop *dg_master = dplane_get_thread_master();
+
+	// zebra_ns_disabled() calls event_cancel_async() on the dplane event
+	// loop which asserts that the caller is not its owner. At startup, the
+	// dplane event loop owner is still the main thread until the dplane
+	// pthread has actually started and claimed it. Retry until it has.
+	if (dg_master->owner == pthread_self()) {
+		event_add_timer_msec(zrouter.master, zd_grout_ns, NULL, 10, NULL);
+		return;
+	}
+
+	grout_ns_reset();
 }
 
 static int zd_grout_start(struct zebra_dplane_provider *prov) {
@@ -681,6 +731,8 @@ static int zd_grout_finish(struct zebra_dplane_provider *, bool early) {
 	if (early) {
 		event_cancel(&grout_ctx.dg_t_zebra_update);
 		event_cancel(&grout_ctx.dg_t_zebra_sync);
+		event_cancel(&grout_ctx.dg_t_reconnect);
+		event_cancel(&grout_ctx.dg_t_sync);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_sync, NULL);
 		return 0;
@@ -722,9 +774,7 @@ static int zd_grout_plugin_init(struct event_loop *) {
 }
 
 static int zd_grout_start_sync(struct event_loop *) {
-	event_add_timer(
-		dplane_get_thread_master(), grout_sync_ifaces, NULL, 0, &grout_ctx.dg_t_dplane_sync
-	);
+	event_add_timer(zrouter.master, grout_sync, NULL, 0, &grout_ctx.dg_t_sync);
 	return 0;
 }
 
