@@ -98,8 +98,6 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 	if (rx == 0)
 		return 0;
 
-	trace_log(RXTX_F_VLAN_OFFLOAD, ctx->iface, node, mbufs, rx);
-
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
@@ -112,6 +110,8 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 			d->vlan_id = 0;
 		}
 	}
+
+	trace_log(RXTX_F_VLAN_OFFLOAD, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);
@@ -134,8 +134,6 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 	if (rx == 0)
 		return 0;
 
-	trace_log(0, ctx->iface, node, mbufs, rx);
-
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
@@ -148,6 +146,8 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 			d->vlan_id = 0;
 		}
 	}
+
+	trace_log(0, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);
@@ -176,8 +176,6 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 	if (rx == 0)
 		return 0;
 
-	trace_log(RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
-
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
@@ -195,6 +193,8 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 				d->iface = iface;
 		}
 	}
+
+	trace_log(RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);
@@ -222,8 +222,6 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 	if (rx == 0)
 		return 0;
 
-	trace_log(RXTX_F_BOND, ctx->iface, node, mbufs, rx);
-
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
@@ -243,6 +241,8 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 			d->vlan_id = 0;
 		}
 	}
+
+	trace_log(RXTX_F_BOND, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);
