@@ -10,6 +10,7 @@
 #include <gr_mbuf.h>
 #include <gr_module.h>
 #include <gr_net_types.h>
+#include <gr_rxtx.h>
 #include <gr_trace.h>
 
 #include <rte_arp.h>
@@ -421,6 +422,7 @@ err:
 }
 
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
+	const struct iface_mbuf_data *d = iface_mbuf_data((void *)m);
 	const struct rte_ether_hdr *eth;
 	struct rte_ether_addr src, dst;
 	rte_be16_t ether_type;
@@ -436,19 +438,8 @@ void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *if
 
 	SAFE_BUF(snprintf, sizeof(buf), ETH_F " > " ETH_F, &src, &dst);
 
-	if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-		uint16_t vlan_id = m->vlan_tci & 0xfff;
-		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
-	} else if (ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
-		const struct rte_vlan_hdr *vlan;
-		uint16_t vlan_id;
-
-		vlan = rte_pktmbuf_mtod_offset(m, const struct rte_vlan_hdr *, offset);
-		offset += sizeof(*vlan);
-		vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
-		ether_type = vlan->eth_proto;
-		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", vlan_id);
-	}
+	if (d->vlan_id != 0)
+		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", d->vlan_id);
 
 	// ETHERTYPE are greater than 1536 (0x600)
 	// If this is not the case, this represent the len of the SNAP frame
