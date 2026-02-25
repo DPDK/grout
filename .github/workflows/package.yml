@@ -31,7 +31,7 @@ jobs:
             libjson-c-dev libmnl-dev libnuma-dev libprotobuf-c-dev libreadline-dev \
             librtr-dev libtool libyang-dev meson ninja-build \
             patch pkg-config protobuf-c-compiler python3-dev python3-pyelftools \
-            systemd-dev texinfo
+            systemd-dev texinfo libpcap-dev libbpf-dev
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history
@@ -99,7 +99,7 @@ jobs:
             libyang-devel libtool make meson ninja-build \
             numactl-devel pkgconf protobuf-c-compiler protobuf-c-devel \
             python3-pyelftools python3-devel rdma-core-devel readline-devel \
-            rpm-build scl-utils systemd
+            rpm-build scl-utils systemd libpcap-devel libbpf-devel
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # force fetch all history

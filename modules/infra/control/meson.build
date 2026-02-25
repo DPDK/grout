@@ -11,6 +11,7 @@ src += files(
   'lacp.c',
   'loopback.c',
   'mempool.c',
+  'mirror.c',
   'netlink.c',
   'nexthop.c',
   'port.c',

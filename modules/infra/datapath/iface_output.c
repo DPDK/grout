@@ -10,12 +10,15 @@
 #include <gr_trace.h>
 #include <gr_vlan.h>
 
+#include <rte_bpf.h>
+
 #include <stdint.h>
 
 enum {
 	INVAL = 0,
 	IFACE_DOWN,
 	NO_PARENT,
+	MIRROR,
 	NB_EDGES,
 };
 
@@ -58,6 +61,7 @@ static uint16_t iface_output_process(
 ) {
 	const struct iface *iface;
 	struct iface_mbuf_data *d;
+	uint16_t copy_count = 0;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
@@ -88,6 +92,22 @@ static uint16_t iface_output_process(
 			edge = IFACE_DOWN;
 			goto next;
 		}
+		if (iface->flags & GR_IFACE_F_MIRROR) {
+			int copy = 1;
+			if (d->iface->mirror_bpf) {
+				struct rte_bpf_jit jit;
+				rte_bpf_get_jit(d->iface->mirror_bpf, &jit);
+				if (jit.func)
+					copy = jit.func(m);
+				else
+					copy = rte_bpf_exec(d->iface->mirror_bpf, m);
+			}
+			if (copy) {
+				struct rte_mbuf *c = gr_mbuf_copy(m, UINT32_MAX);
+				rte_node_enqueue_x1(graph, node, MIRROR, c);
+				copy_count++;
+			}
+		}
 
 		IFACE_STATS_INC(tx, m, d->iface);
 
@@ -99,7 +119,7 @@ next:
 
 	IFACE_STATS_FLUSH(tx);
 
-	return nb_objs;
+	return nb_objs + copy_count;
 }
 
 static struct rte_node_register node = {
@@ -112,6 +132,7 @@ static struct rte_node_register node = {
 		[INVAL] = "iface_output_inval_type",
 		[IFACE_DOWN] = "iface_output_admin_down",
 		[NO_PARENT] = "iface_output_vlan_no_parent",
+		[MIRROR] = "mirror",
 	},
 };
 

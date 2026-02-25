@@ -15,6 +15,7 @@ src += files(
   'lacp_output.c',
   'loop_input.c',
   'loop_output.c',
+  'mirror.c',
   'xvrf.c',
   'main_loop.c',
   'port_output.c',

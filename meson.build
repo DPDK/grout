@@ -65,7 +65,7 @@ dpdk_dep = dependency(
     'werror=false',
     'tests=false',
     'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
-    'enable_libs=graph,hash,fib,rib,pcapng,gso,vhost,cryptodev,dmadev,security',
+    'enable_libs=graph,hash,fib,rib,pcapng,bpf,gso,vhost,cryptodev,dmadev,security',
     'disable_apps=*',
     'enable_docs=false',
     'developer_mode=disabled',
@@ -103,6 +103,11 @@ elif compiler.has_function(
   grout_cflags += ['-DHAVE_RTE_FIB_TBL8_GET_STATS']
 endif
 
+pcap_dep = dependency('libpcap', required: false, method: 'pkg-config')
+if not pcap_dep.found()
+  pcap_dep = compiler.find_library('pcap', required: true)
+endif
+
 src = []
 inc = []
 
@@ -124,7 +129,7 @@ subdir('frr')
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep, pcap_dep],
   c_args: ['-D__GROUT_MAIN__'] + grout_cflags,
   install: true,
 )

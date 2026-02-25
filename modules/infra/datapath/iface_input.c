@@ -12,10 +12,13 @@
 #include <gr_trace.h>
 #include <gr_vlan.h>
 
+#include <rte_bpf.h>
+
 enum {
 	IFACE_MODE_UNKNOWN = 0,
 	IFACE_DOWN,
 	UNKNOWN_VLAN,
+	MIRROR,
 	NB_EDGES,
 };
 
@@ -50,11 +53,15 @@ err:
 	return -1;
 }
 
+int pcapng_packetid_offset;
+
 static uint16_t
 iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	static __thread uint64_t packet_id = 0;
 	uint16_t last_iface_id, last_vlan_id;
 	const struct iface *vlan_iface;
 	struct iface_mbuf_data *d;
+	uint16_t copy_count = 0;
 	struct rte_mbuf *m;
 	uint16_t vlan_id;
 	rte_edge_t edge;
@@ -89,11 +96,35 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 
+		if (d->iface->flags & GR_IFACE_F_MIRROR) {
+			int copy = 1;
+			if (d->iface->mirror_bpf) {
+				struct rte_bpf_jit jit;
+				rte_bpf_get_jit(d->iface->mirror_bpf, &jit);
+				if (jit.func)
+					copy = jit.func(m);
+				else
+					copy = rte_bpf_exec(d->iface->mirror_bpf, m);
+			}
+			if (copy) {
+				if (pcapng_packetid_offset >= 0)
+					*RTE_MBUF_DYNFIELD(
+						m, pcapng_packetid_offset, uint64_t *
+					) = (++packet_id & ~(0xffL << 48))
+						| ((uint64_t)rte_lcore_id()) << 48;
+				struct rte_mbuf *c = gr_mbuf_copy(m, UINT32_MAX);
+				rte_node_enqueue_x1(graph, node, MIRROR, c);
+				copy_count++;
+			}
+		}
+
 		IFACE_STATS_INC(rx, m, d->iface);
 
 		edge = edges[d->iface->mode];
 next:
 		if (gr_mbuf_is_traced(m)) {
+			if (pcapng_packetid_offset >= 0) { }
+
 			struct iface_input_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->iface_id = d->iface->id;
 			t->mode = d->iface->mode;
@@ -104,7 +135,19 @@ next:
 
 	IFACE_STATS_FLUSH(rx);
 
-	return nb_objs;
+	return nb_objs + copy_count;
+}
+
+static void iface_input_register(void) {
+	const struct rte_mbuf_dynfield priv_params = {
+		.name = "pcap_packetid",
+		.size = sizeof(uint64_t),
+		.align = alignof(uint64_t),
+	};
+	pcapng_packetid_offset = rte_mbuf_dynfield_register(&priv_params);
+	if (pcapng_packetid_offset < 0) {
+		LOG(ERR, "rte_mbuf_dynfield_register(pcap_packetid): %s", rte_strerror(rte_errno));
+	}
 }
 
 static struct rte_node_register node = {
@@ -117,6 +160,7 @@ static struct rte_node_register node = {
 		[IFACE_MODE_UNKNOWN] = "iface_mode_unknown",
 		[IFACE_DOWN] = "iface_input_admin_down",
 		[UNKNOWN_VLAN] = "iface_input_unknown_vlan",
+		[MIRROR] = "mirror",
 		// other edges are updated dynamically with iface_input_mode_register
 	},
 };
@@ -125,6 +169,7 @@ static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L1,
 	.trace_format = iface_input_trace_format,
+	.register_callback = iface_input_register,
 };
 
 GR_NODE_REGISTER(info);

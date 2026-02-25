@@ -34,6 +34,7 @@ typedef enum : uint16_t {
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(2),
 	GR_IFACE_F_SNAT_STATIC = GR_BIT16(3),
 	GR_IFACE_F_SNAT_DYNAMIC = GR_BIT16(4),
+	GR_IFACE_F_MIRROR = GR_BIT16(5),
 } gr_iface_flags_t;
 
 // Interface state flags.
@@ -70,6 +71,9 @@ typedef enum : uint8_t {
 #define GR_IFACE_SET_VRF GR_BIT64(3)
 #define GR_IFACE_SET_DOMAIN GR_BIT64(4)
 #define GR_IFACE_SET_DESCR GR_BIT64(5)
+#define GR_IFACE_SET_MIRROR_FILTER GR_BIT64(6)
+
+#define GR_IFACE_MIRROR_FILTER_SIZE 64
 
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
@@ -86,6 +90,7 @@ struct __gr_iface_base {
 	uint16_t vrf_id;
 	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
+	char mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE]; // BPF filter (tcpdump expr), empty = none.
 };
 
 // Complete interface structure including type-specific info.

@@ -261,7 +261,7 @@ image.
 dnf install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc libmnl-devel \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
-        libarchive-devel rdma-core-devel
+        libarchive-devel rdma-core-devel libpcap-devel libbpf-devel
 ```
 
 or
@@ -270,7 +270,7 @@ or
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev libmnl-dev \
-        libarchive-dev libibverbs-dev
+        libarchive-dev libibverbs-dev libpcap-dev libbpf-dev
 ```
 
 Important: `grout` requires at least `gcc` 13 or `clang` 15.

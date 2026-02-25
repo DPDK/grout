@@ -70,6 +70,9 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src);
 // Detach the trace items from an mbuf and store them in the trace buffer.
 void gr_mbuf_trace_finish(struct rte_mbuf *m);
 
+// dynfield to store a unique packet id, for pcapng
+extern int pcapng_packetid_offset;
+
 // Deep copy of an mbuf: duplicates mbuf, copies mbuf priv data and traces
 static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len) {
 	struct rte_mbuf *copy = rte_pktmbuf_copy(m, m->pool, 0, data_len);

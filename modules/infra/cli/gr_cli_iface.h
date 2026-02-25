@@ -73,13 +73,22 @@ int arg_iface(
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
 #define IFACE_ATTRS_CMD                                                                            \
-	"(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
+	"(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR),"   \
+	"(mirror MIRROR),(filter FILTER)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
 		with_help(                                                                         \
 			"Enable/disable promiscuous mode.",                                        \
 			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))       \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Enable/disable port mirroring.",                                          \
+			EC_NODE_OR("MIRROR", ec_node_str("", "on"), ec_node_str("", "off"))        \
+		),                                                                                 \
+		with_help(                                                                         \
+			"BPF filter expression (tcpdump syntax), empty to clear.",                 \
+			ec_node("any", "FILTER")                                                   \
 		),                                                                                 \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
