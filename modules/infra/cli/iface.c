@@ -196,12 +196,8 @@ uint64_t parse_iface_args(
 	}
 
 	if (name != NULL) {
-		if (strlen(name) >= sizeof(iface->name)) {
-			errno = ENAMETOOLONG;
-			goto err;
-		}
-		set_attrs |= GR_IFACE_SET_NAME;
 		memccpy(iface->name, name, 0, sizeof(iface->name));
+		set_attrs |= GR_IFACE_SET_NAME;
 	}
 
 	if (arg_str(p, "up")) {

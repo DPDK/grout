@@ -43,6 +43,12 @@ grcli route add 2521:112::/64 via id 45
 grcli route add 2521:113::/64 via id 47
 grcli interface set port p0 rxqs 2
 grcli interface set port p1 rxqs 2
+grcli interface set port p0 name main && fail "using a reserved name should fail"
+grcli interface set port p0 name thisisasuperlonginterfacename && fail "long interface names should be rejected"
+grcli interface set port p0 name . && fail "using an invalid name should fail"
+grcli interface set port p0 name .. && fail "using an invalid name should fail"
+grcli interface set port p0 name "ok ok" && fail "using an invalid name should fail"
+grcli interface set port p0 name foo/bar && fail "using an invalid name should fail"
 grcli interface show
 grcli route show
 grcli nexthop show

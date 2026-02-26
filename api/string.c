@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 char *astrcat(char *buf, const char *fmt, ...) {
 	char *ret = NULL;
@@ -63,21 +62,6 @@ char *strjoin(char **array, size_t len, const char *sep) {
 	}
 
 	return out;
-}
-
-int charset_check(const char *buf, size_t maxlen) {
-	mbstate_t mb;
-	size_t len;
-
-	if (strlen(buf) >= maxlen)
-		return errno_set(ENAMETOOLONG);
-
-	memset(&mb, 0, sizeof(mb));
-	len = mbsrtowcs(NULL, &buf, 0, &mb);
-	if (len == (size_t)-1)
-		return errno_set(EILSEQ);
-
-	return 0;
 }
 
 int cpuset_format(char *buf, size_t len, const cpu_set_t *set) {
