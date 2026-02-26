@@ -22,6 +22,7 @@ static struct gr_iface *iface_to_api(const struct iface *priv) {
 		return errno_set_null(ENOMEM);
 	pub->base = priv->base;
 	memccpy(pub->name, priv->name, 0, sizeof(pub->name));
+	memccpy(pub->description, priv->description ?: "", 0, sizeof(pub->description));
 	type->to_api(pub->info, priv);
 	return pub;
 }
@@ -213,6 +214,8 @@ static void iface_metrics_collect(struct gr_metrics_writer *w) {
 			gr_iface_type_name(iface->type),
 			"mode",
 			gr_iface_mode_name(iface->mode),
+			"description",
+			iface->description ?: "",
 			NULL
 		);
 

@@ -62,7 +62,8 @@ int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, u
 #define INTERFACE_SET_CTX(root)                                                                    \
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
-#define IFACE_ATTRS_CMD "(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(domain DOMAIN))"
+#define IFACE_ATTRS_CMD                                                                            \
+	"(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
@@ -82,7 +83,8 @@ int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, u
 		with_help(                                                                         \
 			"Link domain interface.",                                                  \
 			ec_node_dyn("DOMAIN", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))  \
-		)
+		),                                                                                 \
+		with_help("Interface description.", ec_node("any", "DESCR"))
 
 uint64_t parse_iface_args(
 	struct gr_api_client *c,

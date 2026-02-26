@@ -4,9 +4,9 @@
 
 . $(dirname $0)/_init.sh
 
-grcli interface add bond bond0 mode lacp
+grcli interface add bond bond0 mode lacp description "lacp trunk"
 grcli interface add port p0 devargs net_null0,no-rx=1 domain bond0
-grcli interface add port p1 devargs net_null1,no-rx=1 domain bond0
+grcli interface add port p1 devargs net_null1,no-rx=1 domain bond0 description "uplink port"
 grcli interface add vlan v42 parent bond0 vlan_id 42
 grcli interface add vlan v43 parent bond0 vlan_id 43
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
@@ -43,6 +43,7 @@ grcli route add 2521:112::/64 via id 45
 grcli route add 2521:113::/64 via id 47
 grcli interface set port p0 rxqs 2
 grcli interface set port p1 rxqs 2
+grcli interface set port p2 description "peering link"
 grcli interface set port p0 name main && fail "using a reserved name should fail"
 grcli interface set port p0 name thisisasuperlonginterfacename && fail "long interface names should be rejected"
 grcli interface set port p0 name . && fail "using an invalid name should fail"
@@ -50,6 +51,11 @@ grcli interface set port p0 name .. && fail "using an invalid name should fail"
 grcli interface set port p0 name "ok ok" && fail "using an invalid name should fail"
 grcli interface set port p0 name foo/bar && fail "using an invalid name should fail"
 grcli interface show
+grcli interface show | grep -qF '"uplink port"' || fail "p1 description not in list"
+grcli interface show name p2
+grcli interface show name p2 | grep -qF 'description: peering link' || fail "p2 description not set"
+grcli interface show name bond0
+grcli interface show name bond0 | grep -qF 'description: lacp trunk' || fail "bond0 description not set"
 grcli route show
 grcli nexthop show
 grcli graph show full
