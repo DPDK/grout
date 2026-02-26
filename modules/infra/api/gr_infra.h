@@ -9,6 +9,7 @@
 #include <gr_net_types.h>
 
 #include <assert.h>
+#include <net/if.h>
 #include <sched.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -89,8 +90,7 @@ struct __gr_iface_base {
 struct gr_iface {
 	BASE(__gr_iface_base);
 
-#define GR_IFACE_NAME_SIZE 64
-	char name[GR_IFACE_NAME_SIZE]; // UTF-8 encoded, NUL terminated.
+	char name[IFNAMSIZ]; // NUL terminated.
 	uint8_t info[]; // Type specific interface info.
 };
 
@@ -254,7 +254,7 @@ struct gr_infra_iface_del_req {
 
 struct gr_infra_iface_get_req {
 	uint16_t iface_id; // 0 to search by name.
-	char name[GR_IFACE_NAME_SIZE]; // Used if iface_id is 0.
+	char name[IFNAMSIZ]; // Used if iface_id is 0.
 };
 
 struct gr_infra_iface_get_resp {

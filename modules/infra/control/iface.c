@@ -10,7 +10,6 @@
 #include <gr_module.h>
 #include <gr_nh_control.h>
 #include <gr_rcu.h>
-#include <gr_string.h>
 #include <gr_vec.h>
 #include <gr_vrf.h>
 
@@ -18,10 +17,10 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
-#include <wchar.h>
 
 static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 
@@ -73,17 +72,36 @@ static bool iface_name_is_reserved(const char *name) {
 			if (strncmp(name, r.name, strlen(r.name)) == 0)
 				return true;
 		} else {
-			if (strncmp(name, r.name, GR_IFACE_NAME_SIZE) == 0)
+			if (strcmp(name, r.name) == 0)
 				return true;
 		}
 	}
 	return false;
 }
 
+// Validate interface name using the same rules as the Linux kernel
+// dev_valid_name(): no empty name, no "." or "..", no '/', ':' or whitespace,
+// and must fit in IFNAMSIZ.
+static int iface_name_check(const char *name) {
+	const char *p;
+
+	if (*name == '\0')
+		return errno_set(EINVAL);
+	if (strnlen(name, IFNAMSIZ) == IFNAMSIZ)
+		return errno_set(ENAMETOOLONG);
+	if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+		return errno_set(EKEYREJECTED);
+	for (p = name; *p; p++) {
+		if (*p == '/' || *p == ':' || isspace(*p) || !isascii(*p))
+			return errno_set(EKEYREJECTED);
+	}
+	return 0;
+}
+
 static int iface_name_is_valid(const struct gr_iface *conf, const struct iface *exclude) {
 	const struct iface *iface = NULL;
 
-	if (charset_check(conf->name, GR_IFACE_NAME_SIZE) < 0)
+	if (iface_name_check(conf->name) < 0)
 		return -errno;
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		if (iface != exclude && strcmp(conf->name, iface->name) == 0)
@@ -91,9 +109,8 @@ static int iface_name_is_valid(const struct gr_iface *conf, const struct iface *
 	}
 	if (iface_name_is_reserved(conf->name)) {
 		// only default vrf can be named "GR_DEFAULT_VRF_NAME"
-		if (conf->id != GR_VRF_DEFAULT_ID
-		    || strncmp(conf->name, GR_DEFAULT_VRF_NAME, GR_IFACE_NAME_SIZE) != 0)
-			return errno_set(EINVAL);
+		if (conf->id != GR_VRF_DEFAULT_ID || strcmp(conf->name, GR_DEFAULT_VRF_NAME) != 0)
+			return errno_set(EKEYREJECTED);
 	}
 
 	return 0;
@@ -200,7 +217,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	iface->id = ifid;
 	iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 	// this is only accessed by the API, no need to copy the name to DPDK memory (hugepages)
-	iface->name = strndup(conf->name, GR_IFACE_NAME_SIZE);
+	iface->name = strdup(conf->name);
 	if (iface->name == NULL)
 		goto fail;
 
@@ -306,7 +323,7 @@ int iface_reconfig(
 		if (iface_name_is_valid(conf, iface) < 0)
 			return -errno;
 
-		char *new_name = strndup(conf->name, GR_IFACE_NAME_SIZE);
+		char *new_name = strdup(conf->name);
 		if (new_name == NULL)
 			return errno_set(ENOMEM);
 		free(iface->name);

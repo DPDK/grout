@@ -13,9 +13,6 @@ char *astrcat(char *buf, const char *fmt, ...) __attribute__((format(printf, 2, 
 // Join array of strings with separator.
 char *strjoin(char **array, size_t len, const char *sep);
 
-// Check if buffer contains valid multibyte encoding and length < maxlen.
-int charset_check(const char *buf, size_t maxlen);
-
 // Format CPU set as human readable string with ranges (e.g. "0,1,3-9").
 int cpuset_format(char *buf, size_t len, const cpu_set_t *set);
 
