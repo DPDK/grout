@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Robin Jarry
 ---
 language: en-US
-tone_instructions: "Only comment on critical issues, bugs, or security concerns. Skip style suggestions and minor observations."
+tone_instructions: "Only comment on critical issues, bugs, or security concerns. Skip style suggestions and minor observations. Avoid AI slop in PR summary."
 early_access: false
 enable_free_tier: true
 reviews:
