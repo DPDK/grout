@@ -89,6 +89,10 @@ static int bridge_fini(struct iface *iface) {
 		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
 
+	// Clear FDB forwarding stats.
+	if (iface->id < L2_MAX_BRIDGES)
+		memset(l2_fdb_stats[iface->id], 0, sizeof(l2_fdb_stats[0]));
+
 	fdb_purge_bridge(iface->id);
 
 	return 0;

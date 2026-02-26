@@ -205,3 +205,24 @@ struct gr_flood_list_req {
 };
 
 STREAM_RESP(struct gr_flood_entry);
+
+// FDB statistics ///////////////////////////////////////////////////////////////
+
+#define GR_L2_FDB_STATS_GET REQUEST_TYPE(GR_L2_MODULE, 0x0020)
+
+struct gr_l2_fdb_stats_get_req {
+	uint16_t bridge_id;
+};
+
+struct gr_l2_fdb_stats {
+	uint16_t bridge_id;
+	uint64_t hit; // unicast forwarded via FDB lookup
+	uint64_t miss; // unknown unicast, sent to flood
+	uint64_t flood; // broadcast/multicast, sent to flood
+};
+
+#define GR_L2_FDB_STATS_RESET REQUEST_TYPE(GR_L2_MODULE, 0x0021)
+
+struct gr_l2_fdb_stats_reset_req {
+	uint16_t bridge_id;
+};

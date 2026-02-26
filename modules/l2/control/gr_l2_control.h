@@ -9,11 +9,31 @@
 #include <gr_net_types.h>
 
 #include <rte_ip.h>
+#include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <rte_udp.h>
 #include <rte_vxlan.h>
 
 #include <stdint.h>
+
+// Per-core FDB forwarding statistics, indexed by [bridge_slot][lcore_id].
+// Track forwarding decisions that generic per-interface iface_stats and
+// drop node software stats cannot distinguish.
+struct fdb_stats {
+	uint64_t hit; // unicast forwarded via FDB lookup
+	uint64_t miss; // unknown unicast, sent to flood
+	uint64_t flood; // broadcast/multicast, sent to flood
+} __rte_cache_aligned;
+
+#define L2_MAX_BRIDGES 256
+
+extern struct fdb_stats l2_fdb_stats[L2_MAX_BRIDGES][RTE_MAX_LCORE];
+
+static inline struct fdb_stats *fdb_get_stats(uint16_t bridge_id, unsigned lcore_id) {
+	if (bridge_id >= L2_MAX_BRIDGES)
+		return NULL;
+	return &l2_fdb_stats[bridge_id][lcore_id];
+}
 
 // Internal bridge info structure.
 GR_IFACE_INFO(GR_IFACE_TYPE_BRIDGE, iface_info_bridge, {
