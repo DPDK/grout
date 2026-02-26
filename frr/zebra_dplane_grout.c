@@ -14,6 +14,7 @@
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
+#include <zebra/interface.h>
 #include <zebra/zebra_dplane.h>
 #include <zebra/zebra_router.h>
 #include <zebra_dplane_grout.h>
@@ -652,7 +653,14 @@ static int zd_grout_process(struct zebra_dplane_provider *prov) {
 }
 
 static void grout_ns_reset(void) {
-	struct vrf *default_vrf;
+	struct vrf *default_vrf, *vrf;
+	struct interface *ifp;
+
+	RB_FOREACH(vrf, vrf_id_head, &vrfs_by_id) {
+		FOR_ALL_INTERFACES(vrf, ifp) {
+			if_down(ifp);
+		}
+	}
 
 	zebra_ns_disabled(ns_get_default());
 
