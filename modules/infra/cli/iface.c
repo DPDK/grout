@@ -234,6 +234,12 @@ uint64_t parse_iface_args(
 		free(domain);
 	}
 
+	name = arg_str(p, "DESCR");
+	if (name != NULL) {
+		memccpy(iface->description, name, 0, sizeof(iface->description));
+		set_attrs |= GR_IFACE_SET_DESCR;
+	}
+
 	return set_attrs;
 err:
 	return 0;
@@ -259,6 +265,8 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	struct gr_infra_iface_list_req req;
 	const struct cli_iface_type *type;
 	const struct gr_iface *iface;
+	char buf[128];
+	size_t n;
 	int ret;
 
 	type = type_from_name(arg_str(p, "TYPE"));
@@ -280,7 +288,6 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		char buf[128];
 
 		// name
 		scols_line_set_data(line, 0, iface->name);
@@ -289,10 +296,8 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		scols_line_sprintf(line, 1, "%u", iface->id);
 
 		// flags
-		if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
-			ret = -1;
-			continue;
-		}
+		buf[0] = 0;
+		iface_flags_format(buf, sizeof(buf), iface);
 		scols_line_set_data(line, 2, buf);
 
 		// mode
@@ -316,6 +321,19 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		assert(type != NULL);
 		buf[0] = 0;
 		type->list_info(c, iface, buf, sizeof(buf));
+		n = strlen(buf);
+		if (n < sizeof(buf) - 1 && iface->description[0] != 0) {
+			if (n != 0)
+				n += snprintf(buf + n, sizeof(buf) - n, " ");
+			if (n < sizeof(buf) - 1)
+				n += snprintf(
+					buf + n, sizeof(buf) - n, "\"%s\"", iface->description
+				);
+		}
+		if (n >= sizeof(buf) - 1) {
+			n = sizeof(buf) - strlen("...") - 1;
+			snprintf(buf + n, sizeof(buf) - n, "...");
+		}
 		scols_line_set_data(line, 6, buf);
 	}
 
@@ -496,6 +514,8 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 
 	printf("name: %s\n", iface->name);
+	if (iface->description[0] != '\0')
+		printf("description: %s\n", iface->description);
 	printf("type: %s\n", gr_iface_type_name(iface->type));
 	printf("id: %u\n", iface->id);
 	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {

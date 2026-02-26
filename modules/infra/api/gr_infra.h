@@ -68,6 +68,7 @@ typedef enum : uint8_t {
 #define GR_IFACE_SET_NAME GR_BIT64(2)
 #define GR_IFACE_SET_VRF GR_BIT64(3)
 #define GR_IFACE_SET_DOMAIN GR_BIT64(4)
+#define GR_IFACE_SET_DESCR GR_BIT64(5)
 
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
@@ -91,6 +92,7 @@ struct gr_iface {
 	BASE(__gr_iface_base);
 
 	char name[IFNAMSIZ]; // NUL terminated.
+	char description[256]; // NUL terminated.
 	uint8_t info[]; // Type specific interface info.
 };
 

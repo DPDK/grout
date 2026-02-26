@@ -220,6 +220,16 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	iface->name = strdup(conf->name);
 	if (iface->name == NULL)
 		goto fail;
+	if (conf->description[0] != '\0') {
+		size_t len = strnlen(conf->description, sizeof(conf->description));
+		if (len >= sizeof(conf->description)) {
+			errno = ENAMETOOLONG;
+			goto fail;
+		}
+		iface->description = strdup(conf->description);
+		if (iface->description == NULL)
+			goto fail;
+	}
 
 	if (type->init(iface, api_info) < 0)
 		goto fail;
@@ -271,8 +281,10 @@ fail:
 		vrf_decref(iface->vrf_id);
 	if (type_init)
 		type->fini(iface);
-	if (iface != NULL)
+	if (iface != NULL) {
 		free(iface->name);
+		free(iface->description);
+	}
 	rte_free(iface);
 	return NULL;
 destroy:
@@ -328,6 +340,20 @@ int iface_reconfig(
 			return errno_set(ENOMEM);
 		free(iface->name);
 		iface->name = new_name;
+	}
+
+	if (set_attrs & GR_IFACE_SET_DESCR) {
+		size_t len = strnlen(conf->description, sizeof(conf->description));
+		char *new_descr = NULL;
+		if (len >= sizeof(conf->description))
+			return errno_set(ENAMETOOLONG);
+		if (len > 0) {
+			new_descr = strdup(conf->description);
+			if (new_descr == NULL)
+				return errno_set(ENOMEM);
+		}
+		free(iface->description);
+		iface->description = new_descr;
 	}
 
 	type = iface_type_get(iface->type);
@@ -602,6 +628,7 @@ int iface_destroy(struct iface *iface) {
 	assert(type != NULL);
 	ret = type->fini(iface);
 	free(iface->name);
+	free(iface->description);
 	gr_vec_free(iface->subinterfaces);
 	rte_free(iface);
 
