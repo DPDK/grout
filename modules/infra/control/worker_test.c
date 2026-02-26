@@ -11,6 +11,7 @@
 #include <gr_log.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
+#include <gr_netlink.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
@@ -45,6 +46,12 @@ void gr_metrics_ctx_init(struct gr_metrics_ctx *, struct gr_metrics_writer *, ..
 void gr_metrics_labels_add(struct gr_metrics_ctx *, ...) { }
 void gr_metric_emit(struct gr_metrics_ctx *, const struct gr_metric *, uint64_t) { }
 void gr_event_push(uint32_t, const void *) { }
+int netlink_link_set_name(uint32_t, const char *) {
+	return 0;
+}
+int netlink_set_ifalias(uint32_t, const char *) {
+	return 0;
+}
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 struct rte_rcu_qsbr *gr_datapath_rcu(void) {

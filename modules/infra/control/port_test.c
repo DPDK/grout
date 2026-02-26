@@ -10,6 +10,7 @@
 #include <gr_log.h>
 #include <gr_mempool.h>
 #include <gr_module.h>
+#include <gr_netlink.h>
 #include <gr_port.h>
 #include <gr_rcu.h>
 #include <gr_vrf.h>
@@ -24,6 +25,12 @@ void gr_register_module(struct gr_module *) { }
 void iface_type_register(const struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }
 void gr_event_subscribe(struct gr_event_subscription *) { }
+int netlink_link_set_name(uint32_t, const char *) {
+	return 0;
+}
+int netlink_set_ifalias(uint32_t, const char *) {
+	return 0;
+}
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
 struct rte_rcu_qsbr *gr_datapath_rcu(void) {

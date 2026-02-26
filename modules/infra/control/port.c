@@ -13,6 +13,7 @@
 #include <gr_mempool.h>
 #include <gr_metrics.h>
 #include <gr_module.h>
+#include <gr_netlink.h>
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
@@ -30,9 +31,14 @@
 #include <rte_malloc.h>
 
 #include <arpa/inet.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <net/if.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+
+static void port_hide_netdev(struct iface_info_port *port);
 
 #define ETHER_FRAME_GAP 20
 
@@ -364,6 +370,158 @@ static int iface_port_reconfig(
 
 static const struct iface *port_ifaces[RTE_MAX_ETHPORTS];
 
+// Read the physical port name from sysfs (e.g. "p1" on multi-port NICs).
+static int read_phys_port_name(const char *ifname, char *buf, size_t size) {
+	char path[PATH_MAX];
+	ssize_t len;
+	int fd;
+
+	snprintf(path, sizeof(path), "/sys/class/net/%s/phys_port_name", ifname);
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return -errno;
+	len = read(fd, buf, size - 1);
+	close(fd);
+	if (len <= 0)
+		return -errno;
+	while (buf[len - 1] == '\n')
+		len--;
+	buf[len] = '\0';
+
+	return 0;
+}
+
+// Build a predictable name similar to systemd/udev but with "_gr" prefix.
+// If ifname is not NULL, also append "n<phys_port_name>" when available
+// (e.g. enp24s0np1 -> _grp24s0np1).
+static int port_netdev_name(char *buf, size_t size, const char *pci_addr, const char *ifname) {
+	uint32_t domain, bus, slot, func;
+	char phys_port[IFNAMSIZ];
+	size_t n = 0;
+
+	if (sscanf(pci_addr, "%x:%x:%x.%x", &domain, &bus, &slot, &func) != 4)
+		goto err;
+
+	if (domain > 0)
+		SAFE_BUF(snprintf, size, "_grP%up%us%u", domain, bus, slot);
+	else
+		SAFE_BUF(snprintf, size, "_grp%us%u", bus, slot);
+
+	if (func > 0)
+		SAFE_BUF(snprintf, size, "f%u", func);
+
+	if (ifname != NULL && read_phys_port_name(ifname, phys_port, sizeof(phys_port)) == 0)
+		SAFE_BUF(snprintf, size, "n%s", phys_port);
+
+	return 0;
+err:
+	return -1;
+}
+
+static void port_hide_netdev(struct iface_info_port *port) {
+	char sysfs_path[PATH_MAX];
+	char new_name[IFNAMSIZ];
+	char ifalias[IFALIASZ];
+	struct dirent *entry;
+	unsigned ifindex;
+	DIR *dir;
+
+	snprintf(sysfs_path, sizeof(sysfs_path), "/sys/bus/pci/devices/%s/net", port->devargs);
+
+	dir = opendir(sysfs_path);
+	if (dir == NULL)
+		return;
+
+	while ((entry = readdir(dir)) != NULL) {
+		if (entry->d_name[0] == '.')
+			continue;
+
+		if (port_netdev_name(new_name, sizeof(new_name), port->devargs, entry->d_name) < 0)
+			break;
+
+		ifindex = if_nametoindex(entry->d_name);
+		if (ifindex == 0) {
+			LOG(WARNING, "if_nametoindex(%s): %s", entry->d_name, strerror(errno));
+			break;
+		}
+
+		port->linux_ifname = strdup(entry->d_name);
+		if (port->linux_ifname == NULL) {
+			LOG(WARNING, "strdup: %s", strerror(errno));
+			break;
+		}
+
+		if (netlink_link_set_name(ifindex, new_name) < 0) {
+			LOG(WARNING,
+			    "rename %s -> %s: %s",
+			    entry->d_name,
+			    new_name,
+			    strerror(errno));
+			free(port->linux_ifname);
+			port->linux_ifname = NULL;
+		} else {
+			LOG(INFO, "renamed %s -> %s", entry->d_name, new_name);
+		}
+
+		snprintf(
+			ifalias,
+			sizeof(ifalias),
+			"Grout port %s (was %s) -- do not configure",
+			port->devargs,
+			entry->d_name
+		);
+		if (netlink_set_ifalias(ifindex, ifalias) < 0)
+			LOG(WARNING, "netlink_set_ifalias: %s", strerror(errno));
+
+		break;
+	}
+
+	closedir(dir);
+}
+
+static void port_restore_netdev(struct iface_info_port *port) {
+	char sysfs_path[PATH_MAX];
+	struct dirent *entry;
+	unsigned ifindex;
+	DIR *dir;
+
+	if (port->linux_ifname == NULL)
+		return;
+
+	snprintf(sysfs_path, sizeof(sysfs_path), "/sys/bus/pci/devices/%s/net", port->devargs);
+
+	dir = opendir(sysfs_path);
+	if (dir == NULL)
+		goto out;
+
+	while ((entry = readdir(dir)) != NULL) {
+		if (entry->d_name[0] == '.')
+			continue;
+
+		ifindex = if_nametoindex(entry->d_name);
+		if (ifindex == 0) {
+			LOG(WARNING, "if_nametoindex(%s): %s", entry->d_name, strerror(errno));
+			break;
+		}
+
+		netlink_set_ifalias(ifindex, "");
+		if (netlink_link_set_name(ifindex, port->linux_ifname) < 0) {
+			LOG(WARNING,
+			    "rename %s -> %s: %s",
+			    entry->d_name,
+			    port->linux_ifname,
+			    strerror(errno));
+		} else {
+			LOG(INFO, "restored %s -> %s", entry->d_name, port->linux_ifname);
+		}
+		break;
+	}
+	closedir(dir);
+out:
+	free(port->linux_ifname);
+	port->linux_ifname = NULL;
+}
+
 static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = iface_info_port(iface);
 	gr_vec struct iface_info_port **ports = NULL;
@@ -397,6 +555,7 @@ static int iface_port_fini(struct iface *iface) {
 
 	port_ifaces[port->port_id] = NULL;
 
+	port_restore_netdev(port);
 	free(port->devargs);
 	port->devargs = NULL;
 	if ((ret = rte_eth_dev_info_get(port->port_id, &info)) < 0)
@@ -445,6 +604,8 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 		ret = errno_set(ENOMEM);
 		goto fail;
 	}
+
+	port_hide_netdev(port);
 
 	ret = iface_port_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
 	if (ret < 0) {
