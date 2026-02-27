@@ -5,6 +5,7 @@
 
 #include <sched.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // Concatenate formatted string to existing buffer (realloc as needed).
 // buf is freed; caller must use returned pointer. Returns NULL on error.
@@ -18,3 +19,6 @@ int cpuset_format(char *buf, size_t len, const cpu_set_t *set);
 
 // Parse CPU list string (e.g. "0,1,3-9") into a cpu_set_t object.
 int cpuset_parse(cpu_set_t *set, const char *buf);
+
+// Parse a string into an unsigned integer (wrapper around strtoul).
+int parse_uint(unsigned *u, const char *s, unsigned base, unsigned min, unsigned max);
