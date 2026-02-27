@@ -150,11 +150,21 @@ int dpdk_init(void) {
 	if (gr_config.test_mode) {
 		gr_vec_add(eal_args, "--no-shconf");
 		gr_vec_add(eal_args, "--no-huge");
-		gr_vec_add(eal_args, "-m");
-		if (gr_config.max_mtu > 2048)
-			gr_vec_add(eal_args, "4096");
-		else
-			gr_vec_add(eal_args, "2048");
+		// Add default -m unless the user overrides it via EAL args.
+		bool has_m = false;
+		gr_vec_foreach (arg, gr_config.eal_extra_args) {
+			if (strcmp(arg, "-m") == 0) {
+				has_m = true;
+				break;
+			}
+		}
+		if (!has_m) {
+			gr_vec_add(eal_args, "-m");
+			if (gr_config.max_mtu > 2048)
+				gr_vec_add(eal_args, "4096");
+			else
+				gr_vec_add(eal_args, "2048");
+		}
 	} else {
 		gr_vec_add(eal_args, "--in-memory");
 	}
