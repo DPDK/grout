@@ -2,7 +2,7 @@
 # Copyright (c) 2024 Robin Jarry
 
 set -e -o pipefail
-
+trap '' PIPE
 ulimit -c unlimited
 
 if [ "${_SMOKE_UNSHARED:-}" != 1 ]; then
