@@ -163,3 +163,24 @@ int cpuset_parse(cpu_set_t *set, const char *buf) {
 
 	return 0;
 }
+
+int parse_uint(unsigned *u, const char *s, unsigned base, unsigned min, unsigned max) {
+	unsigned long val;
+	char *endptr;
+
+	if (s == NULL)
+		return errno_set(EINVAL);
+
+	errno = 0;
+	val = strtoul(s, &endptr, base);
+	if (errno != 0)
+		return errno_set(errno);
+	if (*endptr != '\0')
+		return errno_set(EINVAL);
+	if (val < min || val > max)
+		return errno_set(ERANGE);
+
+	*u = val;
+
+	return 0;
+}

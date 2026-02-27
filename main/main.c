@@ -11,6 +11,7 @@
 #include <gr_api.h>
 #include <gr_config.h>
 #include <gr_log.h>
+#include <gr_string.h>
 #include <gr_trace.h>
 #include <gr_vec.h>
 #include <gr_version.h>
@@ -84,25 +85,6 @@ static int perr(const char *fmt, ...) {
 	fprintf(stderr, "error: %s\n", buf);
 
 	return -1;
-}
-
-static int
-parse_uint(unsigned int *v, const char *s, uint8_t base, unsigned long min, unsigned long max) {
-	unsigned long val;
-	char *endptr;
-
-	errno = 0;
-	val = strtoul(s, &endptr, base);
-	if (errno != 0)
-		return errno_set(errno);
-	if (*endptr != '\0')
-		return errno_set(EINVAL);
-	if (val < min || val > max)
-		return errno_set(ERANGE);
-
-	*v = val;
-
-	return 0;
 }
 
 struct gr_config gr_config;
