@@ -281,10 +281,18 @@ if [ "$run_grout" = true ]; then
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
+	case "$(basename $0)" in
+	fib*_fullview_manualtest.sh)
+		grout_extra_options+=" -v -- -m 4096"
+		;;
+	*)
+		grout_extra_options+=" -vvx"
+		;;
+	esac
 	# try to spread load on all CPUs
 	cpu="$(($RANDOM % ($(nproc) - 1)))"
 	affinity="$cpu,$((cpu+1))"
-	local_grout_cmd="taskset -c $affinity grout -vvx $grout_extra_options"
+	local_grout_cmd="taskset -c $affinity grout $grout_extra_options"
 	if [ "${GDB:-false}" = true ]; then
 		tmux new-window -d -n gdb gdb \
 			-ex 'handle SIGTERM nostop print pass' \
@@ -317,19 +325,26 @@ else
 fi
 
 case "$(basename $0)" in
-config_test.sh|graph_svg_test.sh)
+config_test.sh|graph_svg_test.sh|fib*_fullview_manualtest.sh)
 	;;
 *)
 	grcli trace enable all
 	;;
 esac
 
-if [ -t 1 ]; then
-	# print events in yellow
-	grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
-else
-	grcli events &
-fi
+case "$(basename $0)" in
+fib*_fullview_manualtest.sh)
+	grcli events >/dev/null &
+	;;
+*)
+	if [ -t 1 ]; then
+		# print events in yellow
+		grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
+	else
+		grcli events &
+	fi
+	;;
+esac
 
 if [ "${INTERACTIVE:-false}" = true ]; then
 	tmux_new_window grcli grcli
