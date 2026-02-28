@@ -543,7 +543,7 @@ static struct gr_module addr6_module = {
 
 static struct gr_event_subscription iface_event_subscription = {
 	.callback = ip6_iface_event_handler,
-	.ev_count = 4,
+	.ev_count = 5,
 	.ev_types = {
 		GR_EVENT_IFACE_POST_ADD,
 		GR_EVENT_IFACE_POST_RECONFIG,
