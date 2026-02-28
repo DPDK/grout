@@ -424,11 +424,13 @@ static void ip6_iface_llocal_init(const struct iface *iface) {
 	struct rte_ether_addr mac;
 	unsigned i;
 
-	if (iface_get_eth_addr(iface, &mac) == 0) {
-		rte_ipv6_llocal_from_ethernet(&link_local, &mac);
-		if (iface6_addr_add(iface, &link_local, 64) < 0)
-			errno_log(errno, "iface_addr_add");
-	}
+	if (iface_get_eth_addr(iface, &mac) < 0)
+		return;
+
+	rte_ipv6_llocal_from_ethernet(&link_local, &mac);
+	if (iface6_addr_add(iface, &link_local, 64) < 0)
+		errno_log(errno, "iface_addr_add");
+
 	for (i = 0; i < ARRAY_DIM(well_known_mcast_addrs); i++) {
 		if (mcast6_addr_add(iface, &well_known_mcast_addrs[i]) < 0)
 			LOG(INFO, "%s: mcast_addr_add: %s", iface->name, strerror(errno));
