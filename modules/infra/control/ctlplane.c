@@ -279,6 +279,7 @@ static void cp_create(struct iface *iface) {
 	}
 	iface->cp_id = ifr.ifr_ifindex;
 
+	netlink_set_addr_gen_mode_none(iface->cp_id);
 	snprintf(ifalias, IFALIASZ, "Grout control plane interface");
 	netlink_set_ifalias(iface->cp_id, ifalias);
 	netlink_link_set_admin_state(iface->cp_id, false, true);
