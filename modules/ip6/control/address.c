@@ -461,7 +461,8 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 
 	switch (event) {
 	case GR_EVENT_IFACE_POST_ADD:
-		ip6_iface_llocal_init(iface);
+		if (iface->mode == GR_IFACE_MODE_VRF)
+			ip6_iface_llocal_init(iface);
 		break;
 	case GR_EVENT_IFACE_POST_RECONFIG:
 		if (iface->mode != GR_IFACE_MODE_VRF) {
