@@ -94,7 +94,7 @@ static struct rte_fib *create_fib(uint16_t vrf_id) {
 		return errno_set_null(rte_errno);
 
 	struct rte_fib_rcu_config rcu_config = {
-		.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_SYNC
+		.v = gr_datapath_rcu(), .mode = RTE_FIB_QSBR_MODE_DQ
 	};
 	ret = rte_fib_rcu_qsbr_add(fib, &rcu_config);
 	if (ret < 0) {
