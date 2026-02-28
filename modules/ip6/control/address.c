@@ -234,7 +234,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (ret < 0)
 		return errno_set(-ret);
 
-	if (netlink_add_addr6(iface->cp_id, ip) < 0)
+	if (iface->cp_id != 0 && netlink_add_addr6(iface->cp_id, ip) < 0)
 		LOG(WARNING, "add addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	// gr_vec_add may realloc() and free the old vector
@@ -326,7 +326,7 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 			return errno_set(errno);
 	}
 
-	if (netlink_del_addr6(iface->cp_id, ip) < 0 && errno != EADDRNOTAVAIL)
+	if (iface->cp_id != 0 && netlink_del_addr6(iface->cp_id, ip) < 0 && errno != EADDRNOTAVAIL)
 		LOG(WARNING, "delete addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	return 0;
