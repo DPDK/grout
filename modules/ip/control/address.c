@@ -125,7 +125,7 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 		gr_vec_free(nhs_old);
 	}
 
-	if (netlink_add_addr4(iface->cp_id, ip) < 0)
+	if (iface->cp_id != 0 && netlink_add_addr4(iface->cp_id, ip) < 0)
 		LOG(WARNING, "add addr " IP4_F " on linux has failed (%s)", &ip, strerror(errno));
 
 	gr_event_push(
@@ -188,7 +188,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		gr_vec_free(addrs->nh);
 
 	iface = iface_from_id(iface_id);
-	if (iface) {
+	if (iface && iface->cp_id != 0) {
 		if (netlink_del_addr4(iface->cp_id, ip) < 0)
 			LOG(WARNING,
 			    "delete addr " IP4_F " on linux has failed (%s)",
