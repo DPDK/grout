@@ -773,7 +773,7 @@ found:
 		port->filter.flags = 0;
 		port->filter.hw_limit = 0;
 		ret = rte_eth_promiscuous_disable(port->port_id);
-		if (ret < 0)
+		if (ret < 0 && ret != -ENOTSUP)
 			LOG(NOTICE, "%s: promisc disable: %s", iface->name, rte_strerror(-ret));
 		else
 			iface->state &= ~GR_IFACE_S_PROMISC_FIXED;
@@ -789,7 +789,7 @@ found:
 		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
 	}
 
-	if (ret < 0)
+	if (ret < 0 && ret != -ENOTSUP)
 		LOG(WARNING, "%s: %s", iface->name, rte_strerror(-ret));
 
 	return 0;
