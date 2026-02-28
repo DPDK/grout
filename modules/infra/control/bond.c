@@ -76,10 +76,12 @@ static int bond_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
 	int ret;
 
 	if (rte_is_zero_ether_addr(mac)) {
-		if (bond->primary_member >= bond->n_members)
-			return 0;
-		if (iface_get_eth_addr(bond->members[bond->primary_member].iface, &e) < 0)
-			return -errno;
+		if (bond->primary_member < bond->n_members) {
+			if (iface_get_eth_addr(bond->members[bond->primary_member].iface, &e) < 0)
+				return -errno;
+		} else {
+			rte_eth_random_addr(e.addr_bytes);
+		}
 	} else if (rte_is_same_ether_addr(mac, &bond->mac)) {
 		return 0;
 	} else {
