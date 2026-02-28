@@ -326,7 +326,7 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 			return errno_set(errno);
 	}
 
-	if (netlink_del_addr6(iface->cp_id, ip) < 0)
+	if (netlink_del_addr6(iface->cp_id, ip) < 0 && errno != EADDRNOTAVAIL)
 		LOG(WARNING, "delete addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
 	return 0;
