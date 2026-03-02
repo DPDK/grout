@@ -107,16 +107,10 @@ static struct gr_api_handler set_packet_log_handler = {
 	.callback = packet_log_set,
 };
 
-static struct gr_event_subscription iface_add_sub = {
-	.callback = iface_add_callback,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_POST_ADD},
-};
-
 RTE_INIT(trace_init) {
 	gr_register_api_handler(&set_trace_handler);
 	gr_register_api_handler(&dump_trace_handler);
 	gr_register_api_handler(&clear_trace_handler);
 	gr_register_api_handler(&set_packet_log_handler);
-	gr_event_subscribe(&iface_add_sub);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
 }

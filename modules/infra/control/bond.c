@@ -467,16 +467,8 @@ static void bond_event(uint32_t /*event*/, const void *obj) {
 	bond_update_active_members(bond);
 }
 
-static struct gr_event_subscription bond_event_handler = {
-	.callback = bond_event,
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-	},
-};
-
 RTE_INIT(bond_constructor) {
 	iface_type_register(&iface_type_bond);
-	gr_event_subscribe(&bond_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, bond_event);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, bond_event);
 }
