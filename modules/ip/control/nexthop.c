@@ -227,7 +227,7 @@ static void nh4_init(struct event_base *) {
 }
 
 static struct gr_module nh4_module = {
-	.name = "ipv4 nexthop",
+	.name = "ip_nexthop",
 	.depends_on = "graph",
 	.init = nh4_init,
 };
