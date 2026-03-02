@@ -161,21 +161,6 @@ static int iface_event_serialize(const void *obj, void **buf) {
 	return sizeof(*api_iface) + type->pub_size;
 }
 
-static struct gr_event_serializer iface_serializer = {
-	.callback = iface_event_serialize,
-	.ev_count = 8,
-	.ev_types = {
-		GR_EVENT_IFACE_ADD,
-		GR_EVENT_IFACE_POST_ADD,
-		GR_EVENT_IFACE_PRE_REMOVE,
-		GR_EVENT_IFACE_REMOVE,
-		GR_EVENT_IFACE_POST_RECONFIG,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-		GR_EVENT_IFACE_MAC_CHANGE,
-	},
-};
-
 METRIC_GAUGE(m_up, "iface_up", "Interface administrative state.");
 METRIC_GAUGE(m_running, "iface_running", "Interface operational state.");
 METRIC_GAUGE(m_mtu, "iface_mtu", "Interface maximum transmission unit.");
@@ -276,6 +261,13 @@ RTE_INIT(infra_api_init) {
 	gr_register_api_handler(&iface_get_handler);
 	gr_register_api_handler(&iface_list_handler);
 	gr_register_api_handler(&iface_set_handler);
-	gr_event_register_serializer(&iface_serializer);
+	gr_event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_REMOVE, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_POST_RECONFIG, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_STATUS_UP, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_STATUS_DOWN, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_MAC_CHANGE, iface_event_serialize, 0);
 	gr_metrics_register(&iface_collector);
 }

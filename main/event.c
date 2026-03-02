@@ -65,52 +65,64 @@ void gr_event_push(uint32_t ev_type, const void *obj) {
 	}
 }
 
-STAILQ_HEAD(serializers, gr_event_serializer);
-static struct serializers serializers = STAILQ_HEAD_INITIALIZER(serializers);
+struct event_serializer {
+	gr_event_serializer_cb_t callback;
+	size_t size;
+};
 
-void gr_event_register_serializer(struct gr_event_serializer *serializer) {
-	struct gr_event_serializer *s;
+struct module_serializers {
+	struct event_serializer serializers[UINT_NUM_VALUES(uint16_t)];
+};
 
-	if (serializer == NULL)
-		ABORT("NULL serializer");
-	if (serializer->callback == NULL && serializer->size == 0)
+static struct module_serializers *mod_serializers[UINT_NUM_VALUES(uint16_t)];
+
+void gr_event_serializer(uint32_t ev_type, gr_event_serializer_cb_t callback, size_t size) {
+	uint16_t mod = (ev_type >> 16) & 0xffff;
+	uint16_t ev = ev_type & 0xffff;
+	struct module_serializers *sers;
+
+	if (callback == NULL && size == 0)
 		ABORT("one of callback or size are required");
-	if (serializer->callback != NULL && serializer->size != 0)
+	if (callback != NULL && size != 0)
 		ABORT("callback and size are mutually exclusive");
 
-	STAILQ_FOREACH (s, &serializers, next) {
-		for (unsigned i = 0; i < s->ev_count; i++) {
-			for (unsigned j = 0; j < serializer->ev_count; j++) {
-				if (s->ev_types[i] == serializer->ev_types[j])
-					ABORT("duplicate serializer for event 0x%08x",
-					      serializer->ev_types[j]);
-			}
-		}
+	sers = mod_serializers[mod];
+	if (sers == NULL) {
+		mod_serializers[mod] = sers = calloc(1, sizeof(*sers));
+		if (sers == NULL)
+			ABORT("calloc(module_serializers)");
 	}
-	STAILQ_INSERT_TAIL(&serializers, serializer, next);
+	if (sers->serializers[ev].callback != NULL || sers->serializers[ev].size != 0)
+		ABORT("duplicate serializer for event 0x%08x", ev_type);
+
+	sers->serializers[ev].callback = callback;
+	sers->serializers[ev].size = size;
 }
 
 int gr_event_serialize(uint32_t ev_type, const void *obj, void **buf) {
-	struct gr_event_serializer *s;
+	uint16_t mod = (ev_type >> 16) & 0xffff;
+	uint16_t ev = ev_type & 0xffff;
+	struct module_serializers *sers = mod_serializers[mod];
+	struct event_serializer *s;
 
-	STAILQ_FOREACH (s, &serializers, next) {
-		for (unsigned i = 0; i < s->ev_count; i++) {
-			if (s->ev_types[i] == ev_type) {
-				if (s->callback != NULL)
-					return s->callback(obj, buf);
+	assert(sers != NULL);
+	if (obj == NULL)
+		return errno_set(EINVAL);
 
-				void *data = malloc(s->size);
-				if (data == NULL)
-					return errno_set(ENOMEM);
+	s = &sers->serializers[ev];
+	if (s->callback != NULL)
+		return s->callback(obj, buf);
 
-				memcpy(data, obj, s->size);
-				*buf = data;
+	assert(s->size != 0);
 
-				return s->size;
-			}
-		}
-	}
-	ABORT("no registered serializer for event 0x%08x", ev_type);
+	void *data = malloc(s->size);
+	if (data == NULL)
+		return errno_set(ENOMEM);
+
+	memcpy(data, obj, s->size);
+	*buf = data;
+
+	return s->size;
 }
 
 static void event_fini(struct event_base *) {
@@ -122,6 +134,8 @@ static void event_fini(struct event_base *) {
 			free(subs);
 			mod_subs[mod] = NULL;
 		}
+		free(mod_serializers[mod]);
+		mod_serializers[mod] = NULL;
 	}
 }
 
