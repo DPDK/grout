@@ -5,7 +5,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/queue.h>
 
 typedef void (*gr_event_sub_cb_t)(uint32_t ev_type, const void *obj);
 
@@ -22,16 +21,9 @@ void gr_event_push(uint32_t ev_type, const void *obj);
 // @return          The size of the allocated buffer or a negative error number.
 typedef int (*gr_event_serializer_cb_t)(const void *obj, void **buf);
 
-struct gr_event_serializer {
-	STAILQ_ENTRY(gr_event_serializer) next;
-	gr_event_serializer_cb_t callback;
-	size_t size;
-	unsigned ev_count;
-	uint32_t ev_types[/*ev_count*/];
-};
-
-// Register a callback to convert an event object to an API notification message
-void gr_event_register_serializer(struct gr_event_serializer *);
+// Register a serializer for a specific event type.
+// callback and size are mutually exclusive (one must be non-zero).
+void gr_event_serializer(uint32_t ev_type, gr_event_serializer_cb_t callback, size_t size);
 
 // Serialize an event to be sent to a subscribed client over the API socket.
 int gr_event_serialize(uint32_t ev_type, const void *obj, void **buf);

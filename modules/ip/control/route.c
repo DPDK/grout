@@ -774,12 +774,6 @@ static struct gr_api_handler fib4_info_list_handler = {
 	.callback = fib4_info_list,
 };
 
-static struct gr_event_serializer route_serializer = {
-	.callback = serialize_route4_event,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IP_ROUTE_ADD, GR_EVENT_IP_ROUTE_DEL},
-};
-
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
 	.depends_on = "nexthop",
@@ -838,7 +832,8 @@ RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route4_list_handler);
 	gr_register_api_handler(&fib4_conf_set_handler);
 	gr_register_api_handler(&fib4_info_list_handler);
-	gr_event_register_serializer(&route_serializer);
+	gr_event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
+	gr_event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event, 0);
 	gr_register_module(&route4_module);
 	gr_metrics_register(&rib4_collector);
 	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_rm_cb);

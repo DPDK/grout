@@ -90,18 +90,10 @@ static struct gr_api_handler flood_list_handler = {
 	.callback = flood_list,
 };
 
-static struct gr_event_serializer serializer = {
-	.size = sizeof(struct gr_flood_entry),
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_FLOOD_ADD,
-		GR_EVENT_FLOOD_DEL,
-	},
-};
-
 RTE_INIT(flood_init) {
 	gr_register_api_handler(&flood_add_handler);
 	gr_register_api_handler(&flood_del_handler);
 	gr_register_api_handler(&flood_list_handler);
-	gr_event_register_serializer(&serializer);
+	gr_event_serializer(GR_EVENT_FLOOD_ADD, NULL, sizeof(struct gr_flood_entry));
+	gr_event_serializer(GR_EVENT_FLOOD_DEL, NULL, sizeof(struct gr_flood_entry));
 }
