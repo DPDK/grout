@@ -459,12 +459,6 @@ static void nexthop_iface_cleanup(uint32_t /*ev_type*/, const void *data) {
 	nexthop_iter(nh_cleanup_interface_cb, (void *)(uintptr_t)iface->id);
 }
 
-static struct gr_event_subscription iface_subscription = {
-	.callback = nexthop_iface_cleanup,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
-};
-
 void nexthop_destroy(struct nexthop *nh) {
 	const struct nexthop_type_ops *ops;
 
@@ -571,7 +565,7 @@ static struct gr_metrics_collector nexthop_collector = {
 
 RTE_INIT(init) {
 	gr_event_register_serializer(&nh_serializer);
-	gr_event_subscribe(&iface_subscription);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, nexthop_iface_cleanup);
 	gr_register_module(&module);
 	gr_metrics_register(&nexthop_collector);
 }

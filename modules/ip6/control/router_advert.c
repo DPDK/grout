@@ -243,16 +243,11 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 	}
 }
 
-static struct gr_event_subscription iface_event_sub = {
-	.callback = iface_event_handler,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IFACE_POST_ADD, GR_EVENT_IFACE_REMOVE},
-};
-
 RTE_INIT(router_advertisement_init) {
 	gr_register_module(&ra_module);
 	gr_register_api_handler(&ra_set_handler);
 	gr_register_api_handler(&ra_clear_handler);
 	gr_register_api_handler(&ra_show_handler);
-	gr_event_subscribe(&iface_event_sub);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event_handler);
 }

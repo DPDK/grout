@@ -872,12 +872,6 @@ static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
 	memset(route_counts[iface->id], 0, sizeof(route_counts[iface->id]));
 }
 
-static struct gr_event_subscription iface_subscription = {
-	.callback = iface_rm_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_REMOVE},
-};
-
 RTE_INIT(control_ip_init) {
 	gr_register_api_handler(&route6_add_handler);
 	gr_register_api_handler(&route6_del_handler);
@@ -888,5 +882,5 @@ RTE_INIT(control_ip_init) {
 	gr_event_register_serializer(&route6_serializer);
 	gr_register_module(&route6_module);
 	gr_metrics_register(&rib6_collector);
-	gr_event_subscribe(&iface_subscription);
+	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_rm_cb);
 }
