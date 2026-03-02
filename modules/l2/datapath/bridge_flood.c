@@ -23,23 +23,23 @@ enum edges {
 };
 
 static inline struct rte_mbuf *
-clone_packet(struct rte_mbuf *m, uint16_t clone_count, const struct iface *output_iface) {
-	struct rte_mbuf *clone;
+copy_packet(struct rte_mbuf *m, uint16_t copy_count, const struct iface *output_iface) {
+	struct rte_mbuf *copy;
 
 	// Copy packet for each output port (except the first one)
-	if (clone_count == 0) {
-		clone = m;
+	if (copy_count == 0) {
+		copy = m;
 	} else {
-		clone = gr_mbuf_copy(m, UINT32_MAX, sizeof(struct mbuf_data));
-		if (clone == NULL) {
+		copy = gr_mbuf_copy(m, UINT32_MAX, sizeof(struct mbuf_data));
+		if (copy == NULL) {
 			// TODO: add xstat
 			return NULL;
 		}
 	}
 
-	mbuf_data(clone)->iface = output_iface;
+	mbuf_data(copy)->iface = output_iface;
 
-	return clone;
+	return copy;
 }
 
 static uint16_t bridge_flood_process(
@@ -50,7 +50,7 @@ static uint16_t bridge_flood_process(
 ) {
 	const struct iface *br, *member, *iface;
 	const struct iface_info_bridge *bridge;
-	struct rte_mbuf *m, *clone;
+	struct rte_mbuf *m, *copy;
 	uint16_t flood_count;
 	uint16_t sent = 0;
 
@@ -79,18 +79,19 @@ static uint16_t bridge_flood_process(
 			if (!(member->flags & GR_IFACE_F_UP))
 				continue; // Skip down interfaces
 
-			clone = clone_packet(m, flood_count, member);
-			if (clone == NULL)
+			copy = copy_packet(m, flood_count, member);
+			if (copy == NULL)
 				continue;
 
-			rte_node_enqueue_x1(graph, node, OUTPUT, clone);
+			rte_node_enqueue_x1(graph, node, OUTPUT, copy);
+
 			flood_count++;
 		}
 		if (iface != br && (br->flags & GR_IFACE_F_UP)) {
 			// also flood to bridge interface
-			clone = clone_packet(m, flood_count, br);
-			if (clone != NULL) {
-				rte_node_enqueue_x1(graph, node, INPUT, clone);
+			copy = copy_packet(m, flood_count, br);
+			if (copy != NULL) {
+				rte_node_enqueue_x1(graph, node, INPUT, copy);
 				flood_count++;
 			}
 		}
