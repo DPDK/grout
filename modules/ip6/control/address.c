@@ -541,15 +541,6 @@ static struct gr_module addr6_module = {
 	.fini = addr6_fini,
 };
 
-static struct gr_event_serializer iface_addr_serializer = {
-	.size = sizeof(struct gr_ip6_ifaddr),
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_IP6_ADDR_ADD,
-		GR_EVENT_IP6_ADDR_DEL,
-	},
-};
-
 RTE_INIT(address_constructor) {
 	gr_register_api_handler(&addr6_add_handler);
 	gr_register_api_handler(&addr6_del_handler);
@@ -561,5 +552,6 @@ RTE_INIT(address_constructor) {
 	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, ip6_iface_event_handler);
 	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, ip6_iface_event_handler);
 	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, ip6_iface_event_handler);
-	gr_event_register_serializer(&iface_addr_serializer);
+	gr_event_serializer(GR_EVENT_IP6_ADDR_ADD, NULL, sizeof(struct gr_ip6_ifaddr));
+	gr_event_serializer(GR_EVENT_IP6_ADDR_DEL, NULL, sizeof(struct gr_ip6_ifaddr));
 }

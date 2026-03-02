@@ -365,16 +365,6 @@ static struct gr_api_handler config_set_handler = {
 	.callback = fdb_config_set,
 };
 
-static struct gr_event_serializer serializer = {
-	.size = sizeof(struct gr_fdb_entry),
-	.ev_count = 3,
-	.ev_types = {
-		GR_EVENT_FDB_ADD,
-		GR_EVENT_FDB_DEL,
-		GR_EVENT_FDB_UPDATE,
-	},
-};
-
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	const struct iface *bridge;
 	struct gr_fdb_entry *fdb;
@@ -452,6 +442,8 @@ RTE_INIT(init) {
 	gr_register_api_handler(&list_handler);
 	gr_register_api_handler(&config_get_handler);
 	gr_register_api_handler(&config_set_handler);
-	gr_event_register_serializer(&serializer);
+	gr_event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
+	gr_event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
+	gr_event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
 	gr_register_module(&module);
 }
