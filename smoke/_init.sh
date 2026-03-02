@@ -131,23 +131,13 @@ cleanup() {
 	sh -x $tmp/cleanup
 
 	if socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; then
-		# delete all non-port, non-bond, non-vrf interfaces first
-		grcli interface show |
-		grep -Ev -e ^NAME -e '\<port[[:space:]]+devargs=' -e '\<bond\>' -e '\<vrf\>' |
-		while read -r name _; do
-			grcli interface del "$name"
-		done
-		# then delete all ports and bonds
-		grcli interface show |
-		grep -ve ^NAME -e '\<vrf\>' |
-		while read -r name _; do
-			grcli interface del "$name"
-		done
-		# finally delete VRFs
-		grcli interface show |
-		grep -e '\<vrf\>' |
-		while read -r name _; do
-			grcli interface del "$name"
+		# delete interfaces in reverse dependency order
+		for type in vlan port bond ipip bridge vrf; do
+			grcli interface show type "$type" |
+			while read -r name _; do
+				[ "$name" = NAME ] && continue
+				grcli interface del "$name"
+			done
 		done
 	fi
 	[ -s $tmp/restore_interfaces ] && sh -x $tmp/restore_interfaces

@@ -645,35 +645,23 @@ static void iface_fini(struct event_base *) {
 	struct iface *iface;
 	uint16_t ifid;
 
-	// Destroy all virtual interface first before removing DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
-		iface = ifaces[ifid];
-		if (iface != NULL && iface->type != GR_IFACE_TYPE_PORT
-		    && iface->type != GR_IFACE_TYPE_VRF) {
+	// Destroy interfaces in reverse dependency order.
+	static const gr_iface_type_t types[] = {
+		GR_IFACE_TYPE_VLAN, // needs parent port/bond and VRF/bridge domain
+		GR_IFACE_TYPE_PORT, // needs bond/VRF/bridge domain
+		GR_IFACE_TYPE_BOND, // needs VRF/bridge domain
+		GR_IFACE_TYPE_IPIP, // needs VRF domain
+		GR_IFACE_TYPE_BRIDGE, // needs VRF domain
+		GR_IFACE_TYPE_VRF, // no dependencies
+	};
+	for (unsigned t = 0; t < ARRAY_DIM(types); t++) {
+		for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
+			iface = ifaces[ifid];
+			if (iface == NULL || iface->type != types[t])
+				continue;
 			if (iface_destroy(iface) < 0)
 				LOG(ERR, "iface_destroy: %s", strerror(errno));
-			ifaces[ifid] = NULL;
 		}
-	}
-
-	// Then, destroy DPDK ports.
-	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
-		iface = ifaces[ifid];
-		if (iface == NULL || iface->type == GR_IFACE_TYPE_VRF)
-			continue;
-		if (iface_destroy(iface) < 0)
-			LOG(ERR, "iface_destroy: %s", strerror(errno));
-	}
-
-	// Finally, destroy VRF interfaces.
-	for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
-		iface = ifaces[ifid];
-		if (iface == NULL)
-			continue;
-		assert(iface->type == GR_IFACE_TYPE_VRF);
-
-		if (iface_destroy(iface) < 0)
-			LOG(ERR, "iface_destroy: %s", strerror(errno));
 	}
 
 	gr_vec_free(reserved_names);
