@@ -160,6 +160,7 @@ static int bond_promisc_set(struct iface *iface, bool enabled) {
 
 static int bond_attach_member(struct iface *iface, struct iface *member) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
+	static const struct rte_ether_addr zero = {0};
 	int ret;
 
 	if (member->type != GR_IFACE_TYPE_PORT)
@@ -172,11 +173,6 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 
 	if (bond->n_members == ARRAY_DIM(bond->members))
 		return errno_set(EUSERS);
-
-	if (rte_is_zero_ether_addr(&bond->mac))
-		iface_get_eth_addr(member, &bond->mac);
-	else if (iface_add_eth_addr(member, &bond->mac) < 0)
-		return errno_log(errno, "iface_add_eth_addr(member)");
 
 	gr_vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
 		if (iface_add_eth_addr(member, mac) < 0)
@@ -192,6 +188,11 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 	memset(m, 0, sizeof(*m));
 	m->iface = member;
 	bond->n_members++;
+
+	if (bond_mac_set(iface, &zero) < 0) {
+		bond->n_members--;
+		return errno_log(errno, "bond_mac_set");
+	}
 
 	bond_update_active_members(iface);
 
