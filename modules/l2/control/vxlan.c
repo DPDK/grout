@@ -223,12 +223,6 @@ static void vxlan_pre_remove_cb(uint32_t /*ev_type*/, const void *obj) {
 	rte_hash_del_key(vxlan_hash, &key);
 }
 
-static struct gr_event_subscription vxlan_subscription = {
-	.callback = vxlan_pre_remove_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
-};
-
 static int vtep_flood_add(const struct gr_flood_entry *entry, bool exist_ok) {
 	struct iface_info_vxlan *vxlan;
 	ip4_addr_t *vteps, *old_vteps;
@@ -362,6 +356,6 @@ static struct gr_module vxlan_module = {
 RTE_INIT(vxlan_constructor) {
 	gr_register_module(&vxlan_module);
 	iface_type_register(&iface_type_vxlan);
-	gr_event_subscribe(&vxlan_subscription);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, vxlan_pre_remove_cb);
 	flood_type_register(&vtep_flood_ops);
 }

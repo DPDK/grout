@@ -76,9 +76,9 @@ static gr_vec struct subscription *all_events_subs;
 //                             +--------+
 //
 struct module_subscribers {
-	gr_vec struct subscription *ev_subs[UINT16_MAX];
+	gr_vec struct subscription *ev_subs[UINT_NUM_VALUES(uint16_t)];
 };
-static struct module_subscribers *mod_subs[UINT16_MAX];
+static struct module_subscribers *mod_subs[UINT_NUM_VALUES(uint16_t)];
 static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
@@ -186,11 +186,11 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 			i++;
 	}
 
-	for (uint16_t mod = 0; mod < ARRAY_DIM(mod_subs); mod++) {
+	for (unsigned mod = 0; mod < ARRAY_DIM(mod_subs); mod++) {
 		struct module_subscribers *subs = mod_subs[mod];
 		if (subs == NULL)
 			continue;
-		for (uint16_t ev = 0; ev < ARRAY_DIM(subs->ev_subs); ev++) {
+		for (unsigned ev = 0; ev < ARRAY_DIM(subs->ev_subs); ev++) {
 			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
 			while (i < gr_vec_len(ev_subs)) {

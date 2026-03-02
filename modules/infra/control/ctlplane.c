@@ -423,18 +423,6 @@ static void iface_event(uint32_t event, const void *obj) {
 	}
 }
 
-static struct gr_event_subscription iface_event_handler = {
-	.callback = iface_event,
-	.ev_count = 5,
-	.ev_types = {
-		GR_EVENT_IFACE_ADD,
-		GR_EVENT_IFACE_REMOVE,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-		GR_EVENT_IFACE_POST_RECONFIG,
-	},
-};
-
 static void cp_module_init(struct event_base *base) {
 	cp_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
 	if (!cp_pool)
@@ -456,5 +444,9 @@ static struct gr_module cp_module = {
 
 RTE_INIT(cp_constructor) {
 	gr_register_module(&cp_module);
-	gr_event_subscribe(&iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
 }

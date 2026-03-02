@@ -9,15 +9,8 @@
 
 typedef void (*gr_event_sub_cb_t)(uint32_t ev_type, const void *obj);
 
-struct gr_event_subscription {
-	STAILQ_ENTRY(gr_event_subscription) next;
-	gr_event_sub_cb_t callback;
-	unsigned ev_count;
-	uint32_t ev_types[/*ev_count*/];
-};
-
-// Register an event subscriber
-void gr_event_subscribe(struct gr_event_subscription *);
+// Register a callback for a specific event type
+void gr_event_subscribe(uint32_t ev_type, gr_event_sub_cb_t callback);
 
 // Notify all subscribers (see gr_event_subscribe)
 void gr_event_push(uint32_t ev_type, const void *obj);
