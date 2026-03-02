@@ -10,6 +10,7 @@
 #include <gr_trace.h>
 
 #include <rte_ether.h>
+#include <rte_lcore.h>
 
 enum edges {
 	OUTPUT = 0,
@@ -38,8 +39,11 @@ static uint16_t bridge_input_process(
 	const struct gr_fdb_entry *fdb;
 	struct iface_mbuf_data *d;
 	struct rte_ether_hdr *eth;
+	struct fdb_stats *stats;
 	struct rte_mbuf *m;
+	ip4_addr_t vtep;
 	rte_edge_t edge;
+	unsigned lcore_id = rte_lcore_id();
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -59,15 +63,20 @@ static uint16_t bridge_input_process(
 			goto next;
 		}
 		br = iface_info_bridge(bridge);
+		stats = fdb_get_stats(bridge->id, lcore_id);
 
 		if (rte_is_unicast_ether_addr(&eth->src_addr)
-		    && !(br->flags & GR_BRIDGE_F_NO_LEARN))
-			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id);
+		    && !(br->flags & GR_BRIDGE_F_NO_LEARN)) {
+			vtep = (d->iface->type == GR_IFACE_TYPE_VXLAN) ? d->vtep : 0;
+			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id, vtep);
+		}
 
 		if (rte_is_unicast_ether_addr(&eth->dst_addr)) {
 			fdb = fdb_lookup(bridge->id, &eth->dst_addr, d->vlan_id);
 			if (fdb == NULL) {
 				// Unknown unicast
+				if (stats)
+					stats->miss++;
 				edge = FLOOD;
 				goto next;
 			}
@@ -82,7 +91,11 @@ static uint16_t bridge_input_process(
 				goto next;
 			}
 			// Direct output to learned interface
+			if (stats)
+				stats->hit++;
 			d->iface = iface;
+			d->vtep = fdb->vtep;
+
 			if (iface->type == GR_IFACE_TYPE_BRIDGE) {
 				edge = INPUT;
 			} else {
@@ -90,6 +103,8 @@ static uint16_t bridge_input_process(
 			}
 		} else {
 			// Broadcast, multicast
+			if (stats)
+				stats->flood++;
 			edge = FLOOD;
 		}
 next:

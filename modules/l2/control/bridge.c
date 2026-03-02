@@ -35,6 +35,7 @@ static int bridge_attach_member(struct iface *bridge, struct iface *member) {
 	case GR_IFACE_TYPE_PORT:
 	case GR_IFACE_TYPE_VLAN:
 	case GR_IFACE_TYPE_BOND:
+	case GR_IFACE_TYPE_VXLAN:
 		break;
 	default:
 		return errno_set(EMEDIUMTYPE);
@@ -87,6 +88,10 @@ static int bridge_fini(struct iface *iface) {
 		member->mode = GR_IFACE_MODE_VRF;
 		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
+
+	// Clear FDB forwarding stats.
+	if (iface->id < L2_MAX_BRIDGES)
+		memset(l2_fdb_stats[iface->id], 0, sizeof(l2_fdb_stats[0]));
 
 	fdb_purge_bridge(iface->id);
 

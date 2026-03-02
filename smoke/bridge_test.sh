@@ -48,6 +48,11 @@ if grcli fdb show iface p1 | grep .; then
 	fail "fdb still contains entries for removed interface"
 fi
 
+# verify FDB stats show forwarding counters
+grcli stats fdb show br0 | grep -q 'fdb_hit:' || fail "stats missing fdb_hit field"
+grcli stats fdb reset br0
+grcli stats fdb show br0 | grep -q 'fdb_hit:   0' || fail "stats not reset"
+
 grcli interface del br0
 if grcli fdb show | grep .; then
 	fail "fdb still contains entries"
