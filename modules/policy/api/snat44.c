@@ -51,24 +51,8 @@ static struct api_out snat44_list(const void * /*request*/, struct api_ctx *ctx)
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler add_handler = {
-	.name = "snat44 add",
-	.request_type = GR_SNAT44_ADD,
-	.callback = snat44_add,
-};
-static struct gr_api_handler del_handler = {
-	.name = "snat44 del",
-	.request_type = GR_SNAT44_DEL,
-	.callback = snat44_del,
-};
-static struct gr_api_handler list_handler = {
-	.name = "snat44 list",
-	.request_type = GR_SNAT44_LIST,
-	.callback = snat44_list,
-};
-
 RTE_INIT(_init) {
-	gr_register_api_handler(&add_handler);
-	gr_register_api_handler(&del_handler);
-	gr_register_api_handler(&list_handler);
+	gr_api_handler(GR_SNAT44_ADD, snat44_add);
+	gr_api_handler(GR_SNAT44_DEL, snat44_del);
+	gr_api_handler(GR_SNAT44_LIST, snat44_list);
 }

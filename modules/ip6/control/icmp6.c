@@ -143,18 +143,6 @@ static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	return api_out(ret, sizeof(*resp), resp);
 }
 
-static struct gr_api_handler ip6_icmp_send_handler = {
-	.name = "icmp6 send",
-	.request_type = GR_IP6_ICMP6_SEND,
-	.callback = icmp6_send,
-};
-
-static struct gr_api_handler ip6_icmp_recv_handler = {
-	.name = "icmp6 recv",
-	.request_type = GR_IP6_ICMP6_RECV,
-	.callback = icmp6_recv,
-};
-
 #define ICMP6_LOCAL_QUEUE_SIZE 1024
 
 static void icmp_init(struct event_base *) {
@@ -193,8 +181,8 @@ static struct gr_module icmp6_module = {
 
 RTE_INIT(icmp_module_init) {
 	gr_register_module(&icmp6_module);
-	gr_register_api_handler(&ip6_icmp_send_handler);
-	gr_register_api_handler(&ip6_icmp_recv_handler);
+	gr_api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
+	gr_api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
 	icmp6_input_register_callback(ICMP6_TYPE_ECHO_REPLY, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_DEST_UNREACH, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_TTL_EXCEEDED, icmp6_input_cb);

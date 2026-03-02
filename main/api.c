@@ -169,12 +169,6 @@ static struct api_out subscribe(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler subscribe_handler = {
-	.request_type = GR_MAIN_EVENT_SUBSCRIBE,
-	.callback = subscribe,
-	.name = "event subscribe"
-};
-
 static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx) {
 	unsigned i;
 
@@ -205,12 +199,6 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler unsubscribe_handler = {
-	.request_type = GR_MAIN_EVENT_UNSUBSCRIBE,
-	.callback = unsubscribe,
-	.name = "event unsubscribe"
-};
-
 static struct api_out hello(const void *request, struct api_ctx *) {
 	const struct gr_hello_req *req = request;
 
@@ -219,12 +207,6 @@ static struct api_out hello(const void *request, struct api_ctx *) {
 
 	return api_out(0, 0, NULL);
 }
-
-static struct gr_api_handler hello_handler = {
-	.request_type = GR_MAIN_HELLO,
-	.callback = hello,
-	.name = "hello"
-};
 
 static void disconnect_client(struct api_ctx *ctx) {
 	assert(ctx != NULL);
@@ -305,7 +287,7 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 	struct api_out out;
 
 	// We have a complete request, process it
-	const struct gr_api_handler *handler = lookup_api_handler(&ctx->header);
+	const struct api_handler *handler = lookup_api_handler(ctx->header.type);
 	if (handler == NULL) {
 		out.status = ENOTSUP;
 		out.len = 0;
@@ -465,7 +447,7 @@ void api_socket_stop(struct event_base *) {
 }
 
 RTE_INIT(init) {
-	gr_register_api_handler(&subscribe_handler);
-	gr_register_api_handler(&unsubscribe_handler);
-	gr_register_api_handler(&hello_handler);
+	gr_api_handler(GR_MAIN_EVENT_SUBSCRIBE, subscribe);
+	gr_api_handler(GR_MAIN_EVENT_UNSUBSCRIBE, unsubscribe);
+	gr_api_handler(GR_MAIN_HELLO, hello);
 }

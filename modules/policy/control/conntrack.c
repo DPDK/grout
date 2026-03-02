@@ -595,12 +595,6 @@ static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *c
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler conn_list_handler = {
-	.name = "conntrack list",
-	.request_type = GR_CONNTRACK_LIST,
-	.callback = conntrack_list,
-};
-
 static struct api_out conntrack_flush(const void * /*request*/, struct api_ctx *) {
 	struct conn *conn;
 	const void *key;
@@ -618,12 +612,6 @@ static struct api_out conntrack_flush(const void * /*request*/, struct api_ctx *
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler conn_flush_handler = {
-	.name = "conntrack flush",
-	.request_type = GR_CONNTRACK_FLUSH,
-	.callback = conntrack_flush,
-};
-
 static struct api_out config_set(const void *request, struct api_ctx *) {
 	const struct gr_conntrack_conf_set_req *req = request;
 
@@ -632,12 +620,6 @@ static struct api_out config_set(const void *request, struct api_ctx *) {
 
 	return api_out(0, 0, NULL);
 }
-
-static struct gr_api_handler conf_set_handler = {
-	.name = "conntrack config set",
-	.request_type = GR_CONNTRACK_CONF_SET,
-	.callback = config_set,
-};
 
 static struct api_out config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_conntrack_conf_get_resp *resp = malloc(sizeof(*resp));
@@ -659,12 +641,6 @@ static struct api_out config_get(const void * /*request*/, struct api_ctx *) {
 
 	return api_out(0, sizeof(*resp), resp);
 }
-
-static struct gr_api_handler conf_get_handler = {
-	.name = "conntrack config get",
-	.request_type = GR_CONNTRACK_CONF_GET,
-	.callback = config_get,
-};
 
 static void conntrack_init(struct event_base *ev_base) {
 	if (config_update(&conf) < 0)
@@ -694,8 +670,8 @@ static struct gr_module module = {
 
 RTE_INIT(_init) {
 	gr_register_module(&module);
-	gr_register_api_handler(&conn_list_handler);
-	gr_register_api_handler(&conn_flush_handler);
-	gr_register_api_handler(&conf_set_handler);
-	gr_register_api_handler(&conf_get_handler);
+	gr_api_handler(GR_CONNTRACK_LIST, conntrack_list);
+	gr_api_handler(GR_CONNTRACK_FLUSH, conntrack_flush);
+	gr_api_handler(GR_CONNTRACK_CONF_SET, config_set);
+	gr_api_handler(GR_CONNTRACK_CONF_GET, config_get);
 }

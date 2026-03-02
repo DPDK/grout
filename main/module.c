@@ -5,42 +5,53 @@
 
 #include <gr_api.h>
 #include <gr_log.h>
+#include <gr_macro.h>
 #include <gr_module.h>
 #include <gr_sort.h>
 #include <gr_vec.h>
 
 #include <assert.h>
 #include <fnmatch.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
 
-static STAILQ_HEAD(, gr_api_handler) handlers = STAILQ_HEAD_INITIALIZER(handlers);
+struct module_handlers {
+	struct api_handler handlers[UINT_NUM_VALUES(uint16_t)];
+};
 
-void gr_register_api_handler(struct gr_api_handler *handler) {
-	const struct gr_api_handler *h;
+static struct module_handlers *mod_handlers[UINT_NUM_VALUES(uint16_t)];
 
-	assert(handler != NULL);
-	assert(handler->callback != NULL);
-	assert(handler->name != NULL);
+void __gr_api_handler(uint32_t request_type, gr_api_handler_func callback, const char *name) {
+	uint16_t mod = (request_type >> 16) & 0xffff;
+	uint16_t req = request_type & 0xffff;
+	struct module_handlers *mh;
 
-	STAILQ_FOREACH (h, &handlers, next) {
-		if (h->request_type == handler->request_type)
-			ABORT("duplicate api handler type=0x%08x '%s'",
-			      handler->request_type,
-			      handler->name);
+	assert(callback != NULL);
+	assert(name != NULL);
+
+	mh = mod_handlers[mod];
+	if (mh == NULL) {
+		mod_handlers[mod] = mh = calloc(1, sizeof(*mh));
+		if (mh == NULL)
+			ABORT("calloc(module_handlers)");
 	}
-	STAILQ_INSERT_TAIL(&handlers, handler, next);
+	if (mh->handlers[req].callback != NULL)
+		ABORT("duplicate api handler type=0x%08x '%s'", request_type, name);
+
+	mh->handlers[req].callback = callback;
+	mh->handlers[req].name = name;
 }
 
-const struct gr_api_handler *lookup_api_handler(const struct gr_api_request *req) {
-	const struct gr_api_handler *handler;
+const struct api_handler *lookup_api_handler(uint32_t request_type) {
+	uint16_t mod = (request_type >> 16) & 0xffff;
+	uint16_t req = request_type & 0xffff;
+	struct module_handlers *mh = mod_handlers[mod];
 
-	STAILQ_FOREACH (handler, &handlers, next) {
-		if (handler->request_type == req->type)
-			return handler;
-	}
+	if (mh == NULL || mh->handlers[req].callback == NULL)
+		return NULL;
 
-	return NULL;
+	return &mh->handlers[req];
 }
 
 static STAILQ_HEAD(, gr_module) modules = STAILQ_HEAD_INITIALIZER(modules);
@@ -125,4 +136,9 @@ void modules_fini(struct event_base *ev_base) {
 	}
 
 	gr_vec_free(mods);
+
+	for (unsigned i = 0; i < ARRAY_DIM(mod_handlers); i++) {
+		free(mod_handlers[i]);
+		mod_handlers[i] = NULL;
+	}
 }

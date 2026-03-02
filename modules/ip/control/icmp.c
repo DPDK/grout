@@ -155,18 +155,6 @@ out:
 	return api_out(ret, len, resp);
 }
 
-static struct gr_api_handler ip4_icmp_send_handler = {
-	.name = "icmp send",
-	.request_type = GR_IP4_ICMP_SEND,
-	.callback = icmp_send,
-};
-
-static struct gr_api_handler ip4_icmp_recv_handler = {
-	.name = "icmp recv",
-	.request_type = GR_IP4_ICMP_RECV,
-	.callback = icmp_recv,
-};
-
 #define ICMP_LOCAL_QUEUE_SIZE 1024
 
 static void icmp_init(struct event_base *) {
@@ -205,8 +193,8 @@ static struct gr_module icmp_module = {
 
 RTE_INIT(icmp_module_init) {
 	gr_register_module(&icmp_module);
-	gr_register_api_handler(&ip4_icmp_send_handler);
-	gr_register_api_handler(&ip4_icmp_recv_handler);
+	gr_api_handler(GR_IP4_ICMP_SEND, icmp_send);
+	gr_api_handler(GR_IP4_ICMP_RECV, icmp_recv);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);
