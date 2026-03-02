@@ -744,7 +744,7 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 }
 
 static struct gr_module route4_module = {
-	.name = "ipv4 route",
+	.name = "ip_route",
 	.depends_on = "nexthop",
 	.init = route4_init,
 	.fini = route4_fini,

@@ -526,7 +526,7 @@ static void dhcp_fini(struct event_base *) {
 
 static struct gr_module dhcp_module = {
 	.name = "dhcp",
-	.depends_on = "graph,ipv4 address",
+	.depends_on = "graph,ip_address,iface",
 	.init = dhcp_init,
 	.fini = dhcp_fini,
 };

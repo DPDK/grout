@@ -82,7 +82,7 @@ static void snat44_fini(struct event_base *) {
 }
 
 static struct gr_module module = {
-	.name = "snat44-static",
+	.name = "snat44_static",
 	.init = snat44_init,
 	.fini = snat44_fini,
 };

@@ -304,7 +304,7 @@ static void addr_fini(struct event_base *) {
 }
 
 static struct gr_module addr_module = {
-	.name = "ipv4 address",
+	.name = "ip_address",
 	.init = addr_init,
 	.fini = addr_fini,
 };

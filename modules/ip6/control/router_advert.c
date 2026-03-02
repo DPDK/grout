@@ -201,7 +201,7 @@ static void ra_fini(struct event_base * /*ev_base*/) {
 }
 
 static struct gr_module ra_module = {
-	.name = "ipv6 router advertisement",
+	.name = "ip6_router_advert",
 	.depends_on = "graph",
 	.init = ra_init,
 	.fini = ra_fini,
