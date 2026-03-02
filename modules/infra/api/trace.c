@@ -83,34 +83,10 @@ static struct api_out packet_log_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler set_trace_handler = {
-	.name = "trace set",
-	.request_type = GR_INFRA_PACKET_TRACE_SET,
-	.callback = set_trace,
-};
-
-static struct gr_api_handler dump_trace_handler = {
-	.name = "trace dump",
-	.request_type = GR_INFRA_PACKET_TRACE_DUMP,
-	.callback = dump_trace,
-};
-
-static struct gr_api_handler clear_trace_handler = {
-	.name = "trace clear",
-	.request_type = GR_INFRA_PACKET_TRACE_CLEAR,
-	.callback = clear_trace,
-};
-
-static struct gr_api_handler set_packet_log_handler = {
-	.name = "set packet logging",
-	.request_type = GR_INFRA_PACKET_LOG_SET,
-	.callback = packet_log_set,
-};
-
 RTE_INIT(trace_init) {
-	gr_register_api_handler(&set_trace_handler);
-	gr_register_api_handler(&dump_trace_handler);
-	gr_register_api_handler(&clear_trace_handler);
-	gr_register_api_handler(&set_packet_log_handler);
+	gr_api_handler(GR_INFRA_PACKET_TRACE_SET, set_trace);
+	gr_api_handler(GR_INFRA_PACKET_TRACE_DUMP, dump_trace);
+	gr_api_handler(GR_INFRA_PACKET_TRACE_CLEAR, clear_trace);
+	gr_api_handler(GR_INFRA_PACKET_LOG_SET, packet_log_set);
 	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
 }

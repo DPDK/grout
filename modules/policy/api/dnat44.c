@@ -225,22 +225,6 @@ static struct api_out dnat44_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler add_handler = {
-	.name = "dnat44 add",
-	.request_type = GR_DNAT44_ADD,
-	.callback = dnat44_add,
-};
-static struct gr_api_handler del_handler = {
-	.name = "dnat44 del",
-	.request_type = GR_DNAT44_DEL,
-	.callback = dnat44_del,
-};
-static struct gr_api_handler list_handler = {
-	.name = "dnat44 list",
-	.request_type = GR_DNAT44_LIST,
-	.callback = dnat44_list,
-};
-
 static struct nexthop_type_ops nh_ops = {
 	.lookup = dnat44_nh_lookup,
 	.equal = dnat44_nh_equal,
@@ -251,8 +235,8 @@ static struct nexthop_type_ops nh_ops = {
 };
 
 RTE_INIT(_init) {
-	gr_register_api_handler(&add_handler);
-	gr_register_api_handler(&del_handler);
-	gr_register_api_handler(&list_handler);
+	gr_api_handler(GR_DNAT44_ADD, dnat44_add);
+	gr_api_handler(GR_DNAT44_DEL, dnat44_del);
+	gr_api_handler(GR_DNAT44_LIST, dnat44_list);
 	nexthop_type_ops_register(GR_NH_T_DNAT, &nh_ops);
 }
