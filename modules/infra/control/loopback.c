@@ -285,7 +285,7 @@ static void loopback_module_fini(struct event_base *) {
 }
 
 static struct gr_module loopback_module = {
-	.name = "iface loopback",
+	.name = "iface_loopback",
 	.init = loopback_module_init,
 	.fini = loopback_module_fini,
 };

@@ -269,7 +269,7 @@ static void nh6_init(struct event_base *) {
 }
 
 static struct gr_module nh6_module = {
-	.name = "ipv6 nexthop",
+	.name = "ip6_nexthop",
 	.depends_on = "graph",
 	.init = nh6_init,
 };

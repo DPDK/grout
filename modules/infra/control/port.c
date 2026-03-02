@@ -1010,7 +1010,7 @@ static const struct iface_type iface_type_port = {
 };
 
 static struct gr_module port_module = {
-	.name = "iface port",
+	.name = "iface_port",
 	.init = port_init,
 	.fini = port_fini,
 };

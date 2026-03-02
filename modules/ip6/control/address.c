@@ -516,7 +516,7 @@ static void addr6_fini(struct event_base *) {
 }
 
 static struct gr_module addr6_module = {
-	.name = "ipv6 address",
+	.name = "ip6_address",
 	.init = addr6_init,
 	.fini = addr6_fini,
 };

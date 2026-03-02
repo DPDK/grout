@@ -785,7 +785,7 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 }
 
 static struct gr_module route6_module = {
-	.name = "ipv6 route",
+	.name = "ip6_route",
 	.depends_on = "nexthop",
 	.init = route6_init,
 	.fini = route6_fini,
