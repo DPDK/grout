@@ -20,7 +20,7 @@
 int gr_rte_log_type;
 struct gr_config gr_config;
 struct workers workers;
-void gr_register_api_handler(struct gr_api_handler *) { }
+void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(const struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }

@@ -207,24 +207,6 @@ static struct gr_module ra_module = {
 	.fini = ra_fini,
 };
 
-static struct gr_api_handler ra_set_handler = {
-	.name = "set interface ra",
-	.request_type = GR_IP6_IFACE_RA_SET,
-	.callback = iface_ra_set,
-};
-
-static struct gr_api_handler ra_clear_handler = {
-	.name = "clear interface ra",
-	.request_type = GR_IP6_IFACE_RA_CLEAR,
-	.callback = iface_ra_clear,
-};
-
-static struct gr_api_handler ra_show_handler = {
-	.name = "show interface ra",
-	.request_type = GR_IP6_IFACE_RA_SHOW,
-	.callback = iface_ra_show,
-};
-
 static void iface_event_handler(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 
@@ -245,9 +227,9 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 
 RTE_INIT(router_advertisement_init) {
 	gr_register_module(&ra_module);
-	gr_register_api_handler(&ra_set_handler);
-	gr_register_api_handler(&ra_clear_handler);
-	gr_register_api_handler(&ra_show_handler);
+	gr_api_handler(GR_IP6_IFACE_RA_SET, iface_ra_set);
+	gr_api_handler(GR_IP6_IFACE_RA_CLEAR, iface_ra_clear);
+	gr_api_handler(GR_IP6_IFACE_RA_SHOW, iface_ra_show);
 	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event_handler);
 	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event_handler);
 }

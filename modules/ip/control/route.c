@@ -743,37 +743,6 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler route4_add_handler = {
-	.name = "ipv4 route add",
-	.request_type = GR_IP4_ROUTE_ADD,
-	.callback = route4_add,
-};
-static struct gr_api_handler route4_del_handler = {
-	.name = "ipv4 route del",
-	.request_type = GR_IP4_ROUTE_DEL,
-	.callback = route4_del,
-};
-static struct gr_api_handler route4_get_handler = {
-	.name = "ipv4 route get",
-	.request_type = GR_IP4_ROUTE_GET,
-	.callback = route4_get,
-};
-static struct gr_api_handler route4_list_handler = {
-	.name = "ipv4 route list",
-	.request_type = GR_IP4_ROUTE_LIST,
-	.callback = route4_list,
-};
-static struct gr_api_handler fib4_conf_set_handler = {
-	.name = "ipv4 fib conf set",
-	.request_type = GR_IP4_FIB_CONF_SET,
-	.callback = fib4_conf_set,
-};
-static struct gr_api_handler fib4_info_list_handler = {
-	.name = "ipv4 fib info list",
-	.request_type = GR_IP4_FIB_INFO_LIST,
-	.callback = fib4_info_list,
-};
-
 static struct gr_module route4_module = {
 	.name = "ipv4 route",
 	.depends_on = "nexthop",
@@ -826,12 +795,12 @@ static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
 }
 
 RTE_INIT(control_ip_init) {
-	gr_register_api_handler(&route4_add_handler);
-	gr_register_api_handler(&route4_del_handler);
-	gr_register_api_handler(&route4_get_handler);
-	gr_register_api_handler(&route4_list_handler);
-	gr_register_api_handler(&fib4_conf_set_handler);
-	gr_register_api_handler(&fib4_info_list_handler);
+	gr_api_handler(GR_IP4_ROUTE_ADD, route4_add);
+	gr_api_handler(GR_IP4_ROUTE_DEL, route4_del);
+	gr_api_handler(GR_IP4_ROUTE_GET, route4_get);
+	gr_api_handler(GR_IP4_ROUTE_LIST, route4_list);
+	gr_api_handler(GR_IP4_FIB_CONF_SET, fib4_conf_set);
+	gr_api_handler(GR_IP4_FIB_INFO_LIST, fib4_info_list);
 	gr_event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
 	gr_event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event, 0);
 	gr_register_module(&route4_module);

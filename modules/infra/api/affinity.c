@@ -98,30 +98,9 @@ static struct api_out rxq_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler affinity_get_handler = {
-	.name = "affinity get",
-	.request_type = GR_INFRA_CPU_AFFINITY_GET,
-	.callback = affinity_get,
-};
-static struct gr_api_handler affinity_set_handler = {
-	.name = "affinity set",
-	.request_type = GR_INFRA_CPU_AFFINITY_SET,
-	.callback = affinity_set,
-};
-static struct gr_api_handler rxq_list_handler = {
-	.name = "qmap list",
-	.request_type = GR_INFRA_RXQ_LIST,
-	.callback = rxq_list,
-};
-static struct gr_api_handler rxq_set_handler = {
-	.name = "qmap set",
-	.request_type = GR_INFRA_RXQ_SET,
-	.callback = rxq_set,
-};
-
 RTE_INIT(_init) {
-	gr_register_api_handler(&rxq_list_handler);
-	gr_register_api_handler(&rxq_set_handler);
-	gr_register_api_handler(&affinity_get_handler);
-	gr_register_api_handler(&affinity_set_handler);
+	gr_api_handler(GR_INFRA_RXQ_LIST, rxq_list);
+	gr_api_handler(GR_INFRA_RXQ_SET, rxq_set);
+	gr_api_handler(GR_INFRA_CPU_AFFINITY_GET, affinity_get);
+	gr_api_handler(GR_INFRA_CPU_AFFINITY_SET, affinity_set);
 }

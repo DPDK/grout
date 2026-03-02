@@ -239,24 +239,6 @@ err:
 	return api_out(-ret, 0, NULL);
 }
 
-static struct gr_api_handler stats_get_handler = {
-	.name = "stats get",
-	.request_type = GR_INFRA_STATS_GET,
-	.callback = stats_get,
-};
-
-static struct gr_api_handler stats_reset_handler = {
-	.name = "stats reset",
-	.request_type = GR_INFRA_STATS_RESET,
-	.callback = stats_reset,
-};
-
-static struct gr_api_handler iface_stats_get_handler = {
-	.name = "iface stats get",
-	.request_type = GR_INFRA_IFACE_STATS_GET,
-	.callback = iface_stats_get,
-};
-
 METRIC_COUNTER(m_packets, "node_packets", "Number of packets processed by a node.");
 METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.");
 METRIC_COUNTER(m_cycles, "node_cycles", "Number of cycles spent per node.");
@@ -308,9 +290,9 @@ static struct gr_metrics_collector cpu_collector = {
 };
 
 RTE_INIT(infra_stats_init) {
-	gr_register_api_handler(&stats_get_handler);
-	gr_register_api_handler(&stats_reset_handler);
-	gr_register_api_handler(&iface_stats_get_handler);
+	gr_api_handler(GR_INFRA_STATS_GET, stats_get);
+	gr_api_handler(GR_INFRA_STATS_RESET, stats_reset);
+	gr_api_handler(GR_INFRA_IFACE_STATS_GET, iface_stats_get);
 	gr_metrics_register(&graph_collector);
 	gr_metrics_register(&cpu_collector);
 }

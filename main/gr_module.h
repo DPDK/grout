@@ -34,14 +34,9 @@ void api_send(struct api_ctx *, uint32_t len, const void *payload);
 
 typedef struct api_out (*gr_api_handler_func)(const void *request, struct api_ctx *);
 
-struct gr_api_handler {
-	const char *name;
-	uint32_t request_type;
-	gr_api_handler_func callback;
-	STAILQ_ENTRY(gr_api_handler) next;
-};
+void __gr_api_handler(uint32_t req_type, gr_api_handler_func callback, const char *name);
 
-void gr_register_api_handler(struct gr_api_handler *);
+#define gr_api_handler(req_type, callback) __gr_api_handler(req_type, callback, #req_type)
 
 struct gr_module {
 	const char *name;

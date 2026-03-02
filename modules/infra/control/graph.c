@@ -582,12 +582,6 @@ err:
 	return api_out(errsave, 0, NULL);
 }
 
-static struct gr_api_handler graph_dump_handler = {
-	.name = "graph dump",
-	.request_type = GR_INFRA_GRAPH_DUMP,
-	.callback = graph_dump,
-};
-
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
@@ -642,6 +636,6 @@ static struct gr_module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
-	gr_register_api_handler(&graph_dump_handler);
+	gr_api_handler(GR_INFRA_GRAPH_DUMP, graph_dump);
 	gr_register_module(&graph_module);
 }

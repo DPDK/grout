@@ -515,26 +515,6 @@ static void addr6_fini(struct event_base *) {
 	iface_mcast_addrs = NULL;
 }
 
-static struct gr_api_handler addr6_add_handler = {
-	.name = "ipv6 address add",
-	.request_type = GR_IP6_ADDR_ADD,
-	.callback = addr6_add,
-};
-static struct gr_api_handler addr6_del_handler = {
-	.name = "ipv6 address del",
-	.request_type = GR_IP6_ADDR_DEL,
-	.callback = addr6_del,
-};
-static struct gr_api_handler addr6_flush_handler = {
-	.name = "ipv6 address flush",
-	.request_type = GR_IP6_ADDR_FLUSH,
-	.callback = addr6_flush,
-};
-static struct gr_api_handler addr6_list_handler = {
-	.name = "ipv6 address list",
-	.request_type = GR_IP6_ADDR_LIST,
-	.callback = addr6_list,
-};
 static struct gr_module addr6_module = {
 	.name = "ipv6 address",
 	.init = addr6_init,
@@ -542,10 +522,10 @@ static struct gr_module addr6_module = {
 };
 
 RTE_INIT(address_constructor) {
-	gr_register_api_handler(&addr6_add_handler);
-	gr_register_api_handler(&addr6_del_handler);
-	gr_register_api_handler(&addr6_flush_handler);
-	gr_register_api_handler(&addr6_list_handler);
+	gr_api_handler(GR_IP6_ADDR_ADD, addr6_add);
+	gr_api_handler(GR_IP6_ADDR_DEL, addr6_del);
+	gr_api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
+	gr_api_handler(GR_IP6_ADDR_LIST, addr6_list);
 	gr_register_module(&addr6_module);
 	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, ip6_iface_event_handler);
 	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, ip6_iface_event_handler);

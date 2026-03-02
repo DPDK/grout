@@ -38,7 +38,7 @@ static struct rte_eth_dev_info dev_info = {
 // mocked types/functions
 int gr_rte_log_type;
 struct gr_config gr_config;
-void gr_register_api_handler(struct gr_api_handler *) { }
+void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
 void gr_register_module(struct gr_module *) { }
 void gr_event_subscribe(uint32_t, gr_event_sub_cb_t) { }
 void iface_type_register(const struct iface_type *) { }

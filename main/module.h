@@ -8,7 +8,12 @@
 
 #include <event2/event.h>
 
-const struct gr_api_handler *lookup_api_handler(const struct gr_api_request *);
+struct api_handler {
+	gr_api_handler_func callback;
+	const char *name;
+};
+
+const struct api_handler *lookup_api_handler(uint32_t request_type);
 
 void modules_init(struct event_base *);
 

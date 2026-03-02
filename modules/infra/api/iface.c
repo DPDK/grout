@@ -122,32 +122,6 @@ static struct api_out iface_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler iface_add_handler = {
-	.name = "iface add",
-	.request_type = GR_INFRA_IFACE_ADD,
-	.callback = iface_add,
-};
-static struct gr_api_handler iface_del_handler = {
-	.name = "iface del",
-	.request_type = GR_INFRA_IFACE_DEL,
-	.callback = iface_del,
-};
-static struct gr_api_handler iface_get_handler = {
-	.name = "iface get",
-	.request_type = GR_INFRA_IFACE_GET,
-	.callback = iface_get,
-};
-static struct gr_api_handler iface_list_handler = {
-	.name = "iface list",
-	.request_type = GR_INFRA_IFACE_LIST,
-	.callback = iface_list,
-};
-static struct gr_api_handler iface_set_handler = {
-	.name = "iface set",
-	.request_type = GR_INFRA_IFACE_SET,
-	.callback = iface_set,
-};
-
 static int iface_event_serialize(const void *obj, void **buf) {
 	struct gr_iface *api_iface = iface_to_api(obj);
 	if (api_iface == NULL)
@@ -256,11 +230,11 @@ static struct gr_metrics_collector iface_collector = {
 };
 
 RTE_INIT(infra_api_init) {
-	gr_register_api_handler(&iface_add_handler);
-	gr_register_api_handler(&iface_del_handler);
-	gr_register_api_handler(&iface_get_handler);
-	gr_register_api_handler(&iface_list_handler);
-	gr_register_api_handler(&iface_set_handler);
+	gr_api_handler(GR_INFRA_IFACE_ADD, iface_add);
+	gr_api_handler(GR_INFRA_IFACE_DEL, iface_del);
+	gr_api_handler(GR_INFRA_IFACE_GET, iface_get);
+	gr_api_handler(GR_INFRA_IFACE_LIST, iface_list);
+	gr_api_handler(GR_INFRA_IFACE_SET, iface_set);
 	gr_event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
 	gr_event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
 	gr_event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);

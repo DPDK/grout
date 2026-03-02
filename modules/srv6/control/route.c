@@ -138,22 +138,6 @@ static struct api_out srv6_tunsrc_show(const void * /*request*/, struct api_ctx 
 
 // srv6 headend module /////////////////////////////////////////////////////
 
-static struct gr_api_handler srv6_tunsrc_set_handler = {
-	.name = "sr tunsrc set",
-	.request_type = GR_SRV6_TUNSRC_SET,
-	.callback = srv6_tunsrc_set,
-};
-static struct gr_api_handler srv6_tunsrc_clear_handler = {
-	.name = "sr tunsrc clear",
-	.request_type = GR_SRV6_TUNSRC_CLEAR,
-	.callback = srv6_tunsrc_clear,
-};
-static struct gr_api_handler srv6_tunsrc_show_handler = {
-	.name = "sr tunsrc show",
-	.request_type = GR_SRV6_TUNSRC_SHOW,
-	.callback = srv6_tunsrc_show,
-};
-
 static struct nexthop_type_ops nh_ops = {
 	.free = srv6_output_nh_del,
 	.equal = srv6_output_nh_equal,
@@ -162,8 +146,8 @@ static struct nexthop_type_ops nh_ops = {
 };
 
 RTE_INIT(srv6_constructor) {
-	gr_register_api_handler(&srv6_tunsrc_set_handler);
-	gr_register_api_handler(&srv6_tunsrc_clear_handler);
-	gr_register_api_handler(&srv6_tunsrc_show_handler);
+	gr_api_handler(GR_SRV6_TUNSRC_SET, srv6_tunsrc_set);
+	gr_api_handler(GR_SRV6_TUNSRC_CLEAR, srv6_tunsrc_clear);
+	gr_api_handler(GR_SRV6_TUNSRC_SHOW, srv6_tunsrc_show);
 	nexthop_type_ops_register(GR_NH_T_SR6_OUTPUT, &nh_ops);
 }
