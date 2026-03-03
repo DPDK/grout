@@ -558,13 +558,21 @@ static int config_update(const struct gr_conntrack_config *new_conf) {
 	return 0;
 }
 
-static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *ctx) {
+struct conntrack_stream {
+	uint32_t iter;
+};
+
+static void *conntrack_list_init(const void * /*request*/, struct api_ctx *) {
+	return calloc(1, sizeof(struct conntrack_stream));
+}
+
+static int conntrack_list_next(void *state, struct api_ctx *ctx) {
+	struct conntrack_stream *s = state;
 	struct conn *conn;
-	uint32_t next = 0;
 	const void *key;
 	void *data;
 
-	while (rte_hash_iterate(conn_hash, &key, &data, &next) >= 0) {
+	while (rte_hash_iterate(conn_hash, &key, &data, &s->iter) >= 0) {
 		if (conn_flow(data) != CONN_FLOW_FWD)
 			continue;
 
@@ -589,10 +597,10 @@ static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *c
 			.state = atomic_load(&conn->state),
 			.last_update = atomic_load(&conn->last_update),
 		};
-		api_send(ctx, sizeof(ct), &ct);
+		return api_send(ctx, sizeof(ct), &ct);
 	}
 
-	return api_out(0, 0, NULL);
+	return STREAM_END;
 }
 
 static struct api_out conntrack_flush(const void * /*request*/, struct api_ctx *) {
@@ -670,7 +678,7 @@ static struct gr_module module = {
 
 RTE_INIT(_init) {
 	gr_register_module(&module);
-	gr_api_handler(GR_CONNTRACK_LIST, conntrack_list);
+	gr_api_handler_stream(GR_CONNTRACK_LIST, conntrack_list_init, conntrack_list_next);
 	gr_api_handler(GR_CONNTRACK_FLUSH, conntrack_flush);
 	gr_api_handler(GR_CONNTRACK_CONF_SET, config_set);
 	gr_api_handler(GR_CONNTRACK_CONF_GET, config_get);
