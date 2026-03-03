@@ -9,7 +9,7 @@
 #include <gr_vec.h>
 
 static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) {
-	struct gr_infra_nh_config_get_resp *resp = malloc(sizeof(*resp));
+	struct gr_nh_config_get_resp *resp = malloc(sizeof(*resp));
 
 	if (resp == NULL)
 		return api_out(ENOMEM, 0, NULL);
@@ -21,7 +21,7 @@ static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) 
 }
 
 static struct api_out nh_config_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_nh_config_set_req *req = request;
+	const struct gr_nh_config_set_req *req = request;
 	return api_out(-nexthop_config_set(&req->base), 0, NULL);
 }
 
@@ -124,8 +124,8 @@ static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 }
 
 RTE_INIT(_init) {
-	gr_api_handler(GR_INFRA_NH_CONFIG_GET, nh_config_get);
-	gr_api_handler(GR_INFRA_NH_CONFIG_SET, nh_config_set);
+	gr_api_handler(GR_NH_CONFIG_GET, nh_config_get);
+	gr_api_handler(GR_NH_CONFIG_SET, nh_config_set);
 	gr_api_handler(GR_NH_ADD, nh_add);
 	gr_api_handler(GR_NH_DEL, nh_del);
 	gr_api_handler(GR_NH_LIST, nh_list);

@@ -276,24 +276,24 @@ struct gr_nexthop_config {
 };
 
 // Get nexthop subsystem configuration and usage.
-#define GR_INFRA_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
+#define GR_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
 
-// struct gr_infra_nh_config_get_req { };
+// struct gr_nh_config_get_req { };
 
-struct gr_infra_nh_config_get_resp {
+struct gr_nh_config_get_resp {
 	BASE(gr_nexthop_config);
 	uint32_t used_count;
 };
 
 // Set nexthop subsystem configuration.
 // Only non-zero values are applied. Changing max_count requires no nexthops in use.
-#define GR_INFRA_NH_CONFIG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0061)
+#define GR_NH_CONFIG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0061)
 
-struct gr_infra_nh_config_set_req {
+struct gr_nh_config_set_req {
 	BASE(gr_nexthop_config);
 };
 
-// struct gr_infra_nh_config_set_resp { };
+// struct gr_nh_config_set_resp { };
 
 // next hops ///////////////////////////////////////////////////////////////////
 

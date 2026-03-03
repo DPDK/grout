@@ -429,8 +429,8 @@ end:
 	return ret;
 }
 
-static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const char *name) {
-	struct gr_infra_stat *s;
+static struct gr_stat *find_stat(gr_vec struct gr_stat *stats, const char *name) {
+	struct gr_stat *s;
 
 	gr_vec_foreach_ref (s, stats) {
 		if (strncmp(s->name, name, sizeof(s->name)) == 0)
@@ -440,10 +440,10 @@ static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const
 	return errno_set_null(ENOENT);
 }
 
-gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
+gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 	uint64_t loop_cycles = 0, node_cycles = 0, n_loops = 0, pkts = 0;
-	gr_vec struct gr_infra_stat *stats = NULL;
-	struct gr_infra_stat *s;
+	gr_vec struct gr_stat *stats = NULL;
+	struct gr_stat *s;
 	struct worker *worker;
 
 	STAILQ_FOREACH (worker, &workers, next) {
@@ -461,7 +461,7 @@ gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 				s->batches += n->batches;
 				s->cycles += n->cycles;
 			} else {
-				struct gr_infra_stat stat = {
+				struct gr_stat stat = {
 					.packets = n->packets,
 					.batches = n->batches,
 					.cycles = n->cycles,
@@ -480,7 +480,7 @@ gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 			s->batches += w_stats->n_sleeps;
 			s->cycles += w_stats->sleep_cycles;
 		} else {
-			struct gr_infra_stat stat = {
+			struct gr_stat stat = {
 				.packets = 0,
 				.batches = w_stats->n_sleeps,
 				.cycles = w_stats->sleep_cycles,
@@ -493,7 +493,7 @@ gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 		n_loops += w_stats->n_loops;
 	}
 
-	struct gr_infra_stat stat = {
+	struct gr_stat stat = {
 		.packets = pkts,
 		.batches = n_loops,
 		.cycles = loop_cycles - node_cycles,
