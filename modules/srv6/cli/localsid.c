@@ -5,13 +5,12 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_errno.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <string.h>

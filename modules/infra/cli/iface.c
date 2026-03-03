@@ -5,13 +5,12 @@
 #include <gr_cli.h>
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <string.h>
@@ -308,42 +307,39 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	else
 		req.type = type->type_id;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "NAME", 0, 0);
-	scols_table_new_column(table, "ID", 0, 0);
-	scols_table_new_column(table, "FLAGS", 0, 0);
-	scols_table_new_column(table, "MODE", 0, 0);
-	scols_table_new_column(table, "DOMAIN", 0, 0);
-	scols_table_new_column(table, "TYPE", 0, 0);
-	scols_table_new_column(table, "INFO", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "NAME", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ID", GR_DISP_RIGHT); // 1
+	gr_table_column(table, "FLAGS", GR_DISP_LEFT); // 2
+	gr_table_column(table, "MODE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "DOMAIN", GR_DISP_LEFT); // 4
+	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 5
+	gr_table_column(table, "INFO", GR_DISP_LEFT); // 6
 
 	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
-		struct libscols_line *line = scols_table_new_line(table, NULL);
 
 		// name
-		scols_line_set_data(line, 0, iface->name);
+		gr_table_cell(table, 0, "%s", iface->name);
 
 		// id
-		scols_line_sprintf(line, 1, "%u", iface->id);
+		gr_table_cell(table, 1, "%u", iface->id);
 
 		// flags
-		buf[0] = 0;
-		iface_flags_format(buf, sizeof(buf), iface);
-		scols_line_set_data(line, 2, buf);
+		if (iface_flags_format(buf, sizeof(buf), iface) > 0)
+			gr_table_cell(table, 2, "%s", buf);
 
 		// mode
-		scols_line_set_data(line, 3, gr_iface_mode_name(iface->mode));
+		gr_table_cell(table, 3, "%s", gr_iface_mode_name(iface->mode));
 
 		// domain
 		if (iface->mode == GR_IFACE_MODE_VRF)
-			scols_line_sprintf(line, 4, "%s", iface_name_from_id(c, iface->vrf_id));
+			gr_table_cell(table, 4, "%s", iface_name_from_id(c, iface->vrf_id));
 		else
-			scols_line_sprintf(line, 4, "%s", iface_name_from_id(c, iface->domain_id));
+			gr_table_cell(table, 4, "%s", iface_name_from_id(c, iface->domain_id));
 
 		// type
-		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));
+		gr_table_cell(table, 5, "%s", gr_iface_type_name(iface->type));
 
 		// info
 		assert(type != NULL);
@@ -362,113 +358,85 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 			n = sizeof(buf) - strlen("...") - 1;
 			snprintf(buf + n, sizeof(buf) - n, "...");
 		}
-		scols_line_set_data(line, 6, buf);
+		gr_table_cell(table, 6, "%s", buf);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	struct gr_iface_stats_get_resp *resp = NULL;
-	struct libscols_table *table = NULL;
-	cmd_status_t status = CMD_ERROR;
 	void *resp_ptr = NULL;
-	int ret;
 
-	// Send the new API request and wait for the response
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp_ptr);
-	if (ret < 0) {
-		errorf("failed to get interface stats: %s", strerror(-ret));
-		goto end;
-	}
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
 
 	resp = resp_ptr;
 
-	table = scols_new_table();
-	if (table == NULL) {
-		errorf("failed to create table: %s", strerror(errno));
-		goto end;
-	}
-
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_DROPS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_ERRORS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_RX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_RX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_TX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_TX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "RX_PACKETS", GR_DISP_RIGHT); // 1
+	gr_table_column(table, "RX_BYTES", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "RX_DROPS", GR_DISP_RIGHT); // 3
+	gr_table_column(table, "TX_PACKETS", GR_DISP_RIGHT); // 4
+	gr_table_column(table, "TX_BYTES", GR_DISP_RIGHT); // 5
+	gr_table_column(table, "TX_ERRORS", GR_DISP_RIGHT); // 6
+	gr_table_column(table, "CP_RX_PACKETS", GR_DISP_RIGHT); // 7
+	gr_table_column(table, "CP_RX_BYTES", GR_DISP_RIGHT); // 8
+	gr_table_column(table, "CP_TX_PACKETS", GR_DISP_RIGHT); // 9
+	gr_table_column(table, "CP_TX_BYTES", GR_DISP_RIGHT); // 10
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (line == NULL) {
-			errorf("failed to create line: %s", strerror(errno));
-			goto end;
-		}
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
+		gr_table_cell(table, 1, "%lu", resp->stats[i].rx_packets);
+		gr_table_cell(table, 2, "%lu", resp->stats[i].rx_bytes);
+		gr_table_cell(table, 3, "%lu", resp->stats[i].rx_drops);
+		gr_table_cell(table, 4, "%lu", resp->stats[i].tx_packets);
+		gr_table_cell(table, 5, "%lu", resp->stats[i].tx_bytes);
+		gr_table_cell(table, 6, "%lu", resp->stats[i].tx_errors);
+		gr_table_cell(table, 7, "%lu", resp->stats[i].cp_rx_packets);
+		gr_table_cell(table, 8, "%lu", resp->stats[i].cp_rx_bytes);
+		gr_table_cell(table, 9, "%lu", resp->stats[i].cp_tx_packets);
+		gr_table_cell(table, 10, "%lu", resp->stats[i].cp_tx_bytes);
 
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
-		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
-		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
-		scols_line_sprintf(line, 3, "%lu", resp->stats[i].rx_drops);
-		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_packets);
-		scols_line_sprintf(line, 5, "%lu", resp->stats[i].tx_bytes);
-		scols_line_sprintf(line, 6, "%lu", resp->stats[i].tx_errors);
-		scols_line_sprintf(line, 7, "%lu", resp->stats[i].cp_rx_packets);
-		scols_line_sprintf(line, 8, "%lu", resp->stats[i].cp_rx_bytes);
-		scols_line_sprintf(line, 9, "%lu", resp->stats[i].cp_tx_packets);
-		scols_line_sprintf(line, 10, "%lu", resp->stats[i].cp_tx_bytes);
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	status = CMD_SUCCESS;
-
-end:
-	if (table)
-		scols_unref_table(table);
+	gr_table_free(table);
 	free(resp_ptr);
-	return status;
+
+	return CMD_SUCCESS;
 }
 
 static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	const struct gr_iface_stats_get_resp *resp1, *resp2;
 	void *resp1_ptr = NULL, *resp2_ptr = NULL;
-	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
-	int ret;
 
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp1_ptr);
-	if (ret < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp1_ptr) < 0)
 		goto end;
 	resp1 = resp1_ptr;
 
 	sleep(1);
 
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp2_ptr);
-	if (ret < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp2_ptr) < 0)
 		goto end;
 	resp2 = resp2_ptr;
 
-	table = scols_new_table();
-	if (table == NULL) {
-		errorf("failed to create table: %s", strerror(errno));
-		goto end;
-	}
-
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_BYTES/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_DROPS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_PACKETS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_BYTES/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_ERRORS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "RX_PACKETS/S", GR_DISP_RIGHT); // 1
+	gr_table_column(table, "RX_BYTES/S", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "RX_DROPS/S", GR_DISP_RIGHT); // 3
+	gr_table_column(table, "TX_PACKETS/S", GR_DISP_RIGHT); // 4
+	gr_table_column(table, "TX_BYTES/S", GR_DISP_RIGHT); // 5
+	gr_table_column(table, "TX_ERRORS/S", GR_DISP_RIGHT); // 6
 
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
 		const struct gr_iface_stats *s2 = &resp2->stats[i];
@@ -484,25 +452,22 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 		if (s1 == NULL)
 			continue;
 
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (line == NULL)
-			goto end;
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, s2->iface_id));
+		gr_table_cell(table, 1, "%lu", s2->rx_packets - s1->rx_packets);
+		gr_table_cell(table, 2, "%lu", s2->rx_bytes - s1->rx_bytes);
+		gr_table_cell(table, 3, "%lu", s2->rx_drops - s1->rx_drops);
+		gr_table_cell(table, 4, "%lu", s2->tx_packets - s1->tx_packets);
+		gr_table_cell(table, 5, "%lu", s2->tx_bytes - s1->tx_bytes);
+		gr_table_cell(table, 6, "%lu", s2->tx_errors - s1->tx_errors);
 
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, s2->iface_id));
-		scols_line_sprintf(line, 1, "%lu", s2->rx_packets - s1->rx_packets);
-		scols_line_sprintf(line, 2, "%lu", s2->rx_bytes - s1->rx_bytes);
-		scols_line_sprintf(line, 3, "%lu", s2->rx_drops - s1->rx_drops);
-		scols_line_sprintf(line, 4, "%lu", s2->tx_packets - s1->tx_packets);
-		scols_line_sprintf(line, 5, "%lu", s2->tx_bytes - s1->tx_bytes);
-		scols_line_sprintf(line, 6, "%lu", s2->tx_errors - s1->tx_errors);
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
+	gr_table_free(table);
 	status = CMD_SUCCESS;
 
 end:
-	if (table)
-		scols_unref_table(table);
 	free(resp1_ptr);
 	free(resp2_ptr);
 

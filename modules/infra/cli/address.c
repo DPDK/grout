@@ -4,11 +4,11 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_l3.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -90,18 +90,16 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &iface_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "ADDRESS", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 1
 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if ((ret = ops->list(c, iface_id, table)) < 0)
 			break;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
