@@ -280,22 +280,37 @@ static struct api_out fdb_flush(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
+struct fdb_list_stream {
+	gr_fdb_flags_t flags;
+	uint16_t bridge_id;
+	uint16_t iface_id;
+	uint32_t iter;
+};
+
+static void *fdb_list_init(const void *request, struct api_ctx *) {
 	const struct gr_fdb_list_req *req = request;
-	struct gr_fdb_entry *fdb;
-	uint32_t next = 0;
+	struct fdb_list_stream *s = malloc(sizeof(*s));
+	if (s == NULL)
+		return NULL;
+	s->flags = req->flags;
+	s->bridge_id = req->bridge_id;
+	s->iface_id = req->iface_id;
+	s->iter = 0;
+	return s;
+}
+
+static int fdb_list_next(void *state, struct api_ctx *ctx) {
+	struct fdb_list_stream *s = state;
 	const void *key;
 	void *data;
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		if (!fdb_match(data, req->flags, req->bridge_id, req->iface_id, NULL))
+	while (rte_hash_iterate(fdb_hash, &key, &data, &s->iter) >= 0) {
+		if (!fdb_match(data, s->flags, s->bridge_id, s->iface_id, NULL))
 			continue;
-
-		fdb = data;
-		api_send(ctx, sizeof(*fdb), fdb);
+		return api_stream_next(ctx, sizeof(struct gr_fdb_entry), data);
 	}
 
-	return api_out(0, 0, NULL);
+	return STREAM_END;
 }
 
 static struct api_out fdb_config_get(const void * /*request*/, struct api_ctx *) {
@@ -403,7 +418,7 @@ RTE_INIT(init) {
 	gr_api_handler(GR_FDB_ADD, fdb_add);
 	gr_api_handler(GR_FDB_DEL, fdb_del);
 	gr_api_handler(GR_FDB_FLUSH, fdb_flush);
-	gr_api_handler(GR_FDB_LIST, fdb_list);
+	gr_api_handler_stream(GR_FDB_LIST, fdb_list_init, fdb_list_next);
 	gr_api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
 	gr_api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
 	gr_event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
