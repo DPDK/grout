@@ -496,8 +496,12 @@ static cmd_status_t nh_show_id(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .type = GR_NH_T_ALL};
 	const struct cli_nexthop_formatter *f = NULL;
+	struct gr_nh_list_req req = {
+		.vrf_id = GR_VRF_ID_UNDEF,
+		.type = GR_NH_T_ALL,
+		.max_count = 1000,
+	};
 	const struct gr_nexthop *nh;
 	const char *type;
 	char buf[128];
@@ -511,6 +515,9 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	type = arg_str(p, "TYPE");
 	if (type != NULL && nh_name_to_type(type, &req.type) < 0)
+		return CMD_ERROR;
+
+	if (arg_u16(p, "MAX", &req.max_count) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	req.include_internal = arg_str(p, "internal") != NULL;
@@ -553,6 +560,11 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	}
 
 	gr_table_free(table);
+
+	if (ret < 0 && errno == EXFULL) {
+		warnf("more nexthops not displayed");
+		ret = 0;
+	}
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
@@ -662,13 +674,17 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
-		"[show] [(id ID)|((vrf VRF),(type TYPE),(internal))]",
+		"[show] [(id ID)|((vrf VRF),(type TYPE),(internal),(max MAX))]",
 		nh_list,
 		"Show next hops, or a single next hop by ID.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
+		),
+		with_help(
+			"Max. number of nexthops to display (default 1000, use 0 for unlimited).",
+			ec_node_uint("MAX", 0, UINT16_MAX, 10)
 		),
 		with_help("Include internal next hops.", ec_node_str("internal", "internal"))
 	);

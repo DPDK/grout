@@ -27,6 +27,7 @@ struct cli_context {
 void cli_context_register(struct cli_context *);
 
 void errorf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void warnf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 typedef enum {
 	CMD_SUCCESS,

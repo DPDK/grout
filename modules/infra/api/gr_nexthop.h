@@ -327,6 +327,7 @@ struct gr_nh_del_req {
 struct gr_nh_list_req {
 	uint16_t vrf_id;
 	gr_nh_type_t type;
+	uint16_t max_count;
 	bool include_internal;
 };
 
