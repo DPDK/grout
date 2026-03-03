@@ -25,7 +25,7 @@ wait_bond_in_frr() {
 	local attempts=0
 
 	while [ "$attempts" -lt 20 ]; do
-		if vtysh -c "show interface $iface" 2>&1 | grep -q "Interface $iface"; then
+		if vtysh -c "show interface $iface json" 2>/dev/null | jq -e '."'$iface'"' > /dev/null 2>&1; then
 			return 0
 		fi
 		sleep 0.2

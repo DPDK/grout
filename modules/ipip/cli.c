@@ -8,14 +8,25 @@
 #include <gr_net_types.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <errno.h>
 
-static void ipip_show(struct gr_api_client *, const struct gr_iface *iface) {
+static void
+ipip_show(struct gr_api_client *, const struct gr_iface *iface, struct libscols_table *table) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
+	struct libscols_line *line;
+	char buf[64];
 
-	printf("local: " IP4_F "\n", &ipip->local);
-	printf("remote: " IP4_F "\n", &ipip->remote);
+	snprintf(buf, sizeof(buf), IP4_F, &ipip->local);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "local");
+	scols_line_set_data(line, 1, buf);
+
+	snprintf(buf, sizeof(buf), IP4_F, &ipip->remote);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "remote");
+	scols_line_set_data(line, 1, buf);
 }
 
 static void

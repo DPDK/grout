@@ -285,6 +285,12 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "interfaces");
+		scols_column_set_json_type(scols_table_get_column(table, 1), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -343,7 +349,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
-static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
+static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_iface_stats_get_resp *resp = NULL;
 	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
@@ -377,6 +383,15 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "CP_TX_PACKETS", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "CP_TX_BYTES", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "interface-stats");
+		for (int i = 1; i <= 10; i++)
+			scols_column_set_json_type(
+				scols_table_get_column(table, i), SCOLS_JSON_NUMBER
+			);
+	}
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -414,7 +429,7 @@ end:
 	return status;
 }
 
-static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
+static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_iface_stats_get_resp *resp1, *resp2;
 	void *resp1_ptr = NULL, *resp2_ptr = NULL;
 	struct libscols_table *table = NULL;
@@ -447,6 +462,15 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "TX_BYTES/S", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "TX_ERRORS/S", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "interface-rates");
+		for (int i = 1; i <= 6; i++)
+			scols_column_set_json_type(
+				scols_table_get_column(table, i), SCOLS_JSON_NUMBER
+			);
+	}
 
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
 		const struct gr_iface_stats *s2 = &resp2->stats[i];
@@ -513,39 +537,85 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	printf("name: %s\n", iface->name);
-	if (iface->description[0] != '\0')
-		printf("description: %s\n", iface->description);
-	printf("type: %s\n", gr_iface_type_name(iface->type));
-	printf("id: %u\n", iface->id);
+	struct libscols_table *table = scols_new_table();
+	struct libscols_line *line;
+
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, ": ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "interface");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "name");
+	scols_line_set_data(line, 1, iface->name);
+
+	if (iface->description[0] != '\0') {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "description");
+		scols_line_set_data(line, 1, iface->description);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "type");
+	scols_line_set_data(line, 1, gr_iface_type_name(iface->type));
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "id");
+	scols_line_sprintf(line, 1, "%u", iface->id);
+
 	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
+		scols_unref_table(table);
 		free(iface);
 		return CMD_ERROR;
 	}
-	printf("flags: %s\n", buf);
-	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "flags");
+	scols_line_set_data(line, 1, buf);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mode");
+	scols_line_set_data(line, 1, gr_iface_mode_name(iface->mode));
 
 	if (iface->mode == GR_IFACE_MODE_VRF) {
 		struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-		printf("vrf: %s\n", vrf ? vrf->name : "[deleted]");
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "vrf");
+		scols_line_set_data(line, 1, vrf ? vrf->name : "[deleted]");
 		free(vrf);
 	} else {
 		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-		printf("domain: %s\n", domain ? domain->name : "[deleted]");
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "domain");
+		scols_line_set_data(line, 1, domain ? domain->name : "[deleted]");
 		free(domain);
 	}
 
-	printf("mtu: %u\n", iface->mtu);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mtu");
+	scols_line_sprintf(line, 1, "%u", iface->mtu);
 
-	if (iface->speed == UINT32_MAX)
-		printf("speed: unknown\n");
-	else
-		printf("speed: %u Mb/s\n", iface->speed);
+	if (iface->speed == UINT32_MAX) {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "speed");
+		scols_line_set_data(line, 1, "unknown");
+	} else {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "speed");
+		scols_line_sprintf(line, 1, "%u Mb/s", iface->speed);
+	}
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);
-	type->show(c, iface);
+	type->show(c, iface, table);
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(iface);
 
 	return CMD_SUCCESS;
@@ -573,19 +643,29 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 
-	ret = CLI_COMMAND(INTERFACE_CTX(root), "stats", iface_stats, "Show interface counters.");
-	if (ret < 0)
-		return ret;
-
 	ret = CLI_COMMAND(
-		INTERFACE_CTX(root), "rates", iface_rates, "Show interface counter rates."
+		INTERFACE_CTX(root),
+		"stats [json]",
+		iface_stats,
+		"Show interface counters.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
 		INTERFACE_CTX(root),
-		"[show] [(name NAME)|(type TYPE)]",
+		"rates [json]",
+		iface_rates,
+		"Show interface counter rates.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CTX(root),
+		"[show] [(name NAME)|(type TYPE)] [json]",
 		iface_show,
 		"Show interface details.",
 		with_help(
@@ -595,7 +675,8 @@ static int ctx_init(struct ec_node *root) {
 		with_help(
 			"Show only this type of interface.",
 			ec_node_dyn("TYPE", complete_iface_types, NULL)
-		)
+		),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

@@ -69,6 +69,11 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_table_new_column(table, "NEXT_HOP", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "routes");
+	}
+
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if ((ret = ops->list(c, vrf_id, table)) < 0)
 			break;
@@ -165,11 +170,12 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"get DEST [vrf VRF]",
+		"get DEST [(vrf VRF),(json)]",
 		route_get,
 		"Get the route associated with a destination IP address.",
 		with_help("IP destination address.", ec_node_re("DEST", IP_ANY_RE)),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
@@ -213,10 +219,11 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"[show] [vrf VRF]",
+		"[show] [vrf VRF] [json]",
 		route_list,
 		"Show IP routes.",
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_conntrack *conn;
 	struct libscols_table *table;
 	clock_t now;
@@ -32,6 +32,14 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	scols_table_new_column(table, "DPORT", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "LAST_UPDATE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "connections");
+		scols_column_set_json_type(scols_table_get_column(table, 7), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 8), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 9), SCOLS_JSON_NUMBER);
+	}
 
 	now = gr_clock_us();
 
@@ -92,25 +100,69 @@ static cmd_status_t conn_flush(struct gr_api_client *c, const struct ec_pnode *)
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t config_show(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t config_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_conntrack_conf_get_resp *resp;
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 
 	if (gr_api_client_send_recv(c, GR_CONNTRACK_CONF_GET, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("closed-timeout %u\n", resp->timeout_closed_sec);
-	printf("new-timeout %u\n", resp->timeout_new_sec);
-	printf("established-udp-timeout %u\n", resp->timeout_udp_established_sec);
-	printf("established-tcp-timeout %u\n", resp->timeout_tcp_established_sec);
-	printf("half-close-timeout %u\n", resp->timeout_half_close_sec);
-	printf("time-wait-timeout %u\n", resp->timeout_time_wait_sec);
 
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "conntrack-config");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "used");
+	scols_line_sprintf(
+		line,
+		1,
+		"%u (%.01f%%)",
+		resp->used_count,
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "max");
+	scols_line_sprintf(line, 1, "%u", resp->max_count);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "closed-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_closed_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "new-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_new_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "established-udp-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_udp_established_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "established-tcp-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_tcp_established_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "half-close-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_half_close_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "time-wait-timeout");
+	scols_line_sprintf(line, 1, "%u", resp->timeout_time_wait_sec);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -195,14 +247,21 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CONNTRACK_CONFIG_CTX(root),
-		"[show]",
+		"[show] [json]",
 		config_show,
-		"Show the current connection tracking configuration."
+		"Show the current connection tracking configuration.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
 
-	ret = CLI_COMMAND(CONNTRACK_CTX(root), "[show]", conn_list, "Display tracked connections.");
+	ret = CLI_COMMAND(
+		CONNTRACK_CTX(root),
+		"[show] [json]",
+		conn_list,
+		"Display tracked connections.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
 	if (ret < 0)
 		return ret;
 

@@ -46,7 +46,7 @@ static cmd_status_t dhcp_disable_cmd(struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_dhcp_status *status;
 	struct libscols_table *table;
 	int ret;
@@ -60,6 +60,12 @@ static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode
 	scols_table_new_column(table, "ADDRESS", 0, 0);
 	scols_table_new_column(table, "SERVER", 0, 0);
 	scols_table_new_column(table, "LEASE", 0, SCOLS_FL_RIGHT);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "dhcp");
+		scols_column_set_json_type(scols_table_get_column(table, 4), SCOLS_JSON_NUMBER);
+	}
 
 	gr_api_client_stream_foreach (status, ret, c, GR_DHCP_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -86,10 +92,7 @@ static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode
 			scols_line_sprintf(line, 3, "-");
 		}
 
-		if (status->lease_time != 0)
-			scols_line_sprintf(line, 4, "%us", status->lease_time);
-		else
-			scols_line_sprintf(line, 4, "-");
+		scols_line_sprintf(line, 4, "%u", status->lease_time);
 	}
 
 	if (ret < 0) {
@@ -134,9 +137,10 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		CLI_CONTEXT(root, CTX_ARG("dhcp", "DHCP client.")),
-		"show",
+		"show [json]",
 		dhcp_show_cmd,
-		"Show DHCP client status."
+		"Show DHCP client status.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

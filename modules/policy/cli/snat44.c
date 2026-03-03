@@ -53,7 +53,7 @@ static cmd_status_t snat44_del(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_snat44_policy *policy;
 	struct libscols_table *table;
 	int ret;
@@ -63,6 +63,11 @@ static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *
 	scols_table_new_column(table, "SUBNET", 0, 0);
 	scols_table_new_column(table, "REPLACE", 0, 0);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "snat44");
+	}
 
 	gr_api_client_stream_foreach (policy, ret, c, GR_SNAT44_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -123,7 +128,13 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(SNAT_CTX(root), "[show]", snat44_list, "Display SNAT44 policies.");
+	ret = CLI_COMMAND(
+		SNAT_CTX(root),
+		"[show] [json]",
+		snat44_list,
+		"Display SNAT44 policies.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
 	if (ret < 0)
 		return ret;
 

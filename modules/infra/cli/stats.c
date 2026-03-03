@@ -93,12 +93,32 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		sort_func = stats_order_cycles;
 
 	if (req.flags & GR_INFRA_STAT_F_HW || brief) {
+		struct libscols_table *table = scols_new_table();
+
+		scols_table_new_column(table, "NAME", 0, 0);
+		scols_table_new_column(table, "PACKETS", 0, 0);
+		scols_table_set_column_separator(table, "  ");
+		scols_table_enable_noheadings(table, 1);
+
+		if (arg_str(p, "json")) {
+			scols_table_enable_json(table, 1);
+			scols_table_set_name(table, "stats");
+			scols_table_enable_noheadings(table, 0);
+			scols_column_set_json_type(
+				scols_table_get_column(table, 1), SCOLS_JSON_NUMBER
+			);
+		}
+
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_infra_stat *s = &resp->stats[i];
-			if (req.flags & GR_INFRA_STAT_F_HW || brief)
-				printf("%s %lu\n", s->name, s->packets);
+			struct libscols_line *line = scols_table_new_line(table, NULL);
+			scols_line_set_data(line, 0, s->name);
+			scols_line_sprintf(line, 1, "%lu", s->packets);
 		}
+
+		scols_print_table(table);
+		scols_unref_table(table);
 	} else {
 		struct libscols_table *table = scols_new_table();
 
@@ -109,6 +129,15 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		scols_table_new_column(table, "CYCLES/BATCH", 0, SCOLS_FL_RIGHT);
 		scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
 		scols_table_set_column_separator(table, "  ");
+
+		if (arg_str(p, "json")) {
+			scols_table_enable_json(table, 1);
+			scols_table_set_name(table, "stats");
+			for (int i = 1; i <= 5; i++)
+				scols_column_set_json_type(
+					scols_table_get_column(table, i), SCOLS_JSON_NUMBER
+				);
+		}
 
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 
@@ -160,7 +189,8 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		STATS_CTX(root),
-		"[show] [(software|hardware),brief,zero,(pattern PATTERN),(cpu CPU),(order ORDER)]",
+		"[show] [(software|hardware),brief,zero,json,(pattern PATTERN),(cpu CPU),(order "
+		"ORDER)]",
 		stats_get,
 		"Print statistics.",
 		with_help("Print software stats (default).", ec_node_str("software", "software")),
@@ -171,6 +201,7 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_uint("CPU", 0, UINT16_MAX - 1, 10)
 		),
 		with_help("Print stats with value 0.", ec_node_str("zero", "zero")),
+		with_help("Output in JSON format.", ec_node_str("json", "json")),
 		with_help("Filter by glob pattern.", ec_node("any", "PATTERN")),
 		with_help(
 			"Ordering.",

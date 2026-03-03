@@ -45,24 +45,24 @@ grcli dhcp enable p0
 sleep 5
 
 # Verify default route was added
-grcli route show | grep -q "0.0.0.0/0.*192.168.100.1" || fail "DHCP did not add default route"
+grcli route show json | jq -e '.routes[] | select(.destination == "0.0.0.0/0" and (.next_hop | contains("192.168.100.1")))' > /dev/null || fail "DHCP did not add default route"
 
 # Verify DHCP assigned an address by checking the /24 route exists
-grcli route show | grep -q "192.168.100.0/24" || fail "DHCP did not assign IP address"
+grcli route show json | jq -e '.routes[] | select(.destination == "192.168.100.0/24")' > /dev/null || fail "DHCP did not assign IP address"
 
 # Query DHCP status via API
 echo "=== DHCP Client Status ==="
 grcli dhcp show
-grcli dhcp show | grep -q "p0" || fail "DHCP status not available"
-grcli dhcp show | grep -q "BOUND" || fail "DHCP client not in BOUND state"
+grcli dhcp show json | jq -e '.dhcp[] | select(.interface == "p0")' > /dev/null || fail "DHCP status not available"
+grcli dhcp show json | jq -e '.dhcp[] | select(.state == "BOUND")' > /dev/null || fail "DHCP client not in BOUND state"
 
 # Test DHCP release/disable
 grcli dhcp disable p0
 
 # Verify default route was removed
-! grcli route show | grep -q "0.0.0.0/0.*192.168.100.1" || fail "DHCP route not removed after disable"
+! grcli route show json | jq -e '.routes[] | select(.destination == "0.0.0.0/0" and (.next_hop | contains("192.168.100.1")))' > /dev/null || fail "DHCP route not removed after disable"
 
 # Verify DHCP client is no longer active
-! grcli dhcp show | grep -q "p0" || fail "DHCP client still active after disable"
+! grcli dhcp show json | jq -e '.dhcp[] | select(.interface == "p0")' > /dev/null || fail "DHCP client still active after disable"
 
 echo "DHCP smoke test passed!"

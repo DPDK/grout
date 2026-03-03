@@ -197,23 +197,65 @@ static cmd_status_t set_config(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_infra_nh_config_get_resp *resp;
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 
 	if (gr_api_client_send_recv(c, GR_INFRA_NH_CONFIG_GET, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("lifetime %u\n", resp->lifetime_reachable_sec);
-	printf("unreachable %u\n", resp->lifetime_unreachable_sec);
-	printf("held-packets %u\n", resp->max_held_pkts);
-	printf("ucast-probes %u\n", resp->max_ucast_probes);
-	printf("bcast-probes %u\n", resp->max_bcast_probes);
+
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "nexthop-config");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "used");
+	scols_line_sprintf(
+		line,
+		1,
+		"%u (%.01f%%)",
+		resp->used_count,
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "max");
+	scols_line_sprintf(line, 1, "%u", resp->max_count);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "lifetime");
+	scols_line_sprintf(line, 1, "%u", resp->lifetime_reachable_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "unreachable");
+	scols_line_sprintf(line, 1, "%u", resp->lifetime_unreachable_sec);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "held-packets");
+	scols_line_sprintf(line, 1, "%u", resp->max_held_pkts);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "ucast-probes");
+	scols_line_sprintf(line, 1, "%u", resp->max_ucast_probes);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "bcast-probes");
+	scols_line_sprintf(line, 1, "%u", resp->max_bcast_probes);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -377,6 +419,12 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "nexthops");
+		scols_column_set_json_type(scols_table_get_column(table, 1), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
@@ -459,9 +507,10 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		NEXTHOP_CONFIG_CTX(root),
-		"[show]",
+		"[show] [json]",
 		show_config,
-		"Show the current nexthop configuration."
+		"Show the current nexthop configuration.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
@@ -519,14 +568,15 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
-		"[show] [(vrf VRF),(type TYPE),(internal)]",
+		"[show] [(vrf VRF),(type TYPE),(internal),(json)]",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
 		),
-		with_help("Include internal next hops.", ec_node_str("internal", "internal"))
+		with_help("Include internal next hops.", ec_node_str("internal", "internal")),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

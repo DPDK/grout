@@ -14,17 +14,23 @@
 #include <errno.h>
 #include <sys/queue.h>
 
-static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void
+vlan_show(struct gr_api_client *c, const struct gr_iface *iface, struct libscols_table *table) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
 	struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
+	struct libscols_line *line;
 
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "parent");
 	if (parent == NULL)
-		printf("parent: %u\n", vlan->parent_id);
+		scols_line_sprintf(line, 1, "%u", vlan->parent_id);
 	else
-		printf("parent: %s\n", parent->name);
-	printf("vlan_id: %u\n", vlan->vlan_id);
-
+		scols_line_set_data(line, 1, parent->name);
 	free(parent);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "vlan_id");
+	scols_line_sprintf(line, 1, "%u", vlan->vlan_id);
 }
 
 static void

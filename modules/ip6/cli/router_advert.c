@@ -30,6 +30,14 @@ static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	scols_table_new_column(table, "LIFETIME", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "router-advertisements");
+		scols_column_set_json_type(scols_table_get_column(table, 1), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 2), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 3), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (ra, ret, c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 		iface = iface_from_id(c, ra->iface_id);
@@ -113,10 +121,11 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		RA_CTX(root),
-		"[show] [interface IFACE]",
+		"[show] [interface IFACE] [json]",
 		ra_show,
 		"Show router advertisement configuration",
-		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+		with_help("Interface name.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

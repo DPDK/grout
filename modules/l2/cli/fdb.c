@@ -144,6 +144,13 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "fdb");
+		scols_column_set_json_type(scols_table_get_column(table, 2), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 5), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
@@ -153,8 +160,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 
 		scols_line_sprintf(line, 1, ETH_F, &fdb->mac);
 
-		if (fdb->vlan_id != 0)
-			scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
+		scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
 
 		struct gr_iface *iface = iface_from_id(c, fdb->iface_id);
 		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
@@ -164,7 +170,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 			scols_line_set_data(line, 4, flags);
 
 		scols_line_sprintf(
-			line, 5, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
+			line, 5, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
 		);
 	}
 
@@ -186,8 +192,10 @@ static cmd_status_t fdb_config_set(struct gr_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_fdb_config_get_resp *resp;
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 	float used = 0.0;
 
@@ -195,10 +203,32 @@ static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pno
 		return CMD_ERROR;
 
 	resp = resp_ptr;
+
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "fdb-config");
+		scols_table_enable_noheadings(table, 0);
+	}
+
 	if (resp->max_entries != 0)
 		used = (100.0 * (float)resp->used_entries) / (float)resp->max_entries;
-	printf("used %u (%.01f%%)\n", resp->used_entries, used);
-	printf("max %u\n", resp->max_entries);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "used");
+	scols_line_sprintf(line, 1, "%u (%.01f%%)", resp->used_entries, used);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "max");
+	scols_line_sprintf(line, 1, "%u", resp->max_entries);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -273,16 +303,17 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"config [show]",
+		"config [show] [json]",
 		fdb_config_show,
-		"Show the current FDB configuration."
+		"Show the current FDB configuration.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn)]",
+		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn),(json)]",
 		fdb_show,
 		"Show FDB entries.",
 		with_help(
@@ -294,7 +325,8 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		),
 		with_help("Show only static entries.", ec_node_str("static", "static")),
-		with_help("Show only learned entries.", ec_node_str("learn", "learn"))
+		with_help("Show only learned entries.", ec_node_str("learn", "learn")),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
