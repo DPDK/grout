@@ -76,51 +76,38 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-struct list_context {
-	gr_nh_type_t type;
-	uint16_t vrf_id;
-	bool include_internal;
-	int ret;
-	struct api_ctx *ctx;
-};
-
-static void nh_list_cb(struct nexthop *nh, void *priv) {
-	struct list_context *ctx = priv;
-	struct gr_nexthop *pub_nh;
-	size_t len;
-
-	if (ctx->ret != 0)
-		return;
-	if (nh->vrf_id != ctx->vrf_id && ctx->vrf_id != GR_VRF_ID_UNDEF)
-		return;
-	if (ctx->type != GR_NH_T_ALL && nh->type != ctx->type)
-		return;
-	if (!ctx->include_internal && nh->origin == GR_NH_ORIGIN_INTERNAL)
-		return;
-
-	pub_nh = nexthop_to_api(nh, &len);
-	if (pub_nh == NULL) {
-		ctx->ret = errno;
-		LOG(ERR, "nexthop_export: %s", strerror(errno));
-		return;
-	}
-	api_send(ctx->ctx, len, pub_nh);
-	free(pub_nh);
-}
-
 static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_nh_list_req *req = request;
-	struct list_context list = {
-		.vrf_id = req->vrf_id,
-		.include_internal = req->include_internal,
-		.type = req->type,
-		.ctx = ctx,
-		.ret = 0
-	};
+	const struct nexthop *nh = NULL;
+	struct gr_nexthop *pub_nh;
+	unsigned n = 0;
+	size_t len;
 
-	nexthop_iter(nh_list_cb, &list);
+	for (;;) {
+		nh = nexthop_next(nh);
+		if (nh == NULL)
+			return api_out(0, 0, NULL);
 
-	return api_out(list.ret, 0, NULL);
+		if (req->max_count != 0 && n >= req->max_count)
+			return api_out(EXFULL, 0, NULL);
+
+		if (nh->vrf_id != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
+			continue;
+		if (req->type != GR_NH_T_ALL && nh->type != req->type)
+			continue;
+		if (!req->include_internal && nh->origin == GR_NH_ORIGIN_INTERNAL)
+			continue;
+
+		pub_nh = nexthop_to_api(nh, &len);
+		if (pub_nh == NULL)
+			return api_out(errno, 0, NULL);
+		api_send(ctx, len, pub_nh);
+		free(pub_nh);
+
+		n++;
+	}
+
+	return api_out(0, 0, NULL);
 }
 
 static struct api_out nh_get(const void *request, struct api_ctx *) {

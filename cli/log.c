@@ -47,6 +47,24 @@ void errorf(const char *fmt, ...) {
 	fprintf(stderr, "\n");
 }
 
+void warnf(const char *fmt, ...) {
+	const char *color, *reset;
+	va_list ap;
+
+	if (stderr_isatty) {
+		color = BOLD_YELLOW_SGR;
+		reset = RESET_SGR;
+	} else {
+		color = "";
+		reset = "";
+	}
+	fprintf(stderr, "%swarning:%s ", color, reset);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, "\n");
+}
+
 const char *need_quote(const char *arg) {
 	while (*arg != '\0') {
 		switch (*arg++) {

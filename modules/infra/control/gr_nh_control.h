@@ -130,6 +130,10 @@ typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
 // Iterate over all nexthops and invoke a callback for each active nexthop.
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 
+// Cursor-based iteration over active nexthops.
+// Pass NULL as prev to start, returns NULL when done.
+struct nexthop *nexthop_next(const struct nexthop *prev);
+
 struct nexthop_af_ops {
 	// Control queue callback invoked when packets reach ip*_hold.
 	control_queue_cb_t resolve;

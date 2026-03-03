@@ -432,6 +432,26 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
 	rte_mempool_obj_iter(pool, nh_pool_iter_cb, &it);
 }
 
+struct nexthop *nexthop_next(const struct nexthop *prev) {
+	struct rte_mempool_objhdr *hdr;
+
+	if (prev == NULL)
+		hdr = STAILQ_FIRST(&pool->elt_list);
+	else {
+		hdr = RTE_PTR_SUB(prev, sizeof(*hdr));
+		hdr = STAILQ_NEXT(hdr, next);
+	}
+
+	while (hdr != NULL) {
+		struct nexthop *nh = RTE_PTR_ADD(hdr, sizeof(*hdr));
+		if (nh->ref_count != 0)
+			return nh;
+		hdr = STAILQ_NEXT(hdr, next);
+	}
+
+	return NULL;
+}
+
 struct nexthop *nexthop_lookup_id(uint32_t nh_id) {
 	void *data;
 
