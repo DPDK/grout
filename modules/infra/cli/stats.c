@@ -15,14 +15,14 @@
 #include <unistd.h>
 
 static int stats_order_name(const void *sa, const void *sb) {
-	const struct gr_infra_stat *a = sa;
-	const struct gr_infra_stat *b = sb;
+	const struct gr_stat *a = sa;
+	const struct gr_stat *b = sb;
 	return strncmp(a->name, b->name, sizeof(a->name));
 }
 
 static int stats_order_cycles(const void *sa, const void *sb) {
-	const struct gr_infra_stat *a = sa;
-	const struct gr_infra_stat *b = sb;
+	const struct gr_stat *a = sa;
+	const struct gr_stat *b = sb;
 	if (a->cycles == b->cycles)
 		return 0;
 	if (a->cycles > b->cycles)
@@ -31,8 +31,8 @@ static int stats_order_cycles(const void *sa, const void *sb) {
 }
 
 static int stats_order_packets(const void *sa, const void *sb) {
-	const struct gr_infra_stat *a = sa;
-	const struct gr_infra_stat *b = sb;
+	const struct gr_stat *a = sa;
+	const struct gr_stat *b = sb;
 
 	if (a->packets == b->packets)
 		return 0;
@@ -42,8 +42,8 @@ static int stats_order_packets(const void *sa, const void *sb) {
 }
 
 static int stats_order_topo(const void *sa, const void *sb) {
-	const struct gr_infra_stat *a = sa;
-	const struct gr_infra_stat *b = sb;
+	const struct gr_stat *a = sa;
+	const struct gr_stat *b = sb;
 
 	if (a->topo_order == b->topo_order)
 		return 0;
@@ -53,18 +53,18 @@ static int stats_order_topo(const void *sa, const void *sb) {
 }
 
 static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_stats_get_req req = {.flags = 0, .cpu_id = UINT16_MAX};
+	struct gr_stats_get_req req = {.flags = 0, .cpu_id = UINT16_MAX};
 	bool brief = arg_str(p, "brief") != NULL;
-	struct gr_infra_stats_get_resp *resp;
+	struct gr_stats_get_resp *resp;
 	void *resp_ptr = NULL;
 	const char *pattern;
 
 	if (arg_str(p, "hardware") != NULL)
-		req.flags |= GR_INFRA_STAT_F_HW;
+		req.flags |= GR_STATS_F_HW;
 	else
-		req.flags |= GR_INFRA_STAT_F_SW;
+		req.flags |= GR_STATS_F_SW;
 	if (arg_str(p, "zero") != NULL)
-		req.flags |= GR_INFRA_STAT_F_ZERO;
+		req.flags |= GR_STATS_F_ZERO;
 	pattern = arg_str(p, "PATTERN");
 	if (pattern == NULL)
 		pattern = "*";
@@ -72,7 +72,7 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 	if (arg_u16(p, "CPU", &req.cpu_id) < 0 && errno != ENOENT)
 		goto fail;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_STATS_GET, sizeof(req), &req, &resp_ptr) < 0)
 		goto fail;
 
 	resp = resp_ptr;
@@ -87,16 +87,16 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		sort_func = stats_order_packets;
 	else if (strcmp(order, "graph") == 0)
 		sort_func = stats_order_topo;
-	else if (req.flags & GR_INFRA_STAT_F_HW || brief)
+	else if (req.flags & GR_STATS_F_HW || brief)
 		sort_func = stats_order_name;
 	else
 		sort_func = stats_order_cycles;
 
-	if (req.flags & GR_INFRA_STAT_F_HW || brief) {
+	if (req.flags & GR_STATS_F_HW || brief) {
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 		for (size_t i = 0; i < resp->n_stats; i++) {
-			const struct gr_infra_stat *s = &resp->stats[i];
-			if (req.flags & GR_INFRA_STAT_F_HW || brief)
+			const struct gr_stat *s = &resp->stats[i];
+			if (req.flags & GR_STATS_F_HW || brief)
 				printf("%s %lu\n", s->name, s->packets);
 		}
 	} else {
@@ -115,7 +115,7 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			struct libscols_line *line = scols_table_new_line(table, NULL);
 			double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
-			const struct gr_infra_stat *s = &resp->stats[i];
+			const struct gr_stat *s = &resp->stats[i];
 
 			if (s->batches != 0) {
 				pkt_call = ((double)s->packets) / ((double)s->batches);
@@ -144,7 +144,7 @@ fail:
 }
 
 static cmd_status_t stats_reset(struct gr_api_client *c, const struct ec_pnode *) {
-	if (gr_api_client_send_recv(c, GR_INFRA_STATS_RESET, 0, NULL, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_STATS_RESET, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;

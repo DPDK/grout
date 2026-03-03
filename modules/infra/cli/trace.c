@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_packet_trace_set_req req;
+	struct gr_packet_trace_set_req req;
 	struct gr_iface *iface = NULL;
 
 	req.enabled = true;
@@ -26,14 +26,14 @@ static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p)
 		req.iface_id = iface->id;
 	free(iface);
 
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t trace_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_packet_trace_set_req req;
+	struct gr_packet_trace_set_req req;
 	struct gr_iface *iface = NULL;
 
 	req.enabled = false;
@@ -45,15 +45,15 @@ static cmd_status_t trace_del(struct gr_api_client *c, const struct ec_pnode *p)
 		req.iface_id = iface->id;
 	free(iface);
 
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_PACKET_TRACE_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t trace_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	const struct gr_infra_packet_trace_dump_resp *resp = NULL;
-	struct gr_infra_packet_trace_dump_req req;
+	const struct gr_packet_trace_dump_resp *resp = NULL;
+	struct gr_packet_trace_dump_req req;
 	uint16_t max_packets = 10;
 	void *resp_ptr = NULL;
 	int ret;
@@ -62,11 +62,11 @@ static cmd_status_t trace_show(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 
 	do {
-		req.max_packets = max_packets > GR_INFRA_PACKET_TRACE_BATCH ?
-			GR_INFRA_PACKET_TRACE_BATCH :
+		req.max_packets = max_packets > GR_PACKET_TRACE_BATCH ?
+			GR_PACKET_TRACE_BATCH :
 			max_packets;
 		ret = gr_api_client_send_recv(
-			c, GR_INFRA_PACKET_TRACE_DUMP, sizeof(req), &req, &resp_ptr
+			c, GR_PACKET_TRACE_DUMP, sizeof(req), &req, &resp_ptr
 		);
 		if (ret < 0)
 			return CMD_ERROR;
@@ -87,16 +87,16 @@ static cmd_status_t trace_show(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t trace_clear(struct gr_api_client *c, const struct ec_pnode *) {
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_TRACE_CLEAR, 0, NULL, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_PACKET_TRACE_CLEAR, 0, NULL, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t packet_logging_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_packet_log_set_req req = {.enabled = arg_str(p, "enable") != NULL};
+	struct gr_packet_log_set_req req = {.enabled = arg_str(p, "enable") != NULL};
 
-	if (gr_api_client_send_recv(c, GR_INFRA_PACKET_LOG_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_PACKET_LOG_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;

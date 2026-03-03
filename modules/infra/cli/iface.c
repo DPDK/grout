@@ -79,12 +79,12 @@ int complete_iface_names(
 	const char *arg,
 	void *cb_arg
 ) {
-	struct gr_infra_iface_list_req req = {.type = (uintptr_t)cb_arg};
+	struct gr_iface_list_req req = {.type = (uintptr_t)cb_arg};
 	const struct gr_iface *iface;
 	int result = 0;
 	int ret;
 
-	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
+	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
 		if (ec_str_startswith(iface->name, arg)) {
 			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
 				result = -1;
@@ -126,7 +126,7 @@ int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, u
 }
 
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
-	struct gr_infra_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
+	struct gr_iface_get_req req = {.iface_id = GR_IFACE_ID_UNDEF};
 	void *resp_ptr = NULL;
 
 	if (name == NULL)
@@ -134,17 +134,17 @@ struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 
 	memccpy(req.name, name, 0, sizeof(req.name));
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
 	return resp_ptr;
 }
 
 struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
-	struct gr_infra_iface_get_req req = {.iface_id = iface_id, .name = ""};
+	struct gr_iface_get_req req = {.iface_id = iface_id, .name = ""};
 	void *resp_ptr = NULL;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
 	return resp_ptr;
@@ -247,7 +247,7 @@ err:
 
 static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
-	struct gr_infra_iface_del_req req;
+	struct gr_iface_del_req req;
 
 	if (iface == NULL)
 		return CMD_ERROR;
@@ -255,14 +255,14 @@ static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p)
 	req.iface_id = iface->id;
 	free(iface);
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_DEL, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_iface_list_req req;
+	struct gr_iface_list_req req;
 	const struct cli_iface_type *type;
 	const struct gr_iface *iface;
 	char buf[128];
@@ -285,7 +285,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	gr_api_client_stream_foreach (iface, ret, c, GR_INFRA_IFACE_LIST, sizeof(req), &req) {
+	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
@@ -344,14 +344,14 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
-	struct gr_infra_iface_stats_get_resp *resp = NULL;
+	struct gr_iface_stats_get_resp *resp = NULL;
 	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
 	void *resp_ptr = NULL;
 	int ret;
 
 	// Send the new API request and wait for the response
-	ret = gr_api_client_send_recv(c, GR_INFRA_IFACE_STATS_GET, 0, NULL, &resp_ptr);
+	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp_ptr);
 	if (ret < 0) {
 		errorf("failed to get interface stats: %s", strerror(-ret));
 		goto end;
@@ -415,20 +415,20 @@ end:
 }
 
 static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
-	const struct gr_infra_iface_stats_get_resp *resp1, *resp2;
+	const struct gr_iface_stats_get_resp *resp1, *resp2;
 	void *resp1_ptr = NULL, *resp2_ptr = NULL;
 	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
 	int ret;
 
-	ret = gr_api_client_send_recv(c, GR_INFRA_IFACE_STATS_GET, 0, NULL, &resp1_ptr);
+	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp1_ptr);
 	if (ret < 0)
 		goto end;
 	resp1 = resp1_ptr;
 
 	sleep(1);
 
-	ret = gr_api_client_send_recv(c, GR_INFRA_IFACE_STATS_GET, 0, NULL, &resp2_ptr);
+	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp2_ptr);
 	if (ret < 0)
 		goto end;
 	resp2 = resp2_ptr;

@@ -94,8 +94,8 @@ static uint64_t parse_bridge_args(
 }
 
 static cmd_status_t bridge_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	const struct gr_infra_iface_add_resp *resp;
-	struct gr_infra_iface_add_req *req = NULL;
+	const struct gr_iface_add_resp *resp;
+	struct gr_iface_add_req *req = NULL;
 	void *resp_ptr = NULL;
 	size_t len;
 
@@ -109,7 +109,7 @@ static cmd_status_t bridge_add(struct gr_api_client *c, const struct ec_pnode *p
 	if (parse_bridge_args(c, p, &req->iface, false) == 0)
 		goto err;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, len, req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_ADD, len, req, &resp_ptr) < 0)
 		goto err;
 
 	free(req);
@@ -123,7 +123,7 @@ err:
 }
 
 static cmd_status_t bridge_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_iface_set_req *req = NULL;
+	struct gr_iface_set_req *req = NULL;
 	cmd_status_t ret = CMD_ERROR;
 	size_t len;
 
@@ -134,7 +134,7 @@ static cmd_status_t bridge_set(struct gr_api_client *c, const struct ec_pnode *p
 	if ((req->set_attrs = parse_bridge_args(c, p, &req->iface, true)) == 0)
 		goto out;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, len, req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_SET, len, req, NULL) < 0)
 		goto out;
 
 	ret = CMD_SUCCESS;
