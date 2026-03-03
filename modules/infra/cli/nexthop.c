@@ -176,7 +176,7 @@ static int nh_name_to_type(const char *name, gr_nh_type_t *type) {
 }
 
 static cmd_status_t set_config(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_nh_config_set_req req = {0};
+	struct gr_nh_config_set_req req = {0};
 
 	if (arg_u32(p, "MAX", &req.max_count) < 0 && errno != ENOENT)
 		return CMD_ERROR;
@@ -191,17 +191,17 @@ static cmd_status_t set_config(struct gr_api_client *c, const struct ec_pnode *p
 	if (arg_u8(p, "BCAST", &req.max_bcast_probes) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_NH_CONFIG_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_NH_CONFIG_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *) {
-	const struct gr_infra_nh_config_get_resp *resp;
+	const struct gr_nh_config_get_resp *resp;
 	void *resp_ptr = NULL;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_NH_CONFIG_GET, 0, NULL, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_NH_CONFIG_GET, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;

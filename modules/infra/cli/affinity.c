@@ -14,7 +14,7 @@
 #include <string.h>
 
 static cmd_status_t affinity_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_cpu_affinity_set_req req = {0};
+	struct gr_affinity_cpu_set_req req = {0};
 	const char *arg;
 
 	if ((arg = arg_str(p, "CONTROL")) != NULL) {
@@ -26,18 +26,18 @@ static cmd_status_t affinity_set(struct gr_api_client *c, const struct ec_pnode 
 			return CMD_ERROR;
 	}
 
-	if (gr_api_client_send_recv(c, GR_INFRA_CPU_AFFINITY_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_AFFINITY_CPU_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
 }
 
 static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode *) {
-	struct gr_infra_cpu_affinity_get_resp resp;
+	struct gr_affinity_cpu_get_resp resp;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 
-	if (gr_api_client_send_recv(c, GR_INFRA_CPU_AFFINITY_GET, 0, NULL, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_AFFINITY_CPU_GET, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	memcpy(&resp, resp_ptr, sizeof(resp));
@@ -57,7 +57,7 @@ static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode
 }
 
 static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_rxq_set_req req;
+	struct gr_affinity_rxq_set_req req;
 	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
 
 	if (iface == NULL)
@@ -71,7 +71,7 @@ static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	if (arg_u16(p, "CPU", &req.cpu_id) < 0)
 		return CMD_ERROR;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_RXQ_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_AFFINITY_RXQ_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -89,7 +89,7 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 	scols_table_new_column(table, "ENABLED", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
-	gr_api_client_stream_foreach (q, ret, c, GR_INFRA_RXQ_LIST, 0, NULL) {
+	gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
 		scols_line_sprintf(line, 0, "%u", q->cpu_id);

@@ -395,7 +395,7 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		{GR_NODE_T_L3, "L3"},
 		{GR_NODE_T_L4, "L4"},
 	};
-	const struct gr_infra_graph_dump_req *req = request;
+	const struct gr_graph_dump_req *req = request;
 	gr_vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
 	char **edges = NULL;
@@ -636,6 +636,6 @@ static struct gr_module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
-	gr_api_handler(GR_INFRA_GRAPH_DUMP, graph_dump);
+	gr_api_handler(GR_GRAPH_DUMP, graph_dump);
 	gr_register_module(&graph_module);
 }

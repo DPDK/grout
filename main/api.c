@@ -447,7 +447,7 @@ void api_socket_stop(struct event_base *) {
 }
 
 RTE_INIT(init) {
-	gr_api_handler(GR_MAIN_EVENT_SUBSCRIBE, subscribe);
-	gr_api_handler(GR_MAIN_EVENT_UNSUBSCRIBE, unsubscribe);
-	gr_api_handler(GR_MAIN_HELLO, hello);
+	gr_api_handler(GR_EVENT_SUBSCRIBE, subscribe);
+	gr_api_handler(GR_EVENT_UNSUBSCRIBE, unsubscribe);
+	gr_api_handler(GR_HELLO, hello);
 }

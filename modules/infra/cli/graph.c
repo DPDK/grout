@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_graph_dump_req req = {0};
+	struct gr_graph_dump_req req = {0};
 	void *resp_ptr = NULL;
 	const char *dot;
 
@@ -23,7 +23,7 @@ static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p
 	if (arg_str(p, "compact"))
 		req.compact = true;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_GRAPH_DUMP, sizeof(req), &req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_GRAPH_DUMP, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	dot = resp_ptr;

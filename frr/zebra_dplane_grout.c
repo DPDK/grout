@@ -79,7 +79,7 @@ static int grout_notif_subscribe(
 		req.ev_type = gr_evts[i].type;
 
 		if (gr_api_client_send_recv(
-			    *pgr_client, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL
+			    *pgr_client, GR_EVENT_SUBSCRIBE, sizeof(req), &req, NULL
 		    )
 		    < 0) {
 			gr_log_err("gr_api_client_send_recv: %s", strerror(errno));
@@ -294,7 +294,7 @@ static void grout_sync_ifaces(struct event *) {
 		GR_IFACE_TYPE_PORT, // needs bond/VRF/bridge domain
 		GR_IFACE_TYPE_VLAN, // needs parent port/bond and VRF/bridge domain
 	};
-	struct gr_infra_iface_list_req if_req;
+	struct gr_iface_list_req if_req;
 	struct gr_iface *iface;
 	unsigned int i;
 	int ret;
@@ -306,12 +306,7 @@ static void grout_sync_ifaces(struct event *) {
 		if_req.type = types[i];
 
 		gr_api_client_stream_foreach (
-			iface,
-			ret,
-			grout_ctx.sync_client,
-			GR_INFRA_IFACE_LIST,
-			sizeof(if_req),
-			&if_req
+			iface, ret, grout_ctx.sync_client, GR_IFACE_LIST, sizeof(if_req), &if_req
 		) {
 			grout_link_change(iface, true, true);
 			bf_set_bit(grout_ctx.sync_vrf, iface->vrf_id);
@@ -319,7 +314,7 @@ static void grout_sync_ifaces(struct event *) {
 
 		if (ret < 0) {
 			gr_log_err(
-				"GR_INFRA_IFACE_LIST(%s): %s",
+				"GR_IFACE_LIST(%s): %s",
 				gr_iface_type_name(types[i]),
 				strerror(errno)
 			);
@@ -435,10 +430,10 @@ static const char *gr_req_type_to_str(uint32_t e) {
 		return TOSTRING(GR_NH_ADD);
 	case GR_NH_DEL:
 		return TOSTRING(GR_NH_DEL);
-	case GR_INFRA_IFACE_GET:
-		return TOSTRING(GR_INFRA_IFACE_GET);
-	case GR_INFRA_IFACE_LIST:
-		return TOSTRING(GR_INFRA_IFACE_LIST);
+	case GR_IFACE_GET:
+		return TOSTRING(GR_IFACE_GET);
+	case GR_IFACE_LIST:
+		return TOSTRING(GR_IFACE_LIST);
 	case GR_IP4_ADDR_LIST:
 		return TOSTRING(GR_IP4_ADDR_LIST);
 	case GR_IP6_ADDR_LIST:
