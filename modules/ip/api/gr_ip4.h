@@ -70,6 +70,7 @@ struct gr_ip4_route_get_resp {
 
 struct gr_ip4_route_list_req {
 	uint16_t vrf_id;
+	uint16_t max_count;
 };
 
 STREAM_RESP(struct gr_ip4_route);
