@@ -89,16 +89,37 @@ static cmd_status_t srv6_tunsrc_clear(struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_srv6_tunsrc_show_resp *resp;
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr;
+	char buf[64];
 
 	if (gr_api_client_send_recv(c, GR_SRV6_TUNSRC_SHOW, 0, NULL, &resp_ptr) < 0)
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("sr tunsrc addr " IP6_F "\n", &resp->addr);
 
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "sr-tunsrc");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	snprintf(buf, sizeof(buf), IP6_F, &resp->addr);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "addr");
+	scols_line_set_data(line, 1, buf);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -170,9 +191,10 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		TUNSRC_CTX(root),
-		"[show]",
+		"[show] [json]",
 		srv6_tunsrc_show,
-		"Show Segment Routing SRv6 source address"
+		"Show Segment Routing SRv6 source address",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

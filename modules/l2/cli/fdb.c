@@ -192,8 +192,10 @@ static cmd_status_t fdb_config_set(struct gr_api_client *c, const struct ec_pnod
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_fdb_config_get_resp *resp;
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 	float used = 0.0;
 
@@ -201,10 +203,32 @@ static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pno
 		return CMD_ERROR;
 
 	resp = resp_ptr;
+
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "fdb-config");
+		scols_table_enable_noheadings(table, 0);
+	}
+
 	if (resp->max_entries != 0)
 		used = (100.0 * (float)resp->used_entries) / (float)resp->max_entries;
-	printf("used %u (%.01f%%)\n", resp->used_entries, used);
-	printf("max %u\n", resp->max_entries);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "used");
+	scols_line_sprintf(line, 1, "%u (%.01f%%)", resp->used_entries, used);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "max");
+	scols_line_sprintf(line, 1, "%u", resp->max_entries);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -279,9 +303,10 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"config [show]",
+		"config [show] [json]",
 		fdb_config_show,
-		"Show the current FDB configuration."
+		"Show the current FDB configuration.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

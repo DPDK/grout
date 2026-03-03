@@ -15,16 +15,40 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static void port_show(struct gr_api_client *, const struct gr_iface *iface) {
+static void
+port_show(struct gr_api_client *, const struct gr_iface *iface, struct libscols_table *table) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
+	struct libscols_line *line;
+	char buf[64];
 
-	printf("devargs: %s\n", port->devargs);
-	printf("driver:  %s\n", port->driver_name);
-	printf("mac: " ETH_F "\n", &port->mac);
-	printf("n_rxq: %u\n", port->n_rxq);
-	printf("n_txq: %u\n", port->n_txq);
-	printf("rxq_size: %u\n", port->rxq_size);
-	printf("txq_size: %u\n", port->txq_size);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "devargs");
+	scols_line_set_data(line, 1, port->devargs);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "driver");
+	scols_line_set_data(line, 1, port->driver_name);
+
+	snprintf(buf, sizeof(buf), ETH_F, &port->mac);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mac");
+	scols_line_set_data(line, 1, buf);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "n_rxq");
+	scols_line_sprintf(line, 1, "%u", port->n_rxq);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "n_txq");
+	scols_line_sprintf(line, 1, "%u", port->n_txq);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "rxq_size");
+	scols_line_sprintf(line, 1, "%u", port->rxq_size);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "txq_size");
+	scols_line_sprintf(line, 1, "%u", port->txq_size);
 }
 
 static void

@@ -537,39 +537,85 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	printf("name: %s\n", iface->name);
-	if (iface->description[0] != '\0')
-		printf("description: %s\n", iface->description);
-	printf("type: %s\n", gr_iface_type_name(iface->type));
-	printf("id: %u\n", iface->id);
+	struct libscols_table *table = scols_new_table();
+	struct libscols_line *line;
+
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, ": ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "interface");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "name");
+	scols_line_set_data(line, 1, iface->name);
+
+	if (iface->description[0] != '\0') {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "description");
+		scols_line_set_data(line, 1, iface->description);
+	}
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "type");
+	scols_line_set_data(line, 1, gr_iface_type_name(iface->type));
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "id");
+	scols_line_sprintf(line, 1, "%u", iface->id);
+
 	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
+		scols_unref_table(table);
 		free(iface);
 		return CMD_ERROR;
 	}
-	printf("flags: %s\n", buf);
-	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "flags");
+	scols_line_set_data(line, 1, buf);
+
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mode");
+	scols_line_set_data(line, 1, gr_iface_mode_name(iface->mode));
 
 	if (iface->mode == GR_IFACE_MODE_VRF) {
 		struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-		printf("vrf: %s\n", vrf ? vrf->name : "[deleted]");
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "vrf");
+		scols_line_set_data(line, 1, vrf ? vrf->name : "[deleted]");
 		free(vrf);
 	} else {
 		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-		printf("domain: %s\n", domain ? domain->name : "[deleted]");
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "domain");
+		scols_line_set_data(line, 1, domain ? domain->name : "[deleted]");
 		free(domain);
 	}
 
-	printf("mtu: %u\n", iface->mtu);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mtu");
+	scols_line_sprintf(line, 1, "%u", iface->mtu);
 
-	if (iface->speed == UINT32_MAX)
-		printf("speed: unknown\n");
-	else
-		printf("speed: %u Mb/s\n", iface->speed);
+	if (iface->speed == UINT32_MAX) {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "speed");
+		scols_line_set_data(line, 1, "unknown");
+	} else {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "speed");
+		scols_line_sprintf(line, 1, "%u Mb/s", iface->speed);
+	}
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);
-	type->show(c, iface);
+	type->show(c, iface, table);
 
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(iface);
 
 	return CMD_SUCCESS;

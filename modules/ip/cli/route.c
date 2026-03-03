@@ -71,6 +71,8 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols
 static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_ip4_route_get_resp *resp;
 	struct gr_ip4_route_get_req req = {0};
+	struct libscols_table *table;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 	char buf[128];
 
@@ -84,9 +86,31 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 
 	resp = resp_ptr;
 
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "route");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	snprintf(buf, sizeof(buf), IP4_F, &req.dest);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "dest");
+	scols_line_set_data(line, 1, buf);
+
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), c, &resp->nh, true);
-	printf(IP4_F " via %s\n", &req.dest, buf);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "via");
+	scols_line_set_data(line, 1, buf);
+
+	scols_print_table(table);
+	scols_unref_table(table);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

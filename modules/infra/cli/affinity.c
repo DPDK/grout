@@ -32,8 +32,10 @@ static cmd_status_t affinity_set(struct gr_api_client *c, const struct ec_pnode 
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_infra_cpu_affinity_get_resp resp;
+	struct libscols_table *table = NULL;
+	struct libscols_line *line;
 	void *resp_ptr = NULL;
 	char buf[BUFSIZ];
 
@@ -43,17 +45,36 @@ static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode
 	memcpy(&resp, resp_ptr, sizeof(resp));
 	free(resp_ptr);
 
-	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) < 0)
-		return CMD_ERROR;
+	table = scols_new_table();
+	scols_table_new_column(table, "KEY", 0, 0);
+	scols_table_new_column(table, "VALUE", 0, 0);
+	scols_table_set_column_separator(table, "  ");
+	scols_table_enable_noheadings(table, 1);
 
-	printf("control-cpus %s\n", buf);
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "cpu-affinity");
+		scols_table_enable_noheadings(table, 0);
+	}
+
+	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) < 0)
+		goto err;
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "control-cpus");
+	scols_line_set_data(line, 1, buf);
 
 	if (cpuset_format(buf, sizeof(buf), &resp.datapath_cpus) < 0)
-		return CMD_ERROR;
+		goto err;
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "datapath-cpus");
+	scols_line_set_data(line, 1, buf);
 
-	printf("datapath-cpus %s\n", buf);
-
+	scols_print_table(table);
+	scols_unref_table(table);
 	return CMD_SUCCESS;
+err:
+	scols_unref_table(table);
+	return CMD_ERROR;
 }
 
 static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -141,7 +162,13 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(CPU_CTX(root), "[show]", affinity_show, "Display CPU affinity lists.");
+	ret = CLI_COMMAND(
+		CPU_CTX(root),
+		"[show] [json]",
+		affinity_show,
+		"Display CPU affinity lists.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(

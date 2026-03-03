@@ -15,36 +15,51 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static void bond_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void
+bond_show(struct gr_api_client *c, const struct gr_iface *iface, struct libscols_table *table) {
 	const struct gr_iface_info_bond *bond = PAYLOAD(iface);
+	struct libscols_line *line;
+	char buf[256];
+	size_t n;
 
-	printf("mode: %s\n", gr_bond_mode_name(bond->mode));
-	if (bond->mode == GR_BOND_MODE_LACP)
-		printf("algo: %s\n", gr_bond_algo_name(bond->algo));
-	printf("mac: " ETH_F "\n", &bond->mac);
-	printf("members:\n");
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "bond-mode");
+	scols_line_set_data(line, 1, gr_bond_mode_name(bond->mode));
+
+	if (bond->mode == GR_BOND_MODE_LACP) {
+		line = scols_table_new_line(table, NULL);
+		scols_line_set_data(line, 0, "algo");
+		scols_line_set_data(line, 1, gr_bond_algo_name(bond->algo));
+	}
+
+	snprintf(buf, sizeof(buf), ETH_F, &bond->mac);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mac");
+	scols_line_set_data(line, 1, buf);
+
+	n = 0;
+	buf[0] = '\0';
 	for (uint8_t i = 0; i < bond->n_members; i++) {
 		const struct gr_bond_member *m = &bond->members[i];
 		struct gr_iface *member = iface_from_id(c, m->iface_id);
 		if (member == NULL)
 			continue;
 
-		printf("  - name: %s\n", member->name);
-		printf("    active: %s\n", m->active ? "yes" : "no");
+		if (n > 0 && n < sizeof(buf) - 1)
+			n += snprintf(buf + n, sizeof(buf) - n, ", ");
+		if (n < sizeof(buf) - 1)
+			n += snprintf(buf + n, sizeof(buf) - n, "%s", member->name);
+		if (!m->active && n < sizeof(buf) - 1)
+			n += snprintf(buf + n, sizeof(buf) - n, " (standby)");
 		if (bond->mode == GR_BOND_MODE_ACTIVE_BACKUP && i == bond->primary_member)
-			printf("    primary: true\n");
-		if (member->type == GR_IFACE_TYPE_PORT) {
-			const struct gr_iface_info_port *port;
-			port = (const struct gr_iface_info_port *)member->info;
-			printf("    mac: " ETH_F "\n", &port->mac);
-			if (member->speed == UINT32_MAX)
-				printf("    speed: unknown\n");
-			else
-				printf("    speed: %u Mb/s\n", member->speed);
-		}
+			if (n < sizeof(buf) - 1)
+				n += snprintf(buf + n, sizeof(buf) - n, " (primary)");
 
 		free(member);
 	}
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "members");
+	scols_line_set_data(line, 1, buf);
 }
 
 static void

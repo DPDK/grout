@@ -9,27 +9,53 @@
 #include <gr_table.h>
 
 #include <ecoli.h>
+#include <libsmartcols.h>
 
 #include <errno.h>
 #include <sys/queue.h>
 
-static void bridge_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void
+bridge_show(struct gr_api_client *c, const struct gr_iface *iface, struct libscols_table *table) {
 	const struct gr_iface_info_bridge *bridge = PAYLOAD(iface);
+	struct libscols_line *line;
+	char buf[256];
+	size_t n;
 
-	printf("flags: %sflood %slearn\n",
-	       (bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-	       (bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : "");
+	snprintf(
+		buf,
+		sizeof(buf),
+		"%sflood %slearn",
+		(bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
+		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : ""
+	);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "bridge-flags");
+	scols_line_set_data(line, 1, buf);
 
-	printf("ageing_time: %u seconds\n", bridge->ageing_time);
-	printf("mac: " ETH_F "\n", &bridge->mac);
-	printf("members:\n");
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "ageing_time");
+	scols_line_sprintf(line, 1, "%u seconds", bridge->ageing_time);
 
+	snprintf(buf, sizeof(buf), ETH_F, &bridge->mac);
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "mac");
+	scols_line_set_data(line, 1, buf);
+
+	n = 0;
+	buf[0] = '\0';
 	for (uint8_t i = 0; i < bridge->n_members; i++) {
 		struct gr_iface *member = iface_from_id(c, bridge->members[i]);
-		if (member != NULL)
-			printf("- %s\n", member->name);
+		if (member != NULL) {
+			if (n > 0 && n < sizeof(buf) - 1)
+				n += snprintf(buf + n, sizeof(buf) - n, ", ");
+			if (n < sizeof(buf) - 1)
+				n += snprintf(buf + n, sizeof(buf) - n, "%s", member->name);
+		}
 		free(member);
 	}
+	line = scols_table_new_line(table, NULL);
+	scols_line_set_data(line, 0, "members");
+	scols_line_set_data(line, 1, buf);
 }
 
 static void

@@ -170,11 +170,12 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"get DEST [vrf VRF]",
+		"get DEST [(vrf VRF),(json)]",
 		route_get,
 		"Get the route associated with a destination IP address.",
 		with_help("IP destination address.", ec_node_re("DEST", IP_ANY_RE)),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
