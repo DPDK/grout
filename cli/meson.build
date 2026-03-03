@@ -11,6 +11,7 @@ cli_src += files(
   'interact.c',
   'log.c',
   'main.c',
+  'pager.c',
   'quit.c',
 )
 

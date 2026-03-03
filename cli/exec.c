@@ -3,6 +3,7 @@
 
 #include "exec.h"
 #include "log.h"
+#include "pager.h"
 
 #include <gr_cli.h>
 #include <gr_macro.h>
@@ -222,6 +223,7 @@ static exec_status_t exec_strvec(
 		status = EXEC_CB_UNDEFINED;
 		goto out;
 	}
+	pager_start();
 	switch (cb(client, parsed)) {
 	case CMD_SUCCESS:
 		status = EXEC_SUCCESS;
@@ -233,6 +235,7 @@ static exec_status_t exec_strvec(
 		status = EXEC_CMD_FAILED;
 		break;
 	}
+	pager_stop();
 out:
 	print_status(status, cmdlist, args);
 	ec_strvec_free(args);
