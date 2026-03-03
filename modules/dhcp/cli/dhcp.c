@@ -4,11 +4,10 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_dhcp.h>
+#include <gr_display.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 static cmd_status_t dhcp_enable_cmd(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_dhcp_start_req req;
@@ -36,52 +35,35 @@ static cmd_status_t dhcp_disable_cmd(struct gr_api_client *c, const struct ec_pn
 
 static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_dhcp_status *status;
-	struct libscols_table *table;
 	int ret;
 
-	table = scols_new_table();
-	if (table == NULL)
-		return CMD_ERROR;
-
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "STATE", 0, 0);
-	scols_table_new_column(table, "ADDRESS", 0, 0);
-	scols_table_new_column(table, "SERVER", 0, 0);
-	scols_table_new_column(table, "LEASE", 0, SCOLS_FL_RIGHT);
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "STATE", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 2
+	gr_table_column(table, "SERVER", GR_DISP_LEFT); // 3
+	gr_table_column(table, "LEASE", GR_DISP_RIGHT); // 4
 
 	gr_api_client_stream_foreach (status, ret, c, GR_DHCP_LIST, 0, NULL) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, status->iface_id));
+		gr_table_cell(table, 1, "%s", gr_dhcp_state_name(status->state));
 
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, status->iface_id));
-		scols_line_sprintf(line, 1, "%s", gr_dhcp_state_name(status->state));
+		if (status->assigned_ip != 0)
+			gr_table_cell(table, 2, IP4_F, &status->assigned_ip);
 
-		if (status->assigned_ip != 0) {
-			scols_line_sprintf(line, 2, IP4_F, &status->assigned_ip);
-		} else {
-			scols_line_sprintf(line, 2, "-");
-		}
-
-		if (status->server_ip != 0) {
-			scols_line_sprintf(line, 3, IP4_F, &status->server_ip);
-		} else {
-			scols_line_sprintf(line, 3, "-");
-		}
+		if (status->server_ip != 0)
+			gr_table_cell(table, 3, IP4_F, &status->server_ip);
 
 		if (status->lease_time != 0)
-			scols_line_sprintf(line, 4, "%us", status->lease_time);
-		else
-			scols_line_sprintf(line, 4, "-");
+			gr_table_cell(table, 4, "%u", status->lease_time);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	if (ret < 0) {
-		scols_unref_table(table);
-		return CMD_ERROR;
-	}
+	gr_table_free(table);
 
-	scols_print_table(table);
-	scols_unref_table(table);
-
-	return CMD_SUCCESS;
+	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static int ctx_init(struct ec_node *root) {

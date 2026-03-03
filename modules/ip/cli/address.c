@@ -6,12 +6,11 @@
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_l3.h>
+#include <gr_display.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <stdint.h>
 
@@ -49,7 +48,7 @@ static int addr_flush(struct gr_api_client *c, uint16_t iface_id) {
 	return gr_api_client_send_recv(c, GR_IP4_ADDR_FLUSH, sizeof(req), &req, NULL);
 }
 
-static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols_table *table) {
+static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct gr_table *table) {
 	struct gr_ip4_addr_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .iface_id = iface_id};
 	const struct gr_ip4_ifaddr *addr;
 	int ret;
@@ -57,9 +56,12 @@ static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct libscols
 	gr_api_client_stream_foreach (addr, ret, c, GR_IP4_ADDR_LIST, sizeof(req), &req) {
 		if (iface_id != GR_IFACE_ID_UNDEF && addr->iface_id != iface_id)
 			continue;
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, addr->iface_id));
-		scols_line_sprintf(line, 1, IP4_F "/%hhu", &addr->addr.ip, addr->addr.prefixlen);
+
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, addr->iface_id));
+		gr_table_cell(table, 1, IP4_F "/%hhu", &addr->addr.ip, addr->addr.prefixlen);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
 	return ret;

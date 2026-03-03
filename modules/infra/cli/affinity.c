@@ -4,12 +4,11 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_string.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <string.h>
 
@@ -74,26 +73,25 @@ static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 
 static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_port_rxq_map *q;
-	struct libscols_table *table;
 	int ret;
 
-	table = scols_new_table();
-	scols_table_new_column(table, "CPU_ID", 0, 0);
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "RXQ_ID", 0, 0);
-	scols_table_new_column(table, "ENABLED", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "CPU_ID", GR_DISP_RIGHT); // 0
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 1
+	gr_table_column(table, "RXQ_ID", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "ENABLED", GR_DISP_LEFT); // 3
 
 	gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%u", q->cpu_id);
-		scols_line_sprintf(line, 1, "%s", iface_name_from_id(c, q->iface_id));
-		scols_line_sprintf(line, 2, "%u", q->rxq_id);
-		scols_line_sprintf(line, 3, "%u", q->enabled);
+		gr_table_cell(table, 0, "%u", q->cpu_id);
+		gr_table_cell(table, 1, "%s", iface_name_from_id(c, q->iface_id));
+		gr_table_cell(table, 2, "%u", q->rxq_id);
+		gr_table_cell(table, 3, "%s", q->enabled ? "true" : "false");
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

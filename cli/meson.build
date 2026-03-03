@@ -3,6 +3,7 @@
 
 cli_src += files(
   'complete.c',
+  'display.c',
   'dump.c',
   'ec_node_devargs.c',
   'ec_node_dyn.c',
@@ -14,15 +15,6 @@ cli_src += files(
   'pager.c',
   'quit.c',
 )
-
-if not compiler.has_function(
-  'scols_line_sprintf',
-  prefix: '#include <libsmartcols.h>',
-  dependencies: [smartcols_dep],
-)
-  cli_src += files('table.c')
-  cli_cflags += ['-DNEED_SCOLS_LINE_SPRINTF']
-endif
 
 cli_inc += include_directories('.')
 
