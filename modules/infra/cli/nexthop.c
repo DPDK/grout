@@ -549,7 +549,7 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 		}
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);

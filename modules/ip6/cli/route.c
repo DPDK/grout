@@ -62,7 +62,7 @@ static int route6_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table
 			gr_table_cell(table, 4, "%s", buf);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	return ret;
@@ -136,7 +136,7 @@ static int route6_config_show(struct gr_api_client *c, uint16_t vrf_id, struct g
 #endif
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	return ret;

@@ -140,7 +140,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		gr_table_cell(table, 6, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);
