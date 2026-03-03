@@ -6,12 +6,11 @@
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -367,32 +366,29 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	req.include_internal = arg_str(p, "internal") != NULL;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "ID", 0, 0);
-	scols_table_new_column(table, "ORIGIN", 0, 0);
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "TYPE", 0, 0);
-	scols_table_new_column(table, "INFO", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ID", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 4
+	gr_table_column(table, "INFO", GR_DISP_LEFT); // 5
 
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, nh->vrf_id));
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, nh->vrf_id));
 		if (nh->nh_id != GR_NH_ID_UNSET)
-			scols_line_sprintf(line, 1, "%u", nh->nh_id);
-		else
-			scols_line_set_data(line, 1, "");
-		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(nh->origin));
-		scols_line_sprintf(line, 3, "%s", iface_name_from_id(c, nh->iface_id));
-		scols_line_sprintf(line, 4, "%s", gr_nh_type_name(nh->type));
+			gr_table_cell(table, 1, "%u", nh->nh_id);
+		gr_table_cell(table, 2, "%s", gr_nh_origin_name(nh->origin));
+		gr_table_cell(table, 3, "%s", iface_name_from_id(c, nh->iface_id));
+		gr_table_cell(table, 4, "%s", gr_nh_type_name(nh->type));
 		if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
-			scols_line_set_data(line, 5, buf);
+			gr_table_cell(table, 5, "%s", buf);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

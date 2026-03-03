@@ -261,7 +261,7 @@ image.
 dnf install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc libmnl-devel \
         libcmocka-devel libedit-devel libevent-devel numactl-devel \
-        libsmartcols-devel libarchive-devel rdma-core-devel
+        libarchive-devel rdma-core-devel
 ```
 
 or
@@ -270,7 +270,7 @@ or
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc \
         libcmocka-dev libedit-dev libevent-dev libnuma-dev libmnl-dev \
-        libsmartcols-dev libarchive-dev libibverbs-dev
+        libarchive-dev libibverbs-dev
 ```
 
 Important: `grout` requires at least `gcc` 13 or `clang` 15.
@@ -391,7 +391,6 @@ Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 | libnuma | Build & Runtime | LGPL-2.1 | https://github.com/numactl/numactl |
 | libevent | Build & Runtime | BSD-3-Clause | https://github.com/libevent/libevent |
 | libecoli | Build & Runtime | BSD-3-Clause | https://git.sr.ht/~rjarry/libecoli |
-| libsmartcols | Build & Runtime | LGPL-2.1 | https://github.com/util-linux/util-linux/tree/master/libsmartcols |
 | cmocka | Build | Apache-2.0 | https://github.com/clibs/cmocka |
 | meson | Build | Apache-2.0 | https://github.com/mesonbuild/meson |
 | ninja | Build | Apache-2.0 | https://github.com/ninja-build/ninja |

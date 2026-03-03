@@ -4,12 +4,11 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_nat.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <stdint.h>
 
@@ -47,24 +46,23 @@ static cmd_status_t snat44_del(struct gr_api_client *c, const struct ec_pnode *p
 
 static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_snat44_policy *policy;
-	struct libscols_table *table;
 	int ret;
 
-	table = scols_new_table();
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "SUBNET", 0, 0);
-	scols_table_new_column(table, "REPLACE", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "SUBNET", GR_DISP_LEFT); // 1
+	gr_table_column(table, "REPLACE", GR_DISP_LEFT); // 2
 
 	gr_api_client_stream_foreach (policy, ret, c, GR_SNAT44_LIST, 0, NULL) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, policy->iface_id));
-		scols_line_sprintf(line, 1, IP4_F "/%hhu", &policy->net.ip, policy->net.prefixlen);
-		scols_line_sprintf(line, 2, IP4_F, &policy->replace);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, policy->iface_id));
+		gr_table_cell(table, 1, IP4_F "/%hhu", &policy->net.ip, policy->net.prefixlen);
+		gr_table_cell(table, 2, IP4_F, &policy->replace);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

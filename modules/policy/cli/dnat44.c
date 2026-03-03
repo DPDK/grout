@@ -5,12 +5,11 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_nat.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <stdint.h>
 
@@ -52,21 +51,21 @@ static cmd_status_t dnat44_list(struct gr_api_client *c, const struct ec_pnode *
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "DESTINATION", 0, 0);
-	scols_table_new_column(table, "REPLACE", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "DESTINATION", GR_DISP_LEFT); // 1
+	gr_table_column(table, "REPLACE", GR_DISP_LEFT); // 2
 
 	gr_api_client_stream_foreach (pol, ret, c, GR_DNAT44_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, pol->iface_id));
-		scols_line_sprintf(line, 1, IP4_F, &pol->match);
-		scols_line_sprintf(line, 2, IP4_F, &pol->replace);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, pol->iface_id));
+		gr_table_cell(table, 1, IP4_F, &pol->match);
+		gr_table_cell(table, 2, IP4_F, &pol->replace);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
