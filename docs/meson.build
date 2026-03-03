@@ -34,7 +34,7 @@ endforeach
 
 # Dynamic grcli man pages
 # During cross-compilation, skip man page generation since native dependencies
-# (libecoli, libsmartcols) are not available for the build machine.
+# (libecoli) are not available for the build machine.
 if meson.is_cross_build()
   warning('Cross-compilation detected: skipping grcli man page generation')
   subdir_done()

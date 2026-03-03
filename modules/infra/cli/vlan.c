@@ -4,12 +4,11 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <sys/queue.h>

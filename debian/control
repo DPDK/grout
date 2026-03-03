@@ -16,7 +16,6 @@ Build-Depends:
  libibverbs-dev,
  libmnl-dev,
  libnuma-dev,
- libsmartcols-dev,
  meson,
  ninja-build,
  patch,

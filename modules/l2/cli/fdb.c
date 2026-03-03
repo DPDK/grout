@@ -6,12 +6,11 @@
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_clock.h>
+#include <gr_display.h>
 #include <gr_l2.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 
@@ -114,41 +113,37 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	if (arg_str(p, "extern") != NULL)
 		req.flags |= GR_FDB_F_EXTERN;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "BRIDGE", 0, 0);
-	scols_table_new_column(table, "MAC", 0, 0);
-	scols_table_new_column(table, "VLAN", 0, 0);
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "VTEP", 0, 0);
-	scols_table_new_column(table, "FLAGS", 0, 0);
-	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "BRIDGE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "MAC", GR_DISP_LEFT); // 1
+	gr_table_column(table, "VLAN", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "VTEP", GR_DISP_LEFT); // 4
+	gr_table_column(table, "FLAGS", GR_DISP_LEFT); // 5
+	gr_table_column(table, "AGE", GR_DISP_RIGHT); // 6
 
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, fdb->bridge_id));
-
-		scols_line_sprintf(line, 1, ETH_F, &fdb->mac);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, fdb->bridge_id));
+		gr_table_cell(table, 1, ETH_F, &fdb->mac);
 
 		if (fdb->vlan_id != 0)
-			scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
+			gr_table_cell(table, 2, "%u", fdb->vlan_id);
 
-		scols_line_sprintf(line, 3, "%s", iface_name_from_id(c, fdb->iface_id));
+		gr_table_cell(table, 3, "%s", iface_name_from_id(c, fdb->iface_id));
 
 		if (fdb->vtep != 0)
-			scols_line_sprintf(line, 4, IP4_F, &fdb->vtep);
+			gr_table_cell(table, 4, IP4_F, &fdb->vtep);
 
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
-			scols_line_set_data(line, 5, flags);
+			gr_table_cell(table, 5, "%s", flags);
 
-		scols_line_sprintf(
-			line, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
-		);
+		gr_table_cell(table, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

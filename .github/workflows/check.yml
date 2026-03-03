@@ -71,7 +71,7 @@ jobs:
           sudo apt-get install -qy --no-install-recommends \
             make gcc gdb ccache ninja-build meson git scdoc \
             libibverbs-dev libasan8 libcmocka-dev libedit-dev libarchive-dev \
-            libevent-dev libsmartcols-dev libmnl-dev libnuma-dev python3-pyelftools \
+            libevent-dev libmnl-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq \
             dnsmasq systemd-coredump \
             "linux-modules-extra-$(uname -r)"
@@ -148,7 +148,7 @@ jobs:
           apt install -qy --no-install-recommends \
             make gcc ccache git meson scdoc python3-pyelftools ca-certificates pkg-config \
             crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
-            libevent-dev:arm64 libmnl-dev:arm64 libnuma-dev:arm64 libsmartcols-dev:arm64
+            libevent-dev:arm64 libmnl-dev:arm64 libnuma-dev:arm64
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
