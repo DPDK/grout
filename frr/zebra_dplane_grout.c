@@ -128,7 +128,7 @@ static void grout_sync_fdb(struct event *) {
 }
 
 static void grout_sync_routes(struct event *e) {
-	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e)};
+	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e), .max_count = 0};
 	struct gr_ip4_route *r4;
 	bool link;
 	int ret;

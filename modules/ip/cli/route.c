@@ -47,12 +47,14 @@ static cmd_status_t route4_del(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table) {
-	struct gr_ip4_route_list_req req = {.vrf_id = vrf_id};
+static int
+route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table, uint16_t max) {
+	struct gr_ip4_route_list_req req = {.vrf_id = vrf_id, .max_count = max};
 	const struct gr_ip4_route *route;
 	char buf[128];
-	int ret;
+	int ret, num;
 
+	num = 0;
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, route->vrf_id));
 		gr_table_cell(table, 1, "%s", gr_af_name(GR_AF_IP4));
@@ -63,9 +65,11 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table
 
 		if (gr_table_print_row(table) < 0)
 			break;
+
+		num++;
 	}
 
-	return ret;
+	return ret < 0 ? ret : num;
 }
 
 static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p) {

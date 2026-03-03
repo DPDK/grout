@@ -47,7 +47,7 @@ static cmd_status_t route6_del(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static int route6_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table) {
+static int route6_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table, uint16_t) {
 	struct gr_ip6_route_list_req req = {.vrf_id = vrf_id};
 	const struct gr_ip6_route *route;
 	char buf[128];
