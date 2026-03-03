@@ -104,6 +104,11 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 	scols_table_new_column(table, "ADDRESS", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "addresses");
+	}
+
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if ((ret = ops->list(c, iface_id, table)) < 0)
 			break;
@@ -161,13 +166,14 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ADDR_CTX(root),
-		"[show] [iface IFACE]",
+		"[show] [iface IFACE] [json]",
 		addr_list,
 		"Display interface addresses.",
 		with_help(
 			"Interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
-		)
+		),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

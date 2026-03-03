@@ -144,6 +144,13 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "fdb");
+		scols_column_set_json_type(scols_table_get_column(table, 2), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 5), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
@@ -153,8 +160,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 
 		scols_line_sprintf(line, 1, ETH_F, &fdb->mac);
 
-		if (fdb->vlan_id != 0)
-			scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
+		scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
 
 		struct gr_iface *iface = iface_from_id(c, fdb->iface_id);
 		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
@@ -164,7 +170,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 			scols_line_set_data(line, 4, flags);
 
 		scols_line_sprintf(
-			line, 5, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
+			line, 5, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
 		);
 	}
 
@@ -282,7 +288,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn)]",
+		"[show] [(bridge BRIDGE),(iface IFACE),(static|learn),(json)]",
 		fdb_show,
 		"Show FDB entries.",
 		with_help(
@@ -294,7 +300,8 @@ static int ctx_init(struct ec_node *root) {
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		),
 		with_help("Show only static entries.", ec_node_str("static", "static")),
-		with_help("Show only learned entries.", ec_node_str("learn", "learn"))
+		with_help("Show only learned entries.", ec_node_str("learn", "learn")),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;

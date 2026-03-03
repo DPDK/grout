@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_conntrack *conn;
 	struct libscols_table *table;
 	clock_t now;
@@ -32,6 +32,14 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	scols_table_new_column(table, "DPORT", 0, SCOLS_FL_RIGHT);
 	scols_table_new_column(table, "LAST_UPDATE", 0, SCOLS_FL_RIGHT);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "connections");
+		scols_column_set_json_type(scols_table_get_column(table, 7), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 8), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 9), SCOLS_JSON_NUMBER);
+	}
 
 	now = gr_clock_us();
 
@@ -202,7 +210,13 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 
-	ret = CLI_COMMAND(CONNTRACK_CTX(root), "[show]", conn_list, "Display tracked connections.");
+	ret = CLI_COMMAND(
+		CONNTRACK_CTX(root),
+		"[show] [json]",
+		conn_list,
+		"Display tracked connections.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
 	if (ret < 0)
 		return ret;
 

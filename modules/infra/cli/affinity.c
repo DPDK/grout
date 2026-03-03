@@ -77,7 +77,7 @@ static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
+static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_port_rxq_map *q;
 	struct libscols_table *table;
 	int ret;
@@ -88,6 +88,14 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 	scols_table_new_column(table, "RXQ_ID", 0, 0);
 	scols_table_new_column(table, "ENABLED", 0, 0);
 	scols_table_set_column_separator(table, "  ");
+
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "rxq-map");
+		scols_column_set_json_type(scols_table_get_column(table, 0), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 2), SCOLS_JSON_NUMBER);
+		scols_column_set_json_type(scols_table_get_column(table, 3), SCOLS_JSON_NUMBER);
+	}
 
 	gr_api_client_stream_foreach (q, ret, c, GR_INFRA_RXQ_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
@@ -150,7 +158,13 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(QMAP_CTX(root), "[show]", rxq_list, "Display DPDK port RXQ affinity.");
+	ret = CLI_COMMAND(
+		QMAP_CTX(root),
+		"[show] [json]",
+		rxq_list,
+		"Display DPDK port RXQ affinity.",
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
+	);
 	if (ret < 0)
 		return ret;
 

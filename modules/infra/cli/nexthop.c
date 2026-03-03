@@ -377,6 +377,12 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	scols_table_new_column(table, "INFO", 0, 0);
 	scols_table_set_column_separator(table, "  ");
 
+	if (arg_str(p, "json")) {
+		scols_table_enable_json(table, 1);
+		scols_table_set_name(table, "nexthops");
+		scols_column_set_json_type(scols_table_get_column(table, 1), SCOLS_JSON_NUMBER);
+	}
+
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
@@ -519,14 +525,15 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
-		"[show] [(vrf VRF),(type TYPE),(internal)]",
+		"[show] [(vrf VRF),(type TYPE),(internal),(json)]",
 		nh_list,
 		"List all next hops.",
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
 		),
-		with_help("Include internal next hops.", ec_node_str("internal", "internal"))
+		with_help("Include internal next hops.", ec_node_str("internal", "internal")),
+		with_help("Output in JSON format.", ec_node_str("json", "json"))
 	);
 	if (ret < 0)
 		return ret;
