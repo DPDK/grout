@@ -245,3 +245,17 @@ err:
 	*event = NULL;
 	return -errno;
 }
+
+// Drain remaining responses from a stream request until the terminator arrives.
+int __gr_api_client_stream_drain(struct gr_api_client *c, uint32_t for_id) {
+	void *ptr;
+	int ret;
+
+	do {
+		ptr = NULL;
+		ret = gr_api_client_recv(c, for_id, &ptr);
+		free(ptr);
+	} while (ptr != NULL);
+
+	return ret;
+}
