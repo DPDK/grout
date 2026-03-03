@@ -315,6 +315,8 @@ else
 	done
 fi
 
+smoke_setenv GROUT_PAGER ""
+
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh|fib*_fullview_manualtest.sh)
 	;;
