@@ -57,7 +57,7 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 		gr_table_cell(table, 9, "%lu", (now - conn->last_update) / 1000000);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 
 		gr_table_cell(table, 3, "rev");
 		gr_table_cell(table, 4, IP4_F, &conn->rev_flow.src);
@@ -66,7 +66,7 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 		gr_table_cell(table, 8, "%u", ntohs(conn->rev_flow.dst_id));
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);

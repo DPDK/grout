@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 // API request header.
 struct gr_api_request {
@@ -95,14 +96,24 @@ static inline int gr_api_client_send_recv(
 //     if (ret < 0)
 //         handle_error(ret);
 //
-// XXX: Interrupting the loop with break or an early return will cause memory leaks
-// and will leave messages hanging in the socket buffer. Make sure to let the loop
-// terminate gracefully.
+// The loop can be interrupted with break, which sends GR_STREAM_CANCEL
+// to the server and drains remaining responses.
+//
+// XXX: Interrupting the loop with an early return will cause memory
+// leaks and will leave messages hanging in the socket buffer.
+void __gr_api_client_stream_cancel(struct gr_api_client *, uint32_t for_id);
 #define gr_api_client_stream_foreach(obj, ret, client, req_type, tx_len, tx_data)                  \
-	for (long int __id = gr_api_client_send(client, req_type, tx_len, tx_data), __first = 1;   \
+	for (long int __id = gr_api_client_send(client, req_type, tx_len, tx_data),                \
+		      __first = 1,                                                                 \
+		      __done = 0;                                                                  \
 	     ({                                                                                    \
-		     if (__first == 1)                                                             \
+		     if (__first == 1) {                                                           \
 			     ret = __id;                                                           \
+		     } else if (!__done && __id >= 0) {                                            \
+			     free((void *)(uintptr_t)obj);                                         \
+			     __gr_api_client_stream_cancel(client, __id);                          \
+			     ret = 0;                                                              \
+		     }                                                                             \
 		     __id >= 0 && __first; /* statement expression value */                        \
 	     });                                                                                   \
 	     __first = 0)                                                                          \
@@ -112,15 +123,26 @@ static inline int gr_api_client_send_recv(
 			     if (ret < 0) {                                                        \
 				     free(__ptr);                                                  \
 				     __ptr = NULL;                                                 \
+				     __done = 1;                                                   \
 			     } else if (__ptr != NULL) {                                           \
 				     obj = __ptr;                                                  \
 				     more = true;                                                  \
+			     } else {                                                              \
+				     __done = 1;                                                   \
 			     }                                                                     \
 			     more; /* statement expression value */                                \
 		     });                                                                           \
 		     free(__ptr), __ptr = NULL)
 
 #define GR_MAIN_MODULE 0xcafe
+
+// Cancel an active stream. Sent by clients to abort a streaming
+// response early. The server sends the stream terminator with
+// ECANCELED status and re-enables normal request processing.
+#define GR_STREAM_CANCEL REQUEST_TYPE(GR_MAIN_MODULE, 0xcafd)
+struct gr_stream_cancel_req {
+	uint32_t for_id; // ID of the streaming request to cancel
+};
 
 // Client handshake with version negotiation.
 // Must be the first request sent by any client.

@@ -61,7 +61,7 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table
 			gr_table_cell(table, 3, "%s", buf);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	return ret;
@@ -134,7 +134,7 @@ static int route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct g
 #endif
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	return ret;

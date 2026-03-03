@@ -368,6 +368,18 @@ stream_start(struct api_ctx *ctx, const struct api_handler *handler, const void 
 	stream_write_cb(ctx->bev, ctx);
 }
 
+static struct api_out stream_cancel(const void *request, struct api_ctx *ctx) {
+	const struct gr_stream_cancel_req *req = request;
+
+	if (ctx->stream_state == NULL || ctx->stream_req_id != req->for_id)
+		return api_out(ESRCH, 0, NULL);
+
+	stream_cleanup(ctx);
+	ctx->header.id = req->for_id;
+
+	return api_out(ECANCELED, 0, NULL);
+}
+
 static void read_cb(struct bufferevent *bev, void *priv) {
 	struct evbuffer *input = bufferevent_get_input(bev);
 	struct api_ctx *ctx = priv;
@@ -596,4 +608,5 @@ RTE_INIT(init) {
 	gr_api_handler(GR_EVENT_SUBSCRIBE, subscribe);
 	gr_api_handler(GR_EVENT_UNSUBSCRIBE, unsubscribe);
 	gr_api_handler(GR_HELLO, hello);
+	gr_api_handler(GR_STREAM_CANCEL, stream_cancel);
 }
