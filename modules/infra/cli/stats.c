@@ -130,7 +130,7 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 			gr_table_cell(table, 5, "%.01f", cycles_pkt);
 
 			if (gr_table_print_row(table) < 0)
-				continue;
+				break;
 		}
 
 		gr_table_free(table);

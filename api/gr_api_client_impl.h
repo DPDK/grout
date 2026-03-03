@@ -253,3 +253,19 @@ err:
 	*event = NULL;
 	return -errno;
 }
+
+// Cancel an active stream. Sends GR_STREAM_CANCEL and drains remaining
+// responses until the terminator arrives.
+void __gr_api_client_stream_cancel(struct gr_api_client *c, uint32_t for_id) {
+	struct gr_stream_cancel_req req = {.for_id = for_id};
+	void *ptr = NULL;
+
+	if (gr_api_client_send(c, GR_STREAM_CANCEL, sizeof(req), &req) < 0)
+		return;
+
+	do {
+		ptr = NULL;
+		gr_api_client_recv(c, for_id, &ptr);
+		free(ptr);
+	} while (ptr != NULL);
+}

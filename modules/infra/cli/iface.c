@@ -429,7 +429,7 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 		gr_table_cell(table, 6, "%s", buf);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);
@@ -473,7 +473,7 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 		gr_table_cell(table, 10, "%lu", resp->stats[i].cp_tx_bytes);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);
@@ -535,7 +535,7 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 		gr_table_cell(table, 6, "%lu", s2->tx_errors - s1->tx_errors);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);
