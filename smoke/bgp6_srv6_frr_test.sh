@@ -208,7 +208,7 @@ while ! grcli route show json | jq -e '.routes[] | select(.destination == "2001:
 done
 
 attempts=0
-while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/24 .*seg6" ; do
+while ! vtysh -N bgp-peer -c "show ip route vrf vrf1 json" | jq -e '."16.1.0.0/24"[] | select(.protocol == "bgp" and .selected and .nexthops[].seg6)' > /dev/null; do
 	if [ "$attempts" -ge 40 ]; then
 		fail "BGP seg6 route not learned in FRR BGP Peer"
 	fi
@@ -217,7 +217,7 @@ while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/2
 done
 
 attempts=0
-while ! vtysh -N bgp-peer -c "show ipv6 route" | grep -q "B>\* 2001:db8:1:1:100::/128 .*seg6local" ; do
+while ! vtysh -N bgp-peer -c "show ipv6 route json" | jq -e '."2001:db8:1:1:100::/128"[] | select(.protocol == "bgp" and .selected and .nexthops[].seg6local)' > /dev/null; do
 	if [ "$attempts" -ge 40 ]; then
 		fail "BGP seg6local route not learned in FRR BGP Peer"
 	fi

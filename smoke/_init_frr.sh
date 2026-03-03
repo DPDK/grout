@@ -12,7 +12,7 @@ create_vrf() {
 
 	grcli interface add vrf "$name"
 
-	while vtysh -c "show interface $name" 2>&1 | grep -q "% Can't find interface"; do
+	while ! vtysh -c "show interface $name json" 2>/dev/null | jq -e '."'$name'"' > /dev/null 2>&1; do
 		if [ "$count" -ge "$max_tries" ]; then
 			fail "VRF $name not found after $max_tries attempts."
 		fi
@@ -29,7 +29,7 @@ create_interface() {
 
 	port_add $p "$@"
 
-	while vtysh -c "show interface $p" 2>&1 | grep -q "% Can't find interface"; do
+	while ! vtysh -c "show interface $p json" 2>/dev/null | jq -e '."'$p'"' > /dev/null 2>&1; do
 		if [ "$count" -ge "$max_tries" ]; then
 			fail "Interface $p not found after $max_tries attempts."
 		fi
