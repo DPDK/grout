@@ -4,12 +4,11 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_ip6.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_ra_show_req req = {.iface_id = GR_IFACE_ID_UNDEF};
@@ -19,23 +18,23 @@ static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "RA", 0, 0);
-	scols_table_new_column(table, "INTERVAL", 0, 0);
-	scols_table_new_column(table, "LIFETIME", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "RA", GR_DISP_LEFT); // 1
+	gr_table_column(table, "INTERVAL", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "LIFETIME", GR_DISP_RIGHT); // 3
 
 	gr_api_client_stream_foreach (ra, ret, c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, ra->iface_id));
-		scols_line_sprintf(line, 1, "%u", ra->enabled);
-		scols_line_sprintf(line, 2, "%u", ra->interval);
-		scols_line_sprintf(line, 3, "%u", ra->lifetime);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, ra->iface_id));
+		gr_table_cell(table, 1, "%u", ra->enabled);
+		gr_table_cell(table, 2, "%u", ra->interval);
+		gr_table_cell(table, 3, "%u", ra->lifetime);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
