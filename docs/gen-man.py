@@ -90,6 +90,17 @@ _GROUT_SOCK_PATH_
     )
     print(
         """
+_GROUT_PAGER_
+\tPager program used to display command output. Takes precedence over
+\t_PAGER_. Set to an empty string to disable paging. Default: *less*(1)."""
+    )
+    print(
+        """
+_PAGER_
+\tFallback pager program if _GROUT_PAGER_ is not set."""
+    )
+    print(
+        """
 _DPRC_
 \tSet the DPRC - Datapath Resource Container: This value should match the one
 \tused by DPDK during the scan of the fslmc bus. It is recommended to set

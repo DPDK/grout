@@ -6,6 +6,7 @@
 #include "exec.h"
 #include "interact.h"
 #include "log.h"
+#include "pager.h"
 
 #include <gr_api.h>
 #include <gr_api_client_impl.h>
@@ -26,7 +27,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-e] [-f PATH] [-h] [-s PATH] [-V] [-x] ...\n", prog);
+	printf("Usage: %s [-e] [-f PATH] [-h] [-p] [-s PATH] [-V] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
 	printf("       %s -d|--dump-commands\n", prog);
 }
@@ -39,6 +40,7 @@ static void help(void) {
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
+	puts("  -p, --no-pager             Do not pipe output into a pager.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
 	printf("                             %s).\n", GR_DEFAULT_SOCK_PATH);
@@ -64,11 +66,12 @@ static struct gr_cli_opts opts;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":ef:hs:Vx"
+#define FLAGS ":ef:hps:Vx"
 	static struct option long_options[] = {
 		{"err-exit", no_argument, NULL, 'e'},
 		{"file", required_argument, NULL, 'f'},
 		{"help", no_argument, NULL, 'h'},
+		{"no-pager", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"version", no_argument, NULL, 'V'},
 		{"trace-commands", no_argument, NULL, 'x'},
@@ -96,6 +99,9 @@ static int parse_args(int argc, char **argv) {
 			usage(argv[0]);
 			help();
 			return -1;
+		case 'p':
+			pager_disable();
+			break;
 		case 's':
 			opts.sock_path = optarg;
 			break;
@@ -120,6 +126,9 @@ static int parse_args(int argc, char **argv) {
 			return errno_set(EINVAL);
 		}
 	}
+
+	if (!is_tty(opts.cmds_file))
+		pager_disable();
 
 	if (opts.sock_path == NULL)
 		opts.sock_path = GR_DEFAULT_SOCK_PATH;
@@ -184,6 +193,8 @@ int main(int argc, char **argv) {
 		ret = dump_command_tree(cmdlist);
 		goto end;
 	}
+
+	pager_init();
 
 	if ((c = parse_args(argc, argv)) < 0)
 		goto end;
