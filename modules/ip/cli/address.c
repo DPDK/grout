@@ -61,7 +61,7 @@ static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct gr_table
 		gr_table_cell(table, 1, IP4_F "/%hhu", &addr->addr.ip, addr->addr.prefixlen);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	return ret;
