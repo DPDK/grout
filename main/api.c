@@ -208,9 +208,16 @@ static struct api_out hello(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static void stream_cleanup(struct api_ctx *);
+static void read_cb(struct bufferevent *bev, void *priv);
+static void event_cb(struct bufferevent *, short events, void *priv);
+
 static void disconnect_client(struct api_ctx *ctx) {
 	assert(ctx != NULL);
 	assert(ctx->bev != NULL);
+
+	if (ctx->stream_state != NULL)
+		stream_cleanup(ctx);
 
 	LIST_REMOVE(ctx, next);
 
@@ -221,22 +228,128 @@ static void disconnect_client(struct api_ctx *ctx) {
 	free(ctx);
 }
 
-void api_send(struct api_ctx *ctx, uint32_t len, const void *payload) {
+int api_send(struct api_ctx *ctx, uint32_t len, const void *payload) {
+	size_t hi = 0;
+
 	assert(ctx != NULL);
 	assert(len != 0);
 	assert(payload != NULL);
 
-	LOG(DEBUG, "pid=%d for_id=%u len=%u", ctx->pid, ctx->header.id, len);
-
 	struct gr_api_response resp = {
-		.for_id = ctx->header.id,
+		.for_id = ctx->stream_req_id ?: ctx->header.id,
 		.payload_len = len,
 		.status = 0,
 	};
-	if (bufferevent_write(ctx->bev, &resp, sizeof(resp)) < 0)
+	if (bufferevent_write(ctx->bev, &resp, sizeof(resp)) < 0) {
 		LOG(ERR, "pid=%d cannot write header", ctx->pid);
-	if (bufferevent_write(ctx->bev, payload, len) < 0)
+		return -EIO;
+	}
+	if (bufferevent_write(ctx->bev, payload, len) < 0) {
 		LOG(ERR, "pid=%d cannot write payload", ctx->pid);
+		return -EIO;
+	}
+
+	bufferevent_getwatermark(ctx->bev, EV_WRITE, NULL, &hi);
+	if (evbuffer_get_length(bufferevent_get_output(ctx->bev)) >= hi)
+		return STREAM_PAUSE;
+
+	return STREAM_MORE;
+}
+
+static void send_stream_end(struct api_ctx *ctx, uint32_t for_id, uint32_t status) {
+	LOG(DEBUG,
+	    "pid=%d id=%u req_type=0x%08x status=%d (%s)",
+	    ctx->pid,
+	    ctx->header.id,
+	    ctx->header.type,
+	    status,
+	    strerror(status));
+	struct gr_api_response resp = {
+		.for_id = for_id,
+		.status = status,
+		.payload_len = 0,
+	};
+	bufferevent_write(ctx->bev, &resp, sizeof(resp));
+	bufferevent_flush(ctx->bev, EV_WRITE, BEV_FLUSH);
+}
+
+static void stream_cleanup(struct api_ctx *ctx) {
+	LOG(DEBUG, "pid=%d id=%u req_type=0x%08x", ctx->pid, ctx->header.id, ctx->header.type);
+	free(ctx->stream_state);
+	ctx->stream_state = NULL;
+	ctx->stream_next = NULL;
+	ctx->stream_req_id = 0;
+
+	// Restore the normal write callback (none).
+	bufferevent_setcb(ctx->bev, read_cb, NULL, event_cb, ctx);
+}
+
+static void stream_write_cb(struct bufferevent *, void *priv) {
+	struct api_ctx *ctx = priv;
+	int ret;
+
+	if (ctx->stream_state == NULL)
+		return;
+
+	do {
+		LOG(DEBUG,
+		    "pid=%d id=%u req_type=0x%08x: next",
+		    ctx->pid,
+		    ctx->header.id,
+		    ctx->header.type);
+		ret = ctx->stream_next(ctx->stream_state, ctx);
+	} while (ret == STREAM_MORE);
+
+	if (ret == STREAM_PAUSE) {
+		LOG(DEBUG,
+		    "pid=%d id=%u req_type=0x%08x: pause",
+		    ctx->pid,
+		    ctx->header.id,
+		    ctx->header.type);
+		return; // wait for write callback
+	}
+
+	// STREAM_END or error
+	send_stream_end(ctx, ctx->stream_req_id, ret < 0 ? -ret : 0);
+	stream_cleanup(ctx);
+}
+
+static void
+stream_start(struct api_ctx *ctx, const struct api_handler *handler, const void *req_payload) {
+	void *state;
+
+	LOG(DEBUG,
+	    "pid=%d id=%u req_type=0x%08x (%s)",
+	    ctx->pid,
+	    ctx->header.id,
+	    ctx->header.type,
+	    handler->name);
+	errno = 0;
+	state = handler->stream_init(req_payload, ctx);
+	if (state == NULL) {
+		// init failed, send end with errno (or ENOMEM as fallback)
+		if (errno == 0)
+			errno = ENOMEM;
+		LOG(ERR,
+		    "pid=%d id=%u req_type=0x%08x (%s) status=%d (%s)",
+		    ctx->pid,
+		    ctx->header.id,
+		    ctx->header.type,
+		    handler->name,
+		    errno,
+		    strerror(errno));
+		send_stream_end(ctx, ctx->header.id, errno);
+		return;
+	}
+
+	ctx->stream_state = state;
+	ctx->stream_req_id = ctx->header.id;
+	ctx->stream_next = handler->stream_next;
+
+	// Set write callback so we resume when buffer drains.
+	bufferevent_setcb(ctx->bev, read_cb, stream_write_cb, event_cb, ctx);
+
+	stream_write_cb(ctx->bev, ctx);
 }
 
 static void read_cb(struct bufferevent *bev, void *priv) {
@@ -295,18 +408,32 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 		goto send;
 	}
 
+	if (handler->stream_init != NULL) {
+		if (ctx->stream_state != NULL) {
+			// One stream at a time per client.
+			out.status = EBUSY;
+			out.len = 0;
+			out.payload = NULL;
+			goto send;
+		}
+		cur_req_pid = ctx->pid;
+		stream_start(ctx, handler, req_payload);
+		cur_req_pid = 0;
+		free(req_payload);
+		return;
+	}
+
 	cur_req_pid = ctx->pid;
 	out = handler->callback(req_payload, ctx);
 	cur_req_pid = 0;
 
 send:
 	LOG(DEBUG,
-	    "pid=%d id=%u req_type=0x%08x (%s) req_len=%u status=%d (%s) resp_len=%u",
+	    "pid=%d id=%u req_type=0x%08x (%s) status=%d (%s) resp_len=%u",
 	    ctx->pid,
 	    ctx->header.id,
 	    ctx->header.type,
 	    handler ? handler->name : "?",
-	    ctx->header.payload_len,
 	    out.status,
 	    strerror(out.status),
 	    out.len);
@@ -347,9 +474,12 @@ static void event_cb(struct bufferevent *, short events, void *priv) {
 	assert(ctx != NULL);
 
 	if (events & BEV_EVENT_ERROR) {
-		if (errno == EPIPE)
+		if (errno == EPIPE) {
 			events |= BEV_EVENT_EOF;
-		LOG(ERR, "client pid=%d %s", ctx->pid, strerror(errno));
+			LOG(INFO, "client pid=%d %s", ctx->pid, strerror(errno));
+		} else {
+			LOG(ERR, "client pid=%d %s", ctx->pid, strerror(errno));
+		}
 	}
 
 	if (events & BEV_EVENT_EOF)
