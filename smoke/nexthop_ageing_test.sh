@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local attempts=25
 	while [ "$attempts" -gt 0 ]; do
-		grcli nexthop show internal | grep -qE "$ip.+reachable"
+		grcli nexthop show internal json | jq -e --arg ip "$ip" '.nexthops[] | select(.info | test($ip + ".+reachable"))' > /dev/null
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
@@ -55,8 +55,8 @@ check_nexthop '172\.16\.0\.2' true || fail "nexthop 172.16.0.2 should be reachab
 check_nexthop '172\.16\.1\.2' true || fail "nexthop 172.16.1.2 should be reachable"
 
 # ensure addresses were not destroyed
-grcli address show | grep -E "^p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli address show | grep -E "^p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli address show json | jq -e '.addresses[] | select(.iface == "p0" and .address == "172.16.0.1/24")' > /dev/null || fail "addresses were destroyed"
+grcli address show json | jq -e '.addresses[] | select(.iface == "p1" and .address == "172.16.1.1/24")' > /dev/null || fail "addresses were destroyed"
 
 # force interfaces down so that linux does not reply to ARP requests anymore
 ip -n n0 link set x-p0 down
@@ -70,5 +70,5 @@ check_nexthop '172\.16\.0\.2' false || fail "nexthop 172.16.0.2 should be destro
 check_nexthop '172\.16\.1\.2' false || fail "nexthop 172.16.1.2 should be destroyed"
 
 # ensure addresses were not destroyed
-grcli address show | grep -E "^p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli address show | grep -E "^p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli address show json | jq -e '.addresses[] | select(.iface == "p0" and .address == "172.16.0.1/24")' > /dev/null || fail "addresses were destroyed"
+grcli address show json | jq -e '.addresses[] | select(.iface == "p1" and .address == "172.16.1.1/24")' > /dev/null || fail "addresses were destroyed"
