@@ -445,57 +445,102 @@ void rib4_iter(uint16_t vrf_id, rib4_iter_cb_t cb, void *priv) {
 	}
 }
 
-struct route4_iterator {
-	struct api_ctx *ctx;
-	int ret;
+struct route4_stream {
+	uint16_t vrf_filter;
+	uint16_t cur_vrf;
+	struct rte_rib_node *node;
+	bool default_done;
 };
 
-static void route4_list_cb(
-	uint16_t vrf_id,
-	ip4_addr_t ip,
-	uint8_t prefixlen,
-	gr_nh_origin_t origin,
-	const struct nexthop *nh,
-	void *priv
-) {
-	struct route4_iterator *iter = priv;
-	if (origin != GR_NH_ORIGIN_INTERNAL && iter->ret == 0) {
-		struct gr_ip4_route *r;
-		struct gr_nexthop *pub;
-		size_t nh_len, len;
-
-		pub = nexthop_to_api(nh, &nh_len);
-		if (pub == NULL) {
-			iter->ret = errno;
-			LOG(ERR, "nexthop_export: %s", strerror(errno));
-			return;
-		}
-
-		len = sizeof(*r) - sizeof(r->nh) + nh_len;
-		r = malloc(len);
-		if (r != NULL) {
-			r->vrf_id = vrf_id;
-			r->dest.ip = ip;
-			r->dest.prefixlen = prefixlen;
-			r->origin = origin;
-			memcpy(&r->nh, pub, nh_len);
-			api_send(iter->ctx, len, r);
-		} else {
-			LOG(ERR, "cannot allocate memory");
-			iter->ret = ENOMEM;
-		}
-		free(pub);
-		free(r);
-	}
+static void *route4_list_init(const void *request, struct api_ctx *) {
+	const struct gr_ip4_route_list_req *req = request;
+	struct route4_stream *s = calloc(1, sizeof(*s));
+	if (s == NULL)
+		return NULL;
+	s->vrf_filter = req->vrf_id;
+	return s;
 }
 
-static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
-	const struct gr_ip4_route_list_req *req = request;
-	struct route4_iterator iter = {.ctx = ctx, .ret = 0};
+static struct rte_rib_node *rib4_next_node(struct route4_stream *s, struct rte_rib *rib) {
+	struct rte_rib_node *rn;
 
-	rib4_iter(req->vrf_id, route4_list_cb, &iter);
+	rn = rte_rib_get_nxt(rib, 0, 0, s->node, RTE_RIB_GET_NXT_ALL);
+	if (rn != NULL) {
+		s->node = rn;
+		return rn;
+	}
 
-	return api_out(iter.ret, 0, NULL);
+	// rte_rib_get_nxt does not return the default route (0/0).
+	if (!s->default_done) {
+		s->default_done = true;
+		return rte_rib_lookup_exact(rib, 0, 0);
+	}
+
+	return NULL;
+}
+
+static int route4_list_next(void *state, struct api_ctx *ctx) {
+	struct route4_stream *s = state;
+	struct rte_rib_node *rn;
+	gr_nh_origin_t *origin;
+	uintptr_t nh_id;
+	uint32_t raw_ip;
+	uint8_t prefixlen;
+
+	for (;;) {
+		if (s->cur_vrf >= GR_MAX_IFACES)
+			return STREAM_END;
+
+		if (vrf_fibs[s->cur_vrf] == NULL
+		    || (s->vrf_filter != GR_VRF_ID_UNDEF && s->cur_vrf != s->vrf_filter)) {
+			s->cur_vrf++;
+			continue;
+		}
+
+		struct rte_rib *rib = rte_fib_get_rib(vrf_fibs[s->cur_vrf]);
+		rn = rib4_next_node(s, rib);
+		if (rn == NULL) {
+			s->cur_vrf++;
+			s->node = NULL;
+			s->default_done = false;
+			continue;
+		}
+
+		rte_rib_get_nh(rn, &nh_id);
+		origin = rte_rib_get_ext(rn);
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
+			continue;
+
+		rte_rib_get_ip(rn, &raw_ip);
+		rte_rib_get_depth(rn, &prefixlen);
+		break;
+	}
+
+	const struct nexthop *nh = nh_id_to_ptr(nh_id);
+	struct gr_nexthop *pub;
+	struct gr_ip4_route *r;
+	size_t nh_len, len;
+
+	pub = nexthop_to_api(nh, &nh_len);
+	if (pub == NULL)
+		return -errno;
+
+	len = sizeof(*r) - sizeof(r->nh) + nh_len;
+	r = malloc(len);
+	if (r == NULL) {
+		free(pub);
+		return -ENOMEM;
+	}
+
+	r->vrf_id = s->cur_vrf;
+	r->dest.ip = rte_cpu_to_be_32(raw_ip);
+	r->dest.prefixlen = prefixlen;
+	r->origin = *origin;
+	memcpy(&r->nh, pub, nh_len);
+	free(pub);
+	int ret = api_send(ctx, len, r);
+	free(r);
+	return ret;
 }
 
 static void route4_init(struct event_base *) {
@@ -798,7 +843,7 @@ RTE_INIT(control_ip_init) {
 	gr_api_handler(GR_IP4_ROUTE_ADD, route4_add);
 	gr_api_handler(GR_IP4_ROUTE_DEL, route4_del);
 	gr_api_handler(GR_IP4_ROUTE_GET, route4_get);
-	gr_api_handler(GR_IP4_ROUTE_LIST, route4_list);
+	gr_api_handler_stream(GR_IP4_ROUTE_LIST, route4_list_init, route4_list_next);
 	gr_api_handler(GR_IP4_FIB_CONF_SET, fib4_conf_set);
 	gr_api_handler(GR_IP4_FIB_INFO_LIST, fib4_info_list);
 	gr_event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
