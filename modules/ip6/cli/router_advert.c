@@ -20,9 +20,9 @@ static cmd_status_t ra_show(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
-	gr_table_column(table, "RA", GR_DISP_LEFT); // 1
-	gr_table_column(table, "INTERVAL", GR_DISP_RIGHT); // 2
-	gr_table_column(table, "LIFETIME", GR_DISP_RIGHT); // 3
+	gr_table_column(table, "RA", GR_DISP_BOOL); // 1
+	gr_table_column(table, "INTERVAL", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "LIFETIME", GR_DISP_RIGHT | GR_DISP_INT); // 3
 
 	gr_api_client_stream_foreach (ra, ret, c, GR_IP6_IFACE_RA_SHOW, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, ra->iface_id));

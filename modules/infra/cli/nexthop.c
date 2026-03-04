@@ -368,7 +368,7 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
-	gr_table_column(table, "ID", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ID", GR_DISP_LEFT | GR_DISP_INT); // 1
 	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
 	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 4
