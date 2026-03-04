@@ -218,7 +218,7 @@ void *gr_datapath_loop(void *priv) {
 	static_assert(atomic_is_lock_free(&w->shutdown));
 	static_assert(atomic_is_lock_free(&w->cur_config));
 	static_assert(atomic_is_lock_free(&w->stats_reset));
-	worker_signal_ready(w);
+	atomic_store(&w->started, true);
 
 reconfig:
 	if (atomic_load(&w->shutdown))

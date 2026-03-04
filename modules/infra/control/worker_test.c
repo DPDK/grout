@@ -138,7 +138,14 @@ mock_func(
 	__wrap_rte_eth_dev_configure(uint16_t, uint16_t, uint16_t, const struct rte_eth_conf *)
 );
 mock_func(int, __wrap_pthread_cancel(pthread_t));
-mock_func(int, __wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(void *), void *));
+mock_func(
+	int,
+	__wrap_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *arg),
+	{
+		struct worker *w = arg;
+		atomic_store(&w->started, true);
+	}
+);
 mock_func(int, __wrap_pthread_cond_wait(pthread_cond_t *, pthread_mutex_t *));
 mock_func(
 	int,

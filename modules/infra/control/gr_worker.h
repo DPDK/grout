@@ -46,6 +46,7 @@ struct worker_stats {
 
 struct worker {
 	atomic_bool shutdown; // dataplane: ro, ctlplane: wo
+	atomic_bool started; // dataplane: wo, ctlplane: ro
 	atomic_uint next_config; // dataplane: ro, ctlplane: rw
 	atomic_uint cur_config; // dataplane: wo, ctlplane: ro
 	// synced with thread_fence
