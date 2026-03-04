@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include <gr_api.h>
+#include <gr_cli.h>
 #include <gr_display.h>
 #include <gr_macro.h>
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -12,6 +15,12 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+static bool json_output;
+
+void gr_display_set_json(bool enabled) {
+	json_output = enabled;
+}
 
 #define MAX_COLS 16
 #define COL_SEP "  "
@@ -21,7 +30,9 @@
 struct table_col {
 	// Column header displayed in text mode.
 	char name[64];
-	// Alignment.
+	// Lowercased column name used as JSON object key.
+	char json_key[64];
+	// Alignment (text) and value type (JSON).
 	gr_display_flags_t flags;
 	// Current column width, updated as rows are buffered.
 	unsigned width;
@@ -44,6 +55,8 @@ struct gr_table {
 	struct table_row cur_row;
 	// True while rows are being buffered (first screenful).
 	bool buffering;
+	// JSON: true before the first row is printed (controls '[' vs ',').
+	bool first_row;
 };
 
 static unsigned term_rows(void) {
@@ -58,6 +71,11 @@ struct gr_table *gr_table_new(void) {
 	struct gr_table *t = calloc(1, sizeof(*t));
 	if (t == NULL)
 		return NULL;
+
+	t->first_row = true;
+
+	if (json_output)
+		return t;
 
 	t->buffering = true;
 	t->max_buffered_rows = term_rows();
@@ -84,6 +102,13 @@ void gr_table_column(struct gr_table *t, const char *name, gr_display_flags_t fl
 	col->flags = flags;
 	col->width = strlen(col->name);
 	col->last = true;
+
+	for (unsigned i = 0; name[i] && i < sizeof(col->json_key) - 1; i++) {
+		char c = tolower(name[i]);
+		if (c != '_' && !isalnum(c))
+			c = '_';
+		col->json_key[i] = c;
+	}
 }
 
 static void update_widths(struct gr_table *t, const struct table_row *row) {
@@ -116,6 +141,102 @@ err:
 	buf[n] = '\0';
 
 	return puts(buf);
+}
+
+static int print_json_string(const char *s, bool stop_at_spaces) {
+	int n = 0;
+
+	if (putchar('"') < 0)
+		return EOF;
+
+	while (s[n] && (!stop_at_spaces || !isspace(s[n]))) {
+		char c = s[n++];
+		if (c >= '\a' && c <= '\r') {
+			// special escape codes, e.g.: '\n' -> "\\n"
+			static const char esc[] = "abtnvfr";
+			if (printf("\\%c", esc[c - '\a']) < 0)
+				return EOF;
+		} else if (c >= ' ' && c <= '~') {
+			// printable characters
+			if (c == '"' || c == '\\') {
+				// escape quotes and backslashes with a backslash
+				if (putchar('\\') < 0)
+					return EOF;
+			}
+			if (putchar(c) < 0)
+				return EOF;
+		} else {
+			// any other non-printable character is formatted as "\\uXXXX"
+			if (printf("\\u%04hhx", (unsigned char)c) < 0)
+				return EOF;
+		}
+	}
+
+	if (putchar('"') < 0)
+		return EOF;
+
+	return n;
+}
+
+static int print_json_value(const char *val, gr_display_flags_t flags) {
+	if (flags & GR_DISP_BOOL) {
+		bool v = !strcmp(val, "true") || !strcmp(val, "1");
+		return printf("%s", v ? "true" : "false");
+	} else if (flags & GR_DISP_INT) {
+		int64_t i = 0;
+		sscanf(val, "%ld", &i);
+		return printf("%ld", i);
+	} else if (flags & GR_DISP_FLOAT) {
+		float f = 0.0;
+		sscanf(val, "%f", &f);
+		return printf("%f", f);
+	} else if (flags & GR_DISP_STR_ARRAY) {
+		bool first = true;
+		int i = 0, n;
+
+		if (putchar('[') < 0)
+			return EOF;
+
+		while (val[i]) {
+			while (isspace(val[i]))
+				i++;
+			if (!val[i])
+				break;
+			if (!first && putchar(',') < 0)
+				return EOF;
+			first = false;
+
+			n = print_json_string(&val[i], true);
+			if (n < 0)
+				return EOF;
+			i += n;
+		}
+		return putchar(']');
+	} else {
+		return print_json_string(val, false);
+	}
+}
+
+static int print_json_row(struct gr_table *t, const struct table_row *row) {
+	if (putchar(t->first_row ? '[' : ',') < 0)
+		return EOF;
+	t->first_row = false;
+
+	if (putchar('{') < 0)
+		return EOF;
+	for (unsigned i = 0; i < t->n_cols; i++) {
+		struct table_col *col = &t->cols[i];
+
+		if (i > 0 && putchar(',') < 0)
+			return EOF;
+
+		if (printf("\"%s\":", col->json_key) < 0)
+			return EOF;
+
+		if (print_json_value(row->cells[i], col->flags) < 0)
+			return EOF;
+	}
+	return putchar('}');
 }
 
 static int flush_buffered_rows(struct gr_table *t) {
@@ -154,7 +275,9 @@ int gr_table_print_row(struct gr_table *t) {
 
 	assert(t != NULL);
 
-	if (t->buffering) {
+	if (json_output) {
+		ret = print_json_row(t, &t->cur_row);
+	} else if (t->buffering) {
 		update_widths(t, &t->cur_row);
 		t->buffered_rows[t->n_buffered_rows] = t->cur_row;
 		t->n_buffered_rows++;
@@ -173,8 +296,40 @@ int gr_table_print_row(struct gr_table *t) {
 void gr_table_free(struct gr_table *t) {
 	if (t == NULL)
 		return;
-	if (t->buffering && t->n_buffered_rows > 0)
-		flush_buffered_rows(t);
+	if (json_output) {
+		if (t->first_row)
+			puts("[]");
+		else
+			puts("]");
+	} else {
+		if (t->buffering && t->n_buffered_rows > 0)
+			flush_buffered_rows(t);
+	}
 	free(t->buffered_rows);
 	free(t);
+}
+
+static cmd_status_t json_set(struct gr_api_client *, const struct ec_pnode *p) {
+	json_output = arg_str(p, "enable") != NULL;
+	return CMD_SUCCESS;
+}
+
+static int ctx_init(struct ec_node *root) {
+	return CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_ARG("json", "Configure JSON output.")),
+		"enable|disable",
+		json_set,
+		"Configure JSON output.",
+		with_help("Enable JSON output.", ec_node_str("enable", "enable")),
+		with_help("Disable JSON output.", ec_node_str("disable", "disable"))
+	);
+}
+
+static struct cli_context ctx = {
+	.name = "json",
+	.init = ctx_init,
+};
+
+static void __attribute__((constructor, used)) init(void) {
+	cli_context_register(&ctx);
 }

@@ -22,6 +22,7 @@ struct ec_node *grcli_options_node(void) {
 		    "Path to the control plane API socket.",
 		    ec_node("file", SOCK_PATH_ID)),
 		FLAG("-e|--err-exit", "Abort on first error."),
+		FLAG("-j|--json", "Output tables in JSON format."),
 		FLAG("-p|--no-pager", "Do not pipe output into a pager."),
 		FLAG("-x|--trace-commands", "Print executed commands."),
 		OPT("-f|--file PATH",

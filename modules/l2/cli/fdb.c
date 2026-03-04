@@ -116,11 +116,11 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "BRIDGE", GR_DISP_LEFT); // 0
 	gr_table_column(table, "MAC", GR_DISP_LEFT); // 1
-	gr_table_column(table, "VLAN", GR_DISP_RIGHT); // 2
+	gr_table_column(table, "VLAN", GR_DISP_RIGHT | GR_DISP_INT); // 2
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
 	gr_table_column(table, "VTEP", GR_DISP_LEFT); // 4
-	gr_table_column(table, "FLAGS", GR_DISP_LEFT); // 5
-	gr_table_column(table, "AGE", GR_DISP_RIGHT); // 6
+	gr_table_column(table, "FLAGS", GR_DISP_STR_ARRAY); // 5
+	gr_table_column(table, "AGE", GR_DISP_RIGHT | GR_DISP_INT); // 6
 
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, fdb->bridge_id));
@@ -137,7 +137,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
 			gr_table_cell(table, 5, "%s", flags);
 
-		gr_table_cell(table, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
+		gr_table_cell(table, 6, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
 
 		if (gr_table_print_row(table) < 0)
 			continue;
