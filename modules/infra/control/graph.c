@@ -257,7 +257,7 @@ int worker_graph_reload(struct worker *worker, gr_vec struct iface_info_port **p
 
 	// wait for datapath worker to pickup the config update
 	atomic_store(&worker->next_config, next);
-	worker_signal_ready(worker);
+	worker_wakeup(worker);
 	for (unsigned i = 0; atomic_load(&worker->cur_config) != next; i++) {
 		if (i >= 10000) // 10000 * 500us -> 5s
 			return errno_log(ETIMEDOUT, "worker not responding to graph reload");

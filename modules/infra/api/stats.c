@@ -154,7 +154,7 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 
 	STAILQ_FOREACH (worker, &workers, next) {
 		atomic_store(&worker->stats_reset, true);
-		worker_signal_ready(worker);
+		worker_wakeup(worker);
 	}
 
 	iface = NULL;
