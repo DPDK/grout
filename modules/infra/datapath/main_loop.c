@@ -233,7 +233,7 @@ reconfig:
 	atomic_store(&w->cur_config, cur);
 
 	if (graph == NULL) {
-		worker_wait_ready(w);
+		worker_wait_wakeup(w);
 		if (ctx.w_stats != NULL && atomic_exchange(&w->stats_reset, false))
 			stats_reset(ctx.w_stats);
 		goto reconfig;

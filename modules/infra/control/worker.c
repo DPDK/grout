@@ -43,8 +43,8 @@ int worker_create(unsigned cpu_id) {
 
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
-	pthread_mutex_init(&worker->lock, NULL);
-	pthread_cond_init(&worker->ready, NULL);
+	pthread_mutex_init(&worker->wakeup.lock, NULL);
+	pthread_cond_init(&worker->wakeup.cond, NULL);
 
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu_id, &cpuset);
@@ -74,8 +74,8 @@ end:
 	} else {
 		if (worker != NULL) {
 			pthread_cancel(worker->thread);
-			pthread_cond_destroy(&worker->ready);
-			pthread_mutex_destroy(&worker->lock);
+			pthread_cond_destroy(&worker->wakeup.cond);
+			pthread_mutex_destroy(&worker->wakeup.lock);
 			rte_free(worker);
 		}
 		LOG(ERR, "worker %u start failed: %s", cpu_id, strerror(ret));
@@ -93,8 +93,10 @@ int worker_destroy(unsigned cpu_id) {
 	STAILQ_REMOVE(&workers, worker, worker, next);
 
 	atomic_store(&worker->shutdown, true);
-	worker_signal_ready(worker);
+	worker_wakeup(worker);
 	pthread_join(worker->thread, NULL);
+	pthread_cond_destroy(&worker->wakeup.cond);
+	pthread_mutex_destroy(&worker->wakeup.lock);
 	worker_graph_free(worker);
 	gr_vec_free(worker->rxqs);
 	gr_vec_free(worker->txqs);
@@ -104,19 +106,19 @@ int worker_destroy(unsigned cpu_id) {
 	return 0;
 }
 
-void worker_wait_ready(struct worker *w) {
-	int ret;
-	pthread_mutex_lock(&w->lock);
-	do
-		ret = pthread_cond_wait(&w->ready, &w->lock);
-	while (ret == EAGAIN || ret == EINTR);
-	pthread_mutex_unlock(&w->lock);
+void worker_wait_wakeup(struct worker *w) {
+	pthread_mutex_lock(&w->wakeup.lock);
+	while (!w->wakeup.set)
+		pthread_cond_wait(&w->wakeup.cond, &w->wakeup.lock);
+	w->wakeup.set = false;
+	pthread_mutex_unlock(&w->wakeup.lock);
 }
 
-void worker_signal_ready(struct worker *w) {
-	pthread_mutex_lock(&w->lock);
-	pthread_cond_signal(&w->ready);
-	pthread_mutex_unlock(&w->lock);
+void worker_wakeup(struct worker *w) {
+	pthread_mutex_lock(&w->wakeup.lock);
+	w->wakeup.set = true;
+	pthread_cond_signal(&w->wakeup.cond);
+	pthread_mutex_unlock(&w->wakeup.lock);
 }
 
 unsigned worker_count(void) {
