@@ -61,7 +61,7 @@ static cmd_status_t vtep_show(struct gr_api_client *c, const struct ec_pnode *p)
 		return CMD_ERROR;
 
 	struct gr_table *table = gr_table_new();
-	gr_table_column(table, "VNI", GR_DISP_RIGHT); // 0
+	gr_table_column(table, "VNI", GR_DISP_RIGHT | GR_DISP_INT); // 0
 	gr_table_column(table, "VRF", GR_DISP_LEFT); // 1
 	gr_table_column(table, "ADDR", GR_DISP_LEFT); // 2
 
