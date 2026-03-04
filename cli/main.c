@@ -12,6 +12,7 @@
 #include <gr_api_client_impl.h>
 #include <gr_cli.h>
 #include <gr_clock.h>
+#include <gr_display.h>
 #include <gr_version.h>
 
 #include <ecoli.h>
@@ -27,7 +28,7 @@
 // Please keep options/flags in alphabetical order.
 
 static void usage(const char *prog) {
-	printf("Usage: %s [-e] [-f PATH] [-h] [-p] [-s PATH] [-V] [-x] ...\n", prog);
+	printf("Usage: %s [-e] [-f PATH] [-h] [-j] [-p] [-s PATH] [-V] [-x] ...\n", prog);
 	printf("       %s -c|--bash-complete\n", prog);
 	printf("       %s -d|--dump-commands\n", prog);
 }
@@ -40,6 +41,7 @@ static void help(void) {
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
+	puts("  -j, --json                 Output tables in JSON format.");
 	puts("  -p, --no-pager             Do not pipe output into a pager.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
@@ -66,11 +68,12 @@ static struct gr_cli_opts opts;
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":ef:hps:Vx"
+#define FLAGS ":ef:hjps:Vx"
 	static struct option long_options[] = {
 		{"err-exit", no_argument, NULL, 'e'},
 		{"file", required_argument, NULL, 'f'},
 		{"help", no_argument, NULL, 'h'},
+		{"json", no_argument, NULL, 'j'},
 		{"no-pager", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"version", no_argument, NULL, 'V'},
@@ -100,6 +103,9 @@ static int parse_args(int argc, char **argv) {
 			usage(argv[0]);
 			help();
 			return -1;
+		case 'j':
+			gr_display_set_json(true);
+			break;
 		case 'p':
 			pager_disable();
 			break;

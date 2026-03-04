@@ -26,8 +26,8 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	gr_table_column(table, "SRC", GR_DISP_LEFT); // 4
 	gr_table_column(table, "DST", GR_DISP_LEFT); // 5
 	gr_table_column(table, "PROTO", GR_DISP_LEFT); // 6
-	gr_table_column(table, "SPORT", GR_DISP_RIGHT); // 7
-	gr_table_column(table, "DPORT", GR_DISP_RIGHT); // 8
+	gr_table_column(table, "SPORT", GR_DISP_RIGHT | GR_DISP_INT); // 7
+	gr_table_column(table, "DPORT", GR_DISP_RIGHT | GR_DISP_INT); // 8
 	gr_table_column(table, "LAST_UPDATE", GR_DISP_RIGHT); // 9
 
 	now = gr_clock_us();
