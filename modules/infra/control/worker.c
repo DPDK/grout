@@ -73,6 +73,7 @@ end:
 		LOG(INFO, "worker %u started", cpu_id);
 	} else {
 		if (worker != NULL) {
+			STAILQ_REMOVE(&workers, worker, worker, next);
 			pthread_cancel(worker->thread);
 			pthread_cond_destroy(&worker->wakeup.cond);
 			pthread_mutex_destroy(&worker->wakeup.lock);
