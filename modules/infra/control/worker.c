@@ -44,7 +44,6 @@ int worker_create(unsigned cpu_id) {
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
 	pthread_mutex_init(&worker->lock, NULL);
-	pthread_mutex_lock(&worker->lock);
 	pthread_cond_init(&worker->ready, NULL);
 
 	CPU_ZERO(&cpuset);
@@ -59,17 +58,16 @@ int worker_create(unsigned cpu_id) {
 	STAILQ_INSERT_TAIL(&workers, worker, next);
 
 	// wait until thread has initialized lcore_id
-	struct timespec timeout;
-	clock_gettime(CLOCK_REALTIME, &timeout);
-	timeout.tv_sec += 1;
-	do
-		ret = pthread_cond_timedwait(&worker->ready, &worker->lock, &timeout);
-	while (ret == EAGAIN || ret == EINTR);
+	for (unsigned i = 0; !atomic_load(&worker->started); i++) {
+		if (i >= 2000) { // 2000 * 500us -> 1s
+			ret = ETIMEDOUT;
+			break;
+		}
+		usleep(500);
+	}
 
 end:
 	pthread_attr_destroy(&attr);
-	if (worker != NULL)
-		pthread_mutex_unlock(&worker->lock);
 
 	if (ret == 0) {
 		LOG(INFO, "worker %u started", cpu_id);
