@@ -307,6 +307,7 @@ else
 	SECONDS=0
 	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
 		if [ "$SECONDS" -gt 30 ]; then
+			gdb -p "$grout_pid" -batch -ex 'thread apply all bt' grout
 			fail "grout took more than 30s to start"
 		fi
 		kill -0 "$grout_pid"
