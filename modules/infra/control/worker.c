@@ -59,7 +59,7 @@ int worker_create(unsigned cpu_id) {
 
 	// wait until thread has initialized lcore_id
 	for (unsigned i = 0; !atomic_load(&worker->started); i++) {
-		if (i >= 2000) { // 2000 * 500us -> 1s
+		if (i >= 10000) { // 10000 * 500us -> 5s
 			ret = ETIMEDOUT;
 			break;
 		}
