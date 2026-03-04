@@ -3,10 +3,22 @@
 
 #pragma once
 
+#include <stdbool.h>
+
+// Display flags control text alignment and JSON value types.
+// Alignment flags are mutually exclusive. JSON type flags can be OR'd
+// with alignment.
 typedef enum {
 	GR_DISP_LEFT = 0,
 	GR_DISP_RIGHT = 1,
+	GR_DISP_INT = 1 << 1,
+	GR_DISP_FLOAT = 1 << 2,
+	GR_DISP_BOOL = 1 << 3,
+	GR_DISP_STR_ARRAY = 1 << 4,
 } gr_display_flags_t;
+
+// Enable/disable JSON output.
+void gr_display_set_json(bool enabled);
 
 struct gr_table;
 

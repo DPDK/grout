@@ -309,8 +309,8 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "NAME", GR_DISP_LEFT); // 0
-	gr_table_column(table, "ID", GR_DISP_RIGHT); // 1
-	gr_table_column(table, "FLAGS", GR_DISP_LEFT); // 2
+	gr_table_column(table, "ID", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "FLAGS", GR_DISP_STR_ARRAY); // 2
 	gr_table_column(table, "MODE", GR_DISP_LEFT); // 3
 	gr_table_column(table, "DOMAIN", GR_DISP_LEFT); // 4
 	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 5
@@ -380,16 +380,16 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
-	gr_table_column(table, "RX_PACKETS", GR_DISP_RIGHT); // 1
-	gr_table_column(table, "RX_BYTES", GR_DISP_RIGHT); // 2
-	gr_table_column(table, "RX_DROPS", GR_DISP_RIGHT); // 3
-	gr_table_column(table, "TX_PACKETS", GR_DISP_RIGHT); // 4
-	gr_table_column(table, "TX_BYTES", GR_DISP_RIGHT); // 5
-	gr_table_column(table, "TX_ERRORS", GR_DISP_RIGHT); // 6
-	gr_table_column(table, "CP_RX_PACKETS", GR_DISP_RIGHT); // 7
-	gr_table_column(table, "CP_RX_BYTES", GR_DISP_RIGHT); // 8
-	gr_table_column(table, "CP_TX_PACKETS", GR_DISP_RIGHT); // 9
-	gr_table_column(table, "CP_TX_BYTES", GR_DISP_RIGHT); // 10
+	gr_table_column(table, "RX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "RX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "RX_DROPS", GR_DISP_RIGHT | GR_DISP_INT); // 3
+	gr_table_column(table, "TX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 4
+	gr_table_column(table, "TX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 5
+	gr_table_column(table, "TX_ERRORS", GR_DISP_RIGHT | GR_DISP_INT); // 6
+	gr_table_column(table, "CP_RX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 7
+	gr_table_column(table, "CP_RX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 8
+	gr_table_column(table, "CP_TX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 9
+	gr_table_column(table, "CP_TX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 10
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
@@ -431,12 +431,12 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
-	gr_table_column(table, "RX_PACKETS/S", GR_DISP_RIGHT); // 1
-	gr_table_column(table, "RX_BYTES/S", GR_DISP_RIGHT); // 2
-	gr_table_column(table, "RX_DROPS/S", GR_DISP_RIGHT); // 3
-	gr_table_column(table, "TX_PACKETS/S", GR_DISP_RIGHT); // 4
-	gr_table_column(table, "TX_BYTES/S", GR_DISP_RIGHT); // 5
-	gr_table_column(table, "TX_ERRORS/S", GR_DISP_RIGHT); // 6
+	gr_table_column(table, "RX_PACKETS/S", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "RX_BYTES/S", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "RX_DROPS/S", GR_DISP_RIGHT | GR_DISP_INT); // 3
+	gr_table_column(table, "TX_PACKETS/S", GR_DISP_RIGHT | GR_DISP_INT); // 4
+	gr_table_column(table, "TX_BYTES/S", GR_DISP_RIGHT | GR_DISP_INT); // 5
+	gr_table_column(table, "TX_ERRORS/S", GR_DISP_RIGHT | GR_DISP_INT); // 6
 
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
 		const struct gr_iface_stats *s2 = &resp2->stats[i];

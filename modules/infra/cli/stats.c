@@ -101,11 +101,11 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 	} else {
 		struct gr_table *table = gr_table_new();
 		gr_table_column(table, "NODE", GR_DISP_LEFT); // 0
-		gr_table_column(table, "BATCHES", GR_DISP_RIGHT); // 1
-		gr_table_column(table, "PACKETS", GR_DISP_RIGHT); // 2
-		gr_table_column(table, "PKTS/BATCH", GR_DISP_RIGHT); // 3
-		gr_table_column(table, "CYCLES/BATCH", GR_DISP_RIGHT); // 4
-		gr_table_column(table, "CYCLES/PKT", GR_DISP_RIGHT); // 5
+		gr_table_column(table, "BATCHES", GR_DISP_RIGHT | GR_DISP_INT); // 1
+		gr_table_column(table, "PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 2
+		gr_table_column(table, "PKTS/BATCH", GR_DISP_RIGHT | GR_DISP_FLOAT); // 3
+		gr_table_column(table, "CYCLES/BATCH", GR_DISP_RIGHT | GR_DISP_FLOAT); // 4
+		gr_table_column(table, "CYCLES/PKT", GR_DISP_RIGHT | GR_DISP_FLOAT); // 5
 
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 

@@ -76,10 +76,10 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 	int ret;
 
 	struct gr_table *table = gr_table_new();
-	gr_table_column(table, "CPU_ID", GR_DISP_RIGHT); // 0
+	gr_table_column(table, "CPU_ID", GR_DISP_RIGHT | GR_DISP_INT); // 0
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 1
-	gr_table_column(table, "RXQ_ID", GR_DISP_RIGHT); // 2
-	gr_table_column(table, "ENABLED", GR_DISP_LEFT); // 3
+	gr_table_column(table, "RXQ_ID", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "ENABLED", GR_DISP_BOOL); // 3
 
 	gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
 		gr_table_cell(table, 0, "%u", q->cpu_id);
