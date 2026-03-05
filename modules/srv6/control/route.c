@@ -95,6 +95,12 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 	if (rte_ipv6_addr_is_unspec(&req->addr))
 		return srv6_tunsrc_clear(NULL, ctx);
 
+	if (tunsrc_nh != NULL) {
+		struct nexthop_info_l3 *old = nexthop_info_l3(tunsrc_nh);
+		if (rte_ipv6_addr_eq(&old->ipv6, &req->addr))
+			return api_out(0, 0, NULL);
+	}
+
 	struct gr_nexthop_base base = {
 		.type = GR_NH_T_L3,
 		.iface_id = GR_IFACE_ID_UNDEF,
