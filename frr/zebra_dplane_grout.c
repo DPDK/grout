@@ -111,6 +111,20 @@ static void grout_sync_fdb(struct event *) {
 	}
 	if (ret < 0)
 		gr_log_err("GR_FDB_LIST: %s", strerror(errno));
+
+	// Start per-VRF sync chain with the first VRF
+	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				dplane_get_thread_master(),
+				grout_sync_addrs,
+				NULL,
+				i,
+				&grout_ctx.dg_t_dplane_sync
+			);
+			return;
+		}
+	}
 }
 
 static void grout_sync_routes(struct event *e) {
@@ -314,20 +328,6 @@ static void grout_sync_ifaces(struct event *) {
 	}
 
 	event_add_event(zrouter.master, grout_sync_fdb, NULL, 0, &grout_ctx.dg_t_zebra_sync);
-
-	// Start per-VRF sync chain with the first VRF
-	for (i = 0; i < GR_MAX_IFACES; i++) {
-		if (bf_test_index(grout_ctx.sync_vrf, i)) {
-			event_add_event(
-				dplane_get_thread_master(),
-				grout_sync_addrs,
-				NULL,
-				i,
-				&grout_ctx.dg_t_dplane_sync
-			);
-			return;
-		}
-	}
 	return;
 
 err:
