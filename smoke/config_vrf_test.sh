@@ -51,20 +51,20 @@ for i in $(seq 8); do
 	grcli address add fd00:$i::1/48 iface p5
 done
 grcli route show vrf fibtest
-count=$(grcli route show vrf fibtest | grep -wc fibtest)
+count=$(grcli -j route show vrf fibtest | jq length)
 [ "$count" -eq 17 ]
 grcli address
-count=$(grcli address | grep -wc p5)
+count=$(grcli -j address show iface p5 | jq length)
 [ "$count" -eq 17 ]
 
 # Ensure routes and addresses were dropped on resize down
 grcli route config set vrf fibtest rib4-routes 1 rib6-routes 8
 grcli route config show vrf fibtest
 grcli route show vrf fibtest
-count=$(grcli route show vrf fibtest | grep -wc fibtest)
+count=$(grcli -j route show vrf fibtest | jq length)
 [ "$count" -eq 9 ]
 grcli address
-count=$(grcli address | grep -wc p5)
+count=$(grcli -j address show iface p5 | jq length)
 [ "$count" -eq 9 ]
 
 # cleanup
