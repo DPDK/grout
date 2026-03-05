@@ -19,7 +19,6 @@ enum edges {
 
 static uint16_t
 xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct iface_info_port *port;
 	const struct iface *iface, *peer;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
@@ -35,8 +34,7 @@ xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		IFACE_STATS_INC(rx, mbuf, iface);
 
 		if (peer != NULL && peer->type == GR_IFACE_TYPE_PORT) {
-			port = iface_info_port(peer);
-			mbuf->port = port->port_id;
+			mbuf_data(mbuf)->iface = peer;
 			edge = OUTPUT;
 
 			IFACE_STATS_INC(tx, mbuf, peer);
