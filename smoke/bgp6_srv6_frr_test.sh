@@ -190,7 +190,8 @@ EOF
 
 # Wait for BGP routes to be exchanged
 attempts=0
-while ! grcli route show | grep -qE '16.0.0.0/24[[:space:]]+\<bgp\>[[:space:]]+\<type=SRv6\>'; do
+jq_expr='.[] | select(.destination == "16.0.0.0/24" and .origin == "bgp" and (.next_hop | contains("type=SRv6")))'
+while ! grcli -j route show | jq -e "$jq_expr"; do
 	if [ "$attempts" -ge 40 ]; then
 		fail "BGP SRv6 route not learned in Grout"
 	fi
@@ -199,7 +200,8 @@ while ! grcli route show | grep -qE '16.0.0.0/24[[:space:]]+\<bgp\>[[:space:]]+\
 done
 
 attempts=0
-while ! grcli route show | grep -qE '2001:db8:2:2:100::/128[[:space:]]+\<bgp\>[[:space:]]+\<type=SRv6-local\>'; do
+jq_expr='.[] | select(.destination == "2001:db8:2:2:100::/128" and .origin == "bgp" and (.next_hop | contains("type=SRv6-local")))'
+while ! grcli -j route show | jq -e "$jq_expr"; do
 	if [ "$attempts" -ge 40 ]; then
 		fail "BGP SRv6-local route not learned in Grout"
 	fi
