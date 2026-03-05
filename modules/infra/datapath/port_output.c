@@ -30,7 +30,6 @@ port_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			gr_mbuf_trace_add(mbuf, node, 0);
 
 		edge = ctx->edges[port->port_id];
-		assert(edge != RTE_EDGE_ID_INVALID);
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
@@ -45,8 +44,11 @@ static struct rte_node_register node = {
 	.name = "port_output",
 	.process = port_output_process,
 	.fini = port_output_fini,
-	.nb_edges = 1,
-	.next_nodes = {"port_tx"}, // will be overridden at runtime
+	.nb_edges = 2,
+	.next_nodes = {
+		"port_tx", // will be overridden at runtime
+		"port_output_invalid",
+	},
 };
 
 static void port_output_register(void) {
@@ -60,3 +62,5 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(port_output_invalid);
