@@ -52,8 +52,6 @@ set_ip_address() {
 		local frr_ip="ip"
 	fi
 
-	local grep_pattern="^${p}[[:space:]]\+${ip_cidr}$"
-
 	vtysh <<-EOF
 	configure terminal
 	interface ${p}
@@ -61,7 +59,8 @@ set_ip_address() {
 	exit
 EOF
 
-	while ! grcli address show iface ${p} | grep -q "$grep_pattern"; do
+	while ! grcli -j address show iface ${p} | jq -e --arg a "$ip_cidr" \
+			'.[] | select(.address == $a)'; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "IP address $ip_cidr not set after $max_tries attempts."
 			exit 1
@@ -92,8 +91,6 @@ set_ip_route() {
 		local frr_ip="ip"
 	fi
 
-	local grep_pattern="\\<${prefix}\\>.*\\<${next_hop}\\>"
-
 	vtysh <<-EOF
 	configure terminal
 	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}
@@ -103,7 +100,8 @@ EOF
 	local gr_vrf_name="${vrf_name}"
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-	while ! grcli route show vrf ${gr_vrf_name} | grep -q "${grep_pattern}"; do
+	while ! grcli -j route show vrf ${gr_vrf_name} | jq -e --arg d "$prefix" --arg nh "$next_hop" \
+			'.[] | select(.destination == $d and (.next_hop | contains($nh)))'; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
 			exit 1
@@ -158,11 +156,8 @@ set_srv6_localsid() {
 EOF
 
 	# --- wait until grout has the localsid ---------------------------------
-	# Expected "grcli route show" output pattern:
-	# VRF  DESTINATION        ORIGIN        NEXT_HOP
-	# 0    fd00:202::100/48  zebra_static  type=SRv6-local id=12 .... behavior=end.dt4 ...
-	local grep_pattern="\\<${sid_local}/48\\>.+\\<type=SRv6-local\\>.*\\<behavior=${grout_behavior}\\>"
-	while ! grcli route show | grep -qE "${grep_pattern}"; do
+	while ! grcli -j route show | jq -e --arg d "${sid_local}/48" --arg b "behavior=${grout_behavior}" \
+			'.[] | select(.destination == $d and (.next_hop | contains("type=SRv6-local") and contains($b)))'; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
 			exit 1
@@ -213,19 +208,9 @@ set_srv6_route() {
       exit
 EOF
 
-    # ----- make BRE pattern for Grout -------------------------------------
-    # Expected output from grcli route show
-    #
-    # VRF   DESTINATION      ORIGIN        NEXT_HOP
-    # main  192.168.0.0/16  zebra_static  type=SRv6 id=6 iface=p1 vrf=1 ...
-    local sid_regex="${sids[0]}"
-    for ((i=1; i<${#sids[@]}; i++)); do
-	    sid_regex+="[[:space:]]+${sids[i]}"
-    done
-    local grep_pattern="\\<${prefix}\\>.+\\<type=SRv6\\>.*${sid_regex}"
-
     # ----- wait until Grout shows it --------------------------------------
-    while ! grcli route show | grep -qE "${grep_pattern}"; do
+    while ! grcli -j route show | jq -e --arg d "$prefix" --arg sid "${sids[0]}" \
+		'.[] | select(.destination == $d and (.next_hop | contains("type=SRv6") and contains($sid)))'; do
 	    if (( count++ >= max_tries )); then
 		    echo "SRv6 route ${prefix} via ${seg_space} not visible in Grout after ${max_tries}s." >&2
 		    exit 1

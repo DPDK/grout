@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local attempts=25
 	while [ "$attempts" -gt 0 ]; do
-		grcli nexthop show internal | grep -qE "$ip.+reachable"
+		grcli -j nexthop show internal | jq -e --arg a "addr=$ip" '.[] | select(.info | contains($a) and contains("reachable"))'
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
@@ -51,12 +51,12 @@ sleep 3
 grcli nexthop show
 
 # ensure that nexthops are still reachable
-check_nexthop '172\.16\.0\.2' true || fail "nexthop 172.16.0.2 should be reachable"
-check_nexthop '172\.16\.1\.2' true || fail "nexthop 172.16.1.2 should be reachable"
+check_nexthop '172.16.0.2' true || fail "nexthop 172.16.0.2 should be reachable"
+check_nexthop '172.16.1.2' true || fail "nexthop 172.16.1.2 should be reachable"
 
 # ensure addresses were not destroyed
-grcli address show | grep -E "^p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli address show | grep -E "^p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli -j address show | jq -e '.[] | select(.iface == "p0" and .address == "172.16.0.1/24")' || fail "addresses were destroyed"
+grcli -j address show | jq -e '.[] | select(.iface == "p1" and .address == "172.16.1.1/24")' || fail "addresses were destroyed"
 
 # force interfaces down so that linux does not reply to ARP requests anymore
 ip -n n0 link set x-p0 down
@@ -66,9 +66,9 @@ ip -n n1 link set x-p1 down
 sleep 3
 
 # ensure that nexthops have been aged out and destroyed
-check_nexthop '172\.16\.0\.2' false || fail "nexthop 172.16.0.2 should be destroyed"
-check_nexthop '172\.16\.1\.2' false || fail "nexthop 172.16.1.2 should be destroyed"
+check_nexthop '172.16.0.2' false || fail "nexthop 172.16.0.2 should be destroyed"
+check_nexthop '172.16.1.2' false || fail "nexthop 172.16.1.2 should be destroyed"
 
 # ensure addresses were not destroyed
-grcli address show | grep -E "^p0[[:space:]]+172\\.16\\.0\\.1/24$" || fail "addresses were destroyed"
-grcli address show | grep -E "^p1[[:space:]]+172\\.16\\.1\\.1/24$" || fail "addresses were destroyed"
+grcli -j address show | jq -e '.[] | select(.iface == "p0" and .address == "172.16.0.1/24")' || fail "addresses were destroyed"
+grcli -j address show | jq -e '.[] | select(.iface == "p1" and .address == "172.16.1.1/24")' || fail "addresses were destroyed"
