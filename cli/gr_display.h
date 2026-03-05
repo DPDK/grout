@@ -38,3 +38,37 @@ int gr_table_print_row(struct gr_table *);
 
 // Flush any buffered rows and free the table.
 void gr_table_free(struct gr_table *);
+
+struct gr_object;
+
+// Allocate a new structured key-value output context.
+// Renders as plain text or JSON depending on the global json flag.
+struct gr_object *gr_object_new(void);
+
+// Add a field. Printf-formats the value into an internal buffer.
+void gr_object_field(
+	struct gr_object *,
+	const char *key,
+	gr_display_flags_t flags,
+	const char *fmt,
+	...
+) __attribute__((format(printf, 4, 5)));
+
+// Add a literal item to an array. Printf-formats the value into an internal buffer.
+void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const char *fmt, ...)
+	__attribute__((format(printf, 3, 4)));
+
+// Open a sub-object under the given key.
+void gr_object_open(struct gr_object *, const char *key);
+
+// Close the current sub-object.
+void gr_object_close(struct gr_object *);
+
+// Open an array under the given key.
+void gr_object_array_open(struct gr_object *, const char *key);
+
+// Close the current array.
+void gr_object_array_close(struct gr_object *);
+
+// Flush output and free.
+void gr_object_free(struct gr_object *);

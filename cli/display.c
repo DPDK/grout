@@ -307,6 +307,189 @@ void gr_table_free(struct gr_table *t) {
 	free(t);
 }
 
+#define MAX_DEPTH 16
+
+struct gr_object {
+	// JSON: true when a comma must be printed before the next value.
+	bool needs_comma;
+	// Current nesting depth (incremented by open, decremented by close).
+	unsigned depth;
+	// JSON: saved needs_comma state for each nesting level, restored on
+	// close so that comma tracking resumes correctly in the parent.
+	bool comma_stack[MAX_DEPTH];
+	// Text: true if this nesting level is an array (vs. an object).
+	// Controls whether children produce "- " dash prefixes.
+	bool in_array[MAX_DEPTH];
+	// Text: true when we are at the first line of a new array item.
+	// Causes print_text_indent() to emit "- " instead of "  " at
+	// this depth. Set when entering an array, after closing a sub-
+	// object, or after emitting a bare item.
+	bool first_in_item[MAX_DEPTH];
+};
+
+struct gr_object *gr_object_new(void) {
+	struct gr_object *o = calloc(1, sizeof(*o));
+	if (o == NULL)
+		return NULL;
+	if (json_output)
+		putchar('{');
+	return o;
+}
+
+static void print_text_indent(struct gr_object *o) {
+	int dash_at = -1;
+
+	for (unsigned i = 0; i < o->depth; i++) {
+		if (o->in_array[i] && o->first_in_item[i])
+			dash_at = i;
+	}
+	for (unsigned i = 0; i < o->depth; i++) {
+		if ((int)i == dash_at) {
+			printf("- ");
+			o->first_in_item[i] = false;
+		} else {
+			printf("  ");
+		}
+	}
+}
+
+void gr_object_field(
+	struct gr_object *o,
+	const char *key,
+	gr_display_flags_t flags,
+	const char *fmt,
+	...
+) {
+	char buf[CELL_SIZE];
+	va_list ap;
+
+	assert(o != NULL);
+	assert(key != NULL);
+	assert(key[0] != '\0');
+	assert(fmt != NULL);
+
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	if (json_output) {
+		if (o->needs_comma)
+			putchar(',');
+		o->needs_comma = true;
+		printf("\"%s\":", key);
+		print_json_value(buf, flags);
+	} else {
+		print_text_indent(o);
+		printf("%s: %s\n", key, buf);
+	}
+}
+
+void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const char *fmt, ...) {
+	char buf[CELL_SIZE];
+	va_list ap;
+
+	assert(o != NULL);
+	assert(fmt != NULL);
+
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	if (json_output) {
+		if (o->needs_comma)
+			putchar(',');
+		o->needs_comma = true;
+		print_json_value(buf, flags);
+	} else {
+		assert(o->depth > 0 && o->in_array[o->depth - 1]);
+		print_text_indent(o);
+		printf("%s\n", buf);
+		o->first_in_item[o->depth - 1] = true;
+	}
+}
+
+void gr_object_open(struct gr_object *o, const char *key) {
+	assert(o != NULL);
+	assert(o->depth < MAX_DEPTH);
+	assert(key == NULL || key[0] != '\0');
+
+	if (json_output) {
+		if (o->needs_comma)
+			putchar(',');
+		if (key)
+			printf("\"%s\":{", key);
+		else
+			putchar('{');
+	} else {
+		if (key) {
+			print_text_indent(o);
+			printf("%s:\n", key);
+		}
+	}
+
+	o->comma_stack[o->depth] = o->needs_comma;
+	o->needs_comma = false;
+	o->in_array[o->depth] = false;
+	o->first_in_item[o->depth] = false;
+	o->depth++;
+}
+
+void gr_object_close(struct gr_object *o) {
+	assert(o != NULL);
+	assert(o->depth > 0);
+
+	o->depth--;
+	o->needs_comma = o->comma_stack[o->depth];
+
+	if (json_output) {
+		putchar('}');
+		o->needs_comma = true;
+	}
+
+	// closing an object inside an array: next element gets a dash
+	if (o->depth > 0 && o->in_array[o->depth - 1])
+		o->first_in_item[o->depth - 1] = true;
+}
+
+void gr_object_array_open(struct gr_object *o, const char *key) {
+	assert(o != NULL);
+	assert(o->depth < MAX_DEPTH);
+
+	if (json_output) {
+		if (o->needs_comma)
+			putchar(',');
+		printf("\"%s\":[", key);
+	} else {
+		print_text_indent(o);
+		printf("%s:\n", key);
+	}
+
+	o->comma_stack[o->depth] = o->needs_comma;
+	o->needs_comma = false;
+	o->in_array[o->depth] = true;
+	o->first_in_item[o->depth] = true;
+	o->depth++;
+}
+
+void gr_object_array_close(struct gr_object *o) {
+	assert(o->depth > 0);
+	o->depth--;
+	o->needs_comma = o->comma_stack[o->depth];
+
+	if (json_output) {
+		putchar(']');
+		o->needs_comma = true;
+	}
+}
+
+void gr_object_free(struct gr_object *o) {
+	if (o == NULL)
+		return;
+	if (json_output)
+		puts("}");
+	free(o);
+}
+
 static cmd_status_t json_set(struct gr_api_client *, const struct ec_pnode *p) {
 	json_output = arg_str(p, "enable") != NULL;
 	return CMD_SUCCESS;

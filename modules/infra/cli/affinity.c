@@ -42,15 +42,15 @@ static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode
 	memcpy(&resp, resp_ptr, sizeof(resp));
 	free(resp_ptr);
 
-	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) < 0)
-		return CMD_ERROR;
+	struct gr_object *o = gr_object_new();
 
-	printf("control-cpus %s\n", buf);
+	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) == 0)
+		gr_object_field(o, "control_cpus", 0, "%s", buf);
 
-	if (cpuset_format(buf, sizeof(buf), &resp.datapath_cpus) < 0)
-		return CMD_ERROR;
+	if (cpuset_format(buf, sizeof(buf), &resp.datapath_cpus) == 0)
+		gr_object_field(o, "datapath_cpus", 0, "%s", buf);
 
-	printf("datapath-cpus %s\n", buf);
+	gr_object_free(o);
 
 	return CMD_SUCCESS;
 }

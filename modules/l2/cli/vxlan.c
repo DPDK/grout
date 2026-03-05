@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_l2.h>
 #include <gr_net_types.h>
 
@@ -11,14 +12,14 @@
 
 #include <errno.h>
 
-static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vxlan *vxlan = (const struct gr_iface_info_vxlan *)iface->info;
 
-	printf("vni: %u\n", vxlan->vni);
-	printf("local: " IP4_F "\n", &vxlan->local);
-	printf("encap_vrf: %s\n", iface_name_from_id(c, vxlan->encap_vrf_id));
-	printf("dst_port: %u\n", vxlan->dst_port);
-	printf("mac: " ETH_F "\n", &vxlan->mac);
+	gr_object_field(o, "vni", GR_DISP_INT, "%u", vxlan->vni);
+	gr_object_field(o, "local", 0, IP4_F, &vxlan->local);
+	gr_object_field(o, "encap_vrf", 0, "%s", iface_name_from_id(c, vxlan->encap_vrf_id));
+	gr_object_field(o, "dst_port", GR_DISP_INT, "%u", vxlan->dst_port);
+	gr_object_field(o, "mac", 0, ETH_F, &vxlan->mac);
 }
 
 static void
