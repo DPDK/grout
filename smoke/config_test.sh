@@ -85,6 +85,12 @@ grcli address show iface p3 | grep -qF '10.3.0.1/24' && fail "p3 should have no 
 grcli address show iface p3 | grep -qF '2348::1/24' && fail "p3 should have no user IPv6 after flush"
 grcli address show iface p3 | grep -qF 'fe80::' || fail "p3 should still have link-local after flush"
 
+# Test SRv6 tunsrc set/clear (internal nexthop with no VRF)
+grcli tunsrc set fd00::1 || fail "tunsrc set should succeed"
+grcli tunsrc show | grep -qF 'fd00::1' || fail "tunsrc addr should be fd00::1"
+grcli tunsrc clear || fail "tunsrc clear should succeed"
+grcli tunsrc show | grep -qF '::' || fail "tunsrc addr should be unspec after clear"
+
 grcli nexthop del 42
 grcli nexthop del 666
 grcli nexthop del 123456
