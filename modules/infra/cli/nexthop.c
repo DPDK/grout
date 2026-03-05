@@ -207,15 +207,22 @@ static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("lifetime %u\n", resp->lifetime_reachable_sec);
-	printf("unreachable %u\n", resp->lifetime_unreachable_sec);
-	printf("held-packets %u\n", resp->max_held_pkts);
-	printf("ucast-probes %u\n", resp->max_ucast_probes);
-	printf("bcast-probes %u\n", resp->max_bcast_probes);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_count);
+	gr_object_field(
+		o,
+		"used_percent",
+		GR_DISP_FLOAT,
+		"%.01f",
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_count);
+	gr_object_field(o, "lifetime", GR_DISP_INT, "%u", resp->lifetime_reachable_sec);
+	gr_object_field(o, "unreachable", GR_DISP_INT, "%u", resp->lifetime_unreachable_sec);
+	gr_object_field(o, "held_packets", GR_DISP_INT, "%u", resp->max_held_pkts);
+	gr_object_field(o, "ucast_probes", GR_DISP_INT, "%u", resp->max_ucast_probes);
+	gr_object_field(o, "bcast_probes", GR_DISP_INT, "%u", resp->max_bcast_probes);
+	gr_object_free(o);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

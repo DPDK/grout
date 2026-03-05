@@ -13,11 +13,11 @@
 #include <errno.h>
 #include <sys/queue.h>
 
-static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
 
-	printf("parent: %s\n", iface_name_from_id(c, vlan->parent_id));
-	printf("vlan_id: %u\n", vlan->vlan_id);
+	gr_object_field(o, "parent", 0, "%s", iface_name_from_id(c, vlan->parent_id));
+	gr_object_field(o, "vlan_id", GR_DISP_INT, "%u", vlan->vlan_id);
 }
 
 static void
