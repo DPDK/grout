@@ -13,8 +13,8 @@ grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
 grcli nexthop add l3 iface p0 id 45
 grcli nexthop add l3 iface p0 id 47 address 1.2.3.7
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.7 && fail "duplicate address should fail"
-grcli nexthop show | grep -q '\<42\>.*addr=1.2.3.4' || fail "nexthop 42 should still have 1.2.3.4"
-grcli nexthop show | grep -q '\<47\>.*addr=1.2.3.7' || fail "nexthop 47 should still have 1.2.3.7"
+grcli -j nexthop show | jq -e '.[] | select(.id == 42 and (.info | contains("addr=1.2.3.4")))' || fail "nexthop 42 should still have 1.2.3.4"
+grcli -j nexthop show | jq -e '.[] | select(.id == 47 and (.info | contains("addr=1.2.3.7")))' || fail "nexthop 47 should still have 1.2.3.7"
 grcli nexthop add l3 iface p1 id 1042 address f00:ba4::1
 grcli nexthop add l3 iface p1 id 1047 address f00:ba4::100
 grcli nexthop add l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
@@ -50,40 +50,56 @@ grcli interface set port p0 name . && fail "using an invalid name should fail"
 grcli interface set port p0 name .. && fail "using an invalid name should fail"
 grcli interface set port p0 name "ok ok" && fail "using an invalid name should fail"
 grcli interface set port p0 name foo/bar && fail "using an invalid name should fail"
-grcli interface show
-grcli interface show | grep -qF '"uplink port"' || fail "p1 description not in list"
-grcli interface show name p2
-grcli interface show name p2 | grep -qF 'description: peering link' || fail "p2 description not set"
-grcli interface show name bond0
-grcli interface show name bond0 | grep -qF 'description: lacp trunk' || fail "bond0 description not set"
-grcli route show
-grcli nexthop show
-grcli graph show full
-grcli stats show software
-grcli stats show hardware
+
+grcli -xe <<EOF
+interface show
+interface show name bond0
+interface show name p2
+route show
+nexthop show
+graph show full
+stats show software
+stats show hardware
+EOF
+
+grcli -xej <<EOF
+interface show
+interface show name bond0
+address show
+route show
+route config show
+nexthop show
+stats show software
+stats show hardware
+EOF
+
+grcli -j interface show | jq -e '.[] | select(.info | contains("uplink port"))' || fail "p1 description not in list"
+grcli -j interface show name p2 | jq -e 'select(.description == "peering link")' || fail "p2 description not set"
+grcli -j interface show name bond0 | jq -e 'select(.description == "lacp trunk")' || fail "bond0 description not set"
+
 # Test address del cleans up connected routes
 grcli address del 10.1.0.1/24 iface p3
-grcli route show | grep -qF '10.1.0.0/24' && fail "connected route should be removed after address del"
+grcli -j route show | jq -e '.[] | select(.destination == "10.1.0.0/24")' && fail "connected route should be removed after address del"
 grcli address del 2346::1/24 iface p3
-grcli route show | grep -qF '2346::/24' && fail "connected route should be removed after address del"
+grcli -j route show | jq -e '.[] | select(.destination == "2346::/24")' && fail "connected route should be removed after address del"
 # Test address flush with family filter
 grcli address add 10.2.0.1/24 iface p3
 grcli address add 2347::1/24 iface p3
 grcli address show iface p3
 grcli address flush ip4 iface p3
 grcli address show iface p3
-grcli address show iface p3 | grep -qF '10.2.0.1/24' && fail "p3 should have no IPv4 after ip4 flush"
-grcli address show iface p3 | grep -qF '2347::1/24' || fail "p3 should still have IPv6 after ip4 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "10.2.0.1/24")' && fail "p3 should have no IPv4 after ip4 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' || fail "p3 should still have IPv6 after ip4 flush"
 grcli address flush ip6 iface p3
-grcli address show iface p3 | grep -qF '2347::1/24' && fail "p3 should have no user IPv6 after ip6 flush"
-grcli address show iface p3 | grep -qF 'fe80::' || fail "p3 should still have link-local after ip6 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' && fail "p3 should have no user IPv6 after ip6 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address | startswith("fe80:"))' || fail "p3 should still have link-local after ip6 flush"
 # Test flush all families (default)
 grcli address add 10.3.0.1/24 iface p3
 grcli address add 2348::1/24 iface p3
 grcli address flush iface p3
-grcli address show iface p3 | grep -qF '10.3.0.1/24' && fail "p3 should have no IPv4 after flush"
-grcli address show iface p3 | grep -qF '2348::1/24' && fail "p3 should have no user IPv6 after flush"
-grcli address show iface p3 | grep -qF 'fe80::' || fail "p3 should still have link-local after flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "10.3.0.1/24")' && fail "p3 should have no IPv4 after flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "2348::1/24")' && fail "p3 should have no user IPv6 after flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address | startswith("fe80:"))' || fail "p3 should still have link-local after flush"
 
 # Test SRv6 tunsrc set/clear (internal nexthop with no VRF)
 grcli tunsrc set fd00::1 || fail "tunsrc set should succeed"
@@ -105,5 +121,5 @@ grcli interface del p1
 grcli interface del p2
 grcli interface del p3
 
-if [ "$(grcli nexthop show | wc -l)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
-if [ "$(grcli route show | wc -l)" -ne 0 ]; then fail "route list is not empty" ; fi
+if [ "$(grcli -j nexthop show | jq length)" -ne 0 ]; then fail "Nexthop list is not empty" ; fi
+if [ "$(grcli -j route show | jq length)" -ne 0 ]; then fail "route list is not empty" ; fi
