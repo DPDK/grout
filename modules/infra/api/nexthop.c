@@ -42,6 +42,10 @@ static struct api_out nh_add(const void *request, struct api_ctx *) {
 	struct nexthop *nh;
 	int ret = 0;
 
+	if (req->nh.base.type != GR_NH_T_GROUP && req->nh.base.vrf_id == GR_VRF_ID_UNDEF
+	    && req->nh.base.iface_id == GR_IFACE_ID_UNDEF)
+		return api_out(EINVAL, 0, NULL);
+
 	nh = nexthop_lookup(&req->nh.base, req->nh.info);
 
 	if (nh == NULL) {
