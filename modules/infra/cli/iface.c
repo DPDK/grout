@@ -494,34 +494,34 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	printf("name: %s\n", iface->name);
+	struct gr_object *o = gr_object_new();
+
+	gr_object_field(o, "name", 0, "%s", iface->name);
 	if (iface->description[0] != '\0')
-		printf("description: %s\n", iface->description);
-	printf("type: %s\n", gr_iface_type_name(iface->type));
-	printf("id: %u\n", iface->id);
-	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
-		free(iface);
-		return CMD_ERROR;
-	}
-	printf("flags: %s\n", buf);
-	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
+		gr_object_field(o, "description", 0, "%s", iface->description);
+	gr_object_field(o, "type", 0, "%s", gr_iface_type_name(iface->type));
+	gr_object_field(o, "id", GR_DISP_INT, "%u", iface->id);
+	if (iface_flags_format(buf, sizeof(buf), iface) > 0)
+		gr_object_field(o, "flags", GR_DISP_STR_ARRAY, "%s", buf);
+	gr_object_field(o, "mode", 0, "%s", gr_iface_mode_name(iface->mode));
 
 	if (iface->mode == GR_IFACE_MODE_VRF)
-		printf("vrf: %s\n", iface_name_from_id(c, iface->vrf_id));
+		gr_object_field(o, "vrf", 0, "%s", iface_name_from_id(c, iface->vrf_id));
 	else
-		printf("domain: %s\n", iface_name_from_id(c, iface->domain_id));
+		gr_object_field(o, "domain", 0, "%s", iface_name_from_id(c, iface->domain_id));
 
-	printf("mtu: %u\n", iface->mtu);
+	gr_object_field(o, "mtu", GR_DISP_INT, "%u", iface->mtu);
 
 	if (iface->speed == UINT32_MAX)
-		printf("speed: unknown\n");
+		gr_object_field(o, "speed", 0, "unknown");
 	else
-		printf("speed: %u Mb/s\n", iface->speed);
+		gr_object_field(o, "speed", GR_DISP_INT, "%u", iface->speed);
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);
-	type->show(c, iface);
+	type->show(c, iface, o);
 
+	gr_object_free(o);
 	free(iface);
 
 	return CMD_SUCCESS;

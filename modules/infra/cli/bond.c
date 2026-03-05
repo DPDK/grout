@@ -14,36 +14,39 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static void bond_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void bond_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_bond *bond = PAYLOAD(iface);
 
-	printf("mode: %s\n", gr_bond_mode_name(bond->mode));
+	gr_object_field(o, "bond_mode", 0, "%s", gr_bond_mode_name(bond->mode));
 	if (bond->mode == GR_BOND_MODE_LACP)
-		printf("algo: %s\n", gr_bond_algo_name(bond->algo));
-	printf("mac: " ETH_F "\n", &bond->mac);
-	printf("members:\n");
+		gr_object_field(o, "bond_algo", 0, "%s", gr_bond_algo_name(bond->algo));
+	gr_object_field(o, "mac", 0, ETH_F, &bond->mac);
+	gr_object_array_open(o, "bond_members");
 	for (uint8_t i = 0; i < bond->n_members; i++) {
 		const struct gr_bond_member *m = &bond->members[i];
 		struct gr_iface *member = iface_from_id(c, m->iface_id);
 		if (member == NULL)
 			continue;
 
-		printf("  - name: %s\n", member->name);
-		printf("    active: %s\n", m->active ? "yes" : "no");
+		gr_object_open(o, NULL);
+		gr_object_field(o, "name", 0, "%s", member->name);
+		gr_object_field(o, "active", GR_DISP_BOOL, "%s", m->active ? "true" : "false");
 		if (bond->mode == GR_BOND_MODE_ACTIVE_BACKUP && i == bond->primary_member)
-			printf("    primary: true\n");
+			gr_object_field(o, "primary", GR_DISP_BOOL, "true");
 		if (member->type == GR_IFACE_TYPE_PORT) {
 			const struct gr_iface_info_port *port;
 			port = (const struct gr_iface_info_port *)member->info;
-			printf("    mac: " ETH_F "\n", &port->mac);
+			gr_object_field(o, "mac", 0, ETH_F, &port->mac);
 			if (member->speed == UINT32_MAX)
-				printf("    speed: unknown\n");
+				gr_object_field(o, "speed", 0, "unknown");
 			else
-				printf("    speed: %u Mb/s\n", member->speed);
+				gr_object_field(o, "speed", GR_DISP_INT, "%u", member->speed);
 		}
+		gr_object_close(o);
 
 		free(member);
 	}
+	gr_object_array_close(o);
 }
 
 static void

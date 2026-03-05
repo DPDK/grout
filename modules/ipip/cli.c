@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_ipip.h>
 #include <gr_net_types.h>
 
@@ -11,11 +12,11 @@
 
 #include <errno.h>
 
-static void ipip_show(struct gr_api_client *, const struct gr_iface *iface) {
+static void ipip_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_ipip *ipip = (const struct gr_iface_info_ipip *)iface->info;
 
-	printf("local: " IP4_F "\n", &ipip->local);
-	printf("remote: " IP4_F "\n", &ipip->remote);
+	gr_object_field(o, "ipip_local", 0, IP4_F, &ipip->local);
+	gr_object_field(o, "ipip_remote", 0, IP4_F, &ipip->remote);
 }
 
 static void
