@@ -73,7 +73,7 @@ EOF
 
 # Wait for BGP routes to be exchanged
 attempts=0
-while ! grcli route show | grep -qE '16.0.0.0/24[[:space:]]+\<bgp\>'; do
+while ! grcli -j route show | jq -e '.[] | select(.destination == "16.0.0.0/24" and .origin == "bgp")'; do
 	if [ "$attempts" -ge 40 ]; then
 		fail "BGP route not learned in Grout"
 	fi

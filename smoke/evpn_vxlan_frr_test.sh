@@ -125,7 +125,7 @@ while ! bridge -n evpn-peer fdb show dev vxlan100 | grep -qF 172.16.0.2; do
 done
 
 attempts=0
-while ! grcli flood vtep show | grep -qF 172.16.0.1; do
+while ! grcli -j flood vtep show | jq -e '.[] | select(.addr == "172.16.0.1")'; do
 	if [ "$attempts" -ge 10 ]; then
 		grcli flood vtep show
 		fail "Grout did not learn remote VTEP 172.16.0.1"
@@ -159,7 +159,7 @@ while ! vtysh -c "show bgp l2vpn evpn route type 2" | grep -qF "$mac_a"; do
 	attempts=$((attempts + 1))
 done
 attempts=0
-while ! grcli fdb show iface vxlan100 extern | grep -qF "$mac_a"; do
+while ! grcli -j fdb show iface vxlan100 extern | jq -e --arg mac "$mac_a" '.[] | select(.mac == $mac)'; do
 	if [ "$attempts" -ge 10 ]; then
 		grcli fdb show iface vxlan100
 		fail "FRR did not program FDB entry"

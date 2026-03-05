@@ -29,13 +29,13 @@ ip netns exec n2 ping -i0.01 -c3 -W1 -n 172.16.0.10 || fail "L2 ping n2->n0 fail
 
 for n in 0 1 2; do
 	mac=$(ip netns exec n$n cat /sys/class/net/x-p$n/address)
-	grcli fdb show iface p$n learn | grep -F "$mac"
+	grcli -j fdb show iface p$n learn | jq -e --arg mac "$mac" '.[] | select(.mac == $mac)'
 done
 
 # overwrite dynamic learned fdb entry with static one
 mac=$(ip netns exec n0 cat /sys/class/net/x-p0/address)
 grcli fdb add "$mac" iface p0
-grcli fdb show iface p0 static | grep -F "$mac"
+grcli -j fdb show iface p0 static | jq -e --arg mac "$mac" '.[] | select(.mac == $mac)'
 
 grcli ping 172.16.0.10 count 3 delay 10
 
@@ -44,11 +44,11 @@ ip netns exec n1 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n1->bridge f
 ip netns exec n2 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n2->bridge failed"
 
 grcli interface set port p1 vrf main
-if grcli fdb show iface p1 | grep .; then
+if [ "$(grcli -j fdb show iface p1 | jq length)" -gt 0 ]; then
 	fail "fdb still contains entries for removed interface"
 fi
 
 grcli interface del br0
-if grcli fdb show | grep .; then
+if [ "$(grcli -j fdb show | jq length)" -gt 0 ]; then
 	fail "fdb still contains entries"
 fi
