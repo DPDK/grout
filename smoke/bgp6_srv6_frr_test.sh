@@ -81,8 +81,8 @@ ip -n ns-a route add default via 16.0.0.1
 ip -n ns-a link set to-host-a netns bgp-peer
 ip -n bgp-peer link add vrf1 type vrf table 1000
 ip -n bgp-peer link set vrf1 up
-
 ip -n bgp-peer link set to-host-a master vrf1
+ip -n bgp-peer link set to-host-a up
 
 vtysh -N bgp-peer <<-EOF
 configure terminal
