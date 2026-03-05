@@ -20,11 +20,11 @@
 int gr_rte_log_type;
 struct gr_config gr_config;
 struct workers workers;
-void gr_register_api_handler(struct gr_api_handler *) { }
+void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(const struct iface_type *) { }
 void gr_event_push(uint32_t, const void *) { }
-void gr_event_subscribe(struct gr_event_subscription *) { }
+void gr_event_subscribe(uint32_t, gr_event_sub_cb_t) { }
 int netlink_link_set_name(uint32_t, const char *) {
 	return 0;
 }

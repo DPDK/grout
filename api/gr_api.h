@@ -39,7 +39,7 @@ struct gr_api_response {
 struct gr_api_client;
 
 // Connect to the API server.
-// Automatically sends GR_MAIN_HELLO with version negotiation.
+// Automatically sends GR_HELLO with version negotiation.
 // Returns NULL on failure (check errno for details).
 struct gr_api_client *gr_api_client_connect(const char *sock_path);
 
@@ -86,11 +86,11 @@ static inline int gr_api_client_send_recv(
 //
 // This should be used like a for loop, e.g.:
 //
-//     struct gr_infra_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
+//     struct gr_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
 //     const struct gr_iface *iface;
 //     int ret;
 //
-//     gr_api_client_stream_foreach (iface, ret, client, GR_INFRA_IFACE_LIST, sizeof(req), &req)
+//     gr_api_client_stream_foreach (iface, ret, client, GR_IFACE_LIST, sizeof(req), &req)
 //         printf("Interface: %s\n", iface->name);
 //     if (ret < 0)
 //         handle_error(ret);
@@ -125,7 +125,7 @@ static inline int gr_api_client_send_recv(
 // Client handshake with version negotiation.
 // Must be the first request sent by any client.
 // Version string must match server version exactly.
-#define GR_MAIN_HELLO REQUEST_TYPE(GR_MAIN_MODULE, 0x1981)
+#define GR_HELLO REQUEST_TYPE(GR_MAIN_MODULE, 0x1981)
 struct gr_hello_req {
 	char version[128]; // NUL-terminated
 };
@@ -134,7 +134,7 @@ struct gr_hello_req {
 // Subscribe to events of a given type.
 // Use EVENT_TYPE_ALL to subscribe to all event types.
 // Multiple subscriptions to same type update suppression flag.
-#define GR_MAIN_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
+#define GR_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
 struct gr_event_subscribe_req {
 	// Suppress events originating from API messages made by the same PID
 	// as the subscriber socket.
@@ -146,7 +146,7 @@ struct gr_event_subscribe_req {
 // Unsubscribe from all events.
 // Removes ALL subscriptions for this client, not just specific types.
 // Automatically called on client disconnection.
-#define GR_MAIN_EVENT_UNSUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcaff)
+#define GR_EVENT_UNSUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcaff)
 // struct gr_event_unsubscribe_req { };
 // struct gr_event_unsubscribe_resp { };
 

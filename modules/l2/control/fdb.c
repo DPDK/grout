@@ -225,12 +225,6 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler add_handler = {
-	.name = "fdb add",
-	.request_type = GR_FDB_ADD,
-	.callback = fdb_add,
-};
-
 static struct api_out fdb_del(const void *request, struct api_ctx *) {
 	const struct gr_fdb_del_req *req = request;
 	const struct fdb_key key = {req->bridge_id, req->vlan_id, req->mac};
@@ -244,12 +238,6 @@ static struct api_out fdb_del(const void *request, struct api_ctx *) {
 
 	return api_out(-ret, 0, NULL);
 }
-
-static struct gr_api_handler del_handler = {
-	.name = "fdb del",
-	.request_type = GR_FDB_DEL,
-	.callback = fdb_del,
-};
 
 static inline bool fdb_match(
 	const struct gr_fdb_entry *e,
@@ -292,12 +280,6 @@ static struct api_out fdb_flush(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler flush_handler = {
-	.name = "fdb flush",
-	.request_type = GR_FDB_FLUSH,
-	.callback = fdb_flush,
-};
-
 static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_fdb_list_req *req = request;
 	struct gr_fdb_entry *fdb;
@@ -316,12 +298,6 @@ static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler list_handler = {
-	.name = "fdb list",
-	.request_type = GR_FDB_LIST,
-	.callback = fdb_list,
-};
-
 static struct api_out fdb_config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_fdb_config_get_resp *resp = malloc(sizeof(*resp));
 
@@ -333,12 +309,6 @@ static struct api_out fdb_config_get(const void * /*request*/, struct api_ctx *)
 
 	return api_out(0, sizeof(*resp), resp);
 }
-
-static struct gr_api_handler config_get_handler = {
-	.name = "fdb config get",
-	.request_type = GR_FDB_CONFIG_GET,
-	.callback = fdb_config_get,
-};
 
 static struct api_out fdb_config_set(const void *request, struct api_ctx *) {
 	const struct gr_fdb_config_set_req *req = request;
@@ -358,22 +328,6 @@ static struct api_out fdb_config_set(const void *request, struct api_ctx *) {
 
 	return api_out(0, 0, NULL);
 }
-
-static struct gr_api_handler config_set_handler = {
-	.name = "fdb config set",
-	.request_type = GR_FDB_CONFIG_SET,
-	.callback = fdb_config_set,
-};
-
-static struct gr_event_serializer serializer = {
-	.size = sizeof(struct gr_fdb_entry),
-	.ev_count = 3,
-	.ev_types = {
-		GR_EVENT_FDB_ADD,
-		GR_EVENT_FDB_DEL,
-		GR_EVENT_FDB_UPDATE,
-	},
-};
 
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	const struct iface *bridge;
@@ -446,12 +400,14 @@ static struct gr_module module = {
 };
 
 RTE_INIT(init) {
-	gr_register_api_handler(&add_handler);
-	gr_register_api_handler(&del_handler);
-	gr_register_api_handler(&flush_handler);
-	gr_register_api_handler(&list_handler);
-	gr_register_api_handler(&config_get_handler);
-	gr_register_api_handler(&config_set_handler);
-	gr_event_register_serializer(&serializer);
+	gr_api_handler(GR_FDB_ADD, fdb_add);
+	gr_api_handler(GR_FDB_DEL, fdb_del);
+	gr_api_handler(GR_FDB_FLUSH, fdb_flush);
+	gr_api_handler(GR_FDB_LIST, fdb_list);
+	gr_api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
+	gr_api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
+	gr_event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
+	gr_event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
+	gr_event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
 	gr_register_module(&module);
 }

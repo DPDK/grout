@@ -36,8 +36,8 @@ static uint64_t parse_vrf_args(
 }
 
 static cmd_status_t vrf_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	const struct gr_infra_iface_add_resp *resp;
-	struct gr_infra_iface_add_req *req = NULL;
+	const struct gr_iface_add_resp *resp;
+	struct gr_iface_add_req *req = NULL;
 	void *resp_ptr = NULL;
 
 	if ((req = calloc(1, sizeof(*req))) == NULL)
@@ -49,7 +49,7 @@ static cmd_status_t vrf_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	if (parse_vrf_args(c, p, &req->iface, false) == 0)
 		goto err;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_ADD, sizeof(*req), req, &resp_ptr) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_ADD, sizeof(*req), req, &resp_ptr) < 0)
 		goto err;
 
 	resp = resp_ptr;
@@ -63,7 +63,7 @@ err:
 }
 
 static cmd_status_t vrf_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_infra_iface_set_req *req = NULL;
+	struct gr_iface_set_req *req = NULL;
 	cmd_status_t ret = CMD_ERROR;
 
 	if ((req = calloc(1, sizeof(*req))) == NULL)
@@ -72,7 +72,7 @@ static cmd_status_t vrf_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	if ((req->set_attrs = parse_vrf_args(c, p, &req->iface, true)) == 0)
 		goto out;
 
-	if (gr_api_client_send_recv(c, GR_INFRA_IFACE_SET, sizeof(*req), req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_SET, sizeof(*req), req, NULL) < 0)
 		goto out;
 
 	ret = CMD_SUCCESS;

@@ -673,7 +673,7 @@ static void iface_fini(struct event_base *) {
 
 static struct gr_module iface_module = {
 	.name = "iface",
-	.depends_on = "*route,control_queue",
+	.depends_on = "*_route,control_queue",
 	.init = iface_init,
 	.fini = iface_fini,
 };
@@ -725,22 +725,14 @@ static void iface_event(uint32_t event, const void *obj) {
 	LOG(DEBUG, "iface event [0x%08x] %s triggered for iface %s.", event, str, iface->name);
 }
 
-static struct gr_event_subscription iface_event_handler = {
-	.callback = iface_event,
-	.ev_count = 8,
-	.ev_types = {
-		GR_EVENT_IFACE_ADD,
-		GR_EVENT_IFACE_POST_ADD,
-		GR_EVENT_IFACE_PRE_REMOVE,
-		GR_EVENT_IFACE_REMOVE,
-		GR_EVENT_IFACE_POST_RECONFIG,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-		GR_EVENT_IFACE_MAC_CHANGE,
-	},
-};
-
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
-	gr_event_subscribe(&iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
+	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_event);
 }

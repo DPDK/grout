@@ -395,7 +395,7 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		{GR_NODE_T_L3, "L3"},
 		{GR_NODE_T_L4, "L4"},
 	};
-	const struct gr_infra_graph_dump_req *req = request;
+	const struct gr_graph_dump_req *req = request;
 	gr_vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
 	char **edges = NULL;
@@ -582,12 +582,6 @@ err:
 	return api_out(errsave, 0, NULL);
 }
 
-static struct gr_api_handler graph_dump_handler = {
-	.name = "graph dump",
-	.request_type = GR_INFRA_GRAPH_DUMP,
-	.callback = graph_dump,
-};
-
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
@@ -642,6 +636,6 @@ static struct gr_module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
-	gr_register_api_handler(&graph_dump_handler);
+	gr_api_handler(GR_GRAPH_DUMP, graph_dump);
 	gr_register_module(&graph_module);
 }

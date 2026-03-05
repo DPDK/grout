@@ -9,7 +9,7 @@
 #include <gr_vec.h>
 
 static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) {
-	struct gr_infra_nh_config_get_resp *resp = malloc(sizeof(*resp));
+	struct gr_nh_config_get_resp *resp = malloc(sizeof(*resp));
 
 	if (resp == NULL)
 		return api_out(ENOMEM, 0, NULL);
@@ -20,22 +20,10 @@ static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) 
 	return api_out(0, sizeof(*resp), resp);
 }
 
-static struct gr_api_handler config_get_handler = {
-	.name = "nh config get",
-	.request_type = GR_INFRA_NH_CONFIG_GET,
-	.callback = nh_config_get,
-};
-
 static struct api_out nh_config_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_nh_config_set_req *req = request;
+	const struct gr_nh_config_set_req *req = request;
 	return api_out(-nexthop_config_set(&req->base), 0, NULL);
 }
-
-static struct gr_api_handler config_set_handler = {
-	.name = "nh config set",
-	.request_type = GR_INFRA_NH_CONFIG_SET,
-	.callback = nh_config_set,
-};
 
 static struct api_out nh_add(const void *request, struct api_ctx *) {
 	const struct gr_nh_add_req *req = request;
@@ -59,12 +47,6 @@ static struct api_out nh_add(const void *request, struct api_ctx *) {
 
 	return api_out(-ret, 0, NULL);
 }
-
-static struct gr_api_handler nh_add_handler = {
-	.name = "nexthop add",
-	.request_type = GR_NH_ADD,
-	.callback = nh_add,
-};
 
 static struct api_out nh_del(const void *request, struct api_ctx *) {
 	const struct gr_nh_del_req *req = request;
@@ -93,12 +75,6 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 
 	return api_out(0, 0, NULL);
 }
-
-static struct gr_api_handler nh_del_handler = {
-	.name = "nexthop del",
-	.request_type = GR_NH_DEL,
-	.callback = nh_del,
-};
 
 struct list_context {
 	gr_nh_type_t type;
@@ -147,16 +123,10 @@ static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	return api_out(list.ret, 0, NULL);
 }
 
-static struct gr_api_handler nh_list_handler = {
-	.name = "nexthop list",
-	.request_type = GR_NH_LIST,
-	.callback = nh_list,
-};
-
 RTE_INIT(_init) {
-	gr_register_api_handler(&config_get_handler);
-	gr_register_api_handler(&config_set_handler);
-	gr_register_api_handler(&nh_add_handler);
-	gr_register_api_handler(&nh_del_handler);
-	gr_register_api_handler(&nh_list_handler);
+	gr_api_handler(GR_NH_CONFIG_GET, nh_config_get);
+	gr_api_handler(GR_NH_CONFIG_SET, nh_config_set);
+	gr_api_handler(GR_NH_ADD, nh_add);
+	gr_api_handler(GR_NH_DEL, nh_del);
+	gr_api_handler(GR_NH_LIST, nh_list);
 }

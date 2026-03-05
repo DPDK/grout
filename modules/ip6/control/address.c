@@ -515,59 +515,23 @@ static void addr6_fini(struct event_base *) {
 	iface_mcast_addrs = NULL;
 }
 
-static struct gr_api_handler addr6_add_handler = {
-	.name = "ipv6 address add",
-	.request_type = GR_IP6_ADDR_ADD,
-	.callback = addr6_add,
-};
-static struct gr_api_handler addr6_del_handler = {
-	.name = "ipv6 address del",
-	.request_type = GR_IP6_ADDR_DEL,
-	.callback = addr6_del,
-};
-static struct gr_api_handler addr6_flush_handler = {
-	.name = "ipv6 address flush",
-	.request_type = GR_IP6_ADDR_FLUSH,
-	.callback = addr6_flush,
-};
-static struct gr_api_handler addr6_list_handler = {
-	.name = "ipv6 address list",
-	.request_type = GR_IP6_ADDR_LIST,
-	.callback = addr6_list,
-};
 static struct gr_module addr6_module = {
-	.name = "ipv6 address",
+	.name = "ip6_address",
 	.init = addr6_init,
 	.fini = addr6_fini,
 };
 
-static struct gr_event_subscription iface_event_subscription = {
-	.callback = ip6_iface_event_handler,
-	.ev_count = 5,
-	.ev_types = {
-		GR_EVENT_IFACE_POST_ADD,
-		GR_EVENT_IFACE_POST_RECONFIG,
-		GR_EVENT_IFACE_PRE_REMOVE,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_MAC_CHANGE,
-	},
-};
-
-static struct gr_event_serializer iface_addr_serializer = {
-	.size = sizeof(struct gr_ip6_ifaddr),
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_IP6_ADDR_ADD,
-		GR_EVENT_IP6_ADDR_DEL,
-	},
-};
-
 RTE_INIT(address_constructor) {
-	gr_register_api_handler(&addr6_add_handler);
-	gr_register_api_handler(&addr6_del_handler);
-	gr_register_api_handler(&addr6_flush_handler);
-	gr_register_api_handler(&addr6_list_handler);
+	gr_api_handler(GR_IP6_ADDR_ADD, addr6_add);
+	gr_api_handler(GR_IP6_ADDR_DEL, addr6_del);
+	gr_api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
+	gr_api_handler(GR_IP6_ADDR_LIST, addr6_list);
 	gr_register_module(&addr6_module);
-	gr_event_subscribe(&iface_event_subscription);
-	gr_event_register_serializer(&iface_addr_serializer);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, ip6_iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, ip6_iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, ip6_iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, ip6_iface_event_handler);
+	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, ip6_iface_event_handler);
+	gr_event_serializer(GR_EVENT_IP6_ADDR_ADD, NULL, sizeof(struct gr_ip6_ifaddr));
+	gr_event_serializer(GR_EVENT_IP6_ADDR_DEL, NULL, sizeof(struct gr_ip6_ifaddr));
 }

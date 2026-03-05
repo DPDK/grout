@@ -1010,7 +1010,7 @@ static const struct iface_type iface_type_port = {
 };
 
 static struct gr_module port_module = {
-	.name = "iface port",
+	.name = "iface_port",
 	.init = port_init,
 	.fini = port_fini,
 };
@@ -1023,14 +1023,8 @@ static void port_unplug_cb(uint32_t /*event*/, const void *obj) {
 		LOG(WARNING, "port_unplug(%s): %s", iface->name, strerror(errno));
 }
 
-static struct gr_event_subscription port_subscription = {
-	.callback = port_unplug_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_PRE_REMOVE},
-};
-
 RTE_INIT(port_constructor) {
 	iface_type_register(&iface_type_port);
 	gr_register_module(&port_module);
-	gr_event_subscribe(&port_subscription);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, port_unplug_cb);
 }

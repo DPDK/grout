@@ -526,32 +526,14 @@ static void dhcp_fini(struct event_base *) {
 
 static struct gr_module dhcp_module = {
 	.name = "dhcp",
-	.depends_on = "graph,ipv4 address",
+	.depends_on = "graph,ip_address,iface",
 	.init = dhcp_init,
 	.fini = dhcp_fini,
 };
 
-static struct gr_api_handler dhcp_list_api = {
-	.name = "dhcp list",
-	.request_type = GR_DHCP_LIST,
-	.callback = dhcp_list_handler,
-};
-
-static struct gr_api_handler dhcp_start_api = {
-	.name = "dhcp start",
-	.request_type = GR_DHCP_START,
-	.callback = dhcp_start_handler,
-};
-
-static struct gr_api_handler dhcp_stop_api = {
-	.name = "dhcp stop",
-	.request_type = GR_DHCP_STOP,
-	.callback = dhcp_stop_handler,
-};
-
 RTE_INIT(dhcp_constructor) {
 	gr_register_module(&dhcp_module);
-	gr_register_api_handler(&dhcp_list_api);
-	gr_register_api_handler(&dhcp_start_api);
-	gr_register_api_handler(&dhcp_stop_api);
+	gr_api_handler(GR_DHCP_LIST, dhcp_list_handler);
+	gr_api_handler(GR_DHCP_START, dhcp_start_handler);
+	gr_api_handler(GR_DHCP_STOP, dhcp_stop_handler);
 }

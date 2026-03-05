@@ -24,7 +24,7 @@ static void iface_add_callback(uint32_t /*event*/, const void *obj) {
 }
 
 static struct api_out set_trace(const void *request, struct api_ctx *) {
-	const struct gr_infra_packet_trace_set_req *req = request;
+	const struct gr_packet_trace_set_req *req = request;
 	struct iface *iface = NULL;
 
 	if (req->all) {
@@ -50,8 +50,8 @@ static struct api_out set_trace(const void *request, struct api_ctx *) {
 }
 
 static struct api_out dump_trace(const void *request, struct api_ctx *) {
-	const struct gr_infra_packet_trace_dump_req *req = request;
-	struct gr_infra_packet_trace_dump_resp *resp;
+	const struct gr_packet_trace_dump_req *req = request;
+	struct gr_packet_trace_dump_resp *resp;
 	int ret;
 
 	if ((resp = malloc(GR_API_MAX_MSG_LEN)) == NULL)
@@ -78,45 +78,15 @@ static struct api_out clear_trace(const void * /*request*/, struct api_ctx *) {
 }
 
 static struct api_out packet_log_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_packet_log_set_req *req = request;
+	const struct gr_packet_log_set_req *req = request;
 	gr_config.log_packets = req->enabled;
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler set_trace_handler = {
-	.name = "trace set",
-	.request_type = GR_INFRA_PACKET_TRACE_SET,
-	.callback = set_trace,
-};
-
-static struct gr_api_handler dump_trace_handler = {
-	.name = "trace dump",
-	.request_type = GR_INFRA_PACKET_TRACE_DUMP,
-	.callback = dump_trace,
-};
-
-static struct gr_api_handler clear_trace_handler = {
-	.name = "trace clear",
-	.request_type = GR_INFRA_PACKET_TRACE_CLEAR,
-	.callback = clear_trace,
-};
-
-static struct gr_api_handler set_packet_log_handler = {
-	.name = "set packet logging",
-	.request_type = GR_INFRA_PACKET_LOG_SET,
-	.callback = packet_log_set,
-};
-
-static struct gr_event_subscription iface_add_sub = {
-	.callback = iface_add_callback,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_POST_ADD},
-};
-
 RTE_INIT(trace_init) {
-	gr_register_api_handler(&set_trace_handler);
-	gr_register_api_handler(&dump_trace_handler);
-	gr_register_api_handler(&clear_trace_handler);
-	gr_register_api_handler(&set_packet_log_handler);
-	gr_event_subscribe(&iface_add_sub);
+	gr_api_handler(GR_PACKET_TRACE_SET, set_trace);
+	gr_api_handler(GR_PACKET_TRACE_DUMP, dump_trace);
+	gr_api_handler(GR_PACKET_TRACE_CLEAR, clear_trace);
+	gr_api_handler(GR_PACKET_LOG_SET, packet_log_set);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
 }

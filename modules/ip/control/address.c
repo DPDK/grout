@@ -303,55 +303,22 @@ static void addr_fini(struct event_base *) {
 	iface_addrs = NULL;
 }
 
-static struct gr_api_handler addr_add_handler = {
-	.name = "ipv4 address add",
-	.request_type = GR_IP4_ADDR_ADD,
-	.callback = addr_add,
-};
-static struct gr_api_handler addr_del_handler = {
-	.name = "ipv4 address del",
-	.request_type = GR_IP4_ADDR_DEL,
-	.callback = addr_del,
-};
-static struct gr_api_handler addr_flush_handler = {
-	.name = "ipv4 address flush",
-	.request_type = GR_IP4_ADDR_FLUSH,
-	.callback = addr_flush,
-};
-static struct gr_api_handler addr_list_handler = {
-	.name = "ipv4 address list",
-	.request_type = GR_IP4_ADDR_LIST,
-	.callback = addr_list,
-};
 static struct gr_module addr_module = {
-	.name = "ipv4 address",
+	.name = "ip_address",
 	.init = addr_init,
 	.fini = addr_fini,
 };
 
-static struct gr_event_subscription iface_pre_rm_subscription = {
-	.callback = iface_event_cb,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IFACE_POST_RECONFIG, GR_EVENT_IFACE_PRE_REMOVE},
-};
-static struct gr_event_subscription iface_up_subscription = {
-	.callback = iface_up_cb,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IFACE_STATUS_UP, GR_EVENT_IFACE_MAC_CHANGE},
-};
-static struct gr_event_serializer iface_addr_serializer = {
-	.size = sizeof(struct gr_ip4_ifaddr),
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IP_ADDR_ADD, GR_EVENT_IP_ADDR_DEL},
-};
-
 RTE_INIT(address_constructor) {
-	gr_register_api_handler(&addr_add_handler);
-	gr_register_api_handler(&addr_del_handler);
-	gr_register_api_handler(&addr_flush_handler);
-	gr_register_api_handler(&addr_list_handler);
+	gr_api_handler(GR_IP4_ADDR_ADD, addr_add);
+	gr_api_handler(GR_IP4_ADDR_DEL, addr_del);
+	gr_api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
+	gr_api_handler(GR_IP4_ADDR_LIST, addr_list);
 	gr_register_module(&addr_module);
-	gr_event_subscribe(&iface_pre_rm_subscription);
-	gr_event_subscribe(&iface_up_subscription);
-	gr_event_register_serializer(&iface_addr_serializer);
+	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
+	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);
+	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_up_cb);
+	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_up_cb);
+	gr_event_serializer(GR_EVENT_IP_ADDR_ADD, NULL, sizeof(struct gr_ip4_ifaddr));
+	gr_event_serializer(GR_EVENT_IP_ADDR_DEL, NULL, sizeof(struct gr_ip4_ifaddr));
 }

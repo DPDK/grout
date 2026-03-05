@@ -15,8 +15,8 @@
 
 #include <fnmatch.h>
 
-static bool skip_stat(const struct gr_infra_stat *s, gr_infra_stats_flags_t flags) {
-	if (flags & GR_INFRA_STAT_F_ZERO)
+static bool skip_stat(const struct gr_stat *s, gr_stats_flags_t flags) {
+	if (flags & GR_STATS_F_ZERO)
 		return false;
 
 	if (s->packets != 0)
@@ -31,20 +31,20 @@ static bool skip_stat(const struct gr_infra_stat *s, gr_infra_stats_flags_t flag
 }
 
 static struct api_out stats_get(const void *request, struct api_ctx *) {
-	const struct gr_infra_stats_get_req *req = request;
-	struct gr_infra_stats_get_resp *resp = NULL;
-	gr_vec struct gr_infra_stat *stats = NULL;
-	struct gr_infra_stat *s;
+	const struct gr_stats_get_req *req = request;
+	struct gr_stats_get_resp *resp = NULL;
+	gr_vec struct gr_stat *stats = NULL;
+	struct gr_stat *s;
 	size_t len, n_stats;
 	int ret;
 
-	if (req->flags & GR_INFRA_STAT_F_SW) {
+	if (req->flags & GR_STATS_F_SW) {
 		stats = worker_dump_stats(req->cpu_id);
 		if (stats == NULL && req->cpu_id != UINT16_MAX)
 			return api_out(ENODEV, 0, NULL);
 	}
 
-	if (req->flags & GR_INFRA_STAT_F_HW) {
+	if (req->flags & GR_STATS_F_HW) {
 		struct rte_eth_xstat_name *names = NULL;
 		struct rte_eth_xstat *xstats = NULL;
 		struct iface *iface = NULL;
@@ -76,7 +76,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 
 			// xstats and names are matched by array index
 			for (unsigned i = 0; i < num; i++) {
-				struct gr_infra_stat stat = {
+				struct gr_stat stat = {
 					.packets = xstats[i].value,
 					.batches = 0,
 					.cycles = 0,
@@ -118,7 +118,7 @@ free_xstat:
 	}
 
 	// allocate correct response size
-	len = sizeof(*resp) + n_stats * sizeof(struct gr_infra_stat);
+	len = sizeof(*resp) + n_stats * sizeof(struct gr_stat);
 	if ((resp = calloc(1, len)) == NULL) {
 		ret = -ENOMEM;
 		goto err;
@@ -174,7 +174,7 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 }
 
 static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *) {
-	struct gr_infra_iface_stats_get_resp *resp = NULL;
+	struct gr_iface_stats_get_resp *resp = NULL;
 	gr_vec struct gr_iface_stats *stats_vec = NULL;
 	struct iface *iface = NULL;
 	int ret = 0;
@@ -239,33 +239,15 @@ err:
 	return api_out(-ret, 0, NULL);
 }
 
-static struct gr_api_handler stats_get_handler = {
-	.name = "stats get",
-	.request_type = GR_INFRA_STATS_GET,
-	.callback = stats_get,
-};
-
-static struct gr_api_handler stats_reset_handler = {
-	.name = "stats reset",
-	.request_type = GR_INFRA_STATS_RESET,
-	.callback = stats_reset,
-};
-
-static struct gr_api_handler iface_stats_get_handler = {
-	.name = "iface stats get",
-	.request_type = GR_INFRA_IFACE_STATS_GET,
-	.callback = iface_stats_get,
-};
-
 METRIC_COUNTER(m_packets, "node_packets", "Number of packets processed by a node.");
 METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.");
 METRIC_COUNTER(m_cycles, "node_cycles", "Number of cycles spent per node.");
 
 static void graph_metrics_collect(struct gr_metrics_writer *w) {
-	gr_vec struct gr_infra_stat *stats = worker_dump_stats(UINT16_MAX);
+	gr_vec struct gr_stat *stats = worker_dump_stats(UINT16_MAX);
 	struct gr_metrics_ctx ctx;
 
-	gr_vec_foreach_ref (const struct gr_infra_stat *s, stats) {
+	gr_vec_foreach_ref (const struct gr_stat *s, stats) {
 		gr_metrics_ctx_init(&ctx, w, "name", s->name, NULL);
 		gr_metric_emit(&ctx, &m_packets, s->packets);
 		gr_metric_emit(&ctx, &m_batches, s->batches);
@@ -308,9 +290,9 @@ static struct gr_metrics_collector cpu_collector = {
 };
 
 RTE_INIT(infra_stats_init) {
-	gr_register_api_handler(&stats_get_handler);
-	gr_register_api_handler(&stats_reset_handler);
-	gr_register_api_handler(&iface_stats_get_handler);
+	gr_api_handler(GR_STATS_GET, stats_get);
+	gr_api_handler(GR_STATS_RESET, stats_reset);
+	gr_api_handler(GR_IFACE_STATS_GET, iface_stats_get);
 	gr_metrics_register(&graph_collector);
 	gr_metrics_register(&cpu_collector);
 }

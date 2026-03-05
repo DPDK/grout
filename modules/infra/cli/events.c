@@ -32,7 +32,7 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 	const struct cli_event_printer *p;
 	struct gr_api_event *e = NULL;
 
-	if (gr_api_client_send_recv(c, GR_MAIN_EVENT_SUBSCRIBE, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_EVENT_SUBSCRIBE, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	while (gr_api_client_event_recv(c, &e) == 0) {
@@ -47,7 +47,7 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 		free(e);
 	}
 
-	gr_api_client_send_recv(c, GR_MAIN_EVENT_UNSUBSCRIBE, 0, NULL, NULL);
+	gr_api_client_send_recv(c, GR_EVENT_UNSUBSCRIBE, 0, NULL, NULL);
 
 	return 0;
 }

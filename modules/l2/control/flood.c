@@ -41,12 +41,6 @@ static struct api_out flood_add(const void *request, struct api_ctx *) {
 	return api_out(-ret, 0, NULL);
 }
 
-static struct gr_api_handler flood_add_handler = {
-	.name = "flood add",
-	.request_type = GR_FLOOD_ADD,
-	.callback = flood_add,
-};
-
 static struct api_out flood_del(const void *request, struct api_ctx *) {
 	const struct gr_flood_del_req *req = request;
 	const struct flood_type_ops *ops;
@@ -60,12 +54,6 @@ static struct api_out flood_del(const void *request, struct api_ctx *) {
 
 	return api_out(-ret, 0, NULL);
 }
-
-static struct gr_api_handler flood_del_handler = {
-	.name = "flood del",
-	.request_type = GR_FLOOD_DEL,
-	.callback = flood_del,
-};
 
 static struct api_out flood_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_flood_list_req *req = request;
@@ -84,24 +72,10 @@ static struct api_out flood_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler flood_list_handler = {
-	.name = "flood list",
-	.request_type = GR_FLOOD_LIST,
-	.callback = flood_list,
-};
-
-static struct gr_event_serializer serializer = {
-	.size = sizeof(struct gr_flood_entry),
-	.ev_count = 2,
-	.ev_types = {
-		GR_EVENT_FLOOD_ADD,
-		GR_EVENT_FLOOD_DEL,
-	},
-};
-
 RTE_INIT(flood_init) {
-	gr_register_api_handler(&flood_add_handler);
-	gr_register_api_handler(&flood_del_handler);
-	gr_register_api_handler(&flood_list_handler);
-	gr_event_register_serializer(&serializer);
+	gr_api_handler(GR_FLOOD_ADD, flood_add);
+	gr_api_handler(GR_FLOOD_DEL, flood_del);
+	gr_api_handler(GR_FLOOD_LIST, flood_list);
+	gr_event_serializer(GR_EVENT_FLOOD_ADD, NULL, sizeof(struct gr_flood_entry));
+	gr_event_serializer(GR_EVENT_FLOOD_DEL, NULL, sizeof(struct gr_flood_entry));
 }

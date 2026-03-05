@@ -55,7 +55,7 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 		goto err;
 
 	struct gr_hello_req hello = {.version = GROUT_VERSION};
-	if (gr_api_client_send_recv(client, GR_MAIN_HELLO, sizeof(hello), &hello, NULL) < 0)
+	if (gr_api_client_send_recv(client, GR_HELLO, sizeof(hello), &hello, NULL) < 0)
 		goto err;
 
 	return client;

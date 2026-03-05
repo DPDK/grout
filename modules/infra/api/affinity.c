@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 static struct api_out affinity_get(const void * /*request*/, struct api_ctx *) {
-	struct gr_infra_cpu_affinity_get_resp *resp = calloc(1, sizeof(*resp));
+	struct gr_affinity_cpu_get_resp *resp = calloc(1, sizeof(*resp));
 
 	if (resp == NULL)
 		return api_out(ENOMEM, 0, NULL);
@@ -28,7 +28,7 @@ static struct api_out affinity_get(const void * /*request*/, struct api_ctx *) {
 }
 
 static struct api_out affinity_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_cpu_affinity_set_req *req = request;
+	const struct gr_affinity_cpu_set_req *req = request;
 	gr_vec struct iface_info_port **ports = NULL;
 	int ret = 0;
 
@@ -84,7 +84,7 @@ static struct api_out rxq_list(const void * /*request*/, struct api_ctx *ctx) {
 }
 
 static struct api_out rxq_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_rxq_set_req *req = request;
+	const struct gr_affinity_rxq_set_req *req = request;
 	struct iface *iface = iface_from_id(req->iface_id);
 	struct iface_info_port *port;
 
@@ -98,30 +98,9 @@ static struct api_out rxq_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler affinity_get_handler = {
-	.name = "affinity get",
-	.request_type = GR_INFRA_CPU_AFFINITY_GET,
-	.callback = affinity_get,
-};
-static struct gr_api_handler affinity_set_handler = {
-	.name = "affinity set",
-	.request_type = GR_INFRA_CPU_AFFINITY_SET,
-	.callback = affinity_set,
-};
-static struct gr_api_handler rxq_list_handler = {
-	.name = "qmap list",
-	.request_type = GR_INFRA_RXQ_LIST,
-	.callback = rxq_list,
-};
-static struct gr_api_handler rxq_set_handler = {
-	.name = "qmap set",
-	.request_type = GR_INFRA_RXQ_SET,
-	.callback = rxq_set,
-};
-
 RTE_INIT(_init) {
-	gr_register_api_handler(&rxq_list_handler);
-	gr_register_api_handler(&rxq_set_handler);
-	gr_register_api_handler(&affinity_get_handler);
-	gr_register_api_handler(&affinity_set_handler);
+	gr_api_handler(GR_AFFINITY_RXQ_LIST, rxq_list);
+	gr_api_handler(GR_AFFINITY_RXQ_SET, rxq_set);
+	gr_api_handler(GR_AFFINITY_CPU_GET, affinity_get);
+	gr_api_handler(GR_AFFINITY_CPU_SET, affinity_set);
 }

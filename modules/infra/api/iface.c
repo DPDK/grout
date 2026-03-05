@@ -28,8 +28,8 @@ static struct gr_iface *iface_to_api(const struct iface *priv) {
 }
 
 static struct api_out iface_add(const void *request, struct api_ctx *) {
-	const struct gr_infra_iface_add_req *req = request;
-	struct gr_infra_iface_add_resp *resp;
+	const struct gr_iface_add_req *req = request;
+	struct gr_iface_add_resp *resp;
 	struct iface *iface;
 
 	if (req->iface.id != GR_IFACE_ID_UNDEF)
@@ -50,7 +50,7 @@ static struct api_out iface_add(const void *request, struct api_ctx *) {
 }
 
 static struct api_out iface_del(const void *request, struct api_ctx *) {
-	const struct gr_infra_iface_del_req *req = request;
+	const struct gr_iface_del_req *req = request;
 	struct iface *iface;
 	int ret;
 
@@ -63,7 +63,7 @@ static struct api_out iface_del(const void *request, struct api_ctx *) {
 }
 
 static struct api_out iface_get(const void *request, struct api_ctx *) {
-	const struct gr_infra_iface_get_req *req = request;
+	const struct gr_iface_get_req *req = request;
 	const struct iface_type *type = NULL;
 	const struct iface *priv = NULL;
 	struct gr_iface *pub = NULL;
@@ -91,7 +91,7 @@ static struct api_out iface_get(const void *request, struct api_ctx *) {
 }
 
 static struct api_out iface_list(const void *request, struct api_ctx *ctx) {
-	const struct gr_infra_iface_list_req *req = request;
+	const struct gr_iface_list_req *req = request;
 	const struct iface *iface = NULL;
 	int ret = 0;
 
@@ -112,7 +112,7 @@ out:
 }
 
 static struct api_out iface_set(const void *request, struct api_ctx *) {
-	const struct gr_infra_iface_set_req *req = request;
+	const struct gr_iface_set_req *req = request;
 	int ret;
 
 	ret = iface_reconfig(req->iface.id, req->set_attrs, &req->iface, req->iface.info);
@@ -121,32 +121,6 @@ static struct api_out iface_set(const void *request, struct api_ctx *) {
 
 	return api_out(0, 0, NULL);
 }
-
-static struct gr_api_handler iface_add_handler = {
-	.name = "iface add",
-	.request_type = GR_INFRA_IFACE_ADD,
-	.callback = iface_add,
-};
-static struct gr_api_handler iface_del_handler = {
-	.name = "iface del",
-	.request_type = GR_INFRA_IFACE_DEL,
-	.callback = iface_del,
-};
-static struct gr_api_handler iface_get_handler = {
-	.name = "iface get",
-	.request_type = GR_INFRA_IFACE_GET,
-	.callback = iface_get,
-};
-static struct gr_api_handler iface_list_handler = {
-	.name = "iface list",
-	.request_type = GR_INFRA_IFACE_LIST,
-	.callback = iface_list,
-};
-static struct gr_api_handler iface_set_handler = {
-	.name = "iface set",
-	.request_type = GR_INFRA_IFACE_SET,
-	.callback = iface_set,
-};
 
 static int iface_event_serialize(const void *obj, void **buf) {
 	struct gr_iface *api_iface = iface_to_api(obj);
@@ -160,21 +134,6 @@ static int iface_event_serialize(const void *obj, void **buf) {
 
 	return sizeof(*api_iface) + type->pub_size;
 }
-
-static struct gr_event_serializer iface_serializer = {
-	.callback = iface_event_serialize,
-	.ev_count = 8,
-	.ev_types = {
-		GR_EVENT_IFACE_ADD,
-		GR_EVENT_IFACE_POST_ADD,
-		GR_EVENT_IFACE_PRE_REMOVE,
-		GR_EVENT_IFACE_REMOVE,
-		GR_EVENT_IFACE_POST_RECONFIG,
-		GR_EVENT_IFACE_STATUS_UP,
-		GR_EVENT_IFACE_STATUS_DOWN,
-		GR_EVENT_IFACE_MAC_CHANGE,
-	},
-};
 
 METRIC_GAUGE(m_up, "iface_up", "Interface administrative state.");
 METRIC_GAUGE(m_running, "iface_running", "Interface operational state.");
@@ -271,11 +230,18 @@ static struct gr_metrics_collector iface_collector = {
 };
 
 RTE_INIT(infra_api_init) {
-	gr_register_api_handler(&iface_add_handler);
-	gr_register_api_handler(&iface_del_handler);
-	gr_register_api_handler(&iface_get_handler);
-	gr_register_api_handler(&iface_list_handler);
-	gr_register_api_handler(&iface_set_handler);
-	gr_event_register_serializer(&iface_serializer);
+	gr_api_handler(GR_IFACE_ADD, iface_add);
+	gr_api_handler(GR_IFACE_DEL, iface_del);
+	gr_api_handler(GR_IFACE_GET, iface_get);
+	gr_api_handler(GR_IFACE_LIST, iface_list);
+	gr_api_handler(GR_IFACE_SET, iface_set);
+	gr_event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_REMOVE, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_POST_RECONFIG, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_STATUS_UP, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_STATUS_DOWN, iface_event_serialize, 0);
+	gr_event_serializer(GR_EVENT_IFACE_MAC_CHANGE, iface_event_serialize, 0);
 	gr_metrics_register(&iface_collector);
 }

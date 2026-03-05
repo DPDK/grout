@@ -784,45 +784,8 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_api_handler route6_add_handler = {
-	.name = "ipv6 route add",
-	.request_type = GR_IP6_ROUTE_ADD,
-	.callback = route6_add,
-};
-static struct gr_api_handler route6_del_handler = {
-	.name = "ipv6 route del",
-	.request_type = GR_IP6_ROUTE_DEL,
-	.callback = route6_del,
-};
-static struct gr_api_handler route6_get_handler = {
-	.name = "ipv6 route get",
-	.request_type = GR_IP6_ROUTE_GET,
-	.callback = route6_get,
-};
-static struct gr_api_handler route6_list_handler = {
-	.name = "ipv6 route list",
-	.request_type = GR_IP6_ROUTE_LIST,
-	.callback = route6_list,
-};
-static struct gr_api_handler fib6_conf_set_handler = {
-	.name = "ipv6 fib conf set",
-	.request_type = GR_IP6_FIB_CONF_SET,
-	.callback = fib6_conf_set,
-};
-static struct gr_api_handler fib6_info_list_handler = {
-	.name = "ipv6 fib info list",
-	.request_type = GR_IP6_FIB_INFO_LIST,
-	.callback = fib6_info_list,
-};
-
-static struct gr_event_serializer route6_serializer = {
-	.callback = serialize_route6_event,
-	.ev_count = 2,
-	.ev_types = {GR_EVENT_IP6_ROUTE_ADD, GR_EVENT_IP6_ROUTE_DEL},
-};
-
 static struct gr_module route6_module = {
-	.name = "ipv6 route",
+	.name = "ip6_route",
 	.depends_on = "nexthop",
 	.init = route6_init,
 	.fini = route6_fini,
@@ -872,21 +835,16 @@ static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
 	memset(route_counts[iface->id], 0, sizeof(route_counts[iface->id]));
 }
 
-static struct gr_event_subscription iface_subscription = {
-	.callback = iface_rm_cb,
-	.ev_count = 1,
-	.ev_types = {GR_EVENT_IFACE_REMOVE},
-};
-
 RTE_INIT(control_ip_init) {
-	gr_register_api_handler(&route6_add_handler);
-	gr_register_api_handler(&route6_del_handler);
-	gr_register_api_handler(&route6_get_handler);
-	gr_register_api_handler(&route6_list_handler);
-	gr_register_api_handler(&fib6_conf_set_handler);
-	gr_register_api_handler(&fib6_info_list_handler);
-	gr_event_register_serializer(&route6_serializer);
+	gr_api_handler(GR_IP6_ROUTE_ADD, route6_add);
+	gr_api_handler(GR_IP6_ROUTE_DEL, route6_del);
+	gr_api_handler(GR_IP6_ROUTE_GET, route6_get);
+	gr_api_handler(GR_IP6_ROUTE_LIST, route6_list);
+	gr_api_handler(GR_IP6_FIB_CONF_SET, fib6_conf_set);
+	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
+	gr_event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
+	gr_event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
 	gr_register_module(&route6_module);
 	gr_metrics_register(&rib6_collector);
-	gr_event_subscribe(&iface_subscription);
+	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_rm_cb);
 }
