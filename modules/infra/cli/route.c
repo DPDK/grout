@@ -107,7 +107,9 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 	scols_table_new_column(table, "VRF", 0, 0);
 	scols_table_new_column(table, "AF", 0, 0);
 	scols_table_new_column(table, "ROUTES", 0, 0);
+#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 	scols_table_new_column(table, "TBL8", 0, 0);
+#endif
 	scols_table_set_column_separator(table, "  ");
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
