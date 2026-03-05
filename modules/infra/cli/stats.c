@@ -93,11 +93,13 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 
 	if (req.flags & GR_STATS_F_HW || brief) {
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
+		struct gr_object *o = gr_object_new();
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_stat *s = &resp->stats[i];
 			if (req.flags & GR_STATS_F_HW || brief)
-				printf("%s %lu\n", s->name, s->packets);
+				gr_object_field(o, s->name, GR_DISP_INT, "%lu", s->packets);
 		}
+		gr_object_free(o);
 	} else {
 		struct gr_table *table = gr_table_new();
 		gr_table_column(table, "NODE", GR_DISP_LEFT); // 0

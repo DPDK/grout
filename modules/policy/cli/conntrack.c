@@ -89,16 +89,27 @@ static cmd_status_t config_show(struct gr_api_client *c, const struct ec_pnode *
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("closed-timeout %u\n", resp->timeout_closed_sec);
-	printf("new-timeout %u\n", resp->timeout_new_sec);
-	printf("established-udp-timeout %u\n", resp->timeout_udp_established_sec);
-	printf("established-tcp-timeout %u\n", resp->timeout_tcp_established_sec);
-	printf("half-close-timeout %u\n", resp->timeout_half_close_sec);
-	printf("time-wait-timeout %u\n", resp->timeout_time_wait_sec);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_count);
+	gr_object_field(
+		o,
+		"used_percent",
+		GR_DISP_FLOAT,
+		"%.01f",
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_count);
+	gr_object_field(o, "closed-timeout", GR_DISP_INT, "%u", resp->timeout_closed_sec);
+	gr_object_field(o, "new-timeout", GR_DISP_INT, "%u", resp->timeout_new_sec);
+	gr_object_field(
+		o, "established-udp-timeout", GR_DISP_INT, "%u", resp->timeout_udp_established_sec
+	);
+	gr_object_field(
+		o, "established-tcp-timeout", GR_DISP_INT, "%u", resp->timeout_tcp_established_sec
+	);
+	gr_object_field(o, "half-close-timeout", GR_DISP_INT, "%u", resp->timeout_half_close_sec);
+	gr_object_field(o, "time-wait-timeout", GR_DISP_INT, "%u", resp->timeout_time_wait_sec);
+	gr_object_free(o);
 
 	free(resp_ptr);
 

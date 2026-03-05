@@ -171,8 +171,11 @@ static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pno
 	resp = resp_ptr;
 	if (resp->max_entries != 0)
 		used = (100.0 * (float)resp->used_entries) / (float)resp->max_entries;
-	printf("used %u (%.01f%%)\n", resp->used_entries, used);
-	printf("max %u\n", resp->max_entries);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_entries);
+	gr_object_field(o, "used_percent", GR_DISP_FLOAT, "%.01f", used);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_entries);
+	gr_object_free(o);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

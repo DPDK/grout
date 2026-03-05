@@ -41,7 +41,7 @@ static void help(void) {
 	puts("  -e, --err-exit             Abort on first error.");
 	puts("  -f PATH, --file PATH       Read commands from file instead of stdin.");
 	puts("  -h, --help                 Show this help message and exit.");
-	puts("  -j, --json                 Output tables in JSON format.");
+	puts("  -j, --json                 Output tables and objects in JSON format.");
 	puts("  -p, --no-pager             Do not pipe output into a pager.");
 	puts("  -s PATH, --socket PATH     Path to the control plane API socket.");
 	puts("                             Default: GROUT_SOCK_PATH from env or");
