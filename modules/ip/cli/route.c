@@ -7,12 +7,11 @@
 #include <gr_cli_iface.h>
 #include <gr_cli_l3.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 
@@ -48,21 +47,21 @@ static cmd_status_t route4_del(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
-static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols_table *table) {
+static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table) {
 	struct gr_ip4_route_list_req req = {.vrf_id = vrf_id};
 	const struct gr_ip4_route *route;
 	char buf[128];
 	int ret;
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *vrf = iface_from_id(c, route->vrf_id);
-		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-		free(vrf);
-		scols_line_sprintf(line, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
-		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(route->origin));
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, route->vrf_id));
+		gr_table_cell(table, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
+		gr_table_cell(table, 2, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
-			scols_line_set_data(line, 3, buf);
+			gr_table_cell(table, 3, "%s", buf);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
 	return ret;
@@ -112,20 +111,18 @@ static cmd_status_t route4_config_set(struct gr_api_client *c, const struct ec_p
 	return CMD_SUCCESS;
 }
 
-static int
-route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_table *table) {
+static int route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct gr_table *table) {
 	struct gr_ip4_fib_info_list_req req = {.vrf_id = vrf_id};
 	const struct gr_fib4_info *info;
 	int ret;
 
 	gr_api_client_stream_foreach (info, ret, c, GR_IP4_FIB_INFO_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
 		struct gr_iface *vrf = iface_from_id(c, info->vrf_id);
-		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
+		gr_table_cell(table, 0, "%s", vrf ? vrf->name : "[deleted]");
 		free(vrf);
-		scols_line_set_data(line, 1, "IPv4");
-		scols_line_sprintf(
-			line,
+		gr_table_cell(table, 1, "IPv4");
+		gr_table_cell(
+			table,
 			2,
 			"%u/%u (%.1f%%)",
 			info->used_routes,
@@ -133,8 +130,8 @@ route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 			info->max_routes ? 100.0 * info->used_routes / info->max_routes : 0
 		);
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-		scols_line_sprintf(
-			line,
+		gr_table_cell(
+			table,
 			3,
 			"%u/%u (%.1f%%)",
 			info->used_tbl8,
@@ -142,6 +139,9 @@ route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 			info->num_tbl8 ? 100.0 * info->used_tbl8 / info->num_tbl8 : 0
 		);
 #endif
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
 	return ret;

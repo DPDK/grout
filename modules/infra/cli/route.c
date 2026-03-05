@@ -4,11 +4,11 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_l3.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -62,20 +62,18 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &vrf_id) < 0)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "DESTINATION", 0, 0);
-	scols_table_new_column(table, "ORIGIN", 0, 0);
-	scols_table_new_column(table, "NEXT_HOP", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
+	gr_table_column(table, "DESTINATION", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
+	gr_table_column(table, "NEXT_HOP", GR_DISP_LEFT); // 3
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if ((ret = ops->list(c, vrf_id, table)) < 0)
 			break;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
@@ -103,14 +101,13 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &vrf_id) < 0)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "AF", 0, 0);
-	scols_table_new_column(table, "ROUTES", 0, 0);
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
+	gr_table_column(table, "AF", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ROUTES", GR_DISP_RIGHT); // 2
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-	scols_table_new_column(table, "TBL8", 0, 0);
+	gr_table_column(table, "TBL8", GR_DISP_RIGHT); // 3
 #endif
-	scols_table_set_column_separator(table, "  ");
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if (ops->config_show == NULL)
@@ -119,8 +116,7 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 			break;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
@@ -139,6 +135,8 @@ static cmd_status_t route_get(struct gr_api_client *c, const struct ec_pnode *p)
 }
 
 #define ROUTE_CTX(root) CLI_CONTEXT(root, CTX_ARG("route", "Routing tables."))
+#define CONFIG_CTX(root)                                                                           \
+	CLI_CONTEXT(ROUTE_CTX(root), CTX_ARG("config", "Routing tables configuration."))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -176,8 +174,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"config set vrf VRF [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
+		CONFIG_CTX(root),
+		"set vrf VRF [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
 		" [rib6-routes RIB6_ROUTES] [fib6-tbl8 FIB6_TBL8]",
 		route_config_set,
 		"Configure FIB capacity for a VRF. "
@@ -205,8 +203,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"config [show] [vrf VRF]",
+		CONFIG_CTX(root),
+		"[show] [vrf VRF]",
 		route_config_show,
 		"Show FIB configuration and current sizes.",
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))

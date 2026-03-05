@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_display.h>
 #include <gr_infra.h>
 
 #include <ecoli.h>
@@ -13,7 +14,7 @@
 struct cli_iface_type {
 	STAILQ_ENTRY(cli_iface_type) next;
 	gr_iface_type_t type_id;
-	void (*show)(struct gr_api_client *c, const struct gr_iface *);
+	void (*show)(struct gr_api_client *c, const struct gr_iface *, struct gr_object *);
 	void (*list_info)(struct gr_api_client *c, const struct gr_iface *, char *, size_t);
 };
 
@@ -23,6 +24,7 @@ const struct cli_iface_type *type_from_name(const char *name);
 const struct cli_iface_type *type_from_id(gr_iface_type_t type_id);
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name);
 struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t ifid);
+const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid);
 
 struct ec_node;
 struct ec_comp;
@@ -52,6 +54,14 @@ int complete_vrf_names(
 // Parse VRF name argument, look up VRF interface and return its iface_id.
 // Defaults to GR_DEFAULT_VRF_NAME if argument not present.
 int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id);
+
+int arg_iface(
+	struct gr_api_client *,
+	const struct ec_pnode *,
+	const char *id,
+	gr_iface_type_t type,
+	uint16_t *iface_id
+);
 
 #define INT2PTR(i) (void *)(uintptr_t)(i)
 

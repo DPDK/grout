@@ -6,39 +6,13 @@
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_clock.h>
+#include <gr_display.h>
 #include <gr_l2.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
-
-static int arg_iface(
-	struct gr_api_client *c,
-	const struct ec_pnode *p,
-	const char *id,
-	gr_iface_type_t type,
-	uint16_t *iface_id
-) {
-	const char *name = arg_str(p, id);
-	if (name == NULL)
-		return -errno;
-
-	struct gr_iface *iface = iface_from_name(c, name);
-	if (iface == NULL)
-		return -errno;
-
-	if (type != GR_IFACE_TYPE_UNDEF && iface->type != type) {
-		free(iface);
-		return errno_set(EMEDIUMTYPE);
-	}
-
-	*iface_id = iface->id;
-	free(iface);
-	return 0;
-}
 
 static cmd_status_t fdb_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_fdb_add_req req = {.exist_ok = true};
@@ -139,45 +113,37 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	if (arg_str(p, "extern") != NULL)
 		req.flags |= GR_FDB_F_EXTERN;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "BRIDGE", 0, 0);
-	scols_table_new_column(table, "MAC", 0, 0);
-	scols_table_new_column(table, "VLAN", 0, 0);
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "VTEP", 0, 0);
-	scols_table_new_column(table, "FLAGS", 0, 0);
-	scols_table_new_column(table, "AGE", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "BRIDGE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "MAC", GR_DISP_LEFT); // 1
+	gr_table_column(table, "VLAN", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "VTEP", GR_DISP_LEFT); // 4
+	gr_table_column(table, "FLAGS", GR_DISP_STR_ARRAY); // 5
+	gr_table_column(table, "AGE", GR_DISP_RIGHT | GR_DISP_INT); // 6
 
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-
-		struct gr_iface *bridge = iface_from_id(c, fdb->bridge_id);
-		scols_line_sprintf(line, 0, "%s", bridge ? bridge->name : "[deleted]");
-		free(bridge);
-
-		scols_line_sprintf(line, 1, ETH_F, &fdb->mac);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, fdb->bridge_id));
+		gr_table_cell(table, 1, ETH_F, &fdb->mac);
 
 		if (fdb->vlan_id != 0)
-			scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
+			gr_table_cell(table, 2, "%u", fdb->vlan_id);
 
-		struct gr_iface *iface = iface_from_id(c, fdb->iface_id);
-		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
-		free(iface);
+		gr_table_cell(table, 3, "%s", iface_name_from_id(c, fdb->iface_id));
 
 		if (fdb->vtep != 0)
-			scols_line_sprintf(line, 4, IP4_F, &fdb->vtep);
+			gr_table_cell(table, 4, IP4_F, &fdb->vtep);
 
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
-			scols_line_set_data(line, 5, flags);
+			gr_table_cell(table, 5, "%s", flags);
 
-		scols_line_sprintf(
-			line, 6, "%lds", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC
-		);
+		gr_table_cell(table, 6, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
@@ -205,8 +171,11 @@ static cmd_status_t fdb_config_show(struct gr_api_client *c, const struct ec_pno
 	resp = resp_ptr;
 	if (resp->max_entries != 0)
 		used = (100.0 * (float)resp->used_entries) / (float)resp->max_entries;
-	printf("used %u (%.01f%%)\n", resp->used_entries, used);
-	printf("max %u\n", resp->max_entries);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_entries);
+	gr_object_field(o, "used_percent", GR_DISP_FLOAT, "%.01f", used);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_entries);
+	gr_object_free(o);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;

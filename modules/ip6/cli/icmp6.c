@@ -143,25 +143,19 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	uint16_t count = UINT16_MAX;
 	uint16_t ident = random();
 	uint16_t msdelay = 1000;
-	const char *str;
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
 	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "COUNT", &count)) < 0 && ret != ENOENT)
+	if (arg_u16(p, "COUNT", &count) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "DELAY", &msdelay)) < 0 && ret != ENOENT)
+	if (arg_u16(p, "DELAY", &msdelay) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
+	if (arg_u16(p, "IDENT", &ident) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if ((str = arg_str(p, "IFACE")) != NULL) {
-		struct gr_iface *iface = iface_from_name(c, str);
-		if (iface == NULL)
-			return CMD_ERROR;
-		req.iface = iface->id;
-		free(iface);
-	}
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
 	if (prev_handler == SIG_ERR)
@@ -178,21 +172,15 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	struct gr_ip6_icmp_send_req req = {.iface = GR_IFACE_ID_UNDEF, .vrf = 0};
 	cmd_status_t ret = CMD_SUCCESS;
 	uint16_t ident = random();
-	const char *str;
 
 	if (arg_ip6(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
 	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
-	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
+	if (arg_u16(p, "IDENT", &ident) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	if ((str = arg_str(p, "IFACE")) != NULL) {
-		struct gr_iface *iface = iface_from_name(c, str);
-		if (iface == NULL)
-			return CMD_ERROR;
-		req.iface = iface->id;
-		free(iface);
-	}
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	sighandler_t prev_handler = signal(SIGINT, sighandler);
 	if (prev_handler == SIG_ERR)

@@ -4,32 +4,33 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_l2.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
 
 #include <errno.h>
 #include <sys/queue.h>
 
-static void bridge_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void
+bridge_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_bridge *bridge = PAYLOAD(iface);
 
-	printf("flags: %sflood %slearn\n",
-	       (bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-	       (bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : "");
-
-	printf("ageing_time: %u seconds\n", bridge->ageing_time);
-	printf("mac: " ETH_F "\n", &bridge->mac);
-	printf("members:\n");
-
-	for (uint8_t i = 0; i < bridge->n_members; i++) {
-		struct gr_iface *member = iface_from_id(c, bridge->members[i]);
-		if (member != NULL)
-			printf("- %s\n", member->name);
-		free(member);
-	}
+	gr_object_field(
+		o,
+		"flags",
+		0,
+		"%sflood %slearn",
+		(bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
+		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : ""
+	);
+	gr_object_field(o, "ageing_time", GR_DISP_INT, "%u", bridge->ageing_time);
+	gr_object_field(o, "mac", 0, ETH_F, &bridge->mac);
+	gr_object_array_open(o, "members");
+	for (uint8_t i = 0; i < bridge->n_members; i++)
+		gr_object_array_item(o, 0, "%s", iface_name_from_id(c, bridge->members[i]));
+	gr_object_array_close(o);
 }
 
 static void

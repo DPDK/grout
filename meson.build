@@ -90,7 +90,6 @@ ecoli_dep = dependency(
     'yaml=disabled',
   ]
 )
-smartcols_dep = dependency('smartcols')
 
 grout_cflags = []
 if dpdk_dep.type_name() == 'internal'
@@ -133,7 +132,7 @@ grout_exe = executable(
 grcli_exe = executable(
   'grcli', cli_src,
   include_directories: cli_inc + api_inc,
-  dependencies: [ecoli_dep, smartcols_dep],
+  dependencies: [ecoli_dep],
   c_args: cli_cflags + grout_cflags,
   install: true,
 )

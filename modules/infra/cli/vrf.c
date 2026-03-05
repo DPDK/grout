@@ -6,7 +6,7 @@
 #include <gr_cli_iface.h>
 #include <gr_infra.h>
 
-static void vrf_show(struct gr_api_client *, const struct gr_iface *) { }
+static void vrf_show(struct gr_api_client *, const struct gr_iface *, struct gr_object *) { }
 
 static void vrf_list_info(struct gr_api_client *, const struct gr_iface *, char *, size_t) { }
 

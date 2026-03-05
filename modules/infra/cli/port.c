@@ -4,27 +4,26 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <string.h>
 #include <sys/queue.h>
 
-static void port_show(struct gr_api_client *, const struct gr_iface *iface) {
+static void port_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_port *port = (const struct gr_iface_info_port *)iface->info;
 
-	printf("devargs: %s\n", port->devargs);
-	printf("driver:  %s\n", port->driver_name);
-	printf("mac: " ETH_F "\n", &port->mac);
-	printf("n_rxq: %u\n", port->n_rxq);
-	printf("n_txq: %u\n", port->n_txq);
-	printf("rxq_size: %u\n", port->rxq_size);
-	printf("txq_size: %u\n", port->txq_size);
+	gr_object_field(o, "devargs", 0, "%s", port->devargs);
+	gr_object_field(o, "driver", 0, "%s", port->driver_name);
+	gr_object_field(o, "mac", 0, ETH_F, &port->mac);
+	gr_object_field(o, "n_rxq", GR_DISP_INT, "%u", port->n_rxq);
+	gr_object_field(o, "n_txq", GR_DISP_INT, "%u", port->n_txq);
+	gr_object_field(o, "rxq_size", GR_DISP_INT, "%u", port->rxq_size);
+	gr_object_field(o, "txq_size", GR_DISP_INT, "%u", port->txq_size);
 }
 
 static void

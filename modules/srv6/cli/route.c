@@ -5,12 +5,11 @@
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_net_types.h>
 #include <gr_srv6.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 
@@ -97,7 +96,9 @@ static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("sr tunsrc addr " IP6_F "\n", &resp->addr);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "tunsrc", 0, IP6_F, &resp->addr);
+	gr_object_free(o);
 
 	free(resp_ptr);
 

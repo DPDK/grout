@@ -4,40 +4,33 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <sys/queue.h>
 
-static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
+static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
-	struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
 
-	if (parent == NULL)
-		printf("parent: %u\n", vlan->parent_id);
-	else
-		printf("parent: %s\n", parent->name);
-	printf("vlan_id: %u\n", vlan->vlan_id);
-
-	free(parent);
+	gr_object_field(o, "parent", 0, "%s", iface_name_from_id(c, vlan->parent_id));
+	gr_object_field(o, "vlan_id", GR_DISP_INT, "%u", vlan->vlan_id);
 }
 
 static void
 vlan_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
-	struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
 
-	if (parent == NULL)
-		snprintf(buf, len, "parent=%u vlan_id=%u", vlan->parent_id, vlan->vlan_id);
-	else
-		snprintf(buf, len, "parent=%s vlan_id=%u", parent->name, vlan->vlan_id);
-
-	free(parent);
+	snprintf(
+		buf,
+		len,
+		"parent=%s vlan_id=%u",
+		iface_name_from_id(c, vlan->parent_id),
+		vlan->vlan_id
+	);
 }
 
 static struct cli_iface_type vlan_type = {
@@ -53,28 +46,15 @@ static uint64_t parse_vlan_args(
 	bool update
 ) {
 	struct gr_iface_info_vlan *vlan;
-	const char *parent_name;
 	uint64_t set_attrs;
 
 	set_attrs = parse_iface_args(c, p, iface, sizeof(*vlan), update);
 	vlan = (struct gr_iface_info_vlan *)iface->info;
-	parent_name = arg_str(p, "PARENT");
-	if (parent_name != NULL) {
-		struct gr_iface *parent = iface_from_name(c, parent_name);
-		if (parent == NULL)
+
+	if (arg_str(p, "PARENT") != NULL) {
+		if (arg_iface(c, p, "PARENT", GR_IFACE_TYPE_UNDEF, &vlan->parent_id) < 0)
 			return 0;
-		switch (parent->type) {
-		case GR_IFACE_TYPE_PORT:
-		case GR_IFACE_TYPE_BOND:
-			break;
-		default:
-			errno = EMEDIUMTYPE;
-			free(parent);
-			return 0;
-		}
-		vlan->parent_id = parent->id;
 		set_attrs |= GR_VLAN_SET_PARENT;
-		free(parent);
 	}
 
 	if (arg_u16(p, "VLAN", &vlan->vlan_id) == 0)

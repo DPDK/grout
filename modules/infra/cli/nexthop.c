@@ -6,12 +6,11 @@
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
 #include <gr_cli_nexthop.h>
+#include <gr_display.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -53,12 +52,15 @@ ssize_t cli_nexthop_format(
 		if (nh->nh_id != GR_NH_ID_UNSET)
 			SAFE_BUF(snprintf, len, " id=%u", nh->nh_id);
 		if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-			struct gr_iface *iface = NULL;
-			if (c != NULL && (iface = iface_from_id(c, nh->iface_id)) != NULL)
-				SAFE_BUF(snprintf, len, " iface=%s", iface->name);
+			if (c != NULL)
+				SAFE_BUF(
+					snprintf,
+					len,
+					" iface=%s",
+					iface_name_from_id(c, nh->iface_id)
+				);
 			else
 				SAFE_BUF(snprintf, len, " iface=%u", nh->iface_id);
-			free(iface);
 		}
 		SAFE_BUF(snprintf, len, " vrf=%u", nh->vrf_id);
 		SAFE_BUF(snprintf, len, " origin=%s", gr_nh_origin_name(nh->origin));
@@ -205,15 +207,22 @@ static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("lifetime %u\n", resp->lifetime_reachable_sec);
-	printf("unreachable %u\n", resp->lifetime_unreachable_sec);
-	printf("held-packets %u\n", resp->max_held_pkts);
-	printf("ucast-probes %u\n", resp->max_ucast_probes);
-	printf("bcast-probes %u\n", resp->max_bcast_probes);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_count);
+	gr_object_field(
+		o,
+		"used_percent",
+		GR_DISP_FLOAT,
+		"%.01f",
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_count);
+	gr_object_field(o, "lifetime", GR_DISP_INT, "%u", resp->lifetime_reachable_sec);
+	gr_object_field(o, "unreachable", GR_DISP_INT, "%u", resp->lifetime_unreachable_sec);
+	gr_object_field(o, "held_packets", GR_DISP_INT, "%u", resp->max_held_pkts);
+	gr_object_field(o, "ucast_probes", GR_DISP_INT, "%u", resp->max_ucast_probes);
+	gr_object_field(o, "bcast_probes", GR_DISP_INT, "%u", resp->max_bcast_probes);
+	gr_object_free(o);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
@@ -251,12 +260,8 @@ static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p)
 		break;
 	}
 
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "IFACE"));
-	if (iface == NULL)
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req->nh.iface_id) < 0)
 		goto out;
-	req->nh.iface_id = iface->id;
-	free(iface);
-
 	if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
 		goto out;
 
@@ -368,48 +373,29 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	req.include_internal = arg_str(p, "internal") != NULL;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "ID", 0, 0);
-	scols_table_new_column(table, "ORIGIN", 0, 0);
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "TYPE", 0, 0);
-	scols_table_new_column(table, "INFO", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ID", GR_DISP_LEFT | GR_DISP_INT); // 1
+	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 4
+	gr_table_column(table, "INFO", GR_DISP_LEFT); // 5
 
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-
-		if (nh->vrf_id == GR_VRF_ID_UNDEF) {
-			scols_line_set_data(line, 0, "-");
-		} else {
-			struct gr_iface *vrf = iface_from_id(c, nh->vrf_id);
-			scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-			free(vrf);
-		}
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, nh->vrf_id));
 		if (nh->nh_id != GR_NH_ID_UNSET)
-			scols_line_sprintf(line, 1, "%u", nh->nh_id);
-		else
-			scols_line_set_data(line, 1, "");
-
-		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(nh->origin));
-
-		if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-			struct gr_iface *iface = iface_from_id(c, nh->iface_id);
-			if (iface != NULL)
-				scols_line_sprintf(line, 3, "%s", iface->name);
-			else
-				scols_line_sprintf(line, 3, "%u", nh->iface_id);
-			free(iface);
-		}
-		scols_line_sprintf(line, 4, "%s", gr_nh_type_name(nh->type));
-
+			gr_table_cell(table, 1, "%u", nh->nh_id);
+		gr_table_cell(table, 2, "%s", gr_nh_origin_name(nh->origin));
+		gr_table_cell(table, 3, "%s", iface_name_from_id(c, nh->iface_id));
+		gr_table_cell(table, 4, "%s", gr_nh_type_name(nh->type));
 		if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
-			scols_line_set_data(line, 5, buf);
+			gr_table_cell(table, 5, "%s", buf);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

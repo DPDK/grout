@@ -5,13 +5,12 @@
 #include <gr_cli.h>
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <errno.h>
 #include <string.h>
@@ -19,6 +18,51 @@
 #include <unistd.h>
 
 static STAILQ_HEAD(, cli_iface_type) types = STAILQ_HEAD_INITIALIZER(types);
+
+struct iface_cache_item {
+	bool valid;
+	gr_iface_type_t type;
+	char name[IFNAMSIZ];
+};
+
+struct iface_cache {
+	struct iface_cache_item items[GR_MAX_IFACES];
+};
+
+static struct iface_cache *iface_cache_get(struct gr_api_client *c) {
+	struct iface_cache *cache = gr_api_client_get_priv(c);
+	if (cache == NULL) {
+		cache = calloc(1, sizeof(*cache));
+		gr_api_client_set_priv(c, cache);
+	}
+	return cache;
+}
+
+static struct iface_cache_item *
+iface_cache_update(struct gr_api_client *c, const struct gr_iface *iface) {
+	struct iface_cache *cache = iface_cache_get(c);
+	struct iface_cache_item *item;
+
+	assert(iface != NULL);
+	assert(cache != NULL);
+	assert(iface->id < ARRAY_DIM(cache->items));
+
+	item = &cache->items[iface->id];
+	item->valid = true;
+	item->type = iface->type;
+	snprintf(item->name, sizeof(item->name), "%s", iface->name);
+
+	return item;
+}
+
+static void iface_cache_del(struct gr_api_client *c, uint16_t ifid) {
+	struct iface_cache *cache = iface_cache_get(c);
+	assert(cache != NULL);
+
+	assert(ifid < ARRAY_DIM(cache->items));
+
+	memset(&cache->items[ifid], 0, sizeof(cache->items[ifid]));
+}
 
 void register_iface_type(struct cli_iface_type *type) {
 	assert(type != NULL);
@@ -79,19 +123,39 @@ int complete_iface_names(
 	const char *arg,
 	void *cb_arg
 ) {
-	struct gr_iface_list_req req = {.type = (uintptr_t)cb_arg};
+	struct gr_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
+	const struct iface_cache *cache = iface_cache_get(c);
+	gr_iface_type_t type = (uintptr_t)cb_arg;
 	const struct gr_iface *iface;
+	unsigned cached;
 	int result = 0;
 	int ret;
 
-	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
-		if (ec_str_startswith(iface->name, arg)) {
-			if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, iface->name))
-				result = -1;
-		}
+again:
+	cached = 0;
+	for (unsigned i = 0; i < ARRAY_DIM(cache->items); i++) {
+		const struct iface_cache_item *item = &cache->items[i];
+		if (!item->valid)
+			continue;
+		cached++;
+		if (type != GR_IFACE_TYPE_UNDEF && item->type != type)
+			continue;
+		if (!ec_str_startswith(item->name, arg))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, item->name))
+			result = -1;
 	}
+	if (cached > 0)
+		return result;
 
-	return ret < 0 ? -1 : result;
+	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
+		iface_cache_update(c, iface);
+		cached++;
+	}
+	if (cached > 0)
+		goto again;
+
+	return ret;
 }
 
 int complete_vrf_names(
@@ -104,25 +168,38 @@ int complete_vrf_names(
 	return complete_iface_names(c, node, comp, arg, INT2PTR(GR_IFACE_TYPE_VRF));
 }
 
-int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
+int arg_iface(
+	struct gr_api_client *c,
+	const struct ec_pnode *p,
+	const char *id,
+	gr_iface_type_t type,
+	uint16_t *iface_id
+) {
 	const char *name = arg_str(p, id);
-	if (name == NULL) {
-		*vrf_id = GR_VRF_DEFAULT_ID;
-		return 0;
-	}
+	if (name == NULL)
+		return -errno;
 
 	struct gr_iface *iface = iface_from_name(c, name);
 	if (iface == NULL)
 		return -errno;
 
-	if (iface->type != GR_IFACE_TYPE_VRF) {
+	if (type != GR_IFACE_TYPE_UNDEF && iface->type != type) {
 		free(iface);
 		return errno_set(EMEDIUMTYPE);
 	}
 
-	*vrf_id = iface->id;
+	*iface_id = iface->id;
 	free(iface);
 	return 0;
+}
+
+int arg_vrf(struct gr_api_client *c, const struct ec_pnode *p, const char *id, uint16_t *vrf_id) {
+	int ret = arg_iface(c, p, id, GR_IFACE_TYPE_VRF, vrf_id);
+	if (ret == -ENOENT) {
+		*vrf_id = GR_VRF_DEFAULT_ID;
+		ret = 0;
+	}
+	return ret;
 }
 
 struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
@@ -137,6 +214,7 @@ struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
+	iface_cache_update(c, resp_ptr);
 	return resp_ptr;
 }
 
@@ -147,7 +225,34 @@ struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
 
+	iface_cache_update(c, resp_ptr);
 	return resp_ptr;
+}
+
+const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
+	const struct iface_cache_item *item;
+	const struct iface_cache *cache;
+
+	if (ifid == GR_IFACE_ID_UNDEF)
+		return "-";
+	if (ifid >= GR_MAX_IFACES)
+		return "[???]";
+
+	cache = iface_cache_get(c);
+	if (cache == NULL)
+		return "[nomem]";
+
+	item = &cache->items[ifid];
+	if (item->valid)
+		return item->name;
+
+	struct gr_iface *iface = iface_from_id(c, ifid);
+	if (iface == NULL)
+		return "[deleted]";
+	item = iface_cache_update(c, iface);
+	free(iface);
+
+	return item->name;
 }
 
 static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *iface) {
@@ -223,15 +328,10 @@ uint64_t parse_iface_args(
 		if (arg_vrf(c, p, "VRF", &iface->vrf_id) < 0)
 			goto err;
 		set_attrs |= GR_IFACE_SET_VRF;
-	} else if ((name = arg_str(p, "DOMAIN")) != NULL) {
-		struct gr_iface *domain = iface_from_name(c, name);
-		if (domain == NULL) {
-			errno = ENODEV;
+	} else if (arg_str(p, "DOMAIN") != NULL) {
+		if (arg_iface(c, p, "DOMAIN", GR_IFACE_TYPE_UNDEF, &iface->domain_id) < 0)
 			goto err;
-		}
-		iface->domain_id = domain->id;
 		set_attrs |= GR_IFACE_SET_DOMAIN;
-		free(domain);
 	}
 
 	name = arg_str(p, "DESCR");
@@ -246,17 +346,15 @@ err:
 }
 
 static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface *iface = iface_from_name(c, arg_str(p, "NAME"));
 	struct gr_iface_del_req req;
 
-	if (iface == NULL)
+	if (arg_iface(c, p, "NAME", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
 		return CMD_ERROR;
-
-	req.iface_id = iface->id;
-	free(iface);
 
 	if (gr_api_client_send_recv(c, GR_IFACE_DEL, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
+
+	iface_cache_del(c, req.iface_id);
 
 	return CMD_SUCCESS;
 }
@@ -275,47 +373,41 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 	else
 		req.type = type->type_id;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "NAME", 0, 0);
-	scols_table_new_column(table, "ID", 0, 0);
-	scols_table_new_column(table, "FLAGS", 0, 0);
-	scols_table_new_column(table, "MODE", 0, 0);
-	scols_table_new_column(table, "DOMAIN", 0, 0);
-	scols_table_new_column(table, "TYPE", 0, 0);
-	scols_table_new_column(table, "INFO", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "NAME", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ID", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "FLAGS", GR_DISP_STR_ARRAY); // 2
+	gr_table_column(table, "MODE", GR_DISP_LEFT); // 3
+	gr_table_column(table, "DOMAIN", GR_DISP_LEFT); // 4
+	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 5
+	gr_table_column(table, "INFO", GR_DISP_LEFT); // 6
 
 	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
 		const struct cli_iface_type *type = type_from_id(iface->type);
-		struct libscols_line *line = scols_table_new_line(table, NULL);
+
+		iface_cache_update(c, iface);
 
 		// name
-		scols_line_set_data(line, 0, iface->name);
+		gr_table_cell(table, 0, "%s", iface->name);
 
 		// id
-		scols_line_sprintf(line, 1, "%u", iface->id);
+		gr_table_cell(table, 1, "%u", iface->id);
 
 		// flags
-		buf[0] = 0;
-		iface_flags_format(buf, sizeof(buf), iface);
-		scols_line_set_data(line, 2, buf);
+		if (iface_flags_format(buf, sizeof(buf), iface) > 0)
+			gr_table_cell(table, 2, "%s", buf);
 
 		// mode
-		scols_line_set_data(line, 3, gr_iface_mode_name(iface->mode));
+		gr_table_cell(table, 3, "%s", gr_iface_mode_name(iface->mode));
 
 		// domain
-		if (iface->mode == GR_IFACE_MODE_VRF) {
-			struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-			scols_line_sprintf(line, 4, "%s", vrf ? vrf->name : "[deleted]");
-			free(vrf);
-		} else {
-			struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-			scols_line_sprintf(line, 4, "%s", domain ? domain->name : "[deleted]");
-			free(domain);
-		}
+		if (iface->mode == GR_IFACE_MODE_VRF)
+			gr_table_cell(table, 4, "%s", iface_name_from_id(c, iface->vrf_id));
+		else
+			gr_table_cell(table, 4, "%s", iface_name_from_id(c, iface->domain_id));
 
 		// type
-		scols_line_sprintf(line, 5, "%s", gr_iface_type_name(iface->type));
+		gr_table_cell(table, 5, "%s", gr_iface_type_name(iface->type));
 
 		// info
 		assert(type != NULL);
@@ -334,119 +426,85 @@ static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p
 			n = sizeof(buf) - strlen("...") - 1;
 			snprintf(buf + n, sizeof(buf) - n, "...");
 		}
-		scols_line_set_data(line, 6, buf);
+		gr_table_cell(table, 6, "%s", buf);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
 static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	struct gr_iface_stats_get_resp *resp = NULL;
-	struct libscols_table *table = NULL;
-	cmd_status_t status = CMD_ERROR;
 	void *resp_ptr = NULL;
-	int ret;
 
-	// Send the new API request and wait for the response
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp_ptr);
-	if (ret < 0) {
-		errorf("failed to get interface stats: %s", strerror(-ret));
-		goto end;
-	}
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
 
 	resp = resp_ptr;
 
-	table = scols_new_table();
-	if (table == NULL) {
-		errorf("failed to create table: %s", strerror(errno));
-		goto end;
-	}
-
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_DROPS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_ERRORS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_RX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_RX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_TX_PACKETS", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "CP_TX_BYTES", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "RX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "RX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "RX_DROPS", GR_DISP_RIGHT | GR_DISP_INT); // 3
+	gr_table_column(table, "TX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 4
+	gr_table_column(table, "TX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 5
+	gr_table_column(table, "TX_ERRORS", GR_DISP_RIGHT | GR_DISP_INT); // 6
+	gr_table_column(table, "CP_RX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 7
+	gr_table_column(table, "CP_RX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 8
+	gr_table_column(table, "CP_TX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 9
+	gr_table_column(table, "CP_TX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 10
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (line == NULL) {
-			errorf("failed to create line: %s", strerror(errno));
-			goto end;
-		}
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
+		gr_table_cell(table, 1, "%lu", resp->stats[i].rx_packets);
+		gr_table_cell(table, 2, "%lu", resp->stats[i].rx_bytes);
+		gr_table_cell(table, 3, "%lu", resp->stats[i].rx_drops);
+		gr_table_cell(table, 4, "%lu", resp->stats[i].tx_packets);
+		gr_table_cell(table, 5, "%lu", resp->stats[i].tx_bytes);
+		gr_table_cell(table, 6, "%lu", resp->stats[i].tx_errors);
+		gr_table_cell(table, 7, "%lu", resp->stats[i].cp_rx_packets);
+		gr_table_cell(table, 8, "%lu", resp->stats[i].cp_rx_bytes);
+		gr_table_cell(table, 9, "%lu", resp->stats[i].cp_tx_packets);
+		gr_table_cell(table, 10, "%lu", resp->stats[i].cp_tx_bytes);
 
-		struct gr_iface *iface = iface_from_id(c, resp->stats[i].iface_id);
-		if (iface != NULL)
-			scols_line_set_data(line, 0, iface->name);
-		else
-			scols_line_sprintf(line, 0, "%u", resp->stats[i].iface_id);
-		free(iface);
-
-		scols_line_sprintf(line, 1, "%lu", resp->stats[i].rx_packets);
-		scols_line_sprintf(line, 2, "%lu", resp->stats[i].rx_bytes);
-		scols_line_sprintf(line, 3, "%lu", resp->stats[i].rx_drops);
-		scols_line_sprintf(line, 4, "%lu", resp->stats[i].tx_packets);
-		scols_line_sprintf(line, 5, "%lu", resp->stats[i].tx_bytes);
-		scols_line_sprintf(line, 6, "%lu", resp->stats[i].tx_errors);
-		scols_line_sprintf(line, 7, "%lu", resp->stats[i].cp_rx_packets);
-		scols_line_sprintf(line, 8, "%lu", resp->stats[i].cp_rx_bytes);
-		scols_line_sprintf(line, 9, "%lu", resp->stats[i].cp_tx_packets);
-		scols_line_sprintf(line, 10, "%lu", resp->stats[i].cp_tx_bytes);
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	status = CMD_SUCCESS;
-
-end:
-	if (table)
-		scols_unref_table(table);
+	gr_table_free(table);
 	free(resp_ptr);
-	return status;
+
+	return CMD_SUCCESS;
 }
 
 static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode * /*p*/) {
 	const struct gr_iface_stats_get_resp *resp1, *resp2;
 	void *resp1_ptr = NULL, *resp2_ptr = NULL;
-	struct libscols_table *table = NULL;
 	cmd_status_t status = CMD_ERROR;
-	int ret;
 
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp1_ptr);
-	if (ret < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp1_ptr) < 0)
 		goto end;
 	resp1 = resp1_ptr;
 
 	sleep(1);
 
-	ret = gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp2_ptr);
-	if (ret < 0)
+	if (gr_api_client_send_recv(c, GR_IFACE_STATS_GET, 0, NULL, &resp2_ptr) < 0)
 		goto end;
 	resp2 = resp2_ptr;
 
-	table = scols_new_table();
-	if (table == NULL) {
-		errorf("failed to create table: %s", strerror(errno));
-		goto end;
-	}
-
-	scols_table_new_column(table, "INTERFACE", 0, 0);
-	scols_table_new_column(table, "RX_PACKETS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_BYTES/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "RX_DROPS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_PACKETS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_BYTES/S", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "TX_ERRORS/S", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "INTERFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "RX_PACKETS/S", GR_DISP_RIGHT | GR_DISP_INT); // 1
+	gr_table_column(table, "RX_BYTES/S", GR_DISP_RIGHT | GR_DISP_INT); // 2
+	gr_table_column(table, "RX_DROPS/S", GR_DISP_RIGHT | GR_DISP_INT); // 3
+	gr_table_column(table, "TX_PACKETS/S", GR_DISP_RIGHT | GR_DISP_INT); // 4
+	gr_table_column(table, "TX_BYTES/S", GR_DISP_RIGHT | GR_DISP_INT); // 5
+	gr_table_column(table, "TX_ERRORS/S", GR_DISP_RIGHT | GR_DISP_INT); // 6
 
 	for (uint16_t i = 0; i < resp2->n_stats; i++) {
 		const struct gr_iface_stats *s2 = &resp2->stats[i];
@@ -462,31 +520,28 @@ static cmd_status_t iface_rates(struct gr_api_client *c, const struct ec_pnode *
 		if (s1 == NULL)
 			continue;
 
-		struct libscols_line *line = scols_table_new_line(table, NULL);
-		if (line == NULL)
-			goto end;
-
 		struct gr_iface *iface = iface_from_id(c, s2->iface_id);
 		if (iface != NULL)
-			scols_line_set_data(line, 0, iface->name);
+			gr_table_cell(table, 0, "%s", iface->name);
 		else
-			scols_line_sprintf(line, 0, "%u", s2->iface_id);
+			gr_table_cell(table, 0, "%u", s2->iface_id);
 		free(iface);
 
-		scols_line_sprintf(line, 1, "%lu", s2->rx_packets - s1->rx_packets);
-		scols_line_sprintf(line, 2, "%lu", s2->rx_bytes - s1->rx_bytes);
-		scols_line_sprintf(line, 3, "%lu", s2->rx_drops - s1->rx_drops);
-		scols_line_sprintf(line, 4, "%lu", s2->tx_packets - s1->tx_packets);
-		scols_line_sprintf(line, 5, "%lu", s2->tx_bytes - s1->tx_bytes);
-		scols_line_sprintf(line, 6, "%lu", s2->tx_errors - s1->tx_errors);
+		gr_table_cell(table, 1, "%lu", s2->rx_packets - s1->rx_packets);
+		gr_table_cell(table, 2, "%lu", s2->rx_bytes - s1->rx_bytes);
+		gr_table_cell(table, 3, "%lu", s2->rx_drops - s1->rx_drops);
+		gr_table_cell(table, 4, "%lu", s2->tx_packets - s1->tx_packets);
+		gr_table_cell(table, 5, "%lu", s2->tx_bytes - s1->tx_bytes);
+		gr_table_cell(table, 6, "%lu", s2->tx_errors - s1->tx_errors);
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
+	gr_table_free(table);
 	status = CMD_SUCCESS;
 
 end:
-	if (table)
-		scols_unref_table(table);
 	free(resp1_ptr);
 	free(resp2_ptr);
 
@@ -513,39 +568,34 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	printf("name: %s\n", iface->name);
+	struct gr_object *o = gr_object_new();
+
+	gr_object_field(o, "name", 0, "%s", iface->name);
 	if (iface->description[0] != '\0')
-		printf("description: %s\n", iface->description);
-	printf("type: %s\n", gr_iface_type_name(iface->type));
-	printf("id: %u\n", iface->id);
-	if (iface_flags_format(buf, sizeof(buf), iface) < 0) {
-		free(iface);
-		return CMD_ERROR;
-	}
-	printf("flags: %s\n", buf);
-	printf("mode: %s\n", gr_iface_mode_name(iface->mode));
+		gr_object_field(o, "description", 0, "%s", iface->description);
+	gr_object_field(o, "type", 0, "%s", gr_iface_type_name(iface->type));
+	gr_object_field(o, "id", GR_DISP_INT, "%u", iface->id);
+	if (iface_flags_format(buf, sizeof(buf), iface) > 0)
+		gr_object_field(o, "flags", GR_DISP_STR_ARRAY, "%s", buf);
+	gr_object_field(o, "mode", 0, "%s", gr_iface_mode_name(iface->mode));
 
-	if (iface->mode == GR_IFACE_MODE_VRF) {
-		struct gr_iface *vrf = iface_from_id(c, iface->vrf_id);
-		printf("vrf: %s\n", vrf ? vrf->name : "[deleted]");
-		free(vrf);
-	} else {
-		struct gr_iface *domain = iface_from_id(c, iface->domain_id);
-		printf("domain: %s\n", domain ? domain->name : "[deleted]");
-		free(domain);
-	}
+	if (iface->mode == GR_IFACE_MODE_VRF)
+		gr_object_field(o, "vrf", 0, "%s", iface_name_from_id(c, iface->vrf_id));
+	else
+		gr_object_field(o, "domain", 0, "%s", iface_name_from_id(c, iface->domain_id));
 
-	printf("mtu: %u\n", iface->mtu);
+	gr_object_field(o, "mtu", GR_DISP_INT, "%u", iface->mtu);
 
 	if (iface->speed == UINT32_MAX)
-		printf("speed: unknown\n");
+		gr_object_field(o, "speed", 0, "unknown");
 	else
-		printf("speed: %u Mb/s\n", iface->speed);
+		gr_object_field(o, "speed", GR_DISP_INT, "%u", iface->speed);
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);
-	type->show(c, iface);
+	type->show(c, iface, o);
 
+	gr_object_free(o);
 	free(iface);
 
 	return CMD_SUCCESS;

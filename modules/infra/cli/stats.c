@@ -3,12 +3,11 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <inttypes.h>
 #include <string.h>
@@ -94,26 +93,25 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 
 	if (req.flags & GR_STATS_F_HW || brief) {
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
+		struct gr_object *o = gr_object_new();
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_stat *s = &resp->stats[i];
 			if (req.flags & GR_STATS_F_HW || brief)
-				printf("%s %lu\n", s->name, s->packets);
+				gr_object_field(o, s->name, GR_DISP_INT, "%lu", s->packets);
 		}
+		gr_object_free(o);
 	} else {
-		struct libscols_table *table = scols_new_table();
-
-		scols_table_new_column(table, "NODE", 0, 0);
-		scols_table_new_column(table, "BATCHES", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "PACKETS", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "PKTS/BATCH", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "CYCLES/BATCH", 0, SCOLS_FL_RIGHT);
-		scols_table_new_column(table, "CYCLES/PKT", 0, SCOLS_FL_RIGHT);
-		scols_table_set_column_separator(table, "  ");
+		struct gr_table *table = gr_table_new();
+		gr_table_column(table, "NODE", GR_DISP_LEFT); // 0
+		gr_table_column(table, "BATCHES", GR_DISP_RIGHT | GR_DISP_INT); // 1
+		gr_table_column(table, "PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 2
+		gr_table_column(table, "PKTS/BATCH", GR_DISP_RIGHT | GR_DISP_FLOAT); // 3
+		gr_table_column(table, "CYCLES/BATCH", GR_DISP_RIGHT | GR_DISP_FLOAT); // 4
+		gr_table_column(table, "CYCLES/PKT", GR_DISP_RIGHT | GR_DISP_FLOAT); // 5
 
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
 
 		for (size_t i = 0; i < resp->n_stats; i++) {
-			struct libscols_line *line = scols_table_new_line(table, NULL);
 			double pkt_call = 0, cycles_pkt = 0, cycles_call = 0;
 			const struct gr_stat *s = &resp->stats[i];
 
@@ -124,16 +122,18 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 			if (s->packets != 0)
 				cycles_pkt = ((double)s->cycles) / ((double)s->packets);
 
-			scols_line_sprintf(line, 0, "%s", s->name);
-			scols_line_sprintf(line, 1, "%lu", s->batches);
-			scols_line_sprintf(line, 2, "%lu", s->packets);
-			scols_line_sprintf(line, 3, "%.01f", pkt_call);
-			scols_line_sprintf(line, 4, "%.01f", cycles_call);
-			scols_line_sprintf(line, 5, "%.01f", cycles_pkt);
+			gr_table_cell(table, 0, "%s", s->name);
+			gr_table_cell(table, 1, "%lu", s->batches);
+			gr_table_cell(table, 2, "%lu", s->packets);
+			gr_table_cell(table, 3, "%.01f", pkt_call);
+			gr_table_cell(table, 4, "%.01f", cycles_call);
+			gr_table_cell(table, 5, "%.01f", cycles_pkt);
+
+			if (gr_table_print_row(table) < 0)
+				continue;
 		}
 
-		scols_print_table(table);
-		scols_unref_table(table);
+		gr_table_free(table);
 	}
 
 	free(resp_ptr);

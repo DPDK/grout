@@ -31,6 +31,7 @@ struct response {
 struct gr_api_client {
 	int sock_fd;
 	STAILQ_HEAD(, response) responses;
+	void *priv;
 };
 
 struct gr_api_client *gr_api_client_connect(const char *sock_path) {
@@ -77,8 +78,18 @@ int gr_api_client_disconnect(struct gr_api_client *client) {
 		free(resp->payload);
 		free(resp);
 	}
+	free(client->priv);
 	free(client);
 	return ret;
+}
+
+void *gr_api_client_get_priv(struct gr_api_client *client) {
+	return client ? client->priv : NULL;
+}
+
+void gr_api_client_set_priv(struct gr_api_client *client, void *priv) {
+	if (client != NULL)
+		client->priv = priv;
 }
 
 static ssize_t send_all(const struct gr_api_client *c, const void *buf, size_t len) {

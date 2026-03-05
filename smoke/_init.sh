@@ -133,12 +133,9 @@ cleanup() {
 	if socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; then
 		# delete interfaces in reverse dependency order
 		for type in vlan port bond vxlan ipip bridge vrf; do
-			grcli interface show type "$type" |
-			while read -r name _; do
-				[ "$name" = NAME ] && continue
-				grcli interface del "$name"
-			done
-		done
+			echo interface show type $type
+		done | grcli -j | jq '.[].name' | sed 's/^/interface del /' |
+		grcli -x
 	fi
 	[ -s $tmp/restore_interfaces ] && sh -x $tmp/restore_interfaces
 
@@ -235,7 +232,8 @@ port_add() {
 }
 
 llocal_addr() {
-	grcli address show iface "$1" | sed -En "s/^$1[[:space:]]+(fe80:.+)\\/64\$/\\1/p"
+	grcli -j address show iface "$1" | jq -r '.[].address' |
+		sed -En 's#(fe80:.*)/.*#\1#p'
 }
 
 if [ "$run_grout" = true ]; then
@@ -314,6 +312,8 @@ else
 		sleep 1
 	done
 fi
+
+smoke_setenv GROUT_PAGER ""
 
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh|fib*_fullview_manualtest.sh)

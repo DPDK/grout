@@ -5,12 +5,11 @@
 #include <gr_cli.h>
 #include <gr_cli_event.h>
 #include <gr_cli_iface.h>
+#include <gr_display.h>
 #include <gr_l2.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 static cmd_status_t vtep_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_flood_add_req req = {
@@ -61,26 +60,21 @@ static cmd_status_t vtep_show(struct gr_api_client *c, const struct ec_pnode *p)
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
 
-	struct libscols_table *table = scols_new_table();
-	scols_table_new_column(table, "VNI", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "VRF", 0, 0);
-	scols_table_new_column(table, "ADDR", 0, 0);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "VNI", GR_DISP_RIGHT | GR_DISP_INT); // 0
+	gr_table_column(table, "VRF", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ADDR", GR_DISP_LEFT); // 2
 
 	gr_api_client_stream_foreach (entry, ret, c, GR_FLOOD_LIST, sizeof(req), &req) {
-		struct libscols_line *line = scols_table_new_line(table, NULL);
+		gr_table_cell(table, 0, "%u", entry->vtep.vni);
+		gr_table_cell(table, 1, "%s", iface_name_from_id(c, entry->vrf_id));
+		gr_table_cell(table, 2, IP4_F, &entry->vtep.addr);
 
-		scols_line_sprintf(line, 0, "%u", entry->vtep.vni);
-
-		struct gr_iface *vrf = iface_from_id(c, entry->vrf_id);
-		scols_line_sprintf(line, 1, "%s", vrf ? vrf->name : "[deleted]");
-		free(vrf);
-
-		scols_line_sprintf(line, 2, IP4_F, &entry->vtep.addr);
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }

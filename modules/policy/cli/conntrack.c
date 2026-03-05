@@ -6,81 +6,70 @@
 #include <gr_cli_iface.h>
 #include <gr_clock.h>
 #include <gr_conntrack.h>
+#include <gr_display.h>
 #include <gr_net_types.h>
-#include <gr_table.h>
 
 #include <ecoli.h>
-#include <libsmartcols.h>
 
 #include <stdint.h>
 
 static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_conntrack *conn;
-	struct libscols_table *table;
 	clock_t now;
 	int ret;
 
-	table = scols_new_table();
-	scols_table_new_column(table, "IFACE", 0, 0);
-	scols_table_new_column(table, "ID", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "STATE", 0, 0);
-	scols_table_new_column(table, "FLOW", 0, 0);
-	scols_table_new_column(table, "SRC", 0, 0);
-	scols_table_new_column(table, "DST", 0, 0);
-	scols_table_new_column(table, "PROTO", 0, 0);
-	scols_table_new_column(table, "SPORT", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "DPORT", 0, SCOLS_FL_RIGHT);
-	scols_table_new_column(table, "LAST_UPDATE", 0, SCOLS_FL_RIGHT);
-	scols_table_set_column_separator(table, "  ");
+	struct gr_table *table = gr_table_new();
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
+	gr_table_column(table, "ID", GR_DISP_RIGHT); // 1
+	gr_table_column(table, "STATE", GR_DISP_LEFT); // 2
+	gr_table_column(table, "FLOW", GR_DISP_LEFT); // 3
+	gr_table_column(table, "SRC", GR_DISP_LEFT); // 4
+	gr_table_column(table, "DST", GR_DISP_LEFT); // 5
+	gr_table_column(table, "PROTO", GR_DISP_LEFT); // 6
+	gr_table_column(table, "SPORT", GR_DISP_RIGHT | GR_DISP_INT); // 7
+	gr_table_column(table, "DPORT", GR_DISP_RIGHT | GR_DISP_INT); // 8
+	gr_table_column(table, "LAST_UPDATE", GR_DISP_RIGHT); // 9
 
 	now = gr_clock_us();
 
 	gr_api_client_stream_foreach (conn, ret, c, GR_CONNTRACK_LIST, 0, NULL) {
-		struct libscols_line *fwd = scols_table_new_line(table, NULL);
-		struct libscols_line *rev = scols_table_new_line(table, NULL);
-		struct gr_iface *iface = iface_from_id(c, conn->iface_id);
-
-		if (iface == NULL)
-			scols_line_sprintf(fwd, 0, "%u", conn->iface_id);
-		else
-			scols_line_sprintf(fwd, 0, "%s", iface->name);
-
-		free(iface);
-
-		scols_line_sprintf(fwd, 1, "0x%08x", conn->id);
-
-		scols_line_sprintf(fwd, 2, "%s", gr_conn_state_name(conn->state));
-
-		scols_line_set_data(fwd, 3, "fwd");
-		scols_line_set_data(rev, 3, "rev");
-
-		scols_line_sprintf(fwd, 4, IP4_F, &conn->fwd_flow.src);
-		scols_line_sprintf(rev, 4, IP4_F, &conn->rev_flow.src);
-		scols_line_sprintf(fwd, 5, IP4_F, &conn->fwd_flow.dst);
-		scols_line_sprintf(rev, 5, IP4_F, &conn->rev_flow.dst);
+		gr_table_cell(table, 0, "%s", iface_name_from_id(c, conn->iface_id));
+		gr_table_cell(table, 1, "0x%08x", conn->id);
+		gr_table_cell(table, 2, "%s", gr_conn_state_name(conn->state));
+		gr_table_cell(table, 3, "fwd");
+		gr_table_cell(table, 4, IP4_F, &conn->fwd_flow.src);
+		gr_table_cell(table, 5, IP4_F, &conn->fwd_flow.dst);
 
 		switch (conn->proto) {
 		case IPPROTO_ICMP:
-			scols_line_set_data(fwd, 6, "ICMP");
+			gr_table_cell(table, 6, "ICMP");
 			break;
 		case IPPROTO_TCP:
-			scols_line_set_data(fwd, 6, "TCP");
+			gr_table_cell(table, 6, "TCP");
 			break;
 		case IPPROTO_UDP:
-			scols_line_set_data(fwd, 6, "UDP");
+			gr_table_cell(table, 6, "UDP");
 			break;
 		}
 
-		scols_line_sprintf(fwd, 7, "%u", ntohs(conn->fwd_flow.src_id));
-		scols_line_sprintf(rev, 7, "%u", ntohs(conn->rev_flow.src_id));
-		scols_line_sprintf(fwd, 8, "%u", ntohs(conn->fwd_flow.dst_id));
-		scols_line_sprintf(rev, 8, "%u", ntohs(conn->rev_flow.dst_id));
+		gr_table_cell(table, 7, "%u", ntohs(conn->fwd_flow.src_id));
+		gr_table_cell(table, 8, "%u", ntohs(conn->fwd_flow.dst_id));
+		gr_table_cell(table, 9, "%lu", (now - conn->last_update) / 1000000);
 
-		scols_line_sprintf(fwd, 9, "%lu", (now - conn->last_update) / 1000000);
+		if (gr_table_print_row(table) < 0)
+			continue;
+
+		gr_table_cell(table, 3, "rev");
+		gr_table_cell(table, 4, IP4_F, &conn->rev_flow.src);
+		gr_table_cell(table, 5, IP4_F, &conn->rev_flow.dst);
+		gr_table_cell(table, 7, "%u", ntohs(conn->rev_flow.src_id));
+		gr_table_cell(table, 8, "%u", ntohs(conn->rev_flow.dst_id));
+
+		if (gr_table_print_row(table) < 0)
+			continue;
 	}
 
-	scols_print_table(table);
-	scols_unref_table(table);
+	gr_table_free(table);
 
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
@@ -100,16 +89,27 @@ static cmd_status_t config_show(struct gr_api_client *c, const struct ec_pnode *
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	printf("used %u (%.01f%%)\n",
-	       resp->used_count,
-	       (100.0 * (float)resp->used_count) / (float)resp->max_count);
-	printf("max %u\n", resp->max_count);
-	printf("closed-timeout %u\n", resp->timeout_closed_sec);
-	printf("new-timeout %u\n", resp->timeout_new_sec);
-	printf("established-udp-timeout %u\n", resp->timeout_udp_established_sec);
-	printf("established-tcp-timeout %u\n", resp->timeout_tcp_established_sec);
-	printf("half-close-timeout %u\n", resp->timeout_half_close_sec);
-	printf("time-wait-timeout %u\n", resp->timeout_time_wait_sec);
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_count);
+	gr_object_field(
+		o,
+		"used_percent",
+		GR_DISP_FLOAT,
+		"%.01f",
+		(100.0 * (float)resp->used_count) / (float)resp->max_count
+	);
+	gr_object_field(o, "max", GR_DISP_INT, "%u", resp->max_count);
+	gr_object_field(o, "closed-timeout", GR_DISP_INT, "%u", resp->timeout_closed_sec);
+	gr_object_field(o, "new-timeout", GR_DISP_INT, "%u", resp->timeout_new_sec);
+	gr_object_field(
+		o, "established-udp-timeout", GR_DISP_INT, "%u", resp->timeout_udp_established_sec
+	);
+	gr_object_field(
+		o, "established-tcp-timeout", GR_DISP_INT, "%u", resp->timeout_tcp_established_sec
+	);
+	gr_object_field(o, "half-close-timeout", GR_DISP_INT, "%u", resp->timeout_half_close_sec);
+	gr_object_field(o, "time-wait-timeout", GR_DISP_INT, "%u", resp->timeout_time_wait_sec);
+	gr_object_free(o);
 
 	free(resp_ptr);
 
