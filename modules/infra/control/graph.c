@@ -32,6 +32,7 @@ static gr_vec char **tx_node_names;
 static rte_node_t port_rx_node;
 static rte_node_t port_tx_node;
 static rte_node_t port_output_node;
+static rte_edge_t port_output_invalid;
 
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node) {
 	rte_node_t parent_id;
@@ -180,14 +181,14 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		ctx->lock = NULL;
 	}
 
-	// initialize the port_output node context to point to invalid edges
+	// initialize the port_output node context to point to the port_output_invalid edge
 	struct port_output_edges *out = rte_malloc(__func__, sizeof(*out), RTE_CACHE_LINE_SIZE);
 	if (out == NULL) {
 		ret = -ENOMEM;
 		goto out;
 	}
 	for (unsigned i = 0; i < ARRAY_DIM(out->edges); i++)
-		out->edges[i] = RTE_EDGE_ID_INVALID;
+		out->edges[i] = port_output_invalid;
 
 	gr_vec_foreach_ref (qmap, worker->txqs) {
 		if (!qmap->enabled)
@@ -334,7 +335,14 @@ static gr_vec rte_node_t *worker_graph_nodes_add_missing(gr_vec struct iface_inf
 		port_output_node, 0, (const char **)tx_node_names, gr_vec_len(tx_node_names)
 	);
 	assert(edge != RTE_EDGE_ID_INVALID);
-	edge = rte_node_edge_shrink(port_output_node, gr_vec_len(tx_node_names));
+	port_output_invalid = gr_vec_len(tx_node_names);
+
+	// this error edge must be last
+	const char *invalid_port = "port_output_invalid";
+	edge = rte_node_edge_update(port_output_node, gr_vec_len(tx_node_names), &invalid_port, 1);
+	assert(edge != RTE_EDGE_ID_INVALID);
+
+	edge = rte_node_edge_shrink(port_output_node, gr_vec_len(tx_node_names) + 1);
 	assert(edge != RTE_EDGE_ID_INVALID);
 
 	// store all unused node_ids in a list to be returned to the caller
