@@ -139,6 +139,8 @@ static cmd_status_t route_get(struct gr_api_client *c, const struct ec_pnode *p)
 }
 
 #define ROUTE_CTX(root) CLI_CONTEXT(root, CTX_ARG("route", "Routing tables."))
+#define CONFIG_CTX(root)                                                                           \
+	CLI_CONTEXT(ROUTE_CTX(root), CTX_ARG("config", "Routing tables configuration."))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -176,8 +178,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"config set vrf VRF [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
+		CONFIG_CTX(root),
+		"set vrf VRF [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
 		" [rib6-routes RIB6_ROUTES] [fib6-tbl8 FIB6_TBL8]",
 		route_config_set,
 		"Configure FIB capacity for a VRF. "
@@ -205,8 +207,8 @@ static int ctx_init(struct ec_node *root) {
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
-		ROUTE_CTX(root),
-		"config [show] [vrf VRF]",
+		CONFIG_CTX(root),
+		"[show] [vrf VRF]",
 		route_config_show,
 		"Show FIB configuration and current sizes.",
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
