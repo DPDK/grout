@@ -92,6 +92,18 @@ ecoli_dep = dependency(
 )
 smartcols_dep = dependency('smartcols')
 
+grout_cflags = []
+if dpdk_dep.type_name() == 'internal'
+  # subproject: the patch is applied, function is always available
+  grout_cflags += ['-DHAVE_RTE_FIB_TBL8_GET_STATS']
+elif compiler.has_function(
+  'rte_fib_tbl8_get_stats',
+  prefix: '#include <rte_fib.h>',
+  dependencies: [dpdk_dep],
+)
+  grout_cflags += ['-DHAVE_RTE_FIB_TBL8_GET_STATS']
+endif
+
 src = []
 inc = []
 
@@ -114,7 +126,7 @@ grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
   dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep],
-  c_args: ['-D__GROUT_MAIN__'],
+  c_args: ['-D__GROUT_MAIN__'] + grout_cflags,
   install: true,
 )
 
@@ -122,7 +134,7 @@ grcli_exe = executable(
   'grcli', cli_src,
   include_directories: cli_inc + api_inc,
   dependencies: [ecoli_dep, smartcols_dep],
-  c_args: cli_cflags,
+  c_args: cli_cflags + grout_cflags,
   install: true,
 )
 

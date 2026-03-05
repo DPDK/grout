@@ -131,6 +131,7 @@ route6_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 			info->max_routes,
 			info->max_routes ? 100.0 * info->used_routes / info->max_routes : 0
 		);
+#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 		scols_line_sprintf(
 			line,
 			3,
@@ -139,6 +140,7 @@ route6_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 			info->num_tbl8,
 			info->num_tbl8 ? 100.0 * info->used_tbl8 / info->num_tbl8 : 0
 		);
+#endif
 	}
 
 	return ret;

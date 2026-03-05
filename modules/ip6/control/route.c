@@ -579,8 +579,10 @@ void rib6_cleanup(struct nexthop *nh) {
 
 METRIC_GAUGE(m_routes, "rib6_routes", "Number of IPv6 routes by origin.");
 METRIC_GAUGE(m_max_routes, "rib6_max_routes", "Maximum number of IPv6 routes.");
+#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 METRIC_GAUGE(m_max_tbl8, "fib6_max_tbl8", "Maximum number of IPv6 FIB tbl8 groups.");
 METRIC_GAUGE(m_used_tbl8, "fib6_used_tbl8", "Used IPv6 FIB tbl8 groups.");
+#endif
 
 static void rib6_metrics_collect(struct gr_metrics_writer *w) {
 	struct gr_metrics_ctx ctx;
@@ -601,13 +603,14 @@ static void rib6_metrics_collect(struct gr_metrics_writer *w) {
 			gr_metric_emit(&ctx, &m_routes, route_counts[vrf_id][o]);
 		}
 
-		uint32_t used_tbl8, total_tbl8;
-		rte_fib6_tbl8_get_stats(vrf_fibs[vrf_id], &used_tbl8, &total_tbl8);
-
 		gr_metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
 		gr_metric_emit(&ctx, &m_max_routes, fib6_get_max_routes(vrf_id));
+#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
+		uint32_t used_tbl8, total_tbl8;
+		rte_fib6_tbl8_get_stats(vrf_fibs[vrf_id], &used_tbl8, &total_tbl8);
 		gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
 		gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
+#endif
 	}
 }
 
@@ -772,7 +775,9 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 			.max_routes = fib6_get_max_routes(v),
 			.used_routes = fib6_total_routes(v),
 		};
+#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 		rte_fib6_tbl8_get_stats(vrf_fibs[v], &info.used_tbl8, &info.num_tbl8);
+#endif
 		api_send(ctx, sizeof(info), &info);
 	}
 
