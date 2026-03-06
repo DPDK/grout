@@ -59,7 +59,7 @@ static cmd_status_t snat44_list(struct gr_api_client *c, const struct ec_pnode *
 		gr_table_cell(table, 2, IP4_F, &policy->replace);
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);

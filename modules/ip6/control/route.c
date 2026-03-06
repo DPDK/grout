@@ -487,57 +487,103 @@ void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv) {
 	}
 }
 
-struct route6_iterator {
-	struct api_ctx *ctx;
-	int ret;
+struct route6_stream {
+	uint16_t vrf_filter;
+	uint16_t cur_vrf;
+	struct rte_rib6_node *node;
+	bool default_done;
 };
 
-static void route6_list_cb(
-	uint16_t vrf_id,
-	const struct rte_ipv6_addr *ip,
-	uint8_t prefixlen,
-	gr_nh_origin_t origin,
-	const struct nexthop *nh,
-	void *priv
-) {
-	struct route6_iterator *iter = priv;
-	if (origin != GR_NH_ORIGIN_INTERNAL && iter->ret == 0) {
-		struct gr_ip6_route *r;
-		struct gr_nexthop *pub;
-		size_t nh_len, len;
+static struct rte_rib6_node *rib6_next_node(struct route6_stream *s, struct rte_rib6 *rib) {
+	static const struct rte_ipv6_addr unspec = RTE_IPV6_ADDR_UNSPEC;
+	struct rte_rib6_node *rn;
 
-		pub = nexthop_to_api(nh, &nh_len);
-		if (pub == NULL) {
-			iter->ret = errno;
-			LOG(ERR, "nexthop_export: %s", strerror(errno));
-			return;
-		}
-
-		len = sizeof(*r) - sizeof(r->nh) + nh_len;
-		r = malloc(len);
-		if (r != NULL) {
-			r->vrf_id = vrf_id;
-			r->dest.ip = *ip;
-			r->dest.prefixlen = prefixlen;
-			r->origin = origin;
-			memcpy(&r->nh, pub, nh_len);
-			api_send(iter->ctx, len, r);
-		} else {
-			iter->ret = ENOMEM;
-			LOG(ERR, "cannot allocate memory");
-		}
-		free(pub);
-		free(r);
+	rn = rte_rib6_get_nxt(rib, &unspec, 0, s->node, RTE_RIB6_GET_NXT_ALL);
+	if (rn != NULL) {
+		s->node = rn;
+		return rn;
 	}
+
+	// rte_rib6_get_nxt does not return the default route (::/0).
+	if (!s->default_done) {
+		s->default_done = true;
+		return rte_rib6_lookup_exact(rib, &unspec, 0);
+	}
+
+	return NULL;
 }
 
-static struct api_out route6_list(const void *request, struct api_ctx *ctx) {
+static void *route6_list_init(const void *request, struct api_ctx *) {
 	const struct gr_ip6_route_list_req *req = request;
-	struct route6_iterator iter = {.ctx = ctx, .ret = 0};
+	struct route6_stream *s = calloc(1, sizeof(*s));
+	if (s == NULL)
+		return NULL;
+	s->vrf_filter = req->vrf_id;
+	return s;
+}
 
-	rib6_iter(req->vrf_id, route6_list_cb, &iter);
+static int route6_list_next(void *state, struct api_ctx *ctx) {
+	struct route6_stream *s = state;
+	struct rte_rib6_node *rn;
+	gr_nh_origin_t *origin;
+	uintptr_t nh_id;
+	struct rte_ipv6_addr ip;
+	uint8_t prefixlen;
 
-	return api_out(iter.ret, 0, NULL);
+	for (;;) {
+		if (s->cur_vrf >= GR_MAX_IFACES)
+			return STREAM_END;
+
+		if (vrf_fibs[s->cur_vrf] == NULL
+		    || (s->vrf_filter != GR_VRF_ID_UNDEF && s->cur_vrf != s->vrf_filter)) {
+			s->cur_vrf++;
+			continue;
+		}
+
+		struct rte_rib6 *rib = rte_fib6_get_rib(vrf_fibs[s->cur_vrf]);
+		rn = rib6_next_node(s, rib);
+		if (rn == NULL) {
+			s->cur_vrf++;
+			s->node = NULL;
+			s->default_done = false;
+			continue;
+		}
+
+		rte_rib6_get_nh(rn, &nh_id);
+		origin = rte_rib6_get_ext(rn);
+		if (*origin == GR_NH_ORIGIN_INTERNAL)
+			continue;
+
+		rte_rib6_get_ip(rn, &ip);
+		rte_rib6_get_depth(rn, &prefixlen);
+		break;
+	}
+
+	const struct nexthop *nh = nh_id_to_ptr(nh_id);
+	struct gr_nexthop *pub;
+	struct gr_ip6_route *r;
+	size_t nh_len, len;
+
+	pub = nexthop_to_api(nh, &nh_len);
+	if (pub == NULL)
+		return -errno;
+
+	len = sizeof(*r) - sizeof(r->nh) + nh_len;
+	r = malloc(len);
+	if (r == NULL) {
+		free(pub);
+		return -ENOMEM;
+	}
+
+	r->vrf_id = s->cur_vrf;
+	r->dest.ip = ip;
+	r->dest.prefixlen = prefixlen;
+	r->origin = *origin;
+	memcpy(&r->nh, pub, nh_len);
+	free(pub);
+	int ret = api_send(ctx, len, r);
+	free(r);
+	return ret;
 }
 
 static void route6_init(struct event_base *) {
@@ -839,7 +885,7 @@ RTE_INIT(control_ip_init) {
 	gr_api_handler(GR_IP6_ROUTE_ADD, route6_add);
 	gr_api_handler(GR_IP6_ROUTE_DEL, route6_del);
 	gr_api_handler(GR_IP6_ROUTE_GET, route6_get);
-	gr_api_handler(GR_IP6_ROUTE_LIST, route6_list);
+	gr_api_handler_stream(GR_IP6_ROUTE_LIST, route6_list_init, route6_list_next);
 	gr_api_handler(GR_IP6_FIB_CONF_SET, fib6_conf_set);
 	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
 	gr_event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);

@@ -66,7 +66,7 @@ static cmd_status_t dhcp_show_cmd(struct gr_api_client *c, const struct ec_pnode
 			gr_table_cell(table, 4, "-");
 
 		if (gr_table_print_row(table) < 0)
-			continue;
+			break;
 	}
 
 	gr_table_free(table);

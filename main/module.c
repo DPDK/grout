@@ -22,12 +22,11 @@ struct module_handlers {
 
 static struct module_handlers *mod_handlers[UINT_NUM_VALUES(uint16_t)];
 
-void __gr_api_handler(uint32_t request_type, gr_api_handler_func callback, const char *name) {
+static struct api_handler *alloc_handler(uint32_t request_type, const char *name) {
 	uint16_t mod = (request_type >> 16) & 0xffff;
 	uint16_t req = request_type & 0xffff;
 	struct module_handlers *mh;
 
-	assert(callback != NULL);
 	assert(name != NULL);
 
 	mh = mod_handlers[mod];
@@ -36,11 +35,30 @@ void __gr_api_handler(uint32_t request_type, gr_api_handler_func callback, const
 		if (mh == NULL)
 			ABORT("calloc(module_handlers)");
 	}
-	if (mh->handlers[req].callback != NULL)
+	if (mh->handlers[req].callback != NULL || mh->handlers[req].stream_init != NULL)
 		ABORT("duplicate api handler type=0x%08x '%s'", request_type, name);
 
-	mh->handlers[req].callback = callback;
 	mh->handlers[req].name = name;
+	return &mh->handlers[req];
+}
+
+void __gr_api_handler(uint32_t request_type, gr_api_handler_func callback, const char *name) {
+	struct api_handler *h = alloc_handler(request_type, name);
+	assert(callback != NULL);
+	h->callback = callback;
+}
+
+void __gr_api_handler_stream(
+	uint32_t request_type,
+	stream_init_func init,
+	stream_next_func next,
+	const char *name
+) {
+	struct api_handler *h = alloc_handler(request_type, name);
+	assert(init != NULL);
+	assert(next != NULL);
+	h->stream_init = init;
+	h->stream_next = next;
 }
 
 const struct api_handler *lookup_api_handler(uint32_t request_type) {
@@ -48,7 +66,8 @@ const struct api_handler *lookup_api_handler(uint32_t request_type) {
 	uint16_t req = request_type & 0xffff;
 	struct module_handlers *mh = mod_handlers[mod];
 
-	if (mh == NULL || mh->handlers[req].callback == NULL)
+	if (mh == NULL
+	    || (mh->handlers[req].callback == NULL && mh->handlers[req].stream_init == NULL))
 		return NULL;
 
 	return &mh->handlers[req];
