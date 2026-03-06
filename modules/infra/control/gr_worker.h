@@ -22,12 +22,18 @@ struct queue_map {
 	bool enabled;
 };
 
+#define GR_MAX_NODE_XSTATS 4
+
 struct node_stats {
 	rte_node_t node_id;
+	rte_node_t parent_id;
 	uint16_t topo_order;
+	uint8_t nb_xstats;
 	uint64_t packets;
 	uint64_t batches;
 	uint64_t cycles;
+	uint64_t xstats[GR_MAX_NODE_XSTATS];
+	uint64_t prev_xstats[GR_MAX_NODE_XSTATS];
 };
 
 struct worker_stats {

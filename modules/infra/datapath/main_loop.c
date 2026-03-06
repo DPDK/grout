@@ -48,6 +48,12 @@ static int node_stats_callback(
 	s->packets += objs_incr;
 	s->batches += stats->calls - stats->prev_calls;
 	s->cycles += stats->cycles - stats->prev_cycles;
+	assert(stats->xstat_cntrs <= GR_MAX_NODE_XSTATS);
+	for (uint8_t i = 0; i < stats->xstat_cntrs; i++) {
+		s->xstats[i] += stats->xstat_count[i] - s->prev_xstats[i];
+		s->prev_xstats[i] = stats->xstat_count[i];
+	}
+	s->nb_xstats = stats->xstat_cntrs;
 
 	return 0;
 }
@@ -58,6 +64,7 @@ static inline void stats_reset(struct worker_stats *stats) {
 		s->packets = 0;
 		s->batches = 0;
 		s->cycles = 0;
+		memset(s->xstats, 0, sizeof(s->xstats));
 	}
 	stats->sleep_cycles = 0;
 	stats->n_sleeps = 0;
@@ -147,6 +154,7 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	gr_vec_foreach (node, nodes) {
 		ctx->node_to_index[node->id] = count;
 		ctx->w_stats->stats[count].node_id = node->id;
+		ctx->w_stats->stats[count].parent_id = node->parent_id;
 		ctx->w_stats->stats[count].topo_order = count;
 		count++;
 	}
