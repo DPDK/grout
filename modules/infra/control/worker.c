@@ -442,7 +442,9 @@ static struct gr_infra_stat *find_stat(gr_vec struct gr_infra_stat *stats, const
 
 gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 	uint64_t loop_cycles = 0, node_cycles = 0, n_loops = 0, pkts = 0;
+	char xname[MEMBER_SIZE(struct gr_infra_stat, name)];
 	gr_vec struct gr_infra_stat *stats = NULL;
+	const struct gr_node_info *info;
 	struct gr_infra_stat *s;
 	struct worker *worker;
 
@@ -455,6 +457,12 @@ gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 		for (unsigned i = 0; i < w_stats->n_stats; i++) {
 			const struct node_stats *n = &w_stats->stats[i];
 			const char *name = rte_node_id_to_name(n->node_id);
+
+			info = gr_node_info_get(n->node_id);
+			if (info == NULL)
+				info = gr_node_info_get(n->parent_id);
+			assert(info != NULL);
+
 			s = find_stat(stats, name);
 			if (s != NULL) {
 				s->packets += n->packets;
@@ -470,6 +478,29 @@ gr_vec struct gr_infra_stat *worker_dump_stats(uint16_t cpu_id) {
 				memccpy(stat.name, name, 0, sizeof(stat.name));
 				gr_vec_add(stats, stat);
 			}
+			for (uint8_t x = 0; x < n->nb_xstats; x++) {
+				snprintf(
+					xname,
+					sizeof(xname),
+					"%s.%s",
+					name,
+					info->node->xstats->xstat_desc[x]
+				);
+				s = find_stat(stats, xname);
+				if (s != NULL) {
+					s->packets += n->xstats[x];
+					s->batches += n->batches;
+				} else {
+					struct gr_infra_stat stat = {
+						.packets = n->xstats[x],
+						.batches = n->batches,
+						.topo_order = n->topo_order,
+					};
+					memccpy(stat.name, xname, 0, sizeof(stat.name));
+					gr_vec_add(stats, stat);
+				}
+			}
+
 			if (strncmp(name, "port_rx-", strlen("port_rx-")) == 0
 			    || strcmp(name, "control_input") == 0)
 				pkts += n->packets;
