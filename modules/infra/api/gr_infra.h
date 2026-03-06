@@ -405,15 +405,6 @@ struct gr_packet_trace_set_req {
 
 // struct gr_packet_trace_set_resp { };
 
-// Enable/disable packet ingress/egress logging.
-#define GR_PACKET_LOG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0043)
-
-struct gr_packet_log_set_req {
-	bool enabled;
-};
-
-// struct gr_packet_log_set_resp { };
-
 // cpu affinities //////////////////////////////////////////////////////////////
 
 // Get the current CPU affinity masks.

@@ -10,6 +10,7 @@ cli_src += files(
   'ecoli.c',
   'exec.c',
   'interact.c',
+  'log.c',
   'main.c',
   'pager.c',
   'quit.c',

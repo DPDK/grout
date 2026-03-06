@@ -131,6 +131,15 @@ struct gr_hello_req {
 };
 // struct gr_hello_resp { };
 
+// Enable/disable packet ingress/egress logging.
+#define GR_LOG_PACKETS_SET REQUEST_TYPE(GR_MAIN_MODULE, 0x0010)
+
+struct gr_log_packets_set_req {
+	bool enabled;
+};
+
+// struct gr_log_packet_set_resp { };
+
 // Subscribe to events of a given type.
 // Use EVENT_TYPE_ALL to subscribe to all event types.
 // Multiple subscriptions to same type update suppression flag.

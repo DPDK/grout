@@ -86,16 +86,6 @@ static cmd_status_t trace_clear(struct gr_api_client *c, const struct ec_pnode *
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t packet_logging_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_packet_log_set_req req = {.enabled = arg_str(p, "enable") != NULL};
-
-	if (gr_api_client_send_recv(c, GR_PACKET_LOG_SET, sizeof(req), &req, NULL) < 0)
-		return CMD_ERROR;
-
-	return CMD_SUCCESS;
-}
-
-#define LOGGING_CTX(root) CLI_CONTEXT(root, CTX_ARG("logging", "Ingress/egress packet logging."))
 #define TRACE_CTX(root) CLI_CONTEXT(root, CTX_ARG("trace", "Packet tracing."))
 
 static int ctx_init(struct ec_node *root) {
@@ -143,22 +133,6 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 
 	ret = CLI_COMMAND(TRACE_CTX(root), "clear", trace_clear, "Clear packet tracing buffer.");
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		LOGGING_CTX(root),
-		"enable|disable",
-		packet_logging_set,
-		"Control logging of ingress/egress packets.",
-		with_help(
-			"Enable logging of ingress/egress packets.", ec_node_str("enable", "enable")
-		),
-		with_help(
-			"Disable logging of ingress/egress packets.",
-			ec_node_str("disable", "disable")
-		)
-	);
 	if (ret < 0)
 		return ret;
 
