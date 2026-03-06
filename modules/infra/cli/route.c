@@ -179,13 +179,14 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CONFIG_CTX(root),
-		"set vrf VRF [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
+		"set (vrf VRF)|default [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
 		" [rib6-routes RIB6_ROUTES] [fib6-tbl8 FIB6_TBL8]",
 		route_config_set,
-		"Configure FIB capacity for a VRF. "
-		"fib-routes is the maximum number of routes. Default: 65536. "
-		"fib-tbl8 overrides the auto-derived internal lookup table "
+		"Configure FIB capacity. "
+		"rib*-routes is the maximum number of routes. Default: 65536. "
+		"fib*-tbl8 overrides the auto-derived internal lookup table "
 		"capacity (for advanced use only).",
+		with_help("Default for new VRFs.", ec_node_str("default", "default")),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"IPv4 maximum number of routes.",
