@@ -148,6 +148,37 @@ int cpuset_parse(cpu_set_t *set, const char *buf) {
 	return 0;
 }
 
+// Matches RTE_LOG_EMERG(1) through RTE_LOG_DEBUG(8).
+static const char *log_level_names[] = {
+	[0] = "disabled",
+	[1] = "emerg",
+	[2] = "alert",
+	[3] = "crit",
+	[4] = "error",
+	[5] = "warning",
+	[6] = "notice",
+	[7] = "info",
+	[8] = "debug",
+};
+
+const char *gr_log_level_name(uint32_t level) {
+	if (level < ARRAY_DIM(log_level_names))
+		return log_level_names[level];
+	return "unknown";
+}
+
+int gr_log_level_parse(const char *name) {
+	if (name == NULL)
+		return errno_set(EINVAL);
+
+	for (unsigned i = 0; i < ARRAY_DIM(log_level_names); i++) {
+		if (strcmp(name, log_level_names[i]) == 0)
+			return i;
+	}
+
+	return errno_set(EINVAL);
+}
+
 int parse_uint(unsigned *u, const char *s, unsigned base, unsigned min, unsigned max) {
 	unsigned long val;
 	char *endptr;

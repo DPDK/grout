@@ -269,21 +269,6 @@ if [ "$run_grout" = true ]; then
 		grout_extra_options+=" -t"
 	fi
 
-	case "$grout_verbose_level" in
-	0)
-		;;
-	1)
-		grout_extra_options+=" -v"
-		;;
-	*)
-		grout_extra_options+=" -vv"
-		;;
-	esac
-
-	if [[ "${trace_enable:-true}" = true ]] ; then
-		grout_extra_options+=" -x"
-	fi
-
 	: "${grout_memory:-""}"
 	if [[ -n "$grout_memory" ]] ; then
 		grout_extra_options+=" -- -m $grout_memory"
@@ -329,10 +314,21 @@ smoke_setenv GROUT_PAGER ""
 
 grcli route config set default rib4-routes 128 rib6-routes 128
 
+case "$grout_verbose_level" in
+0)
+	;;
+1)
+	grcli log level set grout*:info
+	;;
+*)
+	grcli log level set grout*:debug
+	;;
+esac
+
 if [ "${trace_enable:-true}" = true ]; then
+	grcli log packets enable
 	grcli trace enable all
 fi
-
 
 case "${follow_events:-true}" in
 	hide)
