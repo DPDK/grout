@@ -598,6 +598,11 @@ static void graph_init(struct event_base *) {
 			ABORT("info->node == NULL");
 		reg = info->node;
 		reg->parent_id = RTE_NODE_ID_INVALID;
+		if (reg->xstats && reg->xstats->nb_xstats > GR_MAX_NODE_XSTATS)
+			ABORT("node %s has %u xstats (max %u)",
+			      reg->name,
+			      reg->xstats->nb_xstats,
+			      GR_MAX_NODE_XSTATS);
 		reg->id = __rte_node_register(reg);
 		if (reg->id == RTE_NODE_ID_INVALID)
 			ABORT("__rte_node_register(%s): %s", reg->name, rte_strerror(rte_errno));

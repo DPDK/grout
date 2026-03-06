@@ -64,6 +64,9 @@ uint16_t vrf_default_get_or_create(void) {
 int vrf_incref(uint16_t) {
 	return 0;
 }
+const struct gr_node_info *gr_node_info_get(rte_node_t) {
+	return NULL;
+}
 
 struct iface *iface_from_id(uint16_t ifid) {
 	return ifid < ARRAY_DIM(ifaces) ? ifaces[ifid] : NULL;
