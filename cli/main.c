@@ -5,8 +5,8 @@
 #include "dump.h"
 #include "exec.h"
 #include "interact.h"
-#include "log.h"
 #include "pager.h"
+#include "tty.h"
 
 #include <gr_api.h>
 #include <gr_api_client_impl.h>

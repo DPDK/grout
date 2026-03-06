@@ -3,7 +3,7 @@
 
 #include "exec.h"
 #include "interact.h"
-#include "log.h"
+#include "tty.h"
 
 #include <gr_cli.h>
 #include <gr_version.h>
