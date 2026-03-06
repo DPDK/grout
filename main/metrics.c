@@ -20,6 +20,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+GR_LOG_TYPE("main");
+
 static STAILQ_HEAD(, gr_metrics_collector) collectors = STAILQ_HEAD_INITIALIZER(collectors);
 
 void gr_metrics_register(struct gr_metrics_collector *c) {

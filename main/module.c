@@ -16,6 +16,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
+GR_LOG_TYPE("main");
+
 struct module_handlers {
 	struct api_handler handlers[UINT_NUM_VALUES(uint16_t)];
 };

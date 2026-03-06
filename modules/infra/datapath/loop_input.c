@@ -11,6 +11,8 @@
 
 #include <linux/if_tun.h>
 
+GR_LOG_TYPE("graph");
+
 static control_input_t control_to_loopback_input;
 
 control_input_t loopback_get_control_id(void) {

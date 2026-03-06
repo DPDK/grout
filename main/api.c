@@ -26,6 +26,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+GR_LOG_TYPE("api");
+
 static pid_t socket_pid(int fd) {
 	struct ucred cred;
 	socklen_t len;

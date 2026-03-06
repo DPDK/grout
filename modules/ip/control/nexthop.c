@@ -25,6 +25,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
+GR_LOG_TYPE("nexthop");
+
 static control_input_t ip_output_node;
 
 void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {

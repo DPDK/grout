@@ -481,6 +481,7 @@ GR_DROP_REGISTER(sr6_local_no_transit);
 #include <gr_cmocka.h>
 
 int gr_rte_log_type;
+struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));

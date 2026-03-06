@@ -12,6 +12,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+GR_LOG_TYPE("main");
+
 static gr_vec char **socket_paths;
 
 static void unix_cleanup(struct event_base *) {

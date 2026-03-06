@@ -13,6 +13,8 @@
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 
+GR_LOG_TYPE("vrf");
+
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	struct iface *iface = iface_from_id(vrf_id);
 	if (iface == NULL || iface->type != GR_IFACE_TYPE_VRF)

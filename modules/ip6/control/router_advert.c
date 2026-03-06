@@ -19,6 +19,8 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 
+GR_LOG_TYPE("ra");
+
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800
 

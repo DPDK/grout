@@ -26,6 +26,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+GR_LOG_TYPE("loopback");
+
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
 #define GR_LOOPBACK_TUN_NAME_PREFIX "gr-loop"
