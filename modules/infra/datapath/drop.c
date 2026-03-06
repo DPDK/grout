@@ -9,9 +9,15 @@
 
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("trace");
+
 uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	if (unlikely(gr_config.log_packets))
-		RTE_LOG(NOTICE, GROUT, "[drop %s] %u packets\n", node->name, nb_objs);
+		rte_log(RTE_LOG_NOTICE,
+			_gr_log.type_id,
+			"TRACE: [drop %s] %u packets\n",
+			node->name,
+			nb_objs);
 
 	for (int i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];

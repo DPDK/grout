@@ -23,6 +23,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+GR_LOG_TYPE("lacp");
+
 static struct event *lacp_timer;
 
 void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {

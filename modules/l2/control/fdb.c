@@ -12,6 +12,8 @@
 #include <rte_common.h>
 #include <rte_hash.h>
 
+GR_LOG_TYPE("fdb");
+
 struct fdb_key {
 	uint16_t bridge_id;
 	uint16_t vlan_id;

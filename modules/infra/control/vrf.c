@@ -15,6 +15,8 @@
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 
+GR_LOG_TYPE("vrf");
+
 static const struct vrf_fib_ops *fib_ops[256];
 
 void vrf_fib_ops_register(addr_family_t af, const struct vrf_fib_ops *ops) {

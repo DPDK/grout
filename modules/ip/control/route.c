@@ -31,6 +31,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
+GR_LOG_TYPE("route");
+
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 static uint32_t max_routes_default = 1 << 16;

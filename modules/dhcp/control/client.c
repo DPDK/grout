@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+GR_LOG_TYPE("dhcp");
+
 static struct event_base *dhcp_ev_base;
 static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
 static control_input_t dhcp_output;

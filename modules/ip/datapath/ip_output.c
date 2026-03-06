@@ -19,6 +19,8 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("graph");
+
 enum {
 	ETH_OUTPUT = 0,
 	HOLD,

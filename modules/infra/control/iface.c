@@ -22,6 +22,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
+GR_LOG_TYPE("iface");
+
 static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 
 struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];

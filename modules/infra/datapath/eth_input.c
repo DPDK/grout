@@ -12,6 +12,8 @@
 #include <rte_ether.h>
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("graph");
+
 enum {
 	UNKNOWN_ETHER_TYPE = 0,
 	INVALID_IFACE,

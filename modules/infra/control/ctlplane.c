@@ -31,6 +31,8 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 
+GR_LOG_TYPE("ctlplane");
+
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
 static struct rte_mempool *cp_pool;

@@ -10,6 +10,8 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("graph");
+
 #define UNKNOWN_PROTO 0
 static rte_edge_t edges[UINT_NUM_VALUES(uint8_t)] = {UNKNOWN_PROTO};
 

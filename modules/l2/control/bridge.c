@@ -10,6 +10,8 @@
 #include <rte_ether.h>
 #include <rte_hash.h>
 
+GR_LOG_TYPE("bridge");
+
 static int bridge_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
