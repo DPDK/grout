@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include "log.h"
+#include "tty.h"
 
 #include <gr_cli.h>
 
