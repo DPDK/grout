@@ -267,7 +267,6 @@ set -x
 
 if [ "$run_grout" = true ]; then
 	smoke_setenv ASAN_OPTIONS disable_coredump=0
-	smoke_setenv GROUT_MAX_ROUTES_DEFAULT 128
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
@@ -314,6 +313,8 @@ else
 		sleep 1
 	done
 fi
+
+grcli route config set default rib4-routes 128 rib6-routes 128
 
 case "$(basename $0)" in
 config_test.sh|graph_svg_test.sh|fib*_fullview_manualtest.sh)

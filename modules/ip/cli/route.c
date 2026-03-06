@@ -95,14 +95,12 @@ static cmd_status_t route4_get(struct gr_api_client *c, const struct ec_pnode *p
 static cmd_status_t route4_config_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip4_fib_conf_set_req req = {0};
 
-	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
+	if (arg_str(p, "default") != NULL)
+		req.vrf_id = GR_VRF_ID_UNDEF;
+	else if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
-
-	if (arg_u32(p, "RIB4_ROUTES", &req.max_routes) < 0) {
-		if (errno == ENOENT)
-			return CMD_SUCCESS;
+	if (arg_u32(p, "RIB4_ROUTES", &req.max_routes) < 0 && errno != ENOENT)
 		return CMD_ERROR;
-	}
 	if (arg_u32(p, "FIB4_TBL8", &req.num_tbl8) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
@@ -120,9 +118,13 @@ route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 
 	gr_api_client_stream_foreach (info, ret, c, GR_IP4_FIB_INFO_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *vrf = iface_from_id(c, info->vrf_id);
-		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-		free(vrf);
+		if (info->vrf_id == GR_VRF_ID_UNDEF) {
+			scols_line_set_data(line, 0, "default");
+		} else {
+			struct gr_iface *vrf = iface_from_id(c, info->vrf_id);
+			scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
+			free(vrf);
+		}
 		scols_line_set_data(line, 1, "IPv4");
 		scols_line_sprintf(
 			line,
