@@ -77,16 +77,9 @@ static struct api_out clear_trace(const void * /*request*/, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
-static struct api_out packet_log_set(const void *request, struct api_ctx *) {
-	const struct gr_packet_log_set_req *req = request;
-	gr_config.log_packets = req->enabled;
-	return api_out(0, 0, NULL);
-}
-
 RTE_INIT(trace_init) {
 	gr_api_handler(GR_PACKET_TRACE_SET, set_trace);
 	gr_api_handler(GR_PACKET_TRACE_DUMP, dump_trace);
 	gr_api_handler(GR_PACKET_TRACE_CLEAR, clear_trace);
-	gr_api_handler(GR_PACKET_LOG_SET, packet_log_set);
 	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
 }

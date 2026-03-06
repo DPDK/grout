@@ -6,6 +6,7 @@ src += files(
   'control_queue.c',
   'dpdk.c',
   'event.c',
+  'log.c',
   'main.c',
   'metrics.c',
   'module.c',
