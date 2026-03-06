@@ -541,7 +541,6 @@ static struct api_out route6_list(const void *request, struct api_ctx *ctx) {
 }
 
 static void route6_init(struct event_base *) {
-	parse_uint(&max_routes_default, getenv("GROUT_MAX_ROUTES_DEFAULT"), 10, 1, UINT32_MAX);
 	vrf_fibs = rte_calloc(
 		__func__, GR_MAX_IFACES, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE
 	);
@@ -717,6 +716,21 @@ static struct api_out fib6_conf_set(const void *request, struct api_ctx *) {
 	struct rte_fib6 *old_fib, *new_fib;
 	const struct iface *vrf;
 
+	if (req->vrf_id == GR_VRF_ID_UNDEF) {
+		if (req->max_routes == 0)
+			return api_out(EINVAL, 0, NULL);
+		if (req->max_routes != max_routes_default) {
+			LOG(INFO,
+			    "changing default max_routes %u -> %u num_tbl8 %u -> %u",
+			    max_routes_default,
+			    req->max_routes,
+			    fib6_auto_tbl8(max_routes_default),
+			    fib6_auto_tbl8(req->max_routes));
+			max_routes_default = req->max_routes;
+		}
+		return api_out(0, 0, NULL);
+	}
+
 	if (req->vrf_id >= GR_MAX_IFACES)
 		return api_out(EOVERFLOW, 0, NULL);
 
@@ -764,19 +778,28 @@ static struct api_out fib6_conf_set(const void *request, struct api_ctx *) {
 
 static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip6_fib_info_list_req *req = request;
+	struct gr_fib6_info info;
+
+	info.vrf_id = GR_VRF_ID_UNDEF;
+	info.max_routes = max_routes_default;
+	info.used_routes = 0;
+	info.num_tbl8 = fib6_auto_tbl8(max_routes_default);
+	info.used_tbl8 = 0;
+	api_send(ctx, sizeof(info), &info);
 
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		if (v != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
 			continue;
 		if (vrf_fibs[v] == NULL)
 			continue;
-		struct gr_fib6_info info = {
-			.vrf_id = v,
-			.max_routes = fib6_get_max_routes(v),
-			.used_routes = fib6_total_routes(v),
-		};
+		info.vrf_id = v;
+		info.max_routes = fib6_get_max_routes(v);
+		info.used_routes = fib6_total_routes(v);
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 		rte_fib6_tbl8_get_stats(vrf_fibs[v], &info.used_tbl8, &info.num_tbl8);
+#else
+		info.num_tbl8 = fib6_get_num_tbl8(v);
+		info.used_tbl8 = 0;
 #endif
 		api_send(ctx, sizeof(info), &info);
 	}
