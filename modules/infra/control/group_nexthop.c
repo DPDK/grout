@@ -9,6 +9,8 @@
 
 #include <stdint.h>
 
+GR_LOG_TYPE("nexthop");
+
 static bool group_equal(const struct nexthop *a, const struct nexthop *b) {
 	const struct nexthop_info_group *da = nexthop_info_group(a);
 	const struct nexthop_info_group *db = nexthop_info_group(b);

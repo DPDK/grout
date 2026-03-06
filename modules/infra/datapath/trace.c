@@ -26,6 +26,8 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 
+GR_LOG_TYPE("trace");
+
 static inline const char *eth_type_str(rte_be16_t type) {
 	switch (type) {
 	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
@@ -560,7 +562,7 @@ ipv4:
 end:
 	SAFE_BUF(snprintf, sizeof(buf), ", (pkt_len=%u)", m->pkt_len);
 
-	RTE_LOG(NOTICE, GROUT, "[%s %s] %s\n", node, iface, buf);
+	rte_log(RTE_LOG_NOTICE, _gr_log.type_id, "TRACE: [%s %s] %s\n", node, iface, buf);
 	return;
 err:
 	LOG(ERR, "[%s %s] snprintf failed: %s", node, iface, strerror(errno));

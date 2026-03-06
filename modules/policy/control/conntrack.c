@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <string.h>
 
+GR_LOG_TYPE("conntrack");
+
 #define CONN_FLOW_COUNT 2
 #define CONN_S_COUNT (CONN_S_TIME_WAIT + 1)
 

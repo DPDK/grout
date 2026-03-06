@@ -5,6 +5,8 @@
 
 #include <gr_log.h>
 
+GR_LOG_TYPE("dhcp");
+
 int dhcp_parse_options(
 	const uint8_t *options,
 	uint16_t options_len,

@@ -12,6 +12,8 @@
 #include <gr_trace.h>
 #include <gr_vlan.h>
 
+GR_LOG_TYPE("graph");
+
 enum {
 	IFACE_MODE_UNKNOWN = 0,
 	IFACE_DOWN,

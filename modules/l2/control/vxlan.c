@@ -20,6 +20,8 @@
 #include <stdatomic.h>
 #include <string.h>
 
+GR_LOG_TYPE("vxlan");
+
 struct vxlan_key {
 	rte_be32_t vni;
 	// Use uint32_t to avoid padding issues. See ipip_key in ipip/control.c.

@@ -13,6 +13,8 @@
 #include <rte_malloc.h>
 #include <rte_version.h>
 
+GR_LOG_TYPE("graph");
+
 enum {
 	UNKNOWN_CONTROL_INPUT_TYPE,
 	EDGE_COUNT,
