@@ -60,6 +60,37 @@ static void ipv6(void **) {
 	assert_string_equal(buf, "(nil)");
 }
 
+static void ipv4_net(void **) {
+	struct ip4_net net = {.ip = htonl(0xc0a80100), .prefixlen = 24};
+	char buf[64];
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), IP4_NET_F, &net);
+	assert_string_equal(buf, "192.168.1.0/24");
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), IP4_NET_F, NULL);
+	assert_string_equal(buf, "(nil)");
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), ADDR_F, NET_W(AF_INET), &net);
+	assert_string_equal(buf, "192.168.1.0/24");
+}
+
+static void ipv6_net(void **) {
+	struct ip6_net net = {
+		.ip = {.a = {0x20, 0x01, 0x0d, 0xb8}},
+		.prefixlen = 32,
+	};
+	char buf[64];
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), IP6_NET_F, &net);
+	assert_string_equal(buf, "2001:db8::/32");
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), IP6_NET_F, NULL);
+	assert_string_equal(buf, "(nil)");
+	buf[0] = 0;
+	snprintf(buf, sizeof(buf), ADDR_F, NET_W(AF_INET6), &net);
+	assert_string_equal(buf, "2001:db8::/32");
+}
+
 static void pointers(void **) {
 	void *p = (void *)(uintptr_t)0x7ffd3aae340c;
 	char buf[64];
@@ -88,6 +119,8 @@ int main(void) {
 		cmocka_unit_test(ether),
 		cmocka_unit_test(ipv4),
 		cmocka_unit_test(ipv6),
+		cmocka_unit_test(ipv4_net),
+		cmocka_unit_test(ipv6_net),
 		cmocka_unit_test(pointers),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
