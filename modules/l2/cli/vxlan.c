@@ -13,28 +13,26 @@
 
 static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	const struct gr_iface_info_vxlan *vxlan = (const struct gr_iface_info_vxlan *)iface->info;
-	struct gr_iface *vrf = iface_from_id(c, vxlan->encap_vrf_id);
+
 	printf("vni: %u\n", vxlan->vni);
 	printf("local: " IP4_F "\n", &vxlan->local);
-	printf("encap_vrf: %s\n", vrf ? vrf->name : "[deleted]");
+	printf("encap_vrf: %s\n", iface_name_from_id(c, vxlan->encap_vrf_id));
 	printf("dst_port: %u\n", vxlan->dst_port);
 	printf("mac: " ETH_F "\n", &vxlan->mac);
-	free(vrf);
 }
 
 static void
 vxlan_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_vxlan *vxlan = (const struct gr_iface_info_vxlan *)iface->info;
-	struct gr_iface *vrf = iface_from_id(c, vxlan->encap_vrf_id);
+
 	snprintf(
 		buf,
 		len,
 		"vni=%u local=" IP4_F " encap_vrf=%s",
 		vxlan->vni,
 		&vxlan->local,
-		vrf ? vrf->name : "[deleted]"
+		iface_name_from_id(c, vxlan->encap_vrf_id)
 	);
-	free(vrf);
 }
 
 static struct cli_iface_type vxlan_type = {

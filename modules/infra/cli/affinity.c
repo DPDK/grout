@@ -86,14 +86,8 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 
 	gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-
 		scols_line_sprintf(line, 0, "%u", q->cpu_id);
-		struct gr_iface *iface = iface_from_id(c, q->iface_id);
-		if (iface != NULL)
-			scols_line_sprintf(line, 1, "%s", iface->name);
-		else
-			scols_line_sprintf(line, 1, "%u", q->iface_id);
-		free(iface);
+		scols_line_sprintf(line, 1, "%s", iface_name_from_id(c, q->iface_id));
 		scols_line_sprintf(line, 2, "%u", q->rxq_id);
 		scols_line_sprintf(line, 3, "%u", q->enabled);
 	}
