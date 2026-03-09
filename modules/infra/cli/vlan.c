@@ -16,28 +16,22 @@
 
 static void vlan_show(struct gr_api_client *c, const struct gr_iface *iface) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
-	struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
 
-	if (parent == NULL)
-		printf("parent: %u\n", vlan->parent_id);
-	else
-		printf("parent: %s\n", parent->name);
+	printf("parent: %s\n", iface_name_from_id(c, vlan->parent_id));
 	printf("vlan_id: %u\n", vlan->vlan_id);
-
-	free(parent);
 }
 
 static void
 vlan_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_vlan *vlan = PAYLOAD(iface);
-	struct gr_iface *parent = iface_from_id(c, vlan->parent_id);
 
-	if (parent == NULL)
-		snprintf(buf, len, "parent=%u vlan_id=%u", vlan->parent_id, vlan->vlan_id);
-	else
-		snprintf(buf, len, "parent=%s vlan_id=%u", parent->name, vlan->vlan_id);
-
-	free(parent);
+	snprintf(
+		buf,
+		len,
+		"parent=%s vlan_id=%u",
+		iface_name_from_id(c, vlan->parent_id),
+		vlan->vlan_id
+	);
 }
 
 static struct cli_iface_type vlan_type = {

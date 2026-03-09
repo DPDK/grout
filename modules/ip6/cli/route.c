@@ -56,9 +56,7 @@ static int route6_list(struct gr_api_client *c, uint16_t vrf_id, struct libscols
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP6_ROUTE_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
-		struct gr_iface *vrf = iface_from_id(c, route->vrf_id);
-		scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-		free(vrf);
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, route->vrf_id));
 		scols_line_sprintf(line, 1, IP6_F "/%hhu", &route->dest, route->dest.prefixlen);
 		scols_line_sprintf(line, 2, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
@@ -120,9 +118,7 @@ route6_config_show(struct gr_api_client *c, uint16_t vrf_id, struct libscols_tab
 		if (info->vrf_id == GR_VRF_ID_UNDEF) {
 			scols_line_set_data(line, 0, "default");
 		} else {
-			struct gr_iface *vrf = iface_from_id(c, info->vrf_id);
-			scols_line_sprintf(line, 0, "%s", vrf ? vrf->name : "[deleted]");
-			free(vrf);
+			scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, info->vrf_id));
 		}
 		scols_line_set_data(line, 1, "IPv6");
 		scols_line_sprintf(

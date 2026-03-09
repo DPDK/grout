@@ -127,18 +127,14 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 	gr_api_client_stream_foreach (fdb, ret, c, GR_FDB_LIST, sizeof(req), &req) {
 		struct libscols_line *line = scols_table_new_line(table, NULL);
 
-		struct gr_iface *bridge = iface_from_id(c, fdb->bridge_id);
-		scols_line_sprintf(line, 0, "%s", bridge ? bridge->name : "[deleted]");
-		free(bridge);
+		scols_line_sprintf(line, 0, "%s", iface_name_from_id(c, fdb->bridge_id));
 
 		scols_line_sprintf(line, 1, ETH_F, &fdb->mac);
 
 		if (fdb->vlan_id != 0)
 			scols_line_sprintf(line, 2, "%u", fdb->vlan_id);
 
-		struct gr_iface *iface = iface_from_id(c, fdb->iface_id);
-		scols_line_sprintf(line, 3, "%s", iface ? iface->name : "[deleted]");
-		free(iface);
+		scols_line_sprintf(line, 3, "%s", iface_name_from_id(c, fdb->iface_id));
 
 		if (fdb->vtep != 0)
 			scols_line_sprintf(line, 4, IP4_F, &fdb->vtep);

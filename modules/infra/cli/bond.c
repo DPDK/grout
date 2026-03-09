@@ -50,11 +50,8 @@ static void bond_show(struct gr_api_client *c, const struct gr_iface *iface) {
 static void
 bond_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_bond *bond = PAYLOAD(iface);
-	struct gr_iface *i = NULL;
 	uint16_t member_iface_id;
 	size_t n = 0;
-
-	errno = 0;
 
 	SAFE_BUF(
 		snprintf,
@@ -69,18 +66,14 @@ bond_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf,
 	case GR_BOND_MODE_ACTIVE_BACKUP:
 		assert(bond->primary_member < ARRAY_DIM(bond->members));
 		member_iface_id = bond->members[bond->primary_member].iface_id;
-		if ((i = iface_from_id(c, member_iface_id)) == NULL)
-			SAFE_BUF(snprintf, len, " primary=%u", member_iface_id);
-		else
-			SAFE_BUF(snprintf, len, " primary=%s", i->name);
+		SAFE_BUF(snprintf, len, " primary=%s", iface_name_from_id(c, member_iface_id));
 		break;
 	case GR_BOND_MODE_LACP:
 		SAFE_BUF(snprintf, len, " algo=%s", gr_bond_algo_name(bond->algo));
 		break;
 	}
 
-err:
-	free(i);
+err:;
 }
 
 static struct cli_iface_type bond_type = {
