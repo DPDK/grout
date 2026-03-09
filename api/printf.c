@@ -34,6 +34,14 @@ static int format_pointer(FILE *f, const struct printf_info *info, const void *c
 	case 6: // struct rte_ipv6_addr *
 		inet_ntop(AF_INET6, arg, buf, sizeof(buf));
 		return fprintf(f, "%s", buf);
+	case 32: // struct ip4_net *
+		const struct ip4_net *net4 = arg;
+		inet_ntop(AF_INET, &net4->ip, buf, sizeof(buf));
+		return fprintf(f, "%s/%hhu", buf, net4->prefixlen);
+	case 128: // struct ip6_net *
+		const struct ip6_net *net6 = arg;
+		inet_ntop(AF_INET6, &net6->ip, buf, sizeof(buf));
+		return fprintf(f, "%s/%hhu", buf, net6->prefixlen);
 	}
 
 	return fprintf(f, "0x%lx", (uintptr_t)arg);

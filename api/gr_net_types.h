@@ -60,10 +60,15 @@ static inline bool gr_af_valid(addr_family_t af) {
 #define IP4_F "%4p"
 // struct rte_ipv6_addr *
 #define IP6_F "%6p"
-// Either ETH_F, IP4 or IP6 depending on the width argument
+// struct ip4_net *
+#define IP4_NET_F "%32p"
+// struct ip6_net *
+#define IP6_NET_F "%128p"
+// Either ETH_F, IP4_F, IP6_F, IP4_NET_F or IP6_NET_F depending on the width argument
 #define ADDR_F "%*p"
 
 #define ADDR_W(family) (family == AF_INET ? 4 : (family == AF_INET6 ? 6 : 0))
+#define NET_W(family) (family == AF_INET ? 32 : (family == AF_INET6 ? 128 : 0))
 
 #define ETH_ADDR_RE "^[[:xdigit:]]{2}(:[[:xdigit:]]{2}){5}$"
 

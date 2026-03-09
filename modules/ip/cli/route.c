@@ -55,7 +55,7 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, route->vrf_id));
-		gr_table_cell(table, 1, IP4_F "/%hhu", &route->dest.ip, route->dest.prefixlen);
+		gr_table_cell(table, 1, IP4_NET_F, &route->dest);
 		gr_table_cell(table, 2, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
 			gr_table_cell(table, 3, "%s", buf);
@@ -176,11 +176,10 @@ static void route_event_print(uint32_t event, const void *obj) {
 
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), NULL, &r->nh, true);
-	printf("route %s: vrf=%u " IP4_F "/%hhu origin=%s via %s\n",
+	printf("route %s: vrf=%u " IP4_NET_F " origin=%s via %s\n",
 	       action,
 	       r->vrf_id,
-	       &r->dest.ip,
-	       r->dest.prefixlen,
+	       &r->dest,
 	       gr_nh_origin_name(r->origin),
 	       buf);
 }

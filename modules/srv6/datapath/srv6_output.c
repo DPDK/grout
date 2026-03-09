@@ -33,9 +33,9 @@ struct trace_srv6_data {
 static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
 	const struct trace_srv6_data *t = data;
 	if (t->is_dest6)
-		return snprintf(buf, len, "match=" IP6_F "/%hhu", &t->dest6.ip, t->dest6.prefixlen);
+		return snprintf(buf, len, "match=" IP6_NET_F, &t->dest6);
 	else
-		return snprintf(buf, len, "match=" IP4_F "/%hhu", &t->dest4.ip, t->dest4.prefixlen);
+		return snprintf(buf, len, "match=" IP4_NET_F, &t->dest4);
 }
 
 // called from 'ip6_output' or 'ip_output' node
