@@ -33,7 +33,7 @@ vxlan_flood_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			if (flood_count == 0) {
 				copy = m;
 			} else {
-				copy = gr_mbuf_copy(m, UINT32_MAX, sizeof(struct mbuf_data));
+				copy = gr_mbuf_copy(m, UINT32_MAX);
 				if (copy == NULL)
 					continue;
 			}

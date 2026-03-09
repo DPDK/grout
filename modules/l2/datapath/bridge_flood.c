@@ -31,7 +31,7 @@ copy_packet(struct rte_mbuf *m, uint16_t copy_count, const struct iface *output_
 	if (copy_count == 0) {
 		copy = m;
 	} else {
-		copy = gr_mbuf_copy(m, UINT32_MAX, sizeof(struct mbuf_data));
+		copy = gr_mbuf_copy(m, UINT32_MAX);
 		if (copy == NULL) {
 			// TODO: add xstat
 			return NULL;
