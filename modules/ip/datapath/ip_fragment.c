@@ -100,9 +100,7 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		// Create remaining fragments
 		for (i = 1; i < num_frags; i++) {
 			// Create new fragment, copying the original IPv4 header.
-			frag_mbuf = gr_mbuf_copy(
-				mbuf, ip_hdr_len, sizeof(struct ip_output_mbuf_data)
-			);
+			frag_mbuf = gr_mbuf_copy(mbuf, ip_hdr_len);
 			if (unlikely(frag_mbuf == NULL)) {
 				break;
 			}
