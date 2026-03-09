@@ -10,4 +10,3 @@
 int port_mac_add(struct iface *, const struct rte_ether_addr *);
 int port_mac_del(struct iface *, const struct rte_ether_addr *);
 int port_promisc_set(struct iface *, bool enabled);
-int port_allmulti_set(struct iface *, bool enabled);

@@ -44,5 +44,4 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	} filter;
 });
 
-uint32_t port_get_rxq_buffer_us(uint16_t port_id, uint16_t rxq_id);
 const struct iface *port_get_iface(uint16_t port_id);
