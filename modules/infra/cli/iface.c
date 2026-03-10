@@ -164,20 +164,32 @@ struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	return resp_ptr;
 }
 
+static char name_cache[GR_MAX_IFACES][IFNAMSIZ];
+
+static void cache_reset(void) {
+	// flush the cache before every command to ensure the names are consistent
+	memset(name_cache, 0, sizeof(name_cache));
+}
+
 const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
 	if (ifid == GR_IFACE_ID_UNDEF)
 		return "";
-	if (ifid >= GR_MAX_IFACES)
+	if (ifid >= ARRAY_DIM(name_cache))
 		return "[???]";
 
-	struct gr_iface *iface = iface_from_id(c, ifid);
-	if (iface == NULL)
-		return "[deleted]";
-	static char name[IFNAMSIZ];
-	snprintf(name, sizeof(name), "%s", iface->name);
-	free(iface);
+	if (name_cache[ifid][0] == '\0') {
+		struct gr_iface *iface = iface_from_id(c, ifid);
+		if (iface != NULL) {
+			snprintf(name_cache[ifid], sizeof(name_cache[ifid]), "%s", iface->name);
+		} else {
+			// interface was deleted or outdated interface id
+			// store the raw id to avoid repeated queries
+			snprintf(name_cache[ifid], sizeof(name_cache[ifid]), "%u", ifid);
+		}
+		free(iface);
+	}
 
-	return name;
+	return name_cache[ifid];
 }
 
 static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *iface) {
@@ -605,6 +617,7 @@ static int ctx_init(struct ec_node *root) {
 static struct cli_context ctx = {
 	.name = "infra iface",
 	.init = ctx_init,
+	.pre_cmd = cache_reset,
 };
 
 static void iface_event_print(uint32_t event, const void *obj) {
