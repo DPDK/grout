@@ -11,11 +11,16 @@
 
 #include <sys/queue.h>
 
-typedef int (*cli_ctx_init_t)(struct ec_node *root);
-
 struct cli_context {
 	const char *name;
-	cli_ctx_init_t init;
+
+	// Called once at program initialization to populate the command grammar tree.
+	int (*init)(struct ec_node *root);
+	// Called before the execution of every command.
+	void (*pre_cmd)(void);
+	// Called after the execution of every command.
+	void (*post_cmd)(void);
+
 	STAILQ_ENTRY(cli_context) next;
 };
 

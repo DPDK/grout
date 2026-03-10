@@ -5,5 +5,3 @@
 
 void pager_init(void);
 void pager_disable(void);
-void pager_start(void);
-void pager_stop(void);
