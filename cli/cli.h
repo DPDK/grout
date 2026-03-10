@@ -11,6 +11,11 @@
 
 #include <sys/queue.h>
 
+#ifndef EC_INTERACT_HELP_ATTR
+// Compatibility with libecoli < 0.11
+#define EC_INTERACT_HELP_ATTR EC_EDITLINE_HELP_ATTR
+#endif
+
 struct cli_context {
 	const char *name;
 
