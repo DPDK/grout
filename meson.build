@@ -105,7 +105,7 @@ elif compiler.has_function(
 endif
 
 src = []
-inc = []
+inc = [include_directories('.')]
 
 api_inc = []
 api_headers = []
@@ -122,10 +122,38 @@ subdir('modules')
 subdir('cli')
 subdir('frr')
 
+gr_mbuf_src = custom_target(
+  'gr_mbuf_priv.c',
+  input: run_command('grep', '-rl', '^GR_MBUF_PRIV_DATA_TYPE', capture: true, check: true).stdout().strip().split('\n'),
+  output: 'gr_mbuf_priv.c',
+  command: ['python3',  files('buildtools/extract-gr-mbuf-types.py'), '@INPUT@'],
+  capture: true,
+)
+gr_mbuf_priv = executable(
+  'gr_mbuf_priv',
+  gr_mbuf_src,
+  include_directories: inc + api_inc,
+  dependencies: [dpdk_dep.partial_dependency(compile_args: true, includes: true)],
+  c_args: ['-D__GROUT_MAIN__', '-fms-extensions'] + grout_cflags,
+  build_by_default: false,
+  native: true,
+)
+gr_mbuf_priv_h = custom_target(
+  'gr_mbuf_priv.h',
+  output: 'gr_mbuf_priv.h',
+  command: [gr_mbuf_priv],
+  capture: true,
+  depends: gr_mbuf_priv,
+)
+gr_dep = declare_dependency(
+  sources: gr_mbuf_priv_h,
+  include_directories: include_directories('.'),
+)
+
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep, gr_dep],
   c_args: ['-D__GROUT_MAIN__'] + grout_cflags,
   install: true,
 )
@@ -166,7 +194,7 @@ if cmocka_dep.found()
       'include_directories': inc + api_inc,
       'c_args': ['-D__GROUT_MAIN__', '-D__GROUT_UNIT_TEST__'],
       'link_args': t['link_args'],
-      'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, ecoli_dep, cmocka_dep],
+      'dependencies': [dpdk_dep, ev_core_dep, ev_thread_dep, numa_dep, gr_dep, ecoli_dep, cmocka_dep],
     }
     test(name, executable(name, kwargs: t), suite: 'unit')
   endforeach
