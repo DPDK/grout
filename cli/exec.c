@@ -3,7 +3,6 @@
 
 #include "exec.h"
 #include "log.h"
-#include "pager.h"
 
 #include <gr_cli.h>
 #include <gr_macro.h>
@@ -16,6 +15,8 @@
 static STAILQ_HEAD(, cli_context) contexts = STAILQ_HEAD_INITIALIZER(contexts);
 
 void cli_context_register(struct cli_context *ctx) {
+	assert(ctx != NULL);
+	assert(ctx->init || ctx->pre_cmd || ctx->post_cmd);
 	STAILQ_INSERT_HEAD(&contexts, ctx, next);
 }
 
@@ -27,7 +28,7 @@ struct ec_node *init_commands(void) {
 		goto fail;
 
 	STAILQ_FOREACH (ctx, &contexts, next) {
-		if (ctx->init(root) < 0) {
+		if (ctx->init != NULL && ctx->init(root) < 0) {
 			errorf("context init %s: %s", ctx->name, strerror(errno));
 			goto fail;
 		}
@@ -197,6 +198,7 @@ static exec_status_t exec_strvec(
 	exec_status_t status = EXEC_OTHER_ERROR;
 	struct ec_pnode *parsed = NULL;
 	struct ec_strvec *args = NULL;
+	struct cli_context *ctx;
 	cmd_cb_t cb;
 
 	if (ec_strvec_len(vec) == 0) {
@@ -223,7 +225,11 @@ static exec_status_t exec_strvec(
 		status = EXEC_CB_UNDEFINED;
 		goto out;
 	}
-	pager_start();
+
+	STAILQ_FOREACH (ctx, &contexts, next) {
+		if (ctx->pre_cmd != NULL)
+			ctx->pre_cmd();
+	}
 	switch (cb(client, parsed)) {
 	case CMD_SUCCESS:
 		status = EXEC_SUCCESS;
@@ -235,7 +241,10 @@ static exec_status_t exec_strvec(
 		status = EXEC_CMD_FAILED;
 		break;
 	}
-	pager_stop();
+	STAILQ_FOREACH (ctx, &contexts, next) {
+		if (ctx->post_cmd != NULL)
+			ctx->post_cmd();
+	}
 out:
 	print_status(status, cmdlist, args);
 	ec_strvec_free(args);

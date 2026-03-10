@@ -71,7 +71,7 @@ void pager_disable(void) {
 	disabled = true;
 }
 
-void pager_start(void) {
+static void pager_start(void) {
 	int fds[2];
 
 	if (disabled)
@@ -122,7 +122,7 @@ void pager_start(void) {
 	signal(SIGCHLD, SIG_IGN);
 }
 
-void pager_stop(void) {
+static void pager_stop(void) {
 	if (saved_stdout < 0)
 		return;
 
@@ -141,4 +141,14 @@ void pager_stop(void) {
 
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGPIPE, SIG_DFL);
+}
+
+static struct cli_context ctx = {
+	.name = "pager",
+	.pre_cmd = pager_start,
+	.post_cmd = pager_stop,
+};
+
+static void __attribute__((constructor, used)) init(void) {
+	cli_context_register(&ctx);
 }
