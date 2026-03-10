@@ -80,7 +80,7 @@ mnl_dep = dependency('libmnl')
 numa_dep = dependency('numa')
 ecoli_dep = dependency(
   'libecoli',
-  version: '>= 0.10.0',
+  version: '>= 0.11.0',
   fallback: ['ecoli', 'libecoli_dep'],
   default_options: [
     'doc=disabled',
