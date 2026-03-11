@@ -596,6 +596,7 @@ void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_l
 
 	trace = data;
 	trace->node_id = node->id;
+	trace->parent_id = node->parent_id;
 	trace->len = data_len;
 
 	if (STAILQ_EMPTY(traces)) {
@@ -633,6 +634,7 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src) {
 		dst_trace->ts = src_trace->ts;
 		dst_trace->cpu_id = src_trace->cpu_id;
 		dst_trace->node_id = src_trace->node_id;
+		dst_trace->parent_id = src_trace->parent_id;
 		dst_trace->len = src_trace->len;
 		memcpy(dst_trace->data, src_trace->data, src_trace->len);
 
@@ -689,7 +691,10 @@ int gr_trace_dump(
 
 		while (t) {
 			SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
-			if ((info = gr_node_info_get(t->node_id)) != NULL && info->trace_format) {
+			info = gr_node_info_get(t->node_id);
+			if (info == NULL)
+				info = gr_node_info_get(t->parent_id);
+			if (info != NULL && info->trace_format) {
 				SAFE_BUF(snprintf, len, " ");
 				SAFE_BUF(info->trace_format, len, t->data, t->len);
 			}
