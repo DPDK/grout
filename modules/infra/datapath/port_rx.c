@@ -15,16 +15,44 @@ enum {
 	NB_EDGES,
 };
 
-int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
-	rxtx_flags_t flags = *(const rxtx_flags_t *)data;
+// Copy flags into buf stripping the "RTE_MBUF_F_" prefixes from flag names.
+static ssize_t strip_rte_mbuf_prefixes(char *buf, size_t len, char *flags) {
+	static const char prefix[] = "RTE_MBUF_F_";
+	char *save, *tok;
 	size_t n = 0;
 
-	if (flags & RXTX_F_VLAN_OFFLOAD)
+	for (tok = strtok_r(flags, " ", &save); tok; tok = strtok_r(NULL, " ", &save)) {
+		if (strncmp(tok, prefix, sizeof(prefix) - 1) == 0)
+			tok += sizeof(prefix) - 1;
+		SAFE_BUF(snprintf, len, "%s%s", n ? " " : "", tok);
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
+	const struct rxtx_trace_data *d = data;
+	char flags[LINE_MAX];
+	size_t n = 0;
+
+	if (d->func_flags & RXTX_F_VLAN_OFFLOAD)
 		SAFE_BUF(snprintf, len, "vlan_offload");
-	if (flags & RXTX_F_TXQ_SHARED)
+	if (d->func_flags & RXTX_F_TXQ_SHARED)
 		SAFE_BUF(snprintf, len, "%sshared", n ? " " : "");
-	if (flags & RXTX_F_BOND)
+	if (d->func_flags & RXTX_F_BOND)
 		SAFE_BUF(snprintf, len, "%sbond", n ? " " : "");
+
+	SAFE_BUF(snprintf, len, "%s", n ? " " : "");
+	if (rte_get_rx_ol_flag_list(d->mbuf_ol_flags, flags, sizeof(flags)) < 0)
+		return errno_set(ENOBUFS);
+	SAFE_BUF(strip_rte_mbuf_prefixes, len, flags);
+
+	SAFE_BUF(snprintf, len, "%s", n ? " " : "");
+	if (rte_get_tx_ol_flag_list(d->mbuf_ol_flags, flags, sizeof(flags)) < 0)
+		return errno_set(ENOBUFS);
+	SAFE_BUF(strip_rte_mbuf_prefixes, len, flags);
 
 	return n;
 err:
@@ -73,8 +101,9 @@ static inline void trace_log(
 
 	if (unlikely(iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 		for (i = 0; i < count; i++) {
-			rxtx_flags_t *t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
-			*t = flags;
+			struct rxtx_trace_data *t = gr_mbuf_trace_add(mbufs[i], node, sizeof(*t));
+			t->func_flags = flags;
+			t->mbuf_ol_flags = mbufs[i]->ol_flags;
 		}
 	}
 

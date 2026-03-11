@@ -25,8 +25,9 @@ enum {
 };
 
 static inline void tx_add_trace(struct rte_node *node, struct rte_mbuf *m, rxtx_flags_t flags) {
-	rxtx_flags_t *t = gr_mbuf_trace_add(m, node, sizeof(*t));
-	*t = flags;
+	struct rxtx_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
+	t->func_flags = flags;
+	t->mbuf_ol_flags = m->ol_flags;
 }
 
 static inline bool tx_begin(
