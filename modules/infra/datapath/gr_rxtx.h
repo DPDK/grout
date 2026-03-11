@@ -60,6 +60,11 @@ typedef enum : uint16_t {
 	RXTX_F_BOND = GR_BIT16(2),
 } rxtx_flags_t;
 
+struct rxtx_trace_data {
+	rxtx_flags_t func_flags;
+	uint64_t mbuf_ol_flags;
+};
+
 uint16_t rx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
