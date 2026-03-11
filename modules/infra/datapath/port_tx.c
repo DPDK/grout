@@ -24,12 +24,17 @@ enum {
 	NB_EDGES,
 };
 
+static inline void tx_add_trace(struct rte_node *node, struct rte_mbuf *m, rxtx_flags_t flags) {
+	rxtx_flags_t *t = gr_mbuf_trace_add(m, node, sizeof(*t));
+	*t = flags;
+}
+
 static inline bool tx_begin(
-	const struct tx_node_ctx *ctx,
 	struct rte_graph *graph,
 	struct rte_node *node,
 	void **objs,
-	uint16_t nb_objs
+	uint16_t nb_objs,
+	rxtx_flags_t flags
 ) {
 	const struct iface_info_port *port;
 	const struct iface *iface;
@@ -40,9 +45,7 @@ static inline bool tx_begin(
 	if (!port->started) {
 		for (unsigned i = 0; i < nb_objs; i++) {
 			if (gr_mbuf_is_traced(objs[i])) {
-				struct port_queue *t;
-				t = gr_mbuf_trace_add(objs[i], node, sizeof(*t));
-				*t = ctx->txq;
+				tx_add_trace(node, objs[i], flags);
 			}
 		}
 		rte_node_enqueue(graph, node, TX_DOWN, objs, nb_objs);
@@ -74,8 +77,7 @@ static inline void tx_finish(
 	for (unsigned i = 0; i < tx_ok; i++) {
 		// FIXME racy: we are operating on mbufs already passed to driver
 		if (gr_mbuf_is_traced(objs[i])) {
-			rxtx_flags_t *t = gr_mbuf_trace_add(objs[i], node, sizeof(*t));
-			*t = flags;
+			tx_add_trace(node, objs[i], flags);
 			gr_mbuf_trace_finish(objs[i]);
 		}
 	}
@@ -122,7 +124,7 @@ uint16_t tx_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_mbuf *mbufs[RTE_GRAPH_BURST_SIZE];
 	uint16_t tx_ok;
 
-	if (unlikely(!tx_begin(ctx, graph, node, objs, nb_objs)))
+	if (unlikely(!tx_begin(graph, node, objs, nb_objs, 0)))
 		return 0;
 
 	nb_objs = tx_add_vlan(graph, node, objs, nb_objs, mbufs);
@@ -142,7 +144,7 @@ tx_shared_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct rte_mbuf *mbufs[RTE_GRAPH_BURST_SIZE];
 	uint16_t tx_ok;
 
-	if (unlikely(!tx_begin(ctx, graph, node, objs, nb_objs)))
+	if (unlikely(!tx_begin(graph, node, objs, nb_objs, RXTX_F_TXQ_SHARED)))
 		return 0;
 
 	nb_objs = tx_add_vlan(graph, node, objs, nb_objs, mbufs);
