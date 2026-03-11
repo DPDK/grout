@@ -27,17 +27,13 @@ STAILQ_HEAD(gr_trace_head, gr_trace_item);
 
 #define GR_MBUF_PRIV_DATA_TYPE(type_name, fields)                                                  \
 	struct type_name {                                                                         \
+		struct gr_trace_head traces;                                                       \
 		const struct iface *iface;                                                         \
 		struct fields;                                                                     \
 	};                                                                                         \
-	struct __##type_name {                                                                     \
-		struct gr_trace_head traces;                                                       \
-		struct type_name data;                                                             \
-	};                                                                                         \
 	static inline struct type_name *type_name(struct rte_mbuf *m) {                            \
-		static_assert(sizeof(struct __##type_name) <= GR_MBUF_PRIV_MAX_SIZE);              \
-		struct __##type_name *priv = rte_mbuf_to_priv(m);                                  \
-		return &priv->data;                                                                \
+		static_assert(sizeof(struct type_name) <= GR_MBUF_PRIV_MAX_SIZE);                  \
+		return rte_mbuf_to_priv(m);                                                        \
 	}
 
 GR_MBUF_PRIV_DATA_TYPE(mbuf_data, {});
@@ -45,7 +41,7 @@ GR_MBUF_PRIV_DATA_TYPE(queue_mbuf_data, { struct rte_mbuf *next; });
 
 // Get the head of trace items from an mbuf.
 static inline struct gr_trace_head *gr_mbuf_traces(struct rte_mbuf *m) {
-	return rte_mbuf_to_priv(m);
+	return &mbuf_data(m)->traces;
 }
 
 // Return true the mbuf already contains trace items.
