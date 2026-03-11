@@ -17,6 +17,7 @@ struct gr_trace_item {
 	struct timespec ts;
 	unsigned cpu_id;
 	rte_node_t node_id;
+	rte_node_t parent_id;
 	uint8_t len;
 	uint8_t data[GR_TRACE_ITEM_MAX_LEN];
 };
