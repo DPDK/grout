@@ -3,6 +3,7 @@
 
 #include <gr_event.h>
 #include <gr_l2_control.h>
+#include <gr_log.h>
 #include <gr_rcu.h>
 #include <gr_vrf.h>
 
