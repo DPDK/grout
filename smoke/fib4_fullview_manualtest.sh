@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2026 Robin Jarry
 
+grout_verbose_level=1
+grout_memory=4096
+trace_enable=false
+follow_events=hide
 . $(dirname $0)/_init.sh
 
 # Simulate a full IPv4 BGP view: ~1M prefixes.
