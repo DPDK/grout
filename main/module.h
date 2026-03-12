@@ -11,6 +11,9 @@
 struct api_handler {
 	gr_api_handler_func callback;
 	const char *name;
+	// stream handler callbacks (mutually exclusive with callback)
+	stream_init_func stream_init;
+	stream_next_func stream_next; // returns STREAM_NEXT, STREAM_END, or -errno
 };
 
 const struct api_handler *lookup_api_handler(uint32_t request_type);
