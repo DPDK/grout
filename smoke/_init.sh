@@ -268,14 +268,27 @@ if [ "$run_grout" = true ]; then
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
 	fi
-	case "$(basename $0)" in
-	fib*_fullview_manualtest.sh)
-		grout_extra_options+=" -v -- -m 4096"
+
+	case "$grout_verbose_level" in
+	0)
+		;;
+	1)
+		grout_extra_options+=" -v"
 		;;
 	*)
-		grout_extra_options+=" -vvx"
+		grout_extra_options+=" -vv"
 		;;
 	esac
+
+	if [[ "${trace_enable:-true}" = true ]] ; then
+		grout_extra_options+=" -x"
+	fi
+
+	: "${grout_memory:-""}"
+	if [[ -n "$grout_memory" ]] ; then
+		grout_extra_options+=" -- -m $grout_memory"
+	fi
+
 	# try to spread load on all CPUs
 	cpu="$(($RANDOM % ($(nproc) - 1)))"
 	affinity="$cpu,$((cpu+1))"
@@ -316,26 +329,25 @@ smoke_setenv GROUT_PAGER ""
 
 grcli route config set default rib4-routes 128 rib6-routes 128
 
-case "$(basename $0)" in
-config_test.sh|graph_svg_test.sh|fib*_fullview_manualtest.sh)
-	;;
-*)
+if [ "${trace_enable:-true}" = true ]; then
 	grcli trace enable all
-	;;
-esac
+fi
 
-case "$(basename $0)" in
-fib*_fullview_manualtest.sh)
-	grcli events >/dev/null &
-	;;
-*)
-	if [ -t 1 ]; then
-		# print events in yellow
-		grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
-	else
-		grcli events &
-	fi
-	;;
+
+case "${follow_events:-true}" in
+	hide)
+		grcli events >/dev/null &
+		;;
+	false)
+		;;
+	*)
+		if [ -t 1 ]; then
+			# print events in yellow
+			grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
+		else
+			grcli events &
+		fi
+		;;
 esac
 
 if [ "${INTERACTIVE:-false}" = true ]; then
