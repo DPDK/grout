@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
+#include <gr_log.h>
 #include <gr_module.h>
 #include <gr_nexthop.h>
 #include <gr_nh_control.h>

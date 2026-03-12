@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Christophe Fontaine
 
 #include <gr_eth.h>
+#include <gr_log.h>
 #include <gr_snap.h>
 
 // MAC redirect static array for up to 64 MAC addresses

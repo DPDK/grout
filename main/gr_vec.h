@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <gr_log.h>
-
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -51,7 +49,8 @@ static inline uint32_t gr_vec_len(const void *vec) {
 }
 
 // (internal) allocate memory to prepare for more items
-static inline void *__gr_vec_grow(void *vec, size_t item_size, uint32_t add_num, uint32_t min_cap) {
+__attribute__((returns_nonnull)) static inline void *
+__gr_vec_grow(void *vec, size_t item_size, uint32_t add_num, uint32_t min_cap) {
 	uint32_t min_len = gr_vec_len(vec) + add_num;
 	struct __gr_vec_hdr *hdr;
 
@@ -67,8 +66,7 @@ static inline void *__gr_vec_grow(void *vec, size_t item_size, uint32_t add_num,
 		min_cap = 4;
 
 	hdr = realloc(__gr_vec_hdr(vec), sizeof(*hdr) + item_size * min_cap);
-	if (hdr == NULL)
-		ABORT("realloc out of memory");
+	assert(hdr != NULL);
 
 #ifndef NDEBUG
 	hdr->magic = __GR_VEC_MAGIC;
@@ -85,8 +83,10 @@ static inline void __gr_vec_del_range(void *vec, size_t item_size, uint32_t star
 	struct __gr_vec_hdr *hdr = __gr_vec_hdr(vec);
 	uint32_t end = start + len;
 
-	if (hdr == NULL || start >= hdr->len || len == 0 || item_size == 0)
-		ABORT("out of bounds");
+	assert(hdr != NULL);
+	assert(start < hdr->len);
+	assert(len > 0);
+	assert(item_size > 0);
 
 	if (end >= hdr->len) {
 		hdr->len = start;
@@ -101,12 +101,13 @@ static inline void __gr_vec_del_range(void *vec, size_t item_size, uint32_t star
 }
 
 // (internal) delete multiple items stating at a given index
-static inline void *
+__attribute__((returns_nonnull)) static inline void *
 __gr_vec_shift_range(void *vec, size_t item_size, uint32_t start, uint32_t len) {
 	uint32_t end = start + len;
 
-	if (len == 0 || item_size == 0 || start > gr_vec_len(vec))
-		ABORT("out of bounds");
+	assert(len > 0);
+	assert(item_size > 0);
+	assert(start <= gr_vec_len(vec));
 
 	vec = __gr_vec_grow(vec, item_size, len, 0);
 
@@ -127,8 +128,7 @@ static inline void *__gr_vec_clone(const void *vec, size_t item_size) {
 		return NULL;
 
 	hdr = malloc(sizeof(*hdr) + (gr_vec_len(vec) * item_size));
-	if (hdr == NULL)
-		ABORT("malloc out of memory");
+	assert(hdr != NULL);
 
 #ifndef NDEBUG
 	hdr->magic = __GR_VEC_MAGIC;
@@ -161,10 +161,6 @@ static inline char **__gr_strvec_free(gr_vec char **vec) {
 	return NULL;
 }
 
-static inline void __gr_vec_abort(const char *msg) {
-	ABORT("%s", msg);
-}
-
 // free a previously allocated vector
 #define gr_vec_free(v) ((v) ? free(__gr_vec_hdr(v)) : (void)0, (v) = NULL)
 
@@ -190,14 +186,10 @@ static inline void __gr_vec_abort(const char *msg) {
 #define gr_vec_insert(v, i, x) ((v) = __gr_vec_shift_range(v, sizeof(*(v)), (i), 1), (v)[i] = (x))
 
 // remove the last item from a vector and return it
-#define gr_vec_pop(v)                                                                              \
-	(gr_vec_len(v) > 0 ? (void)0 : __gr_vec_abort("gr_vec_pop empty vec"),                     \
-	 (v)[--__gr_vec_hdr(v)->len])
+#define gr_vec_pop(v) (assert(gr_vec_len(v) > 0), (v)[--__gr_vec_hdr(v)->len])
 
 // get the last item from a vector
-#define gr_vec_last(v)                                                                             \
-	(gr_vec_len(v) > 0 ? (void)0 : __gr_vec_abort("gr_vec_last empty vec"),                    \
-	 (v)[__gr_vec_hdr(v)->len - 1])
+#define gr_vec_last(v) (assert(gr_vec_len(v) > 0), (v)[__gr_vec_hdr(v)->len - 1])
 
 // delete an item at the specified index, shifting following items
 #define gr_vec_del(v, i) __gr_vec_del_range(v, sizeof(*(v)), (i), 1)
