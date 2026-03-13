@@ -765,7 +765,7 @@ static struct api_out fib6_conf_set(const void *request, struct api_ctx *) {
 		return api_out(errno, 0, NULL);
 
 	struct fib6_migrate_ctx ctx = {.new_fib = new_fib};
-	rib6_iter(req->vrf_id, fib6_migrate_cb, &ctx);
+	rib6_iter_one(rte_fib6_get_rib(old_fib), req->vrf_id, fib6_migrate_cb, &ctx);
 
 	vrf_fibs[req->vrf_id] = new_fib;
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
