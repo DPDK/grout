@@ -5,6 +5,7 @@
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
+#include <gr_net_types.h>
 #include <gr_netlink.h>
 #include <gr_vrf.h>
 
@@ -12,6 +13,20 @@
 
 #include <linux/rtnetlink.h>
 #include <net/if.h>
+
+static const struct vrf_fib_ops *fib_ops[GR_VRF_MAX_FIBS];
+
+void vrf_fib_ops_register(addr_family_t af, const struct vrf_fib_ops *ops) {
+	unsigned slot = gr_vrf_fib_slot(af);
+
+	if (slot >= GR_VRF_MAX_FIBS)
+		ABORT("invalid af value %hhu", af);
+	if (ops == NULL || ops->init == NULL || ops->reconfig == NULL || ops->fini == NULL)
+		ABORT("invalid vrf fib ops");
+	if (fib_ops[slot] != NULL)
+		ABORT("duplicate vrf fib ops %s", gr_af_name(af));
+	fib_ops[slot] = ops;
+}
 
 struct iface *get_vrf_iface(uint16_t vrf_id) {
 	struct iface *iface = iface_from_id(vrf_id);
@@ -187,8 +202,10 @@ void vrf_decref(uint16_t vrf_id) {
 
 // VRF interface type //////////////////////////////////////////////////////////
 
-static int iface_vrf_init(struct iface *iface, const void *) {
+static int iface_vrf_init(struct iface *iface, const void *api_info) {
+	const struct gr_iface_info_vrf *info = api_info;
 	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+	unsigned slot;
 
 	// VRF's vrf_id is its own iface_id (VRF identifier)
 	iface->vrf_id = iface->id;
@@ -197,18 +214,41 @@ static int iface_vrf_init(struct iface *iface, const void *) {
 	if (iface_loopback_create(iface) < 0)
 		return -errno;
 
-	if (netlink_vrf_add(iface) < 0) {
-		iface_loopback_destroy(iface);
-		return -errno;
+	if (netlink_vrf_add(iface) < 0)
+		goto netlink_fail;
+
+	for (slot = 0; slot < ARRAY_DIM(fib_ops); slot++) {
+		if (fib_ops[slot] == NULL)
+			continue;
+		// info is NULL when the default VRF is created internally.
+		if (info != NULL) {
+			vrf->fib[slot].max_routes = info->fib[slot].max_routes;
+			vrf->fib[slot].num_tbl8 = info->fib[slot].num_tbl8;
+		}
+		if (fib_ops[slot]->init(iface) < 0)
+			goto fib_fail;
 	}
 
 	iface->flags = GR_IFACE_F_UP;
 	iface->state = GR_IFACE_S_RUNNING;
 	iface->speed = RTE_ETH_SPEED_NUM_10G;
 	return 0;
+
+fib_fail:
+	for (unsigned i = 0; i < slot; i++)
+		if (fib_ops[i])
+			fib_ops[i]->fini(iface);
+	netlink_vrf_del(iface);
+netlink_fail:
+	iface_loopback_destroy(iface);
+	return -errno;
 }
 
 static int iface_vrf_fini(struct iface *iface) {
+	for (unsigned slot = 0; slot < ARRAY_DIM(fib_ops); slot++)
+		if (fib_ops[slot] != NULL)
+			fib_ops[slot]->fini(iface);
+
 	if (netlink_vrf_del(iface) < 0)
 		return -errno;
 
@@ -219,14 +259,15 @@ static int iface_vrf_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
 	const struct gr_iface *conf,
-	const void *
+	const void *api_info
 ) {
-	// VRF only supports name changes
-	if (set_attrs & ~GR_IFACE_SET_NAME)
+	const struct gr_iface_info_vrf *info = api_info;
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+
+	if (set_attrs & ~(GR_IFACE_SET_NAME | GR_VRF_SET_FIB))
 		return errno_set(EOPNOTSUPP);
 
 	if (set_attrs & GR_IFACE_SET_NAME) {
-		struct iface_info_vrf *vrf = iface_info_vrf(iface);
 		uint32_t ifindex;
 
 		// Default VRF: TUN device uses the VRF name directly.
@@ -236,17 +277,63 @@ static int iface_vrf_reconfig(
 		else
 			ifindex = vrf->vrf_ifindex;
 
-		return netlink_link_set_name(ifindex, conf->name);
+		if (netlink_link_set_name(ifindex, conf->name) < 0)
+			return -errno;
+	}
+
+	if (set_attrs & GR_VRF_SET_FIB) {
+		for (unsigned slot = 0; slot < GR_VRF_MAX_FIBS; slot++) {
+			const struct gr_iface_info_vrf_fib *src = &info->fib[slot];
+			if (src->max_routes == 0 && src->num_tbl8 == 0)
+				continue;
+
+			if (fib_ops[slot] == NULL)
+				return errno_set(ENOENT);
+
+			struct gr_iface_info_vrf_fib *dst = &vrf->fib[slot];
+			struct gr_iface_info_vrf_fib old = *dst;
+
+			if (src->max_routes) {
+				dst->max_routes = src->max_routes;
+				if (!src->num_tbl8)
+					dst->num_tbl8 = 0;
+			}
+			if (src->num_tbl8)
+				dst->num_tbl8 = src->num_tbl8;
+
+			if (dst->max_routes == old.max_routes && dst->num_tbl8 == old.num_tbl8)
+				continue;
+
+			if (fib_ops[slot]->reconfig(iface) < 0) {
+				*dst = old;
+				return -errno;
+			}
+
+			LOG(INFO,
+			    "resized %s FIB VRF %s(%u) max_routes %u -> %u num_tbl8 %u -> %u",
+			    gr_af_name(gr_vrf_slot_af(slot)),
+			    iface->name,
+			    iface->id,
+			    old.max_routes,
+			    dst->max_routes,
+			    old.num_tbl8,
+			    dst->num_tbl8);
+		}
 	}
 
 	return 0;
 }
 
-static void iface_vrf_to_api(void * /* info */, const struct iface * /* iface */) { }
+static void iface_vrf_to_api(void *info, const struct iface *iface) {
+	const struct iface_info_vrf *vrf = iface_info_vrf(iface);
+	struct gr_iface_info_vrf *api = info;
+
+	*api = vrf->base;
+}
 
 static struct iface_type iface_type_vrf = {
 	.id = GR_IFACE_TYPE_VRF,
-	.pub_size = 0,
+	.pub_size = sizeof(struct gr_iface_info_vrf),
 	.priv_size = sizeof(struct iface_info_vrf),
 	.init = iface_vrf_init,
 	.reconfig = iface_vrf_reconfig,

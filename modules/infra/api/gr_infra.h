@@ -125,6 +125,51 @@ struct gr_iface_info_port {
 // Reserved name for the auto-created default VRF.
 #define GR_DEFAULT_VRF_NAME "main"
 
+// VRF reconfiguration attribute flags.
+#define GR_VRF_SET_FIB GR_BIT64(32)
+
+// FIB slot indices for each address family in a VRF.
+enum {
+	GR_VRF_FIB_IP4 = 0,
+	GR_VRF_FIB_IP6 = 1,
+	GR_VRF_MAX_FIBS,
+};
+
+// Map address family to VRF FIB slot index.
+static inline unsigned gr_vrf_fib_slot(addr_family_t af) {
+	switch (af) {
+	case GR_AF_IP4:
+		return GR_VRF_FIB_IP4;
+	case GR_AF_IP6:
+		return GR_VRF_FIB_IP6;
+	default:
+		return GR_VRF_MAX_FIBS;
+	}
+}
+
+// Map VRF FIB slot index to address family.
+static inline addr_family_t gr_vrf_slot_af(unsigned slot) {
+	switch (slot) {
+	case GR_VRF_FIB_IP4:
+		return GR_AF_IP4;
+	case GR_VRF_FIB_IP6:
+		return GR_AF_IP6;
+	default:
+		return GR_AF_UNSPEC;
+	}
+}
+
+// Per-AF FIB configuration. Indexed by GR_VRF_FIB_IP4/GR_VRF_FIB_IP6.
+struct gr_iface_info_vrf_fib {
+	uint32_t max_routes; // 0 = default
+	uint32_t num_tbl8; // 0 = auto
+};
+
+// Info structure for GR_IFACE_TYPE_VRF interfaces.
+struct gr_iface_info_vrf {
+	struct gr_iface_info_vrf_fib fib[GR_VRF_MAX_FIBS];
+};
+
 // VLAN reconfiguration attribute flags.
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
 #define GR_VLAN_SET_VLAN GR_BIT64(33)

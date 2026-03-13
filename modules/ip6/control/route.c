@@ -15,13 +15,13 @@
 #include <gr_rcu.h>
 #include <gr_string.h>
 #include <gr_vec.h>
+#include <gr_vrf.h>
 
 #include <event2/event.h>
 #include <rte_build_config.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_fib6.h>
-#include <rte_malloc.h>
 #include <rte_rib6.h>
 
 #include <errno.h>
@@ -30,20 +30,9 @@
 #include <string.h>
 #include <sys/queue.h>
 
-static struct rte_fib6 **vrf_fibs;
-
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
-static struct {
-	uint32_t max_routes; // 0 = default
-	uint32_t num_tbl8; // 0 = auto
-} fib6_conf[GR_MAX_IFACES];
-
 static uint32_t max_routes_default = 1 << 16;
-
-static inline uint32_t fib6_get_max_routes(uint16_t vrf_id) {
-	return fib6_conf[vrf_id].max_routes ?: max_routes_default;
-}
 
 // Derive num_tbl8 from max_routes for IPv6 TRIE.
 // The trie uses 8-bit levels beyond the first 24 bits. IPv6 routes at
@@ -55,32 +44,35 @@ static inline uint32_t fib6_auto_tbl8(uint32_t max_routes) {
 	return n < 256 ? 256 : n;
 }
 
-static inline uint32_t fib6_get_num_tbl8(uint16_t vrf_id) {
-	return fib6_conf[vrf_id].num_tbl8 ?: fib6_auto_tbl8(fib6_get_max_routes(vrf_id));
+static inline uint32_t fib6_get_max_routes(const struct iface *vrf) {
+	return iface_info_vrf(vrf)->fib[GR_VRF_FIB_IP6].max_routes;
+}
+
+static inline uint32_t fib6_get_num_tbl8(const struct iface *vrf) {
+	return iface_info_vrf(vrf)->fib[GR_VRF_FIB_IP6].num_tbl8;
 }
 
 static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
-	struct rte_fib6 *fib;
+	struct iface *iface = get_vrf_iface(vrf_id);
+	if (iface == NULL)
+		return NULL;
 
-	if (vrf_id >= GR_MAX_IFACES)
-		return errno_set_null(EOVERFLOW);
-
-	fib = vrf_fibs[vrf_id];
+	struct rte_fib6 *fib = vrf_fib_ptr_get(iface, GR_VRF_FIB_IP6);
 	if (fib == NULL)
 		return errno_set_null(ENONET);
 
 	return fib;
 }
 
-static struct rte_fib6 *create_fib6(uint16_t vrf_id) {
+static struct rte_fib6 *create_fib6(const struct iface *vrf) {
 	struct rte_fib6_conf conf = {
 		.type = RTE_FIB6_TRIE,
 		.default_nh = 0,
-		.max_routes = fib6_get_max_routes(vrf_id),
+		.max_routes = fib6_get_max_routes(vrf),
 		.rib_ext_sz = sizeof(gr_nh_origin_t),
 		.trie = {
 			.nh_sz = RTE_FIB6_TRIE_8B,
-			.num_tbl8 = fib6_get_num_tbl8(vrf_id),
+			.num_tbl8 = fib6_get_num_tbl8(vrf),
 		},
 	};
 	struct rte_fib6 *fib;
@@ -88,7 +80,7 @@ static struct rte_fib6 *create_fib6(uint16_t vrf_id) {
 	char name[16];
 	int ret;
 
-	snprintf(name, sizeof(name), "fib6_%x-%x", vrf_id, seq++);
+	snprintf(name, sizeof(name), "fib6_%x-%x", vrf->id, seq++);
 	fib = rte_fib6_create(name, SOCKET_ID_ANY, &conf);
 	if (fib == NULL)
 		return errno_set_null(rte_errno);
@@ -105,28 +97,28 @@ static struct rte_fib6 *create_fib6(uint16_t vrf_id) {
 	return fib;
 }
 
-static struct rte_fib6 *get_or_create_fib6(uint16_t vrf_id) {
-	const struct iface *iface = get_vrf_iface(vrf_id);
+static int fib6_init(struct iface *vrf) {
+	struct gr_iface_info_vrf_fib *conf = &iface_info_vrf(vrf)->fib[GR_VRF_FIB_IP6];
 	struct rte_fib6 *fib;
 
-	if (iface == NULL)
-		return NULL;
+	if (!conf->max_routes)
+		conf->max_routes = max_routes_default;
+	if (!conf->num_tbl8)
+		conf->num_tbl8 = fib6_auto_tbl8(conf->max_routes);
 
-	fib = vrf_fibs[vrf_id];
-	if (fib == NULL) {
-		LOG(INFO,
-		    "creating IPv6 FIB for VRF %s(%u) max_routes=%u num_tbl8=%u",
-		    iface->name,
-		    vrf_id,
-		    fib6_get_max_routes(vrf_id),
-		    fib6_get_num_tbl8(vrf_id));
-		fib = create_fib6(vrf_id);
-		if (fib == NULL)
-			return NULL;
-		vrf_fibs[vrf_id] = fib;
-	}
+	LOG(INFO,
+	    "creating IPv6 FIB for VRF %s(%u) max_routes=%u num_tbl8=%u",
+	    vrf->name,
+	    vrf->id,
+	    conf->max_routes,
+	    conf->num_tbl8);
 
-	return fib;
+	fib = create_fib6(vrf);
+	if (fib == NULL)
+		return errno_log(errno, "create_fib6");
+
+	vrf_fib_ptr_set(vrf, GR_VRF_FIB_IP6, fib);
+	return 0;
 }
 
 static inline uintptr_t nh_ptr_to_id(const struct nexthop *nh) {
@@ -233,7 +225,7 @@ static int rib6_insert_or_replace(
 	struct nexthop *nh,
 	bool replace
 ) {
-	struct rte_fib6 *fib = get_or_create_fib6(vrf_id);
+	struct rte_fib6 *fib = get_fib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
 	struct nexthop *existing = NULL;
 	struct rte_ipv6_addr tmp;
@@ -481,9 +473,15 @@ static void rib6_iter_one(struct rte_rib6 *rib, uint16_t vrf_id, rib6_iter_cb_t 
 
 void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv) {
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
-		if (vrf_fibs[v] == NULL || (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF))
+		if (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF)
 			continue;
-		rib6_iter_one(rte_fib6_get_rib(vrf_fibs[v]), v, cb, priv);
+		struct iface *iface = get_vrf_iface(v);
+		if (iface == NULL)
+			continue;
+		struct rte_fib6 *fib = vrf_fib_ptr_get(iface, GR_VRF_FIB_IP6);
+		if (fib == NULL)
+			continue;
+		rib6_iter_one(rte_fib6_get_rib(fib), v, cb, priv);
 	}
 }
 
@@ -540,23 +538,6 @@ static struct api_out route6_list(const void *request, struct api_ctx *ctx) {
 	return api_out(iter.ret, 0, NULL);
 }
 
-static void route6_init(struct event_base *) {
-	vrf_fibs = rte_calloc(
-		__func__, GR_MAX_IFACES, sizeof(struct rte_fib6 *), RTE_CACHE_LINE_SIZE
-	);
-	if (vrf_fibs == NULL)
-		ABORT("rte_calloc(vrf_fibs): %s", rte_strerror(rte_errno));
-}
-
-static void route6_fini(struct event_base *) {
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
-		rte_fib6_free(vrf_fibs[vrf_id]);
-		vrf_fibs[vrf_id] = NULL;
-	}
-	rte_free(vrf_fibs);
-	vrf_fibs = NULL;
-}
-
 static void rib6_cleanup_nh(
 	uint16_t vrf_id,
 	const struct rte_ipv6_addr *ip,
@@ -588,7 +569,8 @@ static void rib6_metrics_collect(struct gr_metrics_writer *w) {
 	char vrf[16];
 
 	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
-		if (vrf_fibs[vrf_id] == NULL)
+		const struct iface *vrf_iface = get_vrf_iface(vrf_id);
+		if (vrf_iface == NULL)
 			continue;
 
 		snprintf(vrf, sizeof(vrf), "%u", vrf_id);
@@ -603,12 +585,15 @@ static void rib6_metrics_collect(struct gr_metrics_writer *w) {
 		}
 
 		gr_metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
-		gr_metric_emit(&ctx, &m_max_routes, fib6_get_max_routes(vrf_id));
+		gr_metric_emit(&ctx, &m_max_routes, fib6_get_max_routes(vrf_iface));
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 		uint32_t used_tbl8, total_tbl8;
-		rte_fib6_tbl8_get_stats(vrf_fibs[vrf_id], &used_tbl8, &total_tbl8);
-		gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
-		gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
+		struct rte_fib6 *fib = vrf_fib_ptr_get(vrf_iface, GR_VRF_FIB_IP6);
+		if (fib != NULL) {
+			rte_fib6_tbl8_get_stats(fib, &used_tbl8, &total_tbl8);
+			gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
+			gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
+		}
 #endif
 	}
 }
@@ -710,70 +695,30 @@ static uint32_t fib6_total_routes(uint16_t vrf_id) {
 	return total;
 }
 
-static struct api_out fib6_conf_set(const void *request, struct api_ctx *) {
-	const struct gr_ip6_fib_conf_set_req *req = request;
-	uint32_t old_max, old_tbl8, new_max, new_tbl8;
+static int fib6_reconfig(struct iface *vrf) {
+	struct gr_iface_info_vrf_fib *conf = &iface_info_vrf(vrf)->fib[GR_VRF_FIB_IP6];
 	struct rte_fib6 *old_fib, *new_fib;
-	const struct iface *vrf;
 
-	if (req->vrf_id == GR_VRF_ID_UNDEF) {
-		if (req->max_routes == 0)
-			return api_out(EINVAL, 0, NULL);
-		if (req->max_routes != max_routes_default) {
-			LOG(INFO,
-			    "changing default max_routes %u -> %u num_tbl8 %u -> %u",
-			    max_routes_default,
-			    req->max_routes,
-			    fib6_auto_tbl8(max_routes_default),
-			    fib6_auto_tbl8(req->max_routes));
-			max_routes_default = req->max_routes;
-		}
-		return api_out(0, 0, NULL);
-	}
+	if (!conf->max_routes)
+		conf->max_routes = max_routes_default;
+	if (!conf->num_tbl8)
+		conf->num_tbl8 = fib6_auto_tbl8(conf->max_routes);
 
-	if (req->vrf_id >= GR_MAX_IFACES)
-		return api_out(EOVERFLOW, 0, NULL);
-
-	old_max = fib6_get_max_routes(req->vrf_id);
-	old_tbl8 = fib6_get_num_tbl8(req->vrf_id);
-	new_max = req->max_routes ?: old_max;
-	new_tbl8 = req->num_tbl8 ?: fib6_auto_tbl8(new_max);
-	old_fib = vrf_fibs[req->vrf_id];
-
-	if (new_max == old_max && new_tbl8 && old_tbl8 && old_fib != NULL)
-		return api_out(0, 0, NULL);
-
-	fib6_conf[req->vrf_id].max_routes = new_max;
-	fib6_conf[req->vrf_id].num_tbl8 = new_tbl8;
-
-	if (old_fib == NULL)
-		return api_out(0, 0, NULL);
-
-	vrf = get_vrf_iface(req->vrf_id);
-
-	LOG(INFO,
-	    "resizing IPv6 FIB VRF %s(%u) max_routes %u -> %u num_tbl8 %u -> %u",
-	    vrf ? vrf->name : "?",
-	    req->vrf_id,
-	    old_max,
-	    new_max,
-	    old_tbl8,
-	    new_tbl8);
-
-	new_fib = create_fib6(req->vrf_id);
+	old_fib = vrf_fib_ptr_get(vrf, GR_VRF_FIB_IP6);
+	new_fib = create_fib6(vrf);
 	if (new_fib == NULL)
-		return api_out(errno, 0, NULL);
+		return errno_log(errno, "create_fib6");
 
 	struct fib6_migrate_ctx ctx = {.new_fib = new_fib};
-	rib6_iter(req->vrf_id, fib6_migrate_cb, &ctx);
+	rib6_iter_one(rte_fib6_get_rib(old_fib), vrf->id, fib6_migrate_cb, &ctx);
 
-	vrf_fibs[req->vrf_id] = new_fib;
+	vrf_fib_ptr_set(vrf, GR_VRF_FIB_IP6, new_fib);
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 	rte_fib6_free(old_fib);
 
-	memcpy(route_counts[req->vrf_id], ctx.counts, sizeof(ctx.counts));
+	memcpy(route_counts[vrf->id], ctx.counts, sizeof(ctx.counts));
 
-	return api_out(0, 0, NULL);
+	return 0;
 }
 
 static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
@@ -790,15 +735,18 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		if (v != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
 			continue;
-		if (vrf_fibs[v] == NULL)
+		const struct iface *vrf = get_vrf_iface(v);
+		if (vrf == NULL)
 			continue;
 		info.vrf_id = v;
-		info.max_routes = fib6_get_max_routes(v);
+		info.max_routes = fib6_get_max_routes(vrf);
 		info.used_routes = fib6_total_routes(v);
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-		rte_fib6_tbl8_get_stats(vrf_fibs[v], &info.used_tbl8, &info.num_tbl8);
+		struct rte_fib6 *fib = vrf_fib_ptr_get(vrf, GR_VRF_FIB_IP6);
+		if (fib != NULL)
+			rte_fib6_tbl8_get_stats(fib, &info.used_tbl8, &info.num_tbl8);
 #else
-		info.num_tbl8 = fib6_get_num_tbl8(v);
+		info.num_tbl8 = fib6_get_num_tbl8(vrf);
 		info.used_tbl8 = 0;
 #endif
 		api_send(ctx, sizeof(info), &info);
@@ -810,8 +758,6 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 static struct gr_module route6_module = {
 	.name = "ip6_route",
 	.depends_on = "nexthop",
-	.init = route6_init,
-	.fini = route6_fini,
 };
 
 static void route6_vrf_rm(
@@ -840,34 +786,45 @@ static void route6_vrf_rm(
 	nexthop_decref((void *)nh);
 }
 
-static void iface_rm_cb(uint32_t /*ev_type*/, const void *obj) {
-	const struct iface *iface = obj;
-	struct rte_fib6 *fib;
+static void fib6_fini(struct iface *vrf) {
+	struct rte_fib6 *fib = vrf_fib_ptr_get(vrf, GR_VRF_FIB_IP6);
 
-	if (iface->type != GR_IFACE_TYPE_VRF)
-		return;
-
-	memset(&fib6_conf[iface->id], 0, sizeof(fib6_conf[0]));
-	fib = vrf_fibs[iface->id];
-	vrf_fibs[iface->id] = NULL;
+	vrf_fib_ptr_set(vrf, GR_VRF_FIB_IP6, NULL);
 	if (fib != NULL) {
-		LOG(INFO, "destroying IPv6 FIB for VRF %s(%u)", iface->name, iface->id);
-		rib6_iter_one(rte_fib6_get_rib(fib), iface->id, route6_vrf_rm, (void *)iface);
+		LOG(INFO, "destroying IPv6 FIB for VRF %s(%u)", vrf->name, vrf->id);
+		rib6_iter_one(rte_fib6_get_rib(fib), vrf->id, route6_vrf_rm, (void *)vrf);
 		rte_fib6_free(fib);
 	}
-	memset(route_counts[iface->id], 0, sizeof(route_counts[iface->id]));
+	memset(route_counts[vrf->id], 0, sizeof(route_counts[vrf->id]));
 }
+
+static struct api_out fib6_default_set(const void *request, struct api_ctx *) {
+	const struct gr_ip6_fib_default_set_req *req = request;
+
+	if (req->max_routes && req->max_routes != max_routes_default) {
+		LOG(INFO, "IPv6 default max_routes %u -> %u", max_routes_default, req->max_routes);
+		max_routes_default = req->max_routes;
+	}
+
+	return api_out(0, 0, NULL);
+}
+
+static const struct vrf_fib_ops fib6_ops = {
+	.init = fib6_init,
+	.reconfig = fib6_reconfig,
+	.fini = fib6_fini,
+};
 
 RTE_INIT(control_ip_init) {
 	gr_api_handler(GR_IP6_ROUTE_ADD, route6_add);
 	gr_api_handler(GR_IP6_ROUTE_DEL, route6_del);
 	gr_api_handler(GR_IP6_ROUTE_GET, route6_get);
 	gr_api_handler(GR_IP6_ROUTE_LIST, route6_list);
-	gr_api_handler(GR_IP6_FIB_CONF_SET, fib6_conf_set);
+	gr_api_handler(GR_IP6_FIB_DEFAULT_SET, fib6_default_set);
 	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
 	gr_event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
 	gr_event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
 	gr_register_module(&route6_module);
 	gr_metrics_register(&rib6_collector);
-	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_rm_cb);
+	vrf_fib_ops_register(GR_AF_IP6, &fib6_ops);
 }
