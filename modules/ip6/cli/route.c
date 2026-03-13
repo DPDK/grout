@@ -91,18 +91,11 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t route6_config_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_ip6_fib_conf_set_req req = {0};
+	struct gr_ip6_fib_default_set_req req = {0};
 
-	if (arg_str(p, "default") != NULL)
-		req.vrf_id = GR_VRF_ID_UNDEF;
-	else if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
-		return CMD_ERROR;
-	if (arg_u32(p, "RIB6_ROUTES", &req.max_routes) < 0 && errno != ENOENT)
-		return CMD_ERROR;
-	if (arg_u32(p, "FIB6_TBL8", &req.num_tbl8) < 0 && errno != ENOENT)
-		return CMD_ERROR;
+	arg_u32(p, "RIB6_ROUTES", &req.max_routes);
 
-	if (gr_api_client_send_recv(c, GR_IP6_FIB_CONF_SET, sizeof(req), &req, NULL) < 0)
+	if (gr_api_client_send_recv(c, GR_IP6_FIB_DEFAULT_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;

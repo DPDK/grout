@@ -125,6 +125,21 @@ struct gr_iface_info_port {
 // Reserved name for the auto-created default VRF.
 #define GR_DEFAULT_VRF_NAME "main"
 
+// VRF reconfiguration attribute flags.
+#define GR_VRF_SET_FIB GR_BIT64(32)
+
+// Per-AF FIB configuration.
+struct gr_iface_info_vrf_fib {
+	uint32_t max_routes; // 0 = default
+	uint32_t num_tbl8; // 0 = auto
+};
+
+// Info structure for GR_IFACE_TYPE_VRF interfaces.
+struct gr_iface_info_vrf {
+	struct gr_iface_info_vrf_fib ipv4;
+	struct gr_iface_info_vrf_fib ipv6;
+};
+
 // VLAN reconfiguration attribute flags.
 #define GR_VLAN_SET_PARENT GR_BIT64(32)
 #define GR_VLAN_SET_VLAN GR_BIT64(33)

@@ -14,7 +14,7 @@ count=200000
 # Create a dummy port to trigger default VRF auto-creation.
 grcli interface add port p0 devargs net_null0,no-rx=1
 
-grcli route config set vrf main rib6-routes $((count + 10))
+grcli interface set vrf main rib6-routes $((count + 10))
 
 fib_inject -6 -n $count
 
