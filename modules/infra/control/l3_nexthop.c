@@ -27,6 +27,22 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 	af_ops[af] = ops;
 }
 
+const struct nexthop_af_ops *nexthop_af_ops_get_nh(const struct nexthop *nh) {
+	const struct nexthop_info_l3 *l3;
+	if (nh->type != GR_NH_T_L3)
+		return NULL;
+	l3 = nexthop_info_l3(nh);
+	return af_ops[l3->af];
+}
+
+const struct nexthop_af_ops *nexthop_af_ops_get_mbuf(const struct rte_mbuf *m) {
+	if (m->packet_type & RTE_PTYPE_L3_IPV4)
+		return af_ops[GR_AF_IP4];
+	if (m->packet_type & RTE_PTYPE_L3_IPV6)
+		return af_ops[GR_AF_IP6];
+	return NULL;
+}
+
 struct nexthop_key {
 	addr_family_t af;
 	uint16_t vrf_id;

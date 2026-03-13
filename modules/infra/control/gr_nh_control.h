@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <gr_control_input.h>
+#include <gr_control_queue.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
@@ -129,13 +131,20 @@ typedef void (*nh_iter_cb_t)(struct nexthop *nh, void *priv);
 void nexthop_iter(nh_iter_cb_t nh_cb, void *priv);
 
 struct nexthop_af_ops {
+	// Control queue callback invoked when packets reach ip*_hold.
+	control_queue_cb_t resolve;
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked to delete all routes which reference a given nexthop.
 	void (*cleanup_routes)(struct nexthop *);
+	// Callback invoked by resolve() to flush held packets when the nexthop becomes
+	// reachable.
+	int (*resubmit)(struct rte_mbuf *, struct nexthop *);
 };
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *);
+const struct nexthop_af_ops *nexthop_af_ops_get_nh(const struct nexthop *);
+const struct nexthop_af_ops *nexthop_af_ops_get_mbuf(const struct rte_mbuf *);
 
 struct nexthop_type_ops {
 	int (*reconfig)(const struct gr_nexthop_config *);

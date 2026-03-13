@@ -17,6 +17,7 @@ enum {
 
 static uint16_t
 ip_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	const struct nexthop_af_ops *ops;
 	struct rte_mbuf *mbuf;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -24,7 +25,11 @@ ip_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uin
 		// TODO: Allocate a new mbuf from a control plane pool and copy
 		// the packet into it so that the datapath mbuf can be freed and
 		// returned to the stack for hardware RX.
-		control_output_set_cb(mbuf, nh4_unreachable_cb, 0);
+		ops = nexthop_af_ops_get_nh(l3_mbuf_data(mbuf)->nh);
+		if (ops == NULL)
+			ops = nexthop_af_ops_get_mbuf(mbuf);
+		assert(ops != NULL);
+		control_output_set_cb(mbuf, ops->resolve, 0);
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
 	}
