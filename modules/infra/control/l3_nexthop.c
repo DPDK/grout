@@ -18,13 +18,32 @@ static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
+	assert(ops != NULL);
+	assert(ops->resolve != NULL);
+	assert(ops->solicit != NULL);
+	assert(ops->cleanup_routes != NULL);
+	assert(ops->resubmit != NULL);
 	if (!gr_af_valid(af))
 		ABORT("invalid af value %hhu", af);
-	if (ops == NULL || ops->cleanup_routes == NULL || ops->solicit == NULL)
-		ABORT("invalid af ops");
 	if (af_ops[af] != NULL)
 		ABORT("duplicate af ops %s", gr_af_name(af));
 	af_ops[af] = ops;
+}
+
+const struct nexthop_af_ops *nexthop_af_ops_from_nh(const struct nexthop *nh) {
+	const struct nexthop_info_l3 *l3;
+	if (nh->type != GR_NH_T_L3)
+		return NULL;
+	l3 = nexthop_info_l3(nh);
+	return af_ops[l3->af];
+}
+
+const struct nexthop_af_ops *nexthop_af_ops_from_mbuf(const struct rte_mbuf *m) {
+	if (m->packet_type & RTE_PTYPE_L3_IPV4)
+		return af_ops[GR_AF_IP4];
+	if (m->packet_type & RTE_PTYPE_L3_IPV6)
+		return af_ops[GR_AF_IP6];
+	return NULL;
 }
 
 struct nexthop_key {
