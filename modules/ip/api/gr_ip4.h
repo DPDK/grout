@@ -159,16 +159,14 @@ struct gr_fib4_info {
 	uint32_t used_tbl8; // tbl8 groups currently in use
 };
 
-// Set FIB configuration for a VRF.
-#define GR_IP4_FIB_CONF_SET REQUEST_TYPE(GR_IP4_MODULE, 0x0030)
+// Set default FIB configuration for new VRFs.
+#define GR_IP4_FIB_DEFAULT_SET REQUEST_TYPE(GR_IP4_MODULE, 0x0030)
 
-struct gr_ip4_fib_conf_set_req {
-	uint16_t vrf_id;
-	uint32_t max_routes; // maximum number of routes
-	uint32_t num_tbl8; // 0 = auto-derive from max_routes
+struct gr_ip4_fib_default_set_req {
+	uint32_t max_routes; // 0 = unchanged
 };
 
-// struct gr_ip4_fib_conf_set_resp { };
+// struct gr_ip4_fib_default_set_resp { };
 
 // List FIB info for VRFs.
 #define GR_IP4_FIB_INFO_LIST REQUEST_TYPE(GR_IP4_MODULE, 0x0031)

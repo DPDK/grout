@@ -4,12 +4,15 @@
 #pragma once
 
 #include <gr_iface.h>
+#include <gr_infra.h>
 #include <gr_loopback.h>
 
 GR_IFACE_INFO(GR_IFACE_TYPE_VRF, iface_info_vrf, {
+	BASE(gr_iface_info_vrf);
 	struct iface_info_loopback lo;
 	uint16_t ref_count;
 	uint32_t vrf_ifindex;
+	void *fib_ptr[GR_VRF_MAX_FIBS];
 });
 
 // Increment VRF reference count.
@@ -24,3 +27,22 @@ void vrf_decref(uint16_t vrf_id);
 // Check if VRF has any interfaces (ref_count > 0).
 // vrf_id is the VRF interface ID.
 bool vrf_has_interfaces(uint16_t vrf_id);
+
+// Callbacks for IP modules to manage per-VRF FIBs.
+// Registered per address family, called during VRF init/reconfig/fini.
+struct vrf_fib_ops {
+	int (*init)(struct iface *iface);
+	int (*reconfig)(struct iface *iface);
+	void (*fini)(struct iface *iface);
+};
+
+void vrf_fib_ops_register(addr_family_t af, const struct vrf_fib_ops *);
+
+// Direct access to the opaque FIB pointer by slot index (no loop).
+static inline void *vrf_fib_ptr_get(const struct iface *vrf, unsigned slot) {
+	return iface_info_vrf(vrf)->fib_ptr[slot];
+}
+
+static inline void vrf_fib_ptr_set(struct iface *vrf, unsigned slot, void *ptr) {
+	iface_info_vrf(vrf)->fib_ptr[slot] = ptr;
+}
