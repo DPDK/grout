@@ -148,7 +148,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		// Store the resolved next hop for ip_output to avoid a second route lookup.
-		ip_output_mbuf_data(mbuf)->nh = nh;
+		l3_mbuf_data(mbuf)->nh = nh;
 
 		edge = nh_type_edges[nh->type];
 		if (edge != FORWARD)

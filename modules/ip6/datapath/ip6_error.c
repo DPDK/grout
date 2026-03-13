@@ -85,7 +85,7 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		icmp6->code = ctx->icmp_code;
 
 		// Get the local router IP address from the input iface
-		iface = ip6_output_mbuf_data(mbuf)->iface;
+		iface = l3_mbuf_data(mbuf)->iface;
 		if (iface == NULL) {
 			edge = NO_IP;
 			goto next;

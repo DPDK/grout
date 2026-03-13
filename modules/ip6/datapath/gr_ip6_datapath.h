@@ -7,6 +7,7 @@
 #include <gr_icmp6.h>
 #include <gr_iface.h>
 #include <gr_ip6_control.h>
+#include <gr_l3.h>
 #include <gr_mbuf.h>
 #include <gr_net_types.h>
 
@@ -15,8 +16,6 @@
 #include <rte_ip6.h>
 
 #include <stdint.h>
-
-GR_MBUF_PRIV_DATA_TYPE(ip6_output_mbuf_data, { const struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(ip6_local_mbuf_data, {
 	struct rte_ipv6_addr src;

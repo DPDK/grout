@@ -47,7 +47,7 @@ static uint16_t ip6_input_local_process(
 			gr_mbuf_trace_add(m, node, 0);
 
 		// prepare ip local data
-		iface = ip6_output_mbuf_data(m)->iface;
+		iface = l3_mbuf_data(m)->iface;
 		d = ip6_local_mbuf_data(m);
 		d->src = ip->src_addr;
 		d->dst = ip->dst_addr;

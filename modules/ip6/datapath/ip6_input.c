@@ -45,11 +45,11 @@ void ip6_input_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 static uint16_t
 ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct nexthop_info_l3 *l3;
-	struct ip6_output_mbuf_data *d;
 	struct eth_input_mbuf_data *e;
 	const struct iface *iface;
 	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
+	struct l3_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t i;
@@ -145,7 +145,7 @@ next:
 			*t = *ip;
 		}
 		// Store the resolved next hop for ip6_output to avoid a second route lookup.
-		d = ip6_output_mbuf_data(mbuf);
+		d = l3_mbuf_data(mbuf);
 		d->nh = nh;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}

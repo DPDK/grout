@@ -79,7 +79,7 @@ static uint16_t vxlan_output_process(
 		vh->ip.total_length = rte_cpu_to_be_16(len + sizeof(*vh));
 		vh->ip.hdr_checksum = rte_ipv4_cksum(&vh->ip);
 
-		ip_output_mbuf_data(m)->nh = nh;
+		l3_mbuf_data(m)->nh = nh;
 
 		edge = IP_OUTPUT;
 next:
