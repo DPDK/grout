@@ -110,7 +110,8 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct eth_input_mbuf_data *e;
 	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
-	size_t read_len;
+	struct iovec iov[2];
+	struct tun_pi pi;
 	size_t len;
 	char *data;
 
@@ -129,28 +130,38 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	read_len = iface->mtu + sizeof(struct tun_pi);
-	if ((data = rte_pktmbuf_append(mbuf, read_len)) == NULL) {
-		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
+	if ((data = rte_pktmbuf_append(mbuf, iface->mtu)) == NULL) {
+		LOG(ERR, "rte_pktmbuf_append %s", rte_strerror(rte_errno));
 		goto err;
 	}
 
-	if ((len = read(lo->fd, data, read_len)) <= 0) {
+	iov[0].iov_base = &pi;
+	iov[0].iov_len = sizeof(pi);
+	iov[1].iov_base = data;
+	iov[1].iov_len = iface->mtu;
+	if ((len = readv(lo->fd, iov, ARRAY_DIM(iov))) <= 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto err;
 		LOG(ERR, "read from tun device %s failed %s", iface->name, strerror(errno));
 		goto err;
 	}
 
-	rte_pktmbuf_trim(mbuf, read_len - len);
+	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi)));
 
 	// packet sent from linux tun iface, no need to compute checksum;
 	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
 
-	// We can't call rte_net_get_ptype directly as we do not have an ethernet frame.
-	// An option would be to prepend/adjust every buffer, but let's set directly
-	// the information we need instead.
-	mbuf->packet_type = (data[0] & 0xf0) == 0x60 ? RTE_PTYPE_L3_IPV6 : RTE_PTYPE_L3_IPV4;
+	switch (pi.proto) {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
+		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
+		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
+		break;
+	default:
+		LOG(ERR, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
+		goto err;
+	}
 
 	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
