@@ -113,6 +113,29 @@ static inline void trace_log(
 	}
 }
 
+static void hack_l4_csum(struct rte_mbuf *m) {
+	struct rte_ether_hdr *eth;
+	struct rte_ipv4_hdr *ip;
+	struct rte_tcp_hdr *tcp;
+
+	if ((m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) != RTE_MBUF_F_RX_L4_CKSUM_NONE)
+		return;
+
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (eth->ether_type != htons(RTE_ETHER_TYPE_IPV4))
+		return;
+	ip = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, sizeof(*eth));
+	if (ip->next_proto_id != IPPROTO_TCP)
+		return;
+
+	tcp = rte_pktmbuf_mtod_offset(m, struct rte_tcp_hdr *, sizeof(*eth) + sizeof(*ip));
+	tcp->cksum = 0;
+	tcp->cksum = rte_ipv4_udptcp_cksum_mbuf(m, ip, sizeof(*eth) + sizeof(*ip));
+
+	m->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_MASK;
+	m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+}
+
 uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
@@ -138,6 +161,8 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 		} else {
 			d->vlan_id = 0;
 		}
+
+		hack_l4_csum(m);
 	}
 
 	trace_log(RXTX_F_VLAN_OFFLOAD, ctx->iface, node, mbufs, rx);
@@ -174,6 +199,8 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 		} else {
 			d->vlan_id = 0;
 		}
+
+		hack_l4_csum(m);
 	}
 
 	trace_log(0, ctx->iface, node, mbufs, rx);
@@ -221,6 +248,8 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 			else
 				d->iface = iface;
 		}
+
+		hack_l4_csum(m);
 	}
 
 	trace_log(RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
@@ -269,6 +298,8 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 			d->iface = iface;
 			d->vlan_id = 0;
 		}
+
+		hack_l4_csum(m);
 	}
 
 	trace_log(RXTX_F_BOND, ctx->iface, node, mbufs, rx);
