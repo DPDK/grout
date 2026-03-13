@@ -25,10 +25,10 @@ enum {
 static uint16_t
 icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip_local_mbuf_data *local_data;
-	struct ip_output_mbuf_data *o;
 	struct rte_icmp_hdr *icmp;
 	const struct nexthop *nh;
 	struct rte_ipv4_hdr *ip;
+	struct l3_mbuf_data *o;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 
@@ -60,7 +60,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			edge = REJECT;
 			goto next;
 		}
-		o = ip_output_mbuf_data(mbuf);
+		o = l3_mbuf_data(mbuf);
 		o->nh = nh;
 		o->iface = NULL;
 		edge = OUTPUT;

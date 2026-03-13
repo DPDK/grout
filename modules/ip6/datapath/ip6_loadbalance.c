@@ -23,15 +23,15 @@ static uint16_t ip6_loadbalance_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct ip6_output_mbuf_data *d;
 	struct nexthop_info_group *g;
+	struct l3_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t i;
 
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		d = ip6_output_mbuf_data(mbuf);
+		d = l3_mbuf_data(mbuf);
 		g = (struct nexthop_info_group *)d->nh->info;
 		edge = OUTPUT;
 		// TODO: increment xstat on ! mbuf->ol_flags & RTE_MBUF_F_RX_RSS_HASH

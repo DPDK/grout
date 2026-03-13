@@ -61,7 +61,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
 			struct rte_ipv4_hdr *inner_ip4;
 
-			nh = ip_output_mbuf_data(m)->nh;
+			nh = l3_mbuf_data(m)->nh;
 			if (t != NULL && nh->type == GR_NH_T_L3) {
 				l3 = nexthop_info_l3(nh);
 				t->dest4.ip = l3->ipv4;
@@ -75,7 +75,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct rte_ipv6_hdr *inner_ip6;
 
-			nh = ip6_output_mbuf_data(m)->nh;
+			nh = l3_mbuf_data(m)->nh;
 			if (t != NULL && nh->type == GR_NH_T_L3) {
 				l3 = nexthop_info_l3(nh);
 				t->dest6.ip = l3->ipv6;
@@ -135,7 +135,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			edge = NO_ROUTE;
 			goto next;
 		}
-		ip6_output_mbuf_data(m)->nh = nh;
+		l3_mbuf_data(m)->nh = nh;
 
 		nh = sr_tunsrc_get(nh->iface_id, &d->seglist[0]);
 		if (nh == NULL) {

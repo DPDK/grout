@@ -128,7 +128,7 @@ static void build_ra_packet(struct rte_mbuf *m, const struct rte_ipv6_addr *src)
 
 	vrf_id = mbuf_data(m)->iface->vrf_id;
 	iface_id = mbuf_data(m)->iface->id;
-	ip6_output_mbuf_data(m)->nh = nh6_lookup(vrf_id, iface_id, &dst);
+	l3_mbuf_data(m)->nh = nh6_lookup(vrf_id, iface_id, &dst);
 	ip = (struct rte_ipv6_hdr *)rte_pktmbuf_append(m, sizeof(*ip));
 	icmp6 = (struct icmp6 *)rte_pktmbuf_append(m, sizeof(*icmp6));
 	icmp6->type = ICMP6_TYPE_ROUTER_ADVERT;

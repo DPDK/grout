@@ -29,10 +29,10 @@ static uint16_t icmp6_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	struct ip6_output_mbuf_data *o;
 	struct ip6_local_mbuf_data *d;
 	const struct nexthop *nh;
 	struct rte_ipv6_hdr *ip;
+	struct l3_mbuf_data *o;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
@@ -74,7 +74,7 @@ static uint16_t icmp6_output_process(
 			edge = REJECT;
 			goto next;
 		}
-		o = ip6_output_mbuf_data(mbuf);
+		o = l3_mbuf_data(mbuf);
 		o->nh = nh;
 		o->iface = d->iface;
 		edge = OUTPUT;

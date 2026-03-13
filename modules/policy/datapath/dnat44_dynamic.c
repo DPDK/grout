@@ -26,9 +26,9 @@ static uint16_t dnat44_dynamic_process(
 	uint16_t nb_objs
 ) {
 	const struct nexthop_info_l3 *l3;
-	struct ip_output_mbuf_data *o;
 	struct conn_mbuf_data *c;
 	struct rte_ipv4_hdr *ip;
+	struct l3_mbuf_data *o;
 	struct rte_mbuf *m;
 	struct nat44 *nat;
 	rte_edge_t edge;
@@ -91,7 +91,7 @@ static uint16_t dnat44_dynamic_process(
 			rte_pktmbuf_mtod_offset(m, struct rte_tcp_hdr *, rte_ipv4_hdr_len(ip))
 		);
 
-		o = ip_output_mbuf_data(m);
+		o = l3_mbuf_data(m);
 		o->nh = fib4_lookup(o->iface->vrf_id, ip->dst_addr);
 
 		if (o->nh == NULL)

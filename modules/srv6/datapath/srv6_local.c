@@ -422,7 +422,7 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		sr_d = nexthop_info_srv6_local(ip6_output_mbuf_data(m)->nh);
+		sr_d = nexthop_info_srv6_local(l3_mbuf_data(m)->nh);
 
 		if (gr_mbuf_is_traced(m)) {
 			t = gr_mbuf_trace_add(m, node, sizeof(*t));

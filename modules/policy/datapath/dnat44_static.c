@@ -26,8 +26,8 @@ static uint16_t dnat44_static_process(
 ) {
 	const struct nexthop_info_dnat *dnat;
 	const struct nexthop_info_l3 *l3;
-	struct ip_output_mbuf_data *d;
 	struct rte_ipv4_hdr *ip;
+	struct l3_mbuf_data *d;
 	struct rte_mbuf *mbuf;
 	uint16_t i, frag;
 	rte_edge_t edge;
@@ -35,7 +35,7 @@ static uint16_t dnat44_static_process(
 	for (i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
-		d = ip_output_mbuf_data(mbuf);
+		d = l3_mbuf_data(mbuf);
 		dnat = nexthop_info_dnat(d->nh);
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		ip->hdr_checksum = fixup_checksum_32(ip->hdr_checksum, ip->dst_addr, dnat->replace);
