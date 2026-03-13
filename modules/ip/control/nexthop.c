@@ -27,12 +27,23 @@
 
 static control_input_t ip_output_node;
 
-void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct rte_mbuf *m = obj;
-	struct rte_ipv4_hdr *ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
-	ip4_addr_t dst = ip->dst_addr;
+static int ip_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
+	struct l3_mbuf_data *d = l3_mbuf_data(m);
+	d->nh = nh;
+	d->iface = NULL;
+	if (post_to_stack(ip_output_node, m) < 0) {
+		LOG(ERR, "post_to_stack: %s", strerror(errno));
+		return -errno;
+	}
+	return 0;
+}
+
+static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct nexthop_info_l3 *l3;
+	struct rte_mbuf *m = obj;
+	struct rte_ipv4_hdr *ip;
 	struct nexthop *nh;
+	ip4_addr_t dst;
 
 	nh = (struct nexthop *)l3_mbuf_data(m)->nh;
 
@@ -51,6 +62,12 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	}
 
 	l3 = nexthop_info_l3(nh);
+
+	if (!(m->packet_type & RTE_PTYPE_L3_IPV4))
+		goto hold;
+
+	ip = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
+	dst = ip->dst_addr;
 
 	if (l3->flags & GR_NH_F_LINK && dst != l3->ipv4) {
 		// The resolved nexthop is associated with a "connected" route.
@@ -90,13 +107,13 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		l3 = nexthop_info_l3(remote);
 	}
 
+hold:
 	if (l3->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
-		struct l3_mbuf_data *d = l3_mbuf_data(m);
-		d->nh = nh;
-		if (post_to_stack(ip_output_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
+		const struct nexthop_af_ops *ops = nexthop_af_ops_from_mbuf(m);
+		assert(ops != NULL);
+		if (ops->resubmit(m, nh) < 0) {
 			goto free;
 		}
 		return;
@@ -116,7 +133,7 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		}
 		return;
 	} else {
-		LOG(DEBUG, IP4_F " hold queue full", &dst);
+		LOG(DEBUG, IP4_F " hold queue full", &l3->ipv4);
 	}
 free:
 	rte_pktmbuf_free(m);
@@ -200,17 +217,15 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	// Flush all held packets.
 	held = l3->held_pkts_head;
 	while (held != NULL) {
-		struct l3_mbuf_data *o;
+		const struct nexthop_af_ops *ops;
 		struct rte_mbuf *next;
 
 		next = queue_mbuf_data(held)->next;
-		o = l3_mbuf_data(held);
-		o->nh = nh;
-		o->iface = NULL;
-		if (post_to_stack(ip_output_node, held) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
+		ops = nexthop_af_ops_from_mbuf(held);
+		assert(ops != NULL);
+		if (ops->resubmit(held, nh) < 0)
 			rte_pktmbuf_free(held);
-		}
+
 		held = next;
 	}
 	l3->held_pkts_head = NULL;
@@ -233,8 +248,10 @@ static struct gr_module nh4_module = {
 };
 
 static struct nexthop_af_ops nh_ops = {
+	.resolve = nh4_resolve_cb,
 	.solicit = arp_output_request_solicit,
 	.cleanup_routes = rib4_cleanup,
+	.resubmit = ip_resubmit_cb,
 };
 
 RTE_INIT(control_ip_init) {

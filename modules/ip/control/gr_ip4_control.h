@@ -23,7 +23,6 @@ static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	return nexthop_lookup_l3(GR_AF_IP4, vrf_id, GR_IFACE_ID_UNDEF, &ip);
 }
 
-void nh4_unreachable_cb(void *obj, uintptr_t priv, const struct control_queue_drain *);
 void arp_probe_input_cb(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
 struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
