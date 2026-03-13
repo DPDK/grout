@@ -175,30 +175,15 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CONFIG_CTX(root),
-		"set (vrf VRF)|default [rib4-routes RIB4_ROUTES] [fib4-tbl8 FIB4_TBL8]"
-		" [rib6-routes RIB6_ROUTES] [fib6-tbl8 FIB6_TBL8]",
+		"set default [rib4-routes RIB4_ROUTES] [rib6-routes RIB6_ROUTES]",
 		route_config_set,
-		"Configure FIB capacity. "
-		"rib*-routes is the maximum number of routes. Default: 65536. "
-		"fib*-tbl8 overrides the auto-derived internal lookup table "
-		"capacity (for advanced use only).",
+		"Set default maximum number of routes for new VRFs. Default: 65536.",
 		with_help("Default for new VRFs.", ec_node_str("default", "default")),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
-			"IPv4 maximum number of routes.",
-			ec_node_uint("RIB4_ROUTES", 1, UINT32_MAX, 10)
+			"Default max IPv4 routes.", ec_node_uint("RIB4_ROUTES", 1, UINT32_MAX, 10)
 		),
 		with_help(
-			"IPv4 num_tbl8 override (0 = auto).",
-			ec_node_uint("FIB4_TBL8", 1, UINT32_MAX, 10)
-		),
-		with_help(
-			"IPv6 maximum number of routes.",
-			ec_node_uint("RIB6_ROUTES", 1, UINT32_MAX, 10)
-		),
-		with_help(
-			"IPv6 num_tbl8 override (0 = auto).",
-			ec_node_uint("FIB6_TBL8", 1, UINT32_MAX, 10)
+			"Default max IPv6 routes.", ec_node_uint("RIB6_ROUTES", 1, UINT32_MAX, 10)
 		)
 	);
 	if (ret < 0)
