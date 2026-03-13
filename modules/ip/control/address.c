@@ -30,6 +30,8 @@
 #include <string.h>
 #include <sys/queue.h>
 
+GR_LOG_TYPE("address");
+
 static struct hoplist *iface_addrs;
 
 struct hoplist *addr4_get_all(uint16_t iface_id) {

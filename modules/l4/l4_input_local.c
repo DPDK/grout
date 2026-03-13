@@ -13,6 +13,8 @@
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("graph");
+
 enum edges {
 	MANAGEMENT = 0,
 	BAD_PROTO,

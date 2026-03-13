@@ -20,6 +20,8 @@
 
 #include <string.h>
 
+GR_LOG_TYPE("ipip");
+
 struct ipip_key {
 	ip4_addr_t local;
 	ip4_addr_t remote;

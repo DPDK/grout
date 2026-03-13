@@ -14,6 +14,7 @@ cli_src += files(
   'main.c',
   'pager.c',
   'quit.c',
+  'tty.c',
 )
 
 cli_inc += include_directories('.')

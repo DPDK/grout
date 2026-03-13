@@ -13,6 +13,8 @@
 
 #include <stdint.h>
 
+GR_LOG_TYPE("nexthop");
+
 static struct rte_hash *l3_hash;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];

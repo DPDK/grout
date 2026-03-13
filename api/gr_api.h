@@ -131,6 +131,39 @@ struct gr_hello_req {
 };
 // struct gr_hello_resp { };
 
+// Enable/disable packet ingress/egress logging.
+#define GR_LOG_PACKETS_SET REQUEST_TYPE(GR_MAIN_MODULE, 0x0010)
+
+struct gr_log_packets_set_req {
+	bool enabled;
+};
+
+// struct gr_log_packet_set_resp { };
+
+#define GR_LOG_LEVEL_LIST REQUEST_TYPE(GR_MAIN_MODULE, 0x0011)
+
+struct gr_log_level_list_req {
+	bool show_all;
+};
+
+struct gr_log_entry {
+	char name[64];
+	uint32_t level;
+};
+STREAM_RESP(struct gr_log_entry);
+
+#define GR_LOG_LEVEL_SET REQUEST_TYPE(GR_MAIN_MODULE, 0x0012)
+
+#define GR_LOG_LEVEL_MIN 1
+#define GR_LOG_LEVEL_MAX 8
+
+struct gr_log_level_set_req {
+	char pattern[64];
+	uint32_t level;
+};
+
+// struct gr_log_level_set_resp { };
+
 // Subscribe to events of a given type.
 // Use EVENT_TYPE_ALL to subscribe to all event types.
 // Multiple subscriptions to same type update suppression flag.

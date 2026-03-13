@@ -11,6 +11,8 @@
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
 
+GR_LOG_TYPE("graph");
+
 enum {
 	UNKNOWN_PROTO = 0,
 	BAD_CHECKSUM,

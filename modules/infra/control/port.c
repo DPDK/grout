@@ -38,6 +38,8 @@
 #include <stdio.h>
 #include <string.h>
 
+GR_LOG_TYPE("port");
+
 static void port_hide_netdev(struct iface_info_port *port);
 
 #define ETHER_FRAME_GAP 20

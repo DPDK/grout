@@ -3,10 +3,13 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
+#include <gr_log.h>
 #include <gr_module.h>
 #include <gr_nexthop.h>
 #include <gr_nh_control.h>
 #include <gr_vec.h>
+
+GR_LOG_TYPE("nexthop");
 
 static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_nh_config_get_resp *resp = malloc(sizeof(*resp));

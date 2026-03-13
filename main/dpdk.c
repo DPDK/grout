@@ -23,6 +23,8 @@
 #include <syslog.h>
 
 int gr_rte_log_type;
+struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
+GR_LOG_TYPE("main");
 static FILE *log_stream;
 
 static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {
@@ -85,7 +87,7 @@ int dpdk_log_init(void) {
 		rte_log_set_level_pattern("*", RTE_LOG_DEBUG);
 	else
 		rte_log_set_level_pattern("*", RTE_LOG_NOTICE);
-	rte_log_set_level(gr_rte_log_type, RTE_MIN(gr_config.log_level, RTE_LOG_MAX));
+	rte_log_set_level_pattern("grout*", RTE_MIN(gr_config.log_level, RTE_LOG_MAX));
 
 	return 0;
 }

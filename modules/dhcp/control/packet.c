@@ -20,6 +20,8 @@
 
 #include <string.h>
 
+GR_LOG_TYPE("dhcp");
+
 int dhcp_parse_packet(
 	struct rte_mbuf *mbuf,
 	struct dhcp_client *client,

@@ -30,6 +30,8 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
+GR_LOG_TYPE("worker");
+
 struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
 int worker_create(unsigned cpu_id) {
