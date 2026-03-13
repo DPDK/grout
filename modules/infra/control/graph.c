@@ -160,12 +160,18 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		ctx->burst_size = RTE_GRAPH_BURST_SIZE / gr_vec_len(worker->rxqs);
 		// select the appropriate node process callback
 		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
-			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+			// virtio driver supports Rx vlan stripping but requires help for L4 csum
+			if (port->virtio_offloads)
+				node->process = rx_bond_virtio_process;
+			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 				node->process = rx_bond_offload_process;
 			else
 				node->process = rx_bond_process;
 		} else {
-			if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+			// virtio driver supports Rx vlan stripping but requires help for L4 csum
+			if (port->virtio_offloads)
+				node->process = rx_virtio_process;
+			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 				node->process = rx_offload_process;
 			else
 				node->process = rx_process;

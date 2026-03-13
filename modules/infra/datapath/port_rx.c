@@ -10,6 +10,8 @@
 #include <gr_rxtx.h>
 #include <gr_trace.h>
 
+#include <rte_net.h>
+
 enum {
 	IFACE_INPUT = 0,
 	NB_EDGES,
@@ -43,6 +45,8 @@ int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len
 		SAFE_BUF(snprintf, len, "%sshared", n ? " " : "");
 	if (d->func_flags & RXTX_F_BOND)
 		SAFE_BUF(snprintf, len, "%sbond", n ? " " : "");
+	if (d->func_flags & RXTX_F_VIRTIO)
+		SAFE_BUF(snprintf, len, "%svirtio", n ? " " : "");
 
 	SAFE_BUF(snprintf, len, "%s", n ? " " : "");
 	if (rte_get_rx_ol_flag_list(d->mbuf_ol_flags, flags, sizeof(flags)) < 0)
@@ -113,6 +117,86 @@ static inline void trace_log(
 	}
 }
 
+static void fix_l4_csum(struct rte_mbuf *m) {
+	struct rte_net_hdr_lens hdr_lens;
+	uint16_t csum_offset;
+	rte_be16_t csum = 0;
+	uint32_t hdr_len;
+	uint32_t ptype;
+
+	// return early if the L4 checksum was not offloaded
+	if ((m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) != RTE_MBUF_F_RX_L4_CKSUM_NONE)
+		return;
+
+	ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
+
+	hdr_len = hdr_lens.l2_len + hdr_lens.l3_len;
+
+	switch (ptype & RTE_PTYPE_L4_MASK) {
+	case RTE_PTYPE_L4_TCP:
+		csum_offset = offsetof(struct rte_tcp_hdr, cksum) + hdr_len;
+		break;
+	case RTE_PTYPE_L4_UDP:
+		csum_offset = offsetof(struct rte_udp_hdr, dgram_cksum) + hdr_len;
+		break;
+	default:
+		// unsupported packet type
+		return;
+	}
+
+	// the pseudo-header checksum is already performed, as per Virtio spec
+	if (rte_raw_cksum_mbuf(m, hdr_len, rte_pktmbuf_pkt_len(m) - hdr_len, &csum) < 0)
+		return;
+
+	csum = ~csum;
+	// see RFC768
+	if (unlikely((ptype & RTE_PTYPE_L4_UDP) && csum == 0))
+		csum = RTE_BE16(0xffff);
+
+	if (rte_pktmbuf_data_len(m) >= csum_offset + 2)
+		*rte_pktmbuf_mtod_offset(m, rte_be16_t *, csum_offset) = csum;
+
+	m->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_MASK;
+	m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+}
+
+uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
+	const struct rx_node_ctx *ctx = rx_node_ctx(node);
+	struct iface_mbuf_data *d;
+	struct rte_mbuf *m;
+	uint16_t rx;
+
+	if (!iface_info_port(ctx->iface)->started)
+		return 0;
+
+	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	if (rx == 0)
+		return 0;
+
+	for (unsigned r = 0; r < rx; r++) {
+		m = mbufs[r];
+		d = iface_mbuf_data(m);
+		d->iface = ctx->iface;
+
+		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+			d->vlan_id = m->vlan_tci & 0xfff;
+			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+		} else {
+			d->vlan_id = 0;
+		}
+
+		fix_l4_csum(m);
+	}
+
+	trace_log(RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD, ctx->iface, node, mbufs, rx);
+
+	node->idx = rx;
+	rte_node_next_stream_move(graph, node, IFACE_INPUT);
+
+	return rx;
+}
+
 uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
@@ -177,6 +261,54 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 	}
 
 	trace_log(0, ctx->iface, node, mbufs, rx);
+
+	node->idx = rx;
+	rte_node_next_stream_move(graph, node, IFACE_INPUT);
+
+	return rx;
+}
+
+uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
+	const struct rx_node_ctx *ctx = rx_node_ctx(node);
+	const struct rte_ether_hdr *eth;
+	struct iface_mbuf_data *d;
+	const struct iface *iface;
+	struct rte_mbuf *m;
+	uint16_t rx;
+
+	if (!iface_info_port(ctx->iface)->started)
+		return 0;
+
+	iface = get_bond(ctx->iface);
+	if (iface == NULL)
+		return 0;
+
+	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	if (rx == 0)
+		return 0;
+
+	for (unsigned r = 0; r < rx; r++) {
+		m = mbufs[r];
+		d = iface_mbuf_data(m);
+
+		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+			d->vlan_id = m->vlan_tci & 0xfff;
+			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+			d->iface = iface;
+		} else {
+			d->vlan_id = 0;
+			eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+			if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+				d->iface = ctx->iface;
+			else
+				d->iface = iface;
+		}
+
+		fix_l4_csum(m);
+	}
+
+	trace_log(RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);

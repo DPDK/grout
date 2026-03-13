@@ -58,6 +58,7 @@ typedef enum : uint16_t {
 	RXTX_F_VLAN_OFFLOAD = GR_BIT16(0),
 	RXTX_F_TXQ_SHARED = GR_BIT16(1),
 	RXTX_F_BOND = GR_BIT16(2),
+	RXTX_F_VIRTIO = GR_BIT16(3),
 } rxtx_flags_t;
 
 struct rxtx_trace_data {
@@ -65,8 +66,10 @@ struct rxtx_trace_data {
 	uint64_t mbuf_ol_flags;
 };
 
+uint16_t rx_virtio_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_virtio_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
