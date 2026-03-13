@@ -71,7 +71,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 
-		nh = ip_output_mbuf_data(mbuf)->nh;
+		nh = l3_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;

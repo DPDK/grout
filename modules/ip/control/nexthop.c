@@ -34,7 +34,7 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 
-	nh = (struct nexthop *)ip_output_mbuf_data(m)->nh;
+	nh = (struct nexthop *)l3_mbuf_data(m)->nh;
 
 	if (drain != NULL) {
 		// Check if packet references deleted object.
@@ -93,7 +93,7 @@ void nh4_unreachable_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	if (l3->state == GR_NH_S_REACHABLE) {
 		// The nexthop may have become reachable while the packet was
 		// passed from the datapath to here. Re-send it to datapath.
-		struct ip_output_mbuf_data *d = ip_output_mbuf_data(m);
+		struct l3_mbuf_data *d = l3_mbuf_data(m);
 		d->nh = nh;
 		if (post_to_stack(ip_output_node, m) < 0) {
 			LOG(ERR, "post_to_stack: %s", strerror(errno));
@@ -200,11 +200,11 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	// Flush all held packets.
 	held = l3->held_pkts_head;
 	while (held != NULL) {
-		struct ip_output_mbuf_data *o;
+		struct l3_mbuf_data *o;
 		struct rte_mbuf *next;
 
 		next = queue_mbuf_data(held)->next;
-		o = ip_output_mbuf_data(held);
+		o = l3_mbuf_data(held);
 		o->nh = nh;
 		o->iface = NULL;
 		if (post_to_stack(ip_output_node, held) < 0) {

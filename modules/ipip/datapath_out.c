@@ -30,10 +30,10 @@ enum {
 
 static uint16_t
 ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	struct ip_output_mbuf_data *ip_data;
 	const struct iface_info_ipip *ipip;
 	struct ip_local_mbuf_data tunnel;
 	const struct rte_ipv4_hdr *inner;
+	struct l3_mbuf_data *ip_data;
 	struct rte_ipv4_hdr *outer;
 	const struct iface *iface;
 	struct rte_mbuf *mbuf;
@@ -45,7 +45,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		mbuf = objs[i];
 
 		// Resolve the IPIP interface from the nexthop provided by ip_output.
-		ip_data = ip_output_mbuf_data(mbuf);
+		ip_data = l3_mbuf_data(mbuf);
 		iface = iface_from_id(ip_data->nh->iface_id);
 		if (iface == NULL || iface->type != GR_IFACE_TYPE_IPIP) {
 			edge = NO_TUNNEL;

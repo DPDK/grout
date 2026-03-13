@@ -6,6 +6,7 @@
 #include <gr_control_queue.h>
 #include <gr_iface.h>
 #include <gr_ip4_control.h>
+#include <gr_l3.h>
 #include <gr_mbuf.h>
 #include <gr_net_types.h>
 
@@ -13,8 +14,6 @@
 #include <rte_ip.h>
 
 #include <stdint.h>
-
-GR_MBUF_PRIV_DATA_TYPE(ip_output_mbuf_data, { const struct nexthop *nh; });
 
 GR_MBUF_PRIV_DATA_TYPE(arp_reply_mbuf_data, { const struct nexthop *local; });
 
