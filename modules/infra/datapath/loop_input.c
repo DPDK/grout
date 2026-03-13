@@ -39,7 +39,6 @@ static uint16_t loopback_input_process(
 	uint16_t nb_objs
 ) {
 	struct rte_mbuf *mbuf;
-	rte_be16_t eth_type;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -50,11 +49,20 @@ static uint16_t loopback_input_process(
 			gr_mbuf_trace_add(mbuf, node, 0);
 		}
 
-		eth_type = rte_pktmbuf_mtod(mbuf, struct tun_pi *)->proto;
-		rte_pktmbuf_adj(mbuf, sizeof(struct tun_pi));
-		edge = l3_edges[eth_type];
+		switch (mbuf->packet_type) {
+		case RTE_PTYPE_L3_IPV4:
+			edge = l3_edges[RTE_BE16(RTE_ETHER_TYPE_IPV4)];
+			break;
+		case RTE_PTYPE_L3_IPV6:
+			edge = l3_edges[RTE_BE16(RTE_ETHER_TYPE_IPV6)];
+			break;
+		default:
+			edge = UNKNOWN_PROTO;
+			break;
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
+
 	return nb_objs;
 }
 
