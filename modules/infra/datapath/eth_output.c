@@ -37,12 +37,15 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		eth = gr_mbuf_prepend(mbuf, eth);
 		if (unlikely(eth == NULL)) {
+			last_iface_id = GR_IFACE_ID_UNDEF;
+			memset(&src_mac, 0, sizeof(src_mac));
 			edge = NO_HEADROOM;
 			goto next;
 		}
 		eth->dst_addr = priv->dst;
 		if (priv->iface->id != last_iface_id) {
 			if (iface_get_eth_addr(priv->iface, &src_mac) < 0) {
+				memset(&src_mac, 0, sizeof(src_mac));
 				edge = NO_MAC;
 				goto next;
 			}
