@@ -110,6 +110,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct eth_input_mbuf_data *e;
 	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
+	struct tun_pi *pi;
 	size_t read_len;
 	size_t len;
 	char *data;
@@ -150,7 +151,18 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	// We can't call rte_net_get_ptype directly as we do not have an ethernet frame.
 	// An option would be to prepend/adjust every buffer, but let's set directly
 	// the information we need instead.
-	mbuf->packet_type = (data[0] & 0xf0) == 0x60 ? RTE_PTYPE_L3_IPV6 : RTE_PTYPE_L3_IPV4;
+	pi = (struct tun_pi *)data;
+	switch (pi->proto) {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
+		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
+		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
+		break;
+	default:
+		LOG(ERR, "unknown proto: %#x", rte_be_to_cpu_16(pi->proto));
+		goto err;
+	}
 
 	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);

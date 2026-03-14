@@ -66,13 +66,14 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		mbuf = objs[i];
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
 
-		nh = ip6_output_mbuf_data(mbuf)->nh;
+		nh = l3_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;
 		}
 
 		mbuf->packet_type |= RTE_PTYPE_L3_IPV6;
+		mbuf->packet_type &= ~RTE_PTYPE_L3_IPV4;
 
 		edge = nh_type_edges[nh->type];
 		if (edge != ETH_OUTPUT)

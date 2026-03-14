@@ -55,7 +55,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		// Get the local router IP address from the input iface
-		iface = ip_output_mbuf_data(mbuf)->iface;
+		iface = l3_mbuf_data(mbuf)->iface;
 		if (iface == NULL || (nh = fib4_lookup(iface->vrf_id, src)) == NULL) {
 			edge = NO_IP;
 			goto next;
