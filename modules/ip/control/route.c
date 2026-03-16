@@ -684,12 +684,14 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip4_fib_info_list_req *req = request;
 	struct gr_fib4_info info;
 
-	info.vrf_id = GR_VRF_ID_UNDEF;
-	info.max_routes = max_routes_default;
-	info.used_routes = 0;
-	info.num_tbl8 = fib4_auto_tbl8(max_routes_default);
-	info.used_tbl8 = 0;
-	api_send(ctx, sizeof(info), &info);
+	if (req->vrf_id == GR_VRF_ID_UNDEF) {
+		info.vrf_id = GR_VRF_ID_UNDEF;
+		info.max_routes = max_routes_default;
+		info.used_routes = 0;
+		info.num_tbl8 = fib4_auto_tbl8(max_routes_default);
+		info.used_tbl8 = 0;
+		api_send(ctx, sizeof(info), &info);
+	}
 
 	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
 		if (v != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
