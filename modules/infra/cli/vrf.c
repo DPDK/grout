@@ -8,12 +8,14 @@
 
 #define VRF_ATTRS_CMD                                                                              \
 	"(rib4-routes RIB4_ROUTES),(fib4-tbl8 FIB4_TBL8)"                                          \
-	",(rib6-routes RIB6_ROUTES),(fib6-tbl8 FIB6_TBL8)"
+	",(rib6-routes RIB6_ROUTES),(fib6-tbl8 FIB6_TBL8)"                                         \
+	",(description DESCR)"
 #define VRF_ATTRS_ARGS                                                                             \
 	with_help("Max IPv4 routes.", ec_node_uint("RIB4_ROUTES", 1, UINT32_MAX, 10)),             \
 		with_help("IPv4 TBL8 groups.", ec_node_uint("FIB4_TBL8", 1, UINT32_MAX, 10)),      \
 		with_help("Max IPv6 routes.", ec_node_uint("RIB6_ROUTES", 1, UINT32_MAX, 10)),     \
-		with_help("IPv6 TBL8 groups.", ec_node_uint("FIB6_TBL8", 1, UINT32_MAX, 10))
+		with_help("IPv6 TBL8 groups.", ec_node_uint("FIB6_TBL8", 1, UINT32_MAX, 10)),      \
+		with_help("Interface description.", ec_node("any", "DESCR"))
 
 static void vrf_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vrf *info = PAYLOAD(iface);
@@ -55,7 +57,7 @@ static uint64_t parse_vrf_args(
 
 	set_attrs = parse_iface_args(c, p, iface, sizeof(*info), update);
 
-	if (set_attrs & ~(GR_IFACE_SET_NAME | GR_VRF_SET_FIB)) {
+	if (set_attrs & ~(GR_IFACE_SET_NAME | GR_IFACE_SET_DESCR | GR_VRF_SET_FIB)) {
 		errno = EINVAL;
 		return 0;
 	}
