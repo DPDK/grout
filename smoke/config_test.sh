@@ -68,6 +68,8 @@ interface show name bond0
 address show
 route show
 route config show
+route get 10.0.0.1
+route get 2345::1
 nexthop show
 stats show software
 stats show hardware
