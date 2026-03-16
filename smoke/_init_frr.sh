@@ -97,10 +97,13 @@ set_ip_route() {
 	exit
 EOF
 
+	# strip optional nexthop interface
+	local nh=${next_hop% *}
+
 	local gr_vrf_name="${vrf_name}"
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-	while ! grcli -j route show vrf ${gr_vrf_name} | jq -e --arg d "$prefix" --arg nh "$next_hop" \
+	while ! grcli -j route show vrf ${gr_vrf_name} | jq -e --arg d "$prefix" --arg nh "$nh" \
 			'.[] | select(.destination == $d and (.next_hop | contains($nh)))'; do
 		if [ "$count" -ge "$max_tries" ]; then
 			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
