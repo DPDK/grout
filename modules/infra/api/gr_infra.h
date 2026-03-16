@@ -116,7 +116,7 @@ struct __gr_iface_info_port_base {
 struct gr_iface_info_port {
 	BASE(__gr_iface_info_port_base);
 
-#define GR_PORT_DEVARGS_SIZE 64
+#define GR_PORT_DEVARGS_SIZE 128
 	char devargs[GR_PORT_DEVARGS_SIZE];
 #define GR_PORT_DRIVER_NAME_SIZE 32
 	char driver_name[GR_PORT_DRIVER_NAME_SIZE];
