@@ -2,12 +2,19 @@
 # Copyright (c) 2025 Robin Jarry
 ---
 language: en-US
-tone_instructions: "Only comment on critical issues, bugs, or security concerns. Skip style suggestions and minor observations. Avoid AI slop in PR summary."
+tone_instructions: "Only comment on critical issues, bugs, or security concerns. Skip style suggestions and minor observations."
 early_access: false
 enable_free_tier: true
 reviews:
-  profile: chill
+  profile: assertive
   high_level_summary: true
+  high_level_summary_instructions: |
+    - TECHNICAL TL;DR: Provide a single sentence describing the architectural impact.
+    - NO CONVERSATIONAL FILLER. Do not use phrases like "In this PR," "The author has," or "This change aims to."
+    - NO AI SLOP: Avoid shallow and useless statements such as "improve performance and responsiveness" or "Initialization logic consolidated to compute and apply runtime options consistently"
+    - NO PARAPHRASING: Focus strictly on the 'How' and 'Why' of the technical changes.
+    - NO HALLUCINATIONS: Do not try in "invent" explanations of the motivations behind the changes. Base your claims on CODE DIFF and COMMIT MESSAGES.
+    - OMIT TRIVIALITIES: If a file change is just a renamed variable or a single-line import change, do not list it in the summary.
   review_status: false
   commit_status: false
   collapse_walkthrough: true
