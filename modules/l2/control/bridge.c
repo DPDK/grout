@@ -49,6 +49,9 @@ static int bridge_attach_member(struct iface *bridge, struct iface *member) {
 	if (br->n_members == ARRAY_DIM(br->members))
 		return errno_set(EUSERS);
 
+	if (iface_set_promisc(member, true) < 0 && errno != EOPNOTSUPP)
+		return errno_log(errno, "iface_set_promisc(member)");
+
 	br->members[br->n_members++] = member;
 	member->domain_id = bridge->id;
 	member->vrf_id = GR_VRF_ID_UNDEF;
@@ -66,6 +69,7 @@ static int bridge_detach_member(struct iface *bridge, struct iface *member) {
 			if (i < last)
 				br->members[i] = br->members[last];
 			br->n_members--;
+			iface_set_promisc(member, false);
 			member->domain_id = GR_IFACE_ID_UNDEF;
 			member->mode = GR_IFACE_MODE_VRF;
 			fdb_purge_iface(member->id);
@@ -81,6 +85,7 @@ static int bridge_fini(struct iface *iface) {
 
 	for (unsigned i = 0; i < bridge->n_members; i++) {
 		struct iface *member = bridge->members[i];
+		iface_set_promisc(member, false);
 		member->vrf_id = vrf_default_get_or_create();
 		if (member->vrf_id != GR_VRF_ID_UNDEF)
 			vrf_incref(member->vrf_id);
