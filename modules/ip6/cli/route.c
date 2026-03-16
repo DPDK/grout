@@ -84,7 +84,11 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 	resp = resp_ptr;
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), c, &resp->nh, true);
-	printf(IP6_F " via %s\n", &req.dest, buf);
+
+	struct gr_object *o = gr_object_new();
+	gr_object_field(o, "destination", GR_DISP_LEFT, IP6_F, &req.dest);
+	gr_object_field(o, "nexthop", GR_DISP_LEFT, "%s", buf);
+	gr_object_free(o);
 	free(resp_ptr);
 
 	return CMD_SUCCESS;
