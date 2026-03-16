@@ -44,14 +44,6 @@
 create_interface p0
 set_ip_address p0 172.16.0.2/24
 
-grcli interface add bridge br100
-create_interface p1 domain br100
-grcli interface add vxlan vxlan100 vni 100 local 172.16.0.2 domain br100
-
-netns_add host-b
-move_to_netns x-p1 host-b
-ip -n host-b addr add 10.0.0.3/24 dev x-p1
-
 # left side --------------------------------------------------------------------
 start_frr evpn-peer 0
 
@@ -112,6 +104,19 @@ router bgp 65000
  exit-address-family
 exit
 EOF
+
+# Move bridge and vxlan setup here so that mac_b is only learned after EVPN is
+# fully operational. If host-b is connected to the bridge before
+# advertise-all-vni, its MAC may be learned and reported to FRR before the EVPN
+# session is up, and FRR will silently drop the notification without creating
+# a type-2 route.
+grcli interface add bridge br100
+create_interface p1 domain br100
+grcli interface add vxlan vxlan100 vni 100 local 172.16.0.2 domain br100
+
+netns_add host-b
+move_to_netns x-p1 host-b
+ip -n host-b addr add 10.0.0.3/24 dev x-p1
 
 # -- Wait for EVPN type-3 (flood VTEP) exchange -------------------------------
 attempts=0
