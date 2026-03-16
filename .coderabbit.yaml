@@ -6,10 +6,9 @@ tone_instructions: "Only comment on critical issues, bugs, or security concerns.
 early_access: false
 enable_free_tier: true
 reviews:
-  profile: assertive
+  profile: chill
   high_level_summary: true
   high_level_summary_instructions: |
-    - TECHNICAL TL;DR: Provide a single sentence describing the architectural impact.
     - NO CONVERSATIONAL FILLER. Do not use phrases like "In this PR," "The author has," or "This change aims to."
     - NO AI SLOP: Avoid shallow and useless statements such as "improve performance and responsiveness" or "Initialization logic consolidated to compute and apply runtime options consistently"
     - NO PARAPHRASING: Focus strictly on the 'How' and 'Why' of the technical changes.
