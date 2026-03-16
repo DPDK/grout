@@ -282,7 +282,7 @@ static int iface_vrf_reconfig(
 	struct iface_info_vrf *vrf = iface_info_vrf(iface);
 	const struct gr_iface_info_vrf *info = api_info;
 
-	if (set_attrs & ~(GR_IFACE_SET_NAME | GR_VRF_SET_FIB))
+	if (set_attrs & ~(GR_IFACE_SET_NAME | GR_IFACE_SET_DESCR | GR_VRF_SET_FIB))
 		return errno_set(EOPNOTSUPP);
 
 	if (set_attrs & GR_IFACE_SET_NAME) {

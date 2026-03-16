@@ -103,6 +103,11 @@ grcli interface set vrf newvrf rib4-routes 128
 grcli -j interface show name newvrf \
 	| jq -e '.rib4_max_routes == 128' || fail "rib4_max_routes should be 128 after set on default VRF"
 
+# VRF description set should not fail
+grcli interface set vrf newvrf description "test vrf"
+grcli -j interface show name newvrf \
+	| jq -e '.description == "test vrf"' || fail "description should be 'test vrf'"
+
 # cleanup
 grcli interface del p5
 grcli interface del fibtest
