@@ -8,6 +8,7 @@
 #include <gr_macro.h>
 #include <gr_module.h>
 #include <gr_sort.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 
 #include <assert.h>
@@ -79,8 +80,8 @@ static bool module_is_child(const void *mod, const void *maybe_child) {
 		return false;
 
 	// split on commas
-	assert(strlen(c->depends_on) < sizeof(depends_on));
-	memccpy(depends_on, c->depends_on, 0, sizeof(depends_on));
+	if (gr_strcpy(depends_on, sizeof(depends_on), c->depends_on) < 0)
+		ABORT("depends_on too long: \"%s\"", c->depends_on);
 
 	for (char *dep = strtok(depends_on, ","); dep != NULL; dep = strtok(NULL, ",")) {
 		if (fnmatch(dep, m->name, 0) == 0)

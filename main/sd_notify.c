@@ -16,6 +16,7 @@
 #include "sd_notify.h"
 
 #include <gr_errno.h>
+#include <gr_string.h>
 
 #include <errno.h>
 #include <inttypes.h>
@@ -63,11 +64,8 @@ int sd_notifyf(int unset_environment, const char *format, ...) {
 	if (sock_path[0] != '/' && sock_path[0] != '@')
 		return errno_set(EAFNOSUPPORT);
 
-	// Ensure there is room for NUL byte
-	if (strlen(sock_path) >= sizeof(sun.sun_path))
-		return errno_set(E2BIG);
-
-	memccpy(sun.sun_path, sock_path, 0, sizeof(sun.sun_path));
+	if (gr_strcpy(sun.sun_path, sizeof(sun.sun_path), sock_path) < 0)
+		return -errno;
 
 	// Support for abstract socket
 	if (sun.sun_path[0] == '@')

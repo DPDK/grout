@@ -6,6 +6,7 @@
 #include <gr_api.h>
 #include <gr_log.h>
 #include <gr_module.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 
 #include <sys/socket.h>
@@ -37,7 +38,10 @@ int unix_listen(const char *path) {
 		return errno_log(errno, "socket");
 
 	addr.un.sun_family = AF_UNIX;
-	memccpy(addr.un.sun_path, path, 0, sizeof(addr.un.sun_path) - 1);
+	if (gr_strcpy(addr.un.sun_path, sizeof(addr.un.sun_path), path) < 0) {
+		close(fd);
+		return errno_log(errno, "sun_path");
+	}
 
 	ret = bind(fd, &addr.a, sizeof(addr.un));
 	if (ret < 0 && errno == EADDRINUSE) {

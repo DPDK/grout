@@ -4,6 +4,7 @@
 #include "complete.h"
 
 #include <gr_cli.h>
+#include <gr_string.h>
 
 #include <ecoli.h>
 
@@ -90,8 +91,8 @@ int bash_complete(struct ec_node *cmdlist) {
 		errorf("invalid COMP_POINT value");
 		goto end;
 	}
-	memccpy(buf, comp_line, 0, i);
-	buf[i] = '\0';
+
+	gr_strcpy(buf, i, comp_line);
 
 	if ((cmdlist = bash_complete_node(cmdlist)) == NULL) {
 		errorf("bash_complete_node: %s", strerror(errno));
