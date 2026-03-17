@@ -973,6 +973,9 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 		return grout_set_sr_tunsrc(ctx);
 
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 7, 0)
+	case DPLANE_OP_FDB_READ:
+		return grout_fdb_read_ctx(ctx);
+
 	case DPLANE_OP_INTF_SPEED_GET:
 		// Workaround: return fail INTF_SPEED_GET to stop zebra from repeatedly polling.
 		// Speed is already provided via INTF_INSTALL/UPDATE.

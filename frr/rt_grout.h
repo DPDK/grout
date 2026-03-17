@@ -21,3 +21,4 @@ enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx);
 
 enum zebra_dplane_result grout_neigh_update_ctx(struct zebra_dplane_ctx *ctx);
 enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *ctx);
+enum zebra_dplane_result grout_fdb_read_ctx(struct zebra_dplane_ctx *ctx);
