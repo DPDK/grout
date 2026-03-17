@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/vjardin/libpcap
+revision = vj_add_dpdk_grout
+depth = 1
+
+[provide]

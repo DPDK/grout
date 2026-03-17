@@ -42,6 +42,7 @@ static void usage(void) {
 	printf(" [-m PERMISSIONS]");
 	printf(" [-o USER:GROUP]");
 	printf("\n            ");
+	printf(" [-P]");
 	printf(" [-p]");
 	printf(" [-s PATH]");
 	printf(" [-t]");
@@ -63,6 +64,7 @@ static void usage(void) {
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
 	puts("  -o, --socket-owner USER:GROUP  API socket file ownership");
+	puts("  -P, --pdump                    Enable pdump (shared hugepages for tcpdump).");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
 	puts("  -s, --socket PATH              Path the control plane API socket.");
 	puts("                                 Default: GROUT_SOCK_PATH from env or");
@@ -176,11 +178,12 @@ static int parse_sock_owner(char *user_group_str) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":M:Vhm:o:pSs:tu:vx"
+#define FLAGS ":M:VhPm:o:pSs:tu:vx"
 	static struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"metrics", required_argument, NULL, 'M'},
+		{"pdump", no_argument, NULL, 'P'},
 		{"poll-mode", no_argument, NULL, 'p'},
 		{"socket", required_argument, NULL, 's'},
 		{"socket-mode", required_argument, NULL, 'm'},
@@ -220,6 +223,9 @@ static int parse_args(int argc, char **argv) {
 		case 'o':
 			if (parse_sock_owner(optarg) < 0)
 				return errno_set(EINVAL);
+			break;
+		case 'P':
+			gr_config.pdump = true;
 			break;
 		case 'p':
 			gr_config.poll_mode = true;

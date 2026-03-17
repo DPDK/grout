@@ -14,6 +14,7 @@
 #include <rte_errno.h>
 #include <rte_log.h>
 #include <rte_mempool.h>
+#include <rte_pdump.h>
 #include <rte_version.h>
 #include <rte_vfio.h>
 
@@ -165,7 +166,7 @@ int dpdk_init(void) {
 			else
 				gr_vec_add(eal_args, "2048");
 		}
-	} else {
+	} else if (!gr_config.pdump) {
 		gr_vec_add(eal_args, "--in-memory");
 	}
 
@@ -184,6 +185,16 @@ int dpdk_init(void) {
 	if ((ret = rte_eal_init(gr_vec_len(eal_args), eal_args)) < 0) {
 		ret = -ret;
 		goto end;
+	}
+
+	if (gr_config.pdump) {
+		ret = rte_pdump_init();
+		if (ret < 0) {
+			ret = -ret;
+			LOG(ERR, "rte_pdump_init: %s", rte_strerror(ret));
+			goto end;
+		}
+		LOG(NOTICE, "pdump enabled, secondary processes can attach for packet capture");
 	}
 
 	char affinity[BUFSIZ];

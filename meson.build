@@ -65,7 +65,7 @@ dpdk_dep = dependency(
     'werror=false',
     'tests=false',
     'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
-    'enable_libs=graph,hash,fib,rib,pcapng,gso,vhost,cryptodev,dmadev,security',
+    'enable_libs=graph,hash,fib,rib,pcapng,pdump,bpf,gso,vhost,cryptodev,dmadev,security',
     'disable_apps=*',
     'enable_docs=false',
     'developer_mode=disabled',
@@ -154,6 +154,42 @@ pkg.generate(
   description: 'grout API headers',
   subdirs: ['grout'],
   install_dir: get_option('datadir') / 'pkgconfig',
+)
+
+# libpcap with DPDK pdump support (for tcpdump packet capture against grout).
+# Builds libpcap.so with grout:N device support. Stock tcpdump picks it up
+# via LD_LIBRARY_PATH or system install — no tcpdump recompilation needed.
+libpcap_srcdir = meson.current_source_dir() / 'subprojects' / 'libpcap'
+libpcap_builddir = meson.current_build_dir() / 'libpcap-build'
+
+dpdk_pkgconfig_path = meson.global_build_root() / 'meson-uninstalled'
+dpdk_pc_path = meson.global_build_root() / 'meson-private'
+
+libpcap_build = custom_target(
+  'libpcap',
+  output: '.libpcap-stamp',
+  command: [
+    'sh', '-c',
+    'mkdir -p "' + libpcap_builddir + '" && ' +
+    'cd "' + libpcap_builddir + '" && ' +
+    'export PKG_CONFIG_PATH="' + dpdk_pkgconfig_path + ':' + dpdk_pc_path + ':$PKG_CONFIG_PATH" && ' +
+    'DPDK_LIBDIR="' + meson.global_build_root() + '/subprojects/dpdk/lib" && ' +
+    'DPDK_DRVDIR="' + meson.global_build_root() + '/subprojects/dpdk/drivers" && ' +
+    'cmake "' + libpcap_srcdir + '" ' +
+    '-DDISABLE_DPDK:BOOL=OFF ' +
+    '-DHAVE_RTE_ETH_DEV_COUNT_AVAIL:BOOL=ON ' +
+    '-DHAVE_STRUCT_RTE_ETHER_ADDR:BOOL=ON ' +
+    '-DDISABLE_DBUS:BOOL=ON ' +
+    '-DDISABLE_RDMA:BOOL=ON ' +
+    '-DDISABLE_BLUETOOTH:BOOL=ON ' +
+    '-DDISABLE_NETMAP:BOOL=ON ' +
+    '-DBUILD_SHARED_LIBS:BOOL=ON ' +
+    '"-DCMAKE_SHARED_LINKER_FLAGS=-L$DPDK_LIBDIR -L$DPDK_DRVDIR -Wl,-rpath,$DPDK_LIBDIR:$DPDK_DRVDIR" ' +
+    '&& make -j pcap && ' +
+    'ln -sf libpcap.so.1 libpcap.so.0.8 && ' +
+    'touch "@OUTPUT@"',
+  ],
+  build_by_default: true,
 )
 
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
