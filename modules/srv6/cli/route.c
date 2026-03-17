@@ -96,7 +96,7 @@ static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pn
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	struct gr_object *o = gr_object_new();
+	struct gr_object *o = gr_object_new(NULL);
 	gr_object_field(o, "tunsrc", 0, IP6_F, &resp->addr);
 	gr_object_free(o);
 

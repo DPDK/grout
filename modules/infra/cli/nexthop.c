@@ -207,7 +207,7 @@ static cmd_status_t show_config(struct gr_api_client *c, const struct ec_pnode *
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	struct gr_object *o = gr_object_new();
+	struct gr_object *o = gr_object_new(NULL);
 	gr_object_field(o, "used", GR_DISP_INT, "%u", resp->used_count);
 	gr_object_field(
 		o,

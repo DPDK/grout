@@ -143,10 +143,10 @@ err:
 	return puts(buf);
 }
 
-static int print_json_string(const char *s, bool stop_at_spaces) {
+static int fprint_json_string(FILE *fp, const char *s, bool stop_at_spaces) {
 	int n = 0;
 
-	if (putchar('"') < 0)
+	if (fputc('"', fp) < 0)
 		return EOF;
 
 	while (s[n] && (!stop_at_spaces || !isspace(s[n]))) {
@@ -154,47 +154,47 @@ static int print_json_string(const char *s, bool stop_at_spaces) {
 		if (c >= '\a' && c <= '\r') {
 			// special escape codes, e.g.: '\n' -> "\\n"
 			static const char esc[] = "abtnvfr";
-			if (printf("\\%c", esc[c - '\a']) < 0)
+			if (fprintf(fp, "\\%c", esc[c - '\a']) < 0)
 				return EOF;
 		} else if (c >= ' ' && c <= '~') {
 			// printable characters
 			if (c == '"' || c == '\\') {
 				// escape quotes and backslashes with a backslash
-				if (putchar('\\') < 0)
+				if (fputc('\\', fp) < 0)
 					return EOF;
 			}
-			if (putchar(c) < 0)
+			if (fputc(c, fp) < 0)
 				return EOF;
 		} else {
 			// any other non-printable character is formatted as "\\uXXXX"
-			if (printf("\\u%04hhx", (unsigned char)c) < 0)
+			if (fprintf(fp, "\\u%04hhx", (unsigned char)c) < 0)
 				return EOF;
 		}
 	}
 
-	if (putchar('"') < 0)
+	if (fputc('"', fp) < 0)
 		return EOF;
 
 	return n;
 }
 
-static int print_json_value(const char *val, gr_display_flags_t flags) {
+static int fprint_json_value(FILE *fp, const char *val, gr_display_flags_t flags) {
 	if (flags & GR_DISP_BOOL) {
 		bool v = !strcmp(val, "true") || !strcmp(val, "1");
-		return printf("%s", v ? "true" : "false");
+		return fprintf(fp, "%s", v ? "true" : "false");
 	} else if (flags & GR_DISP_INT) {
 		int64_t i = 0;
 		sscanf(val, "%ld", &i);
-		return printf("%ld", i);
+		return fprintf(fp, "%ld", i);
 	} else if (flags & GR_DISP_FLOAT) {
 		float f = 0.0;
 		sscanf(val, "%f", &f);
-		return printf("%f", f);
+		return fprintf(fp, "%f", f);
 	} else if (flags & GR_DISP_STR_ARRAY) {
 		bool first = true;
 		int i = 0, n;
 
-		if (putchar('[') < 0)
+		if (fputc('[', fp) < 0)
 			return EOF;
 
 		while (val[i]) {
@@ -202,18 +202,18 @@ static int print_json_value(const char *val, gr_display_flags_t flags) {
 				i++;
 			if (!val[i])
 				break;
-			if (!first && putchar(',') < 0)
+			if (!first && fputc(',', fp) < 0)
 				return EOF;
 			first = false;
 
-			n = print_json_string(&val[i], true);
+			n = fprint_json_string(fp, &val[i], true);
 			if (n < 0)
 				return EOF;
 			i += n;
 		}
-		return putchar(']');
+		return fputc(']', fp);
 	} else {
-		return print_json_string(val, false);
+		return fprint_json_string(fp, val, false);
 	}
 }
 
@@ -233,7 +233,7 @@ static int print_json_row(struct gr_table *t, const struct table_row *row) {
 		if (printf("\"%s\":", col->json_key) < 0)
 			return EOF;
 
-		if (print_json_value(row->cells[i], col->flags) < 0)
+		if (fprint_json_value(stdout, row->cells[i], col->flags) < 0)
 			return EOF;
 	}
 	return putchar('}');
@@ -312,6 +312,12 @@ void gr_table_free(struct gr_table *t) {
 #define MAX_DEPTH 16
 
 struct gr_object {
+	// Output stream.
+	FILE *fp;
+	// True if fp was created by open_memstream (must be fclosed).
+	bool owns_fp;
+	// Size of the memstream buffer (used by open_memstream).
+	size_t memsz;
 	// JSON: true when a comma must be printed before the next value.
 	bool needs_comma;
 	// Current nesting depth (incremented by open, decremented by close).
@@ -329,12 +335,23 @@ struct gr_object {
 	bool first_in_item[MAX_DEPTH];
 };
 
-struct gr_object *gr_object_new(void) {
+struct gr_object *gr_object_new(char **bufp) {
 	struct gr_object *o = calloc(1, sizeof(*o));
 	if (o == NULL)
 		return NULL;
+
+	if (bufp != NULL) {
+		o->fp = open_memstream(bufp, &o->memsz);
+		if (o->fp == NULL) {
+			free(o);
+			return NULL;
+		}
+		o->owns_fp = true;
+	} else {
+		o->fp = stdout;
+	}
 	if (json_output)
-		putchar('{');
+		fputc('{', o->fp);
 	return o;
 }
 
@@ -347,10 +364,10 @@ static void print_text_indent(struct gr_object *o) {
 	}
 	for (unsigned i = 0; i < o->depth; i++) {
 		if ((int)i == dash_at) {
-			printf("- ");
+			fprintf(o->fp, "- ");
 			o->first_in_item[i] = false;
 		} else {
-			printf("  ");
+			fprintf(o->fp, "  ");
 		}
 	}
 }
@@ -376,13 +393,13 @@ void gr_object_field(
 
 	if (json_output) {
 		if (o->needs_comma)
-			putchar(',');
+			fputc(',', o->fp);
 		o->needs_comma = true;
-		printf("\"%s\":", key);
-		print_json_value(buf, flags);
+		fprintf(o->fp, "\"%s\":", key);
+		fprint_json_value(o->fp, buf, flags);
 	} else {
 		print_text_indent(o);
-		printf("%s: %s\n", key, buf);
+		fprintf(o->fp, "%s: %s\n", key, buf);
 	}
 }
 
@@ -399,13 +416,13 @@ void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const c
 
 	if (json_output) {
 		if (o->needs_comma)
-			putchar(',');
+			fputc(',', o->fp);
 		o->needs_comma = true;
-		print_json_value(buf, flags);
+		fprint_json_value(o->fp, buf, flags);
 	} else {
 		assert(o->depth > 0 && o->in_array[o->depth - 1]);
 		print_text_indent(o);
-		printf("%s\n", buf);
+		fprintf(o->fp, "%s\n", buf);
 		o->first_in_item[o->depth - 1] = true;
 	}
 }
@@ -417,15 +434,15 @@ void gr_object_open(struct gr_object *o, const char *key) {
 
 	if (json_output) {
 		if (o->needs_comma)
-			putchar(',');
+			fputc(',', o->fp);
 		if (key)
-			printf("\"%s\":{", key);
+			fprintf(o->fp, "\"%s\":{", key);
 		else
-			putchar('{');
+			fputc('{', o->fp);
 	} else {
 		if (key) {
 			print_text_indent(o);
-			printf("%s:\n", key);
+			fprintf(o->fp, "%s:\n", key);
 		}
 	}
 
@@ -444,7 +461,7 @@ void gr_object_close(struct gr_object *o) {
 	o->needs_comma = o->comma_stack[o->depth];
 
 	if (json_output) {
-		putchar('}');
+		fputc('}', o->fp);
 		o->needs_comma = true;
 	}
 
@@ -459,11 +476,11 @@ void gr_object_array_open(struct gr_object *o, const char *key) {
 
 	if (json_output) {
 		if (o->needs_comma)
-			putchar(',');
-		printf("\"%s\":[", key);
+			fputc(',', o->fp);
+		fprintf(o->fp, "\"%s\":[", key);
 	} else {
 		print_text_indent(o);
-		printf("%s:\n", key);
+		fprintf(o->fp, "%s:\n", key);
 	}
 
 	o->comma_stack[o->depth] = o->needs_comma;
@@ -479,7 +496,7 @@ void gr_object_array_close(struct gr_object *o) {
 	o->needs_comma = o->comma_stack[o->depth];
 
 	if (json_output) {
-		putchar(']');
+		fputc(']', o->fp);
 		o->needs_comma = true;
 	}
 }
@@ -488,7 +505,9 @@ void gr_object_free(struct gr_object *o) {
 	if (o == NULL)
 		return;
 	if (json_output)
-		puts("}");
+		fputs("}\n", o->fp);
+	if (o->owns_fp)
+		fclose(o->fp);
 	free(o);
 }
 
