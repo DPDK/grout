@@ -475,7 +475,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 					.cycles = n->cycles,
 					.topo_order = n->topo_order,
 				};
-				memccpy(stat.name, name, 0, sizeof(stat.name));
+				gr_strcpy(stat.name, sizeof(stat.name), name);
 				gr_vec_add(stats, stat);
 			}
 			for (uint8_t x = 0; x < n->nb_xstats; x++) {
@@ -496,7 +496,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 						.batches = n->batches,
 						.topo_order = n->topo_order,
 					};
-					memccpy(stat.name, xname, 0, sizeof(stat.name));
+					gr_strcpy(stat.name, sizeof(stat.name), xname);
 					gr_vec_add(stats, stat);
 				}
 			}
@@ -517,7 +517,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 				.cycles = w_stats->sleep_cycles,
 				.topo_order = UINT64_MAX,
 			};
-			memccpy(stat.name, "idle", 0, sizeof(stat.name));
+			gr_strcpy(stat.name, sizeof(stat.name), "idle");
 			gr_vec_add(stats, stat);
 		}
 		loop_cycles += w_stats->loop_cycles - w_stats->sleep_cycles;
@@ -530,7 +530,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 		.cycles = loop_cycles - node_cycles,
 		.topo_order = UINT64_MAX - 1,
 	};
-	memccpy(stat.name, "overhead", 0, sizeof(stat.name));
+	gr_strcpy(stat.name, sizeof(stat.name), "overhead");
 	gr_vec_add(stats, stat);
 
 	return stats;

@@ -3,9 +3,21 @@
 
 #pragma once
 
+#include <gr_errno.h>
+
 #include <sched.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+// Copy a string into a fixed-size buffer. Return -ENAMETOOLONG if src is too long.
+static inline int gr_strcpy(char *dst, size_t size, const char *src) {
+	if (memccpy(dst, src, 0, size) == NULL) {
+		dst[size - 1] = 0;
+		return errno_set(ENAMETOOLONG);
+	}
+	return 0;
+}
 
 // Concatenate formatted string to existing buffer (realloc as needed).
 // buf is freed; caller must use returned pointer. Returns NULL on error.

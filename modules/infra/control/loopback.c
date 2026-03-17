@@ -11,6 +11,7 @@
 #include <gr_mempool.h>
 #include <gr_module.h>
 #include <gr_netlink.h>
+#include <gr_string.h>
 #include <gr_vrf.h>
 
 #include <event2/event.h>
@@ -195,12 +196,12 @@ int iface_loopback_create(struct iface *iface) {
 	lo->ev = NULL;
 
 	if (iface->id == GR_VRF_DEFAULT_ID)
-		memccpy(tun_name, iface->name, 0, sizeof(tun_name));
+		gr_strcpy(tun_name, sizeof(tun_name), iface->name);
 	else
 		snprintf(tun_name, sizeof(tun_name), GR_LOOPBACK_TUN_NAME_PATTERN, iface->vrf_id);
 
 	memset(&ifr, 0, sizeof(struct ifreq));
-	memccpy(ifr.ifr_name, tun_name, 0, IFNAMSIZ);
+	gr_strcpy(ifr.ifr_name, IFNAMSIZ, tun_name);
 	ifr.ifr_flags = IFF_TUN;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {

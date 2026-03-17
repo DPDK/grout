@@ -17,6 +17,7 @@
 #include <gr_port.h>
 #include <gr_queue.h>
 #include <gr_rcu.h>
+#include <gr_string.h>
 #include <gr_vec.h>
 #include <gr_vlan.h>
 #include <gr_vrf.h>
@@ -807,12 +808,12 @@ static void port_to_api(void *info, const struct iface *iface) {
 	struct rte_eth_dev_info dev_info;
 
 	api->base = port->base;
-	memccpy(api->devargs, port->devargs, 0, sizeof(api->devargs));
+	gr_strcpy(api->devargs, sizeof(api->devargs), port->devargs);
 
 	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0) {
-		memccpy(api->driver_name, dev_info.driver_name, 0, sizeof(api->driver_name));
+		gr_strcpy(api->driver_name, sizeof(api->driver_name), dev_info.driver_name);
 	} else {
-		memccpy(api->driver_name, "unknown", 0, sizeof(api->driver_name));
+		gr_strcpy(api->driver_name, sizeof(api->driver_name), "unknown");
 	}
 }
 

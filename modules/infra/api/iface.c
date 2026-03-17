@@ -9,6 +9,7 @@
 #include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_queue.h>
+#include <gr_string.h>
 #include <gr_worker.h>
 
 #include <rte_ethdev.h>
@@ -21,8 +22,11 @@ static struct gr_iface *iface_to_api(const struct iface *priv) {
 	if (pub == NULL)
 		return errno_set_null(ENOMEM);
 	pub->base = priv->base;
-	memccpy(pub->name, priv->name, 0, sizeof(pub->name));
-	memccpy(pub->description, priv->description ?: "", 0, sizeof(pub->description));
+	if (gr_strcpy(pub->name, sizeof(pub->name), priv->name) < 0
+	    || gr_strcpy(pub->description, sizeof(pub->description), priv->description ?: "") < 0) {
+		free(pub);
+		return NULL;
+	}
 	type->to_api(pub->info, priv);
 	return pub;
 }

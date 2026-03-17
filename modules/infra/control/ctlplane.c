@@ -14,6 +14,7 @@
 #include <gr_netlink.h>
 #include <gr_nh_control.h>
 #include <gr_rxtx.h>
+#include <gr_string.h>
 #include <gr_vlan.h>
 
 #include <event2/event.h>
@@ -232,7 +233,7 @@ static void cp_create(struct iface *iface) {
 	int flags;
 
 	memset(&ifr, 0, sizeof(struct ifreq));
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	gr_strcpy(ifr.ifr_name, IFNAMSIZ, iface->name);
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI | IFF_MULTICAST;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -319,7 +320,7 @@ static void cp_set_speed(struct iface *iface) {
 	char buf[512] = {0};
 	int ioctl_sock;
 
-	memccpy(ifr.ifr_name, iface->name, 0, IFNAMSIZ);
+	gr_strcpy(ifr.ifr_name, IFNAMSIZ, iface->name);
 	els = (struct ethtool_link_settings *)buf;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {

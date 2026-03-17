@@ -7,6 +7,7 @@
 #include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
+#include <gr_string.h>
 
 #include <ecoli.h>
 
@@ -52,11 +53,8 @@ static uint64_t parse_port_args(
 	port = (struct gr_iface_info_port *)iface->info;
 	devargs = arg_str(p, "DEVARGS");
 	if (devargs != NULL) {
-		if (strlen(devargs) >= sizeof(port->devargs)) {
-			errno = ENAMETOOLONG;
+		if (gr_strcpy(port->devargs, sizeof(port->devargs), devargs) < 0)
 			goto err;
-		}
-		memccpy(port->devargs, devargs, 0, sizeof(port->devargs));
 	}
 	if (arg_eth_addr(p, "MAC", &port->mac) == 0)
 		set_attrs |= GR_PORT_SET_MAC;

@@ -9,6 +9,7 @@
 #include <gr_infra.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
+#include <gr_string.h>
 
 #include <ecoli.h>
 
@@ -145,7 +146,8 @@ struct gr_iface *iface_from_name(struct gr_api_client *c, const char *name) {
 	if (name == NULL)
 		return errno_set_null(EINVAL);
 
-	memccpy(req.name, name, 0, sizeof(req.name));
+	if (gr_strcpy(req.name, sizeof(req.name), name) < 0)
+		return NULL;
 
 	if (gr_api_client_send_recv(c, GR_IFACE_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return NULL;
@@ -237,7 +239,8 @@ uint64_t parse_iface_args(
 	}
 
 	if (name != NULL) {
-		memccpy(iface->name, name, 0, sizeof(iface->name));
+		if (gr_strcpy(iface->name, sizeof(iface->name), name) < 0)
+			goto err;
 		set_attrs |= GR_IFACE_SET_NAME;
 	}
 
@@ -272,7 +275,8 @@ uint64_t parse_iface_args(
 
 	name = arg_str(p, "DESCR");
 	if (name != NULL) {
-		memccpy(iface->description, name, 0, sizeof(iface->description));
+		if (gr_strcpy(iface->description, sizeof(iface->description), name) < 0)
+			goto err;
 		set_attrs |= GR_IFACE_SET_DESCR;
 	}
 
