@@ -93,7 +93,7 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 
 	if (req.flags & GR_STATS_F_HW || brief) {
 		qsort(resp->stats, resp->n_stats, sizeof(*resp->stats), sort_func);
-		struct gr_object *o = gr_object_new();
+		struct gr_object *o = gr_object_new(NULL);
 		for (size_t i = 0; i < resp->n_stats; i++) {
 			const struct gr_stat *s = &resp->stats[i];
 			if (req.flags & GR_STATS_F_HW || brief)

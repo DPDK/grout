@@ -494,7 +494,7 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	if (iface == NULL)
 		return CMD_ERROR;
 
-	struct gr_object *o = gr_object_new();
+	struct gr_object *o = gr_object_new(NULL);
 
 	gr_object_field(o, "name", 0, "%s", iface->name);
 	if (iface->description[0] != '\0')

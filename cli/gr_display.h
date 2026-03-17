@@ -43,7 +43,10 @@ struct gr_object;
 
 // Allocate a new structured key-value output context.
 // Renders as plain text or JSON depending on the global json flag.
-struct gr_object *gr_object_new(void);
+// If bufp is NULL, output goes to stdout. If bufp is non-NULL,
+// output is written to a dynamically allocated buffer and *bufp
+// is set on gr_object_free (caller must free).
+struct gr_object *gr_object_new(char **bufp);
 
 // Add a field. Printf-formats the value into an internal buffer.
 void gr_object_field(

@@ -42,7 +42,7 @@ static cmd_status_t affinity_show(struct gr_api_client *c, const struct ec_pnode
 	memcpy(&resp, resp_ptr, sizeof(resp));
 	free(resp_ptr);
 
-	struct gr_object *o = gr_object_new();
+	struct gr_object *o = gr_object_new(NULL);
 
 	if (cpuset_format(buf, sizeof(buf), &resp.control_cpus) == 0)
 		gr_object_field(o, "control_cpus", 0, "%s", buf);
