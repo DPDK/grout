@@ -13,8 +13,10 @@
 #include <lib/srv6.h>
 #include <lib/version.h>
 #include <linux/neighbour.h>
+#include <zebra/interface.h>
 #include <zebra/rib.h>
 #include <zebra/table_manager.h>
+#include <zebra/zebra_l2.h>
 #include <zebra_dplane_grout.h>
 
 static inline bool is_selfroute(gr_nh_origin_t origin) {
@@ -1340,3 +1342,58 @@ enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *c
 
 	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
 }
+
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 7, 0)
+static void fdb_change_cb(const void *obj, void *priv) {
+	const struct zebra_dplane_ctx *ctx = priv;
+	const struct gr_fdb_entry *fdb = obj;
+	const struct ethaddr *mac;
+	vlanid_t vid;
+	vni_t vni;
+
+	vid = dplane_ctx_get_macfdb_read_vid(ctx);
+	vni = dplane_ctx_get_macfdb_read_vni(ctx);
+	mac = dplane_ctx_get_macfdb_read_mac(ctx);
+
+	if (vid != 0 && fdb->vlan_id != vid)
+		return;
+	if (!is_zero_mac(mac) && memcmp(&fdb->mac, mac, sizeof(fdb->mac)) != 0)
+		return;
+	if (vni != 0 && fdb->iface_id != GR_IFACE_ID_UNDEF) {
+		struct interface *ifp;
+		struct zebra_if *zif;
+
+		ifp = if_lookup_by_index(ifindex_grout_to_frr(fdb->iface_id), GROUT_NS);
+		if (ifp == NULL)
+			return;
+		zif = ifp->info;
+		if (!IS_ZEBRA_VXLAN_IF_VNI(zif))
+			return;
+		if (zif->l2info.vxl.vni_info.vni.vni != vni)
+			return;
+	}
+
+	grout_macfdb_change(fdb, true);
+}
+
+enum zebra_dplane_result grout_fdb_read_ctx(struct zebra_dplane_ctx *ctx) {
+	struct gr_fdb_list_req req = {
+		.bridge_id = ifindex_frr_to_grout(dplane_ctx_get_macfdb_read_br_ifindex(ctx)),
+		.iface_id = ifindex_frr_to_grout(dplane_ctx_get_macfdb_read_ifindex(ctx)),
+		.flags = 0
+	};
+
+	gr_log_debug(
+		"bridge=%u iface=%u vlan=%u vni=%u mac=%pEA",
+		req.bridge_id,
+		req.iface_id,
+		dplane_ctx_get_macfdb_read_vid(ctx),
+		dplane_ctx_get_macfdb_read_vni(ctx),
+		dplane_ctx_get_macfdb_read_mac(ctx)
+	);
+
+	grout_client_foreach(GR_FDB_LIST, sizeof(req), &req, fdb_change_cb, ctx);
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+#endif
