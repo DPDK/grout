@@ -80,7 +80,8 @@ grcli -j interface show name p2 | jq -e 'select(.description == "peering link")'
 grcli -j interface show name bond0 | jq -e 'select(.description == "lacp trunk")' || fail "bond0 description not set"
 
 # Test nexthop structured JSON output
-grcli -j nexthop show type l3 | jq -e '.[0] | has("af", "addr")' || fail "L3 nexthop should have structured af and addr fields"
+grcli -j nexthop show type l3 | jq -e '.[0] | has("family", "addr")' || fail "L3 nexthop should have structured family and addr fields"
+grcli -j nexthop show id 42 | jq -e 'has("type", "id", "family", "addr")' || fail "nexthop show by ID should have structured fields"
 
 # Test address del cleans up connected routes
 grcli address del 10.1.0.1/24 iface p3

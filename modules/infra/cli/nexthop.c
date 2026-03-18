@@ -476,6 +476,25 @@ out:
 	return ret;
 }
 
+static cmd_status_t nh_show_id(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_get_req req = {0};
+	void *resp_ptr = NULL;
+
+	if (arg_u32(p, "ID", &req.nh_id) < 0)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_GET, sizeof(req), &req, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	const struct gr_nexthop *nh = resp_ptr;
+	struct gr_object *o = gr_object_new(NULL);
+	cli_nexthop_fill_object(o, c, nh, true);
+	gr_object_free(o);
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .type = GR_NH_T_ALL};
 	const struct cli_nexthop_formatter *f = NULL;
@@ -483,6 +502,9 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	const char *type;
 	char buf[128];
 	int ret;
+
+	if (arg_str(p, "ID") != NULL)
+		return nh_show_id(c, p);
 
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
@@ -640,9 +662,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		NEXTHOP_CTX(root),
-		"[show] [(vrf VRF),(type TYPE),(internal)]",
+		"[show] [(id ID)|((vrf VRF),(type TYPE),(internal))]",
 		nh_list,
-		"List all next hops.",
+		"Show next hops, or a single next hop by ID.",
+		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
 		with_help(
 			"Nexthop type (default all).", ec_node_dyn("TYPE", complete_nh_types, NULL)
