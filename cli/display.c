@@ -318,6 +318,8 @@ struct gr_object {
 	bool owns_fp;
 	// Size of the memstream buffer (used by open_memstream).
 	size_t memsz;
+	// JSON or text output mode.
+	bool json;
 	// Text mode separators.
 	const char *kv_sep; // between key and value (default ": ")
 	const char *field_sep; // between fields (default "\n")
@@ -351,12 +353,14 @@ struct gr_object *gr_object_new(char **bufp) {
 			return NULL;
 		}
 		o->owns_fp = true;
+		o->json = false;
 	} else {
 		o->fp = stdout;
+		o->json = json_output;
 	}
 	o->kv_sep = ": ";
 	o->field_sep = "\n";
-	if (json_output)
+	if (o->json)
 		fputc('{', o->fp);
 	return o;
 }
@@ -405,7 +409,7 @@ void gr_object_field(
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 
-	if (json_output) {
+	if (o->json) {
 		if (o->needs_sep)
 			fputc(',', o->fp);
 		o->needs_sep = true;
@@ -431,7 +435,7 @@ void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const c
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 
-	if (json_output) {
+	if (o->json) {
 		if (o->needs_sep)
 			fputc(',', o->fp);
 		o->needs_sep = true;
@@ -449,7 +453,7 @@ void gr_object_open(struct gr_object *o, const char *key) {
 	assert(o->depth < MAX_DEPTH);
 	assert(key == NULL || key[0] != '\0');
 
-	if (json_output) {
+	if (o->json) {
 		if (o->needs_sep)
 			fputc(',', o->fp);
 		if (key)
@@ -479,7 +483,7 @@ void gr_object_close(struct gr_object *o) {
 	o->depth--;
 	o->needs_sep = o->sep_stack[o->depth];
 
-	if (json_output) {
+	if (o->json) {
 		fputc('}', o->fp);
 		o->needs_sep = true;
 	}
@@ -493,7 +497,7 @@ void gr_object_array_open(struct gr_object *o, const char *key) {
 	assert(o != NULL);
 	assert(o->depth < MAX_DEPTH);
 
-	if (json_output) {
+	if (o->json) {
 		if (o->needs_sep)
 			fputc(',', o->fp);
 		fprintf(o->fp, "\"%s\":[", key);
@@ -516,7 +520,7 @@ void gr_object_array_close(struct gr_object *o) {
 	o->depth--;
 	o->needs_sep = o->sep_stack[o->depth];
 
-	if (json_output) {
+	if (o->json) {
 		fputc(']', o->fp);
 		o->needs_sep = true;
 	}
@@ -525,7 +529,7 @@ void gr_object_array_close(struct gr_object *o) {
 void gr_object_free(struct gr_object *o) {
 	if (o == NULL)
 		return;
-	if (json_output)
+	if (o->json)
 		fputs("}\n", o->fp);
 	else if (o->needs_sep)
 		fputs(o->field_sep, o->fp);
