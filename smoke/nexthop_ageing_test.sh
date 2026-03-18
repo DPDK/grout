@@ -9,7 +9,7 @@ check_nexthop() {
 	local expect_reacheable="$2"
 	local attempts=25
 	while [ "$attempts" -gt 0 ]; do
-		grcli -j nexthop show internal | jq -e --arg a "addr=$ip" '.[] | select(.info | contains($a) and contains("reachable"))'
+		grcli -j nexthop show internal type l3 | jq -e --arg a "$ip" '.[] | select(.addr | contains($a)) | select(.state == "reachable")'
 		local result=$?
 
 		if [ "$expect_reacheable" = "true" ] && [ "$result" -eq 0 ]; then
