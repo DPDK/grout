@@ -286,6 +286,7 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t 
 	if (fib == NULL)
 		return -errno;
 
+	LOG(DEBUG, "VRF %u: " IP4_F "/%hhu", vrf_id, &ip, prefixlen);
 	rib = rte_fib_get_rib(fib);
 	rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen);
 	if (rn == NULL)
@@ -513,7 +514,19 @@ static struct api_out route4_list(const void *request, struct api_ctx *ctx) {
 	return api_out(-ret, 0, NULL);
 }
 
-static int rib4_cleanup_nh(
+struct rib4_cleanup_entry {
+	uint16_t vrf_id;
+	ip4_addr_t ip;
+	uint8_t depth;
+	gr_nh_type_t type;
+};
+
+struct rib4_cleanup_ctx {
+	const struct nexthop *nh;
+	gr_vec struct rib4_cleanup_entry *entries;
+};
+
+static int rib4_cleanup_cb(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
 	uint8_t depth,
@@ -521,22 +534,34 @@ static int rib4_cleanup_nh(
 	const struct nexthop *nh,
 	void *priv
 ) {
-	const struct nexthop *hop = priv;
-	if (nh == hop) {
-		LOG(DEBUG, "delete " IP4_F "/%hhu via %u", &ip, depth, nh->nh_id);
-		rib4_delete(vrf_id, ip, depth, nh->type);
+	struct rib4_cleanup_ctx *ctx = priv;
+	if (ctx->nh == NULL || nh == ctx->nh) {
+		struct rib4_cleanup_entry entry = {
+			.vrf_id = vrf_id,
+			.ip = ip,
+			.depth = depth,
+			.type = nh->type,
+		};
+		gr_vec_add(ctx->entries, entry);
 	}
 	return 0;
 }
 
 void rib4_cleanup(struct nexthop *nh) {
+	struct rib4_cleanup_ctx ctx = {
+		.nh = nh,
+		.entries = NULL,
+	};
 	struct rib4_iterator iter = {
 		.max_count = 0,
 		.skip_internal = false,
-		.cb = rib4_cleanup_nh,
-		.priv = nh,
+		.cb = rib4_cleanup_cb,
+		.priv = &ctx,
 	};
 	rib4_iter(GR_VRF_ID_UNDEF, &iter);
+	gr_vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
+		rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
+	gr_vec_free(ctx.entries);
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");
@@ -752,47 +777,28 @@ static struct gr_module route4_module = {
 	.depends_on = "nexthop",
 };
 
-static int route4_vrf_rm(
-	uint16_t vrf_id,
-	ip4_addr_t ip,
-	uint8_t depth,
-	gr_nh_origin_t origin,
-	const struct nexthop *nh,
-	void *priv
-) {
-	const struct iface *vrf = priv;
-
-	LOG(DEBUG, "VRF %s(%u): " IP4_F "/%hhu", vrf->name, vrf->id, &ip, depth);
-
-	if (origin != GR_NH_ORIGIN_INTERNAL) {
-		gr_event_push(
-			GR_EVENT_IP_ROUTE_DEL,
-			&(const struct route4_event) {
-				.dest = {ip, depth},
-				.vrf_id = vrf_id,
-				.origin = origin,
-				.nh = nh,
-			}
-		);
-	}
-	nexthop_decref((void *)nh);
-
-	return 0;
-}
-
 static void fib4_fini(struct iface *vrf) {
 	struct rte_fib *fib = iface_info_vrf(vrf)->fib4;
 
-	iface_info_vrf(vrf)->fib4 = NULL;
 	if (fib != NULL) {
 		LOG(INFO, "destroying IPv4 FIB for VRF %s(%u)", vrf->name, vrf->id);
+		struct rib4_cleanup_ctx ctx = {
+			.nh = NULL,
+			.entries = NULL,
+		};
 		struct rib4_iterator iter = {
 			.max_count = 0,
 			.skip_internal = false,
-			.cb = route4_vrf_rm,
-			.priv = vrf,
+			.cb = rib4_cleanup_cb,
+			.priv = &ctx,
 		};
 		rib4_iter_vrf(rte_fib_get_rib(fib), vrf->id, &iter);
+
+		gr_vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
+			rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
+		gr_vec_free(ctx.entries);
+
+		iface_info_vrf(vrf)->fib4 = NULL;
 		rte_fib_free(fib);
 	}
 	memset(route_counts[vrf->id], 0, sizeof(route_counts[vrf->id]));
