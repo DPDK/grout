@@ -70,15 +70,29 @@ static cmd_status_t dnat44_list(struct gr_api_client *c, const struct ec_pnode *
 	return ret < 0 ? CMD_ERROR : CMD_SUCCESS;
 }
 
-static ssize_t format_nexthop_info_dnat(char *buf, size_t len, const void *info) {
+static void add_columns_dnat(struct gr_table *table) {
+	gr_table_column(table, "MATCH", GR_DISP_LEFT);
+	gr_table_column(table, "REPLACE", GR_DISP_LEFT);
+}
+
+static void fill_table_dnat(struct gr_table *table, unsigned start_col, const void *info) {
 	const struct gr_nexthop_info_dnat *dnat = info;
-	return snprintf(buf, len, "match=" IP4_F " replace=" IP4_F, &dnat->match, &dnat->replace);
+	gr_table_cell(table, start_col, IP4_F, &dnat->match);
+	gr_table_cell(table, start_col + 1, IP4_F, &dnat->replace);
+}
+
+static void fill_object_dnat(struct gr_object *o, const void *info) {
+	const struct gr_nexthop_info_dnat *dnat = info;
+	gr_object_field(o, "match", 0, IP4_F, &dnat->match);
+	gr_object_field(o, "replace", 0, IP4_F, &dnat->replace);
 }
 
 static struct cli_nexthop_formatter dnat_formatter = {
 	.name = "dnat",
 	.type = GR_NH_T_DNAT,
-	.format = format_nexthop_info_dnat,
+	.add_columns = add_columns_dnat,
+	.fill_table = fill_table_dnat,
+	.fill_object = fill_object_dnat,
 };
 
 #define DNAT_CTX(root) CLI_CONTEXT(root, CTX_ARG("dnat44", "Static destination NAT44."))

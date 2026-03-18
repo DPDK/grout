@@ -127,10 +127,57 @@ err:
 	return -1;
 }
 
-static struct cli_nexthop_formatter srv6_local_formatter = {
+static void add_columns_srv6(struct gr_table *table) {
+	gr_table_column(table, "ENCAP", GR_DISP_LEFT);
+	gr_table_column(table, "SEGLIST", GR_DISP_STR_ARRAY);
+}
+
+static void fill_table_srv6(struct gr_table *table, unsigned start_col, const void *info) {
+	const struct gr_nexthop_info_srv6 *sr6 = info;
+	char buf[512] = "";
+	ssize_t n = 0;
+
+	gr_table_cell(
+		table,
+		start_col,
+		"%s",
+		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
+	);
+	for (unsigned i = 0; i < sr6->n_seglist; i++) {
+		SAFE_BUF(snprintf, sizeof(buf), "%s" IP6_F, i > 0 ? " " : "", &sr6->seglist[i]);
+		if (sizeof(buf) - n < 50) {
+			SAFE_BUF(snprintf, sizeof(buf), " ... (%u more)", sr6->n_seglist - i - 1);
+			break;
+		}
+	}
+err:
+	if (n > 0)
+		gr_table_cell(table, start_col + 1, "%s", buf);
+}
+
+static void fill_object_srv6(struct gr_object *o, const void *info) {
+	const struct gr_nexthop_info_srv6 *sr6 = info;
+
+	gr_object_field(
+		o,
+		"encap",
+		0,
+		"%s",
+		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
+	);
+	gr_object_array_open(o, "seglist");
+	for (unsigned i = 0; i < sr6->n_seglist; i++)
+		gr_object_array_item(o, 0, IP6_F, &sr6->seglist[i]);
+	gr_object_array_close(o);
+}
+
+static struct cli_nexthop_formatter srv6_output_formatter = {
 	.name = "srv6",
 	.type = GR_NH_T_SR6_OUTPUT,
 	.format = format_nexthop_info_srv6,
+	.add_columns = add_columns_srv6,
+	.fill_table = fill_table_srv6,
+	.fill_object = fill_object_srv6,
 };
 
 #define TUNSRC_CTX(root) CLI_CONTEXT(root, CTX_ARG("tunsrc", "SRv6 source address."))
@@ -188,5 +235,5 @@ static struct cli_context ctx = {
 
 static void __attribute__((constructor, used)) init(void) {
 	cli_context_register(&ctx);
-	cli_nexthop_formatter_register(&srv6_local_formatter);
+	cli_nexthop_formatter_register(&srv6_output_formatter);
 }

@@ -103,67 +103,76 @@ out:
 	return ret;
 }
 
-static ssize_t format_nexthop_info_srv6_local(char *buf, size_t len, const void *info) {
-	const struct gr_nexthop_info_srv6_local *sr6 = info;
-	char flavors[64], vrf[64];
-	ssize_t n = 0, f = 0;
-
-	SAFE_BUF(snprintf, len, "behavior=%s", gr_srv6_behavior_name(sr6->behavior));
-	vrf[0] = 0;
-	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
-		snprintf(vrf, sizeof(vrf), "out_vrf=%d", sr6->out_vrf_id);
-
-	flavors[0] = 0;
-	if (sr6->flags & GR_SR_FL_FLAVOR_PSP)
-		f += snprintf(flavors + f, sizeof(flavors) - f, "psp,");
-	if (sr6->flags & GR_SR_FL_FLAVOR_USD)
-		f += snprintf(flavors + f, sizeof(flavors) - f, "usd,");
-	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
-		f += snprintf(flavors + f, sizeof(flavors) - f, "next-csid,");
-	if (f > 0)
-		flavors[f - 1] = 0; // trim trailing comma
-
-	switch (sr6->behavior) {
-	case SR_BEHAVIOR_END:
-	case SR_BEHAVIOR_END_T:
-		SAFE_BUF(snprintf, len, " flavor=%s", flavors[0] ? flavors : "none");
-		if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
-			SAFE_BUF(
-				snprintf,
-				len,
-				" block-bits=%u csid-bits=%u",
-				sr6->block_bits,
-				sr6->csid_bits
-			);
-		if (vrf[0])
-			SAFE_BUF(snprintf, len, " %s", vrf);
-		break;
-	case SR_BEHAVIOR_END_DT6:
-	case SR_BEHAVIOR_END_DT4:
-	case SR_BEHAVIOR_END_DT46:
-		if (flavors[0])
-			SAFE_BUF(snprintf, len, " flavor=%s", flavors);
-		if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID)
-			SAFE_BUF(
-				snprintf,
-				len,
-				" block-bits=%u csid-bits=%u",
-				sr6->block_bits,
-				sr6->csid_bits
-			);
-		if (vrf[0])
-			SAFE_BUF(snprintf, len, " %s", vrf);
-		break;
+static void srv6_local_format_flavors(char *buf, size_t len, gr_srv6_flags_t flags) {
+	ssize_t n = 0;
+	buf[0] = 0;
+	if (flags & GR_SR_FL_FLAVOR_PSP) {
+		if (n > 0)
+			SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(snprintf, len, "psp");
 	}
-	return n;
+	if (flags & GR_SR_FL_FLAVOR_USD) {
+		if (n > 0)
+			SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(snprintf, len, "usd");
+	}
+	if (flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		if (n > 0)
+			SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(snprintf, len, "next-csid");
+	}
 err:
-	return -1;
+	return;
+}
+
+static void add_columns_srv6_local(struct gr_table *table) {
+	gr_table_column(table, "BEHAVIOR", GR_DISP_LEFT);
+	gr_table_column(table, "FLAVOR", GR_DISP_STR_ARRAY);
+	gr_table_column(table, "BLOCK_BITS", GR_DISP_LEFT | GR_DISP_INT);
+	gr_table_column(table, "CSID_BITS", GR_DISP_LEFT | GR_DISP_INT);
+	gr_table_column(table, "OUT_VRF", GR_DISP_LEFT);
+}
+
+static void fill_table_srv6_local(struct gr_table *table, unsigned start_col, const void *info) {
+	const struct gr_nexthop_info_srv6_local *sr6 = info;
+	char flavors[64];
+
+	gr_table_cell(table, start_col, "%s", gr_srv6_behavior_name(sr6->behavior));
+	srv6_local_format_flavors(flavors, sizeof(flavors), sr6->flags);
+	if (flavors[0])
+		gr_table_cell(table, start_col + 1, "%s", flavors);
+	else if (sr6->behavior == SR_BEHAVIOR_END || sr6->behavior == SR_BEHAVIOR_END_T)
+		gr_table_cell(table, start_col + 1, "none");
+	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		gr_table_cell(table, start_col + 2, "%u", sr6->block_bits);
+		gr_table_cell(table, start_col + 3, "%u", sr6->csid_bits);
+	}
+	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
+		gr_table_cell(table, start_col + 4, "%d", sr6->out_vrf_id);
+}
+
+static void fill_object_srv6_local(struct gr_object *o, const void *info) {
+	const struct gr_nexthop_info_srv6_local *sr6 = info;
+	char flavors[64];
+
+	gr_object_field(o, "behavior", 0, "%s", gr_srv6_behavior_name(sr6->behavior));
+	srv6_local_format_flavors(flavors, sizeof(flavors), sr6->flags);
+	if (flavors[0])
+		gr_object_field(o, "flavor", GR_DISP_STR_ARRAY, "%s", flavors);
+	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		gr_object_field(o, "block_bits", GR_DISP_INT, "%u", sr6->block_bits);
+		gr_object_field(o, "csid_bits", GR_DISP_INT, "%u", sr6->csid_bits);
+	}
+	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
+		gr_object_field(o, "out_vrf", GR_DISP_INT, "%d", sr6->out_vrf_id);
 }
 
 static struct cli_nexthop_formatter srv6_local_formatter = {
 	.name = "srv6-local",
 	.type = GR_NH_T_SR6_LOCAL,
-	.format = format_nexthop_info_srv6_local,
+	.add_columns = add_columns_srv6_local,
+	.fill_table = fill_table_srv6_local,
+	.fill_object = fill_object_srv6_local,
 };
 
 static int ctx_init(struct ec_node *root) {

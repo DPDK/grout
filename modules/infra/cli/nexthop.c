@@ -13,6 +13,7 @@
 #include <ecoli.h>
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -22,7 +23,8 @@ static STAILQ_HEAD(, cli_nexthop_formatter) formatters = STAILQ_HEAD_INITIALIZER
 void cli_nexthop_formatter_register(struct cli_nexthop_formatter *f) {
 	assert(f->name != NULL);
 	assert(f->type != GR_NH_T_ALL);
-	assert(f->format != NULL);
+	assert((f->add_columns != NULL) == (f->fill_table != NULL));
+	assert((f->add_columns != NULL) == (f->fill_object != NULL));
 	STAILQ_INSERT_TAIL(&formatters, f, next);
 }
 
@@ -37,6 +39,35 @@ static const struct cli_nexthop_formatter *find_formatter(gr_nh_type_t type) {
 	return NULL;
 }
 
+static void
+fill_base_fields(struct gr_object *o, struct gr_api_client *c, const struct gr_nexthop *nh) {
+	gr_object_field(o, "type", 0, "%s", gr_nh_type_name(nh->type));
+	if (nh->nh_id != GR_NH_ID_UNSET)
+		gr_object_field(o, "id", GR_DISP_INT, "%u", nh->nh_id);
+	if (nh->iface_id != GR_IFACE_ID_UNDEF) {
+		if (c != NULL)
+			gr_object_field(o, "iface", 0, "%s", iface_name_from_id(c, nh->iface_id));
+		else
+			gr_object_field(o, "iface", GR_DISP_INT, "%u", nh->iface_id);
+	}
+	gr_object_field(o, "vrf", GR_DISP_INT, "%u", nh->vrf_id);
+	gr_object_field(o, "origin", 0, "%s", gr_nh_origin_name(nh->origin));
+}
+
+void cli_nexthop_fill_object(
+	struct gr_object *o,
+	struct gr_api_client *c,
+	const struct gr_nexthop *nh,
+	bool with_base_info
+) {
+	if (with_base_info)
+		fill_base_fields(o, c, nh);
+
+	const struct cli_nexthop_formatter *f = find_formatter(nh->type);
+	if (f != NULL && f->fill_object != NULL)
+		f->fill_object(o, nh->info);
+}
+
 ssize_t cli_nexthop_format(
 	char *buf,
 	size_t len,
@@ -44,75 +75,136 @@ ssize_t cli_nexthop_format(
 	const struct gr_nexthop *nh,
 	bool with_base_info
 ) {
-	ssize_t n = 0;
-
-	if (with_base_info) {
-		SAFE_BUF(snprintf, len, "type=%s", gr_nh_type_name(nh->type));
-
-		if (nh->nh_id != GR_NH_ID_UNSET)
-			SAFE_BUF(snprintf, len, " id=%u", nh->nh_id);
-		if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-			if (c != NULL)
-				SAFE_BUF(
-					snprintf,
-					len,
-					" iface=%s",
-					iface_name_from_id(c, nh->iface_id)
-				);
-			else
-				SAFE_BUF(snprintf, len, " iface=%u", nh->iface_id);
-		}
-		SAFE_BUF(snprintf, len, " vrf=%u", nh->vrf_id);
-		SAFE_BUF(snprintf, len, " origin=%s", gr_nh_origin_name(nh->origin));
-	}
-
 	const struct cli_nexthop_formatter *f = find_formatter(nh->type);
+	char *membuf = NULL;
+
+	struct gr_object *o = gr_object_new(&membuf);
+	if (o == NULL)
+		return -1;
+	gr_object_set_separators(o, "=", " ");
+
+	if (with_base_info)
+		fill_base_fields(o, c, nh);
+
 	if (f != NULL) {
-		if (with_base_info)
-			SAFE_BUF(snprintf, len, " ");
-		SAFE_BUF(f->format, len, nh->info);
+		if (f->format != NULL) {
+			gr_object_free(o);
+			ssize_t n = 0;
+			if (membuf != NULL)
+				SAFE_BUF(snprintf, len, "%s", membuf);
+			free(membuf);
+			membuf = NULL;
+			if (n > 0)
+				SAFE_BUF(snprintf, len, " ");
+			SAFE_BUF(f->format, len, nh->info);
+			return n;
+err:
+			free(membuf);
+			return -1;
+		}
+		if (f->fill_object != NULL)
+			f->fill_object(o, nh->info);
 	}
 
+	gr_object_free(o);
+
+	ssize_t n = snprintf(buf, len, "%s", membuf);
+	free(membuf);
 	return n;
-err:
-	return -1;
 }
 
-static ssize_t format_nexthop_info_l3(char *buf, size_t len, const void *info) {
-	const struct gr_nexthop_info_l3 *l3 = info;
+static void add_columns_l3(struct gr_table *table) {
+	gr_table_column(table, "FAMILY", GR_DISP_LEFT);
+	gr_table_column(table, "ADDR", GR_DISP_LEFT);
+	gr_table_column(table, "STATE", GR_DISP_LEFT);
+	gr_table_column(table, "MAC", GR_DISP_LEFT);
+	gr_table_column(table, "FLAGS", GR_DISP_STR_ARRAY);
+}
+
+static void format_nh_flags(char *buf, size_t len, gr_nh_flags_t flags) {
 	ssize_t n = 0;
-
-	SAFE_BUF(snprintf, len, "af=%s", gr_af_name(l3->af));
-
-	if (l3->af != GR_AF_UNSPEC) {
-		SAFE_BUF(snprintf, len, " addr=" ADDR_F, ADDR_W(l3->af), &l3->addr);
-		if (l3->prefixlen != 0)
-			SAFE_BUF(snprintf, len, "/%hhu", l3->prefixlen);
-
-		if (!(l3->flags & GR_NH_F_STATIC))
-			SAFE_BUF(snprintf, len, " state=%s", gr_nh_state_name(l3->state));
-
-		if (l3->state == GR_NH_S_REACHABLE)
-			SAFE_BUF(snprintf, len, " mac=" ETH_F, &l3->mac);
+	buf[0] = 0;
+	gr_nh_flags_foreach (fl, flags) {
+		if (n > 0)
+			SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(snprintf, len, "%s", gr_nh_flag_name(fl));
 	}
-
-	gr_nh_flags_foreach (f, l3->flags)
-		SAFE_BUF(snprintf, len, " %s", gr_nh_flag_name(f));
-
-	return n;
 err:
-	return -errno;
+	return;
+}
+
+static void fill_table_l3(struct gr_table *table, unsigned start_col, const void *info) {
+	const struct gr_nexthop_info_l3 *l3 = info;
+	char flags[128];
+
+	gr_table_cell(table, start_col, "%s", gr_af_name(l3->af));
+	if (l3->af != GR_AF_UNSPEC) {
+		if (l3->prefixlen != 0)
+			gr_table_cell(
+				table,
+				start_col + 1,
+				ADDR_F "/%hhu",
+				ADDR_W(l3->af),
+				&l3->addr,
+				l3->prefixlen
+			);
+		else
+			gr_table_cell(table, start_col + 1, ADDR_F, ADDR_W(l3->af), &l3->addr);
+		if (!(l3->flags & GR_NH_F_STATIC))
+			gr_table_cell(table, start_col + 2, "%s", gr_nh_state_name(l3->state));
+		if (l3->state == GR_NH_S_REACHABLE)
+			gr_table_cell(table, start_col + 3, ETH_F, &l3->mac);
+	}
+	format_nh_flags(flags, sizeof(flags), l3->flags);
+	if (flags[0] != 0)
+		gr_table_cell(table, start_col + 4, "%s", flags);
+}
+
+static void fill_object_l3(struct gr_object *o, const void *info) {
+	const struct gr_nexthop_info_l3 *l3 = info;
+	char flags[128];
+
+	gr_object_field(o, "family", 0, "%s", gr_af_name(l3->af));
+	if (l3->af != GR_AF_UNSPEC) {
+		if (l3->prefixlen != 0)
+			gr_object_field(
+				o,
+				"addr",
+				0,
+				ADDR_F "/%hhu",
+				ADDR_W(l3->af),
+				&l3->addr,
+				l3->prefixlen
+			);
+		else
+			gr_object_field(o, "addr", 0, ADDR_F, ADDR_W(l3->af), &l3->addr);
+		if (!(l3->flags & GR_NH_F_STATIC))
+			gr_object_field(o, "state", 0, "%s", gr_nh_state_name(l3->state));
+		if (l3->state == GR_NH_S_REACHABLE)
+			gr_object_field(o, "mac", 0, ETH_F, &l3->mac);
+	}
+	format_nh_flags(flags, sizeof(flags), l3->flags);
+	if (flags[0] != 0)
+		gr_object_field(o, "flags", GR_DISP_STR_ARRAY, "%s", flags);
 }
 
 static struct cli_nexthop_formatter l3_formatter = {
 	.name = "l3",
 	.type = GR_NH_T_L3,
-	.format = format_nexthop_info_l3,
+	.add_columns = add_columns_l3,
+	.fill_table = fill_table_l3,
+	.fill_object = fill_object_l3,
 };
 
-static ssize_t format_nexthop_info_void(char *, size_t, const void *) {
-	return 0;
-}
+static struct cli_nexthop_formatter blackhole_formatter = {
+	.name = "blackhole",
+	.type = GR_NH_T_BLACKHOLE,
+};
+
+static struct cli_nexthop_formatter reject_formatter = {
+	.name = "reject",
+	.type = GR_NH_T_REJECT,
+};
 
 static ssize_t format_nexthop_info_group(char *buf, size_t len, const void *info) {
 	const struct gr_nexthop_info_group *grp = info;
@@ -127,22 +219,49 @@ err:
 	return -errno;
 }
 
-static struct cli_nexthop_formatter blackhole_formatter = {
-	.name = "blackhole",
-	.type = GR_NH_T_BLACKHOLE,
-	.format = format_nexthop_info_void,
-};
+static void add_columns_group(struct gr_table *table) {
+	gr_table_column(table, "MEMBERS", GR_DISP_LEFT);
+}
 
-static struct cli_nexthop_formatter reject_formatter = {
-	.name = "reject",
-	.type = GR_NH_T_REJECT,
-	.format = format_nexthop_info_void,
-};
+static void fill_table_group(struct gr_table *table, unsigned start_col, const void *info) {
+	const struct gr_nexthop_info_group *grp = info;
+	char buf[128] = "";
+	ssize_t n = 0;
+
+	for (uint32_t i = 0; i < grp->n_members; i++)
+		SAFE_BUF(
+			snprintf,
+			sizeof(buf),
+			"%s%u/%u",
+			i > 0 ? " " : "",
+			grp->members[i].nh_id,
+			grp->members[i].weight
+		);
+err:
+	if (n > 0)
+		gr_table_cell(table, start_col, "%s", buf);
+}
+
+static void fill_object_group(struct gr_object *o, const void *info) {
+	const struct gr_nexthop_info_group *grp = info;
+
+	gr_object_array_open(o, "members");
+	for (uint32_t i = 0; i < grp->n_members; i++) {
+		gr_object_open(o, NULL);
+		gr_object_field(o, "id", GR_DISP_INT, "%u", grp->members[i].nh_id);
+		gr_object_field(o, "weight", GR_DISP_INT, "%u", grp->members[i].weight);
+		gr_object_close(o);
+	}
+	gr_object_array_close(o);
+}
 
 static struct cli_nexthop_formatter group_formatter = {
 	.name = "group",
 	.type = GR_NH_T_GROUP,
 	.format = format_nexthop_info_group,
+	.add_columns = add_columns_group,
+	.fill_table = fill_table_group,
+	.fill_object = fill_object_group,
 };
 
 static int complete_nh_types(
