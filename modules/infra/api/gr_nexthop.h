@@ -331,3 +331,12 @@ struct gr_nh_list_req {
 };
 
 STREAM_RESP(struct gr_nexthop);
+
+// Get a single nexthop by ID.
+#define GR_NH_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0074)
+
+struct gr_nh_get_req {
+	uint32_t nh_id;
+};
+
+// Response payload is struct gr_nexthop (variable length).

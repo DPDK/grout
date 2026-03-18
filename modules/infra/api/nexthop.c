@@ -123,10 +123,27 @@ static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	return api_out(list.ret, 0, NULL);
 }
 
+static struct api_out nh_get(const void *request, struct api_ctx *) {
+	const struct gr_nh_get_req *req = request;
+	struct nexthop *nh;
+	size_t len;
+
+	nh = nexthop_lookup_id(req->nh_id);
+	if (nh == NULL)
+		return api_out(ENOENT, 0, NULL);
+
+	struct gr_nexthop *pub = nexthop_to_api(nh, &len);
+	if (pub == NULL)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, len, pub);
+}
+
 RTE_INIT(_init) {
 	gr_api_handler(GR_NH_CONFIG_GET, nh_config_get);
 	gr_api_handler(GR_NH_CONFIG_SET, nh_config_set);
 	gr_api_handler(GR_NH_ADD, nh_add);
 	gr_api_handler(GR_NH_DEL, nh_del);
 	gr_api_handler(GR_NH_LIST, nh_list);
+	gr_api_handler(GR_NH_GET, nh_get);
 }
