@@ -78,7 +78,7 @@ struct nexthop *rib6_lookup_exact(
 	uint8_t prefixlen
 );
 
-typedef void (*rib6_iter_cb_t)(
+typedef int (*rib6_iter_cb_t)(
 	uint16_t vrf_id,
 	const struct rte_ipv6_addr *,
 	uint8_t prefixlen,
@@ -86,7 +86,14 @@ typedef void (*rib6_iter_cb_t)(
 	const struct nexthop *,
 	void *priv
 );
-void rib6_iter(uint16_t vrf_id, rib6_iter_cb_t cb, void *priv);
+struct rib6_iterator {
+	unsigned count;
+	unsigned max_count;
+	bool skip_internal;
+	rib6_iter_cb_t cb;
+	void *priv;
+};
+int rib6_iter(uint16_t vrf_id, struct rib6_iterator *);
 
 // get the default address for a given interface
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *);

@@ -155,7 +155,7 @@ route4:
 		goto route4;
 	}
 
-	struct gr_ip6_route_list_req r6_req = {.vrf_id = EVENT_VAL(e)};
+	struct gr_ip6_route_list_req r6_req = {.vrf_id = EVENT_VAL(e), .max_count = 0};
 	struct gr_ip6_route *r6;
 
 	link = true;
