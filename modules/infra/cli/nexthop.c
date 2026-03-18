@@ -478,6 +478,7 @@ out:
 
 static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_list_req req = {.vrf_id = GR_VRF_ID_UNDEF, .type = GR_NH_T_ALL};
+	const struct cli_nexthop_formatter *f = NULL;
 	const struct gr_nexthop *nh;
 	const char *type;
 	char buf[128];
@@ -492,13 +493,23 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	req.include_internal = arg_str(p, "internal") != NULL;
 
+	if (type != NULL)
+		f = find_formatter(req.type);
+
 	struct gr_table *table = gr_table_new();
-	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
-	gr_table_column(table, "ID", GR_DISP_LEFT | GR_DISP_INT); // 1
-	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
-	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 3
-	gr_table_column(table, "TYPE", GR_DISP_LEFT); // 4
-	gr_table_column(table, "INFO", GR_DISP_LEFT); // 5
+	unsigned col = 0;
+	gr_table_column(table, "VRF", GR_DISP_LEFT);
+	gr_table_column(table, "ID", GR_DISP_LEFT | GR_DISP_INT);
+	gr_table_column(table, "ORIGIN", GR_DISP_LEFT);
+	gr_table_column(table, "IFACE", GR_DISP_LEFT);
+	col = 4;
+
+	if (f != NULL && f->add_columns != NULL) {
+		f->add_columns(table);
+	} else {
+		gr_table_column(table, "TYPE", GR_DISP_LEFT);
+		gr_table_column(table, "INFO", GR_DISP_LEFT);
+	}
 
 	gr_api_client_stream_foreach (nh, ret, c, GR_NH_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, nh->vrf_id));
@@ -506,9 +517,14 @@ static cmd_status_t nh_list(struct gr_api_client *c, const struct ec_pnode *p) {
 			gr_table_cell(table, 1, "%u", nh->nh_id);
 		gr_table_cell(table, 2, "%s", gr_nh_origin_name(nh->origin));
 		gr_table_cell(table, 3, "%s", iface_name_from_id(c, nh->iface_id));
-		gr_table_cell(table, 4, "%s", gr_nh_type_name(nh->type));
-		if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
-			gr_table_cell(table, 5, "%s", buf);
+
+		if (f != NULL && f->fill_table != NULL) {
+			f->fill_table(table, col, nh->info);
+		} else {
+			gr_table_cell(table, col, "%s", gr_nh_type_name(nh->type));
+			if (cli_nexthop_format(buf, sizeof(buf), c, nh, false) > 0)
+				gr_table_cell(table, col + 1, "%s", buf);
+		}
 
 		if (gr_table_print_row(table) < 0)
 			continue;

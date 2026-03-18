@@ -13,8 +13,8 @@ grcli nexthop add l3 iface p0 id 42 address 1.2.3.4
 grcli nexthop add l3 iface p0 id 45
 grcli nexthop add l3 iface p0 id 47 address 1.2.3.7
 grcli nexthop add l3 iface p0 id 42 address 1.2.3.7 && fail "duplicate address should fail"
-grcli -j nexthop show | jq -e '.[] | select(.id == 42 and (.info | contains("addr=1.2.3.4")))' || fail "nexthop 42 should still have 1.2.3.4"
-grcli -j nexthop show | jq -e '.[] | select(.id == 47 and (.info | contains("addr=1.2.3.7")))' || fail "nexthop 47 should still have 1.2.3.7"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.id == 42 and .addr == "1.2.3.4")' || fail "nexthop 42 should still have 1.2.3.4"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.id == 47 and .addr == "1.2.3.7")' || fail "nexthop 47 should still have 1.2.3.7"
 grcli nexthop add l3 iface p1 id 1042 address f00:ba4::1
 grcli nexthop add l3 iface p1 id 1047 address f00:ba4::100
 grcli nexthop add l3 iface p1 id 42 address f00:ba4::666 # replace existing nexthop
@@ -78,6 +78,9 @@ EOF
 grcli -j interface show | jq -e '.[] | select(.info | contains("uplink port"))' || fail "p1 description not in list"
 grcli -j interface show name p2 | jq -e 'select(.description == "peering link")' || fail "p2 description not set"
 grcli -j interface show name bond0 | jq -e 'select(.description == "lacp trunk")' || fail "bond0 description not set"
+
+# Test nexthop structured JSON output
+grcli -j nexthop show type l3 | jq -e '.[0] | has("af", "addr")' || fail "L3 nexthop should have structured af and addr fields"
 
 # Test address del cleans up connected routes
 grcli address del 10.1.0.1/24 iface p3
