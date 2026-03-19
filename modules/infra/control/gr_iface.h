@@ -23,6 +23,8 @@ struct __rte_cache_aligned iface {
 	int cp_id; // Control plane (Linux) port ID
 	int cp_fd; // control plane fd
 	struct event *cp_ev; // libevent to poll cp_fd
+	unsigned promisc;
+	bool user_promisc;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 

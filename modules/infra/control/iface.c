@@ -268,8 +268,11 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (iface_set_mtu(iface, iface->mtu) < 0)
 		goto destroy;
 
-	if (iface_set_promisc(iface, iface->flags & GR_IFACE_F_PROMISC) < 0)
-		goto destroy;
+	if (conf->flags & GR_IFACE_F_PROMISC) {
+		if (iface_set_promisc(iface, true) < 0)
+			goto destroy;
+		iface->user_promisc = true;
+	}
 
 	bool up = iface->flags & GR_IFACE_F_UP;
 	iface->flags &= ~GR_IFACE_F_UP;
@@ -374,8 +377,12 @@ int iface_reconfig(
 	}
 
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
-		if ((ret = iface_set_promisc(iface, conf->flags & GR_IFACE_F_PROMISC)) < 0)
-			goto err;
+		bool want = conf->flags & GR_IFACE_F_PROMISC;
+		if (want != iface->user_promisc) {
+			if ((ret = iface_set_promisc(iface, want)) < 0)
+				goto err;
+			iface->user_promisc = want;
+		}
 		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
 			goto err;
 	}
@@ -579,17 +586,34 @@ int iface_set_up_down(struct iface *iface, bool up) {
 
 int iface_set_promisc(struct iface *iface, bool enabled) {
 	const struct iface_type *type;
+	int ret;
 
 	if (iface == NULL)
 		return errno_set(EINVAL);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
-	if (type->set_promisc != NULL)
-		return type->set_promisc(iface, enabled);
+	if (type->set_promisc == NULL) {
+		if (enabled)
+			return errno_set(EOPNOTSUPP);
+		return 0;
+	}
 
-	if (enabled)
-		return errno_set(EOPNOTSUPP);
+	if (enabled) {
+		if (iface->promisc == 0) {
+			if ((ret = type->set_promisc(iface, true)) < 0)
+				return ret;
+			iface->flags |= GR_IFACE_F_PROMISC;
+		}
+		iface->promisc++;
+	} else if (iface->promisc != 0) {
+		if (iface->promisc == 1) {
+			if ((ret = type->set_promisc(iface, false)) < 0)
+				return ret;
+			iface->flags &= ~GR_IFACE_F_PROMISC;
+		}
+		iface->promisc--;
+	}
 
 	return 0;
 }
