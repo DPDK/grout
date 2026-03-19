@@ -7,7 +7,31 @@
 #include <gr_display.h>
 #include <gr_net_types.h>
 
+#include <string.h>
 #include <sys/queue.h>
+
+#define CLI_FAMILY_NODE(ipv4_help, ipv6_help)                                                      \
+	with_help(                                                                                 \
+		"Address family.",                                                                 \
+		EC_NODE_OR(                                                                        \
+			"FAMILY",                                                                  \
+			with_help(ipv4_help, ec_node_str("ipv4", "ipv4")),                         \
+			with_help(ipv6_help, ec_node_str("ipv6", "ipv6"))                          \
+		)                                                                                  \
+	)
+
+static inline addr_family_t cli_parse_family(const struct ec_pnode *p) {
+	const char *family = arg_str(p, "FAMILY");
+
+	if (family != NULL) {
+		if (strncmp(family, "ipv4", sizeof("ipv4")) == 0)
+			return GR_AF_IP4;
+		if (strncmp(family, "ipv6", sizeof("ipv6")) == 0)
+			return GR_AF_IP6;
+	}
+
+	return GR_AF_UNSPEC;
+}
 
 struct cli_route_ops {
 	addr_family_t af;

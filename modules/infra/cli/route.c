@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/queue.h>
 
 static STAILQ_HEAD(, cli_route_ops) route_ops = STAILQ_HEAD_INITIALIZER(route_ops);
@@ -56,6 +57,7 @@ static cmd_status_t route_del(struct gr_api_client *c, const struct ec_pnode *p)
 
 static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	uint16_t vrf_id = GR_VRF_ID_UNDEF;
+	addr_family_t af = cli_parse_family(p);
 	struct cli_route_ops *ops;
 	int ret = 0;
 
@@ -70,6 +72,8 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 	gr_table_column(table, "NEXT_HOP", GR_DISP_LEFT); // 4
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
+		if (af != GR_AF_UNSPEC && ops->af != af)
+			continue;
 		if ((ret = ops->list(c, vrf_id, table)) < 0)
 			break;
 	}
@@ -96,6 +100,7 @@ static cmd_status_t route_config_set(struct gr_api_client *c, const struct ec_pn
 
 static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_pnode *p) {
 	uint16_t vrf_id = GR_VRF_ID_UNDEF;
+	addr_family_t af = cli_parse_family(p);
 	struct cli_route_ops *ops;
 	int ret = 0;
 
@@ -112,6 +117,8 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if (ops->config_show == NULL)
+			continue;
+		if (af != GR_AF_UNSPEC && ops->af != af)
 			continue;
 		if ((ret = ops->config_show(c, vrf_id, table)) < 0)
 			break;
@@ -191,18 +198,22 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		CONFIG_CTX(root),
-		"[show] [vrf VRF]",
+		"[show] [(FAMILY),(vrf VRF)]",
 		route_config_show,
 		"Show FIB configuration and current sizes.",
+		CLI_FAMILY_NODE(
+			"Only show IPv4 FIB configuration.", "Only show IPv6 FIB configuration."
+		),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"[show] [vrf VRF]",
+		"[show] [(FAMILY),(vrf VRF)]",
 		route_list,
 		"Show IP routes.",
+		CLI_FAMILY_NODE("Only show IPv4 routes.", "Only show IPv6 routes."),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);
 	if (ret < 0)
