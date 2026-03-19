@@ -86,13 +86,13 @@ grcli -j route show | jq -e '.[] | select(.destination == "2346::/24")' && fail 
 grcli address add 10.2.0.1/24 iface p3
 grcli address add 2347::1/24 iface p3
 grcli address show iface p3
-grcli address flush ip4 iface p3
+grcli address flush ipv4 iface p3
 grcli address show iface p3
-grcli -j address show iface p3 | jq -e '.[] | select(.address == "10.2.0.1/24")' && fail "p3 should have no IPv4 after ip4 flush"
-grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' || fail "p3 should still have IPv6 after ip4 flush"
-grcli address flush ip6 iface p3
-grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' && fail "p3 should have no user IPv6 after ip6 flush"
-grcli -j address show iface p3 | jq -e '.[] | select(.address | startswith("fe80:"))' || fail "p3 should still have link-local after ip6 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "10.2.0.1/24")' && fail "p3 should have no ipv4 after ipv4 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' || fail "p3 should still have ipv6 after ipv4 flush"
+grcli address flush ipv6 iface p3
+grcli -j address show iface p3 | jq -e '.[] | select(.address == "2347::1/24")' && fail "p3 should have no user ipv6 after ipv6 flush"
+grcli -j address show iface p3 | jq -e '.[] | select(.address | startswith("fe80:"))' || fail "p3 should still have link-local after ipv6 flush"
 # Test flush all families (default)
 grcli address add 10.3.0.1/24 iface p3
 grcli address add 2348::1/24 iface p3

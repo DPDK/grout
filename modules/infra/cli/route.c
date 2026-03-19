@@ -103,7 +103,7 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
-	gr_table_column(table, "AF", GR_DISP_LEFT); // 1
+	gr_table_column(table, "FAMILY", GR_DISP_LEFT); // 1
 	gr_table_column(table, "ROUTES", GR_DISP_RIGHT); // 2
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 	gr_table_column(table, "TBL8", GR_DISP_RIGHT); // 3
