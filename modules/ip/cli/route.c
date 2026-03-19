@@ -113,7 +113,7 @@ static int route4_config_show(struct gr_api_client *c, uint16_t vrf_id, struct g
 		} else {
 			gr_table_cell(table, 0, "%s", iface_name_from_id(c, info->vrf_id));
 		}
-		gr_table_cell(table, 1, "IPv4");
+		gr_table_cell(table, 1, "%s", gr_af_name(GR_AF_IP4));
 		gr_table_cell(
 			table,
 			2,

@@ -34,9 +34,9 @@ static inline const char *gr_af_name(addr_family_t af) {
 	case GR_AF_UNSPEC:
 		return "unspec";
 	case GR_AF_IP4:
-		return "IPv4";
+		return "ipv4";
 	case GR_AF_IP6:
-		return "IPv6";
+		return "ipv6";
 	}
 	return "?";
 }
