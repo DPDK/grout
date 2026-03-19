@@ -238,6 +238,12 @@ static int bond_detach_member(struct iface *iface, struct iface *member) {
 				    member->name,
 				    strerror(errno));
 			}
+			if (iface->flags & GR_IFACE_F_PROMISC
+			    && iface_set_promisc(member, false) < 0)
+				LOG(WARNING,
+				    "failed to disable promisc on member %s: %s",
+				    member->name,
+				    strerror(errno));
 			member->mode = GR_IFACE_MODE_VRF;
 			member->domain_id = GR_IFACE_ID_UNDEF;
 			bond_update_active_members(iface);
