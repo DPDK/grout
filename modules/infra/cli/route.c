@@ -64,9 +64,10 @@ static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
-	gr_table_column(table, "DESTINATION", GR_DISP_LEFT); // 1
-	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 2
-	gr_table_column(table, "NEXT_HOP", GR_DISP_LEFT); // 3
+	gr_table_column(table, "FAMILY", GR_DISP_LEFT); // 1
+	gr_table_column(table, "DESTINATION", GR_DISP_LEFT); // 2
+	gr_table_column(table, "ORIGIN", GR_DISP_LEFT); // 3
+	gr_table_column(table, "NEXT_HOP", GR_DISP_LEFT); // 4
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if ((ret = ops->list(c, vrf_id, table)) < 0)

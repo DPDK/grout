@@ -55,10 +55,11 @@ static int route4_list(struct gr_api_client *c, uint16_t vrf_id, struct gr_table
 
 	gr_api_client_stream_foreach (route, ret, c, GR_IP4_ROUTE_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, route->vrf_id));
-		gr_table_cell(table, 1, IP4_NET_F, &route->dest);
-		gr_table_cell(table, 2, "%s", gr_nh_origin_name(route->origin));
+		gr_table_cell(table, 1, "%s", gr_af_name(GR_AF_IP4));
+		gr_table_cell(table, 2, IP4_NET_F, &route->dest);
+		gr_table_cell(table, 3, "%s", gr_nh_origin_name(route->origin));
 		if (cli_nexthop_format(buf, sizeof(buf), c, &route->nh, true) > 0)
-			gr_table_cell(table, 3, "%s", buf);
+			gr_table_cell(table, 4, "%s", buf);
 
 		if (gr_table_print_row(table) < 0)
 			continue;

@@ -92,7 +92,8 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
-	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 1
+	gr_table_column(table, "FAMILY", GR_DISP_LEFT); // 1
+	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 2
 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if ((ret = ops->list(c, iface_id, table)) < 0)
