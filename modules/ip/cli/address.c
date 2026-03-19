@@ -58,7 +58,8 @@ static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct gr_table
 			continue;
 
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, addr->iface_id));
-		gr_table_cell(table, 1, IP4_NET_F, &addr->addr);
+		gr_table_cell(table, 1, "%s", gr_af_name(GR_AF_IP4));
+		gr_table_cell(table, 2, IP4_NET_F, &addr->addr);
 
 		if (gr_table_print_row(table) < 0)
 			continue;
