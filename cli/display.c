@@ -320,6 +320,9 @@ struct gr_object {
 	size_t memsz;
 	// JSON or text output mode.
 	bool json;
+	// Compact mode: arrays render inline (key=val1,val2) instead of
+	// multi-line with indentation. Set when field_sep is not "\n".
+	bool compact;
 	// Text mode separators.
 	const char *kv_sep; // between key and value (default ": ")
 	const char *field_sep; // between fields (default "\n")
@@ -371,6 +374,7 @@ void gr_object_set_separators(struct gr_object *o, const char *kv_sep, const cha
 	assert(field_sep != NULL);
 	o->kv_sep = kv_sep;
 	o->field_sep = field_sep;
+	o->compact = strcmp(field_sep, "\n") != 0;
 }
 
 static void print_text_indent(struct gr_object *o) {
@@ -440,6 +444,11 @@ void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const c
 			fputc(',', o->fp);
 		o->needs_sep = true;
 		fprint_json_value(o->fp, buf, flags);
+	} else if (o->compact) {
+		if (o->needs_sep)
+			fputc(',', o->fp);
+		o->needs_sep = true;
+		fprintf(o->fp, "%s", buf);
 	} else {
 		assert(o->depth > 0 && o->in_array[o->depth - 1]);
 		print_text_indent(o);
@@ -501,6 +510,10 @@ void gr_object_array_open(struct gr_object *o, const char *key) {
 		if (o->needs_sep)
 			fputc(',', o->fp);
 		fprintf(o->fp, "\"%s\":[", key);
+	} else if (o->compact) {
+		if (o->needs_sep)
+			fputs(o->field_sep, o->fp);
+		fprintf(o->fp, "%s%s", key, o->kv_sep);
 	} else {
 		if (o->needs_sep)
 			fputs(o->field_sep, o->fp);
@@ -520,10 +533,10 @@ void gr_object_array_close(struct gr_object *o) {
 	o->depth--;
 	o->needs_sep = o->sep_stack[o->depth];
 
-	if (o->json) {
+	if (o->json)
 		fputc(']', o->fp);
+	if (o->json || o->compact)
 		o->needs_sep = true;
-	}
 }
 
 void gr_object_free(struct gr_object *o) {
@@ -531,7 +544,7 @@ void gr_object_free(struct gr_object *o) {
 		return;
 	if (o->json)
 		fputs("}\n", o->fp);
-	else if (o->needs_sep)
+	else if (o->needs_sep && !o->compact)
 		fputs(o->field_sep, o->fp);
 	if (o->owns_fp)
 		fclose(o->fp);

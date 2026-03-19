@@ -105,28 +105,6 @@ static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pn
 	return CMD_SUCCESS;
 }
 
-static ssize_t format_nexthop_info_srv6(char *buf, size_t len, const void *info) {
-	const struct gr_nexthop_info_srv6 *sr6 = info;
-	ssize_t n = 0;
-
-	SAFE_BUF(
-		snprintf,
-		len,
-		"%s",
-		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
-	);
-	for (unsigned i = 0; i < sr6->n_seglist; i++) {
-		SAFE_BUF(snprintf, len, " " IP6_F, &sr6->seglist[i]);
-		if (len - n < 30) {
-			SAFE_BUF(snprintf, len, " ... (%u more)", sr6->n_seglist - i - 1);
-			break;
-		}
-	}
-	return n;
-err:
-	return -1;
-}
-
 static void add_columns_srv6(struct gr_table *table) {
 	gr_table_column(table, "ENCAP", GR_DISP_LEFT);
 	gr_table_column(table, "SEGLIST", GR_DISP_STR_ARRAY);
@@ -174,7 +152,6 @@ static void fill_object_srv6(struct gr_object *o, const void *info) {
 static struct cli_nexthop_formatter srv6_output_formatter = {
 	.name = "srv6",
 	.type = GR_NH_T_SR6_OUTPUT,
-	.format = format_nexthop_info_srv6,
 	.add_columns = add_columns_srv6,
 	.fill_table = fill_table_srv6,
 	.fill_object = fill_object_srv6,
