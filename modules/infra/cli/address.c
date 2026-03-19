@@ -56,21 +56,13 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 }
 
 static cmd_status_t addr_flush(struct gr_api_client *c, const struct ec_pnode *p) {
-	const char *family = arg_str(p, "FAMILY");
-	addr_family_t af = GR_AF_UNSPEC;
+	addr_family_t af = cli_parse_family(p);
 	struct cli_addr_ops *ops;
 	uint16_t iface_id;
 	int ret = 0;
 
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &iface_id) < 0)
 		return CMD_ERROR;
-
-	if (family != NULL) {
-		if (strncmp(family, "ipv4", sizeof("ipv4")) == 0)
-			af = GR_AF_IP4;
-		else if (strncmp(family, "ipv6", sizeof("ipv6")) == 0)
-			af = GR_AF_IP6;
-	}
 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if (af != GR_AF_UNSPEC && ops->af != af)
@@ -84,6 +76,7 @@ static cmd_status_t addr_flush(struct gr_api_client *c, const struct ec_pnode *p
 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
 	uint16_t iface_id = GR_IFACE_ID_UNDEF;
+	addr_family_t af = cli_parse_family(p);
 	struct cli_addr_ops *ops;
 	int ret = 0;
 
@@ -96,6 +89,8 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 2
 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
+		if (af != GR_AF_UNSPEC && ops->af != af)
+			continue;
 		if ((ret = ops->list(c, iface_id, table)) < 0)
 			break;
 	}
@@ -141,7 +136,7 @@ static int ctx_init(struct ec_node *root) {
 		"flush [FAMILY] iface IFACE",
 		addr_flush,
 		"Remove all addresses from an interface.",
-		with_help("Address family.", ec_node_re("FAMILY", "ipv4|ipv6")),
+		CLI_FAMILY_NODE("Only flush IPv4 addresses.", "Only flush IPv6 addresses."),
 		with_help(
 			"Interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
@@ -151,9 +146,10 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ADDR_CTX(root),
-		"[show] [iface IFACE]",
+		"[show] [(FAMILY),(iface IFACE)]",
 		addr_list,
 		"Display interface addresses.",
+		CLI_FAMILY_NODE("Only show IPv4 addresses.", "Only show IPv6 addresses."),
 		with_help(
 			"Interface name.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
