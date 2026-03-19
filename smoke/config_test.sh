@@ -82,6 +82,7 @@ grcli -j interface show name bond0 | jq -e 'select(.description == "lacp trunk")
 # Test nexthop structured JSON output
 grcli -j nexthop show type l3 | jq -e '.[0] | has("family", "addr")' || fail "L3 nexthop should have structured family and addr fields"
 grcli -j nexthop show id 42 | jq -e 'has("type", "id", "family", "addr")' || fail "nexthop show by ID should have structured fields"
+grcli -j route get 10.0.0.1 | jq -e '.nexthop | has("type", "family")' || fail "route get nexthop should be a structured object"
 
 # Test address del cleans up connected routes
 grcli address del 10.1.0.1/24 iface p3

@@ -72,7 +72,6 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 	const struct gr_ip6_route_get_resp *resp;
 	struct gr_ip6_route_get_req req = {0};
 	void *resp_ptr = NULL;
-	char buf[128];
 
 	if (arg_ip6(p, "DEST", &req.dest) < 0)
 		return CMD_ERROR;
@@ -83,12 +82,11 @@ static cmd_status_t route6_get(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 
 	resp = resp_ptr;
-	buf[0] = '\0';
-	cli_nexthop_format(buf, sizeof(buf), c, &resp->nh, true);
-
 	struct gr_object *o = gr_object_new(NULL);
-	gr_object_field(o, "destination", GR_DISP_LEFT, IP6_F, &req.dest);
-	gr_object_field(o, "nexthop", GR_DISP_LEFT, "%s", buf);
+	gr_object_field(o, "destination", 0, IP6_F, &req.dest);
+	gr_object_open(o, "nexthop");
+	cli_nexthop_fill_object(o, c, &resp->nh, true);
+	gr_object_close(o);
 	gr_object_free(o);
 	free(resp_ptr);
 
