@@ -90,7 +90,6 @@ struct __gr_iface_base {
 	uint16_t vrf_id;
 	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
-	char mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE]; // BPF filter (tcpdump expr), empty = none.
 };
 
 // Complete interface structure including type-specific info.
@@ -99,6 +98,7 @@ struct gr_iface {
 
 	char name[IFNAMSIZ]; // NUL terminated.
 	char description[256]; // NUL terminated.
+	char mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE]; // BPF filter (tcpdump expr), empty = none.
 	uint8_t info[]; // Type specific interface info.
 };
 

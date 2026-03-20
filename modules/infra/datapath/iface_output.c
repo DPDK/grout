@@ -11,6 +11,7 @@
 #include <gr_vlan.h>
 
 #include <rte_bpf.h>
+#include <rte_pcapng.h>
 
 #include <stdint.h>
 
@@ -103,7 +104,7 @@ static uint16_t iface_output_process(
 					copy = rte_bpf_exec(d->iface->mirror_bpf, m);
 			}
 			if (copy) {
-				struct rte_mbuf *c = gr_mbuf_copy(m, UINT32_MAX);
+				struct rte_mbuf *c = rte_pcapng_copy(d->iface->id, 0, m, m->pool, rte_pktmbuf_pkt_len(m), RTE_PCAPNG_DIRECTION_OUT, "");
 				rte_node_enqueue_x1(graph, node, MIRROR, c);
 				copy_count++;
 			}

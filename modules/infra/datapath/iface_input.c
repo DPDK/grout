@@ -13,6 +13,7 @@
 #include <gr_vlan.h>
 
 #include <rte_bpf.h>
+#include <rte_pcapng.h>
 
 enum {
 	IFACE_MODE_UNKNOWN = 0,
@@ -53,11 +54,9 @@ err:
 	return -1;
 }
 
-int pcapng_packetid_offset;
 
 static uint16_t
 iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	static __thread uint64_t packet_id = 0;
 	uint16_t last_iface_id, last_vlan_id;
 	const struct iface *vlan_iface;
 	struct iface_mbuf_data *d;
@@ -107,12 +106,7 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 					copy = rte_bpf_exec(d->iface->mirror_bpf, m);
 			}
 			if (copy) {
-				if (pcapng_packetid_offset >= 0)
-					*RTE_MBUF_DYNFIELD(
-						m, pcapng_packetid_offset, uint64_t *
-					) = (++packet_id & ~(0xffL << 48))
-						| ((uint64_t)rte_lcore_id()) << 48;
-				struct rte_mbuf *c = gr_mbuf_copy(m, UINT32_MAX);
+				struct rte_mbuf *c = rte_pcapng_copy(d->iface->id, 0, m, m->pool, rte_pktmbuf_pkt_len(m), RTE_PCAPNG_DIRECTION_IN, "");
 				rte_node_enqueue_x1(graph, node, MIRROR, c);
 				copy_count++;
 			}
@@ -138,18 +132,6 @@ next:
 	return nb_objs + copy_count;
 }
 
-static void iface_input_register(void) {
-	const struct rte_mbuf_dynfield priv_params = {
-		.name = "pcap_packetid",
-		.size = sizeof(uint64_t),
-		.align = alignof(uint64_t),
-	};
-	pcapng_packetid_offset = rte_mbuf_dynfield_register(&priv_params);
-	if (pcapng_packetid_offset < 0) {
-		LOG(ERR, "rte_mbuf_dynfield_register(pcap_packetid): %s", rte_strerror(rte_errno));
-	}
-}
-
 static struct rte_node_register node = {
 	.name = "iface_input",
 
@@ -169,7 +151,6 @@ static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L1,
 	.trace_format = iface_input_trace_format,
-	.register_callback = iface_input_register,
 };
 
 GR_NODE_REGISTER(info);
