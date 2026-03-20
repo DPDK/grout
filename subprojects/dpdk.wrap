@@ -6,7 +6,9 @@ diff_files =
 	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
 	dpdk/fib-expose-tbl8-usage-statistics.patch,
 	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
-	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch
+	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch,
+	dpdk/0001-bpf-arm64-fix-offset-type-to-allow-a-negative-jump.patch,
+	dpdk/0002-bpf-arm64-support-packet-data-load-instructions.patch
 
 [provide]
 dependency_names = libdpdk

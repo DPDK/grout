@@ -1,0 +1,33 @@
+From 9778a186b5c0ad9a3615acc42a57af2a2ad90c07 Mon Sep 17 00:00:00 2001
+From: Christophe Fontaine <cfontain@redhat.com>
+Date: Thu, 19 Mar 2026 12:35:32 +0100
+Subject: [PATCH 1/2] bpf/arm64: fix offset type to allow a negative jump
+
+The epilogue code can be before the call to
+'emit_return_zero_if_src_zero', but the code only supported a
+jump forward.
+
+Fix the type of jump_to_epilogue from unsigned to signed,
+to be able to jump backward.
+
+Signed-off-by: Christophe Fontaine <cfontain@redhat.com>
+---
+ lib/bpf/bpf_jit_arm64.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/bpf/bpf_jit_arm64.c b/lib/bpf/bpf_jit_arm64.c
+index a04ef33a9c..099822e9f1 100644
+--- a/lib/bpf/bpf_jit_arm64.c
++++ b/lib/bpf/bpf_jit_arm64.c
+@@ -957,7 +957,7 @@ static void
+ emit_return_zero_if_src_zero(struct a64_jit_ctx *ctx, bool is64, uint8_t src)
+ {
+ 	uint8_t r0 = ebpf_to_a64_reg(ctx, EBPF_REG_0);
+-	uint16_t jump_to_epilogue;
++	int32_t jump_to_epilogue;
+ 
+ 	emit_cbnz(ctx, is64, src, 3);
+ 	emit_mov_imm(ctx, is64, r0, 0);
+-- 
+2.53.0
+
