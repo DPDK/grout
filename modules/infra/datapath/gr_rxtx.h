@@ -54,6 +54,9 @@ void iface_output_type_register(gr_iface_type_t, const char *next_node);
 
 void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
+void rx_burst_histogram_get(uint16_t port_id, uint64_t *histogram, unsigned slots);
+void rx_burst_histogram_reset(void);
+
 typedef enum : uint16_t {
 	RXTX_F_VLAN_OFFLOAD = GR_BIT16(0),
 	RXTX_F_TXQ_SHARED = GR_BIT16(1),
