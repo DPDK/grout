@@ -53,6 +53,9 @@ static void emit_help_type(struct gr_metrics_writer *w, const struct gr_metric *
 	case GR_METRIC_GAUGE:
 		type_str = "gauge";
 		break;
+	case GR_METRIC_HISTOGRAM:
+		type_str = "histogram";
+		break;
 	default:
 		ABORT("unsupported metric type %u", m->type);
 	}
@@ -107,6 +110,57 @@ void gr_metrics_labels_add(struct gr_metrics_ctx *ctx, ...) {
 void gr_metric_emit(struct gr_metrics_ctx *ctx, const struct gr_metric *m, uint64_t value) {
 	emit_help_type(ctx->w, m);
 	evbuffer_add_printf(ctx->w->buf, "grout_%s{%s} %lu\n", m->name, ctx->labels, value);
+}
+
+void gr_metric_emit_histogram(
+	struct gr_metrics_ctx *ctx,
+	const struct gr_metric *m,
+	const uint64_t *slot_counts,
+	unsigned n_slots,
+	const unsigned *bucket_bounds,
+	unsigned n_buckets
+) {
+	emit_help_type(ctx->w, m);
+
+	uint64_t cumulative = 0;
+	uint64_t sum = 0;
+	unsigned slot = 0;
+
+	for (unsigned b = 0; b < n_buckets; b++) {
+		unsigned le = bucket_bounds[b];
+		while (slot < n_slots && slot <= le) {
+			cumulative += slot_counts[slot];
+			sum += slot_counts[slot] * slot;
+			slot++;
+		}
+		evbuffer_add_printf(
+			ctx->w->buf,
+			"grout_%s_bucket{%s,le=\"%u\"} %lu\n",
+			m->name,
+			ctx->labels,
+			le,
+			cumulative
+		);
+	}
+
+	// accumulate remaining slots beyond the last bucket bound
+	while (slot < n_slots) {
+		cumulative += slot_counts[slot];
+		sum += slot_counts[slot] * slot;
+		slot++;
+	}
+
+	evbuffer_add_printf(
+		ctx->w->buf,
+		"grout_%s_bucket{%s,le=\"+Inf\"} %lu\n",
+		m->name,
+		ctx->labels,
+		cumulative
+	);
+	evbuffer_add_printf(ctx->w->buf, "grout_%s_sum{%s} %lu\n", m->name, ctx->labels, sum);
+	evbuffer_add_printf(
+		ctx->w->buf, "grout_%s_count{%s} %lu\n", m->name, ctx->labels, cumulative
+	);
 }
 
 static void metrics_handler(struct evhttp_request *req, void *) {

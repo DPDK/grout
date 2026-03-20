@@ -12,6 +12,7 @@
 enum gr_metric_type {
 	GR_METRIC_COUNTER,
 	GR_METRIC_GAUGE,
+	GR_METRIC_HISTOGRAM,
 };
 
 // Metric definition (static, registered once per metric name)
@@ -26,6 +27,8 @@ struct gr_metric {
 	static const struct gr_metric v = {.name = (n), .help = (h), .type = GR_METRIC_COUNTER}
 #define METRIC_GAUGE(v, n, h)                                                                      \
 	static const struct gr_metric v = {.name = (n), .help = (h), .type = GR_METRIC_GAUGE}
+#define METRIC_HISTOGRAM(v, n, h)                                                                  \
+	static const struct gr_metric v = {.name = (n), .help = (h), .type = GR_METRIC_HISTOGRAM}
 
 // Opaque writer context
 struct gr_metrics_writer;
@@ -45,6 +48,18 @@ void gr_metrics_labels_add(struct gr_metrics_ctx *, ...);
 
 // Emit metric value using context's labels
 void gr_metric_emit(struct gr_metrics_ctx *, const struct gr_metric *, uint64_t value);
+
+// Emit a histogram metric. slot_counts[i] is the count of observations with
+// value exactly i. bucket_bounds[] defines which slot indices are emitted as
+// le="N" bucket boundaries.
+void gr_metric_emit_histogram(
+	struct gr_metrics_ctx *,
+	const struct gr_metric *,
+	const uint64_t *slot_counts,
+	unsigned n_slots,
+	const unsigned *bucket_bounds,
+	unsigned n_buckets
+);
 
 // Collector registration (groups related metrics + callback)
 struct gr_metrics_collector {
