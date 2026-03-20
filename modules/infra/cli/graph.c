@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_cli.h>
+#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 
@@ -10,6 +11,39 @@
 
 #include <stdio.h>
 #include <unistd.h>
+
+static cmd_status_t graph_conf_set(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_graph_conf req = {0};
+
+	if (arg_u16(p, "VECTOR", &req.vector_max) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+	if (arg_u16(p, "BURST", &req.rx_burst_max) < 0 && errno != ENOENT)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_GRAPH_CONF_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t graph_conf_show(struct gr_api_client *c, const struct ec_pnode *) {
+	const struct gr_graph_conf *sizes;
+	void *resp_ptr = NULL;
+
+	if (gr_api_client_send_recv(c, GR_GRAPH_CONF_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	sizes = resp_ptr;
+
+	struct gr_object *o = gr_object_new(NULL);
+	gr_object_field(o, "vector_max", GR_DISP_INT, "%u", sizes->vector_max);
+	gr_object_field(o, "rx_burst_max", GR_DISP_INT, "%u", sizes->rx_burst_max);
+	gr_object_free(o);
+
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
 
 static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_graph_dump_req req = {0};
@@ -33,11 +67,39 @@ static cmd_status_t graph_dump(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
+#define GRAPH_CTX(root) CLI_CONTEXT(root, CTX_ARG("graph", "Packet processing graph"))
+#define CONF_CTX(root)                                                                             \
+	CLI_CONTEXT(GRAPH_CTX(root), CTX_ARG("config", "Processing graph configuration."))
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
 	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ARG("graph", "Packet processing graph")),
+		CONF_CTX(root),
+		"set (vector-max VECTOR),(rx-burst-max BURST)",
+		graph_conf_set,
+		"Configure maximum burst sizes of the packet processing graph.",
+		with_help(
+			"Maximum size of graph vectors.", ec_node_uint("VECTOR", 1, UINT16_MAX, 10)
+		),
+		with_help(
+			"Maximum size of RX queue burst.", ec_node_uint("BURST", 1, UINT16_MAX, 10)
+		)
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CONF_CTX(root),
+		"[show]",
+		graph_conf_show,
+		"Show the current maximum burst sizes of the packet processing graph."
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		GRAPH_CTX(root),
 		"[show] [(brief|full),layers,compact]",
 		graph_dump,
 		"Show packet processing graph info.",
