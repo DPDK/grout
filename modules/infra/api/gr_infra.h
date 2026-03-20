@@ -34,6 +34,7 @@ typedef enum : uint16_t {
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(2),
 	GR_IFACE_F_SNAT_STATIC = GR_BIT16(3),
 	GR_IFACE_F_SNAT_DYNAMIC = GR_BIT16(4),
+	GR_IFACE_F_MIRROR = GR_BIT16(5),
 } gr_iface_flags_t;
 
 // Interface state flags.
@@ -70,6 +71,9 @@ typedef enum : uint8_t {
 #define GR_IFACE_SET_VRF GR_BIT64(3)
 #define GR_IFACE_SET_DOMAIN GR_BIT64(4)
 #define GR_IFACE_SET_DESCR GR_BIT64(5)
+#define GR_IFACE_SET_MIRROR_FILTER GR_BIT64(6)
+
+#define GR_IFACE_MIRROR_FILTER_SIZE 64
 
 // Generic struct for all network interfaces.
 struct __gr_iface_base {
@@ -94,6 +98,7 @@ struct gr_iface {
 
 	char name[IFNAMSIZ]; // NUL terminated.
 	char description[256]; // NUL terminated.
+	char mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE]; // BPF filter (tcpdump expr), empty = none.
 	uint8_t info[]; // Type specific interface info.
 };
 
@@ -450,6 +455,16 @@ struct gr_affinity_cpu_set_req {
 };
 
 // struct gr_affinity_cpu_set_resp { };
+
+// Mirror capture (pcapng)
+#define GR_MIRROR_CAPTURE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0080)
+
+#define GR_MIRROR_CAPTURE_PATH_SIZE 256
+
+struct gr_mirror_capture_set_req {
+	bool enabled;
+	char path[GR_MIRROR_CAPTURE_PATH_SIZE];
+};
 
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {

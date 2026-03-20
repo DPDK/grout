@@ -73,7 +73,7 @@ jobs:
             libibverbs-dev libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libmnl-dev libnuma-dev python3-pyelftools \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq \
-            dnsmasq systemd-coredump \
+            dnsmasq systemd-coredump libpcap-dev libbpf-dev \
             "linux-modules-extra-$(uname -r)"
           if echo $MESON_EXTRA_OPTS | grep -q frr=enabled ; then
             sudo apt-get install -qy --no-install-recommends \
@@ -148,7 +148,8 @@ jobs:
           apt install -qy --no-install-recommends \
             make gcc ccache git meson scdoc python3-pyelftools ca-certificates pkg-config \
             crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
-            libevent-dev:arm64 libmnl-dev:arm64 libnuma-dev:arm64
+           libevent-dev:arm64 libmnl-dev:arm64 libnuma-dev:arm64 \
+           libpcap-dev:arm64 libbpf-dev:arm64
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

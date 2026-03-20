@@ -12,10 +12,14 @@
 #include <gr_trace.h>
 #include <gr_vlan.h>
 
+#include <rte_bpf.h>
+#include <rte_pcapng.h>
+
 enum {
 	IFACE_MODE_UNKNOWN = 0,
 	IFACE_DOWN,
 	UNKNOWN_VLAN,
+	MIRROR,
 	NB_EDGES,
 };
 
@@ -50,11 +54,13 @@ err:
 	return -1;
 }
 
+
 static uint16_t
 iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t last_iface_id, last_vlan_id;
 	const struct iface *vlan_iface;
 	struct iface_mbuf_data *d;
+	uint16_t copy_count = 0;
 	struct rte_mbuf *m;
 	uint16_t vlan_id;
 	rte_edge_t edge;
@@ -89,11 +95,30 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 
+		if (d->iface->flags & GR_IFACE_F_MIRROR) {
+			int copy = 1;
+			if (d->iface->mirror_bpf) {
+				struct rte_bpf_jit jit;
+				rte_bpf_get_jit(d->iface->mirror_bpf, &jit);
+				if (jit.func)
+					copy = jit.func(m);
+				else
+					copy = rte_bpf_exec(d->iface->mirror_bpf, m);
+			}
+			if (copy) {
+				struct rte_mbuf *c = rte_pcapng_copy(d->iface->id, 0, m, m->pool, rte_pktmbuf_pkt_len(m), RTE_PCAPNG_DIRECTION_IN, "");
+				rte_node_enqueue_x1(graph, node, MIRROR, c);
+				copy_count++;
+			}
+		}
+
 		IFACE_STATS_INC(rx, m, d->iface);
 
 		edge = edges[d->iface->mode];
 next:
 		if (gr_mbuf_is_traced(m)) {
+			if (pcapng_packetid_offset >= 0) { }
+
 			struct iface_input_trace_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->iface_id = d->iface->id;
 			t->mode = d->iface->mode;
@@ -104,7 +129,7 @@ next:
 
 	IFACE_STATS_FLUSH(rx);
 
-	return nb_objs;
+	return nb_objs + copy_count;
 }
 
 static struct rte_node_register node = {
@@ -117,6 +142,7 @@ static struct rte_node_register node = {
 		[IFACE_MODE_UNKNOWN] = "iface_mode_unknown",
 		[IFACE_DOWN] = "iface_input_admin_down",
 		[UNKNOWN_VLAN] = "iface_input_unknown_vlan",
+		[MIRROR] = "mirror",
 		// other edges are updated dynamically with iface_input_mode_register
 	},
 };

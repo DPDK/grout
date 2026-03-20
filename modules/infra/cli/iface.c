@@ -210,6 +210,8 @@ static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *
 		SAFE_BUF(snprintf, len, " tracing");
 	if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
 		SAFE_BUF(snprintf, len, " snat");
+	if (iface->flags & GR_IFACE_F_MIRROR)
+		SAFE_BUF(snprintf, len, " mirror");
 
 	return n;
 err:
@@ -223,7 +225,7 @@ uint64_t parse_iface_args(
 	size_t info_size,
 	bool update
 ) {
-	const char *name, *promisc;
+	const char *name, *promisc, *mirror, *filter;
 	uint64_t set_attrs = 0;
 
 	name = arg_str(p, "NAME");
@@ -255,6 +257,24 @@ uint64_t parse_iface_args(
 	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
 		iface->flags &= ~GR_IFACE_F_PROMISC;
 		set_attrs |= GR_IFACE_SET_FLAGS;
+	}
+	mirror = arg_str(p, "MIRROR");
+	if (mirror != NULL && strcmp(mirror, "on") == 0) {
+		iface->flags |= GR_IFACE_F_MIRROR;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	} else if (mirror != NULL && strcmp(mirror, "off") == 0) {
+		iface->flags &= ~GR_IFACE_F_MIRROR;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	}
+	filter = arg_str(p, "FILTER");
+	if (filter != NULL) {
+		if (strlen(filter) >= GR_IFACE_MIRROR_FILTER_SIZE) {
+			errno = ENAMETOOLONG;
+			goto err;
+		}
+		memccpy(iface->mirror_filter, filter, 0, GR_IFACE_MIRROR_FILTER_SIZE);
+		iface->mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE - 1] = '\0';
+		set_attrs |= GR_IFACE_SET_MIRROR_FILTER;
 	}
 
 	if (arg_u16(p, "MTU", &iface->mtu) == 0)
@@ -516,6 +536,13 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 		gr_object_field(o, "speed", 0, "unknown");
 	else
 		gr_object_field(o, "speed", GR_DISP_INT, "%u", iface->speed);
+
+	if (iface->flags & GR_IFACE_F_MIRROR) {
+		if (iface->mirror_filter[0] != '\0')
+			printf("mirror-filter: %s\n", iface->mirror_filter);
+		else
+			printf("mirror-filter: (none)\n");
+	}
 
 	type = type_from_id(iface->type);
 	assert(type != NULL);

@@ -1,0 +1,283 @@
+From d4197fdb6a8b0811f3d42b3cec331e99d3a4ce40 Mon Sep 17 00:00:00 2001
+From: Christophe Fontaine <cfontain@redhat.com>
+Date: Thu, 19 Mar 2026 12:35:46 +0100
+Subject: [PATCH 2/2] bpf/arm64: support packet data load instructions
+
+arm64 jit compiler didn't support reading from a packet.
+Enable arm64 JIT to generate native code for
+(BPF_ABS | <size> | BPF_LD) and (BPF_IND | <size> | BPF_LD)
+instructions.
+
+Both 'fast path' and 'slow path' are implemented, similar to
+the x86_64 JIT, where we call '__rte_pktmbuf_read' if the
+requested data is not in the first segment.
+
+Added unit test which focuses only on BPF_LD | BPF_ABS/BPF_IND and
+a BPF_LD | BPF_ABS slow path call.
+
+Signed-off-by: Christophe Fontaine <cfontain@redhat.com>
+---
+ app/test/test_bpf.c     | 121 ++++++++++++++++++++++++++++++++++++++++
+ lib/bpf/bpf_jit_arm64.c |  86 ++++++++++++++++++++++++++++
+ 2 files changed, 207 insertions(+)
+
+diff --git a/app/test/test_bpf.c b/app/test/test_bpf.c
+index dd24722450..799f9d30ca 100644
+--- a/app/test/test_bpf.c
++++ b/app/test/test_bpf.c
+@@ -2750,6 +2750,79 @@ static const struct rte_bpf_xsym test_call5_xsym[] = {
+ 	},
+ };
+ 
++/* load mbuf (BPF_ABS/BPF_IND) test-cases */
++static const struct ebpf_insn test_ld_mbuf0_prog[] = {
++	/* BPF_ABS/BPF_IND implicitly expect mbuf ptr in R6 */
++	{
++		.code = (EBPF_ALU64 | EBPF_MOV | BPF_X),
++		.dst_reg = EBPF_REG_6,
++		.src_reg = EBPF_REG_1,
++	},
++	/* load IPv4 version and IHL */
++	{
++		.code = (BPF_LD | BPF_ABS | BPF_B),
++		.imm = offsetof(struct rte_ipv4_hdr, version_ihl),
++	},
++	{
++		.code = (BPF_JMP | EBPF_EXIT),
++	},
++};
++
++/* load mbuf (BPF_ABS/BPF_IND) test-cases */
++static const struct ebpf_insn test_ld_slow_mbuf0_prog[] = {
++	/* BPF_ABS/BPF_IND implicitly expect mbuf ptr in R6 */
++	{
++		.code = (EBPF_ALU64 | EBPF_MOV | BPF_X),
++		.dst_reg = EBPF_REG_6,
++		.src_reg = EBPF_REG_1,
++	},
++	/* load from chained mbuf */
++	{
++		.code = (BPF_LD | BPF_ABS | BPF_B),
++		/* 201: second mbuf, built by test_ld_mbuf1_prepare */
++		.imm = 201 + 0x42,
++	},
++	{
++		.code = (BPF_JMP | EBPF_EXIT),
++	},
++};
++
++static const struct ebpf_insn test_ld_ind_mbuf0_prog[] = {
++	/* BPF_ABS/BPF_IND implicitly expect mbuf ptr in R6 */
++	{
++		.code = (EBPF_ALU64 | EBPF_MOV | BPF_X),
++		.dst_reg = EBPF_REG_6,
++		.src_reg = EBPF_REG_1,
++	},
++	{
++		/* Set return value to one. */
++		.code = (EBPF_ALU64 | EBPF_MOV | BPF_K),
++		.dst_reg = EBPF_REG_0,
++		.imm = 0,
++	},
++	/* load IPv4 version and IHL */
++	{
++		.code = (BPF_LD | BPF_IND | BPF_B),
++		.src_reg = EBPF_REG_0,
++		.imm = offsetof(struct rte_ipv4_hdr, version_ihl),
++	},
++	{
++		.code = (BPF_JMP | EBPF_EXIT),
++	},
++};
++
++static int
++test_ld_mbuf0_check(uint64_t rc, const void *arg)
++{
++	return cmp_res(__func__, 0x45, rc, arg, arg, 0);
++}
++
++static int
++test_ld_slow_mbuf0_check(uint64_t rc, const void *arg)
++{
++	return cmp_res(__func__, 0x42, rc, arg, arg, 0);
++}
++
+ /* load mbuf (BPF_ABS/BPF_IND) test-cases */
+ static const struct ebpf_insn test_ld_mbuf1_prog[] = {
+ 
+@@ -3417,6 +3490,54 @@ static const struct bpf_test tests[] = {
+ 		/* for now don't support function calls on 32 bit platform */
+ 		.allow_fail = (sizeof(uint64_t) != sizeof(uintptr_t)),
+ 	},
++	{
++		.name = "test_ld_abs_mbuf0",
++		.arg_sz = sizeof(struct dummy_mbuf),
++		.prm = {
++			.ins = test_ld_mbuf0_prog,
++			.nb_ins = RTE_DIM(test_ld_mbuf0_prog),
++			.prog_arg = {
++				.type = RTE_BPF_ARG_PTR_MBUF,
++				.buf_size = sizeof(struct dummy_mbuf),
++			},
++		},
++		.prepare = test_ld_mbuf1_prepare,
++		.check_result = test_ld_mbuf0_check,
++		/* mbuf as input argument is not supported on 32 bit platform */
++		.allow_fail = (sizeof(uint64_t) != sizeof(uintptr_t)),
++	},
++	{
++		.name = "test_ld_slow_mbuf0",
++		.arg_sz = sizeof(struct dummy_mbuf),
++		.prm = {
++			.ins = test_ld_slow_mbuf0_prog,
++			.nb_ins = RTE_DIM(test_ld_slow_mbuf0_prog),
++			.prog_arg = {
++				.type = RTE_BPF_ARG_PTR_MBUF,
++				.buf_size = sizeof(struct dummy_mbuf),
++			},
++		},
++		.prepare = test_ld_mbuf1_prepare,
++		.check_result = test_ld_slow_mbuf0_check,
++		/* mbuf as input argument is not supported on 32 bit platform */
++		.allow_fail = (sizeof(uint64_t) != sizeof(uintptr_t)),
++	},
++	{
++		.name = "test_ld_ind_mbuf0",
++		.arg_sz = sizeof(struct dummy_mbuf),
++		.prm = {
++			.ins = test_ld_ind_mbuf0_prog,
++			.nb_ins = RTE_DIM(test_ld_ind_mbuf0_prog),
++			.prog_arg = {
++				.type = RTE_BPF_ARG_PTR_MBUF,
++				.buf_size = sizeof(struct dummy_mbuf),
++			},
++		},
++		.prepare = test_ld_mbuf1_prepare,
++		.check_result = test_ld_mbuf0_check,
++		/* mbuf as input argument is not supported on 32 bit platform */
++		.allow_fail = (sizeof(uint64_t) != sizeof(uintptr_t)),
++	},
+ 	{
+ 		.name = "test_ld_mbuf1",
+ 		.arg_sz = sizeof(struct dummy_mbuf),
+diff --git a/lib/bpf/bpf_jit_arm64.c b/lib/bpf/bpf_jit_arm64.c
+index 099822e9f1..5b3b80cb86 100644
+--- a/lib/bpf/bpf_jit_arm64.c
++++ b/lib/bpf/bpf_jit_arm64.c
+@@ -8,6 +8,7 @@
+ 
+ #include <rte_common.h>
+ #include <rte_byteorder.h>
++#include <rte_mbuf.h>
+ 
+ #include "bpf_impl.h"
+ 
+@@ -1123,6 +1124,75 @@ emit_branch(struct a64_jit_ctx *ctx, uint8_t op, uint32_t i, int16_t off)
+ 	emit_b_cond(ctx, ebpf_to_a64_cond(op), jump_offset_get(ctx, i, off));
+ }
+ 
++/*
++ * Emit code for BPF_LD | BPF_ABS/IND: load from packet.
++ * Implements both a fast path, which computes the offset and read directly
++ * and a slow path, which calls __rte_pktmbuf_read(mbuf, off, len, buf)
++ * when the data is not in the first segment.
++ */
++static void
++emit_ld_mbuf(struct a64_jit_ctx *ctx, uint32_t op, uint8_t tmp1, uint8_t tmp2,
++	uint8_t src, int32_t imm)
++{
++	uint8_t r0 = ebpf_to_a64_reg(ctx, EBPF_REG_0);
++	uint8_t r6 = ebpf_to_a64_reg(ctx, EBPF_REG_6);
++	uint32_t mode = BPF_MODE(op);
++	uint32_t opsz = BPF_SIZE(op);
++	uint32_t sz = bpf_size(opsz);
++
++	/* r0 = mbuf (R6) */
++	emit_mov_64(ctx, A64_R(0), r6);
++
++	/* r1 = off: for ABS use imm, for IND use src + imm */
++	if (mode == BPF_ABS) {
++		emit_mov_imm(ctx, 0, A64_R(1), imm);
++	} else {
++		emit_mov_imm(ctx, 0, tmp2, imm);
++		emit_add(ctx, 0, tmp2, src);
++		emit_mov_64(ctx, A64_R(1), tmp2);
++	}
++
++	/* r2 = len, 1/2/4 bytes */
++	emit_mov_imm32(ctx, 0, A64_R(2), sz);
++	/* r3 = buf (SP) */
++	emit_mov_64(ctx, A64_R(3), A64_SP);
++
++	/* tmp1 = mbuf->data_len */
++	emit_mov_imm(ctx, 1, tmp1, offsetof(struct rte_mbuf, data_len));
++	emit_ldr(ctx, BPF_W, tmp1, r6, tmp1);
++
++	/* tmp2 = off + sz */
++	emit_add_imm_64(ctx, tmp2, A64_R(1), sz);
++	/* if off+sz > data_len, jump to slow path */
++	emit_cmp(ctx, 1, tmp2, tmp1);
++	emit_b_cond(ctx, A64_HI, 8);
++
++	/* Fast path, read directly, pointer to the data will be in A64_R(0) */
++	/* A64_R(0) = mbuf->buf_addr */
++	emit_mov_imm(ctx, 1, tmp1, offsetof(struct rte_mbuf, buf_addr));
++	emit_ldr(ctx, EBPF_DW, A64_R(0), r6, tmp1);
++	/* tmp2 = * mbuf->data_off */
++	emit_mov_imm(ctx, 1, tmp2, offsetof(struct rte_mbuf, data_off));
++	emit_ldr(ctx, BPF_H, tmp2, r6, tmp2);
++
++	/* A64_R(0) += data_off + off */
++	emit_add(ctx, 1, A64_R(0), tmp2);
++	emit_add(ctx, 1, A64_R(0), A64_R(1));
++
++	/* End of Fast Path, skip slow path */
++	emit_b(ctx, 4);
++
++	/* slow path, call __rte_pktmbuf_read */
++	emit_call(ctx, tmp1, __rte_pktmbuf_read);
++	/* check return value of __rte_pktmbuf_read */
++	emit_return_zero_if_src_zero(ctx, 1, A64_R(0));
++
++	/* A64_R(0) points to the data, load 1/2/4 bytes into r0*/
++	emit_ldr(ctx, opsz, r0, A64_R(0), A64_ZR);
++	if (sz != sizeof(uint8_t))
++		emit_be(ctx, r0, sz * CHAR_BIT);
++}
++
+ static void
+ check_program_has_call(struct a64_jit_ctx *ctx, struct rte_bpf *bpf)
+ {
+@@ -1137,6 +1207,13 @@ check_program_has_call(struct a64_jit_ctx *ctx, struct rte_bpf *bpf)
+ 		switch (op) {
+ 		/* Call imm */
+ 		case (BPF_JMP | EBPF_CALL):
++		/* BPF_LD | BPF_ABS/IND use __rte_pktmbuf_read */
++		case (BPF_LD | BPF_ABS | BPF_B):
++		case (BPF_LD | BPF_ABS | BPF_H):
++		case (BPF_LD | BPF_ABS | BPF_W):
++		case (BPF_LD | BPF_IND | BPF_B):
++		case (BPF_LD | BPF_IND | BPF_H):
++		case (BPF_LD | BPF_IND | BPF_W):
+ 			ctx->foundcall = 1;
+ 			return;
+ 		}
+@@ -1338,6 +1415,15 @@ emit(struct a64_jit_ctx *ctx, struct rte_bpf *bpf)
+ 			emit_mov_imm(ctx, 1, dst, u64);
+ 			i++;
+ 			break;
++		/* load absolute/indirect from packet */
++		case (BPF_LD | BPF_ABS | BPF_B):
++		case (BPF_LD | BPF_ABS | BPF_H):
++		case (BPF_LD | BPF_ABS | BPF_W):
++		case (BPF_LD | BPF_IND | BPF_B):
++		case (BPF_LD | BPF_IND | BPF_H):
++		case (BPF_LD | BPF_IND | BPF_W):
++			emit_ld_mbuf(ctx, op, tmp1, tmp2, src, imm);
++			break;
+ 		/* *(size *)(dst + off) = src */
+ 		case (BPF_STX | BPF_MEM | BPF_B):
+ 		case (BPF_STX | BPF_MEM | BPF_H):
+-- 
+2.53.0
+

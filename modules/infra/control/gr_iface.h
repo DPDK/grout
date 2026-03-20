@@ -5,6 +5,7 @@
 
 #include <gr_bitops.h>
 #include <gr_infra.h>
+#include <gr_mbuf.h>
 #include <gr_metrics.h>
 #include <gr_vec.h>
 
@@ -14,15 +15,19 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
+struct rte_bpf;
+
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
 	gr_vec struct iface **subinterfaces;
 	char *name;
 	char *description;
+	char *mirror_filter;
 	int cp_id; // Control plane (Linux) port ID
 	int cp_fd; // control plane fd
 	struct event *cp_ev; // libevent to poll cp_fd
+	struct rte_bpf *mirror_bpf; // Compiled BPF filter, NULL = mirror all.
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 
@@ -82,6 +87,8 @@ int iface_set_up_down(struct iface *, bool up);
 int iface_set_promisc(struct iface *, bool enabled);
 uint16_t ifaces_count(gr_iface_type_t type_id);
 struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev);
+int iface_mirror_filter_compile(const char *expr, struct rte_bpf **out);
+void iface_mirror_filter_destroy(struct rte_bpf *bpf);
 
 uint16_t vrf_default_get_or_create(void);
 
