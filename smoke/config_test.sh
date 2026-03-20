@@ -41,6 +41,8 @@ grcli route add ::/0 via 2345::1 || fail "route replace should succeed"
 grcli route add 2521:111::4/37 via id 1047
 grcli route add 2521:112::/64 via id 45
 grcli route add 2521:113::/64 via id 47
+grcli graph config set vector-max 256 rx-burst-max 64
+grcli -j graph config show | jq -e 'select(.vector_max == 256 and .rx_burst_max == 64)'
 grcli interface set port p0 rxqs 2
 grcli interface set port p1 rxqs 2
 grcli interface set port p2 description "peering link"

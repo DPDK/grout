@@ -385,6 +385,19 @@ struct gr_graph_dump_req {
 
 // Response is a NUL-terminated DOT format string for GraphViz.
 
+struct gr_graph_conf {
+	uint16_t rx_burst_max; // default 64, max 256
+	uint16_t vector_max; // default 64, max 256
+};
+
+#define GR_GRAPH_CONF_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0031)
+
+// response is struct gr_graph_conf
+
+#define GR_GRAPH_CONF_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0032)
+
+// request is struct gr_graph_conf with 0 for unchanged values.
+
 // packet tracing //////////////////////////////////////////////////////////////
 
 #define GR_PACKET_TRACE_BATCH 32

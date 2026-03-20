@@ -87,6 +87,11 @@ static struct iface_info_port *find_port(gr_vec struct iface_info_port **ports, 
 	return port;
 }
 
+static struct gr_graph_conf graph_conf = {
+	.rx_burst_max = 64,
+	.vector_max = 64,
+};
+
 static int
 worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_port **ports) {
 	gr_vec const char **graph_nodes = NULL;
@@ -96,6 +101,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	struct iface_info_port *port;
 	struct queue_map *qmap;
 	struct rte_node *node;
+	uint16_t burst_size;
 	uint16_t graph_uid;
 	unsigned n_rxqs;
 	int ret = 0;
@@ -118,12 +124,6 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	gr_vec_foreach_ref (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
-		LOG(DEBUG,
-		    "[CPU %d] <- port %u rxq %u",
-		    worker->cpu_id,
-		    qmap->port_id,
-		    qmap->queue_id);
-
 		char *name = astrcat(NULL, RX_NODE_FMT, qmap->port_id, qmap->queue_id);
 		gr_vec_add(rx_nodes, name);
 		gr_vec_add(graph_nodes, name);
@@ -157,7 +157,14 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		ctx->iface = RTE_PTR_SUB(port, offsetof(struct iface, info));
 		ctx->rxq.port_id = qmap->port_id;
 		ctx->rxq.queue_id = qmap->queue_id;
-		ctx->burst_size = RTE_GRAPH_BURST_SIZE / gr_vec_len(worker->rxqs);
+		burst_size = RTE_MAX(1u, graph_conf.vector_max / gr_vec_len(rx_nodes));
+		ctx->burst_size = RTE_MIN(graph_conf.rx_burst_max, burst_size);
+		LOG(DEBUG,
+		    "[CPU %d] <- port=%u rxq=%u burst_size=%u",
+		    worker->cpu_id,
+		    qmap->port_id,
+		    qmap->queue_id,
+		    ctx->burst_size);
 		// select the appropriate node process callback
 		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
 			// virtio driver supports Rx vlan stripping but requires help for L4 csum
@@ -596,6 +603,54 @@ err:
 	return api_out(errsave, 0, NULL);
 }
 
+static struct api_out graph_conf_get(const void * /*request*/, struct api_ctx *) {
+	struct gr_graph_conf *resp = malloc(sizeof(*resp));
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+	*resp = graph_conf;
+	return api_out(0, sizeof(*resp), resp);
+}
+
+static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
+	const struct gr_graph_conf *req = request;
+	struct gr_graph_conf prev = graph_conf;
+	gr_vec struct iface_info_port **ports = NULL;
+	struct iface *iface = NULL;
+	int ret;
+
+	if (req->rx_burst_max > RTE_GRAPH_BURST_SIZE || req->vector_max > RTE_GRAPH_BURST_SIZE)
+		return api_out(EOVERFLOW, 0, NULL);
+
+	if (req->rx_burst_max > 0)
+		graph_conf.rx_burst_max = req->rx_burst_max;
+	if (req->vector_max > 0)
+		graph_conf.vector_max = req->vector_max;
+
+	if (graph_conf.rx_burst_max == prev.rx_burst_max
+	    && graph_conf.vector_max == prev.vector_max)
+		return api_out(0, 0, NULL); // no change
+
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+		struct iface_info_port *port = iface_info_port(iface);
+		gr_vec_add(ports, port);
+	}
+
+	LOG(NOTICE,
+	    "vector_max=%u rx_burst_max=%u",
+	    graph_conf.vector_max,
+	    graph_conf.rx_burst_max);
+
+	ret = worker_graph_reload_all(ports);
+	if (ret < 0) {
+		graph_conf = prev;
+		worker_graph_reload_all(ports);
+	}
+
+	gr_vec_free(ports);
+
+	return api_out(-ret, 0, NULL);
+}
+
 static void graph_init(struct event_base *) {
 	struct rte_node_register *reg;
 	struct gr_node_info *info;
@@ -656,5 +711,7 @@ static struct gr_module graph_module = {
 
 RTE_INIT(control_graph_init) {
 	gr_api_handler(GR_GRAPH_DUMP, graph_dump);
+	gr_api_handler(GR_GRAPH_CONF_GET, graph_conf_get);
+	gr_api_handler(GR_GRAPH_CONF_SET, graph_conf_set);
 	gr_register_module(&graph_module);
 }
