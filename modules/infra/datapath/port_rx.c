@@ -10,12 +10,56 @@
 #include <gr_rxtx.h>
 #include <gr_trace.h>
 
+#include <rte_malloc.h>
 #include <rte_net.h>
 
 enum {
 	IFACE_INPUT = 0,
 	NB_EDGES,
 };
+
+static struct {
+	struct __rte_cache_aligned {
+		struct {
+			uint64_t bursts[RTE_GRAPH_BURST_SIZE + 1];
+		} ports[RTE_MAX_ETHPORTS];
+	} lcores[RTE_MAX_LCORE];
+} *histogram;
+
+struct histogram_ctx {
+	uint16_t port_id;
+	uint64_t *buckets;
+	unsigned n_buckets;
+};
+
+static int histogram_iter_cb(unsigned lcore_id, void *priv) {
+	struct histogram_ctx *ctx = priv;
+	for (unsigned b = 0; b < ctx->n_buckets; b++)
+		ctx->buckets[b] += histogram->lcores[lcore_id].ports[ctx->port_id].bursts[b];
+	return 0;
+}
+
+void rx_burst_histogram_get(uint16_t port_id, uint64_t *buckets, unsigned n_buckets) {
+	struct histogram_ctx ctx = {
+		.port_id = port_id,
+		.buckets = buckets,
+		.n_buckets = n_buckets,
+	};
+	assert(n_buckets <= RTE_GRAPH_BURST_SIZE + 1);
+	assert(port_id < RTE_MAX_ETHPORTS);
+	memset(buckets, 0, n_buckets * sizeof(*buckets));
+	rte_lcore_iterate(histogram_iter_cb, &ctx);
+}
+
+void rx_burst_histogram_reset(void) {
+	memset(histogram, 0, sizeof(*histogram));
+}
+
+static inline void rx_burst_histogram_inc(uint16_t port_id, uint16_t n_pkts) {
+	assert(port_id < RTE_MAX_ETHPORTS);
+	assert(n_pkts <= RTE_GRAPH_BURST_SIZE);
+	histogram->lcores[rte_lcore_id()].ports[port_id].bursts[n_pkts]++;
+}
 
 // Copy flags into buf stripping the "RTE_MBUF_F_" prefixes from flag names.
 static ssize_t strip_rte_mbuf_prefixes(char *buf, size_t len, char *flags) {
@@ -171,6 +215,7 @@ uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void 
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
 	if (rx == 0)
 		return 0;
 
@@ -208,6 +253,7 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
 	if (rx == 0)
 		return 0;
 
@@ -244,6 +290,7 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
 	if (rx == 0)
 		return 0;
 
@@ -285,6 +332,7 @@ uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, 
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
 	if (rx == 0)
 		return 0;
 
@@ -411,6 +459,35 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 	return rx;
 }
 
+static void *lcore_cb_handle;
+
+static int histogram_lcore_init(unsigned lcore_id, void *) {
+	memset(&histogram->lcores[lcore_id], 0, sizeof(histogram->lcores[lcore_id]));
+	return 0;
+}
+
+static void histogram_lcore_fini(unsigned lcore_id, void *) {
+	memset(&histogram->lcores[lcore_id], 0, sizeof(histogram->lcores[lcore_id]));
+}
+
+static void rx_init(void) {
+	histogram = rte_zmalloc(__func__, sizeof(*histogram), RTE_CACHE_LINE_SIZE);
+	if (histogram == NULL)
+		ABORT("rte_zmalloc(histogram)");
+	lcore_cb_handle = rte_lcore_callback_register(
+		"histogram", histogram_lcore_init, histogram_lcore_fini, NULL
+	);
+	if (lcore_cb_handle == NULL)
+		ABORT("rte_lcore_callback_register(histogram)");
+}
+
+static void rx_fini(void) {
+	rte_lcore_callback_unregister(lcore_cb_handle);
+	lcore_cb_handle = NULL;
+	rte_free(histogram);
+	histogram = NULL;
+}
+
 static struct rte_node_register node = {
 	.name = RX_NODE_BASE,
 	.flags = RTE_NODE_SOURCE_F,
@@ -426,6 +503,8 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L1,
+	.register_callback = rx_init,
+	.unregister_callback = rx_fini,
 	.trace_format = rxtx_trace_format,
 };
 

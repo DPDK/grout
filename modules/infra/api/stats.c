@@ -5,8 +5,10 @@
 #include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_log.h>
+#include <gr_metrics.h>
 #include <gr_module.h>
 #include <gr_port.h>
+#include <gr_rxtx.h>
 #include <gr_vec.h>
 #include <gr_worker.h>
 
@@ -31,11 +33,12 @@ static bool skip_stat(const struct gr_stat *s, gr_stats_flags_t flags) {
 }
 
 static struct api_out stats_get(const void *request, struct api_ctx *) {
+	uint64_t rx_burst_histogram[RTE_GRAPH_BURST_SIZE + 1];
 	const struct gr_stats_get_req *req = request;
 	struct gr_stats_get_resp *resp = NULL;
 	gr_vec struct gr_stat *stats = NULL;
-	struct gr_stat *s;
 	size_t len, n_stats;
+	struct gr_stat *s;
 	int ret;
 
 	if (req->flags & GR_STATS_F_SW) {
@@ -98,6 +101,23 @@ free_xstat:
 			names = NULL;
 			if (ret < 0)
 				goto err;
+
+			rx_burst_histogram_get(
+				port->port_id, rx_burst_histogram, ARRAY_DIM(rx_burst_histogram)
+			);
+			for (unsigned s = 0; s < ARRAY_DIM(rx_burst_histogram); s++) {
+				struct gr_stat stat = {0};
+				snprintf(
+					stat.name,
+					sizeof(stat.name),
+					"%s.rx_burst_%u_pkts",
+					iface->name,
+					s
+				);
+				stat.batches = rx_burst_histogram[s];
+				stat.packets = stat.batches * s;
+				gr_vec_add(stats, stat);
+			}
 		}
 	}
 
@@ -169,6 +189,8 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 		if ((ret = rte_eth_xstats_reset(port->port_id)) < 0)
 			return api_out(-ret, 0, NULL);
 	}
+
+	rx_burst_histogram_reset();
 
 	return api_out(0, 0, NULL);
 }
@@ -289,10 +311,41 @@ static struct gr_metrics_collector cpu_collector = {
 	.collect = cpu_collect_metrics,
 };
 
+METRIC_HISTOGRAM(m_rx_burst, "rx_burst_size", "Distribution of RX burst sizes in packets.");
+
+static const unsigned rx_burst_buckets[] = {0, 1, 2, 4, 8, 16, 32, 64, 128};
+
+static void rx_burst_metrics_collect(struct gr_metrics_writer *w) {
+	uint64_t histogram[RTE_GRAPH_BURST_SIZE + 1];
+	struct gr_metrics_ctx ctx;
+	struct iface *iface = NULL;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+		struct iface_info_port *port = iface_info_port(iface);
+
+		rx_burst_histogram_get(port->port_id, histogram, ARRAY_DIM(histogram));
+		gr_metrics_ctx_init(&ctx, w, "iface", iface->name, NULL);
+		gr_metric_emit_histogram(
+			&ctx,
+			&m_rx_burst,
+			histogram,
+			ARRAY_DIM(histogram),
+			rx_burst_buckets,
+			ARRAY_DIM(rx_burst_buckets)
+		);
+	}
+}
+
+static struct gr_metrics_collector rx_burst_collector = {
+	.name = "rx_burst",
+	.collect = rx_burst_metrics_collect,
+};
+
 RTE_INIT(infra_stats_init) {
 	gr_api_handler(GR_STATS_GET, stats_get);
 	gr_api_handler(GR_STATS_RESET, stats_reset);
 	gr_api_handler(GR_IFACE_STATS_GET, iface_stats_get);
 	gr_metrics_register(&graph_collector);
 	gr_metrics_register(&cpu_collector);
+	gr_metrics_register(&rx_burst_collector);
 }
