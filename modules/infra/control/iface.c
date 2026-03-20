@@ -276,11 +276,6 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	if (iface_set_up_down(iface, up) < 0)
 		goto destroy;
 
-	if ((iface->flags & GR_IFACE_F_MIRROR) && conf->mirror_filter[0] != '\0') {
-		if (iface_mirror_filter_compile(conf->mirror_filter, &iface->mirror_bpf) < 0)
-			goto destroy;
-	}
-
 	return iface;
 fail:
 	if (vrf_ref)
@@ -378,40 +373,45 @@ int iface_reconfig(
 			goto err;
 	}
 
+	if (set_attrs & GR_IFACE_SET_MIRROR_FILTER) {
+		size_t len = strnlen(conf->mirror_filter, sizeof(conf->mirror_filter));
+		char *new_mirror_filter = NULL;
+
+		if (len >= sizeof(conf->mirror_filter))
+			return errno_set(ENAMETOOLONG);
+		if (len > 0) {
+			new_mirror_filter = strdup(conf->mirror_filter);
+			if (new_mirror_filter == NULL)
+				return errno_set(ENOMEM);
+		}
+		free(iface->mirror_filter);
+		iface->mirror_filter = new_mirror_filter;
+		if (iface->mirror_filter[0] != '\0') {
+			struct rte_bpf *old_bpf = iface->mirror_bpf;
+			struct rte_bpf *new_bpf = NULL;
+			if((ret = iface_mirror_filter_compile(conf->mirror_filter, &new_bpf)) < 0)
+				return errno_set(-ret);
+			iface->mirror_bpf = new_bpf;
+			rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+			iface_mirror_filter_destroy(old_bpf);
+		}
+	}
+
+
 	if (set_attrs & GR_IFACE_SET_FLAGS) {
 		if ((ret = iface_set_promisc(iface, conf->flags & GR_IFACE_F_PROMISC)) < 0)
 			goto err;
 		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
 			goto err;
-		if (conf->flags & GR_IFACE_F_MIRROR)
+		if (conf->flags & GR_IFACE_F_MIRROR) {
 			iface->flags |= GR_IFACE_F_MIRROR;
-		else {
+		} else {
 			iface->flags &= ~GR_IFACE_F_MIRROR;
 			struct rte_bpf *old = iface->mirror_bpf;
 			iface->mirror_bpf = NULL;
 			rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 			iface_mirror_filter_destroy(old);
-			iface->mirror_filter[0] = '\0';
 		}
-	}
-
-	if (set_attrs & GR_IFACE_SET_MIRROR_FILTER) {
-		struct rte_bpf *new_bpf = NULL;
-		struct rte_bpf *old_bpf;
-
-		memccpy(iface->mirror_filter, conf->mirror_filter, 0, GR_IFACE_MIRROR_FILTER_SIZE);
-		iface->mirror_filter[GR_IFACE_MIRROR_FILTER_SIZE - 1] = '\0';
-
-		if (conf->mirror_filter[0] != '\0') {
-			ret = iface_mirror_filter_compile(conf->mirror_filter, &new_bpf);
-			if (ret < 0)
-				goto err;
-		}
-
-		old_bpf = iface->mirror_bpf;
-		iface->mirror_bpf = new_bpf;
-		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		iface_mirror_filter_destroy(old_bpf);
 	}
 
 	if (set_attrs & GR_IFACE_SET_VRF) {

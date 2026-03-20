@@ -441,6 +441,16 @@ struct gr_affinity_cpu_set_req {
 
 // struct gr_affinity_cpu_set_resp { };
 
+// Mirror capture (pcapng)
+#define GR_MIRROR_CAPTURE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0080)
+
+#define GR_MIRROR_CAPTURE_PATH_SIZE 256
+
+struct gr_mirror_capture_set_req {
+	bool enabled;
+	char path[GR_MIRROR_CAPTURE_PATH_SIZE];
+};
+
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {
 	switch (type) {
