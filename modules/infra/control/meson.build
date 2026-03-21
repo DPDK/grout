@@ -3,6 +3,7 @@
 
 src += files(
   'bond.c',
+  'capture.c',
   'ctlplane.c',
   'graph.c',
   'group_nexthop.c',

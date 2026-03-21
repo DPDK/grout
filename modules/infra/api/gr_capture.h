@@ -276,3 +276,76 @@ gr_capture_slot_timestamp_ns(const struct gr_capture_ring *r, const struct gr_ca
 	uint64_t rem = delta % r->tsc_hz;
 	return r->realtime_ref_ns + sec * 1000000000ULL + rem * 1000000000ULL / r->tsc_hz;
 }
+
+enum gr_capture_requests : uint32_t {
+	GR_CAPTURE_START = GR_MSG_TYPE(GR_INFRA_MODULE, 0x4001),
+	GR_CAPTURE_SET_FILTER,
+	GR_CAPTURE_STOP,
+	GR_CAPTURE_LIST,
+};
+
+struct gr_bpf_instruction {
+	uint16_t code;
+	uint8_t jt;
+	uint8_t jf;
+	uint32_t k;
+};
+
+struct gr_capture_filter {
+	// number of BPF instructions, use 0 to capture all packets
+	uint16_t n_instructions;
+	struct gr_bpf_instruction instructions[/* n_instructions */];
+};
+
+struct gr_capture_start_req {
+	uint16_t iface_id; // GR_IFACE_ID_UNDEF = all interfaces.
+	gr_capture_dir_t direction;
+	uint32_t snap_len; // 0 = default (4096).
+	struct gr_capture_filter filter;
+};
+
+struct gr_capture_start_resp {
+	uint16_t capture_id;
+	uint32_t memfd_size;
+	uint32_t mmap_flags; // MAP_HUGETLB | MAP_HUGE_2MB or 0
+	// Response carries the shared memory fd via sendmsg SCM_RIGHTS.
+};
+
+// Start a new packet capture session.
+// Response carries the memfd for the capture ring via SCM_RIGHTS.
+GR_REQ(GR_CAPTURE_START, struct gr_capture_start_req, struct gr_capture_start_resp);
+
+struct gr_capture_set_filter_req {
+	uint16_t capture_id;
+	struct gr_capture_filter filter;
+};
+
+// Install a BPF filter into an existing capture session.
+GR_REQ(GR_CAPTURE_SET_FILTER, struct gr_capture_set_filter_req, struct gr_empty);
+
+struct gr_capture_stop_req {
+	uint16_t capture_id;
+};
+
+// Stop an active packet capture session.
+GR_REQ(GR_CAPTURE_STOP, struct gr_capture_stop_req, struct gr_empty);
+
+struct gr_capture_info {
+	uint16_t capture_id;
+	uint16_t iface_id;
+	gr_capture_dir_t direction;
+	uint32_t snap_len;
+	uint64_t pkt_count;
+	uint64_t drops;
+};
+
+// List active captures.
+GR_REQ_STREAM(GR_CAPTURE_LIST, struct gr_empty, struct gr_capture_info);
+
+enum gr_capture_events : uint32_t {
+	GR_EVENT_CAPTURE_START = GR_MSG_TYPE(GR_INFRA_MODULE, 0x5001),
+	GR_EVENT_CAPTURE_STOP,
+};
+
+GR_EVENT(GR_EVENT_CAPTURE_START, struct gr_capture_info);
+GR_EVENT(GR_EVENT_CAPTURE_STOP, struct gr_capture_info);
