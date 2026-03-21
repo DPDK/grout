@@ -10,7 +10,15 @@ src += files(
 )
 
 api_headers += files(
+  'gr_capture.h',
   'gr_infra.h',
   'gr_nexthop.h',
 )
 api_inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('capture_ring_test.c'),
+    'link_args': [],
+  },
+]
