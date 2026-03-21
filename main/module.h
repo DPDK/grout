@@ -38,6 +38,11 @@ struct api_ctx {
 
 void api_send(struct api_ctx *, uint32_t len, const void *payload);
 
+// Register a callback invoked when an API client connection is torn down.
+// Modules use it to release per-connection resources.
+typedef void (*api_disconnect_cb)(const struct api_ctx *);
+void api_disconnect_register(api_disconnect_cb cb);
+
 typedef struct api_out (*api_handler_func)(const void *request, struct api_ctx *);
 
 void __api_handler(uint32_t req_type, api_handler_func callback, const char *name, size_t req_size);

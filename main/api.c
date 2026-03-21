@@ -87,6 +87,12 @@ static struct module_subscribers *mod_subs[UINT_NUM_VALUES(uint16_t)];
 static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
 // PID of the current request while API handler is called.
 static __thread pid_t cur_req_pid;
+// Callbacks invoked when a client connection is torn down.
+static vec api_disconnect_cb *disconnect_cbs;
+
+void api_disconnect_register(api_disconnect_cb cb) {
+	vec_add(disconnect_cbs, cb);
+}
 
 void api_send_notifications(uint32_t ev_type, const void *obj) {
 	struct subscription *ev_subs = NULL;
@@ -244,6 +250,9 @@ static void disconnect_client(struct api_ctx *ctx) {
 	LIST_REMOVE(ctx, next);
 
 	LOG(DEBUG, "client pid=%d disconnected", ctx->pid);
+
+	vec_foreach (api_disconnect_cb cb, disconnect_cbs)
+		cb(ctx);
 
 	unsubscribe(NULL, ctx);
 	bufferevent_free(ctx->bev);

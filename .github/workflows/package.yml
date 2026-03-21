@@ -39,6 +39,7 @@ jobs:
             libibverbs-dev \
             libmnl-dev \
             libnuma-dev \
+            libpcap-dev \
             meson \
             ninja-build \
             patch \
@@ -117,6 +118,7 @@ jobs:
             libedit-devel \
             libevent-devel \
             libmnl-devel \
+            libpcap-devel \
             libtool \
             libyang-devel \
             make \

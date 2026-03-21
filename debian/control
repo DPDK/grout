@@ -16,6 +16,7 @@ Build-Depends:
  libibverbs-dev,
  libmnl-dev,
  libnuma-dev,
+ libpcap-dev,
  meson,
  ninja-build,
  patch,

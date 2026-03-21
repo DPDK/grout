@@ -47,6 +47,7 @@ BuildRequires: libcmocka-devel
 BuildRequires: libedit-devel
 BuildRequires: libevent-devel
 BuildRequires: libmnl-devel
+BuildRequires: libpcap-devel
 BuildRequires: meson
 BuildRequires: ninja-build
 BuildRequires: numactl-devel
