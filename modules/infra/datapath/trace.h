@@ -12,6 +12,8 @@
 #include <rte_ip4.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
 
 // Write a log message with detailed packet information.
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface);
@@ -39,6 +41,8 @@ bool gr_trace_all_enabled(void);
 
 int eth_type_format(char *buf, size_t len, rte_be16_t type);
 
+int ip_proto_format(char *buf, size_t len, uint8_t proto);
+
 int trace_arp_format(char *buf, size_t len, const struct rte_arp_hdr *, size_t data_len);
 
 int trace_lacp_format(char *buf, size_t len, const struct lacp_pdu *, size_t data_len);
@@ -50,3 +54,7 @@ int trace_ip6_format(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t 
 int trace_icmp_format(char *buf, size_t len, const struct rte_icmp_hdr *, size_t data_len);
 
 int trace_icmp6_format(char *buf, size_t len, const struct icmp6 *, size_t data_len);
+
+int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *);
+
+int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *);
