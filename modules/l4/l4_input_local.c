@@ -7,6 +7,7 @@
 #include "l4.h"
 #include "log.h"
 
+#include <rte_tcp.h>
 #include <rte_udp.h>
 
 LOG_TYPE("graph");
@@ -62,6 +63,35 @@ int l4_input_unalias_port(uint8_t proto, rte_be16_t alias) {
 	return 0;
 }
 
+struct l4_trace_data {
+	uint8_t proto;
+	union {
+		struct rte_udp_hdr udp;
+		struct rte_tcp_hdr tcp;
+	};
+};
+
+static int trace_l4_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
+	const struct l4_trace_data *d = data;
+	size_t n = 0;
+
+	SAFE_BUF(ip_proto_format, len, d->proto);
+	switch (d->proto) {
+	case IPPROTO_UDP:
+		SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(trace_udp_format, len, &d->udp);
+		break;
+	case IPPROTO_TCP:
+		SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(trace_tcp_format, len, &d->tcp);
+		break;
+	}
+
+	return n;
+err:
+	return -1;
+}
+
 static uint16_t l4_input_local_process(
 	struct rte_graph *graph,
 	struct rte_node *node,
@@ -76,6 +106,7 @@ static uint16_t l4_input_local_process(
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		edge = BAD_PROTO;
+		proto = 0;
 
 		if (mbuf->packet_type & RTE_PTYPE_L3_IPV4)
 			proto = ip_local_mbuf_data(mbuf)->proto;
@@ -92,6 +123,18 @@ static uint16_t l4_input_local_process(
 		hdr = rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
 		edge = udp_edges[hdr->dst_port];
 next:
+		if (gr_mbuf_is_traced(mbuf)) {
+			struct l4_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
+			t->proto = proto;
+			switch (proto) {
+			case IPPROTO_UDP:
+				t->udp = *rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
+				break;
+			case IPPROTO_TCP:
+				t->tcp = *rte_pktmbuf_mtod(mbuf, struct rte_tcp_hdr *);
+				break;
+			}
+		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 	return nb_objs;
@@ -117,6 +160,7 @@ static struct gr_node_info info = {
 	.node = &input_node,
 	.type = GR_NODE_T_L4,
 	.register_callback = l4_input_local_register,
+	.trace_format = trace_l4_format,
 };
 
 GR_NODE_REGISTER(info);

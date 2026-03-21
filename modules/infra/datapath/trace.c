@@ -103,7 +103,7 @@ static inline const char *ip_proto_str(uint8_t proto) {
 	return NULL;
 }
 
-static int ip_proto_format(char *buf, size_t len, uint8_t proto) {
+int ip_proto_format(char *buf, size_t len, uint8_t proto) {
 	const char *str = ip_proto_str(proto);
 	if (str)
 		return snprintf(buf, len, "%s(%d)", str, proto);
@@ -348,7 +348,7 @@ err:
 	return -1;
 }
 
-static int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *tcp) {
+int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *tcp) {
 	size_t n = 0;
 
 	SAFE_BUF(
@@ -381,7 +381,7 @@ err:
 	return -1;
 }
 
-static int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
+int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
 	return snprintf(
 		buf,
 		len,
