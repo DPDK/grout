@@ -273,7 +273,7 @@ image.
 # grout direct build dependencies
 dnf install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc libmnl-devel \
-        libcmocka-devel libevent-devel numactl-devel \
+        libcmocka-devel libevent-devel libpcap-devel numactl-devel \
         libarchive-devel rdma-core-devel
 
 # grcli build dependencies
@@ -294,7 +294,7 @@ or
 # grout direct build dependencies
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc \
-        libcmocka-dev libevent-dev libnuma-dev libmnl-dev \
+        libcmocka-dev libevent-dev libnuma-dev libmnl-dev libpcap-dev \
         libarchive-dev libibverbs-dev
 
 # grcli build dependencies

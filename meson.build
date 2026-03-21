@@ -116,6 +116,7 @@ ev_extra_dep = dependency('libevent_extra')
 ev_thread_dep = dependency('libevent_pthreads')
 mnl_dep = dependency('libmnl')
 numa_dep = dependency('numa')
+pcap_dep = dependency('libpcap')
 ecoli_dep = dependency(
   'libecoli',
   version: '>= 0.10.0',
@@ -187,7 +188,7 @@ endif
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep],
+  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep, pcap_dep],
   c_args: ['-D__GROUT_MAIN__'] + grout_cflags,
   install: true,
 )
@@ -195,7 +196,7 @@ grout_exe = executable(
 grcli_exe = executable(
   'grcli', cli_src + grout_header,
   include_directories: cli_inc + api_inc,
-  dependencies: [ecoli_dep],
+  dependencies: [ecoli_dep, pcap_dep],
   c_args: cli_cflags + grout_cflags,
   install: true,
 )
