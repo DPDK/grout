@@ -30,3 +30,8 @@ option(
   'dpdk_cpu', type: 'string', value: 'auto',
   description: 'Value of DPDK cpu_instruction_set when compiled as a subproject.',
 )
+
+option(
+  'pcap', type: 'feature', value: 'auto',
+  description: 'Build pcap-grout.so libpcap plugin. If set to "auto", only build if libpcap-dev is found.',
+)
