@@ -347,6 +347,8 @@ wait_listeners() {
 	done
 }
 
+here=$(dirname $0)
+
 if [ "$run_grout" = true ]; then
 	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
 	smoke_setenv GROUT_OVERRIDE_DEFAULT_ROUTE true
@@ -355,6 +357,7 @@ fi
 if [ -n "${builddir}" ]; then
 	smoke_setenv PATH "$builddir:$PATH"
 fi
+smoke_setenv PATH "$here/../cli:$PATH"
 
 grout_extra_options=""
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
