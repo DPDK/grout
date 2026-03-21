@@ -399,3 +399,14 @@ wait_event() {
 if [ "${INTERACTIVE:-false}" = true ]; then
 	tmux_new_window grcli grcli
 fi
+
+for lib in $builddir/subprojects/libpcap/libpcap.so*; do
+	if [ -f "$lib" ]; then
+		install -Dm 755 -t "$tmp/lib" "$lib"
+		smoke_setenv LD_LIBRARY_PATH "$tmp/lib"
+	fi
+done
+if [ -f $builddir/pcap/pcap-grout.so ]; then
+	install -Dm 755 -t "$tmp/lib/pcap" "$builddir/pcap/pcap-grout.so"
+	smoke_setenv PCAP_PLUGIN_DIR "$tmp/lib/pcap"
+fi
