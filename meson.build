@@ -132,6 +132,7 @@ subdir('modules')
 subdir('cli')
 subdir('api')
 subdir('frr')
+subdir('pcap')
 
 fs = import('fs')
 abidiff = find_program('abidiff', native: true, required: false)
