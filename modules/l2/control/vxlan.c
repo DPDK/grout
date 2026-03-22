@@ -45,7 +45,7 @@ struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id) {
 static int iface_vxlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
-	const struct gr_iface *,
+	const struct gr_iface *conf,
 	const void *api_info
 ) {
 	struct iface_info_vxlan *cur = iface_info_vxlan(iface);
@@ -135,10 +135,31 @@ static int iface_vxlan_reconfig(
 		conf_done |= GR_VXLAN_SET_LOCAL;
 	}
 
-	if (set_attrs & GR_VXLAN_SET_MAC) {
-		if (iface_set_eth_addr(iface, &next->mac) < 0)
+	if (set_attrs & (GR_IFACE_SET_VRF | GR_VXLAN_SET_ENCAP_VRF | GR_VXLAN_SET_MAC)) {
+		struct iface *vrf = get_vrf_iface(cur->encap_vrf_id);
+		struct rte_ether_addr mac = next->mac;
+
+		assert(vrf != NULL);
+
+		// Some devices assume a unique RMAC per VTEP.
+		// When no explicit MAC is given, inherit the VTEP VRF's MAC.
+		if (rte_is_zero_ether_addr(&mac))
+			mac = iface_info_vrf(vrf)->mac;
+
+		if (iface_set_eth_addr(iface, &mac) < 0)
 			goto err;
+
 		conf_done |= GR_VXLAN_SET_MAC;
+
+		// If configured for EVPN L3VNI, also synchronize the MAC on the interface VRF.
+		// So it will be advertised as RMAC by FRR.
+		vrf = NULL;
+		if (set_attrs & GR_IFACE_SET_VRF)
+			vrf = get_vrf_iface(conf->vrf_id);
+		else if (iface->mode == GR_IFACE_MODE_VRF)
+			vrf = get_vrf_iface(iface->vrf_id);
+		if (vrf != NULL && iface_set_eth_addr(vrf, &mac) < 0)
+			goto err;
 	}
 
 	// Update the datapath template from the current config.
