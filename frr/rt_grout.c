@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include "if_map.h"
+#include "l3vni_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -622,7 +623,9 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	struct gr_nexthop_info_srv6 *sr6;
 	struct gr_nh_add_req *req = NULL;
 	struct gr_nexthop_info_l3 *l3;
+	const struct ethaddr *rmac;
 	size_t len = sizeof(*req);
+	uint16_t vxlan_iface_id;
 	gr_nh_type_t type;
 
 	switch (nh->type) {
@@ -670,12 +673,25 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 
 	switch (type) {
 	case GR_NH_T_L3:
+		// For L3 nexthops in VRFs with an L3VNI, redirect the iface from
+		// the VRF (SVI in FRR's model) to the VXLAN interface. Grout
+		// routes packets directly through the VXLAN tunnel.
+		vxlan_iface_id = l3vni_get_vxlan(req->nh.vrf_id);
+		if (vxlan_iface_id != GR_IFACE_ID_UNDEF)
+			req->nh.iface_id = vxlan_iface_id;
+
 		switch (nh->type) {
 		case NEXTHOP_TYPE_IPV4:
 		case NEXTHOP_TYPE_IPV4_IFINDEX:
 			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
 			l3->af = GR_AF_IP4;
 			memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+			// Apply cached RMAC from EVPN NEIGH install if available.
+			rmac = l3vni_rmac_get(req->nh.vrf_id, l3->ipv4);
+			if (rmac != NULL) {
+				memcpy(&l3->mac, rmac, sizeof(l3->mac));
+				l3->flags |= GR_NH_F_REMOTE;
+			}
 			break;
 		case NEXTHOP_TYPE_IPV6:
 		case NEXTHOP_TYPE_IPV6_IFINDEX:
@@ -950,6 +966,32 @@ enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx) {
 	free(req);
 
 	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
+}
+
+enum zebra_dplane_result grout_neigh_update_ctx(struct zebra_dplane_ctx *ctx) {
+	const struct ipaddr *addr = dplane_ctx_neigh_get_ipaddr(ctx);
+	bool add = dplane_ctx_get_op(ctx) != DPLANE_OP_NEIGH_DELETE;
+	uint16_t vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+
+	if (addr->ipa_type != IPADDR_V4) {
+		gr_log_debug("only IPv4 VTEP addresses supported, skip");
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+
+	// Cache the RMAC for later use by grout_add_nexthop. We cannot
+	// create a separate nexthop here because grout's L3 nexthop hash
+	// keys on (vrf, addr) without iface_id, so it would collide with
+	// the route nexthop that FRR installs right after.
+	if (add) {
+		const struct ethaddr *mac = dplane_ctx_neigh_get_mac(ctx);
+		gr_log_debug("cache rmac vrf=%u %pIA %pEA", vrf_id, addr, mac);
+		l3vni_rmac_set(vrf_id, addr->ipaddr_v4.s_addr, mac);
+	} else {
+		gr_log_debug("uncache rmac vrf=%u %pIA", vrf_id, addr);
+		l3vni_rmac_del(vrf_id, addr->ipaddr_v4.s_addr);
+	}
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
 enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *ctx) {

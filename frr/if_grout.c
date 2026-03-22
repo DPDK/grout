@@ -3,6 +3,7 @@
 
 #include "if_grout.h"
 #include "if_map.h"
+#include "l3vni_map.h"
 #include "log_grout.h"
 
 #include <gr_ip4.h>
@@ -136,6 +137,16 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 				dplane_ctx_set_ifp_table_id(
 					ctx, vrf_grout_to_frr(gr_if->base.vrf_id)
 				);
+
+			// For VXLAN in VRF mode, present it as a bridge slave
+			// of the VRF interface. FRR requires an SVI (derived
+			// from the bridge master) to bring the L3VNI up and
+			// compute the Router MAC for EVPN type-5 routes.
+			if (zif_type == ZEBRA_IF_VXLAN) {
+				bridge_ifindex = ifindex_grout_to_frr(gr_if->base.vrf_id);
+				slave_type = ZEBRA_IF_SLAVE_BRIDGE;
+				l3vni_set(gr_if->base.vrf_id, gr_if->id);
+			}
 			break;
 		case GR_IFACE_MODE_BOND:
 			bond_ifindex = ifindex_grout_to_frr(gr_if->domain_id);
@@ -182,6 +193,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	} else {
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_DELETE);
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
+		if (gr_vxlan != NULL && gr_if->mode == GR_IFACE_MODE_VRF)
+			l3vni_del(gr_if->base.vrf_id);
 		remove_mapping_by_grout_ifindex(gr_if->id);
 	}
 
