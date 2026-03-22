@@ -25,6 +25,7 @@ typedef enum : uint8_t {
 	GR_NH_F_GATEWAY = GR_BIT8(2), // Gateway route.
 	GR_NH_F_LINK = GR_BIT8(3), // Connected link route.
 	GR_NH_F_MCAST = GR_BIT8(4), // Multicast address.
+	GR_NH_F_REMOTE = GR_BIT8(5), // Remote VTEP nexthop (EVPN).
 } gr_nh_flags_t;
 
 // Nexthop types for different forwarding behaviors.
@@ -176,6 +177,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "link";
 	case GR_NH_F_MCAST:
 		return "multicast";
+	case GR_NH_F_REMOTE:
+		return "remote";
 	}
 	return "?";
 }
