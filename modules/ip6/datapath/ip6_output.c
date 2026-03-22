@@ -116,6 +116,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		else
 			eth_data->dst = l3->mac;
 		eth_data->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
+		eth_data->vtep = (iface->type == GR_IFACE_TYPE_VXLAN) ? l3->ipv4 : 0;
 		sent++;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
