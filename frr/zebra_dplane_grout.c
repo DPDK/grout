@@ -564,6 +564,11 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_MAC_DELETE:
 		return grout_macfdb_update_ctx(ctx);
 
+	case DPLANE_OP_NEIGH_INSTALL:
+	case DPLANE_OP_NEIGH_UPDATE:
+	case DPLANE_OP_NEIGH_DELETE:
+		return grout_neigh_update_ctx(ctx);
+
 	case DPLANE_OP_VTEP_ADD:
 	case DPLANE_OP_VTEP_DELETE:
 		return grout_vxlan_flood_update_ctx(ctx);
