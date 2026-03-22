@@ -420,6 +420,9 @@ static void ip6_iface_llocal_init(const struct iface *iface) {
 	struct rte_ether_addr mac;
 	unsigned i;
 
+	if (iface->type == GR_IFACE_TYPE_VRF)
+		return; // VRF interfaces shoulnd't have a link local address
+
 	if (iface_get_eth_addr(iface, &mac) < 0)
 		return;
 
