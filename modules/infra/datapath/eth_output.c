@@ -24,6 +24,7 @@ eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct rte_ether_hdr *eth;
 	uint16_t last_iface_id;
 	struct rte_mbuf *mbuf;
+	struct l3_addr vtep;
 	rte_edge_t edge;
 
 	last_iface_id = GR_IFACE_ID_UNDEF;
@@ -59,7 +60,9 @@ next:
 			t->src_addr = src_mac;
 			t->ether_type = priv->ether_type;
 		}
+		vtep = priv->vtep;
 		iface_mbuf_data(mbuf)->vlan_id = 0;
+		iface_mbuf_data(mbuf)->vtep = vtep;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
