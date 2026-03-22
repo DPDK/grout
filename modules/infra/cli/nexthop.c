@@ -379,6 +379,8 @@ static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p)
 		goto out;
 	if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
 		goto out;
+	if (arg_str(p, "remote"))
+		l3->flags |= GR_NH_F_REMOTE;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
@@ -619,13 +621,14 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		NEXTHOP_ADD_CTX(root),
-		"l3 iface IFACE [(id ID),(address IP),(mac MAC)]",
+		"l3 iface IFACE [(id ID),(address IP),(mac MAC),(remote)]",
 		nh_l3_add,
 		"Add a new L3 nexthop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Mark as remote (EVPN).", ec_node_str("remote", "remote"))
 	);
 	if (ret < 0)
 		return ret;
