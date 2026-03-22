@@ -49,6 +49,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
+	const struct gr_iface_info_vrf *gr_vrf = NULL;
 	ifindex_t bridge_ifindex = IFINDEX_INTERNAL;
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	ifindex_t bond_ifindex = IFINDEX_INTERNAL;
@@ -84,6 +85,8 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		link_type = ZEBRA_LLT_IPIP;
 		break;
 	case GR_IFACE_TYPE_VRF:
+		gr_vrf = (const struct gr_iface_info_vrf *)&gr_if->info;
+		mac = &gr_vrf->mac;
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VRF;
 		break;
