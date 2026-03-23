@@ -15,10 +15,16 @@ struct api_out {
 	uint32_t status;
 	uint32_t len;
 	void *payload;
+	int fd; // file descriptor to pass via SCM_RIGHTS, -1 = none
 };
 
 static inline struct api_out api_out(uint32_t status, uint32_t len, void *payload) {
-	struct api_out out = {status, len, payload};
+	struct api_out out = {status, len, payload, -1};
+	return out;
+}
+
+static inline struct api_out api_out_fd(uint32_t status, uint32_t len, void *payload, int fd) {
+	struct api_out out = {status, len, payload, fd};
 	return out;
 }
 
