@@ -29,6 +29,7 @@
 LOG_TYPE("route");
 
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
+static uint64_t route_prefixlens[GR_MAX_IFACES][RTE_IPV6_MAX_DEPTH + 1];
 
 static uint32_t max_routes_default = 1 << 16;
 
@@ -258,9 +259,12 @@ static int rib6_insert_or_replace(
 	if (existing) {
 		assert(route_counts[vrf_id][*o] > 0);
 		route_counts[vrf_id][*o]--;
+		assert(route_prefixlens[vrf_id][prefixlen] > 0);
+		route_prefixlens[vrf_id][prefixlen]--;
 	}
 	*o = origin;
 	route_counts[vrf_id][origin]++;
+	route_prefixlens[vrf_id][prefixlen]++;
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
 		event_push(
@@ -343,6 +347,8 @@ int rib6_delete(
 
 	assert(route_counts[vrf_id][origin] > 0);
 	route_counts[vrf_id][origin]--;
+	assert(route_prefixlens[vrf_id][prefixlen] > 0);
+	route_prefixlens[vrf_id][prefixlen]--;
 
 	nexthop_decref(nh);
 
@@ -608,10 +614,15 @@ METRIC_GAUGE(m_max_routes, "rib6_max_routes", "Maximum number of IPv6 routes.");
 METRIC_GAUGE(m_max_tbl8, "fib6_max_tbl8", "Maximum number of IPv6 FIB tbl8 groups.");
 METRIC_GAUGE(m_used_tbl8, "fib6_used_tbl8", "Used IPv6 FIB tbl8 groups.");
 #endif
+METRIC_HISTOGRAM(m_prefixlen, "rib6_prefixlen", "Number of IPv6 routes by prefix length and vrf.");
 
 static void rib6_metrics_collect(struct metrics_writer *w) {
+	unsigned buckets[RTE_IPV6_MAX_DEPTH];
 	struct metrics_ctx ctx;
 	char vrf[16];
+
+	for (unsigned i = 0; i < ARRAY_DIM(buckets); i++)
+		buckets[i] = i;
 
 	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
 		const struct iface *vrf_iface = get_vrf_iface(vrf_id);
@@ -638,6 +649,14 @@ static void rib6_metrics_collect(struct metrics_writer *w) {
 			metric_emit(&ctx, &m_used_tbl8, used_tbl8);
 		}
 #endif
+		metric_emit_histogram(
+			&ctx,
+			&m_prefixlen,
+			route_prefixlens[vrf_id],
+			ARRAY_DIM(route_prefixlens[vrf_id]),
+			buckets,
+			ARRAY_DIM(buckets)
+		);
 	}
 }
 
@@ -677,6 +696,7 @@ static int serialize_route6_event(const void *obj, void **buf) {
 struct fib6_migrate_ctx {
 	struct rte_fib6 *new_fib;
 	uint32_t counts[UINT_NUM_VALUES(gr_nh_origin_t)];
+	uint64_t prefixlens[RTE_IPV6_MAX_DEPTH + 1];
 };
 
 static int fib6_migrate_cb(
@@ -729,6 +749,7 @@ static int fib6_migrate_cb(
 	gr_nh_origin_t *o = rte_rib6_get_ext(rn);
 	*o = origin;
 	ctx->counts[origin]++;
+	ctx->prefixlens[prefixlen]++;
 
 	return 0;
 }
@@ -768,6 +789,7 @@ static int fib6_reconfig(struct iface *vrf) {
 	rte_fib6_free(old_fib);
 
 	memcpy(route_counts[vrf->id], ctx.counts, sizeof(ctx.counts));
+	memcpy(route_prefixlens[vrf->id], ctx.prefixlens, sizeof(ctx.prefixlens));
 
 	return 0;
 }
@@ -838,6 +860,7 @@ static void fib6_fini(struct iface *vrf) {
 		rte_fib6_free(fib);
 	}
 	memset(route_counts[vrf->id], 0, sizeof(route_counts[vrf->id]));
+	memset(route_prefixlens[vrf->id], 0, sizeof(route_prefixlens[vrf->id]));
 }
 
 static struct api_out fib6_default_set(const void *request, struct api_ctx *) {
