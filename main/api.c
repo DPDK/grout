@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 LOG_TYPE("api");
@@ -249,6 +250,50 @@ void api_send(struct api_ctx *ctx, uint32_t len, const void *payload) {
 		LOG(ERR, "pid=%d cannot write payload", ctx->pid);
 }
 
+// Send a response header + optional payload together with a file
+// descriptor via sendmsg(SCM_RIGHTS). Closes the fd after sending.
+static void
+send_response_with_fd(struct bufferevent *bev, struct gr_api_response *resp, struct api_out *out) {
+	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
+
+	struct iovec iov[2];
+	int iovlen = 1;
+	iov[0].iov_base = resp;
+	iov[0].iov_len = sizeof(*resp);
+	if (out->len > 0 && out->payload != NULL) {
+		iov[1].iov_base = out->payload;
+		iov[1].iov_len = out->len;
+		iovlen = 2;
+	}
+
+	union {
+		char buf[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} cmsg_buf;
+	memset(&cmsg_buf, 0, sizeof(cmsg_buf));
+
+	struct msghdr msg = {
+		.msg_iov = iov,
+		.msg_iovlen = iovlen,
+		.msg_control = cmsg_buf.buf,
+		.msg_controllen = sizeof(cmsg_buf.buf),
+	};
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	memcpy(CMSG_DATA(cmsg), &out->fd, sizeof(int));
+
+	ssize_t ret;
+	do {
+		ret = sendmsg(bufferevent_getfd(bev), &msg, MSG_NOSIGNAL);
+	} while (ret < 0 && errno == EINTR);
+	if (ret < 0)
+		LOG(ERR, "sendmsg with fd: %s", strerror(errno));
+	close(out->fd);
+	out->fd = -1;
+}
+
 static void read_cb(struct bufferevent *bev, void *priv) {
 	struct evbuffer *input = bufferevent_get_input(bev);
 	struct api_ctx *ctx = priv;
@@ -294,7 +339,7 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 	// Reset state for next request
 	ctx->header_complete = false;
 
-	struct api_out out;
+	struct api_out out = {.fd = -1};
 
 	// We have a complete request, process it
 	const struct api_handler *handler = lookup_api_handler(ctx->header.type);
@@ -333,15 +378,18 @@ send:
 		.payload_len = out.len,
 	};
 
-	if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
-		LOG(ERR, "failed to write header");
-	if (out.len > 0) {
-		assert(out.payload != NULL);
-		if (bufferevent_write(bev, out.payload, out.len) < 0)
-			LOG(ERR, "failed to write payload");
+	if (out.fd >= 0) {
+		send_response_with_fd(bev, &resp, &out);
+	} else {
+		if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
+			LOG(ERR, "failed to write header");
+		if (out.len > 0) {
+			assert(out.payload != NULL);
+			if (bufferevent_write(bev, out.payload, out.len) < 0)
+				LOG(ERR, "failed to write payload");
+		}
+		bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 	}
-
-	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 
 	free(req_payload);
 	free(out.payload);
