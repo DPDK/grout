@@ -318,13 +318,17 @@ struct gr_object {
 	bool owns_fp;
 	// Size of the memstream buffer (used by open_memstream).
 	size_t memsz;
-	// JSON: true when a comma must be printed before the next value.
-	bool needs_comma;
+	// Text mode separators.
+	const char *kv_sep; // between key and value (default ": ")
+	const char *field_sep; // between fields (default "\n")
+	// True when a separator must be printed before the next value.
+	// In JSON mode: a comma. In text mode: the field_sep string.
+	bool needs_sep;
 	// Current nesting depth (incremented by open, decremented by close).
 	unsigned depth;
-	// JSON: saved needs_comma state for each nesting level, restored on
-	// close so that comma tracking resumes correctly in the parent.
-	bool comma_stack[MAX_DEPTH];
+	// Saved needs_sep state for each nesting level, restored on
+	// close so that separator tracking resumes correctly in the parent.
+	bool sep_stack[MAX_DEPTH];
 	// Text: true if this nesting level is an array (vs. an object).
 	// Controls whether children produce "- " dash prefixes.
 	bool in_array[MAX_DEPTH];
@@ -350,9 +354,19 @@ struct gr_object *gr_object_new(char **bufp) {
 	} else {
 		o->fp = stdout;
 	}
+	o->kv_sep = ": ";
+	o->field_sep = "\n";
 	if (json_output)
 		fputc('{', o->fp);
 	return o;
+}
+
+void gr_object_set_separators(struct gr_object *o, const char *kv_sep, const char *field_sep) {
+	assert(o != NULL);
+	assert(kv_sep != NULL);
+	assert(field_sep != NULL);
+	o->kv_sep = kv_sep;
+	o->field_sep = field_sep;
 }
 
 static void print_text_indent(struct gr_object *o) {
@@ -392,14 +406,17 @@ void gr_object_field(
 	va_end(ap);
 
 	if (json_output) {
-		if (o->needs_comma)
+		if (o->needs_sep)
 			fputc(',', o->fp);
-		o->needs_comma = true;
+		o->needs_sep = true;
 		fprintf(o->fp, "\"%s\":", key);
 		fprint_json_value(o->fp, buf, flags);
 	} else {
+		if (o->needs_sep)
+			fputs(o->field_sep, o->fp);
+		o->needs_sep = true;
 		print_text_indent(o);
-		fprintf(o->fp, "%s: %s\n", key, buf);
+		fprintf(o->fp, "%s%s%s", key, o->kv_sep, buf);
 	}
 }
 
@@ -415,9 +432,9 @@ void gr_object_array_item(struct gr_object *o, gr_display_flags_t flags, const c
 	va_end(ap);
 
 	if (json_output) {
-		if (o->needs_comma)
+		if (o->needs_sep)
 			fputc(',', o->fp);
-		o->needs_comma = true;
+		o->needs_sep = true;
 		fprint_json_value(o->fp, buf, flags);
 	} else {
 		assert(o->depth > 0 && o->in_array[o->depth - 1]);
@@ -433,7 +450,7 @@ void gr_object_open(struct gr_object *o, const char *key) {
 	assert(key == NULL || key[0] != '\0');
 
 	if (json_output) {
-		if (o->needs_comma)
+		if (o->needs_sep)
 			fputc(',', o->fp);
 		if (key)
 			fprintf(o->fp, "\"%s\":{", key);
@@ -441,13 +458,15 @@ void gr_object_open(struct gr_object *o, const char *key) {
 			fputc('{', o->fp);
 	} else {
 		if (key) {
+			if (o->needs_sep)
+				fputs(o->field_sep, o->fp);
 			print_text_indent(o);
 			fprintf(o->fp, "%s:\n", key);
 		}
 	}
 
-	o->comma_stack[o->depth] = o->needs_comma;
-	o->needs_comma = false;
+	o->sep_stack[o->depth] = o->needs_sep;
+	o->needs_sep = false;
 	o->in_array[o->depth] = false;
 	o->first_in_item[o->depth] = false;
 	o->depth++;
@@ -458,11 +477,11 @@ void gr_object_close(struct gr_object *o) {
 	assert(o->depth > 0);
 
 	o->depth--;
-	o->needs_comma = o->comma_stack[o->depth];
+	o->needs_sep = o->sep_stack[o->depth];
 
 	if (json_output) {
 		fputc('}', o->fp);
-		o->needs_comma = true;
+		o->needs_sep = true;
 	}
 
 	// closing an object inside an array: next element gets a dash
@@ -475,16 +494,18 @@ void gr_object_array_open(struct gr_object *o, const char *key) {
 	assert(o->depth < MAX_DEPTH);
 
 	if (json_output) {
-		if (o->needs_comma)
+		if (o->needs_sep)
 			fputc(',', o->fp);
 		fprintf(o->fp, "\"%s\":[", key);
 	} else {
+		if (o->needs_sep)
+			fputs(o->field_sep, o->fp);
 		print_text_indent(o);
 		fprintf(o->fp, "%s:\n", key);
 	}
 
-	o->comma_stack[o->depth] = o->needs_comma;
-	o->needs_comma = false;
+	o->sep_stack[o->depth] = o->needs_sep;
+	o->needs_sep = false;
 	o->in_array[o->depth] = true;
 	o->first_in_item[o->depth] = true;
 	o->depth++;
@@ -493,11 +514,11 @@ void gr_object_array_open(struct gr_object *o, const char *key) {
 void gr_object_array_close(struct gr_object *o) {
 	assert(o->depth > 0);
 	o->depth--;
-	o->needs_comma = o->comma_stack[o->depth];
+	o->needs_sep = o->sep_stack[o->depth];
 
 	if (json_output) {
 		fputc(']', o->fp);
-		o->needs_comma = true;
+		o->needs_sep = true;
 	}
 }
 
@@ -506,6 +527,8 @@ void gr_object_free(struct gr_object *o) {
 		return;
 	if (json_output)
 		fputs("}\n", o->fp);
+	else if (o->needs_sep)
+		fputs(o->field_sep, o->fp);
 	if (o->owns_fp)
 		fclose(o->fp);
 	free(o);

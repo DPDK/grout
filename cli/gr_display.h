@@ -48,6 +48,10 @@ struct gr_object;
 // is set on gr_object_free (caller must free).
 struct gr_object *gr_object_new(char **bufp);
 
+// Set text mode separators (default: ": " between key/value, "\n" between fields).
+// Only affects text output, JSON is unchanged.
+void gr_object_set_separators(struct gr_object *, const char *kv_sep, const char *field_sep);
+
 // Add a field. Printf-formats the value into an internal buffer.
 void gr_object_field(
 	struct gr_object *,
