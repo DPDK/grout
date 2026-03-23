@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 LOG_TYPE("api");
@@ -267,6 +268,79 @@ void api_send(struct api_ctx *ctx, uint32_t len, const void *payload) {
 		LOG(ERR, "pid=%d cannot write payload", ctx->pid);
 }
 
+// Send a response header + optional payload together with a file descriptor via
+// sendmsg(SCM_RIGHTS). The API socket is non-blocking and this control response
+// is small, so a single sendmsg delivers it in the common case (the client that
+// requested an fd is blocked in recvmsg with an empty socket buffer). Any bytes
+// that do not fit are queued on the bufferevent; the fd has already left with the
+// first bytes, so ordering is preserved and the event loop is never blocked.
+static void send_response_with_fd(
+	struct api_ctx *ctx,
+	const struct gr_api_response *resp,
+	struct api_out *out
+) {
+	struct bufferevent *bev = ctx->bev;
+	int sock = bufferevent_getfd(bev);
+
+	// Push out anything already queued so the fd travels with the first bytes
+	// of the response and stays in stream order.
+	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
+
+	struct iovec iov[2];
+	int iovlen = 1;
+	iov[0].iov_base = (void *)resp;
+	iov[0].iov_len = sizeof(*resp);
+	if (out->len > 0 && out->payload != NULL) {
+		iov[1].iov_base = out->payload;
+		iov[1].iov_len = out->len;
+		iovlen = 2;
+	}
+
+	union {
+		char buf[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} cmsg_buf;
+	memset(&cmsg_buf, 0, sizeof(cmsg_buf));
+	struct msghdr msg = {
+		.msg_iov = iov,
+		.msg_iovlen = iovlen,
+		.msg_control = cmsg_buf.buf,
+		.msg_controllen = sizeof(cmsg_buf.buf),
+	};
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	memcpy(CMSG_DATA(cmsg), &out->fd, sizeof(int));
+
+	ssize_t n;
+	do {
+		n = sendmsg(sock, &msg, MSG_NOSIGNAL);
+	} while (n < 0 && errno == EINTR);
+
+	close(out->fd);
+	out->fd = -1;
+
+	if (n < 0) {
+		LOG(ERR, "pid=%d cannot send fd response: %s", ctx->pid, strerror(errno));
+		return;
+	}
+
+	// Queue the bytes that did not fit; the bufferevent delivers them in order
+	// after the fd-bearing prefix.
+	size_t sent = n, pos = 0;
+	for (int i = 0; i < iovlen; i++) {
+		size_t end = pos + iov[i].iov_len;
+		if (sent < end) {
+			size_t skip = sent > pos ? sent - pos : 0;
+			bufferevent_write(
+				bev, (char *)iov[i].iov_base + skip, iov[i].iov_len - skip
+			);
+		}
+		pos = end;
+	}
+}
+
 static void read_cb(struct bufferevent *bev, void *priv) {
 	struct evbuffer *input = bufferevent_get_input(bev);
 	struct api_ctx *ctx = priv;
@@ -312,7 +386,7 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 	// Reset state for next request
 	ctx->header_complete = false;
 
-	struct api_out out;
+	struct api_out out = {.fd = -1};
 
 	// We have a complete request, process it
 	const struct api_handler *handler = lookup_api_handler(ctx->header.type);
@@ -351,12 +425,17 @@ send:
 		.payload_len = out.len,
 	};
 
-	if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
-		LOG(ERR, "failed to write header");
-	if (out.len > 0) {
-		assert(out.payload != NULL);
-		if (bufferevent_write(bev, out.payload, out.len) < 0)
-			LOG(ERR, "failed to write payload");
+	if (out.fd >= 0) {
+		send_response_with_fd(ctx, &resp, &out);
+	} else {
+		if (bufferevent_write(bev, &resp, sizeof(resp)) < 0)
+			LOG(ERR, "failed to write header");
+		if (out.len > 0) {
+			assert(out.payload != NULL);
+			if (bufferevent_write(bev, out.payload, out.len) < 0)
+				LOG(ERR, "failed to write payload");
+		}
+		bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 	}
 
 	free(req_payload);
