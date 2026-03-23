@@ -13,6 +13,7 @@ enum metric_type {
 	METRIC_COUNTER,
 	METRIC_GAUGE,
 	METRIC_HISTOGRAM,
+	METRIC_GAUGE_HISTOGRAM,
 };
 
 // Metric definition (static, registered once per metric name)
@@ -29,6 +30,8 @@ struct metric {
 	static const struct metric v = {.name = (n), .help = (h), .type = METRIC_GAUGE}
 #define METRIC_HISTOGRAM(v, n, h)                                                                  \
 	static const struct metric v = {.name = (n), .help = (h), .type = METRIC_HISTOGRAM}
+#define METRIC_GAUGE_HISTOGRAM(v, n, h)                                                            \
+	static const struct metric v = {.name = (n), .help = (h), .type = METRIC_GAUGE_HISTOGRAM}
 
 // Opaque writer context
 struct metrics_writer;

@@ -55,6 +55,9 @@ static void emit_help_type(struct metrics_writer *w, const struct metric *m) {
 	case METRIC_HISTOGRAM:
 		type_str = "histogram";
 		break;
+	case METRIC_GAUGE_HISTOGRAM:
+		type_str = "gaugehistogram";
+		break;
 	default:
 		ABORT("unsupported metric type %u", m->type);
 	}
@@ -121,6 +124,7 @@ void metric_emit_histogram(
 ) {
 	emit_help_type(ctx->w, m);
 
+	const char *gauge_infix = m->type == METRIC_GAUGE_HISTOGRAM ? "g" : "";
 	uint64_t cumulative = 0;
 	uint64_t sum = 0;
 	unsigned slot = 0;
@@ -156,9 +160,16 @@ void metric_emit_histogram(
 		ctx->labels,
 		cumulative
 	);
-	evbuffer_add_printf(ctx->w->buf, "grout_%s_sum{%s} %lu\n", m->name, ctx->labels, sum);
 	evbuffer_add_printf(
-		ctx->w->buf, "grout_%s_count{%s} %lu\n", m->name, ctx->labels, cumulative
+		ctx->w->buf, "grout_%s_%ssum{%s} %lu\n", m->name, gauge_infix, ctx->labels, sum
+	);
+	evbuffer_add_printf(
+		ctx->w->buf,
+		"grout_%s_%scount{%s} %lu\n",
+		m->name,
+		gauge_infix,
+		ctx->labels,
+		cumulative
 	);
 }
 
