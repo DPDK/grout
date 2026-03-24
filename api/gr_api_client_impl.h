@@ -8,7 +8,6 @@
 #include <gr_api.h>
 #include <gr_errno.h>
 #include <gr_macro.h>
-#include <gr_string.h>
 #include <gr_version.h>
 
 #include <assert.h>
@@ -50,8 +49,10 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 		goto err;
 
 	addr.un.sun_family = AF_UNIX;
-	if (gr_strcpy(addr.un.sun_path, sizeof(addr.un.sun_path), sock_path) < 0)
+	if (memccpy(addr.un.sun_path, sock_path, 0, sizeof(addr.un.sun_path)) == NULL) {
+		errno = ENAMETOOLONG;
 		goto err;
+	}
 
 	if (connect(client->sock_fd, &addr.a, sizeof(addr.un)) < 0)
 		goto err;
