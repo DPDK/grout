@@ -121,7 +121,7 @@ jobs:
           sbindir: /usr/lib64/frr
           localstatedir: /var
           yangmodelsdir: /usr/share/frr-yang
-      - run: scl run gcc-toolset-13 -- make rpm CC="ccache gcc"
+      - run: scl run gcc-toolset-13 -- make rpm CC="ccache gcc" WITH=download
       - run: ccache -sv
       - name: delete old cache
         if: ${{ ! github.event.pull_request }}
