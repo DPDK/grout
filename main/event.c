@@ -57,6 +57,8 @@ void gr_event_push(uint32_t ev_type, const void *obj) {
 		// Defer the notification to the control plane thread.
 		if (control_queue_push(notify_subscribers, (void *)obj, ev_type) < 0) {
 			// XXX: add error stat if push fails?
+		} else {
+			control_queue_done();
 		}
 	} else {
 		// Called from the control plane thread.
