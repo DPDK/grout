@@ -822,7 +822,7 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	// XXX: grout is optional to have an ID for nexthop
 	// but in FRR, it's mandatory
 	if (gr_nh->nh_id == 0) {
-		gr_log_err("nexthop without ID, skip");
+		gr_log_debug("nexthop without ID, skip");
 		return;
 	}
 
