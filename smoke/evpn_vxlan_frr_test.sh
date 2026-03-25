@@ -105,11 +105,21 @@ router bgp 65000
 exit
 EOF
 
-# Move bridge and vxlan setup here so that mac_b is only learned after EVPN is
-# fully operational. If host-b is connected to the bridge before
-# advertise-all-vni, its MAC may be learned and reported to FRR before the EVPN
-# session is up, and FRR will silently drop the notification without creating
-# a type-2 route.
+# Workaround for https://github.com/FRRouting/frr/issues/21190
+#
+# Zebra silently ignores VNI and FDB notifications until advertise-all-vni has
+# taken effect. Wait for EVPN to be enabled before creating the VXLAN interface
+# to avoid losing MAC learning events.
+attempts=0
+while ! vtysh -c "show evpn" | grep -q "L2 VNIs"; do
+	if [ "$attempts" -ge 10 ]; then
+		vtysh -c "show evpn"
+		fail "EVPN not enabled in zebra"
+	fi
+	sleep 1
+	attempts=$((attempts + 1))
+done
+
 grcli interface add bridge br100
 create_interface p1 domain br100
 grcli interface add vxlan vxlan100 vni 100 local 172.16.0.2 domain br100
