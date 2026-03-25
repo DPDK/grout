@@ -423,7 +423,7 @@ static struct api_out route6_del(const void *request, struct api_ctx *) {
 		req->dest.prefixlen,
 		nh ? nh->type : GR_NH_T_L3
 	);
-	if (ret == -ENOENT && req->missing_ok)
+	if ((ret == -ENOENT || ret == -ENONET) && req->missing_ok)
 		ret = 0;
 
 	return api_out(-ret, 0, NULL);
