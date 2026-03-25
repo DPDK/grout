@@ -58,6 +58,8 @@ static int bridge_attach_member(struct iface *bridge, struct iface *member) {
 	member->vrf_id = GR_VRF_ID_UNDEF;
 	member->mode = GR_IFACE_MODE_BRIDGE;
 
+	fdb_sync_hardware(bridge, member, true);
+
 	return 0;
 }
 
@@ -67,6 +69,9 @@ static int bridge_detach_member(struct iface *bridge, struct iface *member) {
 	for (unsigned i = 0; i < br->n_members; i++) {
 		if (br->members[i] == member) {
 			unsigned last = br->n_members - 1;
+
+			fdb_sync_hardware(bridge, member, false);
+
 			if (i < last)
 				br->members[i] = br->members[last];
 			br->n_members--;
@@ -86,6 +91,7 @@ static int bridge_fini(struct iface *iface) {
 
 	for (unsigned i = 0; i < bridge->n_members; i++) {
 		struct iface *member = bridge->members[i];
+		fdb_sync_hardware(iface, member, false);
 		iface_set_promisc(member, false);
 		member->vrf_id = vrf_default_get_or_create();
 		if (member->vrf_id != GR_VRF_ID_UNDEF)

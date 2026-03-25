@@ -39,6 +39,9 @@ void fdb_learn(
 // Delete all FDB entries referencing the provided interface.
 void fdb_purge_iface(uint16_t iface_id);
 
+// Push or remove mac addresses from HW Rx filters.
+void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool add);
+
 // Delete all FDB entries referencing the provided bridge.
 void fdb_purge_bridge(uint16_t bridge_id);
 

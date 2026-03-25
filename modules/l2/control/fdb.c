@@ -332,6 +332,67 @@ static struct api_out fdb_config_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static void push_mac_to_hw(struct iface *iface, const struct rte_ether_addr *mac, bool add) {
+	int ret;
+
+	if (add)
+		ret = iface_add_eth_addr(iface, mac);
+	else
+		ret = iface_del_eth_addr(iface, mac);
+	if (ret < 0) {
+		LOG(DEBUG,
+		    "failed to %s mac " ETH_F " to %s: %s",
+		    add ? "add" : "del",
+		    mac,
+		    iface->name,
+		    strerror(errno));
+	}
+}
+
+static void fdb_event_cb(uint32_t event, const void *obj) {
+	const struct iface_info_bridge *bridge_info;
+	const struct gr_fdb_entry *fdb = obj;
+	const struct iface *bridge;
+
+	bridge = iface_from_id(fdb->bridge_id);
+	if (bridge == NULL) {
+		LOG(ERR, "unknown bridge %u", fdb->bridge_id);
+		return;
+	}
+
+	if ((fdb->flags & GR_FDB_F_EXTERN) == 0)
+		return;
+
+	bridge_info = iface_info_bridge(bridge);
+	for (unsigned i = 0; i < bridge_info->n_members; i++) {
+		struct iface *member = bridge_info->members[i];
+
+		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
+		assert(fdb->vlan_id == 0);
+		// FIXME: ideally, we should ask for adding the mac in hw only when getting the
+		// *first* transition from !EXTERN to EXTERN to handle both learning mac on the
+		// wire and from FRR.
+		push_mac_to_hw(member, &fdb->mac, event != GR_EVENT_FDB_DEL);
+	}
+}
+
+void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool add) {
+	struct gr_fdb_entry *fdb;
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
+		if (!fdb_match(data, GR_FDB_F_EXTERN, bridge->id, GR_IFACE_ID_UNDEF, NULL))
+			continue;
+
+		fdb = data;
+		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
+		assert(fdb->vlan_id == 0);
+		push_mac_to_hw(member, &fdb->mac, add);
+	}
+}
+
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	const struct iface *bridge;
 	struct gr_fdb_entry *fdb;
@@ -409,6 +470,8 @@ RTE_INIT(init) {
 	api_handler(GR_FDB_LIST, fdb_list);
 	api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
 	api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
+	event_subscribe(GR_EVENT_FDB_ADD, fdb_event_cb);
+	event_subscribe(GR_EVENT_FDB_DEL, fdb_event_cb);
 	event_serializer(GR_EVENT_FDB_ADD, NULL);
 	event_serializer(GR_EVENT_FDB_DEL, NULL);
 	event_serializer(GR_EVENT_FDB_UPDATE, NULL);
