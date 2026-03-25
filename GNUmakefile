@@ -111,18 +111,21 @@ deb:
 
 rpmversion = $(firstword $(version))
 rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
+rpmbuild_opts = $(addprefix --with=,$(WITH)) $(addprefix --without=,$(WITHOUT))
 
 .PHONY: rpm
 rpm:
-	GROUT_VERSION="$(rpmversion)-$(rpmrelease)" rpmbuild -bb --build-in-place \
+	GROUT_VERSION="$(rpmversion)-$(rpmrelease)" rpmbuild -bb --build-in-place $(rpmbuild_opts) \
 		-D 'version $(rpmversion)' -D 'release $(rpmrelease)' rpm/grout.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(rpmversion)-$(rpmrelease)" && \
 	mv -vf ~/rpmbuild/RPMS/noarch/grout-headers-$$version.noarch.rpm grout-headers.noarch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/$$arch/grout-$$version.$$arch.rpm grout.$$arch.rpm && \
 	mv -vf ~/rpmbuild/RPMS/$$arch/grout-debuginfo-$$version.$$arch.rpm grout-debuginfo.$$arch.rpm && \
-	mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-$$version.$$arch.rpm grout-frr.$$arch.rpm && \
-	mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-debuginfo-$$version.$$arch.rpm grout-frr-debuginfo.$$arch.rpm
+	if ! echo "$(WITHOUT)" | grep -qw frr; then \
+		mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-$$version.$$arch.rpm grout-frr.$$arch.rpm && \
+		mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-debuginfo-$$version.$$arch.rpm grout-frr-debuginfo.$$arch.rpm; \
+	fi
 
 CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'
