@@ -270,7 +270,7 @@ static void grout_sync(struct event *) {
 	gr_api_client_disconnect(grout_ctx.sync_client);
 	grout_ctx.sync_client = gr_api_client_connect(gr_sock_path);
 	if (grout_ctx.sync_client == NULL) {
-		gr_log_info("waiting for grout at %s", gr_sock_path);
+		gr_log_info("waiting for grout at %s: %s", gr_sock_path, strerror(errno));
 		event_add_timer(zrouter.master, grout_sync, NULL, 1, &grout_ctx.dg_t_sync);
 		return;
 	}
