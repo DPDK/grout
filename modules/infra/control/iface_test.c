@@ -85,14 +85,23 @@ static int teardown(void **) {
 	return 0;
 }
 
+static const struct rte_ether_addr mcast1 = {{0x33, 0x33, 0x00, 0x00, 0x00, 0x01}};
 static const struct rte_ether_addr ucast1 = {{0x2c, 0x4c, 0x15, 0x07, 0x99, 0x22}};
 static const struct rte_ether_addr ucast2 = {{0x30, 0x3e, 0xa7, 0x0b, 0xea, 0x78}};
 static const struct rte_ether_addr ucast3 = {{0xe6, 0x2c, 0xd9, 0xa5, 0xe7, 0x6e}};
+
+static void port_mac_add_multicast(void **) {
+	const struct iface_info_port *port = iface_info_port(iface);
+
+	assert_return_code(iface_add_eth_addr(iface, &mcast1), errno);
+	assert_int_equal(port->filter.count, 0);
+}
 
 static void port_mac_add_unicast(void **) {
 	const struct iface_info_port *port = iface_info_port(iface);
 
 	assert_int_equal(iface_add_eth_addr(iface, NULL), -EINVAL);
+
 	assert_return_code(iface_add_eth_addr(iface, &default_mac), errno);
 	assert_int_equal(port->filter.count, 0);
 
@@ -156,6 +165,7 @@ static void port_mac_del_unicast(void **) {
 
 int main(void) {
 	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(port_mac_add_multicast),
 		cmocka_unit_test(port_mac_add_unicast),
 		cmocka_unit_test(port_mac_del_unicast),
 	};
