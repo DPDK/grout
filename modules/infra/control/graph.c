@@ -85,9 +85,12 @@ static struct iface_info_port *find_port(vec struct iface_info_port **ports, uin
 	return port;
 }
 
-static struct gr_graph_conf graph_conf = {
+struct gr_graph_conf graph_conf = {
 	.rx_burst_max = 64,
 	.vector_max = 64,
+	.icmp_error_rate = 1000,
+	.arp_rate = 1000,
+	.icmp_rate = 1000,
 };
 
 static int
@@ -630,6 +633,12 @@ static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
 			return api_out(EOVERFLOW, 0, NULL);
 		graph_conf.vector_max = req->vector_max;
 	}
+	if (req->set_attrs & GR_GRAPH_SET_ICMP_ERROR)
+		graph_conf.icmp_error_rate = req->icmp_error_rate;
+	if (req->set_attrs & GR_GRAPH_SET_ARP)
+		graph_conf.arp_rate = req->arp_rate;
+	if (req->set_attrs & GR_GRAPH_SET_ICMP)
+		graph_conf.icmp_rate = req->icmp_rate;
 
 	if (graph_conf.rx_burst_max == prev.rx_burst_max
 	    && graph_conf.vector_max == prev.vector_max)
