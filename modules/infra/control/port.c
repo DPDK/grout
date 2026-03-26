@@ -686,45 +686,35 @@ int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 
 	m = &port->filter.macs[port->filter.count++];
 	m->refcnt = 1;
+	m->hardware = false;
 	m->mac = *mac;
 
 	LOG(INFO, "%s: enabling " ETH_F " mac filter", iface->name, mac);
 
-	if (iface->state & GR_IFACE_S_PROMISC_FIXED)
-		return 0;
-
 	ret = rte_eth_dev_mac_addr_add(port->port_id, (struct rte_ether_addr *)mac, 0);
-	if (ret == -ENOSPC || ret == -EOPNOTSUPP) {
-		if (ret == -ENOSPC) {
-			port->filter.flags |= MAC_FILTER_F_NOSPC;
-			port->filter.hw_limit = port->filter.count - 1;
+	if (ret == 0) {
+		m->hardware = true;
+	} else if (ret == -ENOSPC || ret == -EOPNOTSUPP) {
+		if (ret == -ENOSPC)
 			LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
-		} else {
-			port->filter.flags |= MAC_FILTER_F_UNSUPP;
-			LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
+		else
+			LOG(DEBUG, "%s: %s", iface->name, rte_strerror(-ret));
+
+		ret = 0;
+		if ((iface->state & GR_IFACE_S_PROMISC_FIXED) == 0) {
+			ret = rte_eth_promiscuous_enable(port->port_id);
+			if (ret == 0) {
+				LOG(INFO, "%s: enabled promisc", iface->name);
+				iface->state |= GR_IFACE_S_PROMISC_FIXED;
+			} else {
+				LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
+			}
 		}
-
-		LOG(INFO, "%s: enabling promisc", iface->name);
-
-		// promisc enable is a noop if already enabled
-		ret = rte_eth_promiscuous_enable(port->port_id);
-		if (ret == 0)
-			iface->state |= GR_IFACE_S_PROMISC_FIXED;
 	}
 
 	if (ret < 0) {
 		port->filter.count--;
 		return errno_set(-ret);
-	}
-
-	if (iface->state & GR_IFACE_S_PROMISC_FIXED) {
-		// Purge the device from all explicit addresses.
-		// We will add them back when removing the forced allmulti/promisc.
-		// Ignore the return values. They don't matter.
-		for (unsigned i = 0; i < port->filter.count - 1; i++) {
-			m = &port->filter.macs[i];
-			rte_eth_dev_mac_addr_remove(port->port_id, &m->mac);
-		}
 	}
 
 	return 0;
@@ -766,39 +756,49 @@ found:
 
 	LOG(INFO, "%s: removing " ETH_F " mac filter", iface->name, mac);
 
-	if (port->filter.count > 1) {
-		// Swap the removed address with the last one
-		port->filter.macs[i] = port->filter.macs[port->filter.count - 1];
+	if (m->hardware) {
+		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
+		if (ret < 0 && ret != -ENOTSUP)
+			LOG(WARNING, "%s: %s", iface->name, rte_strerror(-ret));
+	}
+
+	if (port->filter.count > 1 && i < port->filter.count - 1) {
+		memmove(&port->filter.macs[i],
+			&port->filter.macs[i + 1],
+			(port->filter.count - 1 - i) * sizeof(port->filter.macs[0]));
 	}
 	port->filter.count--;
 
 	if (iface->state & GR_IFACE_S_PROMISC_FIXED) {
-		if (port->filter.count > 0 && port->filter.flags & MAC_FILTER_F_UNSUPP)
-			return 0;
-		if (port->filter.count > port->filter.hw_limit
-		    && port->filter.flags & MAC_FILTER_F_NOSPC)
-			return 0;
-		port->filter.flags = 0;
-		port->filter.hw_limit = 0;
-		ret = rte_eth_promiscuous_disable(port->port_id);
-		if (ret < 0 && ret != -ENOTSUP)
-			LOG(NOTICE, "%s: promisc disable: %s", iface->name, rte_strerror(-ret));
-		else
-			iface->state &= ~GR_IFACE_S_PROMISC_FIXED;
+		bool disable_promisc = true;
 
-		// Reinstall all addresses after disabling promisc.
-		for (i = 0; i < port->filter.count; i++) {
+		LOG(INFO, "i=%d, port->filter.count=%d", i, port->filter.count);
+		for (; i < port->filter.count; i++) {
 			m = &port->filter.macs[i];
-			int r = rte_eth_dev_mac_addr_add(port->port_id, &m->mac, 0);
-			if (r < 0 && ret == 0)
-				ret = r;
+			if (m->hardware)
+				continue;
+			ret = rte_eth_dev_mac_addr_add(port->port_id, &m->mac, 0);
+			if (ret < 0) {
+				LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
+				disable_promisc = false;
+				break;
+			}
+			m->hardware = true;
 		}
-	} else {
-		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
-	}
 
-	if (ret < 0 && ret != -ENOTSUP)
-		LOG(WARNING, "%s: %s", iface->name, rte_strerror(-ret));
+		if (disable_promisc) {
+			ret = rte_eth_promiscuous_disable(port->port_id);
+			if (ret < 0 && ret != -ENOTSUP) {
+				LOG(NOTICE,
+				    "%s: promisc disable: %s",
+				    iface->name,
+				    rte_strerror(-ret));
+			} else {
+				LOG(INFO, "%s: disabled promisc", iface->name);
+				iface->state &= ~GR_IFACE_S_PROMISC_FIXED;
+			}
+		}
+	}
 
 	return 0;
 }
