@@ -108,8 +108,9 @@ EOF
 # Workaround for https://github.com/FRRouting/frr/issues/21190
 #
 # Zebra silently ignores VNI and FDB notifications until advertise-all-vni has
-# taken effect. Wait for EVPN to be enabled before creating the VXLAN interface
-# to avoid losing MAC learning events.
+# taken effect and it knows about the VNI. Create the VXLAN interface before any
+# bridge port that could trigger MAC learning, and wait for zebra to learn about
+# VNI 100 before proceeding.
 attempts=0
 while ! vtysh -c "show evpn" | grep -q "L2 VNIs"; do
 	if [ "$attempts" -ge 10 ]; then
@@ -121,8 +122,19 @@ while ! vtysh -c "show evpn" | grep -q "L2 VNIs"; do
 done
 
 grcli interface add bridge br100
-create_interface p1 domain br100
 grcli interface add vxlan vxlan100 vni 100 local 172.16.0.2 domain br100
+
+attempts=0
+while ! vtysh -c "show evpn vni 100" | grep -q "VNI: 100"; do
+	if [ "$attempts" -ge 10 ]; then
+		vtysh -c "show evpn vni 100"
+		fail "zebra did not learn VNI 100"
+	fi
+	sleep 1
+	attempts=$((attempts + 1))
+done
+
+create_interface p1 domain br100
 
 netns_add host-b
 move_to_netns x-p1 host-b
