@@ -53,5 +53,13 @@ struct cli_addr_ops {
 	STAILQ_ENTRY(cli_addr_ops) next;
 };
 
+struct cli_icmp_ops {
+	addr_family_t af;
+	cmd_cb_t ping;
+	cmd_cb_t traceroute;
+	STAILQ_ENTRY(cli_icmp_ops) next;
+};
+
 void cli_route_ops_register(struct cli_route_ops *);
 void cli_addr_ops_register(struct cli_addr_ops *);
+void cli_icmp_ops_register(struct cli_icmp_ops *);
