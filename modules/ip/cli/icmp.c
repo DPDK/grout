@@ -4,6 +4,7 @@
 #include <gr_api.h>
 #include <gr_cli.h>
 #include <gr_cli_iface.h>
+#include <gr_cli_l3.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
 
@@ -135,7 +136,7 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	uint16_t ident = random();
 	uint16_t msdelay = 1000;
 
-	if (arg_ip4(p, "IP", &req.addr) < 0)
+	if (arg_ip4(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
 	if (arg_vrf(c, p, "VRF", &req.vrf) < 0)
 		return CMD_ERROR;
@@ -162,7 +163,7 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	cmd_status_t ret = CMD_SUCCESS;
 	uint16_t ident = random();
 
-	if (arg_ip4(p, "IP", &req.addr) < 0)
+	if (arg_ip4(p, "DEST", &req.addr) < 0)
 		return CMD_ERROR;
 	if ((ret = arg_u16(p, "IDENT", &ident)) < 0 && ret != ENOENT)
 		return CMD_ERROR;
@@ -180,49 +181,12 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	return ret;
 }
 
-static int ctx_init(struct ec_node *root) {
-	int ret;
-
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(
-			root, CTX_ARG("ping", "Send IPv4 ICMP echo requests and wait for replies.")
-		),
-		"IP [(vrf VRF),(count COUNT),(delay DELAY),(ident IDENT)]",
-		ping,
-		"Send IPv4 ICMP echo requests and wait for replies.",
-		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
-		with_help("Number of packets to send.", ec_node_uint("COUNT", 1, UINT16_MAX, 10)),
-		with_help("Delay in ms between icmp echo.", ec_node_uint("DELAY", 0, 10000, 10)),
-		with_help(
-			"Icmp ident field (default: random).",
-			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
-		)
-	);
-	if (ret < 0)
-		return ret;
-
-	ret = CLI_COMMAND(
-		CLI_CONTEXT(root, CTX_ARG("traceroute", "Discover IPv4 intermediate gateways.")),
-		"IP [(ident IDENT),(vrf VRF)]",
-		traceroute,
-		"Discover IPv4 intermediate gateways.",
-		with_help("IPv4 destination address.", ec_node_re("IP", IPV4_RE)),
-		with_help(
-			"Icmp ident field (default: random).",
-			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
-		),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
-	);
-
-	return ret;
-}
-
-static struct cli_context ctx = {
-	.name = "ping",
-	.init = ctx_init,
+static struct cli_icmp_ops ops = {
+	.af = GR_AF_IP4,
+	.ping = ping,
+	.traceroute = traceroute,
 };
 
 static void __attribute__((constructor, used)) init(void) {
-	cli_context_register(&ctx);
+	cli_icmp_ops_register(&ops);
 }

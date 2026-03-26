@@ -95,4 +95,4 @@ while ! vtysh -c 'show ipv6 route ospf6 json' | jq '."2001:db8:1000::/64"[0].pro
 	attempts=$((attempts - 1))
 done
 
-grcli ping6 2001:db8:1000::1 count 3 delay 10
+grcli ping 2001:db8:1000::1 count 3 delay 10
