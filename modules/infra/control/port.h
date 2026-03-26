@@ -14,13 +14,9 @@
 
 #include <stdint.h>
 
-typedef enum {
-	MAC_FILTER_F_UNSUPP = GR_BIT8(0),
-	MAC_FILTER_F_NOSPC = GR_BIT8(1),
-} mac_filter_flags_t;
-
 struct port_mac {
-	uint16_t refcnt;
+	uint8_t refcnt;
+	bool hardware;
 	struct rte_ether_addr mac;
 };
 
@@ -38,8 +34,6 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	uint64_t rx_offloads;
 	rte_spinlock_t txq_locks[RTE_MAX_QUEUES_PER_PORT];
 	struct {
-		mac_filter_flags_t flags;
-		unsigned hw_limit;
 		unsigned count;
 		struct port_mac macs[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
 	} filter;
