@@ -658,14 +658,6 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct port_mac *m;
 	int ret;
 
-	if (mac == NULL)
-		return errno_set(EINVAL);
-	if (rte_is_multicast_ether_addr(mac))
-		return 0; // ALLMULTI is always on
-
-	if (rte_is_same_ether_addr(mac, &port->mac))
-		return 0;
-
 	for (unsigned i = 0; i < port->filter.count; i++) {
 		m = &port->filter.macs[i];
 		if (rte_is_same_ether_addr(&m->mac, mac)) {
@@ -725,14 +717,6 @@ static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct port_mac *m;
 	uint8_t i;
 	int ret;
-
-	if (mac == NULL)
-		return errno_set(EINVAL);
-	if (rte_is_multicast_ether_addr(mac))
-		return 0; // ALLMULTI is always on
-
-	if (rte_is_same_ether_addr(mac, &port->mac))
-		return 0;
 
 	for (i = 0; i < port->filter.count; i++) {
 		m = &port->filter.macs[i];

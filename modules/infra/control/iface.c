@@ -465,6 +465,13 @@ struct iface *iface_from_id(uint16_t ifid) {
 	return iface;
 }
 
+static bool iface_is_default_mac(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct rte_ether_addr default_mac;
+
+	return iface_get_eth_addr(iface, &default_mac) == 0
+		&& rte_is_same_ether_addr(&default_mac, mac);
+}
+
 int iface_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
@@ -518,8 +525,14 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
-	if (iface == NULL)
+	if (iface == NULL || mac == NULL)
 		return errno_set(EINVAL);
+
+	if (rte_is_multicast_ether_addr(mac))
+		return 0; // ALLMULTI is always on
+
+	if (iface_is_default_mac(iface, mac))
+		return 0;
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -532,8 +545,14 @@ int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 int iface_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 
-	if (iface == NULL)
+	if (iface == NULL || mac == NULL)
 		return errno_set(EINVAL);
+
+	if (rte_is_multicast_ether_addr(mac))
+		return 0; // ALLMULTI is always on
+
+	if (iface_is_default_mac(iface, mac))
+		return 0;
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
