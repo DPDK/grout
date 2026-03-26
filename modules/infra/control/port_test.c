@@ -102,27 +102,34 @@ static void mac_add_unicast(void **) {
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_add(iface, &ucast1), errno);
+	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 1);
+	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
 	assert_int_equal(port->filter.macs[0].refcnt, 1);
+	assert_true(port->filter.macs[0].hardware);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_add(iface, &ucast2), errno);
+	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 2);
+	assert_memory_equal(&port->filter.macs[1].mac, &ucast2, sizeof(ucast2));
 	assert_int_equal(port->filter.macs[1].refcnt, 1);
+	assert_true(port->filter.macs[1].hardware);
 
 	assert_return_code(port_mac_add(iface, &ucast1), errno);
 	assert_int_equal(port->filter.count, 2);
+	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
 	assert_int_equal(port->filter.macs[0].refcnt, 2);
+	assert_true(port->filter.macs[0].hardware);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, -ENOSPC);
 	will_return(__wrap_rte_eth_promiscuous_enable, 0);
-	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
-	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
 	assert_return_code(port_mac_add(iface, &ucast3), errno);
-	assert_true(port->filter.flags & MAC_FILTER_F_NOSPC);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 3);
-	assert_int_equal(port->filter.hw_limit, 2);
+	assert_memory_equal(&port->filter.macs[2].mac, &ucast3, sizeof(ucast3));
+	assert_int_equal(port->filter.macs[2].refcnt, 1);
+	assert_false(port->filter.macs[2].hardware);
 }
 
 static void mac_del_unicast(void **) {
@@ -133,16 +140,22 @@ static void mac_del_unicast(void **) {
 
 	assert_return_code(port_mac_del(iface, &ucast1), errno);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
+	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
+	assert_int_equal(port->filter.macs[0].refcnt, 1);
+	assert_true(port->filter.macs[0].hardware);
 
+	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
+	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	will_return(__wrap_rte_eth_promiscuous_disable, 0);
-	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
-	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	assert_return_code(port_mac_del(iface, &ucast1), errno);
 	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 2);
-	assert_int_equal(port->filter.hw_limit, 0);
-	assert_memory_equal(&port->filter.macs[0].mac, &ucast3, sizeof(ucast3));
-	assert_memory_equal(&port->filter.macs[1].mac, &ucast2, sizeof(ucast2));
+	assert_memory_equal(&port->filter.macs[0].mac, &ucast2, sizeof(ucast2));
+	assert_int_equal(port->filter.macs[0].refcnt, 1);
+	assert_true(port->filter.macs[0].hardware);
+	assert_memory_equal(&port->filter.macs[1].mac, &ucast3, sizeof(ucast3));
+	assert_int_equal(port->filter.macs[1].refcnt, 1);
+	assert_true(port->filter.macs[1].hardware);
 }
 
 int main(void) {
