@@ -60,6 +60,8 @@ BuildRequires: frr-headers >= 10.5
 BuildRequires: systemd
 %endif
 
+Requires: less
+
 %description
 grout stands for Graph Router. In English, "grout" refers to thin mortar that
 hardens to fill gaps between tiles.
