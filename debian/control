@@ -32,6 +32,7 @@ Package: grout
 Architecture: linux-any
 Depends:
  driverctl,
+ less,
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Graph router based on DPDK
