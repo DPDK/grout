@@ -1,0 +1,60 @@
+From afdf8a3574fac4b3e075d0f1f29b76914562b240 Mon Sep 17 00:00:00 2001
+From: Donald Sharp <sharpd@nvidia.com>
+Date: Wed, 22 Oct 2025 11:04:43 -0400
+Subject: [PATCH 1/7] zebra: Track the number of times that the intf speed was
+ checked
+
+Adding a json value to `show int X json` to allow us to get the
+number of times that the speed was checked.
+
+Signed-off-by: Donald Sharp <sharpd@nvidia.com>
+---
+ zebra/interface.c | 5 +++++
+ zebra/interface.h | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/zebra/interface.c b/zebra/interface.c
+index 52c2619eed..e1fd092532 100644
+--- a/zebra/interface.c
++++ b/zebra/interface.c
+@@ -68,6 +68,8 @@ static void if_zebra_speed_update(struct event *thread)
+ 	bool changed = false;
+ 	int error = 0;
+ 
++	zif->speed_checked++;
++
+ 	new_speed = kernel_get_speed(ifp, &error);
+ 
+ 	/* error may indicate vrf not available or
+@@ -164,6 +166,7 @@ static int if_zebra_new_hook(struct interface *ifp)
+ 	 * down upon startup.
+ 	 */
+ 	zebra_if->speed_update_count = 0;
++	zebra_if->speed_checked = 0;
+ 	event_add_timer(zrouter.master, if_zebra_speed_update, ifp, 15,
+ 			&zebra_if->speed_update);
+ 	event_ignore_late_timer(zebra_if->speed_update);
+@@ -3027,6 +3030,8 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
+ 	json_object_string_add(json_if, "shutdownConfig", if_zebra_data_state(zebra_if->shutdown));
+ 
+ 	json_object_string_add(json_if, "mplsConfig", if_zebra_data_state(zebra_if->mpls_config));
++	json_object_int_add(json_if, "speedChecked", zebra_if->speed_checked);
++
+ 
+ 	if (ifp->ifindex == IFINDEX_INTERNAL) {
+ 		json_object_boolean_add(json_if, "pseudoInterface", true);
+diff --git a/zebra/interface.h b/zebra/interface.h
+index fca170aee4..98d0dcb325 100644
+--- a/zebra/interface.h
++++ b/zebra/interface.h
+@@ -207,6 +207,7 @@ struct zebra_if {
+ 
+ 	uint8_t speed_update_count;
+ 	struct event *speed_update;
++	uint32_t speed_checked;
+ 
+ 	/*
+ 	 * Does this interface have a v6 to v4 ll neighbor entry
+-- 
+2.43.0
+

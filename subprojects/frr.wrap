@@ -3,7 +3,14 @@ url = https://github.com/FRRouting/frr
 revision = frr-10.5.0
 depth = 1
 diff_files =
-	frr/meson-add-dependency-definition.patch
+	frr/meson-add-dependency-definition.patch,
+	frr/0001-zebra-Track-the-number-of-times-that-the-intf-speed-.patch,
+	frr/0002-zebra-Allow-bonds-to-refigure-speed.patch,
+	frr/0003-zebra-add-dplane-helpers-provide-interface-speed.patch,
+	frr/0004-zebra-kernel-get_speed-take-vrf_id-and-ifname-as-par.patch,
+	frr/0005-zebra-get-interface-speed-from-dataplane-via-ethtool.patch,
+	frr/0006-zebra-schedule-speed-query-timer-only-when-the-inter.patch,
+	frr/0007-zebra-skip-kernel-provider-work-when-skip_kernel-is-.patch
 
 [provide]
 dependency_names = frr

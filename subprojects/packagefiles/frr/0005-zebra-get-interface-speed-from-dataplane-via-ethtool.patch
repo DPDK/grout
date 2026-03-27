@@ -1,0 +1,463 @@
+From 60b6894cb2e4e5d536506ac34da67638ef472a85 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 12 Dec 2025 15:15:48 +0100
+Subject: [PATCH 5/7] zebra: get interface speed from dataplane via ethtool
+
+This introduces DPLANE_OP_INTF_SPEED_GET so link speed is resolved in the
+dataplane via ethtool and reported to zebra. Zebra no longer performs
+synchronous speed reads; it simply applies the value provided by the
+dataplane.
+
+If speed is already known during interface creation or modification, it
+can be included in INTF_INSTALL/INTF_UPDATE and zebra will use it
+directly. If speed is not provided, the zebra main thread
+issues a follow-up INTF_SPEED_GET to request the dataplane to fetch the
+speed asynchronously.
+
+For dataplane providers that implement only INTF_INSTALL/INTF_UPDATE and
+do not support INTF_SPEED_GET, zebra relies on any speed value provided
+by install/update. If speed is missing, zebra attempts a single
+INTF_SPEED_GET query and stops if the operation is unsupported or fails.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ zebra/dplane_fpm_nl.c  |  1 +
+ zebra/if_netlink.c     |  6 +++
+ zebra/interface.c      | 98 +++++++++++++++++++++++++++++++-----------
+ zebra/interface.h      |  1 +
+ zebra/kernel_netlink.c |  1 +
+ zebra/kernel_socket.c  |  1 +
+ zebra/zebra_dplane.c   | 67 +++++++++++++++++++++++++++++
+ zebra/zebra_dplane.h   |  2 +
+ zebra/zebra_rib.c      |  1 +
+ zebra/zebra_script.c   |  1 +
+ 10 files changed, 155 insertions(+), 24 deletions(-)
+
+diff --git a/zebra/dplane_fpm_nl.c b/zebra/dplane_fpm_nl.c
+index 3bfa308860..e28cb203e4 100644
+--- a/zebra/dplane_fpm_nl.c
++++ b/zebra/dplane_fpm_nl.c
+@@ -1102,6 +1102,7 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
+ 	case DPLANE_OP_INTF_INSTALL:
+ 	case DPLANE_OP_INTF_UPDATE:
+ 	case DPLANE_OP_INTF_DELETE:
++	case DPLANE_OP_INTF_SPEED_GET:
+ 	case DPLANE_OP_TC_QDISC_INSTALL:
+ 	case DPLANE_OP_TC_QDISC_UNINSTALL:
+ 	case DPLANE_OP_TC_CLASS_ADD:
+diff --git a/zebra/if_netlink.c b/zebra/if_netlink.c
+index c1ff967587..c6b73dcd0c 100644
+--- a/zebra/if_netlink.c
++++ b/zebra/if_netlink.c
+@@ -1408,6 +1408,12 @@ int netlink_link_change(struct nlmsghdr *h, ns_id_t ns_id, int startup)
+ 			} else
+ 				zif_slave_type = ZEBRA_IF_SLAVE_OTHER;
+ 		}
++		if (startup) {
++			dplane_ctx_set_ifp_speed(ctx, kernel_get_speed(vrf_id, name, NULL));
++			dplane_ctx_set_ifp_speed_set(ctx, true);
++		} else
++			dplane_ctx_set_ifp_speed_set(ctx, false);
++
+ 		dplane_ctx_set_ifp_zif_slave_type(ctx, zif_slave_type);
+ 		dplane_ctx_set_ifp_vrf_id(ctx, vrf_id);
+ 		dplane_ctx_set_ifp_master_ifindex(ctx, master_infindex);
+diff --git a/zebra/interface.c b/zebra/interface.c
+index 908dd54215..4c37e13170 100644
+--- a/zebra/interface.c
++++ b/zebra/interface.c
+@@ -63,22 +63,40 @@ static const char *if_zebra_data_state(uint8_t state)
+ static void if_zebra_speed_update(struct event *thread)
+ {
+ 	struct interface *ifp = EVENT_ARG(thread);
+-	struct zebra_if *zif = ifp->info;
++
++	dplane_intf_speed_get(ifp);
++}
++
++static void zebra_if_schedule_speed_update(struct zebra_if *zif, int timeout)
++{
++	event_add_timer(zrouter.master, if_zebra_speed_update, zif->ifp, timeout,
++			&zif->speed_update);
++	event_ignore_late_timer(zif->speed_update);
++}
++
++static void zebra_if_speed_update_ctx(struct zebra_dplane_ctx *ctx, struct interface *ifp)
++{
++	enum zebra_dplane_result dp_res;
++	bool speed_set, changed = false;
++	struct zebra_if *zif;
+ 	uint32_t new_speed;
+-	bool changed = false;
+-	int error = 0;
+ 
+-	zif->speed_checked++;
++	if (!ifp)
++		return;
+ 
+-	new_speed = kernel_get_speed(ifp->vrf->vrf_id, ifp->name, &error);
++	zif = ifp->info;
++	zif->speed_checked++;
+ 
++	dp_res = dplane_ctx_get_status(ctx);
+ 	/* error may indicate vrf not available or
+ 	 * interfaces not available.
+ 	 * note that loopback & virtual interfaces can return 0 as speed
+ 	 */
+-	if (error == INTERFACE_SPEED_ERROR_READ)
++	if (dp_res == ZEBRA_DPLANE_REQUEST_FAILURE)
+ 		return;
+ 
++	speed_set = dplane_ctx_get_ifp_speed_set(ctx);
++	new_speed = speed_set ? dplane_ctx_get_ifp_speed(ctx) : 0;
+ 	if (new_speed != ifp->speed) {
+ 		zlog_info("%s: %s old speed: %u new speed: %u", __func__,
+ 			  ifp->name, ifp->speed, new_speed);
+@@ -87,7 +105,7 @@ static void if_zebra_speed_update(struct event *thread)
+ 		changed = true;
+ 	}
+ 
+-	if (changed || error == INTERFACE_SPEED_ERROR_UNKNOWN) {
++	if (changed || !speed_set) {
+ #define SPEED_UPDATE_SLEEP_TIME 5
+ #define SPEED_UPDATE_COUNT_MAX (4 * 60 / SPEED_UPDATE_SLEEP_TIME)
+ 		/*
+@@ -102,17 +120,46 @@ static void if_zebra_speed_update(struct event *thread)
+ 		 * to not update the system to keep track of that.  This
+ 		 * is far simpler to just stop trying after 4 minutes
+ 		 */
+-		if (error == INTERFACE_SPEED_ERROR_UNKNOWN &&
+-		    zif->speed_update_count == SPEED_UPDATE_COUNT_MAX)
++		if (!speed_set && zif->speed_update_count == SPEED_UPDATE_COUNT_MAX)
+ 			return;
+ 
+ 		zif->speed_update_count++;
+-		event_add_timer(zrouter.master, if_zebra_speed_update, ifp,
+-				SPEED_UPDATE_SLEEP_TIME, &zif->speed_update);
+-		event_ignore_late_timer(zif->speed_update);
++		zebra_if_schedule_speed_update(zif, SPEED_UPDATE_SLEEP_TIME);
+ 	}
+ }
+ 
++void zebra_if_speed_process(struct zebra_dplane_ctx *ctx)
++{
++	const char *ifname = dplane_ctx_get_ifname(ctx);
++	vrf_id_t vrf_id = dplane_ctx_get_vrf(ctx);
++	uint32_t speed;
++	int error;
++
++	dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_FAILURE);
++
++	speed = kernel_get_speed(vrf_id, ifname, &error);
++	switch (error) {
++	case 0:
++		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_SUCCESS);
++		dplane_ctx_set_ifp_speed(ctx, speed);
++		dplane_ctx_set_ifp_speed_set(ctx, true);
++		return;
++	case INTERFACE_SPEED_ERROR_UNKNOWN:
++		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_SUCCESS);
++		dplane_ctx_set_ifp_speed_set(ctx, false);
++		return;
++	case INTERFACE_SPEED_ERROR_READ:
++		/* INTERFACE_SPEED_ERROR_READ: means no device, no vrf */
++		break;
++	default:
++		if (IS_ZEBRA_DEBUG_KERNEL)
++			zlog_debug("kernel_get_speed returns an unkwnown error %u", error);
++		break;
++	}
++
++	dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_FAILURE);
++}
++
+ static void zebra_if_node_destroy(route_table_delegate_t *delegate,
+ 				  struct route_table *table,
+ 				  struct route_node *node)
+@@ -167,9 +214,7 @@ static int if_zebra_new_hook(struct interface *ifp)
+ 	 */
+ 	zebra_if->speed_update_count = 0;
+ 	zebra_if->speed_checked = 0;
+-	event_add_timer(zrouter.master, if_zebra_speed_update, ifp, 15,
+-			&zebra_if->speed_update);
+-	event_ignore_late_timer(zebra_if->speed_update);
++	zebra_if_schedule_speed_update(zebra_if, 15);
+ 
+ 	return 0;
+ }
+@@ -924,9 +969,7 @@ static void if_handle_bond_speed_change(struct interface *ifp)
+ 	if (part_of_bond->bond_if) {
+ 		zif = part_of_bond->bond_if->info;
+ 
+-		if (!event_is_scheduled(zif->speed_update))
+-			event_add_timer(zrouter.master, if_zebra_speed_update, part_of_bond->bond_if, 1,
+-					&zif->speed_update);
++		zebra_if_schedule_speed_update(zif, 1);
+ 	}
+ }
+ 
+@@ -988,9 +1031,8 @@ void if_up(struct interface *ifp, bool install_connected)
+ 	if (zif->flags & ZIF_FLAG_EVPN_MH_UPLINK)
+ 		zebra_evpn_mh_uplink_oper_update(zif);
+ 
+-	event_add_timer(zrouter.master, if_zebra_speed_update, ifp, 0,
+-			&zif->speed_update);
+-	event_ignore_late_timer(zif->speed_update);
++	event_cancel(&zif->speed_update);
++	dplane_intf_speed_get(ifp);
+ 
+ 	if_addr_wakeup(ifp);
+ 
+@@ -2013,8 +2055,12 @@ static void zebra_if_dplane_ifp_handling(struct zebra_dplane_ctx *ctx)
+ 			if_update_state_mtu(ifp, mtu);
+ 			if_update_state_mtu6(ifp, mtu);
+ 			if_update_state_metric(ifp, 0);
+-			if (!speed_set)
+-				speed = kernel_get_speed(ifp->vrf->vrf_id, ifp->name, NULL);
++			if (!speed_set) {
++				speed = 0;
++				/* Query initial speed if not provided by dplane */
++				dplane_intf_speed_get(ifp);
++			} else
++				zif->speed_checked++;
+ 			if_update_state_speed(ifp, speed);
+ 			ifp->ptm_status = ZEBRA_PTM_STATUS_UNKNOWN;
+ 			ifp->txqlen = dplane_ctx_get_intf_txqlen(ctx);
+@@ -2091,8 +2137,10 @@ static void zebra_if_dplane_ifp_handling(struct zebra_dplane_ctx *ctx)
+ 			if_update_state_mtu(ifp, mtu);
+ 			if_update_state_mtu6(ifp, mtu);
+ 			if_update_state_metric(ifp, 0);
+-			if (speed_set)
++			if (speed_set) {
++				zif->speed_checked++;
+ 				if_update_state_speed(ifp, speed);
++			}
+ 			ifp->txqlen = dplane_ctx_get_intf_txqlen(ctx);
+ 
+ 			/*
+@@ -2271,6 +2319,8 @@ void zebra_if_dplane_result(struct zebra_dplane_ctx *ctx)
+ 			zebra_if_update_ctx(ctx, ifp);
+ 	} else if (op == DPLANE_OP_INTF_NETCONFIG) {
+ 		zebra_if_netconf_update_ctx(ctx, ifp, ifindex);
++	} else if (op == DPLANE_OP_INTF_SPEED_GET) {
++		zebra_if_speed_update_ctx(ctx, ifp);
+ 	}
+ }
+ 
+diff --git a/zebra/interface.h b/zebra/interface.h
+index 98d0dcb325..fa9dc24e32 100644
+--- a/zebra/interface.h
++++ b/zebra/interface.h
+@@ -345,6 +345,7 @@ extern void zebra_l2_unmap_slave_from_bond(struct zebra_if *zif);
+ extern const char *zebra_protodown_rc_str(uint32_t protodown_rc, char *pd_buf,
+ 					  uint32_t pd_buf_len);
+ void zebra_if_dplane_result(struct zebra_dplane_ctx *ctx);
++void zebra_if_speed_process(struct zebra_dplane_ctx *ctx);
+ 
+ #ifdef HAVE_PROC_NET_DEV
+ extern void ifstat_update_proc(void);
+diff --git a/zebra/kernel_netlink.c b/zebra/kernel_netlink.c
+index 6f818c391b..d7e8ca9451 100644
+--- a/zebra/kernel_netlink.c
++++ b/zebra/kernel_netlink.c
+@@ -1617,6 +1617,7 @@ static enum netlink_msg_status nl_put_msg(struct nl_batch *bth,
+ 	case DPLANE_OP_BR_PORT_UPDATE:
+ 		return FRR_NETLINK_SUCCESS;
+ 
++	case DPLANE_OP_INTF_SPEED_GET:
+ 	case DPLANE_OP_IPTABLE_ADD:
+ 	case DPLANE_OP_IPTABLE_DELETE:
+ 	case DPLANE_OP_IPSET_ADD:
+diff --git a/zebra/kernel_socket.c b/zebra/kernel_socket.c
+index 2b411bb69c..6b3e2f381d 100644
+--- a/zebra/kernel_socket.c
++++ b/zebra/kernel_socket.c
+@@ -1624,6 +1624,7 @@ void kernel_update_multi(struct dplane_ctx_list_head *ctx_list)
+ 		case DPLANE_OP_GRE_SET:
+ 		case DPLANE_OP_INTF_ADDR_ADD:
+ 		case DPLANE_OP_INTF_ADDR_DEL:
++		case DPLANE_OP_INTF_SPEED_GET:
+ 		case DPLANE_OP_STARTUP_STAGE:
+ 		case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
+ 		case DPLANE_OP_VLAN_INSTALL:
+diff --git a/zebra/zebra_dplane.c b/zebra/zebra_dplane.c
+index 40ea590e14..48d07bff37 100644
+--- a/zebra/zebra_dplane.c
++++ b/zebra/zebra_dplane.c
+@@ -640,6 +640,9 @@ static struct zebra_dplane_globals {
+ 	_Atomic uint32_t dg_intfs_in;
+ 	_Atomic uint32_t dg_intf_errors;
+ 
++	_Atomic uint32_t dg_intf_speed_get_in;
++	_Atomic uint32_t dg_intf_speed_get_errors;
++
+ 	_Atomic uint32_t dg_tcs_in;
+ 	_Atomic uint32_t dg_tcs_errors;
+ 
+@@ -913,6 +916,7 @@ static void dplane_ctx_free_internal(struct zebra_dplane_ctx *ctx)
+ 		break;
+ 	case DPLANE_OP_GRE_SET:
+ 	case DPLANE_OP_INTF_NETCONFIG:
++	case DPLANE_OP_INTF_SPEED_GET:
+ 	case DPLANE_OP_STARTUP_STAGE:
+ 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
+ 		break;
+@@ -1179,6 +1183,9 @@ const char *dplane_op2str(enum dplane_op_e op)
+ 	case DPLANE_OP_INTF_DELETE:
+ 		return "INTF_DELETE";
+ 
++	case DPLANE_OP_INTF_SPEED_GET:
++		return "INTF_SPEED_GET_GET";
++
+ 	case DPLANE_OP_TC_QDISC_INSTALL:
+ 		return "TC_QDISC_INSTALL";
+ 	case DPLANE_OP_TC_QDISC_UNINSTALL:
+@@ -5537,6 +5544,45 @@ enum zebra_dplane_result dplane_intf_update(const struct interface *ifp)
+ 	return ret;
+ }
+ 
++/*
++ * Enqueue a interface speed query for the dataplane.
++ */
++enum zebra_dplane_result dplane_intf_speed_get(const struct interface *ifp)
++{
++	enum zebra_dplane_result result = ZEBRA_DPLANE_REQUEST_FAILURE;
++	struct zebra_dplane_ctx *ctx = NULL;
++	struct zebra_ns *zns;
++	int ret;
++
++	ctx = dplane_ctx_alloc();
++
++	ctx->zd_op = DPLANE_OP_INTF_SPEED_GET;
++	ctx->zd_status = ZEBRA_DPLANE_REQUEST_SUCCESS;
++	ctx->zd_vrf_id = ifp->vrf->vrf_id;
++
++	strlcpy(ctx->zd_ifname, ifp->name, sizeof(ctx->zd_ifname));
++	ctx->zd_ifindex = ifp->ifindex;
++
++	zns = zebra_ns_lookup(ifp->vrf->vrf_id);
++	dplane_ctx_ns_init(ctx, zns, false);
++
++	ret = dplane_update_enqueue(ctx);
++
++	/* Increment counter */
++	atomic_fetch_add_explicit(&zdplane_info.dg_intf_speed_get_in, 1, memory_order_relaxed);
++
++	if (ret == AOK)
++		result = ZEBRA_DPLANE_REQUEST_QUEUED;
++	else {
++		atomic_fetch_add_explicit(&zdplane_info.dg_intf_speed_get_errors, 1,
++					  memory_order_relaxed);
++		if (ctx)
++			dplane_ctx_free(&ctx);
++	}
++
++	return result;
++}
++
+ /*
+  * Enqueue vxlan/evpn mac add (or update).
+  */
+@@ -6402,6 +6448,11 @@ int dplane_show_helper(struct vty *vty, bool detailed)
+ 	vty_out(vty, "Intf change updates:        %" PRIu64 "\n", incoming);
+ 	vty_out(vty, "Intf change errors:         %" PRIu64 "\n", errs);
+ 
++	incoming = atomic_load_explicit(&zdplane_info.dg_intf_speed_get_in, memory_order_relaxed);
++	errs = atomic_load_explicit(&zdplane_info.dg_intf_speed_get_errors, memory_order_relaxed);
++	vty_out(vty, "Intf speed query:           %" PRIu64 "\n", incoming);
++	vty_out(vty, "Intf speed errors:          %" PRIu64 "\n", errs);
++
+ 	incoming = atomic_load_explicit(&zdplane_info.dg_macs_in,
+ 					memory_order_relaxed);
+ 	errs = atomic_load_explicit(&zdplane_info.dg_mac_errors,
+@@ -7051,6 +7102,12 @@ static void kernel_dplane_log_detail(struct zebra_dplane_ctx *ctx)
+ 			   dplane_ctx_get_ifindex(ctx),
+ 			   dplane_ctx_intf_is_protodown(ctx));
+ 		break;
++	case DPLANE_OP_INTF_SPEED_GET:
++		zlog_debug("Dplane intf %s, idx %u, speed %u",
++			   dplane_op2str(dplane_ctx_get_op(ctx)), dplane_ctx_get_ifindex(ctx),
++			   dplane_ctx_get_ifp_speed(ctx));
++		break;
++
+ 
+ 	/* TODO: more detailed log */
+ 	case DPLANE_OP_TC_QDISC_INSTALL:
+@@ -7247,6 +7304,7 @@ static void kernel_dplane_handle_result(struct zebra_dplane_ctx *ctx)
+ 	case DPLANE_OP_INTF_ADDR_ADD:
+ 	case DPLANE_OP_INTF_ADDR_DEL:
+ 	case DPLANE_OP_INTF_NETCONFIG:
++	case DPLANE_OP_INTF_SPEED_GET:
+ 	case DPLANE_OP_VLAN_INSTALL:
+ 		break;
+ 
+@@ -7288,6 +7346,13 @@ kernel_dplane_process_ipset_entry(struct zebra_dplane_provider *prov,
+ 	dplane_provider_enqueue_out_ctx(prov, ctx);
+ }
+ 
++static void kernel_dplane_process_if_speed(struct zebra_dplane_provider *prov,
++					   struct zebra_dplane_ctx *ctx)
++{
++	zebra_if_speed_process(ctx);
++	dplane_provider_enqueue_out_ctx(prov, ctx);
++}
++
+ /*
+  * Kernel provider callback
+  */
+@@ -7322,6 +7387,8 @@ static int kernel_dplane_process_func(struct zebra_dplane_provider *prov)
+ 			  || dplane_ctx_get_op(ctx)
+ 				     == DPLANE_OP_IPSET_ENTRY_DELETE))
+ 			kernel_dplane_process_ipset_entry(prov, ctx);
++		else if (dplane_ctx_get_op(ctx) == DPLANE_OP_INTF_SPEED_GET)
++			kernel_dplane_process_if_speed(prov, ctx);
+ 		else
+ 			dplane_ctx_list_add_tail(&work_list, ctx);
+ 	}
+diff --git a/zebra/zebra_dplane.h b/zebra/zebra_dplane.h
+index cf1f70843e..b5e7f0d049 100644
+--- a/zebra/zebra_dplane.h
++++ b/zebra/zebra_dplane.h
+@@ -190,6 +190,7 @@ enum dplane_op_e {
+ 
+ 	/* Incoming interface config events */
+ 	DPLANE_OP_INTF_NETCONFIG,
++	DPLANE_OP_INTF_SPEED_GET,
+ 
+ 	/* Interface update */
+ 	DPLANE_OP_INTF_INSTALL,
+@@ -964,6 +965,7 @@ enum zebra_dplane_result dplane_intf_addr_unset(const struct interface *ifp,
+  */
+ enum zebra_dplane_result dplane_intf_add(const struct interface *ifp);
+ enum zebra_dplane_result dplane_intf_update(const struct interface *ifp);
++enum zebra_dplane_result dplane_intf_speed_get(const struct interface *ifp);
+ 
+ /*
+  * Enqueue tc link changes for the dataplane.
+diff --git a/zebra/zebra_rib.c b/zebra/zebra_rib.c
+index d3f88fd7c1..971e06ecb4 100644
+--- a/zebra/zebra_rib.c
++++ b/zebra/zebra_rib.c
+@@ -5271,6 +5271,7 @@ static void rib_process_dplane_results(struct event *thread)
+ 			case DPLANE_OP_INTF_UPDATE:
+ 			case DPLANE_OP_INTF_DELETE:
+ 			case DPLANE_OP_INTF_NETCONFIG:
++			case DPLANE_OP_INTF_SPEED_GET:
+ 				zebra_if_dplane_result(ctx);
+ 				break;
+ 
+diff --git a/zebra/zebra_script.c b/zebra/zebra_script.c
+index b6bd2b2a43..7d8e2b632f 100644
+--- a/zebra/zebra_script.c
++++ b/zebra/zebra_script.c
+@@ -424,6 +424,7 @@ void lua_pushzebra_dplane_ctx(lua_State *L, const struct zebra_dplane_ctx *ctx)
+ 	case DPLANE_OP_TC_FILTER_UPDATE:
+ 		/* Not currently handled */
+ 	case DPLANE_OP_INTF_NETCONFIG: /*NYI*/
++	case DPLANE_OP_INTF_SPEED_GET:
+ 	case DPLANE_OP_SRV6_ENCAP_SRCADDR_SET:
+ 	case DPLANE_OP_NONE:
+ 	case DPLANE_OP_STARTUP_STAGE:
+-- 
+2.43.0
+
