@@ -610,19 +610,26 @@ static struct api_out graph_conf_get(const void * /*request*/, struct api_ctx *)
 }
 
 static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
-	const struct gr_graph_conf *req = request;
-	struct gr_graph_conf prev = graph_conf;
+	const struct gr_graph_conf_set_req *req = request;
 	vec struct iface_info_port **ports = NULL;
+	struct gr_graph_conf prev = graph_conf;
 	struct iface *iface = NULL;
 	int ret;
 
-	if (req->rx_burst_max > RTE_GRAPH_BURST_SIZE || req->vector_max > RTE_GRAPH_BURST_SIZE)
-		return api_out(EOVERFLOW, 0, NULL);
-
-	if (req->rx_burst_max > 0)
+	if (req->set_attrs & GR_GRAPH_SET_RX_BURST) {
+		if (req->rx_burst_max == 0)
+			return api_out(EDOM, 0, NULL);
+		if (req->rx_burst_max > RTE_GRAPH_BURST_SIZE)
+			return api_out(EOVERFLOW, 0, NULL);
 		graph_conf.rx_burst_max = req->rx_burst_max;
-	if (req->vector_max > 0)
+	}
+	if (req->set_attrs & GR_GRAPH_SET_VECTOR) {
+		if (req->vector_max == 0)
+			return api_out(EDOM, 0, NULL);
+		if (req->vector_max > RTE_GRAPH_BURST_SIZE)
+			return api_out(EOVERFLOW, 0, NULL);
 		graph_conf.vector_max = req->vector_max;
+	}
 
 	if (graph_conf.rx_burst_max == prev.rx_burst_max
 	    && graph_conf.vector_max == prev.vector_max)
