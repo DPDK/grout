@@ -401,12 +401,22 @@ struct gr_graph_dump_resp {
 
 GR_REQ(GR_GRAPH_DUMP, struct gr_graph_dump_req, struct gr_graph_dump_resp);
 
+typedef enum : uint16_t {
+	GR_GRAPH_SET_RX_BURST = GR_BIT16(0),
+	GR_GRAPH_SET_VECTOR = GR_BIT16(1),
+} gr_graph_conf_set_attr_t;
+
 struct gr_graph_conf {
 	uint16_t rx_burst_max; // default 64, max 256
 	uint16_t vector_max; // default 64, max 256
 };
 
 GR_REQ(GR_GRAPH_CONF_GET, struct gr_empty, struct gr_graph_conf);
+
+struct gr_graph_conf_set_req {
+	struct gr_graph_conf;
+	gr_graph_conf_set_attr_t set_attrs;
+};
 
 GR_REQ(GR_GRAPH_CONF_SET, struct gr_graph_conf, struct gr_empty);
 

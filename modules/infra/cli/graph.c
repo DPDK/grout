@@ -13,11 +13,16 @@
 #include <stdio.h>
 
 static cmd_status_t graph_conf_set(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_graph_conf req = {0};
+	struct gr_graph_conf_set_req req = {.set_attrs = 0};
 
-	if (arg_u16(p, "VECTOR", &req.vector_max) < 0 && errno != ENOENT)
+	if (arg_u16(p, "VECTOR", &req.vector_max) == 0)
+		req.set_attrs |= GR_GRAPH_SET_VECTOR;
+	else if (errno != ENOENT)
 		return CMD_ERROR;
-	if (arg_u16(p, "BURST", &req.rx_burst_max) < 0 && errno != ENOENT)
+
+	if (arg_u16(p, "BURST", &req.rx_burst_max) == 0)
+		req.set_attrs |= GR_GRAPH_SET_RX_BURST;
+	else if (errno != ENOENT)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_GRAPH_CONF_SET, sizeof(req), &req, NULL) < 0)
