@@ -17,6 +17,7 @@ if not frr_dep.found()
 endif
 
 install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'false') == 'true'
+frr_moduledir = frr_dep.get_variable('moduledir')
 frr_plugin = shared_module(
   'dplane_grout',
   files(
@@ -29,7 +30,7 @@ frr_plugin = shared_module(
   dependencies: [frr_dep],
   include_directories: api_inc + include_directories('.'),
   install: not install_build_flag,
-  install_dir: frr_dep.get_variable('moduledir'),
+  install_dir: frr_moduledir,
   override_options: ['b_sanitize=none'],
 )
 
@@ -37,10 +38,10 @@ if install_build_flag
   install_plugin = custom_target(
     'install_frr_dplane_grout',
     output: '.install-stamp',
-    command: ['install', '-Dt', frr_dep.get_variable('moduledir'), frr_plugin],
     depends: [frr_plugin],
     build_by_default: true,
+    command: [
+      'sh', '-c', 'install -Dt $1 $2 && touch $3', '--', frr_moduledir, frr_plugin, '@OUTPUT@',
+    ],
   )
-
-  alias_target('frr_plugin_install', install_plugin)
 endif
