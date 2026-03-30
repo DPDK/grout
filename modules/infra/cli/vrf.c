@@ -7,23 +7,19 @@
 #include <gr_infra.h>
 
 #define VRF_ATTRS_CMD                                                                              \
-	"(rib4-routes RIB4_ROUTES),(fib4-tbl8 FIB4_TBL8)"                                          \
-	",(rib6-routes RIB6_ROUTES),(fib6-tbl8 FIB6_TBL8)"                                         \
+	"(rib4-routes RIB4_ROUTES)"                                                                \
+	",(rib6-routes RIB6_ROUTES)"                                                               \
 	",(description DESCR)"
 #define VRF_ATTRS_ARGS                                                                             \
 	with_help("Max IPv4 routes.", ec_node_uint("RIB4_ROUTES", 1, UINT32_MAX, 10)),             \
-		with_help("IPv4 TBL8 groups.", ec_node_uint("FIB4_TBL8", 1, UINT32_MAX, 10)),      \
 		with_help("Max IPv6 routes.", ec_node_uint("RIB6_ROUTES", 1, UINT32_MAX, 10)),     \
-		with_help("IPv6 TBL8 groups.", ec_node_uint("FIB6_TBL8", 1, UINT32_MAX, 10)),      \
 		with_help("Interface description.", ec_node("any", "DESCR"))
 
 static void vrf_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vrf *info = PAYLOAD(iface);
 
 	gr_object_field(o, "rib4_max_routes", GR_DISP_INT, "%u", info->ipv4.max_routes);
-	gr_object_field(o, "fib4_num_tbl8", GR_DISP_INT, "%u", info->ipv4.num_tbl8);
 	gr_object_field(o, "rib6_max_routes", GR_DISP_INT, "%u", info->ipv6.max_routes);
-	gr_object_field(o, "fib6_num_tbl8", GR_DISP_INT, "%u", info->ipv6.num_tbl8);
 }
 
 static void
@@ -31,12 +27,8 @@ vrf_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf, s
 	const struct gr_iface_info_vrf *info = PAYLOAD(iface);
 	size_t n = 0;
 
-	SAFE_BUF(
-		snprintf, len, "ip4 routes=%u tbl8=%u", info->ipv4.max_routes, info->ipv4.num_tbl8
-	);
-	SAFE_BUF(
-		snprintf, len, " ip6 routes=%u tbl8=%u", info->ipv6.max_routes, info->ipv6.num_tbl8
-	);
+	SAFE_BUF(snprintf, len, "ip4 routes=%u", info->ipv4.max_routes);
+	SAFE_BUF(snprintf, len, " ip6 routes=%u", info->ipv6.max_routes);
 err:;
 }
 
@@ -62,20 +54,15 @@ static uint64_t parse_vrf_args(
 		return 0;
 	}
 
-	if (arg_str(p, "RIB4_ROUTES") != NULL || arg_str(p, "FIB4_TBL8") != NULL) {
-		// In update mode, parse_iface_args populates info with the current
-		// interface state. Zero the FIB config so only explicitly provided
-		// fields are sent. The daemon treats 0 as "auto-derive".
+	if (arg_str(p, "RIB4_ROUTES") != NULL) {
 		info->ipv4 = (struct gr_iface_info_vrf_fib) {0};
 		arg_u32(p, "RIB4_ROUTES", &info->ipv4.max_routes);
-		arg_u32(p, "FIB4_TBL8", &info->ipv4.num_tbl8);
 		set_attrs |= GR_VRF_SET_FIB;
 	}
 
-	if (arg_str(p, "RIB6_ROUTES") != NULL || arg_str(p, "FIB6_TBL8") != NULL) {
+	if (arg_str(p, "RIB6_ROUTES") != NULL) {
 		info->ipv6 = (struct gr_iface_info_vrf_fib) {0};
 		arg_u32(p, "RIB6_ROUTES", &info->ipv6.max_routes);
-		arg_u32(p, "FIB6_TBL8", &info->ipv6.num_tbl8);
 		set_attrs |= GR_VRF_SET_FIB;
 	}
 

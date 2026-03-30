@@ -131,7 +131,6 @@ struct gr_iface_info_port {
 // Per-AF FIB configuration.
 struct gr_iface_info_vrf_fib {
 	uint32_t max_routes; // 0 = default
-	uint32_t num_tbl8; // 0 = auto
 };
 
 // Info structure for GR_IFACE_TYPE_VRF interfaces.

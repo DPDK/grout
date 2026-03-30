@@ -156,8 +156,6 @@ struct gr_fib4_info {
 	uint16_t vrf_id;
 	uint32_t max_routes; // configured maximum number of routes
 	uint32_t used_routes; // number of routes currently installed
-	uint32_t num_tbl8; // allocated tbl8 groups (total)
-	uint32_t used_tbl8; // tbl8 groups currently in use
 };
 
 // Set default FIB configuration for new VRFs.

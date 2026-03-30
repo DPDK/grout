@@ -124,9 +124,6 @@ static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_p
 	gr_table_column(table, "VRF", GR_DISP_LEFT); // 0
 	gr_table_column(table, "FAMILY", GR_DISP_LEFT); // 1
 	gr_table_column(table, "ROUTES", GR_DISP_RIGHT); // 2
-#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-	gr_table_column(table, "TBL8", GR_DISP_RIGHT); // 3
-#endif
 
 	STAILQ_FOREACH (ops, &route_ops, next) {
 		if (ops->config_show == NULL)

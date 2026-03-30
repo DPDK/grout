@@ -5,7 +5,6 @@ depth = 1
 diff_files =
 	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,
-	dpdk/fib-expose-tbl8-usage-statistics.patch,
 	dpdk/fib-fix-prefix-addition-handling.patch,
 	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
 	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch

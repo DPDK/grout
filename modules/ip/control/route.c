@@ -50,10 +50,6 @@ static inline uint32_t fib4_get_max_routes(const struct iface *vrf) {
 	return iface_info_vrf(vrf)->ipv4.max_routes;
 }
 
-static inline uint32_t fib4_get_num_tbl8(const struct iface *vrf) {
-	return iface_info_vrf(vrf)->ipv4.num_tbl8;
-}
-
 static struct rte_fib *get_fib(uint16_t vrf_id) {
 	struct iface *iface = get_vrf_iface(vrf_id);
 	if (iface == NULL)
@@ -74,7 +70,7 @@ static struct rte_fib *create_fib(const struct iface *vrf) {
 		.rib_ext_sz = sizeof(gr_nh_origin_t),
 		.dir24_8 = {
 			.nh_sz = RTE_FIB_DIR24_8_8B,
-			.num_tbl8 = fib4_get_num_tbl8(vrf),
+			.num_tbl8 = fib4_auto_tbl8(fib4_get_max_routes(vrf)),
 		},
 	};
 	struct rte_fib *fib;
@@ -105,15 +101,12 @@ static int fib4_init(struct iface *vrf) {
 
 	if (!conf->max_routes)
 		conf->max_routes = max_routes_default;
-	if (!conf->num_tbl8)
-		conf->num_tbl8 = fib4_auto_tbl8(conf->max_routes);
 
 	LOG(INFO,
-	    "creating IPv4 FIB for VRF %s(%u) max_routes=%u num_tbl8=%u",
+	    "creating IPv4 FIB for VRF %s(%u) max_routes=%u",
 	    vrf->name,
 	    vrf->id,
-	    conf->max_routes,
-	    conf->num_tbl8);
+	    conf->max_routes);
 
 	fib = create_fib(vrf);
 	if (fib == NULL)
@@ -568,10 +561,6 @@ void rib4_cleanup(struct nexthop *nh) {
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");
 METRIC_GAUGE(m_max_routes, "rib4_max_routes", "Maximum number of IPv4 routes.");
-#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-METRIC_GAUGE(m_max_tbl8, "fib4_max_tbl8", "Maximum number of IPv4 FIB tbl8 groups.");
-METRIC_GAUGE(m_used_tbl8, "fib4_used_tbl8", "Used IPv4 FIB tbl8 groups.");
-#endif
 
 static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 	struct gr_metrics_ctx ctx;
@@ -595,15 +584,6 @@ static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 
 		gr_metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
 		gr_metric_emit(&ctx, &m_max_routes, fib4_get_max_routes(vrf_iface));
-#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-		uint32_t used_tbl8, total_tbl8;
-		struct rte_fib *fib = iface_info_vrf(vrf_iface)->fib4;
-		if (fib != NULL) {
-			rte_fib_tbl8_get_stats(fib, &used_tbl8, &total_tbl8);
-			gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
-			gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
-		}
-#endif
 	}
 }
 
@@ -712,8 +692,6 @@ static int fib4_reconfig(struct iface *vrf) {
 
 	if (!conf->max_routes)
 		conf->max_routes = max_routes_default;
-	if (!conf->num_tbl8)
-		conf->num_tbl8 = fib4_auto_tbl8(conf->max_routes);
 
 	old_fib = iface_info_vrf(vrf)->fib4;
 	new_fib = create_fib(vrf);
@@ -746,8 +724,6 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 		info.vrf_id = GR_VRF_ID_UNDEF;
 		info.max_routes = max_routes_default;
 		info.used_routes = 0;
-		info.num_tbl8 = fib4_auto_tbl8(max_routes_default);
-		info.used_tbl8 = 0;
 		api_send(ctx, sizeof(info), &info);
 	}
 
@@ -760,14 +736,6 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 		info.vrf_id = v;
 		info.max_routes = fib4_get_max_routes(vrf);
 		info.used_routes = fib4_total_routes(v);
-#ifdef HAVE_RTE_FIB_TBL8_GET_STATS
-		struct rte_fib *fib = iface_info_vrf(vrf)->fib4;
-		if (fib != NULL)
-			rte_fib_tbl8_get_stats(fib, &info.used_tbl8, &info.num_tbl8);
-#else
-		info.num_tbl8 = fib4_get_num_tbl8(vrf);
-		info.used_tbl8 = 0;
-#endif
 		api_send(ctx, sizeof(info), &info);
 	}
 
