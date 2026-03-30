@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
+#include <gr_fib_pool.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip4.h>
@@ -37,15 +38,6 @@ static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 static uint32_t max_routes_default = 1 << 16;
 
-// Derive num_tbl8 from max_routes for IPv4 DIR24_8.
-// Only prefixes longer than /24 consume tbl8 groups. In real-world BGP
-// tables, less than 0.1% of prefixes are longer than /24. A ratio of
-// 1/500 with a minimum of 256 provides ample headroom.
-static inline uint32_t fib4_auto_tbl8(uint32_t max_routes) {
-	uint32_t n = max_routes / 500;
-	return n < 256 ? 256 : n;
-}
-
 static inline uint32_t fib4_get_max_routes(const struct iface *vrf) {
 	return iface_info_vrf(vrf)->ipv4.max_routes;
 }
@@ -70,7 +62,7 @@ static struct rte_fib *create_fib(const struct iface *vrf) {
 		.rib_ext_sz = sizeof(gr_nh_origin_t),
 		.dir24_8 = {
 			.nh_sz = RTE_FIB_DIR24_8_8B,
-			.num_tbl8 = fib4_auto_tbl8(fib4_get_max_routes(vrf)),
+			.tbl8_pool = gr_fib_tbl8_pool(),
 		},
 	};
 	struct rte_fib *fib;
@@ -744,7 +736,7 @@ static struct api_out fib4_info_list(const void *request, struct api_ctx *ctx) {
 
 static struct gr_module route4_module = {
 	.name = "ip_route",
-	.depends_on = "nexthop",
+	.depends_on = "nexthop,fib_pool",
 };
 
 static void fib4_fini(struct iface *vrf) {

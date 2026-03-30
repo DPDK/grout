@@ -4,6 +4,7 @@
 src += files(
   'bond.c',
   'ctlplane.c',
+  'fib_pool.c',
   'graph.c',
   'group_nexthop.c',
   'iface.c',

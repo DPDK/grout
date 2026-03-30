@@ -3,6 +3,7 @@
 
 #include <gr_api.h>
 #include <gr_event.h>
+#include <gr_fib_pool.h>
 #include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip6.h>
@@ -36,16 +37,6 @@ static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 
 static uint32_t max_routes_default = 1 << 16;
 
-// Derive num_tbl8 from max_routes for IPv6 TRIE.
-// The trie uses 8-bit levels beyond the first 24 bits. IPv6 routes at
-// /48 consume up to 3 tbl8 groups each. Sharing reduces actual usage
-// but a ratio of 4x is needed to handle real-world prefix distributions
-// without exhaustion.
-static inline uint32_t fib6_auto_tbl8(uint32_t max_routes) {
-	uint32_t n = max_routes * 4;
-	return n < 256 ? 256 : n;
-}
-
 static inline uint32_t fib6_get_max_routes(const struct iface *vrf) {
 	return iface_info_vrf(vrf)->ipv6.max_routes;
 }
@@ -70,7 +61,7 @@ static struct rte_fib6 *create_fib6(const struct iface *vrf) {
 		.rib_ext_sz = sizeof(gr_nh_origin_t),
 		.trie = {
 			.nh_sz = RTE_FIB6_TRIE_8B,
-			.num_tbl8 = fib6_auto_tbl8(fib6_get_max_routes(vrf)),
+			.tbl8_pool = gr_fib_tbl8_pool(),
 		},
 	};
 	struct rte_fib6 *fib;
@@ -784,7 +775,7 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 
 static struct gr_module route6_module = {
 	.name = "ip6_route",
-	.depends_on = "nexthop",
+	.depends_on = "nexthop,fib_pool",
 };
 
 static void fib6_fini(struct iface *vrf) {
