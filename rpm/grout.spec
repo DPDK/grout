@@ -115,8 +115,7 @@ FRR dplane plugin for grout
 %else
 	-Dfrr=disabled \
 %endif
-	-Ddpdk:cpu_instruction_set=%{dpdk_cpu} \
-	-Ddpdk_static=true
+	-Ddpdk:cpu_instruction_set=%{dpdk_cpu}
 
 %meson_build
 

@@ -70,7 +70,7 @@ dpdk_dep = dependency(
     'enable_docs=false',
     'developer_mode=disabled',
   ],
-  static: get_option('dpdk_static'),
+  static: true,
 )
 
 ev_core_dep = dependency('libevent_core')

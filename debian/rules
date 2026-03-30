@@ -8,7 +8,6 @@ include /usr/share/dpkg/default.mk
 meson_opts := --wrap-mode=default
 meson_opts += --auto-features=enabled
 meson_opts += -Ddpdk:platform=generic
-meson_opts += -Ddpdk_static=true
 
 # FRR support can be disabled with DEB_BUILD_OPTIONS=nofrr
 ifneq (,$(filter nofrr,$(DEB_BUILD_OPTIONS)))
