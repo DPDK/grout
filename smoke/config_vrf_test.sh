@@ -64,6 +64,12 @@ grcli route show vrf fibtest
 count=$(grcli -j route show vrf fibtest | jq length)
 [ "$count" -eq 17 ]
 
+# Verify tbl8 pool stats and manual resize
+grcli fib pool
+grcli fib pool set 512
+grcli -j fib pool \
+	| jq -e '.total == 512' || fail "tbl8 pool should be 512 after resize"
+
 # Ensure routes survived resize (max_routes change)
 grcli interface set vrf fibtest rib4-routes 2048
 grcli -j interface show name fibtest \

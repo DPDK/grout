@@ -6,6 +6,7 @@ cli_src += files(
   'affinity.c',
   'bond.c',
   'events.c',
+  'fib_pool.c',
   'graph.c',
   'iface.c',
   'vrf.c',

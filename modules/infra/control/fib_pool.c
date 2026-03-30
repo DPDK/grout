@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Maxime Leroy, Free Mobile
 
+#include <gr_api.h>
 #include <gr_fib_pool.h>
+#include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_module.h>
 #include <gr_rcu.h>
@@ -17,6 +19,27 @@ static struct rte_fib_tbl8_pool *tbl8_pool;
 
 struct rte_fib_tbl8_pool *gr_fib_tbl8_pool(void) {
 	return tbl8_pool;
+}
+
+static struct api_out fib_pool_stats_get(const void *, struct api_ctx *) {
+	struct gr_fib_pool_stats_get_resp *resp = malloc(sizeof(*resp));
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+
+	rte_fib_tbl8_pool_get_stats(tbl8_pool, &resp->used, &resp->total, &resp->max);
+
+	return api_out(0, sizeof(*resp), resp);
+}
+
+static struct api_out fib_pool_resize(const void *request, struct api_ctx *) {
+	const struct gr_fib_pool_resize_req *req = request;
+	int ret;
+
+	ret = rte_fib_tbl8_pool_resize(tbl8_pool, req->num_tbl8);
+	if (ret < 0)
+		return api_out(-ret, 0, NULL);
+
+	return api_out(0, 0, NULL);
 }
 
 static void fib_pool_init(struct event_base *) {
@@ -53,5 +76,7 @@ static struct gr_module fib_pool_module = {
 };
 
 RTE_INIT(fib_pool_constructor) {
+	gr_api_handler(GR_FIB_POOL_STATS_GET, fib_pool_stats_get);
+	gr_api_handler(GR_FIB_POOL_RESIZE, fib_pool_resize);
 	gr_register_module(&fib_pool_module);
 }

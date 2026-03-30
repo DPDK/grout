@@ -10,6 +10,7 @@ diff_files =
 	dpdk/fib-share-tbl8-definitions-between-fib-and-fib6.patch,
 	dpdk/fib-add-shared-tbl8-pool.patch,
 	dpdk/fib-add-resizable-tbl8-pool.patch,
+	dpdk/fib-add-tbl8-pool-stats-API.patch,
 	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
 	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch
 

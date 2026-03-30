@@ -1,0 +1,69 @@
+From d8a9f08e77f0577b766744d294a5fe4a187bea64 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Mon, 30 Mar 2026 15:00:12 +0200
+Subject: [PATCH 5/5] fib: add tbl8 pool stats API
+
+Add rte_fib_tbl8_pool_get_stats() to retrieve the number of used and
+total tbl8 groups from a pool handle directly, without going through
+a FIB instance.
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+
+diff --git a/lib/fib/fib_tbl8_pool.c b/lib/fib/fib_tbl8_pool.c
+index 722155b46d..a6494ad2c8 100644
+--- a/lib/fib/fib_tbl8_pool.c
++++ b/lib/fib/fib_tbl8_pool.c
+@@ -318,3 +318,20 @@ rte_fib_tbl8_pool_rcu_qsbr_add(struct rte_fib_tbl8_pool *pool,
+ 	pool->v = cfg->v;
+ 	return 0;
+ }
++
++RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_fib_tbl8_pool_get_stats, 26.07)
++int
++rte_fib_tbl8_pool_get_stats(struct rte_fib_tbl8_pool *pool,
++			    uint32_t *used, uint32_t *total, uint32_t *max)
++{
++	if (pool == NULL)
++		return -EINVAL;
++
++	if (used != NULL)
++		*used = pool->cur_tbl8s;
++	if (total != NULL)
++		*total = pool->num_tbl8s;
++	if (max != NULL)
++		*max = pool->max_tbl8s;
++	return 0;
++}
+diff --git a/lib/fib/rte_fib_tbl8_pool.h b/lib/fib/rte_fib_tbl8_pool.h
+index d37ddedff3..49a2589a5b 100644
+--- a/lib/fib/rte_fib_tbl8_pool.h
++++ b/lib/fib/rte_fib_tbl8_pool.h
+@@ -123,6 +123,25 @@ int
+ rte_fib_tbl8_pool_resize(struct rte_fib_tbl8_pool *pool,
+ 			 uint32_t new_num_tbl8);
+ 
++/**
++ * Retrieve tbl8 pool statistics.
++ *
++ * @param pool
++ *   Pool handle
++ * @param used
++ *   Number of tbl8 groups currently in use (can be NULL)
++ * @param total
++ *   Total number of tbl8 groups (current capacity, can be NULL)
++ * @param max
++ *   Maximum number of tbl8 groups (0 = fixed, can be NULL)
++ * @return
++ *   0 on success, -EINVAL if pool is NULL
++ */
++__rte_experimental
++int
++rte_fib_tbl8_pool_get_stats(struct rte_fib_tbl8_pool *pool,
++			    uint32_t *used, uint32_t *total, uint32_t *max);
++
+ #ifdef __cplusplus
+ }
+ #endif
+-- 
+2.43.0
+
