@@ -19,13 +19,21 @@ project(
   ],
 )
 
+# C flags that affect preprocessing and struct layout.
+# Reused in devtools/check_api.sh for ABI compatibility check.
+project_c_flags = [
+  '-DALLOW_EXPERIMENTAL_API',
+  '-D_GNU_SOURCE',
+  '-fms-extensions',
+  '-Wno-microsoft',
+]
+foreach arg : project_c_flags
+  add_project_arguments(arg, language: 'c')
+endforeach
+
 # additional project C flags (keep alpha sorted)
-add_project_arguments('-DALLOW_EXPERIMENTAL_API', language: 'c')
-add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-Wmissing-prototypes', language: 'c')
-add_project_arguments('-Wno-microsoft', language: 'c')
 add_project_arguments('-Wstrict-aliasing=2', language: 'c')
-add_project_arguments('-fms-extensions', language: 'c')
 add_project_arguments('-fstrict-aliasing', language: 'c')
 
 # optional project C flags (keep alpha sorted)
@@ -121,6 +129,26 @@ subdir('cli')
 subdir('api')
 subdir('frr')
 
+fs = import('fs')
+abidiff = find_program('abidiff', native: true, required: false)
+git = find_program('git', native: true, required: false)
+if abidiff.found() and git.found() and fs.is_dir('.git')
+  custom_target(
+    'api_check',
+    output: '.api_check.stamp',
+    command: [
+      files('devtools/check_api.sh'),
+      '-d', abidiff,
+      '-o', '@OUTPUT@',
+      '-s', meson.project_source_root(),
+      '-c', ' '.join(compiler.cmd_array() + ['-std=' + get_option('c_std')] + project_c_flags),
+      api_headers,
+    ],
+    depend_files: api_headers,
+    build_by_default: true,
+  )
+endif
+
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
@@ -157,7 +185,6 @@ pkg.generate(
 
 cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()
-  fs = import('fs')
   foreach t : tests
     name = fs.replace_suffix(t['sources'].get(0), '').underscorify()
     t += {

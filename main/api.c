@@ -206,8 +206,14 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 static struct api_out hello(const void *request, struct api_ctx *) {
 	const struct gr_hello_req *req = request;
 
-	if (strncmp(req->version, GROUT_VERSION, sizeof(req->version)) != 0)
+	if (req->api_version != GR_API_VERSION) {
+		LOG(WARNING,
+		    "API version mismatch: server=%u client=%u (version=%s)",
+		    GR_API_VERSION,
+		    req->api_version,
+		    req->version);
 		return api_out(EBADMSG, 0, NULL);
+	}
 
 	return api_out(0, 0, NULL);
 }
