@@ -310,7 +310,7 @@ static int iface_vrf_reconfig(
 			api = vrf_fib_api(info, af);
 			if (api == NULL)
 				continue;
-			if (api->max_routes == 0 && api->num_tbl8 == 0)
+			if (api->max_routes == 0)
 				continue;
 
 			assert(fib_ops[af] != NULL);
@@ -318,16 +318,9 @@ static int iface_vrf_reconfig(
 			fib_conf = vrf_fib_conf(vrf, af);
 			old = *fib_conf;
 
-			if (api->max_routes) {
-				fib_conf->max_routes = api->max_routes;
-				if (!api->num_tbl8)
-					fib_conf->num_tbl8 = 0;
-			}
-			if (api->num_tbl8)
-				fib_conf->num_tbl8 = api->num_tbl8;
+			fib_conf->max_routes = api->max_routes;
 
-			if (fib_conf->max_routes == old.max_routes
-			    && fib_conf->num_tbl8 == old.num_tbl8)
+			if (fib_conf->max_routes == old.max_routes)
 				continue;
 
 			if (fib_ops[af]->reconfig(iface) < 0) {
@@ -336,14 +329,12 @@ static int iface_vrf_reconfig(
 			}
 
 			LOG(INFO,
-			    "resized %s FIB VRF %s(%u) max_routes %u -> %u num_tbl8 %u -> %u",
+			    "resized %s FIB VRF %s(%u) max_routes %u -> %u",
 			    gr_af_name(af),
 			    iface->name,
 			    iface->id,
 			    old.max_routes,
-			    fib_conf->max_routes,
-			    old.num_tbl8,
-			    fib_conf->num_tbl8);
+			    fib_conf->max_routes);
 		}
 	}
 

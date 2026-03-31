@@ -5,8 +5,12 @@ depth = 1
 diff_files =
 	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,
-	dpdk/fib-expose-tbl8-usage-statistics.patch,
 	dpdk/fib-fix-prefix-addition-handling.patch,
+	dpdk/test-fib6-zero-initialize-config-struct.patch,
+	dpdk/fib-share-tbl8-definitions-between-fib-and-fib6.patch,
+	dpdk/fib-add-shared-tbl8-pool.patch,
+	dpdk/fib-add-resizable-tbl8-pool.patch,
+	dpdk/fib-add-tbl8-pool-stats-API.patch,
 	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
 	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch
 

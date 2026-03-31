@@ -131,7 +131,6 @@ struct gr_iface_info_port {
 // Per-AF FIB configuration.
 struct gr_iface_info_vrf_fib {
 	uint32_t max_routes; // 0 = default
-	uint32_t num_tbl8; // 0 = auto
 };
 
 // Info structure for GR_IFACE_TYPE_VRF interfaces.
@@ -454,6 +453,28 @@ struct gr_affinity_cpu_set_req {
 };
 
 // struct gr_affinity_cpu_set_resp { };
+
+// fib pool ////////////////////////////////////////////////////////////////////
+
+// Get tbl8 pool statistics.
+#define GR_FIB_POOL_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0080)
+
+// struct gr_fib_pool_stats_get_req { };
+
+struct gr_fib_pool_stats_get_resp {
+	uint32_t used; // tbl8 groups currently in use
+	uint32_t total; // total tbl8 groups (current capacity)
+	uint32_t max; // maximum tbl8 groups (resize limit)
+};
+
+// Resize the tbl8 pool to a given capacity.
+#define GR_FIB_POOL_RESIZE REQUEST_TYPE(GR_INFRA_MODULE, 0x0081)
+
+struct gr_fib_pool_resize_req {
+	uint32_t num_tbl8; // target number of tbl8 groups
+};
+
+// struct gr_fib_pool_resize_resp { };
 
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {

@@ -1,0 +1,601 @@
+From 8d641cd4d11f1c5b75b79b382164f54cecc502a0 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Tue, 31 Mar 2026 15:04:46 +0200
+Subject: [PATCH 4/5] fib: add resizable tbl8 pool
+
+Add dynamic resize support to the shared tbl8 pool. When all groups
+are in use, the pool doubles its capacity via an RCU-safe pointer
+swap.
+
+The resize mechanism:
+1. Allocate new tbl8 array (double the current size)
+2. Copy existing data
+3. Patch all registered dp->tbl8 consumer pointers via SLIST
+4. rte_rcu_qsbr_synchronize() to wait for all readers
+5. Free old tbl8 array
+
+The pool maintains a SLIST of consumer pointers (dp->tbl8) that are
+registered at FIB creation and unregistered at FIB destruction.
+
+A new fib_tbl8_pool_alloc() function replaces the per-backend
+tbl8_alloc logic: it handles get + RCU reclaim retry + resize retry +
+group initialization in one place.
+
+RCU is required for resize and is configured either:
+- Explicitly via rte_fib_tbl8_pool_rcu_qsbr_add() for external pools
+- Automatically propagated from rte_fib_rcu_qsbr_add() for internal
+  pools
+
+New public API:
+  - rte_fib_tbl8_pool_rcu_qsbr_add()
+
+New config field:
+  - rte_fib_tbl8_pool_conf.max_tbl8 (maximum capacity, 0 keeps
+  the pool fixed-size)
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+
+diff --git a/lib/fib/dir24_8.c b/lib/fib/dir24_8.c
+index b8e588a56a..3e8d8d7321 100644
+--- a/lib/fib/dir24_8.c
++++ b/lib/fib/dir24_8.c
+@@ -155,26 +155,8 @@ dir24_8_get_lookup_fn(void *p, enum rte_fib_lookup_type type, bool be_addr)
+ static int
+ tbl8_alloc(struct dir24_8_tbl *dp, uint64_t nh)
+ {
+-	int64_t	tbl8_idx;
+-	uint8_t	*tbl8_ptr;
+-
+-	tbl8_idx = fib_tbl8_pool_get(dp->pool);
+-
+-	/* If there are no tbl8 groups try to reclaim one. */
+-	if (unlikely(tbl8_idx == -ENOSPC && dp->dq &&
+-			!rte_rcu_qsbr_dq_reclaim(dp->dq, 1, NULL, NULL, NULL)))
+-		tbl8_idx = fib_tbl8_pool_get(dp->pool);
+-
+-	if (tbl8_idx < 0)
+-		return tbl8_idx;
+-	tbl8_ptr = (uint8_t *)dp->tbl8 +
+-		((tbl8_idx * FIB_TBL8_GRP_NUM_ENT) <<
+-		dp->nh_sz);
+-	/*Init tbl8 entries with nexthop from tbl24*/
+-	fib_tbl8_write((void *)tbl8_ptr, nh|
+-		DIR24_8_EXT_ENT, dp->nh_sz,
+-		FIB_TBL8_GRP_NUM_ENT);
+-	return tbl8_idx;
++	return fib_tbl8_pool_alloc(dp->pool, nh | DIR24_8_EXT_ENT,
++		dp->dq);
+ }
+ 
+ static void
+@@ -436,7 +418,9 @@ dir24_8_modify(struct rte_fib *fib, uint32_t ip, uint8_t depth,
+ 			tmp = rte_rib_get_nxt(rib, ip, 24, NULL,
+ 				RTE_RIB_GET_NXT_COVER);
+ 			if ((tmp == NULL) &&
+-				(dp->rsvd_tbl8s >= dp->pool->num_tbl8s))
++				(dp->rsvd_tbl8s >= (dp->pool->max_tbl8s ?
++					dp->pool->max_tbl8s :
++					dp->pool->num_tbl8s)))
+ 				return -ENOSPC;
+ 
+ 		}
+@@ -549,6 +533,13 @@ dir24_8_create(const char *name, int socket_id, struct rte_fib_conf *fib_conf)
+ 	dp->def_nh = def_nh;
+ 	dp->nh_sz = nh_sz;
+ 
++	if (fib_tbl8_pool_register(pool, &dp->tbl8) != 0) {
++		rte_errno = ENOMEM;
++		fib_tbl8_pool_unref(pool);
++		rte_free(dp);
++		return NULL;
++	}
++
+ 	/* Init table with default value */
+ 	fib_tbl8_write(dp->tbl24, (def_nh << 1), nh_sz, 1 << 24);
+ 
+@@ -560,6 +551,7 @@ dir24_8_free(void *p)
+ {
+ 	struct dir24_8_tbl *dp = (struct dir24_8_tbl *)p;
+ 
++	fib_tbl8_pool_unregister(dp->pool, &dp->tbl8);
+ 	rte_rcu_qsbr_dq_delete(dp->dq);
+ 	fib_tbl8_pool_unref(dp->pool);
+ 	rte_free(dp);
+@@ -578,6 +570,21 @@ dir24_8_rcu_qsbr_add(struct dir24_8_tbl *dp, struct rte_fib_rcu_config *cfg,
+ 	if (dp->v != NULL)
+ 		return -EEXIST;
+ 
++	/* Propagate RCU to the pool for resize if it is resizable */
++	if (dp->pool->max_tbl8s > 0) {
++		if (dp->pool->v != NULL && dp->pool->v != cfg->v)
++			return -EINVAL;
++		if (dp->pool->v == NULL) {
++			struct rte_fib_tbl8_pool_rcu_config pool_rcu = {
++				.v = cfg->v,
++			};
++			int rc = rte_fib_tbl8_pool_rcu_qsbr_add(
++				dp->pool, &pool_rcu);
++			if (rc != 0)
++				return rc;
++		}
++	}
++
+ 	if (cfg->mode == RTE_FIB_QSBR_MODE_SYNC) {
+ 		/* No other things to do. */
+ 	} else if (cfg->mode == RTE_FIB_QSBR_MODE_DQ) {
+diff --git a/lib/fib/fib_tbl8_pool.c b/lib/fib/fib_tbl8_pool.c
+index 5f8ba74219..722155b46d 100644
+--- a/lib/fib/fib_tbl8_pool.c
++++ b/lib/fib/fib_tbl8_pool.c
+@@ -2,14 +2,18 @@
+  * Copyright(c) 2026 Maxime Leroy, Free Mobile
+  */
+ 
++#include <stdatomic.h>
+ #include <stdint.h>
++#include <stdlib.h>
+ #include <string.h>
+ 
+ #include <eal_export.h>
++#include <rte_branch_prediction.h>
+ #include <rte_debug.h>
+ #include <rte_errno.h>
+ #include <rte_malloc.h>
+ 
++#include "fib_log.h"
+ #include "fib_tbl8_pool.h"
+ 
+ static void
+@@ -62,6 +66,151 @@ fib_tbl8_pool_rcu_free_cb(void *p, void *data,
+ 	fib_tbl8_pool_cleanup_and_free(pool, tbl8_idx);
+ }
+ 
++RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_fib_tbl8_pool_resize, 26.07)
++int
++rte_fib_tbl8_pool_resize(struct rte_fib_tbl8_pool *pool,
++			 uint32_t new_num_tbl8)
++{
++	uint32_t new_num, old_num;
++	uint64_t *new_tbl8;
++	uint32_t *new_fl;
++	char mem_name[64];
++	struct fib_tbl8_consumer *c;
++
++	if (pool == NULL)
++		return -EINVAL;
++	if (pool->v == NULL)
++		return -EINVAL;
++
++	old_num = pool->num_tbl8s;
++	new_num = new_num_tbl8;
++	if (pool->max_tbl8s != 0 && new_num > pool->max_tbl8s)
++		new_num = pool->max_tbl8s;
++	if (new_num <= old_num)
++		return -ENOSPC;
++
++	FIB_LOG(INFO, "Resizing tbl8 pool from %u to %u groups",
++		old_num, new_num);
++
++	snprintf(mem_name, sizeof(mem_name), "TBL8_RS_%u", new_num);
++	new_tbl8 = rte_zmalloc_socket(mem_name,
++		FIB_TBL8_GRP_NUM_ENT * (1ULL << pool->nh_sz) * (new_num + 1),
++		RTE_CACHE_LINE_SIZE, pool->socket_id);
++	if (new_tbl8 == NULL)
++		return -ENOMEM;
++
++	snprintf(mem_name, sizeof(mem_name), "TBL8_FL_RS_%u", new_num);
++	new_fl = rte_zmalloc_socket(mem_name,
++		sizeof(uint32_t) * new_num,
++		RTE_CACHE_LINE_SIZE, pool->socket_id);
++	if (new_fl == NULL) {
++		rte_free(new_tbl8);
++		return -ENOMEM;
++	}
++
++	/* Copy existing tbl8 data */
++	memcpy(new_tbl8, pool->tbl8,
++		FIB_TBL8_GRP_NUM_ENT * (1ULL << pool->nh_sz) * (old_num + 1));
++
++	/*
++	 * Rebuild the free list: copy the existing in-use portion,
++	 * then append new indices at the top.
++	 */
++	memcpy(new_fl, pool->free_list, sizeof(uint32_t) * old_num);
++	uint32_t i;
++	for (i = old_num; i < new_num; i++)
++		new_fl[i] = i;
++
++	uint64_t *old_tbl8 = pool->tbl8;
++	uint32_t *old_fl = pool->free_list;
++
++	pool->free_list = new_fl;
++	pool->num_tbl8s = new_num;
++
++	/*
++	 * Ensure copied tbl8 contents are visible before publishing
++	 * the new pointer on weakly ordered architectures.
++	 */
++	atomic_thread_fence(memory_order_release);
++
++	pool->tbl8 = new_tbl8;
++
++	/* Update all registered consumer tbl8 pointers */
++	SLIST_FOREACH(c, &pool->consumers, next)
++		*c->tbl8_ptr = new_tbl8;
++
++	/*
++	 * If RCU is configured, readers may still be accessing old_tbl8.
++	 * Synchronize before freeing.
++	 */
++	if (pool->v != NULL)
++		rte_rcu_qsbr_synchronize(pool->v, RTE_QSBR_THRID_INVALID);
++
++	rte_free(old_tbl8);
++	rte_free(old_fl);
++
++	return 0;
++}
++
++int
++fib_tbl8_pool_alloc(struct rte_fib_tbl8_pool *pool, uint64_t nh,
++		    struct rte_rcu_qsbr_dq *dq)
++{
++	int32_t tbl8_idx;
++	uint8_t *tbl8_ptr;
++
++	tbl8_idx = fib_tbl8_pool_get(pool);
++
++	/* If there are no tbl8 groups try to reclaim one. */
++	if (unlikely(tbl8_idx == -ENOSPC && dq &&
++			!rte_rcu_qsbr_dq_reclaim(dq, 1, NULL, NULL, NULL)))
++		tbl8_idx = fib_tbl8_pool_get(pool);
++
++	/* Still full -- try to grow the pool */
++	if (unlikely(tbl8_idx == -ENOSPC &&
++			rte_fib_tbl8_pool_resize(pool, pool->num_tbl8s * 2) == 0))
++		tbl8_idx = fib_tbl8_pool_get(pool);
++
++	if (tbl8_idx < 0)
++		return tbl8_idx;
++
++	tbl8_ptr = (uint8_t *)pool->tbl8 +
++		((tbl8_idx * FIB_TBL8_GRP_NUM_ENT) << pool->nh_sz);
++	/* Init tbl8 entries with nexthop */
++	fib_tbl8_write((void *)tbl8_ptr, nh, pool->nh_sz,
++		       FIB_TBL8_GRP_NUM_ENT);
++	return tbl8_idx;
++}
++
++int
++fib_tbl8_pool_register(struct rte_fib_tbl8_pool *pool, uint64_t **tbl8_ptr)
++{
++	struct fib_tbl8_consumer *c;
++
++	c = calloc(1, sizeof(*c));
++	if (c == NULL)
++		return -ENOMEM;
++
++	c->tbl8_ptr = tbl8_ptr;
++	SLIST_INSERT_HEAD(&pool->consumers, c, next);
++	return 0;
++}
++
++void
++fib_tbl8_pool_unregister(struct rte_fib_tbl8_pool *pool, uint64_t **tbl8_ptr)
++{
++	struct fib_tbl8_consumer *c;
++
++	SLIST_FOREACH(c, &pool->consumers, next) {
++		if (c->tbl8_ptr == tbl8_ptr) {
++			SLIST_REMOVE(&pool->consumers, c,
++				fib_tbl8_consumer, next);
++			free(c);
++			return;
++		}
++	}
++}
++
+ void
+ fib_tbl8_pool_ref(struct rte_fib_tbl8_pool *pool)
+ {
+@@ -71,6 +220,7 @@ fib_tbl8_pool_ref(struct rte_fib_tbl8_pool *pool)
+ static void
+ pool_free(struct rte_fib_tbl8_pool *pool)
+ {
++	RTE_ASSERT(SLIST_EMPTY(&pool->consumers));
+ 	rte_free(pool->free_list);
+ 	rte_free(pool->tbl8);
+ 	rte_free(pool);
+@@ -92,7 +242,9 @@ rte_fib_tbl8_pool_create(const char *name,
+ 	char mem_name[64];
+ 
+ 	if (name == NULL || conf == NULL || conf->num_tbl8 == 0 ||
+-	    conf->nh_sz > 3) {
++	    conf->nh_sz > 3 ||
++	    (conf->max_tbl8 != 0 &&
++	     conf->max_tbl8 < conf->num_tbl8)) {
+ 		rte_errno = EINVAL;
+ 		return NULL;
+ 	}
+@@ -107,8 +259,10 @@ rte_fib_tbl8_pool_create(const char *name,
+ 
+ 	pool->nh_sz = conf->nh_sz;
+ 	pool->num_tbl8s = conf->num_tbl8;
++	pool->max_tbl8s = conf->max_tbl8;
+ 	pool->socket_id = conf->socket_id;
+ 	pool->refcnt = 1;
++	SLIST_INIT(&pool->consumers);
+ 
+ 	snprintf(mem_name, sizeof(mem_name), "TBL8_%s", name);
+ 	pool->tbl8 = rte_zmalloc_socket(mem_name,
+@@ -146,3 +300,21 @@ rte_fib_tbl8_pool_free(struct rte_fib_tbl8_pool *pool)
+ 
+ 	fib_tbl8_pool_unref(pool);
+ }
++
++RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_fib_tbl8_pool_rcu_qsbr_add, 26.07)
++int
++rte_fib_tbl8_pool_rcu_qsbr_add(struct rte_fib_tbl8_pool *pool,
++			       const struct rte_fib_tbl8_pool_rcu_config *cfg)
++{
++	if (pool == NULL || cfg == NULL || cfg->v == NULL)
++		return -EINVAL;
++
++	if (pool->v != NULL)
++		return -EEXIST;
++
++	if (pool->max_tbl8s == 0)
++		return -ENOTSUP;
++
++	pool->v = cfg->v;
++	return 0;
++}
+diff --git a/lib/fib/fib_tbl8_pool.h b/lib/fib/fib_tbl8_pool.h
+index 285f06d87f..edd0aedf0f 100644
+--- a/lib/fib/fib_tbl8_pool.h
++++ b/lib/fib/fib_tbl8_pool.h
+@@ -17,19 +17,30 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
++#include <sys/queue.h>
++
+ #include <rte_common.h>
+ 
+ #include "fib_tbl8.h"
+ #include "rte_fib_tbl8_pool.h"
+ 
++/** Consumer entry -- tracks each FIB's tbl8 pointer for resize updates. */
++struct fib_tbl8_consumer {
++	SLIST_ENTRY(fib_tbl8_consumer) next;
++	uint64_t **tbl8_ptr;	/**< Points to the FIB's dp->tbl8 field */
++};
++
+ struct rte_fib_tbl8_pool {
+ 	uint64_t	*tbl8;		/**< tbl8 group array */
+ 	uint32_t	*free_list;	/**< Stack of free group indices */
+ 	uint32_t	cur_tbl8s;	/**< Number of allocated groups */
+-	uint32_t	num_tbl8s;	/**< Total number of tbl8 groups */
++	uint32_t	num_tbl8s;	/**< Current capacity */
++	uint32_t	max_tbl8s;	/**< Maximum capacity (0 = fixed) */
+ 	uint8_t		nh_sz;		/**< Nexthop entry size (0-3) */
+ 	int		socket_id;
+ 	uint32_t	refcnt;		/**< Reference count */
++	struct rte_rcu_qsbr *v;		/**< RCU QSBR variable (for resize) */
++	SLIST_HEAD(, fib_tbl8_consumer) consumers; /**< Registered FIBs */
+ };
+ 
+ /**
+@@ -71,4 +82,32 @@ fib_tbl8_pool_ref(struct rte_fib_tbl8_pool *pool);
+ void
+ fib_tbl8_pool_unref(struct rte_fib_tbl8_pool *pool);
+ 
++/**
++ * Allocate a tbl8 group, resizing the pool if needed.
++ *
++ * Tries fib_tbl8_pool_get() first; on ENOSPC, tries RCU reclaim via @p dq,
++ * then attempts fib_tbl8_pool_resize().  Initialises the group with @p nh.
++ *
++ * @return group index on success, negative errno on failure.
++ */
++int
++fib_tbl8_pool_alloc(struct rte_fib_tbl8_pool *pool, uint64_t nh,
++		    struct rte_rcu_qsbr_dq *dq);
++
++/**
++ * Register a FIB consumer so its tbl8 pointer is updated on resize.
++ *
++ * @param pool   Pool handle.
++ * @param tbl8_ptr  Address of the consumer's tbl8 pointer (e.g. &dp->tbl8).
++ * @return 0 on success, negative errno on failure.
++ */
++int
++fib_tbl8_pool_register(struct rte_fib_tbl8_pool *pool, uint64_t **tbl8_ptr);
++
++/**
++ * Unregister a FIB consumer.
++ */
++void
++fib_tbl8_pool_unregister(struct rte_fib_tbl8_pool *pool, uint64_t **tbl8_ptr);
++
+ #endif /* _FIB_TBL8_POOL_H_ */
+diff --git a/lib/fib/rte_fib_tbl8_pool.h b/lib/fib/rte_fib_tbl8_pool.h
+index e362efe74b..d37ddedff3 100644
+--- a/lib/fib/rte_fib_tbl8_pool.h
++++ b/lib/fib/rte_fib_tbl8_pool.h
+@@ -21,6 +21,12 @@
+  *    rte_fib_tbl8_pool_free(). The pool is freed when the last
+  *    reference is dropped.
+  *
++ * Resizing: if max_tbl8 is set in the pool configuration, the pool
++ * can grow on demand up to that limit. This requires an RCU QSBR
++ * variable (rte_fib_tbl8_pool_rcu_qsbr_add). When max_tbl8 is 0
++ * (default), the pool has a fixed capacity and no RCU is needed
++ * for pool operation.
++ *
+  * Thread safety: none. The pool is not thread-safe. All operations
+  * on FIBs sharing the same pool (route updates, FIB creation and
+  * destruction, pool create/free) must be serialized by the caller.
+@@ -28,6 +34,8 @@
+ 
+ #include <stdint.h>
+ 
++#include <rte_rcu_qsbr.h>
++
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+@@ -36,11 +44,17 @@ struct rte_fib_tbl8_pool;
+ 
+ /** tbl8 pool configuration */
+ struct rte_fib_tbl8_pool_conf {
+-	uint32_t num_tbl8;	/**< Number of tbl8 groups */
++	uint32_t num_tbl8;	/**< Initial number of tbl8 groups */
++	uint32_t max_tbl8;	/**< Max tbl8 groups (0 = fixed, no resize) */
+ 	uint8_t  nh_sz;		/**< Nexthop size: 0=1B, 1=2B, 2=4B, 3=8B */
+ 	int      socket_id;	/**< NUMA socket for memory allocation */
+ };
+ 
++/** RCU QSBR configuration for tbl8 pool resize. */
++struct rte_fib_tbl8_pool_rcu_config {
++	struct rte_rcu_qsbr *v;	/**< RCU QSBR variable */
++};
++
+ /**
+  * Create a tbl8 pool.
+  *
+@@ -69,6 +83,46 @@ __rte_experimental
+ void
+ rte_fib_tbl8_pool_free(struct rte_fib_tbl8_pool *pool);
+ 
++/**
++ * Associate an RCU QSBR variable with the pool.
++ *
++ * Required for resizable pools so that the old tbl8 array can be
++ * reclaimed safely after a resize.
++ *
++ * @param pool
++ *   Pool handle
++ * @param cfg
++ *   RCU configuration
++ * @return
++ *   0 on success, negative errno on failure
++ */
++__rte_experimental
++int
++rte_fib_tbl8_pool_rcu_qsbr_add(struct rte_fib_tbl8_pool *pool,
++			       const struct rte_fib_tbl8_pool_rcu_config *cfg);
++
++/**
++ * Resize the tbl8 pool to a given capacity.
++ *
++ * The new capacity must be greater than the current capacity and
++ * must not exceed max_tbl8 (if set). Requires RCU to be configured.
++ *
++ * @param pool
++ *   Pool handle
++ * @param new_num_tbl8
++ *   Target number of tbl8 groups
++ * @return
++ *   0 on success
++ *   -EINVAL if RCU is not configured (see rte_fib_tbl8_pool_rcu_qsbr_add)
++ *   -ENOSPC if pool cannot grow (at max capacity or
++ *     new_num_tbl8 <= current capacity)
++ *   -ENOMEM if memory allocation failed
++ */
++__rte_experimental
++int
++rte_fib_tbl8_pool_resize(struct rte_fib_tbl8_pool *pool,
++			 uint32_t new_num_tbl8);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/lib/fib/trie.c b/lib/fib/trie.c
+index 798d322b1e..7b9c11f81f 100644
+--- a/lib/fib/trie.c
++++ b/lib/fib/trie.c
+@@ -102,24 +102,7 @@ trie_get_lookup_fn(void *p, enum rte_fib6_lookup_type type)
+ static int
+ tbl8_alloc(struct rte_trie_tbl *dp, uint64_t nh)
+ {
+-	int64_t		tbl8_idx;
+-	uint8_t		*tbl8_ptr;
+-
+-	tbl8_idx = fib_tbl8_pool_get(dp->pool);
+-
+-	/* If there are no tbl8 groups try to reclaim one. */
+-	if (unlikely(tbl8_idx == -ENOSPC && dp->dq &&
+-			!rte_rcu_qsbr_dq_reclaim(dp->dq, 1, NULL, NULL, NULL)))
+-		tbl8_idx = fib_tbl8_pool_get(dp->pool);
+-
+-	if (tbl8_idx < 0)
+-		return tbl8_idx;
+-	tbl8_ptr = get_tbl_p_by_idx(dp->tbl8,
+-		tbl8_idx * FIB_TBL8_GRP_NUM_ENT, dp->nh_sz);
+-	/*Init tbl8 entries with nexthop from tbl24*/
+-	fib_tbl8_write((void *)tbl8_ptr, nh, dp->nh_sz,
+-		FIB_TBL8_GRP_NUM_ENT);
+-	return tbl8_idx;
++	return fib_tbl8_pool_alloc(dp->pool, nh, dp->dq);
+ }
+ 
+ static void
+@@ -531,7 +514,9 @@ trie_modify(struct rte_fib6 *fib, const struct rte_ipv6_addr *ip,
+ 			return 0;
+ 		}
+ 
+-		if ((depth > 24) && (dp->rsvd_tbl8s + depth_diff > dp->pool->num_tbl8s))
++		if ((depth > 24) && (dp->rsvd_tbl8s + depth_diff >
++				(dp->pool->max_tbl8s ? dp->pool->max_tbl8s :
++					dp->pool->num_tbl8s)))
+ 			return -ENOSPC;
+ 
+ 		node = rte_rib6_insert(rib, &ip_masked, depth);
+@@ -643,6 +628,13 @@ trie_create(const char *name, int socket_id,
+ 	dp->pool = pool;
+ 	dp->tbl8 = pool->tbl8;
+ 
++	if (fib_tbl8_pool_register(pool, &dp->tbl8) != 0) {
++		rte_errno = ENOMEM;
++		fib_tbl8_pool_unref(pool);
++		rte_free(dp);
++		return NULL;
++	}
++
+ 	fib_tbl8_write(&dp->tbl24, (def_nh << 1), nh_sz, 1 << 24);
+ 
+ 	return dp;
+@@ -653,6 +645,7 @@ trie_free(void *p)
+ {
+ 	struct rte_trie_tbl *dp = (struct rte_trie_tbl *)p;
+ 
++	fib_tbl8_pool_unregister(dp->pool, &dp->tbl8);
+ 	rte_rcu_qsbr_dq_delete(dp->dq);
+ 	fib_tbl8_pool_unref(dp->pool);
+ 	rte_free(dp);
+@@ -671,6 +664,21 @@ trie_rcu_qsbr_add(struct rte_trie_tbl *dp, struct rte_fib6_rcu_config *cfg,
+ 	if (dp->v != NULL)
+ 		return -EEXIST;
+ 
++	/* Propagate RCU to the pool for resize if it is resizable */
++	if (dp->pool->max_tbl8s > 0) {
++		if (dp->pool->v != NULL && dp->pool->v != cfg->v)
++			return -EINVAL;
++		if (dp->pool->v == NULL) {
++			struct rte_fib_tbl8_pool_rcu_config pool_rcu = {
++				.v = cfg->v,
++			};
++			int rc = rte_fib_tbl8_pool_rcu_qsbr_add(
++				dp->pool, &pool_rcu);
++			if (rc != 0)
++				return rc;
++		}
++	}
++
+ 	switch (cfg->mode) {
+ 	case RTE_FIB6_QSBR_MODE_DQ:
+ 		/* Init QSBR defer queue. */
+-- 
+2.43.0
+
