@@ -261,7 +261,7 @@ done
 # -- Check RMAC is set on route nexthops and uses L3 VNI ----------------------
 rmac=$(ip netns exec evpn-peer cat /sys/class/net/vni-l3/address)
 
-wait_event "nh new: type=L3 id=[0-9]+ iface=vni-l3 vrf=tenant origin=zebra family=ipv4 addr=172.16.0.1 state=reachable mac=$rmac"
+wait_event "nh update: type=L3 id=[0-9]+ iface=vni-l3 vrf=tenant origin=zebra family=ipv4 addr=172.16.0.1 state=reachable mac=$rmac"
 
 # -- Verify L3 connectivity through L3 VNI VXLAN overlay ----------------------
 ip netns exec host-b ping -i0.1 -c3 -W1 16.0.0.2
