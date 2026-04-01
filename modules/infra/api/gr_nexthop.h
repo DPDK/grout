@@ -26,6 +26,7 @@ typedef enum : uint8_t {
 	GR_NH_F_LINK = GR_BIT8(3), // Connected link route.
 	GR_NH_F_MCAST = GR_BIT8(4), // Multicast address.
 	GR_NH_F_REMOTE = GR_BIT8(5), // Remote VTEP nexthop (EVPN).
+	GR_NH_F_NEIGH = GR_BIT8(6), // Learned from ARP/NDP traffic.
 } gr_nh_flags_t;
 
 // Nexthop types for different forwarding behaviors.
@@ -46,7 +47,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_UNSPEC = 0, // (NH_ORIGIN_UNSPEC).
 	GR_NH_ORIGIN_REDIRECT = 1, // Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
 	GR_NH_ORIGIN_LINK = 2, // For local addresses, no ID allocation (NH_ORIGIN_KERNEL).
-	GR_NH_ORIGIN_BOOT = 3, // Installed at boot?? (NH_ORIGIN_BOOT).
+	GR_NH_ORIGIN_LEARN = 3, // Learned from ARP/NDP traffic (NH_ORIGIN_BOOT).
 	GR_NH_ORIGIN_STATIC = 4, // Installed explicitly by user (NH_ORIGIN_STATIC).
 	// Values 5 to 254 are allowed and are used by routing daemons.
 	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
@@ -179,6 +180,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "multicast";
 	case GR_NH_F_REMOTE:
 		return "remote";
+	case GR_NH_F_NEIGH:
+		return "neigh";
 	}
 	return "?";
 }
@@ -213,8 +216,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "redirect";
 	case GR_NH_ORIGIN_LINK:
 		return "link";
-	case GR_NH_ORIGIN_BOOT:
-		return "boot";
+	case GR_NH_ORIGIN_LEARN:
+		return "learn";
 	case GR_NH_ORIGIN_STATIC:
 		return "static";
 	case GR_NH_ORIGIN_GATED:

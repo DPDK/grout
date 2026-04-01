@@ -71,13 +71,14 @@ static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 			remote = nexthop_new(
 				&(struct gr_nexthop_base) {
 					.type = GR_NH_T_L3,
-					.origin = GR_NH_ORIGIN_INTERNAL,
+					.origin = GR_NH_ORIGIN_LEARN,
 					.vrf_id = nh->vrf_id,
 					.iface_id = nh->iface_id,
 				},
 				&(struct gr_nexthop_info_l3) {
 					.af = GR_AF_IP4,
 					.ipv4 = dst,
+					.flags = GR_NH_F_NEIGH,
 				}
 			);
 			if (remote == NULL) {
@@ -149,13 +150,14 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		nh = nexthop_new(
 			&(struct gr_nexthop_base) {
 				.type = GR_NH_T_L3,
-				.origin = GR_NH_ORIGIN_INTERNAL,
+				.origin = GR_NH_ORIGIN_LEARN,
 				.iface_id = iface->id,
 				.vrf_id = iface->vrf_id,
 			},
 			&(struct gr_nexthop_info_l3) {
 				.af = GR_AF_IP4,
 				.ipv4 = sip,
+				.flags = GR_NH_F_NEIGH,
 			}
 		);
 		if (nh == NULL) {

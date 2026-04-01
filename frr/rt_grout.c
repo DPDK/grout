@@ -159,7 +159,7 @@ static inline int origin2zebra(gr_nh_origin_t origin, int family, bool is_nextho
 	case GR_NH_ORIGIN_UNSPEC:
 	case GR_NH_ORIGIN_REDIRECT:
 	case GR_NH_ORIGIN_LINK:
-	case GR_NH_ORIGIN_BOOT:
+	case GR_NH_ORIGIN_LEARN:
 	case GR_NH_ORIGIN_GATED:
 	case GR_NH_ORIGIN_RA:
 	case GR_NH_ORIGIN_MRT:
@@ -956,11 +956,19 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
-	gr_log_debug("%s nh_id %u", new ? "add" : "del", gr_nh->nh_id);
+	gr_log_debug(
+		"%s nh_id %u origin %s",
+		new ? "add" : "del",
+		gr_nh->nh_id,
+		gr_nh_origin_name(gr_nh->origin)
+	);
 
-	// XXX: grout is optional to have an ID for nexthop
-	// but in FRR, it's mandatory
+	if (gr_nh->origin == GR_NH_ORIGIN_LEARN) {
+		gr_log_debug("dynamic neighbor learn, skip");
+		return;
+	}
 	if (gr_nh->nh_id == 0) {
+		// Nexthop IDs are optional in grout, but mandatory in FRR.
 		gr_log_debug("nexthop without ID, skip");
 		return;
 	}
