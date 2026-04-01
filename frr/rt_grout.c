@@ -828,12 +828,64 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	return grout_add_nexthop(nh_id, origin, dplane_ctx_get_nhe_ng(ctx)->nexthop);
 }
 
+static void grout_neigh_notify(bool new, struct gr_nexthop *gr_nh) {
+	const struct gr_nexthop_info_l3 *l3;
+	static const struct ethaddr zero_mac = {};
+	struct zebra_dplane_ctx *ctx;
+	struct ethaddr mac;
+	struct ipaddr ip;
+
+	if (gr_nh->type != GR_NH_T_L3)
+		return;
+
+	l3 = (const struct gr_nexthop_info_l3 *)gr_nh->info;
+
+	if (l3->af != GR_AF_IP4 && l3->af != GR_AF_IP6)
+		return;
+	if (l3->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_MCAST | GR_NH_F_REMOTE))
+		return;
+	if (new && memcmp(&l3->mac, &zero_mac, sizeof(zero_mac)) == 0)
+		return;
+
+	memset(&ip, 0, sizeof(ip));
+	if (l3->af == GR_AF_IP4) {
+		ip.ipa_type = IPADDR_V4;
+		memcpy(&ip.ipaddr_v4, &l3->ipv4, sizeof(ip.ipaddr_v4));
+	} else {
+		ip.ipa_type = IPADDR_V6;
+		memcpy(&ip.ipaddr_v6, &l3->ipv6, sizeof(ip.ipaddr_v6));
+	}
+	memcpy(&mac, &l3->mac, sizeof(mac));
+
+	gr_log_debug(
+		"%s neigh iface=%u %pIA %pEA", new ? "add" : "del", gr_nh->iface_id, &ip, &mac
+	);
+
+	ctx = dplane_ctx_alloc();
+	dplane_ctx_set_op(ctx, new ? DPLANE_OP_NEIGH_INSTALL : DPLANE_OP_NEIGH_DELETE);
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(gr_nh->iface_id));
+	dplane_ctx_neigh_set_ipaddr(ctx, &ip);
+	dplane_ctx_neigh_set_mac(ctx, &mac);
+	dplane_ctx_neigh_set_ndm_state(ctx, NUD_REACHABLE);
+	dplane_ctx_neigh_set_ndm_family(ctx, l3->af == GR_AF_IP4 ? AF_INET : AF_INET6);
+	dplane_ctx_neigh_set_l2_len(ctx, ETH_ALEN);
+	dplane_ctx_neigh_set_is_ext(ctx, false);
+	dplane_ctx_neigh_set_is_router(ctx, false);
+	dplane_ctx_neigh_set_dp_static(ctx, false);
+	dplane_ctx_neigh_set_local_inactive(ctx, false);
+
+	dplane_provider_enqueue_to_zebra(ctx);
+}
+
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	struct nexthop *nh = NULL;
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
 	gr_log_debug("%s nh_id %u", new ? "add" : "del", gr_nh->nh_id);
+
+	grout_neigh_notify(new, gr_nh);
 
 	// XXX: grout is optional to have an ID for nexthop
 	// but in FRR, it's mandatory
