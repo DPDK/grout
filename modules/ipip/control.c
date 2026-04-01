@@ -70,8 +70,11 @@ static int iface_ipip_reconfig(
 
 		rte_hash_del_key(ipip_hash, &cur_key);
 
-		if ((ret = rte_hash_add_key_data(ipip_hash, &next_key, iface)) < 0)
+		if ((ret = rte_hash_add_key_data(ipip_hash, &next_key, iface)) < 0) {
+			if (cur->local != 0 && cur->remote != 0)
+				rte_hash_add_key_data(ipip_hash, &cur_key, iface);
 			return errno_log(-ret, "rte_hash_add_key_data");
+		}
 
 		cur->local = next->local;
 		cur->remote = next->remote;
