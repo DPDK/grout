@@ -15,8 +15,9 @@
 
 // Bridge configuration flags.
 typedef enum : uint16_t {
-	GR_BRIDGE_F_NO_FLOOD = GR_BIT16(0),
-	GR_BRIDGE_F_NO_LEARN = GR_BIT16(1),
+	GR_BRIDGE_F_FLOOD = GR_BIT16(0), // Flood BUM traffic.
+	GR_BRIDGE_F_LEARN = GR_BIT16(1), // Dynamic MAC learning in FDB.
+#define GR_BRIDGE_F_VALID (GR_BRIDGE_F_FLOOD | GR_BRIDGE_F_LEARN)
 } gr_bridge_flags_t;
 
 #define GR_BRIDGE_MAX_MEMBERS 64
