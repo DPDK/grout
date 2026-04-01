@@ -70,7 +70,7 @@ static int dnat44_nh_import_info(struct nexthop *nh, const void *info) {
 			},
 			&(struct gr_nexthop_info_l3) {
 				.af = GR_AF_IP4,
-				.flags = GR_NH_F_STATIC | GR_NH_F_LOCAL,
+				.flags = GR_NH_F_LOCAL,
 				.ipv4 = pub->match,
 			}
 		);

@@ -235,7 +235,7 @@ static int l3_import_info(struct nexthop *nh, const void *info) {
 		if (pub->ipv4 || !rte_ipv6_addr_is_unspec(&pub->ipv6))
 			return errno_set(EINVAL);
 
-		priv.flags |= GR_NH_F_LINK | GR_NH_F_STATIC;
+		priv.flags |= GR_NH_F_LINK;
 		break;
 	default:
 		return errno_set(ENOPROTOOPT);
@@ -247,7 +247,6 @@ static int l3_import_info(struct nexthop *nh, const void *info) {
 
 		priv.mac = pub->mac;
 		priv.state = GR_NH_S_REACHABLE;
-		priv.flags |= GR_NH_F_STATIC;
 	}
 
 	// Check that the new address isn't already in use by a different nexthop
@@ -311,7 +310,8 @@ static struct nexthop_type_ops l3_nh_ops = {
 	.to_api = l3_to_api,
 };
 
-static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
+static void l3_age(struct nexthop *nh) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 	const struct nexthop_af_ops *ops;
 	gr_clock_ns_t now = gr_clock_ns();
 	unsigned probes, max_probes;
@@ -360,18 +360,15 @@ static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	struct nexthop_info_l3 *l3;
+	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
 
 	while (rte_hash_iterate(l3_hash, &key, &data, &next) >= 0) {
-		l3 = nexthop_info_l3(data);
-
-		if (l3->flags & GR_NH_F_STATIC)
-			continue;
-
-		l3_age(data, l3);
+		nh = data;
+		if (nh->origin == GR_NH_ORIGIN_LEARN)
+			l3_age(nh);
 	}
 }
 

@@ -100,8 +100,8 @@ static void nexthop_id_put(struct nexthop *nh) {
 static int nexthop_id_get(struct nexthop *nh) {
 	int ret;
 
-	// no id for internal, as we should not let user manipulate it
-	if (nh->origin == GR_NH_ORIGIN_INTERNAL) {
+	// No ID for internal/learned, as we should not let user manipulate them
+	if (nh->origin == GR_NH_ORIGIN_INTERNAL || nh->origin == GR_NH_ORIGIN_LEARN) {
 		nh->nh_id = 0;
 		return 0;
 	}
@@ -246,7 +246,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_UNSPEC:
 	case GR_NH_ORIGIN_REDIRECT:
 	case GR_NH_ORIGIN_LINK:
-	case GR_NH_ORIGIN_BOOT:
+	case GR_NH_ORIGIN_LEARN:
 	case GR_NH_ORIGIN_STATIC:
 	case GR_NH_ORIGIN_GATED:
 	case GR_NH_ORIGIN_RA:

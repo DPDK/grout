@@ -115,7 +115,7 @@ static struct api_out srv6_tunsrc_set(const void *request, struct api_ctx *ctx) 
 	};
 	struct gr_nexthop_info_l3 l3 = {
 		.af = GR_AF_IP6,
-		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC,
+		.flags = GR_NH_F_LOCAL | GR_NH_F_LINK,
 		.state = GR_NH_S_REACHABLE,
 		.ipv6 = req->addr,
 		.prefixlen = 128,
