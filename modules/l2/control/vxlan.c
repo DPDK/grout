@@ -49,76 +49,96 @@ static int iface_vxlan_reconfig(
 	struct iface_info_vxlan *cur = iface_info_vxlan(iface);
 	const struct vxlan_key cur_key = {rte_cpu_to_be_32(cur->vni), cur->encap_vrf_id};
 	const struct gr_iface_info_vxlan *next = api_info;
-	int ret;
+	struct gr_iface_info_vxlan prev = cur->base;
+	uint64_t conf_done = 0;
+	int ret = 0;
 
 	if (set_attrs & GR_VXLAN_SET_ENCAP_VRF) {
 		uint16_t vrf = next->encap_vrf_id;
-		uint16_t old = cur->encap_vrf_id;
 
 		if (vrf == GR_VRF_ID_UNDEF)
 			vrf = vrf_default_get_or_create();
 
-		if (vrf != old && vrf_incref(vrf) < 0)
-			return -errno;
+		if (vrf != cur->encap_vrf_id) {
+			if (vrf_incref(vrf) < 0)
+				goto err;
 
-		if (old != GR_VRF_ID_UNDEF)
-			vrf_decref(old);
-
-		cur->encap_vrf_id = vrf;
+			cur->encap_vrf_id = vrf;
+			conf_done |= GR_VXLAN_SET_ENCAP_VRF;
+		}
 	}
 
 	if (set_attrs & (GR_VXLAN_SET_VNI | GR_VXLAN_SET_ENCAP_VRF)) {
 		const struct vxlan_key next_key = {rte_cpu_to_be_32(next->vni), cur->encap_vrf_id};
 
-		if (rte_hash_lookup(vxlan_hash, &next_key) >= 0)
-			return errno_set(EADDRINUSE);
+		if (memcmp(&next_key, &cur_key, sizeof(next_key)) != 0) {
+			if (rte_hash_lookup(vxlan_hash, &next_key) >= 0) {
+				errno = EADDRINUSE;
+				goto err;
+			}
 
-		if (next->vni == 0 || next->vni > 0xffffff)
-			return errno_set(ERANGE);
+			if (next->vni == 0 || next->vni > 0xffffff) {
+				errno = ERANGE;
+				goto err;
+			}
 
-		rte_hash_del_key(vxlan_hash, &cur_key);
+			rte_hash_del_key(vxlan_hash, &cur_key);
 
-		ret = rte_hash_add_key_data(vxlan_hash, &next_key, iface);
-		if (ret < 0)
-			return errno_log(-ret, "rte_hash_add_key_data");
+			ret = rte_hash_add_key_data(vxlan_hash, &next_key, iface);
+			if (ret < 0) {
+				if (cur_key.vrf_id != GR_VRF_ID_UNDEF && cur_key.vni != 0)
+					rte_hash_add_key_data(vxlan_hash, &cur_key, iface);
+				errno = -ret;
+				goto err;
+			}
 
-		cur->vni = next->vni;
+			cur->vni = next->vni;
+			conf_done |= GR_VXLAN_SET_VNI;
+		}
 	}
 
 	if (set_attrs & GR_VXLAN_SET_DST_PORT) {
 		uint16_t port = next->dst_port ?: RTE_VXLAN_DEFAULT_PORT;
-		if (cur->dst_port != 0 && cur->dst_port != RTE_VXLAN_DEFAULT_PORT
-		    && port != cur->dst_port) {
-			l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(cur->dst_port));
+		if (port != cur->dst_port) {
+			if (cur->dst_port != 0 && cur->dst_port != RTE_VXLAN_DEFAULT_PORT) {
+				l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(cur->dst_port));
+			}
+			if (port != RTE_VXLAN_DEFAULT_PORT) {
+				l4_input_alias_port(
+					IPPROTO_UDP,
+					RTE_BE16(RTE_VXLAN_DEFAULT_PORT),
+					rte_cpu_to_be_16(port)
+				);
+			}
+			cur->dst_port = port;
+			conf_done |= GR_VXLAN_SET_DST_PORT;
 		}
-		if (port != RTE_VXLAN_DEFAULT_PORT && port != cur->dst_port) {
-			l4_input_alias_port(
-				IPPROTO_UDP,
-				RTE_BE16(RTE_VXLAN_DEFAULT_PORT),
-				rte_cpu_to_be_16(port)
-			);
-		}
-		cur->dst_port = port;
 	}
 
 	if (set_attrs & (GR_VXLAN_SET_LOCAL | GR_VXLAN_SET_ENCAP_VRF)) {
 		ip4_addr_t local = (set_attrs & GR_VXLAN_SET_LOCAL) ? next->local : cur->local;
 		const struct nexthop *nh = rib4_lookup(cur->encap_vrf_id, local);
 		if (nh == NULL)
-			return -errno;
-		if (nh->type != GR_NH_T_L3)
-			return errno_set(EPROTOTYPE);
+			goto err;
+		if (nh->type != GR_NH_T_L3) {
+			errno = EPROTOTYPE;
+			goto err;
+		}
 
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if (!(l3->flags & GR_NH_F_LOCAL))
-			return errno_set(EPROTOTYPE);
+		if (!(l3->flags & GR_NH_F_LOCAL)) {
+			errno = EPROTOTYPE;
+			goto err;
+		}
 
 		cur->local = local;
+		conf_done |= GR_VXLAN_SET_LOCAL;
 	}
 
 	if (set_attrs & GR_VXLAN_SET_MAC) {
 		if (iface_set_eth_addr(iface, &next->mac) < 0)
-			return -errno;
+			goto err;
+		conf_done |= GR_VXLAN_SET_MAC;
 	}
 
 	// Update the datapath template from the current config.
@@ -130,7 +150,44 @@ static int iface_vxlan_reconfig(
 	cur->template.vxlan.vx_flags = VXLAN_FLAGS_VNI;
 	cur->template.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
 
+	if (conf_done & GR_VXLAN_SET_ENCAP_VRF)
+		vrf_decref(prev.encap_vrf_id);
+
 	return 0;
+
+err:
+	ret = errno ?: EINVAL;
+	if (conf_done & GR_VXLAN_SET_MAC) {
+		iface_set_eth_addr(iface, &prev.mac);
+	}
+	if (conf_done & GR_VXLAN_SET_LOCAL) {
+		cur->local = prev.local;
+	}
+	if (conf_done & GR_VXLAN_SET_DST_PORT) {
+		if (prev.dst_port != RTE_VXLAN_DEFAULT_PORT)
+			l4_input_alias_port(
+				IPPROTO_UDP,
+				RTE_BE16(RTE_VXLAN_DEFAULT_PORT),
+				rte_cpu_to_be_16(prev.dst_port)
+			);
+		if (cur->dst_port != RTE_VXLAN_DEFAULT_PORT)
+			l4_input_unalias_port(IPPROTO_UDP, rte_cpu_to_be_16(cur->dst_port));
+
+		cur->dst_port = prev.dst_port;
+	}
+	if (conf_done & GR_VXLAN_SET_VNI) {
+		const struct vxlan_key key = {rte_cpu_to_be_32(cur->vni), cur->encap_vrf_id};
+		rte_hash_del_key(vxlan_hash, &key);
+		if (cur_key.vrf_id != GR_VRF_ID_UNDEF && cur_key.vni != 0)
+			rte_hash_add_key_data(vxlan_hash, &cur_key, iface);
+		cur->vni = prev.vni;
+	}
+	if (conf_done & GR_VXLAN_SET_ENCAP_VRF) {
+		vrf_decref(cur->encap_vrf_id);
+		cur->encap_vrf_id = prev.encap_vrf_id;
+	}
+
+	return errno_set(ret);
 }
 
 static int iface_vxlan_fini(struct iface *iface) {
