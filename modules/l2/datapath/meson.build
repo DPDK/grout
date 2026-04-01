@@ -4,6 +4,7 @@
 src += files(
   'bridge_flood.c',
   'bridge_input.c',
+  'bridge_neigh_suppress.c',
   'vxlan_flood.c',
   'vxlan_input.c',
   'vxlan_output.c',

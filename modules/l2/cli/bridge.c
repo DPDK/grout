@@ -84,6 +84,14 @@ static uint64_t parse_bridge_args(
 		bridge->flags &= ~GR_BRIDGE_F_LEARN;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
 	}
+	on_off = arg_str(p, "neigh_suppress");
+	if (on_off != NULL && strcmp(on_off, "on") == 0) {
+		bridge->flags |= GR_BRIDGE_F_NEIGH_SUPPRESS;
+		set_attrs |= GR_BRIDGE_SET_FLAGS;
+	} else if (on_off != NULL && strcmp(on_off, "off") == 0) {
+		bridge->flags &= ~GR_BRIDGE_F_NEIGH_SUPPRESS;
+		set_attrs |= GR_BRIDGE_SET_FLAGS;
+	}
 
 	if (arg_u16(p, "AGE", &bridge->ageing_time) == 0)
 		set_attrs |= GR_BRIDGE_SET_AGEING_TIME;
@@ -154,8 +162,9 @@ out:
 	return ret;
 }
 
-#define BRIDGE_ATTRS_CMD IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC),(flood FLOOD),(learn LEARN)"
-
+#define BRIDGE_ATTRS_CMD                                                                           \
+	IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC)"                                             \
+			",(flood FLOOD),(learn LEARN),(neigh_suppress NEIGH_SUPPRESS)"
 #define BRIDGE_ATTRS_ARGS                                                                          \
 	IFACE_ATTRS_ARGS,                                                                          \
 		with_help(                                                                         \
@@ -166,6 +175,12 @@ out:
 		with_help(                                                                         \
 			"Enable/disable flooding of BUM traffic.",                                 \
 			EC_NODE_OR("FLOOD", ec_node_str("", "on"), ec_node_str("", "off"))         \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Enable/disable ARP/NDP requests suppression.",                            \
+			EC_NODE_OR(                                                                \
+				"NEIGH_SUPPRESS", ec_node_str("", "on"), ec_node_str("", "off")    \
+			)                                                                          \
 		),                                                                                 \
 		with_help(                                                                         \
 			"Enable/disable dynamic MAC learning.",                                    \

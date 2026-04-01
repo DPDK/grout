@@ -13,6 +13,7 @@ enum edges {
 	OUTPUT = 0,
 	INPUT,
 	FLOOD,
+	NEIGH_SUPPRESS,
 	BRIDGE_INVAL,
 	HAIRPIN,
 	OUT_IFACE_INVAL,
@@ -90,8 +91,9 @@ static uint16_t bridge_input_process(
 			} else {
 				edge = OUTPUT;
 			}
+		} else if (br->flags & GR_BRIDGE_F_NEIGH_SUPPRESS) {
+			edge = NEIGH_SUPPRESS;
 		} else {
-			// Broadcast, multicast
 			edge = FLOOD;
 		}
 next:
@@ -130,6 +132,7 @@ static struct rte_node_register node = {
 		[OUTPUT] = "iface_output",
 		[INPUT] = "iface_input",
 		[FLOOD] = "bridge_flood",
+		[NEIGH_SUPPRESS] = "bridge_neigh_suppress",
 		[BRIDGE_INVAL] = "bridge_input_invalid_domain",
 		[HAIRPIN] = "bridge_input_hairpin",
 		[OUT_IFACE_INVAL] = "bridge_input_invalid_output",
