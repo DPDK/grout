@@ -129,6 +129,7 @@ enum gr_nexthop_requests : uint32_t {
 	GR_NH_DEL,
 	GR_NH_LIST,
 	GR_NH_GET,
+	GR_NH_FLUSH,
 };
 
 // Nexthop events (not generated for GR_NH_ORIGIN_INTERNAL nexthops).
@@ -348,3 +349,10 @@ struct gr_nh_get_req {
 };
 
 GR_REQ(GR_NH_GET, struct gr_nh_get_req, struct gr_nexthop);
+
+// Flush nexthops matching the given origin.
+struct gr_nh_flush_req {
+	gr_nh_origin_t origin;
+};
+
+GR_REQ(GR_NH_FLUSH, struct gr_nh_flush_req, struct gr_empty);
