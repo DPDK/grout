@@ -339,6 +339,15 @@ struct gr_nh_list_req {
 
 STREAM_RESP(struct gr_nexthop);
 
+// Flush nexthops matching the given origin.
+#define GR_NH_FLUSH REQUEST_TYPE(GR_INFRA_MODULE, 0x0075)
+
+struct gr_nh_flush_req {
+	gr_nh_origin_t origin;
+};
+
+// struct gr_nh_flush_resp { };
+
 // Get a single nexthop by ID.
 #define GR_NH_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0074)
 

@@ -430,6 +430,26 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t nh_flush(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_flush_req req = {};
+	const char *origin = arg_str(p, "ORIGIN");
+
+	if (origin == NULL)
+		return CMD_ERROR;
+
+	if (strcmp(origin, "neigh") == 0)
+		req.origin = GR_NH_ORIGIN_NEIGH;
+	else if (strcmp(origin, "static") == 0)
+		req.origin = GR_NH_ORIGIN_STATIC;
+	else
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_FLUSH, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t nh_group_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nexthop_info_group *group;
 	struct gr_nh_add_req *req = NULL;
@@ -672,6 +692,22 @@ static int ctx_init(struct ec_node *root) {
 		nh_del,
 		"Delete a next hop.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		NEXTHOP_CTX(root),
+		"flush origin ORIGIN",
+		nh_flush,
+		"Flush all nexthops with the given origin.",
+		with_help(
+			"Nexthop origin.",
+			EC_NODE_OR(
+				"ORIGIN",
+				ec_node_str("neigh", "neigh"),
+				ec_node_str("static", "static")
+			)
+		)
 	);
 	if (ret < 0)
 		return ret;

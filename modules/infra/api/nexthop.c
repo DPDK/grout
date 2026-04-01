@@ -127,6 +127,29 @@ static struct api_out nh_get(const void *request, struct api_ctx *) {
 	return api_out(0, len, pub);
 }
 
+static struct api_out nh_flush(const void *request, struct api_ctx *) {
+	const struct gr_nh_flush_req *req = request;
+	struct nexthop *nh = NULL;
+
+	for (;;) {
+		nh = nexthop_next(nh);
+		if (nh == NULL)
+			break;
+		if (nh->origin != req->origin)
+			continue;
+		if (nh->type == GR_NH_T_L3) {
+			struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if ((l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS)
+				continue;
+		}
+		nexthop_routes_cleanup(nh);
+		while (nh->ref_count > 0)
+			nexthop_decref(nh);
+	}
+
+	return api_out(0, 0, NULL);
+}
+
 RTE_INIT(_init) {
 	api_handler(GR_NH_CONFIG_GET, nh_config_get);
 	api_handler(GR_NH_CONFIG_SET, nh_config_set);
@@ -134,4 +157,5 @@ RTE_INIT(_init) {
 	api_handler(GR_NH_DEL, nh_del);
 	api_handler(GR_NH_LIST, nh_list);
 	api_handler(GR_NH_GET, nh_get);
+	api_handler(GR_NH_FLUSH, nh_flush);
 }
