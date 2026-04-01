@@ -261,6 +261,15 @@ uint64_t parse_iface_args(
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	}
 
+	const char *neigh_snoop = arg_str(p, "NEIGH_SNOOP");
+	if (neigh_snoop != NULL && strcmp(neigh_snoop, "on") == 0) {
+		iface->flags |= GR_IFACE_F_NEIGH_SNOOP;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	} else if (neigh_snoop != NULL && strcmp(neigh_snoop, "off") == 0) {
+		iface->flags &= ~GR_IFACE_F_NEIGH_SNOOP;
+		set_attrs |= GR_IFACE_SET_FLAGS;
+	}
+
 	if (arg_u16(p, "MTU", &iface->mtu) == 0)
 		set_attrs |= GR_IFACE_SET_MTU;
 

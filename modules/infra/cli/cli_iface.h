@@ -74,7 +74,8 @@ int arg_iface(
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
 #define IFACE_ATTRS_CMD                                                                            \
-	"(up|down),(promisc PROMISC),(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
+	"(up|down),(promisc PROMISC),(neigh_snoop NEIGH_SNOOP),(mtu MTU),"                         \
+	"((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
@@ -83,6 +84,10 @@ int arg_iface(
 			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))       \
 		),                                                                                 \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
+		with_help(                                                                         \
+			"Enable/disable neighbor snooping (learn from unsolicited ARP/NDP).",      \
+			EC_NODE_OR("NEIGH_SNOOP", ec_node_str("", "on"), ec_node_str("", "off"))   \
+		),                                                                                 \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \
 			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \
