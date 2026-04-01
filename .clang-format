@@ -88,6 +88,7 @@ ForEachMacros:
   - gr_api_client_stream_foreach
   - gr_nh_flags_foreach
   - nexthop_l3_hold_queue_foreach
+  - nexthop_type_ops_foreach
   - rte_graph_foreach_node
   - vec_foreach
   - vec_foreach_ref

@@ -31,7 +31,7 @@ typedef enum : uint8_t {
 
 // Nexthop types for different forwarding behaviors.
 typedef enum : uint8_t {
-	GR_NH_T_L3 = 0, // Standard L3 forwarding.
+	GR_NH_T_L3 = 1, // Standard L3 forwarding.
 	GR_NH_T_SR6_OUTPUT, // SRv6 output nexthop.
 	GR_NH_T_SR6_LOCAL, // SRv6 local nexthop.
 	GR_NH_T_DNAT, // DNAT transformation.
@@ -326,8 +326,8 @@ GR_REQ(GR_NH_ADD, struct gr_nh_add_req, struct gr_empty);
 // Automatically removes all routes referencing this nexthop.
 // Protected nexthops (Local+Static, Link origin) cannot be deleted.
 struct gr_nh_del_req {
-	uint32_t nh_id;
 	uint8_t missing_ok;
+	struct gr_nexthop nh;
 };
 
 GR_REQ(GR_NH_DEL, struct gr_nh_del_req, struct gr_empty);
