@@ -123,6 +123,8 @@ static void pager_start(void) {
 }
 
 static void pager_stop(void) {
+	int errsave = errno;
+
 	if (saved_stdout < 0)
 		return;
 
@@ -141,6 +143,8 @@ static void pager_stop(void) {
 
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGPIPE, SIG_DFL);
+
+	errno = errsave;
 }
 
 static struct cli_context ctx = {
