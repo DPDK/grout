@@ -17,7 +17,8 @@
 typedef enum : uint16_t {
 	GR_BRIDGE_F_FLOOD = GR_BIT16(0), // Flood BUM traffic.
 	GR_BRIDGE_F_LEARN = GR_BIT16(1), // Dynamic MAC learning in FDB.
-#define GR_BRIDGE_F_VALID (GR_BRIDGE_F_FLOOD | GR_BRIDGE_F_LEARN)
+	GR_BRIDGE_F_NEIGH_SUPPRESS = GR_BIT16(2), // Intercept ARP/NDP requests.
+#define GR_BRIDGE_F_VALID (GR_BRIDGE_F_FLOOD | GR_BRIDGE_F_LEARN | GR_BRIDGE_F_NEIGH_SUPPRESS)
 } gr_bridge_flags_t;
 
 // Convert bridge flag enum to string representation.
@@ -28,6 +29,8 @@ static inline const char *gr_bridge_flag_name(gr_bridge_flags_t f) {
 		return "flood";
 	case GR_BRIDGE_F_LEARN:
 		return "learn";
+	case GR_BRIDGE_F_NEIGH_SUPPRESS:
+		return "neigh_suppress";
 	}
 	return "?";
 }
