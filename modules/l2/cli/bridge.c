@@ -12,6 +12,7 @@
 #include <ecoli.h>
 
 #include <errno.h>
+#include <string.h>
 #include <sys/queue.h>
 
 static void
@@ -22,9 +23,9 @@ bridge_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_obj
 		o,
 		"bridge_flags",
 		GR_DISP_STR_ARRAY,
-		"%sflood %slearn",
-		(bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : ""
+		"flood %s learn %s",
+		(bridge->flags & GR_BRIDGE_F_FLOOD) ? "on" : "off",
+		(bridge->flags & GR_BRIDGE_F_LEARN) ? "on" : "off"
 	);
 	gr_object_field(o, "ageing_time", GR_DISP_INT, "%u", bridge->ageing_time);
 	gr_object_field(o, "mac", 0, ETH_F, &bridge->mac);
@@ -40,10 +41,10 @@ bridge_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf
 	snprintf(
 		buf,
 		len,
-		"members=%u %sflood %slearn",
+		"members=%u flood %s learn %s",
 		bridge->n_members,
-		(bridge->flags & GR_BRIDGE_F_NO_FLOOD) ? "no_" : "",
-		(bridge->flags & GR_BRIDGE_F_NO_LEARN) ? "no_" : ""
+		(bridge->flags & GR_BRIDGE_F_FLOOD) ? "on" : "off",
+		(bridge->flags & GR_BRIDGE_F_LEARN) ? "on" : "off"
 	);
 }
 
@@ -64,18 +65,21 @@ static uint64_t parse_bridge_args(
 
 	set_attrs = parse_iface_args(c, p, iface, sizeof(*bridge), update);
 
-	if (arg_str(p, "flood")) {
-		bridge->flags &= ~GR_BRIDGE_F_NO_FLOOD;
+	const char *on_off = arg_str(p, "FLOOD");
+	if (on_off != NULL && strcmp(on_off, "on") == 0) {
+		bridge->flags |= GR_BRIDGE_F_FLOOD;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
-	} else if (arg_str(p, "no_flood")) {
-		bridge->flags |= GR_BRIDGE_F_NO_FLOOD;
+	} else if (on_off != NULL && strcmp(on_off, "off") == 0) {
+		bridge->flags &= ~GR_BRIDGE_F_FLOOD;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
 	}
-	if (arg_str(p, "learn")) {
-		bridge->flags &= ~GR_BRIDGE_F_NO_LEARN;
+
+	on_off = arg_str(p, "LEARN");
+	if (on_off != NULL && strcmp(on_off, "on") == 0) {
+		bridge->flags |= GR_BRIDGE_F_LEARN;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
-	} else if (arg_str(p, "no_learn")) {
-		bridge->flags |= GR_BRIDGE_F_NO_LEARN;
+	} else if (on_off != NULL && strcmp(on_off, "off") == 0) {
+		bridge->flags &= ~GR_BRIDGE_F_LEARN;
 		set_attrs |= GR_BRIDGE_SET_FLAGS;
 	}
 
@@ -98,6 +102,7 @@ static uint64_t parse_bridge_args(
 static cmd_status_t bridge_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	const struct gr_iface_add_resp *resp;
 	struct gr_iface_add_req *req = NULL;
+	struct gr_iface_info_bridge *br;
 	void *resp_ptr = NULL;
 	size_t len;
 
@@ -107,6 +112,8 @@ static cmd_status_t bridge_add(struct gr_api_client *c, const struct ec_pnode *p
 
 	req->iface.type = GR_IFACE_TYPE_BRIDGE;
 	req->iface.flags = GR_IFACE_F_UP;
+	br = PAYLOAD(req);
+	br->flags = GR_BRIDGE_F_FLOOD | GR_BRIDGE_F_LEARN;
 
 	if (parse_bridge_args(c, p, &req->iface, false) == 0)
 		goto err;
@@ -145,7 +152,7 @@ out:
 	return ret;
 }
 
-#define BRIDGE_ATTRS_CMD IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC),FLOOD,LEARN"
+#define BRIDGE_ATTRS_CMD IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC),(flood FLOOD),(learn LEARN)"
 
 #define BRIDGE_ATTRS_ARGS                                                                          \
 	IFACE_ATTRS_ARGS,                                                                          \
@@ -154,20 +161,13 @@ out:
 			ec_node_uint("AGE", 0, UINT16_MAX, 10)                                     \
 		),                                                                                 \
 		with_help("Bridge ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),             \
-		EC_NODE_OR(                                                                        \
-			"FLOOD",                                                                   \
-			with_help(                                                                 \
-				"Enable flooding of BUM traffic.", ec_node_str("flood", "flood")   \
-			),                                                                         \
-			with_help(                                                                 \
-				"Disable flooding of BUM traffic.",                                \
-				ec_node_str("no_flood", "no_flood")                                \
-			)                                                                          \
+		with_help(                                                                         \
+			"Enable/disable flooding of BUM traffic.",                                 \
+			EC_NODE_OR("FLOOD", ec_node_str("", "on"), ec_node_str("", "off"))         \
 		),                                                                                 \
-		EC_NODE_OR(                                                                        \
-			"LEARN",                                                                   \
-			with_help("Enable MAC learning.", ec_node_str("learn", "learn")),          \
-			with_help("Disable MAC learning.", ec_node_str("no_learn", "no_learn"))    \
+		with_help(                                                                         \
+			"Enable/disable dynamic MAC learning.",                                    \
+			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
 		)
 
 static int ctx_init(struct ec_node *root) {
