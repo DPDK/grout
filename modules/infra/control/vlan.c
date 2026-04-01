@@ -40,68 +40,96 @@ static int iface_vlan_reconfig(
 	const void *api_info
 ) {
 	struct iface_info_vlan *cur = iface_info_vlan(iface);
+	struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
 	const struct gr_iface_info_vlan *next = api_info;
-	bool reconfig = set_attrs != IFACE_SET_ALL;
-	struct iface *cur_parent, *next_parent;
-	int ret;
+	struct vlan_key next_key = {next->parent_id, next->vlan_id};
+	struct iface *cur_parent = NULL, *next_parent = NULL;
+	struct gr_iface_info_vlan prev = cur->base;
+	uint64_t conf_done = 0;
+	int ret = 0;
 
-	if (reconfig) {
+	if (cur->parent_id != GR_IFACE_ID_UNDEF) {
 		if ((cur_parent = iface_from_id(cur->parent_id)) == NULL)
 			return -errno;
-		if (set_attrs & GR_VLAN_SET_MAC) {
-			struct rte_ether_addr parent_mac;
-			if (iface_get_eth_addr(cur_parent, &parent_mac) == 0
-			    && rte_is_same_ether_addr(&parent_mac, &cur->mac)) {
-				// inherited/primary MAC: nothing to delete
-			} else {
-				// remove previous mac filter (ignore errors)
-				iface_del_eth_addr(cur_parent, &cur->mac);
-			}
-		}
-	} else {
-		cur_parent = NULL;
 	}
 
-	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
-		struct vlan_key next_key = {next->parent_id, next->vlan_id};
+	if (set_attrs & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)
+	    && memcmp(&next_key, &cur_key, sizeof(cur_key)) != 0) {
+		if (next->vlan_id < 1 || next->vlan_id > RTE_ETHER_MAX_VLAN_ID) {
+			errno = ERANGE;
+			goto err;
+		}
 
 		if ((next_parent = iface_from_id(next->parent_id)) == NULL)
-			return -errno;
+			goto err;
 
-		if (rte_hash_lookup(vlan_hash, &next_key) >= 0)
-			return errno_set(EADDRINUSE);
+		if (rte_hash_lookup(vlan_hash, &next_key) >= 0) {
+			errno = EADDRINUSE;
+			goto err;
+		}
 
-		if (reconfig) {
-			// reconfig, *not initial config*
-			struct vlan_key cur_key = {cur->parent_id, cur->vlan_id};
+		rte_hash_del_key(vlan_hash, &cur_key);
 
-			rte_hash_del_key(vlan_hash, &cur_key);
-			iface_del_subinterface(cur_parent, iface);
-			iface->state &= ~GR_IFACE_S_RUNNING;
+		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0) {
+			if (cur_parent != NULL && cur->vlan_id != 0)
+				rte_hash_add_key_data(vlan_hash, &cur_key, iface);
+			errno = -ret;
+			goto err;
 		}
 
 		cur->parent_id = next->parent_id;
 		cur->vlan_id = next->vlan_id;
-		iface_add_subinterface(next_parent, iface);
-		iface->mtu = next_parent->mtu;
-		iface->speed = next_parent->speed;
-
-		if ((ret = rte_hash_add_key_data(vlan_hash, &next_key, iface)) < 0)
-			return errno_log(-ret, "rte_hash_add_key_data");
-
-		if (!(set_attrs & GR_IFACE_SET_FLAGS) && (iface->flags & GR_IFACE_F_UP)
-		    && (next_parent->state & GR_IFACE_S_RUNNING)) {
-			iface->state |= GR_IFACE_S_RUNNING;
-			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
-		}
+		conf_done |= GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN;
 	}
 
 	if (set_attrs & GR_VLAN_SET_MAC) {
-		if ((ret = iface_set_eth_addr(iface, &next->mac)) < 0)
-			return ret;
+		if (iface_set_eth_addr(iface, &next->mac) < 0)
+			goto err;
+		conf_done |= GR_VLAN_SET_MAC;
+	}
+
+	if (cur_parent != next_parent) {
+		if (cur_parent != NULL) {
+			struct rte_ether_addr parent_mac;
+			if (iface_get_eth_addr(cur_parent, &parent_mac) == 0
+			    && !rte_is_same_ether_addr(&parent_mac, &cur->mac)) {
+				iface_del_eth_addr(cur_parent, &cur->mac);
+			}
+			iface_del_subinterface(cur_parent, iface);
+		}
+		if (next_parent != NULL) {
+			iface->mtu = next_parent->mtu;
+			iface->speed = next_parent->speed;
+			if (iface->state & GR_IFACE_S_RUNNING) {
+				iface->state &= ~GR_IFACE_S_RUNNING;
+				gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+			}
+			iface_add_subinterface(next_parent, iface);
+
+			if ((iface->flags & GR_IFACE_F_UP)
+			    && (next_parent->state & GR_IFACE_S_RUNNING)) {
+				iface->state |= GR_IFACE_S_RUNNING;
+				gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+			}
+		}
 	}
 
 	return 0;
+
+err:
+	ret = errno ?: EINVAL;
+	if (conf_done & (GR_VLAN_SET_PARENT | GR_VLAN_SET_VLAN)) {
+		rte_hash_del_key(vlan_hash, &next_key);
+		cur->parent_id = cur_key.parent_id;
+		cur->vlan_id = cur_key.vlan_id;
+		if (cur_parent != NULL && cur->vlan_id != 0) {
+			rte_hash_add_key_data(vlan_hash, &cur_key, iface);
+		}
+	}
+	if (conf_done & GR_VLAN_SET_MAC) {
+		iface_set_eth_addr(iface, &prev.mac);
+	}
+	return errno_set(ret);
 }
 
 static int iface_vlan_fini(struct iface *iface) {
@@ -120,15 +148,7 @@ static int iface_vlan_fini(struct iface *iface) {
 }
 
 static int iface_vlan_init(struct iface *iface, const void *api_info) {
-	int ret;
-
-	ret = iface_vlan_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
-	if (ret < 0) {
-		iface_vlan_fini(iface);
-		errno = -ret;
-	}
-
-	return ret;
+	return iface_vlan_reconfig(iface, IFACE_SET_ALL, NULL, api_info);
 }
 
 static int iface_vlan_up_down(struct iface *iface, bool up) {
@@ -160,15 +180,23 @@ static int iface_vlan_get_eth_addr(const struct iface *iface, struct rte_ether_a
 static int iface_vlan_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct iface *parent = iface_from_id(vlan->parent_id);
+	struct rte_ether_addr parent_mac, next_mac;
 	int ret;
 
-	if (rte_is_zero_ether_addr(mac)) {
-		if ((ret = iface_get_eth_addr(parent, &vlan->mac)) < 0)
+	if ((ret = iface_get_eth_addr(parent, &parent_mac)) < 0)
+		return ret;
+
+	if (rte_is_zero_ether_addr(mac))
+		next_mac = parent_mac;
+	else
+		next_mac = *mac;
+
+	if (!rte_is_same_ether_addr(&vlan->mac, &next_mac)) {
+		if (!rte_is_same_ether_addr(&parent_mac, &vlan->mac))
+			iface_del_eth_addr(parent, &vlan->mac);
+		if ((ret = iface_add_eth_addr(parent, &next_mac)) < 0)
 			return ret;
-	} else {
-		if ((ret = iface_add_eth_addr(parent, mac)) < 0)
-			return ret;
-		vlan->mac = *mac;
+		vlan->mac = next_mac;
 	}
 
 	return 0;
