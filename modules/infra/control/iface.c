@@ -176,6 +176,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 	bool type_init = false;
 	bool vrf_ref = false;
 	uint16_t ifid;
+	int errsave;
 
 	if (type == NULL) {
 		errno = ENODEV;
@@ -283,6 +284,7 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	return iface;
 fail:
+	errsave = errno;
 	if (vrf_ref)
 		vrf_decref(iface->vrf_id);
 	if (type_init)
@@ -292,10 +294,11 @@ fail:
 		free(iface->description);
 	}
 	rte_free(iface);
-	return NULL;
+	return errno_set_null(errsave);
 destroy:
+	errsave = errno;
 	iface_destroy(iface);
-	return NULL;
+	return errno_set_null(errsave);
 }
 
 static void detach_domain(struct iface *iface) {
