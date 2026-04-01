@@ -75,6 +75,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
 	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
 	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
+	GR_NH_ORIGIN_NEIGH = 254, // Learned from ARP/NDP traffic.
 	GR_NH_ORIGIN_INTERNAL = 255, // Reserved for internal use (no events, no ID allocation).
 } gr_nh_origin_t;
 
@@ -256,6 +257,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "openfabric";
 	case GR_NH_ORIGIN_SRTE:
 		return "srte";
+	case GR_NH_ORIGIN_NEIGH:
+		return "neigh";
 	case GR_NH_ORIGIN_INTERNAL:
 		return "INTERNAL";
 	}

@@ -162,7 +162,7 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		nh = nexthop_new(
 			&(struct gr_nexthop_base) {
 				.type = GR_NH_T_L3,
-				.origin = GR_NH_ORIGIN_INTERNAL,
+				.origin = GR_NH_ORIGIN_NEIGH,
 				.iface_id = iface->id,
 				.vrf_id = iface->vrf_id,
 			},

@@ -100,8 +100,8 @@ static void nexthop_id_put(struct nexthop *nh) {
 static int nexthop_id_get(struct nexthop *nh) {
 	int ret;
 
-	// no id for internal, as we should not let user manipulate it
-	if (nh->origin == GR_NH_ORIGIN_INTERNAL) {
+	// no id for internal/neigh, as we should not let user manipulate them
+	if (nh->origin == GR_NH_ORIGIN_INTERNAL || nh->origin == GR_NH_ORIGIN_NEIGH) {
 		nh->nh_id = 0;
 		return 0;
 	}
@@ -271,6 +271,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_ZSTATIC:
 	case GR_NH_ORIGIN_OPENFABRIC:
 	case GR_NH_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_NEIGH:
 	case GR_NH_ORIGIN_INTERNAL:
 		return true;
 	}
