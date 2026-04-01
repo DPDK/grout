@@ -124,7 +124,7 @@ static void add_columns_l3(struct gr_table *table) {
 static void format_nh_flags(char *buf, size_t len, gr_nh_flags_t flags) {
 	ssize_t n = 0;
 	buf[0] = 0;
-	gr_nh_flags_foreach (fl, flags) {
+	gr_flags_foreach (fl, flags) {
 		if (n > 0)
 			SAFE_BUF(snprintf, len, " ");
 		SAFE_BUF(snprintf, len, "%s", gr_nh_flag_name(fl));

@@ -129,11 +129,6 @@ typedef enum {
 	GR_EVENT_NEXTHOP_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
 } gr_event_nexthop_t;
 
-#define gr_nh_flags_foreach(f, flags)                                                              \
-	for (gr_nh_flags_t __i = 0, f = GR_BIT8(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;        \
-	     f = GR_BIT8(++__i))                                                                   \
-		if (flags & f)
-
 // Convert nexthop state enum to string representation.
 static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
 	switch (state) {
@@ -152,7 +147,7 @@ static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
 }
 
 // Convert nexthop flag enum to string representation.
-// For flag masks, iterate individual flags using gr_nh_flags_foreach.
+// For flag masks, iterate individual flags using gr_flags_foreach.
 static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	switch (flag) {
 	case GR_NH_F_STATIC:

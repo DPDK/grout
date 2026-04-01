@@ -85,7 +85,7 @@ ForEachMacros:
   - gr_api_client_stream_foreach
   - vec_foreach
   - vec_foreach_ref
-  - gr_nh_flags_foreach
+  - gr_flags_foreach
 IfMacros:
   - KJ_IF_MAYBE
 IncludeBlocks: Regroup
