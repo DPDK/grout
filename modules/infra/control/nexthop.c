@@ -28,7 +28,11 @@ LOG_TYPE("nexthop");
 static struct rte_mempool *pool;
 static struct id_pool *pool_id;
 static struct rte_hash *hash_by_id;
-static const struct nexthop_type_ops *type_ops[256];
+static const struct nexthop_type_ops *type_ops[UINT_NUM_VALUES(gr_nh_type_t)];
+
+#define nexthop_type_ops_foreach(t, ops)                                                           \
+	for (t = GR_NH_T_L3; nexthop_type_valid(t); t++)                                           \
+		for (ops = type_ops[t]; ops != NULL; ops = NULL)
 
 struct gr_nexthop_config nh_conf = {
 	.max_count = DEFAULT_MAX_COUNT,
@@ -179,9 +183,10 @@ static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
 	if (pid == NULL)
 		goto fail;
 
-	for (gr_nh_type_t t = 0; nexthop_type_valid(t); t++) {
-		const struct nexthop_type_ops *ops = type_ops[t];
-		if (ops == NULL || ops->reconfig == NULL)
+	const struct nexthop_type_ops *ops;
+	gr_nh_type_t t;
+	nexthop_type_ops_foreach (t, ops) {
+		if (ops->reconfig == NULL)
 			continue;
 		LOG(INFO, "%s: %u nexthops", gr_nh_type_name(t), c->max_count);
 		if (ops->reconfig(c) < 0)
@@ -303,6 +308,9 @@ struct nexthop *nexthop_lookup(const struct gr_nexthop_base *base, const void *i
 	ops = type_ops[base->type];
 	if (nh == NULL && ops != NULL && ops->lookup != NULL)
 		nh = ops->lookup(base, info);
+
+	if (nh == NULL)
+		return errno_set_null(ENOENT);
 
 	return nh;
 }
@@ -488,9 +496,9 @@ void nexthop_destroy(struct nexthop *nh) {
 
 	assert(nh->ref_count == 0);
 
-	for (gr_nh_type_t t = 0; nexthop_type_valid(t); t++) {
-		ops = type_ops[t];
-		if (ops != NULL && ops->remove_references != NULL)
+	gr_nh_type_t t;
+	nexthop_type_ops_foreach (t, ops) {
+		if (ops->remove_references != NULL)
 			ops->remove_references(nh);
 	}
 	nexthop_id_put(nh);
@@ -566,7 +574,7 @@ static void nexthop_metrics_collect(struct metrics_writer *w) {
 	memset(counts, 0, sizeof(counts));
 	nexthop_iter(count_types, counts);
 
-	for (gr_nh_type_t t = 0; nexthop_type_valid(t); t++) {
+	for (gr_nh_type_t t = GR_NH_T_L3; nexthop_type_valid(t); t++) {
 		metrics_ctx_init(&ctx, w, "type", gr_nh_type_name(t), NULL);
 		metric_emit(&ctx, &m_count, counts[t]);
 	}
