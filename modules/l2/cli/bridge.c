@@ -15,17 +15,26 @@
 #include <string.h>
 #include <sys/queue.h>
 
+static const char *format_bridge_flags(gr_bridge_flags_t flags) {
+	static char buf[128]; // grcli is single threaded, this is safe
+	size_t n = 0;
+	buf[0] = 0;
+
+	gr_flags_foreach (f, flags) {
+		if (n > 0)
+			SAFE_BUF(snprintf, sizeof(buf), " ");
+		SAFE_BUF(snprintf, sizeof(buf), "%s", gr_bridge_flag_name(f));
+	}
+err:
+	return buf;
+}
+
 static void
 bridge_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_bridge *bridge = PAYLOAD(iface);
 
 	gr_object_field(
-		o,
-		"bridge_flags",
-		GR_DISP_STR_ARRAY,
-		"flood %s learn %s",
-		(bridge->flags & GR_BRIDGE_F_FLOOD) ? "on" : "off",
-		(bridge->flags & GR_BRIDGE_F_LEARN) ? "on" : "off"
+		o, "bridge_flags", GR_DISP_STR_ARRAY, "%s", format_bridge_flags(bridge->flags)
 	);
 	gr_object_field(o, "ageing_time", GR_DISP_INT, "%u", bridge->ageing_time);
 	gr_object_field(o, "mac", 0, ETH_F, &bridge->mac);
@@ -38,14 +47,7 @@ bridge_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_obj
 static void
 bridge_list_info(struct gr_api_client *, const struct gr_iface *iface, char *buf, size_t len) {
 	const struct gr_iface_info_bridge *bridge = PAYLOAD(iface);
-	snprintf(
-		buf,
-		len,
-		"members=%u flood %s learn %s",
-		bridge->n_members,
-		(bridge->flags & GR_BRIDGE_F_FLOOD) ? "on" : "off",
-		(bridge->flags & GR_BRIDGE_F_LEARN) ? "on" : "off"
-	);
+	snprintf(buf, len, "members=%u %s", bridge->n_members, format_bridge_flags(bridge->flags));
 }
 
 static struct cli_iface_type bridge_type = {
