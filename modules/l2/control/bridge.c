@@ -45,6 +45,9 @@ static int bridge_reconfig(
 	struct iface_info_bridge *cur = iface_info_bridge(iface);
 	const struct gr_iface_info_bridge *next = api_info;
 
+	if (next->flags & ~GR_BRIDGE_F_VALID)
+		return errno_set(EINVAL);
+
 	if (set_attrs & GR_BRIDGE_SET_MAC)
 		iface_set_eth_addr(iface, &next->mac);
 	if (set_attrs & GR_BRIDGE_SET_FLAGS)
