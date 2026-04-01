@@ -182,4 +182,4 @@ struct nexthop_type_ops {
 void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops *);
 
 // Local IP address nexthops will have these flags set.
-#define NH_LOCAL_ADDR_FLAGS (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_STATIC)
+#define NH_LOCAL_ADDR_FLAGS (GR_NH_F_LOCAL | GR_NH_F_LINK)

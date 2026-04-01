@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "event.h"
 #include "icmp6.h"
 #include "iface.h"
 #include "ip6.h"
@@ -76,11 +77,12 @@ static void nh6_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 					.type = GR_NH_T_L3,
 					.iface_id = nh->iface_id,
 					.vrf_id = nh->vrf_id,
-					.origin = GR_NH_ORIGIN_INTERNAL,
+					.origin = GR_NH_ORIGIN_LEARN,
 				},
 				&(struct gr_nexthop_info_l3) {
 					.af = GR_AF_IP6,
 					.ipv6 = *dst,
+					.flags = GR_NH_F_NEIGH,
 				}
 			);
 			if (remote == NULL) {
@@ -192,12 +194,13 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 				.type = GR_NH_T_L3,
 				.iface_id = iface->id,
 				.vrf_id = iface->vrf_id,
-				.origin = GR_NH_ORIGIN_INTERNAL,
+				.origin = GR_NH_ORIGIN_LEARN,
 			},
 			&(struct gr_nexthop_info_l3) {
 				.af = GR_AF_IP6,
 				.ipv6 = *remote,
 				.mac = mac,
+				.flags = GR_NH_F_NEIGH,
 			}
 		);
 		if (nh == NULL) {
@@ -227,6 +230,8 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		l3->ucast_probes = 0;
 		l3->bcast_probes = 0;
 		l3->mac = mac;
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {

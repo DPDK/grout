@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "event.h"
 #include "iface.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -71,13 +72,14 @@ static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 			remote = nexthop_new(
 				&(struct gr_nexthop_base) {
 					.type = GR_NH_T_L3,
-					.origin = GR_NH_ORIGIN_INTERNAL,
+					.origin = GR_NH_ORIGIN_LEARN,
 					.vrf_id = nh->vrf_id,
 					.iface_id = nh->iface_id,
 				},
 				&(struct gr_nexthop_info_l3) {
 					.af = GR_AF_IP4,
 					.ipv4 = dst,
+					.flags = GR_NH_F_NEIGH,
 				}
 			);
 			if (remote == NULL) {
@@ -124,7 +126,6 @@ free:
 }
 
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
 	struct rte_mbuf *m = obj;
 	struct rte_arp_hdr *arp;
@@ -149,13 +150,15 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		nh = nexthop_new(
 			&(struct gr_nexthop_base) {
 				.type = GR_NH_T_L3,
-				.origin = GR_NH_ORIGIN_INTERNAL,
+				.origin = GR_NH_ORIGIN_LEARN,
 				.iface_id = iface->id,
 				.vrf_id = iface->vrf_id,
 			},
 			&(struct gr_nexthop_info_l3) {
 				.af = GR_AF_IP4,
 				.ipv4 = sip,
+				.mac = arp->arp_data.arp_sha,
+				.flags = GR_NH_F_NEIGH,
 			}
 		);
 		if (nh == NULL) {
@@ -167,18 +170,16 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
 			goto free;
 		}
-	}
-
-	l3 = nexthop_info_l3(nh);
-
-	// static next hops never need updating
-	if (!(l3->flags & GR_NH_F_STATIC)) {
+	} else {
 		// Refresh all fields.
+		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		l3->last_reply = gr_clock_ns();
 		l3->state = GR_NH_S_REACHABLE;
 		l3->ucast_probes = 0;
 		l3->bcast_probes = 0;
 		l3->mac = arp->arp_data.arp_sha;
+		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+			event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {

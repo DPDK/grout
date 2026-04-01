@@ -121,7 +121,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 			.af = GR_AF_IP6,
 			.ipv6 = *ip,
 			.state = GR_NH_S_REACHABLE,
-			.flags = GR_NH_F_STATIC | GR_NH_F_MCAST,
+			.flags = GR_NH_F_MCAST,
 		};
 
 		if ((nh = nexthop_new(&base, &l3)) == NULL)

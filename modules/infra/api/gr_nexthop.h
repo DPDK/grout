@@ -20,12 +20,12 @@ typedef enum : uint8_t {
 
 // Nexthop configuration flags.
 typedef enum : uint8_t {
-	GR_NH_F_STATIC = GR_BIT8(0), // Configured by user (exempt from state changes).
-	GR_NH_F_LOCAL = GR_BIT8(1), // Local address.
-	GR_NH_F_GATEWAY = GR_BIT8(2), // Gateway route.
-	GR_NH_F_LINK = GR_BIT8(3), // Connected link route.
-	GR_NH_F_MCAST = GR_BIT8(4), // Multicast address.
-	GR_NH_F_REMOTE = GR_BIT8(5), // Remote VTEP nexthop (EVPN).
+	GR_NH_F_LOCAL = GR_BIT8(0), // Local address.
+	GR_NH_F_GATEWAY = GR_BIT8(1), // Gateway route.
+	GR_NH_F_LINK = GR_BIT8(2), // Connected link route.
+	GR_NH_F_MCAST = GR_BIT8(3), // Multicast address.
+	GR_NH_F_REMOTE = GR_BIT8(4), // Remote VTEP nexthop (EVPN).
+	GR_NH_F_NEIGH = GR_BIT8(5), // Learned from ARP/NDP traffic.
 } gr_nh_flags_t;
 
 // Nexthop types for different forwarding behaviors.
@@ -46,7 +46,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_UNSPEC = 0, // (NH_ORIGIN_UNSPEC).
 	GR_NH_ORIGIN_REDIRECT = 1, // Installed implicitly by ICMP redirect (NH_ORIGIN_REDIRECT).
 	GR_NH_ORIGIN_LINK = 2, // For local addresses, no ID allocation (NH_ORIGIN_KERNEL).
-	GR_NH_ORIGIN_BOOT = 3, // Installed at boot?? (NH_ORIGIN_BOOT).
+	GR_NH_ORIGIN_LEARN = 3, // Learned from ARP/NDP traffic (NH_ORIGIN_BOOT).
 	GR_NH_ORIGIN_STATIC = 4, // Installed explicitly by user (NH_ORIGIN_STATIC).
 	// Values 5 to 254 are allowed and are used by routing daemons.
 	GR_NH_ORIGIN_GATED = 8, // (RTPROT_GATED)
@@ -101,7 +101,7 @@ struct gr_nexthop_info_l3 {
 		ip4_addr_t ipv4;
 		struct rte_ipv6_addr ipv6;
 	};
-	struct rte_ether_addr mac; // Auto-sets GR_NH_F_STATIC and GR_NH_S_REACHABLE.
+	struct rte_ether_addr mac; // Auto-sets GR_NH_S_REACHABLE.
 };
 
 // Info for GR_NH_T_GROUP nexthops
@@ -167,8 +167,6 @@ static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
 // For flag masks, iterate individual flags using gr_nh_flags_foreach.
 static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	switch (flag) {
-	case GR_NH_F_STATIC:
-		return "static";
 	case GR_NH_F_LOCAL:
 		return "local";
 	case GR_NH_F_GATEWAY:
@@ -179,6 +177,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "multicast";
 	case GR_NH_F_REMOTE:
 		return "remote";
+	case GR_NH_F_NEIGH:
+		return "neigh";
 	}
 	return "?";
 }
@@ -213,8 +213,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "redirect";
 	case GR_NH_ORIGIN_LINK:
 		return "link";
-	case GR_NH_ORIGIN_BOOT:
-		return "boot";
+	case GR_NH_ORIGIN_LEARN:
+		return "learn";
 	case GR_NH_ORIGIN_STATIC:
 		return "static";
 	case GR_NH_ORIGIN_GATED:
@@ -311,7 +311,7 @@ GR_REQ(GR_NH_CONFIG_SET, struct gr_nh_config_set_req, struct gr_empty);
 
 // Add a new nexthop.
 // If iface_id is specified, vrf_id is overridden with interface's VRF.
-// MAC address automatically sets GR_NH_F_STATIC and GR_NH_S_REACHABLE.
+// MAC address automatically sets GR_NH_S_REACHABLE.
 struct gr_nh_add_req {
 	uint8_t exist_ok;
 	struct gr_nexthop nh;

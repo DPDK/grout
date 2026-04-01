@@ -235,7 +235,7 @@ done
 # -- Check RMAC is set on route nexthops ---------------------------------------
 rmac=$(ip netns exec evpn-peer cat /sys/class/net/vxlan-l3/address)
 
-wait_event "nh new: type=L3 id=[0-9]+ iface=vxlan-l3 vrf=tenant origin=zebra family=ipv4 addr=172.16.0.1 mac=$rmac flags=static remote"
+wait_event "nh new: type=L3 id=[0-9]+ iface=vxlan-l3 vrf=tenant origin=zebra family=ipv4 addr=172.16.0.1 state=reachable mac=$rmac"
 
 vtysh -c "show bgp l2vpn evpn route type 5"
 grcli route show vrf tenant
