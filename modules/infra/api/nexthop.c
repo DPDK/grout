@@ -53,7 +53,7 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 	const struct gr_nh_del_req *req = request;
 	struct nexthop *nh;
 
-	nh = nexthop_lookup_id(req->nh_id);
+	nh = nexthop_lookup(&req->nh.base, req->nh.info);
 	if (nh == NULL) {
 		if (req->missing_ok)
 			return api_out(0, 0, NULL);

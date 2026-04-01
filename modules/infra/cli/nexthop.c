@@ -421,7 +421,7 @@ static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pn
 static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
-	if (arg_u32(p, "ID", &req.nh_id) < 0)
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_DEL, sizeof(req), &req, NULL) < 0)

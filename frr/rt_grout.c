@@ -609,7 +609,7 @@ static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx 
 static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
 	gr_log_debug("nh_id %u", nh_id);
 
-	struct gr_nh_del_req req = {.missing_ok = true, .nh_id = nh_id};
+	struct gr_nh_del_req req = {.missing_ok = true, .nh = {.nh_id = nh_id}};
 
 	if (grout_client_send_recv(GR_NH_DEL, sizeof(req), &req, NULL) < 0)
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
