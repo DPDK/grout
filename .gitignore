@@ -18,6 +18,7 @@
 /debian/grout/
 /debian/tmp/
 /redhat-linux-build
-/subprojects/dpdk
-/subprojects/ecoli
-/subprojects/frr
+/subprojects/dpdk-*
+/subprojects/libecoli-*
+/subprojects/frr-*
+/subprojects/packagecache

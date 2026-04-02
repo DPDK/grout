@@ -1,13 +1,20 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Christophe Fontaine
 
-FROM registry.access.redhat.com/ubi9 as ubi-builder
+FROM quay.io/centos/centos:stream10 AS builder
 COPY grout.*.rpm /tmp
+ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm /tmp
+ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm.sha256sum /tmp
+RUN cd /tmp && sha256sum -c tini_*.rpm.sha256sum
 RUN mkdir -p /tmp/null
-RUN dnf -y install --nodocs --setopt=install_weak_deps=0 --releasever 9 --installroot /tmp/null /tmp/grout*.rpm
+RUN dnf -y install --nodocs --setopt=install_weak_deps=0 \
+	--releasever 10 --installroot /tmp/null \
+	coreutils-single glibc-minimal-langpack /tmp/*.rpm
 RUN dnf -y --installroot /tmp/null clean all
 RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
 
 FROM scratch
-COPY --from=ubi-builder /tmp/null/ /
+COPY --from=builder /tmp/null/ /
+STOPSIGNAL SIGRTMIN+3
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/usr/bin/grout"]

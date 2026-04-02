@@ -92,7 +92,7 @@ This package contains the development headers to build grout API clients.
 %if %{with frr}
 %package frr
 Summary: FRR dplane plugin for grout
-Requires: frr >= 10.5
+Requires: frr = %(rpm -q --qf '%%{version}-%%{release}' frr-headers)
 
 %description frr
 FRR dplane plugin for grout

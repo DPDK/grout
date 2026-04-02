@@ -76,7 +76,7 @@ Architecture: linux-any
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
- frr (= 10.4.1),
+ frr,
 Description: FRR dplane plugin for grout
  grout stands for Graph Router. In English, "grout" refers to thin mortar that
  hardens to fill gaps between tiles.

@@ -105,12 +105,11 @@ deb:
 	$Q arch=`dpkg-architecture -qDEB_HOST_ARCH` && \
 	mv -vf ../grout-headers_$(debversion)_all.deb grout-headers_all.deb && \
 	mv -vf ../grout_$(debversion)_$$arch.deb grout_$$arch.deb && \
-	mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb && \
-	mv -vf ../grout-frr_$(debversion)_$$arch.deb grout-frr_$$arch.deb && \
-	mv -vf ../grout-frr-dbgsym_$(debversion)_$$arch.deb grout-frr-dbgsym_$$arch.deb
+	mv -vf ../grout-dbgsym_$(debversion)_$$arch.deb grout-dbgsym_$$arch.deb
 
 rpmversion = $(firstword $(version))
-rpmrelease = $(subst -,.,$(lastword $(version))).$(shell sed -nE 's/PLATFORM_ID="platform:(.*)"/\1/p' /etc/os-release)
+rpmdist = $(shell rpm --eval %{dist} 2>/dev/null)
+rpmrelease = $(subst -,.,$(lastword $(version)))$(rpmdist)
 rpmbuild_opts = $(addprefix --with=,$(WITH)) $(addprefix --without=,$(WITHOUT))
 
 .PHONY: rpm
@@ -126,6 +125,22 @@ rpm:
 		mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-$$version.$$arch.rpm grout-frr.$$arch.rpm && \
 		mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-debuginfo-$$version.$$arch.rpm grout-frr-debuginfo.$$arch.rpm; \
 	fi
+
+frr_version = $(shell sed -nE 's/^source_filename = frr-(.+)\.tar\.gz$$/\1/p' subprojects/frr.wrap)
+frr_hash = $(shell sed -nE 's/^source_hash = //p' subprojects/frr.wrap)
+frr_archive = subprojects/packagecache/frr-$(frr_version).tar.gz
+
+.PHONY: frr-rpm
+frr-rpm:
+	meson subprojects download frr
+	echo '$(frr_hash)  $(frr_archive)' | sha256sum -c
+	install -Dt ~/rpmbuild/SOURCES $(frr_archive)
+	rpmbuild -bb -D'version $(frr_version)' -D 'release 1$(rpmdist).grout' rpm/frr.spec
+	$Q arch=`rpm --eval '%{_arch}'` && \
+	version="$(frr_version)-1$(rpmdist).grout" && \
+	mv -vf ~/rpmbuild/RPMS/noarch/frr-headers-$$version.noarch.rpm frr-headers.noarch.rpm && \
+	mv -vf ~/rpmbuild/RPMS/$$arch/frr-$$version.$$arch.rpm frr.$$arch.rpm && \
+	mv -vf ~/rpmbuild/RPMS/$$arch/frr-debuginfo-$$version.$$arch.rpm frr-debuginfo.$$arch.rpm
 
 CLANG_FORMAT ?= clang-format
 c_src = git ls-files '*.[ch]' ':!:subprojects'

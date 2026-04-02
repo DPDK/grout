@@ -1,9 +1,9 @@
-[wrap-git]
-url = https://github.com/FRRouting/frr
-revision = frr-10.5.0
-depth = 1
-diff_files =
-	frr/meson-add-dependency-definition.patch
+[wrap-file]
+source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.5.3.tar.gz
+source_filename = frr-10.5.3.tar.gz
+source_hash = ecc95009b88e66df2c91be02fbf0a3eb8e1de434fd652e0cbf46f19126f708ec
+directory = frr-frr-10.5.3
+patch_directory = frr
 
 [provide]
 dependency_names = frr

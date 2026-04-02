@@ -5,6 +5,7 @@ quiet-level = 35
 skip =
 	build/*,
 	subprojects/*,
+	redhat-linux-build/*,
 ignore-words-list =
 	ND,
 	te,

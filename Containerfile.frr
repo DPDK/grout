@@ -1,23 +1,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Robin Jarry
 
-FROM quay.io/centos/centos:stream9 AS builder
-COPY grout-frr.*.rpm /tmp
+FROM quay.io/centos/centos:stream10 AS builder
+
+COPY grout-frr.*.rpm frr.*.rpm /tmp
+ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm /tmp
+ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm.sha256sum /tmp
+RUN cd /tmp && sha256sum -c tini_*.rpm.sha256sum
 RUN mkdir -p /tmp/null
-RUN dnf -y install https://rpm.frrouting.org/repo/frr-10-repo.el9.noarch.rpm
-RUN dnf -y install --nodocs --setopt=install_weak_deps=0 --releasever 9 --installroot /tmp/null /tmp/grout-frr.*.rpm
+RUN dnf -y install --nodocs --setopt=install_weak_deps=0 \
+	--releasever 10 --installroot /tmp/null \
+	coreutils-single glibc-minimal-langpack /tmp/*.rpm
 RUN dnf -y --installroot /tmp/null clean all
-RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
+RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/tmp/*
 RUN sed -i 's#^zebra_options=.*#zebra_options="-A 127.0.0.1 --log stdout -M dplane_grout"#' /tmp/null/etc/frr/daemons
-RUN mkdir -p /tmp/null/var/run/frr
-RUN chroot /tmp/null chown -R frr:frr /etc/frr /var/run/frr
-# not packaged in centos, download from upstream
-ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini /tmp/null/sbin/tini
-ADD https://raw.githubusercontent.com/FRRouting/frr/refs/tags/frr-10.5.0/docker/ubi8-minimal/docker-start /tmp/null/sbin/docker-start
-RUN chmod +x /tmp/null/sbin/tini /tmp/null/sbin/docker-start
 
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/sbin/docker-start"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/bin/sh", "-c", ". /usr/libexec/frr/frrcommon.sh && /usr/libexec/frr/watchfrr $(daemon_list)"]
