@@ -1,7 +1,8 @@
-[wrap-git]
-url = https://github.com/DPDK/dpdk-stable
-revision = v25.11
-depth = 1
+[wrap-file]
+source_url = http://fast.dpdk.org/rel/dpdk-25.11.tar.xz
+source_filename = dpdk-25.11.tar.xz
+source_hash = 52e90d2a531ef3ded0283bd91abc94980698f1f6471fa09658a0217cf6609526
+directory = dpdk-25.11
 diff_files =
 	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,

@@ -88,5 +88,5 @@ jobs:
           token: ${{ github.token }}
           tag: "edge"
           files: |
-            grout*.rpm
-            grout*.*deb
+            *.rpm
+            *.*deb
