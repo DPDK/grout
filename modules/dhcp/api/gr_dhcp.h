@@ -50,29 +50,27 @@ struct gr_dhcp_status {
 
 #define GR_DHCP_MODULE 0xd4c9
 
+enum gr_dhcp_requests : uint32_t {
+	GR_DHCP_LIST = GR_MSG_TYPE(GR_DHCP_MODULE, 0x0001),
+	GR_DHCP_START,
+	GR_DHCP_STOP,
+};
+
 // List all active DHCP clients and their status.
-#define GR_DHCP_LIST REQUEST_TYPE(GR_DHCP_MODULE, 0x01)
-
-// struct gr_dhcp_list_req { };
-
-STREAM_RESP(struct gr_dhcp_status);
+GR_REQ_STREAM(GR_DHCP_LIST, struct gr_empty, struct gr_dhcp_status);
 
 // Start DHCP client on an interface.
 // Initiates DHCP discovery to obtain IPv4 address configuration.
-#define GR_DHCP_START REQUEST_TYPE(GR_DHCP_MODULE, 0x02)
-
 struct gr_dhcp_start_req {
 	uint16_t iface_id;
 };
 
-// struct gr_dhcp_start_resp { };
+GR_REQ(GR_DHCP_START, struct gr_dhcp_start_req, struct gr_empty);
 
 // Stop DHCP client on an interface.
 // Releases the current lease and removes assigned address.
-#define GR_DHCP_STOP REQUEST_TYPE(GR_DHCP_MODULE, 0x03)
-
 struct gr_dhcp_stop_req {
 	uint16_t iface_id;
 };
 
-// struct gr_dhcp_stop_resp { };
+GR_REQ(GR_DHCP_STOP, struct gr_dhcp_stop_req, struct gr_empty);

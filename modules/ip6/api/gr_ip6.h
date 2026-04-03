@@ -26,11 +26,27 @@ struct gr_ip6_route {
 
 #define GR_IP6_MODULE 0xfeed
 
+enum gr_ip6_requests : uint32_t {
+	GR_IP6_ROUTE_ADD = GR_MSG_TYPE(GR_IP6_MODULE, 0x0001),
+	GR_IP6_ROUTE_DEL,
+	GR_IP6_ROUTE_GET,
+	GR_IP6_ROUTE_LIST,
+	GR_IP6_ADDR_ADD,
+	GR_IP6_ADDR_DEL,
+	GR_IP6_ADDR_LIST,
+	GR_IP6_ADDR_FLUSH,
+	GR_IP6_FIB_DEFAULT_SET,
+	GR_IP6_FIB_INFO_LIST,
+	GR_IP6_IFACE_RA_SET,
+	GR_IP6_IFACE_RA_CLEAR,
+	GR_IP6_IFACE_RA_SHOW,
+	GR_IP6_ICMP6_SEND,
+	GR_IP6_ICMP6_RECV,
+};
+
 // routes //////////////////////////////////////////////////////////////////////
 
 // Add a new IPv6 route.
-#define GR_IP6_ROUTE_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0010)
-
 struct gr_ip6_route_add_req {
 	uint16_t vrf_id;
 	struct ip6_net dest;
@@ -40,22 +56,18 @@ struct gr_ip6_route_add_req {
 	uint8_t exist_ok;
 };
 
-// struct gr_ip6_route_add_resp { };
+GR_REQ(GR_IP6_ROUTE_ADD, struct gr_ip6_route_add_req, struct gr_empty);
 
 // Delete an existing IPv6 route.
-#define GR_IP6_ROUTE_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0011)
-
 struct gr_ip6_route_del_req {
 	uint16_t vrf_id;
 	struct ip6_net dest;
 	uint8_t missing_ok;
 };
 
-// struct gr_ip6_route_del_resp { };
+GR_REQ(GR_IP6_ROUTE_DEL, struct gr_ip6_route_del_req, struct gr_empty);
 
 // Get IPv6 route for a destination address (longest prefix match).
-#define GR_IP6_ROUTE_GET REQUEST_TYPE(GR_IP6_MODULE, 0x0012)
-
 struct gr_ip6_route_get_req {
 	uint16_t vrf_id;
 	struct rte_ipv6_addr dest;
@@ -65,56 +77,48 @@ struct gr_ip6_route_get_resp {
 	struct gr_nexthop nh;
 };
 
-// List all IPv6 routes in a VRF.
-#define GR_IP6_ROUTE_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0013)
+GR_REQ(GR_IP6_ROUTE_GET, struct gr_ip6_route_get_req, struct gr_ip6_route_get_resp);
 
+// List all IPv6 routes in a VRF.
 struct gr_ip6_route_list_req {
 	uint16_t vrf_id;
 	uint16_t max_count;
 };
 
-STREAM_RESP(struct gr_ip6_route);
+GR_REQ_STREAM(GR_IP6_ROUTE_LIST, struct gr_ip6_route_list_req, struct gr_ip6_route);
 
 // addresses ///////////////////////////////////////////////////////////////////
 
 // Add an IPv6 address to an interface.
-#define GR_IP6_ADDR_ADD REQUEST_TYPE(GR_IP6_MODULE, 0x0021)
-
 struct gr_ip6_addr_add_req {
 	struct gr_ip6_ifaddr addr;
 	uint8_t exist_ok;
 };
 
-// struct gr_ip6_addr_add_resp { };
+GR_REQ(GR_IP6_ADDR_ADD, struct gr_ip6_addr_add_req, struct gr_empty);
 
 // Delete an IPv6 address from an interface.
-#define GR_IP6_ADDR_DEL REQUEST_TYPE(GR_IP6_MODULE, 0x0022)
-
 struct gr_ip6_addr_del_req {
 	struct gr_ip6_ifaddr addr;
 	uint8_t missing_ok;
 };
 
-// struct gr_ip6_addr_del_resp { };
+GR_REQ(GR_IP6_ADDR_DEL, struct gr_ip6_addr_del_req, struct gr_empty);
 
 // List IPv6 addresses on interfaces.
-#define GR_IP6_ADDR_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0023)
-
 struct gr_ip6_addr_list_req {
 	uint16_t vrf_id;
 	uint16_t iface_id;
 };
 
-STREAM_RESP(struct gr_ip6_ifaddr);
+GR_REQ_STREAM(GR_IP6_ADDR_LIST, struct gr_ip6_addr_list_req, struct gr_ip6_ifaddr);
 
 // Remove all IPv6 addresses from an interface.
-#define GR_IP6_ADDR_FLUSH REQUEST_TYPE(GR_IP6_MODULE, 0x0026)
-
 struct gr_ip6_addr_flush_req {
 	uint16_t iface_id;
 };
 
-// struct gr_ip6_addr_flush_resp { };
+GR_REQ(GR_IP6_ADDR_FLUSH, struct gr_ip6_addr_flush_req, struct gr_empty);
 
 // fib info ////////////////////////////////////////////////////////////////////
 
@@ -128,27 +132,22 @@ struct gr_fib6_info {
 };
 
 // Set default FIB configuration for new VRFs.
-#define GR_IP6_FIB_DEFAULT_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0050)
-
 struct gr_ip6_fib_default_set_req {
 	uint32_t max_routes; // 0 = unchanged
 };
 
-// struct gr_ip6_fib_default_set_resp { };
+GR_REQ(GR_IP6_FIB_DEFAULT_SET, struct gr_ip6_fib_default_set_req, struct gr_empty);
 
 // List FIB info for VRFs.
-#define GR_IP6_FIB_INFO_LIST REQUEST_TYPE(GR_IP6_MODULE, 0x0051)
-
 struct gr_ip6_fib_info_list_req {
 	uint16_t vrf_id; // GR_VRF_ID_UNDEF for all
 };
 
-STREAM_RESP(struct gr_fib6_info);
+GR_REQ_STREAM(GR_IP6_FIB_INFO_LIST, struct gr_ip6_fib_info_list_req, struct gr_fib6_info);
 
 // router advertisement ////////////////////////////////////////////////////////
 
 // Configure IPv6 router advertisement on an interface.
-#define GR_IP6_IFACE_RA_SET REQUEST_TYPE(GR_IP6_MODULE, 0x0030)
 struct gr_ip6_ra_set_req {
 	uint16_t iface_id;
 	uint16_t set_interval : 1;
@@ -157,17 +156,17 @@ struct gr_ip6_ra_set_req {
 	uint16_t interval; // default 600
 	uint16_t lifetime; // default 1800
 };
-// struct gr_ip6_ra_set_resp { };
+
+GR_REQ(GR_IP6_IFACE_RA_SET, struct gr_ip6_ra_set_req, struct gr_empty);
 
 // Disable IPv6 router advertisement on an interface.
-#define GR_IP6_IFACE_RA_CLEAR REQUEST_TYPE(GR_IP6_MODULE, 0x0031)
 struct gr_ip6_ra_clear_req {
 	uint16_t iface_id;
 };
-// struct gr_ip6_ra_clear_resp { };
+
+GR_REQ(GR_IP6_IFACE_RA_CLEAR, struct gr_ip6_ra_clear_req, struct gr_empty);
 
 // Show IPv6 router advertisement configuration.
-#define GR_IP6_IFACE_RA_SHOW REQUEST_TYPE(GR_IP6_MODULE, 0x0032)
 struct gr_ip6_ra_show_req {
 	uint16_t iface_id;
 };
@@ -180,13 +179,11 @@ struct gr_ip6_ra_conf {
 	uint16_t lifetime;
 };
 
-STREAM_RESP(struct gr_ip6_ra_conf);
+GR_REQ_STREAM(GR_IP6_IFACE_RA_SHOW, struct gr_ip6_ra_show_req, struct gr_ip6_ra_conf);
 
 // icmpv6 //////////////////////////////////////////////////////////////////////
 
 // Send an ICMPv6 echo request (ping6).
-#define GR_IP6_ICMP6_SEND REQUEST_TYPE(GR_IP6_MODULE, 0x0041)
-
 struct gr_ip6_icmp_send_req {
 	struct rte_ipv6_addr addr;
 	uint16_t iface;
@@ -196,11 +193,9 @@ struct gr_ip6_icmp_send_req {
 	uint8_t ttl;
 };
 
-// struct gr_ip6_icmp_send_resp { };
+GR_REQ(GR_IP6_ICMP6_SEND, struct gr_ip6_icmp_send_req, struct gr_empty);
 
 // Receive an ICMPv6 echo reply (ping6 response) or error.
-#define GR_IP6_ICMP6_RECV REQUEST_TYPE(GR_IP6_MODULE, 0x0042)
-
 struct gr_ip6_icmp_recv_req {
 	uint16_t ident;
 	uint16_t seq_num;
@@ -216,9 +211,18 @@ struct gr_ip6_icmp_recv_resp {
 	clock_t response_time;
 };
 
-typedef enum {
-	GR_EVENT_IP6_ADDR_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0001),
-	GR_EVENT_IP6_ADDR_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0002),
-	GR_EVENT_IP6_ROUTE_ADD = EVENT_TYPE(GR_IP6_MODULE, 0x0003),
-	GR_EVENT_IP6_ROUTE_DEL = EVENT_TYPE(GR_IP6_MODULE, 0x0004),
-} gr_event_ip6_t;
+GR_REQ(GR_IP6_ICMP6_RECV, struct gr_ip6_icmp_recv_req, struct gr_ip6_icmp_recv_resp);
+
+// events //////////////////////////////////////////////////////////////////////
+
+enum gr_ip6_events : uint32_t {
+	GR_EVENT_IP6_ADDR_ADD = GR_MSG_TYPE(GR_IP6_MODULE, 0x1001),
+	GR_EVENT_IP6_ADDR_DEL,
+	GR_EVENT_IP6_ROUTE_ADD,
+	GR_EVENT_IP6_ROUTE_DEL,
+};
+
+GR_EVENT(GR_EVENT_IP6_ADDR_ADD, struct gr_ip6_ifaddr);
+GR_EVENT(GR_EVENT_IP6_ADDR_DEL, struct gr_ip6_ifaddr);
+GR_EVENT(GR_EVENT_IP6_ROUTE_ADD, struct gr_ip6_route);
+GR_EVENT(GR_EVENT_IP6_ROUTE_DEL, struct gr_ip6_route);

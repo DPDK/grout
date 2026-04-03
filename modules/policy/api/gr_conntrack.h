@@ -77,21 +77,20 @@ struct gr_conntrack {
 
 #define GR_CONNTRACK_MODULE 0xc0c0
 
+enum gr_conntrack_requests : uint32_t {
+	GR_CONNTRACK_LIST = GR_MSG_TYPE(GR_CONNTRACK_MODULE, 0x0001),
+	GR_CONNTRACK_FLUSH,
+	GR_CONNTRACK_CONF_GET,
+	GR_CONNTRACK_CONF_SET,
+};
+
 // conntrack list //////////////////////////////////////////////////////////////
 
 // List all tracked connections.
-#define GR_CONNTRACK_LIST REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0001)
-
-// struct gr_conntrack_list_req { };
-
-STREAM_RESP(struct gr_conntrack);
+GR_REQ_STREAM(GR_CONNTRACK_LIST, struct gr_empty, struct gr_conntrack);
 
 // Flush (delete) all tracked connections.
-#define GR_CONNTRACK_FLUSH REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0002)
-
-// struct gr_conntrack_flush_req { };
-
-// struct gr_conntrack_flush_resp { };
+GR_REQ(GR_CONNTRACK_FLUSH, struct gr_empty, struct gr_empty);
 
 // conntrack timeouts config ///////////////////////////////////////////////////
 
@@ -114,21 +113,17 @@ struct gr_conntrack_config {
 };
 
 // Get connection tracking configuration and usage statistics.
-#define GR_CONNTRACK_CONF_GET REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0003)
-
-// struct gr_conntrack_conf_get_req { };
-
 struct gr_conntrack_conf_get_resp {
 	BASE(gr_conntrack_config);
 	uint32_t used_count;
 };
 
+GR_REQ(GR_CONNTRACK_CONF_GET, struct gr_empty, struct gr_conntrack_conf_get_resp);
+
 // Set connection tracking configuration.
 // Only non-zero values are applied.
-#define GR_CONNTRACK_CONF_SET REQUEST_TYPE(GR_CONNTRACK_MODULE, 0x0004)
-
 struct gr_conntrack_conf_set_req {
 	BASE(gr_conntrack_config);
 };
 
-// struct gr_conntrack_conf_set_resp { };
+GR_REQ(GR_CONNTRACK_CONF_SET, struct gr_conntrack_conf_set_req, struct gr_empty);

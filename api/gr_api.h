@@ -26,13 +26,8 @@ struct gr_api_response {
 
 #define GR_API_MAX_MSG_LEN (128 * 1024)
 
-#define REQUEST_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
-#define EVENT_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
-#define EVENT_TYPE_ALL UINT32_C(0xffffffff)
-
-// Document stream response types with compile-time type checking.
-// Stream responses are always terminated by an empty response (header only with payload_len=0).
-#define STREAM_RESP(type) static_assert(alignof(type) > 0)
+#define GR_MSG_TYPE(module, id) (((uint32_t)(0xffff & module) << 16) | (0xffff & id))
+#define GR_EVENT_ALL UINT32_C(0xffffffff)
 
 #define GR_DEFAULT_SOCK_PATH "/run/grout.sock"
 
@@ -134,27 +129,56 @@ int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t for_id);
 		     });                                                                           \
 		     free(__ptr), __ptr = NULL)
 
+#ifndef GR_REQ
+#define GR_REQ(code, req, resp)                                                                    \
+	enum {                                                                                     \
+		code##_REQ_SIZE = sizeof(req),                                                     \
+		code##_RESP_SIZE = sizeof(resp)                                                    \
+	}
+#endif
+// Stream responses are always terminated by an empty response (header only with payload_len=0).
+#ifndef GR_REQ_STREAM
+#define GR_REQ_STREAM(code, req, resp)                                                             \
+	enum {                                                                                     \
+		code##_REQ_SIZE = sizeof(req),                                                     \
+		code##_RESP_SIZE = sizeof(resp)                                                    \
+	}
+#endif
+#ifndef GR_EVENT
+#define GR_EVENT(code, obj)                                                                        \
+	enum {                                                                                     \
+		code##_OBJ_SIZE = sizeof(obj)                                                      \
+	}
+#endif
+
+struct gr_empty { };
+
 #define GR_MAIN_MODULE 0xcafe
+
+enum gr_main_requests : uint32_t {
+	GR_HELLO = GR_MSG_TYPE(GR_MAIN_MODULE, 0x1981),
+	GR_LOG_PACKETS_SET,
+	GR_LOG_LEVEL_LIST,
+	GR_LOG_LEVEL_SET,
+	GR_EVENT_SUBSCRIBE,
+	GR_EVENT_UNSUBSCRIBE,
+};
 
 // Client handshake with version negotiation.
 // Must be the first request sent by any client.
 // Version string must match server version exactly.
-#define GR_HELLO REQUEST_TYPE(GR_MAIN_MODULE, 0x1981)
 struct gr_hello_req {
 	char version[128]; // NUL-terminated
 };
-// struct gr_hello_resp { };
+
+GR_REQ(GR_HELLO, struct gr_hello_req, struct gr_empty);
 
 // Enable/disable packet ingress/egress logging.
-#define GR_LOG_PACKETS_SET REQUEST_TYPE(GR_MAIN_MODULE, 0x0010)
-
 struct gr_log_packets_set_req {
 	bool enabled;
 };
 
-// struct gr_log_packet_set_resp { };
-
-#define GR_LOG_LEVEL_LIST REQUEST_TYPE(GR_MAIN_MODULE, 0x0011)
+GR_REQ(GR_LOG_PACKETS_SET, struct gr_log_packets_set_req, struct gr_empty);
 
 struct gr_log_level_list_req {
 	bool show_all;
@@ -164,9 +188,8 @@ struct gr_log_entry {
 	char name[64];
 	uint32_t level;
 };
-STREAM_RESP(struct gr_log_entry);
 
-#define GR_LOG_LEVEL_SET REQUEST_TYPE(GR_MAIN_MODULE, 0x0012)
+GR_REQ_STREAM(GR_LOG_LEVEL_LIST, struct gr_log_level_list_req, struct gr_log_entry);
 
 #define GR_LOG_LEVEL_MIN 1
 #define GR_LOG_LEVEL_MAX 8
@@ -176,26 +199,23 @@ struct gr_log_level_set_req {
 	uint32_t level;
 };
 
-// struct gr_log_level_set_resp { };
+GR_REQ(GR_LOG_LEVEL_SET, struct gr_log_level_set_req, struct gr_empty);
 
 // Subscribe to events of a given type.
-// Use EVENT_TYPE_ALL to subscribe to all event types.
+// Use GR_EVENT_ALL to subscribe to all event types.
 // Multiple subscriptions to same type update suppression flag.
-#define GR_EVENT_SUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcafe)
 struct gr_event_subscribe_req {
 	// Suppress events originating from API messages made by the same PID
 	// as the subscriber socket.
 	bool suppress_self_events;
 	uint32_t ev_type;
 };
-// struct gr_event_subscribe_resp { };
+GR_REQ(GR_EVENT_SUBSCRIBE, struct gr_event_subscribe_req, struct gr_empty);
 
 // Unsubscribe from all events.
 // Removes ALL subscriptions for this client, not just specific types.
 // Automatically called on client disconnection.
-#define GR_EVENT_UNSUBSCRIBE REQUEST_TYPE(GR_MAIN_MODULE, 0xcaff)
-// struct gr_event_unsubscribe_req { };
-// struct gr_event_unsubscribe_resp { };
+GR_REQ(GR_EVENT_UNSUBSCRIBE, struct gr_empty, struct gr_empty);
 
 struct gr_api_event {
 	uint32_t ev_type;

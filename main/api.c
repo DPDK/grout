@@ -43,11 +43,11 @@ struct subscription {
 	pid_t pid;
 };
 
-// List of subscribers to EVENT_TYPE_ALL
+// List of subscribers to GR_EVENT_ALL
 static vec struct subscription *all_events_subs;
 // 2 dimensional array of subscribers to events.
 //
-// Example to get a list of sockets subscribed to ev_type = 0xacdc0102:
+// Example to get a list of sockets subscribed to ev_type = 0xacdc3003:
 //
 //                           GR_INFRA_MODULE
 //                                  |
@@ -60,13 +60,17 @@ static vec struct subscription *all_events_subs;
 //                      struct module_subscribers
 //                              sockets
 //                             +--------+
-//  GR_EVENT_IFACE_UNKNOWN     | 0x0000 |
-//                             |--------|
-//  GR_EVENT_IFACE_ADD         | 0x0001 |
+//                             | 0x0000 |
 //                             |--------|
 //                             | ...... |
 //                             |--------|
-//  GR_EVENT_NEXTHOP_UPDATE -> | 0x0102 | -> vec of evutil_socket_t
+//  GR_EVENT_IFACE_ADD         | 0x1001 |
+//                             |--------|
+//  GR_EVENT_IFACE_DEL         | 0x1002 |
+//                             |--------|
+//                             | ...... |
+//                             |--------|
+//  GR_EVENT_NEXTHOP_UPDATE -> | 0x3003 | -> vec of evutil_socket_t
 //                             |--------|
 //                             | ...... |
 //                             |--------|
@@ -138,7 +142,7 @@ static struct api_out subscribe(const void *request, struct api_ctx *ctx) {
 	struct subscription *s;
 	uint16_t mod, ev;
 
-	if (req->ev_type == EVENT_TYPE_ALL) {
+	if (req->ev_type == GR_EVENT_ALL) {
 		vec_foreach_ref (s, all_events_subs) {
 			if (s->bev == ctx->bev) {
 				s->suppress_self_events = req->suppress_self_events;

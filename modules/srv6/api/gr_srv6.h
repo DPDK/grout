@@ -31,25 +31,30 @@ struct gr_nexthop_info_srv6 {
 	struct rte_ipv6_addr seglist[];
 };
 
+enum gr_srv6_requests : uint32_t {
+	GR_SRV6_TUNSRC_SET = GR_MSG_TYPE(GR_SRV6_MODULE, 0x0001),
+	GR_SRV6_TUNSRC_CLEAR,
+	GR_SRV6_TUNSRC_SHOW,
+};
+
 // sr tun src //////////////////////////////////////////////////////
 
 // Set the global SRv6 tunnel source address.
-#define GR_SRV6_TUNSRC_SET REQUEST_TYPE(GR_SRV6_MODULE, 0x0005)
 struct gr_srv6_tunsrc_set_req {
 	struct rte_ipv6_addr addr;
 };
 
+GR_REQ(GR_SRV6_TUNSRC_SET, struct gr_srv6_tunsrc_set_req, struct gr_empty);
+
 // Clear the global SRv6 tunnel source address.
-#define GR_SRV6_TUNSRC_CLEAR REQUEST_TYPE(GR_SRV6_MODULE, 0x0006)
-// struct gr_srv6_tunsrc_clear_req { };
+GR_REQ(GR_SRV6_TUNSRC_CLEAR, struct gr_empty, struct gr_empty);
 
 // Show the current SRv6 tunnel source address.
-#define GR_SRV6_TUNSRC_SHOW REQUEST_TYPE(GR_SRV6_MODULE, 0x0007)
-// struct gr_srv6_tunsrc_show_req { };
-
 struct gr_srv6_tunsrc_show_resp {
 	struct rte_ipv6_addr addr;
 };
+
+GR_REQ(GR_SRV6_TUNSRC_SHOW, struct gr_empty, struct gr_srv6_tunsrc_show_resp);
 
 // localsid (tunnel transit and exit) /////////////////////////////////
 
