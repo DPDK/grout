@@ -8,9 +8,6 @@
 #include "rt_grout.h"
 
 #include <gr_api_client_impl.h>
-#include <gr_errno.h>
-#include <gr_l2.h>
-#include <gr_srv6.h>
 
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>

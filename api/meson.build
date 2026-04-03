@@ -18,6 +18,17 @@ api_headers += configure_file(
   }),
 )
 
+grout_header = custom_target(
+  'grout.h',
+  output: 'grout.h',
+  command: files('../devtools/gen_api_header.sh') + api_headers,
+  depend_files: api_headers,
+  install: true,
+  capture: true,
+  install_dir: get_option('includedir') / 'grout',
+  install_tag: 'man',
+)
+
 api_src = files(
   'printf.c',
   'string.c',

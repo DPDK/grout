@@ -25,7 +25,7 @@ frr_plugin = shared_module(
     'if_map.c',
     'rt_grout.c',
     'zebra_dplane_grout.c',
-  ),
+  ) + grout_header,
   name_prefix: '',
   dependencies: [frr_dep],
   include_directories: api_inc + include_directories('.'),

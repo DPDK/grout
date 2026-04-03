@@ -5,10 +5,7 @@
 
 #pragma once
 
-#include <gr_api.h>
-#include <gr_errno.h>
-#include <gr_macro.h>
-#include <gr_version.h>
+#include <grout.h>
 
 #include <assert.h>
 #include <getopt.h>

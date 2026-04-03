@@ -9,5 +9,6 @@ src += files(
 )
 
 api_headers += files('gr_ipip.h')
+api_inc += include_directories('.')
 cli_inc += include_directories('.')
 cli_src += files('cli.c')

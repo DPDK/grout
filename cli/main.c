@@ -10,10 +10,7 @@
 #include "pager.h"
 #include "tty.h"
 
-#include <gr_api.h>
 #include <gr_api_client_impl.h>
-#include <gr_clock.h>
-#include <gr_version.h>
 
 #include <ecoli.h>
 
