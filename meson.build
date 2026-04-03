@@ -115,10 +115,10 @@ cli_cflags = []
 
 tests = []
 
-subdir('api')
 subdir('main')
 subdir('modules')
 subdir('cli')
+subdir('api')
 subdir('frr')
 
 grout_exe = executable(
@@ -130,7 +130,7 @@ grout_exe = executable(
 )
 
 grcli_exe = executable(
-  'grcli', cli_src,
+  'grcli', cli_src + grout_header,
   include_directories: cli_inc + api_inc,
   dependencies: [ecoli_dep],
   c_args: cli_cflags + grout_cflags,
@@ -138,7 +138,7 @@ grcli_exe = executable(
 )
 
 executable(
-  'fib_inject', files('smoke/fib_inject.c'),
+  'fib_inject', files('smoke/fib_inject.c') + grout_header,
   include_directories: api_inc,
   install: false,
 )

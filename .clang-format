@@ -92,9 +92,9 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*'
     Priority:        -1
-  - Regex:           '^<(gr_|gr\.)'
+  - Regex:           '^<gr_'
     Priority:        100
-  - Regex:           '^<(rte_|event|ecoli|numa.h)'
+  - Regex:           '^<(rte_|event|ecoli|numa.h|grout.h)'
     Priority:        500
   - Regex:           '^<cmocka'
     Priority:        100000

@@ -154,7 +154,7 @@ rm -rf %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
 %doc README.md
 %license licenses/BSD-3-clause.txt
 %{_datadir}/pkgconfig/grout.pc
-%{_includedir}/grout/gr_*.h
+%{_includedir}/grout/*.h
 
 %if %{with frr}
 %files frr
