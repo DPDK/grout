@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "graph_priv.h"
+#include "graph.h"
+#include "module.h"
+#include "port.h"
+#include "rxtx.h"
+#include "worker.h"
 
-#include <gr_datapath.h>
-#include <gr_graph.h>
 #include <gr_infra.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_port.h>
-#include <gr_queue.h>
-#include <gr_rxtx.h>
 #include <gr_string.h>
 #include <gr_vec.h>
-#include <gr_worker.h>
 
-#include <event2/event.h>
 #include <rte_build_config.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>

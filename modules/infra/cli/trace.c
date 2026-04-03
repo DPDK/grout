@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cli.h"
+#include "cli_iface.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_iface.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>
 
 #include <stdio.h>
-#include <unistd.h>
 
 static cmd_status_t trace_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_packet_trace_set_req req;

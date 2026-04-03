@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "mbuf.h"
+#include "mempool.h"
+
 #include <gr_config.h>
 #include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_mempool.h>
 
 #include <stdlib.h>
 

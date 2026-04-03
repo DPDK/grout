@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_control.h>
-#include <gr_ip6_datapath.h>
+#include "graph.h"
+#include "ip4_datapath.h"
+#include "ip6.h"
+#include "ip6_datapath.h"
+#include "l3.h"
+#include "srv6.h"
+
 #include <gr_srv6.h>
-#include <gr_srv6_nexthop.h>
-#include <gr_trace.h>
-#include <gr_vec.h>
 
 //
 // srv6 source node. encapsulate traffic

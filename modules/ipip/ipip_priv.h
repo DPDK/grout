@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include <gr_iface.h>
+#include "iface.h"
+
 #include <gr_ipip.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>

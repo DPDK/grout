@@ -4,7 +4,6 @@
 #include <gr_errno.h>
 #include <gr_sort.h>
 
-#include <stdbool.h>
 #include <stdlib.h>
 
 static bool *build_adjacency_matrix(gr_vec const void **nodes, topo_is_child_cb_t is_child) {

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "datapath.h"
+#include "module.h"
+#include "rcu.h"
+#include "worker.h"
+
 #include <gr_config.h>
-#include <gr_datapath.h>
-#include <gr_graph.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_rcu.h>
 #include <gr_sort.h>
 #include <gr_vec.h>
-#include <gr_worker.h>
 
 #include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
+#include <rte_graph_worker.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/prctl.h>
-#include <sys/queue.h>
 #include <unistd.h>
 
 GR_LOG_TYPE("graph");

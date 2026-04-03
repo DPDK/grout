@@ -2,13 +2,13 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "api.h"
+#include "control_queue.h"
+#include "module.h"
 
 #include <gr_api.h>
-#include <gr_control_queue.h>
 #include <gr_event.h>
 #include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_module.h>
 #include <gr_vec.h>
 
 #include <rte_lcore.h>

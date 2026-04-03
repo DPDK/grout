@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_eth.h>
-#include <gr_graph.h>
-#include <gr_icmp6.h>
-#include <gr_lacp.h>
+#include "eth.h"
+#include "graph.h"
+#include "icmp6.h"
+#include "lacp.h"
+#include "mbuf.h"
+#include "module.h"
+#include "rxtx.h"
+#include "trace.h"
+
 #include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_mbuf.h>
-#include <gr_module.h>
 #include <gr_net_types.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
 
 #include <rte_arp.h>
 #include <rte_byteorder.h>
-#include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_icmp.h>
-#include <rte_ip.h>
 #include <rte_ip6.h>
-#include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_ring.h>
 #include <rte_tcp.h>

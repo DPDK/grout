@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include <gr_eth.h>
+#include "graph.h"
+#include "snap.h"
+
 #include <gr_log.h>
-#include <gr_snap.h>
 
 GR_LOG_TYPE("graph");
 

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "nexthop.h"
+#include "rcu.h"
+
 #include <gr_log.h>
-#include <gr_nh_control.h>
-#include <gr_rcu.h>
 
 #include <rte_malloc.h>
 

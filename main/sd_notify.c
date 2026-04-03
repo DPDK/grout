@@ -19,10 +19,7 @@
 #include <gr_string.h>
 
 #include <errno.h>
-#include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>

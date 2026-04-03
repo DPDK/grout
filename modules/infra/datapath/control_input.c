@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control_input.h>
-#include <gr_eth.h>
-#include <gr_graph.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_mempool.h>
-#include <gr_trace.h>
+#include "control_input.h"
+#include "graph.h"
+#include "mbuf.h"
+#include "mempool.h"
+#include "trace.h"
 
-#include <rte_ether.h>
-#include <rte_malloc.h>
-#include <rte_version.h>
+#include <gr_log.h>
 
 GR_LOG_TYPE("graph");
 

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Matej Mužila
 
+#include "module.h"
 #include "unix.h"
 
-#include <gr_api.h>
 #include <gr_log.h>
-#include <gr_module.h>
 #include <gr_string.h>
 #include <gr_vec.h>
 

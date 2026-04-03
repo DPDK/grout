@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_api.h>
-#include <gr_event.h>
+#include "module.h"
+#include "nexthop.h"
+
 #include <gr_log.h>
-#include <gr_module.h>
 #include <gr_nexthop.h>
-#include <gr_nh_control.h>
-#include <gr_vec.h>
 
 GR_LOG_TYPE("nexthop");
 

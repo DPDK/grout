@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_api.h>
+#include "control_queue.h"
+#include "module.h"
+#include "port.h"
+#include "worker.h"
+
 #include <gr_config.h>
-#include <gr_control_queue.h>
 #include <gr_infra.h>
 #include <gr_metrics.h>
-#include <gr_module.h>
-#include <gr_port.h>
 #include <gr_vec.h>
-#include <gr_worker.h>
 
 #include <errno.h>
 #include <sys/queue.h>
-#include <unistd.h>
 
 static struct api_out affinity_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_affinity_cpu_get_resp *resp = calloc(1, sizeof(*resp));

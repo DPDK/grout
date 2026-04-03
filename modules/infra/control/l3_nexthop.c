@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "iface.h"
+#include "mbuf.h"
+#include "module.h"
+#include "nexthop.h"
+#include "rcu.h"
+
 #include <gr_clock.h>
-#include <gr_iface.h>
 #include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_module.h>
-#include <gr_nh_control.h>
-#include <gr_rcu.h>
 
 #include <rte_hash.h>
 

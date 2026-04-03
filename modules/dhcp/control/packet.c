@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
-#include "client.h"
+#include "dhcp.h"
+#include "eth.h"
+#include "iface.h"
 
-#include <gr_eth.h>
-#include <gr_iface.h>
-#include <gr_ip4.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
 #include <gr_log.h>
-#include <gr_mbuf.h>
 #include <gr_net_types.h>
 
 #include <rte_byteorder.h>

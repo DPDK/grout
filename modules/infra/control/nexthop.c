@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_control_queue.h>
+#include "control_queue.h"
+#include "iface.h"
+#include "module.h"
+#include "nexthop.h"
+#include "rcu.h"
+
 #include <gr_event.h>
 #include <gr_id_pool.h>
-#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_metrics.h>
-#include <gr_module.h>
-#include <gr_nh_control.h>
-#include <gr_rcu.h>
-#include <gr_vec.h>
 
 #include <rte_hash.h>
 #include <rte_mempool.h>

@@ -4,7 +4,6 @@
 #include <gr_cmocka.h>
 #include <gr_net_types.h>
 
-#include <stddef.h>
 #include <stdio.h>
 
 static void ether(void **) {

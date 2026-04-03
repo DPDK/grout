@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_nat_control.h>
-#include <gr_nat_datapath.h>
+#include "nat.h"
+#include "nat_datapath.h"
 
-#include <rte_ip.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
 

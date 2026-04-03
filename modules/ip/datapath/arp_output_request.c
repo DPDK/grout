@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "control_input.h"
+#include "eth.h"
+#include "graph.h"
+#include "iface.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "trace.h"
+
 #include <gr_clock.h>
-#include <gr_control_input.h>
-#include <gr_datapath.h>
-#include <gr_eth.h>
-#include <gr_graph.h>
-#include <gr_iface.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_trace.h>
 
 #include <rte_arp.h>
-#include <rte_byteorder.h>
-#include <rte_errno.h>
-#include <rte_ethdev.h>
 #include <rte_ether.h>
-#include <rte_ip.h>
 #include <rte_mbuf.h>
 
 enum {

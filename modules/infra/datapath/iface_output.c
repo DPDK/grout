@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
-#include <gr_graph.h>
-#include <gr_iface.h>
+#include "graph.h"
+#include "iface.h"
+#include "mbuf.h"
+#include "rxtx.h"
+#include "vlan.h"
+
 #include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_port.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
-#include <gr_vlan.h>
 
 #include <stdint.h>
 

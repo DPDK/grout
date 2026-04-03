@@ -3,7 +3,6 @@
 
 #include "dpdk.h"
 
-#include <gr_api.h>
 #include <gr_config.h>
 #include <gr_errno.h>
 #include <gr_log.h>
@@ -11,9 +10,7 @@
 #include <gr_vec.h>
 
 #include <rte_eal.h>
-#include <rte_errno.h>
 #include <rte_log.h>
-#include <rte_mempool.h>
 #include <rte_version.h>
 #include <rte_vfio.h>
 

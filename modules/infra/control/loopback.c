@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control_input.h>
-#include <gr_control_queue.h>
-#include <gr_eth.h>
-#include <gr_iface.h>
+#include "control_input.h"
+#include "control_queue.h"
+#include "eth.h"
+#include "iface.h"
+#include "loopback.h"
+#include "mempool.h"
+#include "module.h"
+#include "netlink.h"
+#include "vrf.h"
+
 #include <gr_infra.h>
 #include <gr_log.h>
-#include <gr_loopback.h>
-#include <gr_mempool.h>
-#include <gr_module.h>
-#include <gr_netlink.h>
 #include <gr_string.h>
-#include <gr_vrf.h>
 
 #include <event2/event.h>
 #include <rte_errno.h>
@@ -23,7 +24,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
 

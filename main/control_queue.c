@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control_queue.h>
+#include "control_queue.h"
+#include "module.h"
+
 #include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_metrics.h>
-#include <gr_module.h>
 
 #include <event2/event.h>
-#include <rte_lcore.h>
 #include <rte_ring.h>
 
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdatomic.h>
-#include <stdlib.h>
 
 struct control_queue_item {
 	control_queue_cb_t callback;

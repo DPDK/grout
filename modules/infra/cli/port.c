@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "cli.h"
+#include "cli_iface.h"
+#include "display.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_iface.h>
-#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 #include <gr_string.h>
@@ -12,7 +13,6 @@
 #include <ecoli.h>
 
 #include <errno.h>
-#include <string.h>
 #include <sys/queue.h>
 
 static void port_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {

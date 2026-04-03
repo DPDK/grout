@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#include <gr_infra.h>
-#include <gr_ip4_control.h>
-#include <gr_ip6_control.h>
-#include <gr_log.h>
-#include <gr_module.h>
+#include "srv6.h"
+
 #include <gr_srv6.h>
-#include <gr_srv6_nexthop.h>
 
 static bool srv6_local_nh_equal(const struct nexthop *a, const struct nexthop *b) {
 	struct nexthop_info_srv6_local *ad = nexthop_info_srv6_local(a);

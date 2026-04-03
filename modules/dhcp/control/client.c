@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
-#include "client.h"
+#include "control_input.h"
+#include "control_queue.h"
+#include "dhcp.h"
+#include "iface.h"
+#include "ip4.h"
+#include "mempool.h"
+#include "module.h"
+#include "nexthop.h"
 
-#include <gr_api.h>
-#include <gr_control_input.h>
-#include <gr_control_queue.h>
 #include <gr_dhcp.h>
-#include <gr_iface.h>
-#include <gr_ip4_control.h>
 #include <gr_log.h>
-#include <gr_mempool.h>
-#include <gr_module.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
-#include <gr_nh_control.h>
 
 #include <event2/event.h>
 #include <rte_mbuf.h>

@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_eth.h>
-#include <gr_graph.h>
-#include <gr_ip6_control.h>
-#include <gr_ip6_datapath.h>
-#include <gr_log.h>
-#include <gr_loopback.h>
-#include <gr_trace.h>
+#include "eth.h"
+#include "graph.h"
+#include "ip6.h"
+#include "ip6_datapath.h"
+#include "l3.h"
+#include "loopback.h"
+#include "trace.h"
 
-#include <rte_byteorder.h>
-#include <rte_errno.h>
+#include <gr_log.h>
+
 #include <rte_ether.h>
-#include <rte_fib6.h>
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
-#include <rte_mbuf_dyn.h>
 
 GR_LOG_TYPE("graph");
 

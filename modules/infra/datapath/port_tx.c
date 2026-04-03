@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
-#include <gr_config.h>
-#include <gr_graph.h>
-#include <gr_iface.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
-#include <gr_worker.h>
+#include "graph.h"
+#include "iface.h"
+#include "mbuf.h"
+#include "port.h"
+#include "rxtx.h"
+#include "trace.h"
 
-#include <rte_build_config.h>
+#include <gr_config.h>
+
 #include <rte_ethdev.h>
-#include <rte_malloc.h>
 #include <rte_spinlock.h>
 
 #include <stdint.h>

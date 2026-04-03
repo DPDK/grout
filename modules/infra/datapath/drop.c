@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "graph.h"
+#include "mbuf.h"
+
 #include <gr_config.h>
-#include <gr_graph.h>
 #include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_trace.h>
 
 #include <rte_mbuf.h>
 

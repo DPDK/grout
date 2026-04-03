@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "iface.h"
+#include "module.h"
+#include "trace.h"
+
 #include <gr_api.h>
-#include <gr_config.h>
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
-#include <gr_module.h>
-#include <gr_trace.h>
 
 #include <stdatomic.h>
 

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_conntrack_control.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_module.h>
-#include <gr_nat_datapath.h>
+#include "conntrack.h"
+#include "graph.h"
+#include "ip4.h"
+#include "l3.h"
+#include "nat_datapath.h"
 
 #include <rte_icmp.h>
 #include <rte_tcp.h>

@@ -12,7 +12,6 @@
 #include <gr_config.h>
 #include <gr_log.h>
 #include <gr_string.h>
-#include <gr_trace.h>
 #include <gr_vec.h>
 #include <gr_version.h>
 
@@ -25,7 +24,6 @@
 #include <locale.h>
 #include <pwd.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
