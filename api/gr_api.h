@@ -49,13 +49,14 @@ int gr_api_client_disconnect(struct gr_api_client *);
 long int
 gr_api_client_send(struct gr_api_client *, uint32_t req_type, size_t tx_len, const void *tx_data);
 
-// Receive an API response.
+// Receive an API response with minimum payload size validation.
 // Caller must free(*rx_data) after use.
 // Returns 0 on success, negative errno on failure.
-int gr_api_client_recv(struct gr_api_client *, uint32_t for_id, void **rx_data);
+// Returns -EMSGSIZE if payload is non-empty but smaller than min_resp_size.
+int gr_api_client_recv(struct gr_api_client *, uint32_t req_type, uint32_t for_id, void **rx_data);
 
 // Send a request and receive the response.
-// Convenience function for simple request-response patterns.
+// Validates response payload size against GR_REQ-declared type.
 // Caller must free(*rx_data) after use.
 // Returns 0 on success, negative errno on failure.
 static inline int gr_api_client_send_recv(
@@ -68,11 +69,11 @@ static inline int gr_api_client_send_recv(
 	long int ret = gr_api_client_send(client, req_type, tx_len, tx_data);
 	if (ret < 0)
 		return ret;
-	return gr_api_client_recv(client, ret, rx_data);
+	return gr_api_client_recv(client, req_type, ret, rx_data);
 }
 
 // internal, called when interrupting gr_api_client_stream_foreach()
-int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t for_id);
+int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t req_type, uint32_t for_id);
 
 // Send a request and iterate over the received stream of responses.
 //
@@ -107,14 +108,14 @@ int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t for_id);
 			     ret = __id;                                                           \
 		     } else if (!__done && __id >= 0) {                                            \
 			     free((void *)obj);                                                    \
-			     ret = __gr_api_client_stream_drain(client, __id);                     \
+			     ret = __gr_api_client_stream_drain(client, req_type, __id);           \
 		     }                                                                             \
 		     __id >= 0 && __first; /* statement expression value */                        \
 	     });                                                                                   \
 	     __first = 0)                                                                          \
 		for (void *__ptr = NULL; ({                                                        \
 			     bool more = false;                                                    \
-			     ret = gr_api_client_recv(client, __id, &__ptr);                       \
+			     ret = gr_api_client_recv(client, req_type, __id, &__ptr);             \
 			     if (ret < 0) {                                                        \
 				     free(__ptr);                                                  \
 				     __ptr = NULL;                                                 \
