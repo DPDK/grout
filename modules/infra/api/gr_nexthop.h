@@ -120,12 +120,25 @@ struct gr_nexthop {
 	uint8_t info[]; // Type specific nexthop info.
 };
 
+enum gr_nexthop_requests : uint32_t {
+	GR_NH_CONFIG_GET = GR_MSG_TYPE(GR_INFRA_MODULE, 0x2001),
+	GR_NH_CONFIG_SET,
+	GR_NH_ADD,
+	GR_NH_DEL,
+	GR_NH_LIST,
+	GR_NH_GET,
+};
+
 // Nexthop events (not generated for GR_NH_ORIGIN_INTERNAL nexthops).
-typedef enum {
-	GR_EVENT_NEXTHOP_NEW = EVENT_TYPE(GR_INFRA_MODULE, 0x0100),
-	GR_EVENT_NEXTHOP_DELETE = EVENT_TYPE(GR_INFRA_MODULE, 0x0101),
-	GR_EVENT_NEXTHOP_UPDATE = EVENT_TYPE(GR_INFRA_MODULE, 0x0102),
-} gr_event_nexthop_t;
+enum gr_nexthop_events : uint32_t {
+	GR_EVENT_NEXTHOP_NEW = GR_MSG_TYPE(GR_INFRA_MODULE, 0x3001),
+	GR_EVENT_NEXTHOP_DELETE,
+	GR_EVENT_NEXTHOP_UPDATE,
+};
+
+GR_EVENT(GR_EVENT_NEXTHOP_NEW, struct gr_nexthop);
+GR_EVENT(GR_EVENT_NEXTHOP_DELETE, struct gr_nexthop);
+GR_EVENT(GR_EVENT_NEXTHOP_UPDATE, struct gr_nexthop);
 
 #define gr_nh_flags_foreach(f, flags)                                                              \
 	for (gr_nh_flags_t __i = 0, f = GR_BIT8(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;        \
@@ -276,54 +289,44 @@ struct gr_nexthop_config {
 };
 
 // Get nexthop subsystem configuration and usage.
-#define GR_NH_CONFIG_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0060)
-
-// struct gr_nh_config_get_req { };
-
 struct gr_nh_config_get_resp {
 	BASE(gr_nexthop_config);
 	uint32_t used_count;
 };
 
+GR_REQ(GR_NH_CONFIG_GET, struct gr_empty, struct gr_nh_config_get_resp);
+
 // Set nexthop subsystem configuration.
 // Only non-zero values are applied. Changing max_count requires no nexthops in use.
-#define GR_NH_CONFIG_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0061)
-
 struct gr_nh_config_set_req {
 	BASE(gr_nexthop_config);
 };
 
-// struct gr_nh_config_set_resp { };
+GR_REQ(GR_NH_CONFIG_SET, struct gr_nh_config_set_req, struct gr_empty);
 
 // next hops ///////////////////////////////////////////////////////////////////
 
 // Add a new nexthop.
 // If iface_id is specified, vrf_id is overridden with interface's VRF.
 // MAC address automatically sets GR_NH_F_STATIC and GR_NH_S_REACHABLE.
-#define GR_NH_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0071)
-
 struct gr_nh_add_req {
 	uint8_t exist_ok;
 	struct gr_nexthop nh;
 };
 
-// struct gr_nh_add_resp { };
+GR_REQ(GR_NH_ADD, struct gr_nh_add_req, struct gr_empty);
 
 // Delete an existing nexthop.
 // Automatically removes all routes referencing this nexthop.
 // Protected nexthops (Local+Static, Link origin) cannot be deleted.
-#define GR_NH_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0072)
-
 struct gr_nh_del_req {
 	uint32_t nh_id;
 	uint8_t missing_ok;
 };
 
-// struct gr_nh_del_resp { };
+GR_REQ(GR_NH_DEL, struct gr_nh_del_req, struct gr_empty);
 
 // List nexthops with optional filtering.
-#define GR_NH_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0073)
-
 struct gr_nh_list_req {
 	uint16_t vrf_id;
 	gr_nh_type_t type;
@@ -331,13 +334,11 @@ struct gr_nh_list_req {
 	bool include_internal;
 };
 
-STREAM_RESP(struct gr_nexthop);
+GR_REQ_STREAM(GR_NH_LIST, struct gr_nh_list_req, struct gr_nexthop);
 
 // Get a single nexthop by ID.
-#define GR_NH_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0074)
-
 struct gr_nh_get_req {
 	uint32_t nh_id;
 };
 
-// Response payload is struct gr_nexthop (variable length).
+GR_REQ(GR_NH_GET, struct gr_nh_get_req, struct gr_nexthop);

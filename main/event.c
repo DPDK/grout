@@ -27,7 +27,7 @@ void event_subscribe(uint32_t ev_type, event_sub_cb_t callback) {
 	uint16_t ev = ev_type & 0xffff;
 	struct event_sub_callbacks *subs = mod_subs[mod];
 
-	assert(ev_type != EVENT_TYPE_ALL); // explicit events required
+	assert(ev_type != GR_EVENT_ALL); // explicit events required
 	assert(callback != NULL);
 
 	if (subs == NULL) {

@@ -229,25 +229,51 @@ struct gr_stat {
 
 #define GR_INFRA_MODULE 0xacdc
 
-// Interface events.
-typedef enum {
-	GR_EVENT_IFACE_UNKNOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0000),
-	GR_EVENT_IFACE_ADD = EVENT_TYPE(GR_INFRA_MODULE, 0x0001),
-	GR_EVENT_IFACE_POST_ADD = EVENT_TYPE(GR_INFRA_MODULE, 0x0002),
-	GR_EVENT_IFACE_PRE_REMOVE = EVENT_TYPE(GR_INFRA_MODULE, 0x0003),
-	GR_EVENT_IFACE_REMOVE = EVENT_TYPE(GR_INFRA_MODULE, 0x0004),
-	GR_EVENT_IFACE_POST_RECONFIG = EVENT_TYPE(GR_INFRA_MODULE, 0x0005),
-	GR_EVENT_IFACE_STATUS_UP = EVENT_TYPE(GR_INFRA_MODULE, 0x0006),
-	GR_EVENT_IFACE_STATUS_DOWN = EVENT_TYPE(GR_INFRA_MODULE, 0x0007),
-	GR_EVENT_IFACE_MAC_CHANGE = EVENT_TYPE(GR_INFRA_MODULE, 0x0008),
-} gr_event_iface_t;
+enum gr_infra_requests : uint32_t {
+	GR_IFACE_ADD = GR_MSG_TYPE(GR_INFRA_MODULE, 0x0001),
+	GR_IFACE_DEL,
+	GR_IFACE_GET,
+	GR_IFACE_LIST,
+	GR_IFACE_SET,
+	GR_IFACE_STATS_GET,
+	GR_AFFINITY_RXQ_LIST,
+	GR_GRAPH_CONF_GET,
+	GR_GRAPH_CONF_SET,
+	GR_AFFINITY_RXQ_SET,
+	GR_STATS_GET,
+	GR_STATS_RESET,
+	GR_GRAPH_DUMP,
+	GR_PACKET_TRACE_CLEAR,
+	GR_PACKET_TRACE_DUMP,
+	GR_PACKET_TRACE_SET,
+	GR_AFFINITY_CPU_GET,
+	GR_AFFINITY_CPU_SET,
+};
+
+enum gr_infra_events : uint32_t {
+	GR_EVENT_IFACE_ADD = GR_MSG_TYPE(GR_INFRA_MODULE, 0x1001),
+	GR_EVENT_IFACE_POST_ADD,
+	GR_EVENT_IFACE_PRE_REMOVE,
+	GR_EVENT_IFACE_REMOVE,
+	GR_EVENT_IFACE_POST_RECONFIG,
+	GR_EVENT_IFACE_STATUS_UP,
+	GR_EVENT_IFACE_STATUS_DOWN,
+	GR_EVENT_IFACE_MAC_CHANGE,
+};
+
+GR_EVENT(GR_EVENT_IFACE_ADD, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_POST_ADD, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_PRE_REMOVE, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_REMOVE, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_POST_RECONFIG, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_STATUS_UP, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_STATUS_DOWN, struct gr_iface);
+GR_EVENT(GR_EVENT_IFACE_MAC_CHANGE, struct gr_iface);
 
 // interface management ///////////////////////////////////////////////////////
 
 // Create a new interface.
 // VRFs must be created before other interfaces can use them.
-#define GR_IFACE_ADD REQUEST_TYPE(GR_INFRA_MODULE, 0x0001)
-
 struct gr_iface_add_req {
 	// iface id must be zeroed (i.e. GR_IFACE_ID_UNDEF).
 	struct gr_iface iface;
@@ -258,18 +284,16 @@ struct gr_iface_add_resp {
 	uint16_t iface_id;
 };
 
-// Delete an existing interface.
-#define GR_IFACE_DEL REQUEST_TYPE(GR_INFRA_MODULE, 0x0002)
+GR_REQ(GR_IFACE_ADD, struct gr_iface_add_req, struct gr_iface_add_resp);
 
+// Delete an existing interface.
 struct gr_iface_del_req {
 	uint16_t iface_id;
 };
 
-// struct gr_iface_del_resp { };
+GR_REQ(GR_IFACE_DEL, struct gr_iface_del_req, struct gr_empty);
 
 // Get one interface by ID or name.
-#define GR_IFACE_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0003)
-
 struct gr_iface_get_req {
 	uint16_t iface_id; // 0 to search by name.
 	char name[IFNAMSIZ]; // Used if iface_id is 0.
@@ -279,31 +303,25 @@ struct gr_iface_get_resp {
 	struct gr_iface iface;
 };
 
-// List interfaces.
-#define GR_IFACE_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0004)
+GR_REQ(GR_IFACE_GET, struct gr_iface_get_req, struct gr_iface_get_resp);
 
+// List interfaces.
 struct gr_iface_list_req {
 	gr_iface_type_t type; // GR_IFACE_TYPE_UNDEF for all.
 };
 
-STREAM_RESP(struct gr_iface);
+GR_REQ_STREAM(GR_IFACE_LIST, struct gr_iface_list_req, struct gr_iface);
 
 // Modify an existing interface.
 // MTU changes on parent interfaces propagate to VLAN sub-interfaces.
-#define GR_IFACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0005)
-
 struct gr_iface_set_req {
 	uint64_t set_attrs; // Bitmask of GR_IFACE_SET_* and type-specific flags.
 	struct gr_iface iface;
 };
 
-// struct gr_iface_set_resp { };
+GR_REQ(GR_IFACE_SET, struct gr_iface_set_req, struct gr_empty);
 
 // Get interface statistics.
-#define GR_IFACE_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0006)
-
-// struct gr_iface_stats_get_req { };
-
 struct gr_iface_stats {
 	uint16_t iface_id;
 	uint64_t rx_packets;
@@ -323,25 +341,21 @@ struct gr_iface_stats_get_resp {
 	struct gr_iface_stats stats[/* n_stats */];
 };
 
+GR_REQ(GR_IFACE_STATS_GET, struct gr_empty, struct gr_iface_stats_get_resp);
+
 // port rxqs ///////////////////////////////////////////////////////////////////
 
 // List RX queue to CPU mappings.
-#define GR_AFFINITY_RXQ_LIST REQUEST_TYPE(GR_INFRA_MODULE, 0x0010)
-
-// struct gr_affinity_rxq_list_req { };
-
-STREAM_RESP(struct gr_port_rxq_map);
+GR_REQ_STREAM(GR_AFFINITY_RXQ_LIST, struct gr_empty, struct gr_port_rxq_map);
 
 // Modify one RXQ to CPU mapping (only for GR_IFACE_TYPE_PORT).
-#define GR_AFFINITY_RXQ_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0011)
-
 struct gr_affinity_rxq_set_req {
 	uint16_t iface_id; // Must be a port interface.
 	uint16_t rxq_id;
 	uint16_t cpu_id;
 };
 
-// struct gr_affinity_rxq_set_resp { };
+GR_REQ(GR_AFFINITY_RXQ_SET, struct gr_affinity_rxq_set_req, struct gr_empty);
 
 // stats ///////////////////////////////////////////////////////////////////////
 
@@ -353,8 +367,6 @@ typedef enum : uint16_t {
 } gr_stats_flags_t;
 
 // Get graph statistics.
-#define GR_STATS_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0020)
-
 struct gr_stats_get_req {
 	gr_stats_flags_t flags;
 	uint16_t cpu_id; // UINT16_MAX for all CPUs.
@@ -366,51 +378,46 @@ struct gr_stats_get_resp {
 	struct gr_stat stats[/* n_stats */];
 };
 
-// Reset all statistics to 0.
-#define GR_STATS_RESET REQUEST_TYPE(GR_INFRA_MODULE, 0x0021)
+GR_REQ(GR_STATS_GET, struct gr_stats_get_req, struct gr_stats_get_resp);
 
-// struct gr_stats_reset_req { };
-// struct gr_stats_reset_resp { };
+// Reset all statistics to 0.
+GR_REQ(GR_STATS_RESET, struct gr_empty, struct gr_empty);
 
 // graph ///////////////////////////////////////////////////////////////////////
 
 // Dump the packet processing graph in DOT format.
-#define GR_GRAPH_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0030)
-
 struct gr_graph_dump_req {
 	bool full; // Include error and control nodes.
 	bool by_layer; // Group nodes by layer (L1/L2/L3/L4).
 	bool compact; // Compact layout.
 };
 
-// Response is a NUL-terminated DOT format string for GraphViz.
+// The response is a NUL terminated char stream.
+// The total length is part of the response header.
+// This struct only serves for API type validation and compatibility.
+struct gr_graph_dump_resp {
+	char buf[1];
+};
+
+GR_REQ(GR_GRAPH_DUMP, struct gr_graph_dump_req, struct gr_graph_dump_resp);
 
 struct gr_graph_conf {
 	uint16_t rx_burst_max; // default 64, max 256
 	uint16_t vector_max; // default 64, max 256
 };
 
-#define GR_GRAPH_CONF_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0031)
+GR_REQ(GR_GRAPH_CONF_GET, struct gr_empty, struct gr_graph_conf);
 
-// response is struct gr_graph_conf
-
-#define GR_GRAPH_CONF_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0032)
-
-// request is struct gr_graph_conf with 0 for unchanged values.
+GR_REQ(GR_GRAPH_CONF_SET, struct gr_graph_conf, struct gr_empty);
 
 // packet tracing //////////////////////////////////////////////////////////////
 
 #define GR_PACKET_TRACE_BATCH 32
 
 // Clear the packet trace buffer.
-#define GR_PACKET_TRACE_CLEAR REQUEST_TYPE(GR_INFRA_MODULE, 0x0040)
-
-// struct gr_trace_clear_req { };
-// struct gr_trace_clear_resp { };
+GR_REQ(GR_PACKET_TRACE_CLEAR, struct gr_empty, struct gr_empty);
 
 // Dump the packet trace buffer.
-#define GR_PACKET_TRACE_DUMP REQUEST_TYPE(GR_INFRA_MODULE, 0x0041)
-
 struct gr_packet_trace_dump_req {
 	uint16_t max_packets;
 };
@@ -421,39 +428,35 @@ struct gr_packet_trace_dump_resp {
 	char trace[/* len */]; // Text format.
 };
 
+GR_REQ(GR_PACKET_TRACE_DUMP, struct gr_packet_trace_dump_req, struct gr_packet_trace_dump_resp);
+
 // Control tracing status on interfaces.
 // When 'all' is true, affects existing and future interfaces.
-#define GR_PACKET_TRACE_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0042)
-
 struct gr_packet_trace_set_req {
 	bool enabled;
 	bool all; // Affects new interfaces too.
 	uint16_t iface_id; // Ignored if all is true.
 };
 
-// struct gr_packet_trace_set_resp { };
+GR_REQ(GR_PACKET_TRACE_SET, struct gr_packet_trace_set_req, struct gr_empty);
 
 // cpu affinities //////////////////////////////////////////////////////////////
 
 // Get the current CPU affinity masks.
-#define GR_AFFINITY_CPU_GET REQUEST_TYPE(GR_INFRA_MODULE, 0x0050)
-
-// struct gr_affinity_cpu_get_req { };
-
 struct gr_affinity_cpu_get_resp {
 	cpu_set_t control_cpus;
 	cpu_set_t datapath_cpus;
 };
 
-// Update CPU affinity masks.
-#define GR_AFFINITY_CPU_SET REQUEST_TYPE(GR_INFRA_MODULE, 0x0051)
+GR_REQ(GR_AFFINITY_CPU_GET, struct gr_empty, struct gr_affinity_cpu_get_resp);
 
+// Update CPU affinity masks.
 struct gr_affinity_cpu_set_req {
 	cpu_set_t control_cpus; // Must have at least one CPU.
 	cpu_set_t datapath_cpus; // Triggers worker queue redistribution.
 };
 
-// struct gr_affinity_cpu_set_resp { };
+GR_REQ(GR_AFFINITY_CPU_SET, struct gr_affinity_cpu_set_req, struct gr_empty);
 
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {

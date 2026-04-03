@@ -13,6 +13,15 @@
 
 #define GR_NAT_MODULE 0x0bad
 
+enum gr_nat_requests : uint32_t {
+	GR_DNAT44_ADD = GR_MSG_TYPE(GR_NAT_MODULE, 0x0001),
+	GR_DNAT44_DEL,
+	GR_DNAT44_LIST,
+	GR_SNAT44_ADD,
+	GR_SNAT44_DEL,
+	GR_SNAT44_LIST,
+};
+
 // dnat44 //////////////////////////////////////////////////////////////////////
 
 // DNAT nexthop information for stateless destination address translation.
@@ -29,34 +38,28 @@ struct gr_dnat44_policy {
 };
 
 // Add a stateless DNAT44 policy.
-#define GR_DNAT44_ADD REQUEST_TYPE(GR_NAT_MODULE, 0x0001)
-
 struct gr_dnat44_add_req {
 	struct gr_dnat44_policy policy;
 	bool exist_ok;
 };
 
-// struct gr_dnat44_add_resp { };
+GR_REQ(GR_DNAT44_ADD, struct gr_dnat44_add_req, struct gr_empty);
 
 // Delete a stateless DNAT44 policy.
-#define GR_DNAT44_DEL REQUEST_TYPE(GR_NAT_MODULE, 0x0002)
-
 struct gr_dnat44_del_req {
 	uint16_t iface_id;
 	ip4_addr_t match;
 	bool missing_ok;
 };
 
-// struct gr_dnat44_del_resp { };
+GR_REQ(GR_DNAT44_DEL, struct gr_dnat44_del_req, struct gr_empty);
 
 // List DNAT44 policies.
-#define GR_DNAT44_LIST REQUEST_TYPE(GR_NAT_MODULE, 0x0003)
-
 struct gr_dnat44_list_req {
 	uint16_t vrf_id;
 };
 
-STREAM_RESP(struct gr_dnat44_policy);
+GR_REQ_STREAM(GR_DNAT44_LIST, struct gr_dnat44_list_req, struct gr_dnat44_policy);
 
 // snat44 //////////////////////////////////////////////////////////////////////
 
@@ -68,28 +71,20 @@ struct gr_snat44_policy {
 };
 
 // Add a SNAT44 policy (requires connection tracking to be enabled).
-#define GR_SNAT44_ADD REQUEST_TYPE(GR_NAT_MODULE, 0x0011)
-
 struct gr_snat44_add_req {
 	struct gr_snat44_policy policy;
 	bool exist_ok;
 };
 
-// struct gr_snat44_add_resp { };
+GR_REQ(GR_SNAT44_ADD, struct gr_snat44_add_req, struct gr_empty);
 
 // Delete a SNAT44 policy.
-#define GR_SNAT44_DEL REQUEST_TYPE(GR_NAT_MODULE, 0x0012)
-
 struct gr_snat44_del_req {
 	struct gr_snat44_policy policy;
 	bool missing_ok;
 };
 
-// struct gr_snat44_del_resp { };
+GR_REQ(GR_SNAT44_DEL, struct gr_snat44_del_req, struct gr_empty);
 
 // List all SNAT44 policies.
-#define GR_SNAT44_LIST REQUEST_TYPE(GR_NAT_MODULE, 0x0013)
-
-// struct gr_snat44_list_req { };
-
-STREAM_RESP(struct gr_snat44_policy);
+GR_REQ_STREAM(GR_SNAT44_LIST, struct gr_empty, struct gr_snat44_policy);
