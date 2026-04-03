@@ -298,6 +298,12 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 		out.payload = NULL;
 		goto send;
 	}
+	if (ctx->header.payload_len < handler->req_size) {
+		out.status = EMSGSIZE;
+		out.len = 0;
+		out.payload = NULL;
+		goto send;
+	}
 
 	cur_req_pid = ctx->pid;
 	out = handler->callback(req_payload, ctx);

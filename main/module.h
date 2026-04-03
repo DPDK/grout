@@ -34,9 +34,11 @@ void api_send(struct api_ctx *, uint32_t len, const void *payload);
 
 typedef struct api_out (*api_handler_func)(const void *request, struct api_ctx *);
 
-void __api_handler(uint32_t req_type, api_handler_func callback, const char *name);
+void __api_handler(uint32_t req_type, api_handler_func callback, const char *name, size_t req_size);
 
-#define api_handler(req_type, callback) __api_handler(req_type, callback, #req_type)
+// Register an API handler with expected minimum request payload size.
+#define api_handler(req_type, callback)                                                            \
+	__api_handler(req_type, callback, #req_type, req_type##_REQ_SIZE)
 
 struct module {
 	const char *name;
@@ -51,6 +53,7 @@ void module_register(struct module *);
 struct api_handler {
 	api_handler_func callback;
 	const char *name;
+	size_t req_size; // minimum expected payload size, 0 if no payload
 };
 
 const struct api_handler *lookup_api_handler(uint32_t request_type);

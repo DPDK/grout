@@ -23,7 +23,12 @@ struct module_handlers {
 
 static struct module_handlers *mod_handlers[UINT_NUM_VALUES(uint16_t)];
 
-void __api_handler(uint32_t request_type, api_handler_func callback, const char *name) {
+void __api_handler(
+	uint32_t request_type,
+	api_handler_func callback,
+	const char *name,
+	size_t req_size
+) {
 	uint16_t mod = (request_type >> 16) & 0xffff;
 	uint16_t req = request_type & 0xffff;
 	struct module_handlers *mh;
@@ -42,6 +47,7 @@ void __api_handler(uint32_t request_type, api_handler_func callback, const char 
 
 	mh->handlers[req].callback = callback;
 	mh->handlers[req].name = name;
+	mh->handlers[req].req_size = req_size;
 }
 
 const struct api_handler *lookup_api_handler(uint32_t request_type) {
