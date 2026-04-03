@@ -575,9 +575,9 @@ static struct metrics_collector nexthop_collector = {
 };
 
 RTE_INIT(init) {
-	event_serializer(GR_EVENT_NEXTHOP_NEW, nexthop_serialize, 0);
-	event_serializer(GR_EVENT_NEXTHOP_DELETE, nexthop_serialize, 0);
-	event_serializer(GR_EVENT_NEXTHOP_UPDATE, nexthop_serialize, 0);
+	event_serializer(GR_EVENT_NEXTHOP_NEW, nexthop_serialize);
+	event_serializer(GR_EVENT_NEXTHOP_DELETE, nexthop_serialize);
+	event_serializer(GR_EVENT_NEXTHOP_UPDATE, nexthop_serialize);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, nexthop_iface_cleanup);
 	module_register(&module);
 	metrics_register(&nexthop_collector);

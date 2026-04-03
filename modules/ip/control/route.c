@@ -824,8 +824,8 @@ RTE_INIT(control_ip_init) {
 	api_handler(GR_IP4_ROUTE_LIST, route4_list);
 	api_handler(GR_IP4_FIB_DEFAULT_SET, fib4_default_set);
 	api_handler(GR_IP4_FIB_INFO_LIST, fib4_info_list);
-	event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
-	event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event, 0);
+	event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event);
+	event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event);
 	module_register(&route4_module);
 	metrics_register(&rib4_collector);
 	vrf_fib_ops_register(GR_AF_IP4, &fib4_ops);
