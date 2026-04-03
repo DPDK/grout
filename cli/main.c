@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+// clang-format: off
+#include <gr_api_client_impl.h>
+// clang-format: on
+
 #include "cli.h"
 #include "complete.h"
 #include "display.h"
@@ -9,8 +13,6 @@
 #include "interact.h"
 #include "pager.h"
 #include "tty.h"
-
-#include <gr_api_client_impl.h>
 
 #include <ecoli.h>
 

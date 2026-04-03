@@ -2,12 +2,16 @@
 // Copyright (c) 2024 Christophe Fontaine, Red Hat
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include <lib/queue.h>
+
+// clang-format: off
+#include <gr_api_client_impl.h>
+// clang-format: on
+
 #include "if_grout.h"
 #include "if_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
-
-#include <gr_api_client_impl.h>
 
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
@@ -403,64 +407,6 @@ static void zebra_grout_connect(struct event *) {
 	gr_log_notice("connected, monitoring route/nexthop events");
 }
 
-static const char *gr_req_type_to_str(uint32_t e) {
-	static __thread char buf[64];
-
-	switch (e) {
-	case GR_IP4_ADDR_ADD:
-		return TOSTRING(GR_IP4_ADDR_ADD);
-	case GR_IP4_ADDR_DEL:
-		return TOSTRING(GR_IP4_ADDR_DEL);
-	case GR_IP6_ADDR_ADD:
-		return TOSTRING(GR_IP6_ADDR_ADD);
-	case GR_IP6_ADDR_DEL:
-		return TOSTRING(GR_IP6_ADDR_DEL);
-	case GR_IP4_ROUTE_ADD:
-		return TOSTRING(GR_IP4_ROUTE_ADD);
-	case GR_IP4_ROUTE_DEL:
-		return TOSTRING(GR_IP4_ROUTE_DEL);
-	case GR_IP6_ROUTE_ADD:
-		return TOSTRING(GR_IP6_ROUTE_ADD);
-	case GR_IP6_ROUTE_DEL:
-		return TOSTRING(GR_IP6_ROUTE_DEL);
-	case GR_NH_ADD:
-		return TOSTRING(GR_NH_ADD);
-	case GR_NH_DEL:
-		return TOSTRING(GR_NH_DEL);
-	case GR_IFACE_GET:
-		return TOSTRING(GR_IFACE_GET);
-	case GR_IFACE_LIST:
-		return TOSTRING(GR_IFACE_LIST);
-	case GR_IP4_ADDR_LIST:
-		return TOSTRING(GR_IP4_ADDR_LIST);
-	case GR_IP6_ADDR_LIST:
-		return TOSTRING(GR_IP6_ADDR_LIST);
-	case GR_NH_LIST:
-		return TOSTRING(GR_NH_LIST);
-	case GR_IP4_ROUTE_LIST:
-		return TOSTRING(GR_IP4_ROUTE_LIST);
-	case GR_IP6_ROUTE_LIST:
-		return TOSTRING(GR_IP6_ROUTE_LIST);
-	case GR_SRV6_TUNSRC_SET:
-		return TOSTRING(GR_SRV6_TUNSRC_SET);
-	case GR_FDB_ADD:
-		return TOSTRING(GR_FDB_ADD);
-	case GR_FDB_DEL:
-		return TOSTRING(GR_FDB_DEL);
-	case GR_FDB_LIST:
-		return TOSTRING(GR_FDB_LIST);
-	case GR_FLOOD_ADD:
-		return TOSTRING(GR_FLOOD_ADD);
-	case GR_FLOOD_DEL:
-		return TOSTRING(GR_FLOOD_DEL);
-	case GR_FLOOD_LIST:
-		return TOSTRING(GR_FLOOD_LIST);
-	default:
-		snprintf(buf, sizeof(buf), "0x%x", e);
-		return buf;
-	}
-}
-
 int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data, void **rx_data) {
 	int ret;
 
@@ -469,11 +415,11 @@ int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data
 
 	ret = gr_api_client_send_recv(grout_ctx.client, req_type, tx_len, tx_data, rx_data);
 	if (ret == 0) {
-		gr_log_debug("%s: success", gr_req_type_to_str(req_type));
+		gr_log_debug("%s: success", gr_api_message_name(req_type));
 		return 0;
 	}
 
-	gr_log_err("%s: %s", gr_req_type_to_str(req_type), strerror(errno));
+	gr_log_err("%s: %s", gr_api_message_name(req_type), strerror(errno));
 
 	if (errno == ECONNRESET || errno == EPIPE || errno == ENOTCONN) {
 		gr_api_client_disconnect(grout_ctx.client);
@@ -484,62 +430,6 @@ int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data
 	}
 
 	return ret;
-}
-
-static const char *gr_evt_to_str(uint32_t e) {
-	static __thread char buf[64];
-
-	switch (e) {
-	case GR_EVENT_IFACE_ADD:
-		return TOSTRING(GR_EVENT_IFACE_ADD);
-	case GR_EVENT_IFACE_POST_ADD:
-		return TOSTRING(GR_EVENT_IFACE_POST_ADD);
-	case GR_EVENT_IFACE_REMOVE:
-		return TOSTRING(GR_EVENT_IFACE_REMOVE);
-	case GR_EVENT_IFACE_STATUS_UP:
-		return TOSTRING(GR_EVENT_IFACE_STATUS_UP);
-	case GR_EVENT_IFACE_STATUS_DOWN:
-		return TOSTRING(GR_EVENT_IFACE_STATUS_DOWN);
-	case GR_EVENT_IFACE_POST_RECONFIG:
-		return TOSTRING(GR_EVENT_IFACE_POST_RECONFIG);
-	case GR_EVENT_IFACE_MAC_CHANGE:
-		return TOSTRING(GR_EVENT_IFACE_MAC_CHANGE);
-	case GR_EVENT_IP_ADDR_ADD:
-		return TOSTRING(GR_EVENT_IP_ADDR_ADD);
-	case GR_EVENT_IP_ADDR_DEL:
-		return TOSTRING(GR_EVENT_IP_ADDR_DEL);
-	case GR_EVENT_IP6_ADDR_ADD:
-		return TOSTRING(GR_EVENT_IP6_ADDR_ADD);
-	case GR_EVENT_IP6_ADDR_DEL:
-		return TOSTRING(GR_EVENT_IP6_ADDR_DEL);
-	case GR_EVENT_IP_ROUTE_ADD:
-		return TOSTRING(GR_EVENT_IP_ROUTE_ADD);
-	case GR_EVENT_IP_ROUTE_DEL:
-		return TOSTRING(GR_EVENT_IP_ROUTE_DEL);
-	case GR_EVENT_IP6_ROUTE_ADD:
-		return TOSTRING(GR_EVENT_IP6_ROUTE_ADD);
-	case GR_EVENT_IP6_ROUTE_DEL:
-		return TOSTRING(GR_EVENT_IP6_ROUTE_DEL);
-	case GR_EVENT_NEXTHOP_NEW:
-		return TOSTRING(GR_EVENT_NEXTHOP_NEW);
-	case GR_EVENT_NEXTHOP_UPDATE:
-		return TOSTRING(GR_EVENT_NEXTHOP_UPDATE);
-	case GR_EVENT_NEXTHOP_DELETE:
-		return TOSTRING(GR_EVENT_NEXTHOP_DELETE);
-	case GR_EVENT_FDB_ADD:
-		return TOSTRING(GR_EVENT_FDB_ADD);
-	case GR_EVENT_FDB_UPDATE:
-		return TOSTRING(GR_EVENT_FDB_UPDATE);
-	case GR_EVENT_FDB_DEL:
-		return TOSTRING(GR_EVENT_FDB_DEL);
-	case GR_EVENT_FLOOD_ADD:
-		return TOSTRING(GR_EVENT_FLOOD_ADD);
-	case GR_EVENT_FLOOD_DEL:
-		return TOSTRING(GR_EVENT_FLOOD_DEL);
-	default:
-		snprintf(buf, sizeof(buf), "event 0x%x", e);
-		return buf;
-	}
 }
 
 static void dplane_read_notifications(struct event *event) {
@@ -558,7 +448,7 @@ static void dplane_read_notifications(struct event *event) {
 		return;
 	}
 
-	gr_log_debug("%s", gr_evt_to_str(gr_e->ev_type));
+	gr_log_debug("%s", gr_api_message_name(gr_e->ev_type));
 
 	switch (gr_e->ev_type) {
 	case GR_EVENT_IFACE_ADD:
@@ -617,7 +507,7 @@ static void zebra_read_notifications(struct event *event) {
 		return;
 	}
 
-	gr_log_debug("%s", gr_evt_to_str(gr_e->ev_type));
+	gr_log_debug("%s", gr_api_message_name(gr_e->ev_type));
 
 	switch (gr_e->ev_type) {
 	case GR_EVENT_IP_ROUTE_ADD:

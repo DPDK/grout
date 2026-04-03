@@ -5,6 +5,76 @@
 
 #pragma once
 
+#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/queue.h>
+
+#ifdef GR_REQ
+#error "gr_api_client_impl.h must be included *first*, before any other gr_*.h headers"
+#endif
+
+struct api_message {
+	uint32_t type;
+	const char *name;
+	size_t payload_min_size;
+	bool stream;
+	STAILQ_ENTRY(api_message) next;
+};
+
+static STAILQ_HEAD(, api_message) messages = STAILQ_HEAD_INITIALIZER(messages);
+
+static const struct api_message *get_message(uint32_t type) {
+	struct api_message *m;
+
+	STAILQ_FOREACH (m, &messages, next) {
+		if (m->type == type)
+			return m;
+	}
+
+	errno = EIDRM;
+	return NULL;
+}
+
+static void register_message(struct api_message *m) {
+	const struct api_message *existing = get_message(m->type);
+
+	if (existing != NULL) {
+		fprintf(stderr,
+			"fatal: message %s has duplicate type id %#08x with message %s",
+			m->name,
+			m->type,
+			existing->name);
+		abort();
+	}
+	STAILQ_INSERT_TAIL(&messages, m, next);
+}
+
+#define GR_REQ(r, req, resp)                                                                       \
+	static struct api_message r##_msg = {                                                      \
+		.type = r,                                                                         \
+		.name = #r,                                                                        \
+		.payload_min_size = sizeof(resp),                                                  \
+	};                                                                                         \
+	static void __attribute__((constructor, used)) r##_init(void) {                            \
+		register_message(&r##_msg);                                                        \
+	}
+
+#define GR_REQ_STREAM(r, req, resp)                                                                \
+	static struct api_message r##_msg = {                                                      \
+		.type = r,                                                                         \
+		.name = #r,                                                                        \
+		.payload_min_size = sizeof(resp),                                                  \
+		.stream = true,                                                                    \
+	};                                                                                         \
+	static void __attribute__((constructor, used)) r##_init(void) {                            \
+		register_message(&r##_msg);                                                        \
+	}
+
+#define GR_EVENT(e, obj) GR_REQ(e, , obj)
+
 #include <grout.h>
 
 #include <assert.h>
@@ -14,10 +84,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+const char *gr_api_message_name(uint32_t type) {
+	static __thread char buf[64];
+	const struct api_message *m = get_message(type);
+	if (m == NULL) {
+		snprintf(buf, sizeof(buf), "0x%08x?", type);
+		return buf;
+	}
+	return m->name;
+}
 
 struct response {
 	struct gr_api_response header;
