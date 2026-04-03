@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "cli.h"
+#include "cli_event.h"
+#include "cli_iface.h"
+#include "cli_l3.h"
+#include "cli_nexthop.h"
+#include "display.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_event.h>
-#include <gr_cli_iface.h>
-#include <gr_cli_l3.h>
-#include <gr_cli_nexthop.h>
-#include <gr_display.h>
 #include <gr_ip6.h>
 #include <gr_net_types.h>
 

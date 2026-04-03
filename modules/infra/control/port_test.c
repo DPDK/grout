@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "port_priv.h"
-#include "worker_priv.h"
+#include "mempool.h"
+#include "module.h"
+#include "netlink.h"
+#include "port.h"
+#include "rcu.h"
+#include "vrf.h"
+#include "worker.h"
 
 #include <gr_cmocka.h>
 #include <gr_config.h>
 #include <gr_event.h>
 #include <gr_log.h>
-#include <gr_mempool.h>
-#include <gr_module.h>
-#include <gr_netlink.h>
-#include <gr_port.h>
-#include <gr_rcu.h>
-#include <gr_vrf.h>
-#include <gr_worker.h>
 
 // mocked types/functions
 int gr_rte_log_type;

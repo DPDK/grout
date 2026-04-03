@@ -1,25 +1,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "worker_priv.h"
+#include "graph.h"
+#include "mempool.h"
+#include "module.h"
+#include "netlink.h"
+#include "port.h"
+#include "rcu.h"
+#include "vrf.h"
+#include "worker.h"
 
-#include <gr_api.h>
 #include <gr_cmocka.h>
 #include <gr_config.h>
 #include <gr_event.h>
 #include <gr_infra.h>
 #include <gr_log.h>
-#include <gr_mempool.h>
-#include <gr_module.h>
-#include <gr_netlink.h>
-#include <gr_port.h>
-#include <gr_queue.h>
-#include <gr_rcu.h>
 #include <gr_vec.h>
-#include <gr_vrf.h>
-#include <gr_worker.h>
 
-#include <numa.h>
 #include <rte_ethdev.h>
 
 static struct iface *ifaces[] = {NULL, NULL, NULL};

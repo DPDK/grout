@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "iface.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "l2.h"
+#include "module.h"
+#include "rcu.h"
+#include "vrf.h"
+
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_l2_control.h>
 #include <gr_l4.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_rcu.h>
-#include <gr_vrf.h>
 
 #include <rte_ethdev.h>
 #include <rte_hash.h>

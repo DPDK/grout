@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "graph.h"
+#include "ip4.h"
+#include "l2.h"
 #include "l2_datapath.h"
-
-#include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_l2_control.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
+#include "l3.h"
+#include "mbuf.h"
+#include "rxtx.h"
 
 #include <rte_byteorder.h>
-#include <rte_ether.h>
-#include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_vxlan.h>
 

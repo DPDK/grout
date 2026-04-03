@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
-#include <gr_eth.h>
-#include <gr_graph.h>
+#include "eth.h"
+#include "graph.h"
+#include "ip6_datapath.h"
+#include "l3.h"
+#include "mbuf.h"
+#include "srv6.h"
+
 #include <gr_infra.h>
-#include <gr_ip6_datapath.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_srv6_nexthop.h>
-#include <gr_trace.h>
 
 //
 // references are to rfc8986
@@ -480,8 +480,6 @@ GR_DROP_REGISTER(sr6_local_no_transit);
 #ifdef __GROUT_UNIT_TEST__
 #include <gr_cmocka.h>
 
-int gr_rte_log_type;
-struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));

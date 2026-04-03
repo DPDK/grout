@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "cli.h"
+#include "cli_iface.h"
+#include "display.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_iface.h>
-#include <gr_display.h>
 #include <gr_nat.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>
-
-#include <stdint.h>
 
 static cmd_status_t snat44_add(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_snat44_add_req req = {.exist_ok = true};

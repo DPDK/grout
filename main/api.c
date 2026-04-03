@@ -19,11 +19,9 @@
 #include <event2/event.h>
 #include <event2/listener.h>
 
-#include <fcntl.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 GR_LOG_TYPE("api");

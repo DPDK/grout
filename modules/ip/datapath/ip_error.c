@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_datapath.h>
-#include <gr_graph.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_trace.h>
+#include "graph.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "l3.h"
+#include "mbuf.h"
 
 #include <rte_common.h>
 #include <rte_icmp.h>
-#include <rte_ip.h>
 
 GR_NODE_CTX_TYPE(ip_error_ctx, {
 	uint8_t icmp_type;

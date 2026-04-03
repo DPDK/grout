@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_api.h>
-#include <gr_ip4_control.h>
-#include <gr_module.h>
+#include "ip4.h"
+#include "module.h"
+#include "nat.h"
+#include "nat_datapath.h"
+
 #include <gr_nat.h>
-#include <gr_nat_control.h>
-#include <gr_nat_datapath.h>
-#include <gr_vec.h>
 
 static struct nexthop *dnat44_nh_lookup(const struct gr_nexthop_base *base, const void *info) {
 	const struct iface *iface = iface_from_id(base->iface_id);

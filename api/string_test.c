@@ -7,8 +7,6 @@
 #include <errno.h>
 #include <sched.h>
 #include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #define assert_errno_equal(call, errnum)                                                           \

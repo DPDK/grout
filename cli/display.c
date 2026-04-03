@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
-#include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_display.h>
+#include "cli.h"
+#include "display.h"
+
 #include <gr_macro.h>
 
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

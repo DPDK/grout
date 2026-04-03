@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "module.h"
+#include "netlink.h"
+
 #include <gr_errno.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_netlink.h>
 
 #include <rte_ether.h>
 
@@ -14,7 +15,6 @@
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 #include <string.h>
-#include <unistd.h>
 
 static char socket_buf[BUFSIZ];
 static struct mnl_socket *nl_sock;

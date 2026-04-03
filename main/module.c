@@ -3,10 +3,8 @@
 
 #include "module.h"
 
-#include <gr_api.h>
 #include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_module.h>
 #include <gr_sort.h>
 #include <gr_string.h>
 #include <gr_vec.h>

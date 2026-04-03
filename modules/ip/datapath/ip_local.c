@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_datapath.h>
-#include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_trace.h>
+#include "graph.h"
+#include "ip4_datapath.h"
+#include "l3.h"
 
-#include <rte_ip.h>
+#include <gr_log.h>
+
 #include <rte_mbuf.h>
 
 GR_LOG_TYPE("graph");

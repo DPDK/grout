@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Abhiram R N
 
+#include "cli.h"
 #include "complete.h"
 #include "dump.h"
-
-#include <gr_cli.h>
-#include <gr_version.h>
 
 #include <ecoli.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 static void print_string(const char *str) {
 	putchar('"');

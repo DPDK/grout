@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
-#include <gr_datapath.h>
-#include <gr_eth.h>
-#include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_datapath.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
+#include "eth.h"
+#include "graph.h"
+#include "ip4_datapath.h"
+#include "ip6_datapath.h"
+#include "mbuf.h"
+#include "rxtx.h"
 
 enum {
 	IP_INPUT,

@@ -1,19 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_api.h>
-#include <gr_event.h>
-#include <gr_iface.h>
-#include <gr_infra.h>
-#include <gr_log.h>
-#include <gr_metrics.h>
-#include <gr_module.h>
-#include <gr_queue.h>
-#include <gr_string.h>
-#include <gr_worker.h>
+#include "iface.h"
+#include "module.h"
 
-#include <rte_ethdev.h>
-#include <rte_ether.h>
+#include <gr_event.h>
+#include <gr_infra.h>
+#include <gr_metrics.h>
+#include <gr_string.h>
 
 static struct gr_iface *iface_to_api(const struct iface *priv) {
 	const struct iface_type *type = iface_type_get(priv->type);

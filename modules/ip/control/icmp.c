@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_api.h>
-#include <gr_control_input.h>
-#include <gr_control_output.h>
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "module.h"
+
 #include <gr_ip4.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
 #include <gr_log.h>
-#include <gr_module.h>
 #include <gr_queue.h>
 
 #include <rte_icmp.h>
-#include <rte_ip.h>
-#include <rte_ring.h>
 
 #include <time.h>
 

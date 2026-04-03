@@ -1,26 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_bond.h>
+#include "bond.h"
+#include "iface.h"
+#include "lacp.h"
+#include "mbuf.h"
+#include "module.h"
+
 #include <gr_clock.h>
-#include <gr_control_output.h>
-#include <gr_eth.h>
-#include <gr_event.h>
-#include <gr_iface.h>
-#include <gr_lacp.h>
 #include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_module.h>
-#include <gr_port.h>
 
 #include <event2/event.h>
-#include <rte_byteorder.h>
-#include <rte_cycles.h>
-#include <rte_ether.h>
-#include <rte_malloc.h>
 #include <rte_mbuf.h>
 
-#include <stdbool.h>
 #include <string.h>
 
 GR_LOG_TYPE("lacp");

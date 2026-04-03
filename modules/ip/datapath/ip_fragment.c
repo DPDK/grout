@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
-#include <gr_datapath.h>
-#include <gr_graph.h>
-#include <gr_iface.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_trace.h>
+#include "graph.h"
+#include "iface.h"
+#include "mbuf.h"
 
 #include <rte_byteorder.h>
-#include <rte_ip.h>
 #include <rte_mbuf.h>
 
 #include <assert.h>

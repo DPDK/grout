@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
-#include <gr_infra.h>
-#include <gr_l2_control.h>
-#include <gr_mbuf.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
+#include "graph.h"
+#include "l2.h"
+#include "mbuf.h"
+#include "rxtx.h"
 
 enum edges {
 	OUTPUT = 0,

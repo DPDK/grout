@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include <gr_eth.h>
-#include <gr_graph.h>
+#include "eth.h"
+#include "graph.h"
+#include "ip4_datapath.h"
+#include "ip6_datapath.h"
+#include "port.h"
+
 #include <gr_infra.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_datapath.h>
-#include <gr_port.h>
-#include <gr_trace.h>
 
 enum {
 	L2_REDIRECT,

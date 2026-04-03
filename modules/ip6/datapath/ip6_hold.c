@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_control_output.h>
-#include <gr_graph.h>
-#include <gr_ip6_control.h>
-#include <gr_ip6_datapath.h>
-#include <gr_mbuf.h>
-
-#include <rte_mbuf.h>
+#include "control_output.h"
+#include "graph.h"
+#include "l3.h"
+#include "mbuf.h"
 
 enum {
 	CONTROL = 0,

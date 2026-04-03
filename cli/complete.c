@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "cli.h"
 #include "complete.h"
 
-#include <gr_cli.h>
 #include <gr_string.h>
 
 #include <ecoli.h>

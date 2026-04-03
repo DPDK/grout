@@ -1,19 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
-#include <gr_graph.h>
-#include <gr_iface.h>
-#include <gr_infra.h>
-#include <gr_l2_control.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_port.h>
-#include <gr_trace.h>
-#include <gr_worker.h>
+#include "graph.h"
+#include "iface.h"
+#include "l2.h"
+#include "mbuf.h"
 
-#include <rte_ether.h>
-#include <rte_malloc.h>
-#include <rte_mbuf.h>
+#include <gr_infra.h>
 
 enum edges {
 	OUTPUT = 0,

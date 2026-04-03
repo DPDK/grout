@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "cli.h"
+#include "cli_event.h"
+#include "cli_iface.h"
+#include "cli_nexthop.h"
+#include "display.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_event.h>
-#include <gr_cli_iface.h>
-#include <gr_cli_nexthop.h>
-#include <gr_display.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
 
@@ -16,7 +17,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 static STAILQ_HEAD(, cli_nexthop_formatter) formatters = STAILQ_HEAD_INITIALIZER(formatters);
 

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "cli.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
+
+#include <ecoli.h>
 
 static cmd_status_t quit(struct gr_api_client *, const struct ec_pnode *) {
 	return CMD_EXIT;

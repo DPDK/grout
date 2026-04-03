@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "cli.h"
 #include "complete.h"
+#include "display.h"
 #include "dump.h"
 #include "exec.h"
 #include "interact.h"
@@ -10,9 +12,7 @@
 
 #include <gr_api.h>
 #include <gr_api_client_impl.h>
-#include <gr_cli.h>
 #include <gr_clock.h>
-#include <gr_display.h>
 #include <gr_version.h>
 
 #include <ecoli.h>

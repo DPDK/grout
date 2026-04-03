@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "conntrack.h"
+#include "module.h"
+#include "rcu.h"
+
 #include <gr_clock.h>
-#include <gr_conntrack_control.h>
 #include <gr_log.h>
-#include <gr_macro.h>
-#include <gr_module.h>
 #include <gr_net_types.h>
-#include <gr_rcu.h>
 
 #include <rte_hash.h>
 #include <rte_icmp.h>

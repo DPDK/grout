@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "cli.h"
+#include "display.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_display.h>
 #include <gr_infra.h>
 #include <gr_net_types.h>
 
@@ -11,7 +12,6 @@
 
 #include <inttypes.h>
 #include <string.h>
-#include <unistd.h>
 
 static int stats_order_name(const void *sa, const void *sb) {
 	const struct gr_stat *a = sa;

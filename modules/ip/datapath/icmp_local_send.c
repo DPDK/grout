@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "control_input.h"
+#include "graph.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "mbuf.h"
+
 #include <gr_clock.h>
-#include <gr_control_input.h>
-#include <gr_control_queue.h>
-#include <gr_datapath.h>
-#include <gr_graph.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
 
 #include <rte_icmp.h>
-#include <rte_ip.h>
 
 #include <netinet/in.h>
-#include <stdatomic.h>
 
 enum {
 	OUTPUT = 0,

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cli.h"
+#include "cli_iface.h"
+#include "cli_l3.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_iface.h>
-#include <gr_cli_l3.h>
 #include <gr_ip4.h>
 #include <gr_net_types.h>
 

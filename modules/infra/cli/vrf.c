@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cli.h"
+#include "cli_iface.h"
+
 #include <gr_api.h>
-#include <gr_cli.h>
-#include <gr_cli_iface.h>
 #include <gr_infra.h>
 
 #define VRF_ATTRS_CMD                                                                              \

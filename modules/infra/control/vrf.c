@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "iface.h"
+#include "netlink.h"
+#include "vrf.h"
+
 #include <gr_errno.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
 #include <gr_net_types.h>
-#include <gr_netlink.h>
-#include <gr_vrf.h>
 
 #include <rte_ethdev.h>
 

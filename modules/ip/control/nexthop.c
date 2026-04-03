@@ -1,29 +1,21 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_api.h>
-#include <gr_clock.h>
-#include <gr_control_input.h>
-#include <gr_control_output.h>
-#include <gr_iface.h>
-#include <gr_ip4.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
-#include <gr_log.h>
-#include <gr_module.h>
-#include <gr_net_types.h>
-#include <gr_queue.h>
-#include <gr_vec.h>
+#include "control_input.h"
+#include "iface.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "l3.h"
+#include "module.h"
 
-#include <event2/event.h>
+#include <gr_clock.h>
+#include <gr_log.h>
+#include <gr_net_types.h>
+
 #include <rte_arp.h>
-#include <rte_errno.h>
-#include <rte_ether.h>
-#include <rte_mempool.h>
 
 #include <errno.h>
 #include <string.h>
-#include <sys/queue.h>
 
 GR_LOG_TYPE("nexthop");
 

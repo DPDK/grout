@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "control_queue.h"
+#include "iface.h"
+#include "module.h"
+#include "rcu.h"
+#include "vrf.h"
+
 #include <gr_config.h>
-#include <gr_control_queue.h>
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_module.h>
-#include <gr_nh_control.h>
-#include <gr_rcu.h>
 #include <gr_vec.h>
-#include <gr_vrf.h>
 
-#include <event2/event.h>
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/queue.h>
 
 GR_LOG_TYPE("iface");
 

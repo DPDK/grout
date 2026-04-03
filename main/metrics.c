@@ -15,10 +15,7 @@
 
 #include <pthread.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 
 GR_LOG_TYPE("main");
 

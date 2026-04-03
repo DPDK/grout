@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_datapath.h>
-#include <gr_graph.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_datapath.h>
+#include "graph.h"
+#include "ip4_datapath.h"
+#include "ip6_datapath.h"
+
 #include <gr_l4.h>
 #include <gr_log.h>
-#include <gr_port.h>
-#include <gr_trace.h>
 
-#include <rte_ip.h>
-#include <rte_mbuf.h>
+#include <rte_udp.h>
 
 GR_LOG_TYPE("graph");
 

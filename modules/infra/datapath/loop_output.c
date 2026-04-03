@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include <gr_control_output.h>
-#include <gr_graph.h>
-#include <gr_infra.h>
-#include <gr_ip4_datapath.h>
-#include <gr_ip6_datapath.h>
-#include <gr_loopback.h>
-#include <gr_trace.h>
+#include "control_output.h"
+#include "graph.h"
+#include "loopback.h"
 
 enum {
 	CONTROL_OUTPUT,

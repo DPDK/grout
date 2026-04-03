@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "iface.h"
+#include "module.h"
+#include "rcu.h"
+#include "vlan.h"
+
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_port.h>
-#include <gr_rcu.h>
-#include <gr_vlan.h>
 
-#include <event2/event.h>
-#include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_hash.h>
 

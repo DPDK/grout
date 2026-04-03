@@ -1,26 +1,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_api.h>
+#include "iface.h"
+#include "ip6.h"
+#include "module.h"
+#include "rcu.h"
+#include "vrf.h"
+
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_infra.h>
 #include <gr_ip6.h>
-#include <gr_ip6_control.h>
 #include <gr_log.h>
 #include <gr_metrics.h>
-#include <gr_module.h>
 #include <gr_net_types.h>
-#include <gr_queue.h>
-#include <gr_rcu.h>
-#include <gr_string.h>
 #include <gr_vec.h>
-#include <gr_vrf.h>
 
 #include <event2/event.h>
-#include <rte_build_config.h>
 #include <rte_errno.h>
-#include <rte_ethdev.h>
 #include <rte_fib6.h>
 #include <rte_rib6.h>
 

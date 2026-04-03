@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "l2.h"
+#include "vrf.h"
+
 #include <gr_event.h>
-#include <gr_l2_control.h>
 #include <gr_log.h>
-#include <gr_rcu.h>
-#include <gr_vrf.h>
 
 #include <rte_ether.h>
-#include <rte_hash.h>
 
 GR_LOG_TYPE("bridge");
 

@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include <gr_graph.h>
-#include <gr_iface.h>
+#include "graph.h"
+#include "iface.h"
+#include "mbuf.h"
+#include "rxtx.h"
+
 #include <gr_infra.h>
-#include <gr_log.h>
-#include <gr_mbuf.h>
-#include <gr_port.h>
-#include <gr_rxtx.h>
-#include <gr_trace.h>
-#include <gr_worker.h>
 
 enum edges {
 	OUTPUT = 0,

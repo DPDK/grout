@@ -1,30 +1,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_api.h>
+#include "iface.h"
+#include "ip4.h"
+#include "ip4_datapath.h"
+#include "module.h"
+#include "netlink.h"
+#include "rcu.h"
+
 #include <gr_event.h>
-#include <gr_iface.h>
 #include <gr_ip4.h>
-#include <gr_ip4_control.h>
-#include <gr_ip4_datapath.h>
 #include <gr_log.h>
-#include <gr_module.h>
 #include <gr_net_types.h>
-#include <gr_netlink.h>
-#include <gr_queue.h>
-#include <gr_rcu.h>
 #include <gr_vec.h>
 
-#include <event2/event.h>
-#include <rte_errno.h>
-#include <rte_ethdev.h>
-#include <rte_hash.h>
 #include <rte_malloc.h>
-#include <rte_memory.h>
-#include <rte_mempool.h>
 #include <rte_rcu_qsbr.h>
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>

@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include "worker_priv.h"
+#include "bond.h"
+#include "port.h"
+#include "vrf.h"
+#include "worker.h"
 
-#include <gr_bond.h>
-#include <gr_eth.h>
 #include <gr_event.h>
 #include <gr_infra.h>
 #include <gr_log.h>
-#include <gr_module.h>
-#include <gr_port.h>
-#include <gr_rcu.h>
-#include <gr_vrf.h>
 
 #include <rte_ether.h>
 
