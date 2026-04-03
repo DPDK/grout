@@ -22,8 +22,12 @@ void event_push(uint32_t ev_type, const void *obj);
 typedef int (*event_serializer_cb_t)(const void *obj, void **buf);
 
 // Register a serializer for a specific event type.
-// callback and size are mutually exclusive (one must be non-zero).
-void event_serializer(uint32_t ev_type, event_serializer_cb_t callback, size_t size);
+// If callback is non-NULL, it is used for serialization.
+// Otherwise, the object is copied using the size derived from GR_EVENT().
+void __event_serializer(uint32_t ev_type, event_serializer_cb_t callback, size_t size);
+
+#define event_serializer(ev_type, callback)                                                        \
+	__event_serializer(ev_type, callback, ev_type##_OBJ_SIZE)
 
 // Serialize an event to be sent to a subscribed client over the API socket.
 int event_serialize(uint32_t ev_type, const void *obj, void **buf);

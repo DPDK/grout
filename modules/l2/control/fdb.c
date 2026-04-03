@@ -409,8 +409,8 @@ RTE_INIT(init) {
 	api_handler(GR_FDB_LIST, fdb_list);
 	api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
 	api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
-	event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
-	event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
-	event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
+	event_serializer(GR_EVENT_FDB_ADD, NULL);
+	event_serializer(GR_EVENT_FDB_DEL, NULL);
+	event_serializer(GR_EVENT_FDB_UPDATE, NULL);
 	module_register(&module);
 }
