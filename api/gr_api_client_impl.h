@@ -229,8 +229,14 @@ long int gr_api_client_send(
 	return req.id;
 }
 
-int gr_api_client_recv(struct gr_api_client *client, uint32_t for_id, void **rx_data) {
+int gr_api_client_recv(
+	struct gr_api_client *client,
+	uint32_t req_type,
+	uint32_t for_id,
+	void **rx_data
+) {
 	struct response *cached = NULL;
+	const struct api_message *m;
 	struct gr_api_response resp;
 	void *payload = NULL;
 
@@ -284,6 +290,16 @@ out:
 		errno = resp.status;
 		goto err;
 	}
+
+	m = get_message(req_type);
+	if (m == NULL) {
+		goto err;
+	}
+
+	if (resp.payload_len < m->payload_min_size && (!m->stream || resp.payload_len != 0)) {
+		errno = EMSGSIZE;
+		goto err;
+	}
 	if (payload != NULL) {
 		assert(rx_data != NULL);
 		*rx_data = payload;
@@ -296,6 +312,7 @@ err:
 }
 
 int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event **event) {
+	const struct api_message *m;
 	struct gr_api_event header;
 
 	*event = NULL;
@@ -306,11 +323,18 @@ int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event 
 		errno = EMSGSIZE;
 		goto err;
 	}
+	m = get_message(header.ev_type);
+	if (m == NULL) {
+		goto err;
+	}
+	if (header.payload_len < m->payload_min_size) {
+		errno = EMSGSIZE;
+		goto err;
+	}
 	if (header.payload_len > 0) {
 		if ((*event = malloc(sizeof(header) + header.payload_len)) == NULL)
 			goto err;
-		(*event)->ev_type = header.ev_type;
-		(*event)->payload_len = header.payload_len;
+		**event = header;
 		if (recv_all(c, PAYLOAD(*event), header.payload_len) != (int)header.payload_len)
 			goto err;
 	}
@@ -323,13 +347,13 @@ err:
 }
 
 // Drain remaining responses from a stream request until the terminator arrives.
-int __gr_api_client_stream_drain(struct gr_api_client *c, uint32_t for_id) {
+int __gr_api_client_stream_drain(struct gr_api_client *c, uint32_t req_type, uint32_t for_id) {
 	void *ptr;
 	int ret;
 
 	do {
 		ptr = NULL;
-		ret = gr_api_client_recv(c, for_id, &ptr);
+		ret = gr_api_client_recv(c, req_type, for_id, &ptr);
 		free(ptr);
 	} while (ptr != NULL);
 
