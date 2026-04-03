@@ -18,7 +18,7 @@ int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct gr_config gr_config;
 struct workers workers;
-void __api_handler(uint32_t, api_handler_func, const char *) { }
+void __api_handler(uint32_t, api_handler_func, const char *, size_t) { }
 void module_register(struct module *) { }
 void iface_type_register(const struct iface_type *) { }
 void event_push(uint32_t, const void *) { }

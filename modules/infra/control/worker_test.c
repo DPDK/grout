@@ -36,7 +36,7 @@ static struct rte_eth_dev_info dev_info = {
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct gr_config gr_config;
-void __api_handler(uint32_t, api_handler_func, const char *) { }
+void __api_handler(uint32_t, api_handler_func, const char *, size_t) { }
 void module_register(struct module *) { }
 void event_subscribe(uint32_t, event_sub_cb_t) { }
 void iface_type_register(const struct iface_type *) { }
