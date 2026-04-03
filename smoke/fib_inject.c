@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+// clang-format: off
 #include <gr_api_client_impl.h>
+// clang-format: on
 
 #include <getopt.h>
 #include <stdio.h>

@@ -129,6 +129,8 @@ int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t for_id);
 		     });                                                                           \
 		     free(__ptr), __ptr = NULL)
 
+const char *gr_api_message_name(uint32_t type);
+
 #ifndef GR_REQ
 #define GR_REQ(code, req, resp)                                                                    \
 	enum {                                                                                     \
