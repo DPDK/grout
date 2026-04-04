@@ -566,8 +566,8 @@ METRIC_GAUGE(m_max_tbl8, "fib4_max_tbl8", "Maximum number of IPv4 FIB tbl8 group
 METRIC_GAUGE(m_used_tbl8, "fib4_used_tbl8", "Used IPv4 FIB tbl8 groups.");
 #endif
 
-static void rib4_metrics_collect(struct gr_metrics_writer *w) {
-	struct gr_metrics_ctx ctx;
+static void rib4_metrics_collect(struct metrics_writer *w) {
+	struct metrics_ctx ctx;
 	char vrf[16];
 
 	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
@@ -580,27 +580,25 @@ static void rib4_metrics_collect(struct gr_metrics_writer *w) {
 		for (unsigned o = 0; o < UINT_NUM_VALUES(gr_nh_origin_t); o++) {
 			if (!nexthop_origin_valid(o))
 				continue;
-			gr_metrics_ctx_init(
-				&ctx, w, "vrf", vrf, "origin", gr_nh_origin_name(o), NULL
-			);
-			gr_metric_emit(&ctx, &m_routes, route_counts[vrf_id][o]);
+			metrics_ctx_init(&ctx, w, "vrf", vrf, "origin", gr_nh_origin_name(o), NULL);
+			metric_emit(&ctx, &m_routes, route_counts[vrf_id][o]);
 		}
 
-		gr_metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
-		gr_metric_emit(&ctx, &m_max_routes, fib4_get_max_routes(vrf_iface));
+		metrics_ctx_init(&ctx, w, "vrf", vrf, NULL);
+		metric_emit(&ctx, &m_max_routes, fib4_get_max_routes(vrf_iface));
 #ifdef HAVE_RTE_FIB_TBL8_GET_STATS
 		uint32_t used_tbl8, total_tbl8;
 		struct rte_fib *fib = iface_info_vrf(vrf_iface)->fib4;
 		if (fib != NULL) {
 			rte_fib_tbl8_get_stats(fib, &used_tbl8, &total_tbl8);
-			gr_metric_emit(&ctx, &m_max_tbl8, total_tbl8);
-			gr_metric_emit(&ctx, &m_used_tbl8, used_tbl8);
+			metric_emit(&ctx, &m_max_tbl8, total_tbl8);
+			metric_emit(&ctx, &m_used_tbl8, used_tbl8);
 		}
 #endif
 	}
 }
 
-static struct gr_metrics_collector rib4_collector = {
+static struct metrics_collector rib4_collector = {
 	.name = "rib4",
 	.collect = rib4_metrics_collect,
 };
@@ -829,6 +827,6 @@ RTE_INIT(control_ip_init) {
 	gr_event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
 	gr_event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event, 0);
 	gr_register_module(&route4_module);
-	gr_metrics_register(&rib4_collector);
+	metrics_register(&rib4_collector);
 	vrf_fib_ops_register(GR_AF_IP4, &fib4_ops);
 }

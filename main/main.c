@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
 		goto shutdown;
 	}
 
-	gr_metrics_start();
+	metrics_start();
 
 	if (register_signals(ev_base) < 0) {
 		err = errno;
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
 
 shutdown:
 	unregister_signals();
-	gr_metrics_stop();
+	metrics_stop();
 	if (ev_base) {
 		api_socket_stop(ev_base);
 		modules_fini(ev_base);

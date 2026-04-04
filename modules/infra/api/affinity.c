@@ -40,7 +40,7 @@ static struct api_out affinity_set(const void *request, struct api_ctx *) {
 		if (ret < 0)
 			goto out;
 
-		ret = -gr_metrics_set_affinity(CPU_SETSIZE, &req->control_cpus);
+		ret = -metrics_set_affinity(CPU_SETSIZE, &req->control_cpus);
 		if (ret < 0)
 			goto out;
 

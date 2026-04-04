@@ -108,22 +108,20 @@ METRIC_COUNTER(m_cqueue_fail, "control_queue_fail", "Total number of enqueue fai
 METRIC_COUNTER(m_cqueue_push, "control_queue_push", "Total number of enqueued items");
 METRIC_COUNTER(m_cqueue_pop, "control_queue_pop", "Total number of enqueued items");
 
-static void control_queue_metrics_collect(struct gr_metrics_writer *w) {
-	struct gr_metrics_ctx ctx;
+static void control_queue_metrics_collect(struct metrics_writer *w) {
+	struct metrics_ctx ctx;
 
-	gr_metrics_ctx_init(&ctx, w, NULL);
-	gr_metric_emit(
+	metrics_ctx_init(&ctx, w, NULL);
+	metric_emit(
 		&ctx, &m_cqueue_push, atomic_load_explicit(&pushed_items, memory_order_relaxed)
 	);
-	gr_metric_emit(
-		&ctx, &m_cqueue_pop, atomic_load_explicit(&popped_items, memory_order_relaxed)
-	);
-	gr_metric_emit(
+	metric_emit(&ctx, &m_cqueue_pop, atomic_load_explicit(&popped_items, memory_order_relaxed));
+	metric_emit(
 		&ctx, &m_cqueue_fail, atomic_load_explicit(&push_failed_items, memory_order_relaxed)
 	);
 }
 
-static struct gr_metrics_collector control_queue_collector = {
+static struct metrics_collector control_queue_collector = {
 	.name = "control queue",
 	.collect = control_queue_metrics_collect,
 };
@@ -169,5 +167,5 @@ static struct gr_module module = {
 
 RTE_INIT(control_queue_module_init) {
 	gr_register_module(&module);
-	gr_metrics_register(&control_queue_collector);
+	metrics_register(&control_queue_collector);
 }

@@ -263,21 +263,21 @@ METRIC_COUNTER(m_packets, "node_packets", "Number of packets processed by a node
 METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.");
 METRIC_COUNTER(m_cycles, "node_cycles", "Number of cycles spent per node.");
 
-static void graph_metrics_collect(struct gr_metrics_writer *w) {
+static void graph_metrics_collect(struct metrics_writer *w) {
 	gr_vec struct gr_stat *stats = worker_dump_stats(UINT16_MAX);
-	struct gr_metrics_ctx ctx;
+	struct metrics_ctx ctx;
 
 	gr_vec_foreach_ref (const struct gr_stat *s, stats) {
-		gr_metrics_ctx_init(&ctx, w, "name", s->name, NULL);
-		gr_metric_emit(&ctx, &m_packets, s->packets);
-		gr_metric_emit(&ctx, &m_batches, s->batches);
-		gr_metric_emit(&ctx, &m_cycles, s->cycles);
+		metrics_ctx_init(&ctx, w, "name", s->name, NULL);
+		metric_emit(&ctx, &m_packets, s->packets);
+		metric_emit(&ctx, &m_batches, s->batches);
+		metric_emit(&ctx, &m_cycles, s->cycles);
 	}
 
 	gr_vec_free(stats);
 }
 
-static struct gr_metrics_collector graph_collector = {
+static struct metrics_collector graph_collector = {
 	.name = "graph",
 	.collect = graph_metrics_collect,
 };
@@ -285,8 +285,8 @@ static struct gr_metrics_collector graph_collector = {
 METRIC_COUNTER(m_idle_cycles, "idle_cycles", "Number of idle CPU cycles.");
 METRIC_COUNTER(m_busy_cycles, "busy_cycles", "Number of busy CPU cycles.");
 
-static void cpu_collect_metrics(struct gr_metrics_writer *w) {
-	struct gr_metrics_ctx ctx;
+static void cpu_collect_metrics(struct metrics_writer *w) {
+	struct metrics_ctx ctx;
 	char cpu[16], numa[16];
 	struct worker *worker;
 
@@ -298,13 +298,13 @@ static void cpu_collect_metrics(struct gr_metrics_writer *w) {
 		snprintf(cpu, sizeof(cpu), "%u", worker->cpu_id);
 		snprintf(numa, sizeof(numa), "%u", rte_lcore_to_socket_id(worker->lcore_id));
 
-		gr_metrics_ctx_init(&ctx, w, "cpu", cpu, "numa", numa, NULL);
-		gr_metric_emit(&ctx, &m_idle_cycles, stats->total_cycles - stats->busy_cycles);
-		gr_metric_emit(&ctx, &m_busy_cycles, stats->busy_cycles);
+		metrics_ctx_init(&ctx, w, "cpu", cpu, "numa", numa, NULL);
+		metric_emit(&ctx, &m_idle_cycles, stats->total_cycles - stats->busy_cycles);
+		metric_emit(&ctx, &m_busy_cycles, stats->busy_cycles);
 	}
 }
 
-static struct gr_metrics_collector cpu_collector = {
+static struct metrics_collector cpu_collector = {
 	.name = "cpu",
 	.collect = cpu_collect_metrics,
 };
@@ -313,17 +313,17 @@ METRIC_HISTOGRAM(m_rx_burst, "rx_burst_size", "Distribution of RX burst sizes in
 
 static const unsigned rx_burst_buckets[] = {0, 1, 2, 4, 8, 16, 32, 64, 128};
 
-static void rx_burst_metrics_collect(struct gr_metrics_writer *w) {
+static void rx_burst_metrics_collect(struct metrics_writer *w) {
 	uint64_t histogram[RTE_GRAPH_BURST_SIZE + 1];
-	struct gr_metrics_ctx ctx;
+	struct metrics_ctx ctx;
 	struct iface *iface = NULL;
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);
 
 		rx_burst_histogram_get(port->port_id, histogram, ARRAY_DIM(histogram));
-		gr_metrics_ctx_init(&ctx, w, "iface", iface->name, NULL);
-		gr_metric_emit_histogram(
+		metrics_ctx_init(&ctx, w, "iface", iface->name, NULL);
+		metric_emit_histogram(
 			&ctx,
 			&m_rx_burst,
 			histogram,
@@ -334,7 +334,7 @@ static void rx_burst_metrics_collect(struct gr_metrics_writer *w) {
 	}
 }
 
-static struct gr_metrics_collector rx_burst_collector = {
+static struct metrics_collector rx_burst_collector = {
 	.name = "rx_burst",
 	.collect = rx_burst_metrics_collect,
 };
@@ -343,7 +343,7 @@ RTE_INIT(infra_stats_init) {
 	gr_api_handler(GR_STATS_GET, stats_get);
 	gr_api_handler(GR_STATS_RESET, stats_reset);
 	gr_api_handler(GR_IFACE_STATS_GET, iface_stats_get);
-	gr_metrics_register(&graph_collector);
-	gr_metrics_register(&cpu_collector);
-	gr_metrics_register(&rx_burst_collector);
+	metrics_register(&graph_collector);
+	metrics_register(&cpu_collector);
+	metrics_register(&rx_burst_collector);
 }

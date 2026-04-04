@@ -40,9 +40,9 @@ void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
 void gr_register_module(struct gr_module *) { }
 void gr_event_subscribe(uint32_t, gr_event_sub_cb_t) { }
 void iface_type_register(const struct iface_type *) { }
-void gr_metrics_ctx_init(struct gr_metrics_ctx *, struct gr_metrics_writer *, ...) { }
-void gr_metrics_labels_add(struct gr_metrics_ctx *, ...) { }
-void gr_metric_emit(struct gr_metrics_ctx *, const struct gr_metric *, uint64_t) { }
+void metrics_ctx_init(struct metrics_ctx *, struct metrics_writer *, ...) { }
+void metrics_labels_add(struct metrics_ctx *, ...) { }
+void metric_emit(struct metrics_ctx *, const struct metric *, uint64_t) { }
 void gr_event_push(uint32_t, const void *) { }
 int netlink_link_set_name(uint32_t, const char *) {
 	return 0;
