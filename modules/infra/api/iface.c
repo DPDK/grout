@@ -228,11 +228,11 @@ static struct metrics_collector iface_collector = {
 };
 
 RTE_INIT(infra_api_init) {
-	gr_api_handler(GR_IFACE_ADD, iface_add);
-	gr_api_handler(GR_IFACE_DEL, iface_del);
-	gr_api_handler(GR_IFACE_GET, iface_get);
-	gr_api_handler(GR_IFACE_LIST, iface_list);
-	gr_api_handler(GR_IFACE_SET, iface_set);
+	api_handler(GR_IFACE_ADD, iface_add);
+	api_handler(GR_IFACE_DEL, iface_del);
+	api_handler(GR_IFACE_GET, iface_get);
+	api_handler(GR_IFACE_LIST, iface_list);
+	api_handler(GR_IFACE_SET, iface_set);
 	event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
 	event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
 	event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);

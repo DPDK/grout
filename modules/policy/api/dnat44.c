@@ -234,8 +234,8 @@ static struct nexthop_type_ops nh_ops = {
 };
 
 RTE_INIT(_init) {
-	gr_api_handler(GR_DNAT44_ADD, dnat44_add);
-	gr_api_handler(GR_DNAT44_DEL, dnat44_del);
-	gr_api_handler(GR_DNAT44_LIST, dnat44_list);
+	api_handler(GR_DNAT44_ADD, dnat44_add);
+	api_handler(GR_DNAT44_DEL, dnat44_del);
+	api_handler(GR_DNAT44_LIST, dnat44_list);
 	nexthop_type_ops_register(GR_NH_T_DNAT, &nh_ops);
 }

@@ -672,8 +672,8 @@ static struct module module = {
 
 RTE_INIT(_init) {
 	module_register(&module);
-	gr_api_handler(GR_CONNTRACK_LIST, conntrack_list);
-	gr_api_handler(GR_CONNTRACK_FLUSH, conntrack_flush);
-	gr_api_handler(GR_CONNTRACK_CONF_SET, config_set);
-	gr_api_handler(GR_CONNTRACK_CONF_GET, config_get);
+	api_handler(GR_CONNTRACK_LIST, conntrack_list);
+	api_handler(GR_CONNTRACK_FLUSH, conntrack_flush);
+	api_handler(GR_CONNTRACK_CONF_SET, config_set);
+	api_handler(GR_CONNTRACK_CONF_GET, config_get);
 }

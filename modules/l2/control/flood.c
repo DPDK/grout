@@ -74,9 +74,9 @@ static struct api_out flood_list(const void *request, struct api_ctx *ctx) {
 }
 
 RTE_INIT(flood_init) {
-	gr_api_handler(GR_FLOOD_ADD, flood_add);
-	gr_api_handler(GR_FLOOD_DEL, flood_del);
-	gr_api_handler(GR_FLOOD_LIST, flood_list);
+	api_handler(GR_FLOOD_ADD, flood_add);
+	api_handler(GR_FLOOD_DEL, flood_del);
+	api_handler(GR_FLOOD_LIST, flood_list);
 	event_serializer(GR_EVENT_FLOOD_ADD, NULL, sizeof(struct gr_flood_entry));
 	event_serializer(GR_EVENT_FLOOD_DEL, NULL, sizeof(struct gr_flood_entry));
 }

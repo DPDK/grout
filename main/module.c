@@ -23,7 +23,7 @@ struct module_handlers {
 
 static struct module_handlers *mod_handlers[UINT_NUM_VALUES(uint16_t)];
 
-void __gr_api_handler(uint32_t request_type, gr_api_handler_func callback, const char *name) {
+void __api_handler(uint32_t request_type, api_handler_func callback, const char *name) {
 	uint16_t mod = (request_type >> 16) & 0xffff;
 	uint16_t req = request_type & 0xffff;
 	struct module_handlers *mh;

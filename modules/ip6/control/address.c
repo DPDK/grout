@@ -518,10 +518,10 @@ static struct module addr6_module = {
 };
 
 RTE_INIT(address_constructor) {
-	gr_api_handler(GR_IP6_ADDR_ADD, addr6_add);
-	gr_api_handler(GR_IP6_ADDR_DEL, addr6_del);
-	gr_api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
-	gr_api_handler(GR_IP6_ADDR_LIST, addr6_list);
+	api_handler(GR_IP6_ADDR_ADD, addr6_add);
+	api_handler(GR_IP6_ADDR_DEL, addr6_del);
+	api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
+	api_handler(GR_IP6_ADDR_LIST, addr6_list);
 	module_register(&addr6_module);
 	event_subscribe(GR_EVENT_IFACE_POST_ADD, ip6_iface_event_handler);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, ip6_iface_event_handler);

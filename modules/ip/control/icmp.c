@@ -189,8 +189,8 @@ static struct module icmp_module = {
 
 RTE_INIT(icmp_module_init) {
 	module_register(&icmp_module);
-	gr_api_handler(GR_IP4_ICMP_SEND, icmp_send);
-	gr_api_handler(GR_IP4_ICMP_RECV, icmp_recv);
+	api_handler(GR_IP4_ICMP_SEND, icmp_send);
+	api_handler(GR_IP4_ICMP_RECV, icmp_recv);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);

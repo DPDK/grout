@@ -861,12 +861,12 @@ static const struct vrf_fib_ops fib6_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	gr_api_handler(GR_IP6_ROUTE_ADD, route6_add);
-	gr_api_handler(GR_IP6_ROUTE_DEL, route6_del);
-	gr_api_handler(GR_IP6_ROUTE_GET, route6_get);
-	gr_api_handler(GR_IP6_ROUTE_LIST, route6_list);
-	gr_api_handler(GR_IP6_FIB_DEFAULT_SET, fib6_default_set);
-	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
+	api_handler(GR_IP6_ROUTE_ADD, route6_add);
+	api_handler(GR_IP6_ROUTE_DEL, route6_del);
+	api_handler(GR_IP6_ROUTE_GET, route6_get);
+	api_handler(GR_IP6_ROUTE_LIST, route6_list);
+	api_handler(GR_IP6_FIB_DEFAULT_SET, fib6_default_set);
+	api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
 	event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
 	event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
 	module_register(&route6_module);

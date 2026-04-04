@@ -52,7 +52,7 @@ static struct api_out snat44_list(const void * /*request*/, struct api_ctx *ctx)
 }
 
 RTE_INIT(_init) {
-	gr_api_handler(GR_SNAT44_ADD, snat44_add);
-	gr_api_handler(GR_SNAT44_DEL, snat44_del);
-	gr_api_handler(GR_SNAT44_LIST, snat44_list);
+	api_handler(GR_SNAT44_ADD, snat44_add);
+	api_handler(GR_SNAT44_DEL, snat44_del);
+	api_handler(GR_SNAT44_LIST, snat44_list);
 }

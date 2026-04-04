@@ -32,11 +32,11 @@ struct api_ctx {
 
 void api_send(struct api_ctx *, uint32_t len, const void *payload);
 
-typedef struct api_out (*gr_api_handler_func)(const void *request, struct api_ctx *);
+typedef struct api_out (*api_handler_func)(const void *request, struct api_ctx *);
 
-void __gr_api_handler(uint32_t req_type, gr_api_handler_func callback, const char *name);
+void __api_handler(uint32_t req_type, api_handler_func callback, const char *name);
 
-#define gr_api_handler(req_type, callback) __gr_api_handler(req_type, callback, #req_type)
+#define api_handler(req_type, callback) __api_handler(req_type, callback, #req_type)
 
 struct module {
 	const char *name;
@@ -49,7 +49,7 @@ struct module {
 void module_register(struct module *);
 
 struct api_handler {
-	gr_api_handler_func callback;
+	api_handler_func callback;
 	const char *name;
 };
 

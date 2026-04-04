@@ -304,10 +304,10 @@ static struct module addr_module = {
 };
 
 RTE_INIT(address_constructor) {
-	gr_api_handler(GR_IP4_ADDR_ADD, addr_add);
-	gr_api_handler(GR_IP4_ADDR_DEL, addr_del);
-	gr_api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
-	gr_api_handler(GR_IP4_ADDR_LIST, addr_list);
+	api_handler(GR_IP4_ADDR_ADD, addr_add);
+	api_handler(GR_IP4_ADDR_DEL, addr_del);
+	api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
+	api_handler(GR_IP4_ADDR_LIST, addr_list);
 	module_register(&addr_module);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);

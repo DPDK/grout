@@ -98,8 +98,8 @@ static struct api_out rxq_set(const void *request, struct api_ctx *) {
 }
 
 RTE_INIT(_init) {
-	gr_api_handler(GR_AFFINITY_RXQ_LIST, rxq_list);
-	gr_api_handler(GR_AFFINITY_RXQ_SET, rxq_set);
-	gr_api_handler(GR_AFFINITY_CPU_GET, affinity_get);
-	gr_api_handler(GR_AFFINITY_CPU_SET, affinity_set);
+	api_handler(GR_AFFINITY_RXQ_LIST, rxq_list);
+	api_handler(GR_AFFINITY_RXQ_SET, rxq_set);
+	api_handler(GR_AFFINITY_CPU_GET, affinity_get);
+	api_handler(GR_AFFINITY_CPU_SET, affinity_set);
 }

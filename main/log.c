@@ -76,7 +76,7 @@ static struct api_out log_level_set(const void *request, struct api_ctx *) {
 }
 
 RTE_INIT(log_api_init) {
-	gr_api_handler(GR_LOG_PACKETS_SET, log_packets_set);
-	gr_api_handler(GR_LOG_LEVEL_LIST, log_level_list);
-	gr_api_handler(GR_LOG_LEVEL_SET, log_level_set);
+	api_handler(GR_LOG_PACKETS_SET, log_packets_set);
+	api_handler(GR_LOG_LEVEL_LIST, log_level_list);
+	api_handler(GR_LOG_LEVEL_SET, log_level_set);
 }

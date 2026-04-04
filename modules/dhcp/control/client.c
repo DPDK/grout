@@ -534,7 +534,7 @@ static struct module dhcp_module = {
 
 RTE_INIT(dhcp_constructor) {
 	module_register(&dhcp_module);
-	gr_api_handler(GR_DHCP_LIST, dhcp_list_handler);
-	gr_api_handler(GR_DHCP_START, dhcp_start_handler);
-	gr_api_handler(GR_DHCP_STOP, dhcp_stop_handler);
+	api_handler(GR_DHCP_LIST, dhcp_list_handler);
+	api_handler(GR_DHCP_START, dhcp_start_handler);
+	api_handler(GR_DHCP_STOP, dhcp_stop_handler);
 }
