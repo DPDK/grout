@@ -23,32 +23,32 @@ void __wrap_rte_free(void *ptr) {
 }
 
 static void id_sequence(void **) {
-	struct gr_id_pool *p = gr_id_pool_create(1, 122);
+	struct id_pool *p = id_pool_create(1, 122);
 	assert_non_null(p);
-	assert_int_equal(gr_id_pool_used(p), 0);
-	assert_int_equal(gr_id_pool_avail(p), 122);
-	assert_int_equal(gr_id_pool_put(p, 2), -EIDRM);
+	assert_int_equal(id_pool_used(p), 0);
+	assert_int_equal(id_pool_avail(p), 122);
+	assert_int_equal(id_pool_put(p, 2), -EIDRM);
 	for (unsigned i = 1; i < 6; i++)
-		assert_int_equal(gr_id_pool_get(p), i);
-	assert_return_code(gr_id_pool_put(p, 2), errno);
-	assert_int_equal(gr_id_pool_get(p), 2);
+		assert_int_equal(id_pool_get(p), i);
+	assert_return_code(id_pool_put(p, 2), errno);
+	assert_int_equal(id_pool_get(p), 2);
 	for (unsigned i = 6; i <= 122; i++)
-		assert_int_equal(gr_id_pool_get(p), i);
-	assert_int_equal(gr_id_pool_get(p), 0);
-	assert_return_code(gr_id_pool_put(p, 42), errno);
-	assert_int_equal(gr_id_pool_get(p), 42);
-	assert_int_equal(gr_id_pool_book(p, 666), -ERANGE);
-	assert_int_equal(gr_id_pool_book(p, 0), -ERANGE);
-	assert_int_equal(gr_id_pool_book(p, 42), -EADDRINUSE);
-	assert_int_equal(gr_id_pool_put(p, 666), -ERANGE);
-	assert_int_equal(gr_id_pool_put(p, 0), -ERANGE);
-	gr_id_pool_destroy(p);
+		assert_int_equal(id_pool_get(p), i);
+	assert_int_equal(id_pool_get(p), 0);
+	assert_return_code(id_pool_put(p, 42), errno);
+	assert_int_equal(id_pool_get(p), 42);
+	assert_int_equal(id_pool_book(p, 666), -ERANGE);
+	assert_int_equal(id_pool_book(p, 0), -ERANGE);
+	assert_int_equal(id_pool_book(p, 42), -EADDRINUSE);
+	assert_int_equal(id_pool_put(p, 666), -ERANGE);
+	assert_int_equal(id_pool_put(p, 0), -ERANGE);
+	id_pool_destroy(p);
 
-	p = gr_id_pool_create(666, 1);
+	p = id_pool_create(666, 1);
 	assert_null(p);
 	assert_int_equal(errno, ERANGE);
 
-	p = gr_id_pool_create(1, UINT32_MAX);
+	p = id_pool_create(1, UINT32_MAX);
 	assert_null(p);
 	assert_int_equal(errno, ERANGE);
 }
@@ -57,7 +57,7 @@ static void id_sequence(void **) {
 #define LOOPS 100000
 
 struct id_pool_bench {
-	struct gr_id_pool *pool;
+	struct id_pool *pool;
 	_Atomic(int) ret;
 	_Atomic(uint64_t) get_failures;
 	_Atomic(uint64_t) get;
@@ -73,14 +73,14 @@ static void *id_sequence_thread(void *arg) {
 		if (atomic_load(&bench->ret) != 0)
 			break;
 		tsc = rte_rdtsc();
-		ret = gr_id_pool_get(bench->pool);
+		ret = id_pool_get(bench->pool);
 		atomic_fetch_add(&bench->get, rte_rdtsc() - tsc);
 		if (ret == 0) {
 			atomic_fetch_add(&bench->get_failures, 1);
 			continue;
 		}
 		tsc = rte_rdtsc();
-		ret = gr_id_pool_put(bench->pool, ret);
+		ret = id_pool_put(bench->pool, ret);
 		atomic_fetch_add(&bench->put, rte_rdtsc() - tsc);
 		if (ret < 0) {
 			atomic_store(&bench->ret, ret);
@@ -94,7 +94,7 @@ static void *id_sequence_thread(void *arg) {
 static void bench_summary(const char *func, const char *fill, struct id_pool_bench *bench) {
 	double fail_rate = (double)bench->get_failures / (double)(THREADS * LOOPS);
 	print_message(
-		"gr_id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu failures=%lu (%.8g%%)\n",
+		"id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu failures=%lu (%.8g%%)\n",
 		func,
 		fill,
 		THREADS,
@@ -104,7 +104,7 @@ static void bench_summary(const char *func, const char *fill, struct id_pool_ben
 		fail_rate * 100.0
 	);
 	print_message(
-		"gr_id_pool_put(%s): threads=%u iterations=%u cycles/it=%lu\n",
+		"id_pool_put(%s): threads=%u iterations=%u cycles/it=%lu\n",
 		fill,
 		THREADS,
 		LOOPS,
@@ -128,12 +128,12 @@ static void bench_summary(const char *func, const char *fill, struct id_pool_ben
 				bench->pool->level0[l0] & GR_BIT64(l0_bit), GR_BIT64(l0_bit)
 			);
 	}
-	assert_int_equal(used, gr_id_pool_used(bench->pool));
+	assert_int_equal(used, id_pool_used(bench->pool));
 }
 
 static void id_sequence_bench(void **) {
 	struct id_pool_bench bench = {
-		.pool = gr_id_pool_create(1024, 65535),
+		.pool = id_pool_create(1024, 65535),
 	};
 	assert_non_null(bench.pool);
 	pthread_t threads[THREADS];
@@ -148,7 +148,7 @@ static void id_sequence_bench(void **) {
 
 	// reserve half of the ids
 	for (id = bench.pool->min_id; id < bench.pool->max_id / 2; id++)
-		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
+		assert_return_code(id_pool_book(bench.pool, id), errno);
 
 	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
@@ -159,7 +159,7 @@ static void id_sequence_bench(void **) {
 
 	// reserve all ids but the last THREADS ones
 	for (id = bench.pool->max_id / 2; id <= bench.pool->max_id - THREADS; id++)
-		assert_return_code(gr_id_pool_book(bench.pool, id), errno);
+		assert_return_code(id_pool_book(bench.pool, id), errno);
 
 	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
@@ -168,21 +168,21 @@ static void id_sequence_bench(void **) {
 		pthread_join(threads[t], NULL);
 	bench_summary("get", "full-1", &bench);
 
-	gr_id_pool_destroy(bench.pool);
+	id_pool_destroy(bench.pool);
 }
 
 static void id_random(void **) {
-	struct gr_id_pool *p = gr_id_pool_create(1024, 65535);
+	struct id_pool *p = id_pool_create(1024, 65535);
 	assert_non_null(p);
-	assert_int_equal(gr_id_pool_used(p), 0);
-	assert_int_equal(gr_id_pool_avail(p), 64512);
-	assert_int_equal(gr_id_pool_put(p, 2), -ERANGE);
-	assert_int_equal(gr_id_pool_put(p, 1024), -EIDRM);
-	uint32_t i1 = gr_id_pool_get_random(p);
-	assert_int_equal(gr_id_pool_book(p, i1), -EADDRINUSE);
-	uint32_t i2 = gr_id_pool_get_random(p);
-	assert_int_equal(gr_id_pool_book(p, i2), -EADDRINUSE);
-	gr_id_pool_destroy(p);
+	assert_int_equal(id_pool_used(p), 0);
+	assert_int_equal(id_pool_avail(p), 64512);
+	assert_int_equal(id_pool_put(p, 2), -ERANGE);
+	assert_int_equal(id_pool_put(p, 1024), -EIDRM);
+	uint32_t i1 = id_pool_get_random(p);
+	assert_int_equal(id_pool_book(p, i1), -EADDRINUSE);
+	uint32_t i2 = id_pool_get_random(p);
+	assert_int_equal(id_pool_book(p, i2), -EADDRINUSE);
+	id_pool_destroy(p);
 }
 
 static void *id_random_thread(void *arg) {
@@ -194,14 +194,14 @@ static void *id_random_thread(void *arg) {
 		if (atomic_load(&bench->ret) != 0)
 			break;
 		tsc = rte_rdtsc();
-		ret = gr_id_pool_get_random(bench->pool);
+		ret = id_pool_get_random(bench->pool);
 		atomic_fetch_add(&bench->get, rte_rdtsc() - tsc);
 		if (ret == 0) {
 			atomic_fetch_add(&bench->get_failures, 1);
 			continue;
 		}
 		tsc = rte_rdtsc();
-		ret = gr_id_pool_put(bench->pool, ret);
+		ret = id_pool_put(bench->pool, ret);
 		atomic_fetch_add(&bench->put, rte_rdtsc() - tsc);
 		if (ret < 0) {
 			atomic_store(&bench->ret, ret);
@@ -214,7 +214,7 @@ static void *id_random_thread(void *arg) {
 
 static void id_random_bench(void **) {
 	struct id_pool_bench bench = {
-		.pool = gr_id_pool_create(1024, 65535),
+		.pool = id_pool_create(1024, 65535),
 	};
 	assert_non_null(bench.pool);
 	pthread_t threads[THREADS];
@@ -229,7 +229,7 @@ static void id_random_bench(void **) {
 
 	// reserve half of the ids
 	for (id = bench.pool->min_id; id < bench.pool->max_id / 2; id++)
-		assert_int_not_equal(gr_id_pool_get_random(bench.pool), 0);
+		assert_int_not_equal(id_pool_get_random(bench.pool), 0);
 
 	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
@@ -240,7 +240,7 @@ static void id_random_bench(void **) {
 
 	// reserve all ids but THREAD ones
 	for (id = bench.pool->max_id / 2; id <= bench.pool->max_id - THREADS; id++)
-		assert_int_not_equal(gr_id_pool_get_random(bench.pool), 0);
+		assert_int_not_equal(id_pool_get_random(bench.pool), 0);
 
 	bench.get_failures = bench.ret = bench.get = bench.put = 0;
 	for (t = 0; t < ARRAY_DIM(threads); t++)
@@ -249,7 +249,7 @@ static void id_random_bench(void **) {
 		pthread_join(threads[t], NULL);
 	bench_summary("get_random", "full-1", &bench);
 
-	gr_id_pool_destroy(bench.pool);
+	id_pool_destroy(bench.pool);
 }
 
 int main(void) {

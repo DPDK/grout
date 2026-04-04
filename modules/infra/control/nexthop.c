@@ -26,7 +26,7 @@ LOG_TYPE("nexthop");
 #define DEFAULT_BCAST_PROBES 3
 
 static struct rte_mempool *pool;
-static struct gr_id_pool *pool_id;
+static struct id_pool *pool_id;
 static struct rte_hash *hash_by_id;
 static const struct nexthop_type_ops *type_ops[256];
 
@@ -74,13 +74,13 @@ static struct rte_mempool *create_mempool(const struct gr_nexthop_config *c) {
 	return p;
 }
 
-static struct gr_id_pool *create_idpool(const struct gr_nexthop_config *c) {
-	if (pool_id != NULL && gr_id_pool_used(pool_id))
+static struct id_pool *create_idpool(const struct gr_nexthop_config *c) {
+	if (pool_id != NULL && id_pool_used(pool_id))
 		return errno_set_null(EBUSY);
 
-	struct gr_id_pool *pid = gr_id_pool_create(1, c->max_count);
+	struct id_pool *pid = id_pool_create(1, c->max_count);
 	if (pid == NULL)
-		return errno_log_null(rte_errno, "gr_id_pool_create");
+		return errno_log_null(rte_errno, "id_pool_create");
 
 	return pid;
 }
@@ -90,7 +90,7 @@ static void nexthop_id_put(struct nexthop *nh) {
 		return;
 
 	if (nh->nh_id <= nh_conf.max_count)
-		gr_id_pool_put(pool_id, nh->nh_id);
+		id_pool_put(pool_id, nh->nh_id);
 
 	rte_hash_del_key(hash_by_id, &nh->nh_id);
 	nh->nh_id = 0;
@@ -111,18 +111,18 @@ static int nexthop_id_get(struct nexthop *nh) {
 
 	// if no id allocate one
 	if (nh->nh_id == 0) {
-		nh->nh_id = gr_id_pool_get(pool_id);
+		nh->nh_id = id_pool_get(pool_id);
 		if (nh->nh_id == 0)
 			return errno_set(ENOSPC);
 		// book id if this one in the range of id allocated
 		// (user is allowed to use id outside > max_count
-	} else if (nh->nh_id <= nh_conf.max_count && gr_id_pool_book(pool_id, nh->nh_id) < 0)
+	} else if (nh->nh_id <= nh_conf.max_count && id_pool_book(pool_id, nh->nh_id) < 0)
 		return errno_set(EBUSY);
 
 	ret = rte_hash_add_key_data(hash_by_id, &nh->nh_id, nh);
 	if (ret < 0) {
 		if (nh->nh_id <= nh_conf.max_count)
-			gr_id_pool_put(pool_id, nh->nh_id);
+			id_pool_put(pool_id, nh->nh_id);
 		return errno_set(-ret);
 	}
 	return 0;
@@ -158,7 +158,7 @@ static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
 static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
 	struct rte_mempool *p = NULL;
 	struct rte_hash *hid = NULL;
-	struct gr_id_pool *pid = NULL;
+	struct id_pool *pid = NULL;
 
 	if (pool != NULL && (c->max_count == 0 || c->max_count == nh_conf.max_count))
 		return 0;
@@ -189,7 +189,7 @@ static int nexthop_config_allocate(const struct gr_nexthop_config *c) {
 	pool = p;
 	rte_hash_free(hash_by_id);
 	hash_by_id = hid;
-	gr_id_pool_destroy(pool_id);
+	id_pool_destroy(pool_id);
 	pool_id = pid;
 
 	nh_conf.max_count = c->max_count;
@@ -201,7 +201,7 @@ fail:
 	if (hid)
 		rte_hash_free(hid);
 	if (pid)
-		gr_id_pool_destroy(pid);
+		id_pool_destroy(pid);
 
 	return -errno;
 }
