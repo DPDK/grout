@@ -445,9 +445,9 @@ static struct gr_module cp_module = {
 
 RTE_INIT(cp_constructor) {
 	gr_register_module(&cp_module);
-	gr_event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
+	event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
+	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
 }

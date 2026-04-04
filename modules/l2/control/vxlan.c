@@ -201,7 +201,7 @@ static int iface_vxlan_fini(struct iface *iface) {
 
 	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
 		entry.vtep.addr = vxlan->flood_vteps[i];
-		gr_event_push(GR_EVENT_FLOOD_DEL, &entry);
+		event_push(GR_EVENT_FLOOD_DEL, &entry);
 	}
 
 	if (vxlan->encap_vrf_id != GR_VRF_ID_UNDEF)
@@ -317,7 +317,7 @@ static int vtep_flood_add(const struct gr_flood_entry *entry, bool exist_ok) {
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), rte_lcore_id());
 	rte_free(old_vteps);
 
-	gr_event_push(GR_EVENT_FLOOD_ADD, entry);
+	event_push(GR_EVENT_FLOOD_ADD, entry);
 
 	return 0;
 }
@@ -339,7 +339,7 @@ static int vtep_flood_del(const struct gr_flood_entry *entry, bool missing_ok) {
 		if (vxlan->flood_vteps[i] == entry->vtep.addr) {
 			vxlan->flood_vteps[i] = vxlan->flood_vteps[vxlan->n_flood_vteps - 1];
 			vxlan->n_flood_vteps--;
-			gr_event_push(GR_EVENT_FLOOD_DEL, entry);
+			event_push(GR_EVENT_FLOOD_DEL, entry);
 			return 0;
 		}
 	}
@@ -416,6 +416,6 @@ static struct gr_module vxlan_module = {
 RTE_INIT(vxlan_constructor) {
 	gr_register_module(&vxlan_module);
 	iface_type_register(&iface_type_vxlan);
-	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, vxlan_pre_remove_cb);
+	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, vxlan_pre_remove_cb);
 	flood_type_register(&vtep_flood_ops);
 }

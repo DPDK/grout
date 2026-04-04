@@ -103,8 +103,8 @@ void api_send_notifications(uint32_t ev_type, const void *obj) {
 		return;
 	}
 
-	if ((len = gr_event_serialize(ev_type, obj, &data)) < 0) {
-		LOG(ERR, "gr_event_serialize: %s", strerror(-len));
+	if ((len = event_serialize(ev_type, obj, &data)) < 0) {
+		LOG(ERR, "event_serialize: %s", strerror(-len));
 		return;
 	}
 

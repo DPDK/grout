@@ -233,6 +233,6 @@ RTE_INIT(router_advertisement_init) {
 	gr_api_handler(GR_IP6_IFACE_RA_SET, iface_ra_set);
 	gr_api_handler(GR_IP6_IFACE_RA_CLEAR, iface_ra_clear);
 	gr_api_handler(GR_IP6_IFACE_RA_SHOW, iface_ra_show);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event_handler);
-	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event_handler);
+	event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event_handler);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event_handler);
 }

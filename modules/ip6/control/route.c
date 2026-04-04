@@ -263,7 +263,7 @@ static int rib6_insert_or_replace(
 	route_counts[vrf_id][origin]++;
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
-		gr_event_push(
+		event_push(
 			GR_EVENT_IP6_ROUTE_ADD,
 			&(const struct route6_event) {
 				.dest = {*ip, prefixlen},
@@ -330,7 +330,7 @@ int rib6_delete(
 		return errno_set(-ret);
 
 	if (origin != GR_NH_ORIGIN_INTERNAL) {
-		gr_event_push(
+		event_push(
 			GR_EVENT_IP6_ROUTE_DEL,
 			&(const struct route6_event) {
 				.dest = {*ip, prefixlen},
@@ -709,7 +709,7 @@ static int fib6_migrate_cb(
 			    prefixlen,
 			    rte_strerror(-ret));
 			if (origin != GR_NH_ORIGIN_INTERNAL) {
-				gr_event_push(
+				event_push(
 					GR_EVENT_IP6_ROUTE_DEL,
 					&(const struct route6_event) {
 						.dest = {*ip, prefixlen},
@@ -867,8 +867,8 @@ RTE_INIT(control_ip_init) {
 	gr_api_handler(GR_IP6_ROUTE_LIST, route6_list);
 	gr_api_handler(GR_IP6_FIB_DEFAULT_SET, fib6_default_set);
 	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
-	gr_event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
-	gr_event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
+	event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
+	event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
 	gr_register_module(&route6_module);
 	metrics_register(&rib6_collector);
 	vrf_fib_ops_register(GR_AF_IP6, &fib6_ops);

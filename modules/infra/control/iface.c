@@ -263,8 +263,8 @@ struct iface *iface_create(const struct gr_iface *conf, const void *api_info) {
 
 	memset(iface_stats[ifid], 0, sizeof(iface_stats[ifid]));
 
-	gr_event_push(GR_EVENT_IFACE_ADD, iface);
-	gr_event_push(GR_EVENT_IFACE_POST_ADD, iface);
+	event_push(GR_EVENT_IFACE_ADD, iface);
+	event_push(GR_EVENT_IFACE_POST_ADD, iface);
 
 	if (iface_set_mtu(iface, iface->mtu) < 0)
 		goto destroy;
@@ -417,7 +417,7 @@ int iface_reconfig(
 		assert(iface->mode != GR_IFACE_MODE_VRF);
 	}
 
-	gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
+	event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
 
 	return 0;
 err:
@@ -510,7 +510,7 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 
 	ret = type->set_eth_addr(iface, mac);
 	if (ret == 0)
-		gr_event_push(GR_EVENT_IFACE_MAC_CHANGE, iface);
+		event_push(GR_EVENT_IFACE_MAC_CHANGE, iface);
 
 	return ret;
 }
@@ -577,11 +577,11 @@ int iface_set_up_down(struct iface *iface, bool up) {
 	if (!(iface->flags & GR_IFACE_F_UP) && up) {
 		iface->flags |= GR_IFACE_F_UP;
 		iface->state |= GR_IFACE_S_RUNNING;
-		gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+		event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 	} else if ((iface->flags & GR_IFACE_F_UP) && !up) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		iface->state &= ~GR_IFACE_S_RUNNING;
-		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+		event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 
 	return 0;
@@ -633,11 +633,11 @@ int iface_destroy(struct iface *iface) {
 	if (iface->type == GR_IFACE_TYPE_VRF && vrf_has_interfaces(iface->id))
 		return errno_set(EBUSY);
 
-	gr_event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
+	event_push(GR_EVENT_IFACE_PRE_REMOVE, iface);
 	// interface is still up, send status down
 	if (iface->flags & GR_IFACE_F_UP) {
 		iface->flags &= ~GR_IFACE_F_UP;
-		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+		event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 	detach_domain(iface);
 
@@ -650,7 +650,7 @@ int iface_destroy(struct iface *iface) {
 	// in the control queue may still reference it.
 	control_queue_drain(GR_EVENT_IFACE_REMOVE, iface);
 
-	gr_event_push(GR_EVENT_IFACE_REMOVE, iface);
+	event_push(GR_EVENT_IFACE_REMOVE, iface);
 
 	type = iface_type_get(iface->type);
 	assert(type != NULL);
@@ -729,7 +729,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state |= GR_IFACE_S_RUNNING;
 			s->speed = iface->speed;
-			gr_event_push(event, s);
+			event_push(event, s);
 		}
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
@@ -737,13 +737,13 @@ static void iface_event(uint32_t event, const void *obj) {
 		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state &= ~GR_IFACE_S_RUNNING;
 			s->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
-			gr_event_push(event, s);
+			event_push(event, s);
 		}
 		break;
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		str = "MAC_CHANGE";
 		gr_vec_foreach (struct iface *s, iface->subinterfaces)
-			gr_event_push(event, s);
+			event_push(event, s);
 		break;
 	default:
 		str = "?";
@@ -754,12 +754,12 @@ static void iface_event(uint32_t event, const void *obj) {
 
 RTE_INIT(iface_constructor) {
 	gr_register_module(&iface_module);
-	gr_event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
-	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_event);
+	event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
+	event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event);
+	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
+	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_event);
+	event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_event);
 }

@@ -100,14 +100,14 @@ static int iface_vlan_reconfig(
 			iface->speed = next_parent->speed;
 			if (iface->state & GR_IFACE_S_RUNNING) {
 				iface->state &= ~GR_IFACE_S_RUNNING;
-				gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+				event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 			}
 			iface_add_subinterface(next_parent, iface);
 
 			if ((iface->flags & GR_IFACE_F_UP)
 			    && (next_parent->state & GR_IFACE_S_RUNNING)) {
 				iface->state |= GR_IFACE_S_RUNNING;
-				gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+				event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 			}
 		}
 	}
@@ -158,12 +158,12 @@ static int iface_vlan_up_down(struct iface *iface, bool up) {
 		iface->flags |= GR_IFACE_F_UP;
 		if (parent->state & GR_IFACE_S_RUNNING) {
 			iface->state |= GR_IFACE_S_RUNNING;
-			gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+			event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 		}
 	} else {
 		iface->flags &= ~GR_IFACE_F_UP;
 		iface->state &= ~GR_IFACE_S_RUNNING;
-		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+		event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 
 	return 0;
