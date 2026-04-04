@@ -8,7 +8,7 @@
 #include "mempool.h"
 #include "trace.h"
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum {
 	UNKNOWN_CONTROL_INPUT_TYPE,

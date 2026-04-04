@@ -24,7 +24,7 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 
-GR_LOG_TYPE("trace");
+LOG_TYPE("trace");
 
 static inline const char *eth_type_str(rte_be16_t type) {
 	switch (type) {

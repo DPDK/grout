@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <string.h>
 
-GR_LOG_TYPE("iface");
+LOG_TYPE("iface");
 
 static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 

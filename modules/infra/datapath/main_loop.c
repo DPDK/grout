@@ -22,7 +22,7 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 struct stats_context {
 	struct rte_graph_cluster_stats *stats;

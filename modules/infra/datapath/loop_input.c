@@ -8,7 +8,7 @@
 #include "loopback.h"
 #include "mbuf.h"
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 static control_input_t control_to_loopback_input;
 

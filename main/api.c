@@ -24,7 +24,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("api");
+LOG_TYPE("api");
 
 static pid_t socket_pid(int fd) {
 	struct ucred cred;

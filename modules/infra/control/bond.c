@@ -12,7 +12,7 @@
 
 #include <rte_ether.h>
 
-GR_LOG_TYPE("bond");
+LOG_TYPE("bond");
 
 static int
 bond_all_member_add_mac(const struct iface_info_bond *bond, const struct rte_ether_addr *mac) {

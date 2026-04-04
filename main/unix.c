@@ -12,7 +12,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("main");
+LOG_TYPE("main");
 
 static gr_vec char **socket_paths;
 

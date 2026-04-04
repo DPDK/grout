@@ -17,7 +17,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-GR_LOG_TYPE("main");
+LOG_TYPE("main");
 
 static STAILQ_HEAD(, metrics_collector) collectors = STAILQ_HEAD_INITIALIZER(collectors);
 

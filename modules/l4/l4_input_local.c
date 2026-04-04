@@ -10,7 +10,7 @@
 
 #include <rte_udp.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum edges {
 	MANAGEMENT = 0,

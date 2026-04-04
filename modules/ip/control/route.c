@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 
-GR_LOG_TYPE("route");
+LOG_TYPE("route");
 
 static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
 

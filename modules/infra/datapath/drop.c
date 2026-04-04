@@ -8,7 +8,7 @@
 
 #include <rte_mbuf.h>
 
-GR_LOG_TYPE("trace");
+LOG_TYPE("trace");
 
 uint16_t drop_packets(struct rte_graph *, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	if (unlikely(gr_config.log_packets))

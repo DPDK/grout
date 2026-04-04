@@ -21,7 +21,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 static gr_vec const char **base_node_names;

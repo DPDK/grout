@@ -14,7 +14,7 @@
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum edges {
 	FORWARD = 0,
@@ -198,7 +198,7 @@ GR_DROP_REGISTER(ip6_blackhole);
 #include "_cmocka.h"
 
 int gr_rte_log_type;
-struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
+struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 
 mock_func(rte_edge_t, gr_node_attach_parent(const char *, const char *));

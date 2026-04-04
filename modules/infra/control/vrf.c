@@ -16,7 +16,7 @@
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 
-GR_LOG_TYPE("vrf");
+LOG_TYPE("vrf");
 
 static const struct vrf_fib_ops *fib_ops[256];
 

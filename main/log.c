@@ -24,9 +24,9 @@ static struct api_out log_packets_set(const void *request, struct api_ctx *) {
 static struct api_out log_level_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_log_level_list_req *req = request;
 	struct gr_log_entry entry;
-	struct gr_log_type *t;
+	struct log_type *t;
 
-	STAILQ_FOREACH (t, &gr_log_types, next) {
+	STAILQ_FOREACH (t, &log_types, next) {
 		memset(&entry, 0, sizeof(entry));
 		snprintf(entry.name, sizeof(entry.name), "%s", t->name);
 		entry.level = rte_log_get_level(t->type_id);

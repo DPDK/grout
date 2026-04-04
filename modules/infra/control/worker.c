@@ -27,7 +27,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("worker");
+LOG_TYPE("worker");
 
 struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 

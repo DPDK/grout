@@ -8,7 +8,7 @@
 
 #include <rte_ether.h>
 
-GR_LOG_TYPE("bridge");
+LOG_TYPE("bridge");
 
 static int bridge_reconfig(
 	struct iface *iface,

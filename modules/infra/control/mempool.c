@@ -8,7 +8,7 @@
 
 #include <stdlib.h>
 
-GR_LOG_TYPE("mempool");
+LOG_TYPE("mempool");
 
 struct mempool_tracker {
 	struct rte_mempool *mp;

@@ -15,7 +15,7 @@
 
 #include <string.h>
 
-GR_LOG_TYPE("lacp");
+LOG_TYPE("lacp");
 
 static struct event *lacp_timer;
 

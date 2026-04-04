@@ -20,7 +20,7 @@
 #include <rte_ip6.h>
 #include <rte_mbuf.h>
 
-GR_LOG_TYPE("ra");
+LOG_TYPE("ra");
 
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800

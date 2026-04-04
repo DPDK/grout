@@ -4,7 +4,7 @@
 #include "dhcp.h"
 #include "log.h"
 
-GR_LOG_TYPE("dhcp");
+LOG_TYPE("dhcp");
 
 int dhcp_parse_options(
 	const uint8_t *options,

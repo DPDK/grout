@@ -7,7 +7,7 @@
 
 #include <gr_nexthop.h>
 
-GR_LOG_TYPE("nexthop");
+LOG_TYPE("nexthop");
 
 static struct api_out nh_config_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_nh_config_get_resp *resp = malloc(sizeof(*resp));
