@@ -808,7 +808,7 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
-static struct gr_module route6_module = {
+static struct module route6_module = {
 	.name = "ip6_route",
 	.depends_on = "nexthop",
 };
@@ -869,7 +869,7 @@ RTE_INIT(control_ip_init) {
 	gr_api_handler(GR_IP6_FIB_INFO_LIST, fib6_info_list);
 	event_serializer(GR_EVENT_IP6_ROUTE_ADD, serialize_route6_event, 0);
 	event_serializer(GR_EVENT_IP6_ROUTE_DEL, serialize_route6_event, 0);
-	gr_register_module(&route6_module);
+	module_register(&route6_module);
 	metrics_register(&rib6_collector);
 	vrf_fib_ops_register(GR_AF_IP6, &fib6_ops);
 }

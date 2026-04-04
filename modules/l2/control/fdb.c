@@ -395,7 +395,7 @@ static void fdb_fini(struct event_base *) {
 	rte_mempool_free(fdb_pool);
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "fdb",
 	.depends_on = "rcu",
 	.init = fdb_init,
@@ -412,5 +412,5 @@ RTE_INIT(init) {
 	event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
 	event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
 	event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
-	gr_register_module(&module);
+	module_register(&module);
 }

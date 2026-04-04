@@ -701,7 +701,7 @@ static void graph_fini(struct event_base *) {
 	gr_strvec_free(tx_node_names);
 }
 
-static struct gr_module graph_module = {
+static struct module graph_module = {
 	.name = "graph",
 	.init = graph_init,
 	.fini = graph_fini,
@@ -711,5 +711,5 @@ RTE_INIT(control_graph_init) {
 	gr_api_handler(GR_GRAPH_DUMP, graph_dump);
 	gr_api_handler(GR_GRAPH_CONF_GET, graph_conf_get);
 	gr_api_handler(GR_GRAPH_CONF_SET, graph_conf_set);
-	gr_register_module(&graph_module);
+	module_register(&graph_module);
 }

@@ -325,12 +325,12 @@ static void rcu_fini(struct event_base *) {
 	rcu = NULL;
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "rcu",
 	.init = rcu_init,
 	.fini = rcu_fini,
 };
 
 RTE_INIT(_init) {
-	gr_register_module(&module);
+	module_register(&module);
 }

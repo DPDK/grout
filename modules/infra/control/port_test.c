@@ -19,7 +19,7 @@ struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
 struct gr_config gr_config;
 struct workers workers;
 void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
-void gr_register_module(struct gr_module *) { }
+void module_register(struct module *) { }
 void iface_type_register(const struct iface_type *) { }
 void event_push(uint32_t, const void *) { }
 void event_subscribe(uint32_t, event_sub_cb_t) { }

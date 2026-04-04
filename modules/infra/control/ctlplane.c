@@ -436,7 +436,7 @@ static void cp_module_fini(struct event_base *) {
 	gr_pktmbuf_pool_release(cp_pool, RTE_GRAPH_BURST_SIZE);
 }
 
-static struct gr_module cp_module = {
+static struct module cp_module = {
 	.name = "controlplane",
 	.depends_on = "graph",
 	.init = cp_module_init,
@@ -444,7 +444,7 @@ static struct gr_module cp_module = {
 };
 
 RTE_INIT(cp_constructor) {
-	gr_register_module(&cp_module);
+	module_register(&cp_module);
 	event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
 	event_subscribe(GR_EVENT_IFACE_REMOVE, iface_event);
 	event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_event);

@@ -149,7 +149,7 @@ static void ipip_fini(struct event_base *) {
 	ipip_hash = NULL;
 }
 
-static struct gr_module ipip_module = {
+static struct module ipip_module = {
 	.name = "ipip",
 	.depends_on = "rcu",
 	.init = ipip_init,
@@ -157,6 +157,6 @@ static struct gr_module ipip_module = {
 };
 
 RTE_INIT(ipip_constructor) {
-	gr_register_module(&ipip_module);
+	module_register(&ipip_module);
 	iface_type_register(&iface_type_ipip);
 }

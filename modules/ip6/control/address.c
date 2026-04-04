@@ -511,7 +511,7 @@ static void addr6_fini(struct event_base *) {
 	iface_mcast_addrs = NULL;
 }
 
-static struct gr_module addr6_module = {
+static struct module addr6_module = {
 	.name = "ip6_address",
 	.init = addr6_init,
 	.fini = addr6_fini,
@@ -522,7 +522,7 @@ RTE_INIT(address_constructor) {
 	gr_api_handler(GR_IP6_ADDR_DEL, addr6_del);
 	gr_api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
 	gr_api_handler(GR_IP6_ADDR_LIST, addr6_list);
-	gr_register_module(&addr6_module);
+	module_register(&addr6_module);
 	event_subscribe(GR_EVENT_IFACE_POST_ADD, ip6_iface_event_handler);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, ip6_iface_event_handler);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, ip6_iface_event_handler);

@@ -406,7 +406,7 @@ static void vxlan_fini(struct event_base *) {
 	vxlan_hash = NULL;
 }
 
-static struct gr_module vxlan_module = {
+static struct module vxlan_module = {
 	.name = "vxlan",
 	.depends_on = "rcu",
 	.init = vxlan_init,
@@ -414,7 +414,7 @@ static struct gr_module vxlan_module = {
 };
 
 RTE_INIT(vxlan_constructor) {
-	gr_register_module(&vxlan_module);
+	module_register(&vxlan_module);
 	iface_type_register(&iface_type_vxlan);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, vxlan_pre_remove_cb);
 	flood_type_register(&vtep_flood_ops);

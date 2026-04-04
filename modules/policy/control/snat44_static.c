@@ -82,12 +82,12 @@ static void snat44_fini(struct event_base *) {
 	rte_hash_free(snat_hash);
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "snat44_static",
 	.init = snat44_init,
 	.fini = snat44_fini,
 };
 
 RTE_INIT(_init) {
-	gr_register_module(&module);
+	module_register(&module);
 }

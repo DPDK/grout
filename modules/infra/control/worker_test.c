@@ -37,7 +37,7 @@ int gr_rte_log_type;
 struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
 struct gr_config gr_config;
 void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
-void gr_register_module(struct gr_module *) { }
+void module_register(struct module *) { }
 void event_subscribe(uint32_t, event_sub_cb_t) { }
 void iface_type_register(const struct iface_type *) { }
 void metrics_ctx_init(struct metrics_ctx *, struct metrics_writer *, ...) { }

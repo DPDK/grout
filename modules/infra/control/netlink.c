@@ -439,12 +439,12 @@ static void netlink_fini(struct event_base *) {
 	mnl_socket_close(nl_sock);
 }
 
-static struct gr_module netlink_module = {
+static struct module netlink_module = {
 	.name = "netlink",
 	.init = netlink_init,
 	.fini = netlink_fini,
 };
 
 RTE_INIT(netlink_constructor) {
-	gr_register_module(&netlink_module);
+	module_register(&netlink_module);
 }

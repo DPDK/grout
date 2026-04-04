@@ -159,13 +159,13 @@ static void control_queue_fini(struct event_base *) {
 	rte_ring_free(ctrlq_ring);
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "control_queue",
 	.init = control_queue_init,
 	.fini = control_queue_fini,
 };
 
 RTE_INIT(control_queue_module_init) {
-	gr_register_module(&module);
+	module_register(&module);
 	metrics_register(&control_queue_collector);
 }

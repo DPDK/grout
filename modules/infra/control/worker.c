@@ -549,7 +549,7 @@ static void worker_fini(struct event_base *) {
 	STAILQ_INIT(&workers);
 }
 
-static struct gr_module worker_module = {
+static struct module worker_module = {
 	.name = "worker",
 	.depends_on = "control_queue",
 	.init = worker_init,
@@ -557,5 +557,5 @@ static struct gr_module worker_module = {
 };
 
 RTE_INIT(control_infra_init) {
-	gr_register_module(&worker_module);
+	module_register(&worker_module);
 }

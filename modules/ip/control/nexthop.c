@@ -235,7 +235,7 @@ static void nh4_init(struct event_base *) {
 	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
 }
 
-static struct gr_module nh4_module = {
+static struct module nh4_module = {
 	.name = "ip_nexthop",
 	.depends_on = "graph",
 	.init = nh4_init,
@@ -249,6 +249,6 @@ static struct nexthop_af_ops nh_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	gr_register_module(&nh4_module);
+	module_register(&nh4_module);
 	nexthop_af_ops_register(GR_AF_IP4, &nh_ops);
 }

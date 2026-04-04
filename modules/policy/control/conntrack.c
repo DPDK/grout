@@ -663,7 +663,7 @@ static void conntrack_fini(struct event_base *) {
 	rte_mempool_free(conn_pool);
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "conntrack",
 	.depends_on = "rcu",
 	.init = conntrack_init,
@@ -671,7 +671,7 @@ static struct gr_module module = {
 };
 
 RTE_INIT(_init) {
-	gr_register_module(&module);
+	module_register(&module);
 	gr_api_handler(GR_CONNTRACK_LIST, conntrack_list);
 	gr_api_handler(GR_CONNTRACK_FLUSH, conntrack_flush);
 	gr_api_handler(GR_CONNTRACK_CONF_SET, config_set);

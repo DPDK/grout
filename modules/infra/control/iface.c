@@ -698,7 +698,7 @@ static void iface_fini(struct event_base *) {
 	ifaces = NULL;
 }
 
-static struct gr_module iface_module = {
+static struct module iface_module = {
 	.name = "iface",
 	.depends_on = "*_route,control_queue",
 	.init = iface_init,
@@ -753,7 +753,7 @@ static void iface_event(uint32_t event, const void *obj) {
 }
 
 RTE_INIT(iface_constructor) {
-	gr_register_module(&iface_module);
+	module_register(&iface_module);
 	event_subscribe(GR_EVENT_IFACE_ADD, iface_event);
 	event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_event);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event);

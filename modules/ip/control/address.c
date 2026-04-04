@@ -297,7 +297,7 @@ static void addr_fini(struct event_base *) {
 	iface_addrs = NULL;
 }
 
-static struct gr_module addr_module = {
+static struct module addr_module = {
 	.name = "ip_address",
 	.init = addr_init,
 	.fini = addr_fini,
@@ -308,7 +308,7 @@ RTE_INIT(address_constructor) {
 	gr_api_handler(GR_IP4_ADDR_DEL, addr_del);
 	gr_api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
 	gr_api_handler(GR_IP4_ADDR_LIST, addr_list);
-	gr_register_module(&addr_module);
+	module_register(&addr_module);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);
 	event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_up_cb);
