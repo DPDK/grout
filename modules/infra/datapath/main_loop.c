@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "config.h"
 #include "datapath.h"
+#include "log.h"
 #include "module.h"
 #include "rcu.h"
+#include "sort.h"
+#include "vec.h"
 #include "worker.h"
-
-#include <gr_config.h>
-#include <gr_log.h>
-#include <gr_sort.h>
-#include <gr_vec.h>
 
 #include <rte_common.h>
 #include <rte_eal.h>

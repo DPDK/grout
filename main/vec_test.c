@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include <gr_cmocka.h>
-#include <gr_vec.h>
+#include "_cmocka.h"
+#include "vec.h"
 
 static void int_vec(void **) {
 	gr_vec int *vec = NULL;

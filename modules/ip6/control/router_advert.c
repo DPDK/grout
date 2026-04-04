@@ -2,18 +2,18 @@
 // Copyright (c) 2025 Christophe Fontaine
 
 #include "control_input.h"
+#include "event.h"
 #include "icmp6.h"
 #include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "mempool.h"
 #include "module.h"
+#include "vec.h"
 
-#include <gr_event.h>
 #include <gr_ip6.h>
-#include <gr_log.h>
-#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_ether.h>

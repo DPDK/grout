@@ -2,15 +2,15 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "graph.h"
+#include "log.h"
 #include "module.h"
 #include "port.h"
 #include "rxtx.h"
+#include "vec.h"
 #include "worker.h"
 
 #include <gr_infra.h>
-#include <gr_log.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 
 #include <rte_build_config.h>
 #include <rte_errno.h>

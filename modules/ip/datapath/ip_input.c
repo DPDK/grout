@@ -7,10 +7,9 @@
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "loopback.h"
 #include "trace.h"
-
-#include <gr_log.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
@@ -236,7 +235,7 @@ GR_DROP_REGISTER(ip_input_other_host);
 GR_DROP_REGISTER(ip_blackhole);
 
 #ifdef __GROUT_UNIT_TEST__
-#include <gr_cmocka.h>
+#include "_cmocka.h"
 
 int gr_rte_log_type;
 struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);

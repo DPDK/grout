@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "event.h"
 #include "l2.h"
+#include "log.h"
 #include "vrf.h"
-
-#include <gr_event.h>
-#include <gr_log.h>
 
 #include <rte_ether.h>
 

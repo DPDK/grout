@@ -6,9 +6,8 @@
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "mbuf.h"
-
-#include <gr_log.h>
 
 #include <rte_common.h>
 

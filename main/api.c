@@ -2,16 +2,16 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "api.h"
+#include "config.h"
+#include "event.h"
+#include "log.h"
 #include "module.h"
+#include "sys_queue.h"
 #include "unix.h"
+#include "vec.h"
 
 #include <gr_api.h>
-#include <gr_config.h>
-#include <gr_event.h>
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_queue.h>
-#include <gr_vec.h>
 #include <gr_version.h>
 
 #include <event2/buffer.h>

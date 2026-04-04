@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "config.h"
+#include "log.h"
 #include "module.h"
 
 #include <gr_api.h>
-#include <gr_config.h>
-#include <gr_log.h>
 #include <gr_string.h>
 
 #include <rte_common.h>

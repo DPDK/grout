@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "config.h"
+#include "event.h"
 #include "iface.h"
+#include "log.h"
 #include "mempool.h"
+#include "metrics.h"
 #include "module.h"
 #include "netlink.h"
 #include "port.h"
 #include "rcu.h"
+#include "vec.h"
 #include "vrf.h"
 #include "worker.h"
 
-#include <gr_config.h>
-#include <gr_event.h>
 #include <gr_infra.h>
-#include <gr_log.h>
-#include <gr_metrics.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 
 #include <numa.h>
 #include <rte_build_config.h>

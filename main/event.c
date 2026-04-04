@@ -3,13 +3,13 @@
 
 #include "api.h"
 #include "control_queue.h"
+#include "event.h"
+#include "log.h"
 #include "module.h"
+#include "vec.h"
 
 #include <gr_api.h>
-#include <gr_event.h>
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_vec.h>
 
 #include <rte_lcore.h>
 

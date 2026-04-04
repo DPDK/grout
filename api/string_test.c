@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
-#include <gr_cmocka.h>
+#include "_cmocka.h"
+
 #include <gr_string.h>
 
 #include <errno.h>

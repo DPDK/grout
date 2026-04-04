@@ -3,9 +3,8 @@
 
 #include "control_output.h"
 #include "graph.h"
+#include "log.h"
 #include "mbuf.h"
-
-#include <gr_log.h>
 
 #define ERROR 0
 

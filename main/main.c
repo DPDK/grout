@@ -2,17 +2,17 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "api.h"
+#include "config.h"
 #include "dpdk.h"
-#include "gr_metrics.h"
+#include "log.h"
+#include "metrics.h"
 #include "module.h"
 #include "sd_notify.h"
 #include "signals.h"
+#include "vec.h"
 
 #include <gr_api.h>
-#include <gr_config.h>
-#include <gr_log.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 #include <gr_version.h>
 
 #include <event2/event.h>

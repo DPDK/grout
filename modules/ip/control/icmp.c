@@ -3,11 +3,11 @@
 
 #include "ip4.h"
 #include "ip4_datapath.h"
+#include "log.h"
 #include "module.h"
+#include "sys_queue.h"
 
 #include <gr_ip4.h>
-#include <gr_log.h>
-#include <gr_queue.h>
 
 #include <rte_icmp.h>
 

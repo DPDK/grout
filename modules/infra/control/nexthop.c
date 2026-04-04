@@ -2,15 +2,14 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "control_queue.h"
+#include "event.h"
+#include "id_pool.h"
 #include "iface.h"
+#include "log.h"
+#include "metrics.h"
 #include "module.h"
 #include "nexthop.h"
 #include "rcu.h"
-
-#include <gr_event.h>
-#include <gr_id_pool.h>
-#include <gr_log.h>
-#include <gr_metrics.h>
 
 #include <rte_hash.h>
 #include <rte_mempool.h>

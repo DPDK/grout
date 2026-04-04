@@ -6,10 +6,10 @@
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "module.h"
 
 #include <gr_clock.h>
-#include <gr_log.h>
 #include <gr_net_types.h>
 
 #include <rte_arp.h>

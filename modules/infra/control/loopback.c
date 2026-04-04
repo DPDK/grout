@@ -5,6 +5,7 @@
 #include "control_queue.h"
 #include "eth.h"
 #include "iface.h"
+#include "log.h"
 #include "loopback.h"
 #include "mempool.h"
 #include "module.h"
@@ -12,7 +13,6 @@
 #include "vrf.h"
 
 #include <gr_infra.h>
-#include <gr_log.h>
 #include <gr_string.h>
 
 #include <event2/event.h>

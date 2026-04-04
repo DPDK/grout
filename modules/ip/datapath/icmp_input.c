@@ -4,11 +4,11 @@
 #include "control_output.h"
 #include "graph.h"
 #include "ip4_datapath.h"
+#include "log.h"
 #include "mbuf.h"
 #include "trace.h"
 
 #include <gr_clock.h>
-#include <gr_log.h>
 
 #include <rte_icmp.h>
 

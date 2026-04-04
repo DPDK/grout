@@ -6,10 +6,9 @@
 #include "iface.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "mbuf.h"
 #include "trace.h"
-
-#include <gr_log.h>
 
 #include <rte_ether.h>
 #include <rte_mbuf.h>

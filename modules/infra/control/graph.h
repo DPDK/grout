@@ -12,7 +12,7 @@
 #include <sys/queue.h>
 
 #ifdef __GROUT_UNIT_TEST__
-#include <gr_cmocka.h>
+#include "_cmocka.h"
 
 // The function is defined as static inline in the original code, so it cannot be wrapped directly
 // using CMocka's function wrapping mechanism.

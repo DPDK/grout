@@ -6,10 +6,9 @@
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "log.h"
 #include "loopback.h"
 #include "trace.h"
-
-#include <gr_log.h>
 
 #include <rte_ether.h>
 #include <rte_ip6.h>
@@ -196,7 +195,7 @@ GR_DROP_REGISTER(ip6_input_bad_length);
 GR_DROP_REGISTER(ip6_blackhole);
 
 #ifdef __GROUT_UNIT_TEST__
-#include <gr_cmocka.h>
+#include "_cmocka.h"
 
 int gr_rte_log_type;
 struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);

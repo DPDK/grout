@@ -4,12 +4,12 @@
 #include "iface.h"
 #include "ip4.h"
 #include "ipip_priv.h"
+#include "log.h"
 #include "module.h"
 #include "rcu.h"
 
 #include <gr_infra.h>
 #include <gr_ipip.h>
-#include <gr_log.h>
 
 #include <event2/event.h>
 #include <rte_ethdev.h>

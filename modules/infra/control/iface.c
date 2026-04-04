@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "control_queue.h"
+#include "event.h"
 #include "iface.h"
+#include "log.h"
 #include "module.h"
 #include "rcu.h"
+#include "vec.h"
 #include "vrf.h"
 
-#include <gr_config.h>
-#include <gr_event.h>
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_vec.h>
 
 #include <rte_ethdev.h>
 #include <rte_malloc.h>

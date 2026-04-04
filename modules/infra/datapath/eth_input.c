@@ -3,11 +3,10 @@
 
 #include "eth.h"
 #include "graph.h"
+#include "log.h"
 #include "rxtx.h"
 #include "snap.h"
 #include "trace.h"
-
-#include <gr_log.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>

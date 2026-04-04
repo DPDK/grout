@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "control_queue.h"
+#include "metrics.h"
 #include "module.h"
 #include "port.h"
+#include "vec.h"
 #include "worker.h"
 
-#include <gr_config.h>
 #include <gr_infra.h>
-#include <gr_metrics.h>
-#include <gr_vec.h>
 
 #include <errno.h>
 #include <sys/queue.h>

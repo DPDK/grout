@@ -126,7 +126,7 @@ GR_DROP_REGISTER(ndp_na_input_drop);
 
 #ifdef __GROUT_UNIT_TEST__
 
-#include <gr_cmocka.h>
+#include "_cmocka.h"
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 

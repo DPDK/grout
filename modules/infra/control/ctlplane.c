@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
+#include "config.h"
 #include "control_input.h"
 #include "control_queue.h"
+#include "event.h"
 #include "iface.h"
+#include "log.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
@@ -11,9 +14,6 @@
 #include "rxtx.h"
 #include "vlan.h"
 
-#include <gr_config.h>
-#include <gr_event.h>
-#include <gr_log.h>
 #include <gr_string.h>
 
 #include <event2/event.h>

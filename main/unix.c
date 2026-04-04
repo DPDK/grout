@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Matej Mužila
 
+#include "log.h"
 #include "module.h"
 #include "unix.h"
+#include "vec.h"
 
-#include <gr_log.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>

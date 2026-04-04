@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "event.h"
 #include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
+#include "log.h"
 #include "module.h"
 #include "netlink.h"
 #include "rcu.h"
+#include "vec.h"
 
-#include <gr_event.h>
 #include <gr_ip6.h>
-#include <gr_log.h>
 #include <gr_net_types.h>
-#include <gr_vec.h>
 
 #include <event2/event.h>
 #include <rte_malloc.h>

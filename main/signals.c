@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "log.h"
 #include "signals.h"
-
-#include <gr_log.h>
 
 #include <event2/event.h>
 

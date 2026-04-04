@@ -2,11 +2,10 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "conntrack.h"
+#include "id_pool.h"
 #include "nat.h"
 #include "rcu.h"
-
-#include <gr_id_pool.h>
-#include <gr_vec.h>
+#include "vec.h"
 
 #include <rte_malloc.h>
 

@@ -478,7 +478,7 @@ GR_DROP_REGISTER(sr6_local_not_allowed_upper);
 GR_DROP_REGISTER(sr6_local_no_transit);
 
 #ifdef __GROUT_UNIT_TEST__
-#include <gr_cmocka.h>
+#include "_cmocka.h"
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 

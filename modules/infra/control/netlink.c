@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "log.h"
 #include "module.h"
 #include "netlink.h"
 
 #include <gr_errno.h>
-#include <gr_log.h>
 
 #include <rte_ether.h>
 

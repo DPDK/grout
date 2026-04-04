@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "metrics.h"
 #include "module.h"
 #include "port.h"
 #include "rxtx.h"
+#include "vec.h"
 #include "worker.h"
 
 #include <gr_infra.h>
-#include <gr_metrics.h>
-#include <gr_vec.h>
 
 #include <rte_common.h>
 #include <rte_ethdev.h>

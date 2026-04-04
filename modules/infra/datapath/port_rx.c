@@ -2,14 +2,13 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "bond.h"
+#include "config.h"
 #include "graph.h"
+#include "log.h"
 #include "mbuf.h"
 #include "port.h"
 #include "rxtx.h"
 #include "trace.h"
-
-#include <gr_config.h>
-#include <gr_log.h>
 
 #include <rte_malloc.h>
 #include <rte_net.h>

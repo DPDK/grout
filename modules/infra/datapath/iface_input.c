@@ -3,11 +3,10 @@
 
 #include "graph.h"
 #include "iface.h"
+#include "log.h"
 #include "mbuf.h"
 #include "rxtx.h"
 #include "vlan.h"
-
-#include <gr_log.h>
 
 GR_LOG_TYPE("graph");
 
