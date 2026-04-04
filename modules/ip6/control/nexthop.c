@@ -282,7 +282,7 @@ static void nh6_init(struct event_base *) {
 	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
 }
 
-static struct gr_module nh6_module = {
+static struct module nh6_module = {
 	.name = "ip6_nexthop",
 	.depends_on = "graph",
 	.init = nh6_init,
@@ -296,6 +296,6 @@ static struct nexthop_af_ops nh_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	gr_register_module(&nh6_module);
+	module_register(&nh6_module);
 	nexthop_af_ops_register(GR_AF_IP6, &nh_ops);
 }

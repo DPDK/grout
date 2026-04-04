@@ -266,7 +266,7 @@ static void vlan_fini(struct event_base *) {
 	vlan_hash = NULL;
 }
 
-static struct gr_module vlan_module = {
+static struct module vlan_module = {
 	.name = "vlan",
 	.depends_on = "rcu",
 	.init = vlan_init,
@@ -274,6 +274,6 @@ static struct gr_module vlan_module = {
 };
 
 RTE_INIT(vlan_constructor) {
-	gr_register_module(&vlan_module);
+	module_register(&vlan_module);
 	iface_type_register(&iface_type_vlan);
 }

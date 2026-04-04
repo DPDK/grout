@@ -756,12 +756,12 @@ static void trace_fini(struct event_base *) {
 	rte_mempool_free(trace_pool);
 }
 
-static struct gr_module trace_module = {
+static struct module trace_module = {
 	.name = "trace",
 	.init = trace_init,
 	.fini = trace_fini,
 };
 
 RTE_INIT(trace_constructor) {
-	gr_register_module(&trace_module);
+	module_register(&trace_module);
 }

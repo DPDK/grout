@@ -525,7 +525,7 @@ static void dhcp_fini(struct event_base *) {
 	gr_pktmbuf_pool_release(dhcp_mp, 512);
 }
 
-static struct gr_module dhcp_module = {
+static struct module dhcp_module = {
 	.name = "dhcp",
 	.depends_on = "graph,ip_address,iface",
 	.init = dhcp_init,
@@ -533,7 +533,7 @@ static struct gr_module dhcp_module = {
 };
 
 RTE_INIT(dhcp_constructor) {
-	gr_register_module(&dhcp_module);
+	module_register(&dhcp_module);
 	gr_api_handler(GR_DHCP_LIST, dhcp_list_handler);
 	gr_api_handler(GR_DHCP_START, dhcp_start_handler);
 	gr_api_handler(GR_DHCP_STOP, dhcp_stop_handler);

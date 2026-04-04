@@ -203,7 +203,7 @@ static void ra_fini(struct event_base * /*ev_base*/) {
 	gr_pktmbuf_pool_release(ra_ctx.mp, 512);
 }
 
-static struct gr_module ra_module = {
+static struct module ra_module = {
 	.name = "ip6_router_advert",
 	.depends_on = "graph",
 	.init = ra_init,
@@ -229,7 +229,7 @@ static void iface_event_handler(uint32_t event, const void *obj) {
 }
 
 RTE_INIT(router_advertisement_init) {
-	gr_register_module(&ra_module);
+	module_register(&ra_module);
 	gr_api_handler(GR_IP6_IFACE_RA_SET, iface_ra_set);
 	gr_api_handler(GR_IP6_IFACE_RA_CLEAR, iface_ra_clear);
 	gr_api_handler(GR_IP6_IFACE_RA_SHOW, iface_ra_show);

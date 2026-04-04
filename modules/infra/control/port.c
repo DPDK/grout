@@ -1011,7 +1011,7 @@ static const struct iface_type iface_type_port = {
 	.metrics_collect = port_metrics_collect,
 };
 
-static struct gr_module port_module = {
+static struct module port_module = {
 	.name = "iface_port",
 	.init = port_init,
 	.fini = port_fini,
@@ -1027,6 +1027,6 @@ static void port_unplug_cb(uint32_t /*event*/, const void *obj) {
 
 RTE_INIT(port_constructor) {
 	iface_type_register(&iface_type_port);
-	gr_register_module(&port_module);
+	module_register(&port_module);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, port_unplug_cb);
 }

@@ -201,12 +201,12 @@ static void lacp_fini(struct event_base *) {
 		event_free(lacp_timer);
 }
 
-static struct gr_module lacp_module = {
+static struct module lacp_module = {
 	.name = "lacp",
 	.init = lacp_init,
 	.fini = lacp_fini,
 };
 
 RTE_INIT(lacp_constructor) {
-	gr_register_module(&lacp_module);
+	module_register(&lacp_module);
 }

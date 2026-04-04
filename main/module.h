@@ -38,15 +38,15 @@ void __gr_api_handler(uint32_t req_type, gr_api_handler_func callback, const cha
 
 #define gr_api_handler(req_type, callback) __gr_api_handler(req_type, callback, #req_type)
 
-struct gr_module {
+struct module {
 	const char *name;
 	const char *depends_on;
 	void (*init)(struct event_base *);
 	void (*fini)(struct event_base *);
-	STAILQ_ENTRY(gr_module) next;
+	STAILQ_ENTRY(module) next;
 };
 
-void gr_register_module(struct gr_module *);
+void module_register(struct module *);
 
 struct api_handler {
 	gr_api_handler_func callback;

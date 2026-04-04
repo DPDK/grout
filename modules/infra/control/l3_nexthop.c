@@ -371,7 +371,7 @@ static void l3_fini(struct event_base *) {
 		event_free(ageing_timer);
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "l3_nexthop",
 	.depends_on = "nexthop",
 	.init = l3_init,
@@ -379,6 +379,6 @@ static struct gr_module module = {
 };
 
 RTE_INIT(init) {
-	gr_register_module(&module);
+	module_register(&module);
 	nexthop_type_ops_register(GR_NH_T_L3, &l3_nh_ops);
 }

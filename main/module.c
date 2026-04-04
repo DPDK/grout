@@ -55,10 +55,10 @@ const struct api_handler *lookup_api_handler(uint32_t request_type) {
 	return &mh->handlers[req];
 }
 
-static STAILQ_HEAD(, gr_module) modules = STAILQ_HEAD_INITIALIZER(modules);
+static STAILQ_HEAD(, module) modules = STAILQ_HEAD_INITIALIZER(modules);
 
-void gr_register_module(struct gr_module *mod) {
-	struct gr_module *m;
+void module_register(struct module *mod) {
+	struct module *m;
 
 	if (mod->name == NULL)
 		ABORT("module with no name: %p", mod);
@@ -72,8 +72,8 @@ void gr_register_module(struct gr_module *mod) {
 }
 
 static bool module_is_child(const void *mod, const void *maybe_child) {
-	const struct gr_module *c = maybe_child;
-	const struct gr_module *m = mod;
+	const struct module *c = maybe_child;
+	const struct module *m = mod;
 	char depends_on[512];
 
 	if (c->depends_on == NULL)
@@ -92,8 +92,8 @@ static bool module_is_child(const void *mod, const void *maybe_child) {
 }
 
 void modules_init(struct event_base *ev_base) {
-	gr_vec const struct gr_module **mods = NULL;
-	const struct gr_module *mod;
+	gr_vec const struct module **mods = NULL;
+	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
 		gr_vec_add(mods, mod);
@@ -115,8 +115,8 @@ void modules_init(struct event_base *ev_base) {
 }
 
 void modules_fini(struct event_base *ev_base) {
-	gr_vec const struct gr_module **mods = NULL;
-	const struct gr_module *mod;
+	gr_vec const struct module **mods = NULL;
+	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
 		gr_vec_add(mods, mod);

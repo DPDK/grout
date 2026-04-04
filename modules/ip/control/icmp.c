@@ -181,14 +181,14 @@ static void icmp_fini(struct event_base *) {
 	}
 }
 
-static struct gr_module icmp_module = {
+static struct module icmp_module = {
 	.name = "icmp",
 	.init = icmp_init,
 	.fini = icmp_fini,
 };
 
 RTE_INIT(icmp_module_init) {
-	gr_register_module(&icmp_module);
+	module_register(&icmp_module);
 	gr_api_handler(GR_IP4_ICMP_SEND, icmp_send);
 	gr_api_handler(GR_IP4_ICMP_RECV, icmp_recv);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);

@@ -76,12 +76,12 @@ int unix_listen(const char *path) {
 	return fd;
 }
 
-static struct gr_module module = {
+static struct module module = {
 	.name = "unix",
 	.init = NULL,
 	.fini = unix_cleanup,
 };
 
 RTE_INIT(init) {
-	gr_register_module(&module);
+	module_register(&module);
 }

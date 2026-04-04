@@ -109,7 +109,7 @@ Contexts nest via `CLI_CONTEXT()` to build hierarchical command trees.
 
 ## Module Initialization
 
-Modules register via `gr_register_module()` with a `depends_on` string
+Modules register via `module_register()` with a `depends_on` string
 (comma-separated, supports fnmatch patterns). They are topologically sorted
 at startup; circular or missing dependencies cause ABORT. Each module has
 `init`/`fini` callbacks called in dependency/reverse order.

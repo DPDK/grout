@@ -170,14 +170,14 @@ static void icmp_fini(struct event_base *) {
 	}
 }
 
-static struct gr_module icmp6_module = {
+static struct module icmp6_module = {
 	.name = "icmp6",
 	.init = icmp_init,
 	.fini = icmp_fini,
 };
 
 RTE_INIT(icmp_module_init) {
-	gr_register_module(&icmp6_module);
+	module_register(&icmp6_module);
 	gr_api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
 	gr_api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
 	icmp6_input_register_callback(ICMP6_TYPE_ECHO_REPLY, icmp6_input_cb);

@@ -298,7 +298,7 @@ static void loopback_module_fini(struct event_base *) {
 	gr_pktmbuf_pool_release(loopback_pool, RTE_GRAPH_BURST_SIZE);
 }
 
-static struct gr_module loopback_module = {
+static struct module loopback_module = {
 	.name = "iface_loopback",
 	.init = loopback_module_init,
 	.fini = loopback_module_fini,
@@ -306,5 +306,5 @@ static struct gr_module loopback_module = {
 
 RTE_INIT(loopback_constructor) {
 	iface_name_reserve(GR_LOOPBACK_TUN_NAME_PREFIX, true);
-	gr_register_module(&loopback_module);
+	module_register(&loopback_module);
 }

@@ -141,11 +141,11 @@ static void event_fini(struct event_base *) {
 	}
 }
 
-static struct gr_module event_module = {
+static struct module event_module = {
 	.name = "event",
 	.fini = event_fini,
 };
 
 RTE_INIT(event_constructor) {
-	gr_register_module(&event_module);
+	module_register(&event_module);
 }
