@@ -26,7 +26,7 @@ static struct rte_hash *fdb_hash;
 static struct rte_mempool *fdb_pool;
 
 static void fdb_free_entry(void *pool, void *fdb) {
-	gr_event_push(GR_EVENT_FDB_DEL, fdb);
+	event_push(GR_EVENT_FDB_DEL, fdb);
 	rte_mempool_put(pool, fdb);
 }
 
@@ -133,7 +133,7 @@ void fdb_learn(
 			return;
 		}
 
-		gr_event_push(GR_EVENT_FDB_ADD, fdb);
+		event_push(GR_EVENT_FDB_ADD, fdb);
 	} else {
 		fdb = data;
 	}
@@ -144,7 +144,7 @@ void fdb_learn(
 		// update in case the mac address has moved
 		fdb->iface_id = iface_id;
 		fdb->vtep = vtep;
-		gr_event_push(GR_EVENT_FDB_UPDATE, fdb);
+		event_push(GR_EVENT_FDB_UPDATE, fdb);
 	}
 }
 
@@ -213,14 +213,14 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 			return api_out(-ret, 0, NULL);
 		}
 
-		gr_event_push(GR_EVENT_FDB_ADD, e);
+		event_push(GR_EVENT_FDB_ADD, e);
 	} else if (req->exist_ok) {
 		e = data;
 		*e = req->fdb;
 		e->bridge_id = iface->id;
 		e->last_seen = gr_clock_us();
 
-		gr_event_push(GR_EVENT_FDB_UPDATE, e);
+		event_push(GR_EVENT_FDB_UPDATE, e);
 	} else {
 		return api_out(EEXIST, 0, NULL);
 	}
@@ -409,8 +409,8 @@ RTE_INIT(init) {
 	gr_api_handler(GR_FDB_LIST, fdb_list);
 	gr_api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
 	gr_api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
-	gr_event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
-	gr_event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
-	gr_event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
+	event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
+	event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
+	event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));
 	gr_register_module(&module);
 }

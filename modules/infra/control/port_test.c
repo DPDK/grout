@@ -21,8 +21,8 @@ struct workers workers;
 void __gr_api_handler(uint32_t, gr_api_handler_func, const char *) { }
 void gr_register_module(struct gr_module *) { }
 void iface_type_register(const struct iface_type *) { }
-void gr_event_push(uint32_t, const void *) { }
-void gr_event_subscribe(uint32_t, gr_event_sub_cb_t) { }
+void event_push(uint32_t, const void *) { }
+void event_subscribe(uint32_t, event_sub_cb_t) { }
 int netlink_link_set_name(uint32_t, const char *) {
 	return 0;
 }

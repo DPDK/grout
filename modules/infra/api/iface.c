@@ -233,13 +233,13 @@ RTE_INIT(infra_api_init) {
 	gr_api_handler(GR_IFACE_GET, iface_get);
 	gr_api_handler(GR_IFACE_LIST, iface_list);
 	gr_api_handler(GR_IFACE_SET, iface_set);
-	gr_event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_REMOVE, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_POST_RECONFIG, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_STATUS_UP, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_STATUS_DOWN, iface_event_serialize, 0);
-	gr_event_serializer(GR_EVENT_IFACE_MAC_CHANGE, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_REMOVE, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_POST_RECONFIG, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_STATUS_UP, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_STATUS_DOWN, iface_event_serialize, 0);
+	event_serializer(GR_EVENT_IFACE_MAC_CHANGE, iface_event_serialize, 0);
 	metrics_register(&iface_collector);
 }

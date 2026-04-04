@@ -122,7 +122,7 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 	if (iface->cp_id != 0 && netlink_add_addr4(iface->cp_id, ip) < 0)
 		LOG(WARNING, "add addr " IP4_F " on linux has failed (%s)", &ip, strerror(errno));
 
-	gr_event_push(
+	event_push(
 		GR_EVENT_IP_ADDR_ADD,
 		&(struct gr_ip4_ifaddr) {
 			.addr = {ip, prefixlen},
@@ -165,7 +165,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	if (nh == NULL)
 		return errno_set(ENOENT);
 
-	gr_event_push(
+	event_push(
 		GR_EVENT_IP_ADDR_DEL,
 		&(struct gr_ip4_ifaddr) {
 			.addr = {ip, prefixlen},
@@ -309,10 +309,10 @@ RTE_INIT(address_constructor) {
 	gr_api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
 	gr_api_handler(GR_IP4_ADDR_LIST, addr_list);
 	gr_register_module(&addr_module);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
-	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_up_cb);
-	gr_event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_up_cb);
-	gr_event_serializer(GR_EVENT_IP_ADDR_ADD, NULL, sizeof(struct gr_ip4_ifaddr));
-	gr_event_serializer(GR_EVENT_IP_ADDR_DEL, NULL, sizeof(struct gr_ip4_ifaddr));
+	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
+	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);
+	event_subscribe(GR_EVENT_IFACE_STATUS_UP, iface_up_cb);
+	event_subscribe(GR_EVENT_IFACE_MAC_CHANGE, iface_up_cb);
+	event_serializer(GR_EVENT_IP_ADDR_ADD, NULL, sizeof(struct gr_ip4_ifaddr));
+	event_serializer(GR_EVENT_IP_ADDR_DEL, NULL, sizeof(struct gr_ip4_ifaddr));
 }

@@ -329,7 +329,7 @@ struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info
 	nexthop_incref(nh);
 
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-		gr_event_push(GR_EVENT_NEXTHOP_NEW, nh);
+		event_push(GR_EVENT_NEXTHOP_NEW, nh);
 
 	return nh;
 }
@@ -373,7 +373,7 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 	}
 
 	if (nh->ref_count > 0 && nh->origin != GR_NH_ORIGIN_INTERNAL)
-		gr_event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+		event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 
 	return 0;
 
@@ -500,7 +500,7 @@ void nexthop_destroy(struct nexthop *nh) {
 	control_queue_drain(GR_EVENT_NEXTHOP_DELETE, nh);
 
 	if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-		gr_event_push(GR_EVENT_NEXTHOP_DELETE, nh);
+		event_push(GR_EVENT_NEXTHOP_DELETE, nh);
 
 	ops = type_ops[nh->type];
 	if (ops != NULL && ops->free != NULL)
@@ -575,10 +575,10 @@ static struct metrics_collector nexthop_collector = {
 };
 
 RTE_INIT(init) {
-	gr_event_serializer(GR_EVENT_NEXTHOP_NEW, nexthop_serialize, 0);
-	gr_event_serializer(GR_EVENT_NEXTHOP_DELETE, nexthop_serialize, 0);
-	gr_event_serializer(GR_EVENT_NEXTHOP_UPDATE, nexthop_serialize, 0);
-	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, nexthop_iface_cleanup);
+	event_serializer(GR_EVENT_NEXTHOP_NEW, nexthop_serialize, 0);
+	event_serializer(GR_EVENT_NEXTHOP_DELETE, nexthop_serialize, 0);
+	event_serializer(GR_EVENT_NEXTHOP_UPDATE, nexthop_serialize, 0);
+	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, nexthop_iface_cleanup);
 	gr_register_module(&module);
 	metrics_register(&nexthop_collector);
 }

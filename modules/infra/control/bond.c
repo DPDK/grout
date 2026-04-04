@@ -337,14 +337,14 @@ void bond_update_active_members(struct iface *iface) {
 		if (!(iface->state & GR_IFACE_S_RUNNING)) {
 			iface->state |= GR_IFACE_S_RUNNING;
 			if (iface->flags & GR_IFACE_F_UP) {
-				gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+				event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 			}
 		}
 	} else {
 		memset(bond->redirection_table, UINT8_MAX, sizeof(bond->redirection_table));
 		if (iface->state & GR_IFACE_S_RUNNING) {
 			iface->state &= ~GR_IFACE_S_RUNNING;
-			gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+			event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 		}
 	}
 
@@ -358,7 +358,7 @@ static int bond_up_down(struct iface *iface, bool up) {
 	} else if (!up && (iface->flags & GR_IFACE_F_UP)) {
 		iface->flags &= ~GR_IFACE_F_UP;
 		iface->state &= ~GR_IFACE_S_RUNNING;
-		gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+		event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 	}
 
 	return 0;
@@ -409,7 +409,7 @@ static int bond_fini(struct iface *iface) {
 		member->vrf_id = vrf_default_get_or_create();
 		if (member->vrf_id != GR_VRF_ID_UNDEF)
 			vrf_incref(member->vrf_id);
-		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
+		event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
 
 	gr_vec_free(bond->extra_macs);
@@ -474,6 +474,6 @@ static void bond_event(uint32_t /*event*/, const void *obj) {
 
 RTE_INIT(bond_constructor) {
 	iface_type_register(&iface_type_bond);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_UP, bond_event);
-	gr_event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, bond_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_UP, bond_event);
+	event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, bond_event);
 }

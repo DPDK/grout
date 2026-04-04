@@ -81,5 +81,5 @@ RTE_INIT(trace_init) {
 	gr_api_handler(GR_PACKET_TRACE_SET, set_trace);
 	gr_api_handler(GR_PACKET_TRACE_DUMP, dump_trace);
 	gr_api_handler(GR_PACKET_TRACE_CLEAR, clear_trace);
-	gr_event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
+	event_subscribe(GR_EVENT_IFACE_POST_ADD, iface_add_callback);
 }

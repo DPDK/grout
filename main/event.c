@@ -17,12 +17,12 @@
 #include <string.h>
 
 struct event_sub_callbacks {
-	gr_vec gr_event_sub_cb_t *callbacks[UINT_NUM_VALUES(uint16_t)];
+	gr_vec event_sub_cb_t *callbacks[UINT_NUM_VALUES(uint16_t)];
 };
 
 static struct event_sub_callbacks *mod_subs[UINT_NUM_VALUES(uint16_t)];
 
-void gr_event_subscribe(uint32_t ev_type, gr_event_sub_cb_t callback) {
+void event_subscribe(uint32_t ev_type, event_sub_cb_t callback) {
 	uint16_t mod = (ev_type >> 16) & 0xffff;
 	uint16_t ev = ev_type & 0xffff;
 	struct event_sub_callbacks *subs = mod_subs[mod];
@@ -44,14 +44,14 @@ static void notify_subscribers(void *obj, uintptr_t ev_type, const struct contro
 	struct event_sub_callbacks *subs = mod_subs[mod];
 
 	if (subs != NULL) {
-		gr_vec_foreach (gr_event_sub_cb_t cb, subs->callbacks[ev])
+		gr_vec_foreach (event_sub_cb_t cb, subs->callbacks[ev])
 			cb(ev_type, obj);
 	}
 
 	api_send_notifications(ev_type, obj);
 }
 
-void gr_event_push(uint32_t ev_type, const void *obj) {
+void event_push(uint32_t ev_type, const void *obj) {
 	if (rte_lcore_has_role(rte_lcore_id(), ROLE_NON_EAL)) {
 		// Called from a dataplane worker thread.
 		// Defer the notification to the control plane thread.
@@ -68,7 +68,7 @@ void gr_event_push(uint32_t ev_type, const void *obj) {
 }
 
 struct event_serializer {
-	gr_event_serializer_cb_t callback;
+	event_serializer_cb_t callback;
 	size_t size;
 };
 
@@ -78,7 +78,7 @@ struct module_serializers {
 
 static struct module_serializers *mod_serializers[UINT_NUM_VALUES(uint16_t)];
 
-void gr_event_serializer(uint32_t ev_type, gr_event_serializer_cb_t callback, size_t size) {
+void event_serializer(uint32_t ev_type, event_serializer_cb_t callback, size_t size) {
 	uint16_t mod = (ev_type >> 16) & 0xffff;
 	uint16_t ev = ev_type & 0xffff;
 	struct module_serializers *sers;
@@ -101,7 +101,7 @@ void gr_event_serializer(uint32_t ev_type, gr_event_serializer_cb_t callback, si
 	sers->serializers[ev].size = size;
 }
 
-int gr_event_serialize(uint32_t ev_type, const void *obj, void **buf) {
+int event_serialize(uint32_t ev_type, const void *obj, void **buf) {
 	uint16_t mod = (ev_type >> 16) & 0xffff;
 	uint16_t ev = ev_type & 0xffff;
 	struct module_serializers *sers = mod_serializers[mod];

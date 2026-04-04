@@ -545,7 +545,7 @@ static int iface_port_fini(struct iface *iface) {
 				vrf_incref(i->vrf_id);
 			i->mode = GR_IFACE_MODE_VRF;
 			i->domain_id = GR_IFACE_ID_UNDEF;
-			gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, i);
+			event_push(GR_EVENT_IFACE_POST_RECONFIG, i);
 		}
 	}
 
@@ -875,13 +875,13 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				if (!(iface->state & GR_IFACE_S_RUNNING)) {
 					LOG(INFO, "%s: link status up", iface->name);
 					iface->state |= GR_IFACE_S_RUNNING;
-					gr_event_push(GR_EVENT_IFACE_STATUS_UP, iface);
+					event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 				}
 			} else {
 				if (iface->state & GR_IFACE_S_RUNNING) {
 					LOG(INFO, "%s: link status down", iface->name);
 					iface->state &= ~GR_IFACE_S_RUNNING;
-					gr_event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
+					event_push(GR_EVENT_IFACE_STATUS_DOWN, iface);
 				}
 				continue;
 			}
@@ -1028,5 +1028,5 @@ static void port_unplug_cb(uint32_t /*event*/, const void *obj) {
 RTE_INIT(port_constructor) {
 	iface_type_register(&iface_type_port);
 	gr_register_module(&port_module);
-	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, port_unplug_cb);
+	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, port_unplug_cb);
 }

@@ -92,7 +92,7 @@ static int bridge_fini(struct iface *iface) {
 			vrf_incref(member->vrf_id);
 		member->domain_id = GR_IFACE_ID_UNDEF;
 		member->mode = GR_IFACE_MODE_VRF;
-		gr_event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
+		event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
 
 	fdb_purge_bridge(iface->id);
