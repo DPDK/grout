@@ -19,40 +19,40 @@
 
 GR_LOG_TYPE("main");
 
-static STAILQ_HEAD(, gr_metrics_collector) collectors = STAILQ_HEAD_INITIALIZER(collectors);
+static STAILQ_HEAD(, metrics_collector) collectors = STAILQ_HEAD_INITIALIZER(collectors);
 
-void gr_metrics_register(struct gr_metrics_collector *c) {
+void metrics_register(struct metrics_collector *c) {
 	STAILQ_INSERT_TAIL(&collectors, c, next);
 }
 
-struct gr_metrics_writer {
+struct metrics_writer {
 	struct evbuffer *buf;
 	// Pointers to static metrics that have had HELP/TYPE written.
-	gr_vec const struct gr_metric **emitted;
+	gr_vec const struct metric **emitted;
 };
 
-static bool metric_emitted(const struct gr_metrics_writer *w, const struct gr_metric *m) {
-	gr_vec_foreach (const struct gr_metric *e, w->emitted) {
+static bool metric_emitted(const struct metrics_writer *w, const struct metric *m) {
+	gr_vec_foreach (const struct metric *e, w->emitted) {
 		if (e == m)
 			return true;
 	}
 	return false;
 }
 
-static void emit_help_type(struct gr_metrics_writer *w, const struct gr_metric *m) {
+static void emit_help_type(struct metrics_writer *w, const struct metric *m) {
 	const char *type_str;
 
 	if (metric_emitted(w, m))
 		return;
 
 	switch (m->type) {
-	case GR_METRIC_COUNTER:
+	case METRIC_COUNTER:
 		type_str = "counter";
 		break;
-	case GR_METRIC_GAUGE:
+	case METRIC_GAUGE:
 		type_str = "gauge";
 		break;
-	case GR_METRIC_HISTOGRAM:
+	case METRIC_HISTOGRAM:
 		type_str = "histogram";
 		break;
 	default:
@@ -64,7 +64,7 @@ static void emit_help_type(struct gr_metrics_writer *w, const struct gr_metric *
 	gr_vec_add(w->emitted, m);
 }
 
-static void append_labels_va(struct gr_metrics_ctx *ctx, va_list ap) {
+static void append_labels_va(struct metrics_ctx *ctx, va_list ap) {
 	const size_t len = sizeof(ctx->labels) - ctx->labels_len;
 	char *buf = ctx->labels + ctx->labels_len;
 	const char *key, *val;
@@ -86,7 +86,7 @@ err:
 	LOG(ERR, "snprintf: %s", strerror(errno));
 }
 
-void gr_metrics_ctx_init(struct gr_metrics_ctx *ctx, struct gr_metrics_writer *w, ...) {
+void metrics_ctx_init(struct metrics_ctx *ctx, struct metrics_writer *w, ...) {
 	va_list ap;
 
 	ctx->w = w;
@@ -98,7 +98,7 @@ void gr_metrics_ctx_init(struct gr_metrics_ctx *ctx, struct gr_metrics_writer *w
 	va_end(ap);
 }
 
-void gr_metrics_labels_add(struct gr_metrics_ctx *ctx, ...) {
+void metrics_labels_add(struct metrics_ctx *ctx, ...) {
 	va_list ap;
 
 	va_start(ap, ctx);
@@ -106,14 +106,14 @@ void gr_metrics_labels_add(struct gr_metrics_ctx *ctx, ...) {
 	va_end(ap);
 }
 
-void gr_metric_emit(struct gr_metrics_ctx *ctx, const struct gr_metric *m, uint64_t value) {
+void metric_emit(struct metrics_ctx *ctx, const struct metric *m, uint64_t value) {
 	emit_help_type(ctx->w, m);
 	evbuffer_add_printf(ctx->w->buf, "grout_%s{%s} %lu\n", m->name, ctx->labels, value);
 }
 
-void gr_metric_emit_histogram(
-	struct gr_metrics_ctx *ctx,
-	const struct gr_metric *m,
+void metric_emit_histogram(
+	struct metrics_ctx *ctx,
+	const struct metric *m,
 	const uint64_t *slot_counts,
 	unsigned n_slots,
 	const unsigned *bucket_bounds,
@@ -172,7 +172,7 @@ static void metrics_handler(struct evhttp_request *req, void *) {
 		LOG(DEBUG, "GET %s - %s:%u", evhttp_request_get_uri(req), peer_addr, peer_port);
 	}
 
-	struct gr_metrics_writer writer = {
+	struct metrics_writer writer = {
 		.buf = evbuffer_new(),
 		.emitted = NULL,
 	};
@@ -182,7 +182,7 @@ static void metrics_handler(struct evhttp_request *req, void *) {
 		return;
 	}
 
-	struct gr_metrics_collector *col;
+	struct metrics_collector *col;
 	STAILQ_FOREACH (col, &collectors, next)
 		col->collect(&writer);
 
@@ -195,7 +195,7 @@ static void metrics_handler(struct evhttp_request *req, void *) {
 static struct event_base *ev_base;
 static pthread_t thread_id;
 
-int gr_metrics_set_affinity(size_t set_size, const cpu_set_t *affinity) {
+int metrics_set_affinity(size_t set_size, const cpu_set_t *affinity) {
 	if (thread_id == 0)
 		return 0;
 	return pthread_setaffinity_np(thread_id, set_size, affinity);
@@ -292,7 +292,7 @@ end:
 	return NULL;
 }
 
-void gr_metrics_start(void) {
+void metrics_start(void) {
 	if (gr_config.metrics_addr != NULL) {
 		if (pthread_create(&thread_id, NULL, metrics_thread, NULL) != 0) {
 			LOG(ERR, "pthread_create: %s", strerror(errno));
@@ -303,7 +303,7 @@ void gr_metrics_start(void) {
 	}
 }
 
-void gr_metrics_stop(void) {
+void metrics_stop(void) {
 	if (ev_base != NULL)
 		event_base_loopbreak(ev_base);
 	if (thread_id != 0) {

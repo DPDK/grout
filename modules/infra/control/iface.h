@@ -56,7 +56,7 @@ struct iface_type {
 	int (*set_mtu)(struct iface *, uint16_t mtu);
 	int (*set_promisc)(struct iface *, bool enabled);
 	void (*to_api)(void *api_info, const struct iface *);
-	void (*metrics_collect)(struct gr_metrics_ctx *, const struct iface *);
+	void (*metrics_collect)(struct metrics_ctx *, const struct iface *);
 };
 
 void iface_type_register(const struct iface_type *);

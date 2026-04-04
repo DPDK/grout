@@ -556,20 +556,20 @@ static void count_types(struct nexthop *nh, void *priv) {
 	counts[nh->type]++;
 }
 
-static void nexthop_metrics_collect(struct gr_metrics_writer *w) {
+static void nexthop_metrics_collect(struct metrics_writer *w) {
 	uint32_t counts[UINT_NUM_VALUES(gr_nh_type_t)];
-	struct gr_metrics_ctx ctx;
+	struct metrics_ctx ctx;
 
 	memset(counts, 0, sizeof(counts));
 	nexthop_iter(count_types, counts);
 
 	for (gr_nh_type_t t = 0; nexthop_type_valid(t); t++) {
-		gr_metrics_ctx_init(&ctx, w, "type", gr_nh_type_name(t), NULL);
-		gr_metric_emit(&ctx, &m_count, counts[t]);
+		metrics_ctx_init(&ctx, w, "type", gr_nh_type_name(t), NULL);
+		metric_emit(&ctx, &m_count, counts[t]);
 	}
 }
 
-static struct gr_metrics_collector nexthop_collector = {
+static struct metrics_collector nexthop_collector = {
 	.name = "nexthop",
 	.collect = nexthop_metrics_collect,
 };
@@ -580,5 +580,5 @@ RTE_INIT(init) {
 	gr_event_serializer(GR_EVENT_NEXTHOP_UPDATE, nexthop_serialize, 0);
 	gr_event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, nexthop_iface_cleanup);
 	gr_register_module(&module);
-	gr_metrics_register(&nexthop_collector);
+	metrics_register(&nexthop_collector);
 }

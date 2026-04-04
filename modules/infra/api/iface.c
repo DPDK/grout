@@ -154,15 +154,15 @@ METRIC_COUNTER(
 );
 METRIC_COUNTER(m_cp_tx_bytes, "iface_cp_tx_bytes", "Number of bytes transmitted by control plane.");
 
-static void iface_metrics_collect(struct gr_metrics_writer *w) {
+static void iface_metrics_collect(struct metrics_writer *w) {
 	struct iface *iface = NULL;
-	struct gr_metrics_ctx ctx;
+	struct metrics_ctx ctx;
 	char vrf[16];
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		const struct iface_type *type = iface_type_get(iface->type);
 
-		gr_metrics_ctx_init(
+		metrics_ctx_init(
 			&ctx,
 			w,
 			"name",
@@ -178,18 +178,18 @@ static void iface_metrics_collect(struct gr_metrics_writer *w) {
 
 		if (iface->mode == GR_IFACE_MODE_VRF) {
 			snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
-			gr_metrics_labels_add(&ctx, "vrf", vrf, NULL);
+			metrics_labels_add(&ctx, "vrf", vrf, NULL);
 		} else {
 			const struct iface *domain = iface_from_id(iface->domain_id);
-			gr_metrics_labels_add(
+			metrics_labels_add(
 				&ctx, "domain", domain ? domain->name : "[deleted]", NULL
 			);
 		}
 
-		gr_metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
-		gr_metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
-		gr_metric_emit(&ctx, &m_mtu, iface->mtu);
-		gr_metric_emit(&ctx, &m_promisc, !!(iface->flags & GR_IFACE_F_PROMISC));
+		metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
+		metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
+		metric_emit(&ctx, &m_mtu, iface->mtu);
+		metric_emit(&ctx, &m_promisc, !!(iface->flags & GR_IFACE_F_PROMISC));
 
 		// Aggregate per-core stats
 		uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
@@ -207,14 +207,14 @@ static void iface_metrics_collect(struct gr_metrics_writer *w) {
 			cp_tx_bytes += s->cp_tx_bytes;
 		}
 
-		gr_metric_emit(&ctx, &m_rx_packets, rx_pkts);
-		gr_metric_emit(&ctx, &m_rx_bytes, rx_bytes);
-		gr_metric_emit(&ctx, &m_tx_packets, tx_pkts);
-		gr_metric_emit(&ctx, &m_tx_bytes, tx_bytes);
-		gr_metric_emit(&ctx, &m_cp_rx_packets, cp_rx_pkts);
-		gr_metric_emit(&ctx, &m_cp_rx_bytes, cp_rx_bytes);
-		gr_metric_emit(&ctx, &m_cp_tx_packets, cp_tx_pkts);
-		gr_metric_emit(&ctx, &m_cp_tx_bytes, cp_tx_bytes);
+		metric_emit(&ctx, &m_rx_packets, rx_pkts);
+		metric_emit(&ctx, &m_rx_bytes, rx_bytes);
+		metric_emit(&ctx, &m_tx_packets, tx_pkts);
+		metric_emit(&ctx, &m_tx_bytes, tx_bytes);
+		metric_emit(&ctx, &m_cp_rx_packets, cp_rx_pkts);
+		metric_emit(&ctx, &m_cp_rx_bytes, cp_rx_bytes);
+		metric_emit(&ctx, &m_cp_tx_packets, cp_tx_pkts);
+		metric_emit(&ctx, &m_cp_tx_bytes, cp_tx_bytes);
 
 		// Dispatch to type-specific collector
 		if (type->metrics_collect != NULL)
@@ -222,7 +222,7 @@ static void iface_metrics_collect(struct gr_metrics_writer *w) {
 	}
 }
 
-static struct gr_metrics_collector iface_collector = {
+static struct metrics_collector iface_collector = {
 	.name = "iface",
 	.collect = iface_metrics_collect,
 };
@@ -241,5 +241,5 @@ RTE_INIT(infra_api_init) {
 	gr_event_serializer(GR_EVENT_IFACE_STATUS_UP, iface_event_serialize, 0);
 	gr_event_serializer(GR_EVENT_IFACE_STATUS_DOWN, iface_event_serialize, 0);
 	gr_event_serializer(GR_EVENT_IFACE_MAC_CHANGE, iface_event_serialize, 0);
-	gr_metrics_register(&iface_collector);
+	metrics_register(&iface_collector);
 }
