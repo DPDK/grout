@@ -128,10 +128,10 @@ static struct api_out nh_get(const void *request, struct api_ctx *) {
 }
 
 RTE_INIT(_init) {
-	gr_api_handler(GR_NH_CONFIG_GET, nh_config_get);
-	gr_api_handler(GR_NH_CONFIG_SET, nh_config_set);
-	gr_api_handler(GR_NH_ADD, nh_add);
-	gr_api_handler(GR_NH_DEL, nh_del);
-	gr_api_handler(GR_NH_LIST, nh_list);
-	gr_api_handler(GR_NH_GET, nh_get);
+	api_handler(GR_NH_CONFIG_GET, nh_config_get);
+	api_handler(GR_NH_CONFIG_SET, nh_config_set);
+	api_handler(GR_NH_ADD, nh_add);
+	api_handler(GR_NH_DEL, nh_del);
+	api_handler(GR_NH_LIST, nh_list);
+	api_handler(GR_NH_GET, nh_get);
 }

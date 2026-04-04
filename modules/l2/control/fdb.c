@@ -403,12 +403,12 @@ static struct module module = {
 };
 
 RTE_INIT(init) {
-	gr_api_handler(GR_FDB_ADD, fdb_add);
-	gr_api_handler(GR_FDB_DEL, fdb_del);
-	gr_api_handler(GR_FDB_FLUSH, fdb_flush);
-	gr_api_handler(GR_FDB_LIST, fdb_list);
-	gr_api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
-	gr_api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
+	api_handler(GR_FDB_ADD, fdb_add);
+	api_handler(GR_FDB_DEL, fdb_del);
+	api_handler(GR_FDB_FLUSH, fdb_flush);
+	api_handler(GR_FDB_LIST, fdb_list);
+	api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
+	api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
 	event_serializer(GR_EVENT_FDB_ADD, NULL, sizeof(struct gr_fdb_entry));
 	event_serializer(GR_EVENT_FDB_DEL, NULL, sizeof(struct gr_fdb_entry));
 	event_serializer(GR_EVENT_FDB_UPDATE, NULL, sizeof(struct gr_fdb_entry));

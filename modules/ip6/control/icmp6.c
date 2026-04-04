@@ -178,8 +178,8 @@ static struct module icmp6_module = {
 
 RTE_INIT(icmp_module_init) {
 	module_register(&icmp6_module);
-	gr_api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
-	gr_api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
+	api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
+	api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
 	icmp6_input_register_callback(ICMP6_TYPE_ECHO_REPLY, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_DEST_UNREACH, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_TTL_EXCEEDED, icmp6_input_cb);

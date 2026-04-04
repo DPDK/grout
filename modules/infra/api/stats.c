@@ -340,9 +340,9 @@ static struct metrics_collector rx_burst_collector = {
 };
 
 RTE_INIT(infra_stats_init) {
-	gr_api_handler(GR_STATS_GET, stats_get);
-	gr_api_handler(GR_STATS_RESET, stats_reset);
-	gr_api_handler(GR_IFACE_STATS_GET, iface_stats_get);
+	api_handler(GR_STATS_GET, stats_get);
+	api_handler(GR_STATS_RESET, stats_reset);
+	api_handler(GR_IFACE_STATS_GET, iface_stats_get);
 	metrics_register(&graph_collector);
 	metrics_register(&cpu_collector);
 	metrics_register(&rx_burst_collector);

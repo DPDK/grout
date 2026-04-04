@@ -708,8 +708,8 @@ static struct module graph_module = {
 };
 
 RTE_INIT(control_graph_init) {
-	gr_api_handler(GR_GRAPH_DUMP, graph_dump);
-	gr_api_handler(GR_GRAPH_CONF_GET, graph_conf_get);
-	gr_api_handler(GR_GRAPH_CONF_SET, graph_conf_set);
+	api_handler(GR_GRAPH_DUMP, graph_dump);
+	api_handler(GR_GRAPH_CONF_GET, graph_conf_get);
+	api_handler(GR_GRAPH_CONF_SET, graph_conf_set);
 	module_register(&graph_module);
 }

@@ -146,8 +146,8 @@ static struct nexthop_type_ops nh_ops = {
 };
 
 RTE_INIT(srv6_constructor) {
-	gr_api_handler(GR_SRV6_TUNSRC_SET, srv6_tunsrc_set);
-	gr_api_handler(GR_SRV6_TUNSRC_CLEAR, srv6_tunsrc_clear);
-	gr_api_handler(GR_SRV6_TUNSRC_SHOW, srv6_tunsrc_show);
+	api_handler(GR_SRV6_TUNSRC_SET, srv6_tunsrc_set);
+	api_handler(GR_SRV6_TUNSRC_CLEAR, srv6_tunsrc_clear);
+	api_handler(GR_SRV6_TUNSRC_SHOW, srv6_tunsrc_show);
 	nexthop_type_ops_register(GR_NH_T_SR6_OUTPUT, &nh_ops);
 }

@@ -818,12 +818,12 @@ static const struct vrf_fib_ops fib4_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	gr_api_handler(GR_IP4_ROUTE_ADD, route4_add);
-	gr_api_handler(GR_IP4_ROUTE_DEL, route4_del);
-	gr_api_handler(GR_IP4_ROUTE_GET, route4_get);
-	gr_api_handler(GR_IP4_ROUTE_LIST, route4_list);
-	gr_api_handler(GR_IP4_FIB_DEFAULT_SET, fib4_default_set);
-	gr_api_handler(GR_IP4_FIB_INFO_LIST, fib4_info_list);
+	api_handler(GR_IP4_ROUTE_ADD, route4_add);
+	api_handler(GR_IP4_ROUTE_DEL, route4_del);
+	api_handler(GR_IP4_ROUTE_GET, route4_get);
+	api_handler(GR_IP4_ROUTE_LIST, route4_list);
+	api_handler(GR_IP4_FIB_DEFAULT_SET, fib4_default_set);
+	api_handler(GR_IP4_FIB_INFO_LIST, fib4_info_list);
 	event_serializer(GR_EVENT_IP_ROUTE_ADD, serialize_route4_event, 0);
 	event_serializer(GR_EVENT_IP_ROUTE_DEL, serialize_route4_event, 0);
 	module_register(&route4_module);
