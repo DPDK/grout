@@ -2,13 +2,13 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "bond.h"
+#include "event.h"
+#include "log.h"
 #include "port.h"
 #include "vrf.h"
 #include "worker.h"
 
-#include <gr_event.h>
 #include <gr_infra.h>
-#include <gr_log.h>
 
 #include <rte_ether.h>
 

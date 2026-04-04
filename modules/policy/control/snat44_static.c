@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "log.h"
 #include "module.h"
 #include "nat.h"
 
-#include <gr_log.h>
 #include <gr_net_types.h>
 
 #include <rte_common.h>

@@ -2,11 +2,11 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "conntrack.h"
+#include "log.h"
 #include "module.h"
 #include "rcu.h"
 
 #include <gr_clock.h>
-#include <gr_log.h>
 #include <gr_net_types.h>
 
 #include <rte_hash.h>

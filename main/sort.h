@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <gr_vec.h>
+#include "vec.h"
 
 #include <stdbool.h>
 

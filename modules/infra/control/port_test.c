@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "_cmocka.h"
+#include "config.h"
+#include "event.h"
+#include "log.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
@@ -8,11 +12,6 @@
 #include "rcu.h"
 #include "vrf.h"
 #include "worker.h"
-
-#include <gr_cmocka.h>
-#include <gr_config.h>
-#include <gr_event.h>
-#include <gr_log.h>
 
 // mocked types/functions
 int gr_rte_log_type;

@@ -2,8 +2,7 @@
 // Copyright (c) 2025 Anthony Harivel
 
 #include "dhcp.h"
-
-#include <gr_log.h>
+#include "log.h"
 
 GR_LOG_TYPE("dhcp");
 

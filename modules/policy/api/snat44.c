@@ -4,9 +4,9 @@
 #include "ip4.h"
 #include "module.h"
 #include "nat.h"
+#include "vec.h"
 
 #include <gr_nat.h>
-#include <gr_vec.h>
 
 static struct api_out snat44_add(const void *request, struct api_ctx *) {
 	const struct gr_snat44_add_req *req = request;

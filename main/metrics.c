@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
-#include "gr_metrics.h"
+#include "config.h"
+#include "log.h"
+#include "metrics.h"
 #include "unix.h"
+#include "vec.h"
 
-#include <gr_config.h>
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_vec.h>
 
 #include <event2/buffer.h>
 #include <event2/event.h>

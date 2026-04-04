@@ -6,11 +6,11 @@
 #include "icmp6.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
+#include "log.h"
 #include "mbuf.h"
 #include "trace.h"
 
 #include <gr_clock.h>
-#include <gr_log.h>
 
 enum {
 	ICMP6_OUTPUT = 0,

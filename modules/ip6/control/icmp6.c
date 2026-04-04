@@ -4,12 +4,12 @@
 #include "icmp6.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
+#include "log.h"
 #include "module.h"
+#include "sys_queue.h"
 
 #include <gr_api.h>
 #include <gr_ip6.h>
-#include <gr_log.h>
-#include <gr_queue.h>
 
 #include <time.h>
 

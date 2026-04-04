@@ -3,9 +3,10 @@
 
 #pragma once
 
+#include "metrics.h"
+#include "vec.h"
+
 #include <gr_infra.h>
-#include <gr_metrics.h>
-#include <gr_vec.h>
 
 #include <stddef.h>
 #include <stdint.h>

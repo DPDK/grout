@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include "id_pool.h"
 #include "iface.h"
+#include "sys_queue.h"
+#include "vec.h"
 
-#include <gr_id_pool.h>
 #include <gr_nat.h>
 #include <gr_net_types.h>
-#include <gr_queue.h>
-#include <gr_vec.h>
 
 #include <rte_byteorder.h>
 

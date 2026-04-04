@@ -5,12 +5,12 @@
 #include "graph.h"
 #include "icmp6.h"
 #include "lacp.h"
+#include "log.h"
 #include "mbuf.h"
 #include "module.h"
 #include "rxtx.h"
 #include "trace.h"
 
-#include <gr_log.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
 

@@ -2,11 +2,11 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include "control_queue.h"
+#include "log.h"
+#include "metrics.h"
 #include "module.h"
 
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_metrics.h>
 
 #include <event2/event.h>
 #include <rte_ring.h>

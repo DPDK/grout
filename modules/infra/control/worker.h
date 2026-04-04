@@ -4,8 +4,7 @@
 #pragma once
 
 #include "port.h"
-
-#include <gr_vec.h>
+#include "vec.h"
 
 #include <rte_common.h>
 #include <rte_graph.h>

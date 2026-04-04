@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "log.h"
 #include "module.h"
+#include "sort.h"
+#include "vec.h"
 
-#include <gr_log.h>
 #include <gr_macro.h>
-#include <gr_sort.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 
 #include <assert.h>
 #include <fnmatch.h>

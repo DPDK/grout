@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "config.h"
 #include "dpdk.h"
+#include "log.h"
+#include "vec.h"
 
-#include <gr_config.h>
 #include <gr_errno.h>
-#include <gr_log.h>
 #include <gr_string.h>
-#include <gr_vec.h>
 
 #include <rte_eal.h>
 #include <rte_log.h>

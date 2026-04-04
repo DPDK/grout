@@ -4,8 +4,8 @@
 #include "dhcp.h"
 #include "eth.h"
 #include "iface.h"
+#include "log.h"
 
-#include <gr_log.h>
 #include <gr_net_types.h>
 
 #include <rte_byteorder.h>

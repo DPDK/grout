@@ -4,8 +4,7 @@
 #include "graph.h"
 #include "ip6_datapath.h"
 #include "l3.h"
-
-#include <gr_log.h>
+#include "log.h"
 
 #include <rte_ip6.h>
 #include <rte_mbuf.h>

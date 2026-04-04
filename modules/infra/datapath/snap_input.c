@@ -2,9 +2,8 @@
 // Copyright (c) 2025 Christophe Fontaine
 
 #include "graph.h"
+#include "log.h"
 #include "snap.h"
-
-#include <gr_log.h>
 
 GR_LOG_TYPE("graph");
 

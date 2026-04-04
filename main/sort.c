@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "sort.h"
+
 #include <gr_errno.h>
-#include <gr_sort.h>
 
 #include <stdlib.h>
 

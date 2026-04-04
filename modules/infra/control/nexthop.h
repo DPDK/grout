@@ -4,11 +4,11 @@
 #pragma once
 
 #include "control_queue.h"
+#include "vec.h"
 
 #include <gr_macro.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
-#include <gr_vec.h>
 
 #include <rte_mbuf.h>
 

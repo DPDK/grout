@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "config.h"
 #include "graph.h"
 #include "iface.h"
 #include "mbuf.h"
 #include "port.h"
 #include "rxtx.h"
 #include "trace.h"
-
-#include <gr_config.h>
 
 #include <rte_ethdev.h>
 #include <rte_spinlock.h>

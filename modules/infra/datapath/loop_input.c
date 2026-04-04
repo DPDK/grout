@@ -4,10 +4,9 @@
 #include "control_input.h"
 #include "graph.h"
 #include "iface.h"
+#include "log.h"
 #include "loopback.h"
 #include "mbuf.h"
-
-#include <gr_log.h>
 
 GR_LOG_TYPE("graph");
 

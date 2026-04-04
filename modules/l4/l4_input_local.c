@@ -4,9 +4,9 @@
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6_datapath.h"
+#include "log.h"
 
 #include <gr_l4.h>
-#include <gr_log.h>
 
 #include <rte_udp.h>
 

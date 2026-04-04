@@ -6,12 +6,12 @@
 #include "dhcp.h"
 #include "iface.h"
 #include "ip4.h"
+#include "log.h"
 #include "mempool.h"
 #include "module.h"
 #include "nexthop.h"
 
 #include <gr_dhcp.h>
-#include <gr_log.h>
 #include <gr_net_types.h>
 #include <gr_nexthop.h>
 

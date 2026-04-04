@@ -5,9 +5,9 @@
 
 #include "iface.h"
 #include "lacp.h"
+#include "vec.h"
 
 #include <gr_infra.h>
-#include <gr_vec.h>
 
 #include <stdint.h>
 

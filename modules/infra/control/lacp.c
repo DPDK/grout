@@ -4,11 +4,11 @@
 #include "bond.h"
 #include "iface.h"
 #include "lacp.h"
+#include "log.h"
 #include "mbuf.h"
 #include "module.h"
 
 #include <gr_clock.h>
-#include <gr_log.h>
 
 #include <event2/event.h>
 #include <rte_mbuf.h>

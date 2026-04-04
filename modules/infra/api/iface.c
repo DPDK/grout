@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "event.h"
 #include "iface.h"
+#include "metrics.h"
 #include "module.h"
 
-#include <gr_event.h>
 #include <gr_infra.h>
-#include <gr_metrics.h>
 #include <gr_string.h>
 
 static struct gr_iface *iface_to_api(const struct iface *priv) {

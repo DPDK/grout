@@ -2,12 +2,12 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include "iface.h"
+#include "log.h"
 #include "netlink.h"
 #include "vrf.h"
 
 #include <gr_errno.h>
 #include <gr_infra.h>
-#include <gr_log.h>
 #include <gr_net_types.h>
 
 #include <rte_ethdev.h>

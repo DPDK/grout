@@ -3,11 +3,10 @@
 
 #include "control_input.h"
 #include "graph.h"
+#include "log.h"
 #include "mbuf.h"
 #include "mempool.h"
 #include "trace.h"
-
-#include <gr_log.h>
 
 GR_LOG_TYPE("graph");
 
