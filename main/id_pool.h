@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <string.h>
 
-struct gr_id_pool {
+struct id_pool {
 	uint32_t min_id;
 	uint32_t max_id;
 	_Atomic(uint32_t) used;
@@ -32,9 +32,9 @@ struct gr_id_pool {
 
 #define __ID_POOL_SLAB_SIZE UINT64_C(64)
 
-static inline struct gr_id_pool *gr_id_pool_create(uint32_t min_id, uint32_t max_id) {
+static inline struct id_pool *id_pool_create(uint32_t min_id, uint32_t max_id) {
 	uint16_t level1_len, level1_tail, level0_len, level0_tail;
-	struct gr_id_pool *p;
+	struct id_pool *p;
 	uint32_t range;
 
 	if (min_id == 0 || min_id > max_id)
@@ -83,20 +83,20 @@ static inline struct gr_id_pool *gr_id_pool_create(uint32_t min_id, uint32_t max
 	return p;
 }
 
-static inline void gr_id_pool_destroy(struct gr_id_pool *p) {
+static inline void id_pool_destroy(struct id_pool *p) {
 	rte_free(p);
 }
 
-static inline uint32_t gr_id_pool_used(struct gr_id_pool *p) {
+static inline uint32_t id_pool_used(struct id_pool *p) {
 	return atomic_load_explicit(&p->used, memory_order_relaxed);
 }
 
-static inline uint32_t gr_id_pool_avail(struct gr_id_pool *p) {
+static inline uint32_t id_pool_avail(struct id_pool *p) {
 	return p->max_id - p->min_id + 1 - atomic_load_explicit(&p->used, memory_order_relaxed);
 }
 
 // Get the lowest‑numbered free ID; 0 if none
-static inline uint32_t gr_id_pool_get(struct gr_id_pool *p) {
+static inline uint32_t id_pool_get(struct id_pool *p) {
 	uint64_t level0, new_level1, old_level1;
 	uint16_t level0_bit, level1_bit, l1;
 
@@ -151,7 +151,7 @@ level1:
 }
 
 // Get the a random free ID; 0 if none are available
-static inline uint32_t gr_id_pool_get_random(struct gr_id_pool *p) {
+static inline uint32_t id_pool_get_random(struct id_pool *p) {
 	uint64_t level0, new_level1, old_level1, rand;
 	uint16_t level0_bit, level1_bit, l0, l1;
 
@@ -226,7 +226,7 @@ level1:
 }
 
 // Reserve a user‑chosen ID. Returns 0 on success, <0 on error
-static inline int gr_id_pool_book(struct gr_id_pool *p, uint32_t id) {
+static inline int id_pool_book(struct id_pool *p, uint32_t id) {
 	uint16_t level1_bit, l1, offset;
 	uint64_t old_level1;
 
@@ -264,7 +264,7 @@ static inline int gr_id_pool_book(struct gr_id_pool *p, uint32_t id) {
 }
 
 // Put an ID back to the pool
-static inline int gr_id_pool_put(struct gr_id_pool *p, uint32_t id) {
+static inline int id_pool_put(struct id_pool *p, uint32_t id) {
 	uint16_t level0_bit, level1_bit, l0, l1, offset;
 	uint64_t old_level1;
 

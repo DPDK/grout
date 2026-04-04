@@ -25,13 +25,13 @@ int snat44_dynamic_policy_add(const struct gr_snat44_policy *p) {
 		return errno_set(ENOMEM);
 
 	policy->base = *p;
-	policy->tcp_ports = gr_id_pool_create(1024, 65535);
+	policy->tcp_ports = id_pool_create(1024, 65535);
 	if (policy->tcp_ports == NULL)
 		goto err;
-	policy->udp_ports = gr_id_pool_create(1024, 65535);
+	policy->udp_ports = id_pool_create(1024, 65535);
 	if (policy->udp_ports == NULL)
 		goto err;
-	policy->icmp_ids = gr_id_pool_create(1, 65535);
+	policy->icmp_ids = id_pool_create(1, 65535);
 	if (policy->icmp_ids == NULL)
 		goto err;
 
@@ -40,9 +40,9 @@ int snat44_dynamic_policy_add(const struct gr_snat44_policy *p) {
 
 	return 0;
 err:
-	gr_id_pool_destroy(policy->tcp_ports);
-	gr_id_pool_destroy(policy->udp_ports);
-	gr_id_pool_destroy(policy->icmp_ids);
+	id_pool_destroy(policy->tcp_ports);
+	id_pool_destroy(policy->udp_ports);
+	id_pool_destroy(policy->icmp_ids);
 	rte_free(policy);
 	return errno_set(ENOMEM);
 }
@@ -75,9 +75,9 @@ int snat44_dynamic_policy_del(const struct gr_snat44_policy *policy) {
 	rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
 
 	gr_conn_snat44_purge(found);
-	gr_id_pool_destroy(found->tcp_ports);
-	gr_id_pool_destroy(found->udp_ports);
-	gr_id_pool_destroy(found->icmp_ids);
+	id_pool_destroy(found->tcp_ports);
+	id_pool_destroy(found->udp_ports);
+	id_pool_destroy(found->icmp_ids);
 	rte_free(found);
 
 	return 0;
@@ -124,17 +124,17 @@ struct conn *snat44_conntrack_create(const struct conn_key *fwd_key) {
 
 	switch (fwd_key->proto) {
 	case IPPROTO_TCP:
-		trans_port = rte_cpu_to_be_16(gr_id_pool_get_random(policy->tcp_ports));
+		trans_port = rte_cpu_to_be_16(id_pool_get_random(policy->tcp_ports));
 		rev_key.src_id = fwd_key->dst_id;
 		rev_key.dst_id = trans_port;
 		break;
 	case IPPROTO_UDP:
-		trans_port = rte_cpu_to_be_16(gr_id_pool_get_random(policy->udp_ports));
+		trans_port = rte_cpu_to_be_16(id_pool_get_random(policy->udp_ports));
 		rev_key.src_id = fwd_key->dst_id;
 		rev_key.dst_id = trans_port;
 		break;
 	case IPPROTO_ICMP:
-		trans_port = rte_cpu_to_be_16(gr_id_pool_get_random(policy->icmp_ids));
+		trans_port = rte_cpu_to_be_16(id_pool_get_random(policy->icmp_ids));
 		rev_key.src_id = trans_port;
 		rev_key.dst_id = trans_port;
 		break;
@@ -163,13 +163,13 @@ struct conn *snat44_conntrack_create(const struct conn_key *fwd_key) {
 void gr_conn_snat44_free_port(struct snat44_policy *p, uint8_t proto, rte_be16_t port) {
 	switch (proto) {
 	case IPPROTO_TCP:
-		gr_id_pool_put(p->tcp_ports, rte_be_to_cpu_16(port));
+		id_pool_put(p->tcp_ports, rte_be_to_cpu_16(port));
 		break;
 	case IPPROTO_UDP:
-		gr_id_pool_put(p->udp_ports, rte_be_to_cpu_16(port));
+		id_pool_put(p->udp_ports, rte_be_to_cpu_16(port));
 		break;
 	case IPPROTO_ICMP:
-		gr_id_pool_put(p->icmp_ids, rte_be_to_cpu_16(port));
+		id_pool_put(p->icmp_ids, rte_be_to_cpu_16(port));
 		break;
 	}
 }

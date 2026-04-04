@@ -23,9 +23,9 @@ gr_vec struct gr_snat44_policy *snat44_dynamic_policy_export(void);
 
 struct snat44_policy {
 	BASE(gr_snat44_policy);
-	struct gr_id_pool *tcp_ports;
-	struct gr_id_pool *udp_ports;
-	struct gr_id_pool *icmp_ids;
+	struct id_pool *tcp_ports;
+	struct id_pool *udp_ports;
+	struct id_pool *icmp_ids;
 	STAILQ_ENTRY(snat44_policy) next;
 };
 
