@@ -21,7 +21,7 @@
 #include <string.h>
 #include <sys/queue.h>
 
-GR_LOG_TYPE("nexthop");
+LOG_TYPE("nexthop");
 
 static control_input_t ip6_output_node;
 

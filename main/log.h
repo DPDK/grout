@@ -14,27 +14,27 @@
 
 extern int gr_rte_log_type;
 
-struct gr_log_type {
-	STAILQ_ENTRY(gr_log_type) next;
+struct log_type {
+	STAILQ_ENTRY(log_type) next;
 	const char *name;
 	char prefix[24];
 	int type_id;
 };
 
-STAILQ_HEAD(gr_log_types, gr_log_type);
-extern struct gr_log_types gr_log_types;
+STAILQ_HEAD(log_types, log_type);
+extern struct log_types log_types;
 
 // Declare a log type at file scope. The type name will be "grout.<name>"
 // and can be filtered at runtime with --log-level=grout.<name>:<level>.
 //
 // The display prefix is the uppercase of the last component of the name.
-// E.g. GR_LOG_TYPE("port") registers "grout.port" with prefix "PORT".
+// E.g. LOG_TYPE("port") registers "grout.port" with prefix "PORT".
 //
 // Multiple files may share the same type name. Only the first one will
 // be inserted in the global list, but all will use the same type id.
-#define GR_LOG_TYPE(name_str)                                                                      \
-	static struct gr_log_type _gr_log = {.name = "grout." name_str};                           \
-	RTE_INIT(_gr_log_type_init) {                                                              \
+#define LOG_TYPE(name_str)                                                                         \
+	static struct log_type _gr_log = {.name = "grout." name_str};                              \
+	RTE_INIT(_log_type_init) {                                                                 \
 		_gr_log.type_id = rte_log_register_type_and_pick_level(                            \
 			_gr_log.name, RTE_LOG_NOTICE                                               \
 		);                                                                                 \
@@ -44,12 +44,12 @@ extern struct gr_log_types gr_log_types;
 		_p = _p ? _p + 1 : _gr_log.name;                                                   \
 		for (size_t _i = 0; _i < sizeof(_gr_log.prefix) - 1 && _p[_i] != '\0'; _i++)       \
 			_gr_log.prefix[_i] = toupper((unsigned char)_p[_i]);                       \
-		struct gr_log_type *_t;                                                            \
-		STAILQ_FOREACH (_t, &gr_log_types, next) {                                         \
+		struct log_type *_t;                                                               \
+		STAILQ_FOREACH (_t, &log_types, next) {                                            \
 			if (strcmp(_t->name, _gr_log.name) == 0)                                   \
 				return;                                                            \
 		}                                                                                  \
-		STAILQ_INSERT_TAIL(&gr_log_types, &_gr_log, next);                                 \
+		STAILQ_INSERT_TAIL(&log_types, &_gr_log, next);                                    \
 	}
 
 #define LOG(level, fmt, ...)                                                                       \

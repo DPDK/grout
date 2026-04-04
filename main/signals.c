@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <string.h>
 
-GR_LOG_TYPE("main");
+LOG_TYPE("main");
 
 static void signal_cb(evutil_socket_t sig, short /*what*/, void *priv) {
 	struct event_base *base = priv;

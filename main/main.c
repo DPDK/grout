@@ -29,7 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 
-GR_LOG_TYPE("main");
+LOG_TYPE("main");
 
 // Please keep options/flags in alphabetical order.
 

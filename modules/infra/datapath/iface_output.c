@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum {
 	INVAL = 0,

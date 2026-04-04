@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-GR_LOG_TYPE("dhcp");
+LOG_TYPE("dhcp");
 
 int dhcp_parse_packet(
 	struct rte_mbuf *mbuf,

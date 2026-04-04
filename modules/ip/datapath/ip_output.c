@@ -15,7 +15,7 @@
 #include <rte_ether.h>
 #include <rte_mbuf.h>
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum {
 	ETH_OUTPUT = 0,

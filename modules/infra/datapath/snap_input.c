@@ -5,7 +5,7 @@
 #include "log.h"
 #include "snap.h"
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 // MAC redirect static array for up to 64 MAC addresses
 #define MAX_MAC_REDIRECTS 64

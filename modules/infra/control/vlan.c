@@ -13,7 +13,7 @@
 #include <rte_ether.h>
 #include <rte_hash.h>
 
-GR_LOG_TYPE("vlan");
+LOG_TYPE("vlan");
 
 struct vlan_key {
 	uint16_t parent_id;

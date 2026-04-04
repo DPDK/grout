@@ -23,7 +23,7 @@
 #include <string.h>
 #include <sys/queue.h>
 
-GR_LOG_TYPE("address");
+LOG_TYPE("address");
 
 static struct hoplist *iface_addrs;
 

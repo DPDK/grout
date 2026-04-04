@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-GR_LOG_TYPE("nexthop");
+LOG_TYPE("nexthop");
 
 static struct rte_hash *l3_hash;
 static struct event *ageing_timer;

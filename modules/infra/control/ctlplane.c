@@ -29,7 +29,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 
-GR_LOG_TYPE("ctlplane");
+LOG_TYPE("ctlplane");
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 

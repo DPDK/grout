@@ -20,8 +20,8 @@
 #include <syslog.h>
 
 int gr_rte_log_type;
-struct gr_log_types gr_log_types = STAILQ_HEAD_INITIALIZER(gr_log_types);
-GR_LOG_TYPE("main");
+struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
+LOG_TYPE("main");
 static FILE *log_stream;
 
 static ssize_t log_write(void * /*cookie*/, const char *buf, size_t size) {

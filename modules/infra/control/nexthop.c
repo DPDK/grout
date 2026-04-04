@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-GR_LOG_TYPE("nexthop");
+LOG_TYPE("nexthop");
 
 #define DEFAULT_MAX_COUNT (1 << 17)
 #define DEFAULT_MAX_HELD_PKTS 256

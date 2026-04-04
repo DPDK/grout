@@ -8,7 +8,7 @@
 #include "rxtx.h"
 #include "vlan.h"
 
-GR_LOG_TYPE("graph");
+LOG_TYPE("graph");
 
 enum {
 	IFACE_MODE_UNKNOWN = 0,
