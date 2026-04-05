@@ -270,7 +270,7 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	p->started = true;
 	iface->mtu = mtu;
 
-	gr_vec_foreach (struct iface *s, iface->subinterfaces)
+	vec_foreach (struct iface *s, iface->subinterfaces)
 		s->mtu = iface->mtu;
 
 	return 0;
@@ -326,21 +326,21 @@ static int iface_port_reconfig(
 			return ret;
 
 		// generate a list of ports including the one being configured/created
-		gr_vec struct iface_info_port **ports = NULL;
+		vec struct iface_info_port **ports = NULL;
 		struct iface *i = NULL;
 		bool found = false;
 		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
 			struct iface_info_port *port = iface_info_port(i);
 			if (port == p)
 				found = true;
-			gr_vec_add(ports, port);
+			vec_add(ports, port);
 		}
 		if (!found) {
 			// port is being created, not present in the global list yet
-			gr_vec_add(ports, p);
+			vec_add(ports, p);
 		}
 		ret = worker_queue_distribute(&gr_config.datapath_cpus, ports);
-		gr_vec_free(ports);
+		vec_free(ports);
 		if (ret < 0)
 			return ret;
 
@@ -520,7 +520,7 @@ out:
 
 static int iface_port_fini(struct iface *iface) {
 	struct iface_info_port *port = iface_info_port(iface);
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	struct rte_eth_dev_info info = {0};
 	struct iface *i = NULL;
 	int ret;
@@ -530,10 +530,10 @@ static int iface_port_fini(struct iface *iface) {
 		while ((i = iface_next(GR_IFACE_TYPE_PORT, i)) != NULL) {
 			struct iface_info_port *p = iface_info_port(i);
 			if (p != port)
-				gr_vec_add(ports, p);
+				vec_add(ports, p);
 		}
 		ret = worker_queue_distribute(&gr_config.datapath_cpus, ports);
-		gr_vec_free(ports);
+		vec_free(ports);
 		if (ret < 0)
 			return errno_log(-ret, "worker_queue_reassign");
 	}
@@ -857,7 +857,7 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		else
 			max_sleep_us = 1000; // unreasonably long maximum (1ms)
 
-		gr_vec_foreach_ref (qmap, worker->rxqs) {
+		vec_foreach_ref (qmap, worker->rxqs) {
 			i = port_ifaces[qmap->port_id];
 			if (i == NULL)
 				continue;
@@ -919,7 +919,7 @@ static int lsc_port_cb(
 }
 
 static struct event *reset_event;
-static gr_vec uint16_t *reset_ports;
+static vec uint16_t *reset_ports;
 static pthread_mutex_t reset_ports_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int intr_reset_cb(
@@ -932,7 +932,7 @@ static int intr_reset_cb(
 	// Queue the port IDs in a vector protected by a mutex so that they are all
 	// processed in port_reset_cb().
 	pthread_mutex_lock(&reset_ports_lock);
-	gr_vec_add(reset_ports, port_id);
+	vec_add(reset_ports, port_id);
 	pthread_mutex_unlock(&reset_ports_lock);
 	// This callback may be executed from any dataplane or DPDK thread.
 	// In order to serialize the reset of the port, propagate the callback
@@ -942,7 +942,7 @@ static int intr_reset_cb(
 }
 
 static void port_reset_cb(evutil_socket_t, short, void * /*priv*/) {
-	gr_vec uint16_t *port_ids;
+	vec uint16_t *port_ids;
 
 	// reset the port_id queue
 	pthread_mutex_lock(&reset_ports_lock);
@@ -950,7 +950,7 @@ static void port_reset_cb(evutil_socket_t, short, void * /*priv*/) {
 	reset_ports = NULL;
 	pthread_mutex_unlock(&reset_ports_lock);
 
-	gr_vec_foreach (uint16_t pid, port_ids) {
+	vec_foreach (uint16_t pid, port_ids) {
 		struct iface *iface = (struct iface *)port_get_iface(pid);
 		if (iface != NULL) {
 			struct iface_info_port *port = iface_info_port(iface);
@@ -960,7 +960,7 @@ static void port_reset_cb(evutil_socket_t, short, void * /*priv*/) {
 			iface_port_reconfig(iface, GR_PORT_SET_MAC, NULL, &api);
 		}
 	}
-	gr_vec_free(port_ids);
+	vec_free(port_ids);
 }
 
 static void port_init(struct event_base *base) {
@@ -988,7 +988,7 @@ static void port_fini(struct event_base *) {
 	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_RESET, intr_reset_cb, NULL);
 	event_free(reset_event);
 	reset_event = NULL;
-	gr_vec_free(reset_ports);
+	vec_free(reset_ports);
 }
 
 static const struct iface_type iface_type_port = {

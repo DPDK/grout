@@ -60,15 +60,15 @@ struct reserved_name {
 	bool prefix;
 };
 
-static gr_vec struct reserved_name *reserved_names;
+static vec struct reserved_name *reserved_names;
 
 void iface_name_reserve(const char *name, bool prefix) {
 	struct reserved_name r = {.name = name, .prefix = prefix};
-	gr_vec_add(reserved_names, r);
+	vec_add(reserved_names, r);
 }
 
 static bool iface_name_is_reserved(const char *name) {
-	gr_vec_foreach (struct reserved_name r, reserved_names) {
+	vec_foreach (struct reserved_name r, reserved_names) {
 		if (r.prefix) {
 			if (strncmp(name, r.name, strlen(r.name)) == 0)
 				return true;
@@ -480,17 +480,17 @@ int iface_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
 }
 
 void iface_add_subinterface(struct iface *parent, struct iface *sub) {
-	gr_vec_foreach (struct iface *s, parent->subinterfaces) {
+	vec_foreach (struct iface *s, parent->subinterfaces) {
 		if (s == sub)
 			return;
 	}
-	gr_vec_add(parent->subinterfaces, sub);
+	vec_add(parent->subinterfaces, sub);
 }
 
 void iface_del_subinterface(struct iface *parent, struct iface *sub) {
-	for (size_t i = 0; i < gr_vec_len(parent->subinterfaces); i++) {
+	for (size_t i = 0; i < vec_len(parent->subinterfaces); i++) {
 		if (parent->subinterfaces[i] == sub) {
-			gr_vec_del_swap(parent->subinterfaces, i);
+			vec_del_swap(parent->subinterfaces, i);
 			break;
 		}
 	}
@@ -628,7 +628,7 @@ int iface_destroy(struct iface *iface) {
 	if (iface == NULL)
 		return errno_set(EINVAL);
 
-	if (gr_vec_len(iface->subinterfaces) != 0)
+	if (vec_len(iface->subinterfaces) != 0)
 		return errno_set(EBUSY);
 	if (iface->type == GR_IFACE_TYPE_VRF && vrf_has_interfaces(iface->id))
 		return errno_set(EBUSY);
@@ -657,7 +657,7 @@ int iface_destroy(struct iface *iface) {
 	ret = type->fini(iface);
 	free(iface->name);
 	free(iface->description);
-	gr_vec_free(iface->subinterfaces);
+	vec_free(iface->subinterfaces);
 	rte_free(iface);
 
 	return ret;
@@ -693,7 +693,7 @@ static void iface_fini(struct event_base *) {
 		}
 	}
 
-	gr_vec_free(reserved_names);
+	vec_free(reserved_names);
 	rte_free(ifaces);
 	ifaces = NULL;
 }
@@ -726,7 +726,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		str = "STATUS_UP";
-		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+		vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state |= GR_IFACE_S_RUNNING;
 			s->speed = iface->speed;
 			event_push(event, s);
@@ -734,7 +734,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
 		str = "STATUS_DOWN";
-		gr_vec_foreach (struct iface *s, iface->subinterfaces) {
+		vec_foreach (struct iface *s, iface->subinterfaces) {
 			s->state &= ~GR_IFACE_S_RUNNING;
 			s->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 			event_push(event, s);
@@ -742,7 +742,7 @@ static void iface_event(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		str = "MAC_CHANGE";
-		gr_vec_foreach (struct iface *s, iface->subinterfaces)
+		vec_foreach (struct iface *s, iface->subinterfaces)
 			event_push(event, s);
 		break;
 	default:

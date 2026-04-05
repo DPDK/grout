@@ -83,12 +83,12 @@ int snat44_dynamic_policy_del(const struct gr_snat44_policy *policy) {
 	return 0;
 }
 
-gr_vec struct gr_snat44_policy *snat44_dynamic_policy_export(void) {
-	gr_vec struct gr_snat44_policy *list = NULL;
+vec struct gr_snat44_policy *snat44_dynamic_policy_export(void) {
+	vec struct gr_snat44_policy *list = NULL;
 	const struct snat44_policy *p;
 
 	STAILQ_FOREACH (p, &policies, next)
-		gr_vec_add(list, p->base);
+		vec_add(list, p->base);
 
 	return list;
 }

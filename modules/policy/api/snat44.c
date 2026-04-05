@@ -39,14 +39,14 @@ static struct api_out snat44_del(const void *request, struct api_ctx *) {
 }
 
 static struct api_out snat44_list(const void * /*request*/, struct api_ctx *ctx) {
-	gr_vec struct gr_snat44_policy *policies;
+	vec struct gr_snat44_policy *policies;
 	struct gr_snat44_policy *policy;
 
 	policies = snat44_dynamic_policy_export();
-	gr_vec_foreach_ref (policy, policies) {
+	vec_foreach_ref (policy, policies) {
 		api_send(ctx, sizeof(*policy), policy);
 	}
-	gr_vec_free(policies);
+	vec_free(policies);
 
 	return api_out(0, 0, NULL);
 }

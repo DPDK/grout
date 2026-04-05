@@ -90,7 +90,7 @@ int dpdk_log_init(void) {
 }
 
 int dpdk_init(void) {
-	gr_vec char **eal_args = NULL;
+	vec char **eal_args = NULL;
 	char main_lcore[32] = "";
 	char *arg;
 	int ret;
@@ -133,54 +133,54 @@ int dpdk_init(void) {
 	if (ret != 0)
 		goto end;
 
-	gr_vec_add(eal_args, "");
-	gr_vec_add(eal_args, "-l");
-	gr_vec_add(eal_args, main_lcore);
-	gr_vec_add(eal_args, "--no-telemetry");
+	vec_add(eal_args, "");
+	vec_add(eal_args, "-l");
+	vec_add(eal_args, main_lcore);
+	vec_add(eal_args, "--no-telemetry");
 #ifdef RTE_BUS_PCI
-	gr_vec_add(eal_args, "-a");
-	gr_vec_add(eal_args, "pci:0000:00:00.0");
+	vec_add(eal_args, "-a");
+	vec_add(eal_args, "pci:0000:00:00.0");
 #endif
 #ifdef RTE_BUS_FSLMC
-	gr_vec_add(eal_args, "-a");
-	gr_vec_add(eal_args, "fslmc:dpni.65535");
+	vec_add(eal_args, "-a");
+	vec_add(eal_args, "fslmc:dpni.65535");
 #endif
 
 	if (gr_config.test_mode) {
-		gr_vec_add(eal_args, "--no-shconf");
-		gr_vec_add(eal_args, "--no-huge");
+		vec_add(eal_args, "--no-shconf");
+		vec_add(eal_args, "--no-huge");
 		// Add default -m unless the user overrides it via EAL args.
 		bool has_m = false;
-		gr_vec_foreach (arg, gr_config.eal_extra_args) {
+		vec_foreach (arg, gr_config.eal_extra_args) {
 			if (strcmp(arg, "-m") == 0) {
 				has_m = true;
 				break;
 			}
 		}
 		if (!has_m) {
-			gr_vec_add(eal_args, "-m");
+			vec_add(eal_args, "-m");
 			if (gr_config.max_mtu > 2048)
-				gr_vec_add(eal_args, "4096");
+				vec_add(eal_args, "4096");
 			else
-				gr_vec_add(eal_args, "2048");
+				vec_add(eal_args, "2048");
 		}
 	} else {
-		gr_vec_add(eal_args, "--in-memory");
+		vec_add(eal_args, "--in-memory");
 	}
 
 	if (rte_vfio_noiommu_is_enabled())
-		gr_vec_add(eal_args, "--iova-mode=pa");
+		vec_add(eal_args, "--iova-mode=pa");
 
-	gr_vec_foreach (arg, gr_config.eal_extra_args)
-		gr_vec_add(eal_args, arg);
+	vec_foreach (arg, gr_config.eal_extra_args)
+		vec_add(eal_args, arg);
 
 	LOG(INFO, "%s", rte_version());
 
-	char *buf = strjoin(eal_args, gr_vec_len(eal_args), " ");
+	char *buf = strjoin(eal_args, vec_len(eal_args), " ");
 	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
-	if ((ret = rte_eal_init(gr_vec_len(eal_args), eal_args)) < 0) {
+	if ((ret = rte_eal_init(vec_len(eal_args), eal_args)) < 0) {
 		ret = -ret;
 		goto end;
 	}
@@ -193,7 +193,7 @@ int dpdk_init(void) {
 
 	ret = 0;
 end:
-	gr_vec_free(eal_args);
+	vec_free(eal_args);
 	return errno_set(ret);
 }
 

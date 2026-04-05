@@ -85,8 +85,8 @@ int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *) {
 	return 0;
 }
 
-mock_func(int, worker_graph_reload(struct worker *, gr_vec struct iface_info_port **));
-mock_func(int, worker_graph_reload_all(gr_vec struct iface_info_port **));
+mock_func(int, worker_graph_reload(struct worker *, vec struct iface_info_port **));
+mock_func(int, worker_graph_reload_all(vec struct iface_info_port **));
 mock_func(void, worker_graph_free(struct worker *));
 mock_func(void *, gr_datapath_loop(void *));
 mock_func(void, __wrap_rte_free(void *));
@@ -156,12 +156,12 @@ mock_func(void *, __wrap_rte_zmalloc(char *, size_t, unsigned));
 	do {                                                                                       \
 		struct queue_map __expected[] = {__VA_ARGS__};                                     \
 		uint32_t __len = sizeof(__expected) / sizeof(struct queue_map);                    \
-		if (gr_vec_len(qmaps) != __len)                                                    \
-			fail_msg("%s len %u expected %u", #qmaps, gr_vec_len(qmaps), __len);       \
+		if (vec_len(qmaps) != __len)                                                       \
+			fail_msg("%s len %u expected %u", #qmaps, vec_len(qmaps), __len);          \
 		for (uint32_t __i = 0; __i < __len; __i++) {                                       \
 			struct queue_map *exp = &__expected[__i], *act;                            \
 			bool found = false;                                                        \
-			gr_vec_foreach_ref (act, qmaps) {                                          \
+			vec_foreach_ref (act, qmaps) {                                             \
 				if (act->port_id != exp->port_id)                                  \
 					continue;                                                  \
 				if (act->queue_id != exp->queue_id)                                \
@@ -203,27 +203,27 @@ static int setup(void **) {
 		ifaces[i] = iface;
 	}
 	STAILQ_INSERT_TAIL(&workers, &w1, next);
-	gr_vec_add(w1.rxqs, q(0, 0));
-	gr_vec_add(w1.rxqs, q(0, 1));
-	gr_vec_add(w1.rxqs, q(1, 0));
+	vec_add(w1.rxqs, q(0, 0));
+	vec_add(w1.rxqs, q(0, 1));
+	vec_add(w1.rxqs, q(1, 0));
 
-	gr_vec_add(w1.txqs, q(0, 0));
-	gr_vec_add(w1.txqs, q(1, 0));
-	gr_vec_add(w1.txqs, q(2, 0));
+	vec_add(w1.txqs, q(0, 0));
+	vec_add(w1.txqs, q(1, 0));
+	vec_add(w1.txqs, q(2, 0));
 
 	STAILQ_INSERT_TAIL(&workers, &w2, next);
-	gr_vec_add(w2.rxqs, q(1, 1));
-	gr_vec_add(w2.rxqs, q(2, 0));
-	gr_vec_add(w2.rxqs, q(2, 1));
+	vec_add(w2.rxqs, q(1, 1));
+	vec_add(w2.rxqs, q(2, 0));
+	vec_add(w2.rxqs, q(2, 1));
 
-	gr_vec_add(w2.txqs, q(0, 1));
-	gr_vec_add(w2.txqs, q(1, 1));
-	gr_vec_add(w2.txqs, q(2, 1));
+	vec_add(w2.txqs, q(0, 1));
+	vec_add(w2.txqs, q(1, 1));
+	vec_add(w2.txqs, q(2, 1));
 
 	STAILQ_INSERT_TAIL(&workers, &w3, next);
-	gr_vec_add(w3.txqs, q(0, 2));
-	gr_vec_add(w3.txqs, q(1, 2));
-	gr_vec_add(w3.txqs, q(2, 2));
+	vec_add(w3.txqs, q(0, 2));
+	vec_add(w3.txqs, q(1, 2));
+	vec_add(w3.txqs, q(2, 2));
 
 	return 0;
 }
@@ -231,8 +231,8 @@ static int setup(void **) {
 static int teardown(void **) {
 	struct worker *w;
 	STAILQ_FOREACH (w, &workers, next) {
-		gr_vec_free(w->rxqs);
-		gr_vec_free(w->txqs);
+		vec_free(w->rxqs);
+		vec_free(w->txqs);
 	}
 	STAILQ_INIT(&workers);
 	for (int i = 0; i < 3; i++)
@@ -379,14 +379,14 @@ static void queue_distribute_reduce(void **) {
 	CPU_ZERO(&affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
-		gr_vec_add(ports, iface_info_port(ifaces[i]));
+		vec_add(ports, iface_info_port(ifaces[i]));
 
 	will_return(__wrap_rte_zmalloc, &w4);
 	will_return(__wrap_rte_zmalloc, &w5);
 	assert_int_equal(worker_queue_distribute(&affinity, ports), 0);
-	gr_vec_free(ports);
+	vec_free(ports);
 	assert_int_equal(worker_count(), 2);
 
 	assert_qmaps(w1.rxqs);
@@ -416,15 +416,15 @@ static void queue_distribute_increase(void **) {
 	CPU_SET(3, &affinity);
 	CPU_SET(4, &affinity);
 	CPU_SET(5, &affinity);
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	for (unsigned i = 0; i < ARRAY_DIM(ifaces); i++)
-		gr_vec_add(ports, iface_info_port(ifaces[i]));
+		vec_add(ports, iface_info_port(ifaces[i]));
 
 	will_return(__wrap_rte_zmalloc, &w1);
 	will_return(__wrap_rte_zmalloc, &w2);
 	will_return(__wrap_rte_zmalloc, &w3);
 	assert_int_equal(worker_queue_distribute(&affinity, ports), 0);
-	gr_vec_free(ports);
+	vec_free(ports);
 	assert_int_equal(worker_count(), 5);
 
 	assert_qmaps(w1.rxqs, q(0, 0), q(2, 1));

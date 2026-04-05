@@ -5,113 +5,113 @@
 #include "vec.h"
 
 static void int_vec(void **) {
-	gr_vec int *vec = NULL;
+	vec int *v = NULL;
 
-	assert_int_equal(gr_vec_len(vec), 0);
-
-	for (int i = 0; i < 5; i++)
-		gr_vec_add(vec, i);
-
-	assert_int_equal(gr_vec_len(vec), 5);
+	assert_int_equal(vec_len(v), 0);
 
 	for (int i = 0; i < 5; i++)
-		assert_int_equal(vec[i], i);
+		vec_add(v, i);
 
-	gr_vec_del(vec, 0);
-	assert_int_equal(gr_vec_len(vec), 4);
+	assert_int_equal(vec_len(v), 5);
+
+	for (int i = 0; i < 5; i++)
+		assert_int_equal(v[i], i);
+
+	vec_del(v, 0);
+	assert_int_equal(vec_len(v), 4);
 	for (int i = 0; i < 4; i++)
-		assert_int_equal(vec[i], i + 1);
+		assert_int_equal(v[i], i + 1);
 
-	gr_vec_insert(vec, 0, 0);
-	assert_int_equal(gr_vec_len(vec), 5);
+	vec_insert(v, 0, 0);
+	assert_int_equal(vec_len(v), 5);
 	for (int i = 0; i < 5; i++)
-		assert_int_equal(vec[i], i);
+		assert_int_equal(v[i], i);
 
-	gr_vec_insert(vec, 1, 42);
-	assert_int_equal(gr_vec_len(vec), 6);
-	assert_int_equal(vec[0], 0);
-	assert_int_equal(vec[1], 42);
-	assert_int_equal(vec[2], 1);
-	assert_int_equal(vec[3], 2);
-	assert_int_equal(vec[4], 3);
-	assert_int_equal(vec[5], 4);
+	vec_insert(v, 1, 42);
+	assert_int_equal(vec_len(v), 6);
+	assert_int_equal(v[0], 0);
+	assert_int_equal(v[1], 42);
+	assert_int_equal(v[2], 1);
+	assert_int_equal(v[3], 2);
+	assert_int_equal(v[4], 3);
+	assert_int_equal(v[5], 4);
 
-	gr_vec_del_swap(vec, 3);
-	assert_int_equal(gr_vec_len(vec), 5);
+	vec_del_swap(v, 3);
+	assert_int_equal(vec_len(v), 5);
 
-	assert_int_equal(gr_vec_pop(vec), 3);
-	assert_int_equal(gr_vec_pop(vec), 4);
-	assert_int_equal(gr_vec_pop(vec), 1);
-	assert_int_equal(gr_vec_pop(vec), 42);
+	assert_int_equal(vec_pop(v), 3);
+	assert_int_equal(vec_pop(v), 4);
+	assert_int_equal(vec_pop(v), 1);
+	assert_int_equal(vec_pop(v), 42);
 
-	gr_vec_del_swap(vec, 0);
-	assert_int_equal(gr_vec_len(vec), 0);
+	vec_del_swap(v, 0);
+	assert_int_equal(vec_len(v), 0);
 
-	gr_vec_free(vec);
+	vec_free(v);
 }
 
 static void str_vec(void **) {
-	gr_vec const char **vec = NULL;
+	vec const char **v = NULL;
 
-	assert_int_equal(gr_vec_len(vec), 0);
+	assert_int_equal(vec_len(v), 0);
 
-	gr_vec_add(vec, "foo");
-	gr_vec_add(vec, "bar");
-	gr_vec_add(vec, "baz");
+	vec_add(v, "foo");
+	vec_add(v, "bar");
+	vec_add(v, "baz");
 
-	assert_int_equal(gr_vec_len(vec), 3);
-	assert_string_equal(vec[0], "foo");
-	assert_string_equal(vec[1], "bar");
-	assert_string_equal(vec[2], "baz");
+	assert_int_equal(vec_len(v), 3);
+	assert_string_equal(v[0], "foo");
+	assert_string_equal(v[1], "bar");
+	assert_string_equal(v[2], "baz");
 
-	gr_vec_del(vec, 1);
+	vec_del(v, 1);
 
-	assert_int_equal(gr_vec_len(vec), 2);
-	assert_string_equal(vec[0], "foo");
-	assert_string_equal(vec[1], "baz");
+	assert_int_equal(vec_len(v), 2);
+	assert_string_equal(v[0], "foo");
+	assert_string_equal(v[1], "baz");
 
-	gr_vec_insert(vec, 2, "bar");
-	assert_int_equal(gr_vec_len(vec), 3);
-	assert_string_equal(vec[0], "foo");
-	assert_string_equal(vec[1], "baz");
-	assert_string_equal(vec[2], "bar");
+	vec_insert(v, 2, "bar");
+	assert_int_equal(vec_len(v), 3);
+	assert_string_equal(v[0], "foo");
+	assert_string_equal(v[1], "baz");
+	assert_string_equal(v[2], "bar");
 
-	gr_vec_del_swap(vec, 0);
-	assert_int_equal(gr_vec_len(vec), 2);
-	assert_string_equal(vec[0], "bar");
-	assert_string_equal(vec[1], "baz");
+	vec_del_swap(v, 0);
+	assert_int_equal(vec_len(v), 2);
+	assert_string_equal(v[0], "bar");
+	assert_string_equal(v[1], "baz");
 
-	gr_vec_free(vec);
+	vec_free(v);
 }
 
 static void dyn_str_vec(void **) {
-	gr_vec char **vec = NULL;
+	vec char **v = NULL;
 
-	gr_vec_add(vec, strdup("foo"));
-	gr_vec_add(vec, strdup("bar"));
-	gr_vec_add(vec, strdup("baz"));
+	vec_add(v, strdup("foo"));
+	vec_add(v, strdup("bar"));
+	vec_add(v, strdup("baz"));
 
-	gr_strvec_free(vec);
+	strvec_free(v);
 }
 
 static void ext_vec(void **) {
-	gr_vec const char **vec1 = NULL;
-	gr_vec const char **vec2 = NULL;
+	vec const char **vec1 = NULL;
+	vec const char **vec2 = NULL;
 
-	gr_vec_add(vec1, "foo1");
-	gr_vec_add(vec1, "bar1");
-	gr_vec_add(vec1, "baz1");
+	vec_add(vec1, "foo1");
+	vec_add(vec1, "bar1");
+	vec_add(vec1, "baz1");
 
-	gr_vec_add(vec2, "foo2");
-	gr_vec_add(vec2, "bar2");
-	gr_vec_add(vec2, "baz2");
+	vec_add(vec2, "foo2");
+	vec_add(vec2, "bar2");
+	vec_add(vec2, "baz2");
 
-	assert_int_equal(gr_vec_len(vec1), 3);
-	assert_int_equal(gr_vec_len(vec2), 3);
+	assert_int_equal(vec_len(vec1), 3);
+	assert_int_equal(vec_len(vec2), 3);
 
-	gr_vec_extend(vec1, vec2);
+	vec_extend(vec1, vec2);
 
-	assert_int_equal(gr_vec_len(vec1), 6);
+	assert_int_equal(vec_len(vec1), 6);
 	assert_string_equal(vec1[0], "foo1");
 	assert_string_equal(vec1[1], "bar1");
 	assert_string_equal(vec1[2], "baz1");
@@ -119,8 +119,8 @@ static void ext_vec(void **) {
 	assert_string_equal(vec1[4], "bar2");
 	assert_string_equal(vec1[5], "baz2");
 
-	gr_vec_free(vec1);
-	gr_vec_free(vec2);
+	vec_free(vec1);
+	vec_free(vec2);
 }
 
 int main(void) {

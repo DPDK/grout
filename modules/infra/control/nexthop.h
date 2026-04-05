@@ -54,7 +54,7 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 });
 
 struct hoplist {
-	gr_vec struct nexthop **nh;
+	vec struct nexthop **nh;
 };
 
 struct nh_group_member {

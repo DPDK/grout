@@ -24,9 +24,9 @@
 LOG_TYPE("graph");
 
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
-static gr_vec const char **base_node_names;
-static gr_vec char **rx_node_names;
-static gr_vec char **tx_node_names;
+static vec const char **base_node_names;
+static vec char **rx_node_names;
+static vec char **tx_node_names;
 static rte_node_t port_rx_node;
 static rte_node_t port_tx_node;
 static rte_node_t port_output_node;
@@ -73,9 +73,9 @@ void worker_graph_free(struct worker *worker) {
 	}
 }
 
-static struct iface_info_port *find_port(gr_vec struct iface_info_port **ports, uint16_t port_id) {
+static struct iface_info_port *find_port(vec struct iface_info_port **ports, uint16_t port_id) {
 	struct iface_info_port *port = NULL;
-	gr_vec_foreach (struct iface_info_port *p, ports) {
+	vec_foreach (struct iface_info_port *p, ports) {
 		if (p->port_id == port_id) {
 			port = p;
 			break;
@@ -91,11 +91,11 @@ static struct gr_graph_conf graph_conf = {
 };
 
 static int
-worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_port **ports) {
-	gr_vec const char **graph_nodes = NULL;
+worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_port **ports) {
+	vec const char **graph_nodes = NULL;
 	char graph_name[RTE_GRAPH_NAMESIZE];
 	char node_name[RTE_NODE_NAMESIZE];
-	gr_vec char **rx_nodes = NULL;
+	vec char **rx_nodes = NULL;
 	struct iface_info_port *port;
 	struct queue_map *qmap;
 	struct rte_node *node;
@@ -105,7 +105,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	int ret = 0;
 
 	n_rxqs = 0;
-	gr_vec_foreach_ref (qmap, worker->rxqs) {
+	vec_foreach_ref (qmap, worker->rxqs) {
 		if (ports != NULL && qmap->enabled)
 			n_rxqs++;
 	}
@@ -119,21 +119,21 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	snprintf(graph_name, sizeof(graph_name), "gr-%04x", graph_uid);
 
 	// generate graph nodes list
-	gr_vec_foreach_ref (qmap, worker->rxqs) {
+	vec_foreach_ref (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
 		char *name = astrcat(NULL, RX_NODE_FMT, qmap->port_id, qmap->queue_id);
-		gr_vec_add(rx_nodes, name);
-		gr_vec_add(graph_nodes, name);
+		vec_add(rx_nodes, name);
+		vec_add(graph_nodes, name);
 	}
 
-	gr_vec_extend(graph_nodes, base_node_names);
-	gr_vec_extend(graph_nodes, tx_node_names);
+	vec_extend(graph_nodes, base_node_names);
+	vec_extend(graph_nodes, tx_node_names);
 
 	// graph init
 	struct rte_graph_param params = {
 		.socket_id = rte_lcore_to_socket_id(worker->lcore_id),
-		.nb_node_patterns = gr_vec_len(graph_nodes),
+		.nb_node_patterns = vec_len(graph_nodes),
 		.node_patterns = graph_nodes,
 	};
 	if (rte_graph_create(graph_name, &params) == RTE_GRAPH_ID_INVALID) {
@@ -145,7 +145,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	worker->graph[index] = rte_graph_lookup(graph_name);
 
 	// set rx nodes context data
-	gr_vec_foreach_ref (qmap, worker->rxqs) {
+	vec_foreach_ref (qmap, worker->rxqs) {
 		if (!qmap->enabled)
 			continue;
 		snprintf(node_name, sizeof(node_name), RX_NODE_FMT, qmap->port_id, qmap->queue_id);
@@ -155,7 +155,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		ctx->iface = RTE_PTR_SUB(port, offsetof(struct iface, info));
 		ctx->rxq.port_id = qmap->port_id;
 		ctx->rxq.queue_id = qmap->queue_id;
-		burst_size = RTE_MAX(1u, graph_conf.vector_max / gr_vec_len(rx_nodes));
+		burst_size = RTE_MAX(1u, graph_conf.vector_max / vec_len(rx_nodes));
 		ctx->burst_size = RTE_MIN(graph_conf.rx_burst_max, burst_size);
 		LOG(DEBUG,
 		    "[CPU %d] <- port=%u rxq=%u burst_size=%u",
@@ -184,7 +184,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	}
 
 	// initialize all tx nodes context to invalid ports and queues
-	gr_vec_foreach (const char *name, tx_node_names) {
+	vec_foreach (const char *name, tx_node_names) {
 		node = rte_graph_node_get_by_name(graph_name, name);
 		struct tx_node_ctx *ctx = tx_node_ctx(node);
 		ctx->txq.port_id = UINT16_MAX;
@@ -201,7 +201,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	for (unsigned i = 0; i < ARRAY_DIM(out->edges); i++)
 		out->edges[i] = port_output_invalid;
 
-	gr_vec_foreach_ref (qmap, worker->txqs) {
+	vec_foreach_ref (qmap, worker->txqs) {
 		if (!qmap->enabled)
 			continue;
 		LOG(DEBUG,
@@ -222,7 +222,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 		unsigned txq_users = 0;
 		struct worker *w = NULL;
 		STAILQ_FOREACH (w, &workers, next) {
-			gr_vec_foreach_ref (struct queue_map *q, w->txqs) {
+			vec_foreach_ref (struct queue_map *q, w->txqs) {
 				if (q->port_id == qmap->port_id && q->queue_id == qmap->queue_id)
 					txq_users++;
 			}
@@ -240,7 +240,7 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 			node->process = tx_process;
 		}
 
-		for (rte_edge_t edge = 0; edge < gr_vec_len(tx_node_names); edge++) {
+		for (rte_edge_t edge = 0; edge < vec_len(tx_node_names); edge++) {
 			if (strcmp(tx_node_names[edge], node_name) == 0) {
 				// update the port_output context data to map this port to the
 				// correct edge
@@ -254,13 +254,13 @@ worker_graph_new(struct worker *worker, uint8_t index, gr_vec struct iface_info_
 	rte_graph_node_get_by_name(graph_name, "port_output")->ctx_ptr = out;
 
 out:
-	gr_vec_free(graph_nodes);
-	gr_strvec_free(rx_nodes);
+	vec_free(graph_nodes);
+	strvec_free(rx_nodes);
 
 	return errno_set(-ret);
 }
 
-int worker_graph_reload(struct worker *worker, gr_vec struct iface_info_port **ports) {
+int worker_graph_reload(struct worker *worker, vec struct iface_info_port **ports) {
 	unsigned next = !atomic_load(&worker->cur_config);
 	int ret;
 
@@ -293,16 +293,16 @@ static char *ensure_queue_node(
 	const char *name_fmt,
 	uint16_t port_id,
 	uint16_t queue_id,
-	gr_vec char **old_list
+	vec char **old_list
 ) {
 	char *name = astrcat(NULL, name_fmt, port_id, queue_id);
 	assert(name != NULL);
 
 	// remove node from the old list so that only unused nodes remain
-	for (unsigned i = 0; i < gr_vec_len(old_list); i++) {
+	for (unsigned i = 0; i < vec_len(old_list); i++) {
 		if (strcmp(old_list[i], name) == 0) {
 			free(old_list[i]);
-			gr_vec_del(old_list, i);
+			vec_del(old_list, i);
 			break;
 		}
 	}
@@ -315,63 +315,63 @@ static char *ensure_queue_node(
 	return name;
 }
 
-static gr_vec rte_node_t *worker_graph_nodes_add_missing(gr_vec struct iface_info_port **ports) {
-	gr_vec char **old_rx = gr_vec_clone(rx_node_names);
-	gr_vec char **old_tx = gr_vec_clone(tx_node_names);
+static vec rte_node_t *worker_graph_nodes_add_missing(vec struct iface_info_port **ports) {
+	vec char **old_rx = vec_clone(rx_node_names);
+	vec char **old_tx = vec_clone(tx_node_names);
 	rte_node_t *unused_nodes = NULL;
 	rte_edge_t edge;
 	char *name;
 
-	gr_vec_free(rx_node_names);
-	gr_vec_free(tx_node_names);
+	vec_free(rx_node_names);
+	vec_free(tx_node_names);
 
 	// clone port_rx and port_tx to match all possible port-queue pairs
-	gr_vec_foreach (struct iface_info_port *port, ports) {
+	vec_foreach (struct iface_info_port *port, ports) {
 		for (uint16_t rxq = 0; rxq < port->n_rxq; rxq++) {
 			name = ensure_queue_node(
 				port_rx_node, RX_NODE_FMT, port->port_id, rxq, old_rx
 			);
-			gr_vec_add(rx_node_names, name);
+			vec_add(rx_node_names, name);
 		}
 		for (uint16_t txq = 0; txq < port->n_txq; txq++) {
 			name = ensure_queue_node(
 				port_tx_node, TX_NODE_FMT, port->port_id, txq, old_tx
 			);
-			gr_vec_add(tx_node_names, name);
+			vec_add(tx_node_names, name);
 		}
 	}
 
 	// update the port_output edges to allow reaching all possible port_tx clones
 	edge = rte_node_edge_update(
-		port_output_node, 0, (const char **)tx_node_names, gr_vec_len(tx_node_names)
+		port_output_node, 0, (const char **)tx_node_names, vec_len(tx_node_names)
 	);
 	assert(edge != RTE_EDGE_ID_INVALID);
-	port_output_invalid = gr_vec_len(tx_node_names);
+	port_output_invalid = vec_len(tx_node_names);
 
 	// this error edge must be last
 	const char *invalid_port = "port_output_invalid";
-	edge = rte_node_edge_update(port_output_node, gr_vec_len(tx_node_names), &invalid_port, 1);
+	edge = rte_node_edge_update(port_output_node, vec_len(tx_node_names), &invalid_port, 1);
 	assert(edge != RTE_EDGE_ID_INVALID);
 
-	edge = rte_node_edge_shrink(port_output_node, gr_vec_len(tx_node_names) + 1);
+	edge = rte_node_edge_shrink(port_output_node, vec_len(tx_node_names) + 1);
 	assert(edge != RTE_EDGE_ID_INVALID);
 
 	// store all unused node_ids in a list to be returned to the caller
-	gr_vec_foreach (name, old_rx)
-		gr_vec_add(unused_nodes, rte_node_from_name(name));
-	gr_vec_foreach (name, old_tx)
-		gr_vec_add(unused_nodes, rte_node_from_name(name));
-	gr_strvec_free(old_rx);
-	gr_strvec_free(old_tx);
+	vec_foreach (name, old_rx)
+		vec_add(unused_nodes, rte_node_from_name(name));
+	vec_foreach (name, old_tx)
+		vec_add(unused_nodes, rte_node_from_name(name));
+	strvec_free(old_rx);
+	strvec_free(old_tx);
 
 	return unused_nodes;
 }
 
-int worker_graph_reload_all(gr_vec struct iface_info_port **ports) {
+int worker_graph_reload_all(vec struct iface_info_port **ports) {
 	struct worker *worker;
 	int ret;
 
-	gr_vec rte_node_t *unused_nodes = worker_graph_nodes_add_missing(ports);
+	vec rte_node_t *unused_nodes = worker_graph_nodes_add_missing(ports);
 
 	// stop all workers by switching them to NULL graphs
 	STAILQ_FOREACH (worker, &workers, next) {
@@ -387,9 +387,9 @@ int worker_graph_reload_all(gr_vec struct iface_info_port **ports) {
 
 	// these port_rx and port_tx clones are now not referenced in any graph
 	// we can safely delete them
-	gr_vec_foreach (rte_node_t node, unused_nodes)
+	vec_foreach (rte_node_t node, unused_nodes)
 		rte_node_free(node);
-	gr_vec_free(unused_nodes);
+	vec_free(unused_nodes);
 
 	return 0;
 }
@@ -415,7 +415,7 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		{GR_NODE_T_L4, "L4"},
 	};
 	const struct gr_graph_dump_req *req = request;
-	gr_vec const char **seen_edges = NULL;
+	vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
 	char **edges = NULL;
 	size_t buf_len = 0;
@@ -568,11 +568,11 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 				else
 					node_attrs = " [color=darkorange]";
 			}
-			gr_vec_foreach (const char *e, seen_edges) {
+			vec_foreach (const char *e, seen_edges) {
 				if (strcmp(e, edge) == 0)
 					goto skip; // skip duplicate edges
 			}
-			gr_vec_add(seen_edges, edge);
+			vec_add(seen_edges, edge);
 
 			if (fprintf(f, "\t\"%s\" -> \"%s\"%s;\n", name, edge, node_attrs) < 0)
 				goto err;
@@ -580,7 +580,7 @@ skip:;
 		}
 		free(edges);
 		edges = NULL;
-		gr_vec_free(seen_edges);
+		vec_free(seen_edges);
 	}
 
 	// terminate with nul character
@@ -597,7 +597,7 @@ err:
 	fclose(f);
 	free(buf);
 	free(edges);
-	gr_vec_free(seen_edges);
+	vec_free(seen_edges);
 	return api_out(errsave, 0, NULL);
 }
 
@@ -612,7 +612,7 @@ static struct api_out graph_conf_get(const void * /*request*/, struct api_ctx *)
 static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
 	const struct gr_graph_conf *req = request;
 	struct gr_graph_conf prev = graph_conf;
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	struct iface *iface = NULL;
 	int ret;
 
@@ -630,7 +630,7 @@ static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);
-		gr_vec_add(ports, port);
+		vec_add(ports, port);
 	}
 
 	LOG(NOTICE,
@@ -644,7 +644,7 @@ static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
 		worker_graph_reload_all(ports);
 	}
 
-	gr_vec_free(ports);
+	vec_free(ports);
 
 	return api_out(-ret, 0, NULL);
 }
@@ -673,7 +673,7 @@ static void graph_init(struct event_base *) {
 		else if (strcmp(reg->name, TX_NODE_BASE) == 0)
 			port_tx_node = reg->id;
 		else
-			gr_vec_add(base_node_names, reg->name);
+			vec_add(base_node_names, reg->name);
 
 		if (strcmp(reg->name, "port_output") == 0)
 			port_output_node = reg->id;
@@ -696,9 +696,9 @@ static void graph_fini(struct event_base *) {
 		}
 	}
 
-	gr_vec_free(base_node_names);
-	gr_strvec_free(rx_node_names);
-	gr_strvec_free(tx_node_names);
+	vec_free(base_node_names);
+	strvec_free(rx_node_names);
+	strvec_free(tx_node_names);
 }
 
 static struct module graph_module = {

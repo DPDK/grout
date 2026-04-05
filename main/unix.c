@@ -14,15 +14,15 @@
 
 LOG_TYPE("main");
 
-static gr_vec char **socket_paths;
+static vec char **socket_paths;
 
 static void unix_cleanup(struct event_base *) {
-	gr_vec_foreach (char *path, socket_paths) {
+	vec_foreach (char *path, socket_paths) {
 		if (path != NULL)
 			unlink(path);
 	}
 
-	gr_strvec_free(socket_paths);
+	strvec_free(socket_paths);
 }
 
 #define SOCKET_LISTEN_BACKLOG 16
@@ -66,7 +66,7 @@ int unix_listen(const char *path) {
 		return errno_log(errno, "bind");
 	}
 
-	gr_vec_add(socket_paths, strdup(path));
+	vec_add(socket_paths, strdup(path));
 
 	if (listen(fd, SOCKET_LISTEN_BACKLOG) < 0) {
 		close(fd);

@@ -518,7 +518,7 @@ struct rib4_cleanup_entry {
 
 struct rib4_cleanup_ctx {
 	const struct nexthop *nh;
-	gr_vec struct rib4_cleanup_entry *entries;
+	vec struct rib4_cleanup_entry *entries;
 };
 
 static int rib4_cleanup_cb(
@@ -537,7 +537,7 @@ static int rib4_cleanup_cb(
 			.depth = depth,
 			.type = nh->type,
 		};
-		gr_vec_add(ctx->entries, entry);
+		vec_add(ctx->entries, entry);
 	}
 	return 0;
 }
@@ -554,9 +554,9 @@ void rib4_cleanup(struct nexthop *nh) {
 		.priv = &ctx,
 	};
 	rib4_iter(GR_VRF_ID_UNDEF, &iter);
-	gr_vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
+	vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
 		rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
-	gr_vec_free(ctx.entries);
+	vec_free(ctx.entries);
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");
@@ -787,9 +787,9 @@ static void fib4_fini(struct iface *vrf) {
 		};
 		rib4_iter_vrf(rte_fib_get_rib(fib), vrf->id, &iter);
 
-		gr_vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
+		vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
 			rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
-		gr_vec_free(ctx.entries);
+		vec_free(ctx.entries);
 
 		iface_info_vrf(vrf)->fib4 = NULL;
 		rte_fib_free(fib);

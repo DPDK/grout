@@ -14,7 +14,7 @@
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
-	gr_vec struct iface **subinterfaces;
+	vec struct iface **subinterfaces;
 	char *name;
 	char *description;
 	int cp_id; // Control plane (Linux) port ID

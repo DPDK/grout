@@ -92,43 +92,43 @@ static bool module_is_child(const void *mod, const void *maybe_child) {
 }
 
 void modules_init(struct event_base *ev_base) {
-	gr_vec const struct module **mods = NULL;
+	vec const struct module **mods = NULL;
 	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
-		gr_vec_add(mods, mod);
+		vec_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	if (topo_sort((gr_vec const void **)mods, module_is_child) < 0)
+	if (topo_sort((vec const void **)mods, module_is_child) < 0)
 		ABORT("topo_sort failed: %s", strerror(errno));
 
-	gr_vec_foreach (mod, mods) {
+	vec_foreach (mod, mods) {
 		if (mod->init != NULL) {
 			LOG(DEBUG, "'%s' (depends on '%s')", mod->name, mod->depends_on ?: "");
 			mod->init(ev_base);
 		}
 	}
 
-	gr_vec_free(mods);
+	vec_free(mods);
 }
 
 void modules_fini(struct event_base *ev_base) {
-	gr_vec const struct module **mods = NULL;
+	vec const struct module **mods = NULL;
 	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
-		gr_vec_add(mods, mod);
+		vec_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	if (topo_sort((gr_vec const void **)mods, module_is_child) < 0)
+	if (topo_sort((vec const void **)mods, module_is_child) < 0)
 		ABORT("topo_sort failed: %s", strerror(errno));
 
 	// call fini() functions in reverse topological order
-	for (int i = gr_vec_len(mods) - 1; i >= 0; i--) {
+	for (int i = vec_len(mods) - 1; i >= 0; i--) {
 		mod = mods[i];
 		if (mod->fini != NULL) {
 			LOG(DEBUG, "'%s' (depends on '%s')", mod->name, mod->depends_on ?: "");
@@ -136,7 +136,7 @@ void modules_fini(struct event_base *ev_base) {
 		}
 	}
 
-	gr_vec_free(mods);
+	vec_free(mods);
 
 	for (unsigned i = 0; i < ARRAY_DIM(mod_handlers); i++) {
 		free(mod_handlers[i]);

@@ -7,8 +7,8 @@
 
 #include <stdlib.h>
 
-static bool *build_adjacency_matrix(gr_vec const void **nodes, topo_is_child_cb_t is_child) {
-	const unsigned len = gr_vec_len(nodes);
+static bool *build_adjacency_matrix(vec const void **nodes, topo_is_child_cb_t is_child) {
+	const unsigned len = vec_len(nodes);
 	bool *matrix = calloc(len * len, sizeof(*matrix));
 	if (matrix == NULL)
 		return errno_set_null(ENOMEM);
@@ -34,11 +34,11 @@ static void dfs_visit(
 	unsigned node,
 	visit_t *state,
 	bool *matrix,
-	gr_vec const void **nodes,
+	vec const void **nodes,
 	const void **sorted,
 	unsigned *order
 ) {
-	const unsigned len = gr_vec_len(nodes);
+	const unsigned len = vec_len(nodes);
 	state[node] = VISITING;
 	for (unsigned n = 0; n < len; n++) {
 		if (matrix[node * len + n] && state[n] == UNVISITED)
@@ -50,11 +50,11 @@ static void dfs_visit(
 	sorted[(*order)++] = nodes[node];
 }
 
-int topo_sort(gr_vec const void **nodes, topo_is_child_cb_t is_child) {
+int topo_sort(vec const void **nodes, topo_is_child_cb_t is_child) {
 	if (is_child == NULL)
 		return errno_set(EINVAL);
 
-	const unsigned len = gr_vec_len(nodes);
+	const unsigned len = vec_len(nodes);
 	const void **sorted = NULL;
 	visit_t *state = NULL;
 	bool *matrix = NULL;
