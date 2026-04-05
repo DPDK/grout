@@ -4,7 +4,7 @@
 #include "eth.h"
 #include "graph.h"
 #include "ip4_datapath.h"
-#include "ipip_priv.h"
+#include "ipip.h"
 #include "mbuf.h"
 #include "rxtx.h"
 

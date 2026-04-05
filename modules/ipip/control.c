@@ -3,7 +3,7 @@
 
 #include "iface.h"
 #include "ip4.h"
-#include "ipip_priv.h"
+#include "ipip.h"
 #include "log.h"
 #include "module.h"
 #include "rcu.h"
