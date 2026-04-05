@@ -44,7 +44,7 @@ struct subscription {
 };
 
 // List of subscribers to EVENT_TYPE_ALL
-static gr_vec struct subscription *all_events_subs;
+static vec struct subscription *all_events_subs;
 // 2 dimensional array of subscribers to events.
 //
 // Example to get a list of sockets subscribed to ev_type = 0xacdc0102:
@@ -66,7 +66,7 @@ static gr_vec struct subscription *all_events_subs;
 //                             |--------|
 //                             | ...... |
 //                             |--------|
-//  GR_EVENT_NEXTHOP_UPDATE -> | 0x0102 | -> gr_vec of evutil_socket_t
+//  GR_EVENT_NEXTHOP_UPDATE -> | 0x0102 | -> vec of evutil_socket_t
 //                             |--------|
 //                             | ...... |
 //                             |--------|
@@ -76,7 +76,7 @@ static gr_vec struct subscription *all_events_subs;
 //                             +--------+
 //
 struct module_subscribers {
-	gr_vec struct subscription *ev_subs[UINT_NUM_VALUES(uint16_t)];
+	vec struct subscription *ev_subs[UINT_NUM_VALUES(uint16_t)];
 };
 static struct module_subscribers *mod_subs[UINT_NUM_VALUES(uint16_t)];
 static LIST_HEAD(, api_ctx) clients = LIST_HEAD_INITIALIZER(clients);
@@ -98,7 +98,7 @@ void api_send_notifications(uint32_t ev_type, const void *obj) {
 	if (subs != NULL)
 		ev_subs = subs->ev_subs[ev];
 
-	if (gr_vec_len(all_events_subs) == 0 && gr_vec_len(ev_subs) == 0) {
+	if (vec_len(all_events_subs) == 0 && vec_len(ev_subs) == 0) {
 		// no subscribers
 		return;
 	}
@@ -111,13 +111,13 @@ void api_send_notifications(uint32_t ev_type, const void *obj) {
 	e.ev_type = ev_type;
 	e.payload_len = len;
 
-	gr_vec_foreach_ref (s, all_events_subs) {
+	vec_foreach_ref (s, all_events_subs) {
 		if (s->suppress_self_events && s->pid == cur_req_pid)
 			continue;
 		bufferevent_write(s->bev, &e, sizeof(e));
 		bufferevent_write(s->bev, data, len);
 	}
-	gr_vec_foreach_ref (s, ev_subs) {
+	vec_foreach_ref (s, ev_subs) {
 		if (s->suppress_self_events && s->pid == cur_req_pid)
 			continue;
 		bufferevent_write(s->bev, &e, sizeof(e));
@@ -139,13 +139,13 @@ static struct api_out subscribe(const void *request, struct api_ctx *ctx) {
 	uint16_t mod, ev;
 
 	if (req->ev_type == EVENT_TYPE_ALL) {
-		gr_vec_foreach_ref (s, all_events_subs) {
+		vec_foreach_ref (s, all_events_subs) {
 			if (s->bev == ctx->bev) {
 				s->suppress_self_events = req->suppress_self_events;
 				return api_out(0, 0, NULL); // already subscribed
 			}
 		}
-		gr_vec_add(all_events_subs, sub);
+		vec_add(all_events_subs, sub);
 		return api_out(0, 0, NULL);
 	}
 
@@ -158,13 +158,13 @@ static struct api_out subscribe(const void *request, struct api_ctx *ctx) {
 		if (subs == NULL)
 			return api_out(ENOMEM, 0, NULL);
 	}
-	gr_vec_foreach_ref (s, subs->ev_subs[ev]) {
+	vec_foreach_ref (s, subs->ev_subs[ev]) {
 		if (s->bev == ctx->bev) {
 			s->suppress_self_events = req->suppress_self_events;
 			return api_out(0, 0, NULL); // already subscribed
 		}
 	}
-	gr_vec_add(subs->ev_subs[ev], sub);
+	vec_add(subs->ev_subs[ev], sub);
 
 	return api_out(0, 0, NULL);
 }
@@ -173,9 +173,9 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 	unsigned i;
 
 	i = 0;
-	while (i < gr_vec_len(all_events_subs)) {
+	while (i < vec_len(all_events_subs)) {
 		if (all_events_subs[i].bev == ctx->bev)
-			gr_vec_del_swap(all_events_subs, i);
+			vec_del_swap(all_events_subs, i);
 		else
 			i++;
 	}
@@ -187,9 +187,9 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 		for (unsigned ev = 0; ev < ARRAY_DIM(subs->ev_subs); ev++) {
 			struct subscription *ev_subs = subs->ev_subs[ev];
 			i = 0;
-			while (i < gr_vec_len(ev_subs)) {
+			while (i < vec_len(ev_subs)) {
 				if (ev_subs[i].bev == ctx->bev)
-					gr_vec_del_swap(ev_subs, i);
+					vec_del_swap(ev_subs, i);
 				else
 					i++;
 			}

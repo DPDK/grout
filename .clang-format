@@ -83,8 +83,8 @@ ForEachMacros:
   - TAILQ_FOREACH_SAFE
   - rte_graph_foreach_node
   - gr_api_client_stream_foreach
-  - gr_vec_foreach
-  - gr_vec_foreach_ref
+  - vec_foreach
+  - vec_foreach_ref
   - gr_nh_flags_foreach
 IfMacros:
   - KJ_IF_MAYBE

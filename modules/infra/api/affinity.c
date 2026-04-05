@@ -28,7 +28,7 @@ static struct api_out affinity_get(const void * /*request*/, struct api_ctx *) {
 
 static struct api_out affinity_set(const void *request, struct api_ctx *) {
 	const struct gr_affinity_cpu_set_req *req = request;
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	int ret = 0;
 
 	if (CPU_COUNT(&req->control_cpus) > 0) {
@@ -49,7 +49,7 @@ static struct api_out affinity_set(const void *request, struct api_ctx *) {
 	if (CPU_COUNT(&req->datapath_cpus) > 0) {
 		struct iface *iface = NULL;
 		while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
-			gr_vec_add(ports, iface_info_port(iface));
+			vec_add(ports, iface_info_port(iface));
 
 		ret = worker_queue_distribute(&req->datapath_cpus, ports);
 		if (ret < 0)
@@ -59,7 +59,7 @@ static struct api_out affinity_set(const void *request, struct api_ctx *) {
 	}
 
 out:
-	gr_vec_free(ports);
+	vec_free(ports);
 	return api_out(-ret, 0, NULL);
 }
 
@@ -68,7 +68,7 @@ static struct api_out rxq_list(const void * /*request*/, struct api_ctx *ctx) {
 	struct worker *worker;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		gr_vec_foreach_ref (qmap, worker->rxqs) {
+		vec_foreach_ref (qmap, worker->rxqs) {
 			struct gr_port_rxq_map q = {
 				.iface_id = port_get_iface(qmap->port_id)->id,
 				.rxq_id = qmap->queue_id,

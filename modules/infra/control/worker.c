@@ -98,8 +98,8 @@ int worker_destroy(unsigned cpu_id) {
 	pthread_cond_destroy(&worker->wakeup.cond);
 	pthread_mutex_destroy(&worker->wakeup.lock);
 	worker_graph_free(worker);
-	gr_vec_free(worker->rxqs);
-	gr_vec_free(worker->txqs);
+	vec_free(worker->rxqs);
+	vec_free(worker->txqs);
 	rte_free(worker);
 
 	LOG(INFO, "worker %d destroyed", cpu_id);
@@ -142,7 +142,7 @@ struct worker *worker_find(unsigned cpu_id) {
 }
 
 int port_unplug(struct iface_info_port *p) {
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	struct iface *iface = NULL;
 	struct queue_map *qmap;
 	struct worker *worker;
@@ -150,13 +150,13 @@ int port_unplug(struct iface_info_port *p) {
 	int ret;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		gr_vec_foreach_ref (qmap, worker->rxqs) {
+		vec_foreach_ref (qmap, worker->rxqs) {
 			if (qmap->port_id == p->port_id) {
 				qmap->enabled = false;
 				changed++;
 			}
 		}
-		gr_vec_foreach_ref (qmap, worker->txqs) {
+		vec_foreach_ref (qmap, worker->txqs) {
 			if (qmap->port_id == p->port_id) {
 				qmap->enabled = false;
 				changed++;
@@ -169,11 +169,11 @@ int port_unplug(struct iface_info_port *p) {
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);
 		if (port->port_id != p->port_id)
-			gr_vec_add(ports, port);
+			vec_add(ports, port);
 	}
 
 	ret = worker_graph_reload_all(ports);
-	gr_vec_free(ports);
+	vec_free(ports);
 
 	LOG(INFO, "port %u unplugged", p->port_id);
 
@@ -186,13 +186,13 @@ int port_plug(struct iface_info_port *p) {
 	int changed = 0;
 
 	STAILQ_FOREACH (worker, &workers, next) {
-		gr_vec_foreach_ref (qmap, worker->rxqs) {
+		vec_foreach_ref (qmap, worker->rxqs) {
 			if (qmap->port_id == p->port_id) {
 				qmap->enabled = true;
 				changed++;
 			}
 		}
-		gr_vec_foreach_ref (qmap, worker->txqs) {
+		vec_foreach_ref (qmap, worker->txqs) {
 			if (qmap->port_id == p->port_id) {
 				qmap->enabled = true;
 				changed++;
@@ -204,36 +204,36 @@ int port_plug(struct iface_info_port *p) {
 
 	LOG(INFO, "port %u plugged", p->port_id);
 
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	struct iface *iface = NULL;
 	bool found = false;
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);
 		if (port->port_id == p->port_id)
 			found = true;
-		gr_vec_add(ports, port);
+		vec_add(ports, port);
 	}
 	if (!found)
-		gr_vec_add(ports, p);
+		vec_add(ports, p);
 
 	int ret = worker_graph_reload_all(ports);
-	gr_vec_free(ports);
+	vec_free(ports);
 	return ret;
 }
 
-static void worker_txq_distribute(gr_vec struct iface_info_port **ports) {
+static void worker_txq_distribute(vec struct iface_info_port **ports) {
 	struct iface_info_port *port;
 	struct worker *worker;
 
 	// clear all TX queue assignments
 	STAILQ_FOREACH (worker, &workers, next)
-		gr_vec_free(worker->txqs);
+		vec_free(worker->txqs);
 
 	// assign TX queues only to workers that have RX queues
-	gr_vec_foreach (port, ports) {
+	vec_foreach (port, ports) {
 		uint16_t txq_idx = 0;
 		STAILQ_FOREACH (worker, &workers, next) {
-			if (gr_vec_len(worker->rxqs) == 0)
+			if (vec_len(worker->rxqs) == 0)
 				continue;
 			assert(port->n_txq > 0);
 			struct queue_map txq = {
@@ -241,7 +241,7 @@ static void worker_txq_distribute(gr_vec struct iface_info_port **ports) {
 				.queue_id = txq_idx % port->n_txq,
 				.enabled = port->started,
 			};
-			gr_vec_add(worker->txqs, txq);
+			vec_add(worker->txqs, txq);
 			txq_idx++;
 		}
 	}
@@ -259,7 +259,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id) {
 		return errno_set(ERANGE);
 
 	STAILQ_FOREACH (src_worker, &workers, next) {
-		gr_vec_foreach_ref (qmap, src_worker->rxqs) {
+		vec_foreach_ref (qmap, src_worker->rxqs) {
 			if (qmap->port_id != port_id)
 				continue;
 			if (qmap->queue_id != rxq_id)
@@ -278,13 +278,13 @@ move:
 	assert(dst_worker != NULL);
 
 	// unassign from src_worker
-	for (size_t i = 0; i < gr_vec_len(src_worker->rxqs); i++) {
+	for (size_t i = 0; i < vec_len(src_worker->rxqs); i++) {
 		struct queue_map *qmap = &src_worker->rxqs[i];
 		if (qmap->port_id != port_id)
 			continue;
 		if (qmap->queue_id != rxq_id)
 			continue;
-		gr_vec_del_swap(src_worker->rxqs, i);
+		vec_del_swap(src_worker->rxqs, i);
 		break;
 	}
 
@@ -294,25 +294,25 @@ move:
 		.queue_id = rxq_id,
 		.enabled = true,
 	};
-	gr_vec_add(dst_worker->rxqs, rx_qmap);
+	vec_add(dst_worker->rxqs, rx_qmap);
 
 	// reassign TX queues and reload all graphs
-	gr_vec struct iface_info_port **ports = NULL;
+	vec struct iface_info_port **ports = NULL;
 	struct iface *iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL)
-		gr_vec_add(ports, iface_info_port(iface));
+		vec_add(ports, iface_info_port(iface));
 
 	worker_txq_distribute(ports);
 
 	ret = worker_graph_reload_all(ports);
 
-	gr_vec_free(ports);
+	vec_free(ports);
 	return ret;
 }
 
-int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_port **ports) {
+int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_port **ports) {
 	struct iface_info_port *port;
-	gr_vec unsigned *cpus = NULL;
+	vec unsigned *cpus = NULL;
 	struct worker *worker, *tmp;
 	char buf[BUFSIZ];
 	int ret = 0;
@@ -326,8 +326,8 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 	STAILQ_FOREACH_SAFE (worker, &workers, next, tmp) {
 		if (CPU_ISSET(worker->cpu_id, affinity)) {
 			// Remove all RXQ/TXQ from that worker to have a clean slate.
-			gr_vec_free(worker->rxqs);
-			gr_vec_free(worker->txqs);
+			vec_free(worker->rxqs);
+			vec_free(worker->txqs);
 			if (CPU_COUNT(affinity) != CPU_COUNT(&gr_config.datapath_cpus)) {
 				// Affinity was changed and contains a different number of CPUs.
 				// Ports will need to be stopped to be reconfigured.
@@ -356,13 +356,13 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 					goto end;
 				}
 			}
-			gr_vec_add(cpus, cpu);
+			vec_add(cpus, cpu);
 		}
 	}
 
 	// assign all rxqs to new workers in the new affinity mask
 	i = 0;
-	gr_vec_foreach (port, ports) {
+	vec_foreach (port, ports) {
 		int socket_id = SOCKET_ID_ANY;
 
 		if (numa_available() != -1)
@@ -392,12 +392,12 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 			// find CPU in the affinity where to assign RXQ
 			unsigned j = 0;
 			while (socket_id != SOCKET_ID_ANY && socket_id != numa_node_of_cpu(cpus[i])
-			       && j < gr_vec_len(cpus)) {
-				if (++i >= gr_vec_len(cpus))
+			       && j < vec_len(cpus)) {
+				if (++i >= vec_len(cpus))
 					i = 0;
 				j++;
 			}
-			if (j == gr_vec_len(cpus)) {
+			if (j == vec_len(cpus)) {
 				LOG(WARNING,
 				    "no socket %d CPU found in new affinity %s for port %d",
 				    socket_id,
@@ -413,9 +413,9 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 				.queue_id = rxq,
 				.enabled = port->started,
 			};
-			gr_vec_add(worker->rxqs, q);
+			vec_add(worker->rxqs, q);
 
-			if (++i >= gr_vec_len(cpus))
+			if (++i >= vec_len(cpus))
 				i = 0;
 		}
 	}
@@ -424,14 +424,14 @@ int worker_queue_distribute(const cpu_set_t *affinity, gr_vec struct iface_info_
 
 	ret = worker_graph_reload_all(ports);
 end:
-	gr_vec_free(cpus);
+	vec_free(cpus);
 	return ret;
 }
 
-static struct gr_stat *find_stat(gr_vec struct gr_stat *stats, const char *name) {
+static struct gr_stat *find_stat(vec struct gr_stat *stats, const char *name) {
 	struct gr_stat *s;
 
-	gr_vec_foreach_ref (s, stats) {
+	vec_foreach_ref (s, stats) {
 		if (strncmp(s->name, name, sizeof(s->name)) == 0)
 			return s;
 	}
@@ -439,10 +439,10 @@ static struct gr_stat *find_stat(gr_vec struct gr_stat *stats, const char *name)
 	return errno_set_null(ENOENT);
 }
 
-gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
+vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 	uint64_t loop_cycles = 0, node_cycles = 0, n_loops = 0, pkts = 0;
 	char xname[MEMBER_SIZE(struct gr_stat, name)];
-	gr_vec struct gr_stat *stats = NULL;
+	vec struct gr_stat *stats = NULL;
 	const struct gr_node_info *info;
 	struct worker *worker;
 	struct gr_stat *s;
@@ -475,7 +475,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 					.topo_order = n->topo_order,
 				};
 				gr_strcpy(stat.name, sizeof(stat.name), name);
-				gr_vec_add(stats, stat);
+				vec_add(stats, stat);
 			}
 			for (uint8_t x = 0; x < n->nb_xstats; x++) {
 				snprintf(
@@ -496,7 +496,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 						.topo_order = n->topo_order,
 					};
 					gr_strcpy(stat.name, sizeof(stat.name), xname);
-					gr_vec_add(stats, stat);
+					vec_add(stats, stat);
 				}
 			}
 
@@ -517,7 +517,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 				.topo_order = UINT64_MAX,
 			};
 			gr_strcpy(stat.name, sizeof(stat.name), "idle");
-			gr_vec_add(stats, stat);
+			vec_add(stats, stat);
 		}
 		loop_cycles += w_stats->loop_cycles - w_stats->sleep_cycles;
 		n_loops += w_stats->n_loops;
@@ -530,7 +530,7 @@ gr_vec struct gr_stat *worker_dump_stats(uint16_t cpu_id) {
 		.topo_order = UINT64_MAX - 1,
 	};
 	gr_strcpy(stat.name, sizeof(stat.name), "overhead");
-	gr_vec_add(stats, stat);
+	vec_add(stats, stat);
 
 	return stats;
 }

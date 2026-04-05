@@ -17,7 +17,7 @@
 #include <string.h>
 
 struct event_sub_callbacks {
-	gr_vec event_sub_cb_t *callbacks[UINT_NUM_VALUES(uint16_t)];
+	vec event_sub_cb_t *callbacks[UINT_NUM_VALUES(uint16_t)];
 };
 
 static struct event_sub_callbacks *mod_subs[UINT_NUM_VALUES(uint16_t)];
@@ -35,7 +35,7 @@ void event_subscribe(uint32_t ev_type, event_sub_cb_t callback) {
 		if (subs == NULL)
 			ABORT("calloc(event_sub_callbacks)");
 	}
-	gr_vec_add(subs->callbacks[ev], callback);
+	vec_add(subs->callbacks[ev], callback);
 }
 
 static void notify_subscribers(void *obj, uintptr_t ev_type, const struct control_queue_drain *) {
@@ -44,7 +44,7 @@ static void notify_subscribers(void *obj, uintptr_t ev_type, const struct contro
 	struct event_sub_callbacks *subs = mod_subs[mod];
 
 	if (subs != NULL) {
-		gr_vec_foreach (event_sub_cb_t cb, subs->callbacks[ev])
+		vec_foreach (event_sub_cb_t cb, subs->callbacks[ev])
 			cb(ev_type, obj);
 	}
 
@@ -132,7 +132,7 @@ static void event_fini(struct event_base *) {
 		struct event_sub_callbacks *subs = mod_subs[mod];
 		if (subs != NULL) {
 			for (unsigned ev = 0; ev < ARRAY_DIM(subs->callbacks); ev++)
-				gr_vec_free(subs->callbacks[ev]);
+				vec_free(subs->callbacks[ev]);
 			free(subs);
 			mod_subs[mod] = NULL;
 		}

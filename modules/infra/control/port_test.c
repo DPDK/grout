@@ -49,7 +49,7 @@ mock_func(struct iface *, iface_next(gr_iface_type_t, const struct iface *));
 mock_func(int, port_unplug(struct iface_info_port *));
 mock_func(int, port_plug(struct iface_info_port *));
 mock_func(unsigned, worker_count(void));
-mock_func(int, worker_queue_distribute(const cpu_set_t *, gr_vec struct iface_info_port **));
+mock_func(int, worker_queue_distribute(const cpu_set_t *, vec struct iface_info_port **));
 mock_func(int, __wrap_rte_eth_allmulticast_disable(uint16_t));
 mock_func(int, __wrap_rte_eth_allmulticast_enable(uint16_t));
 mock_func(int, __wrap_rte_eth_allmulticast_get(uint16_t));

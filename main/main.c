@@ -259,7 +259,7 @@ static int parse_args(int argc, char **argv) {
 	}
 
 	for (c = optind; c < argc; c++)
-		gr_vec_add(gr_config.eal_extra_args, argv[c]);
+		vec_add(gr_config.eal_extra_args, argv[c]);
 
 	return 0;
 }
@@ -347,6 +347,6 @@ dpdk_stop:
 	if (err != 0)
 		sd_notifyf(0, "ERRNO=%i", err);
 end:
-	gr_vec_free(gr_config.eal_extra_args);
+	vec_free(gr_config.eal_extra_args);
 	return ret;
 }
