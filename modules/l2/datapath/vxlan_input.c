@@ -5,10 +5,9 @@
 #include "ip4_datapath.h"
 #include "l2.h"
 #include "l2_datapath.h"
+#include "l4.h"
 #include "mbuf.h"
 #include "rxtx.h"
-
-#include <gr_l4.h>
 
 #include <rte_byteorder.h>
 #include <rte_ether.h>
