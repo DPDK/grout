@@ -15,6 +15,7 @@
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
+#include <lib/version.h>
 #include <zebra/interface.h>
 #include <zebra/zebra_dplane.h>
 #include <zebra/zebra_router.h>
@@ -846,6 +847,31 @@ static int zd_grout_start_sync(struct event_loop *) {
 }
 
 static int zd_grout_module_init(void) {
+	const char *runtime_version = frr_defaults_version();
+	unsigned build_maj, build_min, build_patch;
+	unsigned run_maj, run_min, run_patch;
+
+	if (sscanf(FRR_VER_SHORT, "%u.%u.%u", &build_maj, &build_min, &build_patch) != 3
+	    || sscanf(runtime_version, "%u.%u.%u", &run_maj, &run_min, &run_patch) != 3) {
+		gr_log_err(
+			"failed to parse FRR version: build=%s runtime=%s",
+			FRR_VER_SHORT,
+			runtime_version
+		);
+		return -1;
+	}
+	if (build_maj != run_maj || build_min != run_min) {
+		gr_log_err(
+			"FRR version mismatch: plugin built for %s but running %s",
+			FRR_VER_SHORT,
+			runtime_version
+		);
+		return -1;
+	}
+	if (build_patch != run_patch) {
+		gr_log_warn("plugin built for FRR %s, running %s.", FRR_VER_SHORT, runtime_version);
+	}
+
 	hook_register(frr_late_init, zd_grout_plugin_init);
 	hook_register(frr_config_post, zd_grout_start_sync);
 	init_ifindex_mappings();

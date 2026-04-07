@@ -7,7 +7,8 @@
 #include <zebra/debug.h>
 
 #define gr_log(priority, fmt, ...) zlog(priority, "GROUT: %s: " fmt, __func__, ##__VA_ARGS__)
-#define gr_log_err(fmt, ...) gr_log(LOG_ERR, fmt, ##__VA_ARGS__)
+#define gr_log_err(fmt, ...) gr_log(LOG_ERR, "ERROR: " fmt, ##__VA_ARGS__)
+#define gr_log_warn(fmt, ...) gr_log(LOG_WARNING, "WARNING: " fmt, ##__VA_ARGS__)
 #define gr_log_notice(fmt, ...) gr_log(LOG_NOTICE, fmt, ##__VA_ARGS__)
 #define gr_log_info(fmt, ...) gr_log(LOG_INFO, fmt, ##__VA_ARGS__)
 #define gr_log_debug(fmt, ...)                                                                     \
