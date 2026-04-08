@@ -62,7 +62,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
-      MESON_EXTRA_OPTS: ${{ matrix.conf.extra_opts }}
+      MESON_EXTRA_OPTS: -Ddpdk:cpu_instruction_set=generic ${{ matrix.conf.extra_opts }}
     steps:
       - name: install system dependencies
         run: |
