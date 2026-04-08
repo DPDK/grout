@@ -91,7 +91,7 @@ free_and_skip:
 		icmp6_queue_pop(i, true);
 	}
 
-	return NULL;
+	return errno_set_null(ENOENT);
 }
 
 static struct api_out icmp6_send(const void *request, struct api_ctx *) {
@@ -118,7 +118,7 @@ static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 
 	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6, &rcv_timestamp);
 	if (m == NULL)
-		return api_out(0, 0, NULL);
+		return api_out(errno, 0, NULL);
 
 	d_ip6 = ip6_local_mbuf_data(m);
 	icmp6_echo = PAYLOAD(icmp6);

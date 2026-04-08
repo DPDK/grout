@@ -67,9 +67,9 @@ static cmd_status_t icmp_send(
 			);
 			if (resp_ptr != NULL)
 				break;
-		} while (ret == 0 && --timeout > 0);
+		} while (ret == -ENOENT && --timeout > 0);
 
-		if (ret < 0)
+		if (ret < 0 && ret != -ENOENT)
 			return CMD_ERROR;
 
 		reply_resp = resp_ptr;
