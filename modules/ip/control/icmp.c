@@ -80,11 +80,11 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num, cloc
 			mbuf = i->mbuf;
 			*timestamp = i->timestamp;
 			icmp_queue_pop(i, false);
-			break;
+			return mbuf;
 		}
 	}
 
-	return mbuf;
+	return errno_set_null(ENOENT);
 }
 
 static struct api_out icmp_send(const void *request, struct api_ctx *) {
@@ -114,7 +114,7 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 
 	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num, &rcv_timestamp);
 	if (m == NULL)
-		return api_out(0, 0, NULL);
+		return api_out(errno, 0, NULL);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL) {
 		ret = ENOMEM;
