@@ -1,6 +1,6 @@
 [wrap-file]
 source_url = https://github.com/rjarry/libecoli/archive/refs/tags/v0.10.1.tar.gz
-source_filename = libecoli-0.10.1.tar.xz
+source_filename = libecoli-0.10.1.tar.gz
 source_hash = ec359850f4f338b607d05200d508736b14eaa30fca8aefdfde980a283afd789d
 directory = libecoli-0.10.1
 
