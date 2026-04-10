@@ -77,6 +77,7 @@ frr_dep = declare_dependency(
     '-Wno-unused-parameter',
   ],
   sources: [build],
+  version: meson.project_version(),
   variables: {
     'moduledir': moduledir,
     'prefix': prefix,

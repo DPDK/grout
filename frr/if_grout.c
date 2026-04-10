@@ -10,6 +10,7 @@
 #include <gr_l2.h>
 #include <gr_srv6.h>
 
+#include <lib/libfrr.h>
 #include <linux/if.h>
 #include <net/if.h>
 #include <zebra/interface.h>
@@ -173,7 +174,12 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 			vi.vni_info.iftype = ZEBRA_VXLAN_IF_VNI;
 			vi.vni_info.vni.vni = gr_vxlan->vni;
 			vi.ifindex_link = ifindex_grout_to_frr(gr_vxlan->encap_vrf_id);
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+			vi.vtep_ip.ipa_type = IPADDR_V4;
+			vi.vtep_ip.ipaddr_v4.s_addr = gr_vxlan->local;
+#else
 			vi.vtep_ip.s_addr = gr_vxlan->local;
+#endif
 			dplane_ctx_set_ifp_vxlan_info(ctx, &vi);
 		}
 	} else {
