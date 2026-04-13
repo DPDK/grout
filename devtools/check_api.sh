@@ -43,6 +43,7 @@ tar -C "$dir/check_api/a" -x --transform='s|.*/||'
 # Exclude gr_api_client_impl.h which isn't a real API header.
 rm -f $dir/check_api/*/gr_api_client_impl.h
 
+cc_cmd="$cc_cmd -Wno-missing-declarations -Wno-missing-prototypes"
 cc_cmd="$cc_cmd -fno-eliminate-unused-debug-types -Werror -O0 -g"
 
 # Compile a dummy binary
@@ -63,6 +64,9 @@ for d in $dir/check_api/*; do
 	obj *e##_(void) {                                                     \\
 		return (void *)0;                                             \\
 	}
+
+#define GR_API_INLINE __attribute__((section(".api_inline")))
+
 EOF
 		basename -a $d/*.h | sed 's/.*/#include <&>/'
 	} |
@@ -76,14 +80,43 @@ printf "Checking for API changes between %s and %s\n" \
 	$(git describe --long --abbrev=8 $prev_revision) \
 	$(git describe --long --abbrev=8 --dirty)
 
+# Check for inline function body changes.
+# GR_API_INLINE functions are placed in a dedicated ELF section so we can
+# compare their disassembly to detect code changes.
+{
+	objdump -t -j .api_inline $dir/check_api/a.bin 2>/dev/null || true
+	objdump -t -j .api_inline $dir/check_api/b.bin 2>/dev/null || true
+} | awk '/F .api_inline/{print $NF}' | sort -u > $dir/check_api/inline_funcs
+
+inline_change=false
+while read -r func; do
+	a=$(objdump -d --disassemble="$func" $dir/check_api/a.bin 2>/dev/null \
+		| sed -n '/^[0-9a-f].*:/{s/^[^:]*://;s/\t[0-9a-f ]*\t/\t/;p}')
+	b=$(objdump -d --disassemble="$func" $dir/check_api/b.bin 2>/dev/null \
+		| sed -n '/^[0-9a-f].*:/{s/^[^:]*://;s/\t[0-9a-f ]*\t/\t/;p}')
+	if [ -z "$a" ] && [ -z "$b" ]; then
+		continue
+	elif [ -z "$a" ]; then
+		echo "inline API function $func: added"
+	elif [ -z "$b" ]; then
+		inline_change=true
+		echo "inline API function $func: removed"
+	elif [ "$a" != "$b" ]; then
+		inline_change=true
+		echo "inline API function $func: code changed"
+	fi
+done < $dir/check_api/inline_funcs
+
+api_version_a=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/a/*.h)
+api_version_b=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/b/*.h)
+
 if ! $abidiff --non-reachable-types --drop-private-types --show-bytes \
 	--headers-dir1 $dir/check_api/a --headers-dir2 $dir/check_api/b \
-	$dir/check_api/a.bin $dir/check_api/b.bin >"$dir/abidiff.log" 2>&1
+	$dir/check_api/a.bin $dir/check_api/b.bin >"$dir/abidiff.log" 2>&1 \
+	|| [ "$inline_change" = true ]
 then
 	grep -vE '((Functions|Variables) changes|Unreachable types) summary:' "$dir/abidiff.log"
-	api_version_a=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/a/*.h)
-	api_version_b=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/b/*.h)
-	if grep -q '^  \[[DC]\]' "$dir/abidiff.log"; then
+	if grep -q '^  \[[DC]\]' "$dir/abidiff.log" || [ "$inline_change" = true ]; then
 		echo "breaking API changes"
 		if [ "${api_version_a:-0}" -ge "${api_version_b:-0}" ]; then
 			grep -n '#define GR_API_VERSION' "$@"
@@ -93,11 +126,12 @@ then
 	else
 		echo "backward compatible API changes"
 	fi
-	if [ "$api_version_a" = "$api_version_b" ]; then
-		echo "GR_API_VERSION unchanged"
-	else
-		echo "GR_API_VERSION changed from ${api_version_a:-0} to ${api_version_b:-0}"
-	fi
+fi
+
+if [ "$api_version_a" = "$api_version_b" ]; then
+	echo "GR_API_VERSION unchanged"
+else
+	echo "GR_API_VERSION changed from ${api_version_a:-0} to ${api_version_b:-0}"
 fi
 
 touch "$output"

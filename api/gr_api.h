@@ -156,6 +156,9 @@ const char *gr_api_message_name(uint32_t type);
 		code##_OBJ_SIZE = sizeof(obj)                                                      \
 	}
 #endif
+#ifndef GR_API_INLINE
+#define GR_API_INLINE static inline
+#endif
 
 struct gr_empty { };
 
