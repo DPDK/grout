@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Robin Jarry
 
 echo "// SPDX-License-Identifier: BSD-3-Clause"
-echo "// Copyright (c) $(date +Y) Red Hat"
+echo "// Copyright (c) $(date +%Y) Red Hat"
 echo
 echo "#pragma once"
 echo
