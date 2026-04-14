@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "capture.h"
 #include "graph.h"
 #include "iface.h"
 #include "log.h"
@@ -68,10 +69,12 @@ static uint16_t iface_output_process(
 		d = iface_mbuf_data(m);
 		iface = d->iface;
 
+		capture_enqueue(iface, GR_CAPTURE_DIR_OUT, m);
 		if (iface->type == GR_IFACE_TYPE_VLAN) {
 			const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 			d->vlan_id = vlan->vlan_id;
 			iface = iface_from_id(vlan->parent_id);
+			capture_enqueue(iface, GR_CAPTURE_DIR_OUT, m);
 		}
 
 		if (gr_mbuf_is_traced(m)) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "capture.h"
 #include "graph.h"
 #include "iface.h"
 #include "log.h"
@@ -68,6 +69,7 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		d = iface_mbuf_data(m);
 		vlan_id = d->vlan_id;
 
+		capture_enqueue(d->iface, GR_CAPTURE_DIR_IN, m);
 		if (d->vlan_id != 0 && d->iface->mode == GR_IFACE_MODE_VRF) {
 			if (last_iface_id != d->iface->id || d->vlan_id != last_vlan_id) {
 				vlan_iface = vlan_get_iface(d->iface->id, d->vlan_id);
@@ -78,6 +80,7 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 				edge = UNKNOWN_VLAN;
 				goto next;
 			}
+			capture_enqueue(vlan_iface, GR_CAPTURE_DIR_IN, m);
 			d->iface = vlan_iface;
 			d->vlan_id = 0;
 		}
