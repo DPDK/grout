@@ -1,0 +1,196 @@
+From a4588b1089db8f84d786692fd312f7b2fac665ad Mon Sep 17 00:00:00 2001
+From: Vincent Jardin <vjardin@free.fr>
+Date: Sun, 22 Mar 2026 17:27:06 +0100
+Subject: [PATCH 3/3] plugin: complete accessor API for tcpdump feature parity
+
+The plugin API lacked accessors for several pcap_t options that
+tcpdump (and other consumers) set before pcap_activate():
+promiscuous mode, buffer size, immediate mode, and timestamp
+precision. Without these, a plugin backend could not honor
+user-requested capture settings.
+
+Similarly, plugins had no way to advertise supported timestamp
+precisions or data link types back to libpcap, so
+pcap_list_tstamp_precisions() and pcap_list_datalinks() would
+return empty results for plugin-backed devices. Plugins also
+could not provide a selectable file descriptor for event-driven
+callers.
+
+New getters (plugin reads during activate):
+  pcap_plugin_get_promisc()
+  pcap_plugin_get_buffer_size()
+  pcap_plugin_get_immediate()
+  pcap_plugin_get_tstamp_precision()
+
+New setters (plugin advertises capabilities):
+  pcap_plugin_set_tstamp_precision_list()
+  pcap_plugin_set_datalink_list()
+  pcap_plugin_set_selectable_fd()
+
+Signed-off-by: Vincent Jardin <vjardin@free.fr>
+---
+ pcap-plugin.c      | 65 ++++++++++++++++++++++++++++++++++++++++++++++
+ pcap/pcap-plugin.h | 53 ++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 117 insertions(+), 1 deletion(-)
+
+diff --git a/pcap-plugin.c b/pcap-plugin.c
+index f9af9761beff..a4e2820e6b76 100644
+--- a/pcap-plugin.c
++++ b/pcap-plugin.c
+@@ -425,6 +425,30 @@ pcap_plugin_get_tstamp_type(pcap_t *p)
+ 	return p->opt.tstamp_type;
+ }
+ 
++int
++pcap_plugin_get_tstamp_precision(pcap_t *p)
++{
++	return p->opt.tstamp_precision;
++}
++
++int
++pcap_plugin_get_promisc(pcap_t *p)
++{
++	return p->opt.promisc;
++}
++
++int
++pcap_plugin_get_buffer_size(pcap_t *p)
++{
++	return (int)p->opt.buffer_size;
++}
++
++int
++pcap_plugin_get_immediate(pcap_t *p)
++{
++	return p->opt.immediate;
++}
++
+ int
+ pcap_plugin_set_tstamp_type_list(pcap_t *p, const int *types, int count)
+ {
+@@ -441,6 +465,47 @@ pcap_plugin_set_tstamp_type_list(pcap_t *p, const int *types, int count)
+ 	return 0;
+ }
+ 
++int
++pcap_plugin_set_tstamp_precision_list(pcap_t *p, const int *precisions,
++    int count)
++{
++	u_int *list;
++
++	list = malloc(count * sizeof(u_int));
++	if (list == NULL)
++		return -1;
++	for (int i = 0; i < count; i++)
++		list[i] = (u_int)precisions[i];
++	free(p->tstamp_precision_list);
++	p->tstamp_precision_list = list;
++	p->tstamp_precision_count = count;
++	return 0;
++}
++
++int
++pcap_plugin_set_datalink_list(pcap_t *p, const int *dlts, int count)
++{
++	u_int *list;
++
++	list = malloc(count * sizeof(u_int));
++	if (list == NULL)
++		return -1;
++	for (int i = 0; i < count; i++)
++		list[i] = (u_int)dlts[i];
++	free(p->dlt_list);
++	p->dlt_list = list;
++	p->dlt_count = count;
++	return 0;
++}
++
++void
++pcap_plugin_set_selectable_fd(pcap_t *p, int fd)
++{
++#ifndef _WIN32
++	p->selectable_fd = fd;
++#endif
++}
++
+ pcap_if_t *
+ pcap_plugin_add_dev(pcap_if_list_t *devlistp, const char *name,
+     unsigned int flags, const char *description, char *errbuf)
+diff --git a/pcap/pcap-plugin.h b/pcap/pcap-plugin.h
+index 01168e75ada0..d5c0865705f6 100644
+--- a/pcap/pcap-plugin.h
++++ b/pcap/pcap-plugin.h
+@@ -195,11 +195,37 @@ PCAP_API void pcap_plugin_set_errbuf(pcap_t *p,
+ 
+ /*
+  * Get the timestamp type requested by the user (e.g. PCAP_TSTAMP_ADAPTER).
+- * Returns PCAP_TSTAMP_HOST if none was explicitly set.
++ * Returns -1 (not set) if none was explicitly requested.
+  * Call during activate to decide which clock source to use.
+  */
+ PCAP_API int pcap_plugin_get_tstamp_type(pcap_t *p);
+ 
++/*
++ * Get the timestamp precision requested by the user.
++ * Returns PCAP_TSTAMP_PRECISION_MICRO (default) or
++ * PCAP_TSTAMP_PRECISION_NANO. Call during activate to decide
++ * whether to provide nanosecond timestamps.
++ */
++PCAP_API int pcap_plugin_get_tstamp_precision(pcap_t *p);
++
++/*
++ * Get the promiscuous mode flag (nonzero = user requested promisc).
++ * Call during activate.
++ */
++PCAP_API int pcap_plugin_get_promisc(pcap_t *p);
++
++/*
++ * Get the buffer size requested by the user (0 = platform default).
++ * Call during activate to size ring buffers or mempools.
++ */
++PCAP_API int pcap_plugin_get_buffer_size(pcap_t *p);
++
++/*
++ * Get the immediate mode flag (nonzero = deliver packets ASAP,
++ * don't wait to fill a buffer). Call during activate.
++ */
++PCAP_API int pcap_plugin_get_immediate(pcap_t *p);
++
+ /*
+  * Advertise supported timestamp types to libpcap. Call during create
+  * (before activate) so pcap_list_tstamp_types() works. The types
+@@ -208,6 +234,31 @@ PCAP_API int pcap_plugin_get_tstamp_type(pcap_t *p);
+ PCAP_API int pcap_plugin_set_tstamp_type_list(pcap_t *p,
+     const int *types, int count);
+ 
++/*
++ * Advertise supported timestamp precisions. Call during create
++ * so pcap_list_tstamp_precisions() works. The array is copied.
++ * Returns 0 on success, -1 on allocation failure.
++ */
++PCAP_API int pcap_plugin_set_tstamp_precision_list(pcap_t *p,
++    const int *precisions, int count);
++
++/*
++ * Advertise supported data link types. Call during activate
++ * so pcap_list_datalinks() works. The array is copied.
++ * Returns 0 on success, -1 on allocation failure.
++ */
++PCAP_API int pcap_plugin_set_datalink_list(pcap_t *p,
++    const int *dlts, int count);
++
++/*
++ * Set the selectable file descriptor for poll/select/epoll.
++ * Plugins that can provide a pollable fd (e.g. eventfd, unix socket)
++ * should call this during activate. Set to -1 if not pollable
++ * (then also set a required_select_timeout via
++ * pcap_plugin_set_select_timeout).
++ */
++PCAP_API void pcap_plugin_set_selectable_fd(pcap_t *p, int fd);
++
+ /* ---- Helper functions ---- */
+ 
+ /*
+-- 
+2.53.0
+
