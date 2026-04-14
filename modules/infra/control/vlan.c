@@ -214,6 +214,13 @@ static int iface_vlan_del_eth_addr(struct iface *iface, struct iface_mac *m) {
 	return iface_del_eth_addr(parent, &m->mac);
 }
 
+static int iface_vlan_promisc_set(struct iface *iface, bool enabled) {
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	struct iface *parent = iface_from_id(vlan->parent_id);
+
+	return iface_set_promisc(parent, enabled);
+}
+
 static void vlan_to_api(void *info, const struct iface *iface) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct gr_iface_info_vlan *api = info;
@@ -233,6 +240,7 @@ static const struct iface_type iface_type_vlan = {
 	.set_eth_addr = iface_vlan_set_eth_addr,
 	.add_eth_addr = iface_vlan_add_eth_addr,
 	.del_eth_addr = iface_vlan_del_eth_addr,
+	.set_promisc = iface_vlan_promisc_set,
 	.to_api = vlan_to_api,
 };
 
