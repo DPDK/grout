@@ -1,0 +1,102 @@
+From 0840e4a6d030739fb875fbc42528a7c3e4af29d8 Mon Sep 17 00:00:00 2001
+From: Vincent Jardin <vjardin@free.fr>
+Date: Sun, 22 Mar 2026 17:00:44 +0100
+Subject: [PATCH 2/3] plugin: expose timestamp type accessors for adapter clock
+ support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Telecom-grade dataplanes (radio-based routers)
+need nanosecond-accurate timestamps to measure inter-packet jitter and
+verify hardware pacing. Default host timestamps (software clock at
+packet delivery) give microsecond-level accuracy at best, which is
+insufficient for sub-microsecond scheduling verification on 10G+ links.
+
+Modern NICs (ConnectX-6 Dx, ConnectX-7) stamp each received packet
+with a hardware clock at wire arrival time. The kernel exposes this
+via AF_PACKET's PACKET_TIMESTAMP / SOF_TIMESTAMPING_RAW_HARDWARE,
+and tcpdump accesses it with -j adapter. External capture plugins
+need the same mechanism.
+
+Add two accessors to the plugin API:
+
+  pcap_plugin_get_tstamp_type() — read the type the user requested
+  pcap_plugin_set_tstamp_type_list() — advertise supported types
+
+Plugins call set_tstamp_type_list during create so that
+pcap_list_tstamp_types (tcpdump -J) reports the available clock
+sources. During activate, get_tstamp_type tells the plugin whether
+the user asked for PCAP_TSTAMP_ADAPTER (NIC clock, synced to
+real-time), PCAP_TSTAMP_ADAPTER_UNSYNCED (raw NIC clock), or
+PCAP_TSTAMP_HOST (default software clock). The plugin then configures
+its backend accordingly.
+
+Signed-off-by: Vincent Jardin <vjardin@free.fr>
+---
+ pcap-plugin.c      | 22 ++++++++++++++++++++++
+ pcap/pcap-plugin.h | 15 +++++++++++++++
+ 2 files changed, 37 insertions(+)
+
+diff --git a/pcap-plugin.c b/pcap-plugin.c
+index 379b9c0fba3b..f9af9761beff 100644
+--- a/pcap-plugin.c
++++ b/pcap-plugin.c
+@@ -419,6 +419,28 @@ pcap_plugin_filter(const struct bpf_insn *pc, const unsigned char *pkt,
+ 	return pcapint_filter(pc, pkt, wirelen, caplen);
+ }
+ 
++int
++pcap_plugin_get_tstamp_type(pcap_t *p)
++{
++	return p->opt.tstamp_type;
++}
++
++int
++pcap_plugin_set_tstamp_type_list(pcap_t *p, const int *types, int count)
++{
++	u_int *list;
++
++	list = malloc(count * sizeof(u_int));
++	if (list == NULL)
++		return -1;
++	for (int i = 0; i < count; i++)
++		list[i] = (u_int)types[i];
++	free(p->tstamp_type_list);
++	p->tstamp_type_list = list;
++	p->tstamp_type_count = count;
++	return 0;
++}
++
+ pcap_if_t *
+ pcap_plugin_add_dev(pcap_if_list_t *devlistp, const char *name,
+     unsigned int flags, const char *description, char *errbuf)
+diff --git a/pcap/pcap-plugin.h b/pcap/pcap-plugin.h
+index 5d5bad6472bc..01168e75ada0 100644
+--- a/pcap/pcap-plugin.h
++++ b/pcap/pcap-plugin.h
+@@ -193,6 +193,21 @@ PCAP_API struct bpf_insn *pcap_plugin_get_filter(pcap_t *p);
+ PCAP_API void pcap_plugin_set_errbuf(pcap_t *p,
+     PCAP_FORMAT_STRING(const char *fmt), ...) PCAP_PRINTFLIKE(2, 3);
+ 
++/*
++ * Get the timestamp type requested by the user (e.g. PCAP_TSTAMP_ADAPTER).
++ * Returns PCAP_TSTAMP_HOST if none was explicitly set.
++ * Call during activate to decide which clock source to use.
++ */
++PCAP_API int pcap_plugin_get_tstamp_type(pcap_t *p);
++
++/*
++ * Advertise supported timestamp types to libpcap. Call during create
++ * (before activate) so pcap_list_tstamp_types() works. The types
++ * array is copied. Returns 0 on success, -1 on allocation failure.
++ */
++PCAP_API int pcap_plugin_set_tstamp_type_list(pcap_t *p,
++    const int *types, int count);
++
+ /* ---- Helper functions ---- */
+ 
+ /*
+-- 
+2.53.0
+
