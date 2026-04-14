@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "bond.h"
+#include "capture.h"
 #include "config.h"
 #include "graph.h"
 #include "log.h"
@@ -401,6 +402,7 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 			else
 				d->iface = iface;
 		}
+		capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
 	}
 
 	trace_log(RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
@@ -449,6 +451,7 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 			d->iface = iface;
 			d->vlan_id = 0;
 		}
+		capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
 	}
 
 	trace_log(RXTX_F_BOND, ctx->iface, node, mbufs, rx);

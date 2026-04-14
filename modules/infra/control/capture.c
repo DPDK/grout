@@ -334,6 +334,11 @@ struct capture_session *capture_session_start(
 		s->ring->n_ifaces = n;
 	}
 
+	// Cache the slot array and count now that n_ifaces is final. The
+	// datapath uses these instead of the client-writable ring header.
+	s->slot_count = slot_count;
+	s->slots = gr_capture_ring_slots(s->ring);
+
 	if (filter != NULL && filter->n_instructions > 0) {
 		if (install_bpf_filter(s, filter) < 0)
 			goto err_unmap;
@@ -443,6 +448,8 @@ static void capture_client_disconnect(const struct api_ctx *ctx) {
 	}
 }
 
+uint64_t capture_dynflag;
+
 static void capture_init(struct event_base *) {
 	iface_capture = rte_calloc(
 		"iface_capture",
@@ -452,6 +459,12 @@ static void capture_init(struct event_base *) {
 	);
 	if (iface_capture == NULL)
 		ABORT("failed to allocate memory");
+
+	const struct rte_mbuf_dynflag flag = {.name = "gr_captured"};
+	int bit = rte_mbuf_dynflag_register(&flag);
+	if (bit < 0)
+		ABORT("rte_mbuf_dynflag_register(gr_captured): %s", rte_strerror(rte_errno));
+	capture_dynflag = UINT64_C(1) << bit;
 }
 
 static void capture_fini(struct event_base *) {

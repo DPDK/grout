@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
+#include "capture.h"
 #include "config.h"
 #include "control_queue.h"
 #include "eth.h"
@@ -56,6 +57,8 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 
 	if (d->iface->cp_fd == 0)
 		goto end;
+
+	capture_enqueue(d->iface, GR_CAPTURE_DIR_OUT, m);
 
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
@@ -225,6 +228,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	iface_mbuf_data(mbuf)->iface = iface;
 	iface_mbuf_data(mbuf)->vlan_id = 0;
+
+	capture_enqueue(iface, GR_CAPTURE_DIR_IN, mbuf);
 
 	if (iface_output_send(mbuf) < 0) {
 		LOG(ERR, "iface_output_send: %s", strerror(errno));
