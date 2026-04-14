@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "capture.h"
 #include "graph.h"
 #include "iface.h"
 #include "log.h"
@@ -88,6 +89,7 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 
 		IFACE_STATS_INC(rx, m, d->iface);
+		capture_enqueue(d->iface, GR_CAPTURE_DIR_IN, m);
 
 		edge = edges[d->iface->mode];
 next:

@@ -381,6 +381,16 @@ void capture_session_stop(uint16_t capture_id) {
 	    bpf_filtered);
 }
 
+uint64_t capture_dynflag;
+
+static void capture_init(struct event_base *) {
+	const struct rte_mbuf_dynflag flag = {.name = "gr_captured"};
+	int bit = rte_mbuf_dynflag_register(&flag);
+	if (bit < 0)
+		ABORT("rte_mbuf_dynflag_register(gr_captured): %s", rte_strerror(rte_errno));
+	capture_dynflag = UINT64_C(1) << bit;
+}
+
 static void capture_fini(struct event_base *) {
 	struct capture_session *s;
 	while ((s = STAILQ_FIRST(&active_captures)) != NULL)
@@ -390,6 +400,7 @@ static void capture_fini(struct event_base *) {
 static struct module module = {
 	.name = "capture",
 	.depends_on = "iface*,trace",
+	.init = capture_init,
 	.fini = capture_fini,
 };
 
