@@ -653,37 +653,11 @@ static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
 	return 0;
 }
 
-static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
+static int port_mac_add(struct iface *iface, struct iface_mac *m) {
 	struct iface_info_port *port = iface_info_port(iface);
-	struct port_mac *m;
 	int ret;
 
-	for (unsigned i = 0; i < port->filter.count; i++) {
-		m = &port->filter.macs[i];
-		if (rte_is_same_ether_addr(&m->mac, mac)) {
-			if (m->refcnt == UINT_NUM_VALUES(m->refcnt) - 1)
-				return errno_set(EOVERFLOW);
-
-			LOG(DEBUG,
-			    "%s: mac " ETH_F " already filtered (refs=%u)",
-			    iface->name,
-			    mac,
-			    m->refcnt);
-			m->refcnt++;
-			return 0;
-		}
-	}
-	if (port->filter.count >= ARRAY_DIM(port->filter.macs))
-		return errno_set(ENOSPC);
-
-	m = &port->filter.macs[port->filter.count++];
-	m->refcnt = 1;
-	m->hardware = false;
-	m->mac = *mac;
-
-	LOG(INFO, "%s: enabling " ETH_F " mac filter", iface->name, mac);
-
-	ret = rte_eth_dev_mac_addr_add(port->port_id, (struct rte_ether_addr *)mac, 0);
+	ret = rte_eth_dev_mac_addr_add(port->port_id, &m->mac, 0);
 	if (ret == 0) {
 		m->hardware = true;
 	} else if (ret == -ENOSPC || ret == -EOPNOTSUPP) {
@@ -704,70 +678,35 @@ static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 		}
 	}
 
-	if (ret < 0) {
-		port->filter.count--;
+	if (ret < 0)
 		return errno_set(-ret);
-	}
 
 	return 0;
 }
 
-static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
+static int port_mac_del(struct iface *iface, struct iface_mac *m) {
 	struct iface_info_port *port = iface_info_port(iface);
-	struct port_mac *m;
-	uint8_t i;
 	int ret;
 
-	for (i = 0; i < port->filter.count; i++) {
-		m = &port->filter.macs[i];
-		if (rte_is_same_ether_addr(&m->mac, mac))
-			goto found;
-	}
-	return errno_set(ENOENT);
-
-found:
-	if (m->refcnt == 0)
-		return errno_set(EOVERFLOW);
-
-	if (--m->refcnt > 0) {
-		LOG(DEBUG,
-		    "%s: mac " ETH_F " still filtered (refs=%u)",
-		    iface->name,
-		    mac,
-		    m->refcnt);
-		return 0;
-	}
-
-	LOG(INFO, "%s: removing " ETH_F " mac filter", iface->name, mac);
-
 	if (m->hardware) {
-		ret = rte_eth_dev_mac_addr_remove(port->port_id, (struct rte_ether_addr *)mac);
+		ret = rte_eth_dev_mac_addr_remove(port->port_id, &m->mac);
 		if (ret < 0 && ret != -ENOTSUP)
 			LOG(WARNING, "%s: %s", iface->name, rte_strerror(-ret));
 	}
 
-	if (port->filter.count > 1 && i < port->filter.count - 1) {
-		memmove(&port->filter.macs[i],
-			&port->filter.macs[i + 1],
-			(port->filter.count - 1 - i) * sizeof(port->filter.macs[0]));
-	}
-	port->filter.count--;
-
 	if (iface->state & GR_IFACE_S_PROMISC_FIXED) {
 		bool disable_promisc = true;
 
-		LOG(INFO, "i=%d, port->filter.count=%d", i, port->filter.count);
-		for (; i < port->filter.count; i++) {
-			m = &port->filter.macs[i];
-			if (m->hardware)
+		vec_foreach_ref (struct iface_mac *m2, iface->macs) {
+			if (m == m2 || m2->hardware)
 				continue;
-			ret = rte_eth_dev_mac_addr_add(port->port_id, &m->mac, 0);
+			ret = rte_eth_dev_mac_addr_add(port->port_id, &m2->mac, 0);
 			if (ret < 0) {
 				LOG(INFO, "%s: %s", iface->name, rte_strerror(-ret));
 				disable_promisc = false;
 				break;
 			}
-			m->hardware = true;
+			m2->hardware = true;
 		}
 
 		if (disable_promisc) {

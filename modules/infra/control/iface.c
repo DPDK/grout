@@ -524,6 +524,8 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 
 int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
+	struct iface_mac new_m;
+	int ret;
 
 	if (iface == NULL || mac == NULL)
 		return errno_set(EINVAL);
@@ -539,7 +541,27 @@ int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	if (type->add_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
-	return type->add_eth_addr(iface, mac);
+	vec_foreach_ref (struct iface_mac *m, iface->macs) {
+		if (!rte_is_same_ether_addr(mac, &m->mac))
+			continue;
+
+		if (m->refcnt == UINT_NUM_VALUES(m->refcnt) - 1)
+			return errno_set(EOVERFLOW);
+
+		LOG(DEBUG,
+		    "%s: mac " ETH_F " already filtered (refs=%u)",
+		    iface->name,
+		    mac,
+		    m->refcnt);
+		m->refcnt++;
+		return 0;
+	}
+
+	new_m = (struct iface_mac) {.refcnt = 1, .mac = *mac, .hardware = false};
+	ret = type->add_eth_addr(iface, &new_m);
+	if (ret == 0)
+		vec_add(iface->macs, new_m);
+	return ret;
 }
 
 int iface_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
@@ -559,7 +581,32 @@ int iface_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	if (type->del_eth_addr == NULL)
 		return errno_set(EOPNOTSUPP);
 
-	return type->del_eth_addr(iface, mac);
+	vec_foreach_ref (struct iface_mac *m, iface->macs) {
+		int ret;
+
+		if (!rte_is_same_ether_addr(mac, &m->mac))
+			continue;
+
+		if (m->refcnt == 0)
+			return errno_set(EOVERFLOW);
+
+		if (m->refcnt > 1) {
+			m->refcnt--;
+			LOG(DEBUG,
+			    "%s: mac " ETH_F " still filtered (refs=%u)",
+			    iface->name,
+			    mac,
+			    m->refcnt);
+			ret = 0;
+		} else {
+			ret = type->del_eth_addr(iface, m);
+			vec_del(iface->macs, m - iface->macs);
+		}
+
+		return ret;
+	}
+
+	return errno_set(ENOENT);
 }
 
 int iface_set_mtu(struct iface *iface, uint16_t mtu) {
@@ -677,6 +724,7 @@ int iface_destroy(struct iface *iface) {
 	free(iface->name);
 	free(iface->description);
 	vec_free(iface->subinterfaces);
+	vec_free(iface->macs);
 	rte_free(iface);
 
 	return ret;
