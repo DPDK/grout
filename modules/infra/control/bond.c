@@ -40,32 +40,16 @@ bond_all_member_del_mac(const struct iface_info_bond *bond, const struct rte_eth
 	return 0;
 }
 
-static int bond_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
+static int bond_mac_add(struct iface *iface, struct iface_mac *m) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
-	int ret;
 
-	// Add MAC address to all member ports
-	if ((ret = bond_all_member_add_mac(bond, mac)) < 0)
-		return ret;
-
-	vec_add(bond->extra_macs, *mac);
-
-	return 0;
+	return bond_all_member_add_mac(bond, &m->mac);
 }
 
-static int bond_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
+static int bond_mac_del(struct iface *iface, struct iface_mac *m) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
 
-	// Remove MAC address from all member ports
-	bond_all_member_del_mac(bond, mac);
-
-	for (unsigned i = 0; i < vec_len(bond->extra_macs); i++) {
-		if (rte_is_same_ether_addr(&bond->extra_macs[i], mac)) {
-			vec_del(bond->extra_macs, i);
-			break;
-		}
-	}
-
+	bond_all_member_del_mac(bond, &m->mac);
 	return 0;
 }
 
@@ -173,8 +157,8 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 	if (bond->n_members == ARRAY_DIM(bond->members))
 		return errno_set(EUSERS);
 
-	vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
-		if (iface_add_eth_addr(member, mac) < 0)
+	vec_foreach_ref (struct iface_mac *m, iface->macs) {
+		if (iface_add_eth_addr(member, &m->mac) < 0)
 			return errno_log(errno, "iface_add_eth_addr(member)");
 	}
 
@@ -223,8 +207,8 @@ static int bond_detach_member(struct iface *iface, struct iface *member) {
 			bond->n_members--;
 			if (bond->primary_member >= bond->n_members)
 				bond->primary_member--;
-			vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
-				if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT) {
+			vec_foreach_ref (struct iface_mac *m, iface->macs) {
+				if (iface_del_eth_addr(member, &m->mac) < 0 && errno != ENOENT) {
 					LOG(WARNING,
 					    "failed to unconfigure mac address on member %s: %s",
 					    member->name,
@@ -411,8 +395,6 @@ static int bond_fini(struct iface *iface) {
 			vrf_incref(member->vrf_id);
 		event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
-
-	vec_free(bond->extra_macs);
 
 	return 0;
 }
