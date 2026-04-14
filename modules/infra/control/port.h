@@ -14,12 +14,6 @@
 
 #include <stdint.h>
 
-struct port_mac {
-	uint8_t refcnt;
-	bool hardware;
-	struct rte_ether_addr mac;
-};
-
 GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	BASE(__gr_iface_info_port_base);
 
@@ -33,10 +27,6 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	bool virtio_offloads;
 	uint64_t rx_offloads;
 	rte_spinlock_t txq_locks[RTE_MAX_QUEUES_PER_PORT];
-	struct {
-		unsigned count;
-		struct port_mac macs[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
-	} filter;
 });
 
 const struct iface *port_get_iface(uint16_t port_id);
