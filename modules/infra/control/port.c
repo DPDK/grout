@@ -669,6 +669,9 @@ int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	for (unsigned i = 0; i < port->filter.count; i++) {
 		m = &port->filter.macs[i];
 		if (rte_is_same_ether_addr(&m->mac, mac)) {
+			if (m->refcnt == UINT_NUM_VALUES(m->refcnt) - 1)
+				return errno_set(EOVERFLOW);
+
 			LOG(DEBUG,
 			    "%s: mac " ETH_F " already filtered (refs=%u)",
 			    iface->name,
@@ -749,6 +752,9 @@ int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	return errno_set(ENOENT);
 
 found:
+	if (m->refcnt == 0)
+		return errno_set(EOVERFLOW);
+
 	if (--m->refcnt > 0) {
 		LOG(DEBUG,
 		    "%s: mac " ETH_F " still filtered (refs=%u)",
