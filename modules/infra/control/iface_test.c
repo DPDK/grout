@@ -4,6 +4,7 @@
 #include "_cmocka.h"
 #include "config.h"
 #include "event.h"
+#include "iface.h"
 #include "log.h"
 #include "mempool.h"
 #include "module.h"
@@ -18,9 +19,7 @@ int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct gr_config gr_config;
 struct workers workers;
-void __api_handler(uint32_t, api_handler_func, const char *, size_t) { }
 void module_register(struct module *) { }
-void iface_type_register(const struct iface_type *) { }
 void event_push(uint32_t, const void *) { }
 void event_subscribe(uint32_t, event_sub_cb_t) { }
 int netlink_link_set_name(uint32_t, const char *) {
@@ -35,17 +34,14 @@ struct rte_rcu_qsbr *gr_datapath_rcu(void) {
 	static struct rte_rcu_qsbr rcu;
 	return &rcu;
 }
-uint16_t vrf_default_get_or_create(void) {
-	return 0;
-}
 int vrf_incref(uint16_t) {
 	return 0;
 }
-int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *) {
-	return 0;
+void vrf_decref(uint16_t) { }
+bool vrf_has_interfaces(uint16_t) {
+	return false;
 }
-mock_func(struct iface *, iface_from_id(uint16_t));
-mock_func(struct iface *, iface_next(gr_iface_type_t, const struct iface *));
+void control_queue_drain(uint32_t, const void *) { }
 mock_func(int, port_unplug(struct iface_info_port *));
 mock_func(int, port_plug(struct iface_info_port *));
 mock_func(unsigned, worker_count(void));
@@ -93,15 +89,15 @@ static const struct rte_ether_addr ucast1 = {{0x2c, 0x4c, 0x15, 0x07, 0x99, 0x22
 static const struct rte_ether_addr ucast2 = {{0x30, 0x3e, 0xa7, 0x0b, 0xea, 0x78}};
 static const struct rte_ether_addr ucast3 = {{0xe6, 0x2c, 0xd9, 0xa5, 0xe7, 0x6e}};
 
-static void mac_add_unicast(void **) {
+static void port_mac_add_unicast(void **) {
 	const struct iface_info_port *port = iface_info_port(iface);
 
-	assert_int_equal(port_mac_add(iface, NULL), -EINVAL);
-	assert_return_code(port_mac_add(iface, &default_mac), errno);
+	assert_int_equal(iface_add_eth_addr(iface, NULL), -EINVAL);
+	assert_return_code(iface_add_eth_addr(iface, &default_mac), errno);
 	assert_int_equal(port->filter.count, 0);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
-	assert_return_code(port_mac_add(iface, &ucast1), errno);
+	assert_return_code(iface_add_eth_addr(iface, &ucast1), errno);
 	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 1);
 	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
@@ -109,14 +105,14 @@ static void mac_add_unicast(void **) {
 	assert_true(port->filter.macs[0].hardware);
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
-	assert_return_code(port_mac_add(iface, &ucast2), errno);
+	assert_return_code(iface_add_eth_addr(iface, &ucast2), errno);
 	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 2);
 	assert_memory_equal(&port->filter.macs[1].mac, &ucast2, sizeof(ucast2));
 	assert_int_equal(port->filter.macs[1].refcnt, 1);
 	assert_true(port->filter.macs[1].hardware);
 
-	assert_return_code(port_mac_add(iface, &ucast1), errno);
+	assert_return_code(iface_add_eth_addr(iface, &ucast1), errno);
 	assert_int_equal(port->filter.count, 2);
 	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
 	assert_int_equal(port->filter.macs[0].refcnt, 2);
@@ -124,7 +120,7 @@ static void mac_add_unicast(void **) {
 
 	will_return(__wrap_rte_eth_dev_mac_addr_add, -ENOSPC);
 	will_return(__wrap_rte_eth_promiscuous_enable, 0);
-	assert_return_code(port_mac_add(iface, &ucast3), errno);
+	assert_return_code(iface_add_eth_addr(iface, &ucast3), errno);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 3);
 	assert_memory_equal(&port->filter.macs[2].mac, &ucast3, sizeof(ucast3));
@@ -132,13 +128,13 @@ static void mac_add_unicast(void **) {
 	assert_false(port->filter.macs[2].hardware);
 }
 
-static void mac_del_unicast(void **) {
+static void port_mac_del_unicast(void **) {
 	const struct iface_info_port *port = iface_info_port(iface);
 
-	assert_return_code(port_promisc_set(iface, false), errno);
+	assert_return_code(iface_set_promisc(iface, false), errno);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
 
-	assert_return_code(port_mac_del(iface, &ucast1), errno);
+	assert_return_code(iface_del_eth_addr(iface, &ucast1), errno);
 	assert_true(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_memory_equal(&port->filter.macs[0].mac, &ucast1, sizeof(ucast1));
 	assert_int_equal(port->filter.macs[0].refcnt, 1);
@@ -147,7 +143,7 @@ static void mac_del_unicast(void **) {
 	will_return(__wrap_rte_eth_dev_mac_addr_remove, 0);
 	will_return(__wrap_rte_eth_dev_mac_addr_add, 0);
 	will_return(__wrap_rte_eth_promiscuous_disable, 0);
-	assert_return_code(port_mac_del(iface, &ucast1), errno);
+	assert_return_code(iface_del_eth_addr(iface, &ucast1), errno);
 	assert_false(iface->state & GR_IFACE_S_PROMISC_FIXED);
 	assert_int_equal(port->filter.count, 2);
 	assert_memory_equal(&port->filter.macs[0].mac, &ucast2, sizeof(ucast2));
@@ -160,8 +156,8 @@ static void mac_del_unicast(void **) {
 
 int main(void) {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(mac_add_unicast),
-		cmocka_unit_test(mac_del_unicast),
+		cmocka_unit_test(port_mac_add_unicast),
+		cmocka_unit_test(port_mac_del_unicast),
 	};
 	return cmocka_run_group_tests(tests, setup, teardown);
 }

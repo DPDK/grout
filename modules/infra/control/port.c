@@ -219,7 +219,7 @@ static int port_mac_set(struct iface *iface, const struct rte_ether_addr *mac) {
 	return 0;
 }
 
-int port_promisc_set(struct iface *iface, bool enabled) {
+static int port_promisc_set(struct iface *iface, bool enabled) {
 	struct iface_info_port *p = iface_info_port(iface);
 	int ret;
 
@@ -653,7 +653,7 @@ static int port_mac_get(const struct iface *iface, struct rte_ether_addr *mac) {
 	return 0;
 }
 
-int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
+static int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
 	struct port_mac *m;
 	int ret;
@@ -720,7 +720,7 @@ int port_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	return 0;
 }
 
-int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
+static int port_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_port *port = iface_info_port(iface);
 	struct port_mac *m;
 	uint8_t i;

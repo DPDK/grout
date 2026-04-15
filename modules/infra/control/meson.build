@@ -48,7 +48,7 @@ tests += [
     ],
   },
   {
-    'sources': files('port_test.c', 'port.c'),
+    'sources': files('iface_test.c', 'iface.c', 'port.c'),
     'link_args': [
       '-Wl,--wrap=rte_eth_allmulticast_enable',
       '-Wl,--wrap=rte_eth_dev_mac_addr_add',
