@@ -40,7 +40,3 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 });
 
 const struct iface *port_get_iface(uint16_t port_id);
-
-int port_mac_add(struct iface *, const struct rte_ether_addr *);
-int port_mac_del(struct iface *, const struct rte_ether_addr *);
-int port_promisc_set(struct iface *, bool enabled);
