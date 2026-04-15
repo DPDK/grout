@@ -185,6 +185,7 @@ static void route_event_print(uint32_t event, const void *obj) {
 }
 
 static struct cli_event_printer printer = {
+	.name = "route6",
 	.print = route_event_print,
 	.ev_count = 2,
 	.ev_types = {

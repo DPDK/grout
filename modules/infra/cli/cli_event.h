@@ -8,6 +8,7 @@
 
 struct cli_event_printer {
 	STAILQ_ENTRY(cli_event_printer) next;
+	const char *name;
 	void (*print)(uint32_t ev_type, const void *event);
 	unsigned ev_count;
 	uint32_t ev_types[];
