@@ -334,19 +334,43 @@ fi
 
 case "${follow_events:-true}" in
 	hide)
-		grcli events >/dev/null &
+		grcli events > $tmp/events.log &
 		;;
 	false)
+		touch $tmp/events.log
 		;;
 	*)
 		if [ -t 1 ]; then
 			# print events in yellow
-			grcli events | awk '{print "\033[33m" $0 "\033[0m"}' &
+			grcli events | tee $tmp/events.log | awk '{print "\033[33m" $0 "\033[0m"}' &
 		else
-			grcli events &
+			grcli events | tee $tmp/events.log &
 		fi
 		;;
 esac
+
+__event_mark=0
+mark_events() {
+	__event_mark=$(wc -l < $tmp/events.log)
+}
+
+wait_event() {
+	local count=1
+	local timeout=5
+	local OPTIND=1
+	while getopts "c:t:" opt; do
+		case $opt in
+		c) count="$OPTARG" ;;
+		t) timeout="$OPTARG" ;;
+		*) echo "error: invalid arguments" >&2; return 1 ;;
+		esac
+	done
+	shift $((OPTIND - 1))
+	local pattern="$1"
+	{ tail -f -n +$((__event_mark + 1)) $tmp/events.log || : ; } | \
+		timeout $timeout grep -m "$count" -E "$pattern" >/dev/null || \
+		fail "timeout after ${timeout}s waiting for event: '$pattern'"
+}
 
 if [ "${INTERACTIVE:-false}" = true ]; then
 	tmux_new_window grcli grcli
