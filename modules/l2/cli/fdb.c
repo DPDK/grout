@@ -320,6 +320,7 @@ static void fdb_event_print(uint32_t event, const void *obj) {
 }
 
 static struct cli_event_printer printer = {
+	.name = "fdb",
 	.print = fdb_event_print,
 	.ev_count = 3,
 	.ev_types = {

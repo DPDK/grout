@@ -176,7 +176,7 @@ static void route_event_print(uint32_t event, const void *obj) {
 
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), NULL, &r->nh, true);
-	printf("route %s: vrf=%u " IP4_NET_F " origin=%s via %s\n",
+	printf("route4 %s: vrf=%u " IP4_NET_F " origin=%s via %s\n",
 	       action,
 	       r->vrf_id,
 	       &r->dest,
@@ -185,6 +185,7 @@ static void route_event_print(uint32_t event, const void *obj) {
 }
 
 static struct cli_event_printer printer = {
+	.name = "route4",
 	.print = route_event_print,
 	.ev_count = 2,
 	.ev_types = {
