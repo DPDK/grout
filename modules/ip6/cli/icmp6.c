@@ -16,7 +16,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-static bool stop;
+static volatile sig_atomic_t stop;
 
 static void sighandler(int) {
 	stop = true;
@@ -46,8 +46,10 @@ static cmd_status_t icmp_send(
 		req->ttl = mode_traceroute ? i : 64;
 
 		ret = gr_api_client_send_recv(c, GR_IP6_ICMP6_SEND, sizeof(*req), req, NULL);
-		if (ret < 0)
-			return CMD_ERROR;
+		if (ret < 0) {
+			errors++;
+			break;
+		}
 
 		reply_req.ident = ident;
 		reply_req.seq_num = i;
@@ -61,8 +63,10 @@ static cmd_status_t icmp_send(
 				break;
 		} while (ret == -ENOENT && --timeout > 0);
 
-		if (ret < 0 && ret != -ENOENT)
-			return CMD_ERROR;
+		if (ret < 0 && ret != -ENOENT) {
+			errors++;
+			break;
+		}
 
 		reply_resp = resp_ptr;
 		if (reply_resp == NULL || timeout == 0) {
@@ -159,13 +163,12 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	sighandler_t prev_handler = signal(SIGINT, sighandler);
-	if (prev_handler == SIG_ERR)
-		return CMD_ERROR;
+	struct sigaction sa = {.sa_handler = sighandler}, old;
+	sigaction(SIGINT, &sa, &old);
 
 	ret = icmp_send(c, &req, msdelay, count, ident, false);
 
-	signal(SIGINT, prev_handler);
+	sigaction(SIGINT, &old, NULL);
 
 	return ret;
 }
@@ -184,13 +187,12 @@ static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p
 	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
-	sighandler_t prev_handler = signal(SIGINT, sighandler);
-	if (prev_handler == SIG_ERR)
-		return CMD_ERROR;
+	struct sigaction sa = {.sa_handler = sighandler}, old;
+	sigaction(SIGINT, &sa, &old);
 
 	ret = icmp_send(c, &req, 0, 255, ident, true);
 
-	signal(SIGINT, prev_handler);
+	sigaction(SIGINT, &old, NULL);
 
 	return ret;
 }
