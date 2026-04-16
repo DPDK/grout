@@ -82,9 +82,11 @@ There is a great reference for commit messages in the
 
 IMPORTANT: you must sign-off your work using `git commit --signoff`. Follow the
 [Linux kernel developer's certificate of origin][linux-signoff] for more
-details. All contributions are made under the
-[BSD-3-Clause][https://spdx.org/licenses/BSD-3-Clause.html] license. Please use
-your real name and not a pseudonym. Here is an example:
+details. All contributions are made under the [BSD-3-Clause][BSD-3-Clause]
+license, except for contributions made to the [FRR plugin](/frr) which is
+[GPL-2.0-or-later][GPL-2.0-or-later] licensed.
+
+Please use your real name and not a pseudonym. Here is an example:
 
     Signed-off-by: Robin Jarry <rjarry@redhat.com>
 
@@ -383,3 +385,5 @@ is available in the repository.
 [linux-coding-style]: https://www.kernel.org/doc/html/v5.19-rc8/process/coding-style.html
 [linux-review]: https://www.kernel.org/doc/html/latest/process/submitting-patches.html#using-reported-by-tested-by-reviewed-by-suggested-by-and-fixes
 [linux-signoff]: https://www.kernel.org/doc/html/latest/process/submitting-patches.html#sign-your-work-the-developer-s-certificate-of-origin
+[BSD-3-Clause]: https://spdx.org/licenses/BSD-3-Clause
+[GPL-2.0-or-later]: https://spdx.org/licenses/GPL-2.0-or-later
