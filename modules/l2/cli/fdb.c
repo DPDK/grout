@@ -308,10 +308,13 @@ static void fdb_event_print(uint32_t event, const void *obj) {
 		break;
 	}
 
-	printf("fdb %s: bridge=%u " ETH_F, action, fdb->bridge_id, &fdb->mac);
+	printf("fdb %s: bridge=%s " ETH_F,
+	       action,
+	       iface_name_from_id(NULL, fdb->bridge_id),
+	       &fdb->mac);
 	if (fdb->vlan_id != 0)
 		printf(" vlan=%u", fdb->vlan_id);
-	printf(" iface=%u", fdb->iface_id);
+	printf(" iface=%s", iface_name_from_id(NULL, fdb->iface_id));
 	if (fdb->vtep != 0)
 		printf(" vtep=" IP4_F, &fdb->vtep);
 	if (fdb_format_flags(flags, sizeof(flags), fdb->flags))

@@ -180,8 +180,8 @@ const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
 		return "[???]";
 
 	if (name_cache[ifid][0] == '\0') {
-		struct gr_iface *iface = iface_from_id(c, ifid);
-		if (iface != NULL) {
+		struct gr_iface *iface = NULL;
+		if (c != NULL && (iface = iface_from_id(c, ifid)) != NULL) {
 			snprintf(name_cache[ifid], sizeof(name_cache[ifid]), "%s", iface->name);
 		} else {
 			// interface was deleted or outdated interface id
@@ -594,6 +594,9 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	const struct gr_iface *iface = obj;
 	const char *action;
 
+	if (iface->id < ARRAY_DIM(name_cache))
+		gr_strcpy(name_cache[iface->id], sizeof(name_cache[iface->id]), iface->name);
+
 	switch (event) {
 	case GR_EVENT_IFACE_ADD:
 		action = "add";
@@ -606,6 +609,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 		break;
 	case GR_EVENT_IFACE_REMOVE:
 		action = "del";
+		name_cache[iface->id][0] = '\0';
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		action = "up";

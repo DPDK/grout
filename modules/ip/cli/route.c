@@ -176,9 +176,9 @@ static void route_event_print(uint32_t event, const void *obj) {
 
 	buf[0] = '\0';
 	cli_nexthop_format(buf, sizeof(buf), NULL, &r->nh, true);
-	printf("route4 %s: vrf=%u " IP4_NET_F " origin=%s via %s\n",
+	printf("route4 %s: vrf=%s " IP4_NET_F " origin=%s via %s\n",
 	       action,
-	       r->vrf_id,
+	       iface_name_from_id(NULL, r->vrf_id),
 	       &r->dest,
 	       gr_nh_origin_name(r->origin),
 	       buf);
