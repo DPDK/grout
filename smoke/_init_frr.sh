@@ -41,16 +41,18 @@ create_interface() {
 set_ip_address() {
 	local p="$1"
 	local ip_cidr="$2"
-	local max_tries=5
-	local count=0
 
 	if echo "$ip_cidr" | grep -q ':'; then
 		# IPv6
 		local frr_ip="ipv6"
+		local addr="addr6"
 	else
 		# IPv4
 		local frr_ip="ip"
+		local addr="addr4"
 	fi
+
+	mark_events
 
 	vtysh <<-EOF
 	configure terminal
@@ -59,15 +61,7 @@ set_ip_address() {
 	exit
 EOF
 
-	while ! grcli -j address show iface ${p} | jq -e --arg a "$ip_cidr" \
-			'.[] | select(.address == $a)'; do
-		if [ "$count" -ge "$max_tries" ]; then
-			echo "IP address $ip_cidr not set after $max_tries attempts."
-			exit 1
-		fi
-		sleep 0.2
-		count=$((count + 1))
-	done
+	wait_event "$addr add: iface=$p $ip_cidr"
 }
 
 set_ip_route() {
@@ -86,10 +80,14 @@ set_ip_route() {
 	if echo "$prefix" | grep -q ':'; then
 		# IPv6
 		local frr_ip="ipv6"
+		local route="route6"
 	else
 		# IPv4
 		local frr_ip="ip"
+		local route="route4"
 	fi
+
+	mark_events
 
 	vtysh <<-EOF
 	configure terminal
@@ -99,19 +97,10 @@ EOF
 
 	# strip optional nexthop interface
 	local nh=${next_hop% *}
-
 	local gr_vrf_name="${vrf_name}"
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-	while ! grcli -j route show vrf ${gr_vrf_name} | jq -e --arg d "$prefix" --arg nh "$nh" \
-			'.[] | select(.destination == $d and (.next_hop | contains($nh)))'; do
-		if [ "$count" -ge "$max_tries" ]; then
-			echo "Route ${prefix} via ${next_hop} not found after ${max_tries} attempts."
-			exit 1
-		fi
-		sleep 0.2
-		count=$((count + 1))
-	done
+	wait_event "$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh"
 }
 
 # set_srv6_localsid <locator> <sid-prefix> <sid-local> [behavior]
@@ -143,6 +132,8 @@ set_srv6_localsid() {
 		uN) vrf_clause="" ;;
 	esac
 
+	mark_events
+
 	vtysh <<-EOF
 	configure terminal
 	 segment-routing
@@ -159,15 +150,7 @@ set_srv6_localsid() {
 EOF
 
 	# --- wait until grout has the localsid ---------------------------------
-	while ! grcli -j route show | jq -e --arg d "${sid_local}/48" --arg b "behavior=${grout_behavior}" \
-			'.[] | select(.destination == $d and (.next_hop | contains("type=SRv6-local") and contains($b)))'; do
-		if [ "$count" -ge "$max_tries" ]; then
-			echo "SRv6 localsid ${sid_local} (${grout_behavior}) not found after ${max_tries} attempts."
-			exit 1
-		fi
-		sleep 0.2
-		count=$((count + 1))
-	done
+	wait_event "route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior"
 }
 
 # set_srv6_route <prefix> <next-hop|iface> <sid1> [sid2 sid3 …]
@@ -193,16 +176,20 @@ set_srv6_route() {
     [[ ${#sids[@]} -eq 0 ]] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
 
     # ----- choose FRR keyword ---------------------------------------------
-    local frr_ip gr_ip
+    local frr_ip route
     if [[ "$prefix" == *:* ]]; then
 	    frr_ip="ipv6"
+	    route="route6"
     else
 	    frr_ip="ip"
+	    route="route4"
     fi
 
     # ----- build CLI & Grout forms ----------------------------------------
     local seg_frr   ; IFS=/ ; seg_frr="${sids[*]}"       # SID/SID/…
     local seg_space ; IFS=' ' ; seg_space="${sids[*]}"   # SID SID …
+
+    mark_events
 
     # ----- push route into FRR --------------------------------------------
     vtysh <<-EOF
@@ -212,14 +199,7 @@ set_srv6_route() {
 EOF
 
     # ----- wait until Grout shows it --------------------------------------
-    while ! grcli -j route show | jq -e --arg d "$prefix" --arg sid "${sids[0]}" \
-		'.[] | select(.destination == $d and (.next_hop | contains("type=SRv6") and contains($sid)))'; do
-	    if (( count++ >= max_tries )); then
-		    echo "SRv6 route ${prefix} via ${seg_space} not visible in Grout after ${max_tries}s." >&2
-		    exit 1
-	    fi
-	    sleep 0.2
-    done
+    wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${sids[0]}"
 }
 
 #   <namespace> : optional netns name ("" = root namespace)

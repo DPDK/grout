@@ -142,6 +142,8 @@ exit
 
 EOF
 
+mark_events
+
 # Configure Grout FRR instance
 vtysh <<-EOF
 configure terminal
@@ -189,25 +191,8 @@ exit
 EOF
 
 # Wait for BGP routes to be exchanged
-attempts=0
-jq_expr='.[] | select(.destination == "16.0.0.0/24" and .origin == "bgp" and (.next_hop | contains("type=SRv6")))'
-while ! grcli -j route show | jq -e "$jq_expr"; do
-	if [ "$attempts" -ge 40 ]; then
-		fail "BGP SRv6 route not learned in Grout"
-	fi
-	sleep 0.5
-	attempts=$((attempts + 1))
-done
-
-attempts=0
-jq_expr='.[] | select(.destination == "2001:db8:2:2:100::/128" and .origin == "bgp" and (.next_hop | contains("type=SRv6-local")))'
-while ! grcli -j route show | jq -e "$jq_expr"; do
-	if [ "$attempts" -ge 40 ]; then
-		fail "BGP SRv6-local route not learned in Grout"
-	fi
-	sleep 0.5
-	attempts=$((attempts + 1))
-done
+wait_event -t 20 'route4 add: vrf=gr-vrf1 16.0.0.0/24 origin=bgp via type=SRv6 '
+wait_event -t 20 'route6 add: vrf=main 2001:db8:2:2:100::/128 origin=bgp via type=SRv6-local '
 
 attempts=0
 while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/24 .*seg6" ; do
