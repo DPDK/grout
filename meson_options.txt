@@ -12,6 +12,11 @@ option(
 )
 
 option(
+  'frr_version', type: 'combo', choices: ['default', '10.6.0', 'master'], value: 'default',
+  description: 'FRR version, defaults to 10.5.3.',
+)
+
+option(
   'tests', type: 'feature', value: 'auto',
   description: 'Build unit-tests. If set to "auto", only build if cmocka is found.',
 )

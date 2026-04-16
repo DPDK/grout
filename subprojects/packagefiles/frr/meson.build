@@ -1,7 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2025 Maxime Leroy, Free Mobile
-
-project('frr', 'c', version: '10.5.3', license: 'GPL-2.0-or-later', meson_version: '>= 0.63.0')
+project('frr', 'c',
+  version: run_command('sed', '-nE',
+    's/.*AC_INIT.*\[([0-9]+\.[0-9]+\.[0-9]+)(-dev)?\].*/\\1/p',
+    meson.current_source_dir() / 'configure.ac',
+    capture: true,
+    check:true).stdout().strip(),
+  license: 'GPL-2.0-or-later',
+  meson_version: '>= 0.63.0')
 
 srcdir = meson.current_source_dir()
 builddir = meson.current_build_dir()
