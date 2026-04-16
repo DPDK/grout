@@ -4,15 +4,17 @@
 #include "config.h"
 #include "control_input.h"
 #include "control_queue.h"
+#include "eth.h"
 #include "event.h"
 #include "iface.h"
 #include "log.h"
+#include "loopback.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
-#include "nexthop.h"
 #include "rxtx.h"
 #include "vlan.h"
+#include "vrf.h"
 
 #include <gr_string.h>
 
@@ -102,6 +104,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct rte_ether_addr src, dst;
 	struct iface_stats *stats;
 	struct rte_ether_hdr *eth;
+	struct rte_ether_addr iface_mac;
 	struct rte_vlan_hdr *vlan;
 	struct rte_mbuf *mbuf;
 	rte_be16_t ether_type;
@@ -141,30 +144,50 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 
-	// Rewrite dst mac as the flag NO_ARP is set on the ctlplane
-	if (rte_is_multicast_ether_addr(&eth->dst_addr) == 0) {
-		struct nexthop *nh = NULL;
-		if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV4)) {
-			const struct rte_ipv4_hdr *ip;
-			ip = rte_pktmbuf_mtod_offset(
-				mbuf, const struct rte_ipv4_hdr *, sizeof(*eth)
-			);
-			if (ip)
-				nh = nexthop_lookup_l3(
-					AF_INET, iface->vrf_id, iface->id, &ip->dst_addr
-				);
-		} else if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6)) {
-			const struct rte_ipv6_hdr *ip;
-			ip = rte_pktmbuf_mtod_offset(
-				mbuf, const struct rte_ipv6_hdr *, sizeof(*eth)
-			);
-			if (ip)
-				nh = nexthop_lookup_l3(
-					AF_INET6, iface->vrf_id, iface->id, &ip->dst_addr
-				);
+	// On NOARP control plane TAP interfaces, the kernel sets the
+	// device's own MAC as destination for unicast packets (since it
+	// cannot resolve neighbors). Detect this case and re-inject the
+	// packet into the L3 datapath (like the TUN loopback does) so
+	// grout can route it and set the correct destination MAC.
+	if (iface_get_eth_addr(iface, &iface_mac) == 0
+	    && rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
+		struct eth_input_mbuf_data *e;
+		rte_be16_t ether_type = eth->ether_type;
+
+		rte_pktmbuf_adj(mbuf, sizeof(*eth));
+
+		if (ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV4))
+			mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		else if (ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6))
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6;
+		else {
+			LOG(ERR,
+			    "cp_poll: unexpected ether_type %#x on %s",
+			    rte_be_to_cpu_16(ether_type),
+			    iface->name);
+			goto err;
 		}
-		if (nh && nh->type == GR_NH_T_L3)
-			eth->dst_addr = nexthop_info_l3(nh)->mac;
+
+		e = eth_input_mbuf_data(mbuf);
+		e->iface = get_vrf_iface(iface->vrf_id);
+		if (e->iface == NULL) {
+			LOG(ERR,
+			    "cp_poll: no VRF iface for vrf_id %u on %s",
+			    iface->vrf_id,
+			    iface->name);
+			goto err;
+		}
+		e->domain = ETH_DOMAIN_LOOPBACK;
+
+		if (post_to_stack(loopback_get_control_id(), mbuf) < 0) {
+			LOG(ERR, "post_to_stack loopback: %s", strerror(errno));
+			goto err;
+		}
+
+		stats = iface_get_stats(rte_lcore_id(), iface->id);
+		stats->cp_rx_packets += 1;
+		stats->cp_rx_bytes += rte_pktmbuf_pkt_len(mbuf);
+		return;
 	}
 
 	if (iface->type == GR_IFACE_TYPE_VLAN) {
