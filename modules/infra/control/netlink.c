@@ -10,6 +10,7 @@
 #include <rte_ether.h>
 
 #include <libmnl/libmnl.h>
+#include <linux/fib_rules.h>
 #include <linux/if_link.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -147,12 +148,11 @@ int netlink_link_del_iface(uint32_t ifindex) {
 	return netlink_send_req(nlh);
 }
 
-static int netlink_add_del_route(uint32_t ifindex, uint32_t table, bool add) {
+static int netlink_add_del_route_family(uint32_t ifindex, uint32_t table, int family, bool add) {
 	// nlmsghdr + rtmsg + 3x u32 attrs (RTA_TABLE, RTA_PRIORITY, RTA_OIF)
 	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 3 * NLA_SPACE(sizeof(uint32_t))];
 	struct nlmsghdr *nlh;
 	struct rtmsg *rtm;
-	int ret;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -162,7 +162,7 @@ static int netlink_add_del_route(uint32_t ifindex, uint32_t table, bool add) {
 		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
 
 	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
-	rtm->rtm_family = AF_INET;
+	rtm->rtm_family = family;
 	rtm->rtm_table = RT_TABLE_UNSPEC;
 	rtm->rtm_protocol = RTPROT_BOOT;
 	rtm->rtm_scope = RT_SCOPE_UNIVERSE;
@@ -176,16 +176,17 @@ static int netlink_add_del_route(uint32_t ifindex, uint32_t table, bool add) {
 	}
 	mnl_attr_put_u32(nlh, RTA_OIF, ifindex);
 
-	ret = netlink_send_req(nlh);
+	return netlink_send_req(nlh);
+}
+
+static int netlink_add_del_route(uint32_t ifindex, uint32_t table, bool add) {
+	int ret;
+
+	ret = netlink_add_del_route_family(ifindex, table, AF_INET, add);
 	if (ret < 0)
 		return ret;
 
-	rtm->rtm_family = AF_INET6;
-	ret = netlink_send_req(nlh);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return netlink_add_del_route_family(ifindex, table, AF_INET6, add);
 }
 
 int netlink_add_route(uint32_t ifindex, uint32_t table) {
@@ -194,6 +195,98 @@ int netlink_add_route(uint32_t ifindex, uint32_t table) {
 
 int netlink_del_route(uint32_t ifindex, uint32_t table) {
 	return netlink_add_del_route(ifindex, table, false);
+}
+
+// IPv6 PBR workaround for NOARP TAP control plane interfaces.
+//
+// The Linux kernel IPv6 stack requires an explicit route matching the
+// output interface when a socket uses SO_BINDTODEVICE (e.g. bfdd).
+// Unlike IPv4, there is no legacy fallback (see ip_route_output_key_hash_rcu
+// "goto make_route" in net/ipv4/route.c). Without a route, sendto()
+// returns ENETUNREACH.
+//
+// We cannot add a connected route (e.g. /64) on the TAP because it would
+// attract L3 traffic (BGP, etc.) that should go through the TUN loopback
+// to ensure symmetric paths (the return traffic is always punted via TUN).
+//
+// Instead, add a policy routing rule that directs packets bound to the TAP
+// to a dedicated table containing a default route via that TAP:
+//   ip -6 rule add oif <tap> lookup <table>
+//   ip -6 route add default dev <tap> metric <ifindex> table <table>
+//
+// All TAPs share the same table. The kernel rt6_device_match() selects the
+// correct route based on the flowi6_oif set by SO_BINDTODEVICE.
+//
+// Table 999 is chosen to avoid conflicts with VRF tables (vrf_id + 1000).
+#define GR_CP_RT6_TABLE 999
+
+static int netlink_add_del_rule6_oif(const char *ifname, uint32_t table, bool add) {
+	char buf
+		[NLMSG_SPACE(sizeof(struct fib_rule_hdr)) + NLA_SPACE(sizeof(uint32_t))
+		 + NLA_SPACE(IFNAMSIZ)];
+	struct fib_rule_hdr *frh;
+	struct nlmsghdr *nlh;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = add ? RTM_NEWRULE : RTM_DELRULE;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+
+	frh = mnl_nlmsg_put_extra_header(nlh, sizeof(*frh));
+	frh->family = AF_INET6;
+	frh->table = RT_TABLE_UNSPEC;
+	frh->action = FR_ACT_TO_TBL;
+
+	mnl_attr_put_u32(nlh, FRA_TABLE, table);
+	mnl_attr_put_strz(nlh, FRA_OIFNAME, ifname);
+
+	return netlink_send_req(nlh);
+}
+
+static int netlink_add_del_cp_route6(uint32_t ifindex, bool add) {
+	// nlmsghdr + rtmsg + 3x u32 attrs (RTA_TABLE, RTA_PRIORITY, RTA_OIF)
+	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 3 * NLA_SPACE(sizeof(uint32_t))];
+	struct nlmsghdr *nlh;
+	struct rtmsg *rtm;
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = add ? RTM_NEWROUTE : RTM_DELROUTE;
+	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	if (add)
+		nlh->nlmsg_flags |= NLM_F_CREATE;
+
+	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
+	rtm->rtm_family = AF_INET6;
+	rtm->rtm_table = RT_TABLE_UNSPEC;
+	rtm->rtm_protocol = RTPROT_BOOT;
+	rtm->rtm_scope = RT_SCOPE_UNIVERSE;
+	rtm->rtm_type = RTN_UNICAST;
+	rtm->rtm_dst_len = 0;
+
+	mnl_attr_put_u32(nlh, RTA_TABLE, GR_CP_RT6_TABLE);
+	// Use ifindex as metric to allow multiple default routes in the same table.
+	mnl_attr_put_u32(nlh, RTA_PRIORITY, ifindex);
+	mnl_attr_put_u32(nlh, RTA_OIF, ifindex);
+
+	return netlink_send_req(nlh);
+}
+
+int netlink_add_cp_route6(const char *ifname, uint32_t ifindex) {
+	int ret;
+
+	ret = netlink_add_del_rule6_oif(ifname, GR_CP_RT6_TABLE, true);
+	if (ret < 0)
+		return ret;
+
+	return netlink_add_del_cp_route6(ifindex, true);
+}
+
+int netlink_del_cp_route6(const char *ifname, uint32_t ifindex) {
+	netlink_add_del_cp_route6(ifindex, false);
+	return netlink_add_del_rule6_oif(ifname, GR_CP_RT6_TABLE, false);
 }
 
 static int netlink_add_del_addr(uint32_t ifindex, const void *addr, size_t addr_len, bool add) {

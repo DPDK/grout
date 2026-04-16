@@ -21,6 +21,8 @@ int netlink_add_addr4(uint32_t ifindex, ip4_addr_t ip);
 int netlink_del_addr4(uint32_t ifindex, ip4_addr_t ip);
 int netlink_add_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip);
 int netlink_del_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip);
+int netlink_add_cp_route6(const char *ifname, uint32_t ifindex);
+int netlink_del_cp_route6(const char *ifname, uint32_t ifindex);
 int netlink_set_addr_gen_mode_none(uint32_t ifindex);
 int netlink_set_ifalias(uint32_t ifindex, const char *ifalias);
 int netlink_get_ifalias(const char *ifname, char *buf, size_t len);
