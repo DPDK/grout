@@ -88,6 +88,8 @@ router bgp 65000
 exit
 EOF
 
+mark_events
+
 # BGP EVPN on Grout
 vtysh <<-EOF
 configure terminal
@@ -151,15 +153,7 @@ while ! bridge -n evpn-peer fdb show dev vxlan100 | grep -qF 172.16.0.2; do
 	attempts=$((attempts + 1))
 done
 
-attempts=0
-while ! grcli -j flood vtep show | jq -e '.[] | select(.addr == "172.16.0.1")'; do
-	if [ "$attempts" -ge 10 ]; then
-		grcli flood vtep show
-		fail "Grout did not learn remote VTEP 172.16.0.1"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
+wait_event "flood add: vtep vrf=main 172.16.0.1 vni=100"
 
 bridge -n evpn-peer fdb show dev vxlan100
 grcli fdb show
@@ -176,20 +170,14 @@ bridge -n evpn-peer fdb show dev vxlan100
 
 # -- Verify EVPN type-2 (MAC/IP) learned on both sides
 mac_a=$(ip netns exec host-a cat /sys/class/net/x-p1/address)
+
+wait_event "fdb add: bridge=br100 $mac_a.* vtep=172.16.0.1.* extern"
+
 attempts=0
 while ! vtysh -c "show bgp l2vpn evpn route type 2" | grep -qF "$mac_a"; do
 	if [ "$attempts" -ge 10 ]; then
 		vtysh -c "show bgp l2vpn evpn route type 2"
 		fail "FRR did not learn type 2 route"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-attempts=0
-while ! grcli -j fdb show iface vxlan100 extern | jq -e --arg mac "$mac_a" '.[] | select(.mac == $mac)'; do
-	if [ "$attempts" -ge 10 ]; then
-		grcli fdb show iface vxlan100
-		fail "FRR did not program FDB entry"
 	fi
 	sleep 1
 	attempts=$((attempts + 1))

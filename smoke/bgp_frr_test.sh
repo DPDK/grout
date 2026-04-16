@@ -55,6 +55,8 @@ router bgp 64512
 exit
 EOF
 
+mark_events
+
 # Configure Grout FRR instance
 vtysh <<-EOF
 configure terminal
@@ -72,13 +74,6 @@ exit
 EOF
 
 # Wait for BGP routes to be exchanged
-attempts=0
-while ! grcli -j route show | jq -e '.[] | select(.destination == "16.0.0.0/24" and .origin == "bgp")'; do
-	if [ "$attempts" -ge 40 ]; then
-		fail "BGP route not learned in Grout"
-	fi
-	sleep 0.5
-	attempts=$((attempts + 1))
-done
+wait_event -t 20 'route4 add: vrf=main 16.0.0.0/24 origin=bgp via type=L3 .*addr=172.16.0.2'
 
 grcli ping 16.0.0.1 count 3 delay 10
