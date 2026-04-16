@@ -44,13 +44,9 @@ fill_base_fields(struct gr_object *o, struct gr_api_client *c, const struct gr_n
 	gr_object_field(o, "type", 0, "%s", gr_nh_type_name(nh->type));
 	if (nh->nh_id != GR_NH_ID_UNSET)
 		gr_object_field(o, "id", GR_DISP_INT, "%u", nh->nh_id);
-	if (nh->iface_id != GR_IFACE_ID_UNDEF) {
-		if (c != NULL)
-			gr_object_field(o, "iface", 0, "%s", iface_name_from_id(c, nh->iface_id));
-		else
-			gr_object_field(o, "iface", GR_DISP_INT, "%u", nh->iface_id);
-	}
-	gr_object_field(o, "vrf", GR_DISP_INT, "%u", nh->vrf_id);
+	if (nh->iface_id != GR_IFACE_ID_UNDEF)
+		gr_object_field(o, "iface", 0, "%s", iface_name_from_id(c, nh->iface_id));
+	gr_object_field(o, "vrf", 0, "%s", iface_name_from_id(c, nh->vrf_id));
 	gr_object_field(o, "origin", 0, "%s", gr_nh_origin_name(nh->origin));
 }
 

@@ -150,7 +150,10 @@ static void flood_event_print(uint32_t event, const void *obj) {
 		break;
 	}
 
-	printf("flood %s: %s vrf=%u", action, gr_flood_type_name(entry->type), entry->vrf_id);
+	printf("flood %s: %s vrf=%s",
+	       action,
+	       gr_flood_type_name(entry->type),
+	       iface_name_from_id(NULL, entry->vrf_id));
 	switch (entry->type) {
 	case GR_FLOOD_T_VTEP:
 		printf(" " IP4_F " vni=%u", &entry->vtep.addr, entry->vtep.vni);

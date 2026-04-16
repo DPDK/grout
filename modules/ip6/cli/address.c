@@ -89,7 +89,10 @@ static void addr_event_print(uint32_t event, const void *obj) {
 		action = "?";
 		break;
 	}
-	printf("addr6 %s: iface=%u " IP6_NET_F "\n", action, ifa->iface_id, &ifa->addr);
+	printf("addr6 %s: iface=%s " IP6_NET_F "\n",
+	       action,
+	       iface_name_from_id(NULL, ifa->iface_id),
+	       &ifa->addr);
 }
 
 static struct cli_event_printer printer = {
