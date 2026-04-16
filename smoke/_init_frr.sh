@@ -253,6 +253,7 @@ start_frr() {
 
 	# daemons
 	cat >"$daemons_file" <<EOF
+bfdd=yes
 bgpd=yes
 isisd=yes
 ospfd=yes
@@ -322,7 +323,7 @@ EOF
 
 	# wait for all daemons (staticd is always started by FRR init)
 	local daemon pattern
-	for daemon in staticd bgpd isisd ospfd ospf6d; do
+	for daemon in staticd bfdd bgpd isisd ospfd ospf6d; do
 		SECONDS=0
 		pattern="$daemon"
 		[ -n "$namespace" ] && pattern="$daemon -N $namespace"
