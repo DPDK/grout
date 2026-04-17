@@ -640,8 +640,8 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		    && nh->nh_srv6->seg6local_action != ZEBRA_SEG6_LOCAL_ACTION_UNSPEC) {
 			len += sizeof(*sr6_local);
 			type = GR_NH_T_SR6_LOCAL;
-		} else if (nh->nh_srv6 != NULL && nh->nh_srv6->seg6_segs != NULL
-			   && nh->nh_srv6->seg6_segs->num_segs > 0) {
+		} else if (nh->nh_srv6 != NULL && nh->nh_srv6->seg6_segs->num_segs > 0) {
+			assert(nh->nh_srv6->seg6_segs != NULL);
 			len += sizeof(*sr6)
 				+ nh->nh_srv6->seg6_segs->num_segs * sizeof(sr6->seglist[0]);
 			type = GR_NH_T_SR6_OUTPUT;
