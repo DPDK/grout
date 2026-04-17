@@ -138,8 +138,8 @@ freed by the framework.
 - Preserve existing comments unless they no longer apply or are invalid.
 - Memory allocated with `rte_*alloc*()` functions must be freed with
   `rte_free()`.
-- Vectors managed with `vec_add()` must be freed with `vec_free()`.
-- `vec_free(x)` sets `x = NULL`, no risk of double free.
+- Arrays managed with `arr_add()` must be freed with `arr_free()`.
+- `arr_free(x)` sets `x = NULL`, no risk of double free.
 - `rte_*` symbols are from DPDK (`subprojects/dpdk/`).
 - `ec_*` symbols are from libecoli (`subprojects/ecoli/`).
 - **NEVER** invoke any system call, printf or the `LOG()` macro in datapath

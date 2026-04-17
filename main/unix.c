@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Matej Mužila
 
+#include "arr.h"
 #include "log.h"
 #include "module.h"
 #include "unix.h"
-#include "vec.h"
 
 #include <gr_string.h>
 
@@ -14,15 +14,15 @@
 
 LOG_TYPE("main");
 
-static vec char **socket_paths;
+static arr char **socket_paths;
 
 static void unix_cleanup(struct event_base *) {
-	vec_foreach (char *path, socket_paths) {
+	arr_foreach (char *path, socket_paths) {
 		if (path != NULL)
 			unlink(path);
 	}
 
-	strvec_free(socket_paths);
+	strarr_free(socket_paths);
 }
 
 #define SOCKET_LISTEN_BACKLOG 16
@@ -66,7 +66,7 @@ int unix_listen(const char *path) {
 		return errno_log(errno, "bind");
 	}
 
-	vec_add(socket_paths, strdup(path));
+	arr_add(socket_paths, strdup(path));
 
 	if (listen(fd, SOCKET_LISTEN_BACKLOG) < 0) {
 		close(fd);

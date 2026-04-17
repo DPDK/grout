@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "arr.h"
 #include "log.h"
 #include "module.h"
 #include "netlink.h"
-#include "vec.h"
 
 #include <gr_errno.h>
 #include <gr_macro.h>
@@ -362,7 +362,7 @@ struct flush_route_entry {
 
 static int rule_flush_cb(const struct nlmsghdr *nlh, void *data) {
 	struct fib_rule_hdr *frh = mnl_nlmsg_get_payload(nlh);
-	vec struct flush_rule_entry **rules = data;
+	arr struct flush_rule_entry **rules = data;
 	const char *oifname = NULL;
 	uint32_t table = frh->table;
 	struct flush_rule_entry e = {.family = frh->family};
@@ -382,13 +382,13 @@ static int rule_flush_cb(const struct nlmsghdr *nlh, void *data) {
 	if (table != GR_CP_RT_TABLE || oifname == NULL)
 		return MNL_CB_OK;
 	snprintf(e.oifname, IFNAMSIZ, "%s", oifname);
-	vec_add(*rules, e);
+	arr_add(*rules, e);
 	return MNL_CB_OK;
 }
 
 static int route_flush_cb(const struct nlmsghdr *nlh, void *data) {
 	struct rtmsg *rtm = mnl_nlmsg_get_payload(nlh);
-	vec struct flush_route_entry **routes = data;
+	arr struct flush_route_entry **routes = data;
 	uint32_t table = rtm->rtm_table;
 	struct flush_route_entry e = {.family = rtm->rtm_family};
 	struct nlattr *attr;
@@ -406,15 +406,15 @@ static int route_flush_cb(const struct nlmsghdr *nlh, void *data) {
 
 	if (table != GR_CP_RT_TABLE)
 		return MNL_CB_OK;
-	vec_add(*routes, e);
+	arr_add(*routes, e);
 	return MNL_CB_OK;
 }
 
 int netlink_flush_cp_route_table(void) {
 	const uint8_t families[] = {AF_INET, AF_INET6};
 	char buf[NLMSG_SPACE(sizeof(struct rtmsg))];
-	vec struct flush_rule_entry *rules = NULL;
-	vec struct flush_route_entry *routes = NULL;
+	arr struct flush_rule_entry *rules = NULL;
+	arr struct flush_route_entry *routes = NULL;
 	struct fib_rule_hdr *frh;
 	struct nlmsghdr *nlh;
 	struct rtmsg *rtm;
@@ -442,20 +442,20 @@ int netlink_flush_cp_route_table(void) {
 			last_err = -errno;
 	}
 
-	for (unsigned i = 0; i < vec_len(rules); i++) {
+	for (unsigned i = 0; i < arr_len(rules); i++) {
 		if (netlink_add_del_rule_oif(
 			    rules[i].family, rules[i].oifname, GR_CP_RT_TABLE, false
 		    )
 		    < 0)
 			last_err = -errno;
 	}
-	for (unsigned i = 0; i < vec_len(routes); i++) {
+	for (unsigned i = 0; i < arr_len(routes); i++) {
 		if (netlink_add_del_cp_route_family(routes[i].family, routes[i].oif, false) < 0)
 			last_err = -errno;
 	}
 
-	vec_free(rules);
-	vec_free(routes);
+	arr_free(rules);
+	arr_free(routes);
 	return last_err;
 }
 

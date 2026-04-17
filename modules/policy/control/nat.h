@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "arr.h"
 #include "id_pool.h"
 #include "iface.h"
 #include "sys_queue.h"
-#include "vec.h"
 
 #include <gr_nat.h>
 #include <gr_net_types.h>
@@ -19,7 +19,7 @@ bool snat44_static_lookup_translation(uint16_t iface_id, ip4_addr_t orig, ip4_ad
 
 int snat44_dynamic_policy_add(const struct gr_snat44_policy *);
 int snat44_dynamic_policy_del(const struct gr_snat44_policy *);
-vec struct gr_snat44_policy *snat44_dynamic_policy_export(void);
+arr struct gr_snat44_policy *snat44_dynamic_policy_export(void);
 
 struct snat44_policy {
 	BASE(gr_snat44_policy);

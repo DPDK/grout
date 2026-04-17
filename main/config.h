@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "vec.h"
+#include "arr.h"
 
 #include <sched.h>
 #include <stdbool.h>
@@ -21,7 +21,7 @@ struct gr_config {
 	bool poll_mode;
 	bool log_syslog;
 	bool log_packets;
-	vec char **eal_extra_args;
+	arr char **eal_extra_args;
 	cpu_set_t control_cpus; // control plane threads allowed CPUs
 	cpu_set_t datapath_cpus; // datapath threads allowed CPUs
 	const char *metrics_addr; // openmetrics listen address (NULL to disable)

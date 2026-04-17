@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "arr.h"
 #include "config.h"
 #include "dpdk.h"
 #include "log.h"
-#include "vec.h"
 
 #include <gr_errno.h>
 #include <gr_string.h>
@@ -90,7 +90,7 @@ int dpdk_log_init(void) {
 }
 
 int dpdk_init(void) {
-	vec char **eal_args = NULL;
+	arr char **eal_args = NULL;
 	char main_lcore[32] = "";
 	char *arg;
 	int ret;
@@ -133,54 +133,54 @@ int dpdk_init(void) {
 	if (ret != 0)
 		goto end;
 
-	vec_add(eal_args, "");
-	vec_add(eal_args, "-l");
-	vec_add(eal_args, main_lcore);
-	vec_add(eal_args, "--no-telemetry");
+	arr_add(eal_args, "");
+	arr_add(eal_args, "-l");
+	arr_add(eal_args, main_lcore);
+	arr_add(eal_args, "--no-telemetry");
 #ifdef RTE_BUS_PCI
-	vec_add(eal_args, "-a");
-	vec_add(eal_args, "pci:0000:00:00.0");
+	arr_add(eal_args, "-a");
+	arr_add(eal_args, "pci:0000:00:00.0");
 #endif
 #ifdef RTE_BUS_FSLMC
-	vec_add(eal_args, "-a");
-	vec_add(eal_args, "fslmc:dpni.65535");
+	arr_add(eal_args, "-a");
+	arr_add(eal_args, "fslmc:dpni.65535");
 #endif
 
 	if (gr_config.test_mode) {
-		vec_add(eal_args, "--no-shconf");
-		vec_add(eal_args, "--no-huge");
+		arr_add(eal_args, "--no-shconf");
+		arr_add(eal_args, "--no-huge");
 		// Add default -m unless the user overrides it via EAL args.
 		bool has_m = false;
-		vec_foreach (arg, gr_config.eal_extra_args) {
+		arr_foreach (arg, gr_config.eal_extra_args) {
 			if (strcmp(arg, "-m") == 0) {
 				has_m = true;
 				break;
 			}
 		}
 		if (!has_m) {
-			vec_add(eal_args, "-m");
+			arr_add(eal_args, "-m");
 			if (gr_config.max_mtu > 2048)
-				vec_add(eal_args, "4096");
+				arr_add(eal_args, "4096");
 			else
-				vec_add(eal_args, "2048");
+				arr_add(eal_args, "2048");
 		}
 	} else {
-		vec_add(eal_args, "--in-memory");
+		arr_add(eal_args, "--in-memory");
 	}
 
 	if (rte_vfio_noiommu_is_enabled())
-		vec_add(eal_args, "--iova-mode=pa");
+		arr_add(eal_args, "--iova-mode=pa");
 
-	vec_foreach (arg, gr_config.eal_extra_args)
-		vec_add(eal_args, arg);
+	arr_foreach (arg, gr_config.eal_extra_args)
+		arr_add(eal_args, arg);
 
 	LOG(INFO, "%s", rte_version());
 
-	char *buf = strjoin(eal_args, vec_len(eal_args), " ");
+	char *buf = strjoin(eal_args, arr_len(eal_args), " ");
 	LOG(INFO, "EAL arguments:%s", buf);
 	free(buf);
 
-	if ((ret = rte_eal_init(vec_len(eal_args), eal_args)) < 0) {
+	if ((ret = rte_eal_init(arr_len(eal_args), eal_args)) < 0) {
 		ret = -ret;
 		goto end;
 	}
@@ -193,7 +193,7 @@ int dpdk_init(void) {
 
 	ret = 0;
 end:
-	vec_free(eal_args);
+	arr_free(eal_args);
 	return errno_set(ret);
 }
 

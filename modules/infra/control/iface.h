@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "arr.h"
 #include "metrics.h"
-#include "vec.h"
 
 #include <gr_infra.h>
 
@@ -14,7 +14,7 @@
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
-	vec struct iface **subinterfaces;
+	arr struct iface **subinterfaces;
 	char *name;
 	char *description;
 	int cp_id; // Control plane (Linux) port ID

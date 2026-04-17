@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "arr.h"
 #include "event.h"
 #include "iface.h"
 #include "ip6.h"
@@ -8,7 +9,6 @@
 #include "metrics.h"
 #include "module.h"
 #include "rcu.h"
-#include "vec.h"
 #include "vrf.h"
 
 #include <gr_infra.h>
@@ -566,7 +566,7 @@ struct rib6_cleanup_entry {
 
 struct rib6_cleanup_ctx {
 	const struct nexthop *nh;
-	vec struct rib6_cleanup_entry *entries;
+	arr struct rib6_cleanup_entry *entries;
 };
 
 static int rib6_cleanup_cb(
@@ -586,7 +586,7 @@ static int rib6_cleanup_cb(
 			.depth = depth,
 			.type = nh->type,
 		};
-		vec_add(ctx->entries, entry);
+		arr_add(ctx->entries, entry);
 	}
 	return 0;
 }
@@ -603,9 +603,9 @@ void rib6_cleanup(struct nexthop *nh) {
 		.priv = &ctx,
 	};
 	rib6_iter(GR_VRF_ID_UNDEF, &iter);
-	vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
+	arr_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
 		rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type);
-	vec_free(ctx.entries);
+	arr_free(ctx.entries);
 }
 
 METRIC_GAUGE(m_routes, "rib6_routes", "Number of IPv6 routes by origin.");
@@ -851,9 +851,9 @@ static void fib6_fini(struct iface *vrf) {
 		};
 		rib6_iter_vrf(rte_fib6_get_rib(fib), vrf->id, &iter);
 
-		vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
+		arr_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
 			rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type);
-		vec_free(ctx.entries);
+		arr_free(ctx.entries);
 
 		iface_info_vrf(vrf)->fib6 = NULL;
 

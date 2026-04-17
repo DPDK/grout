@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "arr.h"
 #include "metrics.h"
 #include "module.h"
 #include "port.h"
 #include "rxtx.h"
-#include "vec.h"
 #include "worker.h"
 
 #include <gr_infra.h>
@@ -34,7 +34,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 	uint64_t rx_burst_histogram[RTE_GRAPH_BURST_SIZE + 1];
 	const struct gr_stats_get_req *req = request;
 	struct gr_stats_get_resp *resp = NULL;
-	vec struct gr_stat *stats = NULL;
+	arr struct gr_stat *stats = NULL;
 	size_t len, n_stats;
 	struct gr_stat *s;
 	int ret;
@@ -90,7 +90,7 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 					iface->name,
 					names[i].name
 				);
-				vec_add(stats, stat);
+				arr_add(stats, stat);
 			}
 free_xstat:
 			free(xstats);
@@ -114,14 +114,14 @@ free_xstat:
 				);
 				stat.batches = rx_burst_histogram[s];
 				stat.packets = stat.batches * s;
-				vec_add(stats, stat);
+				arr_add(stats, stat);
 			}
 		}
 	}
 
 	// iterate once to determine the number of stats matching pattern
 	n_stats = 0;
-	vec_foreach_ref (s, stats) {
+	arr_foreach_ref (s, stats) {
 		if (skip_stat(s, req->flags))
 			continue;
 		switch (fnmatch(req->pattern, s->name, 0)) {
@@ -143,7 +143,7 @@ free_xstat:
 	}
 
 	// fill in response
-	vec_foreach_ref (s, stats) {
+	arr_foreach_ref (s, stats) {
 		if (skip_stat(s, req->flags))
 			continue;
 		switch (fnmatch(req->pattern, s->name, 0)) {
@@ -157,10 +157,10 @@ free_xstat:
 		}
 	}
 
-	vec_free(stats);
+	arr_free(stats);
 	return api_out(0, len, resp);
 err:
-	vec_free(stats);
+	arr_free(stats);
 	free(resp);
 	return api_out(-ret, 0, NULL);
 }
@@ -195,7 +195,7 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 
 static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *) {
 	struct gr_iface_stats_get_resp *resp = NULL;
-	vec struct gr_iface_stats *stats_vec = NULL;
+	arr struct gr_iface_stats *stats_vec = NULL;
 	struct iface *iface = NULL;
 	int ret = 0;
 
@@ -237,10 +237,10 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 			}
 		}
 
-		vec_add(stats_vec, s);
+		arr_add(stats_vec, s);
 	}
 
-	size_t n_stats = vec_len(stats_vec);
+	size_t n_stats = arr_len(stats_vec);
 	size_t len = sizeof(*resp) + n_stats * sizeof(struct gr_iface_stats);
 	if ((resp = calloc(1, len)) == NULL) {
 		ret = -ENOMEM;
@@ -248,13 +248,13 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 	}
 
 	resp->n_stats = n_stats;
-	if (vec_len(stats_vec) > 0)
+	if (arr_len(stats_vec) > 0)
 		memcpy(resp->stats, stats_vec, n_stats * sizeof(struct gr_iface_stats));
 
-	vec_free(stats_vec);
+	arr_free(stats_vec);
 	return api_out(0, len, resp);
 err:
-	vec_free(stats_vec);
+	arr_free(stats_vec);
 	free(resp);
 	return api_out(-ret, 0, NULL);
 }
@@ -264,17 +264,17 @@ METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.")
 METRIC_COUNTER(m_cycles, "node_cycles", "Number of cycles spent per node.");
 
 static void graph_metrics_collect(struct metrics_writer *w) {
-	vec struct gr_stat *stats = worker_dump_stats(UINT16_MAX);
+	arr struct gr_stat *stats = worker_dump_stats(UINT16_MAX);
 	struct metrics_ctx ctx;
 
-	vec_foreach_ref (const struct gr_stat *s, stats) {
+	arr_foreach_ref (const struct gr_stat *s, stats) {
 		metrics_ctx_init(&ctx, w, "name", s->name, NULL);
 		metric_emit(&ctx, &m_packets, s->packets);
 		metric_emit(&ctx, &m_batches, s->batches);
 		metric_emit(&ctx, &m_cycles, s->cycles);
 	}
 
-	vec_free(stats);
+	arr_free(stats);
 }
 
 static struct metrics_collector graph_collector = {

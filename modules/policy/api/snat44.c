@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "arr.h"
 #include "ip4.h"
 #include "module.h"
 #include "nat.h"
-#include "vec.h"
 
 #include <gr_nat.h>
 
@@ -39,14 +39,14 @@ static struct api_out snat44_del(const void *request, struct api_ctx *) {
 }
 
 static struct api_out snat44_list(const void * /*request*/, struct api_ctx *ctx) {
-	vec struct gr_snat44_policy *policies;
+	arr struct gr_snat44_policy *policies;
 	struct gr_snat44_policy *policy;
 
 	policies = snat44_dynamic_policy_export();
-	vec_foreach_ref (policy, policies) {
+	arr_foreach_ref (policy, policies) {
 		api_send(ctx, sizeof(*policy), policy);
 	}
-	vec_free(policies);
+	arr_free(policies);
 
 	return api_out(0, 0, NULL);
 }

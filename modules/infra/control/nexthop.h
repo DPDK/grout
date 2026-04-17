@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "arr.h"
 #include "control_queue.h"
-#include "vec.h"
 
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -54,7 +54,7 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 });
 
 struct hoplist {
-	vec struct nexthop **nh;
+	arr struct nexthop **nh;
 };
 
 struct nh_group_member {

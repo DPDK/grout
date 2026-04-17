@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "api.h"
+#include "arr.h"
 #include "config.h"
 #include "dpdk.h"
 #include "log.h"
@@ -9,7 +10,6 @@
 #include "module.h"
 #include "sd_notify.h"
 #include "signals.h"
-#include "vec.h"
 
 #include <gr_api.h>
 #include <gr_string.h>
@@ -259,7 +259,7 @@ static int parse_args(int argc, char **argv) {
 	}
 
 	for (c = optind; c < argc; c++)
-		vec_add(gr_config.eal_extra_args, argv[c]);
+		arr_add(gr_config.eal_extra_args, argv[c]);
 
 	return 0;
 }
@@ -347,6 +347,6 @@ dpdk_stop:
 	if (err != 0)
 		sd_notifyf(0, "ERRNO=%i", err);
 end:
-	vec_free(gr_config.eal_extra_args);
+	arr_free(gr_config.eal_extra_args);
 	return ret;
 }

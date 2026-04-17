@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "arr.h"
 #include "config.h"
 #include "log.h"
 #include "metrics.h"
 #include "unix.h"
-#include "vec.h"
 
 #include <gr_macro.h>
 
@@ -28,11 +28,11 @@ void metrics_register(struct metrics_collector *c) {
 struct metrics_writer {
 	struct evbuffer *buf;
 	// Pointers to static metrics that have had HELP/TYPE written.
-	vec const struct metric **emitted;
+	arr const struct metric **emitted;
 };
 
 static bool metric_emitted(const struct metrics_writer *w, const struct metric *m) {
-	vec_foreach (const struct metric *e, w->emitted) {
+	arr_foreach (const struct metric *e, w->emitted) {
 		if (e == m)
 			return true;
 	}
@@ -64,7 +64,7 @@ static void emit_help_type(struct metrics_writer *w, const struct metric *m) {
 
 	evbuffer_add_printf(w->buf, "# HELP grout_%s %s\n", m->name, m->help);
 	evbuffer_add_printf(w->buf, "# TYPE grout_%s %s\n", m->name, type_str);
-	vec_add(w->emitted, m);
+	arr_add(w->emitted, m);
 }
 
 static void append_labels_va(struct metrics_ctx *ctx, va_list ap) {
@@ -199,7 +199,7 @@ static void metrics_handler(struct evhttp_request *req, void *) {
 
 	evhttp_send_reply(req, HTTP_OK, NULL, writer.buf);
 
-	vec_free(writer.emitted);
+	arr_free(writer.emitted);
 	evbuffer_free(writer.buf);
 }
 
