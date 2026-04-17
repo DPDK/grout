@@ -6,6 +6,7 @@
 #include "netlink.h"
 
 #include <gr_errno.h>
+#include <gr_macro.h>
 
 #include <rte_ether.h>
 
@@ -197,13 +198,16 @@ int netlink_del_route(uint32_t ifindex, uint32_t table) {
 	return netlink_add_del_route(ifindex, table, false);
 }
 
-// IPv6 PBR workaround for NOARP TAP control plane interfaces.
+// Per-TAP policy routing rule for NOARP control plane TAP interfaces.
 //
-// The Linux kernel IPv6 stack requires an explicit route matching the
-// output interface when a socket uses SO_BINDTODEVICE (e.g. bfdd).
-// Unlike IPv4, there is no legacy fallback (see ip_route_output_key_hash_rcu
-// "goto make_route" in net/ipv4/route.c). Without a route, sendto()
-// returns ENETUNREACH.
+// The Linux kernel requires an explicit route matching the output
+// interface when a socket uses SO_BINDTODEVICE (e.g. bfdd). For IPv6
+// there is no legacy fallback (see ip_route_output_key_hash_rcu
+// "goto make_route" in net/ipv4/route.c); for IPv4 the fallback exists
+// but is bypassed once the TAP is enslaved to a kernel VRF master,
+// because the l3mdev slave rule forces the lookup into the VRF's table
+// which only contains a default via the TUN loopback (RTA_OIF mismatch).
+// In both cases sendto() returns ENETUNREACH.
 //
 // We cannot add a connected route (e.g. /64) on the TAP because it would
 // attract L3 traffic (BGP, etc.) that should go through the TUN loopback
@@ -211,16 +215,17 @@ int netlink_del_route(uint32_t ifindex, uint32_t table) {
 //
 // Instead, add a policy routing rule that directs packets bound to the TAP
 // to a dedicated table containing a default route via that TAP:
-//   ip -6 rule add oif <tap> lookup <table>
-//   ip -6 route add default dev <tap> metric <ifindex> table <table>
+//   ip [-6] rule add oif <tap> lookup <table>
+//   ip [-6] route add default dev <tap> metric <ifindex> table <table>
 //
-// All TAPs share the same table. The kernel rt6_device_match() selects the
-// correct route based on the flowi6_oif set by SO_BINDTODEVICE.
+// All TAPs share the same table, and both families share the same table
+// number. The rule fires only on oif=<that tap>, so VRF-master binds and
+// unbound sockets still go through regular l3mdev routing.
 //
 // Table 999 is chosen to avoid conflicts with VRF tables (vrf_id + 1000).
-#define GR_CP_RT6_TABLE 999
+#define GR_CP_RT_TABLE 999
 
-static int netlink_add_del_rule6_oif(const char *ifname, uint32_t table, bool add) {
+static int netlink_add_del_rule_oif(uint8_t family, const char *ifname, uint32_t table, bool add) {
 	char buf
 		[NLMSG_SPACE(sizeof(struct fib_rule_hdr)) + NLA_SPACE(sizeof(uint32_t))
 		 + NLA_SPACE(IFNAMSIZ)];
@@ -235,7 +240,7 @@ static int netlink_add_del_rule6_oif(const char *ifname, uint32_t table, bool ad
 		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
 
 	frh = mnl_nlmsg_put_extra_header(nlh, sizeof(*frh));
-	frh->family = AF_INET6;
+	frh->family = family;
 	frh->table = RT_TABLE_UNSPEC;
 	frh->action = FR_ACT_TO_TBL;
 
@@ -245,7 +250,7 @@ static int netlink_add_del_rule6_oif(const char *ifname, uint32_t table, bool ad
 	return netlink_send_req(nlh);
 }
 
-static int netlink_add_del_cp_route6(uint32_t ifindex, bool add) {
+static int netlink_add_del_cp_route_family(uint8_t family, uint32_t ifindex, bool add) {
 	// nlmsghdr + rtmsg + 3x u32 attrs (RTA_TABLE, RTA_PRIORITY, RTA_OIF)
 	char buf[NLMSG_SPACE(sizeof(struct rtmsg)) + 3 * NLA_SPACE(sizeof(uint32_t))];
 	struct nlmsghdr *nlh;
@@ -259,14 +264,14 @@ static int netlink_add_del_cp_route6(uint32_t ifindex, bool add) {
 		nlh->nlmsg_flags |= NLM_F_CREATE;
 
 	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
-	rtm->rtm_family = AF_INET6;
+	rtm->rtm_family = family;
 	rtm->rtm_table = RT_TABLE_UNSPEC;
 	rtm->rtm_protocol = RTPROT_BOOT;
 	rtm->rtm_scope = RT_SCOPE_UNIVERSE;
 	rtm->rtm_type = RTN_UNICAST;
 	rtm->rtm_dst_len = 0;
 
-	mnl_attr_put_u32(nlh, RTA_TABLE, GR_CP_RT6_TABLE);
+	mnl_attr_put_u32(nlh, RTA_TABLE, GR_CP_RT_TABLE);
 	// Use ifindex as metric to allow multiple default routes in the same table.
 	mnl_attr_put_u32(nlh, RTA_PRIORITY, ifindex);
 	mnl_attr_put_u32(nlh, RTA_OIF, ifindex);
@@ -274,19 +279,33 @@ static int netlink_add_del_cp_route6(uint32_t ifindex, bool add) {
 	return netlink_send_req(nlh);
 }
 
-int netlink_add_cp_route6(const char *ifname, uint32_t ifindex) {
+int netlink_add_cp_route(const char *ifname, uint32_t ifindex) {
+	const uint8_t families[] = {AF_INET, AF_INET6};
 	int ret;
 
-	ret = netlink_add_del_rule6_oif(ifname, GR_CP_RT6_TABLE, true);
-	if (ret < 0)
-		return ret;
+	for (size_t i = 0; i < ARRAY_DIM(families); i++) {
+		ret = netlink_add_del_rule_oif(families[i], ifname, GR_CP_RT_TABLE, true);
+		if (ret < 0)
+			return ret;
 
-	return netlink_add_del_cp_route6(ifindex, true);
+		ret = netlink_add_del_cp_route_family(families[i], ifindex, true);
+		if (ret < 0)
+			return ret;
+	}
+	return 0;
 }
 
-int netlink_del_cp_route6(const char *ifname, uint32_t ifindex) {
-	netlink_add_del_cp_route6(ifindex, false);
-	return netlink_add_del_rule6_oif(ifname, GR_CP_RT6_TABLE, false);
+int netlink_del_cp_route(const char *ifname, uint32_t ifindex) {
+	const uint8_t families[] = {AF_INET, AF_INET6};
+	int last_err = 0;
+
+	for (size_t i = 0; i < ARRAY_DIM(families); i++) {
+		if (netlink_add_del_cp_route_family(families[i], ifindex, false) < 0)
+			last_err = -errno;
+		if (netlink_add_del_rule_oif(families[i], ifname, GR_CP_RT_TABLE, false) < 0)
+			last_err = -errno;
+	}
+	return last_err;
 }
 
 static int netlink_add_del_addr(uint32_t ifindex, const void *addr, size_t addr_len, bool add) {
