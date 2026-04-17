@@ -173,7 +173,9 @@ netns_add() {
 	local ns="$1"
 	ip netns add "$ns"
 	cat >> $tmp/cleanup <<EOF
-ip netns pids "$ns" | xargs -r kill --timeout 500 KILL
+ip netns pids "$ns" | xargs -r kill -TERM 2>/dev/null || true
+sleep 0.5
+ip netns pids "$ns" | xargs -r kill -KILL 2>/dev/null || true
 ip netns del "$ns"
 EOF
 	ip -n "$ns" link set lo up

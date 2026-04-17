@@ -310,7 +310,9 @@ pkill -P $tailpid 2>/dev/null || true
 EOF
 	if [ -n "$namespace" ]; then
 		cat >>"$tmp/cleanup" <<EOF
-ip netns pids "$namespace" | xargs -r kill --timeout 500 KILL
+ip netns pids "$namespace" | xargs -r kill -TERM 2>/dev/null || true
+sleep 0.5
+ip netns pids "$namespace" | xargs -r kill -KILL 2>/dev/null || true
 ip netns del "$namespace"
 EOF
 	fi
