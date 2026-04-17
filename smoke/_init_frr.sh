@@ -370,6 +370,7 @@ if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 		# FRR daemons drop privileges to the user that compiled
 		# them (--enable-user), use mode=1777 so they can write
 		for d in etc/frr var/log/frr var/run/frr var/lib/frr; do
+			mkdir -p "$builddir/frr_install/$d"
 			mount -t tmpfs -o mode=1777 tmpfs "$builddir/frr_install/$d"
 		done
 	fi

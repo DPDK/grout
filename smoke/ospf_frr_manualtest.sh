@@ -23,10 +23,7 @@ create_interface p0
 set_ip_address p0 172.16.0.1/24
 
 start_frr ospf-peer 0
-ip link set x-p0 netns ospf-peer
-
-ip -n grout l set p0 up
-ip -n ospf-peer l set x-p0 up
+move_to_netns x-p0 ospf-peer
 
 # Configure Grout FRR instance
 vtysh <<-EOF
