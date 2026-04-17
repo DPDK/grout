@@ -24,10 +24,7 @@ create_interface p0
 set_ip_address p0 2001:db8::1/64
 
 start_frr ospf6-peer 0
-ip link set x-p0 netns ospf6-peer
-
-ip -n grout l set p0 up
-ip -n ospf6-peer l set x-p0 up
+move_to_netns x-p0 ospf6-peer
 
 # Configure Grout FRR instance
 vtysh <<-EOF
