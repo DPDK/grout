@@ -472,6 +472,9 @@ static void iface_event(uint32_t event, const void *obj) {
 }
 
 static void cp_module_init(struct event_base *base) {
+	if (netlink_flush_cp_route_table() < 0)
+		LOG(WARNING, "netlink_flush_cp_route_table: %s", strerror(errno));
+
 	cp_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
 	if (!cp_pool)
 		ABORT("pktmbuf_pool returned NULL");

@@ -4,6 +4,7 @@
 #include "log.h"
 #include "module.h"
 #include "netlink.h"
+#include "vec.h"
 
 #include <gr_errno.h>
 #include <gr_macro.h>
@@ -51,6 +52,34 @@ again:
 
 static int netlink_send_req(struct nlmsghdr *nlh) {
 	return netlink_send_req_cb(nlh, NULL, NULL);
+}
+
+static int netlink_send_req_dump(struct nlmsghdr *nlh, mnl_cb_t cb, void *data) {
+	unsigned int portid;
+	int ret;
+
+	nlh->nlmsg_seq = nl_seq;
+	nlh->nlmsg_flags |= NLM_F_DUMP;
+	portid = mnl_socket_get_portid(nl_sock);
+
+	ret = mnl_socket_sendto(nl_sock, nlh, nlh->nlmsg_len);
+	if (ret < 0)
+		return ret;
+
+	while (true) {
+		ret = mnl_socket_recvfrom(nl_sock, socket_buf, sizeof(socket_buf));
+		if (ret < 0) {
+			if (errno == EINTR)
+				continue;
+			return ret;
+		}
+		ret = mnl_cb_run(socket_buf, ret, nl_seq, portid, cb, data);
+		if (ret <= MNL_CB_STOP)
+			break;
+	}
+
+	nl_seq++;
+	return ret < 0 ? ret : 0;
 }
 
 int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier) {
@@ -305,6 +334,128 @@ int netlink_del_cp_route(const char *ifname, uint32_t ifindex) {
 		if (netlink_add_del_rule_oif(families[i], ifname, GR_CP_RT_TABLE, false) < 0)
 			last_err = -errno;
 	}
+	return last_err;
+}
+
+// Stale state recovery for the control-plane PBR table (GR_CP_RT_TABLE).
+//
+// TAPs vanish on grout crash (TUN fd close), but the PBR rules pointing at
+// them by FRA_OIFNAME and the routes in table 999 survive in the kernel.
+// On restart netlink_add_del_rule_oif() uses NLM_F_EXCL and fails EEXIST,
+// and orphan routes with dead ifindex accumulate across crash/restart cycles.
+//
+// Table 999 is grout-reserved (see the comment above GR_CP_RT_TABLE), so the
+// table number itself acts as the grout-owned tag: anything in it belongs to
+// us and can be flushed on init. This mirrors the spirit of the VRF IFALIAS
+// pattern (commit 55967db37 "infra: delete stale kernel VRF devices on
+// creation") but at table granularity instead of device granularity.
+
+struct flush_rule_entry {
+	uint8_t family;
+	char oifname[IFNAMSIZ];
+};
+
+struct flush_route_entry {
+	uint8_t family;
+	uint32_t oif;
+};
+
+static int rule_flush_cb(const struct nlmsghdr *nlh, void *data) {
+	struct fib_rule_hdr *frh = mnl_nlmsg_get_payload(nlh);
+	vec struct flush_rule_entry **rules = data;
+	const char *oifname = NULL;
+	uint32_t table = frh->table;
+	struct flush_rule_entry e = {.family = frh->family};
+	struct nlattr *attr;
+
+	mnl_attr_for_each(attr, nlh, sizeof(*frh)) {
+		switch (mnl_attr_get_type(attr)) {
+		case FRA_TABLE:
+			table = mnl_attr_get_u32(attr);
+			break;
+		case FRA_OIFNAME:
+			oifname = mnl_attr_get_str(attr);
+			break;
+		}
+	}
+
+	if (table != GR_CP_RT_TABLE || oifname == NULL)
+		return MNL_CB_OK;
+	snprintf(e.oifname, IFNAMSIZ, "%s", oifname);
+	vec_add(*rules, e);
+	return MNL_CB_OK;
+}
+
+static int route_flush_cb(const struct nlmsghdr *nlh, void *data) {
+	struct rtmsg *rtm = mnl_nlmsg_get_payload(nlh);
+	vec struct flush_route_entry **routes = data;
+	uint32_t table = rtm->rtm_table;
+	struct flush_route_entry e = {.family = rtm->rtm_family};
+	struct nlattr *attr;
+
+	mnl_attr_for_each(attr, nlh, sizeof(*rtm)) {
+		switch (mnl_attr_get_type(attr)) {
+		case RTA_TABLE:
+			table = mnl_attr_get_u32(attr);
+			break;
+		case RTA_OIF:
+			e.oif = mnl_attr_get_u32(attr);
+			break;
+		}
+	}
+
+	if (table != GR_CP_RT_TABLE)
+		return MNL_CB_OK;
+	vec_add(*routes, e);
+	return MNL_CB_OK;
+}
+
+int netlink_flush_cp_route_table(void) {
+	const uint8_t families[] = {AF_INET, AF_INET6};
+	char buf[NLMSG_SPACE(sizeof(struct rtmsg))];
+	vec struct flush_rule_entry *rules = NULL;
+	vec struct flush_route_entry *routes = NULL;
+	struct fib_rule_hdr *frh;
+	struct nlmsghdr *nlh;
+	struct rtmsg *rtm;
+	int last_err = 0;
+
+	for (size_t i = 0; i < ARRAY_DIM(families); i++) {
+		memset(buf, 0, sizeof(buf));
+		nlh = mnl_nlmsg_put_header(buf);
+		nlh->nlmsg_type = RTM_GETRULE;
+		nlh->nlmsg_flags = NLM_F_REQUEST;
+		frh = mnl_nlmsg_put_extra_header(nlh, sizeof(*frh));
+		frh->family = families[i];
+		if (netlink_send_req_dump(nlh, rule_flush_cb, &rules) < 0)
+			last_err = -errno;
+	}
+
+	for (size_t i = 0; i < ARRAY_DIM(families); i++) {
+		memset(buf, 0, sizeof(buf));
+		nlh = mnl_nlmsg_put_header(buf);
+		nlh->nlmsg_type = RTM_GETROUTE;
+		nlh->nlmsg_flags = NLM_F_REQUEST;
+		rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
+		rtm->rtm_family = families[i];
+		if (netlink_send_req_dump(nlh, route_flush_cb, &routes) < 0)
+			last_err = -errno;
+	}
+
+	for (unsigned i = 0; i < vec_len(rules); i++) {
+		if (netlink_add_del_rule_oif(
+			    rules[i].family, rules[i].oifname, GR_CP_RT_TABLE, false
+		    )
+		    < 0)
+			last_err = -errno;
+	}
+	for (unsigned i = 0; i < vec_len(routes); i++) {
+		if (netlink_add_del_cp_route_family(routes[i].family, routes[i].oif, false) < 0)
+			last_err = -errno;
+	}
+
+	vec_free(rules);
+	vec_free(routes);
 	return last_err;
 }
 
