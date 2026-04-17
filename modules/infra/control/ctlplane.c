@@ -171,14 +171,10 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		}
 
 		e = eth_input_mbuf_data(mbuf);
-		e->iface = get_vrf_iface(iface->vrf_id);
-		if (e->iface == NULL) {
-			LOG(ERR,
-			    "cp_poll: no VRF iface for vrf_id %u on %s",
-			    iface->vrf_id,
-			    iface->name);
-			goto err;
-		}
+		// Keep the original iface so the link-local scope (iface->id) is
+		// preserved for fib6_lookup. The VRF context comes from
+		// iface->vrf_id either way.
+		e->iface = iface;
 		e->domain = ETH_DOMAIN_LOOPBACK;
 
 		if (post_to_stack(loopback_get_control_id(), mbuf) < 0) {
