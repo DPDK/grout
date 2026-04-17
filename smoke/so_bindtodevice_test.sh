@@ -25,8 +25,8 @@ grcli interface add vrf gr-vrf1
 
 port_add p0
 port_add p1 vrf gr-vrf1
-grcli interface add vlan p0.42 parent p0  vlan_id 42
-grcli interface add vlan p1.43 parent p1  vlan_id 43 vrf gr-vrf1
+grcli interface add vlan p0.42 parent p0 vlan_id 42
+grcli interface add vlan p1.43 parent p1 vlan_id 43 vrf gr-vrf1
 
 grcli address add 172.16.0.1/24 iface p0
 grcli address add fd00::1/64    iface p0
