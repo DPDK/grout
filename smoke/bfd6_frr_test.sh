@@ -102,8 +102,8 @@ while ! vtysh -N bfd-peer -c "show bfd peers json" | jq -e '.[] | select(.status
 done
 
 # Verify BFD counters are non-zero (packets flowing)
-input=$(vtysh -c "show bfd peers counters json" | jq '.[0]."control-packet-input"')
-output=$(vtysh -c "show bfd peers counters json" | jq '.[0]."control-packet-output"')
+input=$(vtysh -c "show bfd peers counters json" | jq '.[0]."control-packet-input" // 0')
+output=$(vtysh -c "show bfd peers counters json" | jq '.[0]."control-packet-output" // 0')
 
 if [ "$input" -eq 0 ] || [ "$output" -eq 0 ]; then
 	vtysh -c "show bfd peers counters"
