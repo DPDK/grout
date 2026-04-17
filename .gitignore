@@ -22,3 +22,4 @@
 /subprojects/libecoli-*
 /subprojects/frr-*
 /subprojects/packagecache
+/subprojects/.wraplock
