@@ -457,12 +457,12 @@ static void iface_event(uint32_t event, const void *obj) {
 		cp_update(iface);
 		break;
 	case GR_EVENT_IFACE_REMOVE:
-		netlink_del_cp_route6(iface->name, iface->cp_id);
+		netlink_del_cp_route(iface->name, iface->cp_id);
 		cp_delete(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
 		netlink_link_set_admin_state(iface->cp_id, true, true);
-		netlink_add_cp_route6(iface->name, iface->cp_id);
+		netlink_add_cp_route(iface->name, iface->cp_id);
 		cp_set_speed(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_DOWN:
