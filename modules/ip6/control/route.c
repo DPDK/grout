@@ -368,11 +368,13 @@ static struct api_out route6_add(const void *request, struct api_ctx *) {
 		nh = nexthop_lookup_id(req->nh_id);
 		if (nh == NULL)
 			return api_out(ENOENT, 0, NULL);
-	} else if ((nh = nexthop_lookup_l3(GR_AF_IP6, req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh))
-		   == NULL) {
-		// ensure route gateway is reachable
-		if ((nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
-			return api_out(EHOSTUNREACH, 0, NULL);
+	} else {
+		nh = nexthop_lookup_l3(GR_AF_IP6, req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh);
+		if (nh == NULL) {
+			// ensure route gateway is reachable
+			if ((nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->nh)) == NULL)
+				return api_out(EHOSTUNREACH, 0, NULL);
+		}
 
 		if (nh->type == GR_NH_T_L3) {
 			// if the route gateway is reachable via a prefix route,

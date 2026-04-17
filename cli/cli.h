@@ -92,14 +92,10 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 	return ret;
 }
 
-#define CTX_END                                                                                    \
-	&(const struct ctx_arg) {                                                                  \
-		.name = NULL                                                                       \
-	}
-#define CTX_ARG(n, h)                                                                              \
-	&(const struct ctx_arg) {                                                                  \
-		.name = n, .help = h                                                               \
-	}
+// clang-format off
+#define CTX_END &(const struct ctx_arg) {.name = NULL}
+#define CTX_ARG(n, h) &(const struct ctx_arg) {.name = n, .help = h}
+// clang-format on
 #define CLI_CONTEXT(root, ...) __cli_context(root, __VA_ARGS__, CTX_END)
 
 #define CLI_COMMAND(ctx, cmd, cb, help, ...)                                                       \
