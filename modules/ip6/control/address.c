@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "arr.h"
 #include "event.h"
 #include "iface.h"
 #include "ip6.h"
@@ -9,7 +10,6 @@
 #include "module.h"
 #include "netlink.h"
 #include "rcu.h"
-#include "vec.h"
 
 #include <gr_ip6.h>
 #include <gr_net_types.h>
@@ -34,7 +34,7 @@ struct hoplist *addr6_get_all(uint16_t iface_id) {
 		return errno_set_null(ENODEV);
 
 	addrs = &iface_addrs[iface_id];
-	if (vec_len(addrs->nh) == 0)
+	if (arr_len(addrs->nh) == 0)
 		return errno_set_null(ENOENT);
 
 	return addrs;
@@ -48,7 +48,7 @@ struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_add
 	if (addrs == NULL)
 		return NULL;
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_eq_prefix(dst, &l3->ipv6, l3->prefixlen))
 			return nh;
@@ -67,7 +67,7 @@ struct nexthop *addr6_get_linklocal(uint16_t iface_id) {
 	if (addrs == NULL)
 		return NULL;
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_is_linklocal(&l3->ipv6))
 			return nh;
@@ -87,7 +87,7 @@ struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr 
 		return NULL;
 
 	maddrs = &iface_mcast_addrs[iface_id];
-	vec_foreach (nh, maddrs->nh) {
+	arr_foreach (nh, maddrs->nh) {
 		l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_eq(&l3->ipv6, mcast))
 			return nh;
@@ -102,7 +102,7 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
-	vec_foreach (nh, maddrs->nh) {
+	arr_foreach (nh, maddrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_eq(&l3->ipv6, ip)) {
 			nexthop_incref(nh);
@@ -130,18 +130,18 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 		nexthop_incref(nh);
 	}
 
-	// vec_add may realloc() and free the old vector
+	// arr_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
-	vec struct nexthop **nhs_old = maddrs->nh;
-	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
-	vec_extend(nhs_copy, nhs_old);
-	vec_add(nhs_copy, nh);
+	arr struct nexthop **nhs_copy = NULL;
+	arr struct nexthop **nhs_old = maddrs->nh;
+	arr_cap_set(nhs_copy, arr_len(nhs_old) + 1); // avoid malloc+realloc
+	arr_extend(nhs_copy, nhs_old);
+	arr_add(nhs_copy, nh);
 	maddrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		vec_free(nhs_old);
+		arr_free(nhs_old);
 	}
 
 	return 0;
@@ -154,7 +154,7 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 	unsigned i = 0;
 	int ret = 0;
 
-	vec_foreach (nh, maddrs->nh) {
+	arr_foreach (nh, maddrs->nh) {
 		l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_eq(&l3->ipv6, ip))
 			break;
@@ -165,9 +165,9 @@ static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr
 		return errno_set(ENOENT);
 
 	// shift remaining addresses
-	vec_del(maddrs->nh, i);
-	if (vec_len(maddrs->nh) == 0)
-		vec_free(maddrs->nh);
+	arr_del(maddrs->nh, i);
+	if (arr_len(maddrs->nh) == 0)
+		arr_free(maddrs->nh);
 
 	nexthop_decref(nh);
 
@@ -189,7 +189,7 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	addrs = &iface_addrs[iface->id];
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		if (prefixlen == l3->prefixlen && rte_ipv6_addr_eq(&l3->ipv6, ip))
 			return errno_set(EEXIST);
@@ -233,18 +233,18 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	if (iface->cp_id != 0 && netlink_add_addr6(iface->cp_id, ip) < 0)
 		LOG(WARNING, "add addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
 
-	// vec_add may realloc() and free the old vector
+	// arr_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
-	vec struct nexthop **nhs_old = addrs->nh;
-	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
-	vec_extend(nhs_copy, nhs_old);
-	vec_add(nhs_copy, nh);
+	arr struct nexthop **nhs_copy = NULL;
+	arr struct nexthop **nhs_old = addrs->nh;
+	arr_cap_set(nhs_copy, arr_len(nhs_old) + 1); // avoid malloc+realloc
+	arr_extend(nhs_copy, nhs_old);
+	arr_add(nhs_copy, nh);
 	addrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		vec_free(nhs_old);
+		arr_free(nhs_old);
 	}
 
 	event_push(
@@ -288,7 +288,7 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 
 	addrs = &iface_addrs[iface->id];
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_eq(&l3->ipv6, ip) && l3->prefixlen == prefixlen)
 			break;
@@ -311,9 +311,9 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 		nexthop_decref(nh);
 
 	// shift the remaining addresses
-	vec_del(addrs->nh, i);
-	if (vec_len(addrs->nh) == 0)
-		vec_free(addrs->nh);
+	arr_del(addrs->nh, i);
+	if (arr_len(addrs->nh) == 0)
+		arr_free(addrs->nh);
 
 	// leave the solicited node multicast group
 	rte_ipv6_solnode_from_addr(&solicited_node, ip);
@@ -356,7 +356,7 @@ static struct api_out addr6_flush(const void *request, struct api_ctx *) {
 		return api_out(errno, 0, NULL);
 
 	addrs = &iface_addrs[iface->id];
-	while (i < vec_len(addrs->nh)) {
+	while (i < arr_len(addrs->nh)) {
 		nh = addrs->nh[i];
 		l3 = nexthop_info_l3(nh);
 		if (rte_ipv6_addr_is_linklocal(&l3->ipv6)) {
@@ -382,7 +382,7 @@ static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL)
 			continue;
-		vec_foreach (nh, addrs->nh) {
+		arr_foreach (nh, addrs->nh) {
 			if (req->vrf_id != GR_VRF_ID_UNDEF && nh->vrf_id != req->vrf_id)
 				continue;
 			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
@@ -439,14 +439,14 @@ static void ip6_iface_addrs_flush(const struct iface *iface) {
 	struct hoplist *addrs;
 
 	addrs = &iface_addrs[iface->id];
-	while (vec_len(addrs->nh) > 0) {
-		nh = addrs->nh[vec_len(addrs->nh) - 1];
+	while (arr_len(addrs->nh) > 0) {
+		nh = addrs->nh[arr_len(addrs->nh) - 1];
 		l3 = nexthop_info_l3(nh);
 		addr6_delete(iface->id, &l3->ipv6, l3->prefixlen);
 	}
 	addrs = &iface_mcast_addrs[iface->id];
-	while (vec_len(addrs->nh) > 0) {
-		nh = addrs->nh[vec_len(addrs->nh) - 1];
+	while (arr_len(addrs->nh) > 0) {
+		nh = addrs->nh[arr_len(addrs->nh) - 1];
 		l3 = nexthop_info_l3(nh);
 		mcast6_addr_del(iface, &l3->ipv6);
 	}
@@ -466,7 +466,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		if (iface->mode != GR_IFACE_MODE_VRF) {
 			// changing mode from VRF -> !VRF
 			ip6_iface_addrs_flush(iface);
-		} else if (vec_len(iface_addrs[iface->id].nh) == 0) {
+		} else if (arr_len(iface_addrs[iface->id].nh) == 0) {
 			// changing mode from !VRF -> VRF
 			ip6_iface_llocal_init(iface);
 		} else if (iface_addrs[iface->id].nh[0]->vrf_id != iface->vrf_id) {
@@ -481,7 +481,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_STATUS_UP:
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
-		vec_foreach (nh, addrs->nh) {
+		arr_foreach (nh, addrs->nh) {
 			if (nh6_advertise(nh, NULL) < 0)
 				LOG(WARNING, "nh6_advertise: %s", strerror(errno));
 		}

@@ -48,7 +48,7 @@ static int bond_mac_add(struct iface *iface, const struct rte_ether_addr *mac) {
 	if ((ret = bond_all_member_add_mac(bond, mac)) < 0)
 		return ret;
 
-	vec_add(bond->extra_macs, *mac);
+	arr_add(bond->extra_macs, *mac);
 
 	return 0;
 }
@@ -59,9 +59,9 @@ static int bond_mac_del(struct iface *iface, const struct rte_ether_addr *mac) {
 	// Remove MAC address from all member ports
 	bond_all_member_del_mac(bond, mac);
 
-	for (unsigned i = 0; i < vec_len(bond->extra_macs); i++) {
+	for (unsigned i = 0; i < arr_len(bond->extra_macs); i++) {
 		if (rte_is_same_ether_addr(&bond->extra_macs[i], mac)) {
-			vec_del(bond->extra_macs, i);
+			arr_del(bond->extra_macs, i);
 			break;
 		}
 	}
@@ -173,7 +173,7 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 	if (bond->n_members == ARRAY_DIM(bond->members))
 		return errno_set(EUSERS);
 
-	vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
+	arr_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
 		if (iface_add_eth_addr(member, mac) < 0)
 			return errno_log(errno, "iface_add_eth_addr(member)");
 	}
@@ -223,7 +223,7 @@ static int bond_detach_member(struct iface *iface, struct iface *member) {
 			bond->n_members--;
 			if (bond->primary_member >= bond->n_members)
 				bond->primary_member--;
-			vec_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
+			arr_foreach_ref (struct rte_ether_addr *mac, bond->extra_macs) {
 				if (iface_del_eth_addr(member, mac) < 0 && errno != ENOENT) {
 					LOG(WARNING,
 					    "failed to unconfigure mac address on member %s: %s",
@@ -273,7 +273,7 @@ void bond_update_active_members(struct iface *iface) {
 			member = bond->members[i].iface;
 			if (i == active_member) {
 				speed = member->speed;
-				vec_add(active_ids, i);
+				arr_add(active_ids, i);
 				LOG(INFO,
 				    "bond %s active member is now %s",
 				    iface->name,
@@ -317,7 +317,7 @@ void bond_update_active_members(struct iface *iface) {
 				    "bond %s member %s active",
 				    iface->name,
 				    member->iface->name);
-				vec_add(active_ids, i);
+				arr_add(active_ids, i);
 				if (member->iface->speed != RTE_ETH_SPEED_NUM_UNKNOWN)
 					speed += member->iface->speed;
 			}
@@ -330,9 +330,9 @@ void bond_update_active_members(struct iface *iface) {
 	else
 		iface->speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 
-	if (vec_len(active_ids) > 0) {
+	if (arr_len(active_ids) > 0) {
 		for (unsigned i = 0; i < ARRAY_DIM(bond->redirection_table); i++) {
-			bond->redirection_table[i] = active_ids[i % vec_len(active_ids)];
+			bond->redirection_table[i] = active_ids[i % arr_len(active_ids)];
 		}
 		if (!(iface->state & GR_IFACE_S_RUNNING)) {
 			iface->state |= GR_IFACE_S_RUNNING;
@@ -348,7 +348,7 @@ void bond_update_active_members(struct iface *iface) {
 		}
 	}
 
-	vec_free(active_ids);
+	arr_free(active_ids);
 }
 
 static int bond_up_down(struct iface *iface, bool up) {
@@ -412,7 +412,7 @@ static int bond_fini(struct iface *iface) {
 		event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
 
-	vec_free(bond->extra_macs);
+	arr_free(bond->extra_macs);
 
 	return 0;
 }

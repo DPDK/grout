@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "arr.h"
 #include "conntrack.h"
 #include "id_pool.h"
 #include "nat.h"
 #include "rcu.h"
-#include "vec.h"
 
 #include <rte_malloc.h>
 
@@ -83,12 +83,12 @@ int snat44_dynamic_policy_del(const struct gr_snat44_policy *policy) {
 	return 0;
 }
 
-vec struct gr_snat44_policy *snat44_dynamic_policy_export(void) {
-	vec struct gr_snat44_policy *list = NULL;
+arr struct gr_snat44_policy *snat44_dynamic_policy_export(void) {
+	arr struct gr_snat44_policy *list = NULL;
 	const struct snat44_policy *p;
 
 	STAILQ_FOREACH (p, &policies, next)
-		vec_add(list, p->base);
+		arr_add(list, p->base);
 
 	return list;
 }

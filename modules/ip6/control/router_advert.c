@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
+#include "arr.h"
 #include "control_input.h"
 #include "event.h"
 #include "icmp6.h"
@@ -11,7 +12,6 @@
 #include "log.h"
 #include "mempool.h"
 #include "module.h"
-#include "vec.h"
 
 #include <gr_ip6.h>
 
@@ -87,7 +87,7 @@ static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 
 	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
 		addrs = addr6_get_all(iface_id);
-		if (addrs == NULL || vec_len(addrs->nh) == 0)
+		if (addrs == NULL || arr_len(addrs->nh) == 0)
 			continue;
 		if (show_all == false && iface_id != req->iface_id)
 			continue;
@@ -169,7 +169,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 	if ((hl = addr6_get_all(iface->id)) == NULL)
 		return;
 
-	vec_foreach (nh, hl->nh) {
+	arr_foreach (nh, hl->nh) {
 		if (nh->type != GR_NH_T_L3)
 			continue;
 		l3 = nexthop_info_l3(nh);

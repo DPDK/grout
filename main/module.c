@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "arr.h"
 #include "log.h"
 #include "module.h"
 #include "sort.h"
-#include "vec.h"
 
 #include <gr_macro.h>
 #include <gr_string.h>
@@ -98,43 +98,43 @@ static bool module_is_child(const void *mod, const void *maybe_child) {
 }
 
 void modules_init(struct event_base *ev_base) {
-	vec const struct module **mods = NULL;
+	arr const struct module **mods = NULL;
 	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
-		vec_add(mods, mod);
+		arr_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	if (topo_sort((vec const void **)mods, module_is_child) < 0)
+	if (topo_sort((arr const void **)mods, module_is_child) < 0)
 		ABORT("topo_sort failed: %s", strerror(errno));
 
-	vec_foreach (mod, mods) {
+	arr_foreach (mod, mods) {
 		if (mod->init != NULL) {
 			LOG(DEBUG, "'%s' (depends on '%s')", mod->name, mod->depends_on ?: "");
 			mod->init(ev_base);
 		}
 	}
 
-	vec_free(mods);
+	arr_free(mods);
 }
 
 void modules_fini(struct event_base *ev_base) {
-	vec const struct module **mods = NULL;
+	arr const struct module **mods = NULL;
 	const struct module *mod;
 
 	STAILQ_FOREACH (mod, &modules, next)
-		vec_add(mods, mod);
+		arr_add(mods, mod);
 
 	if (mods == NULL)
 		ABORT("failed to alloc module array");
 
-	if (topo_sort((vec const void **)mods, module_is_child) < 0)
+	if (topo_sort((arr const void **)mods, module_is_child) < 0)
 		ABORT("topo_sort failed: %s", strerror(errno));
 
 	// call fini() functions in reverse topological order
-	for (int i = vec_len(mods) - 1; i >= 0; i--) {
+	for (int i = arr_len(mods) - 1; i >= 0; i--) {
 		mod = mods[i];
 		if (mod->fini != NULL) {
 			LOG(DEBUG, "'%s' (depends on '%s')", mod->name, mod->depends_on ?: "");
@@ -142,7 +142,7 @@ void modules_fini(struct event_base *ev_base) {
 		}
 	}
 
-	vec_free(mods);
+	arr_free(mods);
 
 	for (unsigned i = 0; i < ARRAY_DIM(mod_handlers); i++) {
 		free(mod_handlers[i]);

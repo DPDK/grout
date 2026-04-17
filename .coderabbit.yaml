@@ -32,8 +32,8 @@ reviews:
   path_instructions:
     - path: "**/*.{c,h}"
       instructions: |
-        - `vec_*()` functions cannot fail. No need to check their return value.
-        - `vec_free(x)` always sets `x = NULL`. There is no risk of double free.
+        - `arr_*()` functions cannot fail. No need to check their return value.
+        - `arr_free(x)` always sets `x = NULL`. There is no risk of double free.
         - `ec_node_*()` functions consume their `ec_node` arguments. No leaks on error.
         - `rte_node->ctx` is an uint8_t array of size 16, not a pointer.
         - Never suggest to replace `assert()` with graceful error checking.

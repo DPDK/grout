@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "arr.h"
 #include "event.h"
 #include "iface.h"
 #include "ip4.h"
@@ -9,7 +10,6 @@
 #include "module.h"
 #include "netlink.h"
 #include "rcu.h"
-#include "vec.h"
 
 #include <gr_ip4.h>
 #include <gr_net_types.h>
@@ -33,7 +33,7 @@ struct hoplist *addr4_get_all(uint16_t iface_id) {
 		return errno_set_null(ENODEV);
 
 	addrs = &iface_addrs[iface_id];
-	if (vec_len(addrs->nh) == 0)
+	if (arr_len(addrs->nh) == 0)
 		return errno_set_null(ENOENT);
 
 	return addrs;
@@ -47,7 +47,7 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	if (addrs == NULL)
 		return NULL;
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		l3 = nexthop_info_l3(nh);
 		if (ip4_addr_same_subnet(dst, l3->ipv4, l3->prefixlen))
 			return nh;
@@ -71,7 +71,7 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 
 	ifaddrs = &iface_addrs[iface->id];
 
-	vec_foreach (nh, ifaddrs->nh) {
+	arr_foreach (nh, ifaddrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		if (ip == l3->ipv4 && prefixlen == l3->prefixlen)
 			return errno_set(EEXIST);
@@ -105,18 +105,18 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 		return ret;
 	}
 
-	// vec_add may realloc() and free the old vector
+	// arr_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
-	vec struct nexthop **nhs_old = ifaddrs->nh;
-	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
-	vec_extend(nhs_copy, nhs_old);
-	vec_add(nhs_copy, nh);
+	arr struct nexthop **nhs_copy = NULL;
+	arr struct nexthop **nhs_old = ifaddrs->nh;
+	arr_cap_set(nhs_copy, arr_len(nhs_old) + 1); // avoid malloc+realloc
+	arr_extend(nhs_copy, nhs_old);
+	arr_add(nhs_copy, nh);
 	ifaddrs->nh = nhs_copy;
 	if (nhs_old != NULL) {
 		// Once all datapath workers have seen the new clone, free the old one.
 		rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
-		vec_free(nhs_old);
+		arr_free(nhs_old);
 	}
 
 	if (iface->cp_id != 0 && netlink_add_addr4(iface->cp_id, ip) < 0)
@@ -154,7 +154,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	if ((addrs = addr4_get_all(iface_id)) == NULL)
 		return -errno;
 
-	vec_foreach (nh, addrs->nh) {
+	arr_foreach (nh, addrs->nh) {
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		if (l3->ipv4 == ip && l3->prefixlen == prefixlen) {
 			break;
@@ -177,9 +177,9 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 
-	vec_del(addrs->nh, i);
-	if (vec_len(addrs->nh) == 0)
-		vec_free(addrs->nh);
+	arr_del(addrs->nh, i);
+	if (arr_len(addrs->nh) == 0)
+		arr_free(addrs->nh);
 
 	iface = iface_from_id(iface_id);
 	if (iface && iface->cp_id != 0) {
@@ -214,8 +214,8 @@ static struct api_out addr_flush(const void *request, struct api_ctx *) {
 		return api_out(errno, 0, NULL);
 	}
 
-	while (vec_len(ifaddrs->nh) > 0) {
-		l3 = nexthop_info_l3(ifaddrs->nh[vec_len(ifaddrs->nh) - 1]);
+	while (arr_len(ifaddrs->nh) > 0) {
+		l3 = nexthop_info_l3(ifaddrs->nh[arr_len(ifaddrs->nh) - 1]);
 		if (addr4_delete(req->iface_id, l3->ipv4, l3->prefixlen) < 0)
 			return api_out(errno, 0, NULL);
 	}
@@ -235,7 +235,7 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 		addrs = addr4_get_all(iface_id);
 		if (addrs == NULL)
 			continue;
-		vec_foreach (nh, addrs->nh) {
+		arr_foreach (nh, addrs->nh) {
 			if (req->vrf_id != GR_VRF_ID_UNDEF && nh->vrf_id != req->vrf_id)
 				continue;
 			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
@@ -257,7 +257,7 @@ static void iface_event_cb(uint32_t event, const void *obj) {
 	struct hoplist *ifaddrs;
 
 	ifaddrs = addr4_get_all(iface->id);
-	if (ifaddrs == NULL || vec_len(ifaddrs->nh) == 0)
+	if (ifaddrs == NULL || arr_len(ifaddrs->nh) == 0)
 		return;
 
 	if (event == GR_EVENT_IFACE_POST_RECONFIG) {
@@ -267,8 +267,8 @@ static void iface_event_cb(uint32_t event, const void *obj) {
 
 	// interface is either being deleted, mode changed to !VRF, or changed to another VRF
 	// delete all configured addresses
-	while (vec_len(ifaddrs->nh) > 0) {
-		l3 = nexthop_info_l3(ifaddrs->nh[vec_len(ifaddrs->nh) - 1]);
+	while (arr_len(ifaddrs->nh) > 0) {
+		l3 = nexthop_info_l3(ifaddrs->nh[arr_len(ifaddrs->nh) - 1]);
 		addr4_delete(iface->id, l3->ipv4, l3->prefixlen);
 	}
 }
@@ -280,7 +280,7 @@ static void iface_up_cb(uint32_t /*event*/, const void *obj) {
 	if (ifaddrs == NULL)
 		return;
 
-	vec_foreach (struct nexthop *nh, ifaddrs->nh)
+	arr_foreach (struct nexthop *nh, ifaddrs->nh)
 		arp_output_request_solicit(nh);
 }
 

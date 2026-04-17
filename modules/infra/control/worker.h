@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "arr.h"
 #include "port.h"
-#include "vec.h"
 
 #include <rte_common.h>
 #include <rte_graph.h>
@@ -75,8 +75,8 @@ struct worker {
 
 	// private for control plane only
 	pthread_t thread;
-	vec struct queue_map *rxqs;
-	vec struct queue_map *txqs;
+	arr struct queue_map *rxqs;
+	arr struct queue_map *txqs;
 	STAILQ_ENTRY(worker) next;
 } __rte_cache_aligned;
 
@@ -84,10 +84,10 @@ STAILQ_HEAD(workers, worker);
 extern struct workers workers;
 
 int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
-int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_port **ports);
+int worker_queue_distribute(const cpu_set_t *affinity, arr struct iface_info_port **ports);
 void worker_wait_wakeup(struct worker *);
 void worker_wakeup(struct worker *);
-vec struct gr_stat *worker_dump_stats(uint16_t cpu_id);
+arr struct gr_stat *worker_dump_stats(uint16_t cpu_id);
 
 int port_unplug(struct iface_info_port *);
 int port_plug(struct iface_info_port *);
@@ -98,6 +98,6 @@ int worker_create(unsigned cpu_id);
 struct worker *worker_find(unsigned cpu_id);
 int worker_destroy(unsigned cpu_id);
 
-int worker_graph_reload(struct worker *, vec struct iface_info_port **);
-int worker_graph_reload_all(vec struct iface_info_port **);
+int worker_graph_reload(struct worker *, arr struct iface_info_port **);
+int worker_graph_reload_all(arr struct iface_info_port **);
 void worker_graph_free(struct worker *);

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
 
+#include "arr.h"
 #include "config.h"
 #include "datapath.h"
 #include "log.h"
 #include "module.h"
 #include "rcu.h"
 #include "sort.h"
-#include "vec.h"
 #include "worker.h"
 
 #include <rte_common.h>
@@ -93,7 +93,7 @@ static int node_name_cmp(const void *a, const void *b) {
 
 static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx) {
 	struct rte_graph_cluster_stats_param stats_param;
-	vec const struct rte_node **nodes = NULL;
+	arr const struct rte_node **nodes = NULL;
 	const char *graph_names[1];
 
 	assert(graph != NULL);
@@ -142,17 +142,17 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 	rte_graph_off_t off;
 	rte_node_t count;
 	rte_graph_foreach_node (count, off, graph, node)
-		vec_add(nodes, node);
+		arr_add(nodes, node);
 
 	// sort by name first to ensure stable topo_sort
 	qsort(nodes, count, sizeof(void *), node_name_cmp);
-	if (topo_sort((vec const void **)nodes, node_is_child) < 0) {
+	if (topo_sort((arr const void **)nodes, node_is_child) < 0) {
 		LOG(ERR, "topo_sort failed: %s", strerror(errno));
 		goto err;
 	}
 
 	count = 0;
-	vec_foreach (node, nodes) {
+	arr_foreach (node, nodes) {
 		ctx->node_to_index[node->id] = count;
 		ctx->w_stats->stats[count].node_id = node->id;
 		ctx->w_stats->stats[count].parent_id = node->parent_id;
@@ -160,11 +160,11 @@ static int stats_reload(const struct rte_graph *graph, struct stats_context *ctx
 		count++;
 	}
 
-	vec_free(nodes);
+	arr_free(nodes);
 
 	return 0;
 err:
-	vec_free(nodes);
+	arr_free(nodes);
 	if (ctx->stats != NULL) {
 		rte_graph_cluster_stats_destroy(ctx->stats);
 		ctx->stats = NULL;
