@@ -378,6 +378,26 @@ err:
 		close(ioctl_sock);
 }
 
+static void cp_set_vrf_master(const struct iface *iface) {
+	uint32_t master = 0; // default VRF has no kernel master: leave TAP standalone
+
+	if (iface->vrf_id != GR_VRF_DEFAULT_ID) {
+		const struct iface *vrf = iface_from_id(iface->vrf_id);
+		if (vrf == NULL || vrf->type != GR_IFACE_TYPE_VRF) {
+			LOG(ERR, "no VRF iface for id %u on %s", iface->vrf_id, iface->name);
+			return;
+		}
+		master = iface_info_vrf(vrf)->vrf_ifindex;
+	}
+
+	if (netlink_link_set_master(iface->cp_id, master) < 0)
+		LOG(ERR,
+		    "netlink_link_set_master(%s, %u): %s",
+		    iface->name,
+		    master,
+		    strerror(errno));
+}
+
 static void cp_update(struct iface *iface) {
 	struct rte_ether_addr mac;
 	char cur_name[IFNAMSIZ];
@@ -393,6 +413,8 @@ static void cp_update(struct iface *iface) {
 			    iface->name,
 			    strerror(errno));
 	}
+
+	cp_set_vrf_master(iface);
 
 	if (iface->mtu != 0) {
 		if (netlink_link_set_mtu(iface->cp_id, iface->mtu) < 0)
