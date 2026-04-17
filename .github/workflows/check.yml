@@ -200,6 +200,65 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
+  build-cross-ppc64le:
+    if: ${{ github.actor != 'grout-bot' }}
+    permissions:
+      actions: write
+    runs-on: ubuntu-24.04
+    container: debian:stable
+    env:
+      MESON_EXTRA_OPTS: --cross-file=devtools/cross/ppc64le.ini
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: l
+    steps:
+      - name: install system dependencies
+        run: |
+          set -xe
+          dpkg --add-architecture ppc64el
+          apt update -qy
+          apt install -qy --no-install-recommends \
+            make gcc ccache git meson scdoc python3-pyelftools ca-certificates pkg-config \
+            crossbuild-essential-ppc64el libcmocka-dev:ppc64el libedit-dev:ppc64el \
+            libevent-dev:ppc64el libmnl-dev:ppc64el libnuma-dev:ppc64el
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # force fetch all history
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+      - run: git config --global --add safe.directory $PWD
+      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+      - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-ppc64le
+      - run: ccache -z
+      - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
+        if: ${{ github.event.pull_request.commits }}
+      - run: .github/workflows/check.sh || true
+        if: ${{ ! github.event.pull_request.commits }}
+      - run: ccache -sv
+      - name: delete old cache
+        if: ${{ ! github.event.pull_request.commits }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.actions.deleteActionsCacheByKey({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                key: "${{ steps.cache.outputs.cache-primary-key }}"
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+      - uses: actions/cache/save@v4
+        if: ${{ ! github.event.pull_request.commits }}
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
   lint:
     if: ${{ github.actor != 'grout-bot' }}
     runs-on: ubuntu-24.04
