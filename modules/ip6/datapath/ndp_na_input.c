@@ -195,7 +195,7 @@ static void ndp_na_input_hop_limit_invalid(void **) {
 
 	d->hop_limit = 254;
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
@@ -209,7 +209,7 @@ static void ndp_na_input_icmp_code_invalid(void **) {
 	// Invalid code
 	ndp_mbuf.icmp6_hdr.code = 1;
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
@@ -224,7 +224,7 @@ static void ndp_na_input_icmp_len_invalid(void **) {
 	//Invalid length
 	d->len = 23;
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
@@ -240,7 +240,7 @@ static void ndp_na_input_target_mcast(void **) {
 		0xff02, 0x00, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1
 	);
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
@@ -255,7 +255,7 @@ static void ndp_na_input_dst_mcast_solicited_is_set(void **) {
 	// dst is mcast and na_hdr.solicited is 1. Fails: !mcast(dst) || solicited==0
 	d->dst = (struct rte_ipv6_addr)RTE_IPV6(0xff02, 0, 0, 0, 0, 0, 0, 1);
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, (void **)&obj, 1);
 }
@@ -271,7 +271,7 @@ static void ndp_na_input_tlla_opt_type_invalid(void **) {
 
 	will_return(nexthop_lookup_l3, &test_nexthop);
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
@@ -287,7 +287,7 @@ static void ndp_na_input_tlla_opt_len_invalid(void **) {
 
 	will_return(nexthop_lookup_l3, &test_nexthop);
 
-	expect_value(rte_node_enqueue_x1, next, INVAL);
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
 
 	ndp_na_input_process(NULL, NULL, &obj, 1);
 }
