@@ -125,3 +125,23 @@ run_scenario "bind=gr-vrf1/vlan" 172.19.0.2 fd03::2 ",so-bindtodevice=gr-vrf1" 1
 
 # 7. no bind (baseline)
 run_scenario "nobind" 172.16.0.2 fd00::2 ""
+
+# 8. IPv6 link-local on port TAP. grout pushes fe80::xxx/128 (host route)
+# rather than /64; this scenario verifies the daemon can still reach a
+# link-local peer when the egress interface is provided via socat's
+# scope_id syntax (peer_ll%p0). FRR daemons (ospf6d, etc.) do the same
+# via IPV6_PKTINFO ipi6_ifindex.
+peer0_ll=$(ip -n peer0 -6 addr show dev x-p0 | sed -nE 's#.*inet6 (fe80:[^/]+).*#\1#p' | head -1)
+grout0_ll=$(llocal_addr p0)
+[ -z "$peer0_ll" ] && fail "peer0 link-local not found on x-p0"
+[ -z "$grout0_ll" ] && fail "grout link-local not found on p0"
+for proto_port in "UDP6:9000" "TCP6:9002"; do
+	proto=${proto_port%:*}
+	port=${proto_port#*:}
+	reply=$(echo "ping" | timeout 3 socat - \
+		"${proto}:[${peer0_ll}%p0]:${port},so-bindtodevice=p0,bind=[${grout0_ll}]" \
+		2>/dev/null) || true
+	if [ "$reply" != "ping" ]; then
+		fail "ll-bind=p0/${proto}: reply not received"
+	fi
+done

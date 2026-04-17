@@ -174,3 +174,26 @@ sysctl -qw net.ipv4.tcp_l3mdev_accept=1
 sysctl -qw net.ipv4.udp_l3mdev_accept=1
 run_listen "nobind/l3mdev=1/vrf" "" \
 	peer1 172.17.0.1 fd01::1 accept tcp-only
+
+# 9. IPv6 link-local: server side. grout pushes fe80::xxx/128 (host
+# route) rather than /64; this scenario verifies a peer can still
+# connect to a link-local listener on the TAP, scoping the destination
+# via x-p0 in its own netns. Mirrors so_bindtodevice_test scenario 8.
+grout0_ll=$(llocal_addr p0)
+[ -z "$grout0_ll" ] && fail "grout link-local not found on p0"
+socat "UDP6-LISTEN:9501,so-bindtodevice=p0,bind=[${grout0_ll}],fork"           EXEC:'/bin/cat' &
+ll_u6=$!
+socat "TCP6-LISTEN:9503,so-bindtodevice=p0,bind=[${grout0_ll}],fork,reuseaddr" EXEC:'/bin/cat' &
+ll_t6=$!
+sleep 0.5
+for proto_port in "UDP6:9501" "TCP6:9503"; do
+	proto=${proto_port%:*}
+	port=${proto_port#*:}
+	reply=$(echo "ping" | ip netns exec peer0 timeout 3 \
+		socat - "${proto}:[${grout0_ll}%x-p0]:${port}" 2>/dev/null) || true
+	if [ "$reply" != "ping" ]; then
+		fail "listen=p0/ll/${proto}: peer did not get reply"
+	fi
+done
+kill "$ll_u6" "$ll_t6" 2>/dev/null || true
+wait "$ll_u6" "$ll_t6" 2>/dev/null || true
