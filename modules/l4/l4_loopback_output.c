@@ -35,24 +35,24 @@ static uint16_t l4_loopback_output_process(
 		}
 
 		if (mbuf->packet_type & RTE_PTYPE_L3_IPV4) {
-			struct ip_local_mbuf_data *d = ip_local_mbuf_data(mbuf);
+			struct ip_local_mbuf_data *ld = ip_local_mbuf_data(mbuf);
 			struct rte_ipv4_hdr *ip;
 			ip = gr_mbuf_prepend(mbuf, ip);
 			if (ip == NULL) {
 				edge = NO_HEADROOM;
 				goto next;
 			}
-			ip_set_fields(ip, d);
+			ip_set_fields(ip, ld);
 		} else if (mbuf->packet_type & RTE_PTYPE_L3_IPV6) {
-			struct ip6_local_mbuf_data *d = ip6_local_mbuf_data(mbuf);
+			struct ip6_local_mbuf_data *ld = ip6_local_mbuf_data(mbuf);
 			struct rte_ipv6_hdr *ip;
 			ip = gr_mbuf_prepend(mbuf, ip);
 			if (ip == NULL) {
 				edge = NO_HEADROOM;
 				goto next;
 			}
-			ip6_set_fields(ip, d->len, d->proto, &d->src, &d->dst);
-			ip->hop_limits = d->hop_limit;
+			ip6_set_fields(ip, ld->len, ld->proto, &ld->src, &ld->dst);
+			ip->hop_limits = ld->hop_limit;
 		} else {
 			edge = BAD_PROTO;
 		}
