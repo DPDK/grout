@@ -301,7 +301,7 @@ static void ip_input_invalid_mbuf_len(void **) {
 
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
 	fake_mbuf.mbuf.data_len = sizeof(struct rte_ipv4_hdr) / 2;
-	expect_value(rte_node_enqueue_x1, next, BAD_LENGTH);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_LENGTH);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -312,7 +312,7 @@ static void ip_input_invalid_cksum(void **) {
 	ipv4_init_default_mbuf(&fake_mbuf);
 
 	fake_mbuf.ipv4_hdr.hdr_checksum = 0x666;
-	expect_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -324,7 +324,7 @@ static void ip_input_invalid_version(void **) {
 
 	fake_mbuf.ipv4_hdr.version = 5;
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
-	expect_value(rte_node_enqueue_x1, next, BAD_VERSION);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_VERSION);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -338,7 +338,7 @@ static void ip_input_invalid_ihl(void **) {
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_raw_cksum(
 		&fake_mbuf.ipv4_hdr, sizeof(struct rte_ipv4_hdr)
 	);
-	expect_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_CHECKSUM);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -350,7 +350,7 @@ static void ip_input_invalid_total_length(void **) {
 
 	fake_mbuf.ipv4_hdr.total_length = rte_cpu_to_be_16(sizeof(struct rte_ipv4_hdr) / 2);
 	fake_mbuf.ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&fake_mbuf.ipv4_hdr);
-	expect_value(rte_node_enqueue_x1, next, BAD_LENGTH);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_LENGTH);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 
@@ -372,7 +372,7 @@ static void ip_input_conntrack_dnat(void **) {
 	will_return(gr_conn_parse_key, true);
 	will_return(gr_conn_lookup, &conn);
 
-	expect_value(rte_node_enqueue_x1, next, DNAT44_DYNAMIC);
+	expect_uint_value(rte_node_enqueue_x1, next, DNAT44_DYNAMIC);
 	ip_input_process(NULL, NULL, &obj, 1);
 }
 

@@ -22,7 +22,7 @@
 
 static inline void
 rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void *) {
-	check_expected(next);
+	check_expected_uint(next);
 }
 #else
 #include <rte_graph_worker.h>
