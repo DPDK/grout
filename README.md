@@ -8,8 +8,8 @@ that hardens to fill gaps between tiles.
 `grout` is a DPDK based network processing application. It uses the [rte_graph]
 library for data path processing.
 
-Its main purpose is to simulate a network function or a physical router for
-testing/replicating real (usually closed source) VNF/CNF behavior with an
+Its main purpose is to provide an example of a network function or a physical
+router, replicating real (usually closed source) VNF/CNF behavior with an
 opensource tool.
 
 It comes with a client library to configure it over a standard UNIX socket and
@@ -22,19 +22,25 @@ also in scripts one command at a time, or by batches.
 
 * [BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html)
 * [GPL-2.0-or-later](https://spdx.org/licenses/GPL-2.0-or-later.html) — only
-  for the `frr` plugin.
+  for the [FRR dplane plugin](/frr) which is linked with zebra.
 
 ## Features
 
 * IPv4 forwarding
 * IPv6 forwarding
+* IPv6 router advertisements
 * Multiple VRF domains
 * VLAN sub interfaces
+* L2 bridging
+* VXLAN tunnels
+* Bond/LACP interfaces
 * IP in IP tunnels
 * SRv6
+* DHCP client
 * Static IPv4 DNAT
 * Dynamic IPv4 SNAT (with connection tracking)
-* FRR synchronization via a [dplane plugin](/frr)
+* FRR synchronization via a [zebra dplane plugin](/frr) which configures grout
+  via the UNIX socket API.
 
 ## Quickstart
 
