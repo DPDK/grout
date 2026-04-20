@@ -198,6 +198,23 @@ move_to_netns() {
 		fi
 		sleep 0.2
 	done
+
+	# The datapath tap follows the "x-<grout_port>" naming convention;
+	# strip the prefix to derive the control-plane netdev name. Grout
+	# brings the CP tap UP asynchronously on GR_EVENT_IFACE_STATUS_UP
+	# (ctlplane.c), so we must wait before tests inject traffic that
+	# would need CP delivery, otherwise writes to the tap fail with EIO.
+	local grout_iface="${iface#x-}"
+	if [ "$grout_iface" != "$iface" ]; then
+		SECONDS=0
+		while ! ip -o link show "$grout_iface" 2>/dev/null \
+				| grep -qw 'state UP'; do
+			if [ "$SECONDS" -gt 5 ]; then
+				fail "grout CP tap $grout_iface was not UP after 5 seconds"
+			fi
+			sleep 0.2
+		done
+	fi
 }
 
 tap_counter=0
