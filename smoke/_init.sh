@@ -172,6 +172,13 @@ tmux_new_window() {
 netns_add() {
 	local ns="$1"
 	ip netns add "$ns"
+	# Skip IPv6 DAD and ignore kernel RA processing in test netns: grout
+	# does not perform DAD on its own addresses, and RA-learned default
+	# routes would race with the explicit routes set up by each test.
+	ip netns exec "$ns" sysctl -wq net.ipv6.conf.all.accept_dad=0
+	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_dad=0
+	ip netns exec "$ns" sysctl -wq net.ipv6.conf.all.accept_ra=0
+	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_ra=0
 	cat >> $tmp/cleanup <<EOF
 ip netns pids "$ns" | xargs -r kill -TERM 2>/dev/null || true
 sleep 0.5

@@ -77,8 +77,6 @@ router bgp 64512
 exit
 EOF
 
-sleep 3  # wait for DAD
-
 # Wait for BFD session to come up on the grout side
 attempts=0
 while ! vtysh -c "show bfd peers json" | jq -e '.[] | select(.status == "up")'; do

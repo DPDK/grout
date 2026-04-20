@@ -13,6 +13,4 @@ netns_add n1
 move_to_netns x-p1 n1
 ip -n n1 addr add fd00:ba4:1::2/64 dev x-p1
 
-sleep 3  # wait for DAD
-
 ip netns exec n1 rdisc6 -n x-p1

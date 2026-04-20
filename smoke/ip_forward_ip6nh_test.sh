@@ -20,8 +20,6 @@ for n in 0 1; do
 	grcli route add 16.$n.0.0/16 via id $((n+42))
 done
 
-sleep 3  # wait for DAD
-
 for n in 0 1; do
 	ns=n$n
 	ip netns exec $ns ping -i0.01 -c3 -n 16.$((n^1)).0.1

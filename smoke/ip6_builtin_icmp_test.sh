@@ -18,8 +18,6 @@ for n in 0 1; do
 	ip -n $ns route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
 done
 
-sleep 3  # wait for DAD
-
 grcli ping fd00:ba4:0::2 count 10 delay 100
 grcli ping fd00:ba4:1::2 count 3 delay 10
 

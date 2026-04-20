@@ -282,6 +282,13 @@ EOF
 
 	if [ -n "$namespace" ]; then
 		ip netns add "$namespace"
+		# Match netns_add's defaults: skip IPv6 DAD and ignore kernel RA
+		# processing so FRR peer netns behave consistently with the rest
+		# of the smoke suite.
+		ip netns exec "$namespace" sysctl -wq net.ipv6.conf.all.accept_dad=0
+		ip netns exec "$namespace" sysctl -wq net.ipv6.conf.default.accept_dad=0
+		ip netns exec "$namespace" sysctl -wq net.ipv6.conf.all.accept_ra=0
+		ip netns exec "$namespace" sysctl -wq net.ipv6.conf.default.accept_ra=0
 	fi
 
 	# cleanup -- kill the subshell children (tail, sed, awk)
