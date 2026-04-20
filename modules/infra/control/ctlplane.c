@@ -25,10 +25,12 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <linux/ethtool.h>
 #include <linux/if_tun.h>
 #include <linux/sockios.h>
 #include <net/if.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
 
 LOG_TYPE("ctlplane");
@@ -307,6 +309,21 @@ static void cp_create(struct iface *iface) {
 	snprintf(ifalias, IFALIASZ, "Grout control plane interface");
 	netlink_set_ifalias(iface->cp_id, ifalias);
 	netlink_link_set_admin_state(iface->cp_id, false, true);
+
+	// Keep IPv6 addresses assigned to the tap across admin-down events.
+	// When the datapath port flaps (e.g. a peer tap being moved to another
+	// netns), grout brings this tap down; with the default sysctl value of
+	// 0, the kernel would flush all IPv6 addresses, and userspace (FRR)
+	// would then fail to bind() sockets on those addresses.
+	char path[PATH_MAX];
+	snprintf(path, sizeof(path), "/proc/sys/net/ipv6/conf/%s/keep_addr_on_down", iface->name);
+	FILE *f = fopen(path, "w");
+	if (f != NULL) {
+		fputs("1", f);
+		fclose(f);
+	} else {
+		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
+	}
 
 	iface->cp_ev = event_new(
 		ev_base,
