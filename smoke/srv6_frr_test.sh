@@ -19,8 +19,6 @@ ip -n n1 addr add fd00:102::2/32 dev x-p1
 set_ip_address p0 192.168.61.1/24
 set_ip_address p1 fd00:102::1/32
 
-sleep 3
-
 #
 # network layout:
 #  (client) p0(netns) <--> p0 <grout> p1 <--->  p1(netns) (public: 192.168.60.1/24 on p0)

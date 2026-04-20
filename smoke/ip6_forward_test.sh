@@ -26,8 +26,6 @@ for n in 1 2; do
 	ip -n $ns route add default via fd00:ba4:$n::1
 done
 
-sleep 3  # wait for DAD
-
 ip netns exec n1 ping6 -i0.01 -c3 -n $(llocal_addr p1)
 ip netns exec n2 ping6 -i0.01 -c3 -n $(llocal_addr p2)
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:f00:2::2

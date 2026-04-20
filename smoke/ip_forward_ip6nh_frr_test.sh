@@ -22,8 +22,6 @@ for n in 0 1; do
 	set_ip_route 16.$n.0.0/16 "$ll p$n"
 done
 
-sleep 3  # wait for DAD
-
 for n in 0 1; do
 	ns=n$n
 	ip netns exec $ns ping -i0.01 -c3 -n 16.$((n^1)).0.1

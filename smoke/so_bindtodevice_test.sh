@@ -57,8 +57,6 @@ ip -n peer1 link set x-p1.43 up
 ip -n peer1 addr add 172.19.0.2/24 dev x-p1.43
 ip -n peer1 addr add fd03::2/64    dev x-p1.43
 
-sleep 3  # DAD + neighbor discovery
-
 for ns in peer0 peer1; do
 	ip netns exec $ns socat UDP4-LISTEN:9001,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat UDP6-LISTEN:9000,fork EXEC:'/bin/cat' &

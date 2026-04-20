@@ -26,8 +26,6 @@ set_ip_address p2 fd00:ba4:2::1/64
 set_ip_route fd00:f00:1::/64 fd00:ba4:1::2
 set_ip_route fd00:f00:2::/64 p2
 
-sleep 3  # wait for DAD
-
 ip netns exec n1 ping6 -i0.01 -c3 -n $(llocal_addr p1)
 ip netns exec n2 ping6 -i0.01 -c3 -n $(llocal_addr p2)
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:f00:2::2
