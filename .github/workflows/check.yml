@@ -26,20 +26,20 @@ jobs:
       matrix:
         conf:
           - compiler: gcc-13
-            extra_opts: -Dfrr=enabled
+            frr: '10.5'
             rebase: true
           - compiler: gcc-14
-            extra_opts: -Dfrr=enabled
+            frr: '10.5'
             asan: true
             debug: true
           - compiler: gcc-14
-            extra_opts: -Dfrr=enabled -Dfrr_version=10.6
+            frr: '10.6'
           - compiler: gcc-14
-            extra_opts: -Dfrr=enabled -Dfrr_version=master
+            frr: 'master'
           - compiler: clang-16
-            extra_opts:
+            frr: '10.5'
           - compiler: clang-18
-            extra_opts:
+            frr: '10.5'
     runs-on: ubuntu-24.04
     env:
       SANITIZE: ${{ case(matrix.conf.asan || false, 'address', 'none') }}
@@ -47,11 +47,13 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
-      MESON_EXTRA_OPTS: -Ddpdk:cpu_instruction_set=generic ${{ matrix.conf.extra_opts }}
+      FRR: ${{ matrix.conf.frr }}
+      MESON_EXTRA_OPTS: -Ddpdk:cpu_instruction_set=generic
     steps:
       - name: install system dependencies
         run: |
           set -xe
+          # grout dependencies
           sudo apt-get update -qy
           sudo apt-get install -qy --no-install-recommends \
             make gcc gdb ccache ninja-build meson git scdoc \
@@ -60,17 +62,15 @@ jobs:
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq \
             dnsmasq systemd-coredump abigail-tools \
             "linux-modules-extra-$(uname -r)"
-          if echo $MESON_EXTRA_OPTS | grep -q frr=enabled ; then
-            sudo apt-get install -qy --no-install-recommends \
-              libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
-              libreadline-dev libcap-dev
-            sudo mkdir -p /etc/apt/keyrings
-            sudo curl -s -o /etc/apt/keyrings/frrouting.gpg https://deb.frrouting.org/frr/keys.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/frrouting.gpg] https://deb.frrouting.org/frr \
-              $(lsb_release -s -c) frr-stable" | sudo tee /etc/apt/sources.list.d/frr.list > /dev/null
-            sudo apt-get update -qy
-            sudo apt-get install -qy librtr-dev libyang2-dev libyang2-tools
-          fi
+          # FRR dependencies
+          sudo mkdir -p /etc/apt/keyrings
+          sudo curl -s -o /etc/apt/keyrings/frrouting.gpg https://deb.frrouting.org/frr/keys.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/frrouting.gpg] https://deb.frrouting.org/frr \
+            $(lsb_release -s -c) frr-stable" | sudo tee /etc/apt/sources.list.d/frr.list > /dev/null
+          sudo apt-get update -qy
+          sudo apt-get install -qy --no-install-recommends \
+            libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
+            libreadline-dev libcap-dev librtr-dev libyang2-dev libyang2-tools
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -127,9 +127,13 @@ jobs:
           dpkg --add-architecture arm64
           apt update -qy
           apt install -qy --no-install-recommends \
-            make gcc ccache git meson scdoc python3-pyelftools ca-certificates pkg-config \
-            crossbuild-essential-arm64 libcmocka-dev:arm64 libedit-dev:arm64 \
-            libevent-dev:arm64 libmnl-dev:arm64 libnuma-dev:arm64
+            make gcc ccache git meson scdoc python3-pyelftools python3-dev \
+            ca-certificates pkg-config autoconf automake bison flex patch \
+            libyang3-tools libtool libelf-dev crossbuild-essential-arm64 \
+            libcmocka-dev:arm64 libedit-dev:arm64 libevent-dev:arm64 \
+            libmnl-dev:arm64 libnuma-dev:arm64 libjson-c-dev:arm64 \
+            libprotobuf-c-dev:arm64 protobuf-c-compiler libreadline-dev:arm64 \
+            libcap-dev:arm64 librtr-dev:arm64 libyang-dev:arm64
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

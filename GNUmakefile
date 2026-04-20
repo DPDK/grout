@@ -102,6 +102,7 @@ install: $(BUILDDIR)/build.ninja
 
 meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2
 meson_opts += -Db_sanitize=$(SANITIZE) -Db_coverage=$(COVERAGE)
+meson_opts += -Dfrr_version=$(FRR)
 meson_opts += $(MESON_EXTRA_OPTS)
 
 $(BUILDDIR)/build.ninja:

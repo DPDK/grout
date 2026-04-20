@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (c) 2025 Maxime Leroy, Free Mobile
+
 frr_opt = get_option('frr')
 frr_version = get_option('frr_version')
 
@@ -7,15 +8,12 @@ if frr_opt.disabled()
   subdir_done()
 endif
 
-frr_dep = dependency('frr', version: '>= 10.5', required: false)
-if not frr_dep.found()
-  if get_option('frr').enabled()
-    sp = subproject('frr-' + frr_version)
-    frr_dep = sp.get_variable('frr_dep')
-  else
-    subdir_done()
-  endif
-endif
+frr_dep = dependency(
+  'frr',
+  version: '>= 10.5',
+  required: frr_opt,
+  fallback: ['frr-' + frr_version, 'frr_dep'],
+)
 
 install_build_flag = frr_dep.get_variable('install_on_build', default_value: 'false') == 'true'
 frr_moduledir = frr_dep.get_variable('moduledir')
