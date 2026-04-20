@@ -6,6 +6,10 @@ wait_member_active() {
 	local iface=$1
 	local attempts=0
 	while [ "$attempts" -lt 20 ]; do
+		# Generate traffic so the Linux bridge learns grout's MAC on the
+		# newly active bond member: the reply comes back via that member,
+		# which is exactly what the FDB should reflect.
+		ip netns exec n0 ping -c1 -W 0.2 -n 172.16.0.1 >/dev/null 2>&1 || true
 		if bridge -n n0 fdb show br br0 brport "$iface" state reachable | grep -F "$mac"; then
 			return 0
 		fi
