@@ -9,6 +9,7 @@ cli_src += files(
   'graph.c',
   'icmp.c',
   'iface.c',
+  'mac.c',
   'vrf.c',
   'nexthop.c',
   'port.c',

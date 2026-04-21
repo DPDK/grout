@@ -109,6 +109,87 @@ out:
 	return api_out(ret, 0, NULL);
 }
 
+static struct api_out iface_mac_add(const void *request, struct api_ctx *) {
+	const struct gr_iface_mac_add_req *req = request;
+	struct iface *iface;
+	int ret;
+
+	if ((iface = iface_from_id(req->iface_id)) == NULL)
+		return api_out(ENODEV, 0, NULL);
+
+	ret = iface_add_eth_addr(iface, &req->mac);
+	if (ret < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out iface_mac_del(const void *request, struct api_ctx *) {
+	const struct gr_iface_mac_del_req *req = request;
+	struct iface *iface;
+	int ret;
+
+	if ((iface = iface_from_id(req->iface_id)) == NULL)
+		return api_out(ENODEV, 0, NULL);
+
+	ret = iface_del_eth_addr(iface, &req->mac);
+	if (ret < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out iface_mac_list(const void *request, struct api_ctx *ctx) {
+	const struct gr_iface_mac_list_req *req = request;
+	const struct iface *iface = NULL;
+	int ret = 0;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		if (req->iface_id != GR_IFACE_ID_UNDEF && iface->id != req->iface_id)
+			continue;
+
+		// Send primary MAC address first
+		struct rte_ether_addr primary_mac;
+		if (iface_get_eth_addr(iface, &primary_mac) == 0) {
+			struct gr_iface_mac mac;
+
+			mac.iface_id = iface->id;
+			mac.refcnt = 0;
+			mac.primary = true;
+			mac.mac = primary_mac;
+			api_send(ctx, sizeof(mac), &mac);
+		}
+
+		// Send secondary MAC addresses
+		vec_foreach_ref (struct iface_mac *m, iface->macs) {
+			struct gr_iface_mac mac;
+
+			mac.iface_id = iface->id;
+			mac.refcnt = m->refcnt;
+			mac.primary = false;
+			mac.mac = m->mac;
+			api_send(ctx, sizeof(mac), &mac);
+		}
+	}
+
+	return api_out(ret, 0, NULL);
+}
+
+static struct api_out iface_mac_set(const void *request, struct api_ctx *) {
+	const struct gr_iface_mac_set_req *req = request;
+	struct iface *iface;
+	int ret;
+
+	if ((iface = iface_from_id(req->iface_id)) == NULL)
+		return api_out(ENODEV, 0, NULL);
+
+	ret = iface_set_eth_addr(iface, &req->mac);
+	if (ret < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
 static struct api_out iface_set(const void *request, struct api_ctx *) {
 	const struct gr_iface_set_req *req = request;
 	int ret;
@@ -232,6 +313,10 @@ RTE_INIT(infra_api_init) {
 	api_handler(GR_IFACE_DEL, iface_del);
 	api_handler(GR_IFACE_GET, iface_get);
 	api_handler(GR_IFACE_LIST, iface_list);
+	api_handler(GR_IFACE_MAC_ADD, iface_mac_add);
+	api_handler(GR_IFACE_MAC_DEL, iface_mac_del);
+	api_handler(GR_IFACE_MAC_LIST, iface_mac_list);
+	api_handler(GR_IFACE_MAC_SET, iface_mac_set);
 	api_handler(GR_IFACE_SET, iface_set);
 	event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize);
 	event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize);
