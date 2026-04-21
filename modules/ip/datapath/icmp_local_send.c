@@ -96,10 +96,9 @@ static uint16_t icmp_local_send_process(
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		msg = control_input_mbuf_data(mbuf)->data;
-		// clang-format off
-		icmp = (struct rte_icmp_hdr *)
-			rte_pktmbuf_append(mbuf, sizeof(*icmp) + sizeof(clock_t));
-		// clang-format on
+		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_append(
+			mbuf, sizeof(*icmp) + sizeof(clock_t)
+		);
 
 		payload = rte_pktmbuf_mtod_offset(mbuf, clock_t *, sizeof(*icmp));
 		*payload = gr_clock_us();
