@@ -9,6 +9,8 @@ project('frr', 'c',
   license: 'GPL-2.0-or-later',
   meson_version: '>= 0.63.0')
 
+cc = meson.get_compiler('c')
+
 srcdir = meson.current_source_dir()
 builddir = meson.current_build_dir()
 libdir = builddir / 'lib' / '.libs'
@@ -33,11 +35,22 @@ moduledir = prefix / get_option('libdir') / 'frr/modules'
 user_name  = run_command('id', '-un', check: true).stdout().strip()
 group_name = run_command('id', '-gn', check: true).stdout().strip()
 extra_configure_option = '--enable-user=' + user_name + ' ' + '--enable-group=' + group_name
+extra_configure_env = ''
 
 buildtype = get_option('buildtype')
 debug = buildtype.startswith('debug')
 if debug
   extra_configure_option += ' --enable-dev-build'
+endif
+
+if meson.is_cross_build()
+  host_triplet = host_machine.cpu_family() + '-' + host_machine.system() + '-gnu'
+  extra_configure_option += ' --host=' + host_triplet
+  extra_configure_env += 'CC="' + ' '.join(cc.cmd_array()) + '" '
+  pkg_config_libdir = meson.get_external_property('pkg_config_libdir', '')
+  if pkg_config_libdir != ''
+    extra_configure_env += 'PKG_CONFIG_LIBDIR="' + pkg_config_libdir + '" '
+  endif
 endif
 
 configure = custom_target(
@@ -46,6 +59,7 @@ configure = custom_target(
   command: [
     'sh', '-c',
     'cd "' + builddir + '" && ' +
+    extra_configure_env +
     '"' + srcdir + '/configure" ' +
     '--prefix="' + prefix + '" ' +
     '--with-moduledir="' + moduledir + '" ' +
