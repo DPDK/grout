@@ -26,39 +26,24 @@ jobs:
       matrix:
         conf:
           - compiler: gcc-13
-            sanitize: none
-            buildtype: debugoptimized
             extra_opts: -Dfrr=enabled
             rebase: true
           - compiler: gcc-14
-            sanitize: address
-            buildtype: debug
             extra_opts: -Dfrr=enabled
-            rebase: false
+            asan: true
+            debug: true
           - compiler: gcc-14
-            sanitize: none
-            buildtype: debugoptimized
             extra_opts: -Dfrr=enabled -Dfrr_version=10.6
-            rebase: false
           - compiler: gcc-14
-            sanitize: none
-            buildtype: debugoptimized
             extra_opts: -Dfrr=enabled -Dfrr_version=master
-            rebase: false
           - compiler: clang-16
-            sanitize: none
-            buildtype: debugoptimized
             extra_opts:
-            rebase: false
           - compiler: clang-18
-            sanitize: none
-            buildtype: debugoptimized
             extra_opts:
-            rebase: false
     runs-on: ubuntu-24.04
     env:
-      SANITIZE: ${{ matrix.conf.sanitize }}
-      BUILDTYPE: ${{ matrix.conf.buildtype }}
+      SANITIZE: ${{ case(matrix.conf.asan || false, 'address', 'none') }}
+      BUILDTYPE: ${{ case(matrix.conf.debug || false, 'debug', 'debugoptimized') }}
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
