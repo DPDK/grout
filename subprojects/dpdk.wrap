@@ -1,15 +1,11 @@
 [wrap-file]
-source_url = http://fast.dpdk.org/rel/dpdk-25.11.tar.xz
-source_filename = dpdk-25.11.tar.xz
-source_hash = 52e90d2a531ef3ded0283bd91abc94980698f1f6471fa09658a0217cf6609526
-directory = dpdk-25.11
+source_url = http://fast.dpdk.org/rel/dpdk-25.11.2.tar.xz
+source_filename = dpdk-25.11.2.tar.xz
+source_hash = 418bfe3212640ee95a1cb10af6ed360cad2387686fe2721f8a3a9cd02d5ef4f2
+directory = dpdk-stable-25.11.2
 diff_files =
-	dpdk/iavf-fix-reported-max-TX-and-RX-queues-in-ethdev-inf.patch,
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,
-	dpdk/fib-expose-tbl8-usage-statistics.patch,
-	dpdk/fib-fix-prefix-addition-handling.patch,
-	dpdk/hash-avoid-leaking-entries-on-RCU-defer-queue-failur.patch,
-	dpdk/hash-free-replaced-data-on-overwrite-when-RCU-is-con.patch
+	dpdk/fib-expose-tbl8-usage-statistics.patch
 
 [provide]
 dependency_names = libdpdk
