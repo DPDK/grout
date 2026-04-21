@@ -160,8 +160,9 @@ static void init_default_na_mbuf(struct fake_ndp_na_mbuf *ndp_mbuf) {
 
 	// NA specific packet headers
 	ndp_mbuf->na_hdr.flags = ICMP6_NA_F_SOLICITED | ICMP6_NA_F_OVERRIDE;
-	ndp_mbuf->na_hdr.target = (struct rte_ipv6_addr)
-		RTE_IPV6(0xfe80, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00aa);
+	ndp_mbuf->na_hdr.target = (struct rte_ipv6_addr)RTE_IPV6(
+		0xfe80, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00aa
+	);
 
 	// TLLA option
 	ndp_mbuf->tlla_opt_hdr.type = ICMP6_OPT_TARGET_LLADDR;
@@ -179,8 +180,9 @@ static void init_default_na_mbuf(struct fake_ndp_na_mbuf *ndp_mbuf) {
 	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->hop_limit = 255;
 	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->len = ndp_mbuf->mbuf.data_len;
 
-	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->dst = (struct rte_ipv6_addr)
-		RTE_IPV6(0xfe80, 0, 0, 0, 0, 0, 0, 0x00bb);
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->dst = (struct rte_ipv6_addr)RTE_IPV6(
+		0xfe80, 0, 0, 0, 0, 0, 0, 0x00bb
+	);
 	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->iface = &test_iface;
 }
 
@@ -234,8 +236,9 @@ static void ndp_na_input_target_mcast(void **) {
 	init_default_na_mbuf(&ndp_mbuf);
 
 	// Set target to a multicast address FF02::1
-	ndp_mbuf.na_hdr.target = (struct rte_ipv6_addr)
-		RTE_IPV6(0xff02, 0x00, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1);
+	ndp_mbuf.na_hdr.target = (struct rte_ipv6_addr)RTE_IPV6(
+		0xff02, 0x00, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1
+	);
 
 	expect_value(rte_node_enqueue_x1, next, INVAL);
 
