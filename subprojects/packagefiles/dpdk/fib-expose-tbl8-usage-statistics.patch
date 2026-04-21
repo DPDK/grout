@@ -1,4 +1,4 @@
-From f5ae6fbe403f9638e08c24e4b9c6a3858bc87041 Mon Sep 17 00:00:00 2001
+From aa992d738a7d2221dcc0da6f473804eec5d613dd Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Tue, 24 Feb 2026 14:27:12 +0100
 Subject: [PATCH dpdk] fib: expose tbl8 usage statistics
@@ -53,7 +53,7 @@ index 184210f38070..a7e8615f052f 100644
 +	}
 +}
 diff --git a/lib/fib/rte_fib.h b/lib/fib/rte_fib.h
-index b16a653535cf..a79389cd4087 100644
+index 874bf1688b7a..297c31711ec3 100644
 --- a/lib/fib/rte_fib.h
 +++ b/lib/fib/rte_fib.h
 @@ -283,6 +283,24 @@ __rte_experimental
