@@ -4,9 +4,9 @@
 
 #include <lib/queue.h>
 
-// clang-format: off
+// clang-format off
 #include <gr_api_client_impl.h>
-// clang-format: on
+// clang-format on
 
 #include "if_grout.h"
 #include "if_map.h"
