@@ -26,6 +26,7 @@ frr_ver = frr_version.split('.')
 frr_ver_num = frr_ver[0].to_int() * 16777216 + frr_ver[1].to_int() * 256 + frr_ver[2].to_int()
 frr_c_args = [
   '-DCURRENT_FRR_VERSION=' + frr_ver_num.to_string(),
+  '-Wno-constant-logical-operand',
 ]
 
 frr_plugin = shared_module(
