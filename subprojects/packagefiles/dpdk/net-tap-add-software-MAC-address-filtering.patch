@@ -1,4 +1,4 @@
-From 9e48ea0d8dc4a7999676409f4413645fed817a54 Mon Sep 17 00:00:00 2001
+From 11fb5529608a51eb80d490af9b513e108c12a336 Mon Sep 17 00:00:00 2001
 From: Robin Jarry <rjarry@redhat.com>
 Date: Thu, 19 Mar 2026 22:01:48 +0100
 Subject: [PATCH dpdk] net/tap: add software MAC address filtering
@@ -18,17 +18,14 @@ To support multiple unicast addresses via rte_eth_dev_mac_addr_add(),
 allocate mac_addrs with rte_zmalloc (TAP_MAX_MAC_ADDRS=16) instead of
 pointing into dev_private, and advertise the new limit in dev_infos_get.
 
-Dropped packets are reported via per-queue xstats
-(rx_q<N>_mac_filter_drops).
-
 Signed-off-by: Robin Jarry <rjarry@redhat.com>
 ---
- drivers/net/tap/rte_eth_tap.c | 157 ++++++++++++++++++++++++++++++----
- drivers/net/tap/rte_eth_tap.h |   6 ++
- 2 files changed, 148 insertions(+), 15 deletions(-)
+ drivers/net/tap/rte_eth_tap.c | 120 +++++++++++++++++++++++++++++-----
+ drivers/net/tap/rte_eth_tap.h |   5 ++
+ 2 files changed, 110 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/net/tap/rte_eth_tap.c b/drivers/net/tap/rte_eth_tap.c
-index 7a8a98cddbe9..6da71fdfe51b 100644
+index fa09cd5ebfc5..d410fec957a2 100644
 --- a/drivers/net/tap/rte_eth_tap.c
 +++ b/drivers/net/tap/rte_eth_tap.c
 @@ -57,6 +57,7 @@
@@ -39,7 +36,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  #define TAP_GSO_MBUFS_PER_CORE	128
  #define TAP_GSO_MBUF_SEG_SIZE	128
  #define TAP_GSO_MBUF_CACHE_SIZE	4
-@@ -412,6 +413,42 @@ tap_rxq_pool_free(struct rte_mbuf *pool)
+@@ -412,6 +413,45 @@ tap_rxq_pool_free(struct rte_mbuf *pool)
  	rte_pktmbuf_free(pool);
  }
  
@@ -59,6 +56,9 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
 +		return true;
 +
 +	dst = rte_pktmbuf_mtod(mbuf, struct rte_ether_addr *);
++
++	if (unlikely(rte_is_zero_ether_addr(dst)))
++		return false;
 +
 +	if (likely(rte_is_unicast_ether_addr(dst))) {
 +		for (i = 0; i < TAP_MAX_MAC_ADDRS; i++) {
@@ -82,13 +82,12 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  /* Callback to handle the rx burst of packets to the correct interface and
   * file descriptor(s) in a multi-queue setup.
   */
-@@ -491,6 +528,13 @@ pmd_rx_burst(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
+@@ -491,6 +531,12 @@ pmd_rx_burst(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
  			data_off = 0;
  		}
  		seg->next = NULL;
 +
 +		if (!tap_mac_filter_match(rxq, mbuf)) {
-+			rxq->stats.rx_mac_drops++;
 +			rte_pktmbuf_free(mbuf);
 +			continue;
 +		}
@@ -96,7 +95,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  		mbuf->packet_type = rte_net_get_ptype(mbuf, NULL,
  						      RTE_PTYPE_ALL_MASK);
  		if (rxq->rxmode->offloads & RTE_ETH_RX_OFFLOAD_CHECKSUM)
-@@ -931,7 +975,7 @@ tap_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
+@@ -931,7 +977,7 @@ tap_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
  	struct pmd_internals *internals = dev->data->dev_private;
  
  	dev_info->if_index = internals->if_index;
@@ -105,57 +104,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	dev_info->max_rx_pktlen = RTE_ETHER_MAX_JUMBO_FRAME_LEN;
  	dev_info->max_rx_queues = RTE_PMD_TAP_MAX_QUEUES;
  	dev_info->max_tx_queues = RTE_PMD_TAP_MAX_QUEUES;
-@@ -1011,6 +1055,7 @@ tap_stats_reset(struct rte_eth_dev *dev)
- 		pmd->rxq[i].stats.ibytes = 0;
- 		pmd->rxq[i].stats.ierrors = 0;
- 		pmd->rxq[i].stats.rx_nombuf = 0;
-+		pmd->rxq[i].stats.rx_mac_drops = 0;
- 
- 		pmd->txq[i].stats.opackets = 0;
- 		pmd->txq[i].stats.errs = 0;
-@@ -1020,6 +1065,41 @@ tap_stats_reset(struct rte_eth_dev *dev)
- 	return 0;
- }
- 
-+static int
-+tap_xstats_get_names(struct rte_eth_dev *dev,
-+		     struct rte_eth_xstat_name *names,
-+		     unsigned int limit __rte_unused)
-+{
-+	unsigned int i;
-+
-+	if (names == NULL)
-+		return dev->data->nb_rx_queues;
-+
-+	for (i = 0; i < dev->data->nb_rx_queues; i++)
-+		snprintf(names[i].name, sizeof(names[i].name),
-+			 "rx_q%u_mac_filter_drops", i);
-+
-+	return dev->data->nb_rx_queues;
-+}
-+
-+static int
-+tap_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
-+	       unsigned int n)
-+{
-+	struct pmd_internals *pmd = dev->data->dev_private;
-+	unsigned int i;
-+
-+	if (n < dev->data->nb_rx_queues)
-+		return dev->data->nb_rx_queues;
-+
-+	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-+		xstats[i].id = i;
-+		xstats[i].value = pmd->rxq[i].stats.rx_mac_drops;
-+	}
-+
-+	return dev->data->nb_rx_queues;
-+}
-+
- static void
- tap_queue_close(struct pmd_process_private *process_private, uint16_t qid)
- {
-@@ -1078,14 +1158,15 @@ tap_dev_close(struct rte_eth_dev *dev)
+@@ -1067,14 +1113,15 @@ tap_dev_close(struct rte_eth_dev *dev)
  	rte_mempool_free(internals->gso_ctx_mp);
  	internals->gso_ctx_mp = NULL;
  
@@ -174,7 +123,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	internals = dev->data->dev_private;
  	TAP_LOG(DEBUG, "Closing %s Ethernet device on numa %u",
  		tuntap_types[internals->type], rte_socket_id());
-@@ -1531,6 +1612,7 @@ tap_rx_queue_setup(struct rte_eth_dev *dev,
+@@ -1520,6 +1567,7 @@ tap_rx_queue_setup(struct rte_eth_dev *dev,
  		return -1;
  	}
  
@@ -182,7 +131,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	rxq->mp = mp;
  	rxq->trigger_seen = 1; /* force initial burst */
  	rxq->in_port = dev->data->port_id;
-@@ -1646,17 +1728,50 @@ tap_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
+@@ -1635,17 +1683,50 @@ tap_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
  }
  
  static int
@@ -240,7 +189,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  static void tap_dev_intr_handler(void *cb_arg);
  static int tap_lsc_intr_handle_set(struct rte_eth_dev *dev, int set);
  
-@@ -1992,10 +2107,15 @@ static const struct eth_dev_ops ops = {
+@@ -1981,6 +2062,8 @@ static const struct eth_dev_ops ops = {
  	.allmulticast_enable    = tap_allmulti_enable,
  	.allmulticast_disable   = tap_allmulti_disable,
  	.mac_addr_set           = tap_mac_set,
@@ -249,22 +198,15 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	.mtu_set                = tap_mtu_set,
  	.set_mc_addr_list       = tap_set_mc_addr_list,
  	.stats_get              = tap_stats_get,
- 	.stats_reset            = tap_stats_reset,
-+	.xstats_get             = tap_xstats_get,
-+	.xstats_get_names       = tap_xstats_get_names,
-+	.xstats_reset           = tap_stats_reset,
- 	.dev_supported_ptypes_get = tap_dev_supported_ptypes_get,
- 	.rss_hash_update        = tap_rss_hash_update,
- #ifdef HAVE_TCA_FLOWER
-@@ -2056,7 +2176,14 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
+@@ -2045,7 +2128,14 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
  	data->numa_node = numa_node;
  
  	data->dev_link = pmd_link;
 -	data->mac_addrs = &pmd->eth_addr;
-+	data->mac_addrs = rte_zmalloc_socket(rte_vdev_device_name(vdev),
-+					     TAP_MAX_MAC_ADDRS *
-+					     sizeof(struct rte_ether_addr),
-+					     0, numa_node);
++	data->mac_addrs = rte_calloc_socket(rte_vdev_device_name(vdev),
++					    TAP_MAX_MAC_ADDRS,
++					    sizeof(*data->mac_addrs),
++					    0, numa_node);
 +	if (data->mac_addrs == NULL) {
 +		TAP_LOG(ERR, "Failed to allocate mac_addrs");
 +		goto error_exit;
@@ -272,7 +214,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	/* Set the number of RX and TX queues */
  	data->nb_rx_queues = 0;
  	data->nb_tx_queues = 0;
-@@ -2073,7 +2200,6 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
+@@ -2062,7 +2152,6 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
  	for (i = 0; i < RTE_PMD_TAP_MAX_QUEUES; i++)
  		process_private->fds[i] = -1;
  
@@ -280,7 +222,7 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	if (pmd->type == ETH_TUNTAP_TYPE_TAP) {
  		if (rte_is_zero_ether_addr(mac_addr))
  			rte_eth_random_addr((uint8_t *)&pmd->eth_addr);
-@@ -2193,6 +2319,9 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
+@@ -2182,6 +2271,9 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
  	}
  #endif
  
@@ -290,24 +232,21 @@ index 7a8a98cddbe9..6da71fdfe51b 100644
  	rte_eth_dev_probing_finish(dev);
  	return 0;
  
-@@ -2218,8 +2347,6 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
- 		close(pmd->nlsk_fd);
- 	if (pmd->ka_fd != -1)
- 		close(pmd->ka_fd);
+@@ -2211,8 +2303,6 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
+ 	free(dev->process_private);
+ 
+ error_exit_nodev_release:
 -	/* mac_addrs must not be freed alone because part of dev_private */
 -	dev->data->mac_addrs = NULL;
- 	rte_intr_instance_free(pmd->intr_handle);
  	rte_eth_dev_release_port(dev);
  
+ error_exit_nodev:
 diff --git a/drivers/net/tap/rte_eth_tap.h b/drivers/net/tap/rte_eth_tap.h
-index 218ee1b811d8..aee72a497198 100644
+index 7be8f4d01b42..49f027c28911 100644
 --- a/drivers/net/tap/rte_eth_tap.h
 +++ b/drivers/net/tap/rte_eth_tap.h
-@@ -41,9 +41,13 @@ struct pkt_stats {
- 	uint64_t errs;                  /* Number of TX error packets */
- 	uint64_t ierrors;               /* Number of RX error packets */
+@@ -43,7 +43,10 @@ struct pkt_stats {
  	uint64_t rx_nombuf;             /* Nb of RX mbuf alloc failures */
-+	uint64_t rx_mac_drops;          /* Packets dropped by MAC filter */
  };
  
 +struct pmd_internals;
@@ -317,7 +256,7 @@ index 218ee1b811d8..aee72a497198 100644
  	struct rte_mempool *mp;         /* Mempool for RX packets */
  	uint32_t trigger_seen;          /* Last seen Rx trigger value */
  	uint16_t in_port;               /* Port ID */
-@@ -73,6 +77,8 @@ struct pmd_internals {
+@@ -73,6 +76,8 @@ struct pmd_internals {
  	int type;                         /* Type field - TUN|TAP */
  	int persist;			  /* 1 if keep link up, else 0 */
  	struct rte_ether_addr eth_addr;   /* Mac address of the device port */
