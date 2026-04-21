@@ -5,6 +5,7 @@ BUILDDIR ?= build
 BUILDTYPE ?= debugoptimized
 SANITIZE ?= none
 COVERAGE ?= false
+FRR ?= $(shell sed -En "s/.*'frr_version'.*value: '([^']+)'.*/\\1/p" meson_options.txt)
 V ?= 0
 ifeq ($V,1)
 ninja_opts = --verbose
@@ -142,13 +143,13 @@ rpm:
 		mv -vf ~/rpmbuild/RPMS/$$arch/grout-frr-debuginfo-$$version.$$arch.rpm grout-frr-debuginfo.$$arch.rpm; \
 	fi
 
-frr_version = $(shell sed -nE 's/^source_filename = frr-(.+)\.tar\.gz$$/\1/p' subprojects/frr.wrap)
-frr_hash = $(shell sed -nE 's/^source_hash = //p' subprojects/frr.wrap)
+frr_version = $(shell sed -nE 's/^source_filename = frr-(.+)\.tar\.gz$$/\1/p' subprojects/frr-$(FRR).wrap)
+frr_hash = $(shell sed -nE 's/^source_hash = //p' subprojects/frr-$(FRR).wrap)
 frr_archive = subprojects/packagecache/frr-$(frr_version).tar.gz
 
 .PHONY: frr-rpm
 frr-rpm:
-	meson subprojects download frr
+	meson subprojects download frr-$(FRR)
 	echo '$(frr_hash)  $(frr_archive)' | sha256sum -c
 	install -Dt ~/rpmbuild/SOURCES $(frr_archive)
 	rpmbuild -bb -D'version $(frr_version)' -D 'release 1$(rpmdist).grout' rpm/frr.spec

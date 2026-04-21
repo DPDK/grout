@@ -6,4 +6,4 @@ directory = frr-frr-10.5.3
 patch_directory = frr
 
 [provide]
-dependency_names = frr
+dependency_names = frr-10.5

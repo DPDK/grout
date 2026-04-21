@@ -10,11 +10,7 @@ endif
 frr_dep = dependency('frr', version: '>= 10.5', required: false)
 if not frr_dep.found()
   if get_option('frr').enabled()
-    if frr_version == 'default'
-      sp = subproject('frr')
-    else
-      sp = subproject('frr-' + frr_version)
-    endif
+    sp = subproject('frr-' + frr_version)
     frr_dep = sp.get_variable('frr_dep')
   else
     subdir_done()

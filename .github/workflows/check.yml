@@ -41,7 +41,7 @@ jobs:
             sanitize: none
             buildtype: debugoptimized
             os: ubuntu-24.04
-            extra_opts: -Dfrr=enabled -Dfrr_version=10.6.0
+            extra_opts: -Dfrr=enabled -Dfrr_version=10.6
             rebase: false
           - compiler: gcc-14
             sanitize: none
