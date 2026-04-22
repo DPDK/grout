@@ -4,13 +4,10 @@
 FROM quay.io/centos/centos:stream10 AS builder
 
 COPY grout-frr.*.rpm frr.*.rpm /tmp
-ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm /tmp
-ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm.sha256sum /tmp
-RUN cd /tmp && sha256sum -c tini_*.rpm.sha256sum
 RUN mkdir -p /tmp/null
 RUN dnf -y install --nodocs --setopt=install_weak_deps=0 \
 	--releasever 10 --installroot /tmp/null \
-	coreutils-single glibc-minimal-langpack /tmp/*.rpm
+	coreutils-single glibc-minimal-langpack catatonit /tmp/*.rpm
 RUN dnf -y --installroot /tmp/null clean all
 RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/tmp/*
 RUN sed -i 's#^zebra_options=.*#zebra_options="-A 127.0.0.1 --log stdout -M dplane_grout"#' /tmp/null/etc/frr/daemons
@@ -18,5 +15,5 @@ RUN sed -i 's#^zebra_options=.*#zebra_options="-A 127.0.0.1 --log stdout -M dpla
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/catatonit", "--"]
 CMD ["/bin/sh", "-c", ". /usr/libexec/frr/frrcommon.sh && /usr/libexec/frr/watchfrr $(daemon_list)"]
