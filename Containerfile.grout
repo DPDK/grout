@@ -3,18 +3,15 @@
 
 FROM quay.io/centos/centos:stream10 AS builder
 COPY grout.*.rpm /tmp
-ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm /tmp
-ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini_0.19.0.rpm.sha256sum /tmp
-RUN cd /tmp && sha256sum -c tini_*.rpm.sha256sum
 RUN mkdir -p /tmp/null
 RUN dnf -y install --nodocs --setopt=install_weak_deps=0 \
 	--releasever 10 --installroot /tmp/null \
-	coreutils-single glibc-minimal-langpack /tmp/*.rpm
+	coreutils-single glibc-minimal-langpack catatonit /tmp/*.rpm
 RUN dnf -y --installroot /tmp/null clean all
 RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
 
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/catatonit", "--"]
 CMD ["/usr/bin/grout"]
