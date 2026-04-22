@@ -63,11 +63,7 @@ jobs:
           tags: ${{ steps.meta-grout.outputs.tags }}
           labels: ${{ steps.meta-grout.outputs.labels }}
           push: true
-      - run: |
-          set -xe
-          apt-get update -qy
-          apt-get install -qy --no-install-recommends rpm
-          rpm -qp --queryformat '%{VERSION}\n' frr.*.rpm | tee $GITHUB_OUTPUT
+      - run: rpm -qp --queryformat 'version=%{VERSION}\n' frr.*.rpm >> $GITHUB_OUTPUT
         id: frr-version
       - uses: docker/metadata-action@v5
         name: Extract metadata for the Docker image
