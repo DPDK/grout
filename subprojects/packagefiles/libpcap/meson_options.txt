@@ -1,0 +1,26 @@
+option('capture_type', type: 'string', value: '',
+  description: 'Packet capture type (auto-detected if empty: linux, bpf, dlpi, null, ...)')
+option('remote', type: 'boolean', value: false,
+  description: 'Enable remote packet capture (EXPERIMENTAL)')
+option('protochain', type: 'boolean', value: true,
+  description: 'Enable protochain instruction')
+option('bluetooth', type: 'feature', value: 'auto',
+  description: 'Bluetooth sniffing support (Linux only)')
+option('dbus', type: 'feature', value: 'auto',
+  description: 'D-Bus sniffing support')
+option('rdma', type: 'feature', value: 'auto',
+  description: 'RDMA sniffing support (Linux only)')
+option('usb', type: 'feature', value: 'auto',
+  description: 'USB monitoring support (Linux only)')
+option('netmap', type: 'feature', value: 'auto',
+  description: 'Netmap support')
+option('dpdk', type: 'feature', value: 'disabled',
+  description: 'DPDK support')
+option('libnl', type: 'feature', value: 'auto',
+  description: 'Build with libnl (Linux netlink support)')
+option('yydebug', type: 'boolean', value: false,
+  description: 'Build parser debugging code')
+option('optimizer_debug', type: 'boolean', value: false,
+  description: 'Build optimizer debugging code')
+option('plugin_dir', type: 'string', value: '',
+  description: 'Plugin directory for pcap modules')

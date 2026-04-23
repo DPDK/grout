@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 // Must be bumped when making non-backward compatible changes in API headers
-#define GR_API_VERSION 1
+#define GR_API_VERSION 2
 
 // API request header.
 struct gr_api_request {
@@ -58,6 +58,14 @@ gr_api_client_send(struct gr_api_client *, uint32_t req_type, size_t tx_len, con
 // Returns -EMSGSIZE if payload is non-empty but smaller than min_resp_size.
 int gr_api_client_recv(struct gr_api_client *, uint32_t req_type, uint32_t for_id, void **rx_data);
 
+int gr_api_client_recv_fd(
+	struct gr_api_client *,
+	uint32_t req_type,
+	uint32_t for_id,
+	void **rx_data,
+	int *fd
+);
+
 // Send a request and receive the response.
 // Validates response payload size against GR_REQ-declared type.
 // Caller must free(*rx_data) after use.
@@ -77,6 +85,22 @@ static inline int gr_api_client_send_recv(
 
 // internal, called when interrupting gr_api_client_stream_foreach()
 int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t req_type, uint32_t for_id);
+
+// Send a request and receive the response with an optional file descriptor.
+// If fd is non-NULL and the server sends an fd via SCM_RIGHTS, it is stored in *fd.
+static inline int gr_api_client_send_recv_fd(
+	struct gr_api_client *client,
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	void **rx_data,
+	int *fd
+) {
+	long int ret = gr_api_client_send(client, req_type, tx_len, tx_data);
+	if (ret < 0)
+		return ret;
+	return gr_api_client_recv_fd(client, req_type, ret, rx_data, fd);
+}
 
 // Send a request and iterate over the received stream of responses.
 //
@@ -155,6 +179,9 @@ const char *gr_api_message_name(uint32_t type);
 	enum {                                                                                     \
 		code##_OBJ_SIZE = sizeof(obj)                                                      \
 	}
+#endif
+#ifndef GR_API_INLINE
+#define GR_API_INLINE static inline
 #endif
 
 struct gr_empty { };
