@@ -192,6 +192,17 @@ int arg_ip6(const struct ec_pnode *p, const char *id, struct rte_ipv6_addr *addr
 	return arg_ip(p, id, addr, AF_INET6);
 }
 
+int arg_ip_guess(const struct ec_pnode *p, const char *id, addr_family_t *af, void *addr) {
+	if (arg_ip4(p, id, addr) == 0) {
+		*af = GR_AF_IP4;
+	} else if (arg_ip6(p, id, addr) == 0) {
+		*af = GR_AF_IP6;
+	} else {
+		return -errno;
+	}
+	return 0;
+}
+
 int arg_ip_net(const struct ec_pnode *p, const char *id, void *net, bool zero_mask, int family) {
 	const char *str = arg_str(p, id);
 	if (str == NULL)

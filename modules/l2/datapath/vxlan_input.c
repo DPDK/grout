@@ -3,6 +3,7 @@
 
 #include "graph.h"
 #include "ip4_datapath.h"
+#include "ip6_datapath.h"
 #include "l2.h"
 #include "l2_datapath.h"
 #include "l4.h"
@@ -22,25 +23,25 @@ enum {
 	NO_TUNNEL,
 	BAD_LENGTH,
 	BAD_FLAGS,
+	BAD_AF,
 	EDGE_COUNT,
 };
 
 int trace_vxlan_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
 	const struct trace_vxlan_data *t = data;
 	int n = snprintf(buf, len, "vni=%u", rte_be_to_cpu_32(t->vni));
-	if (t->vtep != 0)
-		n += snprintf(buf + n, len - n, " vtep=" IP4_F, &t->vtep);
+	if (t->vtep.af != GR_AF_UNSPEC)
+		n += snprintf(buf + n, len - n, " vtep=" ADDR_F, ADDR_W(t->vtep.af), &t->vtep.addr);
 	return n;
 }
 
 static uint16_t
 vxlan_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t last_vrf_id, vrf_id;
-	struct ip_local_mbuf_data *l;
 	struct iface_mbuf_data *d;
 	struct rte_vxlan_hdr *vh;
 	rte_be32_t vni, last_vni;
-	ip4_addr_t src_vtep;
+	struct l3_addr src_vtep;
 	struct iface *iface;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
@@ -52,9 +53,8 @@ vxlan_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
-		l = ip_local_mbuf_data(m);
-		vrf_id = l->vrf_id;
-		src_vtep = l->src;
+		vni = 0;
+		src_vtep.af = GR_AF_UNSPEC;
 
 		if (rte_pktmbuf_pkt_len(m) < VXLAN_MIN_PKT_LEN) {
 			edge = BAD_LENGTH;
@@ -64,6 +64,21 @@ vxlan_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		vh = rte_pktmbuf_mtod_offset(m, struct rte_vxlan_hdr *, sizeof(struct rte_udp_hdr));
 		if (!(vh->vx_flags & VXLAN_FLAGS_VNI)) {
 			edge = BAD_FLAGS;
+			goto next;
+		}
+
+		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
+			struct ip_local_mbuf_data *l4 = ip_local_mbuf_data(m);
+			vrf_id = l4->iface->vrf_id;
+			src_vtep.af = GR_AF_IP4;
+			src_vtep.ipv4 = l4->src;
+		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
+			struct ip6_local_mbuf_data *l6 = ip6_local_mbuf_data(m);
+			vrf_id = l6->iface->vrf_id;
+			src_vtep.af = GR_AF_IP6;
+			src_vtep.ipv6 = l6->src;
+		} else {
+			edge = BAD_AF;
 			goto next;
 		}
 
@@ -112,6 +127,7 @@ static struct rte_node_register vxlan_input_node = {
 		[NO_TUNNEL] = "vxlan_input_no_tunnel",
 		[BAD_LENGTH] = "vxlan_input_bad_length",
 		[BAD_FLAGS] = "vxlan_input_bad_flags",
+		[BAD_AF] = "vxlan_input_bad_af",
 	},
 };
 
@@ -127,3 +143,4 @@ GR_NODE_REGISTER(vxlan_input_info);
 GR_DROP_REGISTER(vxlan_input_no_tunnel);
 GR_DROP_REGISTER(vxlan_input_bad_length);
 GR_DROP_REGISTER(vxlan_input_bad_flags);
+GR_DROP_REGISTER(vxlan_input_bad_af);

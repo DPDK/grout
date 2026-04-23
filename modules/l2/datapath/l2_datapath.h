@@ -9,7 +9,7 @@
 
 struct trace_vxlan_data {
 	rte_be32_t vni;
-	ip4_addr_t vtep;
+	struct l3_addr vtep;
 };
 
 int trace_vxlan_format(char *buf, size_t len, const void *data, size_t data_len);

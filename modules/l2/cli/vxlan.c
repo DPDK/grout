@@ -63,7 +63,7 @@ static uint64_t parse_vxlan_args(
 		set_attrs |= GR_VXLAN_SET_VNI;
 	}
 
-	if (arg_ip4(p, "LOCAL", &vxlan->local) < 0) {
+	if (arg_ip_guess(p, "LOCAL", &vxlan->local.af, &vxlan->local.addr) < 0) {
 		if (errno != ENOENT)
 			return 0;
 	} else {
@@ -154,7 +154,7 @@ out:
 			"VXLAN Network Identifier (1-16777215).",                                  \
 			ec_node_uint("VNI", 1, 16777215, 10)                                       \
 		),                                                                                 \
-		with_help("Local VTEP IP address.", ec_node_re("LOCAL", IPV4_RE)),                 \
+		with_help("Local VTEP IP address.", ec_node_re("LOCAL", IP_ANY_RE)),               \
 		with_help(                                                                         \
 			"L3 routing domain name for encap addresses.",                             \
 			ec_node_dyn("ENCAP_VRF", complete_vrf_names, NULL)                         \

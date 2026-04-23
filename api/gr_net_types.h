@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef __GROUT_MAIN__
 #include <rte_ether.h>
@@ -172,3 +173,28 @@ out:
 
 #define IP_ANY_RE "^(" __IPV4_RE "|" __IPV6_RE ")$"
 #define IP_ANY_NET_RE "^(" __IPV4_RE __IPV4_PREFIX_RE "|" __IPV6_RE __IPV6_PREFIX_RE ")$"
+
+struct l3_addr {
+	addr_family_t af;
+	union {
+		struct {
+		} addr;
+		ip4_addr_t ipv4;
+		struct rte_ipv6_addr ipv6;
+	};
+};
+
+static inline bool l3_addr_eq(const struct l3_addr *a, const struct l3_addr *b) {
+	if (a->af != b->af)
+		return false;
+
+	switch (a->af) {
+	case GR_AF_IP4:
+		return a->ipv4 == b->ipv4;
+	case GR_AF_IP6:
+		return memcmp(&a->ipv6, &b->ipv6, sizeof(a->ipv6)) == 0;
+	default:
+		break;
+	}
+	return true;
+}

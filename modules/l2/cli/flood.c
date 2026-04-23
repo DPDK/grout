@@ -18,7 +18,7 @@ static cmd_status_t vtep_add(struct gr_api_client *c, const struct ec_pnode *p) 
 		.exist_ok = true,
 	};
 
-	if (arg_ip4(p, "ADDR", &req.entry.vtep.addr) < 0)
+	if (arg_ip_guess(p, "ADDR", &req.entry.vtep.addr.af, &req.entry.vtep.addr.addr) < 0)
 		return CMD_ERROR;
 	if (arg_u32(p, "VNI", &req.entry.vtep.vni) < 0)
 		return CMD_ERROR;
@@ -37,7 +37,7 @@ static cmd_status_t vtep_del(struct gr_api_client *c, const struct ec_pnode *p) 
 		.missing_ok = true,
 	};
 
-	if (arg_ip4(p, "ADDR", &req.entry.vtep.addr) < 0)
+	if (arg_ip_guess(p, "ADDR", &req.entry.vtep.addr.af, &req.entry.vtep.addr.addr) < 0)
 		return CMD_ERROR;
 	if (arg_u32(p, "VNI", &req.entry.vtep.vni) < 0)
 		return CMD_ERROR;
@@ -69,7 +69,9 @@ static cmd_status_t vtep_show(struct gr_api_client *c, const struct ec_pnode *p)
 	gr_api_client_stream_foreach (entry, ret, c, GR_FLOOD_LIST, sizeof(req), &req) {
 		gr_table_cell(table, 0, "%u", entry->vtep.vni);
 		gr_table_cell(table, 1, "%s", iface_name_from_id(c, entry->vrf_id));
-		gr_table_cell(table, 2, IP4_F, &entry->vtep.addr);
+		gr_table_cell(
+			table, 2, ADDR_F, ADDR_W(entry->vtep.addr.af), &entry->vtep.addr.addr
+		);
 
 		if (gr_table_print_row(table) < 0)
 			continue;
@@ -91,7 +93,7 @@ static int ctx_init(struct ec_node *root) {
 		"add ADDR vni VNI [vrf VRF]",
 		vtep_add,
 		"Add a VXLAN flood VTEP.",
-		with_help("Remote VTEP IP address.", ec_node_re("ADDR", IPV4_RE)),
+		with_help("Remote VTEP IP address.", ec_node_re("ADDR", IP_ANY_RE)),
 		with_help(
 			"VXLAN Network Identifier (1-16777215).",
 			ec_node_uint("VNI", 1, 16777215, 10)
@@ -106,7 +108,7 @@ static int ctx_init(struct ec_node *root) {
 		"del ADDR vni VNI [vrf VRF]",
 		vtep_del,
 		"Delete a VXLAN flood VTEP.",
-		with_help("Remote VTEP IP address.", ec_node_re("ADDR", IPV4_RE)),
+		with_help("Remote VTEP IP address.", ec_node_re("ADDR", IP_ANY_RE)),
 		with_help(
 			"VXLAN Network Identifier (1-16777215).",
 			ec_node_uint("VNI", 1, 16777215, 10)
@@ -156,7 +158,10 @@ static void flood_event_print(uint32_t event, const void *obj) {
 	       iface_name_from_id(NULL, entry->vrf_id));
 	switch (entry->type) {
 	case GR_FLOOD_T_VTEP:
-		printf(" " IP4_F " vni=%u", &entry->vtep.addr, entry->vtep.vni);
+		printf(" " ADDR_F " vni=%u",
+		       ADDR_W(entry->vtep.addr.af),
+		       &entry->vtep.addr.addr,
+		       entry->vtep.vni);
 	}
 	printf("\n");
 }

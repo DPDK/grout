@@ -53,7 +53,7 @@ struct gr_iface_info_vxlan {
 	uint32_t vni; // VXLAN Network Identifier (24-bit).
 	uint16_t encap_vrf_id; // L3 domain for underlay routing.
 	uint16_t dst_port; // UDP destination port (default 4789).
-	ip4_addr_t local; // Local VTEP IP address (must be a configured address in encap_vrf_id).
+	struct l3_addr local; // Local VTEP IP address (must be valid in encap_vrf_id).
 	struct rte_ether_addr mac; // Default to random address.
 };
 
@@ -72,7 +72,7 @@ struct gr_fdb_entry {
 	struct rte_ether_addr mac;
 	uint16_t vlan_id;
 	uint16_t iface_id; // Updated automatically when a MAC moves between members.
-	ip4_addr_t vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
+	struct l3_addr vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
 	gr_fdb_flags_t flags;
 	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
 };
@@ -159,7 +159,7 @@ static inline const char *gr_flood_type_name(gr_flood_type_t type) {
 
 struct gr_flood_vtep {
 	uint32_t vni;
-	ip4_addr_t addr;
+	struct l3_addr addr;
 };
 
 struct gr_flood_entry {

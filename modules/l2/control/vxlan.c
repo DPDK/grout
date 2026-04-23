@@ -3,12 +3,13 @@
 
 #include "event.h"
 #include "iface.h"
-#include "ip4.h"
 #include "ip4_datapath.h"
+#include "ip6_datapath.h"
 #include "l2.h"
 #include "l4.h"
 #include "log.h"
 #include "module.h"
+#include "nexthop.h"
 #include "rcu.h"
 #include "vrf.h"
 
@@ -117,21 +118,19 @@ static int iface_vxlan_reconfig(
 	}
 
 	if (set_attrs & (GR_VXLAN_SET_LOCAL | GR_VXLAN_SET_ENCAP_VRF)) {
-		ip4_addr_t local = (set_attrs & GR_VXLAN_SET_LOCAL) ? next->local : cur->local;
-		const struct nexthop *nh = rib4_lookup(cur->encap_vrf_id, local);
-		if (nh == NULL)
-			goto err;
-		if (nh->type != GR_NH_T_L3) {
-			errno = EPROTOTYPE;
+		struct l3_addr local = (set_attrs & GR_VXLAN_SET_LOCAL) ? next->local : cur->local;
+		const struct nexthop *nh = nexthop_lookup_l3(
+			local.af, cur->encap_vrf_id, cur->encap_vrf_id, &local.addr
+		);
+		if (nh == NULL) {
+			errno = EADDRNOTAVAIL;
 			goto err;
 		}
-
 		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if (!(l3->flags & GR_NH_F_LOCAL)) {
+		if ((l3->flags & NH_LOCAL_ADDR_FLAGS) != NH_LOCAL_ADDR_FLAGS) {
 			errno = EPROTOTYPE;
 			goto err;
 		}
-
 		cur->local = local;
 		conf_done |= GR_VXLAN_SET_LOCAL;
 	}
@@ -143,13 +142,28 @@ static int iface_vxlan_reconfig(
 	}
 
 	// Update the datapath template from the current config.
-	cur->template.ip.version_ihl = IPV4_VERSION_IHL;
-	cur->template.ip.time_to_live = IPV4_DEFAULT_TTL;
-	cur->template.ip.next_proto_id = IPPROTO_UDP;
-	cur->template.ip.src_addr = cur->local;
-	cur->template.udp.dst_port = rte_cpu_to_be_16(cur->dst_port);
-	cur->template.vxlan.vx_flags = VXLAN_FLAGS_VNI;
-	cur->template.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
+	switch (cur->local.af) {
+	case GR_AF_IP4:
+		cur->template.ipv4.ip.version_ihl = IPV4_VERSION_IHL;
+		cur->template.ipv4.ip.time_to_live = IPV4_DEFAULT_TTL;
+		cur->template.ipv4.ip.next_proto_id = IPPROTO_UDP;
+		cur->template.ipv4.ip.src_addr = cur->local.ipv4;
+		cur->template.ipv4.udp.dst_port = rte_cpu_to_be_16(cur->dst_port);
+		cur->template.ipv4.vxlan.vx_flags = VXLAN_FLAGS_VNI;
+		cur->template.ipv4.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
+		break;
+	case GR_AF_IP6:
+		cur->template.ipv6.ip.vtc_flow = RTE_BE32(0x60000000);
+		cur->template.ipv6.ip.hop_limits = IP6_DEFAULT_HOP_LIMIT;
+		cur->template.ipv6.ip.proto = IPPROTO_UDP;
+		cur->template.ipv6.ip.src_addr = cur->local.ipv6;
+		cur->template.ipv6.udp.dst_port = rte_cpu_to_be_16(cur->dst_port);
+		cur->template.ipv6.vxlan.vx_flags = VXLAN_FLAGS_VNI;
+		cur->template.ipv6.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
+		break;
+	case GR_AF_UNSPEC:
+		break;
+	}
 
 	if (conf_done & GR_VXLAN_SET_ENCAP_VRF)
 		vrf_decref(prev.encap_vrf_id);
@@ -284,8 +298,8 @@ static void vxlan_pre_remove_cb(uint32_t /*ev_type*/, const void *obj) {
 }
 
 static int vtep_flood_add(const struct gr_flood_entry *entry, bool exist_ok) {
+	struct l3_addr *vteps, *old_vteps;
 	struct iface_info_vxlan *vxlan;
-	ip4_addr_t *vteps, *old_vteps;
 	struct iface *iface;
 
 	iface = vxlan_get_iface(rte_cpu_to_be_32(entry->vtep.vni), entry->vrf_id);
@@ -295,7 +309,7 @@ static int vtep_flood_add(const struct gr_flood_entry *entry, bool exist_ok) {
 	vxlan = iface_info_vxlan(iface);
 
 	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
-		if (vxlan->flood_vteps[i] == entry->vtep.addr) {
+		if (l3_addr_eq(&vxlan->flood_vteps[i], &entry->vtep.addr)) {
 			if (exist_ok)
 				return 0;
 			return errno_set(EEXIST);
@@ -336,7 +350,7 @@ static int vtep_flood_del(const struct gr_flood_entry *entry, bool missing_ok) {
 	vxlan = iface_info_vxlan(iface);
 
 	for (uint16_t i = 0; i < vxlan->n_flood_vteps; i++) {
-		if (vxlan->flood_vteps[i] == entry->vtep.addr) {
+		if (l3_addr_eq(&vxlan->flood_vteps[i], &entry->vtep.addr)) {
 			vxlan->flood_vteps[i] = vxlan->flood_vteps[vxlan->n_flood_vteps - 1];
 			vxlan->n_flood_vteps--;
 			event_push(GR_EVENT_FLOOD_DEL, entry);

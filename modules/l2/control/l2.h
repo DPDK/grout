@@ -33,7 +33,7 @@ void fdb_learn(
 	uint16_t iface_id,
 	const struct rte_ether_addr *,
 	uint16_t vlan_id,
-	ip4_addr_t vtep
+	const struct l3_addr *vtep
 );
 
 // Delete all FDB entries referencing the provided interface.
@@ -42,8 +42,14 @@ void fdb_purge_iface(uint16_t iface_id);
 // Delete all FDB entries referencing the provided bridge.
 void fdb_purge_bridge(uint16_t bridge_id);
 
-struct vxlan_template {
+struct vxlan_template_ipv4 {
 	struct rte_ipv4_hdr ip;
+	struct rte_udp_hdr udp;
+	struct rte_vxlan_hdr vxlan;
+};
+
+struct vxlan_template_ipv6 {
+	struct rte_ipv6_hdr ip;
 	struct rte_udp_hdr udp;
 	struct rte_vxlan_hdr vxlan;
 };
@@ -51,10 +57,13 @@ struct vxlan_template {
 GR_IFACE_INFO(GR_IFACE_TYPE_VXLAN, iface_info_vxlan, {
 	BASE(gr_iface_info_vxlan);
 
-	struct vxlan_template template;
+	union {
+		struct vxlan_template_ipv4 ipv4;
+		struct vxlan_template_ipv6 ipv6;
+	} template;
 
 	uint16_t n_flood_vteps;
-	ip4_addr_t *flood_vteps;
+	struct l3_addr *flood_vteps;
 });
 
 struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id);

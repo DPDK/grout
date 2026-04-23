@@ -10,6 +10,7 @@
 
 #include <lib/libfrr.h>
 #include <lib/srv6.h>
+#include <lib/version.h>
 #include <linux/neighbour.h>
 #include <zebra/rib.h>
 #include <zebra/table_manager.h>
@@ -861,19 +862,30 @@ void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 }
 
 void grout_macfdb_change(const struct gr_fdb_entry *fdb, bool new) {
-	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
+	struct zebra_dplane_ctx *ctx;
 	struct ethaddr mac;
+	struct ipaddr vtep;
+
+	l3_addr_to_ipaddr(&vtep, &fdb->vtep);
 
 	gr_log_debug(
-		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pI4",
+		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pIA",
 		new ? "add" : "del",
 		fdb->bridge_id,
 		fdb->iface_id,
 		&fdb->mac,
 		fdb->vlan_id,
-		&fdb->vtep
+		&vtep
 	);
 
+#if CURRENT_FRR_VERSION < MAKE_FRRVERSION(10, 6, 0)
+	if (vtep.ipa_type == IPADDR_V6) {
+		gr_log_warn("ipv6 vtep addresses are not supported in frr %s, skip", FRR_VER_SHORT);
+		return;
+	}
+#endif
+
+	ctx = dplane_ctx_alloc();
 	memcpy(&mac, &fdb->mac, sizeof(mac));
 
 	// Zebra's dplane API is asymmetric for FDB entries:
@@ -894,17 +906,11 @@ void grout_macfdb_change(const struct gr_fdb_entry *fdb, bool new) {
 	dplane_ctx_mac_set_nhg_id(ctx, 0);
 	dplane_ctx_mac_set_ndm_state(ctx, NUD_REACHABLE);
 	dplane_ctx_mac_set_ndm_flags(ctx, NTF_MASTER);
-	dplane_ctx_mac_set_dst_present(ctx, fdb->vtep != 0);
+	dplane_ctx_mac_set_dst_present(ctx, fdb->vtep.af != GR_AF_UNSPEC);
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
-	dplane_ctx_mac_set_vtep_ip(
-		ctx,
-		&(struct ipaddr) {
-			.ipa_type = IPADDR_V4,
-			.ipaddr_v4.s_addr = fdb->vtep,
-		}
-	);
+	dplane_ctx_mac_set_vtep_ip(ctx, &vtep);
 #else
-	dplane_ctx_mac_set_vtep_ip(ctx, &(struct in_addr) {fdb->vtep});
+	dplane_ctx_mac_set_vtep_ip(ctx, &(struct in_addr) {fdb->vtep.ipv4});
 #endif
 	dplane_ctx_mac_set_vid(ctx, fdb->vlan_id);
 	dplane_ctx_mac_set_dp_static(ctx, fdb->flags & GR_FDB_F_STATIC);
@@ -923,7 +929,11 @@ enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx) {
 	int ret;
 
 	gr_log_debug(
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pIA",
+#else
 		"%s bridge=%u iface=%u mac=%pEA vlan=%u vtep=%pI4",
+#endif
 		add ? "add" : "del",
 		ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx)),
 		ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx)),
@@ -950,9 +960,10 @@ enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx) {
 			add->fdb.flags |= GR_FDB_F_STATIC;
 		memcpy(&add->fdb.mac, dplane_ctx_mac_get_addr(ctx), sizeof(add->fdb.mac));
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
-		add->fdb.vtep = dplane_ctx_mac_get_vtep_ip(ctx)->ipaddr_v4.s_addr;
+		ipaddr_to_l3_addr(&add->fdb.vtep, dplane_ctx_mac_get_vtep_ip(ctx));
 #else
-		add->fdb.vtep = dplane_ctx_mac_get_vtep_ip(ctx)->s_addr;
+		add->fdb.vtep.af = GR_AF_IP4;
+		add->fdb.vtep.ipv4 = dplane_ctx_mac_get_vtep_ip(ctx)->s_addr;
 #endif
 		req_type = GR_FDB_ADD;
 	} else {
@@ -988,11 +999,6 @@ enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *c
 		vrf_frr_to_grout(dplane_ctx_get_vrf(ctx))
 	);
 
-	if (addr->ipa_type != IPADDR_V4) {
-		gr_log_err("IPv6 flood list entries are not supported");
-		return ZEBRA_DPLANE_REQUEST_FAILURE;
-	}
-
 	len = add ? sizeof(struct gr_flood_add_req) : sizeof(struct gr_flood_del_req);
 
 	req = calloc(1, len);
@@ -1016,7 +1022,7 @@ enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *c
 	entry->type = GR_FLOOD_T_VTEP;
 	entry->vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
 	entry->vtep.vni = dplane_ctx_neigh_get_vni(ctx);
-	entry->vtep.addr = addr->ipaddr_v4.s_addr;
+	ipaddr_to_l3_addr(&entry->vtep.addr, addr);
 
 	ret = grout_client_send_recv(req_type, len, req, NULL);
 

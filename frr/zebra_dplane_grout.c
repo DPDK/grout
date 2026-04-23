@@ -56,6 +56,38 @@ static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
 static void grout_reconnect(struct event *);
 
+void ipaddr_to_l3_addr(struct l3_addr *dst, const struct ipaddr *src) {
+	switch (src->ipa_type) {
+	case IPADDR_V4:
+		dst->af = GR_AF_IP4;
+		memcpy(&dst->ipv4, &src->ipaddr_v4, sizeof(dst->ipv4));
+		break;
+	case IPADDR_V6:
+		dst->af = GR_AF_IP6;
+		memcpy(&dst->ipv6, &src->ipaddr_v6, sizeof(dst->ipv6));
+		break;
+	default:
+		dst->af = GR_AF_UNSPEC;
+		break;
+	}
+}
+
+void l3_addr_to_ipaddr(struct ipaddr *dst, const struct l3_addr *src) {
+	switch (src->af) {
+	case GR_AF_IP4:
+		dst->ipa_type = IPADDR_V4;
+		memcpy(&dst->ipaddr_v4, &src->ipv4, sizeof(dst->ipaddr_v4));
+		break;
+	case GR_AF_IP6:
+		dst->ipa_type = IPADDR_V6;
+		memcpy(&dst->ipaddr_v6, &src->ipv6, sizeof(dst->ipaddr_v6));
+		break;
+	default:
+		dst->ipa_type = IPADDR_NONE;
+		break;
+	}
+}
+
 struct grout_evt {
 	uint32_t type;
 	bool suppress_self_events;
