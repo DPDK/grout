@@ -248,6 +248,10 @@ enum gr_infra_requests : uint32_t {
 	GR_PACKET_TRACE_SET,
 	GR_AFFINITY_CPU_GET,
 	GR_AFFINITY_CPU_SET,
+	GR_IFACE_MAC_ADD,
+	GR_IFACE_MAC_DEL,
+	GR_IFACE_MAC_LIST,
+	GR_IFACE_MAC_SET,
 };
 
 enum gr_infra_events : uint32_t {
@@ -311,6 +315,44 @@ struct gr_iface_list_req {
 };
 
 GR_REQ_STREAM(GR_IFACE_LIST, struct gr_iface_list_req, struct gr_iface);
+
+// Add a secondary MAC address to an interface.
+struct gr_iface_mac_add_req {
+	uint16_t iface_id;
+	struct rte_ether_addr mac;
+};
+
+GR_REQ(GR_IFACE_MAC_ADD, struct gr_iface_mac_add_req, struct gr_empty);
+
+// Remove a secondary MAC address from an interface.
+struct gr_iface_mac_del_req {
+	uint16_t iface_id;
+	struct rte_ether_addr mac;
+};
+
+GR_REQ(GR_IFACE_MAC_DEL, struct gr_iface_mac_del_req, struct gr_empty);
+
+// List MAC addresses on an interface.
+struct gr_iface_mac_list_req {
+	uint16_t iface_id; // GR_IFACE_ID_UNDEF for all interfaces.
+};
+
+struct gr_iface_mac {
+	uint16_t iface_id;
+	uint16_t refcnt;
+	bool primary;
+	struct rte_ether_addr mac;
+};
+
+GR_REQ_STREAM(GR_IFACE_MAC_LIST, struct gr_iface_mac_list_req, struct gr_iface_mac);
+
+// Set the primary MAC address of an interface.
+struct gr_iface_mac_set_req {
+	uint16_t iface_id;
+	struct rte_ether_addr mac;
+};
+
+GR_REQ(GR_IFACE_MAC_SET, struct gr_iface_mac_set_req, struct gr_empty);
 
 // Modify an existing interface.
 // MTU changes on parent interfaces propagate to VLAN sub-interfaces.

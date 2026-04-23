@@ -200,24 +200,25 @@ static int iface_vlan_set_eth_addr(struct iface *iface, const struct rte_ether_a
 	return 0;
 }
 
-static int iface_vlan_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+static int iface_vlan_add_eth_addr(struct iface *iface, struct iface_mac *m) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct iface *parent = iface_from_id(vlan->parent_id);
 
-	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
-		return errno_set(EINVAL);
-
-	return iface_add_eth_addr(parent, mac);
+	return iface_add_eth_addr(parent, &m->mac);
 }
 
-static int iface_vlan_del_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+static int iface_vlan_del_eth_addr(struct iface *iface, struct iface_mac *m) {
 	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 	struct iface *parent = iface_from_id(vlan->parent_id);
 
-	if (mac == NULL || !rte_is_multicast_ether_addr(mac))
-		return errno_set(EINVAL);
+	return iface_del_eth_addr(parent, &m->mac);
+}
 
-	return iface_del_eth_addr(parent, mac);
+static int iface_vlan_promisc_set(struct iface *iface, bool enabled) {
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	struct iface *parent = iface_from_id(vlan->parent_id);
+
+	return iface_set_promisc(parent, enabled);
 }
 
 static void vlan_to_api(void *info, const struct iface *iface) {
@@ -239,6 +240,7 @@ static const struct iface_type iface_type_vlan = {
 	.set_eth_addr = iface_vlan_set_eth_addr,
 	.add_eth_addr = iface_vlan_add_eth_addr,
 	.del_eth_addr = iface_vlan_del_eth_addr,
+	.set_promisc = iface_vlan_promisc_set,
 	.to_api = vlan_to_api,
 };
 

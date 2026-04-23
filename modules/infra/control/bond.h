@@ -5,7 +5,6 @@
 
 #include "iface.h"
 #include "lacp.h"
-#include "vec.h"
 
 #include <gr_infra.h>
 
@@ -33,8 +32,6 @@ GR_IFACE_INFO(GR_IFACE_TYPE_BOND, iface_info_bond, {
 	uint8_t active_member; // Active member index (for active-backup mode)
 	uint8_t n_members;
 	struct bond_member members[MEMBERS_MAX_LEN];
-
-	vec struct rte_ether_addr *extra_macs;
 
 	uint8_t redirection_table[256];
 });

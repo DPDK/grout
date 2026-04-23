@@ -48,14 +48,12 @@ tests += [
     ],
   },
   {
-    'sources': files('port_test.c', 'port.c'),
+    'sources': files('iface_test.c', 'iface.c', 'port.c', 'vlan.c'),
     'link_args': [
-      '-Wl,--wrap=rte_eth_allmulticast_disable',
+      '-Wl,--wrap=iface_from_id',
       '-Wl,--wrap=rte_eth_allmulticast_enable',
-      '-Wl,--wrap=rte_eth_allmulticast_get',
       '-Wl,--wrap=rte_eth_dev_mac_addr_add',
       '-Wl,--wrap=rte_eth_dev_mac_addr_remove',
-      '-Wl,--wrap=rte_eth_dev_set_mc_addr_list',
       '-Wl,--wrap=rte_eth_promiscuous_disable',
       '-Wl,--wrap=rte_eth_promiscuous_enable',
       '-Wl,--wrap=rte_eth_promiscuous_get',

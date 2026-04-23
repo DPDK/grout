@@ -11,6 +11,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct iface_mac {
+	uint8_t refcnt;
+	bool hardware;
+	struct rte_ether_addr mac;
+};
+
 struct __rte_cache_aligned iface {
 	BASE(__gr_iface_base);
 
@@ -22,6 +28,7 @@ struct __rte_cache_aligned iface {
 	struct event *cp_ev; // libevent to poll cp_fd
 	unsigned promisc;
 	bool user_promisc;
+	vec struct iface_mac *macs;
 	alignas(alignof(void *)) uint8_t info[/* size depends on type */];
 };
 
@@ -50,8 +57,8 @@ struct iface_type {
 	int (*detach_domain)(struct iface *domain, struct iface *iface);
 	int (*get_eth_addr)(const struct iface *, struct rte_ether_addr *);
 	int (*set_eth_addr)(struct iface *, const struct rte_ether_addr *);
-	int (*add_eth_addr)(struct iface *, const struct rte_ether_addr *);
-	int (*del_eth_addr)(struct iface *, const struct rte_ether_addr *);
+	int (*add_eth_addr)(struct iface *, struct iface_mac *);
+	int (*del_eth_addr)(struct iface *, struct iface_mac *);
 	int (*set_up_down)(struct iface *, bool up);
 	int (*set_mtu)(struct iface *, uint16_t mtu);
 	int (*set_promisc)(struct iface *, bool enabled);
