@@ -34,6 +34,7 @@ typedef enum : uint16_t {
 	GR_IFACE_F_PACKET_TRACE = GR_BIT16(2),
 	GR_IFACE_F_SNAT_STATIC = GR_BIT16(3),
 	GR_IFACE_F_SNAT_DYNAMIC = GR_BIT16(4),
+	GR_IFACE_F_NEIGH_SNOOP = GR_BIT16(5),
 } gr_iface_flags_t;
 
 // Interface state flags.
@@ -127,6 +128,7 @@ struct gr_iface_info_port {
 
 // VRF reconfiguration attribute flags.
 #define GR_VRF_SET_FIB GR_BIT64(32)
+#define GR_VRF_SET_MAC GR_BIT64(33)
 
 // Per-AF FIB configuration.
 struct gr_iface_info_vrf_fib {
@@ -138,6 +140,7 @@ struct gr_iface_info_vrf_fib {
 struct gr_iface_info_vrf {
 	struct gr_iface_info_vrf_fib ipv4;
 	struct gr_iface_info_vrf_fib ipv6;
+	struct rte_ether_addr mac; // Used as Router MAC for EVPN L3VNI.
 };
 
 // VLAN reconfiguration attribute flags.

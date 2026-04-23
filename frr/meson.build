@@ -32,6 +32,7 @@ frr_plugin = shared_module(
   files(
     'if_grout.c',
     'if_map.c',
+    'l3vni_map.c',
     'rt_grout.c',
     'zebra_dplane_grout.c',
   ) + grout_header,

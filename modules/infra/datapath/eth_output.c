@@ -59,7 +59,9 @@ next:
 			t->src_addr = src_mac;
 			t->ether_type = priv->ether_type;
 		}
+		ip4_addr_t vtep = priv->vtep;
 		iface_mbuf_data(mbuf)->vlan_id = 0;
+		iface_mbuf_data(mbuf)->vtep = vtep;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 

@@ -25,6 +25,7 @@ typedef enum : uint8_t {
 	GR_NH_F_GATEWAY = GR_BIT8(2), // Gateway route.
 	GR_NH_F_LINK = GR_BIT8(3), // Connected link route.
 	GR_NH_F_MCAST = GR_BIT8(4), // Multicast address.
+	GR_NH_F_REMOTE = GR_BIT8(5), // Remote VTEP nexthop (EVPN).
 } gr_nh_flags_t;
 
 // Nexthop types for different forwarding behaviors.
@@ -74,6 +75,7 @@ typedef enum : uint8_t {
 	GR_NH_ORIGIN_ZSTATIC = 196, // (RTPROT_ZSTATIC from zebra)
 	GR_NH_ORIGIN_OPENFABRIC = 197, // (RTPROT_OPENFABIC from zebra)
 	GR_NH_ORIGIN_SRTE = 198, // (RTPROT_SRTE from zebra)
+	GR_NH_ORIGIN_NEIGH = 254, // Learned from ARP/NDP traffic.
 	GR_NH_ORIGIN_INTERNAL = 255, // Reserved for internal use (no events, no ID allocation).
 } gr_nh_origin_t;
 
@@ -140,11 +142,6 @@ GR_EVENT(GR_EVENT_NEXTHOP_NEW, struct gr_nexthop);
 GR_EVENT(GR_EVENT_NEXTHOP_DELETE, struct gr_nexthop);
 GR_EVENT(GR_EVENT_NEXTHOP_UPDATE, struct gr_nexthop);
 
-#define gr_nh_flags_foreach(f, flags)                                                              \
-	for (gr_nh_flags_t __i = 0, f = GR_BIT8(0); __i < sizeof(gr_nh_flags_t) * CHAR_BIT;        \
-	     f = GR_BIT8(++__i))                                                                   \
-		if (flags & f)
-
 // Convert nexthop state enum to string representation.
 static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
 	switch (state) {
@@ -163,7 +160,7 @@ static inline const char *gr_nh_state_name(const gr_nh_state_t state) {
 }
 
 // Convert nexthop flag enum to string representation.
-// For flag masks, iterate individual flags using gr_nh_flags_foreach.
+// For flag masks, iterate individual flags using gr_flags_foreach.
 static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 	switch (flag) {
 	case GR_NH_F_STATIC:
@@ -176,6 +173,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "link";
 	case GR_NH_F_MCAST:
 		return "multicast";
+	case GR_NH_F_REMOTE:
+		return "remote";
 	}
 	return "?";
 }
@@ -266,6 +265,8 @@ static inline const char *gr_nh_origin_name(gr_nh_origin_t origin) {
 		return "openfabric";
 	case GR_NH_ORIGIN_SRTE:
 		return "srte";
+	case GR_NH_ORIGIN_NEIGH:
+		return "neigh";
 	case GR_NH_ORIGIN_INTERNAL:
 		return "INTERNAL";
 	}
@@ -320,8 +321,8 @@ GR_REQ(GR_NH_ADD, struct gr_nh_add_req, struct gr_empty);
 // Automatically removes all routes referencing this nexthop.
 // Protected nexthops (Local+Static, Link origin) cannot be deleted.
 struct gr_nh_del_req {
-	uint32_t nh_id;
 	uint8_t missing_ok;
+	struct gr_nexthop nh;
 };
 
 GR_REQ(GR_NH_DEL, struct gr_nh_del_req, struct gr_empty);
@@ -335,6 +336,15 @@ struct gr_nh_list_req {
 };
 
 GR_REQ_STREAM(GR_NH_LIST, struct gr_nh_list_req, struct gr_nexthop);
+
+// Flush nexthops matching the given origin.
+#define GR_NH_FLUSH REQUEST_TYPE(GR_INFRA_MODULE, 0x0075)
+
+struct gr_nh_flush_req {
+	gr_nh_origin_t origin;
+};
+
+// struct gr_nh_flush_resp { };
 
 // Get a single nexthop by ID.
 struct gr_nh_get_req {

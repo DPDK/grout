@@ -14,9 +14,24 @@
 
 // Bridge configuration flags.
 typedef enum : uint16_t {
-	GR_BRIDGE_F_NO_FLOOD = GR_BIT16(0),
-	GR_BRIDGE_F_NO_LEARN = GR_BIT16(1),
+	GR_BRIDGE_F_FLOOD = GR_BIT16(0), // Flood BUM traffic.
+	GR_BRIDGE_F_LEARN = GR_BIT16(1), // Dynamic MAC learning in FDB.
+	GR_BRIDGE_F_NEIGH_SUPPRESS = GR_BIT16(2), // Intercept ARP/NDP requests.
 } gr_bridge_flags_t;
+
+// Convert bridge flag enum to string representation.
+// For flag masks, iterate individual flags using gr_flags_foreach.
+static inline const char *gr_bridge_flag_name(gr_bridge_flags_t f) {
+	switch (f) {
+	case GR_BRIDGE_F_FLOOD:
+		return "flood";
+	case GR_BRIDGE_F_LEARN:
+		return "learn";
+	case GR_BRIDGE_F_NEIGH_SUPPRESS:
+		return "neigh_suppress";
+	}
+	return "?";
+}
 
 #define GR_BRIDGE_MAX_MEMBERS 64
 #define GR_BRIDGE_DEFAULT_AGEING 300
@@ -65,6 +80,20 @@ typedef enum : uint8_t {
 	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
 	GR_FDB_F_EXTERN = GR_BIT8(2), // Programmed by external control plane.
 } gr_fdb_flags_t;
+
+// Convert FDB flag enum to string representation.
+// For flag masks, iterate individual flags using gr_flags_foreach.
+static inline const char *gr_fdb_flag_name(gr_fdb_flags_t f) {
+	switch (f) {
+	case GR_FDB_F_STATIC:
+		return "static";
+	case GR_FDB_F_LEARN:
+		return "learn";
+	case GR_FDB_F_EXTERN:
+		return "extern";
+	}
+	return "?";
+}
 
 // Forwarding database entry associating a MAC+VLAN to a bridge member interface.
 struct gr_fdb_entry {

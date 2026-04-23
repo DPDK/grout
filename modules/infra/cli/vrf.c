@@ -10,17 +10,19 @@
 #define VRF_ATTRS_CMD                                                                              \
 	"(rib4-routes RIB4_ROUTES),(fib4-tbl8 FIB4_TBL8)"                                          \
 	",(rib6-routes RIB6_ROUTES),(fib6-tbl8 FIB6_TBL8)"                                         \
-	",(description DESCR)"
+	",(mac MAC),(description DESCR)"
 #define VRF_ATTRS_ARGS                                                                             \
 	with_help("Max IPv4 routes.", ec_node_uint("RIB4_ROUTES", 1, UINT32_MAX, 10)),             \
 		with_help("IPv4 TBL8 groups.", ec_node_uint("FIB4_TBL8", 1, UINT32_MAX, 10)),      \
 		with_help("Max IPv6 routes.", ec_node_uint("RIB6_ROUTES", 1, UINT32_MAX, 10)),     \
 		with_help("IPv6 TBL8 groups.", ec_node_uint("FIB6_TBL8", 1, UINT32_MAX, 10)),      \
+		with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),            \
 		with_help("Interface description.", ec_node("any", "DESCR"))
 
 static void vrf_show(struct gr_api_client *, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vrf *info = PAYLOAD(iface);
 
+	gr_object_field(o, "mac", 0, ETH_F, &info->mac);
 	gr_object_field(o, "rib4_max_routes", GR_DISP_INT, "%u", info->ipv4.max_routes);
 	gr_object_field(o, "fib4_num_tbl8", GR_DISP_INT, "%u", info->ipv4.num_tbl8);
 	gr_object_field(o, "rib6_max_routes", GR_DISP_INT, "%u", info->ipv6.max_routes);
@@ -79,6 +81,11 @@ static uint64_t parse_vrf_args(
 		arg_u32(p, "FIB6_TBL8", &info->ipv6.num_tbl8);
 		set_attrs |= GR_VRF_SET_FIB;
 	}
+
+	if (arg_eth_addr(p, "MAC", &info->mac) == 0)
+		set_attrs |= GR_VLAN_SET_MAC;
+	else if (errno != ENOENT)
+		return 0;
 
 	return set_attrs;
 }

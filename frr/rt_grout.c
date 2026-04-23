@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include "if_map.h"
+#include "l3vni_map.h"
 #include "log_grout.h"
 #include "rt_grout.h"
 
@@ -613,7 +614,7 @@ static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx 
 static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
 	gr_log_debug("nh_id %u", nh_id);
 
-	struct gr_nh_del_req req = {.missing_ok = true, .nh_id = nh_id};
+	struct gr_nh_del_req req = {.missing_ok = true, .nh = {.nh_id = nh_id}};
 
 	if (grout_client_send_recv(GR_NH_DEL, sizeof(req), &req, NULL) < 0)
 		return ZEBRA_DPLANE_REQUEST_FAILURE;
@@ -627,7 +628,9 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	struct gr_nexthop_info_srv6 *sr6;
 	struct gr_nh_add_req *req = NULL;
 	struct gr_nexthop_info_l3 *l3;
+	const struct ethaddr *rmac;
 	size_t len = sizeof(*req);
+	uint16_t vxlan_iface_id;
 	gr_nh_type_t type;
 
 	switch (nh->type) {
@@ -675,12 +678,25 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 
 	switch (type) {
 	case GR_NH_T_L3:
+		// For L3 nexthops in VRFs with an L3VNI, redirect the iface from
+		// the VRF (SVI in FRR's model) to the VXLAN interface. Grout
+		// routes packets directly through the VXLAN tunnel.
+		vxlan_iface_id = l3vni_get_vxlan(req->nh.vrf_id);
+		if (vxlan_iface_id != GR_IFACE_ID_UNDEF)
+			req->nh.iface_id = vxlan_iface_id;
+
 		switch (nh->type) {
 		case NEXTHOP_TYPE_IPV4:
 		case NEXTHOP_TYPE_IPV4_IFINDEX:
 			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
 			l3->af = GR_AF_IP4;
 			memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+			// Apply cached RMAC from EVPN NEIGH install if available.
+			rmac = l3vni_rmac_get(req->nh.vrf_id, l3->ipv4);
+			if (rmac != NULL) {
+				memcpy(&l3->mac, rmac, sizeof(l3->mac));
+				l3->flags |= GR_NH_F_REMOTE;
+			}
 			break;
 		case NEXTHOP_TYPE_IPV6:
 		case NEXTHOP_TYPE_IPV6_IFINDEX:
@@ -817,12 +833,64 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	return grout_add_nexthop(nh_id, origin, dplane_ctx_get_nhe_ng(ctx)->nexthop);
 }
 
+static void grout_neigh_notify(bool new, struct gr_nexthop *gr_nh) {
+	const struct gr_nexthop_info_l3 *l3;
+	static const struct ethaddr zero_mac = {};
+	struct zebra_dplane_ctx *ctx;
+	struct ethaddr mac;
+	struct ipaddr ip;
+
+	if (gr_nh->type != GR_NH_T_L3)
+		return;
+
+	l3 = (const struct gr_nexthop_info_l3 *)gr_nh->info;
+
+	if (l3->af != GR_AF_IP4 && l3->af != GR_AF_IP6)
+		return;
+	if (l3->flags & (GR_NH_F_LOCAL | GR_NH_F_LINK | GR_NH_F_MCAST | GR_NH_F_REMOTE))
+		return;
+	if (new && memcmp(&l3->mac, &zero_mac, sizeof(zero_mac)) == 0)
+		return;
+
+	memset(&ip, 0, sizeof(ip));
+	if (l3->af == GR_AF_IP4) {
+		ip.ipa_type = IPADDR_V4;
+		memcpy(&ip.ipaddr_v4, &l3->ipv4, sizeof(ip.ipaddr_v4));
+	} else {
+		ip.ipa_type = IPADDR_V6;
+		memcpy(&ip.ipaddr_v6, &l3->ipv6, sizeof(ip.ipaddr_v6));
+	}
+	memcpy(&mac, &l3->mac, sizeof(mac));
+
+	gr_log_debug(
+		"%s neigh iface=%u %pIA %pEA", new ? "add" : "del", gr_nh->iface_id, &ip, &mac
+	);
+
+	ctx = dplane_ctx_alloc();
+	dplane_ctx_set_op(ctx, new ? DPLANE_OP_NEIGH_INSTALL : DPLANE_OP_NEIGH_DELETE);
+	dplane_ctx_set_ns_id(ctx, GROUT_NS);
+	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(gr_nh->iface_id));
+	dplane_ctx_neigh_set_ipaddr(ctx, &ip);
+	dplane_ctx_neigh_set_mac(ctx, &mac);
+	dplane_ctx_neigh_set_ndm_state(ctx, NUD_REACHABLE);
+	dplane_ctx_neigh_set_ndm_family(ctx, l3->af == GR_AF_IP4 ? AF_INET : AF_INET6);
+	dplane_ctx_neigh_set_l2_len(ctx, ETH_ALEN);
+	dplane_ctx_neigh_set_is_ext(ctx, false);
+	dplane_ctx_neigh_set_is_router(ctx, false);
+	dplane_ctx_neigh_set_dp_static(ctx, false);
+	dplane_ctx_neigh_set_local_inactive(ctx, false);
+
+	dplane_provider_enqueue_to_zebra(ctx);
+}
+
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	struct nexthop *nh = NULL;
 	afi_t afi = AFI_UNSPEC;
 	int family, type;
 
 	gr_log_debug("%s nh_id %u", new ? "add" : "del", gr_nh->nh_id);
+
+	grout_neigh_notify(new, gr_nh);
 
 	// XXX: grout is optional to have an ID for nexthop
 	// but in FRR, it's mandatory
@@ -969,6 +1037,116 @@ enum zebra_dplane_result grout_macfdb_update_ctx(struct zebra_dplane_ctx *ctx) {
 	free(req);
 
 	return ret == 0 ? ZEBRA_DPLANE_REQUEST_SUCCESS : ZEBRA_DPLANE_REQUEST_FAILURE;
+}
+
+static void neigh_install_nexthop(struct zebra_dplane_ctx *ctx, const struct ipaddr *addr) {
+	const struct ethaddr *mac = dplane_ctx_neigh_get_mac(ctx);
+	uint16_t iface_id = ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx));
+	struct gr_nexthop_info_l3 *l3;
+	struct gr_nh_add_req *req;
+	size_t len;
+
+	if (iface_id == GR_IFACE_ID_UNDEF)
+		return;
+
+	len = sizeof(*req) + sizeof(*l3);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("calloc: %s", strerror(errno));
+		return;
+	}
+
+	req->exist_ok = true;
+	req->nh.type = GR_NH_T_L3;
+	req->nh.origin = GR_NH_ORIGIN_BGP;
+	req->nh.iface_id = iface_id;
+	l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+	l3->flags = GR_NH_F_REMOTE;
+
+	switch (addr->ipa_type) {
+	case IPADDR_V4:
+		l3->af = GR_AF_IP4;
+		memcpy(&l3->ipv4, &addr->ipaddr_v4, sizeof(l3->ipv4));
+		break;
+	case IPADDR_V6:
+		l3->af = GR_AF_IP6;
+		memcpy(&l3->ipv6, &addr->ipaddr_v6, sizeof(l3->ipv6));
+		break;
+	default:
+		free(req);
+		return;
+	}
+	memcpy(&l3->mac, mac, sizeof(l3->mac));
+
+	gr_log_debug("install remote nh iface=%u %pIA %pEA", iface_id, addr, mac);
+	grout_client_send_recv(GR_NH_ADD, len, req, NULL);
+	free(req);
+}
+
+static void neigh_delete_nexthop(struct zebra_dplane_ctx *ctx, const struct ipaddr *addr) {
+	uint16_t iface_id = ifindex_frr_to_grout(dplane_ctx_get_ifindex(ctx));
+	struct gr_nexthop_info_l3 *l3;
+	struct gr_nh_del_req *req;
+	size_t len;
+
+	if (iface_id == GR_IFACE_ID_UNDEF)
+		return;
+
+	len = sizeof(*req) + sizeof(*l3);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("calloc: %s", strerror(errno));
+		return;
+	}
+
+	req->missing_ok = true;
+	req->nh.type = GR_NH_T_L3;
+	req->nh.iface_id = iface_id;
+	l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
+
+	switch (addr->ipa_type) {
+	case IPADDR_V4:
+		l3->af = GR_AF_IP4;
+		memcpy(&l3->ipv4, &addr->ipaddr_v4, sizeof(l3->ipv4));
+		break;
+	case IPADDR_V6:
+		l3->af = GR_AF_IP6;
+		memcpy(&l3->ipv6, &addr->ipaddr_v6, sizeof(l3->ipv6));
+		break;
+	default:
+		free(req);
+		return;
+	}
+
+	gr_log_debug("delete remote nh iface=%u %pIA", iface_id, addr);
+	grout_client_send_recv(GR_NH_DEL, len, req, NULL);
+	free(req);
+}
+
+enum zebra_dplane_result grout_neigh_update_ctx(struct zebra_dplane_ctx *ctx) {
+	const struct ipaddr *addr = dplane_ctx_neigh_get_ipaddr(ctx);
+	bool add = dplane_ctx_get_op(ctx) != DPLANE_OP_NEIGH_DELETE;
+	uint16_t vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+
+	// Cache the RMAC for L3VNI routes (IPv4 VTEP addresses only).
+	if (addr->ipa_type == IPADDR_V4) {
+		if (add) {
+			const struct ethaddr *mac = dplane_ctx_neigh_get_mac(ctx);
+			gr_log_debug("cache rmac vrf=%u %pIA %pEA", vrf_id, addr, mac);
+			l3vni_rmac_set(vrf_id, addr->ipaddr_v4.s_addr, mac);
+		} else {
+			gr_log_debug("uncache rmac vrf=%u %pIA", vrf_id, addr);
+			l3vni_rmac_del(vrf_id, addr->ipaddr_v4.s_addr);
+		}
+	}
+
+	// Install/remove a remote nexthop for ARP/ND suppression.
+	if (add)
+		neigh_install_nexthop(ctx, addr);
+	else
+		neigh_delete_nexthop(ctx, addr);
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
 enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *ctx) {

@@ -100,8 +100,8 @@ static void nexthop_id_put(struct nexthop *nh) {
 static int nexthop_id_get(struct nexthop *nh) {
 	int ret;
 
-	// no id for internal, as we should not let user manipulate it
-	if (nh->origin == GR_NH_ORIGIN_INTERNAL) {
+	// no id for internal/neigh, as we should not let user manipulate them
+	if (nh->origin == GR_NH_ORIGIN_INTERNAL || nh->origin == GR_NH_ORIGIN_NEIGH) {
 		nh->nh_id = 0;
 		return 0;
 	}
@@ -271,6 +271,7 @@ bool nexthop_origin_valid(gr_nh_origin_t origin) {
 	case GR_NH_ORIGIN_ZSTATIC:
 	case GR_NH_ORIGIN_OPENFABRIC:
 	case GR_NH_ORIGIN_SRTE:
+	case GR_NH_ORIGIN_NEIGH:
 	case GR_NH_ORIGIN_INTERNAL:
 		return true;
 	}
@@ -289,19 +290,18 @@ void nexthop_type_ops_register(gr_nh_type_t type, const struct nexthop_type_ops 
 
 struct nexthop *nexthop_lookup(const struct gr_nexthop_base *base, const void *info) {
 	const struct nexthop_type_ops *ops;
-	struct nexthop *nh = NULL;
 
 	if (base == NULL)
 		return errno_set_null(EINVAL);
 
 	if (base->nh_id != GR_NH_ID_UNSET)
-		nh = nexthop_lookup_id(base->nh_id);
+		return nexthop_lookup_id(base->nh_id);
 
 	ops = type_ops[base->type];
-	if (nh == NULL && ops != NULL && ops->lookup != NULL)
-		nh = ops->lookup(base, info);
+	if (ops != NULL && ops->lookup != NULL)
+		return ops->lookup(base, info);
 
-	return nh;
+	return errno_set_null(ENOENT);
 }
 
 struct nexthop *nexthop_new(const struct gr_nexthop_base *base, const void *info) {

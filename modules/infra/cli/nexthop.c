@@ -120,7 +120,7 @@ static void add_columns_l3(struct gr_table *table) {
 static void format_nh_flags(char *buf, size_t len, gr_nh_flags_t flags) {
 	ssize_t n = 0;
 	buf[0] = 0;
-	gr_nh_flags_foreach (fl, flags) {
+	gr_flags_foreach (fl, flags) {
 		if (n > 0)
 			SAFE_BUF(snprintf, len, " ");
 		SAFE_BUF(snprintf, len, "%s", gr_nh_flag_name(fl));
@@ -379,6 +379,8 @@ static cmd_status_t nh_l3_add(struct gr_api_client *c, const struct ec_pnode *p)
 		goto out;
 	if (arg_eth_addr(p, "MAC", &l3->mac) < 0 && errno != ENOENT)
 		goto out;
+	if (arg_str(p, "remote"))
+		l3->flags |= GR_NH_F_REMOTE;
 
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
@@ -415,10 +417,30 @@ static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pn
 static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
-	if (arg_u32(p, "ID", &req.nh_id) < 0)
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_DEL, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t nh_flush(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_flush_req req = {};
+	const char *origin = arg_str(p, "ORIGIN");
+
+	if (origin == NULL)
+		return CMD_ERROR;
+
+	if (strcmp(origin, "neigh") == 0)
+		req.origin = GR_NH_ORIGIN_NEIGH;
+	else if (strcmp(origin, "static") == 0)
+		req.origin = GR_NH_ORIGIN_STATIC;
+	else
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_FLUSH, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -619,13 +641,14 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		NEXTHOP_ADD_CTX(root),
-		"l3 iface IFACE [(id ID),(address IP),(mac MAC)]",
+		"l3 iface IFACE [(id ID),(address IP),(mac MAC),(remote)]",
 		nh_l3_add,
 		"Add a new L3 nexthop.",
 		with_help("IPv4/6 address.", ec_node_re("IP", IP_ANY_RE)),
 		with_help("Ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL))
+		with_help("Output interface.", ec_node_dyn("IFACE", complete_iface_names, NULL)),
+		with_help("Mark as remote (EVPN).", ec_node_str("remote", "remote"))
 	);
 	if (ret < 0)
 		return ret;
@@ -665,6 +688,22 @@ static int ctx_init(struct ec_node *root) {
 		nh_del,
 		"Delete a next hop.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		NEXTHOP_CTX(root),
+		"flush origin ORIGIN",
+		nh_flush,
+		"Flush all nexthops with the given origin.",
+		with_help(
+			"Nexthop origin.",
+			EC_NODE_OR(
+				"ORIGIN",
+				ec_node_str("neigh", "neigh"),
+				ec_node_str("static", "static")
+			)
+		)
 	);
 	if (ret < 0)
 		return ret;

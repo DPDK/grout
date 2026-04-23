@@ -77,7 +77,7 @@ static uint16_t ndp_na_input_process(
 		// recipient has apparently not initiated any communication with the
 		// target.
 		remote = nh6_lookup(iface->vrf_id, iface->id, &na->target);
-		if (remote == NULL) {
+		if (remote == NULL && !(iface->flags & GR_IFACE_F_NEIGH_SNOOP)) {
 			edge = DROP;
 			goto next;
 		}

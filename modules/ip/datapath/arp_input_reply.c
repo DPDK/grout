@@ -37,7 +37,7 @@ static uint16_t arp_input_reply_process(
 
 		iface = mbuf_data(mbuf)->iface;
 		remote = nh4_lookup(iface->vrf_id, arp->arp_data.arp_sip);
-		if (remote != NULL) {
+		if (remote != NULL || (iface->flags & GR_IFACE_F_NEIGH_SNOOP)) {
 			control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 			rte_node_enqueue_x1(graph, node, CONTROL, mbuf);
 		} else {
