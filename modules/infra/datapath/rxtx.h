@@ -44,7 +44,7 @@ struct port_output_edges {
 
 GR_MBUF_PRIV_DATA_TYPE(iface_mbuf_data, {
 	uint16_t vlan_id;
-	ip4_addr_t vtep;
+	struct l3_addr vtep;
 });
 
 int rxtx_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);

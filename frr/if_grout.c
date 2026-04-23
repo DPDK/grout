@@ -4,6 +4,7 @@
 #include "if_grout.h"
 #include "if_map.h"
 #include "log_grout.h"
+#include "zebra_dplane_grout.h"
 
 #include <gr_ip4.h>
 #include <gr_ip6.h>
@@ -11,6 +12,7 @@
 #include <gr_srv6.h>
 
 #include <lib/libfrr.h>
+#include <lib/version.h>
 #include <linux/if.h>
 #include <net/if.h>
 #include <zebra/interface.h>
@@ -95,6 +97,17 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		break;
 	case GR_IFACE_TYPE_VXLAN:
 		gr_vxlan = (const struct gr_iface_info_vxlan *)&gr_if->info;
+#if CURRENT_FRR_VERSION < MAKE_FRRVERSION(10, 6, 0)
+		if (gr_vxlan->local.af != GR_AF_IP4) {
+			gr_log_err(
+				"iface %s: %s local vtep not supported in frr %s",
+				gr_if->name,
+				gr_af_name(gr_vxlan->local.af),
+				FRR_VER_SHORT
+			);
+			return;
+		}
+#endif
 		link_type = ZEBRA_LLT_ETHER;
 		zif_type = ZEBRA_IF_VXLAN;
 		mac = &gr_vxlan->mac;
@@ -179,10 +192,9 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 			vi.vni_info.vni.vni = gr_vxlan->vni;
 			vi.ifindex_link = ifindex_grout_to_frr(gr_vxlan->encap_vrf_id);
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
-			vi.vtep_ip.ipa_type = IPADDR_V4;
-			vi.vtep_ip.ipaddr_v4.s_addr = gr_vxlan->local;
+			l3_addr_to_ipaddr(&vi.vtep_ip, &gr_vxlan->local);
 #else
-			vi.vtep_ip.s_addr = gr_vxlan->local;
+			vi.vtep_ip.s_addr = gr_vxlan->local.ipv4;
 #endif
 			dplane_ctx_set_ifp_vxlan_info(ctx, &vi);
 		}

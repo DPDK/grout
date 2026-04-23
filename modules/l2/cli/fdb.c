@@ -132,8 +132,8 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 
 		gr_table_cell(table, 3, "%s", iface_name_from_id(c, fdb->iface_id));
 
-		if (fdb->vtep != 0)
-			gr_table_cell(table, 4, IP4_F, &fdb->vtep);
+		if (fdb->vtep.af != GR_AF_UNSPEC)
+			gr_table_cell(table, 4, ADDR_F, ADDR_W(fdb->vtep.af), &fdb->vtep.addr);
 
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
 			gr_table_cell(table, 5, "%s", flags);
@@ -315,8 +315,8 @@ static void fdb_event_print(uint32_t event, const void *obj) {
 	if (fdb->vlan_id != 0)
 		printf(" vlan=%u", fdb->vlan_id);
 	printf(" iface=%s", iface_name_from_id(NULL, fdb->iface_id));
-	if (fdb->vtep != 0)
-		printf(" vtep=" IP4_F, &fdb->vtep);
+	if (fdb->vtep.af != GR_AF_UNSPEC)
+		printf(" vtep=" ADDR_F, ADDR_W(fdb->vtep.af), &fdb->vtep.addr);
 	if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
 		printf(" %s", flags);
 	printf("\n");
