@@ -151,6 +151,7 @@ static int netlink_vrf_add(const struct iface *iface) {
 			    strerror(errno));
 			return ret;
 		}
+		netlink_link_set_mac(vrf->vrf_ifindex, &vrf->mac);
 	}
 
 	ret = netlink_add_route(iface->cp_id, table_id);
@@ -229,6 +230,7 @@ static int iface_vrf_init(struct iface *iface, const void *api_info) {
 	// VRF's vrf_id is its own iface_id (VRF identifier)
 	iface->vrf_id = iface->id;
 	vrf->ref_count = 0;
+	rte_eth_random_addr(vrf->mac.addr_bytes);
 
 	if (iface_loopback_create(iface) < 0)
 		return -errno;
@@ -347,7 +349,21 @@ static int iface_vrf_reconfig(
 			    fib_conf->num_tbl8);
 		}
 	}
+	if (set_attrs & GR_VRF_SET_MAC && iface_set_eth_addr(iface, &info->mac) < 0)
+		return -errno;
 
+	return 0;
+}
+
+static int iface_vrf_get_eth_addr(const struct iface *iface, struct rte_ether_addr *mac) {
+	const struct iface_info_vrf *vrf = iface_info_vrf(iface);
+	*mac = vrf->mac;
+	return 0;
+}
+
+static int iface_vrf_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
+	struct iface_info_vrf *vrf = iface_info_vrf(iface);
+	vrf->mac = *mac;
 	return 0;
 }
 
@@ -364,6 +380,8 @@ static struct iface_type iface_type_vrf = {
 	.priv_size = sizeof(struct iface_info_vrf),
 	.init = iface_vrf_init,
 	.reconfig = iface_vrf_reconfig,
+	.set_eth_addr = iface_vrf_set_eth_addr,
+	.get_eth_addr = iface_vrf_get_eth_addr,
 	.fini = iface_vrf_fini,
 	.to_api = iface_vrf_to_api,
 };

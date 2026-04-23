@@ -127,6 +127,7 @@ struct gr_iface_info_port {
 
 // VRF reconfiguration attribute flags.
 #define GR_VRF_SET_FIB GR_BIT64(32)
+#define GR_VRF_SET_MAC GR_BIT64(33)
 
 // Per-AF FIB configuration.
 struct gr_iface_info_vrf_fib {
@@ -138,6 +139,7 @@ struct gr_iface_info_vrf_fib {
 struct gr_iface_info_vrf {
 	struct gr_iface_info_vrf_fib ipv4;
 	struct gr_iface_info_vrf_fib ipv6;
+	struct rte_ether_addr mac; // Used as Router MAC for EVPN L3VNI.
 };
 
 // VLAN reconfiguration attribute flags.

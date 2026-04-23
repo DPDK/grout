@@ -5,6 +5,8 @@
 
 #include "mbuf.h"
 
+#include <gr_net_types.h>
+
 #include <rte_byteorder.h>
 #include <rte_ether.h>
 
@@ -22,6 +24,7 @@ GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { eth_domain_t domain; })
 GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
 	struct rte_ether_addr dst;
 	rte_be16_t ether_type;
+	ip4_addr_t vtep;
 });
 
 void gr_eth_input_add_type(rte_be16_t eth_type, const char *node_name);
