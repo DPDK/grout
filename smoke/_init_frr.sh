@@ -210,7 +210,9 @@ start_frr() {
 
 	local frr_etc="$builddir/frr_install/etc/frr"
 	local frr_logdir="$builddir/frr_install/var/log/frr"
-	local conf_dir flog daemons_file frrconf_file frr_global_opts
+	# $flog is intentionally global (not local) so tests sourcing
+	# _init_frr.sh can grep it after start_frr completes.
+	local conf_dir daemons_file frrconf_file frr_global_opts
 	local zebra_options="-s 90000000"
 
 	mkdir -p "$frr_etc"
