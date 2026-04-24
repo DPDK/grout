@@ -50,15 +50,22 @@ $(smoke_scripts):
 	$Q log=$$(mktemp); \
 	trap "rm -f $$log" EXIT; \
 	printf '%s\n' $@; \
-	if ! sudo $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; then \
+	sudo $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
+	rc=$$?; \
+	if [ "$$rc" -ne 0 ]; then \
 		printf '%s\n' '==================================================='; \
 		printf '+ %s\n' $@; \
 		cat "$$log"; \
 		printf '%s\n' '---------------------------------------------------'; \
-		printf '%s ... FAILED\n' $@; \
+		if [ "$$rc" -eq 125 ]; then \
+			printf '%s ... SKIPPED\n' $@; \
+			rc=0; \
+		else \
+			printf '%s ... FAILED\n' $@; \
+		fi; \
 		printf '%s\n' '---------------------------------------------------'; \
-		false; \
-	fi
+	fi; \
+	exit "$$rc"
 
 .PHONY: update-graph
 update-graph: all
