@@ -8,4 +8,4 @@ diff_files =
 	dpdk/fib-expose-tbl8-usage-statistics.patch
 
 [provide]
-dependency_names = libdpdk
+dependency_names = libdpdk-25.11

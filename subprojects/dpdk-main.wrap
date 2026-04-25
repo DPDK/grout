@@ -1,0 +1,9 @@
+[wrap-git]
+url = https://github.com/DPDK/dpdk
+revision = main
+depth = 1
+diff_files =
+	dpdk/fib-expose-tbl8-usage-statistics.patch
+
+[provide]
+dependency_names = libdpdk-main

@@ -26,25 +26,39 @@ jobs:
       matrix:
         conf:
           - compiler: gcc-13
+            dpdk: '25.11'
             frr: '10.5'
             rebase: true
           - compiler: gcc-14
+            dpdk: '25.11'
             frr: '10.5'
             asan: true
             debug: true
           - compiler: gcc-14
             frr: '10.5'
+            dpdk: '25.11'
             arch: aarch64
           - compiler: gcc-14
+            dpdk: '25.11'
             frr: '10.6'
           - compiler: gcc-14
+            dpdk: '25.11-head'
+            frr: '10.5'
+          - compiler: gcc-14
+            dpdk: 'main'
+            frr: '10.5'
+            allow_fail: true
+          - compiler: gcc-14
+            dpdk: '25.11'
             frr: 'master'
             allow_fail: true
           - compiler: clang-16
+            dpdk: '25.11'
             frr: '10.5'
           - compiler: clang-18
+            dpdk: '25.11'
             frr: '10.5'
-    name: build-and-tests (${{ matrix.conf.arch || 'x86_64' }}, ${{ matrix.conf.compiler }}, FRR ${{ matrix.conf.frr }})
+    name: build-and-tests (${{ matrix.conf.arch || 'x86_64' }}, ${{ matrix.conf.compiler }}, DPDK ${{ matrix.conf.dpdk }}, FRR ${{ matrix.conf.frr }})
     runs-on: ubuntu-24.04${{ matrix.conf.arch == 'aarch64' && '-arm' || '' }}
     continue-on-error: ${{ matrix.conf.allow_fail || false }}
     env:
@@ -54,6 +68,7 @@ jobs:
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
       FRR: ${{ matrix.conf.frr }}
+      DPDK: ${{ matrix.conf.dpdk }}
       DPDK_CPU: generic
     steps:
       - name: install system dependencies
