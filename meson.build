@@ -67,7 +67,7 @@ endif
 dpdk_dep = dependency(
   'libdpdk',
   version : '>= 25.11',
-  fallback: ['dpdk', 'dpdk_dep'],
+  fallback: ['dpdk-' + get_option('dpdk_version'), 'dpdk_dep'],
   default_options: [
     'c_std=c11',
     'werror=false',

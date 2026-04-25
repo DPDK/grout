@@ -2,6 +2,11 @@
 # Copyright (c) 2024 Vincent Jardin
 
 option(
+  'dpdk_version', type: 'combo', choices: ['25.11', '25.11-head', 'main'], value: '25.11',
+  description: 'DPDK version, defaults to 25.11.',
+)
+
+option(
   'docs', type: 'feature', value: 'auto',
   description: 'Build man pages. If set to "auto", only build if scdoc is found.',
 )

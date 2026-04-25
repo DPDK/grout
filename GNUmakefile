@@ -6,6 +6,7 @@ BUILDTYPE ?= debugoptimized
 SANITIZE ?= none
 COVERAGE ?= false
 FRR ?= $(shell sed -En "s/.*'frr_version'.*value: '([^']+)'.*/\\1/p" meson_options.txt)
+DPDK ?= $(shell sed -En "s/.*'dpdk_version'.*value: '([^']+)'.*/\\1/p" meson_options.txt)
 DPDK_CPU ?= $(shell sed -En "s/.*'dpdk_cpu'.*value: '([^']+)'.*/\\1/p" meson_options.txt)
 V ?= 0
 ifeq ($V,1)
@@ -99,6 +100,7 @@ install: $(BUILDDIR)/build.ninja
 meson_opts = --buildtype=$(BUILDTYPE) --werror --warnlevel=2
 meson_opts += -Db_sanitize=$(SANITIZE) -Db_coverage=$(COVERAGE)
 meson_opts += -Dfrr_version=$(FRR)
+meson_opts += -Ddpdk_version=$(DPDK)
 meson_opts += -Ddpdk_cpu=$(DPDK_CPU)
 meson_opts += $(MESON_EXTRA_OPTS)
 
