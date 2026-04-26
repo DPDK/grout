@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "icmp_rl.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "log.h"
@@ -87,6 +88,13 @@ static struct rte_mbuf *get_icmp_response(uint16_t ident, uint16_t seq_num, cloc
 	return errno_set_null(ENOENT);
 }
 
+static struct api_out icmp_rate_limit(const void *request, struct api_ctx *) {
+	const struct gr_ip4_icmp_rl_req *rl = request;
+	icmp_rl_init(rl->rate_limit);
+
+	return api_out(0, 0, NULL);
+}
+
 static struct api_out icmp_send(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_send_req *req = request;
 	const struct nexthop *nh;
@@ -167,6 +175,7 @@ static void icmp_init(struct event_base *) {
 		SOCKET_ID_ANY,
 		0 // flags
 	);
+
 	if (pool == NULL)
 		ABORT("rte_mempool_create(icmp_queue) failed");
 }
@@ -191,6 +200,7 @@ RTE_INIT(icmp_module_init) {
 	module_register(&icmp_module);
 	api_handler(GR_IP4_ICMP_SEND, icmp_send);
 	api_handler(GR_IP4_ICMP_RECV, icmp_recv);
+	api_handler(GR_IP4_ICMP_RATE_LIMIT, icmp_rate_limit);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);

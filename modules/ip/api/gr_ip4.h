@@ -39,6 +39,7 @@ enum gr_ip4_requests : uint32_t {
 	GR_IP4_ICMP_RECV,
 	GR_IP4_FIB_DEFAULT_SET,
 	GR_IP4_FIB_INFO_LIST,
+	GR_IP4_ICMP_RATE_LIMIT,
 };
 
 // routes //////////////////////////////////////////////////////////////////////
@@ -147,6 +148,12 @@ struct gr_ip4_icmp_recv_resp {
 };
 
 GR_REQ(GR_IP4_ICMP_RECV, struct gr_ip4_icmp_recv_req, struct gr_ip4_icmp_recv_resp);
+
+struct gr_ip4_icmp_rl_req {
+	uint32_t rate_limit;
+};
+
+GR_REQ(GR_IP4_ICMP_RATE_LIMIT, struct gr_ip4_icmp_rl_req, struct gr_empty);
 
 // fib info ////////////////////////////////////////////////////////////////////
 
