@@ -6,6 +6,7 @@
 #include "cli_l3.h"
 
 #include <gr_api.h>
+#include <gr_ip4.h>
 #include <gr_net_types.h>
 
 #include <ecoli.h>
@@ -37,6 +38,18 @@ static cmd_status_t ping(struct gr_api_client *c, const struct ec_pnode *p) {
 
 	errno = ENOPROTOOPT;
 	return CMD_ERROR;
+}
+
+static cmd_status_t icmp_rate_limit(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip4_icmp_rl_req req;
+
+	if (arg_u32(p, "INTERVAL", &req.rate_limit))
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_IP4_ICMP_RATE_LIMIT, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
 }
 
 static cmd_status_t traceroute(struct gr_api_client *c, const struct ec_pnode *p) {
@@ -92,6 +105,19 @@ static int ctx_init(struct ec_node *root) {
 		with_help(
 			"Icmp ident field (default: random).",
 			ec_node_uint("IDENT", 1, UINT16_MAX, 10)
+		)
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		CLI_CONTEXT(root, CTX_ARG("icmp", "Icmp rate limit config")),
+		"rate-limit (INTERVAL)",
+		icmp_rate_limit,
+		"Set the icmp rate limiter",
+		with_help(
+			"The time space interval in milliseconds",
+			ec_node_uint("INTERVAL", 1, UINT32_MAX, 10)
 		)
 	);
 

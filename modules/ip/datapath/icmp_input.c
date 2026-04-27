@@ -3,6 +3,7 @@
 
 #include "control_output.h"
 #include "graph.h"
+#include "icmp_rl.h"
 #include "ip4_datapath.h"
 #include "log.h"
 #include "mbuf.h"
@@ -17,6 +18,7 @@ enum {
 	CONTROL,
 	INVALID,
 	UNSUPPORTED,
+	RATE_LIMITED,
 	EDGE_COUNT,
 };
 
@@ -47,6 +49,10 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) {
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
+				goto next;
+			}
+			if (!icmp_rl_allow()) {
+				edge = RATE_LIMITED;
 				goto next;
 			}
 			icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
@@ -95,6 +101,7 @@ static struct rte_node_register icmp_input_node = {
 		[CONTROL] = "control_output",
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
+		[RATE_LIMITED] = "icmp_rate_limited",
 	},
 };
 
@@ -109,3 +116,4 @@ GR_NODE_REGISTER(icmp_input_info);
 
 GR_DROP_REGISTER(icmp_input_invalid);
 GR_DROP_REGISTER(icmp_input_unsupported);
+GR_DROP_REGISTER(icmp_rate_limited);

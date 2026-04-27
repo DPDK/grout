@@ -6,5 +6,6 @@ src += files(
   'icmp.c',
   'nexthop.c',
   'route.c',
+  'icmp_rl.c',
 )
 inc += include_directories('.')
