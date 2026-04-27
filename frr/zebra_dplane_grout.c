@@ -13,18 +13,39 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <fcntl.h>
+#include <getopt.h>
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
 #include <lib/version.h>
+#include <unistd.h>
 #include <zebra/interface.h>
+#include <zebra/rib.h>
 #include <zebra/zebra_dplane.h>
 #include <zebra/zebra_router.h>
+#include <zebra/zebra_vrf.h>
 #include <zebra_dplane_grout.h>
 
 #define TOSTRING(x) #x
 
 static const char *gr_sock_path = GR_DEFAULT_SOCK_PATH;
+
+// End-of-replay marker. Injected after the grout dump; once observable
+// in the RIB, FIFO ordering of META_QUEUE_EARLY_ROUTE guarantees every
+// earlier ere has drained. Prefix is the IPv6 unspecified address
+// (RFC 4291) - never a real destination.
+#define GROUT_SYNC_MARKER_PFX "::/128"
+#define GROUT_SYNC_MARKER_POLL_MS 50
+// One warning every ~5s while polling. No timeout: dispatch only on
+// actual observation, like FRR's "Finished Initial Startup" metaQ item.
+#define GROUT_SYNC_MARKER_WARN_EVERY 100
+
+// Pre-arm delay for zrouter.t_rib_sweep. Only purpose: keep *t_ptr
+// non-NULL so zebra_main_router_started's event_add_timer takes the
+// early-return path (lib/event.c:1430) and the native sweep is a no-op.
+// Value is arbitrary; the nominal path replaces this with the real arm.
+#define GROUT_SYNC_SWEEP_PLACEHOLDER_SEC 3600
 
 struct grout_ctx_t {
 	struct gr_api_client *client;
@@ -42,6 +63,18 @@ struct grout_ctx_t {
 	struct event *dg_t_dplane_sync;
 	struct event *dg_t_zebra_sync;
 	bitfield_t sync_vrf;
+
+	// Marker polling. Used as end-of-replay barrier in grout_sync and
+	// pre-reset barrier in grout_reconnect; marker_cb selects the action.
+	struct event *dg_t_poll_marker;
+	struct prefix marker_prefix;
+	vrf_id_t marker_vrf;
+	unsigned int marker_poll_retries;
+	void (*marker_cb)(void);
+
+	// -K value cached from /proc/self/cmdline. Same semantics as FRR's
+	// zebra_di.gr_cleanup_time: 0 means absent, positive means K seconds.
+	int gr_cleanup_time;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
@@ -55,6 +88,9 @@ static void grout_sync(struct event *);
 static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
 static void grout_reconnect(struct event *);
+static void grout_reconnect_finish(void);
+static void grout_sync_arm_sweep(void);
+static void grout_sync_inject_marker(void);
 
 struct grout_evt {
 	uint32_t type;
@@ -129,6 +165,263 @@ static void grout_sync_fdb(struct event *) {
 	}
 }
 
+// Recover -K by re-parsing /proc/self/cmdline. zebra_di.gr_cleanup_time
+// is static in main.c (not exported) and zrouter.t_rib_sweep loses the
+// value after firing. Returns the -K seconds, or 0 if absent (matches
+// FRR's libfrr.c default + atoi semantics). Called once from
+// zd_grout_plugin_init (single-threaded, before event loop).
+static int grout_read_k_from_cmdline(void) {
+	// 1 MiB cap; ARG_MAX is 2 MiB, MTYPE_TMP aborts on OOM.
+	const size_t buf_cap_max = 1024 * 1024;
+	char *buf = NULL, **argv = NULL;
+	size_t buf_cap = 4096, buf_len = 0;
+	int argc = 0, argv_cap = 0;
+	int fd, ret = 0;
+
+	fd = open("/proc/self/cmdline", O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	buf = XMALLOC(MTYPE_TMP, buf_cap);
+
+	for (;;) {
+		ssize_t n = read(fd, buf + buf_len, buf_cap - buf_len - 1);
+		if (n < 0)
+			goto out;
+		if (n == 0)
+			break;
+		buf_len += n;
+		if (buf_len >= buf_cap - 1) {
+			if (buf_cap >= buf_cap_max) {
+				gr_log_warn(
+					"/proc/self/cmdline exceeds %zu bytes, truncating; "
+					"-K parsing may miss the flag",
+					buf_cap_max
+				);
+				goto out;
+			}
+			buf_cap *= 2;
+			if (buf_cap > buf_cap_max)
+				buf_cap = buf_cap_max;
+			buf = XREALLOC(MTYPE_TMP, buf, buf_cap);
+		}
+	}
+	if (buf_len == 0)
+		goto out;
+	buf[buf_len] = '\0';
+
+	for (size_t i = 0; i < buf_len; i++)
+		if (buf[i] == '\0')
+			argv_cap++;
+
+	argv = XCALLOC(MTYPE_TMP, (argv_cap + 1) * sizeof(*argv));
+	for (char *p = buf; p < buf + buf_len; p += strlen(p) + 1)
+		argv[argc++] = p;
+	argv[argc] = NULL;
+
+	static const struct option lo[] = {
+		{"graceful_restart", optional_argument, NULL, 'K'}, {0, 0, 0, 0}
+	};
+	int saved_optind = optind;
+	int saved_opterr = opterr;
+	optind = 1;
+	opterr = 0;
+	int c;
+	while ((c = getopt_long(argc, argv, ":K::", lo, NULL)) != -1) {
+		if (c == 'K' && optarg)
+			ret = atoi(optarg);
+	}
+	optind = saved_optind;
+	opterr = saved_opterr;
+
+out:
+	close(fd);
+	XFREE(MTYPE_TMP, argv);
+	XFREE(MTYPE_TMP, buf);
+	return ret;
+}
+
+// Dispatch the action registered by the marker injector
+// (grout_sync_arm_sweep or grout_reconnect_finish).
+static void grout_sync_dispatch_marker_cb(void) {
+	void (*cb)(void) = grout_ctx.marker_cb;
+	grout_ctx.marker_cb = NULL;
+	if (cb)
+		cb();
+	else
+		gr_log_err("marker dispatch with no callback set");
+}
+
+// Arm rib_sweep_route after observing the end-of-replay marker.
+// Re-stamp zrouter.startup_time to "now" so -K is measured from the
+// end of the grout dump (mirrors Donald Sharp's "Delay some processing
+// until after startup is finished"). Replaces the pre-arm placeholder
+// installed by zd_grout_plugin_init.
+static void grout_sync_arm_sweep(void) {
+	struct prefix marker = grout_ctx.marker_prefix;
+	vrf_id_t marker_vrf = grout_ctx.marker_vrf;
+
+	if (marker.family != 0) {
+		rib_delete(
+			family2afi(marker.family),
+			SAFI_UNICAST,
+			marker_vrf,
+			ZEBRA_ROUTE_SRTE,
+			0,
+			0,
+			&marker,
+			NULL,
+			NULL,
+			0,
+			0,
+			0,
+			0,
+			false
+		);
+		memset(&grout_ctx.marker_prefix, 0, sizeof(grout_ctx.marker_prefix));
+	}
+
+	time_t old_startup_time = zrouter.startup_time;
+	zrouter.startup_time = monotime(NULL);
+	gr_log_debug(
+		"restamping zrouter.startup_time %lld -> %lld; -K window starts now",
+		(long long)old_startup_time,
+		(long long)zrouter.startup_time
+	);
+
+	long delay = 0;
+	if (zrouter.graceful_restart) {
+		// Truthy check matches zebra/main.c: 0 falls back to default.
+		delay = grout_ctx.gr_cleanup_time ?
+			grout_ctx.gr_cleanup_time :
+			ZEBRA_GR_DEFAULT_RIB_SWEEP_TIME;
+	}
+	event_cancel(&zrouter.t_rib_sweep);
+	event_add_timer(zrouter.master, rib_sweep_route, NULL, delay, &zrouter.t_rib_sweep);
+}
+
+// Poll the RIB for our marker. FIFO ordering of META_QUEUE_EARLY_ROUTE
+// guarantees that when the marker is observable, every earlier ere has
+// been attached. The marker itself is skipped by rib_process (distance
+// INFINITY + type != KERNEL): never selected, never installed.
+static void grout_sync_poll_marker(struct event *e) {
+	struct route_table *table;
+	struct route_node *rn;
+	struct route_entry *re;
+	bool found = false;
+
+	// !table: keep polling, do not dispatch. The marker is a strict
+	// FIFO barrier; a best-effort dispatch would defeat its purpose.
+	table = zebra_vrf_table(
+		family2afi(grout_ctx.marker_prefix.family), SAFI_UNICAST, grout_ctx.marker_vrf
+	);
+	if (table) {
+		rn = route_node_lookup(table, &grout_ctx.marker_prefix);
+		if (rn) {
+			RNODE_FOREACH_RE(rn, re) {
+				if (CHECK_FLAG(re->status, ROUTE_ENTRY_REMOVED))
+					continue;
+				if (re->tag == GROUT_SYNC_MARKER_TAG
+				    && re->type == ZEBRA_ROUTE_SRTE) {
+					found = true;
+					break;
+				}
+			}
+			route_unlock_node(rn);
+		}
+	}
+
+	if (found) {
+		gr_log_info(
+			"sync marker observed after %u poll(s) (%u ms), arming sweep",
+			grout_ctx.marker_poll_retries + 1,
+			(grout_ctx.marker_poll_retries + 1) * GROUT_SYNC_MARKER_POLL_MS
+		);
+		goto arm;
+	}
+
+	grout_ctx.marker_poll_retries++;
+	if (grout_ctx.marker_poll_retries % GROUT_SYNC_MARKER_WARN_EVERY == 0) {
+		gr_log_warn(
+			"sync marker still not visible after %u ms; metaQ drain may be slow",
+			grout_ctx.marker_poll_retries * GROUT_SYNC_MARKER_POLL_MS
+		);
+	}
+
+	event_add_timer_msec(
+		zrouter.master,
+		grout_sync_poll_marker,
+		NULL,
+		GROUT_SYNC_MARKER_POLL_MS,
+		&grout_ctx.dg_t_poll_marker
+	);
+	return;
+
+arm:
+	grout_sync_dispatch_marker_cb();
+}
+
+// Inject the marker into VRF_DEFAULT and kick off polling.
+//   prefix     ::/128         never a real destination
+//   type       SRTE           not redistributable
+//   distance   INFINITY (255) rib_process skips it
+//   flags      0              keeps it out of rib_sweep_table predicate
+//   tag        unique id      distinguishes from user routes on ::/128
+//   nexthop    blackhole      inert (entry never installed)
+static void grout_sync_inject_marker(void) {
+	struct prefix p = {0};
+	struct nexthop *nh;
+	struct nexthop_group *ng;
+	struct route_entry *re;
+
+	if (str2prefix(GROUT_SYNC_MARKER_PFX, &p) != 1) {
+		gr_log_err("failed to parse marker prefix %s", GROUT_SYNC_MARKER_PFX);
+		grout_sync_dispatch_marker_cb();
+		return;
+	}
+
+	nh = nexthop_new();
+	nh->type = NEXTHOP_TYPE_BLACKHOLE;
+	nh->bh_type = BLACKHOLE_NULL;
+	nh->vrf_id = VRF_DEFAULT;
+
+	ng = nexthop_group_new();
+	nexthop_group_add_sorted(ng, nh);
+
+	re = zebra_rib_route_entry_new(
+		VRF_DEFAULT,
+		ZEBRA_ROUTE_SRTE,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		DISTANCE_INFINITY,
+		GROUT_SYNC_MARKER_TAG
+	);
+
+	grout_ctx.marker_prefix = p;
+	grout_ctx.marker_vrf = VRF_DEFAULT;
+	grout_ctx.marker_poll_retries = 0;
+
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+	rib_add_multipath(AFI_IP6, SAFI_UNICAST, &p, NULL, re, ng, true, false);
+#else
+	rib_add_multipath(AFI_IP6, SAFI_UNICAST, &p, NULL, re, ng, true);
+#endif
+
+	nexthop_group_delete(&ng);
+
+	event_add_timer_msec(
+		zrouter.master,
+		grout_sync_poll_marker,
+		NULL,
+		GROUT_SYNC_MARKER_POLL_MS,
+		&grout_ctx.dg_t_poll_marker
+	);
+}
+
 static void grout_sync_routes(struct event *e) {
 	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e), .max_count = 0};
 	struct gr_ip4_route *r4;
@@ -146,7 +439,7 @@ route4:
 			continue;
 		if (link && r4->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		grout_route4_change(true, r4);
+		grout_route4_change(true, r4, true);
 	}
 	if (ret < 0) {
 		gr_log_err("GR_IP4_ROUTE_LIST: %s", strerror(errno));
@@ -169,7 +462,7 @@ route6:
 			continue;
 		if (link && r6->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		grout_route6_change(true, r6);
+		grout_route6_change(true, r6, true);
 	}
 	if (ret < 0) {
 		gr_log_err("GR_IP6_ROUTE_LIST: %s", strerror(errno));
@@ -193,6 +486,12 @@ route6:
 			return;
 		}
 	}
+
+	// All VRFs synced. Defer arming rib_sweep_route until the marker is
+	// observed: arming inline would race the metaQ drain and miss
+	// not-yet-attached SELFROUTE injections.
+	grout_ctx.marker_cb = grout_sync_arm_sweep;
+	grout_sync_inject_marker();
 	return;
 
 err:
@@ -515,13 +814,13 @@ static void zebra_read_notifications(struct event *event) {
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP_ROUTE_DEL:
-		grout_route4_change(new, PAYLOAD(gr_e));
+		grout_route4_change(new, PAYLOAD(gr_e), false);
 		break;
 	case GR_EVENT_IP6_ROUTE_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP6_ROUTE_DEL:
-		grout_route6_change(new, PAYLOAD(gr_e));
+		grout_route6_change(new, PAYLOAD(gr_e), false);
 		break;
 	case GR_EVENT_NEXTHOP_NEW:
 	case GR_EVENT_NEXTHOP_UPDATE:
@@ -631,6 +930,13 @@ static void grout_ns_reset(void) {
 	}
 }
 
+// Phase 2 of grout_reconnect: barrier observed, metaQ drained, safe to
+// wipe and re-sync. vrf_terminate clears OLD ere's attached to OLD VRF.
+static void grout_reconnect_finish(void) {
+	grout_ns_reset();
+	event_add_event(zrouter.master, grout_sync, NULL, 0, &grout_ctx.dg_t_sync);
+}
+
 static void grout_reconnect(struct event *) {
 	gr_log_notice("grout disconnected, performing full re-sync");
 
@@ -638,15 +944,51 @@ static void grout_reconnect(struct event *) {
 	event_cancel(&grout_ctx.dg_t_zebra_sync);
 	event_cancel(&grout_ctx.dg_t_reconnect);
 	event_cancel(&grout_ctx.dg_t_sync);
+	event_cancel(&grout_ctx.dg_t_poll_marker);
 	event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
 	event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_sync, NULL);
+
+	// Drop any stale SRTE entry on ::/128 (in metaQ or already attached)
+	// so the barrier we inject below cannot be confused with it.
+	struct prefix marker_p;
+	if (str2prefix(GROUT_SYNC_MARKER_PFX, &marker_p) == 1) {
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+		rib_meta_queue_early_route_cleanup(
+			&marker_p, AFI_IP6, SAFI_UNICAST, VRF_DEFAULT, ZEBRA_ROUTE_SRTE
+		);
+#else
+		rib_meta_queue_early_route_cleanup(&marker_p, ZEBRA_ROUTE_SRTE);
+#endif
+		rib_delete(
+			AFI_IP6,
+			SAFI_UNICAST,
+			VRF_DEFAULT,
+			ZEBRA_ROUTE_SRTE,
+			0,
+			0,
+			&marker_p,
+			NULL,
+			NULL,
+			0,
+			0,
+			0,
+			0,
+			false
+		);
+	}
+	memset(&grout_ctx.marker_prefix, 0, sizeof(grout_ctx.marker_prefix));
+	grout_ctx.marker_poll_retries = 0;
+	grout_ctx.marker_cb = NULL;
 
 	gr_api_client_disconnect(grout_ctx.sync_client);
 	grout_ctx.sync_client = NULL;
 	clear_ifindex_mappings();
 
-	grout_ns_reset();
-	event_add_event(zrouter.master, grout_sync, NULL, 0, &grout_ctx.dg_t_sync);
+	// Inject a barrier marker before destroying VRF_DEFAULT. FIFO drain
+	// guarantees all earlier ere's are attached when observed; vrf_terminate
+	// (in grout_reconnect_finish) then wipes them along with the VRF.
+	grout_ctx.marker_cb = grout_reconnect_finish;
+	grout_sync_inject_marker();
 }
 
 static void zd_grout_ns(struct event *) {
@@ -692,6 +1034,7 @@ static int zd_grout_finish(struct zebra_dplane_provider *, bool early) {
 		event_cancel(&grout_ctx.dg_t_zebra_sync);
 		event_cancel(&grout_ctx.dg_t_reconnect);
 		event_cancel(&grout_ctx.dg_t_sync);
+		event_cancel(&grout_ctx.dg_t_poll_marker);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_update, NULL);
 		event_cancel_async(dplane_get_thread_master(), &grout_ctx.dg_t_dplane_sync, NULL);
 		return 0;
@@ -728,6 +1071,26 @@ static int zd_grout_plugin_init(struct event_loop *) {
 		gr_log_err("Unable to register grout dplane provider: %d", ret);
 
 	gr_log_debug("%s register status %d", plugin_name, ret);
+
+	// Cache -K once: single-threaded under frr_late_init.
+	grout_ctx.gr_cleanup_time = grout_read_k_from_cmdline();
+
+	// Pre-arm to neutralise the native sweep: zebra_main_router_started's
+	// event_add_timer(... &zrouter.t_rib_sweep) early-returns when the
+	// pointer is non-NULL (lib/event.c:1430).
+	event_add_timer(
+		zrouter.master,
+		rib_sweep_route,
+		NULL,
+		GROUT_SYNC_SWEEP_PLACEHOLDER_SEC,
+		&zrouter.t_rib_sweep
+	);
+
+	// Detect FRR drift: if pre-arm did not set the pointer, the native
+	// sweep will fire uncontrolled. Plugin still works (predicate skips
+	// dump entries by uptime), just noisy.
+	if (!zrouter.t_rib_sweep)
+		gr_log_err("pre-arm failed: FRR event API may have changed");
 
 	return 0;
 }
