@@ -6,7 +6,8 @@ COPY grout.*.rpm /tmp
 RUN mkdir -p /tmp/null
 RUN dnf -y install --nodocs --setopt=install_weak_deps=0 \
 	--releasever 10 --installroot /tmp/null \
-	coreutils-single glibc-minimal-langpack catatonit /tmp/*.rpm
+	coreutils-single glibc-minimal-langpack catatonit \
+	/tmp/*."`rpm --eval '%_arch'`".rpm
 RUN dnf -y --installroot /tmp/null clean all
 RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
 
