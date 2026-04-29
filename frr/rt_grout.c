@@ -279,6 +279,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 
 		ctx.table = vrf_grout_to_frr(sr6->out_vrf_id);
 		nexthop_add_srv6_seg6local(nh, action, &ctx);
+		nh->type = nh->ifindex ? NEXTHOP_TYPE_IPV6_IFINDEX : NEXTHOP_TYPE_IPV6;
 		*nh_family = AF_INET6;
 		break;
 	}
@@ -298,12 +299,14 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		}
 
 		nexthop_add_srv6_seg6(nh, (void *)sr6->seglist, sr6->n_seglist, encap_behavior);
+		nh->type = nh->ifindex ? NEXTHOP_TYPE_IPV6_IFINDEX : NEXTHOP_TYPE_IPV6;
 		*nh_family = AF_INET6;
 		break;
 	}
 	case GR_NH_T_GROUP:
 		nh->ifindex = ifindex_grout_to_frr(gr_nh->iface_id);
 		nh->vrf_id = vrf_grout_to_frr(gr_nh->vrf_id);
+		nh->type = NEXTHOP_TYPE_IFINDEX;
 		*nh_family = AF_UNSPEC;
 		nh->weight = 1;
 		break;
