@@ -13,10 +13,13 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <fcntl.h>
+#include <getopt.h>
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
 #include <lib/version.h>
+#include <unistd.h>
 #include <zebra/interface.h>
 #include <zebra/rib.h>
 #include <zebra/zebra_dplane.h>
@@ -32,11 +35,20 @@ static const char *gr_sock_path = GR_DEFAULT_SOCK_PATH;
 // entry the plugin uses as a metaQ drain barrier: once observable in
 // the RIB, FIFO ordering of META_QUEUE_EARLY_ROUTE guarantees every
 // earlier ere has drained.
-#define GROUT_SYNC_MARKER_PFX "::/128"
+static struct prefix grout_sync_marker_prefix = {
+	.family = AF_INET6,
+	.prefixlen = 128,
+};
 #define GROUT_SYNC_MARKER_POLL_MS 50
 // One warning every ~5s while polling. No timeout: dispatch only on
 // actual observation, mirroring kernel-side "Finished Initial Startup".
 #define GROUT_SYNC_MARKER_WARN_EVERY 100
+
+// Pre-arm delay for zrouter.t_rib_sweep. Only purpose: keep *t_ptr
+// non-NULL so zebra_main_router_started's event_add_timer takes the
+// early-return path (lib/event.c:1430) and the native sweep is a no-op.
+// Value is arbitrary; the nominal path replaces this with the real arm.
+#define GROUT_SYNC_SWEEP_PLACEHOLDER_SEC 3600
 
 struct grout_ctx_t {
 	struct gr_api_client *client;
@@ -61,15 +73,14 @@ struct grout_ctx_t {
 	struct event *dg_t_poll_marker;
 	unsigned int marker_poll_retries;
 	void (*marker_cb)(void);
+
+	// -K value cached from /proc/self/cmdline. Same semantics as FRR's
+	// zebra_di.gr_cleanup_time: 0 means absent, positive means K seconds.
+	int gr_cleanup_time;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
 static const char *plugin_name = "zebra_dplane_grout";
-
-// Parsed once from GROUT_SYNC_MARKER_PFX at zd_grout_plugin_init.
-// Reused by poll/cleanup/inject so str2prefix is only called (and
-// validated) in one place.
-static struct prefix grout_sync_marker_prefix;
 
 static void dplane_read_notifications(struct event *event);
 static void zebra_read_notifications(struct event *event);
@@ -80,6 +91,7 @@ static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
 static void grout_reconnect(struct event *);
 static void grout_reconnect_finish(void);
+static void grout_sync_arm_sweep(void);
 static void grout_sync_cleanup_marker(void);
 static void grout_sync_inject_marker(void);
 
@@ -188,12 +200,117 @@ static void grout_sync_fdb(struct event *) {
 	}
 }
 
+// Recover -K by re-parsing /proc/self/cmdline. zebra_di.gr_cleanup_time
+// is static in main.c (not exported) and zrouter.t_rib_sweep loses the
+// value after firing. Returns the -K seconds, or 0 if absent (matches
+// FRR's libfrr.c default + atoi semantics). Called once from
+// zd_grout_plugin_init (single-threaded, before event loop).
+static int grout_read_k_from_cmdline(void) {
+	// 1 MiB cap; ARG_MAX is 2 MiB, MTYPE_TMP aborts on OOM.
+	const size_t buf_cap_max = 1024 * 1024;
+	char *buf = NULL, **argv = NULL;
+	size_t buf_cap = 4096, buf_len = 0;
+	int argc = 0, argv_cap = 0;
+	int fd, ret = 0;
+
+	fd = open("/proc/self/cmdline", O_RDONLY);
+	if (fd < 0) {
+		gr_log_warn("/proc/self/cmdline: %s", strerror(errno));
+		return 0;
+	}
+
+	buf = XMALLOC(MTYPE_TMP, buf_cap);
+
+	for (;;) {
+		ssize_t n = read(fd, buf + buf_len, buf_cap - buf_len - 1);
+		if (n < 0)
+			goto out;
+		if (n == 0)
+			break;
+		buf_len += n;
+		if (buf_len >= buf_cap - 1) {
+			if (buf_cap >= buf_cap_max) {
+				gr_log_warn(
+					"/proc/self/cmdline exceeds %zu bytes, truncating; "
+					"-K parsing may miss the flag",
+					buf_cap_max
+				);
+				goto out;
+			}
+			buf_cap *= 2;
+			if (buf_cap > buf_cap_max)
+				buf_cap = buf_cap_max;
+			buf = XREALLOC(MTYPE_TMP, buf, buf_cap);
+		}
+	}
+	if (buf_len == 0)
+		goto out;
+	buf[buf_len] = '\0';
+
+	for (size_t i = 0; i < buf_len; i++)
+		if (buf[i] == '\0')
+			argv_cap++;
+
+	argv = XCALLOC(MTYPE_TMP, (argv_cap + 1) * sizeof(*argv));
+	for (char *p = buf; p < buf + buf_len; p += strlen(p) + 1)
+		argv[argc++] = p;
+	argv[argc] = NULL;
+
+	static const struct option lo[] = {
+		{"graceful_restart", optional_argument, NULL, 'K'}, {0, 0, 0, 0}
+	};
+	int saved_optind = optind;
+	int saved_opterr = opterr;
+	optind = 1;
+	opterr = 0;
+	int c;
+	while ((c = getopt_long(argc, argv, ":K::", lo, NULL)) != -1) {
+		if (c == 'K' && optarg)
+			ret = atoi(optarg);
+	}
+	optind = saved_optind;
+	opterr = saved_opterr;
+
+out:
+	close(fd);
+	XFREE(MTYPE_TMP, argv);
+	XFREE(MTYPE_TMP, buf);
+	return ret;
+}
+
 // Run the post-observation action set up by the marker injector.
 static void grout_sync_dispatch_marker_cb(void) {
 	void (*cb)(void) = grout_ctx.marker_cb;
 	grout_ctx.marker_cb = NULL;
 	assert(cb);
 	cb();
+}
+
+// Arm rib_sweep_route after observing the end-of-replay marker.
+// Re-stamp zrouter.startup_time to "now" so -K is measured from the
+// end of the grout dump (mirrors Donald Sharp's "Delay some processing
+// until after startup is finished"). Replaces the pre-arm placeholder
+// installed by zd_grout_plugin_init.
+static void grout_sync_arm_sweep(void) {
+	grout_sync_cleanup_marker();
+
+	time_t old_startup_time = zrouter.startup_time;
+	zrouter.startup_time = monotime(NULL);
+	gr_log_debug(
+		"restamping zrouter.startup_time %lld -> %lld; -K window starts now",
+		(long long)old_startup_time,
+		(long long)zrouter.startup_time
+	);
+
+	long delay = 0;
+	if (zrouter.graceful_restart) {
+		// Truthy check matches zebra/main.c: 0 falls back to default.
+		delay = grout_ctx.gr_cleanup_time ?
+			grout_ctx.gr_cleanup_time :
+			ZEBRA_GR_DEFAULT_RIB_SWEEP_TIME;
+	}
+	event_cancel(&zrouter.t_rib_sweep);
+	event_add_timer(zrouter.master, rib_sweep_route, NULL, delay, &zrouter.t_rib_sweep);
 }
 
 // Poll the RIB for our marker. FIFO ordering of META_QUEUE_EARLY_ROUTE
@@ -357,7 +474,7 @@ route4:
 			continue;
 		if (link && r4->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		grout_route4_change(true, r4);
+		grout_route4_change(true, r4, true);
 	}
 	if (ret < 0) {
 		gr_log_err("GR_IP4_ROUTE_LIST: %s", strerror(errno));
@@ -380,7 +497,7 @@ route6:
 			continue;
 		if (link && r6->origin != GR_NH_ORIGIN_LINK)
 			continue;
-		grout_route6_change(true, r6);
+		grout_route6_change(true, r6, true);
 	}
 	if (ret < 0) {
 		gr_log_err("GR_IP6_ROUTE_LIST: %s", strerror(errno));
@@ -404,6 +521,12 @@ route6:
 			return;
 		}
 	}
+
+	// All VRFs synced. Defer arming rib_sweep_route until the marker is
+	// observed: arming inline would race the metaQ drain and miss
+	// not-yet-attached SELFROUTE injections.
+	grout_ctx.marker_cb = grout_sync_arm_sweep;
+	grout_sync_inject_marker();
 	return;
 
 err:
@@ -726,13 +849,13 @@ static void zebra_read_notifications(struct event *event) {
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP_ROUTE_DEL:
-		grout_route4_change(new, PAYLOAD(gr_e));
+		grout_route4_change(new, PAYLOAD(gr_e), false);
 		break;
 	case GR_EVENT_IP6_ROUTE_ADD:
 		new = true;
 		// fallthrough
 	case GR_EVENT_IP6_ROUTE_DEL:
-		grout_route6_change(new, PAYLOAD(gr_e));
+		grout_route6_change(new, PAYLOAD(gr_e), false);
 		break;
 	case GR_EVENT_NEXTHOP_NEW:
 	case GR_EVENT_NEXTHOP_UPDATE:
@@ -956,9 +1079,25 @@ static int zd_grout_plugin_init(struct event_loop *) {
 
 	gr_log_debug("%s register status %d", plugin_name, ret);
 
-	// Parse the marker prefix once. Hardcoded constant: failure is a
-	// build-time mistake in GROUT_SYNC_MARKER_PFX.
-	assert(str2prefix(GROUT_SYNC_MARKER_PFX, &grout_sync_marker_prefix) == 1);
+	// Cache -K once: single-threaded under frr_late_init.
+	grout_ctx.gr_cleanup_time = grout_read_k_from_cmdline();
+
+	// Pre-arm to neutralise the native sweep: zebra_main_router_started's
+	// event_add_timer(... &zrouter.t_rib_sweep) early-returns when the
+	// pointer is non-NULL (lib/event.c:1430).
+	event_add_timer(
+		zrouter.master,
+		rib_sweep_route,
+		NULL,
+		GROUT_SYNC_SWEEP_PLACEHOLDER_SEC,
+		&zrouter.t_rib_sweep
+	);
+
+	// Detect FRR drift: if pre-arm did not set the pointer, the native
+	// sweep will fire uncontrolled. Plugin still works (predicate skips
+	// dump entries by uptime), just noisy.
+	if (!zrouter.t_rib_sweep)
+		gr_log_err("pre-arm failed: FRR event API may have changed");
 
 	return 0;
 }
