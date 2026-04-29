@@ -358,22 +358,57 @@ if [ "${trace_enable:-true}" = true ]; then
 	grcli trace enable all
 fi
 
-case "${follow_events:-true}" in
-	hide)
-		grcli events > $tmp/events.log &
-		;;
-	false)
-		touch $tmp/events.log
-		;;
-	*)
-		if [ -t 1 ]; then
-			# print events in yellow
-			grcli events | tee $tmp/events.log | awk '{print "\033[33m" $0 "\033[0m"}' &
-		else
-			grcli events | tee $tmp/events.log &
-		fi
-		;;
-esac
+# Truncates events.log and resets __event_mark so wait_event reads
+# from the new line 1 onwards.
+_start_events_stream() {
+	case "${follow_events:-true}" in
+		hide)
+			grcli events > $tmp/events.log &
+			;;
+		false)
+			touch $tmp/events.log
+			;;
+		*)
+			if [ -t 1 ]; then
+				# print events in yellow
+				grcli events | tee $tmp/events.log | awk '{print "\033[33m" $0 "\033[0m"}' &
+			else
+				grcli events | tee $tmp/events.log &
+			fi
+			;;
+	esac
+	__event_mark=0
+}
+
+_start_events_stream
+
+# SIGKILL the running grout, respawn it with the same command, wait for
+# its socket, and respawn the grcli events stream (the previous one died
+# with grout). The events log is truncated and the mark is reset by
+# _start_events_stream, so the caller can directly use wait_event after.
+restart_grout() {
+	kill -9 "$grout_pid" || true
+	SECONDS=0
+	while kill -0 "$grout_pid" 2>/dev/null; do
+		[ "$SECONDS" -gt 5 ] && fail "grout still alive after SIGKILL"
+		sleep 0.1
+	done
+
+	kill %?grcli 2>/dev/null || true
+	wait %?grcli 2>/dev/null || true
+
+	$local_grout_cmd &
+	grout_pid=$!
+
+	SECONDS=0
+	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
+		[ "$SECONDS" -gt 30 ] && fail "respawned grout did not open its socket"
+		kill -0 "$grout_pid" || fail "respawned grout died"
+		sleep 0.2
+	done
+
+	_start_events_stream
+}
 
 __event_mark=0
 mark_events() {
