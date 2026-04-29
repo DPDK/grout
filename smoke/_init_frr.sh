@@ -203,6 +203,50 @@ set_srv6_route() {
 		"${frr_ip} route ${prefix} ${nhop} segments ${sids// //}"
 }
 
+# kill_frr_daemons <daemon> [<daemon>...]
+#
+# Simulate a crash of the named FRR daemons (e.g. zebra, staticd) and
+# block until watchfrr has respawned each one. PIDs are read from the
+# per-test pidfiles under $builddir/frr_install/var/run/frr/ so this is
+# safe to call from tests running in parallel; a host-wide pkill would
+# clobber daemons spawned by sibling smoke tests.
+#
+# Caller MUST export WATCHFRR_EXTRA_OPTS="--min-restart-interval=1"
+# before start_frr (the value is cached by watchfrr at startup).
+# Default is 60s, which silently postpones the respawn well past the
+# 10s budget enforced below and would make this helper always fail.
+#
+# Fails after 10s if any daemon is not respawned with a different pid.
+kill_frr_daemons() {
+	local frr_run="$builddir/frr_install/var/run/frr"
+	local daemon new
+	declare -A old_pids
+
+	for daemon in "$@"; do
+		old_pids[$daemon]=$(cat "$frr_run/$daemon.pid")
+	done
+
+	for daemon in "$@"; do
+		kill -9 "${old_pids[$daemon]}"
+	done
+
+	SECONDS=0
+	while :; do
+		local all_respawned=1
+		for daemon in "$@"; do
+			new=$(cat "$frr_run/$daemon.pid" 2>/dev/null || true)
+			if [ -z "$new" ] || [ "$new" = "${old_pids[$daemon]}" ]; then
+				all_respawned=0
+				break
+			fi
+		done
+		[ "$all_respawned" -eq 1 ] && break
+		[ "$SECONDS" -ge 10 ] && \
+			fail "watchfrr did not respawn $* within 10s"
+		sleep 0.1
+	done
+}
+
 #   <namespace> : optional netns name ("" = root namespace)
 #   <use_grout> : "1" -> enable dplane_grout, anything else -> no grout
 start_frr() {
@@ -211,8 +255,10 @@ start_frr() {
 
 	local frr_etc="$builddir/frr_install/etc/frr"
 	local frr_logdir="$builddir/frr_install/var/log/frr"
-	local conf_dir frr_log daemons_file frrconf_file frr_global_opts
-	local zebra_options="-s 90000000"
+	# $frr_log is intentionally global (not local) so tests sourcing
+	# _init_frr.sh can grep it after start_frr completes.
+	local conf_dir daemons_file frrconf_file frr_global_opts
+	local zebra_options="-s 90000000${ZEBRA_EXTRA_OPTS:+ $ZEBRA_EXTRA_OPTS}"
 
 	mkdir -p "$frr_etc"
 	mkdir -p "$frr_logdir"
@@ -244,10 +290,13 @@ frr_global_options="$frr_global_opts"
 zebra_options="$zebra_options"
 EOF
 
-	# only namespaces use watchfrr in a netns
-	if [ -n "$namespace" ]; then
+	if [ -n "$namespace" ] || [ -n "${WATCHFRR_EXTRA_OPTS:-}" ]; then
+		local wopts=""
+		[ -n "$namespace" ] && wopts="--netns=$namespace"
+		[ -n "${WATCHFRR_EXTRA_OPTS:-}" ] && \
+			wopts="${wopts:+$wopts }$WATCHFRR_EXTRA_OPTS"
 		cat >>"$daemons_file" <<EOF
-watchfrr_options="--netns=$namespace"
+watchfrr_options="$wopts"
 EOF
 	fi
 
