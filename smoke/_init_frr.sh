@@ -69,8 +69,6 @@ set_ip_route() {
 	local next_hop="$2"
 	local vrf_name="${3:-default}"
 	local nexthop_vrf_name="${4:-}"
-	local max_tries=5
-	local count=0
 
 	local nexthop_vrf_clause=""
 	if [[ -n "$nexthop_vrf_name" ]]; then
@@ -113,8 +111,6 @@ set_srv6_localsid() {
 	local sid_prefix="$2"
 	local sid_local="$3"
 	local grout_behavior="${4:-end.dt4}"   # default behaviour
-	local max_tries=5
-	local count=0
 
 	# ---- translate behaviour aliases --------------------------------------
 	local frr_behavior
@@ -163,9 +159,7 @@ EOF
 set_srv6_route() {
     local prefix="$1"
     local nhop="$2"
-    local max_tries=5
-    local count=0
-    shift 2                       # all remaining words are SIDs (and maybe max_tries)
+    shift 2                       # all remaining words are SIDs
 
     # ----- collect SIDs ----------------------------------------------------
     local sids=()
