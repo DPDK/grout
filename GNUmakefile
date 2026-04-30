@@ -41,26 +41,16 @@ ifneq ($(SMOKE_SKIP),)
 smoke_skip := $(foreach s,$(SMOKE_SKIP),$(wildcard smoke/*$(s)*))
 smoke_scripts := $(filter-out $(smoke_skip),$(smoke_scripts))
 endif
-PAUSE_ON_FAILURE ?= false
-INTERACTIVE ?= false
-GDB ?= false
-smoke_env := PAUSE_ON_FAILURE=$(PAUSE_ON_FAILURE)
-smoke_env += INTERACTIVE=$(INTERACTIVE)
-smoke_env += GDB=$(GDB)
 
 .PHONY: smoke-tests smoke smoke/
 smoke-tests smoke smoke/: $(smoke_scripts)
 
-.PHONY: smoke_env_print
-smoke_env_print:
-	@echo $(smoke_env)
-
 .PHONY: $(smoke_scripts)
-$(smoke_scripts): | smoke_env_print
+$(smoke_scripts):
 	$Q log=$$(mktemp); \
 	trap "rm -f $$log" EXIT; \
 	printf '%s\n' $@; \
-	if ! sudo $(smoke_env) $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; then \
+	if ! sudo $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; then \
 		printf '%s\n' '==================================================='; \
 		printf '+ %s\n' $@; \
 		cat "$$log"; \
