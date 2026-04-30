@@ -287,6 +287,8 @@ if [ -t 1 ]; then
 	export PS4='+ '
 fi
 
+echo "INTERACTIVE=${INTERACTIVE:-false} GDB=${GDB:-false} PAUSE_ON_FAILURE=${PAUSE_ON_FAILURE:-false}"
+
 set -x
 
 if [ "$run_grout" = true ]; then
