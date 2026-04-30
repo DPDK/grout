@@ -179,9 +179,9 @@ set_srv6_route() {
 	    route="route4"
     fi
 
-    # ----- build CLI & Grout forms ----------------------------------------
-    local seg_frr   ; IFS=/ ; seg_frr="${sids[*]}"       # SID/SID/…
-    local seg_space ; IFS=' ' ; seg_space="${sids[*]}"   # SID SID …
+    # ----- build CLI form -------------------------------------------------
+    local seg_frr="${sids[*]}"
+    seg_frr=${seg_frr// //}
 
     mark_events
 
