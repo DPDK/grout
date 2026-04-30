@@ -38,7 +38,36 @@ create_interface() {
 	done
 }
 
+# _apply_frr_config <persist> <wait_pattern> <config>
+#
+# Push <config> via vtysh (default) or append it to frr.conf
+# (persist=1). In vtysh mode "configure terminal" is prepended
+# automatically and wait_event waits for <wait_pattern> when non-empty.
+# In persist mode the block is written verbatim and no event is awaited
+# (config takes effect at the next FRR start).
+#
+_apply_frr_config() {
+	local persist="$1"
+	local wait_pattern="$2"
+	local config="$3"
+
+	mark_events
+	vtysh <<EOF
+configure terminal
+$config
+EOF
+	[ -n "$wait_pattern" ] && wait_event -t 10 "$wait_pattern"
+
+	if [ "$persist" = 1 ]; then
+		cat >>"$builddir/frr_install/etc/frr/frr.conf" <<EOF
+$config
+EOF
+	fi
+}
+
 set_ip_address() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local p="$1"
 	local ip_cidr="$2"
 
@@ -52,19 +81,15 @@ set_ip_address() {
 		local addr="addr4"
 	fi
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	interface ${p}
-	${frr_ip} address ${ip_cidr}
-	exit
-EOF
-
-	wait_event "$addr add: iface=$p $ip_cidr"
+	_apply_frr_config "$persist" "$addr add: iface=$p $ip_cidr" \
+"interface ${p}
+ ${frr_ip} address ${ip_cidr}
+exit"
 }
 
 set_ip_route() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local prefix="$1"
 	local next_hop="$2"
 	local vrf_name="${3:-default}"
@@ -85,20 +110,14 @@ set_ip_route() {
 		local route="route4"
 	fi
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}
-	exit
-EOF
-
 	# strip optional nexthop interface
 	local nh=${next_hop% *}
 	local gr_vrf_name="${vrf_name}"
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-	wait_event "$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh"
+	_apply_frr_config "$persist" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh" \
+		"${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}"
 }
 
 # set_srv6_localsid <locator> <sid-prefix> <sid-local> [behavior]
@@ -107,6 +126,8 @@ EOF
 #   set_srv6_localsid myloc fd00:202 fc00:100:64:10::666 end.dt4
 #
 set_srv6_localsid() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local locator="$1"
 	local sid_prefix="$2"
 	local sid_local="$3"
@@ -128,25 +149,20 @@ set_srv6_localsid() {
 		uN) vrf_clause="" ;;
 	esac
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	 segment-routing
-	  srv6
-	   locators
-	    locator ${locator}
-	     prefix ${sid_prefix}::/32 block-len 16 node-len 16 func-bits 16
-	    exit
-	   exit
-	   static-sids
-	    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} ${vrf_clause}
-	   exit
-	 exit
-EOF
-
-	# --- wait until grout has the localsid ---------------------------------
-	wait_event "route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior"
+	_apply_frr_config "$persist" \
+		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior" \
+"segment-routing
+ srv6
+  locators
+   locator ${locator}
+    prefix ${sid_prefix}::/32 block-len 16 node-len 16 func-bits 16
+   exit
+  exit
+  static-sids
+    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} ${vrf_clause}
+  exit
+ exit
+exit"
 }
 
 # set_srv6_route <prefix> <next-hop|iface> <sid1> [sid2 sid3 …]
@@ -157,6 +173,8 @@ EOF
 #       fd00:202::2 fd00:202::3 fd00:202::4
 #
 set_srv6_route() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local prefix="$1"
 	local nhop="$2"
 	shift 2                       # all remaining words are SIDs
@@ -180,17 +198,9 @@ set_srv6_route() {
 		route="route4"
 	fi
 
-	mark_events
-
-	# ----- push route into FRR --------------------------------------------
-	vtysh <<-EOF
-	configure terminal
-	  ${frr_ip} route ${prefix} ${nhop} segments ${sids// //}
-	  exit
-EOF
-
-	# ----- wait until Grout shows it --------------------------------------
-	wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${first_sid}"
+	_apply_frr_config "$persist" \
+		"$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${first_sid}" \
+		"${frr_ip} route ${prefix} ${nhop} segments ${sids// //}"
 }
 
 #   <namespace> : optional netns name ("" = root namespace)
