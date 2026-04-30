@@ -120,10 +120,14 @@ set_ip_route() {
 		"${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}"
 }
 
-# set_srv6_localsid <locator> <sid-prefix> <sid-local> [behavior]
+# set_srv6_localsid [--persist] <locator> <sid-prefix> <sid-local> [behavior] [vrf]
 #
-# Example:
+# Examples:
 #   set_srv6_localsid myloc fd00:202 fc00:100:64:10::666 end.dt4
+#   set_srv6_localsid myloc fd00:202 fc00:100:64:10::667 end.dt4 vrf2
+#
+# zebra's SRv6 manager keeps one SID per (behavior, vrf) ctx; coexisting
+# localsids must therefore use distinct VRFs (or behaviors).
 #
 set_srv6_localsid() {
 	local persist=0
@@ -132,6 +136,7 @@ set_srv6_localsid() {
 	local sid_prefix="$2"
 	local sid_local="$3"
 	local grout_behavior="${4:-end.dt4}"   # default behaviour
+	local vrf_name="${5:-default}"
 
 	# ---- translate behaviour aliases --------------------------------------
 	local frr_behavior
@@ -144,7 +149,7 @@ set_srv6_localsid() {
 	esac
 
 	# --- push the config into FRR ------------------------------------------
-	local vrf_clause="vrf default"
+	local vrf_clause="vrf ${vrf_name}"
 	case "${frr_behavior}" in
 		uN) vrf_clause="" ;;
 	esac
