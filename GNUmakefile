@@ -30,9 +30,7 @@ unit-tests: $(BUILDDIR)/build.ninja
 
 smoke_scripts := $(sort $(wildcard smoke/*_test.sh))
 smoke_frr := $(filter %_frr_test.sh,$(smoke_scripts))
-test_frr := $(shell jq -e '.[] | select(.name == "frr" and .value == "enabled")' \
-	$(BUILDDIR)/meson-info/intro-buildoptions.json >/dev/null 2>&1 && echo yes)
-ifneq ($(test_frr),yes)
+ifeq ($(wildcard $(BUILDDIR)/frr/dplane_grout.so*),)
 smoke_scripts := $(filter-out $(smoke_frr),$(smoke_scripts))
 endif
 ifneq ($(SMOKE_MATCH),)
