@@ -508,15 +508,17 @@ route6:
 		goto route6;
 	}
 
-	// Chain to next VRF
+	// Pass 3: chain to routes of next VRF. NHEs from all VRFs are
+	// already registered (Pass 2 ran nhs for every VRF before any
+	// routes), so cross-VRF NH references resolve at inject time.
 	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
-				dplane_get_thread_master(),
-				grout_sync_addrs,
+				zrouter.master,
+				grout_sync_routes,
 				NULL,
 				i,
-				&grout_ctx.dg_t_dplane_sync
+				&grout_ctx.dg_t_zebra_sync
 			);
 			return;
 		}
@@ -554,9 +556,35 @@ static void grout_sync_nhs(struct event *e) {
 		);
 		return;
 	}
-	event_add_event(
-		zrouter.master, grout_sync_routes, NULL, EVENT_VAL(e), &grout_ctx.dg_t_zebra_sync
-	);
+
+	// Pass 2 (this VRF done): chain to nhs of next VRF.
+	// All NHs across all VRFs are registered before any route is
+	// injected so cross-VRF NH references (e.g. SR6_LOCAL with
+	// out_vrf in a different VRF than the prefix being matched)
+	// resolve at route inject time.
+	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
+
+	// Pass 2 done across all VRFs. Kick off Pass 3 (routes) starting
+	// from the first VRF.
+	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master,
+				grout_sync_routes,
+				NULL,
+				i,
+				&grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
 }
 
 static void grout_sync_addrs(struct event *e) {
@@ -593,9 +621,32 @@ static void grout_sync_addrs(struct event *e) {
 		goto err;
 	}
 
-	event_add_event(
-		zrouter.master, grout_sync_nhs, NULL, EVENT_VAL(e), &grout_ctx.dg_t_zebra_sync
-	);
+	// Pass 1 (this VRF done): chain to addrs of next VRF.
+	// All addrs across all VRFs are processed before any nhs, mirroring
+	// the kernel dplane init order (links -> addrs -> nexthops -> routes).
+	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				dplane_get_thread_master(),
+				grout_sync_addrs,
+				NULL,
+				i,
+				&grout_ctx.dg_t_dplane_sync
+			);
+			return;
+		}
+	}
+
+	// Pass 1 done across all VRFs. Kick off Pass 2 (nhs) starting
+	// from the first VRF.
+	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
 	return;
 
 err:
