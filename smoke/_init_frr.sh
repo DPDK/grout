@@ -162,12 +162,13 @@ set_srv6_route() {
     shift 2                       # all remaining words are SIDs
 
     # ----- collect SIDs ----------------------------------------------------
-    local sids=()
+    local sids=""
     while [[ "$1" =~ : ]]; do     # anything with a ":" is assumed to be a SID
-	    sids+=("$1")
+	    sids="${sids:+$sids }$1"
 	    shift
     done
-    [[ ${#sids[@]} -eq 0 ]] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
+    [ -z "$sids" ] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
+    local first_sid="${sids%% *}"
 
     # ----- choose FRR keyword ---------------------------------------------
     local frr_ip route
@@ -179,21 +180,17 @@ set_srv6_route() {
 	    route="route4"
     fi
 
-    # ----- build CLI & Grout forms ----------------------------------------
-    local seg_frr   ; IFS=/ ; seg_frr="${sids[*]}"       # SID/SID/…
-    local seg_space ; IFS=' ' ; seg_space="${sids[*]}"   # SID SID …
-
     mark_events
 
     # ----- push route into FRR --------------------------------------------
     vtysh <<-EOF
     configure terminal
-      ${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}
+      ${frr_ip} route ${prefix} ${nhop} segments ${sids// //}
       exit
 EOF
 
     # ----- wait until Grout shows it --------------------------------------
-    wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${sids[0]}"
+    wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${first_sid}"
 }
 
 #   <namespace> : optional netns name ("" = root namespace)
