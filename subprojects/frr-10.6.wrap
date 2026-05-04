@@ -1,8 +1,8 @@
 [wrap-file]
-source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.6.0.tar.gz
-source_filename = frr-10.6.0.tar.gz
-source_hash = f575c821f0b6a2c9034eda0b464e6053eadce892d29ccaf54d60e601cc9f59ef
-directory = frr-frr-10.6.0
+source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.6.1.tar.gz
+source_filename = frr-10.6.1.tar.gz
+source_hash = 35f2cb4328617261db687e1d4e400c7c491b41b3aa4a109d7da9ebff0cf7e402
+directory = frr-frr-10.6.1
 patch_directory = frr
 
 [provide]
