@@ -115,7 +115,11 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
 	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(gr_if->id));
 	dplane_ctx_set_ifname(ctx, gr_if->name);
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 7, 0)
+	dplane_ctx_set_startup(ctx, startup);
+#else
 	dplane_ctx_set_ifp_startup(ctx, startup);
+#endif
 	dplane_ctx_set_ifp_family(ctx, AF_UNSPEC);
 	dplane_ctx_set_intf_txqlen(ctx, txqlen);
 
