@@ -170,19 +170,38 @@ set_srv6_localsid() {
 exit"
 }
 
-# set_srv6_route <prefix> <next-hop|iface> <sid1> [sid2 sid3 …]
+# set_srv6_route [--persist] <prefix> <next-hop|iface>
+#                [<vrf> [<nexthop-vrf>]] <sid1> [sid2 sid3 ...]
 #
-# EXAMPLE
-#   # Three SIDs provided as separate arguments
+# EXAMPLES
+#   # default VRF (no vrf args), three SIDs:
 #   set_srv6_route 192.168.0.0/16 gmydsn1 \
 #       fd00:202::2 fd00:202::3 fd00:202::4
+#
+#   # L3VPN encap: route in vrf2, encap iface in default. nexthop-vrf
+#   # is passed explicitly as the 4th positional.
+#   set_srv6_route 192.168.0.0/24 p0 vrf2 default fd00:202:100::
 #
 set_srv6_route() {
 	local persist=0
 	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local prefix="$1"
 	local nhop="$2"
-	shift 2                       # all remaining words are SIDs
+	shift 2
+
+	# 3rd & 4th positional are vrf and nexthop-vrf (mirrors set_ip_route).
+	# Both optional; SIDs come last and always contain ':'. Peek $1: if
+	# it is colon-free we treat it as the vrf, then likewise for nh_vrf.
+	local vrf_name="default"
+	local nexthop_vrf_name=""
+	if [ -n "$1" ] && [[ "$1" != *:* ]]; then
+		vrf_name="$1"
+		shift
+		if [ -n "$1" ] && [[ "$1" != *:* ]]; then
+			nexthop_vrf_name="$1"
+			shift
+		fi
+	fi
 
 	# ----- collect SIDs ----------------------------------------------------
 	local sids=""
@@ -203,9 +222,16 @@ set_srv6_route() {
 		route="route4"
 	fi
 
+	# grout names the default VRF "main"; rest match by name.
+	local gr_vrf_name="${vrf_name}"
+	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
+
+	local nh_vrf_clause=""
+	[ -n "$nexthop_vrf_name" ] && nh_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
+
 	_apply_frr_config "$persist" \
-		"$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${first_sid}" \
-		"${frr_ip} route ${prefix} ${nhop} segments ${sids// //}"
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=SRv6 .*${first_sid}" \
+		"${frr_ip} route ${prefix} ${nhop} segments ${sids// //} vrf ${vrf_name}${nh_vrf_clause}"
 }
 
 # kill_frr_daemons <daemon> [<daemon>...]
