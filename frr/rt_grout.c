@@ -324,10 +324,11 @@ static void grout_route_change(
 	uint16_t family,
 	void *dest_addr,
 	uint8_t dest_prefixlen,
+	uint16_t gr_route_vrf_id,
 	struct gr_nexthop *gr_nh,
 	bool startup
 ) {
-	uint32_t vrf_id = vrf_grout_to_frr(gr_nh->vrf_id);
+	uint32_t vrf_id = vrf_grout_to_frr(gr_route_vrf_id);
 	bool selfroute = is_selfroute(origin);
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
@@ -440,12 +441,13 @@ static void grout_route_change(
 
 void grout_route4_change(bool new, struct gr_ip4_route *gr_r4, bool startup) {
 	gr_log_debug(
-		"%s %pI4/%u origin %s nh_id %u vrf %u",
+		"%s %pI4/%u origin %s nh_id %u route_vrf %u nh_vrf %u",
 		new ? "add" : "del",
 		&gr_r4->dest.ip,
 		gr_r4->dest.prefixlen,
 		gr_nh_origin_name(gr_r4->origin),
 		gr_r4->nh.nh_id,
+		gr_r4->vrf_id,
 		gr_r4->nh.vrf_id
 	);
 	grout_route_change(
@@ -454,6 +456,7 @@ void grout_route4_change(bool new, struct gr_ip4_route *gr_r4, bool startup) {
 		AF_INET,
 		(void *)&gr_r4->dest.ip,
 		gr_r4->dest.prefixlen,
+		gr_r4->vrf_id,
 		&gr_r4->nh,
 		startup
 	);
@@ -461,12 +464,13 @@ void grout_route4_change(bool new, struct gr_ip4_route *gr_r4, bool startup) {
 
 void grout_route6_change(bool new, struct gr_ip6_route *gr_r6, bool startup) {
 	gr_log_debug(
-		"%s %pI6/%u origin %s nh_id %u vrf %u",
+		"%s %pI6/%u origin %s nh_id %u route_vrf %u nh_vrf %u",
 		new ? "add" : "del",
 		&gr_r6->dest.ip,
 		gr_r6->dest.prefixlen,
 		gr_nh_origin_name(gr_r6->origin),
 		gr_r6->nh.nh_id,
+		gr_r6->vrf_id,
 		gr_r6->nh.vrf_id
 	);
 	grout_route_change(
@@ -475,6 +479,7 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6, bool startup) {
 		AF_INET6,
 		(void *)&gr_r6->dest.ip,
 		gr_r6->dest.prefixlen,
+		gr_r6->vrf_id,
 		&gr_r6->nh,
 		startup
 	);
