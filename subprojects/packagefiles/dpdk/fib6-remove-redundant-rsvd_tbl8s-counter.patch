@@ -1,0 +1,217 @@
+From 10551c1e04100546cf6ddd9d31b525e893ba2f5e Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Thu, 30 Apr 2026 12:00:46 +0200
+Subject: [PATCH] fib: remove redundant rsvd_tbl8s reservation counter
+
+The rsvd_tbl8s field in struct rte_trie_tbl and struct dir24_8_tbl
+was a separate counter tracking the cumulative tbl8 reservation,
+maintained alongside the actual pool occupation. It was used in the
+pre-allocation check to refuse ADDs early when the worst-case budget
+would be exceeded.
+
+Two distinct issues motivate its removal: a latent bug in trie and
+historical redundancy in dir24_8.
+
+trie (IPv6): drift and underflow
+================================
+
+In trie_modify(), rsvd_tbl8s is updated by depth_diff, computed at
+each call from the current RIB state via rte_rib6_get_nxt() and
+rte_rib6_lookup_parent(). Because the RIB is not invariant between
+the ADD of a prefix and its later DEL (a covering parent prefix may
+be added or removed in the interval), depth_diff at DEL time is not
+guaranteed to match the depth_diff that was added at ADD time. Over
+many such asymmetric pairs, rsvd_tbl8s drifts.
+
+Commit 3ad9ad9e362b ("fib: fix prefix addition handling") closed one
+specific case (par_nh == next_hop on ADD), but the more general case
+where a covering parent is deleted before its children remains
+asymmetric:
+
+    T0  ADD /28                     parent_depth=24, depth_diff=1
+        rsvd_tbl8s += 1
+    T1  ADD /48 (child of /28)      parent_depth=28, depth_diff=2
+        rsvd_tbl8s += 2
+    T2  DEL /28 (children alive)    sibling found, depth_diff=0
+        rsvd_tbl8s -= 0
+    T3  DEL /48 (no parent left)    parent_depth=24, depth_diff=3
+        rsvd_tbl8s -= 3
+        net per /48: -1
+
+Repeated over N siblings of a deleted parent, rsvd_tbl8s underflows
+past zero and wraps to UINT32_MAX-N. Subsequent ADDs of prefixes
+longer than /24 then unconditionally fail the pre-check
+(rsvd_tbl8s + depth_diff > number_tbl8s), even when actual pool
+occupancy is far below number_tbl8s. Once underflowed, the FIB
+rejects all long-prefix additions until destroyed and recreated.
+
+Observed in production with BGP SRv6 churn under FRR/zebra restart
+cycles, where the route sweep deletes parent locator prefixes
+(/40, /48) before their child SIDs (/64, /128). After ~174
+asymmetric cycles, rsvd_tbl8s wrapped to 4294967122 with
+tbl8_pool_pos at 39 out of 262144, blocking all further long-prefix
+installs.
+
+The trie pool was already maintained natively by tbl8_get() and
+tbl8_put() through tbl8_pool_pos, which exactly tracks the pool
+occupation. Use it directly in the pre-check; it is always accurate
+by construction and eliminates the asymmetry. depth_diff continues
+to reflect the worst-case incremental tbl8 budget needed for the
+new prefix. The retry-then-reclaim path inside tbl8_alloc remains
+the safety net for transient RCU defer queue pressure.
+
+dir24_8 (IPv4): historical redundancy, no bug
+=============================================
+
+The same rsvd_tbl8s pattern was applied to dir24_8 by symmetry of
+design, but the dir24_8 increment is binary (0 or 1 based on whether
+a /25-/32 sibling exists in the same /24) and the condition is
+identical at ADD and DEL. dir24_8 is therefore symmetric by
+construction and does not exhibit the underflow.
+
+Originally dir24_8 had no other choice: its tbl8 allocator is a
+bitmap (tbl8_idxes), with no native occupation counter, and
+rsvd_tbl8s was the only way to know how many tbl8 chunks were live.
+Commit 96c3d06a3578 ("fib: implement RCU rule reclamation") added
+cur_tbl8s, an actual occupation counter incremented in tbl8_alloc()
+and decremented in tbl8_cleanup_and_free(). Since then, rsvd_tbl8s
+in dir24_8 has been a duplicate of cur_tbl8s.
+
+Use cur_tbl8s in the pre-check and drop the duplicate counter, in
+line with the trie change. Behaviour is unchanged for dir24_8.
+
+Both struct fields are removed for clarity; the goto + label
+constructs introduced by 3ad9ad9e362b for the par_nh == next_hop
+fast path become plain return 0.
+
+Reproducer (trie): install N child prefixes under a common shorter-
+prefix parent, delete the parent while children are alive, delete
+each child. Expected: rsvd_tbl8s remains coherent. Observed pre-fix:
+rsvd_tbl8s decreases by 1 per child cycle, eventually wrapping to
+UINT32_MAX after enough cycles.
+
+Reported-by: Maxime Leroy <maxime@leroys.fr>
+Fixes: c3e12e0f0354 ("fib: add dataplane algorithm for IPv6")
+Cc: stable@dpdk.org
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ lib/fib/dir24_8.c | 16 +++-------------
+ lib/fib/dir24_8.h |  1 -
+ lib/fib/trie.c    |  8 ++------
+ lib/fib/trie.h    |  1 -
+ 4 files changed, 5 insertions(+), 21 deletions(-)
+
+diff --git a/lib/fib/dir24_8.c b/lib/fib/dir24_8.c
+index 489d2ef427..b3a40b8405 100644
+--- a/lib/fib/dir24_8.c
++++ b/lib/fib/dir24_8.c
+@@ -504,7 +504,7 @@ dir24_8_modify(struct rte_fib *fib, uint32_t ip, uint8_t depth,
+ 			tmp = rte_rib_get_nxt(rib, ip, 24, NULL,
+ 				RTE_RIB_GET_NXT_COVER);
+ 			if ((tmp == NULL) &&
+-				(dp->rsvd_tbl8s >= dp->number_tbl8s))
++				(dp->cur_tbl8s >= dp->number_tbl8s))
+ 				return -ENOSPC;
+ 
+ 		}
+@@ -516,16 +516,13 @@ dir24_8_modify(struct rte_fib *fib, uint32_t ip, uint8_t depth,
+ 		if (parent != NULL) {
+ 			rte_rib_get_nh(parent, &par_nh);
+ 			if (par_nh == next_hop)
+-				goto successfully_added;
++				return 0;
+ 		}
+ 		ret = modify_fib(dp, rib, ip, depth, next_hop);
+ 		if (ret != 0) {
+ 			rte_rib_remove(rib, ip, depth);
+ 			return ret;
+ 		}
+-successfully_added:
+-		if ((depth > 24) && (tmp == NULL))
+-			dp->rsvd_tbl8s++;
+ 		return 0;
+ 	case RTE_FIB_DEL:
+ 		if (node == NULL)
+@@ -539,15 +536,8 @@ dir24_8_modify(struct rte_fib *fib, uint32_t ip, uint8_t depth,
+ 				ret = modify_fib(dp, rib, ip, depth, par_nh);
+ 		} else
+ 			ret = modify_fib(dp, rib, ip, depth, dp->def_nh);
+-		if (ret == 0) {
++		if (ret == 0)
+ 			rte_rib_remove(rib, ip, depth);
+-			if (depth > 24) {
+-				tmp = rte_rib_get_nxt(rib, ip, 24, NULL,
+-					RTE_RIB_GET_NXT_COVER);
+-				if (tmp == NULL)
+-					dp->rsvd_tbl8s--;
+-			}
+-		}
+ 		return ret;
+ 	default:
+ 		break;
+diff --git a/lib/fib/dir24_8.h b/lib/fib/dir24_8.h
+index b343b5d686..502540173c 100644
+--- a/lib/fib/dir24_8.h
++++ b/lib/fib/dir24_8.h
+@@ -30,7 +30,6 @@
+ 
+ struct dir24_8_tbl {
+ 	uint32_t	number_tbl8s;	/**< Total number of tbl8s */
+-	uint32_t	rsvd_tbl8s;	/**< Number of reserved tbl8s */
+ 	uint32_t	cur_tbl8s;	/**< Current number of tbl8s */
+ 	enum rte_fib_dir24_8_nh_sz	nh_sz;	/**< Size of nexthop entry */
+ 	/* RCU config. */
+diff --git a/lib/fib/trie.c b/lib/fib/trie.c
+index fa5d9ec6b0..532b64988f 100644
+--- a/lib/fib/trie.c
++++ b/lib/fib/trie.c
+@@ -603,7 +603,7 @@ trie_modify(struct rte_fib6 *fib, const struct rte_ipv6_addr *ip,
+ 			return 0;
+ 		}
+ 
+-		if ((depth > 24) && (dp->rsvd_tbl8s + depth_diff > dp->number_tbl8s))
++		if ((depth > 24) && (dp->tbl8_pool_pos + depth_diff > dp->number_tbl8s))
+ 			return -ENOSPC;
+ 
+ 		node = rte_rib6_insert(rib, &ip_masked, depth);
+@@ -614,15 +614,13 @@ trie_modify(struct rte_fib6 *fib, const struct rte_ipv6_addr *ip,
+ 		if (parent != NULL) {
+ 			rte_rib6_get_nh(parent, &par_nh);
+ 			if (par_nh == next_hop)
+-				goto successfully_added;
++				return 0;
+ 		}
+ 		ret = modify_dp(dp, rib, &ip_masked, depth, next_hop);
+ 		if (ret != 0) {
+ 			rte_rib6_remove(rib, &ip_masked, depth);
+ 			return ret;
+ 		}
+-successfully_added:
+-		dp->rsvd_tbl8s += depth_diff;
+ 		return 0;
+ 	case RTE_FIB6_DEL:
+ 		if (node == NULL)
+@@ -641,8 +639,6 @@ trie_modify(struct rte_fib6 *fib, const struct rte_ipv6_addr *ip,
+ 		if (ret != 0)
+ 			return ret;
+ 		rte_rib6_remove(rib, ip, depth);
+-
+-		dp->rsvd_tbl8s -= depth_diff;
+ 		return 0;
+ 	default:
+ 		break;
+diff --git a/lib/fib/trie.h b/lib/fib/trie.h
+index c34cc2c057..aa187a9279 100644
+--- a/lib/fib/trie.h
++++ b/lib/fib/trie.h
+@@ -31,7 +31,6 @@
+ 
+ struct rte_trie_tbl {
+ 	uint32_t	number_tbl8s;	/**< Total number of tbl8s */
+-	uint32_t	rsvd_tbl8s;	/**< Number of reserved tbl8s */
+ 	uint32_t	cur_tbl8s;	/**< Current cumber of tbl8s */
+ 	uint64_t	def_nh;		/**< Default next hop */
+ 	enum rte_fib_trie_nh_sz	nh_sz;	/**< Size of nexthop entry */
+-- 
+2.43.0
+
