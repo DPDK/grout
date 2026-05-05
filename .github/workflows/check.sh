@@ -23,9 +23,9 @@ fi
 # Always check compilation.
 time make "$@"
 
-if [ "$#" -eq 0 ] && ! echo "$MESON_EXTRA_OPTS" | grep -q -- --cross-file; then
-	# If the script was invoked without any argument (e.g. not with "lint")
-	# and if we are not cross compiling, run unit and smoke tests.
+if [ "$#" -eq 0 ]; then
+	# If the script was invoked without any argument (e.g. not with "lint"),
+	# run unit and smoke tests.
 	echo -------------------------------------------------------------------
 	echo unit-tests
 	echo -------------------------------------------------------------------
