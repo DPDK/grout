@@ -6,6 +6,7 @@
 #include "ip4_datapath.h"
 #include "ip6_datapath.h"
 #include "port.h"
+#include "rxtx.h"
 
 #include <gr_infra.h>
 
@@ -110,6 +111,10 @@ static uint16_t ospf_redirect_process(
 		eth->ether_type = ether_type;
 		eth->src_addr = src;
 		eth->dst_addr = dst;
+
+		// No VLAN header is written to the TAP. Clear the residual
+		// mbuf metadata so traces reflect the actual frame bytes.
+		iface_mbuf_data(mbuf)->vlan_id = 0;
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			gr_mbuf_trace_add(mbuf, node, 0);

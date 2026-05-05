@@ -102,6 +102,10 @@ dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			iface_get_eth_addr(iface, &eth->dst_addr);
 			eth->ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 
+			// No VLAN header is written to the TAP. Clear the residual
+			// mbuf metadata so traces reflect the actual frame bytes.
+			iface_mbuf_data(mbuf)->vlan_id = 0;
+
 			control_output_set_cb(mbuf, iface_cp_tx, 0);
 		}
 
