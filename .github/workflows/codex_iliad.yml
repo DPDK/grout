@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Run PR-Agent
-        uses: qodo-ai/pr-agent@v0.30
+        uses: qodo-ai/pr-agent@v0.34
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
