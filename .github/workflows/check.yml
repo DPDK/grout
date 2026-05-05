@@ -34,7 +34,7 @@ jobs:
             debug: true
           - compiler: gcc-14
             frr: '10.5'
-            arch: arm
+            arch: aarch64
           - compiler: gcc-14
             frr: '10.6'
           - compiler: gcc-14
@@ -44,7 +44,8 @@ jobs:
             frr: '10.5'
           - compiler: clang-18
             frr: '10.5'
-    runs-on: ubuntu-24.04${{ matrix.conf.arch == 'arm' && '-arm' || '' }}
+    name: build-and-tests (${{ matrix.conf.arch || 'x86_64' }}, ${{ matrix.conf.compiler }}, FRR ${{ matrix.conf.frr }})
+    runs-on: ubuntu-24.04${{ matrix.conf.arch == 'aarch64' && '-arm' || '' }}
     continue-on-error: ${{ matrix.conf.allow_fail || false }}
     env:
       SANITIZE: ${{ case(matrix.conf.asan || false, 'address', 'none') }}
@@ -88,7 +89,7 @@ jobs:
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.conf.arch }}-${{ matrix.conf.compiler }}
+          key: ccache-${{ matrix.conf.arch || 'x86_64' }}-${{ matrix.conf.compiler }}
       - run: ccache -z
       - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
@@ -114,6 +115,7 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
+
   lint:
     if: ${{ github.actor != 'grout-bot' }}
     runs-on: ubuntu-24.04
