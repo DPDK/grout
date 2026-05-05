@@ -211,7 +211,7 @@ start_frr() {
 
 	local frr_etc="$builddir/frr_install/etc/frr"
 	local frr_logdir="$builddir/frr_install/var/log/frr"
-	local conf_dir flog daemons_file frrconf_file frr_global_opts
+	local conf_dir frr_log daemons_file frrconf_file frr_global_opts
 	local zebra_options="-s 90000000"
 
 	mkdir -p "$frr_etc"
@@ -219,14 +219,14 @@ start_frr() {
 
 	# Common config dir + files + log file + opts
 	conf_dir="$frr_etc${namespace:+/$namespace}"
-	flog="$frr_logdir/frr-${namespace:-grout}.log"
+	frr_log="$frr_logdir/frr-${namespace:-grout}.log"
 
 	mkdir -p "$conf_dir"
 	touch "$conf_dir/vtysh.conf"
 
 	daemons_file="$conf_dir/daemons"
 	frrconf_file="$conf_dir/frr.conf"
-	frr_global_opts="-A 127.0.0.1 --log file:$flog"
+	frr_global_opts="-A 127.0.0.1 --log file:$frr_log"
 
 	if [ "$use_grout" = "1" ]; then
 		zebra_options="$zebra_options -M dplane_grout"
@@ -258,8 +258,8 @@ debug zebra dplane dpdk
 EOF
 
 	# reset log
-	rm -f "$flog"
-	touch "$flog"
+	rm -f "$frr_log"
+	touch "$frr_log"
 
 	# logging: root strips ts, ns gets [ns] prefix
 	local sed_expr color
@@ -274,10 +274,10 @@ EOF
 	# Run the log tail pipeline in a subshell so we can kill all
 	# pipeline processes by killing the subshell's children.
 	if [ -t 1 ]; then
-		(tail -F "$flog" | sed -u -E "$sed_expr" | \
+		(tail -F "$frr_log" | sed -u -E "$sed_expr" | \
 			stdbuf -oL awk -v color="$color" '{print color $0 "\033[0m"}') &
 	else
-		(tail -F "$flog" | sed -u -E "$sed_expr") &
+		(tail -F "$frr_log" | sed -u -E "$sed_expr") &
 	fi
 	local tailpid=$!
 
@@ -331,7 +331,7 @@ EOF
 	# extra check when using Grout: wait for iface/ip events
 	if [ "$use_grout" = "1" ]; then
 		local attempts=25
-		while ! grep -q "GROUT:.*iface/ip events" "$flog" 2>/dev/null; do
+		while ! grep -q "GROUT:.*iface/ip events" "$frr_log" 2>/dev/null; do
 			if [ "$attempts" -le 0 ]; then
 				fail "Zebra is not listening grout events."
 			fi
