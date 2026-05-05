@@ -90,17 +90,10 @@ jobs:
     if: ${{ github.actor != 'grout-bot' }}
     permissions:
       actions: write
-    name: rpm-${{ matrix.arch_name }}
     strategy:
       matrix:
-        # Define the runners you want to use
-        runs_on: [ubuntu-24.04, ubuntu-24.04-arm]
-        include:
-          - runs_on: ubuntu-24.04
-            arch_name: x86_64
-          - runs_on: ubuntu-24.04-arm
-            arch_name: aarch64
-    runs-on: ${{ matrix.runs_on }}
+        arch: [x86_64, aarch64]
+    runs-on: ubuntu-24.04${{ case(matrix.arch, 'aarch64', '-arm', '') }}
     container: "quay.io/centos/centos:stream10"
     steps:
       - name: install system dependencies
@@ -153,7 +146,7 @@ jobs:
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.runs_on }}-rpm
+          key: ccache-${{ matrix.arch }}-rpm
       - run: ccache -z
       - run: make frr-rpm CC="ccache gcc"
       - run: dnf install -y --nodocs --setopt=install_weak_deps=0 ./frr-headers.noarch.rpm
@@ -180,6 +173,6 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v7
         with:
-          name: rpm-${{ matrix.arch_name }}-packages
+          name: rpm-${{ matrix.arch }}-packages
           path: "*.rpm"
           retention-days: 5
