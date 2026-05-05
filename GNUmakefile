@@ -49,10 +49,11 @@ smoke-tests smoke smoke/: $(smoke_scripts)
 
 .PHONY: $(smoke_scripts)
 $(smoke_scripts):
-	$Q log=$$(mktemp); \
-	trap "rm -f $$log" EXIT; \
+	$Q mkdir -p $(BUILDDIR)/$(@D)
+	$Q log=$(BUILDDIR)/$@.log; \
+	time=$(BUILDDIR)/$@.time; \
 	printf '%s\n' $@; \
-	sudo $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
+	sudo time -qf '%E' -o "$$time" timeout 5m $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
 	rc=$$?; \
 	if [ "$$rc" -ne 0 ]; then \
 		printf '%s\n' '==================================================='; \
@@ -62,10 +63,14 @@ $(smoke_scripts):
 		if [ "$$rc" -eq 125 ]; then \
 			printf '%s ... SKIPPED\n' $@; \
 			rc=0; \
+		elif [ "$$rc" -eq 124 ]; then \
+			printf '%s ... TIMEOUT %s\n' $@ `cat $$time`; \
 		else \
-			printf '%s ... FAILED\n' $@; \
+			printf '%s ... FAILED %s\n' $@ `cat $$time`; \
 		fi; \
 		printf '%s\n' '---------------------------------------------------'; \
+	else \
+		printf '%s ... ok %s\n' $@ `cat $$time`; \
 	fi; \
 	exit "$$rc"
 

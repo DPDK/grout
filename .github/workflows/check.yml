@@ -110,6 +110,12 @@ jobs:
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
       - run: .github/workflows/check.sh
         if: ${{ ! matrix.conf.rebase || ! github.event.pull_request.commits }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs-${{ matrix.conf.arch || 'x86_64' }}-${{ matrix.conf.compiler }}-dpdk-${{ matrix.conf.dpdk }}-frr-${{ matrix.conf.frr }}
+          path: build/smoke/
+          retention-days: 10
+        if: always()
       - run: ccache -sv
       - name: delete old cache
         if: ${{ ! github.event.pull_request.commits }}
