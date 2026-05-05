@@ -8,13 +8,17 @@ echo ===========================================================================
 git --no-pager log --oneline -1
 echo ===========================================================================
 
-# If there was any modification on .wrap files, delete the whole subproject
+# If the script was invoked without any argument (e.g. not with "lint")
+# and there was any modification on .wrap files, delete the whole subproject
 # folder to ensure it is prepared again by meson.
-for wrap in subprojects/*.wrap; do
-	if ! git diff --quiet HEAD^ $wrap; then
-		rm -rf "${wrap%.wrap}"
-	fi
-done
+if [ "$#" -eq 0 ]; then
+	for wrap in subprojects/*.wrap; do
+		if ! git diff --quiet HEAD^ $wrap; then
+			name=$(basename -s.wrap $wrap)
+			meson subprojects purge --confirm $name
+		fi
+	done
+fi
 
 # Always check compilation.
 time make "$@"
