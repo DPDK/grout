@@ -54,7 +54,7 @@ jobs:
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
       FRR: ${{ matrix.conf.frr }}
-      MESON_EXTRA_OPTS: -Ddpdk:cpu_instruction_set=generic
+      DPDK_CPU: generic
     steps:
       - name: install system dependencies
         run: |
