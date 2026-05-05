@@ -33,6 +33,9 @@ jobs:
             asan: true
             debug: true
           - compiler: gcc-14
+            frr: '10.5'
+            arch: arm
+          - compiler: gcc-14
             frr: '10.6'
           - compiler: gcc-14
             frr: 'master'
@@ -40,7 +43,7 @@ jobs:
             frr: '10.5'
           - compiler: clang-18
             frr: '10.5'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04${{ matrix.conf.arch == 'arm' && '-arm' || '' }}
     env:
       SANITIZE: ${{ case(matrix.conf.asan || false, 'address', 'none') }}
       BUILDTYPE: ${{ case(matrix.conf.debug || false, 'debug', 'debugoptimized') }}
@@ -83,7 +86,7 @@ jobs:
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-x86_64-${{ matrix.conf.compiler }}
+          key: ccache-${{ matrix.conf.arch }}-${{ matrix.conf.compiler }}
       - run: ccache -z
       - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
@@ -109,70 +112,6 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
-
-  build-cross-aarch64:
-    if: ${{ github.actor != 'grout-bot' }}
-    permissions:
-      actions: write
-    runs-on: ubuntu-24.04
-    container: debian:stable
-    env:
-      MESON_EXTRA_OPTS: --cross-file=devtools/cross/aarch64.ini
-      DEBIAN_FRONTEND: noninteractive
-      NEEDRESTART_MODE: l
-    steps:
-      - name: install system dependencies
-        run: |
-          set -xe
-          dpkg --add-architecture arm64
-          apt update -qy
-          apt install -qy --no-install-recommends \
-            make gcc ccache git meson scdoc python3-pyelftools python3-dev \
-            ca-certificates pkg-config autoconf automake bison flex patch \
-            libyang3-tools libtool libelf-dev crossbuild-essential-arm64 \
-            libcmocka-dev:arm64 libedit-dev:arm64 libevent-dev:arm64 \
-            libmnl-dev:arm64 libnuma-dev:arm64 libjson-c-dev:arm64 \
-            libprotobuf-c-dev:arm64 protobuf-c-compiler libreadline-dev:arm64 \
-            libcap-dev:arm64 librtr-dev:arm64 libyang-dev:arm64
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0 # force fetch all history
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}
-      - run: git config --global --add safe.directory $PWD
-      - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
-      - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-aarch64
-      - run: ccache -z
-      - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
-        if: ${{ github.event.pull_request.commits }}
-      - run: .github/workflows/check.sh
-        if: ${{ ! github.event.pull_request.commits }}
-      - run: ccache -sv
-      - name: delete old cache
-        if: ${{ ! github.event.pull_request.commits }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              await github.rest.actions.deleteActionsCacheByKey({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                key: "${{ steps.cache.outputs.cache-primary-key }}"
-              });
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-      - uses: actions/cache/save@v4
-        if: ${{ ! github.event.pull_request.commits }}
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-
   lint:
     if: ${{ github.actor != 'grout-bot' }}
     runs-on: ubuntu-24.04
