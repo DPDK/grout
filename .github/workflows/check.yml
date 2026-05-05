@@ -39,11 +39,13 @@ jobs:
             frr: '10.6'
           - compiler: gcc-14
             frr: 'master'
+            allow_fail: true
           - compiler: clang-16
             frr: '10.5'
           - compiler: clang-18
             frr: '10.5'
     runs-on: ubuntu-24.04${{ matrix.conf.arch == 'arm' && '-arm' || '' }}
+    continue-on-error: ${{ matrix.conf.allow_fail || false }}
     env:
       SANITIZE: ${{ case(matrix.conf.asan || false, 'address', 'none') }}
       BUILDTYPE: ${{ case(matrix.conf.debug || false, 'debug', 'debugoptimized') }}
