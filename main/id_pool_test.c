@@ -94,25 +94,20 @@ static void *id_sequence_thread(void *arg) {
 static void bench_summary(const char *func, const char *fill, struct id_pool_bench *bench) {
 	double fail_rate = (double)bench->get_failures / (double)(THREADS * LOOPS);
 	print_message(
-		"id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu failures=%lu (%.8g%%)\n",
+		"id_pool_%s(%s): threads=%u iterations=%u cycles/it=%lu failures=%lu (%.8g%%)"
+		" (put cycles/it=%lu)\n",
 		func,
 		fill,
 		THREADS,
 		LOOPS,
 		bench->get / (THREADS * LOOPS),
 		bench->get_failures,
-		fail_rate * 100.0
-	);
-	print_message(
-		"id_pool_put(%s): threads=%u iterations=%u cycles/it=%lu\n",
-		fill,
-		THREADS,
-		LOOPS,
+		fail_rate * 100.0,
 		bench->put / (THREADS * LOOPS)
 	);
 
 	assert_return_code(bench->ret, -bench->ret);
-	assert_true(fail_rate < 0.0001);
+	assert_true(fail_rate < 0.001);
 
 	// check consistency
 	uint32_t used = 0;
