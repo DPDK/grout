@@ -76,7 +76,7 @@ jobs:
           sudo apt-get install -qy --no-install-recommends \
             libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
             libreadline-dev libcap-dev librtr-dev libyang2-dev libyang2-tools
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
@@ -84,7 +84,7 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -97,7 +97,7 @@ jobs:
       - run: ccache -sv
       - name: delete old cache
         if: ${{ ! github.event.pull_request.commits }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             try {
@@ -109,7 +109,7 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: ${{ ! github.event.pull_request.commits }}
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -120,7 +120,7 @@ jobs:
     container: fedora:latest
     steps:
       - run: dnf install -y gawk make clang-tools-extra git jq curl codespell
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
@@ -140,7 +140,7 @@ jobs:
       REVISION_RANGE: "HEAD~${{ github.event.pull_request.commits }}.."
     steps:
       - run: dnf install -y make git jq curl codespell
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history

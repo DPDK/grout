@@ -46,14 +46,14 @@ jobs:
             python3-pyelftools \
             scdoc \
             systemd-dev
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -63,7 +63,7 @@ jobs:
       - run: ccache -sv
       - name: delete old cache
         if: ${{ ! github.event.pull_request }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             try {
@@ -75,12 +75,12 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: ${{ ! github.event.pull_request }}
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: deb-packages
           path: '*.deb'
@@ -142,14 +142,14 @@ jobs:
             scdoc \
             systemd \
             systemd-devel
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # force fetch all history
           persist-credentials: false
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -161,7 +161,7 @@ jobs:
       - run: ccache -sv
       - name: delete old cache
         if: ${{ ! github.event.pull_request }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             try {
@@ -173,12 +173,12 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: ${{ ! github.event.pull_request }}
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rpm-${{ matrix.arch_name }}-packages
           path: "*.rpm"
