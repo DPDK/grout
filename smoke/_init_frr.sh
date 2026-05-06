@@ -38,7 +38,36 @@ create_interface() {
 	done
 }
 
+# _apply_frr_config <persist> <wait_pattern> <config>
+#
+# Push <config> via vtysh (default) or append it to frr.conf
+# (persist=1). In vtysh mode "configure terminal" is prepended
+# automatically and wait_event waits for <wait_pattern> when non-empty.
+# In persist mode the block is written verbatim and no event is awaited
+# (config takes effect at the next FRR start).
+#
+_apply_frr_config() {
+	local persist="$1"
+	local wait_pattern="$2"
+	local config="$3"
+
+	mark_events
+	vtysh <<EOF
+configure terminal
+$config
+EOF
+	[ -n "$wait_pattern" ] && wait_event -t 10 "$wait_pattern"
+
+	if [ "$persist" = 1 ]; then
+		cat >>"$builddir/frr_install/etc/frr/frr.conf" <<EOF
+$config
+EOF
+	fi
+}
+
 set_ip_address() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local p="$1"
 	local ip_cidr="$2"
 
@@ -52,25 +81,19 @@ set_ip_address() {
 		local addr="addr4"
 	fi
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	interface ${p}
-	${frr_ip} address ${ip_cidr}
-	exit
-EOF
-
-	wait_event "$addr add: iface=$p $ip_cidr"
+	_apply_frr_config "$persist" "$addr add: iface=$p $ip_cidr" \
+"interface ${p}
+ ${frr_ip} address ${ip_cidr}
+exit"
 }
 
 set_ip_route() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local prefix="$1"
 	local next_hop="$2"
 	local vrf_name="${3:-default}"
 	local nexthop_vrf_name="${4:-}"
-	local max_tries=5
-	local count=0
 
 	local nexthop_vrf_clause=""
 	if [[ -n "$nexthop_vrf_name" ]]; then
@@ -87,34 +110,33 @@ set_ip_route() {
 		local route="route4"
 	fi
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}
-	exit
-EOF
-
 	# strip optional nexthop interface
 	local nh=${next_hop% *}
 	local gr_vrf_name="${vrf_name}"
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-	wait_event "$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh"
+	_apply_frr_config "$persist" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh" \
+		"${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}"
 }
 
-# set_srv6_localsid <locator> <sid-prefix> <sid-local> [behavior]
+# set_srv6_localsid [--persist] <locator> <sid-prefix> <sid-local> [behavior] [vrf]
 #
-# Example:
+# Examples:
 #   set_srv6_localsid myloc fd00:202 fc00:100:64:10::666 end.dt4
+#   set_srv6_localsid myloc fd00:202 fc00:100:64:10::667 end.dt4 vrf2
+#
+# zebra's SRv6 manager keeps one SID per (behavior, vrf) ctx; coexisting
+# localsids must therefore use distinct VRFs (or behaviors).
 #
 set_srv6_localsid() {
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
 	local locator="$1"
 	local sid_prefix="$2"
 	local sid_local="$3"
 	local grout_behavior="${4:-end.dt4}"   # default behaviour
-	local max_tries=5
-	local count=0
+	local vrf_name="${5:-default}"
 
 	# ---- translate behaviour aliases --------------------------------------
 	local frr_behavior
@@ -127,79 +149,133 @@ set_srv6_localsid() {
 	esac
 
 	# --- push the config into FRR ------------------------------------------
-	local vrf_clause="vrf default"
+	local vrf_clause="vrf ${vrf_name}"
 	case "${frr_behavior}" in
 		uN) vrf_clause="" ;;
 	esac
 
-	mark_events
-
-	vtysh <<-EOF
-	configure terminal
-	 segment-routing
-	  srv6
-	   locators
-	    locator ${locator}
-	     prefix ${sid_prefix}::/32 block-len 16 node-len 16 func-bits 16
-	    exit
-	   exit
-	   static-sids
-	    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} ${vrf_clause}
-	   exit
-	 exit
-EOF
-
-	# --- wait until grout has the localsid ---------------------------------
-	wait_event "route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior"
+	_apply_frr_config "$persist" \
+		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior" \
+"segment-routing
+ srv6
+  locators
+   locator ${locator}
+    prefix ${sid_prefix}::/32 block-len 16 node-len 16 func-bits 16
+   exit
+  exit
+  static-sids
+    sid ${sid_local}/48 locator ${locator} behavior ${frr_behavior} ${vrf_clause}
+  exit
+ exit
+exit"
 }
 
-# set_srv6_route <prefix> <next-hop|iface> <sid1> [sid2 sid3 …]
+# set_srv6_route [--persist] <prefix> <next-hop|iface>
+#                [<vrf> [<nexthop-vrf>]] <sid1> [sid2 sid3 ...]
 #
-# EXAMPLE
-#   # Three SIDs provided as separate arguments
+# EXAMPLES
+#   # default VRF (no vrf args), three SIDs:
 #   set_srv6_route 192.168.0.0/16 gmydsn1 \
 #       fd00:202::2 fd00:202::3 fd00:202::4
 #
+#   # L3VPN encap: route in vrf2, encap iface in default. nexthop-vrf
+#   # is passed explicitly as the 4th positional.
+#   set_srv6_route 192.168.0.0/24 p0 vrf2 default fd00:202:100::
+#
 set_srv6_route() {
-    local prefix="$1"
-    local nhop="$2"
-    local max_tries=5
-    local count=0
-    shift 2                       # all remaining words are SIDs (and maybe max_tries)
+	local persist=0
+	[ "$1" = "--persist" ] && { persist=1; shift; }
+	local prefix="$1"
+	local nhop="$2"
+	shift 2
 
-    # ----- collect SIDs ----------------------------------------------------
-    local sids=()
-    while [[ "$1" =~ : ]]; do     # anything with a ":" is assumed to be a SID
-	    sids+=("$1")
-	    shift
-    done
-    [[ ${#sids[@]} -eq 0 ]] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
+	# 3rd & 4th positional are vrf and nexthop-vrf (mirrors set_ip_route).
+	# Both optional; SIDs come last and always contain ':'. Peek $1: if
+	# it is colon-free we treat it as the vrf, then likewise for nh_vrf.
+	local vrf_name="default"
+	local nexthop_vrf_name=""
+	if [ -n "$1" ] && [[ "$1" != *:* ]]; then
+		vrf_name="$1"
+		shift
+		if [ -n "$1" ] && [[ "$1" != *:* ]]; then
+			nexthop_vrf_name="$1"
+			shift
+		fi
+	fi
 
-    # ----- choose FRR keyword ---------------------------------------------
-    local frr_ip route
-    if [[ "$prefix" == *:* ]]; then
-	    frr_ip="ipv6"
-	    route="route6"
-    else
-	    frr_ip="ip"
-	    route="route4"
-    fi
+	# ----- collect SIDs ----------------------------------------------------
+	local sids=""
+	while [[ "$1" =~ : ]]; do     # anything with a ":" is assumed to be a SID
+		sids="${sids:+$sids }$1"
+		shift
+	done
+	[ -z "$sids" ] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
+	local first_sid="${sids%% *}"
 
-    # ----- build CLI & Grout forms ----------------------------------------
-    local seg_frr   ; IFS=/ ; seg_frr="${sids[*]}"       # SID/SID/…
-    local seg_space ; IFS=' ' ; seg_space="${sids[*]}"   # SID SID …
+	# ----- choose FRR keyword ---------------------------------------------
+	local frr_ip route
+	if [[ "$prefix" == *:* ]]; then
+		frr_ip="ipv6"
+		route="route6"
+	else
+		frr_ip="ip"
+		route="route4"
+	fi
 
-    mark_events
+	# grout names the default VRF "main"; rest match by name.
+	local gr_vrf_name="${vrf_name}"
+	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
-    # ----- push route into FRR --------------------------------------------
-    vtysh <<-EOF
-    configure terminal
-      ${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}
-      exit
-EOF
+	local nh_vrf_clause=""
+	[ -n "$nexthop_vrf_name" ] && nh_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
 
-    # ----- wait until Grout shows it --------------------------------------
-    wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${sids[0]}"
+	_apply_frr_config "$persist" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=SRv6 .*${first_sid}" \
+		"${frr_ip} route ${prefix} ${nhop} segments ${sids// //} vrf ${vrf_name}${nh_vrf_clause}"
+}
+
+# kill_frr_daemons <daemon> [<daemon>...]
+#
+# Simulate a crash of the named FRR daemons (e.g. zebra, staticd) and
+# block until watchfrr has respawned each one. PIDs are read from the
+# per-test pidfiles under $builddir/frr_install/var/run/frr/ so this is
+# safe to call from tests running in parallel; a host-wide pkill would
+# clobber daemons spawned by sibling smoke tests.
+#
+# Caller MUST export WATCHFRR_EXTRA_OPTS="--min-restart-interval=1"
+# before start_frr (the value is cached by watchfrr at startup).
+# Default is 60s, which silently postpones the respawn well past the
+# 10s budget enforced below and would make this helper always fail.
+#
+# Fails after 10s if any daemon is not respawned with a different pid.
+kill_frr_daemons() {
+	local frr_run="$builddir/frr_install/var/run/frr"
+	local daemon new
+	declare -A old_pids
+
+	for daemon in "$@"; do
+		old_pids[$daemon]=$(cat "$frr_run/$daemon.pid")
+	done
+
+	for daemon in "$@"; do
+		kill -9 "${old_pids[$daemon]}"
+	done
+
+	SECONDS=0
+	while :; do
+		local all_respawned=1
+		for daemon in "$@"; do
+			new=$(cat "$frr_run/$daemon.pid" 2>/dev/null || true)
+			if [ -z "$new" ] || [ "$new" = "${old_pids[$daemon]}" ]; then
+				all_respawned=0
+				break
+			fi
+		done
+		[ "$all_respawned" -eq 1 ] && break
+		[ "$SECONDS" -ge 10 ] && \
+			fail "watchfrr did not respawn $* within 10s"
+		sleep 0.1
+	done
 }
 
 #   <namespace> : optional netns name ("" = root namespace)
@@ -210,22 +286,24 @@ start_frr() {
 
 	local frr_etc="$builddir/frr_install/etc/frr"
 	local frr_logdir="$builddir/frr_install/var/log/frr"
-	local conf_dir flog daemons_file frrconf_file frr_global_opts
-	local zebra_options="-s 90000000"
+	# $frr_log is intentionally global (not local) so tests sourcing
+	# _init_frr.sh can grep it after start_frr completes.
+	local conf_dir daemons_file frrconf_file frr_global_opts
+	local zebra_options="-s 90000000${ZEBRA_EXTRA_OPTS:+ $ZEBRA_EXTRA_OPTS}"
 
 	mkdir -p "$frr_etc"
 	mkdir -p "$frr_logdir"
 
 	# Common config dir + files + log file + opts
 	conf_dir="$frr_etc${namespace:+/$namespace}"
-	flog="$frr_logdir/frr-${namespace:-grout}.log"
+	frr_log="$frr_logdir/frr-${namespace:-grout}.log"
 
 	mkdir -p "$conf_dir"
 	touch "$conf_dir/vtysh.conf"
 
 	daemons_file="$conf_dir/daemons"
 	frrconf_file="$conf_dir/frr.conf"
-	frr_global_opts="-A 127.0.0.1 --log file:$flog"
+	frr_global_opts="-A 127.0.0.1 --log file:$frr_log"
 
 	if [ "$use_grout" = "1" ]; then
 		zebra_options="$zebra_options -M dplane_grout"
@@ -243,10 +321,13 @@ frr_global_options="$frr_global_opts"
 zebra_options="$zebra_options"
 EOF
 
-	# only namespaces use watchfrr in a netns
-	if [ -n "$namespace" ]; then
+	if [ -n "$namespace" ] || [ -n "${WATCHFRR_EXTRA_OPTS:-}" ]; then
+		local wopts=""
+		[ -n "$namespace" ] && wopts="--netns=$namespace"
+		[ -n "${WATCHFRR_EXTRA_OPTS:-}" ] && \
+			wopts="${wopts:+$wopts }$WATCHFRR_EXTRA_OPTS"
 		cat >>"$daemons_file" <<EOF
-watchfrr_options="--netns=$namespace"
+watchfrr_options="$wopts"
 EOF
 	fi
 
@@ -257,8 +338,8 @@ debug zebra dplane dpdk
 EOF
 
 	# reset log
-	rm -f "$flog"
-	touch "$flog"
+	rm -f "$frr_log"
+	touch "$frr_log"
 
 	# logging: root strips ts, ns gets [ns] prefix
 	local sed_expr color
@@ -273,10 +354,10 @@ EOF
 	# Run the log tail pipeline in a subshell so we can kill all
 	# pipeline processes by killing the subshell's children.
 	if [ -t 1 ]; then
-		(tail -F "$flog" | sed -u -E "$sed_expr" | \
+		(tail -F "$frr_log" | sed -u -E "$sed_expr" | \
 			stdbuf -oL awk -v color="$color" '{print color $0 "\033[0m"}') &
 	else
-		(tail -F "$flog" | sed -u -E "$sed_expr") &
+		(tail -F "$frr_log" | sed -u -E "$sed_expr") &
 	fi
 	local tailpid=$!
 
@@ -330,7 +411,7 @@ EOF
 	# extra check when using Grout: wait for iface/ip events
 	if [ "$use_grout" = "1" ]; then
 		local attempts=25
-		while ! grep -q "GROUT:.*iface/ip events" "$flog" 2>/dev/null; do
+		while ! grep -q "GROUT:.*iface/ip events" "$frr_log" 2>/dev/null; do
 			if [ "$attempts" -le 0 ]; then
 				fail "Zebra is not listening grout events."
 			fi

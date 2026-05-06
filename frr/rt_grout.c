@@ -279,6 +279,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 
 		ctx.table = vrf_grout_to_frr(sr6->out_vrf_id);
 		nexthop_add_srv6_seg6local(nh, action, &ctx);
+		nh->type = nh->ifindex ? NEXTHOP_TYPE_IPV6_IFINDEX : NEXTHOP_TYPE_IPV6;
 		*nh_family = AF_INET6;
 		break;
 	}
@@ -298,12 +299,14 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		}
 
 		nexthop_add_srv6_seg6(nh, (void *)sr6->seglist, sr6->n_seglist, encap_behavior);
+		nh->type = nh->ifindex ? NEXTHOP_TYPE_IPV6_IFINDEX : NEXTHOP_TYPE_IPV6;
 		*nh_family = AF_INET6;
 		break;
 	}
 	case GR_NH_T_GROUP:
 		nh->ifindex = ifindex_grout_to_frr(gr_nh->iface_id);
 		nh->vrf_id = vrf_grout_to_frr(gr_nh->vrf_id);
+		nh->type = NEXTHOP_TYPE_IFINDEX;
 		*nh_family = AF_UNSPEC;
 		nh->weight = 1;
 		break;
@@ -321,9 +324,12 @@ static void grout_route_change(
 	uint16_t family,
 	void *dest_addr,
 	uint8_t dest_prefixlen,
-	struct gr_nexthop *gr_nh
+	uint16_t gr_route_vrf_id,
+	struct gr_nexthop *gr_nh,
+	bool startup
 ) {
-	uint32_t vrf_id = vrf_grout_to_frr(gr_nh->vrf_id);
+	uint32_t vrf_id = vrf_grout_to_frr(gr_route_vrf_id);
+	bool selfroute = is_selfroute(origin);
 	int proto = ZEBRA_ROUTE_KERNEL;
 	uint32_t nh_id = gr_nh->nh_id;
 	// Grout has no per‑VRF routing tables; table_id always equals vrf_id
@@ -334,8 +340,12 @@ static void grout_route_change(
 	size_t sz;
 	afi_t afi;
 
-	if (new && is_selfroute(origin)) {
-		gr_log_debug("self-originated %s route, skip", gr_nh_origin_name(origin));
+	// Echo of our own install: skip. Mirrors the !startup && selfroute
+	// guard in netlink_route_change (zebra/rt_netlink.c).
+	if (new && !startup && selfroute) {
+		gr_log_debug(
+			"self-originated %s route notification, skip", gr_nh_origin_name(origin)
+		);
 		return;
 	}
 
@@ -383,6 +393,11 @@ static void grout_route_change(
 
 	proto = origin2zebra(origin, family, false);
 
+	// Route inserted by Zebra: mark SELFROUTE so rib_compare_routes can
+	// swap with a client's re-push and rib_sweep_route can purge.
+	if (selfroute)
+		flags |= ZEBRA_FLAG_SELFROUTE;
+
 	if (new) {
 		struct route_entry *re;
 		struct nexthop_group *ng = NULL;
@@ -424,14 +439,15 @@ static void grout_route_change(
 	}
 }
 
-void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
+void grout_route4_change(bool new, struct gr_ip4_route *gr_r4, bool startup) {
 	gr_log_debug(
-		"%s %pI4/%u origin %s nh_id %u vrf %u",
+		"%s %pI4/%u origin %s nh_id %u route_vrf %u nh_vrf %u",
 		new ? "add" : "del",
 		&gr_r4->dest.ip,
 		gr_r4->dest.prefixlen,
 		gr_nh_origin_name(gr_r4->origin),
 		gr_r4->nh.nh_id,
+		gr_r4->vrf_id,
 		gr_r4->nh.vrf_id
 	);
 	grout_route_change(
@@ -440,18 +456,21 @@ void grout_route4_change(bool new, struct gr_ip4_route *gr_r4) {
 		AF_INET,
 		(void *)&gr_r4->dest.ip,
 		gr_r4->dest.prefixlen,
-		&gr_r4->nh
+		gr_r4->vrf_id,
+		&gr_r4->nh,
+		startup
 	);
 }
 
-void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
+void grout_route6_change(bool new, struct gr_ip6_route *gr_r6, bool startup) {
 	gr_log_debug(
-		"%s %pI6/%u origin %s nh_id %u vrf %u",
+		"%s %pI6/%u origin %s nh_id %u route_vrf %u nh_vrf %u",
 		new ? "add" : "del",
 		&gr_r6->dest.ip,
 		gr_r6->dest.prefixlen,
 		gr_nh_origin_name(gr_r6->origin),
 		gr_r6->nh.nh_id,
+		gr_r6->vrf_id,
 		gr_r6->nh.vrf_id
 	);
 	grout_route_change(
@@ -460,7 +479,9 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6) {
 		AF_INET6,
 		(void *)&gr_r6->dest.ip,
 		gr_r6->dest.prefixlen,
-		&gr_r6->nh
+		gr_r6->vrf_id,
+		&gr_r6->nh,
+		startup
 	);
 }
 
@@ -493,6 +514,15 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 
 	if (!is_selfroute(origin)) {
 		gr_log_debug("non-frr origin, skip");
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+
+	// Route was read from grout at startup and injected into zebra's RIB
+	// with ZEBRA_FLAG_SELFROUTE. Grout already has it, do not round-trip
+	// the install/update back to grout. Deletes must still flow so that
+	// rib_sweep_route can purge unreclaimed orphans.
+	if (new && (dplane_ctx_get_flags(ctx) & ZEBRA_FLAG_SELFROUTE)) {
+		gr_log_debug("selfroute install/update, already in grout, skip");
 		return ZEBRA_DPLANE_REQUEST_SUCCESS;
 	}
 
