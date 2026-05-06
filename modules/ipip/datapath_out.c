@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "capture.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -73,6 +74,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip_set_fields(outer, &tunnel);
 
 		IFACE_STATS_INC(tx, mbuf, iface);
+		capture_enqueue(iface, GR_CAPTURE_DIR_OUT, mbuf);
 
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);

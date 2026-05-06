@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "capture.h"
 #include "eth.h"
 #include "graph.h"
 #include "ip4_datapath.h"
@@ -67,6 +68,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
 		IFACE_STATS_INC(rx, mbuf, ipip);
+		capture_enqueue(ipip, GR_CAPTURE_DIR_IN, mbuf);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
