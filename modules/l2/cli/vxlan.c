@@ -17,7 +17,7 @@ static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface, st
 	const struct gr_iface_info_vxlan *vxlan = (const struct gr_iface_info_vxlan *)iface->info;
 
 	gr_object_field(o, "vni", GR_DISP_INT, "%u", vxlan->vni);
-	gr_object_field(o, "local", 0, IP4_F, &vxlan->local);
+	gr_object_field(o, "local", 0, ADDR_F, ADDR_W(vxlan->local.af), &vxlan->local.addr);
 	gr_object_field(o, "encap_vrf", 0, "%s", iface_name_from_id(c, vxlan->encap_vrf_id));
 	gr_object_field(o, "dst_port", GR_DISP_INT, "%u", vxlan->dst_port);
 	gr_object_field(o, "mac", 0, ETH_F, &vxlan->mac);
@@ -30,9 +30,10 @@ vxlan_list_info(struct gr_api_client *c, const struct gr_iface *iface, char *buf
 	snprintf(
 		buf,
 		len,
-		"vni=%u local=" IP4_F " encap_vrf=%s",
+		"vni=%u local=" ADDR_F " encap_vrf=%s",
 		vxlan->vni,
-		&vxlan->local,
+		ADDR_W(vxlan->local.af),
+		&vxlan->local.addr,
 		iface_name_from_id(c, vxlan->encap_vrf_id)
 	);
 }
