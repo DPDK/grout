@@ -241,7 +241,6 @@ METRIC_GAUGE(m_speed_bps, "iface_speed_bps", "Interface speed in bits per second
 static void iface_metrics_collect(struct metrics_writer *w) {
 	struct iface *iface = NULL;
 	struct metrics_ctx ctx;
-	char vrf[16];
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		const struct iface_type *type = iface_type_get(iface->type);
@@ -265,8 +264,10 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 		);
 
 		if (iface->mode == GR_IFACE_MODE_VRF) {
-			snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
-			metrics_labels_add(&ctx, "vrf", vrf, NULL);
+			const struct iface *vrf_iface = iface_from_id(iface->vrf_id);
+			metrics_labels_add(
+				&ctx, "vrf", vrf_iface ? vrf_iface->name : "[deleted]", NULL
+			);
 		} else {
 			const struct iface *domain = iface_from_id(iface->domain_id);
 			metrics_labels_add(
