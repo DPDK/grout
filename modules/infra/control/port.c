@@ -746,6 +746,7 @@ METRIC_GAUGE(m_txqs, "iface_port_txqs", "Number of TX queues.");
 METRIC_GAUGE(m_rxq_size, "iface_port_rxq_size", "Number of descriptors in RX queues.");
 METRIC_GAUGE(m_txq_size, "iface_port_txq_size", "Number of descriptors in TX queues.");
 METRIC_COUNTER(m_rx_missed, "iface_port_rx_missed", "Number of packets dropped by HW.");
+METRIC_COUNTER(m_rx_errors, "iface_port_rx_errors", "Number of RX packets with errors.");
 METRIC_COUNTER(m_tx_errors, "iface_port_tx_errors", "Number of TX failures.");
 
 static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *iface) {
@@ -765,6 +766,7 @@ static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *if
 
 	if (rte_eth_stats_get(port->port_id, &stats) == 0) {
 		metric_emit(ctx, &m_rx_missed, stats.imissed);
+		metric_emit(ctx, &m_rx_errors, stats.ierrors);
 		metric_emit(ctx, &m_tx_errors, stats.oerrors);
 	}
 }
