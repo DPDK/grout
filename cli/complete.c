@@ -92,7 +92,8 @@ int bash_complete(struct ec_node *cmdlist) {
 		return ret;
 	}
 
-	gr_strcpy(buf, i, comp_line);
+	memcpy(buf, comp_line, i);
+	buf[i] = '\0';
 
 	if ((cmdlist = bash_complete_node(cmdlist)) == NULL) {
 		errorf("bash_complete_node: %s", strerror(errno));
