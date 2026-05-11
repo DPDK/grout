@@ -236,6 +236,8 @@ METRIC_COUNTER(
 );
 METRIC_COUNTER(m_cp_tx_bytes, "iface_cp_tx_bytes", "Number of bytes transmitted by control plane.");
 
+METRIC_GAUGE(m_speed_bps, "iface_speed_bps", "Interface speed in bits per second.");
+
 static void iface_metrics_collect(struct metrics_writer *w) {
 	struct iface *iface = NULL;
 	struct metrics_ctx ctx;
@@ -309,6 +311,10 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 		metric_emit(&ctx, &m_cp_rx_bytes, cp_rx_bytes);
 		metric_emit(&ctx, &m_cp_tx_packets, cp_tx_pkts);
 		metric_emit(&ctx, &m_cp_tx_bytes, cp_tx_bytes);
+
+		// gr_iface.speed is in Megabit/sec; convert to bit/sec for
+		// the metric. 0 means unknown / link down.
+		metric_emit(&ctx, &m_speed_bps, (uint64_t)iface->speed * 1000000ULL);
 
 		// Dispatch to type-specific collector
 		if (type->metrics_collect != NULL)
