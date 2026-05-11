@@ -42,7 +42,7 @@ static struct ec_node *bash_complete_node(struct ec_node *cmdlist) {
 			EC_NO_ID,
 			ec_node("any", "prog_name"),
 			ec_node_option(EC_NO_ID, grcli_options_node()),
-			cmdlist
+			ec_node_clone(cmdlist)
 		)
 	);
 }
@@ -81,22 +81,22 @@ int bash_complete(struct ec_node *cmdlist) {
 
 	if (comp_line == NULL) {
 		errorf("COMP_LINE is not defined");
-		goto end;
+		return ret;
 	}
 	if (comp_point == NULL) {
 		errorf("COMP_POINT is not defined");
-		goto end;
+		return ret;
 	}
 	if (ec_str_parse_ullint(comp_point, 10, 0, strlen(comp_line), &i) < 0) {
 		errorf("invalid COMP_POINT value");
-		goto end;
+		return ret;
 	}
 
 	gr_strcpy(buf, i, comp_line);
 
 	if ((cmdlist = bash_complete_node(cmdlist)) == NULL) {
 		errorf("bash_complete_node: %s", strerror(errno));
-		goto end;
+		return ret;
 	}
 
 	if ((vec = ec_strvec_sh_lex_str(buf, EC_STRVEC_TRAILSP, NULL)) == NULL) {
