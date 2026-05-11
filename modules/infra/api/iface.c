@@ -7,6 +7,7 @@
 #include "module.h"
 
 #include <gr_infra.h>
+#include <gr_net_types.h>
 #include <gr_string.h>
 
 static struct gr_iface *iface_to_api(const struct iface *priv) {
@@ -242,10 +243,14 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		const struct iface_type *type = iface_type_get(iface->type);
+		char id_str[8];
 
+		snprintf(id_str, sizeof(id_str), "%u", iface->id);
 		metrics_ctx_init(
 			&ctx,
 			w,
+			"id",
+			id_str,
 			"name",
 			iface->name,
 			"type",
@@ -266,6 +271,14 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 				&ctx, "domain", domain ? domain->name : "[deleted]", NULL
 			);
 		}
+
+		// Attach the MAC as a label so the address is reported on
+		// every per-iface metric without requiring a separate API call.
+		struct rte_ether_addr mac_addr = {0};
+		char mac_str[18] = "00:00:00:00:00:00";
+		if (iface_get_eth_addr(iface, &mac_addr) == 0)
+			snprintf(mac_str, sizeof(mac_str), ETH_F, &mac_addr);
+		metrics_labels_add(&ctx, "mac", mac_str, NULL);
 
 		metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
 		metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
