@@ -364,8 +364,6 @@ static void fdb_event_cb(uint32_t event, const void *obj) {
 		return;
 	}
 
-	if ((fdb->flags & GR_FDB_F_EXTERN) == 0)
-		return;
 	if (add && (fdb->flags & GR_FDB_F_HW))
 		return;
 	if (!add && !(fdb->flags & GR_FDB_F_HW))
@@ -393,10 +391,11 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 	void *data;
 
 	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		if (!fdb_match(data, GR_FDB_F_EXTERN, bridge->id, GR_IFACE_ID_UNDEF, NULL))
+		fdb = data;
+
+		if (fdb->bridge_id != bridge->id)
 			continue;
 
-		fdb = data;
 		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
 		assert(fdb->vlan_id == 0);
 		push_mac_to_hw(member, &fdb->mac, add);
