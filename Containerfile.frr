@@ -16,5 +16,5 @@ RUN sed -i 's#^zebra_options=.*#zebra_options="-A 127.0.0.1 --log stdout -M dpla
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
-ENTRYPOINT ["/usr/bin/catatonit", "--"]
+ENTRYPOINT ["/usr/libexec/catatonit/catatonit", "--"]
 CMD ["/bin/sh", "-c", ". /usr/libexec/frr/frrcommon.sh && /usr/libexec/frr/watchfrr $(daemon_list)"]
