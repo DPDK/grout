@@ -14,5 +14,5 @@ RUN rm -rf /tmp/null/var/cache/* /tmp/null/var/log/dnf* /tmp/null/var/log/yum.*
 FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
-ENTRYPOINT ["/usr/bin/catatonit", "--"]
+ENTRYPOINT ["/usr/libexec/catatonit/catatonit", "--"]
 CMD ["/usr/bin/grout"]
