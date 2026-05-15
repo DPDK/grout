@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "bond.h"
+#include "capture.h"
 #include "graph.h"
 #include "iface.h"
 #include "mbuf.h"
@@ -224,6 +225,7 @@ bond_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			t->member_iface_id = member->id;
 		}
 
+		capture_enqueue(member, GR_CAPTURE_DIR_OUT, mbuf);
 		IFACE_STATS_INC(tx, mbuf, member);
 
 		edge = PORT_OUTPUT;

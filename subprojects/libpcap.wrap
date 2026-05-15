@@ -1,0 +1,12 @@
+[wrap-git]
+url = https://github.com/the-tcpdump-group/libpcap
+revision = bac2884bfabe20f9ff0f711eb9eb7589569e6a01
+depth = 1
+patch_directory = libpcap
+diff_files =
+	libpcap/0001-plugin-add-runtime-plugin-loader-for-external-captur.patch,
+	libpcap/0002-plugin-expose-timestamp-type-accessors-for-adapter-c.patch,
+	libpcap/0003-plugin-complete-accessor-API-for-tcpdump-feature-par.patch
+
+[provide]
+dependency_names = libpcap
