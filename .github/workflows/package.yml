@@ -93,7 +93,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64, aarch64]
-    runs-on: ubuntu-24.04${{ case(matrix.arch, 'aarch64', '-arm', '') }}
+    runs-on: ubuntu-24.04${{ matrix.arch == 'aarch64' && '-arm' || '' }}
     container: "quay.io/centos/centos:stream10"
     steps:
       - name: install system dependencies
