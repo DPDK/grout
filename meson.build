@@ -64,6 +64,32 @@ if not compiler.compiles('''
   error(compiler.get_id(), compiler.version(), 'does not support C23 __VA_OPT__ macro')
 endif
 
+dpdk_drivers = [
+  'bus/auxiliary',
+  'common/mlx5',
+  'net/i40e',
+  'net/iavf',
+  'net/ice',
+  'net/ixgbe',
+  'net/mlx5',
+  'net/null',
+  'net/tap',
+  'net/vhost',
+  'net/virtio',
+  'net/vmxnet3',
+]
+dpdk_libs = [
+  'cryptodev',
+  'dmadev',
+  'fib',
+  'graph',
+  'gso',
+  'hash',
+  'pcapng',
+  'rib',
+  'security',
+  'vhost',
+]
 dpdk_dep = dependency(
   'libdpdk',
   version : '>= 25.11',
@@ -72,8 +98,8 @@ dpdk_dep = dependency(
     'c_std=c11',
     'werror=false',
     'tests=false',
-    'enable_drivers=net/virtio,net/vhost,net/i40e,net/ice,net/iavf,net/ixgbe,net/null,net/tap,common/mlx5,net/mlx5,bus/auxiliary,net/vmxnet3',
-    'enable_libs=graph,hash,fib,rib,pcapng,gso,vhost,cryptodev,dmadev,security',
+    'enable_drivers=' + ','.join(dpdk_drivers),
+    'enable_libs=' + ','.join(dpdk_libs),
     'disable_apps=*',
     'enable_docs=false',
     'developer_mode=disabled',
