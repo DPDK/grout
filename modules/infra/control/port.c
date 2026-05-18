@@ -748,6 +748,8 @@ METRIC_GAUGE(m_txq_size, "iface_port_txq_size", "Number of descriptors in TX que
 METRIC_COUNTER(m_rx_missed, "iface_port_rx_missed", "Number of packets dropped by HW.");
 METRIC_COUNTER(m_rx_errors, "iface_port_rx_errors", "Number of RX packets with errors.");
 METRIC_COUNTER(m_tx_errors, "iface_port_tx_errors", "Number of TX failures.");
+METRIC_COUNTER(m_port_rx_bytes, "iface_port_rx_bytes", "Number of bytes received by HW.");
+METRIC_COUNTER(m_port_tx_bytes, "iface_port_tx_bytes", "Number of bytes transmitted by HW.");
 
 static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *iface) {
 	const struct iface_info_port *port = iface_info_port(iface);
@@ -768,6 +770,8 @@ static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *if
 		metric_emit(ctx, &m_rx_missed, stats.imissed);
 		metric_emit(ctx, &m_rx_errors, stats.ierrors);
 		metric_emit(ctx, &m_tx_errors, stats.oerrors);
+		metric_emit(ctx, &m_port_rx_bytes, stats.ibytes);
+		metric_emit(ctx, &m_port_tx_bytes, stats.obytes);
 	}
 }
 
