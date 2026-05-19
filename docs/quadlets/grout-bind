@@ -1,0 +1,68 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+# Bind a network device for use by grout (DPDK). For vfio-pci capable
+# devices, unbind from the kernel driver and bind to vfio-pci. For
+# mellanox NICs, move the device to the grout network namespace.
+#
+# State is stored in /run/grout-bind/<netdev> for grout-unbind.
+
+STATE_DIR=/run/grout-bind
+
+die() {
+	echo "error: $*" >&2
+	exit 1
+}
+
+if [ $# -ne 1 ]; then
+	die "usage: $0 <netdev>"
+fi
+netdev=$1
+
+# Idempotent: skip if already bound.
+if [ -f "$STATE_DIR/$netdev" ]; then
+	echo "$netdev: already bound, skipping"
+	exit 0
+fi
+
+device=$(readlink -ve /sys/class/net/$netdev/device)
+if [ -z "$device" ]; then
+	die "$netdev: no such netdev"
+fi
+
+# For virtio NICs, /sys/class/net/<dev>/device points to the virtio bus
+# device (e.g. virtio1), not the PCI device. Walk up to the PCI parent.
+pci_addr=$(basename "$device")
+case "$pci_addr" in
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f]:*)
+	;;
+*)
+	device=$(dirname "$device")
+	pci_addr=$(basename "$device")
+	;;
+esac
+
+driver=$(basename $(readlink -ve "$device/driver"))
+if [ -z "$driver" ]; then
+	die "$netdev: cannot determine pci driver"
+fi
+
+set -e
+mkdir -p "$STATE_DIR"
+
+case "$driver" in
+mlx5*)
+	echo "Moving $netdev to grout network namespace"
+	ip link set $netdev netns grout
+	echo "mlx5 $driver $pci_addr" > "$STATE_DIR/$netdev"
+	;;
+*)
+	echo "Binding $netdev ($pci_addr) to vfio-pci (was $driver)"
+	/sbin/modprobe vfio-pci
+	echo vfio-pci > /sys/bus/pci/devices/$pci_addr/driver_override
+	echo $pci_addr > /sys/bus/pci/drivers/$driver/unbind || true
+	echo $pci_addr > /sys/bus/pci/drivers/vfio-pci/bind
+	echo "vfio $driver $pci_addr" > "$STATE_DIR/$netdev"
+	;;
+esac

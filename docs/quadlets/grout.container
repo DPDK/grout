@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=Grout
+After=dev-hugepages.mount network.target grout-netns.service
+Requires=dev-hugepages.mount grout-netns.service
+ConditionPathExists=/dev/hugepages
+
+[Container]
+Image=quay.io/grout/grout:edge
+ContainerName=grout
+Network=ns:/run/netns/grout
+Notify=true
+Environment=NOTIFY_SOCKET
+Exec=/usr/bin/grout -m 0666 -M unix:/run/grout-metrics.sock
+PodmanArgs=--privileged
+Volume=/run
+Volume=/dev/hugepages:/dev/hugepages
+Volume=/dev/vfio:/dev/vfio
+Volume=/sys/bus/pci:/sys/bus/pci
+Volume=/etc/grout:/etc/grout:ro
+Volume=/etc/grout.init:/etc/grout.init:ro
+AddDevice=/dev/net/tun
+AddDevice=/dev/infiniband
+
+[Service]
+ExecStartPre=/usr/bin/udevadm settle
+ExecStartPost=/usr/bin/podman exec grout /usr/bin/grcli -xef /etc/grout.init
+
+[Install]
+WantedBy=multi-user.target default.target
