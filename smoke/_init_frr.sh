@@ -157,43 +157,43 @@ EOF
 #       fd00:202::2 fd00:202::3 fd00:202::4
 #
 set_srv6_route() {
-    local prefix="$1"
-    local nhop="$2"
-    shift 2                       # all remaining words are SIDs
+	local prefix="$1"
+	local nhop="$2"
+	shift 2                       # all remaining words are SIDs
 
-    # ----- collect SIDs ----------------------------------------------------
-    local sids=()
-    while [[ "$1" =~ : ]]; do     # anything with a ":" is assumed to be a SID
-	    sids+=("$1")
-	    shift
-    done
-    [[ ${#sids[@]} -eq 0 ]] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
+	# ----- collect SIDs ----------------------------------------------------
+	local sids=()
+	while [[ "$1" =~ : ]]; do     # anything with a ":" is assumed to be a SID
+		sids+=("$1")
+		shift
+	done
+	[[ ${#sids[@]} -eq 0 ]] && { echo "set_srv6_route: need at least one SID" >&2; return 1; }
 
-    # ----- choose FRR keyword ---------------------------------------------
-    local frr_ip route
-    if [[ "$prefix" == *:* ]]; then
-	    frr_ip="ipv6"
-	    route="route6"
-    else
-	    frr_ip="ip"
-	    route="route4"
-    fi
+	# ----- choose FRR keyword ---------------------------------------------
+	local frr_ip route
+	if [[ "$prefix" == *:* ]]; then
+		frr_ip="ipv6"
+		route="route6"
+	else
+		frr_ip="ip"
+		route="route4"
+	fi
 
-    # ----- build CLI form -------------------------------------------------
-    local seg_frr="${sids[*]}"
-    seg_frr=${seg_frr// //}
+	# ----- build CLI form -------------------------------------------------
+	local seg_frr="${sids[*]}"
+	seg_frr=${seg_frr// //}
 
-    mark_events
+	mark_events
 
-    # ----- push route into FRR --------------------------------------------
-    vtysh <<-EOF
-    configure terminal
-      ${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}
-      exit
+	# ----- push route into FRR --------------------------------------------
+	vtysh <<-EOF
+	configure terminal
+	  ${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}
+	  exit
 EOF
 
-    # ----- wait until Grout shows it --------------------------------------
-    wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${sids[0]}"
+	# ----- wait until Grout shows it --------------------------------------
+	wait_event "$route add: vrf=.+ $prefix origin=zebra_static via type=SRv6 .*${sids[0]}"
 }
 
 #   <namespace> : optional netns name ("" = root namespace)
