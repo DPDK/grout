@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=Create grout network namespace
+After=NetworkManager.service
+Before=grout.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ip netns add grout
+ExecStart=/usr/sbin/ip -n grout link set lo up
+ExecStop=/usr/sbin/ip netns del grout
+
+[Install]
+WantedBy=multi-user.target

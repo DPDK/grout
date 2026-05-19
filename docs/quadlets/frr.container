@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=FRR Routing Suite
+After=grout.service
+Requires=grout.service
+
+[Container]
+Image=quay.io/grout/grout:edge
+ContainerName=frr
+NetworkNS=container:grout
+Exec=/usr/bin/frr
+VolumesFrom=grout
+Volume=/etc/frr/frr.conf:/etc/frr/frr.conf
+
+[Install]
+WantedBy=multi-user.target default.target

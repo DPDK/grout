@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=Grout Metrics Proxy
+After=grout.service
+Requires=grout.service
+
+[Container]
+Image=docker.io/alpine/socat:latest
+ContainerName=grout-metrics
+PublishPort=9111:9111
+Exec=TCP-LISTEN:9111,fork,reuseaddr UNIX-CONNECT:/run/grout-metrics.sock
+VolumesFrom=grout
+
+[Install]
+WantedBy=multi-user.target default.target

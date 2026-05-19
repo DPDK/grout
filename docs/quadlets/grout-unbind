@@ -1,0 +1,47 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+# Reverse what grout-bind did: unbind from vfio-pci and restore the
+# original kernel driver, or move a mellanox NIC back from the grout
+# network namespace.
+
+STATE_DIR=/run/grout-bind
+
+die() {
+	echo "error: $*" >&2
+	exit 1
+}
+
+if [ $# -ne 1 ]; then
+	die "usage: $0 <netdev>"
+fi
+netdev=$1
+
+state="$STATE_DIR/$netdev"
+if ! [ -f "$state" ]; then
+	echo "$netdev: not bound, skipping"
+	exit 0
+fi
+
+read type driver pci_addr < "$state"
+
+set -e
+
+case "$type" in
+mlx5)
+	echo "Moving $netdev back from grout network namespace"
+	ip netns exec grout ip link set $netdev netns 1
+	;;
+vfio)
+	echo "Unbinding $pci_addr from vfio-pci, restoring $driver"
+	echo > /sys/bus/pci/devices/$pci_addr/driver_override
+	echo $pci_addr > /sys/bus/pci/drivers/vfio-pci/unbind || true
+	echo $pci_addr > /sys/bus/pci/drivers/$driver/bind
+	;;
+*)
+	die "$netdev: unknown bind type '$type'"
+	;;
+esac
+
+rm -f "$state"

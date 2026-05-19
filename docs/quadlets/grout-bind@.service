@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+# ex: ft=systemd
+
+[Unit]
+Description=Bind netdev %i for grout usage
+After=grout-netns.service
+Before=grout.service
+PartOf=grout.service
+Requires=grout-netns.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/grout-bind %i
+ExecStop=/usr/local/bin/grout-unbind %i
+
+[Install]
+WantedBy=multi-user.target
