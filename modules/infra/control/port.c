@@ -750,6 +750,40 @@ METRIC_COUNTER(m_rx_errors, "iface_port_rx_errors", "Number of RX packets with e
 METRIC_COUNTER(m_tx_errors, "iface_port_tx_errors", "Number of TX failures.");
 METRIC_COUNTER(m_port_rx_bytes, "iface_port_rx_bytes", "Number of bytes received by HW.");
 METRIC_COUNTER(m_port_tx_bytes, "iface_port_tx_bytes", "Number of bytes transmitted by HW.");
+METRIC_COUNTER(
+	m_port_xstat,
+	"iface_port_xstat",
+	"Raw PMD extended statistic. The xstat label carries the driver-native counter name."
+);
+
+static void port_xstats_emit(struct metrics_ctx *ctx, uint16_t port_id) {
+	int n = rte_eth_xstats_get_names(port_id, NULL, 0);
+	if (n <= 0)
+		return;
+
+	struct rte_eth_xstat_name *names = calloc(n, sizeof(*names));
+	struct rte_eth_xstat *values = calloc(n, sizeof(*values));
+	if (names == NULL || values == NULL)
+		goto out;
+
+	if (rte_eth_xstats_get_names(port_id, names, n) != n)
+		goto out;
+	if (rte_eth_xstats_get(port_id, values, n) != n)
+		goto out;
+
+	// Save the base label set; rewind it between iterations so each emit
+	// replaces (not appends) the xstat label.
+	size_t base_len = ctx->labels_len;
+	for (int i = 0; i < n; i++) {
+		ctx->labels_len = base_len;
+		metrics_labels_add(ctx, "xstat", names[i].name, NULL);
+		metric_emit(ctx, &m_port_xstat, values[i].value);
+	}
+	ctx->labels_len = base_len;
+out:
+	free(names);
+	free(values);
+}
 
 static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *iface) {
 	const struct iface_info_port *port = iface_info_port(iface);
@@ -773,6 +807,8 @@ static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *if
 		metric_emit(ctx, &m_port_rx_bytes, stats.ibytes);
 		metric_emit(ctx, &m_port_tx_bytes, stats.obytes);
 	}
+
+	port_xstats_emit(ctx, port->port_id);
 }
 
 static struct event *link_event;
