@@ -749,11 +749,19 @@ METRIC_COUNTER(m_rx_missed, "iface_port_rx_missed", "Number of packets dropped b
 METRIC_COUNTER(m_rx_errors, "iface_port_rx_errors", "Number of RX packets with errors.");
 METRIC_COUNTER(m_rx_nobufs, "iface_port_rx_nobufs", "Number of RX buffer starvation errors.");
 METRIC_COUNTER(m_tx_errors, "iface_port_tx_errors", "Number of TX failures.");
+METRIC_COUNTER(
+	m_port_xstat,
+	"iface_port_xstat",
+	"Raw extended statistic. The xstat label carries the driver-native counter name."
+);
 
 static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *iface) {
 	const struct iface_info_port *port = iface_info_port(iface);
+	struct rte_eth_xstat_name *names = NULL;
+	struct rte_eth_xstat *values = NULL;
 	struct rte_eth_dev_info dev_info;
 	struct rte_eth_stats stats;
+	int n_xstats;
 
 	if (rte_eth_dev_info_get(port->port_id, &dev_info) == 0)
 		metrics_labels_add(ctx, "driver", dev_info.driver_name, NULL);
@@ -771,6 +779,33 @@ static void port_metrics_collect(struct metrics_ctx *ctx, const struct iface *if
 		metric_emit(ctx, &m_rx_nobufs, stats.rx_nombuf);
 		metric_emit(ctx, &m_tx_errors, stats.oerrors);
 	}
+
+	n_xstats = rte_eth_xstats_get_names(port->port_id, NULL, 0);
+	if (n_xstats <= 0)
+		goto out;
+
+	names = calloc(n_xstats, sizeof(*names));
+	values = calloc(n_xstats, sizeof(*values));
+	if (names == NULL || values == NULL)
+		goto out;
+
+	if (rte_eth_xstats_get_names(port->port_id, names, n_xstats) != n_xstats)
+		goto out;
+	if (rte_eth_xstats_get(port->port_id, values, n_xstats) != n_xstats)
+		goto out;
+
+	// Save the base label set; rewind it between iterations so each emit
+	// replaces (not appends) the xstat label.
+	size_t base_len = ctx->labels_len;
+	for (int i = 0; i < n_xstats; i++) {
+		ctx->labels_len = base_len;
+		metrics_labels_add(ctx, "xstat", names[i].name, NULL);
+		metric_emit(ctx, &m_port_xstat, values[i].value);
+	}
+	ctx->labels_len = base_len;
+out:
+	free(names);
+	free(values);
 }
 
 static struct event *link_event;
