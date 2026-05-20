@@ -4,6 +4,7 @@
 #include "event.h"
 #include "iface.h"
 #include "log.h"
+#include "metrics.h"
 #include "module.h"
 #include "rcu.h"
 #include "vlan.h"
@@ -228,6 +229,13 @@ static void vlan_to_api(void *info, const struct iface *iface) {
 	*api = vlan->base;
 }
 
+static void vlan_metrics_collect(struct metrics_ctx *ctx, const struct iface *iface) {
+	const struct iface_info_vlan *vlan = iface_info_vlan(iface);
+	const struct iface *parent = iface_from_id(vlan->parent_id);
+
+	metrics_labels_add(ctx, "parent", parent ? parent->name : "[deleted]", NULL);
+}
+
 static const struct iface_type iface_type_vlan = {
 	.id = GR_IFACE_TYPE_VLAN,
 	.pub_size = sizeof(struct gr_iface_info_vlan),
@@ -242,6 +250,7 @@ static const struct iface_type iface_type_vlan = {
 	.del_eth_addr = iface_vlan_del_eth_addr,
 	.set_promisc = iface_vlan_promisc_set,
 	.to_api = vlan_to_api,
+	.metrics_collect = vlan_metrics_collect,
 };
 
 static void vlan_init(struct event_base *) {

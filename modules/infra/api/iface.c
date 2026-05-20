@@ -7,6 +7,7 @@
 #include "module.h"
 
 #include <gr_infra.h>
+#include <gr_net_types.h>
 #include <gr_string.h>
 
 static struct gr_iface *iface_to_api(const struct iface *priv) {
@@ -235,17 +236,22 @@ METRIC_COUNTER(
 );
 METRIC_COUNTER(m_cp_tx_bytes, "iface_cp_tx_bytes", "Number of bytes transmitted by control plane.");
 
+METRIC_GAUGE(m_speed_bps, "iface_speed_bps", "Interface speed in bits per second.");
+
 static void iface_metrics_collect(struct metrics_writer *w) {
 	struct iface *iface = NULL;
 	struct metrics_ctx ctx;
-	char vrf[16];
 
 	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
 		const struct iface_type *type = iface_type_get(iface->type);
+		char id_str[8];
 
+		snprintf(id_str, sizeof(id_str), "%u", iface->id);
 		metrics_ctx_init(
 			&ctx,
 			w,
+			"id",
+			id_str,
 			"name",
 			iface->name,
 			"type",
@@ -258,14 +264,24 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 		);
 
 		if (iface->mode == GR_IFACE_MODE_VRF) {
-			snprintf(vrf, sizeof(vrf), "%u", iface->vrf_id);
-			metrics_labels_add(&ctx, "vrf", vrf, NULL);
+			const struct iface *vrf_iface = iface_from_id(iface->vrf_id);
+			metrics_labels_add(
+				&ctx, "vrf", vrf_iface ? vrf_iface->name : "[deleted]", NULL
+			);
 		} else {
 			const struct iface *domain = iface_from_id(iface->domain_id);
 			metrics_labels_add(
 				&ctx, "domain", domain ? domain->name : "[deleted]", NULL
 			);
 		}
+
+		// Attach the MAC as a label so the address is reported on
+		// every per-iface metric without requiring a separate API call.
+		struct rte_ether_addr mac_addr = {0};
+		char mac_str[18] = "00:00:00:00:00:00";
+		if (iface_get_eth_addr(iface, &mac_addr) == 0)
+			snprintf(mac_str, sizeof(mac_str), ETH_F, &mac_addr);
+		metrics_labels_add(&ctx, "mac", mac_str, NULL);
 
 		metric_emit(&ctx, &m_up, !!(iface->flags & GR_IFACE_F_UP));
 		metric_emit(&ctx, &m_running, !!(iface->state & GR_IFACE_S_RUNNING));
@@ -296,6 +312,10 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 		metric_emit(&ctx, &m_cp_rx_bytes, cp_rx_bytes);
 		metric_emit(&ctx, &m_cp_tx_packets, cp_tx_pkts);
 		metric_emit(&ctx, &m_cp_tx_bytes, cp_tx_bytes);
+
+		// gr_iface.speed is in Megabit/sec; convert to bit/sec for
+		// the metric. 0 means unknown / link down.
+		metric_emit(&ctx, &m_speed_bps, (uint64_t)iface->speed * 1000000ULL);
 
 		// Dispatch to type-specific collector
 		if (type->metrics_collect != NULL)

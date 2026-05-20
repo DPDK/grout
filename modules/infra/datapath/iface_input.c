@@ -52,12 +52,14 @@ static uint16_t
 iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t last_iface_id, last_vlan_id;
 	const struct iface *vlan_iface;
+	const struct iface *parent_iface;
 	struct iface_mbuf_data *d;
 	struct rte_mbuf *m;
 	uint16_t vlan_id;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(rx);
+	IFACE_STATS_VARS(rx, self);
+	IFACE_STATS_VARS(rx, parent);
 
 	last_iface_id = GR_IFACE_ID_UNDEF;
 	last_vlan_id = UINT16_MAX;
@@ -67,6 +69,7 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		m = objs[i];
 		d = iface_mbuf_data(m);
 		vlan_id = d->vlan_id;
+		parent_iface = d->iface;
 
 		if (d->vlan_id != 0 && d->iface->mode == GR_IFACE_MODE_VRF) {
 			if (last_iface_id != d->iface->id || d->vlan_id != last_vlan_id) {
@@ -87,7 +90,9 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 
-		IFACE_STATS_INC(rx, m, d->iface);
+		IFACE_STATS_INC(rx, self, m, d->iface);
+		if (parent_iface != d->iface)
+			IFACE_STATS_INC(rx, parent, m, parent_iface);
 
 		edge = edges[d->iface->mode];
 next:
@@ -100,7 +105,8 @@ next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	IFACE_STATS_FLUSH(rx);
+	IFACE_STATS_FLUSH(rx, self);
+	IFACE_STATS_FLUSH(rx, parent);
 
 	return nb_objs;
 }
