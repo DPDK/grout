@@ -344,6 +344,7 @@ send:
 	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 
 	free(req_payload);
+	req_payload = NULL;
 	free(out.payload);
 
 	if (evbuffer_get_length(input) >= sizeof(ctx->header)) {
@@ -382,6 +383,19 @@ static void accept_conn_cb(
 	struct event_base *base = priv;
 	struct bufferevent *bev;
 	struct api_ctx *ctx;
+	struct ucred cred = {0};
+	socklen_t cred_len = sizeof(cred);
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &cred_len) == -1) {
+		LOG(ERR, "getsockopt SO_PEERCRED: %s", strerror(errno));
+		close(fd);
+		return;
+	}
+	if (cred.uid != 0 && cred.uid != gr_config.api_sock_uid) {
+		LOG(ERR, "rejected connection from uid=%u pid=%u", cred.uid, cred.pid);
+		close(fd);
+		return;
+	}
 
 	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 	if (bev == NULL) {
