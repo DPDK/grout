@@ -78,10 +78,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete edge --cleanup-tag --yes || true
-          gh release create edge --prerelease \
-            --title "Edge (unstable)" \
-            --notes-file - *.rpm *.*deb <<EOF
+          notes=$(cat <<EOF
           Rolling pre-release from $(git rev-parse --short HEAD).
 
           Container image:
@@ -92,6 +89,23 @@ jobs:
                 --cap-add NET_ADMIN,IPC_LOCK \\
                 quay.io/grout/grout:edge
           EOF
+          )
+          if gh release view edge > /dev/null 2>&1; then
+            gh api -X PATCH /repos/{owner}/{repo}/git/refs/tags/edge \
+              -f sha="$(git rev-parse HEAD)" -F force=true
+            gh release edit edge --title "Edge (unstable)" --notes "$notes"
+            gh release view edge --json assets --jq '.assets[].name' |
+            while read -r asset; do
+              gh release delete-asset edge "$asset" --yes
+            done
+            gh release upload edge *.rpm *.*deb
+          else
+            gh api -X POST /repos/{owner}/{repo}/git/refs \
+              -f ref="refs/tags/edge" -f sha="$(git rev-parse HEAD)"
+            gh release create edge --prerelease \
+              --title "Edge (unstable)" \
+              --notes "$notes" *.rpm *.*deb
+          fi
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
