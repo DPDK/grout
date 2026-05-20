@@ -34,7 +34,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(tx);
+	IFACE_STATS_VARS(tx, self);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -72,7 +72,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		ip_set_fields(outer, &tunnel);
 
-		IFACE_STATS_INC(tx, mbuf, iface);
+		IFACE_STATS_INC(tx, self, mbuf, iface);
 
 		// Resolve nexthop for the encapsulated packet.
 		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote);
@@ -82,7 +82,7 @@ next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
-	IFACE_STATS_FLUSH(tx);
+	IFACE_STATS_FLUSH(tx, self);
 
 	return nb_objs;
 }
