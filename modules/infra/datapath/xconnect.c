@@ -20,21 +20,21 @@ xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(rx);
-	IFACE_STATS_VARS(tx);
+	IFACE_STATS_VARS(rx, self);
+	IFACE_STATS_VARS(tx, self);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		iface = mbuf_data(mbuf)->iface;
 		peer = iface_from_id(iface->domain_id);
 
-		IFACE_STATS_INC(rx, mbuf, iface);
+		IFACE_STATS_INC(rx, self, mbuf, iface);
 
 		if (peer != NULL && peer->type == GR_IFACE_TYPE_PORT) {
 			mbuf_data(mbuf)->iface = peer;
 			edge = OUTPUT;
 
-			IFACE_STATS_INC(tx, mbuf, peer);
+			IFACE_STATS_INC(tx, self, mbuf, peer);
 		} else {
 			edge = NO_PORT;
 		}
@@ -45,8 +45,8 @@ xconnect_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
-	IFACE_STATS_FLUSH(rx);
-	IFACE_STATS_FLUSH(tx);
+	IFACE_STATS_FLUSH(rx, self);
+	IFACE_STATS_FLUSH(tx, self);
 
 	return nb_objs;
 }

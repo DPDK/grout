@@ -61,7 +61,7 @@ static uint16_t iface_output_process(
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(tx);
+	IFACE_STATS_VARS(tx, self);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -89,7 +89,7 @@ static uint16_t iface_output_process(
 			goto next;
 		}
 
-		IFACE_STATS_INC(tx, m, d->iface);
+		IFACE_STATS_INC(tx, self, m, d->iface);
 
 		d->iface = iface;
 		edge = iface_type_edges[iface->type];
@@ -97,7 +97,7 @@ next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	IFACE_STATS_FLUSH(tx);
+	IFACE_STATS_FLUSH(tx, self);
 
 	return nb_objs;
 }

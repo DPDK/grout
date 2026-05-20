@@ -80,35 +80,37 @@ uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_
 uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_shared_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
-#define IFACE_STATS_VARS(dir)                                                                      \
-	struct iface_stats *dir##_stats;                                                           \
-	uint16_t dir##_last_iface_id = GR_IFACE_ID_UNDEF;                                          \
-	uint16_t dir##_packets = 0;                                                                \
-	uint64_t dir##_bytes = 0;
+#define IFACE_STATS_VARS(dir, acc)                                                                 \
+	struct iface_stats *dir##_##acc##_stats;                                                   \
+	uint16_t dir##_##acc##_last_iface_id = GR_IFACE_ID_UNDEF;                                  \
+	uint16_t dir##_##acc##_packets = 0;                                                        \
+	uint64_t dir##_##acc##_bytes = 0;
 
-#define IFACE_STATS_INC(dir, mbuf, iface)                                                          \
+#define IFACE_STATS_INC(dir, acc, mbuf, iface)                                                     \
 	do {                                                                                       \
-		if (iface->id != dir##_last_iface_id) {                                            \
-			if (dir##_packets != 0) {                                                  \
-				dir##_stats = iface_get_stats(                                     \
-					rte_lcore_id(), dir##_last_iface_id                        \
+		if (iface->id != dir##_##acc##_last_iface_id) {                                    \
+			if (dir##_##acc##_packets != 0) {                                          \
+				dir##_##acc##_stats = iface_get_stats(                             \
+					rte_lcore_id(), dir##_##acc##_last_iface_id                \
 				);                                                                 \
-				dir##_stats->dir##_packets += dir##_packets;                       \
-				dir##_stats->dir##_bytes += dir##_bytes;                           \
-				dir##_packets = 0;                                                 \
-				dir##_bytes = 0;                                                   \
+				dir##_##acc##_stats->dir##_packets += dir##_##acc##_packets;       \
+				dir##_##acc##_stats->dir##_bytes += dir##_##acc##_bytes;           \
+				dir##_##acc##_packets = 0;                                         \
+				dir##_##acc##_bytes = 0;                                           \
 			}                                                                          \
-			dir##_last_iface_id = iface->id;                                           \
+			dir##_##acc##_last_iface_id = iface->id;                                   \
 		}                                                                                  \
-		dir##_packets += 1;                                                                \
-		dir##_bytes += rte_pktmbuf_pkt_len(mbuf);                                          \
+		dir##_##acc##_packets += 1;                                                        \
+		dir##_##acc##_bytes += rte_pktmbuf_pkt_len(mbuf);                                  \
 	} while (0)
 
-#define IFACE_STATS_FLUSH(dir)                                                                     \
+#define IFACE_STATS_FLUSH(dir, acc)                                                                \
 	do {                                                                                       \
-		if (dir##_packets != 0) {                                                          \
-			dir##_stats = iface_get_stats(rte_lcore_id(), dir##_last_iface_id);        \
-			dir##_stats->dir##_packets += dir##_packets;                               \
-			dir##_stats->dir##_bytes += dir##_bytes;                                   \
+		if (dir##_##acc##_packets != 0) {                                                  \
+			dir##_##acc##_stats = iface_get_stats(                                     \
+				rte_lcore_id(), dir##_##acc##_last_iface_id                        \
+			);                                                                         \
+			dir##_##acc##_stats->dir##_packets += dir##_##acc##_packets;               \
+			dir##_##acc##_stats->dir##_bytes += dir##_##acc##_bytes;                   \
 		}                                                                                  \
 	} while (0)
