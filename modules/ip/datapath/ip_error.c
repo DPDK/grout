@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "datapath.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -13,18 +14,20 @@
 GR_NODE_CTX_TYPE(ip_error_ctx, {
 	uint8_t icmp_type;
 	uint8_t icmp_code;
+	struct rate_limit_ctx limit;
 });
 
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
 	NO_IP,
+	RATE_LIMITED,
 	EDGE_COUNT,
 };
 
 static uint16_t
 ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct ip_error_ctx *ctx = ip_error_ctx(node);
+	struct ip_error_ctx *ctx = ip_error_ctx(node);
 	struct ip_local_mbuf_data *ip_data;
 	const struct nexthop_info_l3 *l3;
 	const struct nexthop *nh, *local;
@@ -35,6 +38,11 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	ip4_addr_t src, dst;
 	rte_edge_t edge;
 	unsigned len;
+
+	if (rate_limited(&ctx->limit, graph_conf.icmp_error_rate, nb_objs)) {
+		rte_node_next_stream_move(graph, node, RATE_LIMITED);
+		return nb_objs;
+	}
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -100,6 +108,8 @@ static int ttl_exceeded_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip_error_ctx *ctx = ip_error_ctx(node);
 	ctx->icmp_type = RTE_ICMP_TYPE_TTL_EXCEEDED;
 	ctx->icmp_code = RTE_ICMP_CODE_TTL_EXCEEDED;
+	ctx->limit.tokens = graph_conf.icmp_error_rate;
+	ctx->limit.last_refill = rte_rdtsc();
 	return 0;
 }
 
@@ -107,6 +117,8 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip_error_ctx *ctx = ip_error_ctx(node);
 	ctx->icmp_type = RTE_ICMP_TYPE_DEST_UNREACHABLE;
 	ctx->icmp_code = RTE_ICMP_CODE_UNREACH_NET;
+	ctx->limit.tokens = graph_conf.icmp_error_rate;
+	ctx->limit.last_refill = rte_rdtsc();
 	return 0;
 }
 
@@ -114,6 +126,8 @@ static int frag_needed_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip_error_ctx *ctx = ip_error_ctx(node);
 	ctx->icmp_type = RTE_ICMP_TYPE_DEST_UNREACHABLE;
 	ctx->icmp_code = RTE_ICMP_CODE_UNREACH_FRAG;
+	ctx->limit.tokens = graph_conf.icmp_error_rate;
+	ctx->limit.last_refill = rte_rdtsc();
 	return 0;
 }
 
@@ -125,6 +139,7 @@ static struct rte_node_register ip_forward_ttl_exceeded_node = {
 		[ICMP_OUTPUT] = "icmp_output",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
+		[RATE_LIMITED] = "error_rate_limited",
 	},
 	.init = ttl_exceeded_init,
 };
@@ -137,6 +152,7 @@ static struct rte_node_register no_route_node = {
 		[ICMP_OUTPUT] = "icmp_output",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
+		[RATE_LIMITED] = "error_rate_limited",
 	},
 	.init = no_route_init,
 };
@@ -149,6 +165,7 @@ static struct rte_node_register frag_needed_node = {
 		[ICMP_OUTPUT] = "icmp_output",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
+		[RATE_LIMITED] = "error_rate_limited",
 	},
 	.init = frag_needed_init,
 };
@@ -173,3 +190,4 @@ GR_NODE_REGISTER(info_no_route);
 GR_NODE_REGISTER(info_frag_needed);
 
 GR_DROP_REGISTER(error_no_local_ip);
+GR_DROP_REGISTER(error_rate_limited);
