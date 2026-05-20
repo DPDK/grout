@@ -57,21 +57,25 @@ static uint16_t iface_output_process(
 	uint16_t nb_objs
 ) {
 	const struct iface *iface;
+	const struct iface *parent;
 	struct iface_mbuf_data *d;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
 	IFACE_STATS_VARS(tx, self);
+	IFACE_STATS_VARS(tx, parent);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
 		d = iface_mbuf_data(m);
 		iface = d->iface;
+		parent = NULL;
 
 		if (iface->type == GR_IFACE_TYPE_VLAN) {
 			const struct iface_info_vlan *vlan = iface_info_vlan(iface);
 			d->vlan_id = vlan->vlan_id;
 			iface = iface_from_id(vlan->parent_id);
+			parent = iface;
 		}
 
 		if (gr_mbuf_is_traced(m)) {
@@ -90,6 +94,8 @@ static uint16_t iface_output_process(
 		}
 
 		IFACE_STATS_INC(tx, self, m, d->iface);
+		if (parent != NULL)
+			IFACE_STATS_INC(tx, parent, m, parent);
 
 		d->iface = iface;
 		edge = iface_type_edges[iface->type];
@@ -98,6 +104,7 @@ next:
 	}
 
 	IFACE_STATS_FLUSH(tx, self);
+	IFACE_STATS_FLUSH(tx, parent);
 
 	return nb_objs;
 }
