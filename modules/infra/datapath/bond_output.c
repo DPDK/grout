@@ -204,7 +204,7 @@ bond_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct iface *member;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(tx);
+	IFACE_STATS_VARS(tx, self);
 
 	for (unsigned i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
@@ -224,14 +224,14 @@ bond_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			t->member_iface_id = member->id;
 		}
 
-		IFACE_STATS_INC(tx, mbuf, member);
+		IFACE_STATS_INC(tx, self, mbuf, member);
 
 		edge = PORT_OUTPUT;
 next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
-	IFACE_STATS_FLUSH(tx);
+	IFACE_STATS_FLUSH(tx, self);
 
 	return nb_objs;
 }

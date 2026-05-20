@@ -29,7 +29,7 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 	struct rte_mbuf *m;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(rx);
+	IFACE_STATS_VARS(rx, self);
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
@@ -43,7 +43,7 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 
 		// XXX: increment tx stats on source VRF
-		IFACE_STATS_INC(rx, m, eth_data->iface);
+		IFACE_STATS_INC(rx, self, m, eth_data->iface);
 
 		if (gr_mbuf_is_traced(m) || (eth_data->iface->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_vrf_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
@@ -53,7 +53,7 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
 
-	IFACE_STATS_FLUSH(rx);
+	IFACE_STATS_FLUSH(rx, self);
 
 	return nb_objs;
 }

@@ -33,7 +33,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct iface *ipip;
 	rte_edge_t edge;
 
-	IFACE_STATS_VARS(rx);
+	IFACE_STATS_VARS(rx, self);
 
 	ipip = NULL;
 	last_src = 0;
@@ -66,7 +66,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
 		edge = IP_INPUT;
-		IFACE_STATS_INC(rx, mbuf, ipip);
+		IFACE_STATS_INC(rx, self, mbuf, ipip);
 next:
 		if (gr_mbuf_is_traced(mbuf) || (ipip && ipip->flags & GR_IFACE_F_PACKET_TRACE)) {
 			struct trace_ipip_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -75,7 +75,7 @@ next:
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
-	IFACE_STATS_FLUSH(rx);
+	IFACE_STATS_FLUSH(rx, self);
 
 	return nb_objs;
 }
