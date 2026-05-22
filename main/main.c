@@ -321,13 +321,13 @@ int main(int argc, char **argv) {
 		goto shutdown;
 	}
 
-	if (sd_notifyf(0, "READY=1\nSTATUS=grout version %s started", GROUT_VERSION) < 0)
+	if (gr_sd_notifyf(0, "READY=1\nSTATUS=grout version %s started", GROUT_VERSION) < 0)
 		LOG(ERR, "sd_notifyf: %s", strerror(errno));
 
 	// run until signal or fatal error
 	if (event_base_dispatch(ev_base) == 0) {
 		ret = EXIT_SUCCESS;
-		if (sd_notifyf(0, "STOPPING=1\nSTATUS=shutting down...") < 0)
+		if (gr_sd_notifyf(0, "STOPPING=1\nSTATUS=shutting down...") < 0)
 			LOG(ERR, "sd_notifyf: %s", strerror(errno));
 	} else {
 		err = errno;
@@ -345,7 +345,7 @@ shutdown:
 dpdk_stop:
 	dpdk_fini();
 	if (err != 0)
-		sd_notifyf(0, "ERRNO=%i", err);
+		gr_sd_notifyf(0, "ERRNO=%i", err);
 end:
 	vec_free(gr_config.eal_extra_args);
 	return ret;

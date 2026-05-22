@@ -33,7 +33,7 @@ static void closefd(int *fd) {
 	}
 }
 
-int sd_notifyf(int unset_environment, const char *format, ...) {
+int gr_sd_notifyf(int unset_environment, const char *format, ...) {
 	struct sockaddr_un sun = {.sun_family = AF_UNIX};
 	__attribute__((cleanup(closefd))) int fd = -1;
 	const char *sock_path;

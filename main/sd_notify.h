@@ -4,4 +4,5 @@
 #pragma once
 
 // Implement the systemd notify protocol without external dependencies.
-int sd_notifyf(int unset_environment, const char *format, ...);
+int gr_sd_notifyf(int unset_environment, const char *format, ...)
+	__attribute__((format(printf, 2, 3)));
