@@ -94,6 +94,8 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
+		mbuf_data(mbuf)->iface = iface;
+
 		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
 			edge = TOO_BIG;
 			goto next;
@@ -102,7 +104,6 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		// Determine what is the next node based on the output interface type
 		// By default, it will be eth_output unless another output node was registered.
 		edge = iface_type_edges[iface->type];
-		mbuf_data(mbuf)->iface = iface;
 		if (edge != ETH_OUTPUT)
 			goto next;
 
@@ -157,7 +158,7 @@ static struct rte_node_register output_node = {
 		[HOLD] = "ip6_hold",
 		[ERROR] = "ip6_output_error",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
-		[TOO_BIG] = "ip6_output_too_big",
+		[TOO_BIG] = "ip6_error_pkt_too_big",
 	},
 };
 
@@ -171,4 +172,3 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_output_error);
-GR_DROP_REGISTER(ip6_output_too_big);
