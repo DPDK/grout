@@ -236,7 +236,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	if (!(l3->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
-		l3->last_reply = gr_clock_us();
+		l3->last_reply = gr_clock_ns();
 		l3->state = GR_NH_S_REACHABLE;
 		l3->ucast_probes = 0;
 		l3->bcast_probes = 0;

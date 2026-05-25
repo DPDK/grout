@@ -83,16 +83,16 @@ static uint16_t icmp6_local_send_process(
 	struct icmp6_echo_request *icmp6_echo;
 	struct ip6_local_mbuf_data *data;
 	struct ctl_to_stack *msg;
+	gr_clock_ns_t *payload;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
-	clock_t *payload;
 	rte_edge_t next;
 	size_t pkt_len;
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		msg = control_input_mbuf_data(mbuf)->data;
-		pkt_len = sizeof(*icmp6) + sizeof(*icmp6_echo) + sizeof(clock_t);
+		pkt_len = sizeof(*icmp6) + sizeof(*icmp6_echo) + sizeof(gr_clock_ns_t);
 		icmp6 = (struct icmp6 *)rte_pktmbuf_append(mbuf, pkt_len);
 
 		icmp6->type = ICMP6_TYPE_ECHO_REQUEST;
@@ -108,7 +108,7 @@ static uint16_t icmp6_local_send_process(
 		mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
 
 		payload = PAYLOAD(icmp6_echo);
-		*payload = gr_clock_us();
+		*payload = gr_clock_ns();
 
 		data = ip6_local_mbuf_data(mbuf);
 		data->iface = iface_from_id(msg->iface_id);

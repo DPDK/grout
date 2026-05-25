@@ -89,19 +89,19 @@ static uint16_t icmp_local_send_process(
 	struct ip_local_mbuf_data *data;
 	struct rte_icmp_hdr *icmp;
 	struct ctl_to_stack *msg;
+	gr_clock_ns_t *payload;
 	struct rte_mbuf *mbuf;
-	clock_t *payload;
 	rte_edge_t next;
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
 		msg = control_input_mbuf_data(mbuf)->data;
 		icmp = (struct rte_icmp_hdr *)rte_pktmbuf_append(
-			mbuf, sizeof(*icmp) + sizeof(clock_t)
+			mbuf, sizeof(*icmp) + sizeof(gr_clock_ns_t)
 		);
 
-		payload = rte_pktmbuf_mtod_offset(mbuf, clock_t *, sizeof(*icmp));
-		*payload = gr_clock_us();
+		payload = rte_pktmbuf_mtod_offset(mbuf, gr_clock_ns_t *, sizeof(*icmp));
+		*payload = gr_clock_ns();
 
 		// Build ICMP packet
 		icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REQUEST;
@@ -116,7 +116,7 @@ static uint16_t icmp_local_send_process(
 
 		data = ip_local_mbuf_data(mbuf);
 		data->proto = IPPROTO_ICMP;
-		data->len = sizeof(*icmp) + sizeof(clock_t);
+		data->len = sizeof(*icmp) + sizeof(gr_clock_ns_t);
 		data->dst = msg->dst;
 		data->src = msg->src;
 		data->vrf_id = msg->vrf_id;

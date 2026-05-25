@@ -138,7 +138,7 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		if (fdb_format_flags(flags, sizeof(flags), fdb->flags))
 			gr_table_cell(table, 5, "%s", flags);
 
-		gr_table_cell(table, 6, "%ld", (gr_clock_us() - fdb->last_seen) / CLOCKS_PER_SEC);
+		gr_table_cell(table, 6, "%ld", (gr_clock_ns() - fdb->last_seen) / GR_NS_PER_S);
 
 		if (gr_table_print_row(table) < 0)
 			break;

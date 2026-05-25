@@ -11,11 +11,9 @@
 #include <gr_api.h>
 #include <gr_ip6.h>
 
-#include <time.h>
-
 struct icmp_queue_item {
 	struct rte_mbuf *mbuf;
-	clock_t timestamp;
+	gr_clock_ns_t timestamp;
 	STAILQ_ENTRY(icmp_queue_item) next;
 };
 
@@ -44,13 +42,13 @@ static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_qu
 }
 
 #define ICMP6_ERROR_PKT_LEN                                                                        \
-	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(clock_t))
+	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
 
 static struct rte_mbuf *get_icmp6_echo_reply(
 	uint16_t ident,
 	uint16_t seq_num,
 	struct icmp6 **out_icmp6,
-	clock_t *timestamp
+	gr_clock_ns_t *timestamp
 ) {
 	struct icmp_queue_item *i, *tmp;
 	struct rte_mbuf *mbuf;
@@ -61,7 +59,7 @@ static struct rte_mbuf *get_icmp6_echo_reply(
 	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
 		mbuf = i->mbuf;
 
-		if (rte_pktmbuf_pkt_len(mbuf) < GR_ICMP6_HDR_LEN + sizeof(clock_t))
+		if (rte_pktmbuf_pkt_len(mbuf) < GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
 			goto free_and_skip;
 
 		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
@@ -108,11 +106,11 @@ static struct api_out icmp6_send(const void *request, struct api_ctx *) {
 
 static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip6_icmp_recv_req *recvreq = request;
+	gr_clock_ns_t *pkt_timestamp, rcv_timestamp;
+	struct icmp6_echo_reply *icmp6_echo;
 	struct gr_ip6_icmp_recv_resp *resp;
 	struct ip6_local_mbuf_data *d_ip6;
 	struct icmp6 *icmp6;
-	struct icmp6_echo_reply *icmp6_echo;
-	clock_t *pkt_timestamp, rcv_timestamp;
 	struct rte_mbuf *m;
 	int ret = 0;
 

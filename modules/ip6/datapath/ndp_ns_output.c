@@ -32,7 +32,7 @@ int nh6_solicit(struct nexthop *nh) {
 
 	// This function is called by the control plane main thread.
 	// It is OK to modify the nexthop here.
-	l3->last_request = gr_clock_us();
+	l3->last_request = gr_clock_ns();
 	if (l3->ucast_probes < nh_conf.max_ucast_probes)
 		l3->ucast_probes++;
 	else
