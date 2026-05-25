@@ -138,7 +138,7 @@ void fdb_learn(
 		fdb = data;
 	}
 
-	fdb->last_seen = gr_clock_us();
+	fdb->last_seen = gr_clock_ns();
 
 	if ((fdb->flags & GR_FDB_F_LEARN)
 	    && (fdb->iface_id != iface_id || !l3_addr_eq(&fdb->vtep, vtep))) {
@@ -207,7 +207,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 		e = data;
 		*e = req->fdb;
 		e->bridge_id = iface->id;
-		e->last_seen = gr_clock_us();
+		e->last_seen = gr_clock_ns();
 
 		if ((ret = rte_hash_add_key_data(fdb_hash, &key, data)) < 0) {
 			rte_mempool_put(fdb_pool, e);
@@ -219,7 +219,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 		e = data;
 		*e = req->fdb;
 		e->bridge_id = iface->id;
-		e->last_seen = gr_clock_us();
+		e->last_seen = gr_clock_ns();
 
 		event_push(GR_EVENT_FDB_UPDATE, e);
 	} else {
@@ -397,14 +397,14 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	const struct iface *bridge;
 	struct gr_fdb_entry *fdb;
+	gr_clock_ns_t now;
 	uint32_t next = 0;
 	uint16_t max_age;
 	const void *key;
-	clock_t now;
 	void *data;
 	time_t age;
 
-	now = gr_clock_us();
+	now = gr_clock_ns();
 
 	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
 		fdb = data;
@@ -412,7 +412,7 @@ static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		if ((fdb->flags & GR_FDB_F_STATIC) || !(fdb->flags & GR_FDB_F_LEARN))
 			continue;
 
-		age = (now - fdb->last_seen) / CLOCKS_PER_SEC;
+		age = (now - fdb->last_seen) / GR_NS_PER_S;
 
 		bridge = iface_from_id(fdb->bridge_id);
 		if (bridge != NULL)

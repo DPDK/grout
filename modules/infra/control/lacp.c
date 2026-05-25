@@ -65,7 +65,7 @@ void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 
 	// Store partner information from received PDU
 	member->remote = pdu->actor;
-	member->last_rx = gr_clock_us();
+	member->last_rx = gr_clock_ns();
 
 	// Save old member state to detect changes
 	bool old_active = member->active;
@@ -117,12 +117,12 @@ static int lacp_send(const struct bond_member *member) {
 // Periodic timer callback to send LACP PDUs and check timeouts
 static void lacp_periodic(evutil_socket_t, short, void *) {
 	struct iface_info_bond *bond;
+	gr_clock_ns_t now, timeout;
 	struct bond_member *member;
 	const struct iface *port;
-	clock_t now, timeout;
 	struct iface *iface;
 
-	now = gr_clock_us();
+	now = gr_clock_ns();
 
 	iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_BOND, iface)) != NULL) {
@@ -139,9 +139,9 @@ static void lacp_periodic(evutil_socket_t, short, void *) {
 			// Check for timeout if we've received at least one PDU
 			if (member->last_rx != 0) {
 				if (member->local.state & LACP_STATE_FAST)
-					timeout = LACP_SHORT_TIMEOUT * US_PER_S;
+					timeout = LACP_SHORT_TIMEOUT * GR_NS_PER_S;
 				else
-					timeout = LACP_LONG_TIMEOUT * US_PER_S;
+					timeout = LACP_LONG_TIMEOUT * GR_NS_PER_S;
 
 				if (now - member->last_rx > timeout && member->active) {
 					// Partner timed out - enter FAILED state
@@ -175,9 +175,9 @@ static void lacp_periodic(evutil_socket_t, short, void *) {
 
 			member->need_to_transmit = false;
 			if (member->remote.state & LACP_STATE_FAST)
-				member->next_tx = now + LACP_SHORT_TIMEOUT * US_PER_S;
+				member->next_tx = now + LACP_SHORT_TIMEOUT * GR_NS_PER_S;
 			else
-				member->next_tx = now + LACP_LONG_TIMEOUT * US_PER_S;
+				member->next_tx = now + LACP_LONG_TIMEOUT * GR_NS_PER_S;
 		}
 
 		// Update active members list if any port timed out

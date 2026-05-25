@@ -70,7 +70,7 @@ struct gr_conntrack {
 	uint8_t proto;
 	struct gr_conntrack_flow fwd_flow;
 	struct gr_conntrack_flow rev_flow;
-	clock_t last_update;
+	gr_clock_ns_t last_update;
 	uint32_t id;
 	gr_conn_state_t state;
 };

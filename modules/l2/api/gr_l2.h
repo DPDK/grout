@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_bitops.h>
+#include <gr_clock.h>
 #include <gr_macro.h>
 #include <gr_net_types.h>
 
@@ -74,7 +75,7 @@ struct gr_fdb_entry {
 	uint16_t iface_id; // Updated automatically when a MAC moves between members.
 	struct l3_addr vtep; // Remote VTEP for VXLAN-learned entries, 0 for local.
 	gr_fdb_flags_t flags;
-	clock_t last_seen; // Refreshed on each datapath hit for learned entries.
+	gr_clock_ns_t last_seen; // Refreshed on each datapath hit for learned entries.
 };
 
 enum gr_l2_requests : uint32_t {

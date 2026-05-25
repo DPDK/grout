@@ -143,7 +143,7 @@ struct gr_ip4_icmp_recv_resp {
 	uint16_t ident;
 	uint16_t seq_num;
 	ip4_addr_t src_addr;
-	clock_t response_time;
+	gr_clock_ns_t response_time;
 };
 
 GR_REQ(GR_IP4_ICMP_RECV, struct gr_ip4_icmp_recv_req, struct gr_ip4_icmp_recv_resp);

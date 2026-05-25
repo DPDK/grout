@@ -240,7 +240,7 @@ again:
 			goto again;
 	}
 
-	atomic_store(&c->last_update, gr_clock_us());
+	atomic_store(&c->last_update, gr_clock_ns());
 }
 
 bool gr_conn_parse_key(
@@ -389,7 +389,7 @@ struct conn *gr_conn_insert(const struct conn_key *fwd_key, const struct conn_ke
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	clock_t now = gr_clock_us(), last;
+	gr_clock_ns_t now = gr_clock_ns(), last;
 	uint64_t age, timeout;
 	struct conn *conn;
 	const void *key;
@@ -444,7 +444,7 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 		last = atomic_load(&conn->last_update);
 		if (last > now)
 			continue;
-		age = (now - last) / 1000000ULL;
+		age = (now - last) / GR_NS_PER_S;
 		if (age > timeout)
 			gr_conn_destroy(conn);
 	}

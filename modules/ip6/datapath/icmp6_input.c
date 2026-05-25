@@ -82,7 +82,7 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		case ICMP6_TYPE_ROUTER_ADVERT:
 		default:
 			if (icmp6_cb[icmp6->type] != NULL) {
-				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], gr_clock_us());
+				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], gr_clock_ns());
 				next = CONTROL;
 			} else {
 				next = UNSUPPORTED;

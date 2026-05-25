@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
 	tty_init();
 
 	// initialize a non-constant seed for random() calls
-	srandom(gr_clock_us());
+	srandom(gr_clock_ns());
 
 	if (ec_init() < 0) {
 		errorf("ec_init: %s", strerror(errno));

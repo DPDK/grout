@@ -6,6 +6,7 @@
 #include "iface.h"
 #include "lacp.h"
 
+#include <gr_clock.h>
 #include <gr_infra.h>
 
 #include <stdint.h>
@@ -16,8 +17,8 @@ struct bond_member {
 	struct iface *iface;
 	bool active;
 	bool need_to_transmit; // Need to send immediately
-	clock_t next_tx; // Next time we need to send a LACP packet
-	clock_t last_rx; // Last time we received a LACP packet
+	gr_clock_ns_t next_tx; // Next time we need to send a LACP packet
+	gr_clock_ns_t last_rx; // Last time we received a LACP packet
 	// For direct inclusion in LACP packets
 	struct lacp_participant local;
 	struct lacp_participant remote;

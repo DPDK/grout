@@ -295,12 +295,12 @@ static struct nexthop_type_ops l3_nh_ops = {
 
 static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
 	const struct nexthop_af_ops *ops;
-	clock_t now = gr_clock_us();
+	gr_clock_ns_t now = gr_clock_ns();
 	unsigned probes, max_probes;
 	time_t reply_age;
 
 	ops = af_ops[l3->af];
-	reply_age = (now - l3->last_reply) / CLOCKS_PER_SEC;
+	reply_age = (now - l3->last_reply) / GR_NS_PER_S;
 	max_probes = nh_conf.max_ucast_probes + nh_conf.max_bcast_probes;
 	probes = l3->ucast_probes + l3->bcast_probes;
 

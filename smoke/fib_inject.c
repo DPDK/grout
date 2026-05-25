@@ -192,9 +192,9 @@ int main(int argc, char **argv) {
 	unsigned count = 10000;
 	uint32_t installed = 0;
 	unsigned dist_count;
+	gr_clock_ns_t time;
 	bool ipv6 = false;
 	float duration;
-	clock_t time;
 	int ret;
 	int o;
 
@@ -242,14 +242,14 @@ int main(int argc, char **argv) {
 	if (create_nexthops(c) < 0)
 		return EXIT_FAILURE;
 
-	time = gr_clock_us();
+	time = gr_clock_ns();
 
 	if (ipv6)
 		ret = inject_ipv6(c, count);
 	else
 		ret = inject_ipv4(c, count);
 
-	duration = (float)(gr_clock_us() - time) / (float)CLOCKS_PER_SEC;
+	duration = (float)(gr_clock_ns() - time) / (float)GR_NS_PER_S;
 
 	printf("total time: %.1fs (%.1f routes/s)\n", duration, (float)count / duration);
 

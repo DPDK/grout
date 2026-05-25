@@ -43,7 +43,7 @@ struct conn {
 	struct conn_key fwd_key;
 	struct conn_key rev_key;
 	_Atomic(gr_conn_state_t) state;
-	_Atomic(clock_t) last_update;
+	_Atomic(gr_clock_ns_t) last_update;
 	struct nat44 nat;
 };
 

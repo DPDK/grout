@@ -16,7 +16,7 @@
 
 static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) {
 	const struct gr_conntrack *conn;
-	clock_t now;
+	gr_clock_ns_t now;
 	int ret;
 
 	struct gr_table *table = gr_table_new();
@@ -31,7 +31,7 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 	gr_table_column(table, "DPORT", GR_DISP_RIGHT | GR_DISP_INT); // 8
 	gr_table_column(table, "LAST_UPDATE", GR_DISP_RIGHT); // 9
 
-	now = gr_clock_us();
+	now = gr_clock_ns();
 
 	gr_api_client_stream_foreach (conn, ret, c, GR_CONNTRACK_LIST, 0, NULL) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, conn->iface_id));
@@ -55,7 +55,7 @@ static cmd_status_t conn_list(struct gr_api_client *c, const struct ec_pnode *) 
 
 		gr_table_cell(table, 7, "%u", ntohs(conn->fwd_flow.src_id));
 		gr_table_cell(table, 8, "%u", ntohs(conn->fwd_flow.dst_id));
-		gr_table_cell(table, 9, "%lu", (now - conn->last_update) / 1000000);
+		gr_table_cell(table, 9, "%ld", (now - conn->last_update) / GR_NS_PER_S);
 
 		if (gr_table_print_row(table) < 0)
 			break;
