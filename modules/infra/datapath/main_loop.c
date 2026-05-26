@@ -17,9 +17,12 @@
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 
+#include <linux/futex.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 LOG_TYPE("graph");
@@ -269,6 +272,35 @@ reconfig:
 				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
 				goto reconfig;
 			}
+
+			// Park check: leave RCU offline so we don't block
+			// grace periods, wake every second to re-check
+			// shutdown/reconfig.
+			if (atomic_load(&w->paused) == 1) {
+				struct timespec wait_ts = {.tv_sec = 1};
+				rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
+				while (atomic_load(&w->paused) == 1) {
+					syscall(SYS_futex,
+						(int *)&w->paused,
+						FUTEX_WAIT | FUTEX_PRIVATE_FLAG,
+						1,
+						&wait_ts,
+						NULL,
+						0);
+					if (atomic_load(&w->shutdown))
+						goto shutdown;
+					if (atomic_load(&w->next_config) != cur)
+						goto reconfig;
+				}
+				rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
+				// Reset timing so the park duration is not
+				// charged as busy_cycles on the next interval.
+				timestamp = rte_rdtsc();
+				sleep = 0;
+				loop = 0;
+				continue;
+			}
+
 			if (atomic_exchange(&w->stats_reset, false))
 				stats_reset(ctx.w_stats);
 

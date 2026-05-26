@@ -21,10 +21,12 @@
 #include <rte_malloc.h>
 
 #include <errno.h>
+#include <linux/futex.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
 #include <sys/queue.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 LOG_TYPE("worker");
@@ -94,6 +96,7 @@ int worker_destroy(unsigned cpu_id) {
 
 	atomic_store(&worker->shutdown, true);
 	worker_wakeup(worker);
+	worker_unpark(worker);
 	pthread_join(worker->thread, NULL);
 	pthread_cond_destroy(&worker->wakeup.cond);
 	pthread_mutex_destroy(&worker->wakeup.lock);
@@ -119,6 +122,20 @@ void worker_wakeup(struct worker *w) {
 	w->wakeup.set = true;
 	pthread_cond_signal(&w->wakeup.cond);
 	pthread_mutex_unlock(&w->wakeup.lock);
+}
+
+void worker_park(struct worker *w) {
+	atomic_store(&w->paused, 1);
+}
+
+void worker_unpark(struct worker *w) {
+	atomic_store(&w->paused, 0);
+	// FUTEX_WAKE is a no-op if the worker isn't actually waiting.
+	syscall(SYS_futex, (int *)&w->paused, FUTEX_WAKE | FUTEX_PRIVATE_FLAG, 1, NULL, NULL, 0);
+}
+
+bool worker_is_paused(const struct worker *w) {
+	return atomic_load(&w->paused) == 1;
 }
 
 unsigned worker_count(void) {
