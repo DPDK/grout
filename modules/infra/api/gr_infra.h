@@ -102,6 +102,8 @@ struct gr_iface {
 #define GR_PORT_SET_N_TXQS GR_BIT64(33)
 #define GR_PORT_SET_Q_SIZE GR_BIT64(34)
 #define GR_PORT_SET_MAC GR_BIT64(35)
+#define GR_PORT_SET_RSS_CAP GR_BIT64(36)
+#define GR_PORT_SET_RSS_FLOOR GR_BIT64(37)
 
 // Base info structure for GR_IFACE_TYPE_PORT interfaces.
 struct __gr_iface_info_port_base {
@@ -110,6 +112,9 @@ struct __gr_iface_info_port_base {
 	uint16_t rxq_size;
 	uint16_t txq_size;
 	struct rte_ether_addr mac;
+	// rss-autoscale operator policy: max / min active RX queues (0 = unset).
+	uint16_t rss_cap;
+	uint16_t rss_floor;
 };
 
 // Complete port info structure including device arguments and driver name.
@@ -252,6 +257,7 @@ enum gr_infra_requests : uint32_t {
 	GR_IFACE_MAC_DEL,
 	GR_IFACE_MAC_LIST,
 	GR_IFACE_MAC_SET,
+	GR_RSS_AUTOSCALE_LIST,
 };
 
 enum gr_infra_events : uint32_t {
@@ -499,6 +505,23 @@ struct gr_affinity_cpu_set_req {
 };
 
 GR_REQ(GR_AFFINITY_CPU_SET, struct gr_affinity_cpu_set_req, struct gr_empty);
+
+// adaptive RSS scaling / worker parking ///////////////////////////////////////
+
+// Per-port snapshot of the rss-autoscale controller. cap and floor are
+// 0 when no policy is set; min_n / max_n are the usable bounds from
+// the PMD's allowed dist-size list (post cluster-size filtering).
+struct gr_rss_autoscale_port_state {
+	uint16_t iface_id;
+	uint16_t n_active;
+	uint16_t n_load_recommended;
+	uint16_t min_n;
+	uint16_t max_n;
+	uint16_t cap;
+	uint16_t floor;
+};
+
+GR_REQ_STREAM(GR_RSS_AUTOSCALE_LIST, struct gr_empty, struct gr_rss_autoscale_port_state);
 
 // Helper function to convert iface type enum to string
 static inline const char *gr_iface_type_name(gr_iface_type_t type) {

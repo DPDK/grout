@@ -9,6 +9,7 @@ cli_src += files(
   'graph.c',
   'icmp.c',
   'iface.c',
+  'rss_autoscale.c',
   'mac.c',
   'vrf.c',
   'nexthop.c',

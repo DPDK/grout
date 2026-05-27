@@ -48,7 +48,7 @@ build_allowed_n(const char *driver_name, uint16_t max_n, uint16_t **out_arr, siz
 	return 0;
 }
 
-int port_scale_caps_get(struct iface_info_port *p, struct port_scale_caps *out) {
+int port_scale_caps_get_n(struct iface_info_port *p, uint16_t n_rxq, struct port_scale_caps *out) {
 	struct rte_eth_dev_info info;
 	int ret;
 
@@ -60,17 +60,20 @@ int port_scale_caps_get(struct iface_info_port *p, struct port_scale_caps *out) 
 	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
 		return ret;
 
-	out->max_n = info.nb_rx_queues;
+	// n_rxq == 0 means "the live HW queue count". A non-zero override lets a
+	// pending reconfig validate cap/floor against its target queue count;
+	// reta_size is a HW property independent of the queue count.
+	if (n_rxq == 0)
+		n_rxq = info.nb_rx_queues;
+
+	out->max_n = n_rxq;
 	// port_scale_apply rejects a reta_size that is not a multiple of
 	// RTE_ETH_RETA_GROUP_SIZE, so refuse the same here: announcing
 	// supports_scale=true while every apply would fail is misleading.
-	if (info.reta_size == 0 || info.nb_rx_queues <= 1
-	    || info.reta_size % RTE_ETH_RETA_GROUP_SIZE != 0)
+	if (info.reta_size == 0 || n_rxq <= 1 || info.reta_size % RTE_ETH_RETA_GROUP_SIZE != 0)
 		return 0;
 
-	if ((ret = build_allowed_n(
-		     info.driver_name, info.nb_rx_queues, &out->allowed_n, &out->allowed_count
-	     ))
+	if ((ret = build_allowed_n(info.driver_name, n_rxq, &out->allowed_n, &out->allowed_count))
 	    < 0)
 		return ret;
 
@@ -78,11 +81,27 @@ int port_scale_caps_get(struct iface_info_port *p, struct port_scale_caps *out) 
 	return 0;
 }
 
+int port_scale_caps_get(struct iface_info_port *p, struct port_scale_caps *out) {
+	return port_scale_caps_get_n(p, 0, out);
+}
+
 void port_scale_caps_free(struct port_scale_caps *caps) {
 	if (caps == NULL)
 		return;
 	free(caps->allowed_n);
 	memset(caps, 0, sizeof(*caps));
+}
+
+void port_scale_caps_filter_cluster(struct port_scale_caps *caps, uint16_t cluster) {
+	size_t w = 0;
+
+	if (cluster <= 1 || caps->allowed_n == NULL)
+		return;
+	for (size_t r = 0; r < caps->allowed_count; r++)
+		if (caps->allowed_n[r] % cluster == 0)
+			caps->allowed_n[w++] = caps->allowed_n[r];
+	caps->allowed_count = w;
+	caps->supports_scale = (w > 1);
 }
 
 uint16_t port_scale_caps_next(const struct port_scale_caps *caps, uint16_t cur) {
@@ -103,6 +122,16 @@ uint16_t port_scale_caps_prev(const struct port_scale_caps *caps, uint16_t cur) 
 			return caps->allowed_n[i - 1];
 	}
 	return caps->allowed_n[0];
+}
+
+uint16_t port_scale_caps_clamp(const struct port_scale_caps *caps, uint16_t n) {
+	uint16_t best = 0;
+
+	if (caps == NULL || caps->allowed_count == 0)
+		return n;
+	for (size_t i = 0; i < caps->allowed_count && caps->allowed_n[i] <= n; i++)
+		best = caps->allowed_n[i];
+	return best != 0 ? best : caps->allowed_n[0];
 }
 
 int port_scale_apply(struct iface_info_port *p, uint16_t n) {
