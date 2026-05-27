@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "graph.h"
 #include "log.h"
 #include "module.h"
 #include "port.h"
+#include "rss_autoscale.h"
 #include "rxtx.h"
 #include "vec.h"
 #include "worker.h"
@@ -157,12 +159,24 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 		ctx->rxq.queue_id = qmap->queue_id;
 		burst_size = RTE_MAX(1u, graph_conf.vector_max / vec_len(rx_nodes));
 		ctx->burst_size = RTE_MIN(graph_conf.rx_burst_max, burst_size);
+		// Saturation threshold: the smallest of grout's per-call ask and
+		// the PMD's recommended per-rxq burst (a hint, not a hard cap).
+		// PMDs that don't expose it (== 0) fall back to ctx->burst_size.
+		struct rte_eth_dev_info info;
+		ctx->saturation_threshold = ctx->burst_size;
+		if (rte_eth_dev_info_get(qmap->port_id, &info) == 0
+		    && info.default_rxportconf.burst_size > 0
+		    && info.default_rxportconf.burst_size < ctx->burst_size)
+			ctx->saturation_threshold = info.default_rxportconf.burst_size;
+		ctx->track_health = gr_config.rss_autoscale != 0
+			&& rss_autoscale_port_enabled(qmap->port_id);
 		LOG(DEBUG,
-		    "[CPU %d] <- port=%u rxq=%u burst_size=%u",
+		    "[CPU %d] <- port=%u rxq=%u burst_size=%u saturation=%u",
 		    worker->cpu_id,
 		    qmap->port_id,
 		    qmap->queue_id,
-		    ctx->burst_size);
+		    ctx->burst_size,
+		    ctx->saturation_threshold);
 		// select the appropriate node process callback
 		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
 			// virtio driver supports Rx vlan stripping but requires help for L4 csum

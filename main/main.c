@@ -60,6 +60,15 @@ static void usage(void) {
 	puts("                                 (default [::]:9111).");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -V, --version                  Print version and exit.");
+	puts("  -a, --rss-autoscale=N          Enable adaptive RSS auto-scaling and");
+	puts("                                 worker parking. Workers without traffic");
+	puts("                                 drop to 0% CPU. N = cluster grouping size:");
+	puts("                                   0 = disabled (default)");
+	puts("                                   1 = per-core scaling");
+	puts("                                   2 = scale by groups of 2 (x86 with");
+	puts("                                       hyperthreading, or SoCs sharing");
+	puts("                                       L2 between 2 cores).");
+	puts("                                   N = scale by groups of N.");
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
 	puts("  -o, --socket-owner USER:GROUP  API socket file ownership");
@@ -176,8 +185,9 @@ static int parse_sock_owner(char *user_group_str) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":M:Vhm:o:pSs:tu:vx"
+#define FLAGS ":M:Va:hm:o:pSs:tu:vx"
 	static struct option long_options[] = {
+		{"rss-autoscale", required_argument, NULL, 'a'},
 		{"help", no_argument, NULL, 'h'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"metrics", required_argument, NULL, 'M'},
@@ -221,6 +231,13 @@ static int parse_args(int argc, char **argv) {
 			if (parse_sock_owner(optarg) < 0)
 				return errno_set(EINVAL);
 			break;
+		case 'a': {
+			unsigned int gm;
+			if (parse_uint(&gm, optarg, 10, 0, 16) < 0)
+				return perr("--rss-autoscale: %s", strerror(errno));
+			gr_config.rss_autoscale = (uint16_t)gm;
+			break;
+		}
 		case 'p':
 			gr_config.poll_mode = true;
 			break;

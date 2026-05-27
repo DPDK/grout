@@ -7,6 +7,7 @@
 #include "log.h"
 #include "mbuf.h"
 #include "port.h"
+#include "rss_autoscale.h"
 #include "rxtx.h"
 #include "trace.h"
 
@@ -59,6 +60,18 @@ static inline void rx_burst_histogram_inc(uint16_t port_id, uint16_t n_pkts) {
 	assert(port_id < RTE_MAX_ETHPORTS);
 	assert(n_pkts <= RTE_GRAPH_BURST_SIZE);
 	histogram->lcores[rte_lcore_id()].ports[port_id].bursts[n_pkts]++;
+}
+
+// Combined per-rx_burst datapath bookkeeping: histogram + rss-autoscale
+// saturation/idle tracking. Called from every rx_*_process variant. The
+// histogram is always updated; health tracking is gated on track_health,
+// set at graph build time only for autoscale-managed scalable ports.
+static inline void rx_burst_done(const struct rx_node_ctx *ctx, uint16_t n_pkts) {
+	rx_burst_histogram_inc(ctx->rxq.port_id, n_pkts);
+	if (ctx->track_health)
+		rxq_health_update(
+			ctx->rxq.port_id, ctx->rxq.queue_id, n_pkts, ctx->saturation_threshold
+		);
 }
 
 // Copy flags into buf stripping the "RTE_MBUF_F_" prefixes from flag names.
@@ -215,7 +228,7 @@ uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void 
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 
@@ -253,7 +266,7 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 
@@ -290,7 +303,7 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 
@@ -332,7 +345,7 @@ uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, 
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 
@@ -382,6 +395,7 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 
@@ -428,6 +442,7 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 		return 0;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
+	rx_burst_done(ctx, rx);
 	if (rx == 0)
 		return 0;
 

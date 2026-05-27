@@ -15,6 +15,7 @@ src += files(
   'nexthop.c',
   'port.c',
   'port_scale.c',
+  'rss_autoscale.c',
   'vlan.c',
   'vrf.c',
   'worker.c',
