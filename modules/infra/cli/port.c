@@ -25,6 +25,8 @@ static void port_show(struct gr_api_client *, const struct gr_iface *iface, stru
 	gr_object_field(o, "n_txq", GR_DISP_INT, "%u", port->n_txq);
 	gr_object_field(o, "rxq_size", GR_DISP_INT, "%u", port->rxq_size);
 	gr_object_field(o, "txq_size", GR_DISP_INT, "%u", port->txq_size);
+	gr_object_field(o, "rss_cap", GR_DISP_INT, "%u", port->rss_cap);
+	gr_object_field(o, "rss_floor", GR_DISP_INT, "%u", port->rss_floor);
 }
 
 static void
@@ -66,6 +68,12 @@ static uint64_t parse_port_args(
 		port->txq_size = port->rxq_size;
 		set_attrs |= GR_PORT_SET_Q_SIZE;
 	}
+
+	if (arg_u16(p, "RSS_CAP", &port->rss_cap) == 0)
+		set_attrs |= GR_PORT_SET_RSS_CAP;
+
+	if (arg_u16(p, "RSS_FLOOR", &port->rss_floor) == 0)
+		set_attrs |= GR_PORT_SET_RSS_FLOOR;
 
 	if (set_attrs == 0)
 		errno = EINVAL;
@@ -124,12 +132,22 @@ out:
 	return ret;
 }
 
-#define PORT_ATTRS_CMD IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE)"
+#define PORT_ATTRS_CMD                                                                             \
+	IFACE_ATTRS_CMD ",(mac MAC),(rxqs N_RXQ),(qsize Q_SIZE),(rss-cap RSS_CAP),(rss-floor "     \
+			"RSS_FLOOR)"
 
 #define PORT_ATTRS_ARGS                                                                            \
 	IFACE_ATTRS_ARGS, with_help("Set the ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),  \
 		with_help("Number of Rx queues.", ec_node_uint("N_RXQ", 0, UINT16_MAX - 1, 10)),   \
-		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10))
+		with_help("Rx/Tx queues size.", ec_node_uint("Q_SIZE", 0, UINT16_MAX - 1, 10)),    \
+		with_help(                                                                         \
+			"Max RSS queues for autoscale (0=default).",                               \
+			ec_node_uint("RSS_CAP", 0, UINT16_MAX - 1, 10)                             \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Min RSS queues for autoscale (0=default).",                               \
+			ec_node_uint("RSS_FLOOR", 0, UINT16_MAX - 1, 10)                           \
+		)
 
 static int ctx_init(struct ec_node *root) {
 	int ret;

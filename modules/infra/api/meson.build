@@ -4,6 +4,7 @@
 src += files(
   'affinity.c',
   'iface.c',
+  'rss_autoscale.c',
   'nexthop.c',
   'stats.c',
   'trace.c',

@@ -13,10 +13,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Pass cap_n / floor_n = 0 to clear. cap < floor at apply time: cap wins.
-int rss_autoscale_set_cap(uint16_t port_id, uint16_t cap_n);
-int rss_autoscale_set_floor(uint16_t port_id, uint16_t floor_n);
-
 int rss_autoscale_port_state_get(
 	uint16_t port_id,
 	uint16_t *n_active,

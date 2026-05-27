@@ -42,8 +42,6 @@ struct rss_autoscale_port_state {
 	uint16_t n_active;
 	uint16_t n_load_recommended;
 	struct port_scale_caps caps;
-	uint16_t policy_cap; // 0 = unset; cap < floor: cap wins
-	uint16_t policy_floor;
 	uint64_t prev_busy_cycles;
 	uint64_t prev_total_cycles;
 	struct event *scale_down_timer;
@@ -105,26 +103,19 @@ static int caps_ensure(struct rss_autoscale_port_state *s) {
 		return -ENOTSUP;
 
 	cluster_size = gr_config.rss_autoscale;
-	if (cluster_size > 1 && s->caps.allowed_n != NULL) {
-		size_t w = 0;
-		for (size_t r = 0; r < s->caps.allowed_count; r++) {
-			if (s->caps.allowed_n[r] % cluster_size == 0)
-				s->caps.allowed_n[w++] = s->caps.allowed_n[r];
-		}
-		s->caps.allowed_count = w;
-		if (w <= 1) {
-			// Need at least 2 allowed values to scale dynamically. Free
-			// so the allowed_n != NULL short-circuit at the top does not
-			// later treat this as a cached success.
-			LOG(NOTICE,
-			    "port %u: cluster_size=%u leaves %zu allowed N value(s), "
-			    "not managed by rss-autoscale",
-			    s->port_id,
-			    cluster_size,
-			    w);
-			port_scale_caps_free(&s->caps);
-			return -ENOTSUP;
-		}
+	port_scale_caps_filter_cluster(&s->caps, cluster_size);
+	if (!s->caps.supports_scale) {
+		// Need at least 2 allowed values to scale dynamically. Free so the
+		// allowed_n != NULL short-circuit at the top does not later treat
+		// this as a cached success.
+		LOG(NOTICE,
+		    "port %u: cluster_size=%u leaves %zu allowed N value(s), "
+		    "not managed by rss-autoscale",
+		    s->port_id,
+		    cluster_size,
+		    s->caps.allowed_count);
+		port_scale_caps_free(&s->caps);
+		return -ENOTSUP;
 	}
 	return 0;
 }
@@ -167,75 +158,17 @@ static void apply_unpark_all(void);
 static void apply_park_all(void);
 static void schedule_deferred_park(void);
 static void scale_down_timer_cb(evutil_socket_t fd, short what, void *arg);
+static uint16_t port_effective_cap(const struct rss_autoscale_port_state *s);
+static uint16_t port_effective_floor(const struct rss_autoscale_port_state *s);
 
-static uint16_t clamp_to_policy(struct rss_autoscale_port_state *s) {
-	uint16_t target = s->n_active;
-	if (s->policy_floor > 0 && target < s->policy_floor)
-		target = s->policy_floor;
-	if (s->policy_cap > 0 && target > s->policy_cap)
-		target = s->policy_cap;
-	return target;
+static uint16_t port_rss_cap(uint16_t port_id) {
+	const struct iface_info_port *p = port_info_from_id(port_id);
+	return p != NULL ? p->rss_cap : 0;
 }
 
-static bool caps_contains(const struct port_scale_caps *caps, uint16_t n) {
-	for (size_t i = 0; i < caps->allowed_count; i++) {
-		if (caps->allowed_n[i] == n)
-			return true;
-	}
-	return false;
-}
-
-// Shared logic for set_cap / set_floor. Caller provides the offset of the
-// policy field inside rss_autoscale_port_state and a name for the log.
-static int set_policy(uint16_t port_id, size_t policy_offset, uint16_t n, const char *name) {
-	struct rss_autoscale_port_state *s;
-	uint16_t *policy;
-	uint16_t saved;
-	int ret;
-
-	if (n > 0 && !gr_config.rss_autoscale)
-		return -ENOTSUP;
-	s = (n == 0) ? state_get(port_id) : state_ensure(port_id);
-	if (s == NULL)
-		return n == 0 ? 0 : -ENOMEM;
-	if (n > 0) {
-		if (s->n_active == 0)
-			return -ENOTSUP;
-		ret = caps_ensure(s);
-		if (ret < 0)
-			return ret;
-		if (!caps_contains(&s->caps, n))
-			return -EINVAL;
-	}
-	policy = (uint16_t *)((char *)s + policy_offset);
-	saved = *policy;
-	*policy = n;
-	if (s->caps.supports_scale) {
-		uint16_t target = clamp_to_policy(s);
-		if (target != s->n_active && s->n_active > 0) {
-			ret = do_apply(s, target);
-			if (ret < 0) {
-				*policy = saved;
-				return ret;
-			}
-			apply_unpark_all();
-			schedule_deferred_park();
-		}
-	}
-	LOG(INFO, "port %u: %s %s", port_id, name, n == 0 ? "cleared" : "set");
-	return 0;
-}
-
-int rss_autoscale_set_cap(uint16_t port_id, uint16_t cap_n) {
-	return set_policy(
-		port_id, offsetof(struct rss_autoscale_port_state, policy_cap), cap_n, "cap"
-	);
-}
-
-int rss_autoscale_set_floor(uint16_t port_id, uint16_t floor_n) {
-	return set_policy(
-		port_id, offsetof(struct rss_autoscale_port_state, policy_floor), floor_n, "floor"
-	);
+static uint16_t port_rss_floor(uint16_t port_id) {
+	const struct iface_info_port *p = port_info_from_id(port_id);
+	return p != NULL ? p->rss_floor : 0;
 }
 
 static void rss_autoscale_on_iface_post_add(uint32_t /*event*/, const void *obj) {
@@ -272,10 +205,10 @@ static void rss_autoscale_on_iface_post_add(uint32_t /*event*/, const void *obj)
 	}
 
 	pin = gr_config.rss_autoscale;
-	if (s->policy_floor > 0 && pin < s->policy_floor)
-		pin = s->policy_floor;
-	if (s->policy_cap > 0 && pin > s->policy_cap)
-		pin = s->policy_cap;
+	if (p->rss_floor > 0 && pin < p->rss_floor)
+		pin = p->rss_floor;
+	if (p->rss_cap > 0 && pin > p->rss_cap)
+		pin = p->rss_cap;
 	if (!do_apply(s, pin)) {
 		apply_unpark_all();
 		schedule_deferred_park();
@@ -318,11 +251,54 @@ static void rss_autoscale_on_iface_remove(uint32_t /*event*/, const void *obj) {
 		rxq_health_reset(&rxq_health[p->port_id][q]);
 }
 
-// Port reconfig (e.g. operator changed nb-rxqs): drop cached state and
-// re-pin from scratch so caps and rxq_health match the new HW layout.
+// Port reconfig: only the queue-count-dependent caps grid can really change,
+// so rebuild it in place and re-clamp the current operating point onto the new
+// grid plus the operator cap/floor. An unrelated reconfig (MTU, MAC) leaves the
+// grid unchanged, so n_active does not move and the scaling state, rxq_health
+// and scale-down timer are all preserved.
 static void rss_autoscale_on_iface_post_reconfig(uint32_t event, const void *obj) {
-	rss_autoscale_on_iface_remove(event, obj);
-	rss_autoscale_on_iface_post_add(event, obj);
+	struct rss_autoscale_port_state *s;
+	const struct iface_info_port *p;
+	const struct iface *iface = obj;
+	uint16_t floor;
+	uint16_t want;
+	uint16_t cap;
+
+	if (iface->type != GR_IFACE_TYPE_PORT || !gr_config.rss_autoscale)
+		return;
+
+	p = iface_info_port(iface);
+	s = state_get(p->port_id);
+	if (s == NULL) {
+		// Never managed (added unscalable, or add-time pin failed): retry the
+		// full add path now that the layout changed.
+		rss_autoscale_on_iface_post_add(event, obj);
+		return;
+	}
+
+	// Force a rebuild (caps_ensure short-circuits on a cached allowed_n).
+	port_scale_caps_free(&s->caps);
+	if (caps_ensure(s) < 0) {
+		// Became unscalable (e.g. nb-rxqs dropped to 1): tear down.
+		rss_autoscale_on_iface_remove(event, obj);
+		return;
+	}
+
+	want = port_scale_caps_clamp(&s->caps, s->n_active);
+	floor = port_effective_floor(s);
+	cap = port_effective_cap(s);
+	if (floor > 0 && want < floor)
+		want = floor;
+	if (cap > 0 && want > cap)
+		want = cap;
+	// A floor set when more queues existed can now exceed the grid top: snap
+	// back onto a valid dist size.
+	want = port_scale_caps_clamp(&s->caps, want);
+
+	if (want != s->n_active && do_apply(s, want) == 0) {
+		apply_unpark_all();
+		schedule_deferred_park();
+	}
 }
 
 static bool worker_has_active_rxq(const struct worker *w) {
@@ -379,13 +355,14 @@ static uint16_t port_effective_cap(const struct rss_autoscale_port_state *s) {
 	uint16_t cap = (s->caps.allowed_count > 0) ?
 		s->caps.allowed_n[s->caps.allowed_count - 1] :
 		s->caps.max_n;
-	if (s->policy_cap > 0 && s->policy_cap < cap)
-		cap = s->policy_cap;
+	uint16_t pc = port_rss_cap(s->port_id);
+	if (pc > 0 && pc < cap)
+		cap = pc;
 	return cap;
 }
 
 static uint16_t port_effective_floor(const struct rss_autoscale_port_state *s) {
-	return s->policy_floor;
+	return port_rss_floor(s->port_id);
 }
 
 // Aggregate busy/total cycles of the workers serving at least one active queue
@@ -588,12 +565,12 @@ int rss_autoscale_port_state_get(
 	if (n_load_recommended)
 		*n_load_recommended = s->n_load_recommended;
 	if (cap)
-		*cap = s->policy_cap;
+		*cap = port_rss_cap(port_id);
 	if (floor)
-		*floor = s->policy_floor;
+		*floor = port_rss_floor(port_id);
 	// max_n / min_n are the usable bounds after cluster_size filtering,
 	// not the raw HW range: an operator querying them must be able to
-	// pass them back through set_cap / set_floor without -EINVAL.
+	// pass them back as rss-cap / rss-floor without -EINVAL.
 	if (max_n)
 		*max_n = (s->caps.allowed_count > 0) ?
 			s->caps.allowed_n[s->caps.allowed_count - 1] :

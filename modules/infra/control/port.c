@@ -10,6 +10,7 @@
 #include "module.h"
 #include "netlink.h"
 #include "port.h"
+#include "port_scale.h"
 #include "rcu.h"
 #include "vec.h"
 #include "vrf.h"
@@ -276,6 +277,31 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	return 0;
 }
 
+// rss-autoscale cap/floor must be one of the controller's usable dist sizes:
+// a raw HW dist-size that also survives the cluster_size filtering applied by
+// the controller (caps_ensure uses the same port_scale_caps_filter_cluster).
+// Validate against n_rxq (the target queue count, 0 = live HW) so a combined
+// "rxqs N + rss-cap/floor M" command is checked against the count it will
+// apply, not the pre-reconfig one. 0 clears the knob and is always valid.
+static bool port_rss_policy_valid(struct iface_info_port *p, uint16_t n_rxq, uint16_t v) {
+	struct port_scale_caps caps;
+	bool ok = false;
+
+	if (v == 0)
+		return true;
+	if (port_scale_caps_get_n(p, n_rxq, &caps) < 0)
+		return false;
+	port_scale_caps_filter_cluster(&caps, gr_config.rss_autoscale);
+	if (caps.supports_scale)
+		for (size_t i = 0; i < caps.allowed_count; i++)
+			if (caps.allowed_n[i] == v) {
+				ok = true;
+				break;
+			}
+	port_scale_caps_free(&caps);
+	return ok;
+}
+
 static int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -288,8 +314,24 @@ static int iface_port_reconfig(
 	int ret;
 
 	if (!(set_attrs
-	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC)))
+	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC
+		 | GR_PORT_SET_RSS_CAP | GR_PORT_SET_RSS_FLOOR)))
 		return 0;
+
+	// Target RX queue count: if this same request changes it, validate the
+	// RSS policies against the new count (0 = keep the live HW count).
+	uint16_t target_rxq = (set_attrs & GR_PORT_SET_N_RXQS) ? api->n_rxq : 0;
+
+	if (set_attrs & GR_PORT_SET_RSS_CAP) {
+		if (!port_rss_policy_valid(p, target_rxq, api->rss_cap))
+			return errno_set(EINVAL);
+		p->rss_cap = api->rss_cap;
+	}
+	if (set_attrs & GR_PORT_SET_RSS_FLOOR) {
+		if (!port_rss_policy_valid(p, target_rxq, api->rss_floor))
+			return errno_set(EINVAL);
+		p->rss_floor = api->rss_floor;
+	}
 
 	if (set_attrs & GR_PORT_SET_N_RXQS) {
 		p->n_rxq = api->n_rxq;
