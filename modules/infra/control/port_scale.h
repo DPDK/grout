@@ -26,6 +26,5 @@ uint16_t port_scale_caps_next(const struct port_scale_caps *caps, uint16_t cur);
 uint16_t port_scale_caps_prev(const struct port_scale_caps *caps, uint16_t cur);
 
 // Reprogram HW RETA to dispatch only on queues [0..n-1] (uniform i % n).
-// Caller must ensure n is in caps.allowed_n; on a PMD with a discrete
-// list (e.g. DPAA2), arbitrary values are rejected by the firmware.
+// n must be in caps.allowed_n.
 int port_scale_apply(struct iface_info_port *p, uint16_t n);
