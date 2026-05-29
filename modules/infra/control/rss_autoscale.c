@@ -69,6 +69,11 @@ bool rss_autoscale_port_enabled(uint16_t port_id) {
 	return s != NULL && s->caps.supports_scale;
 }
 
+uint16_t rss_autoscale_port_n_active(uint16_t port_id) {
+	struct rss_autoscale_port_state *s = state_get(port_id);
+	return s != NULL ? s->n_active : 0;
+}
+
 static struct rss_autoscale_port_state *state_ensure(uint16_t port_id) {
 	if (port_id >= RTE_MAX_ETHPORTS)
 		return NULL;
@@ -126,6 +131,9 @@ static int do_apply(struct rss_autoscale_port_state *s, uint16_t n_new) {
 	int ret = port_scale_apply(p, n_new);
 	if (ret < 0)
 		return ret;
+	// Skip polling the now-deactivated rxqs (and resume the reactivated ones)
+	// on each worker's live graph, without a reload.
+	worker_graph_rxq_set_active(s->port_id, n_new);
 	LOG(INFO, "port %u: dist_size %u -> %u", s->port_id, s->n_active, n_new);
 	// Newly-activated queues may carry stale idle latched during a
 	// previous deactivation drain. Clear their health so the next

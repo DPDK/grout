@@ -104,6 +104,7 @@ int worker_destroy(unsigned cpu_id);
 int worker_graph_reload(struct worker *, vec struct iface_info_port **);
 int worker_graph_reload_all(vec struct iface_info_port **);
 void worker_graph_free(struct worker *);
+void worker_graph_rxq_set_active(uint16_t port_id, uint16_t n_active);
 
 // A parked worker futex_wait()s until unparked, consuming no CPU.
 void worker_park(struct worker *w);

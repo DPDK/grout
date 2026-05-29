@@ -217,6 +217,13 @@ static void fix_l4_csum(struct rte_mbuf *m) {
 	m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 }
 
+// rss-autoscale deactivated this rxq (RETA narrowed below its queue_id): the HW
+// steers nothing here, so skip the poll. Swapped in/out at scale time (like
+// pcap swaps node->process), see worker_graph_rxq_set_active().
+uint16_t rx_inactive_process(struct rte_graph *, struct rte_node *, void **, uint16_t) {
+	return 0;
+}
+
 uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
