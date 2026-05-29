@@ -28,6 +28,10 @@ int rss_autoscale_port_state_get(
 // tracking on ports that can actually be scaled.
 bool rss_autoscale_port_enabled(uint16_t port_id);
 
+// Number of RSS queues the controller currently feeds (0 if unmanaged).
+// Queried at graph build time to mark RETA-deactivated rxqs inactive.
+uint16_t rss_autoscale_port_n_active(uint16_t port_id);
+
 #define RSS_AUTOSCALE_CONSEC_FULL 4
 #define RSS_AUTOSCALE_CONSEC_EMPTY 10000
 

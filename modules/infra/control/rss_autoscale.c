@@ -45,6 +45,7 @@ struct rss_autoscale_port_state {
 	uint64_t prev_busy_cycles;
 	uint64_t prev_total_cycles;
 	struct event *scale_down_timer;
+	bool deferred_deactivate_pending;
 };
 
 static struct rss_autoscale_port_state *port_states[RTE_MAX_ETHPORTS];
@@ -67,6 +68,11 @@ static struct rss_autoscale_port_state *state_get(uint16_t port_id) {
 bool rss_autoscale_port_enabled(uint16_t port_id) {
 	struct rss_autoscale_port_state *s = state_get(port_id);
 	return s != NULL && s->caps.supports_scale;
+}
+
+uint16_t rss_autoscale_port_n_active(uint16_t port_id) {
+	struct rss_autoscale_port_state *s = state_get(port_id);
+	return s != NULL ? s->n_active : 0;
 }
 
 static struct rss_autoscale_port_state *state_ensure(uint16_t port_id) {
@@ -135,6 +141,12 @@ static int do_apply(struct rss_autoscale_port_state *s, uint16_t n_new) {
 	ret = port_scale_apply(p, n_new);
 	if (ret < 0)
 		return ret;
+	// Scale-up: resume the reactivated rxqs now. Scale-down: keep them polling
+	// to drain residual frames; the no-op swap is deferred to deferred_park_cb.
+	if (n_new > s->n_active)
+		worker_graph_rxq_set_active(s->port_id, n_new);
+	else
+		s->deferred_deactivate_pending = true;
 	LOG(INFO, "port %u: dist_size %u -> %u", s->port_id, s->n_active, n_new);
 	// Newly-activated queues may carry stale idle latched during a
 	// previous deactivation drain. Clear their health so the next
@@ -333,7 +345,20 @@ static void apply_park_all(void) {
 	}
 }
 
+// Enact the deactivations deferred by do_apply: the scaled-down rxqs kept
+// polling to drain; swap them to rx_inactive_process now.
+static void apply_deferred_deactivate(void) {
+	for (uint16_t port_id = 0; port_id < RTE_MAX_ETHPORTS; port_id++) {
+		struct rss_autoscale_port_state *s = port_states[port_id];
+		if (s == NULL || !s->deferred_deactivate_pending)
+			continue;
+		s->deferred_deactivate_pending = false;
+		worker_graph_rxq_set_active(port_id, s->n_active);
+	}
+}
+
 static void deferred_park_cb(evutil_socket_t /*fd*/, short /*what*/, void * /*arg*/) {
+	apply_deferred_deactivate();
 	apply_park_all();
 }
 
