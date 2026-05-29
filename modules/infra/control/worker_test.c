@@ -389,11 +389,17 @@ static void queue_distribute_reduce(void **) {
 	vec_free(ports);
 	assert_int_equal(worker_count(), 2);
 
+	// Butterfly with global cursors, cpus=[4,5]:
+	//   port 0 (idx=0, fwd) fwd_cursor=0: q0->cpu4, q1->cpu5.
+	//     fwd_cursor advances to (0+2)%2 = 0.
+	//   port 1 (idx=1, rev) rev_cursor=1: q0->cpu5, q1->cpu4.
+	//     rev_cursor advances to (1-2+2)%2 = 1.
+	//   port 2 (idx=2, fwd) fwd_cursor=0: q0->cpu4, q1->cpu5.
 	assert_qmaps(w1.rxqs);
 	assert_qmaps(w2.rxqs);
 	assert_qmaps(w3.rxqs);
-	assert_qmaps(w4.rxqs, q(0, 0), q(1, 0), q(2, 0));
-	assert_qmaps(w5.rxqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w4.rxqs, q(0, 0), q(1, 1), q(2, 0));
+	assert_qmaps(w5.rxqs, q(0, 1), q(1, 0), q(2, 1));
 	assert_qmaps(w1.txqs);
 	assert_qmaps(w2.txqs);
 	assert_qmaps(w3.txqs);
@@ -427,11 +433,21 @@ static void queue_distribute_increase(void **) {
 	vec_free(ports);
 	assert_int_equal(worker_count(), 5);
 
-	assert_qmaps(w1.rxqs, q(0, 0), q(2, 1));
+	// Butterfly with global cursors, cpus=[1,2,3,4,5]:
+	//   port 0 (idx=0, fwd) starts fwd_cursor=0:  q0->cpu1, q1->cpu2.
+	//     fwd_cursor advances to 2.
+	//   port 1 (idx=1, rev) starts rev_cursor=4:  q0->cpu5, q1->cpu4.
+	//     rev_cursor advances to 2.
+	//   port 2 (idx=2, fwd) starts fwd_cursor=2:  q0->cpu3, q1->cpu4.
+	// All 5 workers receive at least one rxq.
+	assert_qmaps(w1.rxqs, q(0, 0));
 	assert_qmaps(w2.rxqs, q(0, 1));
-	assert_qmaps(w3.rxqs, q(1, 0));
-	assert_qmaps(w4.rxqs, q(1, 1));
-	assert_qmaps(w5.rxqs, q(2, 0));
+	assert_qmaps(w3.rxqs, q(2, 0));
+	assert_qmaps(w4.rxqs, q(1, 1), q(2, 1));
+	assert_qmaps(w5.rxqs, q(1, 0));
+	// TXQ distribution iterates the STAILQ (after the reduce/increase
+	// sequence: w4, w5, w1, w2, w3) assigning to workers with rxqs.
+	// All 5 workers have rxqs now.
 	assert_qmaps(w1.txqs, q(0, 2), q(1, 2), q(2, 2));
 	assert_qmaps(w2.txqs, q(0, 3), q(1, 3), q(2, 3));
 	assert_qmaps(w3.txqs, q(0, 0), q(1, 0), q(2, 0));

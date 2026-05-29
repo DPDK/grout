@@ -31,6 +31,14 @@ GR_NODE_CTX_TYPE(rx_node_ctx, {
 	const struct iface *iface;
 	struct port_queue rxq;
 	uint16_t burst_size;
+	// Effective per-call max: min(burst_size, PMD's advertised per-rxq
+	// burst size). Used by the rss-autoscale controller to detect "burst
+	// full" without depending on a hardcoded value that breaks on PMDs
+	// with a higher advertised burst (e.g. mlx5 reports 64 per rxq).
+	uint16_t saturation_threshold : 15;
+	// Set at graph build time only for autoscale-managed scalable ports.
+	// Gates rss-autoscale health tracking without touching the histogram.
+	uint16_t track_health : 1;
 });
 
 GR_NODE_CTX_TYPE(tx_node_ctx, {
@@ -76,6 +84,7 @@ uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_virtio_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_inactive_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
 uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_shared_process(struct rte_graph *, struct rte_node *, void **, uint16_t);

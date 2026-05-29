@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "graph.h"
 #include "log.h"
 #include "module.h"
 #include "port.h"
+#include "rss_autoscale.h"
 #include "rxtx.h"
 #include "vec.h"
 #include "worker.h"
@@ -90,6 +92,32 @@ static struct gr_graph_conf graph_conf = {
 	.vector_max = 64,
 };
 
+// virtio driver supports Rx vlan stripping but requires help for L4 csum
+static rte_node_process_t
+rx_process_for(const struct iface *iface, const struct iface_info_port *port) {
+	if (iface->mode == GR_IFACE_MODE_BOND) {
+		if (port->virtio_offloads)
+			return rx_bond_virtio_process;
+		if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+			return rx_bond_offload_process;
+		return rx_bond_process;
+	}
+	if (port->virtio_offloads)
+		return rx_virtio_process;
+	if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+		return rx_offload_process;
+	return rx_process;
+}
+
+// True when rss-autoscale has narrowed this port's RETA below queue_id: the HW
+// steers nothing here, so the rxq skips polling via rx_inactive_process.
+static bool rxq_is_inactive(uint16_t port_id, uint16_t queue_id) {
+	if (gr_config.rss_autoscale == 0 || !rss_autoscale_port_enabled(port_id))
+		return false;
+	uint16_t n = rss_autoscale_port_n_active(port_id);
+	return n > 0 && queue_id >= n;
+}
+
 static int
 worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_port **ports) {
 	vec const char **graph_nodes = NULL;
@@ -157,30 +185,28 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 		ctx->rxq.queue_id = qmap->queue_id;
 		burst_size = RTE_MAX(1u, graph_conf.vector_max / vec_len(rx_nodes));
 		ctx->burst_size = RTE_MIN(graph_conf.rx_burst_max, burst_size);
+		// Saturation threshold: the smallest of grout's per-call ask and
+		// the PMD's recommended per-rxq burst (a hint, not a hard cap).
+		// PMDs that don't expose it (== 0) fall back to ctx->burst_size.
+		struct rte_eth_dev_info info;
+		ctx->saturation_threshold = ctx->burst_size;
+		if (rte_eth_dev_info_get(qmap->port_id, &info) == 0
+		    && info.default_rxportconf.burst_size > 0
+		    && info.default_rxportconf.burst_size < ctx->burst_size)
+			ctx->saturation_threshold = info.default_rxportconf.burst_size;
+		ctx->track_health = gr_config.rss_autoscale != 0
+			&& rss_autoscale_port_enabled(qmap->port_id);
 		LOG(DEBUG,
-		    "[CPU %d] <- port=%u rxq=%u burst_size=%u",
+		    "[CPU %d] <- port=%u rxq=%u burst_size=%u saturation=%u",
 		    worker->cpu_id,
 		    qmap->port_id,
 		    qmap->queue_id,
-		    ctx->burst_size);
-		// select the appropriate node process callback
-		if (ctx->iface->mode == GR_IFACE_MODE_BOND) {
-			// virtio driver supports Rx vlan stripping but requires help for L4 csum
-			if (port->virtio_offloads)
-				node->process = rx_bond_virtio_process;
-			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
-				node->process = rx_bond_offload_process;
-			else
-				node->process = rx_bond_process;
-		} else {
-			// virtio driver supports Rx vlan stripping but requires help for L4 csum
-			if (port->virtio_offloads)
-				node->process = rx_virtio_process;
-			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
-				node->process = rx_offload_process;
-			else
-				node->process = rx_process;
-		}
+		    ctx->burst_size,
+		    ctx->saturation_threshold);
+		// select the process callback; skip polling RETA-deactivated rxqs
+		node->process = rxq_is_inactive(qmap->port_id, qmap->queue_id) ?
+			rx_inactive_process :
+			rx_process_for(ctx->iface, port);
 	}
 
 	// initialize all tx nodes context to invalid ports and queues
@@ -260,6 +286,41 @@ out:
 	return errno_set(-ret);
 }
 
+// After an rss-autoscale RETA change, swap each worker's rx node process on its
+// live graph (no reload): queue_id < n_active polls, otherwise no-ops via
+// rx_inactive_process. Aligned pointer store; the worker reads old-or-new, both
+// valid (same pattern DPDK uses to swap node->process for pcap).
+void worker_graph_rxq_set_active(uint16_t port_id, uint16_t n_active) {
+	const struct iface *iface = port_get_iface(port_id);
+	if (iface == NULL)
+		return;
+	rte_node_process_t active = rx_process_for(iface, iface_info_port(iface));
+	char node_name[RTE_NODE_NAMESIZE];
+	struct worker *worker;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		unsigned cur = atomic_load(&worker->cur_config);
+		struct rte_graph *graph = worker->graph[cur];
+		if (graph == NULL)
+			continue;
+		char *graph_name = rte_graph_id_to_name(graph->id);
+		if (graph_name == NULL)
+			continue;
+		struct queue_map *qmap;
+		vec_foreach_ref (qmap, worker->rxqs) {
+			if (qmap->port_id != port_id || !qmap->enabled)
+				continue;
+			snprintf(
+				node_name, sizeof(node_name), RX_NODE_FMT, port_id, qmap->queue_id
+			);
+			struct rte_node *node = rte_graph_node_get_by_name(graph_name, node_name);
+			if (node == NULL)
+				continue;
+			node->process = qmap->queue_id < n_active ? active : rx_inactive_process;
+		}
+	}
+}
+
 int worker_graph_reload(struct worker *worker, vec struct iface_info_port **ports) {
 	unsigned next = !atomic_load(&worker->cur_config);
 	int ret;
@@ -270,6 +331,7 @@ int worker_graph_reload(struct worker *worker, vec struct iface_info_port **port
 	// wait for datapath worker to pickup the config update
 	atomic_store(&worker->next_config, next);
 	worker_wakeup(worker);
+	worker_unpark(worker);
 	for (unsigned i = 0; atomic_load(&worker->cur_config) != next; i++) {
 		if (i >= 10000) // 10000 * 500us -> 5s
 			return errno_log(ETIMEDOUT, "worker not responding to graph reload");

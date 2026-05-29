@@ -21,10 +21,12 @@
 #include <rte_malloc.h>
 
 #include <errno.h>
+#include <linux/futex.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
 #include <sys/queue.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 LOG_TYPE("worker");
@@ -94,6 +96,7 @@ int worker_destroy(unsigned cpu_id) {
 
 	atomic_store(&worker->shutdown, true);
 	worker_wakeup(worker);
+	worker_unpark(worker);
 	pthread_join(worker->thread, NULL);
 	pthread_cond_destroy(&worker->wakeup.cond);
 	pthread_mutex_destroy(&worker->wakeup.lock);
@@ -119,6 +122,20 @@ void worker_wakeup(struct worker *w) {
 	w->wakeup.set = true;
 	pthread_cond_signal(&w->wakeup.cond);
 	pthread_mutex_unlock(&w->wakeup.lock);
+}
+
+void worker_park(struct worker *w) {
+	atomic_store(&w->paused, 1);
+}
+
+void worker_unpark(struct worker *w) {
+	atomic_store(&w->paused, 0);
+	// FUTEX_WAKE is a no-op if the worker isn't actually waiting.
+	syscall(SYS_futex, (int *)&w->paused, FUTEX_WAKE | FUTEX_PRIVATE_FLAG, 1, NULL, NULL, 0);
+}
+
+bool worker_is_paused(const struct worker *w) {
+	return atomic_load(&w->paused) == 1;
 }
 
 unsigned worker_count(void) {
@@ -316,7 +333,6 @@ int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_por
 	struct worker *worker, *tmp;
 	char buf[BUFSIZ];
 	int ret = 0;
-	unsigned i;
 
 	if (cpuset_format(buf, sizeof(buf), affinity) < 0) {
 		LOG(WARNING, "failed to format new cpu affinity: %s", strerror(errno));
@@ -360,8 +376,16 @@ int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_por
 		}
 	}
 
-	// assign all rxqs to new workers in the new affinity mask
-	i = 0;
+	// Butterfly-reverse layout: even-indexed ports walk cpus[] forward
+	// from fwd_cursor, odd-indexed ones backward from rev_cursor. Cursors
+	// advance across ports so middle CPUs do not stay idle when
+	// n_workers > per-port queue count. Endpoint placement (port 0 q0 ->
+	// cpus[0], port 1 q0 -> cpus[n-1]) lets the two q0 workers run on
+	// disjoint cache groups at dist_size=1.
+	size_t n_cpus = vec_len(cpus);
+	size_t fwd_cursor = 0;
+	size_t rev_cursor = (n_cpus > 0) ? (n_cpus - 1) : 0;
+	size_t port_idx = 0;
 	vec_foreach (port, ports) {
 		int socket_id = SOCKET_ID_ANY;
 
@@ -388,16 +412,27 @@ int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_por
 			port->started = was_started;
 		}
 
+		if (n_cpus == 0)
+			continue;
+
+		// Direction by iteration order so non-consecutive port_ids
+		// from DPDK don't perturb the pattern.
+		bool reverse = (port_idx % 2) != 0;
+
 		for (uint16_t rxq = 0; rxq < port->n_rxq; rxq++) {
-			// find CPU in the affinity where to assign RXQ
+			unsigned idx = reverse ? (unsigned)rev_cursor : (unsigned)fwd_cursor;
+
+			// Same-socket fallback.
 			unsigned j = 0;
-			while (socket_id != SOCKET_ID_ANY && socket_id != numa_node_of_cpu(cpus[i])
-			       && j < vec_len(cpus)) {
-				if (++i >= vec_len(cpus))
-					i = 0;
+			while (socket_id != SOCKET_ID_ANY
+			       && socket_id != numa_node_of_cpu(cpus[idx]) && j < n_cpus) {
+				if (reverse)
+					idx = (idx == 0) ? (unsigned)(n_cpus - 1) : (idx - 1);
+				else
+					idx = (idx + 1) % (unsigned)n_cpus;
 				j++;
 			}
-			if (j == vec_len(cpus)) {
+			if (j == n_cpus) {
 				LOG(WARNING,
 				    "no socket %d CPU found in new affinity %s for port %d",
 				    socket_id,
@@ -405,7 +440,7 @@ int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_por
 				    port->port_id);
 			}
 
-			worker = worker_find(cpus[i]);
+			worker = worker_find(cpus[idx]);
 			assert(worker != NULL);
 
 			struct queue_map q = {
@@ -415,9 +450,15 @@ int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_por
 			};
 			vec_add(worker->rxqs, q);
 
-			if (++i >= vec_len(cpus))
-				i = 0;
+			// Advance cursor past this assignment so the next rxq
+			// (of this or the next port) does not retarget the
+			// same CPU after fallback.
+			if (reverse)
+				rev_cursor = (idx == 0) ? (n_cpus - 1) : (idx - 1);
+			else
+				fwd_cursor = (idx + 1) % n_cpus;
 		}
+		port_idx++;
 	}
 
 	worker_txq_distribute(ports);
