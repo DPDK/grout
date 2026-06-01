@@ -92,6 +92,7 @@ static uint16_t ip6_input_local_process(
 		case IPPROTO_TCP:
 		case IPPROTO_SCTP:
 		case IPPROTO_DCCP:
+			m->packet_type = RTE_PTYPE_L3_IPV6;
 			// These protocols have checksum fields to be verified.
 			break;
 		default:
