@@ -4,3 +4,9 @@
 
 # Add grout command line flags here and restart grout.service.
 GROUT_OPTS='--syslog'
+
+# Override the default route in the main routing table. Required when running
+# in a private network namespace (PrivateNetwork=true) or in a container. Must
+# be set to false if removing PrivateNetwork=true from the systemd service and
+# running grout in the main network namespace.
+GROUT_OVERRIDE_DEFAULT_ROUTE=true
