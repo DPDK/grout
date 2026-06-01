@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include "config.h"
 #include "log.h"
 #include "module.h"
 #include "netlink.h"
@@ -188,8 +189,12 @@ static int netlink_add_del_route_family(uint32_t ifindex, uint32_t table, int fa
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = add ? RTM_NEWROUTE : RTM_DELROUTE;
 	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-	if (add)
-		nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+	if (add) {
+		if (table == RT_TABLE_MAIN && gr_config.override_default_route)
+			nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_REPLACE;
+		else
+			nlh->nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
+	}
 
 	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(*rtm));
 	rtm->rtm_family = family;
@@ -200,7 +205,7 @@ static int netlink_add_del_route_family(uint32_t ifindex, uint32_t table, int fa
 	rtm->rtm_dst_len = 0;
 
 	mnl_attr_put_u32(nlh, RTA_TABLE, table);
-	if (table == RT_TABLE_MAIN) {
+	if (table == RT_TABLE_MAIN && !gr_config.override_default_route) {
 		// avoid clash with other default routes in the default VRF
 		mnl_attr_put_u32(nlh, RTA_PRIORITY, UINT32_MAX);
 	}

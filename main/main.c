@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 LOG_TYPE("main");
@@ -173,6 +174,14 @@ static int parse_sock_owner(char *user_group_str) {
 	return 0;
 }
 
+static bool parse_bool_env(const char *name) {
+	const char *val = getenv(name);
+	if (val == NULL)
+		return false;
+	return strcasecmp(val, "1") == 0 || strcasecmp(val, "true") == 0
+		|| strcasecmp(val, "on") == 0 || strcasecmp(val, "yes") == 0;
+}
+
 static int parse_args(int argc, char **argv) {
 	int c;
 
@@ -289,10 +298,14 @@ int main(int argc, char **argv) {
 	if (parse_args(argc, argv) < 0)
 		goto end;
 
+	gr_config.override_default_route = parse_bool_env("GROUT_OVERRIDE_DEFAULT_ROUTE");
+
 	if (dpdk_log_init() < 0)
 		goto end;
 
 	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
+	if (gr_config.override_default_route)
+		LOG(NOTICE, "GROUT_OVERRIDE_DEFAULT_ROUTE is set, overriding default route");
 	LOG(NOTICE,
 	    "License available at https://git.dpdk.org/apps/grout/plain/licenses/BSD-3-clause.txt");
 

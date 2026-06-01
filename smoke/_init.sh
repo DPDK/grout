@@ -264,6 +264,7 @@ llocal_addr() {
 
 if [ "$run_grout" = true ]; then
 	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
+	smoke_setenv GROUT_OVERRIDE_DEFAULT_ROUTE true
 fi
 if [ -n "${builddir}" ]; then
 	smoke_setenv PATH "$builddir:$PATH"

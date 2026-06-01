@@ -76,6 +76,18 @@ Grout is a software router based on DPDK _rte_graph_.
 *-x*, *--trace-packets*
 	Print all ingress/egress packets (for debugging purposes).
 
+# ENVIRONMENT
+
+*GROUT_SOCK_PATH*
+	Path to the control plane API socket. See *-s*.
+
+*GROUT_OVERRIDE_DEFAULT_ROUTE*
+	When set to _1_, _true_, _on_, or _yes_ (case insensitive), override the
+	existing default route in the main routing table with metric 0. This is
+	required when running in a network namespace or a container where
+	another default route (e.g. from Kubernetes) takes priority over grout's
+	own default route.
+
 # EXTRA EAL ARGUMENTS
 
 Any DPDK EAL argument can be specified after an optional *--*. This is an
