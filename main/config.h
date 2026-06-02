@@ -19,6 +19,7 @@ struct gr_config {
 	unsigned max_mtu;
 	bool test_mode;
 	bool poll_mode;
+	bool napi; // --napi: adaptive interrupt (NAPI) rx; implies poll_mode
 	bool log_syslog;
 	bool log_packets;
 	vec char **eal_extra_args;

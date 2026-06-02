@@ -66,6 +66,7 @@ struct worker {
 	unsigned cpu_id;
 	unsigned lcore_id;
 	pid_t tid;
+	int wakeup_fd; // eventfd: ctlplane writes, dataplane epoll-waits + drains (napi)
 
 	struct {
 		pthread_mutex_t lock;

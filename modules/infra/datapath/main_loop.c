@@ -13,12 +13,15 @@
 #include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_errno.h>
+#include <rte_ethdev.h>
 #include <rte_graph_worker.h>
+#include <rte_interrupts.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 
 #include <pthread.h>
 #include <stdatomic.h>
+#include <sys/epoll.h>
 #include <sys/prctl.h>
 #include <unistd.h>
 
@@ -182,6 +185,110 @@ err:
 
 static struct rte_rcu_qsbr *rcu;
 
+#define NAPI_EMPTY_WINDOWS 2
+#define NAPI_MAX_EVENTS 32
+// A few short timeout waits after going idle give schedutil repeated wakes to
+// ratchet the frequency back down from the uclamp_min max; one wait alone is
+// not enough to drop it from the boot-time peak. After NAPI_SETTLE_TRIES the
+// worker blocks indefinitely.
+#define NAPI_SETTLE_MS 100
+#define NAPI_SETTLE_TRIES 3
+
+// --napi: idle worker blocks on rxq interrupts instead of polling.
+//
+// Each owned rxq is armed via the generic rte_eth_dev_rx_intr_* API and its
+// eventfd added to this thread's epoll, then the worker blocks until one fires.
+// rx_intr_enable returning < 0 means the queue has no interrupt support (e.g. no
+// notification channel) -- fall back to polling. Newly owned rxqs (runtime queue
+// reassignment) are added to the epoll set on the fly; entries are never
+// removed, as several queues may share a single portal eventfd and a per-queue
+// removal would also disarm its siblings. The worker's wakeup_fd is also in the
+// epoll set (registered once at start), so a reconfig or shutdown kick breaks
+// the block immediately instead of waiting for a packet.
+static void napi_wait(struct worker *w, vec struct queue_map **registered) {
+	static __thread struct rte_epoll_event wakeup_ev;
+	static __thread bool wakeup_done;
+	struct rte_epoll_event events[NAPI_MAX_EVENTS];
+	vec struct queue_map *armed = NULL;
+	struct queue_map *qm, *e;
+	int n, ret;
+
+	// Register the wakeup eventfd on the SAME per-thread epfd this wait uses,
+	// so a reconfig/shutdown kick breaks epoll_wait. Done from napi_wait (not
+	// worker start) to guarantee it lands on the epfd rte_epoll_wait blocks on.
+	if (!wakeup_done) {
+		wakeup_ev.epdata.event = EPOLLIN;
+		ret = rte_epoll_ctl(RTE_EPOLL_PER_THREAD, EPOLL_CTL_ADD, w->wakeup_fd, &wakeup_ev);
+		if (ret == 0 || errno == EEXIST)
+			wakeup_done = true;
+	}
+
+	vec_foreach_ref (qm, w->rxqs) {
+		if (rte_eth_dev_rx_intr_enable(qm->port_id, qm->queue_id) < 0)
+			goto disarm;
+		vec_add(armed, *qm);
+	}
+
+	// register any rxq not yet in this thread's epoll set
+	vec_foreach_ref (qm, armed) {
+		bool reg = false;
+		for (uint32_t i = 0; i < vec_len(*registered); i++) {
+			if ((*registered)[i].port_id == qm->port_id
+			    && (*registered)[i].queue_id == qm->queue_id) {
+				reg = true;
+				break;
+			}
+		}
+		if (reg)
+			continue;
+		ret = rte_eth_dev_rx_intr_ctl_q(
+			qm->port_id, qm->queue_id, RTE_EPOLL_PER_THREAD, RTE_INTR_EVENT_ADD, NULL
+		);
+		// -EEXIST: the fd is already in the epoll set (several queues can
+		// share one DPAA2 portal eventfd); treat it as registered.
+		if (ret == 0 || ret == -EEXIST)
+			vec_add(*registered, *qm);
+	}
+
+	// A packet may have arrived between the empty-poll decision and arming
+	// the interrupts; recheck and resume polling instead of blocking until
+	// the next packet. rte_eth_rx_queue_count() is now safe against a
+	// concurrent port stop (the reset fast-path op returns -ENOTSUP, no
+	// longer a NULL-deref segfault).
+	vec_foreach_ref (qm, armed) {
+		if (rte_eth_rx_queue_count(qm->port_id, qm->queue_id) > 0)
+			goto disarm;
+	}
+
+	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
+	// A few short waits first: each timeout wake lets schedutil re-evaluate the
+	// decayed utilization and ratchet the frequency down from the uclamp_min
+	// max, then block indefinitely so an idle worker stops waking (a packet
+	// wakes it via the rxq interrupt, a reconfig/shutdown via the wakeup
+	// eventfd). Each is a single wait, never a drain loop: epoll_wait does not
+	// consume the events (the graph walk pulls the frames), so looping on a
+	// full batch would spin forever on any level-ready fd.
+	for (unsigned i = 0; i < NAPI_SETTLE_TRIES; i++) {
+		n = rte_epoll_wait(RTE_EPOLL_PER_THREAD, events, NAPI_MAX_EVENTS, NAPI_SETTLE_MS);
+		if (n != 0)
+			break;
+	}
+	if (n == 0)
+		n = rte_epoll_wait(RTE_EPOLL_PER_THREAD, events, NAPI_MAX_EVENTS, -1);
+	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
+
+	// drain a reconfig/shutdown kick so the eventfd does not keep the epoll
+	// readable on the next block.
+	uint64_t kick;
+	while (read(w->wakeup_fd, &kick, sizeof(kick)) > 0)
+		;
+
+disarm:
+	vec_foreach_ref (e, armed)
+		rte_eth_dev_rx_intr_disable(e->port_id, e->queue_id);
+	vec_free(armed);
+}
+
 void *gr_datapath_loop(void *priv) {
 	struct stats_context ctx = {
 		.stats = NULL,
@@ -193,7 +300,8 @@ void *gr_datapath_loop(void *priv) {
 	uint32_t sleep, max_sleep_us;
 	struct worker *w = priv;
 	struct rte_graph *graph;
-	unsigned cur, loop;
+	unsigned cur, loop, napi_empty = 0;
+	vec struct queue_map *napi_registered = NULL;
 	char name[16];
 
 #define log(lvl, fmt, ...) LOG(lvl, "[CPU %d] " fmt, w->cpu_id __VA_OPT__(, ) __VA_ARGS__)
@@ -256,6 +364,7 @@ reconfig:
 
 	loop = 0;
 	sleep = 0;
+	napi_empty = 0;
 	timestamp = rte_rdtsc();
 	for (;;) {
 		rte_graph_walk(graph);
@@ -276,15 +385,34 @@ reconfig:
 			rte_graph_cluster_stats_get(ctx.stats, false);
 			timestamp_tmp = rte_rdtsc();
 			cycles = timestamp_tmp - timestamp;
-			max_sleep_us = atomic_load(&w->max_sleep_us);
-			if (ctx.last_count == 0 && max_sleep_us > 0) {
-				sleep = sleep >= max_sleep_us ? max_sleep_us : (sleep + 1);
-				usleep(sleep);
-				ctx.w_stats->sleep_cycles += rte_rdtsc() - timestamp_tmp;
-				ctx.w_stats->n_sleeps += 1;
+			if (gr_config.napi) {
+				if (ctx.last_count == 0 && ++napi_empty >= NAPI_EMPTY_WINDOWS) {
+					uint64_t now;
+					napi_empty = 0;
+					napi_wait(w, &napi_registered);
+					now = rte_rdtsc();
+					ctx.w_stats->sleep_cycles += now - timestamp_tmp;
+					ctx.w_stats->n_sleeps += 1;
+					// fold the block into timestamp_tmp/cycles so the
+					// shared accounting below bills it as sleep, not busy
+					timestamp_tmp = now;
+					cycles = now - timestamp;
+				} else {
+					if (ctx.last_count)
+						napi_empty = 0;
+					ctx.w_stats->busy_cycles += cycles;
+				}
 			} else {
-				sleep = 0;
-				ctx.w_stats->busy_cycles += cycles;
+				max_sleep_us = atomic_load(&w->max_sleep_us);
+				if (ctx.last_count == 0 && max_sleep_us > 0) {
+					sleep = sleep >= max_sleep_us ? max_sleep_us : (sleep + 1);
+					usleep(sleep);
+					ctx.w_stats->sleep_cycles += rte_rdtsc() - timestamp_tmp;
+					ctx.w_stats->n_sleeps += 1;
+				} else {
+					sleep = 0;
+					ctx.w_stats->busy_cycles += cycles;
+				}
 			}
 
 			loop = 0;
@@ -305,6 +433,7 @@ shutdown:
 	rte_rcu_qsbr_thread_unregister(rcu, rte_lcore_id());
 	rte_thread_unregister();
 	w->lcore_id = LCORE_ID_ANY;
+	vec_free(napi_registered);
 
 	return NULL;
 }
