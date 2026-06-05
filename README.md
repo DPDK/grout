@@ -287,13 +287,13 @@ In order to run the `smoke-tests`, `lint`, `check-patches` and `update-graph`
 targets, you'll need additional packages:
 
 ```sh
-dnf install gawk gdb clang-tools-extra jq codespell curl traceroute graphviz ndisc6 abidiff
+dnf install gawk gdb clang-tools-extra jq codespell curl traceroute graphviz ndisc6 abidiff inotify-tools
 ```
 
 or
 
 ```sh
-apt install gawk gdb clang-format jq codespell curl traceroute graphviz ndisc6 abigail-tools
+apt install gawk gdb clang-format jq codespell curl traceroute graphviz ndisc6 abigail-tools inotify-tools
 ```
 
 ### Build

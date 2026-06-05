@@ -253,32 +253,24 @@ set_srv6_route() {
 # Fails after 10s if any daemon is not respawned with a different pid.
 kill_frr_daemons() {
 	local frr_run="$builddir/frr_install/var/run/frr"
-	local daemon new
-	declare -A old_pids
+	local daemon f
+	declare -A pids
 
 	for daemon in "$@"; do
-		old_pids[$daemon]=$(cat "$frr_run/$daemon.pid")
+		f="$frr_run/$daemon.pid"
+		pids[$f]=$(cat "$f")
 	done
 
-	for daemon in "$@"; do
-		kill -9 "${old_pids[$daemon]}"
-	done
+	{ sleep 0.2 && kill -9 "${pids[@]}"; } &
 
-	SECONDS=0
-	while :; do
-		local all_respawned=1
-		for daemon in "$@"; do
-			new=$(cat "$frr_run/$daemon.pid" 2>/dev/null || true)
-			if [ -z "$new" ] || [ "$new" = "${old_pids[$daemon]}" ]; then
-				all_respawned=0
-				break
-			fi
-		done
-		[ "$all_respawned" -eq 1 ] && break
-		[ "$SECONDS" -ge 10 ] && \
-			fail "watchfrr did not respawn $* within 10s"
-		sleep 0.1
-	done
+	while [ "${#pids[@]}" -gt 0 ] && read -r f; do
+		if [[ -v pids[$f] ]]; then
+			pkill -0 --pidfile "$f"
+			unset pids[$f]
+		fi
+	done < <(timeout 10s inotifywait -mq -e modify --format %w%f "$frr_run" || :)
+
+	[ "${#pids[@]}" -eq 0 ] || fail "watchfrr did not respawn ${pids[@]} within 10s"
 }
 
 #   <namespace> : optional netns name ("" = root namespace)
