@@ -32,6 +32,12 @@ bool rss_autoscale_port_enabled(uint16_t port_id);
 // Queried at graph build time to mark RETA-deactivated rxqs inactive.
 uint16_t rss_autoscale_port_n_active(uint16_t port_id);
 
+// True when queue_id is among the first n active RSS queues of the port,
+// honoring the controller's activation order. For prefix PMDs (and unmanaged
+// ports) this is exactly queue_id < n; for indirect-RETA PMDs it tests
+// membership in the placed queue set. Queried from graph build / live swap.
+bool rss_autoscale_port_rxq_active_within(uint16_t port_id, uint16_t queue_id, uint16_t n);
+
 #define RSS_AUTOSCALE_CONSEC_FULL 4
 #define RSS_AUTOSCALE_CONSEC_EMPTY 10000
 

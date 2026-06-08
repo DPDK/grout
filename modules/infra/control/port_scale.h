@@ -16,6 +16,10 @@ struct port_scale_caps {
 	uint16_t *allowed_n; // sorted ascending, free with _free()
 	size_t allowed_count;
 	bool supports_scale;
+	// PMD has a real RSS indirection table (non-DPAA2): the RETA can map to
+	// an arbitrary queue set, not only the i%n prefix. Enables per-core
+	// placement (port_scale_apply_order). DPAA2 is prefix-only -> false.
+	bool indirect_reta;
 };
 
 int port_scale_caps_get(struct iface_info_port *p, struct port_scale_caps *out);
@@ -40,3 +44,9 @@ uint16_t port_scale_caps_clamp(const struct port_scale_caps *caps, uint16_t n);
 // Reprogram HW RETA to dispatch only on queues [0..n-1] (uniform i % n).
 // n must be in caps.allowed_n.
 int port_scale_apply(struct iface_info_port *p, uint16_t n);
+
+// Like port_scale_apply but programs an explicit queue set: reta[idx] =
+// order[idx % n]. For PMDs with a real indirection table (caps.indirect_reta),
+// letting the controller place a port on chosen cores. UNTESTED on hardware --
+// DPAA2 is prefix-only and never takes this path.
+int port_scale_apply_order(struct iface_info_port *p, const uint16_t *order, uint16_t n);

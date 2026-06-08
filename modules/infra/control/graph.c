@@ -117,7 +117,7 @@ static bool rxq_is_inactive(uint16_t port_id, uint16_t queue_id) {
 	if (gr_config.rss_autoscale == 0 || !rss_autoscale_port_enabled(port_id))
 		return false;
 	n = rss_autoscale_port_n_active(port_id);
-	return n > 0 && queue_id >= n;
+	return n > 0 && !rss_autoscale_port_rxq_active_within(port_id, queue_id, n);
 }
 
 static int
@@ -324,7 +324,11 @@ void worker_graph_rxq_set_active(uint16_t port_id, uint16_t n_active) {
 			node = rte_graph_node_get_by_name(graph_name, node_name);
 			if (node == NULL)
 				continue;
-			node->process = qmap->queue_id < n_active ? active : rx_inactive_process;
+			node->process = rss_autoscale_port_rxq_active_within(
+						port_id, qmap->queue_id, n_active
+					) ?
+				active :
+				rx_inactive_process;
 		}
 	}
 }

@@ -78,6 +78,9 @@ int port_scale_caps_get_n(struct iface_info_port *p, uint16_t n_rxq, struct port
 		return ret;
 
 	out->supports_scale = (out->allowed_count > 1);
+	// Non-DPAA2 PMDs expose a real indirection table: the RETA may map to an
+	// arbitrary queue set. DPAA2 only honors the i%n prefix.
+	out->indirect_reta = info.driver_name != NULL && strcmp(info.driver_name, "net_dpaa2") != 0;
 	return 0;
 }
 
@@ -182,5 +185,58 @@ int port_scale_apply(struct iface_info_port *p, uint16_t n) {
 	}
 
 	LOG(INFO, "port %u: scaled to %u active RX queue(s)", p->port_id, n);
+	return 0;
+}
+
+// Program an explicit queue set: reta[idx] = order[idx % n]. Indirect-RETA
+// PMDs only (DPAA2 rejects a non-prefix pattern with -ENOTSUP). UNTESTED.
+int port_scale_apply_order(struct iface_info_port *p, const uint16_t *order, uint16_t n) {
+	struct rte_eth_dev_info info;
+	struct rte_eth_rss_reta_entry64 *reta = NULL;
+	size_t n_groups;
+	int ret;
+
+	if (p == NULL || order == NULL || n == 0)
+		return -EINVAL;
+
+	if ((ret = rte_eth_dev_info_get(p->port_id, &info)) < 0)
+		return ret;
+
+	if (info.reta_size == 0)
+		return -ENOTSUP;
+
+	if (info.reta_size % RTE_ETH_RETA_GROUP_SIZE != 0)
+		return -EINVAL;
+
+	for (uint16_t k = 0; k < n; k++)
+		if (order[k] >= info.nb_rx_queues)
+			return -EINVAL;
+
+	n_groups = info.reta_size / RTE_ETH_RETA_GROUP_SIZE;
+	reta = calloc(n_groups, sizeof(*reta));
+	if (reta == NULL)
+		return -ENOMEM;
+
+	for (size_t g = 0; g < n_groups; g++) {
+		reta[g].mask = UINT64_MAX;
+		for (size_t i = 0; i < RTE_ETH_RETA_GROUP_SIZE; i++) {
+			uint32_t idx = g * RTE_ETH_RETA_GROUP_SIZE + i;
+			reta[g].reta[i] = order[idx % n];
+		}
+	}
+
+	ret = rte_eth_dev_rss_reta_update(p->port_id, reta, info.reta_size);
+	free(reta);
+
+	if (ret < 0) {
+		LOG(WARNING,
+		    "port %u: rss_reta_update(explicit n=%u) failed: %s",
+		    p->port_id,
+		    n,
+		    rte_strerror(-ret));
+		return ret;
+	}
+
+	LOG(INFO, "port %u: scaled to %u active RX queue(s) (explicit set)", p->port_id, n);
 	return 0;
 }

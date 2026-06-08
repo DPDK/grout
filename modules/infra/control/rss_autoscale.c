@@ -46,6 +46,11 @@ struct rss_autoscale_port_state {
 	uint64_t prev_total_cycles;
 	struct event *scale_down_timer;
 	bool deferred_deactivate_pending;
+	// Activation order: order[k] is the physical queue id of the k-th active
+	// slot. NULL for prefix PMDs (identity order, order[k] == k); for indirect-
+	// RETA PMDs it is allocated to caps.max_n (the port's queue count) and
+	// filled by compute_order(). Only slots [0, n_active) are meaningful.
+	uint16_t *order;
 };
 
 static struct rss_autoscale_port_state *port_states[RTE_MAX_ETHPORTS];
@@ -123,11 +128,117 @@ static int caps_ensure(struct rss_autoscale_port_state *s) {
 		port_scale_caps_free(&s->caps);
 		return -ENOTSUP;
 	}
+	// Indirect-RETA PMDs use an explicit per-core placement order, sized to the
+	// port's queue count. Prefix PMDs (DPAA2) leave order NULL (identity), so
+	// no allocation and the tested i%n path is untouched.
+	if (s->caps.indirect_reta) {
+		free(s->order);
+		s->order = calloc(s->caps.max_n, sizeof(*s->order));
+	}
 	return 0;
 }
 
 static void
 port_worker_cycles(uint16_t port_id, uint16_t n_active, uint64_t *out_busy, uint64_t *out_total);
+
+// Physical queue id of the k-th active slot. Identity for prefix PMDs.
+static uint16_t active_q(const struct rss_autoscale_port_state *s, uint16_t k) {
+	return (s->caps.indirect_reta && s->order != NULL) ? s->order[k] : k;
+}
+
+static bool
+port_rxq_active_within(const struct rss_autoscale_port_state *s, uint16_t queue_id, uint16_t n) {
+	if (!s->caps.indirect_reta || s->order == NULL)
+		return queue_id < n;
+	for (uint16_t k = 0; k < n; k++)
+		if (s->order[k] == queue_id)
+			return true;
+	return false;
+}
+
+bool rss_autoscale_port_rxq_active_within(uint16_t port_id, uint16_t queue_id, uint16_t n) {
+	const struct rss_autoscale_port_state *s = state_get(port_id);
+	// Unmanaged or prefix PMD: preserve the queue_id < n semantics.
+	if (s == NULL)
+		return queue_id < n;
+	return port_rxq_active_within(s, queue_id, n);
+}
+
+// Indirect-RETA greedy placement: append the queues whose bound CPUs carry the
+// fewest active queues of other ports. No-op for prefix PMDs (DPAA2). UNTESTED.
+static void compute_order(struct rss_autoscale_port_state *s, uint16_t n) {
+	uint16_t q_cpu[RTE_MAX_QUEUES_PER_PORT]; // this port's queue -> bound cpu
+	bool used[RTE_MAX_QUEUES_PER_PORT] = {0};
+	uint16_t occ[RTE_MAX_LCORE] = {0}; // active queues of other ports, per cpu
+	struct iface_info_port *p;
+	struct queue_map *qm;
+	uint16_t base, nq;
+	struct worker *w;
+
+	if (!s->caps.indirect_reta || s->order == NULL)
+		return;
+	base = s->n_active;
+	if (n <= base)
+		return; // scale-down: keep order[0..n), nothing new to place
+
+	p = port_info_from_id(s->port_id);
+	nq = (p != NULL) ? p->n_rxq : 0;
+	if (nq == 0 || nq > RTE_MAX_QUEUES_PER_PORT)
+		return;
+
+	for (uint16_t q = 0; q < nq; q++)
+		q_cpu[q] = UINT16_MAX;
+
+	STAILQ_FOREACH (w, &workers, next) {
+		if (w->cpu_id >= RTE_MAX_LCORE)
+			continue;
+		vec_foreach_ref (qm, w->rxqs) {
+			struct rss_autoscale_port_state *o;
+			bool polls;
+
+			if (qm->port_id == s->port_id) {
+				if (qm->queue_id < nq)
+					q_cpu[qm->queue_id] = w->cpu_id;
+				continue;
+			}
+			// Another port occupies this cpu when it polls the queue: a
+			// managed port by its active set, an unmanaged/unscalable one
+			// (no RETA scaling) by every enabled queue.
+			o = state_get(qm->port_id);
+			polls = (o != NULL && o->caps.supports_scale) ?
+				port_rxq_active_within(o, qm->queue_id, o->n_active) :
+				qm->enabled;
+			if (polls)
+				occ[w->cpu_id]++;
+		}
+	}
+
+	// Keep already-placed slots; mark their queues used so we only append.
+	for (uint16_t k = 0; k < base && k < nq; k++)
+		if (s->order[k] < nq)
+			used[s->order[k]] = true;
+
+	for (uint16_t k = base; k < n && k < nq; k++) {
+		int best = -1;
+
+		for (uint16_t q = 0; q < nq; q++) {
+			if (used[q] || q_cpu[q] == UINT16_MAX)
+				continue;
+			if (best < 0 || occ[q_cpu[q]] < occ[q_cpu[best]]
+			    || (occ[q_cpu[q]] == occ[q_cpu[best]] && q_cpu[q] < q_cpu[best]))
+				best = q;
+		}
+		if (best < 0) {
+			// Bind not ready or fewer bound queues than n: identity tail
+			// (== prefix placement) for the remaining slots.
+			for (; k < n && k < nq; k++)
+				s->order[k] = k;
+			return;
+		}
+		s->order[k] = (uint16_t)best;
+		used[best] = true;
+	}
+}
 
 // On success, rearms the scale-down timer on a fresh CPU baseline so
 // the next fire averages only post-apply cycles.
@@ -138,7 +249,14 @@ static int do_apply(struct rss_autoscale_port_state *s, uint16_t n_new) {
 	p = port_info_from_id(s->port_id);
 	if (p == NULL)
 		return -ENODEV;
-	ret = port_scale_apply(p, n_new);
+	// Indirect-RETA PMDs get an explicit per-core placement; prefix PMDs
+	// (DPAA2) keep the tested i%n path untouched.
+	if (s->caps.indirect_reta) {
+		compute_order(s, n_new);
+		ret = port_scale_apply_order(p, s->order, n_new);
+	} else {
+		ret = port_scale_apply(p, n_new);
+	}
 	if (ret < 0)
 		return ret;
 	// Scale-up: resume the reactivated rxqs now. Scale-down: keep them polling
@@ -151,8 +269,8 @@ static int do_apply(struct rss_autoscale_port_state *s, uint16_t n_new) {
 	// Newly-activated queues may carry stale idle latched during a
 	// previous deactivation drain. Clear their health so the next
 	// !any_idle check is not blocked by them.
-	for (uint16_t q = s->n_active; q < n_new; q++)
-		rxq_health_reset(&rxq_health[s->port_id][q]);
+	for (uint16_t k = s->n_active; k < n_new; k++)
+		rxq_health_reset(&rxq_health[s->port_id][active_q(s, k)]);
 	s->n_active = n_new;
 	if (s->n_load_recommended == 0)
 		s->n_load_recommended = n_new;
@@ -257,6 +375,7 @@ static void rss_autoscale_on_iface_remove(uint32_t /*event*/, const void *obj) {
 		event_free(s->scale_down_timer);
 	}
 	port_scale_caps_free(&s->caps);
+	free(s->order);
 	free(s);
 	port_states[p->port_id] = NULL;
 	for (uint16_t q = 0; q < RTE_MAX_QUEUES_PER_PORT; q++)
@@ -323,7 +442,7 @@ static bool worker_has_active_rxq(const struct worker *w) {
 		// still distributes traffic to.
 		if (ps == NULL || !ps->caps.supports_scale || ps->n_active == 0)
 			return true;
-		if (qmap->queue_id < ps->n_active)
+		if (port_rxq_active_within(ps, qmap->queue_id, ps->n_active))
 			return true;
 	}
 	return false;
@@ -409,7 +528,10 @@ port_worker_cycles(uint16_t port_id, uint16_t n_active, uint64_t *out_busy, uint
 		if (ws == NULL)
 			continue;
 		vec_foreach_ref (qm, w->rxqs) {
-			if (qm->port_id == port_id && qm->queue_id < n_active) {
+			if (qm->port_id == port_id
+			    && rss_autoscale_port_rxq_active_within(
+				    port_id, qm->queue_id, n_active
+			    )) {
 				serves = true;
 				break;
 			}
@@ -434,8 +556,8 @@ static uint16_t decide_port(struct rss_autoscale_port_state *s) {
 	bool any_idle = false;
 	uint16_t n_new;
 
-	for (uint16_t q = 0; q < n_queues; q++) {
-		struct rxq_health *h = &rxq_health[s->port_id][q];
+	for (uint16_t k = 0; k < n_queues; k++) {
+		struct rxq_health *h = &rxq_health[s->port_id][active_q(s, k)];
 		if (atomic_load_explicit(&h->saturated, memory_order_relaxed))
 			any_saturated = true;
 		if (atomic_load_explicit(&h->idle, memory_order_relaxed))
@@ -480,8 +602,10 @@ static void scale_down_timer_cb(evutil_socket_t /*fd*/, short /*what*/, void *ar
 
 	// All active queues idle is a direct signal independent of cross-port
 	// worker CPU attribution.
-	for (uint16_t q = 0; q < s->n_active; q++) {
-		if (!atomic_load_explicit(&rxq_health[s->port_id][q].idle, memory_order_relaxed)) {
+	for (uint16_t k = 0; k < s->n_active; k++) {
+		if (!atomic_load_explicit(
+			    &rxq_health[s->port_id][active_q(s, k)].idle, memory_order_relaxed
+		    )) {
 			all_idle = false;
 			break;
 		}
@@ -637,6 +761,7 @@ static void rss_autoscale_fini(struct event_base * /*ev_base*/) {
 				port_states[i]->scale_down_timer = NULL;
 			}
 			port_scale_caps_free(&port_states[i]->caps);
+			free(port_states[i]->order);
 			free(port_states[i]);
 			port_states[i] = NULL;
 		}
