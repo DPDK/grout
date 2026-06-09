@@ -109,6 +109,14 @@ grcli -j route show | jq -e \
 	".[] | select(.destination == \"$sr6_localsid_kept/48\")" >/dev/null \
 	|| fail "static-SID $sr6_localsid_kept/48 not installed in grout FIB"
 
+# The initial startup arms a sweep with -K5 delay (no stale routes exist
+# yet, so it is a harmless no-op). Wait for it to fire before capturing
+# the FRR log baseline, otherwise it leaks into the restart window and
+# the final sweep_count check sees 2 instead of 1.
+{ tail -f -n +1 "$frr_log" || : ; } | \
+	timeout 10 grep -m 1 -E "Sweeping the RIB for stale routes" >/dev/null \
+	|| echo "warning: timeout 10s waiting for initial startup sweep to fire"
+
 mark_events
 # Mark frr_log so the marker wait skips start_frr's earlier emission.
 frr_log_mark=$(wc -l < "$frr_log")
