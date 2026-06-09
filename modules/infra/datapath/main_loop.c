@@ -20,9 +20,11 @@
 #include <rte_malloc.h>
 
 #include <pthread.h>
+#include <sched.h>
 #include <stdatomic.h>
 #include <sys/epoll.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 LOG_TYPE("graph");
@@ -289,6 +291,57 @@ disarm:
 	vec_free(armed);
 }
 
+// napi: the worker blocks on the rxq IRQ when idle, so schedutil sees low
+// utilization and downclocks the core even at line rate. Pin uclamp_min to the
+// max capacity: the governor runs the core at full speed while the worker is
+// runnable and lets it drop only when it actually sleeps on the interrupt.
+// glibc < 2.41 exposes neither struct sched_attr nor a sched_setattr() wrapper
+// (see HAVE_SCHED_SETATTR in meson.build); define them locally and fall back to
+// the raw syscall there.
+#ifndef HAVE_SCHED_SETATTR
+struct sched_attr {
+	uint32_t size;
+	uint32_t sched_policy;
+	uint64_t sched_flags;
+	int32_t sched_nice;
+	uint32_t sched_priority;
+	uint64_t sched_runtime;
+	uint64_t sched_deadline;
+	uint64_t sched_period;
+	uint32_t sched_util_min;
+	uint32_t sched_util_max;
+};
+static inline int sched_setattr(pid_t pid, struct sched_attr *attr, unsigned int flags) {
+	return syscall(SYS_sched_setattr, pid, attr, flags);
+}
+#endif
+#ifndef SCHED_FLAG_KEEP_ALL
+#define SCHED_FLAG_KEEP_POLICY 0x08
+#define SCHED_FLAG_KEEP_PARAMS 0x10
+#define SCHED_FLAG_KEEP_ALL (SCHED_FLAG_KEEP_POLICY | SCHED_FLAG_KEEP_PARAMS)
+#endif
+#ifndef SCHED_FLAG_UTIL_CLAMP_MIN
+#define SCHED_FLAG_UTIL_CLAMP_MIN 0x20
+#endif
+
+static void worker_perf_floor(const struct worker *w) {
+	struct sched_attr attr = {
+		.size = sizeof(attr),
+		.sched_flags = SCHED_FLAG_KEEP_ALL | SCHED_FLAG_UTIL_CLAMP_MIN,
+		.sched_util_min = 1024, // SCHED_CAPACITY_SCALE
+	};
+
+	if (sched_setattr(0, &attr, 0) < 0) {
+		if (errno == EOPNOTSUPP || errno == ENOSYS || errno == EPERM || errno == EINVAL)
+			LOG(NOTICE,
+			    "[CPU %d] uclamp_min unavailable: %s",
+			    w->cpu_id,
+			    strerror(errno));
+		else
+			LOG(WARNING, "[CPU %d] uclamp_min: %s", w->cpu_id, strerror(errno));
+	}
+}
+
 void *gr_datapath_loop(void *priv) {
 	struct stats_context ctx = {
 		.stats = NULL,
@@ -327,6 +380,8 @@ void *gr_datapath_loop(void *priv) {
 			return NULL;
 		}
 	}
+	if (gr_config.napi)
+		worker_perf_floor(w);
 
 	log(INFO, "lcore_id = %d", w->lcore_id);
 
