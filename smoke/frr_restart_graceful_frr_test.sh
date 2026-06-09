@@ -12,7 +12,7 @@
 # zd_grout_plugin_init pre-arms zrouter.t_rib_sweep with a long delay so
 # zebra_main_router_started()'s own event_add_timer(rib_sweep_route, K,
 # &zrouter.t_rib_sweep) is a no-op (*t_ptr != NULL early-return,
-# lib/event.c:1430). grout_sync_arm_sweep replaces the placeholder with
+# lib/event.c:1430). grout_main_router_started replaces the placeholder with
 # the real clamped delay once the replay marker is observed.
 #
 # Follows the pattern of FRR upstream tests/topotests/zebra_graceful_restart
@@ -197,7 +197,7 @@ actual=$((actual_default + actual_vrf2))
 
 # Sweep ran exactly once: the placeholder pre-arm in zd_grout_plugin_init
 # neutralised zebra_main_router_started's native arm (event_add_timer
-# *t_ptr != NULL early-return), and grout_sync_arm_sweep's cancel + arm
+# *t_ptr != NULL early-return), and grout_main_router_started's cancel + arm
 # is the only fire. Any count > 1 means the pre-arm trick regressed.
 sweep_count=$(tail -n +$((frr_log_mark + 1)) "$frr_log" \
 	| grep -cE 'Sweeping the RIB for stale routes\.\.\.$' || true)
