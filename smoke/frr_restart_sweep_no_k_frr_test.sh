@@ -52,7 +52,7 @@ frr_log_mark=$(wc -l < "$frr_log")
 # zebra_main_router_started() will try to arm t_rib_sweep with delay=0
 # (graceful_restart=false) - but zd_grout_plugin_init already pre-armed
 # that slot with a long delay, so event_add_timer returns early and the
-# native arm is a no-op. grout_sync_arm_sweep later cancels the
+# native arm is a no-op. grout_main_router_started later cancels the
 # placeholder and re-arms with delay=0 once the replay marker is seen.
 kill_frr_daemons zebra staticd
 
@@ -79,7 +79,7 @@ grcli -j route show | jq -e \
 # The sweep ran exactly once. With the pre-arm placeholder in
 # zd_grout_plugin_init, zebra_main_router_started's native
 # event_add_timer(..., 0, &zrouter.t_rib_sweep) is a no-op (*t_ptr
-# already set); only grout_sync_arm_sweep's cancel+arm produces a real
+# already set); only grout_main_router_started's cancel+arm produces a real
 # rib_sweep_route fire. Any count > 1 would mean the pre-arm regressed.
 sweep_count=$(tail -n +$((frr_log_mark + 1)) "$frr_log" \
 	| grep -cE 'Sweeping the RIB for stale routes\.\.\.$' || true)

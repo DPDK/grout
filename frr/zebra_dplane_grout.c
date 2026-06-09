@@ -13,13 +13,10 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
-#include <fcntl.h>
-#include <getopt.h>
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
 #include <lib/version.h>
-#include <unistd.h>
 #include <zebra/interface.h>
 #include <zebra/rib.h>
 #include <zebra/zebra_dplane.h>
@@ -73,10 +70,6 @@ struct grout_ctx_t {
 	struct event *dg_t_poll_marker;
 	unsigned int marker_poll_retries;
 	void (*marker_cb)(void);
-
-	// -K value cached from /proc/self/cmdline. Same semantics as FRR's
-	// zebra_di.gr_cleanup_time: 0 means absent, positive means K seconds.
-	int gr_cleanup_time;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
@@ -91,7 +84,7 @@ static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
 static void grout_reconnect(struct event *);
 static void grout_reconnect_finish(void);
-static void grout_sync_arm_sweep(void);
+static void grout_main_router_started(void);
 static void grout_sync_cleanup_marker(void);
 static void grout_sync_inject_marker(void);
 
@@ -198,84 +191,9 @@ static void grout_sync_fdb(struct event *) {
 			return;
 		}
 	}
-}
 
-// Recover -K by re-parsing /proc/self/cmdline. zebra_di.gr_cleanup_time
-// is static in main.c (not exported) and zrouter.t_rib_sweep loses the
-// value after firing. Returns the -K seconds, or 0 if absent (matches
-// FRR's libfrr.c default + atoi semantics). Called once from
-// zd_grout_plugin_init (single-threaded, before event loop).
-static int grout_read_k_from_cmdline(void) {
-	// 1 MiB cap; ARG_MAX is 2 MiB, MTYPE_TMP aborts on OOM.
-	const size_t buf_cap_max = 1024 * 1024;
-	char *buf = NULL, **argv = NULL;
-	size_t buf_cap = 4096, buf_len = 0;
-	int argc = 0, argv_cap = 0;
-	int fd, ret = 0;
-
-	fd = open("/proc/self/cmdline", O_RDONLY);
-	if (fd < 0) {
-		gr_log_warn("/proc/self/cmdline: %s", strerror(errno));
-		return 0;
-	}
-
-	buf = XMALLOC(MTYPE_TMP, buf_cap);
-
-	for (;;) {
-		ssize_t n = read(fd, buf + buf_len, buf_cap - buf_len - 1);
-		if (n < 0)
-			goto out;
-		if (n == 0)
-			break;
-		buf_len += n;
-		if (buf_len >= buf_cap - 1) {
-			if (buf_cap >= buf_cap_max) {
-				gr_log_warn(
-					"/proc/self/cmdline exceeds %zu bytes, truncating; "
-					"-K parsing may miss the flag",
-					buf_cap_max
-				);
-				goto out;
-			}
-			buf_cap *= 2;
-			if (buf_cap > buf_cap_max)
-				buf_cap = buf_cap_max;
-			buf = XREALLOC(MTYPE_TMP, buf, buf_cap);
-		}
-	}
-	if (buf_len == 0)
-		goto out;
-	buf[buf_len] = '\0';
-
-	for (size_t i = 0; i < buf_len; i++)
-		if (buf[i] == '\0')
-			argv_cap++;
-
-	argv = XCALLOC(MTYPE_TMP, (argv_cap + 1) * sizeof(*argv));
-	for (char *p = buf; p < buf + buf_len; p += strlen(p) + 1)
-		argv[argc++] = p;
-	argv[argc] = NULL;
-
-	static const struct option lo[] = {
-		{"graceful_restart", optional_argument, NULL, 'K'}, {0, 0, 0, 0}
-	};
-	int saved_optind = optind;
-	int saved_opterr = opterr;
-	optind = 1;
-	opterr = 0;
-	int c;
-	while ((c = getopt_long(argc, argv, ":K::", lo, NULL)) != -1) {
-		if (c == 'K' && optarg)
-			ret = atoi(optarg);
-	}
-	optind = saved_optind;
-	opterr = saved_opterr;
-
-out:
-	close(fd);
-	XFREE(MTYPE_TMP, argv);
-	XFREE(MTYPE_TMP, buf);
-	return ret;
+	// No VRFs to sync. Signal zebra we are ready.
+	grout_main_router_started();
 }
 
 // Run the post-observation action set up by the marker injector.
@@ -286,12 +204,10 @@ static void grout_sync_dispatch_marker_cb(void) {
 	cb();
 }
 
-// Arm rib_sweep_route after observing the end-of-replay marker.
-// Re-stamp zrouter.startup_time to "now" so -K is measured from the
-// end of the grout dump (mirrors Donald Sharp's "Delay some processing
-// until after startup is finished"). Replaces the pre-arm placeholder
-// installed by zd_grout_plugin_init.
-static void grout_sync_arm_sweep(void) {
+// Arm rib_sweep_route after observing the end-of-replay marker: re-stamp
+// zrouter.startup_time so -K runs from the end of the grout dump, then hand
+// off to zebra_main_router_started (sweep arm + zserv).
+static void grout_main_router_started(void) {
 	grout_sync_cleanup_marker();
 
 	time_t old_startup_time = zrouter.startup_time;
@@ -302,15 +218,9 @@ static void grout_sync_arm_sweep(void) {
 		(long long)zrouter.startup_time
 	);
 
-	long delay = 0;
-	if (zrouter.graceful_restart) {
-		// Truthy check matches zebra/main.c: 0 falls back to default.
-		delay = grout_ctx.gr_cleanup_time ?
-			grout_ctx.gr_cleanup_time :
-			ZEBRA_GR_DEFAULT_RIB_SWEEP_TIME;
-	}
+	// Drop the placeholder, else the arm below is a no-op.
 	event_cancel(&zrouter.t_rib_sweep);
-	event_add_timer(zrouter.master, rib_sweep_route, NULL, delay, &zrouter.t_rib_sweep);
+	zebra_main_router_started();
 }
 
 // Poll the RIB for our marker. FIFO ordering of META_QUEUE_EARLY_ROUTE
@@ -527,7 +437,7 @@ route6:
 	// All VRFs synced. Defer arming rib_sweep_route until the marker is
 	// observed: arming inline would race the metaQ drain and miss
 	// not-yet-attached SELFROUTE injections.
-	grout_ctx.marker_cb = grout_sync_arm_sweep;
+	grout_ctx.marker_cb = grout_main_router_started;
 	grout_sync_inject_marker();
 	return;
 
@@ -1130,8 +1040,8 @@ static int zd_grout_plugin_init(struct event_loop *) {
 
 	gr_log_debug("%s register status %d", plugin_name, ret);
 
-	// Cache -K once: single-threaded under frr_late_init.
-	grout_ctx.gr_cleanup_time = grout_read_k_from_cmdline();
+	if (zrouter.t_rib_sweep)
+		gr_log_err("RIB sweep already registered");
 
 	// Pre-arm to neutralise the native sweep: zebra_main_router_started's
 	// event_add_timer(... &zrouter.t_rib_sweep) early-returns when the
