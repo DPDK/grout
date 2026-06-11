@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
+#include <sys/eventfd.h>
 #include <sys/queue.h>
 #include <unistd.h>
 
@@ -42,8 +43,15 @@ int worker_create(unsigned cpu_id) {
 
 	worker->cpu_id = cpu_id;
 	worker->lcore_id = LCORE_ID_ANY;
+	worker->wakeup_fd = -1;
 	pthread_mutex_init(&worker->wakeup.lock, NULL);
 	pthread_cond_init(&worker->wakeup.cond, NULL);
+
+	worker->wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+	if (worker->wakeup_fd < 0) {
+		ret = errno;
+		goto end;
+	}
 
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu_id, &cpuset);
@@ -76,6 +84,8 @@ end:
 			pthread_cancel(worker->thread);
 			pthread_cond_destroy(&worker->wakeup.cond);
 			pthread_mutex_destroy(&worker->wakeup.lock);
+			if (worker->wakeup_fd >= 0)
+				close(worker->wakeup_fd);
 			rte_free(worker);
 		}
 		LOG(ERR, "worker %u start failed: %s", cpu_id, strerror(ret));
@@ -97,6 +107,7 @@ int worker_destroy(unsigned cpu_id) {
 	pthread_join(worker->thread, NULL);
 	pthread_cond_destroy(&worker->wakeup.cond);
 	pthread_mutex_destroy(&worker->wakeup.lock);
+	close(worker->wakeup_fd);
 	worker_graph_free(worker);
 	vec_free(worker->rxqs);
 	vec_free(worker->txqs);
@@ -115,10 +126,18 @@ void worker_wait_wakeup(struct worker *w) {
 }
 
 void worker_wakeup(struct worker *w) {
+	uint64_t one = 1;
+
 	pthread_mutex_lock(&w->wakeup.lock);
 	w->wakeup.set = true;
 	pthread_cond_signal(&w->wakeup.cond);
 	pthread_mutex_unlock(&w->wakeup.lock);
+
+	// The condvar above only reaches a worker parked on graph == NULL. A napi
+	// worker idle on rte_epoll_wait is woken through the eventfd instead.
+	// EAGAIN means a kick is already pending and undrained, which is enough.
+	if (write(w->wakeup_fd, &one, sizeof(one)) != sizeof(one) && errno != EAGAIN)
+		LOG(ERR, "worker %u wakeup_fd write: %s", w->cpu_id, strerror(errno));
 }
 
 unsigned worker_count(void) {

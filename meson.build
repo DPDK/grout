@@ -141,6 +141,11 @@ elif compiler.has_function(
   grout_cflags += ['-DHAVE_RTE_FIB_TBL8_GET_STATS']
 endif
 
+# glibc >= 2.41 provides struct sched_attr and the sched_setattr() wrapper.
+if compiler.has_header_symbol('sched.h', 'sched_setattr', args: '-D_GNU_SOURCE')
+  grout_cflags += ['-DHAVE_SCHED_SETATTR']
+endif
+
 src = []
 inc = []
 

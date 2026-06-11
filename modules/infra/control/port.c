@@ -151,6 +151,9 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
+	// --napi: request RX queue interrupts so idle workers can block on them.
+	if (gr_config.napi)
+		conf.intr_conf.rxq = 1;
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
