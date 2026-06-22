@@ -3,3 +3,4 @@
 
 subdir('api')
 subdir('control')
+subdir('datapath')
