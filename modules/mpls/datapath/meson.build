@@ -2,9 +2,8 @@
 # Copyright (c) 2025 Matej Muzila
 
 src += files(
-  'label.c',
-  'label_table.c',
-  'nexthop.c',
-  'resolve.c',
+  'mpls_input.c',
+  'mpls_output.c',
+  'mpls_push.c',
 )
 inc += include_directories('.')
