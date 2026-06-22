@@ -5,4 +5,6 @@ src += files(
   'label.c',
   'label_table.c',
   'nexthop.c',
+  'resolve.c',
 )
+inc += include_directories('.')
