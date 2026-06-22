@@ -99,3 +99,47 @@ enum gr_mpls_events : uint32_t {
 
 GR_EVENT(GR_EVENT_MPLS_ROUTE_ADD, struct gr_mpls_label_route);
 GR_EVENT(GR_EVENT_MPLS_ROUTE_DEL, struct gr_mpls_label_route);
+
+// label range reservation
+
+enum gr_mpls_label_range_requests : uint32_t {
+	GR_MPLS_LABEL_RANGE_ADD = GR_MSG_TYPE(GR_MPLS_MODULE, 0x0010),
+	GR_MPLS_LABEL_RANGE_DEL,
+	GR_MPLS_LABEL_RANGE_LIST,
+};
+
+struct gr_mpls_label_range {
+	uint16_t vrf_id;
+	uint32_t start;
+	uint32_t end;
+	gr_nh_origin_t origin;
+};
+
+struct gr_mpls_label_range_add_req {
+	uint16_t vrf_id;
+	uint32_t start;
+	uint32_t end;
+	gr_nh_origin_t origin;
+	uint8_t exist_ok;
+};
+
+GR_REQ(GR_MPLS_LABEL_RANGE_ADD, struct gr_mpls_label_range_add_req, struct gr_empty);
+
+struct gr_mpls_label_range_del_req {
+	uint16_t vrf_id;
+	uint32_t start;
+	uint32_t end;
+	uint8_t missing_ok;
+};
+
+GR_REQ(GR_MPLS_LABEL_RANGE_DEL, struct gr_mpls_label_range_del_req, struct gr_empty);
+
+struct gr_mpls_label_range_list_req {
+	uint16_t vrf_id;
+};
+
+GR_REQ_STREAM(
+	GR_MPLS_LABEL_RANGE_LIST,
+	struct gr_mpls_label_range_list_req,
+	struct gr_mpls_label_range
+);
