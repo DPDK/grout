@@ -87,8 +87,9 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		if (ctx->icmp_code == RTE_ICMP_CODE_UNREACH_FRAG) {
 			// RFC 1191: next-hop MTU in the seq_nb field position
 			const struct iface *err_iface = mbuf_data(mbuf)->iface;
-			icmp->icmp_seq_nb = (err_iface != NULL)
-				? rte_cpu_to_be_16(err_iface->mtu) : 0;
+			icmp->icmp_seq_nb = (err_iface != NULL) ?
+				rte_cpu_to_be_16(err_iface->mtu) :
+				0;
 		} else {
 			icmp->icmp_seq_nb = 0;
 		}

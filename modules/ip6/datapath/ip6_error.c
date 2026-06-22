@@ -78,8 +78,9 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			}
 			{
 				const struct iface *err_iface = mbuf_data(mbuf)->iface;
-				ptb->mtu = (err_iface != NULL)
-					? rte_cpu_to_be_32(err_iface->mtu) : 0;
+				ptb->mtu = (err_iface != NULL) ?
+					rte_cpu_to_be_32(err_iface->mtu) :
+					0;
 			}
 			break;
 		default:
