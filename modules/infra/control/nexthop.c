@@ -132,8 +132,11 @@ static struct rte_hash *create_hash_by_id(const struct gr_nexthop_config *c) {
 	if (hash_by_id != NULL && rte_hash_count(hash_by_id) > 0)
 		return errno_set_null(EBUSY);
 
+	char name[64];
+	snprintf(name, sizeof(name), "nexthop-ids-%u", c->max_count);
+
 	struct rte_hash_parameters params = {
-		.name = "nexthop-ids",
+		.name = name,
 		.socket_id = SOCKET_ID_ANY,
 		.key_len = sizeof(uint32_t),
 		.entries = c->max_count,

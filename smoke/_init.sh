@@ -341,6 +341,7 @@ fi
 
 smoke_setenv GROUT_PAGER ""
 
+grcli nexthop config set max 128
 grcli route config set default rib4-routes 128 rib6-routes 128
 
 case "$grout_verbose_level" in
