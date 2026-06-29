@@ -2,5 +2,6 @@
 # Copyright (c) 2025 Matej Muzila
 
 subdir('api')
+subdir('cli')
 subdir('control')
 subdir('datapath')
