@@ -4,6 +4,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdio.h>
 
 // Display flags control text alignment and JSON value types.
 // Alignment flags are mutually exclusive. JSON type flags can be OR'd
@@ -19,6 +20,9 @@ typedef enum {
 
 // Enable/disable JSON output.
 void gr_display_set_json(bool enabled);
+
+// Return true if JSON output is enabled.
+bool gr_display_json_enabled(void);
 
 struct gr_table;
 
@@ -47,6 +51,9 @@ struct gr_object;
 // output is written to a dynamically allocated buffer and *bufp
 // is set on gr_object_free (caller must free).
 struct gr_object *gr_object_new(char **bufp);
+
+// Allocate a new structured key-value output context writing to the given stream.
+struct gr_object *gr_object_new_fp(FILE *fp);
 
 // Set text mode separators (default: ": " between key/value, "\n" between fields).
 // Only affects text output, JSON is unchanged.

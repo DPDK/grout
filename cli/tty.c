@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "cli.h"
+#include "display.h"
 #include "tty.h"
 
 #include <ecoli.h>
@@ -32,6 +33,19 @@ void errorf(const char *fmt, ...) {
 	const char *color, *reset;
 	va_list ap;
 
+	if (gr_display_json_enabled()) {
+		int errnum = errno;
+		char buf[BUFSIZ];
+		va_start(ap, fmt);
+		vsnprintf(buf, sizeof(buf), fmt, ap);
+		va_end(ap);
+		struct gr_object *o = gr_object_new_fp(stderr);
+		gr_object_field(o, "error", 0, "%s", buf);
+		gr_object_field(o, "errno", GR_DISP_INT, "%d", errnum);
+		gr_object_free(o);
+		return;
+	}
+
 	if (stderr_isatty) {
 		color = BOLD_RED_SGR;
 		reset = RESET_SGR;
@@ -49,6 +63,17 @@ void errorf(const char *fmt, ...) {
 void warnf(const char *fmt, ...) {
 	const char *color, *reset;
 	va_list ap;
+
+	if (gr_display_json_enabled()) {
+		char buf[BUFSIZ];
+		va_start(ap, fmt);
+		vsnprintf(buf, sizeof(buf), fmt, ap);
+		va_end(ap);
+		struct gr_object *o = gr_object_new_fp(stderr);
+		gr_object_field(o, "warning", 0, "%s", buf);
+		gr_object_free(o);
+		return;
+	}
 
 	if (stderr_isatty) {
 		color = BOLD_YELLOW_SGR;

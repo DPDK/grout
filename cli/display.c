@@ -21,6 +21,10 @@ void gr_display_set_json(bool enabled) {
 	json_output = enabled;
 }
 
+bool gr_display_json_enabled(void) {
+	return json_output;
+}
+
 #define MAX_COLS 16
 #define COL_SEP "  "
 #define CELL_SIZE 256
@@ -360,6 +364,20 @@ struct gr_object *gr_object_new(char **bufp) {
 		o->fp = stdout;
 		o->json = json_output;
 	}
+	o->kv_sep = ": ";
+	o->field_sep = "\n";
+	if (o->json)
+		fputc('{', o->fp);
+	return o;
+}
+
+struct gr_object *gr_object_new_fp(FILE *fp) {
+	struct gr_object *o = calloc(1, sizeof(*o));
+	if (o == NULL)
+		return NULL;
+
+	o->fp = fp;
+	o->json = json_output;
 	o->kv_sep = ": ";
 	o->field_sep = "\n";
 	if (o->json)

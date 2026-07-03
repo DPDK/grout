@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "cli.h"
+#include "display.h"
 #include "exec.h"
 #include "tty.h"
 
@@ -133,6 +134,21 @@ static void print_suggestions(const struct ec_node *cmdlist, const struct ec_str
 	sug = get_suggestions(cmdlist, buf, &pos);
 	if (sug == NULL && errno != 0) {
 		errorf("exec_line_suggestions: %s", strerror(errno));
+		goto err;
+	}
+
+	if (gr_display_json_enabled()) {
+		struct gr_object *o = gr_object_new_fp(stderr);
+		gr_object_field(o, "error", 0, "Invalid arguments");
+		gr_object_field(o, "errno", GR_DISP_INT, "%d", EINVAL);
+		gr_object_field(o, "position", GR_DISP_INT, "%u", pos);
+		if (sug != NULL && ec_strvec_len(sug) > 0) {
+			gr_object_array_open(o, "expected");
+			for (unsigned i = 0; i < ec_strvec_len(sug); i++)
+				gr_object_array_item(o, 0, "%s", ec_strvec_val(sug, i));
+			gr_object_array_close(o);
+		}
+		gr_object_free(o);
 		goto err;
 	}
 
