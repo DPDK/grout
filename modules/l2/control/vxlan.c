@@ -42,6 +42,16 @@ struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id) {
 	return data;
 }
 
+static bool vrf_has_other_vxlan(const struct iface *iface, uint16_t vrf_id) {
+	struct iface *other = NULL;
+
+	while ((other = iface_next(GR_IFACE_TYPE_VXLAN, other)) != NULL) {
+		if (other != iface && other->mode == GR_IFACE_MODE_VRF && other->vrf_id == vrf_id)
+			return true;
+	}
+	return false;
+}
+
 static int iface_vxlan_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -54,6 +64,10 @@ static int iface_vxlan_reconfig(
 	struct gr_iface_info_vxlan prev = cur->base;
 	uint64_t conf_done = 0;
 	int ret = 0;
+
+	// Only one VXLAN per VRF is allowed in VRF mode (L3 VNI).
+	if ((set_attrs & GR_IFACE_SET_VRF) && vrf_has_other_vxlan(iface, conf->vrf_id))
+		return errno_set(EADDRINUSE);
 
 	if (set_attrs & GR_VXLAN_SET_ENCAP_VRF) {
 		uint16_t vrf = next->encap_vrf_id;
