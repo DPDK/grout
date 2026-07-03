@@ -70,6 +70,11 @@ struct grout_ctx_t {
 	struct event *dg_t_poll_marker;
 	unsigned int marker_poll_retries;
 	void (*marker_cb)(void);
+
+	// Set after zd_grout_ns completes. The startup sync path must
+	// wait for this before proceeding, otherwise vrf_terminate()
+	// inside grout_ns_reset() can destroy the marker or VRF tables.
+	bool startup_done;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
@@ -988,6 +993,7 @@ static void zd_grout_ns(struct event *) {
 	}
 
 	grout_ns_reset();
+	grout_ctx.startup_done = true;
 }
 
 static int zd_grout_start(struct zebra_dplane_provider *prov) {
@@ -1075,8 +1081,18 @@ static int zd_grout_plugin_init(struct event_loop *) {
 	return 0;
 }
 
+static void grout_startup_sync(struct event *) {
+	if (!grout_ctx.startup_done) {
+		event_add_timer_msec(
+			zrouter.master, grout_startup_sync, NULL, 10, &grout_ctx.dg_t_sync
+		);
+		return;
+	}
+	grout_sync(NULL);
+}
+
 static int zd_grout_start_sync(struct event_loop *) {
-	event_add_timer(zrouter.master, grout_sync, NULL, 0, &grout_ctx.dg_t_sync);
+	event_add_timer(zrouter.master, grout_startup_sync, NULL, 0, &grout_ctx.dg_t_sync);
 	return 0;
 }
 
