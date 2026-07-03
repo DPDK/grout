@@ -58,6 +58,18 @@ void l3vni_del(uint16_t vrf_id) {
 	}
 }
 
+void l3vni_del_iface(uint16_t iface_id) {
+	struct l3vni_entry *e;
+
+	frr_each_safe(l3vni_hash, &l3vni_entries, e) {
+		if (e->vxlan_iface_id == iface_id) {
+			l3vni_hash_del(&l3vni_entries, e);
+			XFREE(MTYPE_GROUT_MEM, e);
+			return;
+		}
+	}
+}
+
 uint16_t l3vni_get_vxlan(uint16_t vrf_id) {
 	struct l3vni_entry key = {.vrf_id = vrf_id};
 	struct l3vni_entry *e = l3vni_hash_find(&l3vni_entries, &key);

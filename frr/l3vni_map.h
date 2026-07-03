@@ -32,6 +32,9 @@ void l3vni_set(uint16_t vrf_id, uint16_t vxlan_iface_id);
 // Remove mapping for vrf_id.
 void l3vni_del(uint16_t vrf_id);
 
+// Remove mapping for a specific VXLAN iface, if any.
+void l3vni_del_iface(uint16_t iface_id);
+
 // Return vxlan iface id for vrf_id, or GR_IFACE_ID_UNDEF.
 uint16_t l3vni_get_vxlan(uint16_t vrf_id);
 
