@@ -83,13 +83,6 @@ while ! vtysh -c 'show ipv6 ospf6 neighbor json' | jq '.neighbors[] | select(.ne
 	attempts=$((attempts - 1))
 done
 
-attempts=30
-while ! vtysh -c 'show ipv6 route ospf6 json' | jq '."2001:db8:1000::/64"[0].protocol == "ospf6"' -e ; do
-	sleep 1
-	if [ "$attempts" -le 0 ]; then
-		fail "OSPF6 failed to get routes."
-	fi
-	attempts=$((attempts - 1))
-done
+wait_event -t 60 'route6 add: vrf=main 2001:db8:1000::/64 origin=ospf'
 
 grcli ping 2001:db8:1000::1 count 3 delay 10

@@ -143,17 +143,14 @@ move_to_netns x-p1 host-b
 ip -n host-b addr add 10.0.0.3/24 dev x-p1
 
 # -- Wait for EVPN type-3 (flood VTEP) exchange -------------------------------
+wait_event -t 10 "flood add: vtep vrf=main 172.16.0.1 vni=100"
+
 attempts=0
 while ! bridge -n evpn-peer fdb show dev vxlan100 | grep -qF 172.16.0.2; do
-	if [ "$attempts" -ge 10 ]; then
-		vtysh -N evpn-peer -c "show evpn vni 100"
-		fail "Linux peer did not learn remote VTEP 172.16.0.2"
-	fi
+	[ "$attempts" -ge 5 ] && fail "Linux peer did not learn remote VTEP 172.16.0.2"
 	sleep 1
 	attempts=$((attempts + 1))
 done
-
-wait_event "flood add: vtep vrf=main 172.16.0.1 vni=100"
 
 bridge -n evpn-peer fdb show dev vxlan100
 grcli fdb show
@@ -173,32 +170,10 @@ mac_a=$(ip netns exec host-a cat /sys/class/net/x-p1/address)
 
 wait_event "fdb add: bridge=br100 $mac_a.* vtep=172.16.0.1.* extern"
 
-attempts=0
-while ! vtysh -c "show bgp l2vpn evpn route type 2" | grep -qF "$mac_a"; do
-	if [ "$attempts" -ge 10 ]; then
-		vtysh -c "show bgp l2vpn evpn route type 2"
-		fail "FRR did not learn type 2 route"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
 mac_b=$(ip netns exec host-b cat /sys/class/net/x-p1/address)
 attempts=0
-while ! vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 2" | grep -qF "$mac_b"; do
-	if [ "$attempts" -ge 10 ]; then
-		vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 2"
-		fail "EVPN peer did not learn type 2 route"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-attempts=0
 while ! bridge -n evpn-peer fdb show dev vxlan100 | grep -q "$mac_b.*extern"; do
-	if [ "$attempts" -ge 10 ]; then
-		bridge -n evpn-peer fdb show dev vxlan100
-		fail "EVPN peer did not program FDB entry in bridge"
-	fi
+	[ "$attempts" -ge 5 ] && fail "EVPN peer did not program FDB entry for $mac_b"
 	sleep 1
 	attempts=$((attempts + 1))
 done

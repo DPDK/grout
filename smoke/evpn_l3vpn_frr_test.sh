@@ -214,72 +214,20 @@ while ! vtysh -N evpn-peer -c "show evpn vni 1000" | grep -qF "L3"; do
 	attempts=$((attempts + 1))
 done
 
-# -- Wait for EVPN type-5 route exchange (IPv4) --------------------------------
-attempts=0
-while ! vtysh -c "show bgp l2vpn evpn route type 5" | grep -qF "16.0.0.0"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -c "show bgp l2vpn evpn route type 5"
-		fail "Grout FRR did not learn type-5 route for 16.0.0.0/24"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
-attempts=0
-while ! vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5" | grep -qF "48.0.0.0"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -c "show bgp vrf tenant ipv4 unicast"
-		vtysh -c "show bgp l2vpn evpn route"
-		vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5"
-		fail "Linux peer did not learn type-5 route for 48.0.0.0/24"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
-# -- Wait for EVPN type-5 route exchange (IPv6) --------------------------------
-attempts=0
-while ! vtysh -c "show bgp l2vpn evpn route type 5" | grep -qF "fd00:16::"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -c "show bgp l2vpn evpn route type 5"
-		fail "Grout FRR did not learn type-5 route for fd00:16::/64"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
-attempts=0
-while ! vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5" | grep -qF "fd00:48::"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -c "show bgp vrf tenant ipv6 unicast"
-		vtysh -c "show bgp l2vpn evpn route"
-		vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5"
-		fail "Linux peer did not learn type-5 route for fd00:48::/64"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
-# -- Wait for routes to be installed in VRF ------------------------------------
-wait_event 'route4 add: vrf=tenant 16.0.0.0/24'
+# -- Wait for EVPN type-5 route exchange ---------------------------------------
+wait_event -t 10 'route4 add: vrf=tenant 16.0.0.0/24'
 wait_event 'route6 add: vrf=tenant fd00:16::/64'
 
+# The peer should also have our routes by now, allow a few retries.
 attempts=0
-while ! ip -n evpn-peer route show vrf tenant | grep -qF "48.0.0.0/24"; do
-	if [ "$attempts" -ge 5 ]; then
-		ip -n evpn-peer route show vrf tenant
-		fail "Route 48.0.0.0/24 not installed in peer VRF tenant"
-	fi
+while ! ip -n evpn-peer route show vrf tenant proto bgp | grep -qF "48.0.0.0/24"; do
+	[ "$attempts" -ge 5 ] && fail "Route 48.0.0.0/24 not installed in peer VRF tenant"
 	sleep 1
 	attempts=$((attempts + 1))
 done
-
 attempts=0
-while ! ip -n evpn-peer -6 route show vrf tenant | grep -qF "fd00:48::"; do
-	if [ "$attempts" -ge 5 ]; then
-		ip -n evpn-peer -6 route show vrf tenant
-		fail "Route fd00:48::/64 not installed in peer VRF tenant"
-	fi
+while ! ip -n evpn-peer -6 route show vrf tenant proto bgp | grep -qF "fd00:48::"; do
+	[ "$attempts" -ge 5 ] && fail "Route fd00:48::/64 not installed in peer VRF tenant"
 	sleep 1
 	attempts=$((attempts + 1))
 done

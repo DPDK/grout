@@ -195,20 +195,15 @@ wait_event -t 20 'route4 add: vrf=gr-vrf1 16.0.0.0/24 origin=bgp via type=SRv6 '
 wait_event -t 20 'route6 add: vrf=main 2001:db8:2:2:100::/128 origin=bgp via type=SRv6-local '
 
 attempts=0
-while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/24 .*seg6" ; do
-	if [ "$attempts" -ge 40 ]; then
-		fail "BGP seg6 route not learned in FRR BGP Peer"
-	fi
-	sleep 0.5
+while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/24 .*seg6"; do
+	[ "$attempts" -ge 5 ] && fail "BGP seg6 route not learned in FRR BGP Peer"
+	sleep 1
 	attempts=$((attempts + 1))
 done
-
 attempts=0
-while ! vtysh -N bgp-peer -c "show ipv6 route" | grep -q "B>\* 2001:db8:1:1:100::/128 .*seg6local" ; do
-	if [ "$attempts" -ge 40 ]; then
-		fail "BGP seg6local route not learned in FRR BGP Peer"
-	fi
-	sleep 0.5
+while ! vtysh -N bgp-peer -c "show ipv6 route" | grep -q "B>\* 2001:db8:1:1:100::/128 .*seg6local"; do
+	[ "$attempts" -ge 5 ] && fail "BGP seg6local route not learned in FRR BGP Peer"
+	sleep 1
 	attempts=$((attempts + 1))
 done
 

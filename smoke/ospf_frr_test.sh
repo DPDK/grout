@@ -86,13 +86,6 @@ while ! vtysh -c 'show ip ospf neighbor json' | jq '.neighbors."172.16.0.2"[0].c
 	attempts=$((attempts - 1))
 done
 
-attempts=60
-while ! vtysh -c 'show ip route ospf json' | jq '."16.0.0.1/32"[0].protocol == "ospf"' -e ; do
-	sleep 1
-	if [ "$attempts" -le 0 ]; then
-		fail "OSPF failed to get routes."
-	fi
-	attempts=$((attempts - 1))
-done
+wait_event -t 60 'route4 add: vrf=main 16.0.0.1/32 origin=ospf'
 
 grcli ping 16.0.0.1 count 1

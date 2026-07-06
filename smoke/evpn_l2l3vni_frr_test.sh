@@ -249,28 +249,14 @@ while ! vtysh -c "show evpn vni 100" | grep -qF "VNI: 100"; do
 done
 
 # -- Wait for EVPN type-5 route exchange (IPv4) --------------------------------
+wait_event -t 10 'route4 add: vrf=tenant 16.0.0.0/24'
+
 attempts=0
-while ! vtysh -c "show bgp l2vpn evpn route type 5" | grep -qF "16.0.0.0"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -c "show bgp l2vpn evpn route type 5"
-		fail "Grout FRR did not learn type-5 route for 16.0.0.0/24"
-	fi
+while ! ip -n evpn-peer route show vrf tenant proto bgp | grep -qF "48.0.0.0/24"; do
+	[ "$attempts" -ge 5 ] && fail "Route 48.0.0.0/24 not installed in peer VRF tenant"
 	sleep 1
 	attempts=$((attempts + 1))
 done
-
-attempts=0
-while ! vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5" | grep -qF "48.0.0.0"; do
-	if [ "$attempts" -ge 5 ]; then
-		vtysh -N evpn-peer -c "show bgp l2vpn evpn route type 5"
-		fail "Linux peer did not learn type-5 route for 48.0.0.0/24"
-	fi
-	sleep 1
-	attempts=$((attempts + 1))
-done
-
-# -- Wait for routes to be installed in VRF ------------------------------------
-wait_event 'route4 add: vrf=tenant 16.0.0.0/24'
 
 # -- Check RMAC is set on route nexthops and uses L3 VNI ----------------------
 rmac=$(ip netns exec evpn-peer cat /sys/class/net/vni-l3/address)
