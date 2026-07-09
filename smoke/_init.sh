@@ -33,6 +33,8 @@ if [ "${INTERACTIVE:-false}" = true ] && [ -z "${SMOKE_TMUX_SOCK:-}" ]; then
 fi
 
 ip link set lo up
+sysctl -qw net.ipv4.conf.all.rp_filter=1
+sysctl -qw net.ipv4.conf.default.rp_filter=1
 
 : "${test_frr:=false}"
 
@@ -265,6 +267,7 @@ llocal_addr() {
 if [ "$run_grout" = true ]; then
 	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
 	smoke_setenv GROUT_OVERRIDE_DEFAULT_ROUTE true
+	smoke_setenv GROUT_OVERRIDE_RP_FILTER true
 fi
 if [ -n "${builddir}" ]; then
 	smoke_setenv PATH "$builddir:$PATH"
