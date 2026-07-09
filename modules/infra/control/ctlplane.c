@@ -321,6 +321,21 @@ static void cp_create(struct iface *iface) {
 		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
 	}
 
+	if (gr_config.override_rp_filter) {
+		// Set loose reverse path filtering on the TAP so that packets
+		// delivered by grout are not dropped by rp_filter. The effective
+		// rp_filter mode is max(conf.all, conf.<iface>), so setting the
+		// per-interface value to 2 (loose) overrides a global strict setting.
+		snprintf(path, sizeof(path), "/proc/sys/net/ipv4/conf/%s/rp_filter", iface->name);
+		f = fopen(path, "w");
+		if (f != NULL) {
+			fputs("2", f);
+			fclose(f);
+		} else {
+			LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
+		}
+	}
+
 	iface->cp_ev = event_new(
 		ev_base,
 		iface->cp_fd,

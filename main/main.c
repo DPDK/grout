@@ -299,6 +299,7 @@ int main(int argc, char **argv) {
 		goto end;
 
 	gr_config.override_default_route = parse_bool_env("GROUT_OVERRIDE_DEFAULT_ROUTE");
+	gr_config.override_rp_filter = parse_bool_env("GROUT_OVERRIDE_RP_FILTER");
 
 	if (dpdk_log_init() < 0)
 		goto end;
@@ -306,6 +307,8 @@ int main(int argc, char **argv) {
 	LOG(NOTICE, "starting grout version %s", GROUT_VERSION);
 	if (gr_config.override_default_route)
 		LOG(NOTICE, "GROUT_OVERRIDE_DEFAULT_ROUTE is set, overriding default route");
+	if (gr_config.override_rp_filter)
+		LOG(NOTICE, "GROUT_OVERRIDE_RP_FILTER is set, bypassing reverse path filtering");
 	LOG(NOTICE,
 	    "License available at https://git.dpdk.org/apps/grout/plain/licenses/BSD-3-clause.txt");
 

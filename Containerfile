@@ -23,5 +23,6 @@ FROM scratch
 COPY --from=builder /tmp/null/ /
 STOPSIGNAL SIGRTMIN+3
 ENV GROUT_OVERRIDE_DEFAULT_ROUTE=true
+ENV GROUT_OVERRIDE_RP_FILTER=true
 ENTRYPOINT ["/usr/libexec/catatonit/catatonit", "--"]
 CMD ["/usr/bin/grout"]

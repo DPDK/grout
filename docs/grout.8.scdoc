@@ -88,6 +88,14 @@ Grout is a software router based on DPDK _rte_graph_.
 	another default route (e.g. from Kubernetes) takes priority over grout's
 	own default route.
 
+*GROUT_OVERRIDE_RP_FILTER*
+	When set to _1_, _true_, _on_, or _yes_ (case insensitive), set loose
+	reverse path filtering (_rp_filter=2_) on control plane TAP interfaces.
+	This prevents the kernel from dropping packets delivered by grout when
+	strict reverse path filtering (_rp_filter=1_) is enabled globally. This
+	is required when _net.ipv4.conf.all.rp_filter_ is set to _1_ (strict) in
+	the network namespace where grout is running.
+
 # EXTRA EAL ARGUMENTS
 
 Any DPDK EAL argument can be specified after an optional *--*. This is an

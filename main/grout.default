@@ -10,3 +10,8 @@ GROUT_OPTS='--syslog'
 # be set to false if removing PrivateNetwork=true from the systemd service and
 # running grout in the main network namespace.
 GROUT_OVERRIDE_DEFAULT_ROUTE=true
+
+# Set loose reverse path filtering on control plane TAP interfaces.
+# Required when net.ipv4.conf.all.rp_filter is set to 1 (strict) in the network
+# namespace where grout is running.
+GROUT_OVERRIDE_RP_FILTER=true

@@ -22,6 +22,7 @@ struct gr_config {
 	bool log_syslog;
 	bool log_packets;
 	bool override_default_route;
+	bool override_rp_filter;
 	vec char **eal_extra_args;
 	cpu_set_t control_cpus; // control plane threads allowed CPUs
 	cpu_set_t datapath_cpus; // datapath threads allowed CPUs
