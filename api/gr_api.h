@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 // Must be bumped when making non-backward compatible changes in API headers
-#define GR_API_VERSION 3
+#define GR_API_VERSION 4
 
 // API request header.
 struct gr_api_request {

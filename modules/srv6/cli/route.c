@@ -60,6 +60,9 @@ static cmd_status_t srv6_nh_add(struct gr_api_client *c, const struct ec_pnode *
 	else
 		sr6->encap_behavior = SR_H_ENCAPS;
 
+	if (arg_ip6(p, "SRC", &sr6->encap_src) < 0 && errno != ENOENT)
+		goto out;
+
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
 
@@ -108,6 +111,7 @@ static cmd_status_t srv6_tunsrc_show(struct gr_api_client *c, const struct ec_pn
 
 static void add_columns_srv6(struct gr_table *table) {
 	gr_table_column(table, "ENCAP", GR_DISP_LEFT);
+	gr_table_column(table, "ENCAP_SRC", GR_DISP_LEFT);
 	gr_table_column(table, "SEGLIST", GR_DISP_STR_ARRAY);
 }
 
@@ -122,6 +126,8 @@ static void fill_table_srv6(struct gr_table *table, unsigned start_col, const vo
 		"%s",
 		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
 	);
+	if (!rte_ipv6_addr_is_unspec(&sr6->encap_src))
+		gr_table_cell(table, start_col + 1, IP6_F, &sr6->encap_src);
 	for (unsigned i = 0; i < sr6->n_seglist; i++) {
 		SAFE_BUF(snprintf, sizeof(buf), "%s" IP6_F, i > 0 ? " " : "", &sr6->seglist[i]);
 		if (sizeof(buf) - n < 50) {
@@ -131,7 +137,7 @@ static void fill_table_srv6(struct gr_table *table, unsigned start_col, const vo
 	}
 err:
 	if (n > 0)
-		gr_table_cell(table, start_col + 1, "%s", buf);
+		gr_table_cell(table, start_col + 2, "%s", buf);
 }
 
 static void fill_object_srv6(struct gr_object *o, const void *info) {
@@ -144,6 +150,8 @@ static void fill_object_srv6(struct gr_object *o, const void *info) {
 		"%s",
 		sr6->encap_behavior == SR_H_ENCAPS_RED ? "h.encaps.red" : "h.encaps"
 	);
+	if (!rte_ipv6_addr_is_unspec(&sr6->encap_src))
+		gr_object_field(o, "encap_src", 0, IP6_F, &sr6->encap_src);
 	gr_object_array_open(o, "seglist");
 	for (unsigned i = 0; i < sr6->n_seglist; i++)
 		gr_object_array_item(o, 0, IP6_F, &sr6->seglist[i]);
@@ -165,12 +173,13 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		NEXTHOP_ADD_CTX(root),
-		"srv6 seglist SEGLIST+ [(encap h.encaps|h.encaps.red),(vrf VRF),(id ID)]",
+		"srv6 seglist SEGLIST+ [(encap h.encaps|h.encaps.red),(src SRC),(vrf VRF),(id ID)]",
 		srv6_nh_add,
 		"Add SRv6 encap nexthop.",
 		with_help("Encaps.", ec_node_str("h.encaps", "h.encaps")),
 		with_help("Encaps Reduced.", ec_node_str("h.encaps.red", "h.encaps.red")),
 		with_help("Next SID to visit.", ec_node_re("SEGLIST", IPV6_RE)),
+		with_help("Encap source address.", ec_node_re("SRC", IPV6_RE)),
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
 		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
 	);

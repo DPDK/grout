@@ -27,6 +27,7 @@ typedef enum : uint8_t {
 // Used with GR_NH_T_SR6_OUTPUT nexthops via GR_NH_ADD from gr_infra.h.
 struct gr_nexthop_info_srv6 {
 	gr_srv6_encap_behavior_t encap_behavior;
+	struct rte_ipv6_addr encap_src;
 	uint8_t n_seglist;
 	struct rte_ipv6_addr seglist[];
 };

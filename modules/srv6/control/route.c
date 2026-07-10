@@ -17,6 +17,9 @@ static bool srv6_output_nh_equal(const struct nexthop *a, const struct nexthop *
 	if (ad->encap != bd->encap)
 		return false;
 
+	if (!rte_ipv6_addr_eq(&ad->encap_src, &bd->encap_src))
+		return false;
+
 	if (ad->n_seglist != bd->n_seglist)
 		return false;
 
@@ -40,6 +43,8 @@ static int srv6_output_nh_import_info(struct nexthop *nh, const void *info) {
 	memcpy(seglist, pub->seglist, sizeof(*seglist) * pub->n_seglist);
 
 	priv->encap = pub->encap_behavior;
+	priv->encap_src = pub->encap_src;
+	priv->flags = rte_ipv6_addr_is_unspec(&pub->encap_src) ? 0 : SR_ENCAP_F_SRC;
 	priv->n_seglist = pub->n_seglist;
 	tmp = priv->seglist;
 	priv->seglist = seglist;
@@ -63,6 +68,7 @@ static struct gr_nexthop *srv6_output_nh_to_api(const struct nexthop *nh, size_t
 	sr6_pub = (struct gr_nexthop_info_srv6 *)pub->info;
 
 	sr6_pub->encap_behavior = sr6_priv->encap;
+	sr6_pub->encap_src = sr6_priv->encap_src;
 	sr6_pub->n_seglist = sr6_priv->n_seglist;
 	memcpy(sr6_pub->seglist,
 	       sr6_priv->seglist,

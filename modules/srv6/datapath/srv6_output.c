@@ -137,15 +137,17 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 		l3_mbuf_data(m)->nh = nh;
 
-		nh = sr_tunsrc_get(nh->iface_id, &d->seglist[0]);
-		if (nh == NULL) {
-			// cannot output packet on interface that does not have ip6 addr
-			edge = NO_ROUTE;
-			goto next;
+		if (d->flags & SR_ENCAP_F_SRC) {
+			ip6_set_fields(outer_ip6, plen, proto, &d->encap_src, &d->seglist[0]);
+		} else {
+			nh = sr_tunsrc_get(nh->iface_id, &d->seglist[0]);
+			if (nh == NULL) {
+				edge = NO_ROUTE;
+				goto next;
+			}
+			l3 = nexthop_info_l3(nh);
+			ip6_set_fields(outer_ip6, plen, proto, &l3->ipv6, &d->seglist[0]);
 		}
-		l3 = nexthop_info_l3(nh);
-
-		ip6_set_fields(outer_ip6, plen, proto, &l3->ipv6, &d->seglist[0]);
 		edge = IP6_OUTPUT;
 
 next:

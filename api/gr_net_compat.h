@@ -15,6 +15,14 @@ struct rte_ipv6_addr {
 	uint8_t a[RTE_IPV6_ADDR_SIZE];
 };
 
+static inline bool rte_ipv6_addr_is_unspec(const struct rte_ipv6_addr *ip) {
+	for (unsigned i = 0; i < RTE_IPV6_ADDR_SIZE; i++) {
+		if (ip->a[i] != 0)
+			return false;
+	}
+	return true;
+}
+
 static inline void rte_ipv6_addr_mask(struct rte_ipv6_addr *ip, uint8_t depth) {
 	if (depth < RTE_IPV6_MAX_DEPTH) {
 		unsigned int d = depth / CHAR_BIT;
