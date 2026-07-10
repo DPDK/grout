@@ -1,8 +1,8 @@
 [wrap-file]
-source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.5.3.tar.gz
-source_filename = frr-10.5.3.tar.gz
-source_hash = ecc95009b88e66df2c91be02fbf0a3eb8e1de434fd652e0cbf46f19126f708ec
-directory = frr-frr-10.5.3
+source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.5.4.tar.gz
+source_filename = frr-10.5.4.tar.gz
+source_hash = 1e8401e1bfcbb9b0dfefc9b335013733a3c77cdf85c79ff66d9e65167d9cfb1e
+directory = frr-frr-10.5.4
 patch_directory = frr
 
 [provide]
