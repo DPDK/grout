@@ -84,3 +84,27 @@ ip -n n1 route replace 192.168.61.0/24 encap seg6 mode encap segs fd00:202:0300:
 
 # test: ping goes through the NEXT-CSID transit node
 ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
+
+#
+# Per-nexthop encap source test
+#
+# Create a new SRv6 output nexthop with an explicit source address and
+# verify the encapsulated packets use it as the outer IPv6 source.
+#
+
+encap_src=fd00:102::42
+grcli address add $encap_src/128 iface p1
+grcli nexthop add srv6 seglist fd00:202:200:: src $encap_src id 43
+grcli route add 192.168.0.0/16 via id 43
+
+# capture a few packets on x-p1 in n1
+ip netns exec n1 timeout 5 tcpdump -c1 -pnn -l \
+	"ip6 src $encap_src" -i x-p1 > $tmp/tcpdump.out 2>&1 &
+tcpdump_pid=$!
+sleep 1
+
+ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
+wait $tcpdump_pid || true
+
+grep -q "$encap_src" $tmp/tcpdump.out \
+	|| fail "encapsulated packet did not use per-nexthop encap_src $encap_src"
