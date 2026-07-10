@@ -17,7 +17,7 @@ option(
 )
 
 option(
-  'frr_version', type: 'combo', choices: ['10.5', '10.6', 'master'], value: '10.5',
+  'frr_version', type: 'combo', choices: ['10.5', '10.6', '10.7', 'master'], value: '10.5',
   description: 'FRR version, defaults to 10.5.',
 )
 
