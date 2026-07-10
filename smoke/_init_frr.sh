@@ -170,7 +170,7 @@ set_srv6_localsid() {
 exit"
 }
 
-# set_srv6_route [--persist] <prefix> <next-hop|iface>
+# set_srv6_route [--persist] [--encap-src <addr>] <prefix> <next-hop|iface>
 #                [<vrf> [<nexthop-vrf>]] <sid1> [sid2 sid3 ...]
 #
 # EXAMPLES
@@ -185,6 +185,8 @@ exit"
 set_srv6_route() {
 	local persist=0
 	[ "$1" = "--persist" ] && { persist=1; shift; }
+	local encap_src=""
+	[ "$1" = "--encap-src" ] && { encap_src=$2; shift 2; }
 	local prefix="$1"
 	local nhop="$2"
 	shift 2
@@ -232,9 +234,12 @@ set_srv6_route() {
 	local nh_vrf_clause=""
 	[ -n "$nexthop_vrf_name" ] && nh_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
 
+	local encap_src_clause=""
+	[ -n "$encap_src" ] && encap_src_clause=" encap-source ${encap_src}"
+
 	_apply_frr_config "$persist" \
 		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=SRv6 .*${sids[0]}" \
-		"${frr_ip} route ${prefix} ${nhop} segments ${seg_frr} vrf ${vrf_name}${nh_vrf_clause}"
+		"${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}${encap_src_clause} vrf ${vrf_name}${nh_vrf_clause}"
 }
 
 # kill_frr_daemons <daemon> [<daemon>...]
