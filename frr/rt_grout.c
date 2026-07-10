@@ -306,7 +306,7 @@ static int grout_gr_nexthop_to_frr_nexthop(
 			encap_behavior
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 8, 0)
 			,
-			NULL
+			rte_ipv6_addr_is_unspec(&sr6->encap_src) ? NULL : (void *)&sr6->encap_src
 #endif
 		);
 		nh->type = nh->ifindex ? NEXTHOP_TYPE_IPV6_IFINDEX : NEXTHOP_TYPE_IPV6;
@@ -850,6 +850,11 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			memcpy(&sr6->seglist[i],
 			       &nh->nh_srv6->seg6_segs->seg[i],
 			       sizeof(sr6->seglist[i]));
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 8, 0)
+		memcpy(&sr6->encap_src,
+		       &nh->nh_srv6->seg6_segs->encap_source,
+		       sizeof(sr6->encap_src));
+#endif
 
 		break;
 	case GR_NH_T_BLACKHOLE:
