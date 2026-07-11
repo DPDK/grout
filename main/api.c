@@ -277,7 +277,30 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 
 	if (evbuffer_get_length(input) < ctx->header.payload_len) {
 		return; // Wait for more data
-	} else if (ctx->header.payload_len > 0) {
+	}
+
+	// Reset state for next request
+	ctx->header_complete = false;
+
+	struct api_out out;
+
+	// Validate request type before allocating payload
+	const struct api_handler *handler = lookup_api_handler(ctx->header.type);
+	if (handler == NULL) {
+		out.status = ENOTSUP;
+		out.len = 0;
+		out.payload = NULL;
+		evbuffer_drain(input, ctx->header.payload_len);
+		goto send;
+	}
+	if (ctx->header.payload_len < handler->req_size) {
+		out.status = EMSGSIZE;
+		out.len = 0;
+		out.payload = NULL;
+		evbuffer_drain(input, ctx->header.payload_len);
+		goto send;
+	}
+	if (ctx->header.payload_len > 0) {
 		req_payload = malloc(ctx->header.payload_len);
 		if (req_payload == NULL) {
 			LOG(ERR,
@@ -289,26 +312,6 @@ static void read_cb(struct bufferevent *bev, void *priv) {
 			LOG(ERR, "failed to read request payload");
 			goto close;
 		}
-	}
-
-	// Reset state for next request
-	ctx->header_complete = false;
-
-	struct api_out out;
-
-	// We have a complete request, process it
-	const struct api_handler *handler = lookup_api_handler(ctx->header.type);
-	if (handler == NULL) {
-		out.status = ENOTSUP;
-		out.len = 0;
-		out.payload = NULL;
-		goto send;
-	}
-	if (ctx->header.payload_len < handler->req_size) {
-		out.status = EMSGSIZE;
-		out.len = 0;
-		out.payload = NULL;
-		goto send;
 	}
 
 	cur_req_pid = ctx->pid;
@@ -344,6 +347,7 @@ send:
 	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
 
 	free(req_payload);
+	req_payload = NULL;
 	free(out.payload);
 
 	if (evbuffer_get_length(input) >= sizeof(ctx->header)) {
