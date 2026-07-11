@@ -1,101 +1,171 @@
 GROUT-FRR(7)
 
-# INTRODUCTION
+# NAME
 
-This guide demonstrates how to configure FRR (Free Range Routing) and Linux
-networking to establish BGP peering between Grout and an upstream router,
-without assigning IP addresses directly to the Linux interface.
+grout-frr - FRR dataplane plugin for grout
 
-# CONTEXT
+# DESCRIPTION
 
-By default, FRR daemons such as _bgpd_ require binding to a local IP address to
-accept incoming peer connections. This necessitates explicitly adding all Grout
-"local" IPs to the _main_ interface. However, this approach is cumbersome
-and not ideal.
+The *dplane_grout* zebra module replaces the Linux kernel as the forwarding
+plane for FRR (Free Range Routing). Once loaded, all routing decisions made by
+FRR daemons (_bgpd_, _ospfd_, _ospf6d_, _isisd_, ...) are programmed directly
+into grout instead of the kernel networking stack.
 
-The objective is to run _bgpd_ without assigning any IP address to the
-_main_ network device. This is achieved by utilizing the _IP_TRANSPARENT_
-socket option and FRR's capability to bind to a specific interface.
+The plugin maintains multiple connections to the grout API socket:
 
-# PACKETS FROM GROUT TO main
+- A control channel for pushing route, nexthop, address, MAC and VTEP updates.
+- An event channel for receiving interface and address notifications from grout.
+- A separate event channel for receiving route and nexthop notifications.
 
-All packets received to a *local* IP configured in grout will be processed by
-the node _ip_input_local_/_ip6_input_local_. If the protocol isn't handled
-locally (ICMP, Neighbor Disc, ...), the packets are forwarded to
-_l4_input_local_. If still unhandled (e.g., VXLAN Tunnel), the packet is sent to
-the corresponding _gr-loopX_ interface associated with the VRF.
+At startup (or after a grout restart), the plugin performs a full synchronization
+of all grout interfaces, addresses, FDB entries, nexthops and routes into zebra's
+RIB. During normal operation, updates flow bidirectionally: FRR pushes learned
+routes to grout, and grout notifies FRR of link and address changes.
 
-# FRR CONFIGURATION OVERVIEW
+## Supported operations
 
-Zebra must be run with the _-M_ option to load the plugin:
-Edit the file _/etc/frr/daemons_, for example:
+The following zebra dataplane operations are handled:
+
+- IPv4/IPv6 route install, update and delete
+- Nexthop install, update and delete
+- IP address install and uninstall
+- MAC/FDB install and delete
+- VXLAN flood VTEP add and delete
+- Neighbor install, update and delete (used for EVPN RMAC caching)
+- SRv6 encap source address
+
+## EVPN support
+
+The plugin supports EVPN with VXLAN overlays, including L2 VNI (type-2 MAC/IP
+and type-3 flood routes), L3 VNI (type-5 IP prefix routes with symmetric IRB)
+and mixed L2+L3 VNI coexistence within the same VRF.
+
+In grout, L3 VNI VXLAN interfaces use a "VRF mode" that does not require
+a bridge and SVI as Linux does. The plugin takes care of presenting VXLAN
+interfaces to FRR in the way its EVPN code expects.
+
+# CONTROL PLANE REPRESENTORS
+
+For each grout interface (port, VLAN, bond, bridge, VXLAN), grout creates
+a TAP device in the host network namespace with the same name. These control
+plane representors allow FRR daemons to bind sockets (e.g. OSPF multicast,
+BFD sessions) and exchange packets with the network through grout.
+
+TAP devices operate at L2 (full Ethernet frames). They are configured as
+NOARP since ARP/ND resolution is handled by grout, not the kernel.
+
+For each VRF, grout creates a TUN device (named after the VRF for the default
+VRF, or _gr-loopN_ for non-default VRFs). TUN devices operate at L3 (raw IP
+packets) and act as the catch-all for traffic that does not match a specific
+TAP. For non-default VRFs, grout also creates a kernel VRF device and enslaves
+both the TUN and all TAP devices belonging to that VRF.
+
+## Routing
+
+IP addresses configured on grout interfaces are mirrored onto the corresponding
+TAP or TUN devices as host routes (/32 for IPv4, /128 for IPv6). No connected
+subnet routes are installed.
+
+A default route pointing at the TUN device is installed in each VRF's routing
+table so that all traffic originated by FRR daemons is funneled into grout for
+forwarding.
+
+For TAP devices, grout installs per-device policy routing rules
+(_ip rule add oif <tap> lookup 999_) with default routes in table 999. This
+ensures that _SO_BINDTODEVICE_ sockets (used by BFD, OSPF, etc.) are routed
+through the correct TAP even though no connected subnet routes exist.
+
+## Packet flow
+
+Packets from FRR daemons follow the kernel routing table to either the TUN
+(via the VRF default route) or a TAP (via policy routing). Grout reads these
+packets from the TUN/TAP file descriptors and injects them into the datapath
+for forwarding out the physical ports.
+
+In the other direction, packets arriving on DPDK ports that are destined to
+a local address are delivered to the appropriate TAP or TUN device, where the
+kernel hands them to the FRR daemon's socket.
+
+# SETUP
+
+## Building the plugin
+
+The plugin is built as a shared library (_dplane_grout.so_) and installed
+into FRR's module directory. It requires FRR >= 10.5. The grout build system
+handles this automatically via meson.
+
+## Network namespace
+
+FRR daemons must run in the same network namespace as grout so they can access
+the control plane representors (TAP/TUN devices) created by grout. When using
+systemd, a drop-in for _frr.service_ should be used to ensure this.
+
+## Loading the plugin
+
+Edit _/etc/frr/daemons_ and add *-M dplane_grout* to zebra's options:
 
 ```
 zebra_options="  -A 127.0.0.1 -s 90000000 -M dplane_grout"
 ```
 
-And the corresponding _frr.conf_:
+No other plugin-specific configuration is needed. Routing protocol
+configuration (_bgpd_, _ospfd_, etc.) follows standard FRR conventions.
+
+## Socket path
+
+The plugin connects to grout via the path given by the *GROUT_SOCK_PATH*
+environment variable, defaulting to _/run/grout.sock_.
+
+## Startup order
+
+Grout should be running before FRR starts. If it is not, the plugin retries
+the connection every second until grout becomes available. Once connected,
+the plugin performs a full synchronization before FRR begins normal operation.
+
+# CAVEATS
+
+## VRF backend
+
+Only *vrf backend lite* is supported. The plugin refuses to start if
+*vrf backend netns* is configured and exits immediately.
+
+## BGP update-source
+
+Because addresses are installed as host routes on the control plane
+representors, the kernel cannot automatically pick the correct source address
+for outgoing TCP sessions. BGP neighbors must be configured with an explicit
+*update-source* pointing to the grout local IP:
 
 ```
-service integrated-vtysh-config
-!
-interface cv0
-	ip address 192.168.210.1/24
+router bgp 64512
+    neighbor 172.16.0.2 remote-as 64512
+    neighbor 172.16.0.2 update-source 172.16.0.1
 exit
-!
-router bgp 64513
-	neighbor 192.168.210.3 remote-as 64513
-	neighbor 192.168.210.3 interface main
-	neighbor 192.168.210.3 update-source 192.168.210.1
-exit
-!
-end
 ```
 
-Two additional configurations for a neighbor are required:
+This is not needed for protocols that use multicast or link-local addresses
+(OSPF, OSPFv3) since they bind to the interface directly.
 
-- source interface, _main_, only required for the default VRF
-- update source IP, local Grout IP
+## Source routes
 
-With that configuration, BGP messages are properly exchanged, and routes are
-visible in grout:
+Source-address-based routing (_from_ prefix) is not supported by grout.
+The plugin logs an error and skips such routes.
 
-```
-vtysh# show bgp summary
+## Graceful restart
 
-IPv4 Unicast Summary:
-BGP router identifier 192.168.211.0, local AS number 64513 VRF default vrf-id 0
-BGP table version 15
-RIB entries 28, using 3584 bytes of memory
-Peers 2, using 47 KiB of memory
+The plugin supports FRR graceful restart (*-K* sweep timer). After a zebra
+crash and restart, stale routes are preserved during the sweep window and
+cleaned up normally once the timer expires.
 
-Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
-192.168.210.3   4      64513        50        48       15    0    0 00:43:31           14        2 N/A
+When grout itself restarts, the plugin detects the disconnection, tears down
+all synchronized state, and performs a fresh full synchronization once grout
+is available again.
 
-Total number of neighbors 1
-```
+# SEE ALSO
 
-```
-grout# route show
-VRF  DESTINATION        NEXT_HOP
-0    192.168.1.0/24     type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.2.0/24     type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.11.254/32  type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.11.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.20.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.94.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.95.0/24    type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.200.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.201.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.203.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.210.0/24   type=L3 iface=p0 vrf=0 origin=link af=IPv4 addr=192.168.210.1/24 mac=f0:0d:ac:dc:00:00 static local link
-0    192.168.211.0/24   type=L3 iface=p1 vrf=0 origin=link af=IPv4 addr=192.168.211.1/24 mac=f0:0d:ac:dc:00:01 static local link
-0    192.168.239.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.254.0/24   type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-0    192.168.255.10/32  type=L3 id=10 iface=p0 vrf=0 origin=bgp af=IPv4 addr=192.168.210.3 state=new
-```
+*grout*(8), *grcli*(1)
 
 # AUTHORS
 
-Created by Christophe Fontaine
-Updated by Maxime Leroy
+Created by Christophe Fontaine.
+Updated by Maxime Leroy.
