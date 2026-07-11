@@ -56,3 +56,15 @@ if install_build_flag
     ],
   )
 endif
+
+systemd_dep = dependency('systemd', required: false)
+if systemd_dep.found()
+  systemd_system_unit_dir = systemd_dep.get_variable(
+    pkgconfig: 'systemdsystemunitdir',
+    pkgconfig_define: ['prefix', get_option('prefix')]
+  )
+  install_data(
+    files('grout.conf'),
+    install_dir: systemd_system_unit_dir / 'frr.service.d',
+  )
+endif

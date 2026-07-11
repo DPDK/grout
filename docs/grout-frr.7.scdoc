@@ -97,8 +97,9 @@ handles this automatically via meson.
 ## Network namespace
 
 FRR daemons must run in the same network namespace as grout so they can access
-the control plane representors (TAP/TUN devices) created by grout. When using
-systemd, a drop-in for _frr.service_ should be used to ensure this.
+the control plane representors (TAP/TUN devices) created by grout. The
+_grout.conf_ systemd drop-in for _frr.service_ is installed automatically and
+takes care of this.
 
 ## Loading the plugin
 
