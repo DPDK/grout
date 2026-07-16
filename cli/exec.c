@@ -98,7 +98,7 @@ get_suggestions(const struct ec_node *cmdlist, const char *cmdline, unsigned *po
 				goto out;
 
 			struct ec_comp_item *i;
-			EC_COMP_FOREACH(i, c, EC_COMP_FULL) {
+			EC_COMP_FOREACH (i, c, EC_COMP_FULL) {
 				if (ec_strvec_add(sug, ec_comp_item_get_str(i)) < 0)
 					goto out;
 			}
