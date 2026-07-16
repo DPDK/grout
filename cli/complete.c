@@ -115,7 +115,7 @@ int bash_complete(struct ec_node *cmdlist) {
 
 	count = 0;
 	comp_width = 0;
-	EC_COMP_FOREACH(item, cmpl, EC_COMP_FULL | EC_COMP_PARTIAL) {
+	EC_COMP_FOREACH (item, cmpl, EC_COMP_FULL | EC_COMP_PARTIAL) {
 		int w = strlen(ec_comp_item_get_str(item));
 		if (w > comp_width)
 			comp_width = w;
@@ -131,7 +131,7 @@ int bash_complete(struct ec_node *cmdlist) {
 		colon_prefix = last_colon - comp_word + 1;
 	comp_width -= colon_prefix;
 
-	EC_COMP_FOREACH(item, cmpl, EC_COMP_FULL | EC_COMP_PARTIAL) {
+	EC_COMP_FOREACH (item, cmpl, EC_COMP_FULL | EC_COMP_PARTIAL) {
 		const char *choice = ec_comp_item_get_str(item) + colon_prefix;
 		const char *help = find_help(item);
 		if (count > 1 && help != NULL) {

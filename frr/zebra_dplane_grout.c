@@ -244,7 +244,7 @@ static void grout_sync_poll_marker(struct event *e) {
 	if (table) {
 		rn = route_node_lookup(table, &grout_sync_marker_prefix);
 		if (rn) {
-			RNODE_FOREACH_RE(rn, re) {
+			RNODE_FOREACH_RE (rn, re) {
 				if (CHECK_FLAG(re->status, ROUTE_ENTRY_REMOVED))
 					continue;
 				if (re->tag == GROUT_SYNC_MARKER_TAG
@@ -944,7 +944,7 @@ static void grout_ns_reset(void) {
 	struct vrf *default_vrf, *vrf;
 	struct interface *ifp;
 
-	RB_FOREACH(vrf, vrf_id_head, &vrfs_by_id) {
+	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
 		FOR_ALL_INTERFACES(vrf, ifp) {
 			if_down(ifp);
 		}
