@@ -71,9 +71,13 @@ EmptyLineBeforeAccessModifier: LogicalBlock
 ExperimentalAutoDetectBinPacking: false
 FixNamespaceComments: false
 ForEachMacros:
+  - EC_COMP_FOREACH
   - LIST_FOREACH
   - LIST_FOREACH_SAFE
+  - RB_FOREACH
+  - RNODE_FOREACH_RE
   - RTE_ETH_FOREACH_DEV
+  - RTE_ETH_FOREACH_MATCHING_DEV
   - RTE_LCORE_FOREACH
   - SLIST_FOREACH
   - SLIST_FOREACH_SAFE
@@ -87,8 +91,6 @@ ForEachMacros:
   - rte_graph_foreach_node
   - vec_foreach
   - vec_foreach_ref
-IfMacros:
-  - KJ_IF_MAYBE
 IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*'
