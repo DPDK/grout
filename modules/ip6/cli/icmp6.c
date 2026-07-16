@@ -77,6 +77,7 @@ static cmd_status_t icmp_send(
 			else
 				printf("timeout: icmp_seq=%d\n", i);
 		} else {
+			double roundtrip_ms = (reply_resp->response_time * 1000.) / GR_NS_PER_S;
 			switch (reply_resp->type) {
 			case ICMP6_TYPE_ECHO_REPLY:
 				if (!mode_traceroute) {
@@ -85,12 +86,12 @@ static cmd_status_t icmp_send(
 					       &reply_resp->src_addr,
 					       reply_resp->seq_num,
 					       reply_resp->ttl,
-					       reply_resp->response_time / 1000.);
+					       roundtrip_ms);
 				} else {
 					printf("%2d  " IP6_F " time=%.3f ms\n",
 					       i,
 					       &reply_resp->src_addr,
-					       reply_resp->response_time / 1000.);
+					       roundtrip_ms);
 					stop = true;
 					errors = 0;
 				}
@@ -128,7 +129,7 @@ static cmd_status_t icmp_send(
 				printf("%2d  " IP6_F " time=%.3f ms%s\n",
 				       i,
 				       &reply_resp->src_addr,
-				       reply_resp->response_time / 1000.,
+				       roundtrip_ms,
 				       errdesc);
 			}
 			free(resp_ptr);
