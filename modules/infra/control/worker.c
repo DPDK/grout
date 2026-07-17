@@ -32,6 +32,8 @@ LOG_TYPE("worker");
 
 struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
+atomic_uint gr_worker_active;
+
 int worker_create(unsigned cpu_id) {
 	bool attr_inited = false, thread_created = false, inserted = false;
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
@@ -132,9 +134,7 @@ void worker_wait_wakeup(struct worker *w) {
 	pthread_mutex_unlock(&w->wakeup.lock);
 }
 
-void worker_wakeup(struct worker *w) {
-	uint64_t one = 1;
-
+static void worker_kick(struct worker *w, uint64_t val) {
 	pthread_mutex_lock(&w->wakeup.lock);
 	w->wakeup.set = true;
 	pthread_cond_signal(&w->wakeup.cond);
@@ -144,15 +144,41 @@ void worker_wakeup(struct worker *w) {
 	// worker idle on rte_epoll_wait is woken through the eventfd instead.
 	// EAGAIN means a kick is already pending and undrained, which is enough.
 	if (gr_config.adaptive_irq
-	    && write(w->adaptive_irq.wakeup_fd, &one, sizeof(one)) != sizeof(one)
+	    && write(w->adaptive_irq.wakeup_fd, &val, sizeof(val)) != sizeof(val)
 	    && errno != EAGAIN)
 		LOG(ERR, "worker %u wakeup_fd write: %s", w->cpu_id, strerror(errno));
+}
+
+void worker_wakeup(struct worker *w) {
+	worker_kick(w, 1);
 }
 
 void worker_wakeup_all(void) {
 	struct worker *worker;
 	STAILQ_FOREACH (worker, &workers, next)
 		worker_wakeup(worker);
+}
+
+// Wake one rxq-owning worker to drain the control input ring, if none is active.
+void worker_wakeup_any(void) {
+	struct worker *worker;
+
+	if (worker_active_count() != 0)
+		return;
+
+	STAILQ_FOREACH (worker, &workers, next) {
+		if (vec_len(worker->rxqs) > 0) {
+			worker_wakeup(worker);
+			return;
+		}
+	}
+}
+
+// Re-arm every worker's rxq interrupts after a port stop/start dropped them.
+void worker_rearm_all(void) {
+	struct worker *worker;
+	STAILQ_FOREACH (worker, &workers, next)
+		worker_kick(worker, WORKER_KICK_REARM);
 }
 
 unsigned worker_count(void) {

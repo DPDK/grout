@@ -272,7 +272,7 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	if ((ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
 	p->started = true;
-	worker_wakeup_all(); // let workers (re)arm now that the port is started
+	worker_rearm_all(); // let workers (re)arm now that the port is started
 	iface->mtu = mtu;
 
 	vec_foreach (struct iface *s, iface->subinterfaces)
@@ -365,7 +365,7 @@ static int iface_port_reconfig(
 		return errno_log(-ret, "rte_eth_dev_start");
 
 	p->started = true;
-	worker_wakeup_all(); // let workers (re)arm now that the port is started
+	worker_rearm_all(); // let workers (re)arm now that the port is started
 
 	return 0;
 }
