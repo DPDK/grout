@@ -1,0 +1,111 @@
+From 134c1eeb8e6ae2ff8fc087396a220c09d61dfd6a Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 17 Jul 2026 11:33:35 +0200
+Subject: [PATCH 2/2] net/tap: drain queue fd in Rx interrupt mode
+
+The tap Rx path is driven by a SIGIO trigger: pmd_rx_burst() returns
+without reading the queue fd unless tap_trigger, bumped by the O_ASYNC
+signal handler, has advanced. That avoids a readv() on every empty poll.
+
+In Rx interrupt mode the application blocks on the queue fd through epoll
+and polls only after a wakeup. The epoll wakeup and the trigger are
+distinct signals, so the burst can return 0 right after a wakeup because
+the trigger has not advanced, leaving the fd readable with no further
+edge: traffic stalls.
+
+When the port is configured for Rx interrupts, drain the fd
+unconditionally in the burst and do not arm the SIGIO trigger on the data
+queue fd. A data queue fd can be closed and recreated on a later setup,
+so the mode must stay constant to keep every fd on the same SIGIO policy:
+it is fixed at configure time and a later change is rejected. Close and
+reopen the port to switch modes.
+
+Fixes: 4870a8cdd968 ("net/tap: support Rx interrupt")
+Cc: stable@dpdk.org
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ drivers/net/tap/rte_eth_tap.c | 18 +++++++++++++++++-
+ drivers/net/tap/rte_eth_tap.h |  2 ++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/tap/rte_eth_tap.c b/drivers/net/tap/rte_eth_tap.c
+index 720f13d42d..619d2602c1 100644
+--- a/drivers/net/tap/rte_eth_tap.c
++++ b/drivers/net/tap/rte_eth_tap.c
+@@ -236,6 +236,10 @@ tun_alloc(struct pmd_internals *pmd, int is_keepalive, int persistent)
+ 		goto error;
+ 	}
+ 
++	/* interrupt mode wakes through epoll on the data queue fd, not the SIGIO trigger */
++	if (pmd->intr_mode)
++		return fd;
++
+ 	/* Find a free realtime signal */
+ 	for (signo = SIGRTMIN + 1; signo < SIGRTMAX; signo++) {
+ 		struct sigaction sa;
+@@ -464,7 +468,7 @@ pmd_rx_burst(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
+ 	unsigned long num_rx_bytes = 0;
+ 	uint32_t trigger = tap_trigger;
+ 
+-	if (trigger == rxq->trigger_seen)
++	if (!rxq->intr_mode && trigger == rxq->trigger_seen)
+ 		return 0;
+ 
+ 	process_private = rte_eth_devices[rxq->in_port].process_private;
+@@ -920,6 +924,16 @@ tap_dev_configure(struct rte_eth_dev *dev)
+ 	struct pmd_internals *pmd = dev->data->dev_private;
+ 	int intr_mode = !!dev->data->dev_conf.intr_conf.rxq;
+ 
++	/* The queue fd is created once and its SIGIO trigger is armed for poll
++	 * mode only; the interrupt mode cannot be toggled on an existing port.
++	 */
++	if (pmd->intr_mode_set && pmd->intr_mode != intr_mode) {
++		TAP_LOG(ERR,
++			"%s: Rx interrupt mode is fixed after configure, close and reopen the port to change it",
++			dev->device->name);
++		return -ENOTSUP;
++	}
++
+ 	if (dev->data->nb_rx_queues != dev->data->nb_tx_queues) {
+ 		TAP_LOG(ERR,
+ 			"%s: number of rx queues %d must be equal to number of tx queues %d",
+@@ -930,6 +944,7 @@ tap_dev_configure(struct rte_eth_dev *dev)
+ 	}
+ 
+ 	pmd->intr_mode = intr_mode;
++	pmd->intr_mode_set = 1;
+ 
+ 	TAP_LOG(INFO, "%s: %s: TX configured queues number: %u",
+ 		dev->device->name, pmd->name, dev->data->nb_tx_queues);
+@@ -1585,6 +1600,7 @@ tap_rx_queue_setup(struct rte_eth_dev *dev,
+ 		return -ENOMEM;
+ 	}
+ 	rxq->iovecs = iovecs;
++	rxq->intr_mode = internals->intr_mode;
+ 
+ 	dev->data->rx_queues[rx_queue_id] = rxq;
+ 	fd = tap_setup_queue(dev, internals, rx_queue_id, 1);
+diff --git a/drivers/net/tap/rte_eth_tap.h b/drivers/net/tap/rte_eth_tap.h
+index d7f7a90fe3..07b67317c5 100644
+--- a/drivers/net/tap/rte_eth_tap.h
++++ b/drivers/net/tap/rte_eth_tap.h
+@@ -53,6 +53,7 @@ struct rx_queue {
+ 	uint16_t queue_id;		/* queue ID*/
+ 	struct pkt_stats stats;         /* Stats for this RX queue */
+ 	uint16_t nb_rx_desc;            /* max number of mbufs available */
++	uint16_t intr_mode;             /* 1 when Rx queue interrupts are used */
+ 	struct rte_eth_rxmode *rxmode;  /* RX features */
+ 	struct rte_mbuf *pool;          /* mbufs pool for this queue */
+ 	struct iovec (*iovecs)[];       /* descriptors for this queue */
+@@ -97,6 +98,7 @@ struct pmd_internals {
+ 	struct tx_queue txq[RTE_PMD_TAP_MAX_QUEUES]; /* List of TX queues */
+ 	struct rte_intr_handle *intr_handle;         /* LSC interrupt handle. */
+ 	int intr_mode;                    /* Rx queue interrupt mode */
++	int intr_mode_set;                /* intr_mode locked after configure */
+ 	int ka_fd;                        /* keep-alive file descriptor */
+ 	struct rte_mempool *gso_ctx_mp;     /* Mempool for GSO packets */
+ };
+-- 
+2.43.0
+
