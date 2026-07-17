@@ -21,9 +21,11 @@
 #include <rte_malloc.h>
 
 #include <pthread.h>
+#include <sched.h>
 #include <stdatomic.h>
 #include <sys/epoll.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 LOG_TYPE("graph");
@@ -188,6 +190,9 @@ static struct rte_rcu_qsbr *rcu;
 
 #define ADAPTIVE_IRQ_EMPTY_WINDOWS 2
 #define ADAPTIVE_IRQ_MAX_EVENTS 32
+// short settle waits let schedutil drop the clock before the worker blocks for good
+#define ADAPTIVE_IRQ_SETTLE_MS 100
+#define ADAPTIVE_IRQ_SETTLE_TRIES 3
 
 // --adaptive-irq: an idle worker arms its rxqs via rte_eth_dev_rx_intr_* and blocks on
 // their eventfds through this thread's epoll until one fires. Arm -EAGAIN means
@@ -199,7 +204,7 @@ adaptive_irq_wait(struct worker *w, vec struct queue_map *rxqs, vec struct queue
 	struct rte_epoll_event events[ADAPTIVE_IRQ_MAX_EVENTS];
 	vec struct queue_map *armed = NULL;
 	struct queue_map *qm, *e;
-	int ret, status = 0;
+	int n, ret, status = 0;
 	bool rearm = false;
 
 	// add the wakeup_fd to the same per-thread epfd rte_epoll_wait uses; done here,
@@ -273,7 +278,21 @@ adaptive_irq_wait(struct worker *w, vec struct queue_map *rxqs, vec struct queue
 	}
 
 	rte_rcu_qsbr_thread_offline(rcu, rte_lcore_id());
-	rte_epoll_wait(RTE_EPOLL_PER_THREAD, events, ADAPTIVE_IRQ_MAX_EVENTS, -1);
+	// a few short waits let schedutil ratchet the frequency down from the uclamp_min
+	// max before blocking for good. Each is one wait, not a drain loop: epoll_wait
+	// leaves the events (the graph walk pulls frames), so a loop would spin.
+	for (unsigned i = 0; i < ADAPTIVE_IRQ_SETTLE_TRIES; i++) {
+		n = rte_epoll_wait(
+			RTE_EPOLL_PER_THREAD,
+			events,
+			ADAPTIVE_IRQ_MAX_EVENTS,
+			ADAPTIVE_IRQ_SETTLE_MS
+		);
+		if (n != 0)
+			break;
+	}
+	if (n == 0)
+		n = rte_epoll_wait(RTE_EPOLL_PER_THREAD, events, ADAPTIVE_IRQ_MAX_EVENTS, -1);
 	rte_rcu_qsbr_thread_online(rcu, rte_lcore_id());
 
 	// drain the wakeup_fd; a WORKER_KICK_REARM (high bit) means our rxq epoll
@@ -292,6 +311,53 @@ disarm:
 		rte_eth_dev_rx_intr_disable(e->port_id, e->queue_id);
 	vec_free(armed);
 	return status;
+}
+
+// Pin uclamp_min to max: an idle adaptive-irq worker blocks on the IRQ, so schedutil
+// would downclock the core; keep it at full speed while runnable. glibc < 2.41
+// lacks sched_setattr()/struct sched_attr (see HAVE_SCHED_SETATTR), so define locally.
+#ifndef HAVE_SCHED_SETATTR
+struct sched_attr {
+	uint32_t size;
+	uint32_t sched_policy;
+	uint64_t sched_flags;
+	int32_t sched_nice;
+	uint32_t sched_priority;
+	uint64_t sched_runtime;
+	uint64_t sched_deadline;
+	uint64_t sched_period;
+	uint32_t sched_util_min;
+	uint32_t sched_util_max;
+};
+static inline int sched_setattr(pid_t pid, struct sched_attr *attr, unsigned int flags) {
+	return syscall(SYS_sched_setattr, pid, attr, flags);
+}
+#endif
+#ifndef SCHED_FLAG_KEEP_ALL
+#define SCHED_FLAG_KEEP_POLICY 0x08
+#define SCHED_FLAG_KEEP_PARAMS 0x10
+#define SCHED_FLAG_KEEP_ALL (SCHED_FLAG_KEEP_POLICY | SCHED_FLAG_KEEP_PARAMS)
+#endif
+#ifndef SCHED_FLAG_UTIL_CLAMP_MIN
+#define SCHED_FLAG_UTIL_CLAMP_MIN 0x20
+#endif
+
+static void worker_perf_floor(const struct worker *w) {
+	struct sched_attr attr = {
+		.size = sizeof(attr),
+		.sched_flags = SCHED_FLAG_KEEP_ALL | SCHED_FLAG_UTIL_CLAMP_MIN,
+		.sched_util_min = 1024, // SCHED_CAPACITY_SCALE
+	};
+
+	if (sched_setattr(0, &attr, 0) < 0) {
+		if (errno == EOPNOTSUPP || errno == ENOSYS || errno == EPERM || errno == EINVAL)
+			LOG(NOTICE,
+			    "[CPU %d] uclamp_min unavailable: %s",
+			    w->cpu_id,
+			    strerror(errno));
+		else
+			LOG(WARNING, "[CPU %d] uclamp_min: %s", w->cpu_id, strerror(errno));
+	}
 }
 
 void *gr_datapath_loop(void *priv) {
@@ -334,6 +400,8 @@ void *gr_datapath_loop(void *priv) {
 			return NULL;
 		}
 	}
+	if (gr_config.adaptive_irq)
+		worker_perf_floor(w);
 
 	log(INFO, "lcore_id = %d", w->lcore_id);
 
