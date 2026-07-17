@@ -8,6 +8,7 @@
 
 #include <rte_common.h>
 #include <rte_graph.h>
+#include <rte_interrupts.h>
 
 #include <pthread.h>
 #include <sched.h>
@@ -66,6 +67,12 @@ struct worker {
 	unsigned cpu_id;
 	unsigned lcore_id;
 	pid_t tid;
+	// adaptive-irq only: idle worker wakeup through an rxq-interrupt epoll set
+	struct {
+		int wakeup_fd; // eventfd: ctlplane writes, dataplane epoll-waits + drains
+		struct rte_epoll_event wakeup_ev; // dataplane: wakeup_fd's epoll registration
+		bool wakeup_registered; // dataplane: wakeup_fd added to the epoll set?
+	} adaptive_irq;
 
 	struct {
 		pthread_mutex_t lock;
@@ -87,6 +94,7 @@ int worker_rxq_assign(uint16_t port_id, uint16_t rxq_id, uint16_t cpu_id);
 int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_port **ports);
 void worker_wait_wakeup(struct worker *);
 void worker_wakeup(struct worker *);
+void worker_wakeup_all(void);
 vec struct gr_stat *worker_dump_stats(uint16_t cpu_id);
 
 int port_unplug(struct iface_info_port *);

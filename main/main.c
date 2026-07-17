@@ -61,6 +61,7 @@ static void usage(void) {
 	puts("                                 (default [::]:9111).");
 	puts("  -S, --syslog                   Redirect logs to syslog.");
 	puts("  -V, --version                  Print version and exit.");
+	puts("  -a, --adaptive-irq             Idle workers block on rxq interrupts.");
 	puts("  -h, --help                     Display this help message and exit.");
 	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
 	puts("  -o, --socket-owner USER:GROUP  API socket file ownership");
@@ -185,8 +186,9 @@ static bool parse_bool_env(const char *name) {
 static int parse_args(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":M:Vhm:o:pSs:tu:vx"
+#define FLAGS ":aM:Vhm:o:pSs:tu:vx"
 	static struct option long_options[] = {
+		{"adaptive-irq", no_argument, NULL, 'a'},
 		{"help", no_argument, NULL, 'h'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"metrics", required_argument, NULL, 'M'},
@@ -218,6 +220,9 @@ static int parse_args(int argc, char **argv) {
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
+		case 'a':
+			gr_config.adaptive_irq = true;
+			break;
 		case 'h':
 			usage();
 			exit(EXIT_SUCCESS);

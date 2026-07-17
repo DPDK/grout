@@ -51,6 +51,14 @@ Grout is a software router based on DPDK _rte_graph_.
 *-p*, *--poll-mode*
 	Disable automatic micro-sleep.
 
+*-a*, *--adaptive-irq*
+	Make idle workers block on their RX queue interrupts instead of
+	busy-polling, so the CPU can idle during quiet periods. An incoming
+	packet raises the interrupt and the worker resumes polling. It
+	requires PMD support for RX queue interrupts; without it a worker
+	falls back to the micro-sleep ramp, unless *--poll-mode* is also
+	given.
+
 *-S*, *--syslog*
 	Redirect logs to syslog.
 
