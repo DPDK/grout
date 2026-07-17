@@ -53,7 +53,7 @@ $(smoke_scripts):
 	$Q log=$(BUILDDIR)/$@.log; \
 	time=$(BUILDDIR)/$@.time; \
 	printf '%s\n' $@; \
-	time -qf '%E' -o "$$time" sudo timeout 5m $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
+	time -qf '%E' -o "$$time" sudo $(if $(ADAPTIVE_IRQ),adaptive_irq=$(ADAPTIVE_IRQ)) timeout 5m $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
 	rc=$$?; \
 	if [ "$$rc" -ne 0 ]; then \
 		printf '%s\n' '==================================================='; \

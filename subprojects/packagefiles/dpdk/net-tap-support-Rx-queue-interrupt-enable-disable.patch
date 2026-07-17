@@ -1,0 +1,135 @@
+From aff873028fa931bf52da9a050a172479bbb47565 Mon Sep 17 00:00:00 2001
+From: Maxime Leroy <maxime@leroys.fr>
+Date: Fri, 17 Jul 2026 11:31:13 +0200
+Subject: [PATCH 1/2] net/tap: support Rx queue interrupt enable/disable
+
+The driver registers each queue file descriptor for Rx interrupts but
+never provided the rx_queue_intr_enable/disable ops, so
+rte_eth_dev_rx_intr_enable() returned -ENOTSUP. Applications that arm
+queues before sleeping (l3fwd-power and similar) treat that as "no
+interrupt support" and fall back to polling, even though the epoll wait
+on the queue fd works. The advertised Rx interrupt feature is therefore
+unusable through the generic API.
+
+The queue fd is kept readable by the kernel whenever data is available
+and is drained by the Rx burst itself, so there is no interrupt source to
+arm or mask. Record whether the port was configured for Rx interrupts and
+implement both ops to succeed in that mode and return -ENOTSUP otherwise,
+so the generic Rx interrupt API works and applications can block on the
+queue fd.
+
+Fixes: 4870a8cdd968 ("net/tap: support Rx interrupt")
+Cc: stable@dpdk.org
+
+Signed-off-by: Maxime Leroy <maxime@leroys.fr>
+---
+ drivers/net/tap/rte_eth_tap.c |  5 ++++
+ drivers/net/tap/rte_eth_tap.h |  3 +++
+ drivers/net/tap/tap_intr.c    | 44 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 52 insertions(+)
+
+diff --git a/drivers/net/tap/rte_eth_tap.c b/drivers/net/tap/rte_eth_tap.c
+index d410fec957..720f13d42d 100644
+--- a/drivers/net/tap/rte_eth_tap.c
++++ b/drivers/net/tap/rte_eth_tap.c
+@@ -918,6 +918,7 @@ static int
+ tap_dev_configure(struct rte_eth_dev *dev)
+ {
+ 	struct pmd_internals *pmd = dev->data->dev_private;
++	int intr_mode = !!dev->data->dev_conf.intr_conf.rxq;
+ 
+ 	if (dev->data->nb_rx_queues != dev->data->nb_tx_queues) {
+ 		TAP_LOG(ERR,
+@@ -928,6 +929,8 @@ tap_dev_configure(struct rte_eth_dev *dev)
+ 		return -1;
+ 	}
+ 
++	pmd->intr_mode = intr_mode;
++
+ 	TAP_LOG(INFO, "%s: %s: TX configured queues number: %u",
+ 		dev->device->name, pmd->name, dev->data->nb_tx_queues);
+ 
+@@ -2052,6 +2055,8 @@ static const struct eth_dev_ops ops = {
+ 	.tx_queue_stop          = tap_tx_queue_stop,
+ 	.rx_queue_release       = tap_rx_queue_release,
+ 	.tx_queue_release       = tap_tx_queue_release,
++	.rx_queue_intr_enable   = tap_rx_queue_intr_enable,
++	.rx_queue_intr_disable  = tap_rx_queue_intr_disable,
+ 	.flow_ctrl_get          = tap_flow_ctrl_get,
+ 	.flow_ctrl_set          = tap_flow_ctrl_set,
+ 	.link_update            = tap_link_update,
+diff --git a/drivers/net/tap/rte_eth_tap.h b/drivers/net/tap/rte_eth_tap.h
+index 49f027c289..d7f7a90fe3 100644
+--- a/drivers/net/tap/rte_eth_tap.h
++++ b/drivers/net/tap/rte_eth_tap.h
+@@ -96,6 +96,7 @@ struct pmd_internals {
+ 	struct rx_queue rxq[RTE_PMD_TAP_MAX_QUEUES]; /* List of RX queues */
+ 	struct tx_queue txq[RTE_PMD_TAP_MAX_QUEUES]; /* List of TX queues */
+ 	struct rte_intr_handle *intr_handle;         /* LSC interrupt handle. */
++	int intr_mode;                    /* Rx queue interrupt mode */
+ 	int ka_fd;                        /* keep-alive file descriptor */
+ 	struct rte_mempool *gso_ctx_mp;     /* Mempool for GSO packets */
+ };
+@@ -107,5 +108,7 @@ struct pmd_process_private {
+ /* tap_intr.c */
+ 
+ int tap_rx_intr_vec_set(struct rte_eth_dev *dev, int set);
++int tap_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id);
++int tap_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id);
+ 
+ #endif /* _RTE_ETH_TAP_H_ */
+diff --git a/drivers/net/tap/tap_intr.c b/drivers/net/tap/tap_intr.c
+index 1908f71f97..7db22b69f5 100644
+--- a/drivers/net/tap/tap_intr.c
++++ b/drivers/net/tap/tap_intr.c
+@@ -112,3 +112,47 @@ tap_rx_intr_vec_set(struct rte_eth_dev *dev, int set)
+ 		return tap_rx_intr_vec_install(dev);
+ 	return 0;
+ }
++
++/**
++ * Arm a queue for Rx interrupts.
++ *
++ * @param dev
++ *   Pointer to the tap rte_eth_dev device structure.
++ * @param queue_id
++ *   Rx queue index.
++ *
++ * @return
++ *   0 on success, -ENOTSUP if the port was not configured for Rx interrupts.
++ */
++int
++tap_rx_queue_intr_enable(struct rte_eth_dev *dev,
++			 uint16_t queue_id __rte_unused)
++{
++	struct pmd_internals *pmd = dev->data->dev_private;
++
++	if (!pmd->intr_mode)
++		return -ENOTSUP;
++	return 0;
++}
++
++/**
++ * Disarm a queue from Rx interrupts.
++ *
++ * @param dev
++ *   Pointer to the tap rte_eth_dev device structure.
++ * @param queue_id
++ *   Rx queue index.
++ *
++ * @return
++ *   0 on success, -ENOTSUP if the port was not configured for Rx interrupts.
++ */
++int
++tap_rx_queue_intr_disable(struct rte_eth_dev *dev,
++			  uint16_t queue_id __rte_unused)
++{
++	struct pmd_internals *pmd = dev->data->dev_private;
++
++	if (!pmd->intr_mode)
++		return -ENOTSUP;
++	return 0;
++}
+-- 
+2.43.0
+
