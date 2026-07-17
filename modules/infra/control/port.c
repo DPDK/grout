@@ -152,6 +152,9 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
+	// Request RX queue interrupts so idle workers can block on them.
+	if (gr_config.adaptive_irq)
+		conf.intr_conf.rxq = 1;
 
 	if ((ret = rte_eth_dev_configure(p->port_id, p->n_rxq, p->n_txq, &conf)) < 0)
 		return errno_log(-ret, "rte_eth_dev_configure");
@@ -269,6 +272,7 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	if ((ret = rte_eth_dev_start(p->port_id)) < 0)
 		return errno_log(-ret, "rte_eth_dev_start");
 	p->started = true;
+	worker_wakeup_all(); // let workers (re)arm now that the port is started
 	iface->mtu = mtu;
 
 	vec_foreach (struct iface *s, iface->subinterfaces)
@@ -361,6 +365,7 @@ static int iface_port_reconfig(
 		return errno_log(-ret, "rte_eth_dev_start");
 
 	p->started = true;
+	worker_wakeup_all(); // let workers (re)arm now that the port is started
 
 	return 0;
 }

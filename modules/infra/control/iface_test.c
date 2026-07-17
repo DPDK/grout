@@ -43,6 +43,7 @@ bool vrf_has_interfaces(uint16_t) {
 	return false;
 }
 void control_queue_drain(uint32_t, const void *) { }
+void worker_wakeup_all(void) { }
 mock_func(struct iface *, __wrap_iface_from_id(uint16_t));
 mock_func(int, port_unplug(struct iface_info_port *));
 mock_func(int, port_plug(struct iface_info_port *));
