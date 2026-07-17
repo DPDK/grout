@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "config.h"
 #include "control_input.h"
 #include "graph.h"
 #include "log.h"
 #include "mbuf.h"
 #include "mempool.h"
 #include "trace.h"
+#include "worker.h"
 
 LOG_TYPE("graph");
 
@@ -47,7 +49,15 @@ int post_to_stack(control_input_t type, void *data) {
 	if (ret < 0)
 		return errno_set(-ret);
 
+	// adaptive-irq only: kick an idle worker blocked on rte_epoll_wait to drain it.
+	if (gr_config.adaptive_irq)
+		worker_wakeup_any();
+
 	return 0;
+}
+
+bool control_input_pending(void) {
+	return rte_ring_count(control_input_ring) > 0;
 }
 
 static uint16_t control_input_process(
