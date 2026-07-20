@@ -10,6 +10,32 @@
 
 LOG_TYPE("bridge");
 
+static int
+bridge_all_member_add_mac(const struct iface_info_bridge *br, const struct rte_ether_addr *mac) {
+	for (uint16_t i = 0; i < br->n_members; i++) {
+		if (iface_add_eth_addr(br->members[i], mac) < 0)
+			return errno_set(errno);
+	}
+	return 0;
+}
+
+static int
+bridge_all_member_del_mac(const struct iface_info_bridge *br, const struct rte_ether_addr *mac) {
+	for (uint16_t i = 0; i < br->n_members; i++) {
+		if (iface_del_eth_addr(br->members[i], mac) < 0 && errno != ENOENT)
+			return errno_set(errno);
+	}
+	return 0;
+}
+
+static int bridge_mac_add(struct iface *iface, struct iface_mac *m) {
+	return bridge_all_member_add_mac(iface_info_bridge(iface), &m->mac);
+}
+
+static int bridge_mac_del(struct iface *iface, struct iface_mac *m) {
+	return bridge_all_member_del_mac(iface_info_bridge(iface), &m->mac);
+}
+
 static int bridge_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -53,6 +79,12 @@ static int bridge_attach_member(struct iface *bridge, struct iface *member) {
 	if (iface_set_promisc(member, true) < 0 && errno != EOPNOTSUPP)
 		return errno_log(errno, "iface_set_promisc(member)");
 
+	vec_foreach_ref (struct iface_mac *m, bridge->macs) {
+		if (iface_add_eth_addr(member, &m->mac) < 0)
+			return errno_log(errno, "iface_add_eth_addr(member)");
+	}
+	iface_add_eth_addr(member, &br->mac);
+
 	br->members[br->n_members++] = member;
 	member->domain_id = bridge->id;
 	member->vrf_id = GR_VRF_ID_UNDEF;
@@ -71,6 +103,9 @@ static int bridge_detach_member(struct iface *bridge, struct iface *member) {
 			unsigned last = br->n_members - 1;
 
 			fdb_sync_hardware(bridge, member, false);
+			vec_foreach_ref (struct iface_mac *m, bridge->macs)
+				iface_del_eth_addr(member, &m->mac);
+			iface_del_eth_addr(member, &br->mac);
 
 			if (i < last)
 				br->members[i] = br->members[last];
@@ -92,6 +127,9 @@ static int bridge_fini(struct iface *iface) {
 	for (unsigned i = 0; i < bridge->n_members; i++) {
 		struct iface *member = bridge->members[i];
 		fdb_sync_hardware(iface, member, false);
+		vec_foreach_ref (struct iface_mac *m, iface->macs)
+			iface_del_eth_addr(member, &m->mac);
+		iface_del_eth_addr(member, &bridge->mac);
 		iface_set_promisc(member, false);
 		member->vrf_id = vrf_default_get_or_create();
 		if (member->vrf_id != GR_VRF_ID_UNDEF)
@@ -128,12 +166,25 @@ static int bridge_get_eth_addr(const struct iface *iface, struct rte_ether_addr 
 
 static int bridge_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	struct iface_info_bridge *bridge = iface_info_bridge(iface);
+	struct rte_ether_addr new_mac;
+	int ret;
 
 	if (rte_is_zero_ether_addr(mac)) {
-		rte_eth_random_addr(bridge->mac.addr_bytes);
+		rte_eth_random_addr(new_mac.addr_bytes);
+	} else if (rte_is_same_ether_addr(mac, &bridge->mac)) {
+		return 0;
 	} else {
-		bridge->mac = *mac;
+		new_mac = *mac;
 	}
+
+	if (!rte_is_zero_ether_addr(&bridge->mac)) {
+		if ((ret = bridge_all_member_del_mac(bridge, &bridge->mac)) < 0)
+			return ret;
+	}
+	if ((ret = bridge_all_member_add_mac(bridge, &new_mac)) < 0)
+		return ret;
+
+	bridge->mac = new_mac;
 
 	return 0;
 }
@@ -161,6 +212,8 @@ static struct iface_type iface_type_bridge = {
 	.detach_domain = bridge_detach_member,
 	.get_eth_addr = bridge_get_eth_addr,
 	.set_eth_addr = bridge_set_eth_addr,
+	.add_eth_addr = bridge_mac_add,
+	.del_eth_addr = bridge_mac_del,
 	.to_api = bridge_to_api,
 };
 
