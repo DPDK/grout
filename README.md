@@ -264,19 +264,43 @@ image.
 ### Install build dependencies
 
 ```sh
+# grout direct build dependencies
 dnf install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc libmnl-devel \
-        libcmocka-devel libedit-devel libevent-devel numactl-devel \
+        libcmocka-devel libevent-devel numactl-devel \
         libarchive-devel rdma-core-devel
+
+# grcli build dependencies
+if ! dnf install libecoli-devel; then
+        # libecoli is not available, install its dependencies to build from source
+        dnf install libedit-devel
+fi
+
+# FRR build dependencies
+dnf install autoconf automake bison elfutils-libelf-devel flex \
+        json-c-devel libcap-devel libtool libyang-devel \
+        protobuf-c-compiler protobuf-c-devel python3-devel readline-devel
 ```
 
 or
 
 ```sh
+# grout direct build dependencies
 apt install git gcc make meson ninja-build pkgconf \
         python3-pyelftools scdoc \
-        libcmocka-dev libedit-dev libevent-dev libnuma-dev libmnl-dev \
+        libcmocka-dev libevent-dev libnuma-dev libmnl-dev \
         libarchive-dev libibverbs-dev
+
+# grcli build dependencies
+if ! apt install libecoli-dev; then
+        # libecoli is not available, install its dependencies to build from source
+        apt install libedit-dev
+fi
+
+# FRR build dependencies
+apt install autoconf automake bison flex libtool \
+        libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
+        libreadline-dev libcap-dev librtr-dev libyang-dev
 ```
 
 Important: `grout` requires at least `gcc` 13 or `clang` 15.
@@ -404,7 +428,7 @@ Anyone can contribute to `grout`. See [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 | libasan | Dev | MIT+BSD | https://github.com/gcc-mirror/gcc/tree/master/libsanitizer |
 | clang-format | Dev | MIT+BSD | https://clang.llvm.org/docs/ClangFormat.html |
 
-Optional (compiled with `-Dfrr=enabled`):
+Optional (compiled with `-Dfrr=enabled`, enabled by default):
 
 | Name | Type | License | Code |
 |------|------|---------|------|
