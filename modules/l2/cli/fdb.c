@@ -85,6 +85,8 @@ static size_t fdb_format_flags(char *buf, size_t len, gr_fdb_flags_t flags) {
 		SAFE_BUF(snprintf, len, "%sstatic", n ? " " : "");
 	if (flags & GR_FDB_F_EXTERN)
 		SAFE_BUF(snprintf, len, "%sextern", n ? " " : "");
+	if (flags & GR_FDB_F_HW)
+		SAFE_BUF(snprintf, len, "%shw", n ? " " : "");
 err:
 	return n;
 }
@@ -113,6 +115,8 @@ static cmd_status_t fdb_show(struct gr_api_client *c, const struct ec_pnode *p) 
 		req.flags |= GR_FDB_F_LEARN;
 	if (arg_str(p, "extern") != NULL)
 		req.flags |= GR_FDB_F_EXTERN;
+	if (arg_str(p, "hw") != NULL)
+		req.flags |= GR_FDB_F_HW;
 
 	struct gr_table *table = gr_table_new();
 	gr_table_column(table, "BRIDGE", GR_DISP_LEFT); // 0

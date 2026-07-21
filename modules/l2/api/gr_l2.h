@@ -65,6 +65,7 @@ typedef enum : uint8_t {
 	GR_FDB_F_STATIC = GR_BIT8(0), // User-configured, never aged out.
 	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
 	GR_FDB_F_EXTERN = GR_BIT8(2), // Programmed by external control plane.
+	GR_FDB_F_HW = GR_BIT8(3), // Mac address programmed in hardware filter.
 } gr_fdb_flags_t;
 
 // Forwarding database entry associating a MAC+VLAN to a bridge member interface.
