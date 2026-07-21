@@ -8,6 +8,7 @@
 #include "l3.h"
 #include "log.h"
 #include "mbuf.h"
+#include "nexthop.h"
 #include "trace.h"
 
 #include <rte_ether.h>
@@ -19,6 +20,7 @@ enum {
 	ETH_OUTPUT = 0,
 	HOLD,
 	DEST_UNREACH,
+	NO_NEXTHOP,
 	ERROR,
 	TOO_BIG,
 	EDGE_COUNT,
@@ -69,6 +71,16 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;
+		}
+
+		if (nh->type == GR_NH_T_GROUP) {
+			struct nexthop_info_group *g = nexthop_info_group(nh);
+			nh = nexthop_group_get_nh(g, mbuf->hash.rss);
+			if (unlikely(nh == NULL)) {
+				edge = NO_NEXTHOP;
+				goto next;
+			}
+			l3_mbuf_data(mbuf)->nh = nh;
 		}
 
 		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
@@ -146,6 +158,7 @@ static struct rte_node_register output_node = {
 		[HOLD] = "ip6_hold",
 		[ERROR] = "ip6_output_error",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
+		[NO_NEXTHOP] = "ip6_output_no_nexthop",
 		[TOO_BIG] = "ip6_output_too_big",
 	},
 };
@@ -159,4 +172,5 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_output_error);
+GR_DROP_REGISTER(ip6_output_no_nexthop);
 GR_DROP_REGISTER(ip6_output_too_big);

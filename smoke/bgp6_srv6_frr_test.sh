@@ -191,8 +191,8 @@ exit
 EOF
 
 # Wait for BGP routes to be exchanged
-wait_event -t 20 'route4 add: vrf=gr-vrf1 16.0.0.0/24 origin=bgp via type=SRv6 '
-wait_event -t 20 'route6 add: vrf=main 2001:db8:2:2:100::/128 origin=bgp via type=SRv6-local '
+wait_event -t 20 'route4 add: vrf=gr-vrf1 16.0.0.0/24 origin=bgp'
+wait_event -t 20 'route6 add: vrf=main 2001:db8:2:2:100::/128 origin=bgp'
 
 attempts=0
 while ! vtysh -N bgp-peer -c "show ip route vrf vrf1" | grep -q "B>\* 16.1.0.0/24 .*seg6"; do

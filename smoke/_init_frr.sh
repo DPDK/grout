@@ -116,7 +116,7 @@ set_ip_route() {
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
 	_apply_frr_config "$persist" \
-		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static" \
 		"${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}"
 }
 
@@ -155,7 +155,7 @@ set_srv6_localsid() {
 	esac
 
 	_apply_frr_config "$persist" \
-		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior" \
+		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static" \
 "segment-routing
  srv6
   locators
@@ -238,7 +238,7 @@ set_srv6_route() {
 	[ -n "$encap_src" ] && encap_src_clause=" encap-source ${encap_src}"
 
 	_apply_frr_config "$persist" \
-		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=SRv6 .*${sids[0]}" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static" \
 		"${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}${encap_src_clause} vrf ${vrf_name}${nh_vrf_clause}"
 }
 

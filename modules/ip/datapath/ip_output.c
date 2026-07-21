@@ -9,6 +9,7 @@
 #include "log.h"
 #include "mbuf.h"
 #include "nat_datapath.h"
+#include "nexthop.h"
 #include "trace.h"
 
 #include <rte_byteorder.h>
@@ -21,6 +22,7 @@ enum {
 	ETH_OUTPUT = 0,
 	HOLD,
 	NO_ROUTE,
+	NO_NEXTHOP,
 	ERROR,
 	FRAGMENT,
 	FRAG_NEEDED,
@@ -73,6 +75,16 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;
+		}
+
+		if (nh->type == GR_NH_T_GROUP) {
+			struct nexthop_info_group *g = nexthop_info_group(nh);
+			nh = nexthop_group_get_nh(g, mbuf->hash.rss);
+			if (unlikely(nh == NULL)) {
+				edge = NO_NEXTHOP;
+				goto next;
+			}
+			l3_mbuf_data(mbuf)->nh = nh;
 		}
 
 		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
@@ -163,6 +175,7 @@ static struct rte_node_register output_node = {
 		[ETH_OUTPUT] = "eth_output",
 		[HOLD] = "ip_hold",
 		[NO_ROUTE] = "ip_error_dest_unreach",
+		[NO_NEXTHOP] = "ip_output_no_nexthop",
 		[ERROR] = "ip_output_error",
 		[FRAGMENT] = "ip_fragment",
 		[FRAG_NEEDED] = "ip_error_frag_needed",
@@ -179,4 +192,5 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip_output_error);
+GR_DROP_REGISTER(ip_output_no_nexthop);
 GR_DROP_REGISTER(ip_output_drop);
