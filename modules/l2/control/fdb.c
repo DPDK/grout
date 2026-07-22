@@ -256,8 +256,6 @@ static inline bool fdb_match(
 		return false;
 	if ((flags & GR_FDB_F_EXTERN) && !(e->flags & GR_FDB_F_EXTERN))
 		return false;
-	if ((flags & GR_FDB_F_HW) && !(e->flags & GR_FDB_F_HW))
-		return false;
 	if (bridge_id != GR_IFACE_ID_UNDEF && e->bridge_id != bridge_id)
 		return false;
 	if (iface_id != GR_IFACE_ID_UNDEF && e->iface_id != iface_id)
@@ -354,8 +352,7 @@ static void push_mac_to_hw(struct iface *iface, const struct rte_ether_addr *mac
 
 static void fdb_event_cb(uint32_t event, const void *obj) {
 	const struct iface_info_bridge *bridge_info;
-	struct gr_fdb_entry *fdb = (void *)obj;
-	bool add = event != GR_EVENT_FDB_DEL;
+	const struct gr_fdb_entry *fdb = obj;
 	const struct iface *bridge;
 
 	bridge = iface_from_id(fdb->bridge_id);
@@ -364,24 +361,18 @@ static void fdb_event_cb(uint32_t event, const void *obj) {
 		return;
 	}
 
-	if (add && (fdb->flags & GR_FDB_F_HW))
-		return;
-	if (!add && !(fdb->flags & GR_FDB_F_HW))
-		return;
-
 	bridge_info = iface_info_bridge(bridge);
 	for (unsigned i = 0; i < bridge_info->n_members; i++) {
 		struct iface *member = bridge_info->members[i];
 
+		// skip the interface where the MAC was learned
+		if (member->id == fdb->iface_id)
+			continue;
+
 		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
 		assert(fdb->vlan_id == 0);
-		push_mac_to_hw(member, &fdb->mac, add);
+		push_mac_to_hw(member, &fdb->mac, event != GR_EVENT_FDB_DEL);
 	}
-
-	if (add)
-		fdb->flags |= GR_FDB_F_HW;
-	else
-		fdb->flags &= ~GR_FDB_F_HW;
 }
 
 void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool add) {
@@ -394,6 +385,9 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 		fdb = data;
 
 		if (fdb->bridge_id != bridge->id)
+			continue;
+		// skip the interface where the MAC was learned
+		if (member->id == fdb->iface_id)
 			continue;
 
 		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
@@ -480,7 +474,6 @@ RTE_INIT(init) {
 	api_handler(GR_FDB_CONFIG_GET, fdb_config_get);
 	api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
 	event_subscribe(GR_EVENT_FDB_ADD, fdb_event_cb);
-	event_subscribe(GR_EVENT_FDB_UPDATE, fdb_event_cb);
 	event_subscribe(GR_EVENT_FDB_DEL, fdb_event_cb);
 	event_serializer(GR_EVENT_FDB_ADD, NULL);
 	event_serializer(GR_EVENT_FDB_DEL, NULL);
