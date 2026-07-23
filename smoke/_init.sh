@@ -88,22 +88,52 @@ pause_for_debug() {
 	read -r </dev/tty
 }
 
+kill_wait() {
+	local spec="$1"
+	local seconds="$2"
+	local i pid cmd
+
+	case "$spec" in
+	%*)
+		pid=$(jobs -p "$spec")
+		;;
+	*)
+		pid="$spec"
+		;;
+	esac
+
+	cmd=$(ps -o comm= "$pid")
+
+	echo "Terminating '$cmd' (PID $pid) ..."
+	kill -TERM "$pid"
+
+	for ((i = 0; i < seconds; i++)); do
+		if ! kill -0 "$pid" 2>/dev/null; then
+			wait "$pid"
+			return
+		fi
+		sleep 1
+	done
+
+	echo "'$cmd' didn't terminate after $seconds seconds, force killing it ..."
+	kill -KILL "$pid"
+	wait "$pid"
+}
+
 stop_grout() {
 	for name in "${tmux_windows[@]}"; do
 		tmux kill-window -t "$name"
 	done
-	kill %?grcli
-	wait %?grcli
+
+	set +x
+
+	kill_wait %?grcli 10
 
 	if [ "$run_grout" = false ]; then
 		return
 	fi
 
-	kill -TERM "$grout_pid"
-
-	set +x
-	echo "Waiting for grout (PID $grout_pid) to terminate ..."
-	wait "$grout_pid"
+	kill_wait "$grout_pid" 30
 	local ret="$?"
 
 	if [ "${GDB:-false}" = true ]; then
