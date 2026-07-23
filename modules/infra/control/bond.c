@@ -239,6 +239,7 @@ static int bond_detach_member(struct iface *iface, struct iface *member) {
 
 void bond_update_active_members(struct iface *iface) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
+	uint8_t prev_active = bond->active_member;
 	const struct iface *member;
 	uint8_t *active_ids = NULL;
 	uint32_t speed = 0;
@@ -323,6 +324,11 @@ void bond_update_active_members(struct iface *iface) {
 			if (iface->flags & GR_IFACE_F_UP) {
 				event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 			}
+		} else if (bond->active_member != prev_active) {
+			// Active member changed while already running.
+			// Re-announce addresses so that upstream L2 tables
+			// (bridges, switches) learn the new forwarding port.
+			event_push(GR_EVENT_IFACE_STATUS_UP, iface);
 		}
 	} else {
 		memset(bond->redirection_table, UINT8_MAX, sizeof(bond->redirection_table));
