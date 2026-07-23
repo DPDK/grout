@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025 Robin Jarry
+
+#include "graph.h"
+#include "icmp6.h"
+#include "ip6_datapath.h"
+#include "mbuf.h"
+#include "trace.h"
+
+enum {
+	LOOPBACK = 0,
+	INVAL,
+	EDGE_COUNT,
+};
+
+static uint16_t ndp_ra_input_process(
+	struct rte_graph *graph,
+	struct rte_node *node,
+	void **objs,
+	uint16_t nb_objs
+) {
+	struct ip6_local_mbuf_data *d;
+	struct rte_mbuf *mbuf;
+	struct icmp6 *icmp6;
+	rte_edge_t next;
+
+#define ASSERT_NDP(condition)                                                                      \
+	do {                                                                                       \
+		if (!(condition)) {                                                                \
+			next = INVAL;                                                              \
+			goto next;                                                                 \
+		}                                                                                  \
+	} while (0)
+
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		mbuf = objs[i];
+
+		d = ip6_local_mbuf_data(mbuf);
+		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
+
+		// Validation of Router Advertisements
+		// https://www.rfc-editor.org/rfc/rfc4861#section-6.1.2
+		//
+		// - The IP Hop Limit field has a value of 255, i.e., the packet
+		//   could not possibly have been forwarded by a router.
+		ASSERT_NDP(d->hop_limit == 255);
+		// - ICMP Checksum is valid. (already checked in icmp6_input)
+		//
+		// - ICMP Code is 0.
+		ASSERT_NDP(icmp6->code == 0);
+		// - ICMP length (derived from the IP length) is 16 or more
+		//   octets: 4 bytes ICMP header + 12 bytes RA fields.
+		ASSERT_NDP(d->len >= sizeof(*icmp6) + sizeof(struct icmp6_router_advert));
+		// - The IP source address is a link-local address.
+		ASSERT_NDP(rte_ipv6_addr_is_linklocal(&d->src));
+
+		next = LOOPBACK;
+next:
+		if (gr_mbuf_is_traced(mbuf))
+			gr_mbuf_trace_add(mbuf, node, 0);
+		rte_node_enqueue_x1(graph, node, next, mbuf);
+	}
+
+	return nb_objs;
+}
+
+static struct rte_node_register node = {
+	.name = "ndp_ra_input",
+	.process = ndp_ra_input_process,
+	.nb_edges = EDGE_COUNT,
+	.next_nodes = {
+		[LOOPBACK] = "l4_loopback_output",
+		[INVAL] = "ndp_ra_input_inval",
+	},
+};
+
+static struct gr_node_info info = {
+	.node = &node,
+	.type = GR_NODE_T_CONTROL | GR_NODE_T_L4,
+	.trace_format = (gr_trace_format_cb_t)trace_icmp6_format,
+};
+
+GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(ndp_ra_input_inval);

@@ -17,6 +17,7 @@ enum {
 	NEIGH_SOLICIT,
 	NEIGH_ADVERT,
 	ROUTER_SOLICIT,
+	ROUTER_ADVERT,
 	CONTROL,
 	BAD_CHECKSUM,
 	INVALID,
@@ -80,6 +81,8 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			next = ROUTER_SOLICIT;
 			break;
 		case ICMP6_TYPE_ROUTER_ADVERT:
+			next = ROUTER_ADVERT;
+			break;
 		default:
 			if (icmp6_cb[icmp6->type] != NULL) {
 				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], gr_clock_ns());
@@ -119,6 +122,7 @@ static struct rte_node_register icmp6_input_node = {
 		[NEIGH_SOLICIT] = "ndp_ns_input",
 		[NEIGH_ADVERT] = "ndp_na_input",
 		[ROUTER_SOLICIT] = "ndp_rs_input",
+		[ROUTER_ADVERT] = "ndp_ra_input",
 		[CONTROL] = "control_output",
 		[BAD_CHECKSUM] = "icmp6_input_bad_checksum",
 		[INVALID] = "icmp6_input_invalid",
