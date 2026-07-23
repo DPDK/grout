@@ -292,28 +292,33 @@ dispatch:
 // to call before injecting a new marker (covers an interrupted
 // previous reconnect) or after observation (cosmetic cleanup).
 static void grout_sync_cleanup_marker(void) {
-#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
 	rib_meta_queue_early_route_cleanup(
-		&grout_sync_marker_prefix, AFI_IP6, SAFI_UNICAST, VRF_DEFAULT, ZEBRA_ROUTE_SHARP
-	);
-#else
-	rib_meta_queue_early_route_cleanup(&grout_sync_marker_prefix, ZEBRA_ROUTE_SHARP);
+		&grout_sync_marker_prefix,
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+		AFI_IP6,
+		SAFI_UNICAST,
+		VRF_DEFAULT,
 #endif
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 8, 0)
+		RT_TABLE_MAIN,
+#endif
+		ZEBRA_ROUTE_SHARP
+	);
 	rib_delete(
 		AFI_IP6,
 		SAFI_UNICAST,
 		VRF_DEFAULT,
 		ZEBRA_ROUTE_SHARP,
-		0,
-		0,
+		0, // instance
+		0, // flags
 		&grout_sync_marker_prefix,
-		NULL,
-		NULL,
-		0,
-		0,
-		0,
-		0,
-		false
+		NULL, // src_p
+		NULL, // nh
+		0, // nhe_id
+		RT_TABLE_MAIN,
+		0, // metric
+		DISTANCE_INFINITY,
+		false // fromkernel
 	);
 }
 
@@ -343,12 +348,12 @@ static void grout_sync_inject_marker(void) {
 	re = zebra_rib_route_entry_new(
 		VRF_DEFAULT,
 		ZEBRA_ROUTE_SHARP,
-		0,
-		0,
-		0,
-		0,
-		0,
-		0,
+		0, // instance
+		0, // flags
+		0, // nhe_id
+		RT_TABLE_MAIN,
+		0, // metric
+		0, // mtu
 		DISTANCE_INFINITY,
 		GROUT_SYNC_MARKER_TAG
 	);
