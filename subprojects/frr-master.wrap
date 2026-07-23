@@ -4,6 +4,8 @@ revision = master
 depth = 1
 directory = frr-frr-master
 patch_directory = frr
+diff_files =
+	frr/10.7-zebra-route-IPv4-link-local-neighbor-updates-through.patch
 
 [provide]
 dependency_names = frr-master

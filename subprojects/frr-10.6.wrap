@@ -4,6 +4,8 @@ source_filename = frr-10.6.1.tar.gz
 source_hash = 35f2cb4328617261db687e1d4e400c7c491b41b3aa4a109d7da9ebff0cf7e402
 directory = frr-frr-10.6.1
 patch_directory = frr
+diff_files =
+	frr/10.5-zebra-route-IPv4-link-local-neighbor-updates-through.patch
 
 [provide]
 dependency_names = frr-10.6
