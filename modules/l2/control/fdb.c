@@ -21,6 +21,11 @@ struct fdb_key {
 	struct rte_ether_addr mac;
 };
 
+struct fdb_entry {
+	BASE(gr_fdb_entry);
+	uint16_t prev_iface_id;
+};
+
 static unsigned fdb_max_entries;
 static struct rte_hash *fdb_hash;
 static struct rte_mempool *fdb_pool;
@@ -50,7 +55,7 @@ static int fdb_reconfig(unsigned max_entries) {
 	struct rte_mempool *p = rte_mempool_create(
 		name,
 		rte_align32pow2(max_entries) - 1,
-		sizeof(struct gr_fdb_entry),
+		sizeof(struct fdb_entry),
 		0, // cache size
 		0, // priv size
 		NULL, // mp_init
@@ -112,7 +117,7 @@ void fdb_learn(
 	const struct l3_addr *vtep
 ) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	void *data;
 
 	if (rte_hash_lookup_data(fdb_hash, &key, &data) < 0) {
@@ -120,6 +125,7 @@ void fdb_learn(
 			return; // pool exhausted
 
 		fdb = data;
+		fdb->prev_iface_id = GR_IFACE_ID_UNDEF;
 		fdb->bridge_id = bridge_id;
 		fdb->vlan_id = vlan_id;
 		fdb->mac = *mac;
@@ -143,6 +149,7 @@ void fdb_learn(
 	if ((fdb->flags & GR_FDB_F_LEARN)
 	    && (fdb->iface_id != iface_id || !l3_addr_eq(&fdb->vtep, vtep))) {
 		// update in case the mac address has moved
+		fdb->prev_iface_id = fdb->iface_id;
 		fdb->iface_id = iface_id;
 		fdb->vtep = *vtep;
 		event_push(GR_EVENT_FDB_UPDATE, fdb);
@@ -150,7 +157,7 @@ void fdb_learn(
 }
 
 void fdb_purge_iface(uint16_t iface_id) {
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
@@ -160,11 +167,14 @@ void fdb_purge_iface(uint16_t iface_id) {
 		if (fdb->iface_id == iface_id) {
 			rte_hash_del_key(fdb_hash, key);
 		}
+		if (fdb->prev_iface_id == iface_id) {
+			fdb->prev_iface_id = GR_IFACE_ID_UNDEF;
+		}
 	}
 }
 
 void fdb_purge_bridge(uint16_t bridge_id) {
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
@@ -180,7 +190,7 @@ void fdb_purge_bridge(uint16_t bridge_id) {
 static struct api_out fdb_add(const void *request, struct api_ctx *) {
 	const struct gr_fdb_add_req *req = request;
 	const struct iface *iface;
-	struct gr_fdb_entry *e;
+	struct fdb_entry *e;
 	void *data;
 	int ret;
 
@@ -205,7 +215,8 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 			return api_out(-ret, 0, NULL);
 
 		e = data;
-		*e = req->fdb;
+		e->prev_iface_id = GR_IFACE_ID_UNDEF;
+		e->base = req->fdb;
 		e->bridge_id = iface->id;
 		e->last_seen = gr_clock_ns();
 
@@ -217,7 +228,8 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 		event_push(GR_EVENT_FDB_ADD, e);
 	} else if (req->exist_ok) {
 		e = data;
-		*e = req->fdb;
+		e->prev_iface_id = e->iface_id;
+		e->base = req->fdb;
 		e->bridge_id = iface->id;
 		e->last_seen = gr_clock_ns();
 
@@ -286,7 +298,7 @@ static struct api_out fdb_flush(const void *request, struct api_ctx *) {
 
 static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_fdb_list_req *req = request;
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
@@ -296,7 +308,7 @@ static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
 			continue;
 
 		fdb = data;
-		api_send(ctx, sizeof(*fdb), fdb);
+		api_send(ctx, sizeof(fdb->base), fdb);
 	}
 
 	return api_out(0, 0, NULL);
@@ -352,8 +364,9 @@ static void push_mac_to_hw(struct iface *iface, const struct rte_ether_addr *mac
 
 static void fdb_event_cb(uint32_t event, const void *obj) {
 	const struct iface_info_bridge *bridge_info;
-	const struct gr_fdb_entry *fdb = obj;
+	const struct fdb_entry *fdb = obj;
 	const struct iface *bridge;
+	struct iface *member;
 
 	bridge = iface_from_id(fdb->bridge_id);
 	if (bridge == NULL) {
@@ -361,22 +374,36 @@ static void fdb_event_cb(uint32_t event, const void *obj) {
 		return;
 	}
 
+	// we have no clear idea what to do with a vlan_id if one got pushed by FRR
+	assert(fdb->vlan_id == 0);
+
+	if (event == GR_EVENT_FDB_UPDATE) {
+		if (fdb->prev_iface_id == fdb->iface_id)
+			return;
+
+		member = iface_from_id(fdb->prev_iface_id);
+		if (member != NULL)
+			push_mac_to_hw(member, &fdb->mac, true);
+		member = iface_from_id(fdb->iface_id);
+		if (member != NULL)
+			push_mac_to_hw(member, &fdb->mac, false);
+		return;
+	}
+
 	bridge_info = iface_info_bridge(bridge);
 	for (unsigned i = 0; i < bridge_info->n_members; i++) {
-		struct iface *member = bridge_info->members[i];
+		member = bridge_info->members[i];
 
 		// skip the interface where the MAC was learned
 		if (member->id == fdb->iface_id)
 			continue;
 
-		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
-		assert(fdb->vlan_id == 0);
 		push_mac_to_hw(member, &fdb->mac, event != GR_EVENT_FDB_DEL);
 	}
 }
 
 void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool add) {
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
@@ -398,7 +425,7 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	const struct iface *bridge;
-	struct gr_fdb_entry *fdb;
+	struct fdb_entry *fdb;
 	gr_clock_ns_t now;
 	uint32_t next = 0;
 	uint16_t max_age;
@@ -475,6 +502,7 @@ RTE_INIT(init) {
 	api_handler(GR_FDB_CONFIG_SET, fdb_config_set);
 	event_subscribe(GR_EVENT_FDB_ADD, fdb_event_cb);
 	event_subscribe(GR_EVENT_FDB_DEL, fdb_event_cb);
+	event_subscribe(GR_EVENT_FDB_UPDATE, fdb_event_cb);
 	event_serializer(GR_EVENT_FDB_ADD, NULL);
 	event_serializer(GR_EVENT_FDB_DEL, NULL);
 	event_serializer(GR_EVENT_FDB_UPDATE, NULL);
