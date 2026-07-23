@@ -91,7 +91,7 @@ pause_for_debug() {
 kill_wait() {
 	local spec="$1"
 	local seconds="$2"
-	local i pid cmd
+	local gc pid cmd ret
 
 	case "$spec" in
 	%*)
@@ -107,17 +107,19 @@ kill_wait() {
 	echo "Terminating '$cmd' (PID $pid) ..."
 	kill -TERM "$pid"
 
-	for ((i = 0; i < seconds; i++)); do
-		if ! kill -0 "$pid" 2>/dev/null; then
-			wait "$pid"
-			return
-		fi
-		sleep 1
-	done
+	{
+		sleep $seconds &&
+		echo "'$cmd' didn't terminate after $seconds seconds, force killing it" &&
+		kill -KILL "$pid"
+	} &
+	gc=$!
 
-	echo "'$cmd' didn't terminate after $seconds seconds, force killing it ..."
-	kill -KILL "$pid"
 	wait "$pid"
+	ret=$?
+
+	kill -KILL "$gc" 2>/dev/null && wait "$gc" 2>/dev/null || true
+
+	return $ret
 }
 
 stop_grout() {
