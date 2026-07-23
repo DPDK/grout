@@ -347,6 +347,7 @@ int main(int argc, char **argv) {
 			LOG(ERR, "sd_notifyf: %s", strerror(errno));
 	} else {
 		err = errno;
+		LOG(ERR, "event_base_dispatch: %s", strerror(errno));
 	}
 
 shutdown:
