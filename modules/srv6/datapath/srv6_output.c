@@ -6,6 +6,7 @@
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "nexthop.h"
 #include "srv6.h"
 
 #include <gr_srv6.h>
@@ -134,6 +135,13 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;
+		}
+		if (nh->type == GR_NH_T_GROUP) {
+			nh = nexthop_group_get_nh(nexthop_info_group(nh), m->hash.rss);
+			if (nh == NULL) {
+				edge = NO_ROUTE;
+				goto next;
+			}
 		}
 		l3_mbuf_data(m)->nh = nh;
 
