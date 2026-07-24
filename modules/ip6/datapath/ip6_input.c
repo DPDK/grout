@@ -119,7 +119,7 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
-		nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr);
+		nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr, mbuf->hash.rss);
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;
@@ -202,7 +202,10 @@ struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 
 mock_func(rte_edge_t, gr_node_attach_parent(const char *, const char *));
-mock_func(const struct nexthop *, fib6_lookup(uint16_t, uint16_t, const struct rte_ipv6_addr *));
+mock_func(
+	const struct nexthop *,
+	fib6_lookup(uint16_t, uint16_t, const struct rte_ipv6_addr *, uint32_t)
+);
 mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));

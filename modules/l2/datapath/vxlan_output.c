@@ -63,7 +63,7 @@ static uint16_t vxlan_output_process(
 
 		switch (d->vtep.af) {
 		case GR_AF_IP4:
-			nh = fib4_lookup(vxlan->encap_vrf_id, d->vtep.ipv4);
+			nh = fib4_lookup(vxlan->encap_vrf_id, d->vtep.ipv4, m->hash.rss);
 			if (nh == NULL) {
 				edge = NO_ROUTE;
 				goto next;
@@ -86,7 +86,9 @@ static uint16_t vxlan_output_process(
 			edge = IP_OUTPUT;
 			break;
 		case GR_AF_IP6:
-			nh = fib6_lookup(vxlan->encap_vrf_id, d->iface->id, &d->vtep.ipv6);
+			nh = fib6_lookup(
+				vxlan->encap_vrf_id, d->iface->id, &d->vtep.ipv6, m->hash.rss
+			);
 			if (nh == NULL) {
 				edge = NO_ROUTE;
 				goto next;

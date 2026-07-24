@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip);
+const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t flow_id);
 
 static inline struct nexthop *nh4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	// XXX: should we scope ip4 nh lookup based on rfc3927 ?

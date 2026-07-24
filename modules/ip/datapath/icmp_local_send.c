@@ -42,13 +42,6 @@ int icmp_local_send(
 	struct ctl_to_stack *msg;
 	int ret;
 
-	if (gw->type == GR_NH_T_GROUP) {
-		struct nexthop_info_group *g = (struct nexthop_info_group *)gw->info;
-		gw = nexthop_group_get_nh(g, ident);
-		if (unlikely(gw == NULL))
-			return errno_set(EHOSTUNREACH);
-	}
-
 	// FIXME
 	if (gw->type != GR_NH_T_L3)
 		return errno_set(ENONET);

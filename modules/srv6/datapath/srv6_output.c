@@ -6,6 +6,7 @@
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
+#include "nexthop.h"
 #include "srv6.h"
 
 #include <gr_srv6.h>
@@ -130,7 +131,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 
 		// Resolve nexthop for the encapsulated packet.
-		nh = fib6_lookup(nh->vrf_id, GR_IFACE_ID_UNDEF, d->seglist);
+		nh = fib6_lookup(nh->vrf_id, GR_IFACE_ID_UNDEF, d->seglist, m->hash.rss);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;

@@ -15,7 +15,6 @@ src += files(
   'ip_fragment.c',
   'ip_hold.c',
   'ip_input.c',
-  'ip_loadbalance.c',
   'ip_local.c',
   'ip_output.c',
 )

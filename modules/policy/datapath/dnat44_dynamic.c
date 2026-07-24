@@ -91,7 +91,7 @@ static uint16_t dnat44_dynamic_process(
 		);
 
 		o = l3_mbuf_data(m);
-		o->nh = fib4_lookup(o->iface->vrf_id, ip->dst_addr);
+		o->nh = fib4_lookup(o->iface->vrf_id, ip->dst_addr, m->hash.rss);
 
 		if (o->nh == NULL)
 			edge = NO_ROUTE;
