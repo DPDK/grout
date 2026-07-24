@@ -9,7 +9,6 @@ src += files(
   'ip6_forward.c',
   'ip6_hold.c',
   'ip6_input.c',
-  'ip6_loadbalance.c',
   'ip6_local.c',
   'ip6_output.c',
   'ndp_na_input.c',

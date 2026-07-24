@@ -140,7 +140,7 @@ static inline struct nexthop *nh_id_to_ptr(uintptr_t id) {
 	return (struct nexthop *)id;
 }
 
-const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
+const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip, uint32_t flow_id) {
 	uint32_t host_order_ip = rte_be_to_cpu_32(ip);
 	struct rte_fib *fib = get_fib(vrf_id);
 	uintptr_t nh_id;
@@ -152,7 +152,14 @@ const struct nexthop *fib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {
 	if (nh_id == 0)
 		return errno_set_null(EHOSTUNREACH);
 
-	return nh_id_to_ptr(nh_id);
+	const struct nexthop *nh = nh_id_to_ptr(nh_id);
+	if (nh->type == GR_NH_T_GROUP) {
+		nh = nexthop_group_get_nh(nexthop_info_group(nh), flow_id);
+		if (unlikely(nh == NULL))
+			return errno_set_null(ENONET);
+	}
+
+	return nh;
 }
 
 struct nexthop *rib4_lookup(uint16_t vrf_id, ip4_addr_t ip) {

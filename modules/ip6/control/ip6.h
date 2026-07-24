@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 const struct nexthop *
-fib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip);
+fib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *ip, uint32_t flow_id);
 
 static inline const struct rte_ipv6_addr *addr6_linklocal_scope(
 	const struct rte_ipv6_addr *ip,

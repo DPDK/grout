@@ -91,7 +91,7 @@ static struct api_out icmp_send(const void *request, struct api_ctx *) {
 	const struct nexthop *nh;
 	int ret = 0;
 
-	if ((nh = rib4_lookup(req->vrf, req->addr)) == NULL) {
+	if ((nh = fib4_lookup(req->vrf, req->addr, req->ident)) == NULL) {
 		ret = -errno;
 		goto out;
 	}

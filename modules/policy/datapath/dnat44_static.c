@@ -74,7 +74,7 @@ static uint16_t dnat44_static_process(
 		// We need the old address value to fixup the checksum properly.
 		ip->dst_addr = dnat->replace;
 
-		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr);
+		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr, mbuf->hash.rss);
 
 		if (d->nh == NULL)
 			edge = NO_ROUTE;

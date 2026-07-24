@@ -97,7 +97,7 @@ static struct api_out icmp6_send(const void *request, struct api_ctx *) {
 	const struct nexthop *nh;
 	int ret;
 
-	if ((nh = rib6_lookup(req->vrf, req->iface, &req->addr)) == NULL)
+	if ((nh = fib6_lookup(req->vrf, req->iface, &req->addr, req->ident)) == NULL)
 		return api_out(errno, 0, NULL);
 
 	ret = icmp6_local_send(&req->addr, nh, req->ident, req->seq_num, req->ttl);
