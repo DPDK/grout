@@ -455,44 +455,28 @@ err:
 	event_add_timer(zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync);
 }
 
-static void grout_sync_nhs(struct event *e) {
+static void grout_sync_nh_groups(struct event *) {
 	struct gr_nh_list_req nh_req = {
-		.vrf_id = EVENT_VAL(e), .type = GR_NH_T_ALL, .include_internal = false
+		.vrf_id = GR_VRF_ID_UNDEF, .type = GR_NH_T_GROUP, .include_internal = false
 	};
 	struct gr_nexthop *nh;
 	int ret;
 
-	gr_log_info("vrf %u", EVENT_VAL(e));
-
+	// Groups have vrf_id=GR_VRF_ID_UNDEF in grout, query once for all.
 	gr_api_client_stream_foreach (
 		nh, ret, grout_ctx.sync_client, GR_NH_LIST, sizeof(nh_req), &nh_req
 	) {
-		grout_nexthop_change(true, nh, true);
+		grout_nexthop_group_add(nh, true);
 	}
 	if (ret < 0) {
-		gr_log_err("GR_NH_LIST: %s", strerror(errno));
+		gr_log_err("GR_NH_LIST (groups): %s", strerror(errno));
 		event_add_timer(
 			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync
 		);
 		return;
 	}
 
-	// Pass 2 (this VRF done): chain to nhs of next VRF.
-	// All NHs across all VRFs are registered before any route is
-	// injected so cross-VRF NH references (e.g. SR6_LOCAL with
-	// out_vrf in a different VRF than the prefix being matched)
-	// resolve at route inject time.
-	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
-		if (bf_test_index(grout_ctx.sync_vrf, i)) {
-			event_add_event(
-				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
-			);
-			return;
-		}
-	}
-
-	// Pass 2 done across all VRFs. Kick off Pass 3 (routes) starting
-	// from the first VRF.
+	// Kick off routes starting from the first VRF.
 	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
@@ -505,6 +489,46 @@ static void grout_sync_nhs(struct event *e) {
 			return;
 		}
 	}
+}
+
+static void grout_sync_nhs(struct event *e) {
+	struct gr_nh_list_req nh_req = {
+		.vrf_id = EVENT_VAL(e), .type = GR_NH_T_ALL, .include_internal = false
+	};
+	struct gr_nexthop *nh;
+	int ret;
+
+	gr_log_info("vrf %u", EVENT_VAL(e));
+
+	gr_api_client_stream_foreach (
+		nh, ret, grout_ctx.sync_client, GR_NH_LIST, sizeof(nh_req), &nh_req
+	) {
+		if (nh->type != GR_NH_T_GROUP)
+			grout_nexthop_change(true, nh, true);
+	}
+	if (ret < 0) {
+		gr_log_err("GR_NH_LIST: %s", strerror(errno));
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync
+		);
+		return;
+	}
+
+	// Chain to individual NHs of next VRF. All individual NHs across
+	// all VRFs must be registered before groups, so that group member
+	// references resolve.
+	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
+
+	// Individual NHs done across all VRFs. Sync NH groups (global, not
+	// per-VRF) so that group member references resolve before routes.
+	event_add_event(zrouter.master, grout_sync_nh_groups, NULL, 0, &grout_ctx.dg_t_zebra_sync);
 }
 
 static void grout_sync_addrs(struct event *e) {

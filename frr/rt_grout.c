@@ -905,6 +905,32 @@ enum zebra_dplane_result grout_add_del_nexthop(struct zebra_dplane_ctx *ctx) {
 	return grout_add_nexthop(nh_id, origin, dplane_ctx_get_nhe_ng(ctx)->nexthop);
 }
 
+void grout_nexthop_group_add(struct gr_nexthop *gr_nh, bool startup) {
+	const struct gr_nexthop_info_group *g = (const struct gr_nexthop_info_group *)gr_nh->info;
+	struct nh_grp grp[g->n_members];
+	int type;
+
+	gr_log_debug("add group nh_id %u n_members %u", gr_nh->nh_id, g->n_members);
+
+	for (uint32_t i = 0; i < g->n_members; i++) {
+		grp[i].id = g->members[i].nh_id;
+		grp[i].weight = g->members[i].weight;
+	}
+
+	type = origin2zebra(gr_nh->origin, AF_UNSPEC, true);
+	zebra_nhg_kernel_find(
+		gr_nh->nh_id,
+		NULL,
+		grp,
+		g->n_members,
+		vrf_grout_to_frr(gr_nh->vrf_id),
+		AFI_UNSPEC,
+		type,
+		startup,
+		NULL
+	);
+}
+
 void grout_nexthop_change(bool new, struct gr_nexthop *gr_nh, bool startup) {
 	struct nexthop *nh = NULL;
 	afi_t afi = AFI_UNSPEC;
