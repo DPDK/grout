@@ -195,17 +195,25 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
-		// send a reply for our local ip
+		// Reply only if the target is a local address on this iface.
+		// Sender learning above still applies when we skip the reply.
 		struct nexthop *local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
-		struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
-		d->local = local;
-		d->iface = iface;
-		if (post_to_stack(arp_output_reply_node, m) < 0) {
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
-			goto free;
+		const struct nexthop_info_l3 *local_l3;
+
+		if (local != NULL) {
+			local_l3 = nexthop_info_l3(local);
+			if ((local_l3->flags & GR_NH_F_LOCAL) && local->iface_id == iface->id) {
+				struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
+				d->local = local;
+				d->iface = iface;
+				if (post_to_stack(arp_output_reply_node, m) < 0) {
+					LOG(ERR, "post_to_stack: %s", strerror(errno));
+					goto free;
+				}
+				// prevent double free, mbuf has been re-consumed by datapath
+				m = NULL;
+			}
 		}
-		// prevent double free, mbuf has been re-consumed by datapath
-		m = NULL;
 	}
 
 	// Flush all held packets.

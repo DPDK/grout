@@ -45,8 +45,12 @@ static uint16_t arp_input_request_process(
 			goto next;
 		}
 		l3 = nexthop_info_l3(local);
-		if (!(l3->flags & GR_NH_F_LOCAL)) {
-			// ARP request not for us
+		// Only reply for addresses configured on the receiving interface.
+		// nh4_lookup is VRF-wide, so without this check a dual-homed
+		// router with several ports on the same L2 would answer ARP for
+		// one interface's IP using another interface's MAC.
+		if (!(l3->flags & GR_NH_F_LOCAL) || local->iface_id != iface->id) {
+			// ARP request not for an address on this interface
 			edge = DROP;
 			goto next;
 		}
