@@ -32,6 +32,7 @@ LOG_TYPE("worker");
 struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
 int worker_create(unsigned cpu_id) {
+	bool attr_inited = false, thread_created = false, inserted = false;
 	struct worker *worker = rte_zmalloc(__func__, sizeof(*worker), 0);
 	pthread_attr_t attr;
 	cpu_set_t cpuset;
@@ -48,13 +49,16 @@ int worker_create(unsigned cpu_id) {
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu_id, &cpuset);
 	pthread_attr_init(&attr);
+	attr_inited = true;
 	if (!!(ret = pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset)))
 		goto end;
 
 	if (!!(ret = pthread_create(&worker->thread, &attr, gr_datapath_loop, worker)))
 		goto end;
+	thread_created = true;
 
 	STAILQ_INSERT_TAIL(&workers, worker, next);
+	inserted = true;
 
 	// wait until thread has initialized lcore_id
 	for (unsigned i = 0; !atomic_load(&worker->started); i++) {
@@ -66,14 +70,17 @@ int worker_create(unsigned cpu_id) {
 	}
 
 end:
-	pthread_attr_destroy(&attr);
+	if (attr_inited)
+		pthread_attr_destroy(&attr);
 
 	if (ret == 0) {
 		LOG(INFO, "worker %u started", cpu_id);
 	} else {
 		if (worker != NULL) {
-			STAILQ_REMOVE(&workers, worker, worker, next);
-			pthread_cancel(worker->thread);
+			if (inserted)
+				STAILQ_REMOVE(&workers, worker, worker, next);
+			if (thread_created)
+				pthread_cancel(worker->thread);
 			pthread_cond_destroy(&worker->wakeup.cond);
 			pthread_mutex_destroy(&worker->wakeup.lock);
 			rte_free(worker);
