@@ -66,12 +66,15 @@ struct nh_group_member {
 GR_NH_TYPE_INFO(GR_NH_T_GROUP, nexthop_info_group, {
 	uint16_t n_members;
 	uint16_t reta_size; // MUST BE A POWER OF TWO
+	struct nexthop *nh; // shortcut when there is a single nexthop in the group
 	struct nh_group_member *members;
 	struct nexthop **reta;
 });
 
 static inline struct nexthop *
 nexthop_group_get_nh(struct nexthop_info_group *nhg, uint32_t flow_id) {
+	if (likely(nhg->n_members == 1))
+		return nhg->nh;
 	if (unlikely(nhg->n_members == 0))
 		return NULL;
 	return nhg->reta[flow_id & (nhg->reta_size - 1)];

@@ -69,8 +69,14 @@ static void remove_group_member_cb(struct nexthop *nh, void *deleted) {
 			removed = true;
 		}
 	}
-	if (removed && g->n_members > 0)
-		group_reta_distribute(g->n_members, g->reta_size, g->members, g->reta);
+	if (removed) {
+		if (g->n_members == 1) {
+			g->nh = g->members[0].nh;
+		} else if (g->n_members > 1) {
+			g->nh = NULL;
+			group_reta_distribute(g->n_members, g->reta_size, g->members, g->reta);
+		}
+	}
 }
 
 static void group_remove_references(struct nexthop *nh) {
@@ -100,6 +106,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 	struct nexthop **old_reta = NULL;
 	uint32_t min_weight, max_weight;
 	struct nexthop **reta = NULL;
+	struct nexthop *one = NULL;
 	uint32_t reta_size = 0;
 	uint32_t n_tmp = 0;
 
@@ -122,7 +129,12 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 		}
 	}
 
-	if (group->n_members > 0) {
+	if (group->n_members == 1) {
+		reta_size = 0;
+		reta = NULL;
+		one = members[0].nh;
+		nexthop_incref(one);
+	} else if (group->n_members > 1) {
 		// Order by desc weight: if we have too many nh in the nhg, the ones with
 		// a higher weight will be included.
 		qsort(members, group->n_members, sizeof(members[0]), order_by_weight_desc);
@@ -158,6 +170,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 	old_reta = pvt->reta;
 	pvt->n_members = group->n_members;
 	pvt->members = members;
+	pvt->nh = one;
 	pvt->reta_size = reta_size;
 	pvt->reta = reta;
 
