@@ -5,6 +5,40 @@ test_frr=true
 
 . $(dirname $0)/_init.sh
 
+route_nh_id() {
+	local route_nh nh_id
+	local prefix="$1"
+	local vrf="$2"
+	local nh_type="$3"
+
+	route_nh=$(grcli -j route show | jq -re \
+		".[] | select(.destination == \"$prefix\" and .vrf == \"$vrf\") | .next_hop") ||
+		fail "cannot find route to $prefix in vrf $vrf"
+
+	case "$route_nh" in
+	"type=group "*)
+		nh_id=$(echo $route_nh | sed -En 's,.*\<id\(([0-9]+)/[0-9]+\).*,\1,p')
+		;;
+	"type=$nh_type "*)
+		nh_id=$(echo $route_nh | sed -En 's,.*\<id=([0-9]+)\>.*,\1,p')
+		;;
+	*)
+		fail "invalid nexthop type for route $prefix: '$route_nh': expected type=$nh_type"
+	esac
+
+	echo "$nh_id"
+}
+
+assert_nexthop() {
+	local nh_id="$1"
+	local jq_pattern="$2"
+
+	grcli -j nexthop show id "$nh_id" | jq -e "$jq_pattern" || {
+		grcli -j nexthop show id "$nh_id" | jq
+		fail "nexthop id=$nh_id does not match expected: $jq_pattern"
+	}
+}
+
 create_vrf() {
 	local name="$1"
 	local max_tries=5
@@ -116,8 +150,19 @@ set_ip_route() {
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
 	_apply_frr_config "$persist" \
-		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=L3 .*$nh" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static" \
 		"${frr_ip} route ${prefix} ${next_hop} vrf ${vrf_name}${nexthop_vrf_clause}"
+
+	local nh_id
+	nh_id=$(route_nh_id "$prefix" "$gr_vrf_name" L3)
+	case "$nh" in
+	*.*|*:*)
+		assert_nexthop "$nh_id" ".vrf == \"${nexthop_vrf_name:-$gr_vrf_name}\" and .addr ==\"$nh\""
+		;;
+	*)
+		assert_nexthop "$nh_id" ".vrf == \"${nexthop_vrf_name:-$gr_vrf_name}\" and .iface ==\"$nh\""
+		;;
+	esac
 }
 
 # set_srv6_localsid [--persist] <locator> <sid-prefix> <sid-local> [behavior] [vrf]
@@ -153,9 +198,13 @@ set_srv6_localsid() {
 	case "${frr_behavior}" in
 		uN) vrf_clause="" ;;
 	esac
+	local gr_vrf_name=main
+	if [ "$vrf_name" != "default" ]; then
+		gr_vrf_name="$vrf_name"
+	fi
 
 	_apply_frr_config "$persist" \
-		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static via type=SRv6-local .*behavior=$grout_behavior" \
+		"route6 add: vrf=.+ $sid_local/48 origin=zebra_static" \
 "segment-routing
  srv6
   locators
@@ -168,6 +217,10 @@ set_srv6_localsid() {
   exit
  exit
 exit"
+
+	local nh_id
+	nh_id=$(route_nh_id "$sid_local/48" main SRv6-local)
+	assert_nexthop "$nh_id" ".vrf == \"$gr_vrf_name\" and .behavior == \"$grout_behavior\""
 }
 
 # set_srv6_route [--persist] [--encap-src <addr>] <prefix> <next-hop|iface>
@@ -232,14 +285,25 @@ set_srv6_route() {
 	[ "$gr_vrf_name" = "default" ] && gr_vrf_name="main"
 
 	local nh_vrf_clause=""
-	[ -n "$nexthop_vrf_name" ] && nh_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
+	local gr_nh_vrf=""
+	if [ -n "$nexthop_vrf_name" ]; then
+		nh_vrf_clause=" nexthop-vrf ${nexthop_vrf_name}"
+		gr_nh_vrf="$nexthop_vrf_name"
+	else
+		gr_nh_vrf="$gr_vrf_name"
+	fi
+	[ "$gr_nh_vrf" = "default" ] && gr_nh_vrf="main"
 
 	local encap_src_clause=""
 	[ -n "$encap_src" ] && encap_src_clause=" encap-source ${encap_src}"
 
 	_apply_frr_config "$persist" \
-		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static via type=SRv6 .*${sids[0]}" \
+		"$route add: vrf=$gr_vrf_name $prefix origin=zebra_static" \
 		"${frr_ip} route ${prefix} ${nhop} segments ${seg_frr}${encap_src_clause} vrf ${vrf_name}${nh_vrf_clause}"
+
+	local nh_id
+	nh_id=$(route_nh_id "$prefix" "$gr_vrf_name" SRv6)
+	assert_nexthop "$nh_id" ".vrf == \"$gr_nh_vrf\" and .seglist[0] == \"${sids[0]}\""
 }
 
 # kill_frr_daemons <daemon> [<daemon>...]
