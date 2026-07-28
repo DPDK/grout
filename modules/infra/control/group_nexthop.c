@@ -24,18 +24,53 @@ static bool group_equal(const struct nexthop *a, const struct nexthop *b) {
 	return true;
 }
 
+static void group_reta_distribute(
+	const uint16_t n_members,
+	const uint16_t reta_size,
+	struct nh_group_member *members,
+	struct nexthop **reta
+) {
+	// Fill the reta table with weighted distribution
+	uint32_t total_weight = 0;
+	for (uint16_t i = 0; i < n_members; i++)
+		total_weight += members[i].weight;
+
+	assert(total_weight > 0);
+
+	uint32_t reta_idx = 0;
+	uint32_t entries;
+
+	for (uint16_t i = 0; i < n_members && reta_idx < reta_size; i++) {
+		entries = (members[i].weight * reta_size + total_weight / 2) / total_weight;
+
+		if (entries == 0 && members[i].weight > 0)
+			entries = 1;
+
+		for (uint16_t j = 0; j < entries && reta_idx < reta_size; j++)
+			reta[reta_idx++] = members[i].nh;
+	}
+
+	// Fill remaining entries with the first member if any slots left
+	while (reta_idx < reta_size && n_members > 0)
+		reta[reta_idx++] = members[0].nh;
+}
+
 static void remove_group_member_cb(struct nexthop *nh, void *deleted) {
 	if (nh->type != GR_NH_T_GROUP)
 		return;
 
+	bool removed = false;
 	struct nexthop_info_group *g = nexthop_info_group(nh);
 	for (uint32_t i = 0; i < g->n_members; i++) {
 		if (g->members[i].nh == deleted) {
 			g->members[i].nh = g->members[g->n_members - 1].nh;
 			g->members[i].weight = g->members[g->n_members - 1].weight;
 			g->n_members--;
+			removed = true;
 		}
 	}
+	if (removed && g->n_members > 0)
+		group_reta_distribute(g->n_members, g->reta_size, g->members, g->reta);
 }
 
 static void group_remove_references(struct nexthop *nh) {
@@ -80,7 +115,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 		struct nexthop *nh = nexthop_lookup_id(group->members[i].nh_id);
 		if (nh) {
 			members[i].nh = nh;
-			members[i].weight = group->members[i].weight;
+			members[i].weight = group->members[i].weight ?: 1;
 		} else {
 			errno = ENOENT;
 			goto cleanup;
@@ -94,8 +129,6 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 
 		max_weight = members[0].weight;
 		min_weight = members[group->n_members - 1].weight;
-		if (min_weight == 0)
-			min_weight = 1;
 
 		reta_size = (max_weight / min_weight) * group->n_members;
 		if (reta_size > MAX_NH_GROUP_RETA_SIZE) {
@@ -117,30 +150,7 @@ static int group_import_info(struct nexthop *nh, const void *info) {
 		for (uint16_t i = 0; i < group->n_members; i++)
 			nexthop_incref(members[i].nh);
 
-		// Fill the reta table with weighted distribution
-		uint32_t total_weight = 0;
-		for (uint16_t i = 0; i < group->n_members; i++)
-			total_weight += members[i].weight;
-
-		if (total_weight > 0) {
-			uint32_t reta_idx = 0;
-			uint32_t entries;
-
-			for (uint16_t i = 0; i < group->n_members && reta_idx < reta_size; i++) {
-				entries = (members[i].weight * reta_size + total_weight / 2)
-					/ total_weight;
-
-				if (entries == 0 && members[i].weight > 0)
-					entries = 1;
-
-				for (uint16_t j = 0; j < entries && reta_idx < reta_size; j++)
-					reta[reta_idx++] = members[i].nh;
-			}
-
-			// Fill remaining entries with the first member if any slots left
-			while (reta_idx < reta_size && group->n_members > 0)
-				reta[reta_idx++] = members[0].nh;
-		}
+		group_reta_distribute(group->n_members, reta_size, members, reta);
 	}
 
 	n_tmp = pvt->n_members;
