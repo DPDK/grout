@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "event.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "log.h"
@@ -29,9 +30,15 @@ static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 
 // Callback invoked by control plane for each ICMP packet received for a local address.
 // The packet is added at the end of a linked list.
-static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *) {
+static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
 	struct icmp_queue_item *i;
 	void *data;
+
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE
+	    && mbuf_data(m)->iface == drain->obj) {
+		rte_pktmbuf_free(m);
+		return;
+	}
 
 	while (rte_mempool_get(pool, &data) < 0)
 		icmp_queue_pop(STAILQ_FIRST(&icmp_queue), true);
@@ -40,6 +47,17 @@ static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_que
 	i->mbuf = m;
 	i->timestamp = timestamp;
 	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
+}
+
+static void icmp_event_cb(uint32_t ev_type, const void *obj) {
+	struct icmp_queue_item *i, *tmp;
+
+	if (ev_type == GR_EVENT_IFACE_REMOVE) {
+		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
+			if (mbuf_data(i->mbuf)->iface == obj)
+				icmp_queue_pop(i, true);
+		}
+	}
 }
 
 // Search for the oldest ICMP response matching the given identifier.
@@ -190,6 +208,7 @@ RTE_INIT(icmp_module_init) {
 	module_register(&icmp_module);
 	api_handler(GR_IP4_ICMP_SEND, icmp_send);
 	api_handler(GR_IP4_ICMP_RECV, icmp_recv);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, icmp_event_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);
