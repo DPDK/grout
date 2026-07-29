@@ -20,10 +20,10 @@ struct icmp_queue_item {
 static STAILQ_HEAD(, icmp_queue_item) icmp_queue = STAILQ_HEAD_INITIALIZER(icmp_queue);
 static struct rte_mempool *pool;
 
-static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
+static void icmp_queue_pop(struct icmp_queue_item *i) {
 	STAILQ_REMOVE(&icmp_queue, i, icmp_queue_item, next);
-	if (free_mbuf)
-		rte_pktmbuf_free(i->mbuf);
+	rte_pktmbuf_free(i->mbuf);
+	i->mbuf = NULL;
 	rte_mempool_put(pool, i);
 }
 
@@ -34,7 +34,7 @@ static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_que
 	void *data;
 
 	while (rte_mempool_get(pool, &data) < 0)
-		icmp_queue_pop(STAILQ_FIRST(&icmp_queue), true);
+		icmp_queue_pop(STAILQ_FIRST(&icmp_queue));
 
 	i = data;
 	i->mbuf = m;
@@ -63,7 +63,7 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 			// RFC 792: ICMP error header (8) + original IP
 			// header (20 min) + 8 bytes of original data.
 			if (data->len < sizeof(*icmp) + sizeof(*ip) + sizeof(*icmp)) {
-				icmp_queue_pop(i, true);
+				icmp_queue_pop(i);
 				continue;
 			}
 
@@ -71,13 +71,13 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 
 			if (ip->next_proto_id != IPPROTO_ICMP) {
 				// should not happen, but let's be safe.
-				icmp_queue_pop(i, true);
+				icmp_queue_pop(i);
 				continue;
 			}
 
 			inner_ip_len = rte_ipv4_hdr_len(ip);
 			if (data->len < sizeof(*icmp) + inner_ip_len + sizeof(*icmp)) {
-				icmp_queue_pop(i, true);
+				icmp_queue_pop(i);
 				continue;
 			}
 
@@ -85,7 +85,7 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 
 			if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REQUEST) {
 				// should not happen, but let's be safe.
-				icmp_queue_pop(i, true);
+				icmp_queue_pop(i);
 				continue;
 			}
 		}
@@ -93,8 +93,9 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident
 		    && rte_be_to_cpu_16(icmp->icmp_seq_nb) == seq_num) {
 			mbuf = i->mbuf;
+			i->mbuf = NULL;
 			*timestamp = i->timestamp;
-			icmp_queue_pop(i, false);
+			icmp_queue_pop(i);
 			return mbuf;
 		}
 	}
@@ -196,7 +197,7 @@ static void icmp_fini(struct event_base *) {
 	if (pool != NULL) {
 		struct icmp_queue_item *i, *tmp;
 		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp_queue_pop(i, true);
+			icmp_queue_pop(i);
 		rte_mempool_free(pool);
 		pool = NULL;
 	}
