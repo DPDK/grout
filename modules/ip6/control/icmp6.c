@@ -20,10 +20,10 @@ struct icmp_queue_item {
 static STAILQ_HEAD(, icmp_queue_item) icmp_queue = STAILQ_HEAD_INITIALIZER(icmp_queue);
 static struct rte_mempool *pool;
 
-static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
+static void icmp6_queue_pop(struct icmp_queue_item *i) {
 	STAILQ_REMOVE(&icmp_queue, i, icmp_queue_item, next);
-	if (free_mbuf)
-		rte_pktmbuf_free(i->mbuf);
+	rte_pktmbuf_free(i->mbuf);
+	i->mbuf = NULL;
 	rte_mempool_put(pool, i);
 }
 
@@ -33,7 +33,7 @@ static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_qu
 	void *data;
 
 	while (rte_mempool_get(pool, &data) < 0)
-		icmp6_queue_pop(STAILQ_FIRST(&icmp_queue), true);
+		icmp6_queue_pop(STAILQ_FIRST(&icmp_queue));
 
 	i = data;
 	i->mbuf = m;
@@ -81,15 +81,16 @@ static struct rte_mbuf *get_icmp6_echo_reply(
 
 		if (rte_be_to_cpu_16(icmp6_echo->ident) == ident
 		    && rte_be_to_cpu_16(icmp6_echo->seqnum) == seq_num) {
-			icmp6_queue_pop(i, false);
+			i->mbuf = NULL;
 			*out_icmp6 = icmp6;
 			*timestamp = i->timestamp;
+			icmp6_queue_pop(i);
 			return mbuf;
 		}
 
 		continue;
 free_and_skip:
-		icmp6_queue_pop(i, true);
+		icmp6_queue_pop(i);
 	}
 
 	return errno_set_null(ENOENT);
@@ -165,7 +166,7 @@ static void icmp_fini(struct event_base *) {
 	if (pool != NULL) {
 		struct icmp_queue_item *i, *tmp;
 		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp6_queue_pop(i, true);
+			icmp6_queue_pop(i);
 		rte_mempool_free(pool);
 		pool = NULL;
 	}
