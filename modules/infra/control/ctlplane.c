@@ -409,7 +409,7 @@ err:
 static void cp_set_vrf_master(const struct iface *iface) {
 	uint32_t master = 0; // default VRF has no kernel master: leave TAP standalone
 
-	if (iface->vrf_id != GR_VRF_DEFAULT_ID) {
+	if (iface->mode == GR_IFACE_MODE_VRF && iface->vrf_id != GR_VRF_DEFAULT_ID) {
 		const struct iface *vrf = iface_from_id(iface->vrf_id);
 		if (vrf == NULL || vrf->type != GR_IFACE_TYPE_VRF) {
 			LOG(ERR, "no VRF iface for id %u on %s", iface->vrf_id, iface->name);
