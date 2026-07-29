@@ -94,8 +94,9 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 				continue;
 			}
 
-			// Skip the original IP header to find the original ICMP payload
-			icmp = PAYLOAD(ip);
+			// Skip the original IP header (may have options) to
+			// find the original ICMP payload.
+			icmp = RTE_PTR_ADD(ip, rte_ipv4_hdr_len(ip));
 
 			if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REQUEST) {
 				// should not happen, but let's be safe.
@@ -162,8 +163,9 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 		// The icmp_seq_nb and icmp_ident fields are unused.
 		// Jump to the next header which contains the original IP header
 		struct rte_ipv4_hdr *ip = PAYLOAD(icmp);
-		// Skip the original IP header to find the original ICMP payload
-		icmp = PAYLOAD(ip);
+		// Skip the original IP header (may have options) to
+		// find the original ICMP payload.
+		icmp = RTE_PTR_ADD(ip, rte_ipv4_hdr_len(ip));
 	}
 
 	// icmp either points to an echo request or reply (checked in get_icmp_response())
