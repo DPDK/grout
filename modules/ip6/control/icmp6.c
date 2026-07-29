@@ -87,6 +87,7 @@ static struct rte_mbuf *get_icmp6_echo_reply(
 			return mbuf;
 		}
 
+		continue;
 free_and_skip:
 		icmp6_queue_pop(i, true);
 	}
