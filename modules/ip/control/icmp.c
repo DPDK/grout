@@ -51,12 +51,23 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 
 	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
 		struct rte_icmp_hdr *icmp = rte_pktmbuf_mtod(i->mbuf, struct rte_icmp_hdr *);
+		struct ip_local_mbuf_data *data = ip_local_mbuf_data(i->mbuf);
 
 		if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REPLY) {
 			// RFC 792: Destination Unreachable or Time Exceeded
 			// The icmp_seq_nb and icmp_ident fields are unused.
 			// Jump to the next header which contains the original IP header
-			struct rte_ipv4_hdr *ip = PAYLOAD(icmp);
+			struct rte_ipv4_hdr *ip;
+			size_t inner_ip_len;
+
+			// RFC 792: ICMP error header (8) + original IP
+			// header (20 min) + 8 bytes of original data.
+			if (data->len < sizeof(*icmp) + sizeof(*ip) + sizeof(*icmp)) {
+				icmp_queue_pop(i, true);
+				continue;
+			}
+
+			ip = PAYLOAD(icmp);
 
 			if (ip->next_proto_id != IPPROTO_ICMP) {
 				// should not happen, but let's be safe.
@@ -64,9 +75,13 @@ get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
 				continue;
 			}
 
-			// Skip the original IP header (may have options) to
-			// find the original ICMP payload.
-			icmp = RTE_PTR_ADD(ip, rte_ipv4_hdr_len(ip));
+			inner_ip_len = rte_ipv4_hdr_len(ip);
+			if (data->len < sizeof(*icmp) + inner_ip_len + sizeof(*icmp)) {
+				icmp_queue_pop(i, true);
+				continue;
+			}
+
+			icmp = RTE_PTR_ADD(ip, inner_ip_len);
 
 			if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REQUEST) {
 				// should not happen, but let's be safe.
