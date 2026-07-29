@@ -135,8 +135,8 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
 	gr_clock_ns_t *pkt_timestamp, rcv_timestamp;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
+	struct ip_local_mbuf_data *ip_data;
 	struct rte_icmp_hdr *icmp;
-	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *m;
 	size_t len = 0;
 	int ret = 0;
@@ -150,12 +150,10 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 		goto out;
 	}
 
-	// Ugly, there is no guarantee that the outer packet is actually IPv4
-	ip = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, -sizeof(*ip));
-
+	ip_data = ip_local_mbuf_data(m);
 	icmp = rte_pktmbuf_mtod(m, struct rte_icmp_hdr *);
-	resp->src_addr = ip->src_addr;
-	resp->ttl = ip->time_to_live;
+	resp->src_addr = ip_data->src;
+	resp->ttl = ip_data->ttl;
 	resp->type = icmp->icmp_type;
 	resp->code = icmp->icmp_code;
 
@@ -163,7 +161,7 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 		// RFC 792: Destination Unreachable or Time Exceeded
 		// The icmp_seq_nb and icmp_ident fields are unused.
 		// Jump to the next header which contains the original IP header
-		ip = PAYLOAD(icmp);
+		struct rte_ipv4_hdr *ip = PAYLOAD(icmp);
 		// Skip the original IP header to find the original ICMP payload
 		icmp = PAYLOAD(ip);
 	}
