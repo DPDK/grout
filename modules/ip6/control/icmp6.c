@@ -98,12 +98,14 @@ static struct rte_mbuf *get_icmp6_echo_reply(
 		// icmpv6 error packet: find embedded origin ipv6 packet, and use
 		// it if it's our original echo request
 		if (icmp6->type != ICMP6_TYPE_ECHO_REPLY) {
+			if (rte_pktmbuf_pkt_len(mbuf) < ICMP6_ERROR_PKT_LEN)
+				goto free_and_skip;
 			ip6 = PAYLOAD(icmp6_echo);
+			if (ip6->proto != IPPROTO_ICMPV6)
+				goto free_and_skip;
 			icmp6 = PAYLOAD(ip6);
 			icmp6_echo = PAYLOAD(icmp6);
-			if (rte_pktmbuf_pkt_len(mbuf) < ICMP6_ERROR_PKT_LEN
-			    || ip6->proto != IPPROTO_ICMPV6
-			    || icmp6->type != ICMP6_TYPE_ECHO_REQUEST)
+			if (icmp6->type != ICMP6_TYPE_ECHO_REQUEST)
 				goto free_and_skip;
 		}
 
