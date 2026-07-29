@@ -104,9 +104,9 @@ out:
 
 static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
-	gr_clock_ns_t *pkt_timestamp, rcv_timestamp;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
 	struct ip_local_mbuf_data *ip_data;
+	gr_clock_ns_t rcv_timestamp;
 	struct rte_icmp_hdr *icmp;
 	struct rte_mbuf *m;
 	size_t len = 0;
@@ -141,8 +141,15 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	// icmp either points to an echo request or reply (checked in get_icmp_response())
 	resp->ident = rte_be_to_cpu_16(icmp->icmp_ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp->icmp_seq_nb);
-	pkt_timestamp = PAYLOAD(icmp);
-	resp->response_time = rcv_timestamp - *pkt_timestamp;
+
+	if (resp->type == RTE_ICMP_TYPE_ECHO_REPLY) {
+		// The echo reply payload contains the timestamp from the
+		// original request. ICMP errors only carry 8 bytes of the
+		// original packet data (the ICMP header) so the timestamp
+		// is not available.
+		gr_clock_ns_t *pkt_timestamp = PAYLOAD(icmp);
+		resp->response_time = rcv_timestamp - *pkt_timestamp;
+	}
 
 	len = sizeof(*resp);
 out:
