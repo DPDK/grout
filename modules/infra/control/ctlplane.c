@@ -371,6 +371,9 @@ static void cp_set_speed(struct iface *iface) {
 	char buf[512] = {0};
 	int ioctl_sock;
 
+	if (iface->cp_id == 0)
+		return;
+
 	gr_strcpy(ifr.ifr_name, IFNAMSIZ, iface->name);
 	els = (struct ethtool_link_settings *)buf;
 
