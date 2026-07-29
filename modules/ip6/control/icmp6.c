@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "event.h"
 #include "icmp6.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
@@ -28,9 +29,15 @@ static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
 }
 
 // called from dataplane context
-static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *) {
+static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
 	struct icmp_queue_item *i;
 	void *data;
+
+	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE
+	    && mbuf_data(m)->iface == drain->obj) {
+		rte_pktmbuf_free(m);
+		return;
+	}
 
 	while (rte_mempool_get(pool, &data) < 0)
 		icmp6_queue_pop(STAILQ_FIRST(&icmp_queue), true);
@@ -39,6 +46,17 @@ static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_qu
 	i->mbuf = m;
 	i->timestamp = timestamp;
 	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
+}
+
+static void icmp6_event_cb(uint32_t ev_type, const void *obj) {
+	struct icmp_queue_item *i, *tmp;
+
+	if (ev_type == GR_EVENT_IFACE_REMOVE) {
+		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
+			if (mbuf_data(i->mbuf)->iface == obj)
+				icmp6_queue_pop(i, true);
+		}
+	}
 }
 
 #define ICMP6_ERROR_PKT_LEN                                                                        \
@@ -178,6 +196,7 @@ RTE_INIT(icmp_module_init) {
 	module_register(&icmp6_module);
 	api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
 	api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, icmp6_event_cb);
 	icmp6_input_register_callback(ICMP6_TYPE_ECHO_REPLY, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_DEST_UNREACH, icmp6_input_cb);
 	icmp6_input_register_callback(ICMP6_ERR_TTL_EXCEEDED, icmp6_input_cb);
