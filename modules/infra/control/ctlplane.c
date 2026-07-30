@@ -247,6 +247,20 @@ err:
 	rte_pktmbuf_free(mbuf);
 }
 
+static void sysctl_write(const char *dir, struct iface *iface, const char *prop, const char *val) {
+	char path[PATH_MAX];
+	snprintf(path, sizeof(path), "/proc/sys/%s/%s/%s", dir, iface->name, prop);
+	FILE *f = fopen(path, "w");
+	if (f != NULL) {
+		if (fputs(val, f) < 0)
+			LOG(WARNING, "fputs(%s): %s", path, strerror(errno));
+		if (fclose(f) < 0)
+			LOG(WARNING, "fclose(%s): %s", path, strerror(errno));
+	} else {
+		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
+	}
+}
+
 static void cp_create(struct iface *iface) {
 	char ifalias[IFALIASZ];
 	struct ifreq ifr;
@@ -311,42 +325,20 @@ static void cp_create(struct iface *iface) {
 	// netns), grout brings this tap down; with the default sysctl value of
 	// 0, the kernel would flush all IPv6 addresses, and userspace (FRR)
 	// would then fail to bind() sockets on those addresses.
-	char path[PATH_MAX];
-	snprintf(path, sizeof(path), "/proc/sys/net/ipv6/conf/%s/keep_addr_on_down", iface->name);
-	FILE *f = fopen(path, "w");
-	if (f != NULL) {
-		fputs("1", f);
-		fclose(f);
-	} else {
-		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
-	}
+	sysctl_write("net/ipv6/conf", iface, "keep_addr_on_down", "1");
 
 	// Disable DAD on the control plane tap. Grout owns the addresses
 	// and DAD is meaningless on a local tap. Without this, the kernel
 	// re-runs DAD after link flaps, putting addresses in tentative state
 	// and causing sendmsg() to fail with EINVAL.
-	snprintf(path, sizeof(path), "/proc/sys/net/ipv6/conf/%s/accept_dad", iface->name);
-	f = fopen(path, "w");
-	if (f != NULL) {
-		fputs("0", f);
-		fclose(f);
-	} else {
-		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
-	}
+	sysctl_write("net/ipv6/conf", iface, "accept_dad", "0");
 
 	if (gr_config.override_rp_filter) {
 		// Set loose reverse path filtering on the TAP so that packets
 		// delivered by grout are not dropped by rp_filter. The effective
 		// rp_filter mode is max(conf.all, conf.<iface>), so setting the
 		// per-interface value to 2 (loose) overrides a global strict setting.
-		snprintf(path, sizeof(path), "/proc/sys/net/ipv4/conf/%s/rp_filter", iface->name);
-		f = fopen(path, "w");
-		if (f != NULL) {
-			fputs("2", f);
-			fclose(f);
-		} else {
-			LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
-		}
+		sysctl_write("net/ipv4/conf", iface, "rp_filter", "2");
 	}
 
 	iface->cp_ev = event_new(
