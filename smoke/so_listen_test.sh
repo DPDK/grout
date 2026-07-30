@@ -121,7 +121,7 @@ run_listen() {
 	t4=$!
 	socat "TCP6-LISTEN:9503${listen_opt},fork,reuseaddr"    EXEC:'/bin/cat' &
 	t6=$!
-	sleep 0.5
+	wait_listeners 9500 9501 9502 9503
 
 	if [ "$tcp_only" != "tcp-only" ]; then
 		probe "$label" "$ns" UDP4 "$dst4" "$dst6" 9500 "$expect"
@@ -181,11 +181,12 @@ run_listen "nobind/l3mdev=1/vrf" "" \
 # via x-p0 in its own netns. Mirrors so_bindtodevice_test scenario 8.
 grout0_ll=$(llocal_addr p0)
 [ -z "$grout0_ll" ] && fail "grout link-local not found on p0"
+wait_kernel_addr "$grout0_ll" p0
 socat "UDP6-LISTEN:9501,so-bindtodevice=p0,bind=[${grout0_ll}],fork"           EXEC:'/bin/cat' &
 ll_u6=$!
 socat "TCP6-LISTEN:9503,so-bindtodevice=p0,bind=[${grout0_ll}],fork,reuseaddr" EXEC:'/bin/cat' &
 ll_t6=$!
-sleep 0.5
+wait_listeners 9501 9503
 for proto_port in "UDP6:9501" "TCP6:9503"; do
 	proto=${proto_port%:*}
 	port=${proto_port#*:}
