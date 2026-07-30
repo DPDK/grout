@@ -63,7 +63,9 @@ for ns in peer0 peer1; do
 	ip netns exec $ns socat TCP4-LISTEN:9003,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat TCP6-LISTEN:9002,fork EXEC:'/bin/cat' &
 done
-sleep 1
+for ns in peer0 peer1; do
+	wait_listeners --netns $ns 9000 9001 9002 9003
+done
 
 run_scenario() {
 	local label="$1"
@@ -135,6 +137,7 @@ peer0_ll=$(ip -n peer0 -6 addr show dev x-p0 | sed -nE 's#.*inet6 (fe80:[^/]+).*
 grout0_ll=$(llocal_addr p0)
 [ -z "$peer0_ll" ] && fail "peer0 link-local not found on x-p0"
 [ -z "$grout0_ll" ] && fail "grout link-local not found on p0"
+wait_kernel_addr "$grout0_ll" p0
 for proto_port in "UDP6:9000" "TCP6:9002"; do
 	proto=${proto_port%:*}
 	port=${proto_port#*:}

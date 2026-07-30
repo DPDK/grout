@@ -296,6 +296,50 @@ llocal_addr() {
 		sed -En 's#(fe80:.*)/.*#\1#p'
 }
 
+# Wait until a given IP(v6) address is assigned on a kernel interface.
+wait_kernel_addr() {
+	set +x
+	trap 'set -x' RETURN
+
+	local addr="$1"
+	local dev="$2"
+
+	SECONDS=0
+	while ! ip addr show dev "$dev" to "$addr" | grep .; do
+		if [ "$SECONDS" -gt 10 ]; then
+			grcli address show iface "$dev"
+			ip addr show dev "$dev"
+			fail "address $addr not available on $dev after 10 seconds"
+		fi
+		sleep 0.1
+	done
+}
+
+# Wait until TCP and/or UDP listeners are ready on the given ports.
+# Usage: wait_listeners [--netns NS] PORT [PORT...]
+wait_listeners() {
+	set +x
+	trap 'set -x' RETURN
+
+	local ns_cmd=""
+	if [ "$1" = "--netns" ]; then
+		ns_cmd="ip netns exec $2"
+		shift 2
+	fi
+	local port
+
+	SECONDS=0
+	for port in "$@"; do
+		while ! $ns_cmd ss -tulnH sport = :"$port" | grep .; do
+			if [ "$SECONDS" -gt 10 ]; then
+				$ns_cmd ss -tuln
+				fail "listener on port $port not ready after 10 seconds"
+			fi
+			sleep 0.1
+		done
+	done
+}
+
 if [ "$run_grout" = true ]; then
 	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
 	smoke_setenv GROUT_OVERRIDE_DEFAULT_ROUTE true
