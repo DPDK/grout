@@ -321,6 +321,19 @@ static void cp_create(struct iface *iface) {
 		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
 	}
 
+	// Disable DAD on the control plane tap. Grout owns the addresses
+	// and DAD is meaningless on a local tap. Without this, the kernel
+	// re-runs DAD after link flaps, putting addresses in tentative state
+	// and causing sendmsg() to fail with EINVAL.
+	snprintf(path, sizeof(path), "/proc/sys/net/ipv6/conf/%s/accept_dad", iface->name);
+	f = fopen(path, "w");
+	if (f != NULL) {
+		fputs("0", f);
+		fclose(f);
+	} else {
+		LOG(WARNING, "fopen(%s): %s", path, strerror(errno));
+	}
+
 	if (gr_config.override_rp_filter) {
 		// Set loose reverse path filtering on the TAP so that packets
 		// delivered by grout are not dropped by rp_filter. The effective
