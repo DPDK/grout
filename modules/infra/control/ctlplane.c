@@ -524,7 +524,7 @@ static void cp_module_fini(struct event_base *) {
 
 static struct module cp_module = {
 	.name = "controlplane",
-	.depends_on = "graph",
+	.depends_on = "graph,mempool",
 	.init = cp_module_init,
 	.fini = cp_module_fini,
 };

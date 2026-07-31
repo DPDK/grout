@@ -703,6 +703,7 @@ static void graph_fini(struct event_base *) {
 
 static struct module graph_module = {
 	.name = "graph",
+	.depends_on = "mempool",
 	.init = graph_init,
 	.fini = graph_fini,
 };
