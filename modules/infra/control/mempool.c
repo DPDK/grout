@@ -199,6 +199,54 @@ void gr_pktmbuf_pool_release(struct rte_mempool *mp, uint32_t count) {
 	}
 }
 
+struct rte_mempool *gr_pktmbuf_pool_resize(
+	struct rte_mempool *mp,
+	int8_t socket_id,
+	uint32_t old_count,
+	uint32_t new_count
+) {
+	assert(new_count > 0);
+
+	if (old_count == new_count)
+		return mp;
+
+	if (mp == NULL)
+		return gr_pktmbuf_pool_get(socket_id, new_count);
+
+	for (int s = 0; s < MT_COUNT; s++) {
+		for (int i = 0; i < MAX_MEMPOOL_PER_NUMA; i++) {
+			struct mempool_tracker *mt = &trackers[s][i];
+			if (mt->mp != mp)
+				continue;
+
+			assert(mt->reserved >= old_count);
+			if (mt->reserved - old_count + new_count <= mt->mp->size) {
+				// Pool has enough room, adjust reservation in place.
+				LOG(DEBUG,
+				    "resize mempool %s reserved %u -> %u (size %u)",
+				    mt->mp->name,
+				    mt->reserved,
+				    mt->reserved - old_count + new_count,
+				    mt->mp->size);
+				mt->reserved = mt->reserved - old_count + new_count;
+				goto sort;
+			}
+
+			// Not enough space, release and allocate a new pool.
+			gr_pktmbuf_pool_release(mp, old_count);
+			return gr_pktmbuf_pool_get(socket_id, new_count);
+		}
+	}
+
+	return errno_set_null(ENOENT);
+sort:
+	for (int s = 0; s < MT_COUNT; s++) {
+		struct mempool_tracker *mt = trackers[s];
+		qsort(mt, MAX_MEMPOOL_PER_NUMA, sizeof(*mt), mt_sort);
+	}
+	return mp;
+}
+
 static void mempool_init(struct event_base *ev_base) {
 	pending_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, pending_free_cb, NULL);
 	if (pending_timer == NULL)
