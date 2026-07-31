@@ -300,6 +300,7 @@ static void loopback_module_fini(struct event_base *) {
 
 static struct module loopback_module = {
 	.name = "iface_loopback",
+	.depends_on = "mempool",
 	.init = loopback_module_init,
 	.fini = loopback_module_fini,
 };
