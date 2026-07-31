@@ -31,6 +31,9 @@ int netlink_set_ifalias(uint32_t, const char *) {
 }
 mock_func(struct rte_mempool *, gr_pktmbuf_pool_get(int8_t, uint32_t));
 void gr_pktmbuf_pool_release(struct rte_mempool *, uint32_t) { }
+struct rte_mempool *gr_pktmbuf_pool_resize(struct rte_mempool *mp, int8_t, uint32_t, uint32_t) {
+	return mp;
+}
 struct rte_rcu_qsbr *gr_datapath_rcu(void) {
 	static struct rte_rcu_qsbr rcu;
 	return &rcu;

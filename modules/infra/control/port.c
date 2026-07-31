@@ -133,9 +133,8 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	mbuf_count += RTE_GRAPH_BURST_SIZE;
 	mbuf_count = rte_align32pow2(mbuf_count) - 1;
 	if (mbuf_count != p->pool_size) {
-		gr_pktmbuf_pool_release(p->pool, p->pool_size);
-		p->pool = gr_pktmbuf_pool_get(socket_id, mbuf_count);
-		p->pool_size = mbuf_count;
+		p->pool = gr_pktmbuf_pool_resize(p->pool, socket_id, p->pool_size, mbuf_count);
+		p->pool_size = p->pool ? mbuf_count : 0;
 	}
 
 	if (p->pool == NULL)
