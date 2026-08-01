@@ -60,6 +60,18 @@ static void icmp_event_cb(uint32_t ev_type, const void *obj) {
 	}
 }
 
+#define ICMP_QUEUE_TIMEOUT (10 * GR_NS_PER_S)
+
+static void icmp_queue_gc(evutil_socket_t, short, void *) {
+	gr_clock_ns_t now = gr_clock_ns();
+	struct icmp_queue_item *i, *tmp;
+
+	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
+		if (now - i->timestamp >= ICMP_QUEUE_TIMEOUT)
+			icmp_queue_pop(i, true);
+	}
+}
+
 // Search for the oldest ICMP response matching the given identifier.
 // If found, the packet is removed from the queue.
 static struct rte_mbuf *
@@ -169,8 +181,9 @@ out:
 }
 
 #define ICMP_LOCAL_QUEUE_SIZE 1024
+static struct event *gc_timer;
 
-static void icmp_init(struct event_base *) {
+static void icmp_init(struct event_base *ev_base) {
 	pool = rte_mempool_create(
 		"icmp_queue", // name
 		ICMP_LOCAL_QUEUE_SIZE,
@@ -186,9 +199,18 @@ static void icmp_init(struct event_base *) {
 	);
 	if (pool == NULL)
 		ABORT("rte_mempool_create(icmp_queue) failed");
+
+	gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, icmp_queue_gc, NULL);
+	if (gc_timer == NULL)
+		ABORT("event_new() failed");
+	if (event_add(gc_timer, &(struct timeval) {.tv_sec = 1}) < 0)
+		ABORT("event_add() failed");
 }
 
 static void icmp_fini(struct event_base *) {
+	if (gc_timer)
+		event_free(gc_timer);
+
 	if (pool != NULL) {
 		struct icmp_queue_item *i, *tmp;
 		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)

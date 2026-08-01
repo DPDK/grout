@@ -59,6 +59,18 @@ static void icmp6_event_cb(uint32_t ev_type, const void *obj) {
 	}
 }
 
+#define ICMP6_QUEUE_TIMEOUT (10 * GR_NS_PER_S)
+
+static void icmp6_queue_gc(evutil_socket_t, short, void *) {
+	gr_clock_ns_t now = gr_clock_ns();
+	struct icmp_queue_item *i, *tmp;
+
+	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
+		if (now - i->timestamp >= ICMP6_QUEUE_TIMEOUT)
+			icmp6_queue_pop(i, true);
+	}
+}
+
 #define ICMP6_ERROR_PKT_LEN                                                                        \
 	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
 
@@ -157,8 +169,9 @@ static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 }
 
 #define ICMP6_LOCAL_QUEUE_SIZE 1024
+static struct event *gc_timer;
 
-static void icmp_init(struct event_base *) {
+static void icmp_init(struct event_base *ev_base) {
 	pool = rte_mempool_create(
 		"icmp6_queue",
 		ICMP6_LOCAL_QUEUE_SIZE,
@@ -174,9 +187,18 @@ static void icmp_init(struct event_base *) {
 	);
 	if (pool == NULL)
 		ABORT("rte_mempool_create(icmp6_queue) failed");
+
+	gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, icmp6_queue_gc, NULL);
+	if (gc_timer == NULL)
+		ABORT("event_new() failed");
+	if (event_add(gc_timer, &(struct timeval) {.tv_sec = 1}) < 0)
+		ABORT("event_add() failed");
 }
 
 static void icmp_fini(struct event_base *) {
+	if (gc_timer)
+		event_free(gc_timer);
+
 	if (pool != NULL) {
 		struct icmp_queue_item *i, *tmp;
 		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
