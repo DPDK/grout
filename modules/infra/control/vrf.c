@@ -3,6 +3,7 @@
 
 #include "iface.h"
 #include "log.h"
+#include "loopback.h"
 #include "netlink.h"
 #include "vrf.h"
 

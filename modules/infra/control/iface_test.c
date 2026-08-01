@@ -3,6 +3,7 @@
 
 #include "_cmocka.h"
 #include "config.h"
+#include "control_queue.h"
 #include "event.h"
 #include "iface.h"
 #include "log.h"
