@@ -7,7 +7,6 @@
 #include "iface.h"
 #include "ip4.h"
 #include "log.h"
-#include "mempool.h"
 #include "module.h"
 #include "nexthop.h"
 
@@ -28,7 +27,6 @@ LOG_TYPE("dhcp");
 static struct event_base *dhcp_ev_base;
 static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
 static control_input_t dhcp_output;
-static struct rte_mempool *dhcp_mp;
 
 bool dhcp_enabled(uint16_t iface_id) {
 	if (iface_id < GR_MAX_IFACES)
@@ -402,10 +400,6 @@ static void dhcp_init(struct event_base *ev_base) {
 	dhcp_ev_base = ev_base;
 
 	dhcp_output = gr_control_input_register_handler("eth_output", true);
-
-	dhcp_mp = gr_pktmbuf_pool_get(SOCKET_ID_ANY, 512);
-	if (dhcp_mp == NULL)
-		ABORT("failed to get mempool");
 }
 
 static int dhcp_start(uint16_t iface_id) {
@@ -470,10 +464,6 @@ static int dhcp_stop(uint16_t iface_id) {
 	return 0;
 }
 
-struct rte_mempool *dhcp_get_mempool(void) {
-	return dhcp_mp;
-}
-
 static struct api_out dhcp_list_handler(const void *, struct api_ctx *ctx) {
 	struct dhcp_client *client;
 	uint16_t iface_id;
@@ -522,12 +512,11 @@ static void dhcp_fini(struct event_base *) {
 		if (dhcp_clients[iface_id] != NULL)
 			dhcp_stop(iface_id);
 	}
-	gr_pktmbuf_pool_release(dhcp_mp, 512);
 }
 
 static struct module dhcp_module = {
 	.name = "dhcp",
-	.depends_on = "graph,ip_address,iface,mempool",
+	.depends_on = "graph,ip_address,iface",
 	.init = dhcp_init,
 	.fini = dhcp_fini,
 };
