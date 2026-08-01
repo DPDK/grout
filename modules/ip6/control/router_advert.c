@@ -9,7 +9,6 @@
 #include "ip6_datapath.h"
 #include "l3.h"
 #include "log.h"
-#include "mempool.h"
 #include "module.h"
 #include "vec.h"
 
@@ -25,11 +24,6 @@ LOG_TYPE("ra");
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800
 
-struct ra_ctx {
-	struct rte_mempool *mp;
-};
-
-static struct ra_ctx ra_ctx;
 static control_input_t ra_output;
 static struct event_base *ev_base;
 
@@ -177,7 +171,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 			continue;
 		if (!rte_ipv6_addr_is_linklocal(&l3->ipv6))
 			continue;
-		if ((m = rte_pktmbuf_alloc(ra_ctx.mp)) == NULL) {
+		if ((m = rte_pktmbuf_alloc(iface->pool)) == NULL) {
 			LOG(ERR, "rte_pktmbuf_alloc");
 			return;
 		}
@@ -193,21 +187,12 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 static void ra_init(struct event_base *base) {
 	ev_base = base;
 	ra_output = gr_control_input_register_handler("ip6_output", true);
-	ra_ctx.mp = gr_pktmbuf_pool_get(SOCKET_ID_ANY, 512);
-	if (ra_ctx.mp == NULL) {
-		ABORT("gr_pktmbuf_pool_get ENOMEM");
-	}
-}
-
-static void ra_fini(struct event_base * /*ev_base*/) {
-	gr_pktmbuf_pool_release(ra_ctx.mp, 512);
 }
 
 static struct module ra_module = {
 	.name = "ip6_router_advert",
-	.depends_on = "graph,mempool",
+	.depends_on = "graph",
 	.init = ra_init,
-	.fini = ra_fini,
 };
 
 static void iface_event_handler(uint32_t event, const void *obj) {
