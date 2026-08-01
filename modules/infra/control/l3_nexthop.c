@@ -164,16 +164,34 @@ static void l3_remove_references(struct nexthop *nh) {
 	}
 }
 
-static void l3_free(struct nexthop *nh) {
+int nexthop_l3_hold_queue_add(struct nexthop *nh, struct rte_mbuf *m) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 
-	// Flush all held packets.
-	struct rte_mbuf *m = l3->held_pkts_head;
-	while (m != NULL) {
-		struct rte_mbuf *next = queue_mbuf_data(m)->next;
+	if (l3->held_pkts >= nh_conf.max_held_pkts)
+		return errno_set(ENOBUFS);
+
+	queue_mbuf_data(m)->next = NULL;
+	if (l3->held_pkts_head == NULL)
+		l3->held_pkts_head = m;
+	else
+		queue_mbuf_data(l3->held_pkts_tail)->next = m;
+	l3->held_pkts_tail = m;
+	l3->held_pkts++;
+
+	return 0;
+}
+
+void nexthop_l3_hold_queue_reset(struct nexthop *nh) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	l3->held_pkts = 0;
+	l3->held_pkts_head = NULL;
+	l3->held_pkts_tail = NULL;
+}
+
+void nexthop_l3_hold_queue_flush(struct nexthop *nh) {
+	nexthop_l3_hold_queue_foreach (m, nh)
 		rte_pktmbuf_free(m);
-		m = next;
-	}
+	nexthop_l3_hold_queue_reset(nh);
 }
 
 static bool l3_equal(const struct nexthop *a, const struct nexthop *b) {
@@ -287,7 +305,7 @@ static struct nexthop_type_ops l3_nh_ops = {
 	.reconfig = l3_reconfig,
 	.lookup = l3_lookup,
 	.remove_references = l3_remove_references,
-	.free = l3_free,
+	.free = nexthop_l3_hold_queue_flush,
 	.equal = l3_equal,
 	.import_info = l3_import_info,
 	.to_api = l3_to_api,

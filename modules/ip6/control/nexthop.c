@@ -125,21 +125,14 @@ hold:
 		return;
 	}
 
-	if (l3->held_pkts < nh_conf.max_held_pkts) {
-		queue_mbuf_data(m)->next = NULL;
-		if (l3->held_pkts_head == NULL)
-			l3->held_pkts_head = m;
-		else
-			queue_mbuf_data(l3->held_pkts_tail)->next = m;
-		l3->held_pkts_tail = m;
-		l3->held_pkts++;
+	if (nexthop_l3_hold_queue_add(nh, m) == 0) {
 		if (l3->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
 			l3->state = GR_NH_S_PENDING;
 		}
 		return;
 	} else {
-		LOG(DEBUG, IP6_F " hold queue full", &l3->ipv6);
+		LOG(DEBUG, IP6_F " hold queue: %s", &l3->ipv6, strerror(errno));
 	}
 free:
 	rte_pktmbuf_free(m);
@@ -257,23 +250,16 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	}
 
 	// Flush all held packets.
-	struct rte_mbuf *held = l3->held_pkts_head;
-	while (held != NULL) {
+	nexthop_l3_hold_queue_foreach (held, nh) {
 		const struct nexthop_af_ops *ops;
-		struct rte_mbuf *next;
-
-		next = queue_mbuf_data(held)->next;
 
 		ops = nexthop_af_ops_from_mbuf(held);
 		assert(ops != NULL);
 		if (ops->resubmit(held, nh) < 0)
 			rte_pktmbuf_free(held);
-
-		held = next;
 	}
-	l3->held_pkts_head = NULL;
-	l3->held_pkts_tail = NULL;
-	l3->held_pkts = 0;
+	nexthop_l3_hold_queue_reset(nh);
+
 free:
 	rte_pktmbuf_free(m);
 }
