@@ -85,7 +85,7 @@ static struct rte_mbuf *dhcp_build_packet(
 	if (iface_get_eth_addr(iface, &mac) < 0)
 		return errno_set_null(EMEDIUMTYPE);
 
-	m = rte_pktmbuf_alloc(dhcp_get_mempool());
+	m = rte_pktmbuf_alloc(iface->pool);
 	if (m == NULL)
 		return errno_set_null(ENOMEM);
 

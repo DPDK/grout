@@ -112,8 +112,6 @@ bool dhcp_enabled(uint16_t iface_id);
 
 void dhcp_input_cb(void *obj, uintptr_t priv, const struct control_queue_drain *);
 
-struct rte_mempool *dhcp_get_mempool(void);
-
 int dhcp_parse_packet(struct rte_mbuf *, struct dhcp_client *, dhcp_message_type_t *);
 struct rte_mbuf *dhcp_build_discover(uint16_t iface_id, uint32_t xid);
 struct rte_mbuf *
