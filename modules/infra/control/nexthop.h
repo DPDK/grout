@@ -53,6 +53,21 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	struct rte_mbuf *held_pkts_tail;
 });
 
+// Append a packet to the hold queue. Returns -ENOBUFS if the queue is full.
+int nexthop_l3_hold_queue_add(struct nexthop *, struct rte_mbuf *);
+
+// Reset the hold queue without freeing the mbufs.
+void nexthop_l3_hold_queue_reset(struct nexthop *);
+
+// Empty the hold queue, freeing all mbufs.
+void nexthop_l3_hold_queue_flush(struct nexthop *);
+
+// Iterate over all held mbufs. It is safe to mutate/free the mbufs while iterating.
+#define nexthop_l3_hold_queue_foreach(m, nh)                                                       \
+	for (struct rte_mbuf *__next = NULL, *m = nexthop_info_l3(nh)->held_pkts_head;             \
+	     m != NULL && (__next = queue_mbuf_data(m)->next, true);                               \
+	     m = __next)
+
 struct hoplist {
 	vec struct nexthop **nh;
 };
