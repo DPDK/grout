@@ -354,6 +354,7 @@ static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
 		}
 		break;
 	case GR_NH_S_FAILED:
+		nexthop_l3_hold_queue_flush(nh);
 		break;
 	}
 }
