@@ -10,7 +10,6 @@
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
-#include "vrf.h"
 
 #include <gr_infra.h>
 #include <gr_string.h>
@@ -47,7 +46,6 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct rte_mbuf *m = obj;
 	struct mbuf_data *d = mbuf_data(m);
-	struct iface_info_loopback *lo;
 	struct iface_stats *stats;
 	struct iovec iov[2];
 	char *data = NULL;
@@ -56,8 +54,6 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
 		goto end;
-
-	lo = &iface_info_vrf(d->iface)->lo;
 
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
@@ -88,7 +84,7 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	iov[1].iov_base = data;
 	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
 
-	if (writev(lo->fd, iov, ARRAY_DIM(iov)) < 0) {
+	if (writev(d->iface->cp_fd, iov, ARRAY_DIM(iov)) < 0) {
 		// The user messed up and removed gr-loopX
 		// release resources on our side to try to recover
 		if (errno == EBADFD) {
@@ -109,7 +105,6 @@ end:
 
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct iface *iface = ev_iface;
-	struct iface_info_loopback *lo;
 	struct eth_input_mbuf_data *e;
 	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
@@ -117,8 +112,6 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct tun_pi pi;
 	size_t len;
 	char *data;
-
-	lo = &iface_info_vrf(iface)->lo;
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
@@ -142,7 +135,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	iov[0].iov_len = sizeof(pi);
 	iov[1].iov_base = data;
 	iov[1].iov_len = iface->mtu;
-	if ((len = readv(lo->fd, iov, ARRAY_DIM(iov))) <= 0) {
+	if ((len = readv(iface->cp_fd, iov, ARRAY_DIM(iov))) <= 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto err;
 		LOG(ERR, "read from tun device %s failed %s", iface->name, strerror(errno));
@@ -187,15 +180,14 @@ err:
 }
 
 int iface_loopback_create(struct iface *iface) {
-	struct iface_info_vrf *vrf = iface_info_vrf(iface);
-	struct iface_info_loopback *lo = &vrf->lo;
 	char tun_name[IFNAMSIZ];
+	int ioctl_sock = -1;
 	struct ifreq ifr;
-	int ioctl_sock;
 	int err_save;
 	int flags;
 
-	lo->ev = NULL;
+	iface->cp_fd = -1;
+	iface->cp_ev = NULL;
 
 	if (iface->id == GR_VRF_DEFAULT_ID)
 		gr_strcpy(tun_name, sizeof(tun_name), iface->name);
@@ -211,12 +203,12 @@ int iface_loopback_create(struct iface *iface) {
 		goto err;
 	}
 
-	if ((lo->fd = open(TUN_TAP_DEV_PATH, O_RDWR)) < 0) {
+	if ((iface->cp_fd = open(TUN_TAP_DEV_PATH, O_RDWR)) < 0) {
 		LOG(ERR, "open(%s): %s", TUN_TAP_DEV_PATH, strerror(errno));
 		goto err;
 	}
 
-	if (ioctl(lo->fd, TUNSETIFF, &ifr) < 0) {
+	if (ioctl(iface->cp_fd, TUNSETIFF, &ifr) < 0) {
 		LOG(ERR, "ioctl(TUNSETIFF): %s", strerror(errno));
 		goto err;
 	}
@@ -227,14 +219,14 @@ int iface_loopback_create(struct iface *iface) {
 	}
 	iface->cp_id = ifr.ifr_ifindex;
 
-	flags = fcntl(lo->fd, F_GETFL);
+	flags = fcntl(iface->cp_fd, F_GETFL);
 	if (flags == -1) {
 		LOG(ERR, "fcntl(F_GETFL): %s", strerror(errno));
 		goto err;
 	}
 
 	flags |= O_NONBLOCK;
-	if (fcntl(lo->fd, F_SETFL, flags) < 0) {
+	if (fcntl(iface->cp_fd, F_SETFL, flags) < 0) {
 		LOG(ERR, "fcntl(F_SETFL): %s", strerror(errno));
 		goto err;
 	}
@@ -254,15 +246,15 @@ int iface_loopback_create(struct iface *iface) {
 		goto err;
 	}
 
-	lo->ev = event_new(
+	iface->cp_ev = event_new(
 		ev_base,
-		lo->fd,
+		iface->cp_fd,
 		EV_READ | EV_CLOSED | EV_PERSIST | EV_FINALIZE,
 		iface_loopback_poll,
 		iface
 	);
 
-	if (lo->ev == NULL || event_add(lo->ev, NULL) < 0)
+	if (iface->cp_ev == NULL || event_add(iface->cp_ev, NULL) < 0)
 		goto err;
 
 	close(ioctl_sock);
@@ -270,20 +262,19 @@ int iface_loopback_create(struct iface *iface) {
 
 err:
 	err_save = errno;
-	if (lo->ev) {
-		event_del(lo->ev);
-		event_free(lo->ev);
+	if (iface->cp_ev) {
+		event_del(iface->cp_ev);
+		event_free(iface->cp_ev);
 	}
-	if (lo->fd > 0)
-		close(lo->fd);
+	if (iface->cp_fd > 0)
+		close(iface->cp_fd);
 	if (ioctl_sock > 0)
 		close(ioctl_sock);
 	return errno_set(err_save);
 }
 
 int iface_loopback_destroy(struct iface *iface) {
-	struct iface_info_loopback *lo = &iface_info_vrf(iface)->lo;
-	event_free_finalize(0, lo->ev, finalize_fd);
+	event_free_finalize(0, iface->cp_ev, finalize_fd);
 	return 0;
 }
 
