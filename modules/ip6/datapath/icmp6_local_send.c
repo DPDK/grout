@@ -4,6 +4,7 @@
 #include "control_input.h"
 #include "graph.h"
 #include "icmp6.h"
+#include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "mbuf.h"
@@ -19,15 +20,14 @@ enum {
 	EDGE_COUNT,
 };
 
-struct ctl_to_stack {
+GR_MBUF_PRIV_DATA_TYPE(icmp6_send_mbuf_data, {
 	struct rte_ipv6_addr dst;
 	struct rte_ipv6_addr src;
-	uint16_t iface_id;
 	uint16_t vrf_id;
 	uint16_t ident;
 	uint16_t seq_num;
 	uint8_t hop_limit;
-};
+});
 
 static control_input_t ctl_icmp6_request;
 
@@ -39,8 +39,10 @@ int icmp6_local_send(
 	uint16_t seq_num,
 	uint8_t hop_limit
 ) {
-	struct ctl_to_stack *msg;
+	struct icmp6_send_mbuf_data *d;
 	const struct nexthop *local;
+	struct iface *iface;
+	struct rte_mbuf *m;
 	int ret;
 
 	// FIXME
@@ -50,17 +52,25 @@ int icmp6_local_send(
 	if ((local = addr6_get_preferred(gw->iface_id, &nexthop_info_l3(gw)->ipv6)) == NULL)
 		return -errno;
 
-	if ((msg = calloc(1, sizeof(struct ctl_to_stack))) == NULL)
-		return errno_set(ENOMEM);
-	msg->iface_id = gw->iface_id;
-	msg->seq_num = seq_num;
-	msg->ident = ident;
-	msg->hop_limit = hop_limit;
-	msg->dst = *dst;
-	msg->src = nexthop_info_l3(local)->ipv6;
+	iface = iface_from_id(gw->iface_id);
+	if (iface == NULL)
+		return errno_set(ENODEV);
 
-	if ((ret = post_to_stack(ctl_icmp6_request, msg)) < 0) {
-		free(msg);
+	m = rte_pktmbuf_alloc(iface->pool);
+	if (m == NULL)
+		return errno_set(ENOMEM);
+
+	d = icmp6_send_mbuf_data(m);
+	d->iface = iface;
+	d->seq_num = seq_num;
+	d->vrf_id = gw->vrf_id;
+	d->ident = ident;
+	d->hop_limit = hop_limit;
+	d->dst = *dst;
+	d->src = nexthop_info_l3(local)->ipv6;
+
+	if ((ret = post_to_stack(ctl_icmp6_request, m)) < 0) {
+		rte_pktmbuf_free(m);
 		return ret;
 	}
 
@@ -75,7 +85,7 @@ static uint16_t icmp6_local_send_process(
 ) {
 	struct icmp6_echo_request *icmp6_echo;
 	struct ip6_local_mbuf_data *data;
-	struct ctl_to_stack *msg;
+	struct icmp6_send_mbuf_data msg;
 	gr_clock_ns_t *payload;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
@@ -84,7 +94,7 @@ static uint16_t icmp6_local_send_process(
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
-		msg = control_input_mbuf_data(mbuf)->data;
+		msg = *icmp6_send_mbuf_data(mbuf);
 		pkt_len = sizeof(*icmp6) + sizeof(*icmp6_echo) + sizeof(gr_clock_ns_t);
 		icmp6 = (struct icmp6 *)rte_pktmbuf_append(mbuf, pkt_len);
 
@@ -92,24 +102,24 @@ static uint16_t icmp6_local_send_process(
 		icmp6->code = 0;
 
 		icmp6_echo = PAYLOAD(icmp6);
-		icmp6_echo->ident = rte_cpu_to_be_16(msg->ident);
-		icmp6_echo->seqnum = rte_cpu_to_be_16(msg->seq_num);
+		icmp6_echo->ident = rte_cpu_to_be_16(msg.ident);
+		icmp6_echo->seqnum = rte_cpu_to_be_16(msg.seq_num);
 
 		// Fake RSS to spread the traffic
 		// for ECMP routes or active/active bonds.
-		mbuf->hash.rss = msg->ident;
+		mbuf->hash.rss = msg.ident;
 		mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
 
 		payload = PAYLOAD(icmp6_echo);
 		*payload = gr_clock_ns();
 
 		data = ip6_local_mbuf_data(mbuf);
-		data->iface = iface_from_id(msg->iface_id);
+		data->iface = msg.iface;
 		data->proto = IPPROTO_ICMPV6;
 		data->len = pkt_len;
-		data->dst = msg->dst;
-		data->src = msg->src;
-		data->hop_limit = msg->hop_limit;
+		data->dst = msg.dst;
+		data->src = msg.src;
+		data->hop_limit = msg.hop_limit;
 
 		next = OUTPUT;
 
@@ -118,14 +128,13 @@ static uint16_t icmp6_local_send_process(
 			*t = *icmp6;
 		}
 		rte_node_enqueue_x1(graph, node, next, mbuf);
-		free(msg);
 	}
 
 	return n_objs;
 }
 
 static void icmp6_local_send_register(void) {
-	ctl_icmp6_request = gr_control_input_register_handler("icmp6_local_send", false);
+	ctl_icmp6_request = gr_control_input_register_handler("icmp6_local_send", true);
 }
 
 static struct rte_node_register icmp6_local_send_node = {
