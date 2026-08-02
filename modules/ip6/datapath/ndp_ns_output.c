@@ -7,6 +7,7 @@
 #include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
+#include "l3.h"
 #include "trace.h"
 
 #include <gr_clock.h>
@@ -38,7 +39,22 @@ int nh6_solicit(struct nexthop *nh) {
 	else
 		l3->bcast_probes++;
 
-	return post_to_stack(ndp_solicit, nh);
+	struct iface *iface = iface_from_id(nh->iface_id);
+	if (iface == NULL)
+		return errno_set(ENODEV);
+
+	struct rte_mbuf *m = rte_pktmbuf_alloc(iface->pool);
+	if (m == NULL)
+		return errno_set(ENOBUFS);
+
+	l3_mbuf_data(m)->nh = nh;
+
+	if (post_to_stack(ndp_solicit, m) < 0) {
+		rte_pktmbuf_free(m);
+		return -errno;
+	}
+
+	return 0;
 }
 
 static uint16_t ndp_ns_output_process(
@@ -61,7 +77,7 @@ static uint16_t ndp_ns_output_process(
 	for (unsigned i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
-		nh = control_input_mbuf_data(mbuf)->data;
+		nh = l3_mbuf_data(mbuf)->nh;
 		if (nh == NULL) {
 			next = ERROR;
 			goto next;
@@ -120,7 +136,7 @@ next:
 }
 
 static void ndp_output_solicit_register(void) {
-	ndp_solicit = gr_control_input_register_handler("ndp_ns_output", false);
+	ndp_solicit = gr_control_input_register_handler("ndp_ns_output", true);
 }
 
 static struct rte_node_register node = {
