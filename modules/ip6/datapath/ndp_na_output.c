@@ -4,6 +4,7 @@
 #include "control_input.h"
 #include "graph.h"
 #include "icmp6.h"
+#include "iface.h"
 #include "ip6_datapath.h"
 #include "mbuf.h"
 #include "trace.h"
@@ -15,27 +16,36 @@ enum {
 	EDGE_COUNT,
 };
 
-struct advertise_context {
+GR_MBUF_PRIV_DATA_TYPE(ndp_na_mbuf_data, {
 	const struct nexthop *local;
 	const struct nexthop *remote;
-	const struct iface *iface;
-};
+});
 
 static control_input_t na_output;
 
 int nh6_advertise(const struct nexthop *local, const struct nexthop *remote) {
+	struct ndp_na_mbuf_data *d;
+	struct iface *iface;
+	struct rte_mbuf *m;
+
 	assert(local != NULL);
 	assert(local->type == GR_NH_T_L3);
-	struct advertise_context *ctx = malloc(sizeof(*ctx));
-	if (ctx == NULL)
+
+	iface = iface_from_id(local->iface_id);
+	assert(iface != NULL);
+
+	m = rte_pktmbuf_alloc(iface->pool);
+	if (m == NULL)
 		return errno_set(ENOMEM);
-	ctx->local = local;
-	ctx->remote = remote;
-	ctx->iface = iface_from_id(local->iface_id);
-	assert(ctx->iface != NULL);
-	int ret = post_to_stack(na_output, ctx);
+
+	d = ndp_na_mbuf_data(m);
+	d->iface = iface;
+	d->local = local;
+	d->remote = remote;
+
+	int ret = post_to_stack(na_output, m);
 	if (ret < 0)
-		free(ctx);
+		rte_pktmbuf_free(m);
 	return ret;
 }
 
@@ -46,7 +56,7 @@ static uint16_t ndp_na_output_process(
 	uint16_t nb_objs
 ) {
 	const struct nexthop *local, *remote;
-	struct advertise_context *ctx;
+	struct ndp_na_mbuf_data *ctx;
 	struct ip6_local_mbuf_data *d;
 	struct icmp6_neigh_advert *na;
 	struct icmp6_opt_lladdr *ll;
@@ -59,11 +69,10 @@ static uint16_t ndp_na_output_process(
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		ctx = control_input_mbuf_data(mbuf)->data;
+		ctx = ndp_na_mbuf_data(mbuf);
 		local = ctx->local;
 		remote = ctx->remote;
 		iface = ctx->iface;
-		free(ctx);
 		l3 = nexthop_info_l3(local);
 
 		rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf));
@@ -112,7 +121,7 @@ static uint16_t ndp_na_output_process(
 }
 
 static void ndp_na_output_register(void) {
-	na_output = gr_control_input_register_handler("ndp_na_output", false);
+	na_output = gr_control_input_register_handler("ndp_na_output", true);
 }
 
 static struct rte_node_register node = {
