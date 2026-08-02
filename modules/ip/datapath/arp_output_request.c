@@ -7,6 +7,7 @@
 #include "iface.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
+#include "l3.h"
 #include "trace.h"
 
 #include <gr_clock.h>
@@ -26,6 +27,9 @@ enum {
 static control_input_t arp_solicit;
 
 int arp_output_request_solicit(struct nexthop *nh) {
+	struct iface *iface;
+	struct rte_mbuf *m;
+
 	if (nh == NULL || nh->type != GR_NH_T_L3)
 		return errno_set(EINVAL);
 
@@ -42,7 +46,22 @@ int arp_output_request_solicit(struct nexthop *nh) {
 			l3->bcast_probes++;
 	}
 
-	return post_to_stack(arp_solicit, nh);
+	iface = iface_from_id(nh->iface_id);
+	if (iface == NULL)
+		return errno_set(ENODEV);
+
+	m = rte_pktmbuf_alloc(iface->pool);
+	if (m == NULL)
+		return errno_set(ENOMEM);
+
+	l3_mbuf_data(m)->nh = nh;
+
+	if (post_to_stack(arp_solicit, m) < 0) {
+		rte_pktmbuf_free(m);
+		return -errno;
+	}
+
+	return 0;
 }
 
 static uint16_t arp_output_request_process(
@@ -65,7 +84,7 @@ static uint16_t arp_output_request_process(
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		mbuf = objs[i];
-		nh = control_input_mbuf_data(mbuf)->data;
+		nh = l3_mbuf_data(mbuf)->nh;
 
 		if (nh->type == GR_NH_T_BLACKHOLE) {
 			edge = BLACKHOLE;
@@ -137,7 +156,7 @@ next:
 }
 
 static void arp_output_request_register(void) {
-	arp_solicit = gr_control_input_register_handler("arp_output_request", false);
+	arp_solicit = gr_control_input_register_handler("arp_output_request", true);
 }
 
 static struct rte_node_register arp_output_request_node = {
