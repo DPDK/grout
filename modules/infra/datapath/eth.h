@@ -29,6 +29,8 @@ GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
 
 void gr_eth_input_add_type(rte_be16_t eth_type, const char *node_name);
 
+int eth_output_send(struct rte_mbuf *m);
+
 int eth_trace_format(char *buf, size_t len, const void *data, size_t /*data_len*/);
 
 #define GR_IPPROTO_EIGRP 88

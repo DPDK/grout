@@ -54,6 +54,7 @@ void iface_input_mode_register(gr_iface_mode_t, const char *next_node);
 void iface_output_type_register(gr_iface_type_t, const char *next_node);
 
 void iface_cp_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
+int iface_output_send(struct rte_mbuf *);
 
 void rx_burst_histogram_get(uint16_t port_id, uint64_t *histogram, unsigned slots);
 void rx_burst_histogram_reset(void);

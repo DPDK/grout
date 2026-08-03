@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "control_input.h"
 #include "eth.h"
 #include "graph.h"
 #include "iface.h"
@@ -15,6 +16,12 @@ enum {
 	ERROR,
 	EDGE_COUNT,
 };
+
+static rte_edge_t control_to_arp_output_reply;
+
+int arp_output_reply_send(struct rte_mbuf *m) {
+	return post_to_stack(control_to_arp_output_reply, m);
+}
 
 static uint16_t arp_output_reply_process(
 	struct rte_graph *graph,
@@ -76,6 +83,10 @@ next:
 	return num;
 }
 
+static void arp_output_reply_register(void) {
+	control_to_arp_output_reply = gr_control_input_register_handler("arp_output_reply");
+}
+
 static struct rte_node_register node = {
 	.name = "arp_output_reply",
 	.process = arp_output_reply_process,
@@ -89,6 +100,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_CONTROL | GR_NODE_T_L2,
+	.register_callback = arp_output_reply_register,
 	.trace_format = (gr_trace_format_cb_t)trace_arp_format,
 };
 

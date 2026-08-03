@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "control_input.h"
 #include "icmp6.h"
 #include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "l3.h"
 #include "log.h"
-#include "module.h"
 
 #include <gr_clock.h>
 #include <gr_net_types.h>
@@ -23,13 +21,11 @@
 
 LOG_TYPE("nexthop");
 
-static rte_edge_t ip6_output_node;
-
 static int ip6_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
 	d->nh = nh;
 	d->iface = NULL;
-	if (post_to_stack(ip6_output_node, m) < 0) {
+	if (ip6_output_send(m) < 0) {
 		LOG(ERR, "post_to_stack: %s", strerror(errno));
 		return -errno;
 	}
@@ -264,16 +260,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static void nh6_init(struct event_base *) {
-	ip6_output_node = gr_control_input_register_handler("ip6_output");
-}
-
-static struct module nh6_module = {
-	.name = "ip6_nexthop",
-	.depends_on = "graph",
-	.init = nh6_init,
-};
-
 static struct nexthop_af_ops nh_ops = {
 	.resolve = nh6_resolve_cb,
 	.solicit = nh6_solicit,
@@ -282,6 +268,5 @@ static struct nexthop_af_ops nh_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	module_register(&nh6_module);
 	nexthop_af_ops_register(GR_AF_IP6, &nh_ops);
 }

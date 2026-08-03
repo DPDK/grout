@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "control_input.h"
 #include "eth.h"
 #include "graph.h"
 #include "iface.h"
@@ -50,6 +51,12 @@ void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node) {
 		ABORT("next node already registered for nexthop type=%s", type_name);
 	LOG(DEBUG, "ip_output: nh_type=%s -> %s", type_name, next_node);
 	nh_type_edges[type] = gr_node_attach_parent("ip_output", next_node);
+}
+
+static rte_edge_t control_to_ip_output;
+
+int ip_output_send(struct rte_mbuf *m) {
+	return post_to_stack(control_to_ip_output, m);
 }
 
 static uint16_t
@@ -155,6 +162,10 @@ next:
 	return sent;
 }
 
+static void ip_output_register(void) {
+	control_to_ip_output = gr_control_input_register_handler("ip_output");
+}
+
 static struct rte_node_register output_node = {
 	.name = "ip_output",
 	.process = ip_output_process,
@@ -173,6 +184,7 @@ static struct rte_node_register output_node = {
 static struct gr_node_info info = {
 	.node = &output_node,
 	.type = GR_NODE_T_L3,
+	.register_callback = ip_output_register,
 	.trace_format = (gr_trace_format_cb_t)trace_ip_format,
 };
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "control_input.h"
 #include "graph.h"
 #include "iface.h"
 #include "log.h"
@@ -29,6 +30,12 @@ void iface_output_type_register(gr_iface_type_t type, const char *next_node) {
 		ABORT("next node already registered for iface type=%s", type_name);
 	LOG(DEBUG, "iface_output: iface_type=%s -> %s", type_name, next_node);
 	iface_type_edges[type] = gr_node_attach_parent("iface_output", next_node);
+}
+
+static rte_edge_t control_to_iface_output;
+
+int iface_output_send(struct rte_mbuf *m) {
+	return post_to_stack(control_to_iface_output, m);
 }
 
 struct iface_output_trace_data {
@@ -109,6 +116,10 @@ next:
 	return nb_objs;
 }
 
+static void iface_output_register(void) {
+	control_to_iface_output = gr_control_input_register_handler("iface_output");
+}
+
 static struct rte_node_register node = {
 	.name = "iface_output",
 
@@ -125,6 +136,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L1,
+	.register_callback = iface_output_register,
 	.trace_format = iface_output_trace_format,
 };
 

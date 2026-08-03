@@ -2,7 +2,6 @@
 // Copyright (c) 2025 Christophe Fontaine
 
 #include "config.h"
-#include "control_input.h"
 #include "control_queue.h"
 #include "eth.h"
 #include "event.h"
@@ -38,8 +37,6 @@ LOG_TYPE("ctlplane");
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
 static struct event_base *ev_base;
-
-static rte_edge_t iface_output;
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -176,8 +173,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		e->iface = iface;
 		e->domain = ETH_DOMAIN_LOOPBACK;
 
-		if (post_to_stack(loopback_get_control_id(), mbuf) < 0) {
-			LOG(ERR, "post_to_stack loopback: %s", strerror(errno));
+		if (loopback_input_send(mbuf) < 0) {
+			LOG(ERR, "loopback_input_send: %s", strerror(errno));
 			goto err;
 		}
 
@@ -228,8 +225,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	iface_mbuf_data(mbuf)->iface = iface;
 	iface_mbuf_data(mbuf)->vlan_id = 0;
 
-	if (post_to_stack(iface_output, mbuf) < 0) {
-		LOG(ERR, "post_to_stack: %s", strerror(errno));
+	if (iface_output_send(mbuf) < 0) {
+		LOG(ERR, "iface_output_send: %s", strerror(errno));
 		goto err;
 	}
 
@@ -526,7 +523,6 @@ static void cp_module_init(struct event_base *base) {
 		LOG(WARNING, "netlink_flush_cp_route_table: %s", strerror(errno));
 
 	ev_base = base;
-	iface_output = gr_control_input_register_handler("iface_output");
 }
 
 static struct module cp_module = {

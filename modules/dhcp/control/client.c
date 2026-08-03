@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
-#include "control_input.h"
 #include "control_queue.h"
 #include "dhcp.h"
+#include "eth.h"
 #include "iface.h"
 #include "ip4.h"
 #include "log.h"
@@ -27,7 +27,6 @@ LOG_TYPE("dhcp");
 
 static struct event_base *dhcp_ev_base;
 static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
-static rte_edge_t dhcp_output;
 
 bool dhcp_enabled(uint16_t iface_id) {
 	if (iface_id < GR_MAX_IFACES)
@@ -109,7 +108,7 @@ static int dhcp_send_request(struct dhcp_client *client) {
 	if (m == NULL)
 		return -errno;
 
-	if (post_to_stack(dhcp_output, m) < 0) {
+	if (eth_output_send(m) < 0) {
 		rte_pktmbuf_free(m);
 		return -errno;
 	}
@@ -126,7 +125,7 @@ static int dhcp_send_discover(struct dhcp_client *client) {
 	if (m == NULL)
 		return -errno;
 
-	if (post_to_stack(dhcp_output, m) < 0) {
+	if (eth_output_send(m) < 0) {
 		rte_pktmbuf_free(m);
 		return -errno;
 	}
@@ -399,8 +398,6 @@ free:
 
 static void dhcp_init(struct event_base *ev_base) {
 	dhcp_ev_base = ev_base;
-
-	dhcp_output = gr_control_input_register_handler("eth_output");
 }
 
 static int dhcp_start(uint16_t iface_id) {
