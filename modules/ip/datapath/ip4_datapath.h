@@ -30,7 +30,9 @@ void ip_input_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 void ip_input_local_add_proto(uint8_t proto, const char *next_node);
 void ip_output_register_interface_type(gr_iface_type_t type, const char *next_node);
 void ip_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
+int ip_output_send(struct rte_mbuf *m);
 int arp_output_request_solicit(struct nexthop *nh);
+int arp_output_reply_send(struct rte_mbuf *m);
 void arp_update_nexthop(
 	struct rte_graph *graph,
 	struct rte_node *node,

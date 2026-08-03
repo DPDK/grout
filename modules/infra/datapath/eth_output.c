@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "control_input.h"
 #include "eth.h"
 #include "graph.h"
 #include "iface.h"
@@ -16,6 +17,12 @@ enum {
 	NO_MAC,
 	NB_EDGES,
 };
+
+static rte_edge_t control_to_eth_output;
+
+int eth_output_send(struct rte_mbuf *m) {
+	return post_to_stack(control_to_eth_output, m);
+}
 
 static uint16_t
 eth_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
@@ -69,6 +76,10 @@ next:
 	return nb_objs;
 }
 
+static void eth_output_register(void) {
+	control_to_eth_output = gr_control_input_register_handler("eth_output");
+}
+
 static struct rte_node_register node = {
 	.name = "eth_output",
 
@@ -85,6 +96,7 @@ static struct rte_node_register node = {
 static struct gr_node_info info = {
 	.node = &node,
 	.type = GR_NODE_T_L2,
+	.register_callback = eth_output_register,
 	.trace_format = eth_trace_format,
 };
 

@@ -12,8 +12,8 @@ LOG_TYPE("graph");
 
 static rte_edge_t control_to_loopback_input;
 
-rte_edge_t loopback_get_control_id(void) {
-	return control_to_loopback_input;
+int loopback_input_send(struct rte_mbuf *m) {
+	return post_to_stack(control_to_loopback_input, m);
 }
 
 enum {

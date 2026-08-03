@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
-#include "control_input.h"
 #include "event.h"
 #include "icmp6.h"
 #include "iface.h"
@@ -24,7 +23,6 @@ LOG_TYPE("ra");
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800
 
-static rte_edge_t ra_output;
 static struct event_base *ev_base;
 
 struct ra_iface_conf {
@@ -177,7 +175,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 		}
 		mbuf_data(m)->iface = iface;
 		build_ra_packet(m, &l3->ipv6);
-		if (post_to_stack(ra_output, m) < 0) {
+		if (ip6_output_send(m) < 0) {
 			rte_pktmbuf_free(m);
 			LOG(ERR, "post_to_stack: %s", strerror(errno));
 		}
@@ -186,7 +184,6 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 
 static void ra_init(struct event_base *base) {
 	ev_base = base;
-	ra_output = gr_control_input_register_handler("ip6_output");
 }
 
 static struct module ra_module = {

@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "control_input.h"
 #include "iface.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "l3.h"
 #include "log.h"
-#include "module.h"
 
 #include <gr_clock.h>
 #include <gr_net_types.h>
@@ -19,13 +17,12 @@
 
 LOG_TYPE("nexthop");
 
-static rte_edge_t ip_output_node;
-
 static int ip_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
 	d->nh = nh;
 	d->iface = NULL;
-	if (post_to_stack(ip_output_node, m) < 0) {
+
+	if (ip_output_send(m) < 0) {
 		LOG(ERR, "post_to_stack: %s", strerror(errno));
 		return -errno;
 	}
@@ -126,8 +123,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static rte_edge_t arp_output_reply_node;
-
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct nexthop_info_l3 *l3;
 	const struct iface *iface;
@@ -192,7 +187,7 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
 		d->local = local;
 		d->iface = iface;
-		if (post_to_stack(arp_output_reply_node, m) < 0) {
+		if (arp_output_reply_send(m) < 0) {
 			LOG(ERR, "post_to_stack: %s", strerror(errno));
 			goto free;
 		}
@@ -215,17 +210,6 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static void nh4_init(struct event_base *) {
-	ip_output_node = gr_control_input_register_handler("ip_output");
-	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply");
-}
-
-static struct module nh4_module = {
-	.name = "ip_nexthop",
-	.depends_on = "graph",
-	.init = nh4_init,
-};
-
 static struct nexthop_af_ops nh_ops = {
 	.resolve = nh4_resolve_cb,
 	.solicit = arp_output_request_solicit,
@@ -234,6 +218,5 @@ static struct nexthop_af_ops nh_ops = {
 };
 
 RTE_INIT(control_ip_init) {
-	module_register(&nh4_module);
 	nexthop_af_ops_register(GR_AF_IP4, &nh_ops);
 }
