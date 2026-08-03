@@ -23,7 +23,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static control_input_t ndp_solicit;
+static rte_edge_t ndp_solicit;
 
 int nh6_solicit(struct nexthop *nh) {
 	if (nh == NULL || nh->type != GR_NH_T_L3)
@@ -136,7 +136,7 @@ next:
 }
 
 static void ndp_output_solicit_register(void) {
-	ndp_solicit = gr_control_input_register_handler("ndp_ns_output", true);
+	ndp_solicit = gr_control_input_register_handler("ndp_ns_output");
 }
 
 static struct rte_node_register node = {

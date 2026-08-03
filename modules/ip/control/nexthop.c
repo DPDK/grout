@@ -19,7 +19,7 @@
 
 LOG_TYPE("nexthop");
 
-static control_input_t ip_output_node;
+static rte_edge_t ip_output_node;
 
 static int ip_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
@@ -126,7 +126,7 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-static control_input_t arp_output_reply_node;
+static rte_edge_t arp_output_reply_node;
 
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct nexthop_info_l3 *l3;
@@ -216,8 +216,8 @@ free:
 }
 
 static void nh4_init(struct event_base *) {
-	ip_output_node = gr_control_input_register_handler("ip_output", true);
-	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply", true);
+	ip_output_node = gr_control_input_register_handler("ip_output");
+	arp_output_reply_node = gr_control_input_register_handler("arp_output_reply");
 }
 
 static struct module nh4_module = {

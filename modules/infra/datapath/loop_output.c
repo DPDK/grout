@@ -4,6 +4,7 @@
 #include "control_output.h"
 #include "graph.h"
 #include "loopback.h"
+#include "mbuf.h"
 
 enum {
 	CONTROL_OUTPUT,

@@ -7,6 +7,7 @@
 #include "iface.h"
 #include "ip4.h"
 #include "log.h"
+#include "mbuf.h"
 #include "module.h"
 #include "nexthop.h"
 
@@ -26,7 +27,7 @@ LOG_TYPE("dhcp");
 
 static struct event_base *dhcp_ev_base;
 static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
-static control_input_t dhcp_output;
+static rte_edge_t dhcp_output;
 
 bool dhcp_enabled(uint16_t iface_id) {
 	if (iface_id < GR_MAX_IFACES)
@@ -399,7 +400,7 @@ free:
 static void dhcp_init(struct event_base *ev_base) {
 	dhcp_ev_base = ev_base;
 
-	dhcp_output = gr_control_input_register_handler("eth_output", true);
+	dhcp_output = gr_control_input_register_handler("eth_output");
 }
 
 static int dhcp_start(uint16_t iface_id) {

@@ -39,7 +39,7 @@ LOG_TYPE("ctlplane");
 
 static struct event_base *ev_base;
 
-static control_input_t iface_output;
+static rte_edge_t iface_output;
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
 	int fd = event_get_fd(ev);
@@ -520,7 +520,7 @@ static void cp_module_init(struct event_base *base) {
 		LOG(WARNING, "netlink_flush_cp_route_table: %s", strerror(errno));
 
 	ev_base = base;
-	iface_output = gr_control_input_register_handler("iface_output", true);
+	iface_output = gr_control_input_register_handler("iface_output");
 }
 
 static struct module cp_module = {

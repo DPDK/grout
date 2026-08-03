@@ -21,7 +21,7 @@ GR_MBUF_PRIV_DATA_TYPE(ndp_na_mbuf_data, {
 	const struct nexthop *remote;
 });
 
-static control_input_t na_output;
+static rte_edge_t na_output;
 
 int nh6_advertise(const struct nexthop *local, const struct nexthop *remote) {
 	struct ndp_na_mbuf_data *d;
@@ -121,7 +121,7 @@ static uint16_t ndp_na_output_process(
 }
 
 static void ndp_na_output_register(void) {
-	na_output = gr_control_input_register_handler("ndp_na_output", true);
+	na_output = gr_control_input_register_handler("ndp_na_output");
 }
 
 static struct rte_node_register node = {

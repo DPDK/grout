@@ -28,7 +28,7 @@ GR_MBUF_PRIV_DATA_TYPE(icmp_send_mbuf_data, {
 	uint8_t ttl;
 });
 
-static control_input_t ip4_icmp_request;
+static rte_edge_t ip4_icmp_request;
 
 int icmp_local_send(
 	uint16_t vrf_id,
@@ -136,7 +136,7 @@ static uint16_t icmp_local_send_process(
 }
 
 static void icmp_local_send_register(void) {
-	ip4_icmp_request = gr_control_input_register_handler("icmp_local_send", true);
+	ip4_icmp_request = gr_control_input_register_handler("icmp_local_send");
 }
 
 static struct rte_node_register icmp_local_send_node = {

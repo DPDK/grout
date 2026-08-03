@@ -15,7 +15,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static control_input_t lacp_output;
+static rte_edge_t lacp_output;
 
 int lacp_send_pdu(const struct iface *iface, const struct lacp_pdu *pdu) {
 	struct lacp_pdu *p;
@@ -77,7 +77,7 @@ static struct rte_node_register node = {
 };
 
 static void lacp_output_register(void) {
-	lacp_output = gr_control_input_register_handler("lacp_output", true);
+	lacp_output = gr_control_input_register_handler("lacp_output");
 }
 
 static struct gr_node_info info = {

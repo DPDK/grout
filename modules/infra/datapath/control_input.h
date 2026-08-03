@@ -3,17 +3,13 @@
 
 #pragma once
 
-#include "mbuf.h"
-
 #include <rte_common.h>
+#include <rte_graph.h>
+#include <rte_mbuf.h>
 
-GR_MBUF_PRIV_DATA_TYPE(control_input_mbuf_data, { void *data; });
+rte_edge_t gr_control_input_register_handler(const char *node_name);
 
-typedef uint8_t control_input_t;
-
-control_input_t gr_control_input_register_handler(const char *node_name, bool data_is_mbuf);
-
-__rte_warn_unused_result int post_to_stack(control_input_t type, void *data);
+__rte_warn_unused_result int post_to_stack(rte_edge_t edge, struct rte_mbuf *m);
 
 // True if the control input ring has packets waiting to be drained by a worker.
 bool control_input_pending(void);

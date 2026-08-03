@@ -24,7 +24,7 @@ LOG_TYPE("ra");
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800
 
-static control_input_t ra_output;
+static rte_edge_t ra_output;
 static struct event_base *ev_base;
 
 struct ra_iface_conf {
@@ -186,7 +186,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 
 static void ra_init(struct event_base *base) {
 	ev_base = base;
-	ra_output = gr_control_input_register_handler("ip6_output", true);
+	ra_output = gr_control_input_register_handler("ip6_output");
 }
 
 static struct module ra_module = {
