@@ -51,6 +51,7 @@ jobs:
           - compiler: gcc-14
             dpdk: '25.11-head'
             frr: '10.5'
+            allow_fail: true
           - compiler: gcc-14
             dpdk: 'main'
             frr: '10.5'
