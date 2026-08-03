@@ -37,7 +37,6 @@ LOG_TYPE("ctlplane");
 
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
-static struct rte_mempool *cp_pool;
 static struct event_base *ev_base;
 
 static control_input_t iface_output;
@@ -120,7 +119,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(cp_pool);
+	mbuf = rte_pktmbuf_alloc(iface->pool);
 	if (!mbuf) {
 		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
 		goto err;
@@ -341,6 +340,13 @@ static void cp_create(struct iface *iface) {
 		sysctl_write("net/ipv4/conf", iface, "rp_filter", "2");
 	}
 
+	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
+	if (iface->pool == NULL) {
+		LOG(ERR, "gr_pktmbuf_pool_get: %s", strerror(errno));
+		goto err;
+	}
+	iface->pool_size = RTE_GRAPH_BURST_SIZE;
+
 	iface->cp_ev = event_new(
 		ev_base,
 		iface->cp_fd,
@@ -359,6 +365,10 @@ static void cp_create(struct iface *iface) {
 	return;
 
 err:
+	if (iface->pool != NULL) {
+		gr_pktmbuf_pool_release(iface->pool, iface->pool_size);
+		iface->pool = NULL;
+	}
 	if (iface->cp_fd > 0)
 		close(iface->cp_fd);
 	if (ioctl_sock > 0)
@@ -368,6 +378,10 @@ err:
 static void cp_delete(struct iface *iface) {
 	if (iface->cp_ev)
 		event_free_finalize(0, iface->cp_ev, finalize_fd);
+	if (iface->pool != NULL) {
+		gr_pktmbuf_pool_release(iface->pool, iface->pool_size);
+		iface->pool = NULL;
+	}
 }
 
 static void cp_set_speed(struct iface *iface) {
@@ -511,22 +525,14 @@ static void cp_module_init(struct event_base *base) {
 	if (netlink_flush_cp_route_table() < 0)
 		LOG(WARNING, "netlink_flush_cp_route_table: %s", strerror(errno));
 
-	cp_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
-	if (!cp_pool)
-		ABORT("pktmbuf_pool returned NULL");
 	ev_base = base;
 	iface_output = gr_control_input_register_handler("iface_output", true);
-}
-
-static void cp_module_fini(struct event_base *) {
-	gr_pktmbuf_pool_release(cp_pool, RTE_GRAPH_BURST_SIZE);
 }
 
 static struct module cp_module = {
 	.name = "controlplane",
 	.depends_on = "graph,mempool",
 	.init = cp_module_init,
-	.fini = cp_module_fini,
 };
 
 RTE_INIT(cp_constructor) {
