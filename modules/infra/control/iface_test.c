@@ -16,6 +16,8 @@
 #include "vrf.h"
 #include "worker.h"
 
+#include <control_queue.h>
+
 // mocked types/functions
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);

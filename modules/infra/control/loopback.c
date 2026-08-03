@@ -34,7 +34,6 @@ LOG_TYPE("loopback");
 // TUN device naming pattern: gr-loop{iface_id}
 #define GR_LOOPBACK_TUN_NAME_PATTERN GR_LOOPBACK_TUN_NAME_PREFIX "%d"
 
-static struct rte_mempool *loopback_pool;
 static struct event_base *ev_base;
 
 static void finalize_fd(struct event *ev, void * /*priv*/) {
@@ -120,7 +119,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(loopback_pool);
+	mbuf = rte_pktmbuf_alloc(iface->pool);
 	if (!mbuf) {
 		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
 		goto err;
@@ -246,6 +245,13 @@ int iface_loopback_create(struct iface *iface) {
 		goto err;
 	}
 
+	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
+	if (iface->pool == NULL) {
+		LOG(ERR, "gr_pktmbuf_pool_get: %s", strerror(errno));
+		goto err;
+	}
+	iface->pool_size = RTE_GRAPH_BURST_SIZE;
+
 	iface->cp_ev = event_new(
 		ev_base,
 		iface->cp_fd,
@@ -268,6 +274,10 @@ err:
 	}
 	if (iface->cp_fd > 0)
 		close(iface->cp_fd);
+	if (iface->pool != NULL) {
+		gr_pktmbuf_pool_release(iface->pool, iface->pool_size);
+		iface->pool = NULL;
+	}
 	if (ioctl_sock > 0)
 		close(ioctl_sock);
 	return errno_set(err_save);
@@ -275,25 +285,21 @@ err:
 
 int iface_loopback_destroy(struct iface *iface) {
 	event_free_finalize(0, iface->cp_ev, finalize_fd);
+	if (iface->pool != NULL) {
+		gr_pktmbuf_pool_release(iface->pool, iface->pool_size);
+		iface->pool = NULL;
+	}
 	return 0;
 }
 
 static void loopback_module_init(struct event_base *base) {
-	loopback_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
-	if (!loopback_pool)
-		ABORT("pktmbuf_pool returned NULL");
 	ev_base = base;
-}
-
-static void loopback_module_fini(struct event_base *) {
-	gr_pktmbuf_pool_release(loopback_pool, RTE_GRAPH_BURST_SIZE);
 }
 
 static struct module loopback_module = {
 	.name = "iface_loopback",
 	.depends_on = "mempool",
 	.init = loopback_module_init,
-	.fini = loopback_module_fini,
 };
 
 RTE_INIT(loopback_constructor) {

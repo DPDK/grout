@@ -26,6 +26,8 @@ struct __rte_cache_aligned iface {
 	int cp_id; // Control plane (Linux) port ID
 	int cp_fd; // control plane fd
 	struct event *cp_ev; // libevent to poll cp_fd
+	struct rte_mempool *pool;
+	uint32_t pool_size;
 	unsigned promisc;
 	bool user_promisc;
 	vec struct iface_mac *macs;
