@@ -24,7 +24,7 @@ enum {
 	EDGE_COUNT,
 };
 
-static control_input_t arp_solicit;
+static rte_edge_t arp_solicit;
 
 int arp_output_request_solicit(struct nexthop *nh) {
 	struct iface *iface;
@@ -156,7 +156,7 @@ next:
 }
 
 static void arp_output_request_register(void) {
-	arp_solicit = gr_control_input_register_handler("arp_output_request", true);
+	arp_solicit = gr_control_input_register_handler("arp_output_request");
 }
 
 static struct rte_node_register arp_output_request_node = {

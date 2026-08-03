@@ -10,9 +10,9 @@
 
 LOG_TYPE("graph");
 
-static control_input_t control_to_loopback_input;
+static rte_edge_t control_to_loopback_input;
 
-control_input_t loopback_get_control_id(void) {
+rte_edge_t loopback_get_control_id(void) {
 	return control_to_loopback_input;
 }
 
@@ -75,7 +75,7 @@ static struct rte_node_register loopback_input_node = {
 };
 
 static void loopback_input_register(void) {
-	control_to_loopback_input = gr_control_input_register_handler("loopback_input", true);
+	control_to_loopback_input = gr_control_input_register_handler("loopback_input");
 }
 
 static struct gr_node_info info = {

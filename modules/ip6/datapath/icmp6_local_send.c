@@ -29,7 +29,7 @@ GR_MBUF_PRIV_DATA_TYPE(icmp6_send_mbuf_data, {
 	uint8_t hop_limit;
 });
 
-static control_input_t ctl_icmp6_request;
+static rte_edge_t ctl_icmp6_request;
 
 // called from control context
 int icmp6_local_send(
@@ -134,7 +134,7 @@ static uint16_t icmp6_local_send_process(
 }
 
 static void icmp6_local_send_register(void) {
-	ctl_icmp6_request = gr_control_input_register_handler("icmp6_local_send", true);
+	ctl_icmp6_request = gr_control_input_register_handler("icmp6_local_send");
 }
 
 static struct rte_node_register icmp6_local_send_node = {

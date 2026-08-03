@@ -23,7 +23,7 @@
 
 LOG_TYPE("nexthop");
 
-static control_input_t ip6_output_node;
+static rte_edge_t ip6_output_node;
 
 static int ip6_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
@@ -265,7 +265,7 @@ free:
 }
 
 static void nh6_init(struct event_base *) {
-	ip6_output_node = gr_control_input_register_handler("ip6_output", true);
+	ip6_output_node = gr_control_input_register_handler("ip6_output");
 }
 
 static struct module nh6_module = {

@@ -11,7 +11,7 @@
 struct iface;
 
 void loopback_tx(void *obj, uintptr_t priv, const struct control_queue_drain *);
-control_input_t loopback_get_control_id(void);
+rte_edge_t loopback_get_control_id(void);
 void loopback_input_add_type(rte_be16_t eth_type, const char *next_node);
 int iface_loopback_create(struct iface *iface);
 int iface_loopback_destroy(struct iface *iface);

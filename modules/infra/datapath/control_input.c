@@ -6,7 +6,6 @@
 #include "graph.h"
 #include "log.h"
 #include "mbuf.h"
-#include "mempool.h"
 #include "trace.h"
 #include "worker.h"
 
@@ -18,31 +17,20 @@ enum {
 };
 
 struct gr_control_input_msg {
-	uint16_t type;
-	void *data;
-};
-
-struct control_input_edge {
 	rte_edge_t edge;
-	bool data_is_mbuf;
+	struct rte_mbuf *mbuf;
 };
 
 static struct rte_ring *control_input_ring;
 
-static control_input_t next_id = 0;
-static struct control_input_edge control_input_edges[1 << 8];
-
-control_input_t gr_control_input_register_handler(const char *node_name, bool data_is_mbuf) {
-	if (next_id == 0xff)
-		ABORT("control_input: max number of handlers reached");
-	LOG(DEBUG, "control_input: type=%hhu -> %s", next_id, node_name);
-	control_input_edges[next_id].edge = gr_node_attach_parent("control_input", node_name);
-	control_input_edges[next_id].data_is_mbuf = data_is_mbuf;
-	return next_id++;
+rte_edge_t gr_control_input_register_handler(const char *node_name) {
+	rte_edge_t edge = gr_node_attach_parent("control_input", node_name);
+	LOG(DEBUG, "control_input: edge=%u -> %s", edge, node_name);
+	return edge;
 }
 
-int post_to_stack(control_input_t type, void *data) {
-	struct gr_control_input_msg msg = {.type = type, .data = data};
+int post_to_stack(rte_edge_t edge, struct rte_mbuf *m) {
+	struct gr_control_input_msg msg = {.edge = edge, .mbuf = m};
 	int ret;
 
 	ret = rte_ring_enqueue_elem(control_input_ring, &msg, sizeof(msg));
@@ -67,7 +55,6 @@ static uint16_t control_input_process(
 	uint16_t /*nb_objs*/
 ) {
 	struct gr_control_input_msg msg[RTE_GRAPH_BURST_SIZE];
-	struct rte_mempool *mp;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t n;
@@ -80,41 +67,16 @@ static uint16_t control_input_process(
 		NULL
 	);
 
-	mp = node->ctx_ptr;
-
 	for (unsigned i = 0; i < n; i++) {
-		if (control_input_edges[msg[i].type].data_is_mbuf) {
-			mbuf = msg[i].data;
-		} else {
-			mbuf = rte_pktmbuf_alloc(mp);
-			if (!mbuf) {
-				LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
-				continue;
-			}
-			control_input_mbuf_data(mbuf)->data = msg[i].data;
-		}
+		mbuf = msg[i].mbuf;
+		edge = msg[i].edge;
 
 		if (gr_trace_all_enabled())
 			gr_mbuf_trace_add(mbuf, node, 0); // no data
-		edge = control_input_edges[msg[i].type].edge;
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return n;
-}
-
-static int control_input_init(const struct rte_graph *graph, struct rte_node *node) {
-	node->ctx_ptr = gr_pktmbuf_pool_get(graph->socket, RTE_GRAPH_BURST_SIZE);
-
-	if (node->ctx_ptr == NULL)
-		return errno_log(errno, "gr_pktmbuf_pool_get(control_input)");
-
-	return 0;
-}
-
-static void control_input_fini(const struct rte_graph *, struct rte_node *node) {
-	gr_pktmbuf_pool_release(node->ctx_ptr, RTE_GRAPH_BURST_SIZE);
-	node->ctx_ptr = NULL;
 }
 
 static void control_input_register(void) {
@@ -126,7 +88,7 @@ static void control_input_register(void) {
 		RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ
 	);
 	if (control_input_ring == NULL)
-		ABORT("rte_ring_create(arp_output_request): %s", rte_strerror(rte_errno));
+		ABORT("rte_ring_create(control_input): %s", rte_strerror(rte_errno));
 }
 
 static void control_input_unregister(void) {
@@ -139,8 +101,6 @@ static struct rte_node_register control_input_node = {
 	.process = control_input_process,
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {[UNKNOWN_CONTROL_INPUT_TYPE] = "control_input_unknown_type"},
-	.init = control_input_init,
-	.fini = control_input_fini,
 };
 
 static struct gr_node_info info = {
