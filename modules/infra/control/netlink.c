@@ -14,6 +14,7 @@
 
 #include <libmnl/libmnl.h>
 #include <linux/fib_rules.h>
+#include <linux/if_addr.h>
 #include <linux/if_link.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -483,6 +484,11 @@ static int netlink_add_del_addr(uint32_t ifindex, const void *addr, size_t addr_
 	ifa = mnl_nlmsg_put_extra_header(nlh, sizeof(*ifa));
 	ifa->ifa_family = is_ipv4 ? AF_INET : AF_INET6;
 	ifa->ifa_prefixlen = is_ipv4 ? 32 : 128;
+	// Disable DAD on control plane taps. Grout owns the addresses
+	// and DAD is meaningless on a local tap. Without this, the kernel
+	// re-runs DAD after link flaps, putting addresses in tentative state
+	// and causing sendmsg() to fail with EINVAL.
+	ifa->ifa_flags = is_ipv4 ? 0 : IFA_F_NODAD;
 	ifa->ifa_scope = RT_SCOPE_UNIVERSE;
 	ifa->ifa_index = ifindex;
 
