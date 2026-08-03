@@ -58,8 +58,8 @@ ip -n peer1 addr add 172.19.0.2/24 dev x-p1.43
 ip -n peer1 addr add fd03::2/64    dev x-p1.43
 
 for ns in peer0 peer1; do
-	ip netns exec $ns socat UDP4-LISTEN:9001,fork EXEC:'/bin/cat' &
-	ip netns exec $ns socat UDP6-LISTEN:9000,fork EXEC:'/bin/cat' &
+	ip netns exec $ns socat UDP4-RECVFROM:9001,fork EXEC:'/bin/cat' &
+	ip netns exec $ns socat UDP6-RECVFROM:9000,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat TCP4-LISTEN:9003,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat TCP6-LISTEN:9002,fork EXEC:'/bin/cat' &
 done
@@ -78,16 +78,16 @@ run_scenario() {
 	local src4="${5:-}"
 	local src6="${6:-}"
 	local proto dst port reply src_opt
-	for proto_port in "UDP4:9001" "UDP6:9000" "TCP4:9003" "TCP6:9002"; do
+	for proto_port in "UDP4-SENDTO:9001" "UDP6-SENDTO:9000" "TCP4:9003" "TCP6:9002"; do
 		proto=${proto_port%:*}
 		port=${proto_port#*:}
 		src_opt=""
 		case "$proto" in
-		*4)
+		*4*)
 			dst=$dst4
 			[ -n "$src4" ] && src_opt=",bind=$src4"
 			;;
-		*6)
+		*6*)
 			dst="[$dst6]"
 			[ -n "$src6" ] && src_opt=",bind=[$src6]"
 			;;
@@ -138,7 +138,7 @@ grout0_ll=$(llocal_addr p0)
 [ -z "$peer0_ll" ] && fail "peer0 link-local not found on x-p0"
 [ -z "$grout0_ll" ] && fail "grout link-local not found on p0"
 wait_kernel_addr "$grout0_ll" p0
-for proto_port in "UDP6:9000" "TCP6:9002"; do
+for proto_port in "UDP6-SENDTO:9000" "TCP6:9002"; do
 	proto=${proto_port%:*}
 	port=${proto_port#*:}
 	reply=$(echo "ping" | timeout 3 socat - \
