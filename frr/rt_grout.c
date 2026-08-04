@@ -264,6 +264,16 @@ static int grout_gr_nexthop_to_frr_nexthop(
 		case SR_BEHAVIOR_END:
 			action = ZEBRA_SEG6_LOCAL_ACTION_END;
 			break;
+		case SR_BEHAVIOR_END_X:
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+			action = ZEBRA_SEG6_LOCAL_ACTION_END_X;
+			memcpy(&ctx.nh6, &sr6->endx_addr, sizeof(ctx.nh6));
+			ctx.ifindex = ifindex_grout_to_frr(gr_nh->iface_id);
+			break;
+#else
+			gr_log_err("unsupported srv6 behavior end.x");
+			return -1;
+#endif
 		case SR_BEHAVIOR_END_T:
 			action = ZEBRA_SEG6_LOCAL_ACTION_END_T;
 			break;
@@ -803,6 +813,16 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			sr6_local->behavior = SR_BEHAVIOR_END_DT46;
 			sr6_local->out_vrf_id = vrf_frr_to_grout(nh->nh_srv6->seg6local_ctx.table);
 			break;
+#if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
+		case ZEBRA_SEG6_LOCAL_ACTION_END_X:
+			sr6_local->behavior = SR_BEHAVIOR_END_X;
+			sr6_local->out_vrf_id = GR_VRF_ID_UNDEF;
+			req->nh.iface_id = ifindex_frr_to_grout(nh->nh_srv6->seg6local_ctx.ifindex);
+			memcpy(&sr6_local->endx_addr,
+			       &nh->nh_srv6->seg6local_ctx.nh6,
+			       sizeof(sr6_local->endx_addr));
+			break;
+#endif
 		default:
 			gr_log_err(
 				"unsupported seg6local action %u", nh->nh_srv6->seg6local_action

@@ -6,6 +6,7 @@
 #include "ip6_datapath.h"
 #include "l3.h"
 #include "mbuf.h"
+#include "nexthop.h"
 #include "srv6.h"
 
 #include <gr_infra.h>
@@ -17,6 +18,7 @@
 enum {
 	IP_INPUT = 0,
 	IP6_INPUT,
+	IP6_FORWARD,
 	IP6_LOCAL,
 	INVALID_PACKET,
 	UNEXPECTED_UPPER,
@@ -323,7 +325,8 @@ static inline bool csid_shift(struct rte_ipv6_addr *da, uint8_t block_bits, uint
 }
 
 //
-// End behavior
+// End/End.X behavior (RFC 8986 Section 4.1 and 4.10)
+// If nh_id is set in sr_d, uses explicit nexthop (END.X), otherwise FIB lookup (END)
 //
 static int process_behav_end(
 	struct rte_mbuf *m,
@@ -372,15 +375,23 @@ static int process_behav_end(
 		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[sr->segments_left];
 	}
 
-	// change input interface to the vrf we wish to go
 	if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
 		iface = get_vrf_iface(sr_d->out_vrf_id);
 		if (iface == NULL)
 			return DEST_UNREACH;
 		mbuf_data(m)->iface = iface;
 	}
-	eth_input_mbuf_data(m)->domain = ETH_DOMAIN_LOCAL;
 
+	// END.X: set explicit nexthop and go directly to ip6_forward (bypass FIB lookup)
+	if (sr_d->behavior == SR_BEHAVIOR_END_X) {
+		if (sr_d->l3_nh == NULL)
+			return DEST_UNREACH;
+		l3_mbuf_data(m)->nh = sr_d->l3_nh;
+		return IP6_FORWARD;
+	}
+
+	// END: go to ip6_input for FIB lookup
+	eth_input_mbuf_data(m)->domain = ETH_DOMAIN_LOCAL;
 	return IP6_INPUT;
 }
 
@@ -392,6 +403,7 @@ static inline rte_edge_t srv6_local_process_pkt(
 	switch (sr_d->behavior) {
 	case SR_BEHAVIOR_END:
 	case SR_BEHAVIOR_END_T:
+	case SR_BEHAVIOR_END_X:
 		return process_behav_end(m, sr_d, ip6_info);
 
 	case SR_BEHAVIOR_END_DT4:
@@ -454,6 +466,7 @@ static struct rte_node_register srv6_local_node = {
 	.next_nodes = {
 		[IP_INPUT] = "ip_input",
 		[IP6_INPUT] = "ip6_input",
+		[IP6_FORWARD] = "ip6_forward",
 		[IP6_LOCAL] = "ip6_input_local",
 		[INVALID_PACKET] = "sr6_local_invalid",
 		[UNEXPECTED_UPPER] = "sr6_local_unexpected_upper",
@@ -487,6 +500,8 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void, ip6_input_register_nexthop_type(gr_nh_type_t, const char *));
 mock_func(struct iface *, get_vrf_iface(uint16_t));
+mock_func(struct iface *, iface_from_id(uint16_t));
+mock_func(struct nexthop *, nexthop_lookup_id(uint32_t));
 
 struct ipv6_ext_base {
 	uint8_t next_hdr;

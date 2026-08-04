@@ -64,6 +64,7 @@ GR_REQ(GR_SRV6_TUNSRC_SHOW, struct gr_empty, struct gr_srv6_tunsrc_show_resp);
 // Flavors (PSP/USD) are defined as separate flags.
 typedef enum : uint16_t {
 	SR_BEHAVIOR_END = 0x0001, // Endpoint function.
+	SR_BEHAVIOR_END_X = 0x0005, // Endpoint with L3 cross-connect.
 	SR_BEHAVIOR_END_T = 0x0009, // Endpoint function with specific table.
 	SR_BEHAVIOR_END_DT6 = 0x0012, // Decaps and IPv6 table lookup.
 	SR_BEHAVIOR_END_DT4 = 0x0013, // Decaps and IPv4 table lookup.
@@ -75,6 +76,8 @@ static inline const char *gr_srv6_behavior_name(gr_srv6_behavior_t b) {
 	switch (b) {
 	case SR_BEHAVIOR_END:
 		return "end";
+	case SR_BEHAVIOR_END_X:
+		return "end.x";
 	case SR_BEHAVIOR_END_T:
 		return "end.t";
 	case SR_BEHAVIOR_END_DT6:
@@ -102,4 +105,5 @@ struct gr_nexthop_info_srv6_local {
 	gr_srv6_flags_t flags;
 	uint8_t block_bits; // Locator-block length in bits (default 32).
 	uint8_t csid_bits; // Compressed SID length in bits (default 16).
+	struct rte_ipv6_addr endx_addr; // END_X: L3 nexthop address (on base iface).
 };
