@@ -268,14 +268,21 @@ netlink_fail:
 }
 
 static int iface_vrf_fini(struct iface *iface) {
+	int ret = 0;
+
 	for (unsigned af = 0; af < ARRAY_DIM(fib_ops); af++)
 		if (fib_ops[af] != NULL)
 			fib_ops[af]->fini(iface);
 
+	// Always destroy the loopback, even if the netlink cleanup failed,
+	// otherwise its polling event would be leaked.
 	if (netlink_vrf_del(iface) < 0)
-		return -errno;
+		ret = -errno;
 
-	return iface_loopback_destroy(iface);
+	if (iface_loopback_destroy(iface) < 0 && ret == 0)
+		ret = -errno;
+
+	return ret;
 }
 
 static int iface_vrf_reconfig(
