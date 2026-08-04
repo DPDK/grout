@@ -2,127 +2,92 @@
 // Copyright (c) 2025 Olivier Gournet
 
 #include "event.h"
-#include "icmp6.h"
+#include "icmp_session.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "log.h"
 #include "module.h"
-#include "sys_queue.h"
 
 #include <gr_api.h>
 #include <gr_ip6.h>
+#include <gr_macro.h>
 
-struct icmp_queue_item {
-	struct rte_mbuf *mbuf;
-	gr_clock_ns_t timestamp;
-	STAILQ_ENTRY(icmp_queue_item) next;
-};
+#include <icmp6.h>
 
-static STAILQ_HEAD(, icmp_queue_item) icmp_queue = STAILQ_HEAD_INITIALIZER(icmp_queue);
-static struct rte_mempool *pool;
+static struct icmp_session_pool *sessions;
 
-static void icmp6_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
-	STAILQ_REMOVE(&icmp_queue, i, icmp_queue_item, next);
-	if (free_mbuf)
-		rte_pktmbuf_free(i->mbuf);
-	rte_mempool_put(pool, i);
-}
+// Navigate to the inner ICMPv6 echo header carrying ident+seqnum.
+// For echo replies, that is the echo body right after the outer ICMPv6 header.
+// For error messages, the original echo request is embedded after the outer
+// ICMPv6 header + error body + original IPv6 header.
+static struct icmp6_echo_reply *icmp6_inner_echo(struct rte_mbuf *m, struct icmp6 **outer) {
+	struct ip6_local_mbuf_data *data = ip6_local_mbuf_data(m);
+	struct icmp6 *hdr = rte_pktmbuf_mtod(m, struct icmp6 *);
+	struct icmp6_echo_reply *echo;
 
-// called from dataplane context
-static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
-	struct icmp_queue_item *i;
-	void *data;
+	*outer = hdr;
 
-	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE
-	    && mbuf_data(m)->iface == drain->obj) {
-		rte_pktmbuf_free(m);
-		return;
+	if (hdr->type == ICMP6_TYPE_ECHO_REPLY) {
+		// GR_ICMP6_HDR_LEN already covers the echo ident+seqnum.
+		if (data->len < GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
+			return errno_set_null(EMSGSIZE);
+		return PAYLOAD(hdr);
 	}
 
-	while (rte_mempool_get(pool, &data) < 0)
-		icmp6_queue_pop(STAILQ_FIRST(&icmp_queue), true);
+	// ICMPv6 error packet: find embedded original IPv6 packet, and use
+	// it if it's our original echo request.
+	// ICMPv6 error header (8) + original IPv6 header (40) + inner
+	// ICMPv6 header (8, includes echo ident+seqnum).
+	if (data->len < GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN)
+		return errno_set_null(EMSGSIZE);
 
-	i = data;
-	i->mbuf = m;
-	i->timestamp = timestamp;
-	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
+	echo = PAYLOAD(hdr);
+	struct rte_ipv6_hdr *ip6 = PAYLOAD(echo);
+	if (ip6->proto != IPPROTO_ICMPV6)
+		return errno_set_null(EBADMSG);
+
+	hdr = PAYLOAD(ip6);
+	if (hdr->type != ICMP6_TYPE_ECHO_REQUEST)
+		return errno_set_null(EBADMSG);
+
+	return PAYLOAD(hdr);
+}
+
+// The echo reply payload contains the timestamp from the original request.
+// ICMPv6 errors only carry the original packet header + 8 bytes of data
+// (the ICMPv6 + echo header) so the timestamp is not available.
+static int icmp6_extract_info(
+	struct rte_mbuf *m,
+	rte_be16_t *ident,
+	rte_be16_t *seq_num,
+	gr_clock_ns_t *timestamp
+) {
+	struct icmp6_echo_reply *echo;
+	struct icmp6 *outer = NULL;
+
+	echo = icmp6_inner_echo(m, &outer);
+	if (echo == NULL)
+		return errno_set(EBADMSG);
+
+	*ident = echo->ident;
+	*seq_num = echo->seqnum;
+
+	if (outer->type == ICMP6_TYPE_ECHO_REPLY) {
+		gr_clock_ns_t *ts = PAYLOAD(echo);
+		*timestamp = *ts;
+	} else {
+		*timestamp = 0;
+	}
+	return 0;
+}
+
+static void icmp6_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
+	icmp_session_input(sessions, m, timestamp, drain);
 }
 
 static void icmp6_event_cb(uint32_t ev_type, const void *obj) {
-	struct icmp_queue_item *i, *tmp;
-
-	if (ev_type == GR_EVENT_IFACE_REMOVE) {
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-			if (mbuf_data(i->mbuf)->iface == obj)
-				icmp6_queue_pop(i, true);
-		}
-	}
-}
-
-#define ICMP6_QUEUE_TIMEOUT (10 * GR_NS_PER_S)
-
-static void icmp6_queue_gc(evutil_socket_t, short, void *) {
-	gr_clock_ns_t now = gr_clock_ns();
-	struct icmp_queue_item *i, *tmp;
-
-	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-		if (now - i->timestamp >= ICMP6_QUEUE_TIMEOUT)
-			icmp6_queue_pop(i, true);
-	}
-}
-
-#define ICMP6_ERROR_PKT_LEN                                                                        \
-	(GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr) + GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
-
-static struct rte_mbuf *get_icmp6_echo_reply(
-	uint16_t ident,
-	uint16_t seq_num,
-	struct icmp6 **out_icmp6,
-	gr_clock_ns_t *timestamp
-) {
-	struct icmp_queue_item *i, *tmp;
-	struct rte_mbuf *mbuf;
-	struct icmp6 *icmp6;
-	struct icmp6_echo_reply *icmp6_echo;
-	struct rte_ipv6_hdr *ip6;
-
-	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-		mbuf = i->mbuf;
-
-		if (rte_pktmbuf_pkt_len(mbuf) < GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
-			goto free_and_skip;
-
-		icmp6 = rte_pktmbuf_mtod(mbuf, struct icmp6 *);
-		icmp6_echo = PAYLOAD(icmp6);
-
-		// icmpv6 error packet: find embedded origin ipv6 packet, and use
-		// it if it's our original echo request
-		if (icmp6->type != ICMP6_TYPE_ECHO_REPLY) {
-			if (rte_pktmbuf_pkt_len(mbuf) < ICMP6_ERROR_PKT_LEN)
-				goto free_and_skip;
-			ip6 = PAYLOAD(icmp6_echo);
-			if (ip6->proto != IPPROTO_ICMPV6)
-				goto free_and_skip;
-			icmp6 = PAYLOAD(ip6);
-			icmp6_echo = PAYLOAD(icmp6);
-			if (icmp6->type != ICMP6_TYPE_ECHO_REQUEST)
-				goto free_and_skip;
-		}
-
-		if (rte_be_to_cpu_16(icmp6_echo->ident) == ident
-		    && rte_be_to_cpu_16(icmp6_echo->seqnum) == seq_num) {
-			icmp6_queue_pop(i, false);
-			*out_icmp6 = icmp6;
-			*timestamp = i->timestamp;
-			return mbuf;
-		}
-
-		continue;
-free_and_skip:
-		icmp6_queue_pop(i, true);
-	}
-
-	return errno_set_null(ENOENT);
+	if (ev_type == GR_EVENT_IFACE_REMOVE)
+		icmp_session_iface_remove(sessions, obj);
 }
 
 static struct api_out icmp6_send(const void *request, struct api_ctx *) {
@@ -133,91 +98,74 @@ static struct api_out icmp6_send(const void *request, struct api_ctx *) {
 	if ((nh = fib6_lookup(req->vrf, req->iface, &req->addr, req->ident)) == NULL)
 		return api_out(errno, 0, NULL);
 
+	ret = icmp_session_add(sessions, req->ident, req->seq_num);
+	if (ret < 0)
+		return api_out(-ret, 0, NULL);
+
 	ret = icmp6_local_send(&req->addr, nh, req->ident, req->seq_num, req->ttl);
-	return api_out(ret, 0, NULL);
+	if (ret != 0) {
+		icmp_session_del(sessions, req->ident, req->seq_num);
+		return api_out(ret, 0, NULL);
+	}
+
+	return api_out(0, 0, NULL);
 }
 
 static struct api_out icmp6_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip6_icmp_recv_req *recvreq = request;
-	gr_clock_ns_t *pkt_timestamp, rcv_timestamp;
-	struct icmp6_echo_reply *icmp6_echo;
 	struct gr_ip6_icmp_recv_resp *resp;
 	struct ip6_local_mbuf_data *d_ip6;
-	struct icmp6 *icmp6;
+	struct icmp6_echo_reply *echo;
+	gr_clock_ns_t response_time;
+	struct icmp6 *outer;
 	struct rte_mbuf *m;
-	int ret = 0;
 
-	m = get_icmp6_echo_reply(recvreq->ident, recvreq->seq_num, &icmp6, &rcv_timestamp);
+	m = icmp_session_recv(sessions, recvreq->ident, recvreq->seq_num, &response_time);
 	if (m == NULL)
 		return api_out(errno, 0, NULL);
 
-	d_ip6 = ip6_local_mbuf_data(m);
-	icmp6_echo = PAYLOAD(icmp6);
-	pkt_timestamp = PAYLOAD(icmp6_echo);
-
-	if ((resp = calloc(1, sizeof(*resp))) == NULL)
+	if ((resp = calloc(1, sizeof(*resp))) == NULL) {
+		rte_pktmbuf_free(m);
 		return api_out(ENOMEM, 0, NULL);
+	}
+
+	d_ip6 = ip6_local_mbuf_data(m);
+	echo = icmp6_inner_echo(m, &outer);
+
 	resp->src_addr = d_ip6->src;
 	resp->ttl = d_ip6->hop_limit;
-	resp->ident = rte_be_to_cpu_16(icmp6_echo->ident);
-	resp->seq_num = rte_be_to_cpu_16(icmp6_echo->seqnum);
-	resp->response_time = rcv_timestamp - *pkt_timestamp;
-	icmp6 = rte_pktmbuf_mtod(m, struct icmp6 *);
-	resp->type = icmp6->type;
-	resp->code = icmp6->code;
+	resp->type = outer->type;
+	resp->code = outer->code;
+	resp->ident = rte_be_to_cpu_16(echo->ident);
+	resp->seq_num = rte_be_to_cpu_16(echo->seqnum);
+	resp->response_time = response_time;
 
 	rte_pktmbuf_free(m);
-
-	return api_out(ret, sizeof(*resp), resp);
+	return api_out(0, sizeof(*resp), resp);
 }
 
-#define ICMP6_LOCAL_QUEUE_SIZE 1024
-static struct event *gc_timer;
+#define ICMP6_MAX_SESSIONS 1024
 
-static void icmp_init(struct event_base *ev_base) {
-	pool = rte_mempool_create(
-		"icmp6_queue",
-		ICMP6_LOCAL_QUEUE_SIZE,
-		sizeof(struct icmp_queue_item),
-		0, // cache size
-		0, // priv size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		0 // flags
+static void icmp6_init(struct event_base *ev_base) {
+	sessions = icmp_session_pool_new(
+		"icmp6_sessions", ICMP6_MAX_SESSIONS, icmp6_extract_info, ev_base
 	);
-	if (pool == NULL)
-		ABORT("rte_mempool_create(icmp6_queue) failed");
-
-	gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, icmp6_queue_gc, NULL);
-	if (gc_timer == NULL)
-		ABORT("event_new() failed");
-	if (event_add(gc_timer, &(struct timeval) {.tv_sec = 1}) < 0)
-		ABORT("event_add() failed");
+	if (sessions == NULL)
+		ABORT("icmp_session_pool_new() failed");
 }
 
-static void icmp_fini(struct event_base *) {
-	if (gc_timer)
-		event_free(gc_timer);
-
-	if (pool != NULL) {
-		struct icmp_queue_item *i, *tmp;
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp6_queue_pop(i, true);
-		rte_mempool_free(pool);
-		pool = NULL;
-	}
+static void icmp6_fini(struct event_base *) {
+	icmp_session_pool_free(sessions);
+	sessions = NULL;
 }
 
 static struct module icmp6_module = {
 	.name = "icmp6",
-	.init = icmp_init,
-	.fini = icmp_fini,
+	.init = icmp6_init,
+	.fini = icmp6_fini,
 };
 
-RTE_INIT(icmp_module_init) {
+RTE_INIT(icmp6_module_init) {
 	module_register(&icmp6_module);
 	api_handler(GR_IP6_ICMP6_SEND, icmp6_send);
 	api_handler(GR_IP6_ICMP6_RECV, icmp6_recv);
