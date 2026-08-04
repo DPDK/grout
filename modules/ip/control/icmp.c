@@ -2,168 +2,130 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include "event.h"
+#include "icmp_session.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "log.h"
 #include "module.h"
-#include "sys_queue.h"
 
 #include <gr_ip4.h>
+#include <gr_macro.h>
 
 #include <rte_icmp.h>
+#include <rte_ip.h>
 
-struct icmp_queue_item {
-	struct rte_mbuf *mbuf;
-	gr_clock_ns_t timestamp;
-	STAILQ_ENTRY(icmp_queue_item) next;
-};
+static struct icmp_session_pool *sessions;
 
-static STAILQ_HEAD(, icmp_queue_item) icmp_queue = STAILQ_HEAD_INITIALIZER(icmp_queue);
-static struct rte_mempool *pool;
+// Navigate to the inner ICMP header carrying ident+seq_num.
+// For echo replies, that is the outer header itself.
+// For error messages (Destination Unreachable, Time Exceeded), the original
+// echo request is embedded after the outer ICMP header + original IP header.
+static struct rte_icmp_hdr *icmp_inner_hdr(struct rte_mbuf *m) {
+	struct rte_icmp_hdr *icmp = rte_pktmbuf_mtod(m, struct rte_icmp_hdr *);
+	struct ip_local_mbuf_data *data = ip_local_mbuf_data(m);
 
-static void icmp_queue_pop(struct icmp_queue_item *i, bool free_mbuf) {
-	STAILQ_REMOVE(&icmp_queue, i, icmp_queue_item, next);
-	if (free_mbuf)
-		rte_pktmbuf_free(i->mbuf);
-	rte_mempool_put(pool, i);
+	if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY)
+		return icmp;
+
+	// RFC 792: Destination Unreachable or Time Exceeded
+	// The icmp_seq_nb and icmp_ident fields are unused.
+	// Jump to the next header which contains the original IP header.
+	struct rte_ipv4_hdr *ip;
+	size_t inner_ip_len;
+
+	// RFC 792: ICMP error header (8) + original IP
+	// header (20 min) + 8 bytes of original data.
+	if (data->len < sizeof(*icmp) + sizeof(*ip) + sizeof(*icmp))
+		return errno_set_null(EMSGSIZE);
+
+	ip = PAYLOAD(icmp);
+
+	if (ip->next_proto_id != IPPROTO_ICMP)
+		return errno_set_null(EBADMSG);
+
+	inner_ip_len = rte_ipv4_hdr_len(ip);
+	if (data->len < sizeof(*icmp) + inner_ip_len + sizeof(*icmp))
+		return errno_set_null(EMSGSIZE);
+
+	// Skip the original IP header (may have options) to
+	// find the original ICMP echo request.
+	icmp = RTE_PTR_ADD(ip, inner_ip_len);
+
+	if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REQUEST)
+		return errno_set_null(EBADMSG);
+
+	return icmp;
 }
 
-// Callback invoked by control plane for each ICMP packet received for a local address.
-// The packet is added at the end of a linked list.
-static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
-	struct icmp_queue_item *i;
-	void *data;
-
-	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE
-	    && mbuf_data(m)->iface == drain->obj) {
-		rte_pktmbuf_free(m);
-		return;
+// The echo reply payload contains the timestamp from the original request.
+// ICMP errors only carry 8 bytes of the original packet data (the ICMP
+// header) so the timestamp is not available.
+static int icmp_extract_info(
+	struct rte_mbuf *m,
+	rte_be16_t *ident,
+	rte_be16_t *seq_num,
+	gr_clock_ns_t *timestamp
+) {
+	struct rte_icmp_hdr *outer = rte_pktmbuf_mtod(m, struct rte_icmp_hdr *);
+	struct rte_icmp_hdr *inner = icmp_inner_hdr(m);
+	if (inner == NULL)
+		return errno_set(EBADMSG);
+	*ident = inner->icmp_ident;
+	*seq_num = inner->icmp_seq_nb;
+	if (outer->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY) {
+		gr_clock_ns_t *ts = PAYLOAD(inner);
+		*timestamp = *ts;
+	} else {
+		*timestamp = 0;
 	}
+	return 0;
+}
 
-	while (rte_mempool_get(pool, &data) < 0)
-		icmp_queue_pop(STAILQ_FIRST(&icmp_queue), true);
-
-	i = data;
-	i->mbuf = m;
-	i->timestamp = timestamp;
-	STAILQ_INSERT_TAIL(&icmp_queue, i, next);
+static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
+	icmp_session_input(sessions, m, timestamp, drain);
 }
 
 static void icmp_event_cb(uint32_t ev_type, const void *obj) {
-	struct icmp_queue_item *i, *tmp;
-
-	if (ev_type == GR_EVENT_IFACE_REMOVE) {
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-			if (mbuf_data(i->mbuf)->iface == obj)
-				icmp_queue_pop(i, true);
-		}
-	}
-}
-
-#define ICMP_QUEUE_TIMEOUT (10 * GR_NS_PER_S)
-
-static void icmp_queue_gc(evutil_socket_t, short, void *) {
-	gr_clock_ns_t now = gr_clock_ns();
-	struct icmp_queue_item *i, *tmp;
-
-	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-		if (now - i->timestamp >= ICMP_QUEUE_TIMEOUT)
-			icmp_queue_pop(i, true);
-	}
-}
-
-// Search for the oldest ICMP response matching the given identifier.
-// If found, the packet is removed from the queue.
-static struct rte_mbuf *
-get_icmp_response(uint16_t ident, uint16_t seq_num, gr_clock_ns_t *timestamp) {
-	struct icmp_queue_item *i, *tmp;
-	struct rte_mbuf *mbuf = NULL;
-
-	STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp) {
-		struct rte_icmp_hdr *icmp = rte_pktmbuf_mtod(i->mbuf, struct rte_icmp_hdr *);
-		struct ip_local_mbuf_data *data = ip_local_mbuf_data(i->mbuf);
-
-		if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REPLY) {
-			// RFC 792: Destination Unreachable or Time Exceeded
-			// The icmp_seq_nb and icmp_ident fields are unused.
-			// Jump to the next header which contains the original IP header
-			struct rte_ipv4_hdr *ip;
-			size_t inner_ip_len;
-
-			// RFC 792: ICMP error header (8) + original IP
-			// header (20 min) + 8 bytes of original data.
-			if (data->len < sizeof(*icmp) + sizeof(*ip) + sizeof(*icmp)) {
-				icmp_queue_pop(i, true);
-				continue;
-			}
-
-			ip = PAYLOAD(icmp);
-
-			if (ip->next_proto_id != IPPROTO_ICMP) {
-				// should not happen, but let's be safe.
-				icmp_queue_pop(i, true);
-				continue;
-			}
-
-			inner_ip_len = rte_ipv4_hdr_len(ip);
-			if (data->len < sizeof(*icmp) + inner_ip_len + sizeof(*icmp)) {
-				icmp_queue_pop(i, true);
-				continue;
-			}
-
-			icmp = RTE_PTR_ADD(ip, inner_ip_len);
-
-			if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REQUEST) {
-				// should not happen, but let's be safe.
-				icmp_queue_pop(i, true);
-				continue;
-			}
-		}
-
-		if (rte_be_to_cpu_16(icmp->icmp_ident) == ident
-		    && rte_be_to_cpu_16(icmp->icmp_seq_nb) == seq_num) {
-			mbuf = i->mbuf;
-			*timestamp = i->timestamp;
-			icmp_queue_pop(i, false);
-			return mbuf;
-		}
-	}
-
-	return errno_set_null(ENOENT);
+	if (ev_type == GR_EVENT_IFACE_REMOVE)
+		icmp_session_iface_remove(sessions, obj);
 }
 
 static struct api_out icmp_send(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_send_req *req = request;
 	const struct nexthop *nh;
-	int ret = 0;
+	int ret;
 
-	if ((nh = fib4_lookup(req->vrf, req->addr, req->ident)) == NULL) {
-		ret = -errno;
-		goto out;
-	}
+	if ((nh = fib4_lookup(req->vrf, req->addr, req->ident)) == NULL)
+		return api_out(errno, 0, NULL);
+
+	ret = icmp_session_add(sessions, req->ident, req->seq_num);
+	if (ret < 0)
+		return api_out(-ret, 0, NULL);
 
 	ret = icmp_local_send(req->vrf, req->addr, nh, req->ident, req->seq_num, req->ttl);
-out:
-	return api_out(-ret, 0, NULL);
+	if (ret != 0) {
+		icmp_session_del(sessions, req->ident, req->seq_num);
+		return api_out(ret, 0, NULL);
+	}
+
+	return api_out(0, 0, NULL);
 }
 
 static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	const struct gr_ip4_icmp_recv_req *icmp_req = request;
 	struct gr_ip4_icmp_recv_resp *resp = NULL;
 	struct ip_local_mbuf_data *ip_data;
-	gr_clock_ns_t rcv_timestamp;
+	gr_clock_ns_t response_time;
 	struct rte_icmp_hdr *icmp;
 	struct rte_mbuf *m;
-	size_t len = 0;
-	int ret = 0;
 
-	m = get_icmp_response(icmp_req->ident, icmp_req->seq_num, &rcv_timestamp);
+	m = icmp_session_recv(sessions, icmp_req->ident, icmp_req->seq_num, &response_time);
 	if (m == NULL)
 		return api_out(errno, 0, NULL);
 
 	if ((resp = calloc(1, sizeof(*resp))) == NULL) {
-		ret = ENOMEM;
-		goto out;
+		rte_pktmbuf_free(m);
+		return api_out(ENOMEM, 0, NULL);
 	}
 
 	ip_data = ip_local_mbuf_data(m);
@@ -172,74 +134,31 @@ static struct api_out icmp_recv(const void *request, struct api_ctx *) {
 	resp->ttl = ip_data->ttl;
 	resp->type = icmp->icmp_type;
 	resp->code = icmp->icmp_code;
+	resp->response_time = response_time;
 
-	if (icmp->icmp_type != RTE_ICMP_TYPE_ECHO_REPLY) {
-		// RFC 792: Destination Unreachable or Time Exceeded
-		// The icmp_seq_nb and icmp_ident fields are unused.
-		// Jump to the next header which contains the original IP header
-		struct rte_ipv4_hdr *ip = PAYLOAD(icmp);
-		// Skip the original IP header (may have options) to
-		// find the original ICMP payload.
-		icmp = RTE_PTR_ADD(ip, rte_ipv4_hdr_len(ip));
-	}
-
-	// icmp either points to an echo request or reply (checked in get_icmp_response())
+	// icmp_inner_hdr() navigates to the inner header carrying ident+seq_num
+	// (checked by icmp_get_key in icmp_session_input)
+	icmp = icmp_inner_hdr(m);
 	resp->ident = rte_be_to_cpu_16(icmp->icmp_ident);
 	resp->seq_num = rte_be_to_cpu_16(icmp->icmp_seq_nb);
 
-	if (resp->type == RTE_ICMP_TYPE_ECHO_REPLY) {
-		// The echo reply payload contains the timestamp from the
-		// original request. ICMP errors only carry 8 bytes of the
-		// original packet data (the ICMP header) so the timestamp
-		// is not available.
-		gr_clock_ns_t *pkt_timestamp = PAYLOAD(icmp);
-		resp->response_time = rcv_timestamp - *pkt_timestamp;
-	}
-
-	len = sizeof(*resp);
-out:
 	rte_pktmbuf_free(m);
-	return api_out(ret, len, resp);
+	return api_out(0, sizeof(*resp), resp);
 }
 
-#define ICMP_LOCAL_QUEUE_SIZE 1024
-static struct event *gc_timer;
+#define ICMP_MAX_SESSIONS 1024
 
 static void icmp_init(struct event_base *ev_base) {
-	pool = rte_mempool_create(
-		"icmp_queue", // name
-		ICMP_LOCAL_QUEUE_SIZE,
-		sizeof(struct icmp_queue_item),
-		0, // cache size
-		0, // priv size
-		NULL, // mp_init
-		NULL, // mp_init_arg
-		NULL, // obj_init
-		NULL, // obj_init_arg
-		SOCKET_ID_ANY,
-		0 // flags
+	sessions = icmp_session_pool_new(
+		"icmp_sessions", ICMP_MAX_SESSIONS, icmp_extract_info, ev_base
 	);
-	if (pool == NULL)
-		ABORT("rte_mempool_create(icmp_queue) failed");
-
-	gc_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, icmp_queue_gc, NULL);
-	if (gc_timer == NULL)
-		ABORT("event_new() failed");
-	if (event_add(gc_timer, &(struct timeval) {.tv_sec = 1}) < 0)
-		ABORT("event_add() failed");
+	if (sessions == NULL)
+		ABORT("icmp_session_pool_new() failed");
 }
 
 static void icmp_fini(struct event_base *) {
-	if (gc_timer)
-		event_free(gc_timer);
-
-	if (pool != NULL) {
-		struct icmp_queue_item *i, *tmp;
-		STAILQ_FOREACH_SAFE (i, &icmp_queue, next, tmp)
-			icmp_queue_pop(i, true);
-		rte_mempool_free(pool);
-		pool = NULL;
-	}
+	icmp_session_pool_free(sessions);
+	sessions = NULL;
 }
 
 static struct module icmp_module = {
