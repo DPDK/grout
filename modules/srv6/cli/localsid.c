@@ -21,6 +21,7 @@ static struct {
 	const char *name;
 } behaviors[] = {
 	{SR_BEHAVIOR_END, "end"},
+	{SR_BEHAVIOR_END_X, "end.x"},
 	{SR_BEHAVIOR_END_T, "end.t"},
 	{SR_BEHAVIOR_END_DT6, "end.dt6"},
 	{SR_BEHAVIOR_END_DT4, "end.dt4"},
@@ -95,6 +96,13 @@ static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_p
 	if (arg_str(n, "TABLE") != NULL && arg_vrf(c, n, "TABLE", &sr6->out_vrf_id) < 0)
 		goto out;
 
+	if (sr6->behavior == SR_BEHAVIOR_END_X) {
+		if (arg_iface(c, n, "IFACE", GR_IFACE_TYPE_UNDEF, &req->nh.iface_id) < 0)
+			goto out;
+		if (arg_ip6(n, "ADDR", &sr6->endx_addr) < 0)
+			goto out;
+	}
+
 	if (gr_api_client_send_recv(c, GR_NH_ADD, len, req, NULL) < 0)
 		goto out;
 
@@ -128,6 +136,7 @@ err:
 
 static void add_columns_srv6_local(struct gr_table *table) {
 	gr_table_column(table, "BEHAVIOR", GR_DISP_LEFT);
+	gr_table_column(table, "ENDX_ADDR", GR_DISP_LEFT);
 	gr_table_column(table, "FLAVOR", GR_DISP_STR_ARRAY);
 	gr_table_column(table, "BLOCK_BITS", GR_DISP_LEFT | GR_DISP_INT);
 	gr_table_column(table, "CSID_BITS", GR_DISP_LEFT | GR_DISP_INT);
@@ -139,17 +148,19 @@ static void fill_table_srv6_local(struct gr_table *table, unsigned start_col, co
 	char flavors[64];
 
 	gr_table_cell(table, start_col, "%s", gr_srv6_behavior_name(sr6->behavior));
+	if (sr6->behavior == SR_BEHAVIOR_END_X)
+		gr_table_cell(table, start_col + 1, IP6_F, &sr6->endx_addr);
 	srv6_local_format_flavors(flavors, sizeof(flavors), sr6->flags);
 	if (flavors[0])
-		gr_table_cell(table, start_col + 1, "%s", flavors);
+		gr_table_cell(table, start_col + 2, "%s", flavors);
 	else if (sr6->behavior == SR_BEHAVIOR_END || sr6->behavior == SR_BEHAVIOR_END_T)
-		gr_table_cell(table, start_col + 1, "none");
+		gr_table_cell(table, start_col + 2, "none");
 	if (sr6->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
-		gr_table_cell(table, start_col + 2, "%u", sr6->block_bits);
-		gr_table_cell(table, start_col + 3, "%u", sr6->csid_bits);
+		gr_table_cell(table, start_col + 3, "%u", sr6->block_bits);
+		gr_table_cell(table, start_col + 4, "%u", sr6->csid_bits);
 	}
 	if (sr6->out_vrf_id != GR_VRF_ID_UNDEF)
-		gr_table_cell(table, start_col + 4, "%d", sr6->out_vrf_id);
+		gr_table_cell(table, start_col + 5, "%d", sr6->out_vrf_id);
 }
 
 static void fill_object_srv6_local(struct gr_object *o, const void *info) {
@@ -157,6 +168,8 @@ static void fill_object_srv6_local(struct gr_object *o, const void *info) {
 	char flavors[64];
 
 	gr_object_field(o, "behavior", 0, "%s", gr_srv6_behavior_name(sr6->behavior));
+	if (sr6->behavior == SR_BEHAVIOR_END_X)
+		gr_object_field(o, "endx_addr", 0, IP6_F, &sr6->endx_addr);
 	srv6_local_format_flavors(flavors, sizeof(flavors), sr6->flags);
 	if (flavors[0])
 		gr_object_field(o, "flavor", GR_DISP_STR_ARRAY, "%s", flavors);
@@ -195,6 +208,31 @@ static int ctx_init(struct ec_node *root) {
 			EC_NO_ID,
 			"end [(flavor FLAVORS),(block-bits BLOCK_BITS),(csid-bits CSID_BITS)]",
 			with_help("Transit endpoint.", ec_node_str("end", "end")),
+			with_help("Endpoint flavor(s).", ec_node_clone(flavor_node)),
+			with_help(
+				"Locator-block length in bits.",
+				ec_node_uint("BLOCK_BITS", 8, 120, 10)
+			),
+			with_help(
+				"Compressed SID length in bits.",
+				ec_node_uint("CSID_BITS", 8, 64, 10)
+			)
+		),
+		EC_NODE_CMD(
+			EC_NO_ID,
+			"end.x nexthop ADDR dev IFACE [(flavor FLAVORS),(block-bits "
+			"BLOCK_BITS),(csid-bits CSID_BITS)]",
+			with_help(
+				"Endpoint with Layer-3 cross-connect.",
+				ec_node_str("end.x", "end.x")
+			),
+			ec_node_str("nexthop", "nexthop"),
+			with_help("L3 nexthop IPv6 address.", ec_node_re("ADDR", IPV6_RE)),
+			ec_node_str("dev", "dev"),
+			with_help(
+				"L3 nexthop interface.",
+				ec_node_dyn("IFACE", complete_iface_names, NULL)
+			),
 			with_help("Endpoint flavor(s).", ec_node_clone(flavor_node)),
 			with_help(
 				"Locator-block length in bits.",
