@@ -32,8 +32,17 @@ ip netns exec n1 ping6 -i0.01 -c3 -n fd00:f00:2::2
 ip netns exec n2 ping6 -i0.01 -c3 -n fd00:f00:1::2
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
 ip netns exec n2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
-ip netns exec n1 ping6 -i0.01 -c3 -n fd00:ba4:1::1
-ip netns exec n2 ping6 -i0.01 -c3 -n fd00:ba4:2::1
+# Verify that NDP neighbor advertisement flags are correct (RFC 4861 §4.4).
+# The Solicited flag must be set in NA replies, otherwise Linux never
+# transitions the neighbor entry to REACHABLE.
+for n in 1 2; do
+	ip -n n$n neigh flush dev x-p$n
+	ip netns exec n$n ping6 -i0.01 -c3 -n fd00:ba4:$n::1
+	ip -n n$n -6 neigh show dev x-p$n fd00:ba4:$n::1 | grep -qw REACHABLE || {
+		ip -n n$n -6 neigh show dev x-p$n
+		fail "n$n: neighbor fd00:ba4:$n::1 not REACHABLE"
+	}
+done
 ip netns exec n1 traceroute -N1 -n fd00:ba4:2::2
 ip netns exec n2 traceroute -N1 -n fd00:ba4:1::2
 ip netns exec n1 traceroute -N1 -n fd00:f00:2::2

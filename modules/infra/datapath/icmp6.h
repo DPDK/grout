@@ -76,8 +76,8 @@ struct icmp6_router_solicit {
 } __attribute__((packed));
 
 typedef enum : uint8_t {
-	ICMP6_RA_F_MANAGED_ADDR = GR_BIT8(0),
-	ICMP6_RA_F_OTHER_CONFIG = GR_BIT8(1),
+	ICMP6_RA_F_MANAGED_ADDR = GR_MSB_BIT8(0),
+	ICMP6_RA_F_OTHER_CONFIG = GR_MSB_BIT8(1),
 } icmp6_ra_flags_t;
 
 // ICMP6_TYPE_ROUTER_ADVERT
@@ -96,9 +96,9 @@ struct icmp6_neigh_solicit {
 } __attribute__((packed));
 
 typedef enum : uint8_t {
-	ICMP6_NA_F_ROUTER = GR_BIT8(0),
-	ICMP6_NA_F_SOLICITED = GR_BIT8(1),
-	ICMP6_NA_F_OVERRIDE = GR_BIT8(2),
+	ICMP6_NA_F_ROUTER = GR_MSB_BIT8(0),
+	ICMP6_NA_F_SOLICITED = GR_MSB_BIT8(1),
+	ICMP6_NA_F_OVERRIDE = GR_MSB_BIT8(2),
 } icmp6_na_flags_t;
 
 // ICMP6_TYPE_NEIGH_ADVERT
