@@ -18,8 +18,6 @@ done
 ip -n n0 addr add 192.168.61.2/24 dev x-p0
 ip -n n1 addr add fd00:102::2/32 dev x-p1
 
-sleep 3
-
 #
 # network layout:
 #  (client) x-p0(netns) <--> p0 <grout> p1 <--->  x-p1(netns) (public: 192.168.60.1/24 on p0)
@@ -97,14 +95,13 @@ grcli address add $encap_src/128 iface p1
 grcli nexthop add srv6 seglist fd00:202:200:: src $encap_src id 43
 grcli route add 192.168.0.0/16 via id 43
 
+ip netns exec n0 ping -c3 -n 192.168.60.1 &
+ping_pid=$!
+
 # capture a few packets on x-p1 in n1
-ip netns exec n1 timeout 5 tcpdump -c1 -pnn -l \
-	"ip6 src $encap_src" -i x-p1 > $tmp/tcpdump.out 2>&1 &
-tcpdump_pid=$!
-sleep 1
+ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 ip6 src $encap_src  || {
+	wait $ping_pid
+	fail "encapsulated packet did not use per-nexthop encap_src $encap_src"
+}
 
-ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
-wait $tcpdump_pid || true
-
-grep -q "$encap_src" $tmp/tcpdump.out \
-	|| fail "encapsulated packet did not use per-nexthop encap_src $encap_src"
+wait $ping_pid
