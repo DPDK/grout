@@ -18,30 +18,17 @@ static struct rte_hash *srv6_local_hash;
 // Hash key for SRv6 local nexthop lookup (26 bytes).
 // Includes all fields checked during lookup.
 struct srv6_local_key {
-	struct rte_ipv6_addr endx_addr; // 16 bytes (zeros for non-END.X)
-	uint16_t vrf_id; //  2 bytes
-	uint16_t iface_id; //  2 bytes
-	gr_srv6_behavior_t behavior; //  2 bytes
-	uint16_t out_vrf_id; //  2 bytes
-	gr_srv6_flags_t flags; //  1 byte
-	uint8_t _pad; //  1 byte
+	BASE(gr_nexthop_info_srv6_local);
+	uint16_t iface_id;
 };
 
 static inline void set_srv6_local_key(
 	struct srv6_local_key *key,
-	const struct gr_nexthop_base *base,
+	uint16_t iface_id,
 	const struct gr_nexthop_info_srv6_local *info
 ) {
-	memset(key, 0, sizeof(*key));
-	key->vrf_id = base->vrf_id;
-	key->iface_id = base->iface_id;
-	key->behavior = info->behavior;
-	key->out_vrf_id = info->out_vrf_id;
-	key->flags = info->flags;
-
-	// Only set endx_addr for END.X behavior
-	if (info->behavior == SR_BEHAVIOR_END_X)
-		key->endx_addr = info->endx_addr;
+	key->base = *info;
+	key->iface_id = iface_id;
 }
 
 static int srv6_local_reconfig(const struct gr_nexthop_config *c) {
@@ -84,10 +71,8 @@ static bool srv6_local_nh_equal(const struct nexthop *a, const struct nexthop *b
 	    || ad->csid_bits != bd->csid_bits)
 		return false;
 
-	if (ad->behavior == SR_BEHAVIOR_END_X) {
-		if (!rte_ipv6_addr_eq(&ad->endx_addr, &bd->endx_addr))
-			return false;
-	}
+	if (!rte_ipv6_addr_eq(&ad->endx_addr, &bd->endx_addr))
+		return false;
 
 	return true;
 }
@@ -96,7 +81,7 @@ static struct nexthop *srv6_local_nh_lookup(const struct gr_nexthop_base *base, 
 	struct srv6_local_key key;
 	void *data;
 
-	set_srv6_local_key(&key, base, info);
+	set_srv6_local_key(&key, base->iface_id, info);
 
 	if (rte_hash_lookup_data(srv6_local_hash, &key, &data) < 0)
 		return errno_set_null(ENOENT);
@@ -105,33 +90,24 @@ static struct nexthop *srv6_local_nh_lookup(const struct gr_nexthop_base *base, 
 }
 
 static int srv6_local_nh_import_info(struct nexthop *nh, const void *info) {
+	struct gr_nexthop_info_srv6_local pub = *(const struct gr_nexthop_info_srv6_local *)info;
 	struct nexthop_info_srv6_local *priv = nexthop_info_srv6_local(nh);
-	const struct gr_nexthop_info_srv6_local *pub = info;
 	struct nexthop *l3_nh = NULL;
-	uint8_t block_bits = pub->block_bits;
-	uint8_t csid_bits = pub->csid_bits;
+	bool l3_nh_created = false;
 
-	if (pub->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
-		if (block_bits == 0)
-			block_bits = 32;
-		if (csid_bits == 0)
-			csid_bits = 16;
-		if (block_bits % CHAR_BIT != 0 || csid_bits % CHAR_BIT != 0)
+	if (pub.flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
+		if (pub.block_bits == 0)
+			pub.block_bits = 32;
+		if (pub.csid_bits == 0)
+			pub.csid_bits = 16;
+		if (pub.block_bits % CHAR_BIT != 0 || pub.csid_bits % CHAR_BIT != 0)
 			return errno_set(EDOM);
-		if (block_bits + csid_bits > RTE_IPV6_MAX_DEPTH)
+		if (pub.block_bits + pub.csid_bits > RTE_IPV6_MAX_DEPTH)
 			return errno_set(ERANGE);
 	}
 
-	// Update all fields
-	priv->base = *pub;
-	priv->block_bits = block_bits;
-	priv->csid_bits = csid_bits;
-
-	if (pub->behavior == SR_BEHAVIOR_END_X) {
+	if (pub.behavior == SR_BEHAVIOR_END_X) {
 		// Validate END.X requires interface and address
-		if (nh->iface_id == 0)
-			return errno_set(EINVAL);
-
 		// Get interface to determine correct VRF
 		const struct iface *iface = iface_from_id(nh->iface_id);
 		if (iface == NULL)
@@ -139,7 +115,7 @@ static int srv6_local_nh_import_info(struct nexthop *nh, const void *info) {
 
 		// Resolve L3 nexthop by address and interface
 		// Use interface's VRF to match l3_lookup() behavior
-		l3_nh = nexthop_lookup_l3(GR_AF_IP6, iface->vrf_id, nh->iface_id, &pub->endx_addr);
+		l3_nh = nexthop_lookup_l3(GR_AF_IP6, iface->vrf_id, nh->iface_id, &pub.endx_addr);
 
 		if (l3_nh == NULL) {
 			// L3 nexthop doesn't exist - create it for FRR
@@ -151,59 +127,52 @@ static int srv6_local_nh_import_info(struct nexthop *nh, const void *info) {
 			};
 			struct gr_nexthop_info_l3 l3_info = {
 				.af = GR_AF_IP6,
-				.ipv6 = pub->endx_addr,
+				.ipv6 = pub.endx_addr,
 			};
-
 			l3_nh = nexthop_new(&base, &l3_info);
 			if (l3_nh == NULL)
 				return -errno;
-
-			// Validate L3 nexthop
-			if (l3_nh->type != GR_NH_T_L3) {
-				nexthop_decref(l3_nh);
-				return errno_set(EINVAL);
-			}
-
-			const struct nexthop_info_l3 *l3 = nexthop_info_l3(l3_nh);
-			if (l3->af != GR_AF_IP6) {
-				nexthop_decref(l3_nh);
-				return errno_set(EINVAL);
-			}
-
-			// Store newly created L3 nexthop (already has ref_count=1)
-			if (priv->l3_nh)
-				nexthop_decref(priv->l3_nh);
-			priv->l3_nh = l3_nh;
+			l3_nh_created = true;
 
 		} else if (l3_nh != priv->l3_nh) {
-			struct nexthop *old_l3_nh = priv->l3_nh;
-
 			// Validate looked-up L3 nexthop before taking reference
 			if (l3_nh->type != GR_NH_T_L3)
-				return errno_set(EINVAL);
+				return errno_set(EPROTOTYPE);
 
 			const struct nexthop_info_l3 *l3 = nexthop_info_l3(l3_nh);
 			if (l3->af != GR_AF_IP6)
-				return errno_set(EINVAL);
-
-			// Take reference to existing L3 nexthop
-			nexthop_incref(l3_nh);
-			priv->l3_nh = l3_nh;
-			if (old_l3_nh)
-				nexthop_decref(old_l3_nh);
+				return errno_set(EAFNOSUPPORT);
 		}
-
-	} else {
-		priv->l3_nh = NULL;
 	}
 
-	// Add to hash table for fast lookup
-	struct srv6_local_key key;
-	set_srv6_local_key(&key, &nh->base, pub);
+	struct srv6_local_key key, old_key;
+	struct nexthop *old_l3_nh = priv->l3_nh;
+	int ret;
 
-	int ret = rte_hash_add_key_data(srv6_local_hash, &key, nh);
-	if (ret < 0)
+	set_srv6_local_key(&old_key, priv->prev_iface_id, &priv->base);
+	set_srv6_local_key(&key, nh->iface_id, &pub);
+
+	if ((ret = rte_hash_add_key_data(srv6_local_hash, &key, nh)) < 0) {
+		if (l3_nh_created)
+			nexthop_decref(l3_nh);
 		return errno_set(-ret);
+	}
+
+	if (memcmp(&old_key, &key, sizeof(old_key)) != 0)
+		rte_hash_del_key(srv6_local_hash, &old_key);
+
+	// Update fields once everything is correct
+	priv->base = pub;
+	if (l3_nh != old_l3_nh) {
+		if (l3_nh != NULL && !l3_nh_created)
+			nexthop_incref(l3_nh);
+		priv->l3_nh = l3_nh;
+		if (old_l3_nh != NULL) {
+			rte_rcu_qsbr_synchronize(gr_datapath_rcu(), RTE_QSBR_THRID_INVALID);
+			nexthop_decref(old_l3_nh);
+		}
+	}
+	priv->prev_iface_id = nh->iface_id;
 
 	return 0;
 }
@@ -226,22 +195,29 @@ static struct gr_nexthop *srv6_local_nh_to_api(const struct nexthop *nh, size_t 
 	return pub;
 }
 
+static void remove_l3_ref_cb(struct nexthop *nh, void *deleted) {
+	if (nh->type != GR_NH_T_SR6_LOCAL)
+		return;
+	struct nexthop_info_srv6_local *priv = nexthop_info_srv6_local(nh);
+	if (priv->l3_nh == deleted)
+		priv->l3_nh = NULL;
+}
+
 static void srv6_local_remove_references(struct nexthop *nh) {
 	if (nh->type == GR_NH_T_SR6_LOCAL) {
 		struct nexthop_info_srv6_local *priv = nexthop_info_srv6_local(nh);
 		struct srv6_local_key key;
 
-		set_srv6_local_key(&key, &nh->base, &priv->base);
+		set_srv6_local_key(&key, nh->iface_id, &priv->base);
 		rte_hash_del_key(srv6_local_hash, &key);
 	}
+	nexthop_iter(remove_l3_ref_cb, nh);
 }
 
 static void srv6_local_nh_free(struct nexthop *nh) {
-	// Free function is called after ref_count has been driven to 0
-	// by nexthop cleanup, which force-decrefs all references.
-	// At this point, any references we held have already been released.
-	// Nothing to do here.
-	(void)nh;
+	struct nexthop_info_srv6_local *priv = nexthop_info_srv6_local(nh);
+	if (priv->l3_nh != NULL)
+		nexthop_decref(priv->l3_nh);
 }
 
 static struct nexthop_type_ops nh_ops = {
