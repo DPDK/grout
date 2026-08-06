@@ -14,6 +14,7 @@
 GR_NH_TYPE_INFO(GR_NH_T_SR6_LOCAL, nexthop_info_srv6_local, {
 	BASE(gr_nexthop_info_srv6_local);
 	struct nexthop *l3_nh; // END.X: resolved L3 nexthop (referenced)
+	uint16_t prev_iface_id; // only used to maintain hash table consistency
 });
 
 typedef enum : uint8_t {
