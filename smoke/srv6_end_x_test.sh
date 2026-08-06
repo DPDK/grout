@@ -73,7 +73,7 @@ sleep 1
 # grout configuration: END.X SID with USD flavor
 # IMPORTANT: Forces traffic via p0-bis (TE path) instead of default p0
 # This demonstrates END.X traffic engineering capability
-grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 dev p0-bis flavor usd id 200
+grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 iface p0-bis flavor usd id 200
 grcli route add 5f00:102::100/128 via id 200
 
 # n1: encapsulate return traffic to n0 with grout's END.X SID

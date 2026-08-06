@@ -220,15 +220,13 @@ static int ctx_init(struct ec_node *root) {
 		),
 		EC_NODE_CMD(
 			EC_NO_ID,
-			"end.x nexthop ADDR dev IFACE [(flavor FLAVORS),(block-bits "
+			"end.x nexthop ADDR iface IFACE [(flavor FLAVORS),(block-bits "
 			"BLOCK_BITS),(csid-bits CSID_BITS)]",
 			with_help(
 				"Endpoint with Layer-3 cross-connect.",
 				ec_node_str("end.x", "end.x")
 			),
-			ec_node_str("nexthop", "nexthop"),
 			with_help("L3 nexthop IPv6 address.", ec_node_re("ADDR", IPV6_RE)),
-			ec_node_str("dev", "dev"),
 			with_help(
 				"L3 nexthop interface.",
 				ec_node_dyn("IFACE", complete_iface_names, NULL)
