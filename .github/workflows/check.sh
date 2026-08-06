@@ -16,7 +16,7 @@ if [ "$#" -eq 0 ]; then
 		if ! git diff --quiet HEAD^ $wrap; then
 			name=$(basename -s.wrap $wrap)
 			meson subprojects purge --confirm $name
-			directory=$(sed -n 's/^directory =//p' $wrap)
+			directory=$(sed -n 's/^directory *= *//p' $wrap)
 			if [ -z "$directory" ]; then
 				directory=$name
 			fi
