@@ -14,12 +14,12 @@
 #  x-p0 <------------------------+          +----------------------> x-p1
 # 2001:db8:62::2 <--- x-p0-bis
 #
-# Forward path (n0 → n1):
+# Forward path (n0 -> n1):
 #   - n0 sends regular IPv6 ping to 2001:db8:101::2
 #   - grout routes packet to n1 via p1 (regular IPv6, no SRv6)
 #   - n1 receives packet
 #
-# Return path (n1 → n0) - TESTS grout's END.X traffic engineering:
+# Return path (n1 -> n0) - TESTS grout's END.X traffic engineering:
 #   - n1 has SRv6 route to n0's network via grout's END.X SID
 #   - n1 encapsulates reply: outer dst=5f00:102::100, inner=original packet
 #   - grout receives at END.X SID 5f00:102::100 on p1
@@ -62,18 +62,25 @@ move_to_netns x-p1 n1
 ip -n n1 addr add 2001:db8:101::2/64 dev x-p1
 ip -n n1 -6 route add default via 2001:db8:101::1 dev x-p1
 
-sleep 2
-
-# Neighbor discovery
-ip netns exec n0 ping6 -c2 -W2 2001:db8:61::1 > /dev/null 2>&1 || true
-ip netns exec n0 ping6 -c2 -W2 2001:db8:62::1 > /dev/null 2>&1 || true
-ip netns exec n1 ping6 -c2 -W2 2001:db8:101::1 > /dev/null 2>&1 || true
-sleep 1
-
 # grout configuration: END.X SID with USD flavor
 # IMPORTANT: Forces traffic via p0-bis (TE path) instead of default p0
 # This demonstrates END.X traffic engineering capability
+# Test srv6-local nexthop add/update/del lifecycle
 grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 iface p0-bis flavor usd id 200
+grcli -j nexthop show id 200 | jq -e 'select(.behavior == "end.x")' || fail "nh 200 should be end.x"
+
+# Update in place (exist_ok): change nexthop address, then back
+grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::1 iface p0-bis flavor usd id 200
+grcli -j nexthop show id 200 | jq -e 'select(.endx_addr == "2001:db8:62::1")' || fail "nh 200 endx_addr should be updated"
+
+grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 iface p0-bis flavor usd id 200
+grcli -j nexthop show id 200 | jq -e 'select(.endx_addr == "2001:db8:62::2")' || fail "nh 200 endx_addr should be restored"
+
+# Delete and re-create
+grcli nexthop del 200
+grcli nexthop show id 200 && fail "nh 200 should not exist after delete"
+grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 iface p0-bis flavor usd id 200
+
 grcli route add 5f00:102::100/128 via id 200
 
 # n1: encapsulate return traffic to n0 with grout's END.X SID
@@ -84,45 +91,22 @@ ip -n n1 -6 route add 2001:db8:61::/64 encap seg6 mode encap \
 	segs 5f00:102::100 dev x-p1
 ip -n n1 -6 route add 5f00:102::/32 via 2001:db8:101::1 dev x-p1
 
-echo ""
-echo "=== Configuration Summary ==="
-echo "grout END.X with USD:"
+# Configuration Summary
 grcli nexthop show | grep -A1 end.x
-echo ""
-echo "n1 SRv6 encapsulation route:"
 ip -n n1 -6 route show | grep encap
 
-echo ""
-echo "=== Testing SRv6 END.X Traffic Engineering ==="
-echo "Sending ping from n0 (2001:db8:61::2) to n1 (2001:db8:101::2)..."
-echo ""
-echo "Forward path: n0 x-p0 → grout p0 → grout p1 → n1 (regular IPv6)"
-echo "Return path: n1 → grout p1 (SRv6 to END.X) → grout p0-bis → n0 x-p0-bis"
-echo ""
-echo "END.X forces return traffic via p0-bis instead of default p0 (traffic engineering!)"
+grcli trace clear
 
-if ip netns exec n0 ping6 -c3 -W2 2001:db8:101::2; then
-	echo ""
-	echo "✓ TEST PASSED: SRv6 END.X Traffic Engineering works!"
-	echo "  - Forward: n0 x-p0 → grout p0 → p1 → n1 (regular IPv6)"
-	echo "  - Return: n1 → grout p1 (END.X) → p0-bis → n0 x-p0-bis (forced via TE path!)"
-	echo "  - END.X successfully forced return traffic through p0-bis instead of default p0"
-else
-	echo ""
-	echo "✗ TEST FAILED: Ping did not succeed"
-	echo ""
-	echo "=== grout sr6_local statistics ==="
-	grcli stats show software | grep -E "sr6_local|srv6_local"
-	echo ""
-	echo "=== grout traces (last 10 packets) ==="
-	grcli trace show count 10 | grep -A10 "sr6_local"
+# Testing SRv6 END.X Traffic Engineering
+# Sending ping from n0 (2001:db8:61::2) to n1 (2001:db8:101::2)
+#
+# Forward path: n0 x-p0 -> grout p0 -> grout p1 -> n1 (regular IPv6)
+# Return path: n1 -> grout p1 (SRv6 to END.X) -> grout p0-bis -> n0 x-p0-bis
+#
+# END.X forces return traffic via p0-bis instead of default p0 (traffic engineering!)
+if ! ip netns exec n0 ping6 -i0.01 -c3 -n 2001:db8:101::2; then
+	grcli trace show count 20 | grep -B5 -A7 "sr6_local: action=end.x"
 	fail "SRv6 END.X test failed"
 fi
 
-echo ""
-echo "=== grout Statistics ==="
-grcli stats show software | grep -E "NODE|sr6_local|srv6_local|ip6_output|ip6_forward"
-
-echo ""
-echo "=== grout Traces (verify USD decapsulation) ==="
-grcli trace show count 5 | grep -B2 -A5 "sr6_local" || echo "(sr6_local node traces not captured in trace output)"
+grcli trace show count 20 | grep -B5 -A7 "sr6_local: action=end.x"
