@@ -14,6 +14,7 @@ Summary: Routing daemon
 License: GPL-2.0-or-later AND ISC AND LGPL-2.0-or-later AND BSD-2-Clause AND BSD-3-Clause AND (GPL-2.0-or-later  OR ISC) AND MIT
 URL: http://www.frrouting.org
 Source0: %{name}-%{version}.tar.gz
+Patch0: zebra-route-IPv4-link-local-neighbor-updates-through.patch
 
 BuildRequires: autoconf
 BuildRequires: automake
@@ -67,7 +68,7 @@ Requires: libyang-devel
 Build headers for FRR required to generate out of tree dplane plugins
 
 %prep
-%autosetup -n %{name}-%{name}-%{version}
+%autosetup -n %{name}-%{name}-%{version} -p1
 
 %build
 export CFLAGS="%{optflags} -DINET_NTOP_NO_OVERRIDE"

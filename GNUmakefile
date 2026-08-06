@@ -150,6 +150,7 @@ rpm:
 
 frr_version = $(shell sed -nE 's/^source_filename = frr-(.+)\.tar\.gz$$/\1/p' subprojects/frr-$(FRR).wrap)
 frr_hash = $(shell sed -nE 's/^source_hash = //p' subprojects/frr-$(FRR).wrap)
+frr_patches = $(shell sed -nE 's#^[[:space:]](.*\.patch),?$$#\1#p' subprojects/frr-$(FRR).wrap)
 frr_archive = subprojects/packagecache/frr-$(frr_version).tar.gz
 
 .PHONY: frr-rpm
@@ -157,6 +158,11 @@ frr-rpm:
 	meson subprojects download frr-$(FRR)
 	echo '$(frr_hash)  $(frr_archive)' | sha256sum -c
 	install -Dt ~/rpmbuild/SOURCES $(frr_archive)
+	for p in $(frr_patches); do \
+		src="subprojects/packagefiles/$$p"; \
+		name=$$(basename $$p | sed -E 's/^[0-9.]+-//'); \
+		install -Dv "$$src" ~/rpmbuild/SOURCES/$$name || exit; \
+	done
 	rpmbuild -bb -D'version $(frr_version)' -D 'release 1$(rpmdist).grout' rpm/frr.spec
 	$Q arch=`rpm --eval '%{_arch}'` && \
 	version="$(frr_version)-1$(rpmdist).grout" && \
