@@ -139,8 +139,6 @@ static int bridge_fini(struct iface *iface) {
 		event_push(GR_EVENT_IFACE_POST_RECONFIG, member);
 	}
 
-	fdb_purge_bridge(iface->id);
-
 	return 0;
 }
 

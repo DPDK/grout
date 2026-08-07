@@ -173,20 +173,6 @@ void fdb_purge_iface(uint16_t iface_id) {
 	}
 }
 
-void fdb_purge_bridge(uint16_t bridge_id) {
-	struct fdb_entry *fdb;
-	uint32_t next = 0;
-	const void *key;
-	void *data;
-
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		fdb = data;
-		if (fdb->bridge_id == bridge_id) {
-			rte_hash_del_key(fdb_hash, key);
-		}
-	}
-}
-
 static struct api_out fdb_add(const void *request, struct api_ctx *) {
 	const struct gr_fdb_add_req *req = request;
 	const struct iface *iface;
@@ -368,11 +354,11 @@ static void fdb_event_cb(uint32_t event, const void *obj) {
 	const struct iface *bridge;
 	struct iface *member;
 
+	// The bridge may have been removed already. HW filters were cleaned up
+	// in fdb_iface_del_cb before the RCU deferred free triggered this event.
 	bridge = iface_from_id(fdb->bridge_id);
-	if (bridge == NULL) {
-		LOG(ERR, "unknown bridge %u", fdb->bridge_id);
+	if (bridge == NULL)
 		return;
-	}
 
 	// we have no clear idea what to do with a vlan_id if one got pushed by FRR
 	assert(fdb->vlan_id == 0);
@@ -420,6 +406,41 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 		// we have no clear idea what to do with a vlan_id if one got pushed by FRR
 		assert(fdb->vlan_id == 0);
 		push_mac_to_hw(member, &fdb->mac, add);
+	}
+}
+
+// Remove HW filters before deleting FDB entries. rte_hash_del_key() triggers
+// a deferred RCU free (fdb_free_entry -> fdb_event_cb) which would need
+// iface_from_id() to find the bridge/member, but at this point the iface is
+// already removed from the global array by iface_destroy().
+static void fdb_remove_hw_filters(const struct iface *bridge, const struct fdb_entry *fdb) {
+	const struct iface_info_bridge *br = iface_info_bridge(bridge);
+	for (unsigned i = 0; i < br->n_members; i++) {
+		if (br->members[i]->id != fdb->iface_id)
+			push_mac_to_hw(br->members[i], &fdb->mac, false);
+	}
+}
+
+static void fdb_iface_del_cb(uint32_t /*event*/, const void *obj) {
+	const struct iface *iface = obj;
+	const struct iface *bridge;
+	struct fdb_entry *fdb;
+	uint32_t next = 0;
+	const void *key;
+	void *data;
+
+	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
+		fdb = data;
+
+		if (iface->type == GR_IFACE_TYPE_BRIDGE && fdb->bridge_id == iface->id) {
+			fdb_remove_hw_filters(iface, fdb);
+			rte_hash_del_key(fdb_hash, key);
+		} else if (fdb->iface_id == iface->id) {
+			bridge = iface_from_id(fdb->bridge_id);
+			if (bridge != NULL)
+				fdb_remove_hw_filters(bridge, fdb);
+			rte_hash_del_key(fdb_hash, key);
+		}
 	}
 }
 
@@ -503,6 +524,7 @@ RTE_INIT(init) {
 	event_subscribe(GR_EVENT_FDB_ADD, fdb_event_cb);
 	event_subscribe(GR_EVENT_FDB_DEL, fdb_event_cb);
 	event_subscribe(GR_EVENT_FDB_UPDATE, fdb_event_cb);
+	event_subscribe(GR_EVENT_IFACE_REMOVE, fdb_iface_del_cb);
 	event_serializer(GR_EVENT_FDB_ADD, NULL);
 	event_serializer(GR_EVENT_FDB_DEL, NULL);
 	event_serializer(GR_EVENT_FDB_UPDATE, NULL);
