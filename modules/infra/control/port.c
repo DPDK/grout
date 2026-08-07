@@ -585,7 +585,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	struct rte_eth_dev_info info;
 	int ret;
 
-	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
+	RTE_ETH_FOREACH_MATCHING_DEV (port_id, api->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		return errno_set(EEXIST);
 	}
@@ -593,7 +593,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	if ((ret = rte_dev_probe(api->devargs)) < 0)
 		return errno_set(-ret);
 
-	RTE_ETH_FOREACH_MATCHING_DEV(port_id, api->devargs, &iterator) {
+	RTE_ETH_FOREACH_MATCHING_DEV (port_id, api->devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		break;
 	}

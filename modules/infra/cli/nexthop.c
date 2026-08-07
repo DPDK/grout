@@ -120,7 +120,7 @@ static void add_columns_l3(struct gr_table *table) {
 static void format_nh_flags(char *buf, size_t len, gr_nh_flags_t flags) {
 	ssize_t n = 0;
 	buf[0] = 0;
-	gr_nh_flags_foreach (fl, flags) {
+	gr_flags_foreach (fl, flags) {
 		if (n > 0)
 			SAFE_BUF(snprintf, len, " ");
 		SAFE_BUF(snprintf, len, "%s", gr_nh_flag_name(fl));
@@ -417,10 +417,30 @@ static cmd_status_t nh_blackhole_add(struct gr_api_client *c, const struct ec_pn
 static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_nh_del_req req = {.missing_ok = true};
 
-	if (arg_u32(p, "ID", &req.nh_id) < 0)
+	if (arg_u32(p, "ID", &req.nh.nh_id) < 0)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_NH_DEL, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t nh_flush(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_nh_flush_req req = {};
+	const char *origin = arg_str(p, "ORIGIN");
+
+	if (origin == NULL)
+		return CMD_ERROR;
+
+	if (strcmp(origin, "learn") == 0)
+		req.origin = GR_NH_ORIGIN_LEARN;
+	else if (strcmp(origin, "static") == 0)
+		req.origin = GR_NH_ORIGIN_STATIC;
+	else
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_NH_FLUSH, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
 
 	return CMD_SUCCESS;
@@ -668,6 +688,28 @@ static int ctx_init(struct ec_node *root) {
 		nh_del,
 		"Delete a next hop.",
 		with_help("Nexthop ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10))
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		NEXTHOP_CTX(root),
+		"flush origin ORIGIN",
+		nh_flush,
+		"Flush all nexthops with the given origin.",
+		with_help(
+			"Nexthop origin.",
+			EC_NODE_OR(
+				"ORIGIN",
+				with_help(
+					"Dynamically learned from ARP/NDP.",
+					ec_node_str("learn", "learn")
+				),
+				with_help(
+					"Statically configured by user.",
+					ec_node_str("static", "static")
+				)
+			)
+		)
 	);
 	if (ret < 0)
 		return ret;

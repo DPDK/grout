@@ -79,12 +79,12 @@ static cmd_status_t fdb_flush(struct gr_api_client *c, const struct ec_pnode *p)
 static size_t fdb_format_flags(char *buf, size_t len, gr_fdb_flags_t flags) {
 	size_t n = 0;
 	buf[0] = 0;
-	if (flags & GR_FDB_F_LEARN)
-		SAFE_BUF(snprintf, len, "%slearn", n ? " " : "");
-	if (flags & GR_FDB_F_STATIC)
-		SAFE_BUF(snprintf, len, "%sstatic", n ? " " : "");
-	if (flags & GR_FDB_F_EXTERN)
-		SAFE_BUF(snprintf, len, "%sextern", n ? " " : "");
+
+	gr_flags_foreach (f, flags) {
+		if (n > 0)
+			SAFE_BUF(snprintf, len, " ");
+		SAFE_BUF(snprintf, len, "%s", gr_fdb_flag_name(f));
+	}
 err:
 	return n;
 }

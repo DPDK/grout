@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
 
 // Get number of elements in a static array.
 #define ARRAY_DIM(array) (sizeof(array) / sizeof(array[0]))
@@ -48,3 +49,7 @@
 
 #define GR_SYMBOL_FORBIDDEN(func, new_func)                                                        \
 	sorry_##func##_is_a_banned_function_use_##new_func##_instead
+
+#define gr_flags_foreach(f, flags)                                                                 \
+	for (uint64_t __bit = 0, f = 1ULL; __bit < sizeof(flags) * CHAR_BIT; f = 1ULL << ++__bit)  \
+		if (flags & f)

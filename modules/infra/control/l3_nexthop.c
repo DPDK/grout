@@ -361,14 +361,19 @@ static void l3_age(struct nexthop *nh, struct nexthop_info_l3 *l3) {
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	struct nexthop_info_l3 *l3;
+	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
 	void *data;
 
 	while (rte_hash_iterate(l3_hash, &key, &data, &next) >= 0) {
+		nh = data;
+		if (nh->origin != GR_NH_ORIGIN_LEARN)
+			continue;
+
 		l3 = nexthop_info_l3(data);
 
-		if (l3->flags & GR_NH_F_STATIC)
+		if (!(l3->flags & GR_NH_F_NEIGH))
 			continue;
 
 		l3_age(data, l3);

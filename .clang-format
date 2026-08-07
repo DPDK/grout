@@ -71,9 +71,13 @@ EmptyLineBeforeAccessModifier: LogicalBlock
 ExperimentalAutoDetectBinPacking: false
 FixNamespaceComments: false
 ForEachMacros:
+  - EC_COMP_FOREACH
   - LIST_FOREACH
   - LIST_FOREACH_SAFE
+  - RB_FOREACH
+  - RNODE_FOREACH_RE
   - RTE_ETH_FOREACH_DEV
+  - RTE_ETH_FOREACH_MATCHING_DEV
   - RTE_LCORE_FOREACH
   - SLIST_FOREACH
   - SLIST_FOREACH_SAFE
@@ -82,13 +86,12 @@ ForEachMacros:
   - TAILQ_FOREACH
   - TAILQ_FOREACH_SAFE
   - gr_api_client_stream_foreach
-  - gr_nh_flags_foreach
+  - gr_flags_foreach
   - nexthop_l3_hold_queue_foreach
+  - nexthop_type_ops_foreach
   - rte_graph_foreach_node
   - vec_foreach
   - vec_foreach_ref
-IfMacros:
-  - KJ_IF_MAYBE
 IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*'

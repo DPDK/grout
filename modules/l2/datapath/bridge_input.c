@@ -13,6 +13,7 @@ enum edges {
 	OUTPUT = 0,
 	INPUT,
 	FLOOD,
+	NEIGH_SUPPRESS,
 	BRIDGE_INVAL,
 	HAIRPIN,
 	OUT_IFACE_INVAL,
@@ -58,8 +59,7 @@ static uint16_t bridge_input_process(
 		}
 		br = iface_info_bridge(bridge);
 
-		if (rte_is_unicast_ether_addr(&eth->src_addr)
-		    && !(br->flags & GR_BRIDGE_F_NO_LEARN)) {
+		if (rte_is_unicast_ether_addr(&eth->src_addr) && (br->flags & GR_BRIDGE_F_LEARN)) {
 			struct l3_addr vtep = {0};
 			if (d->iface->type == GR_IFACE_TYPE_VXLAN)
 				vtep = d->vtep;
@@ -92,12 +92,13 @@ static uint16_t bridge_input_process(
 			} else {
 				edge = OUTPUT;
 			}
+		} else if (br->flags & GR_BRIDGE_F_NEIGH_SUPPRESS) {
+			edge = NEIGH_SUPPRESS;
 		} else {
-			// Broadcast, multicast
 			edge = FLOOD;
 		}
 next:
-		if (edge == FLOOD && (br->flags & GR_BRIDGE_F_NO_FLOOD))
+		if (edge == FLOOD && !(br->flags & GR_BRIDGE_F_FLOOD))
 			edge = FLOOD_DISABLED;
 
 		rte_node_enqueue_x1(graph, node, edge, m);
@@ -132,6 +133,7 @@ static struct rte_node_register node = {
 		[OUTPUT] = "iface_output",
 		[INPUT] = "iface_input",
 		[FLOOD] = "bridge_flood",
+		[NEIGH_SUPPRESS] = "bridge_neigh_suppress",
 		[BRIDGE_INVAL] = "bridge_input_invalid_domain",
 		[HAIRPIN] = "bridge_input_hairpin",
 		[OUT_IFACE_INVAL] = "bridge_input_invalid_output",
