@@ -349,9 +349,15 @@ static int iface_port_reconfig(
 			return ret;
 
 		// always enable allmulti
-		if ((ret = rte_eth_allmulticast_enable(p->port_id)) < 0)
-			return errno_log(-ret, "rte_eth_allmulticast_enable");
-		iface->state |= GR_IFACE_S_ALLMULTI;
+		if ((ret = rte_eth_allmulticast_enable(p->port_id)) < 0) {
+			LOG(ERR, "rte_eth_allmulticast_enable failed %s", rte_strerror(-ret));
+			if ((ret = rte_eth_promiscuous_enable(p->port_id)) < 0)
+				return errno_log(-ret, "rte_eth_promiscuous_enable failed");
+			else
+				iface->state |= GR_IFACE_S_PROMISC_FIXED;
+		} else {
+			iface->state |= GR_IFACE_S_ALLMULTI;
+		}
 
 		if ((ret = port_plug(p)) < 0)
 			return ret;
