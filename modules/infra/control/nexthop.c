@@ -236,6 +236,7 @@ bool nexthop_type_valid(gr_nh_type_t type) {
 	case GR_NH_T_BLACKHOLE:
 	case GR_NH_T_REJECT:
 	case GR_NH_T_GROUP:
+	case GR_NH_T_MPLS:
 		return true;
 	}
 	return false;

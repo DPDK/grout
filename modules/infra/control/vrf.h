@@ -13,6 +13,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_VRF, iface_info_vrf, {
 	uint32_t vrf_ifindex;
 	void *fib4;
 	void *fib6;
+	void *fib_mpls;
 });
 
 // Increment VRF reference count.
