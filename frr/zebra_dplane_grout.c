@@ -100,6 +100,14 @@ void ipaddr_to_l3_addr(struct l3_addr *dst, const struct ipaddr *src) {
 		memcpy(&dst->ipv4, &src->ipaddr_v4, sizeof(dst->ipv4));
 		break;
 	case IPADDR_V6:
+		if (IS_MAPPED_IPV6(&src->ipaddr_v6)) {
+			struct in_addr v4;
+
+			ipv4_mapped_ipv6_to_ipv4(&src->ipaddr_v6, &v4);
+			dst->af = GR_AF_IP4;
+			memcpy(&dst->ipv4, &v4, sizeof(dst->ipv4));
+			break;
+		}
 		dst->af = GR_AF_IP6;
 		memcpy(&dst->ipv6, &src->ipaddr_v6, sizeof(dst->ipv6));
 		break;
