@@ -126,8 +126,22 @@ static uint32_t rmac_hashfn(const struct rmac_entry *e) {
 DECLARE_HASH(rmac_hash, struct rmac_entry, item, rmac_cmp, rmac_hashfn);
 static struct rmac_hash_head rmac_entries = INIT_HASH(rmac_entries);
 
+static void rmac_vtep_entry(const struct ipaddr *vtep, struct ipaddr *key) {
+	*key = *vtep;
+
+	if (vtep->ipa_type == IPADDR_V6 && IS_MAPPED_IPV6(&vtep->ipaddr_v6)) {
+		struct in_addr v4;
+
+		ipv4_mapped_ipv6_to_ipv4(&vtep->ipaddr_v6, &v4);
+		memset(key, 0, sizeof(*key));
+		key->ipa_type = IPADDR_V4;
+		key->ipaddr_v4 = v4;
+	}
+}
+
 void l3vni_rmac_set(uint16_t vrf_id, const struct ipaddr *vtep, const struct ethaddr *mac) {
-	struct rmac_entry *e, key = {.vrf_id = vrf_id, .vtep = *vtep};
+	struct rmac_entry *e, key = {.vrf_id = vrf_id};
+	rmac_vtep_entry(vtep, &key.vtep);
 
 	e = rmac_hash_find(&rmac_entries, &key);
 	if (e != NULL) {
@@ -136,13 +150,15 @@ void l3vni_rmac_set(uint16_t vrf_id, const struct ipaddr *vtep, const struct eth
 	}
 	e = XCALLOC(MTYPE_GROUT_MEM, sizeof(*e));
 	e->vrf_id = vrf_id;
-	e->vtep = *vtep;
+	e->vtep = key.vtep;
 	e->mac = *mac;
 	rmac_hash_add(&rmac_entries, e);
 }
 
 void l3vni_rmac_del(uint16_t vrf_id, const struct ipaddr *vtep) {
-	struct rmac_entry key = {.vrf_id = vrf_id, .vtep = *vtep};
+	struct rmac_entry key = {.vrf_id = vrf_id};
+	rmac_vtep_entry(vtep, &key.vtep);
+
 	struct rmac_entry *e = rmac_hash_find(&rmac_entries, &key);
 
 	if (e != NULL) {
@@ -152,7 +168,8 @@ void l3vni_rmac_del(uint16_t vrf_id, const struct ipaddr *vtep) {
 }
 
 const struct ethaddr *l3vni_rmac_get(uint16_t vrf_id, const struct ipaddr *vtep) {
-	struct rmac_entry key = {.vrf_id = vrf_id, .vtep = *vtep};
+	struct rmac_entry key = {.vrf_id = vrf_id};
+	rmac_vtep_entry(vtep, &key.vtep);
 	struct rmac_entry *e = rmac_hash_find(&rmac_entries, &key);
 	return e ? &e->mac : NULL;
 }
