@@ -737,12 +737,32 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		switch (nh->type) {
 		case NEXTHOP_TYPE_IPV4:
 		case NEXTHOP_TYPE_IPV4_IFINDEX:
+		case NEXTHOP_TYPE_IPV6:
+		case NEXTHOP_TYPE_IPV6_IFINDEX: {
+			struct l3_addr gate;
+
 			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-			l3->af = GR_AF_IP4;
-			memcpy(&l3->ipv4, &nh->gate.ipv4, sizeof(l3->ipv4));
+
+			if (nh->type == NEXTHOP_TYPE_IPV4
+			    || nh->type == NEXTHOP_TYPE_IPV4_IFINDEX) {
+				vtep.ipa_type = IPADDR_V4;
+				vtep.ipaddr_v4 = nh->gate.ipv4;
+			} else {
+				vtep.ipa_type = IPADDR_V6;
+				vtep.ipaddr_v6 = nh->gate.ipv6;
+			}
+
+			// EVPN may advertise an IPv4 VTEP as an IPv4-mapped IPv6
+			// address; ipaddr_to_l3_addr() canonicalizes it so that
+			// vxlan_output builds IPv4 encapsulation.
+			ipaddr_to_l3_addr(&gate, &vtep);
+			l3->af = gate.af;
+			if (gate.af == GR_AF_IP4)
+				l3->ipv4 = gate.ipv4;
+			else
+				l3->ipv6 = gate.ipv6;
+
 			// Apply cached RMAC from EVPN NEIGH install if available.
-			vtep.ipa_type = IPADDR_V4;
-			vtep.ipaddr_v4 = nh->gate.ipv4;
 			rmac = l3vni_rmac_get(req->nh.vrf_id, &vtep);
 			if (rmac != NULL) {
 				memcpy(&l3->mac, rmac, sizeof(l3->mac));
@@ -752,35 +772,7 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 					req->nh.iface_id = vxlan_iface_id;
 			}
 			break;
-		case NEXTHOP_TYPE_IPV6:
-		case NEXTHOP_TYPE_IPV6_IFINDEX:
-			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
-			// EVPN type-5 IPv6 prefixes use v4-mapped nexthops
-			// (::ffff:X.X.X.X) because the VTEP is always IPv4.
-			// Store as native IPv4 so vxlan_output uses IPv4
-			// encapsulation to reach the remote VTEP.
-			if (IS_MAPPED_IPV6(&nh->gate.ipv6)) {
-				struct in_addr v4;
-				ipv4_mapped_ipv6_to_ipv4(&nh->gate.ipv6, &v4);
-				l3->af = GR_AF_IP4;
-				l3->ipv4 = v4.s_addr;
-				vtep.ipa_type = IPADDR_V4;
-				vtep.ipaddr_v4 = v4;
-			} else {
-				l3->af = GR_AF_IP6;
-				memcpy(&l3->ipv6, &nh->gate.ipv6, sizeof(l3->ipv6));
-				vtep.ipa_type = IPADDR_V6;
-				vtep.ipaddr_v6 = nh->gate.ipv6;
-			}
-			// Apply cached RMAC from EVPN NEIGH install if available.
-			rmac = l3vni_rmac_get(req->nh.vrf_id, &vtep);
-			if (rmac != NULL) {
-				memcpy(&l3->mac, rmac, sizeof(l3->mac));
-				l3->flags |= GR_NH_F_REMOTE;
-				if (vxlan_iface_id != GR_IFACE_ID_UNDEF)
-					req->nh.iface_id = vxlan_iface_id;
-			}
-			break;
+		}
 		case NEXTHOP_TYPE_IFINDEX:
 			l3 = (struct gr_nexthop_info_l3 *)req->nh.info;
 			l3->af = GR_AF_UNSPEC;
