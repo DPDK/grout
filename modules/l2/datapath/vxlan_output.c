@@ -53,6 +53,18 @@ static uint16_t vxlan_output_process(
 		d = iface_mbuf_data(m);
 		vxlan = iface_info_vxlan(d->iface);
 
+		// EVPN advertises IPv4 VTEPs as IPv4-mapped IPv6 addresses
+		// (::ffff:a.b.c.d) in the IPv6 address family. The tunnel
+		// underlay is IPv4: unmap the address so that the IPv4
+		// encapsulation template is used.
+		if (d->vtep.af == GR_AF_IP6 && rte_ipv6_addr_is_v4mapped(&d->vtep.ipv6)) {
+			ip4_addr_t v4;
+
+			memcpy(&v4, &d->vtep.ipv6.a[12], sizeof(v4));
+			d->vtep.af = GR_AF_IP4;
+			d->vtep.ipv4 = v4;
+		}
+
 		if (gr_mbuf_is_traced(m)) {
 			struct trace_vxlan_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->vni = rte_cpu_to_be_32(vxlan->vni);
