@@ -37,6 +37,7 @@ typedef enum : uint16_t {
 	GR_IFACE_F_NEIGH_SNOOP = GR_BIT16(5),
 	GR_IFACE_F_CAPTURE = GR_BIT16(6),
 	GR_IFACE_F_PING_IGNORE = GR_BIT16(7),
+	GR_IFACE_F_ERR_IGNORE = GR_BIT16(8),
 } gr_iface_flags_t;
 
 // Interface state flags.

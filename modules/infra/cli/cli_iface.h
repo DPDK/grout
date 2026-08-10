@@ -78,7 +78,7 @@ int arg_iface(
 
 #define IFACE_ATTRS_CMD                                                                            \
 	"(up|down),(promisc PROMISC),(neigh-snoop NEIGH_SNOOP),"                                   \
-	"(ping-ignore PING_IGNORE),"                                                               \
+	"(ping-ignore PING_IGNORE),(err-ignore ERR_IGNORE),"                                       \
 	"(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
@@ -90,6 +90,7 @@ int arg_iface(
 			"NEIGH_SNOOP"                                                              \
 		),                                                                                 \
 		ON_OFF_ARG("Ignore ICMP echo requests.", "PING_IGNORE"),                           \
+		ON_OFF_ARG("Omit sending ICMP errors to their originating IP.", "ERR_IGNORE"),     \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \
 			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \

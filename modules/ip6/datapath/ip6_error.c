@@ -24,6 +24,7 @@ enum edges {
 	NO_HEADROOM,
 	NO_IP,
 	RATE_LIMITED,
+	ERR_IGNORED,
 	EDGE_COUNT,
 };
 
@@ -51,6 +52,16 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
+
+		iface = l3_mbuf_data(mbuf)->iface;
+		if (iface == NULL) {
+			edge = NO_IP;
+			goto next;
+		}
+		if (iface->flags & GR_IFACE_F_ERR_IGNORE) {
+			edge = ERR_IGNORED;
+			goto next;
+		}
 
 		// Get the pointer to the start of the ipv6 header before
 		// prepending any data
@@ -92,11 +103,6 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		icmp6->code = ctx->icmp_code;
 
 		// Get the local router IP address from the input iface
-		iface = l3_mbuf_data(mbuf)->iface;
-		if (iface == NULL) {
-			edge = NO_IP;
-			goto next;
-		}
 		if ((nh = addr6_get_preferred(iface->id, &ip->src_addr)) == NULL) {
 			edge = NO_IP;
 			goto next;
@@ -142,6 +148,7 @@ static struct rte_node_register dest_unreach_node = {
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
 		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = no_route_init,
 };
@@ -155,6 +162,7 @@ static struct rte_node_register ttl_exceeded_node = {
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
 		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = ttl_exceeded_init,
 };

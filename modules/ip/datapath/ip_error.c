@@ -22,6 +22,7 @@ enum edges {
 	NO_HEADROOM,
 	NO_IP,
 	RATE_LIMITED,
+	ERR_IGNORED,
 	EDGE_COUNT,
 };
 
@@ -47,6 +48,16 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
+		iface = l3_mbuf_data(mbuf)->iface;
+		if (iface == NULL) {
+			edge = NO_IP;
+			goto next;
+		}
+		if (iface->flags & GR_IFACE_F_ERR_IGNORE) {
+			edge = ERR_IGNORED;
+			goto next;
+		}
+
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
 		src = ip->src_addr;
 		// RFC792 payload size: ip header + 64 bits of original datagram
@@ -60,9 +71,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		// Get the local router IP address from the input iface
-		iface = l3_mbuf_data(mbuf)->iface;
-		if (iface == NULL
-		    || (nh = fib4_lookup(iface->vrf_id, src, mbuf->hash.rss)) == NULL) {
+		if ((nh = fib4_lookup(iface->vrf_id, src, mbuf->hash.rss)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
@@ -141,6 +150,7 @@ static struct rte_node_register ip_forward_ttl_exceeded_node = {
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
 		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = ttl_exceeded_init,
 };
@@ -154,6 +164,7 @@ static struct rte_node_register no_route_node = {
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
 		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = no_route_init,
 };
@@ -167,6 +178,7 @@ static struct rte_node_register frag_needed_node = {
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
 		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = frag_needed_init,
 };
@@ -192,3 +204,4 @@ GR_NODE_REGISTER(info_frag_needed);
 
 GR_DROP_REGISTER(error_no_local_ip);
 GR_DROP_REGISTER(error_rate_limited);
+GR_DROP_REGISTER(error_ignored);
