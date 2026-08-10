@@ -74,7 +74,7 @@ int arg_iface(
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
 
 #define IFACE_ATTRS_CMD                                                                            \
-	"(up|down),(promisc PROMISC),(ping-ignore PING_IGNORE),"                                   \
+	"(up|down),(promisc PROMISC),(ping-ignore PING_IGNORE),(err-ignore ERR_IGNORE),"           \
 	"(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_FLAG_ARG(placeholder, desc)                                                          \
@@ -84,6 +84,7 @@ int arg_iface(
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
 		IFACE_FLAG_ARG("PROMISC", "Enable/disable promiscuous mode."),                     \
 		IFACE_FLAG_ARG("PING_IGNORE", "Ignore ICMP echo requests."),                       \
+		IFACE_FLAG_ARG("ERR_IGNORE", "Omit sending ICMP errors to their originating IP."), \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \

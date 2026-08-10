@@ -215,6 +215,8 @@ static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *
 		SAFE_BUF(snprintf, len, " snat");
 	if (iface->flags & GR_IFACE_F_PING_IGNORE)
 		SAFE_BUF(snprintf, len, " ping-ignore");
+	if (iface->flags & GR_IFACE_F_ERR_IGNORE)
+		SAFE_BUF(snprintf, len, " err-ignore");
 
 	return n;
 err:
@@ -274,6 +276,7 @@ uint64_t parse_iface_args(
 
 	set_attrs |= on_off_flag(iface, p, "PROMISC", GR_IFACE_F_PROMISC);
 	set_attrs |= on_off_flag(iface, p, "PING_IGNORE", GR_IFACE_F_PING_IGNORE);
+	set_attrs |= on_off_flag(iface, p, "ERR_IGNORE", GR_IFACE_F_ERR_IGNORE);
 
 	if (arg_u16(p, "MTU", &iface->mtu) == 0)
 		set_attrs |= GR_IFACE_SET_MTU;
