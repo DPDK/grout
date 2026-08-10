@@ -21,6 +21,7 @@ enum {
 	INVALID,
 	UNSUPPORTED,
 	RATE_LIMITED,
+	IGNORED,
 	EDGE_COUNT,
 };
 
@@ -33,6 +34,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 	struct icmp_input_ctx *ctx = icmp_input_ctx(node);
 	struct ip_local_mbuf_data *ip_data;
 	struct rte_icmp_hdr *icmp;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t cksum;
@@ -57,6 +59,12 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) {
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
+				goto next;
+			}
+			iface = mbuf_data(mbuf)->iface;
+			assert(iface != NULL);
+			if (iface->flags & GR_IFACE_F_PING_IGNORE) {
+				edge = IGNORED;
 				goto next;
 			}
 			icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
@@ -114,6 +122,7 @@ static struct rte_node_register icmp_input_node = {
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
 		[RATE_LIMITED] = "error_rate_limited",
+		[IGNORED] = "ping_ignored",
 	},
 };
 
@@ -128,3 +137,4 @@ GR_NODE_REGISTER(icmp_input_info);
 
 GR_DROP_REGISTER(icmp_input_invalid);
 GR_DROP_REGISTER(icmp_input_unsupported);
+GR_DROP_REGISTER(ping_ignored);

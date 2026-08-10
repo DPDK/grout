@@ -29,6 +29,7 @@ enum {
 	UNSUPPORTED,
 	NO_LOCAL_ADDR,
 	RATE_LIMITED,
+	IGNORED,
 	EDGE_COUNT,
 };
 
@@ -38,9 +39,10 @@ static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct icmp6_input_ctx *ctx = icmp6_input_ctx(node);
 	struct ip6_local_mbuf_data *d;
-	struct icmp6 *icmp6;
 	struct rte_ipv6_addr tmp_ip;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
+	struct icmp6 *icmp6;
 	rte_edge_t next;
 
 	if (rate_limited(&ctx->limit, graph_conf.icmp_rate, nb_objs)) {
@@ -63,6 +65,12 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		case ICMP6_TYPE_ECHO_REQUEST:
 			if (icmp6->code != 0) {
 				next = INVALID;
+				goto next;
+			}
+			iface = mbuf_data(mbuf)->iface;
+			assert(iface != NULL);
+			if (iface->flags & GR_IFACE_F_PING_IGNORE) {
+				next = IGNORED;
 				goto next;
 			}
 			icmp6->type = ICMP6_TYPE_ECHO_REPLY;
@@ -156,6 +164,7 @@ static struct rte_node_register icmp6_input_node = {
 		[UNSUPPORTED] = "icmp6_input_unsupported",
 		[NO_LOCAL_ADDR] = "icmp6_input_no_local_addr",
 		[RATE_LIMITED] = "error_rate_limited",
+		[IGNORED] = "ping_ignored",
 	},
 };
 
