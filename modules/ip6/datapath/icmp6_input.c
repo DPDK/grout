@@ -22,6 +22,7 @@ enum {
 	UNSUPPORTED,
 	NO_LOCAL_ADDR,
 	RATE_LIMITED,
+	IGNORED,
 	EDGE_COUNT,
 };
 
@@ -49,6 +50,7 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct icmp6_input_ctx *ctx = icmp6_input_ctx(node);
 	struct ip6_local_mbuf_data *d;
 	struct rte_ipv6_addr tmp_ip;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	struct icmp6 *icmp6;
 	rte_edge_t next;
@@ -82,6 +84,12 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		case ICMP6_TYPE_ECHO_REQUEST:
 			if (icmp6->code != 0) {
 				next = INVALID;
+				goto next;
+			}
+			iface = mbuf_data(mbuf)->iface;
+			assert(iface != NULL);
+			if (iface->flags & GR_IFACE_F_PING_IGNORE) {
+				next = IGNORED;
 				goto next;
 			}
 			icmp6->type = ICMP6_TYPE_ECHO_REPLY;
@@ -171,6 +179,7 @@ static struct rte_node_register icmp6_input_node = {
 		[UNSUPPORTED] = "icmp6_input_unsupported",
 		[NO_LOCAL_ADDR] = "icmp6_input_no_local_addr",
 		[RATE_LIMITED] = "error_rate_limited",
+		[IGNORED] = "ping_ignored",
 	},
 };
 
@@ -216,6 +225,8 @@ struct fake_mbuf {
 	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
 };
 
+static struct iface dummy_iface;
+
 static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	struct ip6_local_mbuf_data *d;
 
@@ -230,6 +241,7 @@ static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	fm->mbuf.nb_segs = 1;
 
 	d = ip6_local_mbuf_data(&fm->mbuf);
+	d->iface = &dummy_iface;
 	memset(&d->src, 0x11, sizeof(d->src));
 	memset(&d->dst, 0x22, sizeof(d->dst));
 	d->len = len;

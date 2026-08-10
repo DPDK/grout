@@ -237,10 +237,29 @@ static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *
 		SAFE_BUF(snprintf, len, " tracing");
 	if (iface->flags & (GR_IFACE_F_SNAT_STATIC | GR_IFACE_F_SNAT_DYNAMIC))
 		SAFE_BUF(snprintf, len, " snat");
+	if (iface->flags & GR_IFACE_F_PING_IGNORE)
+		SAFE_BUF(snprintf, len, " ping-ignore");
 
 	return n;
 err:
 	return -1;
+}
+
+static uint64_t on_off_flag(
+	struct gr_iface *iface,
+	const struct ec_pnode *p,
+	const char *placeholder,
+	gr_iface_flags_t flag
+) {
+	const char *value = arg_str(p, placeholder);
+	if (value != NULL && strcmp(value, "on") == 0) {
+		iface->flags |= flag;
+		return GR_IFACE_SET_FLAGS;
+	} else if (value != NULL && strcmp(value, "off") == 0) {
+		iface->flags &= ~flag;
+		return GR_IFACE_SET_FLAGS;
+	}
+	return 0;
 }
 
 uint64_t parse_iface_args(
@@ -250,8 +269,8 @@ uint64_t parse_iface_args(
 	size_t info_size,
 	bool update
 ) {
-	const char *name, *promisc;
 	uint64_t set_attrs = 0;
+	const char *name;
 
 	name = arg_str(p, "NAME");
 	if (update) {
@@ -276,14 +295,9 @@ uint64_t parse_iface_args(
 		iface->flags &= ~GR_IFACE_F_UP;
 		set_attrs |= GR_IFACE_SET_FLAGS;
 	}
-	promisc = arg_str(p, "PROMISC");
-	if (promisc != NULL && strcmp(promisc, "on") == 0) {
-		iface->flags |= GR_IFACE_F_PROMISC;
-		set_attrs |= GR_IFACE_SET_FLAGS;
-	} else if (promisc != NULL && strcmp(promisc, "off") == 0) {
-		iface->flags &= ~GR_IFACE_F_PROMISC;
-		set_attrs |= GR_IFACE_SET_FLAGS;
-	}
+
+	set_attrs |= on_off_flag(iface, p, "PROMISC", GR_IFACE_F_PROMISC);
+	set_attrs |= on_off_flag(iface, p, "PING_IGNORE", GR_IFACE_F_PING_IGNORE);
 
 	const char *neigh_snoop = arg_str(p, "NEIGH_SNOOP");
 	if (neigh_snoop != NULL && strcmp(neigh_snoop, "on") == 0) {
