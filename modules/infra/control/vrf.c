@@ -125,7 +125,7 @@ static int netlink_delete_vrf_and_unslave(uint32_t vrf_ifindex, uint32_t loop_if
 	return netlink_link_del_iface(vrf_ifindex);
 }
 
-static uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
+uint32_t vrf_id_to_table_id(uint16_t vrf_id) {
 	if (vrf_id == GR_VRF_DEFAULT_ID)
 		return RT_TABLE_MAIN;
 

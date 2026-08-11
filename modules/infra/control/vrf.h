@@ -15,6 +15,9 @@ GR_IFACE_INFO(GR_IFACE_TYPE_VRF, iface_info_vrf, {
 	void *fib6;
 });
 
+// Map a grout VRF ID to the kernel routing table ID.
+uint32_t vrf_id_to_table_id(uint16_t vrf_id);
+
 // Increment VRF reference count.
 // vrf_id is the VRF interface ID.
 // Returns 0 on success, -1 if VRF doesn't exist (sets errno to ENONET).
