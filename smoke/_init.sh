@@ -380,6 +380,11 @@ if [ "$run_grout" = true ]; then
 		grout_extra_options+=" -t"
 	fi
 
+	: "${grout_max_mtu:-""}"
+	if [[ -n "$grout_max_mtu" ]] ; then
+		grout_extra_options+=" -u $grout_max_mtu"
+	fi
+
 	: "${grout_memory:-""}"
 	if [[ -n "$grout_memory" ]] ; then
 		grout_extra_options+=" -- -m $grout_memory"
