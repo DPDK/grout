@@ -2,10 +2,12 @@
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
 #include "config.h"
+#include "iface.h"
 #include "log.h"
 #include "module.h"
 #include "netlink.h"
 #include "vec.h"
+#include "vrf.h"
 
 #include <gr_errno.h>
 #include <gr_macro.h>
@@ -20,6 +22,8 @@
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 #include <string.h>
+
+LOG_TYPE("netlink");
 
 static char socket_buf[BUFSIZ];
 static struct mnl_socket *nl_sock;
@@ -504,8 +508,25 @@ int netlink_add_addr4(uint32_t ifindex, ip4_addr_t ip) {
 	return netlink_add_del_addr(ifindex, &ip, sizeof(ip), true);
 }
 
+static void netlink_readd_vrf_route(uint32_t ifindex) {
+	const struct iface *iface = NULL;
+	while ((iface = iface_next(GR_IFACE_TYPE_VRF, iface)) != NULL) {
+		if ((uint32_t)iface->cp_id == ifindex) {
+			if (netlink_add_route(ifindex, vrf_id_to_table_id(iface->vrf_id)) < 0)
+				LOG(WARNING,
+				    "re-add default route on %s: %s",
+				    iface->name,
+				    strerror(errno));
+			return;
+		}
+	}
+}
+
 int netlink_del_addr4(uint32_t ifindex, ip4_addr_t ip) {
-	return netlink_add_del_addr(ifindex, &ip, sizeof(ip), false);
+	int ret = netlink_add_del_addr(ifindex, &ip, sizeof(ip), false);
+	if (ret == 0)
+		netlink_readd_vrf_route(ifindex);
+	return ret;
 }
 
 int netlink_add_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip) {
