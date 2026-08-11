@@ -9,6 +9,7 @@
 #include <rte_ether.h>
 
 #define SNAP_MAX_LEN 1536
+#define ETHER_TYPE_JUMBO_LLC 0x8870
 
 GR_MBUF_PRIV_DATA_TYPE(eth_snap_mbuf_data, {
 	struct rte_ether_addr src;

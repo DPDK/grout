@@ -9,6 +9,7 @@
 #include "mbuf.h"
 #include "module.h"
 #include "rxtx.h"
+#include "snap.h"
 #include "trace.h"
 
 #include <gr_macro.h>
@@ -46,6 +47,8 @@ static inline const char *eth_type_str(rte_be16_t type) {
 		return "MPLS";
 	case RTE_BE16(RTE_ETHER_TYPE_1588):
 		return "PTP";
+	case RTE_BE16(ETHER_TYPE_JUMBO_LLC):
+		return "Jumbo LLC";
 	}
 	return NULL;
 }
@@ -552,6 +555,10 @@ ipv4:
 		SAFE_BUF(trace_lacp_format, sizeof(buf), lacp, sizeof(*lacp));
 		break;
 	}
+	case RTE_BE16(ETHER_TYPE_JUMBO_LLC):
+		SAFE_BUF(snprintf, sizeof(buf), " / Jumbo LLC");
+		SAFE_BUF(trace_snap_format, sizeof(buf), &dst);
+		break;
 	default:
 		SAFE_BUF(snprintf, sizeof(buf), " type=");
 		SAFE_BUF(eth_type_format, sizeof(buf), ether_type);

@@ -52,7 +52,10 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			*t = *eth;
 		}
 
-		if (unlikely(rte_be_to_cpu_16(eth->ether_type) < SNAP_MAX_LEN)) {
+		if (unlikely(
+			    rte_be_to_cpu_16(eth->ether_type) < SNAP_MAX_LEN
+			    || eth->ether_type == RTE_BE16(ETHER_TYPE_JUMBO_LLC)
+		    )) {
 			edge = SNAP;
 		} else {
 			d = eth_input_mbuf_data(m);
