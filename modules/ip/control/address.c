@@ -273,12 +273,23 @@ static void iface_event_cb(uint32_t event, const void *obj) {
 	}
 }
 
-static void iface_up_cb(uint32_t /*event*/, const void *obj) {
+static void iface_up_cb(uint32_t event, const void *obj) {
 	const struct iface *iface = obj;
 	struct hoplist *ifaddrs = addr4_get_all(iface->id);
 
 	if (ifaddrs == NULL)
 		return;
+
+	if (event == GR_EVENT_IFACE_STATUS_UP && iface->cp_id != 0) {
+		vec_foreach (struct nexthop *nh, ifaddrs->nh) {
+			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (netlink_add_addr4(iface->cp_id, l3->ipv4) < 0 && errno != EEXIST)
+				LOG(WARNING,
+				    "re-add addr " IP4_F " on linux: %s",
+				    &l3->ipv4,
+				    strerror(errno));
+		}
+	}
 
 	vec_foreach (struct nexthop *nh, ifaddrs->nh)
 		arp_output_request_solicit(nh);

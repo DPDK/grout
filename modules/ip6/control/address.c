@@ -482,6 +482,19 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		ip6_iface_addrs_flush(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
+		addrs = &iface_addrs[iface->id];
+		if (iface->cp_id != 0) {
+			vec_foreach (nh, addrs->nh) {
+				const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+				if (netlink_add_addr6(iface->cp_id, &l3->ipv6) < 0
+				    && errno != EEXIST)
+					LOG(WARNING,
+					    "re-add addr " IP6_F " on linux: %s",
+					    &l3->ipv6,
+					    strerror(errno));
+			}
+		}
+		// fallthrough
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
 		vec_foreach (nh, addrs->nh) {
