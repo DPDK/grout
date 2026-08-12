@@ -420,7 +420,6 @@ static inline rte_edge_t srv6_local_process_pkt(
 static uint16_t
 srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct nexthop_info_srv6_local *sr_d;
-	struct trace_srv6_data *t;
 	struct ip6_info ip6_info;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
@@ -437,12 +436,11 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		sr_d = nexthop_info_srv6_local(l3_mbuf_data(m)->nh);
 
 		if (gr_mbuf_is_traced(m)) {
-			t = gr_mbuf_trace_add(m, node, sizeof(*t));
+			struct trace_srv6_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
 			t->behavior = sr_d->behavior;
 			t->out_vrf_id = sr_d->out_vrf_id;
 			t->segleft = ip6_info.sr ? ip6_info.sr->segments_left : 0;
-		} else
-			t = NULL;
+		}
 
 		edge = srv6_local_process_pkt(m, sr_d, &ip6_info);
 

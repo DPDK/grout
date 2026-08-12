@@ -24,19 +24,23 @@ enum {
 };
 
 struct trace_srv6_data {
-	union {
-		struct ip4_net dest4;
-		struct ip6_net dest6;
-	};
-	bool is_dest6;
+	gr_srv6_encap_behavior_t encap;
+	sr_encap_flags_t flags;
+	uint16_t n_seglist;
+	struct rte_ipv6_addr seg0;
+	struct rte_ipv6_addr encap_src;
 };
 
 static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*data_len*/) {
 	const struct trace_srv6_data *t = data;
-	if (t->is_dest6)
-		return snprintf(buf, len, "match=" IP6_NET_F, &t->dest6);
-	else
-		return snprintf(buf, len, "match=" IP4_NET_F, &t->dest4);
+	size_t n = 0;
+	SAFE_BUF(snprintf, len, "h.encaps%s", t->encap == SR_H_ENCAPS_RED ? ".red" : "");
+	if (t->flags & SR_ENCAP_F_SRC)
+		SAFE_BUF(snprintf, len, " encap_src=" IP6_F, &t->encap_src);
+	SAFE_BUF(snprintf, len, " n_segs=%u seg[0]=" IP6_F, t->n_seglist, &t->seg0);
+	return n;
+err:
+	return -1;
 }
 
 // called from 'ip6_output' or 'ip_output' node
@@ -44,7 +48,6 @@ static uint16_t
 srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct nexthop_info_srv6_output *d;
 	const struct nexthop_info_l3 *l3;
-	struct trace_srv6_data *t = NULL;
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
 	const struct nexthop *nh;
@@ -56,44 +59,31 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
 
-		if (gr_mbuf_is_traced(m))
-			t = gr_mbuf_trace_add(m, node, sizeof(*t));
+		nh = l3_mbuf_data(m)->nh;
+		d = nexthop_info_srv6_output(nh);
+
+		if (gr_mbuf_is_traced(m)) {
+			struct trace_srv6_data *t = gr_mbuf_trace_add(m, node, sizeof(*t));
+			t->encap = d->encap;
+			t->flags = d->flags;
+			t->n_seglist = d->n_seglist;
+			t->seg0 = d->seglist[0];
+			t->encap_src = d->encap_src;
+		}
 
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
 			struct rte_ipv4_hdr *inner_ip4;
-
-			nh = l3_mbuf_data(m)->nh;
-			if (t != NULL && nh->type == GR_NH_T_L3) {
-				l3 = nexthop_info_l3(nh);
-				t->dest4.ip = l3->ipv4;
-				t->dest4.prefixlen = l3->prefixlen;
-				t->is_dest6 = false;
-			}
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip4->total_length);
 			proto = IPPROTO_IPIP;
 
 		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct rte_ipv6_hdr *inner_ip6;
-
-			nh = l3_mbuf_data(m)->nh;
-			if (t != NULL && nh->type == GR_NH_T_L3) {
-				l3 = nexthop_info_l3(nh);
-				t->dest6.ip = l3->ipv6;
-				t->dest6.prefixlen = l3->prefixlen;
-				t->is_dest6 = true;
-			}
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip6->payload_len) + sizeof(*inner_ip6);
 			proto = IPPROTO_IPV6;
 
 		} else {
-			edge = INVALID;
-			goto next;
-		}
-
-		d = nexthop_info_srv6_output(nh);
-		if (d == NULL) {
 			edge = INVALID;
 			goto next;
 		}
@@ -114,7 +104,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct rte_ipv6_addr *segments;
 			uint16_t k;
 
-			srh = (struct rte_ipv6_routing_ext *)(outer_ip6 + 1);
+			srh = PAYLOAD(outer_ip6);
 			srh->next_hdr = proto;
 			srh->hdr_len = optlen / 8 - 1;
 			srh->type = RTE_IPV6_SRCRT_TYPE_4;
@@ -123,7 +113,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			srh->flags = 0;
 			srh->tag = 0;
 
-			segments = (struct rte_ipv6_addr *)(srh + 1);
+			segments = PAYLOAD(srh);
 			for (k = reduc; k < d->n_seglist; k++)
 				segments[d->n_seglist - k - 1] = d->seglist[k];
 			proto = IPPROTO_ROUTING;
