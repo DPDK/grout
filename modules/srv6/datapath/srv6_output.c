@@ -84,7 +84,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 				t->is_dest6 = true;
 			}
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
-			plen = rte_be_to_cpu_16(inner_ip6->payload_len);
+			plen = rte_be_to_cpu_16(inner_ip6->payload_len) + sizeof(*inner_ip6);
 			proto = IPPROTO_IPV6;
 
 		} else {
