@@ -105,3 +105,33 @@ ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 ip6 src $encap_src  || {
 }
 
 wait $ping_pid
+
+#
+# IPv6-in-SRv6 encapsulation test
+#
+# Full round-trip IPv6 ping through SRv6
+#
+
+# client side: IPv6 address and route via grout
+ip -n n0 addr add fd00:61::2/64 dev x-p0
+grcli address add fd00:61::1/64 iface p0
+ip -n n0 -6 route add fd00:60::/64 via fd00:61::1 dev x-p0
+
+# grout encap: IPv6 traffic toward fd00:60::/64 goes through SRv6
+grcli nexthop add srv6 seglist fd00:202:600:: id 60
+grcli route add fd00:60::/64 via id 60
+# grout decaps the return SRv6 traffic with End.DT6
+grcli nexthop add srv6-local behavior end.dt6 id 61
+grcli route add fd00:202:700::/48 via id 61
+
+# n1 decaps with End.DT6 into a VRF and replies through SRv6 back to grout
+ip netns exec n1 sysctl -qw net.vrf.strict_mode=1
+ip -n n1 link add vrf10 type vrf table 10
+ip -n n1 link set vrf10 up
+ip -n n1 addr add fd00:60::1/64 dev vrf10
+ip -n n1 -6 route add fd00:202:600:: encap seg6local action End.DT6 vrftable 10 count dev x-p1
+ip -n n1 -6 route add fd00:61::/64 encap seg6 mode encap segs fd00:202:700:: dev x-p1 table 10
+ip -n n1 -6 route add fd00:202::/32 via fd00:102::1 dev x-p1 table 10
+
+# test
+ip netns exec n0 ping6 -i0.01 -c3 -n fd00:60::1
