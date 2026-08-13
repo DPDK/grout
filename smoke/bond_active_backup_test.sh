@@ -27,9 +27,20 @@ port_add p0 domain bond0
 port_add p1 domain bond0
 port_add p2 domain bond0
 
+# without an explicit mac, the bond derives its address from the primary member
+p0_mac=$(grcli -j interface show name p0 | jq -r .mac)
+grcli -j interface show name bond0 | jq -e --arg mac "$p0_mac" 'select(.mac == $mac)' ||
+	fail "bond0 mac not derived from primary member p0"
+
 mac=02:f0:00:b4:44:44
 
 grcli interface set bond bond0 mac $mac primary p1
+
+# an explicitly configured mac must survive a primary member change
+grcli interface set bond bond0 primary p2
+grcli -j interface show name bond0 | jq -e --arg mac "$mac" 'select(.mac == $mac)' ||
+	fail "bond0 mac not preserved across primary member change"
+grcli interface set bond bond0 primary p1
 
 netns_add n0
 ip -n n0 link add br0 type bridge vlan_filtering 1
