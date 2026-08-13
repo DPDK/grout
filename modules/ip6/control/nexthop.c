@@ -141,7 +141,6 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	const struct ip6_local_mbuf_data *d;
 	const struct icmp6_neigh_solicit *ns;
 	const struct icmp6_neigh_advert *na;
-	struct nexthop_info_l3 *l3 = NULL;
 	icmp6_opt_found_t lladdr_found;
 	const struct iface *iface;
 	struct rte_ether_addr mac;
@@ -149,6 +148,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	d = ip6_local_mbuf_data(m);
 	iface = mbuf_data(m)->iface;
+	memset(&mac, 0, sizeof(mac));
 
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && iface == drain->obj)
@@ -178,53 +178,50 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	if (lladdr_found == ICMP6_OPT_INVAL)
 		goto free;
 
-	if (!rte_ipv6_addr_is_unspec(remote) && !rte_ipv6_addr_is_mcast(remote)) {
-		nh = nh6_lookup(iface->vrf_id, iface->id, remote);
-		if (nh == NULL) {
-			// We don't have an entry for the probe sender address yet.
-			//
-			// Create one now. If the sender has requested our mac address, they
-			// will certainly contact us soon and it will save us an NDP solicitation.
-			nh = nexthop_new(
-				&(struct gr_nexthop_base) {
-					.type = GR_NH_T_L3,
-					.iface_id = iface->id,
-					.vrf_id = iface->vrf_id,
-					.origin = GR_NH_ORIGIN_INTERNAL,
-				},
-				&(struct gr_nexthop_info_l3) {
-					.af = GR_AF_IP6,
-					.ipv6 = *remote,
-				}
-			);
-			if (nh == NULL) {
-				LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
-				goto free;
-			}
-
-			// Add an internal /128 route to reference the newly created nexthop.
-			int ret = rib6_insert(
-				iface->vrf_id,
-				iface->id,
-				remote,
-				RTE_IPV6_MAX_DEPTH,
-				GR_NH_ORIGIN_INTERNAL,
-				nh
-			);
-			if (ret < 0) {
-				nexthop_decref(nh);
-				LOG(ERR, "ip6_route_insert: %s", strerror(errno));
-				goto free;
-			}
-		}
-		l3 = nexthop_info_l3(nh);
-	}
-
-	if (l3 == NULL)
+	if (rte_ipv6_addr_is_unspec(remote) || rte_ipv6_addr_is_mcast(remote))
 		goto free;
 
-	if (!(l3->flags & GR_NH_F_STATIC) && lladdr_found == ICMP6_OPT_FOUND) {
+	nh = nh6_lookup(iface->vrf_id, iface->id, remote);
+	if (nh == NULL) {
+		// We don't have an entry for the probe sender address yet.
+		//
+		// Create one now. If the sender has requested our mac address, they
+		// will certainly contact us soon and it will save us an NDP solicitation.
+		nh = nexthop_new(
+			&(struct gr_nexthop_base) {
+				.type = GR_NH_T_L3,
+				.iface_id = iface->id,
+				.vrf_id = iface->vrf_id,
+				.origin = GR_NH_ORIGIN_INTERNAL,
+			},
+			&(struct gr_nexthop_info_l3) {
+				.af = GR_AF_IP6,
+				.ipv6 = *remote,
+				.mac = mac,
+			}
+		);
+		if (nh == NULL) {
+			LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
+			goto free;
+		}
+
+		// Add an internal /128 route to reference the newly created nexthop.
+		int ret = rib6_insert(
+			iface->vrf_id,
+			iface->id,
+			remote,
+			RTE_IPV6_MAX_DEPTH,
+			GR_NH_ORIGIN_INTERNAL,
+			nh
+		);
+		if (ret < 0) {
+			nexthop_decref(nh);
+			LOG(ERR, "ip6_route_insert: %s", strerror(errno));
+			goto free;
+		}
+	} else if (lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
+		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		l3->last_reply = gr_clock_ns();
 		l3->state = GR_NH_S_REACHABLE;
 		l3->ucast_probes = 0;
