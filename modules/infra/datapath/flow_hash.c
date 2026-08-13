@@ -19,6 +19,10 @@ static const uint8_t rss_key[] = {
 	0x80, 0x30, 0xf2, 0x0c, 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
 };
 
+static inline bool ip4_is_fragment(const struct rte_ipv4_hdr *ip) {
+	return ip->fragment_offset & RTE_BE16(RTE_IPV4_HDR_MF_FLAG | RTE_IPV4_HDR_OFFSET_MASK);
+}
+
 static uint32_t flow_hash_l3(const struct rte_mbuf *m, uint32_t l3_offset, rte_be16_t eth_type) {
 	union {
 		uint32_t u32;
@@ -42,7 +46,7 @@ static uint32_t flow_hash_l3(const struct rte_mbuf *m, uint32_t l3_offset, rte_b
 		tuple.v4.dst_addr = l3.ip4->dst_addr;
 		switch (l3.ip4->next_proto_id) {
 		case IPPROTO_UDP:
-			if (l3.ip4->fragment_offset == 0) {
+			if (!ip4_is_fragment(l3.ip4)) {
 				l4.udp = rte_pktmbuf_mtod_offset(
 					m,
 					const struct rte_udp_hdr *,
@@ -56,7 +60,7 @@ static uint32_t flow_hash_l3(const struct rte_mbuf *m, uint32_t l3_offset, rte_b
 			}
 			break;
 		case IPPROTO_TCP:
-			if (l3.ip4->fragment_offset == 0) {
+			if (!ip4_is_fragment(l3.ip4)) {
 				l4.tcp = rte_pktmbuf_mtod_offset(
 					m,
 					const struct rte_tcp_hdr *,
