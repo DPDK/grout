@@ -388,6 +388,16 @@ int iface_reconfig(
 		}
 		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
 			goto err;
+
+		if (conf->flags & GR_IFACE_F_PING_IGNORE)
+			iface->flags |= GR_IFACE_F_PING_IGNORE;
+		else
+			iface->flags &= ~GR_IFACE_F_PING_IGNORE;
+
+		if (conf->flags & GR_IFACE_F_ERR_IGNORE)
+			iface->flags |= GR_IFACE_F_ERR_IGNORE;
+		else
+			iface->flags &= ~GR_IFACE_F_ERR_IGNORE;
 	}
 
 	if (set_attrs & GR_IFACE_SET_VRF) {

@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "control_output.h"
+#include "datapath.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "log.h"
@@ -12,11 +13,15 @@
 
 #include <rte_icmp.h>
 
+GR_NODE_CTX_TYPE(icmp_input_ctx, { struct rate_limit_ctx limit; });
+
 enum {
 	OUTPUT = 0,
 	CONTROL,
 	INVALID,
 	UNSUPPORTED,
+	RATE_LIMITED,
+	IGNORED,
 	EDGE_COUNT,
 };
 
@@ -26,12 +31,19 @@ static control_queue_cb_t icmp_cb[UINT8_MAX];
 
 static uint16_t
 icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct icmp_input_ctx *ctx = icmp_input_ctx(node);
 	struct ip_local_mbuf_data *ip_data;
 	struct rte_icmp_hdr *icmp;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t cksum;
 	ip4_addr_t ip;
+
+	if (rate_limited(&ctx->limit, graph_conf.icmp_rate, nb_objs)) {
+		rte_node_next_stream_move(graph, node, RATE_LIMITED);
+		return nb_objs;
+	}
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -47,6 +59,12 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) {
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
+				goto next;
+			}
+			iface = mbuf_data(mbuf)->iface;
+			assert(iface != NULL);
+			if (iface->flags & GR_IFACE_F_PING_IGNORE) {
+				edge = IGNORED;
 				goto next;
 			}
 			icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
@@ -80,6 +98,13 @@ void icmp_input_register_callback(uint8_t icmp_type, control_queue_cb_t cb) {
 	icmp_cb[icmp_type] = cb;
 }
 
+static int icmp_input_init(const struct rte_graph *, struct rte_node *node) {
+	struct icmp_input_ctx *ctx = icmp_input_ctx(node);
+	ctx->limit.tokens = graph_conf.icmp_rate;
+	ctx->limit.last_refill = rte_rdtsc();
+	return 0;
+}
+
 static void icmp_input_register(void) {
 	ip_input_local_add_proto(IPPROTO_ICMP, "icmp_input");
 }
@@ -88,6 +113,7 @@ static struct rte_node_register icmp_input_node = {
 	.name = "icmp_input",
 
 	.process = icmp_input_process,
+	.init = icmp_input_init,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
@@ -95,6 +121,8 @@ static struct rte_node_register icmp_input_node = {
 		[CONTROL] = "control_output",
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
+		[RATE_LIMITED] = "error_rate_limited",
+		[IGNORED] = "ping_ignored",
 	},
 };
 
@@ -109,3 +137,4 @@ GR_NODE_REGISTER(icmp_input_info);
 
 GR_DROP_REGISTER(icmp_input_invalid);
 GR_DROP_REGISTER(icmp_input_unsupported);
+GR_DROP_REGISTER(ping_ignored);

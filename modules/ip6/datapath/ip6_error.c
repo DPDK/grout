@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "datapath.h"
 #include "graph.h"
 #include "icmp6.h"
 #include "ip6.h"
@@ -10,22 +11,26 @@
 #include "mbuf.h"
 
 #include <rte_common.h>
+#include <rte_ip.h>
 
 GR_NODE_CTX_TYPE(ip6_error_ctx, {
 	icmp6_type_t icmp_type;
 	uint8_t icmp_code;
+	struct rate_limit_ctx limit;
 });
 
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
 	NO_IP,
+	RATE_LIMITED,
+	ERR_IGNORED,
 	EDGE_COUNT,
 };
 
 static uint16_t
 ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
-	const struct ip6_error_ctx *ctx = ip6_error_ctx(node);
+	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
 	struct icmp6_err_dest_unreach *du;
 	struct icmp6_err_ttl_exceeded *te;
 	const struct nexthop_info_l3 *l3;
@@ -37,11 +42,26 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	struct icmp6 *icmp6;
 	rte_edge_t edge;
 
+	if (rate_limited(&ctx->limit, graph_conf.icmp_error_rate, nb_objs)) {
+		rte_node_next_stream_move(graph, node, RATE_LIMITED);
+		return nb_objs;
+	}
+
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
+
+		iface = l3_mbuf_data(mbuf)->iface;
+		if (iface == NULL) {
+			edge = NO_IP;
+			goto next;
+		}
+		if (iface->flags & GR_IFACE_F_ERR_IGNORE) {
+			edge = ERR_IGNORED;
+			goto next;
+		}
 
 		// Get the pointer to the start of the ipv6 header before
 		// prepending any data
@@ -83,11 +103,6 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		icmp6->code = ctx->icmp_code;
 
 		// Get the local router IP address from the input iface
-		iface = l3_mbuf_data(mbuf)->iface;
-		if (iface == NULL) {
-			edge = NO_IP;
-			goto next;
-		}
 		if ((nh = addr6_get_preferred(iface->id, &ip->src_addr)) == NULL) {
 			edge = NO_IP;
 			goto next;
@@ -110,6 +125,8 @@ static int ttl_exceeded_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
 	ctx->icmp_type = ICMP6_ERR_TTL_EXCEEDED;
 	ctx->icmp_code = 0;
+	ctx->limit.tokens = graph_conf.icmp_error_rate;
+	ctx->limit.last_refill = rte_rdtsc();
 	return 0;
 }
 
@@ -117,6 +134,8 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
 	ctx->icmp_type = ICMP6_ERR_DEST_UNREACH;
 	ctx->icmp_code = 0;
+	ctx->limit.tokens = graph_conf.icmp_error_rate;
+	ctx->limit.last_refill = rte_rdtsc();
 	return 0;
 }
 
@@ -128,6 +147,8 @@ static struct rte_node_register dest_unreach_node = {
 		[ICMP_OUTPUT] = "icmp6_output",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
+		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = no_route_init,
 };
@@ -140,6 +161,8 @@ static struct rte_node_register ttl_exceeded_node = {
 		[ICMP_OUTPUT] = "icmp6_output",
 		[NO_HEADROOM] = "error_no_headroom",
 		[NO_IP] = "error_no_local_ip",
+		[RATE_LIMITED] = "error_rate_limited",
+		[ERR_IGNORED] = "error_ignored",
 	},
 	.init = ttl_exceeded_init,
 };
