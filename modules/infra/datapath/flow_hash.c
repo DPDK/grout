@@ -18,6 +18,10 @@ static const uint8_t rss_key[] = {
 	0x80, 0x30, 0xf2, 0x0c, 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa,
 };
 
+static inline bool ip4_is_fragment(const struct rte_ipv4_hdr *ip) {
+	return ip->fragment_offset & RTE_BE16(RTE_IPV4_HDR_MF_FLAG | RTE_IPV4_HDR_OFFSET_MASK);
+}
+
 // Return the L4 header at offset when proto starts with the source and
 // destination ports (UDP and TCP do). Other protocols, including the IPv6
 // fragment header, have no ports to hash.
@@ -49,7 +53,7 @@ static uint32_t flow_hash_l3(const struct rte_mbuf *m, uint32_t l3_offset, rte_b
 		l3.ip4 = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, l3_offset);
 		tuple.v4.src_addr = l3.ip4->src_addr;
 		tuple.v4.dst_addr = l3.ip4->dst_addr;
-		if (l3.ip4->fragment_offset == 0)
+		if (!ip4_is_fragment(l3.ip4))
 			l4 = l4_ports(
 				m, l3_offset + rte_ipv4_hdr_len(l3.ip4), l3.ip4->next_proto_id
 			);
