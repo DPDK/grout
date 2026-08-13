@@ -28,6 +28,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_BOND, iface_info_bond, {
 	gr_bond_mode_t mode;
 	gr_bond_algo_t algo;
 	struct rte_ether_addr mac;
+	bool mac_explicit; // mac was configured by the user, do not derive it from members
 
 	uint8_t primary_member;
 	uint8_t active_member; // Active member index (for active-backup mode)

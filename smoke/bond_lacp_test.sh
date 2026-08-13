@@ -22,10 +22,13 @@ wait_member_sync() {
 
 . $(dirname $0)/_init.sh
 
-grcli interface add bond bond0 mode lacp
+bond_mac=02:00:00:00:00:10
+grcli interface add bond bond0 mode lacp mac $bond_mac
 port_add p0 domain bond0
 port_add p1 domain bond0
 port_add p2 domain bond0
+grcli -j interface show name bond0 | \
+	jq -e --arg mac "$bond_mac" 'select(.mac == $mac)'
 grcli address add 172.16.0.1/24 iface bond0
 
 netns_add n0

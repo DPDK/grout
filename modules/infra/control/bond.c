@@ -172,9 +172,14 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 	m->iface = member;
 	bond->n_members++;
 
-	if (bond_mac_set(iface, &zero) < 0) {
+	if (!bond->mac_explicit) {
+		if (bond_mac_set(iface, &zero) < 0) {
+			bond->n_members--;
+			return errno_log(errno, "bond_mac_set");
+		}
+	} else if (iface_add_eth_addr(member, &bond->mac) < 0) {
 		bond->n_members--;
-		return errno_log(errno, "bond_mac_set");
+		return errno_log(errno, "iface_add_eth_addr(member)");
 	}
 
 	bond_update_active_members(iface);
@@ -379,7 +384,13 @@ static int bond_reconfig(
 		bond_update_active_members(iface);
 	}
 
-	if (set_attrs & (GR_BOND_SET_MAC | GR_BOND_SET_PRIMARY)) {
+	if (set_attrs & GR_BOND_SET_MAC)
+		bond->mac_explicit = !rte_is_zero_ether_addr(&api->mac);
+
+	// Changing the primary member only re-derives the mac when the user did
+	// not configure one, otherwise the configured mac would be discarded.
+	if (set_attrs & GR_BOND_SET_MAC
+	    || (set_attrs & GR_BOND_SET_PRIMARY && !bond->mac_explicit)) {
 		if (iface_set_eth_addr(iface, &api->mac) < 0)
 			return -errno;
 	}
