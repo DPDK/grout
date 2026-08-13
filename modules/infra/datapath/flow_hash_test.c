@@ -27,6 +27,7 @@ static void packet_init(struct test_packet *p, rte_be16_t src_port) {
 	p->eth.src_addr = (struct rte_ether_addr) {{0x02, 0, 0, 0, 0, 1}};
 	p->eth.ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 	p->ip.version_ihl = RTE_IPV4_VHL_DEF;
+	p->ip.fragment_offset = RTE_BE16(RTE_IPV4_HDR_DF_FLAG);
 	p->ip.next_proto_id = IPPROTO_UDP;
 	p->ip.src_addr = RTE_BE32(0x0a000001);
 	p->ip.dst_addr = RTE_BE32(0x0a000002);
