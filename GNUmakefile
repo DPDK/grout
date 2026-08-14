@@ -239,7 +239,7 @@ release:
 	sed -i "s/\<v$$cur_version\>/v$$next_version/" meson.build && \
 	git commit -sm "grout: release v$$next_version" -m "`devtools/git-stats v$$cur_version..`" meson.build && \
 	git tag -sm "`devtools/git-stats v$$cur_version..HEAD^`" "v$$next_version" && \
-	git archive --format=tar.gz --prefix="grout-$$next_version/" "v$$next_version" | \
+	git archive --format=tar --prefix="grout-$$next_version/" "v$$next_version" | gzip -n | \
 		gpg --detach-sign --armor > "grout-$$next_version.tar.gz.asc" && \
 	git push git@github.com:DPDK/grout main "v$$next_version" && \
 	gh release create "v$$next_version" --draft \
