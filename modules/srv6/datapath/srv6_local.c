@@ -518,6 +518,7 @@ struct fake_mbuf {
 			 sizeof(struct ipv6_ext_hdr)]; // for dstopts
 	};
 	struct rte_mbuf mbuf;
+	uint8_t priv[GR_MBUF_PRIV_MAX_SIZE]; // rte_mbuf_to_priv() lands here
 	uint16_t offset;
 	uint8_t *prev_next; // points inside data[] to the previous “Next Header” byte
 };
