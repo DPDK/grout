@@ -144,3 +144,7 @@ uint32_t gr_mbuf_flow_hash_compute(const struct rte_mbuf *m, gr_mbuf_flow_hash_m
 
 	return flow_hash_l3(m, l3_offset, eth_type);
 }
+
+uint32_t gr_mbuf_flow_hash_l3(const struct rte_mbuf *m, rte_be16_t eth_type) {
+	return flow_hash_l3(m, 0, eth_type);
+}
