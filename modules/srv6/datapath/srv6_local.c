@@ -170,6 +170,11 @@ static int trace_srv6_format(char *buf, size_t len, const void *data, size_t /*d
 		);
 }
 
+// The segment list is stored right after the SRH, in reverse order.
+static inline struct rte_ipv6_addr srh_segment(const struct rte_ipv6_routing_ext *sr, uint8_t i) {
+	return ((const struct rte_ipv6_addr *)(sr + 1))[i];
+}
+
 // Decap srv6 header
 static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
@@ -177,7 +182,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	uint32_t adj_len;
 
 	// set last sid as DA
-	ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[0];
+	ip6->dst_addr = srh_segment(sr, 0);
 
 	// 4.16.1 PSP
 	// remove this SRH
@@ -396,7 +401,7 @@ static int process_behav_end(
 
 		// use next sid in list
 		--sr->segments_left;
-		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[sr->segments_left];
+		ip6->dst_addr = srh_segment(sr, sr->segments_left);
 	}
 
 forward:
