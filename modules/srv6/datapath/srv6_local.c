@@ -40,9 +40,7 @@ struct ip6_info {
 	uint16_t ext_offset;
 	uint16_t sr_len;
 	uint8_t proto;
-	// Pointer to the Next Header byte in the previous header
-	// (IPv6 base NH if SRH is first).
-	uint8_t *p_proto;
+	uint8_t *sr_prev_nh;
 	struct rte_ipv6_hdr *ip6_hdr;
 	struct rte_ipv6_routing_ext *sr;
 };
@@ -83,7 +81,7 @@ static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bo
 
 		ip6_info->proto = (uint8_t)next_proto;
 		// next header is always the first field of any extension
-		ip6_info->p_proto = ext;
+		ip6_info->sr_prev_nh = ext;
 	} while (is_ipv6_ext[ip6_info->proto]);
 
 	// single final guard
@@ -112,7 +110,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->src = ip6->src_addr;
 	ip6_info->dst = ip6->dst_addr;
 	ip6_info->proto = ip6->proto;
-	ip6_info->p_proto = &ip6->proto;
+	ip6_info->sr_prev_nh = &ip6->proto;
 	ip6_info->ext_offset = sizeof(*ip6);
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
@@ -173,7 +171,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	// 4.16.1 PSP
 	// remove this SRH
 	adj_len = ip6_info->sr_len;
-	*ip6_info->p_proto = sr->next_hdr;
+	*ip6_info->sr_prev_nh = sr->next_hdr;
 	memmove((void *)ip6 + adj_len, ip6, (void *)sr - (void *)ip6);
 	rte_pktmbuf_adj(m, adj_len);
 	ip6 = (void *)ip6 + adj_len;
@@ -184,7 +182,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->ext_offset -= adj_len;
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
-	// ip6_info->p_proto is invalid, but not used
+	// ip6_info->sr_prev_nh is invalid, but not used
 }
 
 // Remove ipv6 headers and extension
@@ -559,7 +557,7 @@ static void fm_init_ipv6(struct fake_mbuf *fm, struct ip6_info *expect) {
 	expect->dst = IP6_DST;
 	expect->ext_offset = sizeof(struct rte_ipv6_hdr);
 	expect->proto = IPPROTO_NONE;
-	expect->p_proto = &ip6->proto;
+	expect->sr_prev_nh = &ip6->proto;
 	expect->ip6_hdr = ip6;
 	expect->sr = NULL;
 	expect->sr_len = 0;
@@ -587,7 +585,7 @@ static void push_ext8(
 
 	if (!after_srh) {
 		expect->ext_offset += 8;
-		expect->p_proto = fm->prev_next;
+		expect->sr_prev_nh = fm->prev_next;
 	} else
 		expect->proto = proto_value;
 }
@@ -645,7 +643,7 @@ static inline void assert_ip6_info_equal(const struct ip6_info *got, const struc
 	assert_int_equal(got->proto, exp->proto);
 
 	// Pointers
-	assert_ptr_equal(got->p_proto, exp->p_proto);
+	assert_ptr_equal(got->sr_prev_nh, exp->sr_prev_nh);
 	assert_ptr_equal(got->ip6_hdr, exp->ip6_hdr);
 	assert_ptr_equal(got->sr, exp->sr);
 }
@@ -702,7 +700,7 @@ static void srv6_parse_ipv6_srv6_dop(void **) {
 	assert_ip6_info_equal(&info, &expect);
 
 	expect.ext_offset += 8;
-	expect.p_proto = fm.prev_next;
+	expect.sr_prev_nh = fm.prev_next;
 	expect.proto = IPPROTO_NONE;
 
 	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
@@ -722,7 +720,7 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	assert_ip6_info_equal(&info, &expect);
 
 	expect.ext_offset += 8;
-	expect.p_proto = fm.prev_next;
+	expect.sr_prev_nh = fm.prev_next;
 	expect.proto = IPPROTO_NONE;
 
 	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
