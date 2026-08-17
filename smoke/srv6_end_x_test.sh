@@ -110,3 +110,44 @@ if ! ip netns exec n0 ping6 -i0.01 -c3 -n 2001:db8:101::2; then
 fi
 
 grcli trace show count 20 | grep -B5 -A7 "sr6_local: action=end.x"
+
+#
+# uA test: END.X with the NEXT-CSID flavor (RFC 9800)
+#
+# The container 5f00:102:100:200:: packs the uA CSID 0100 followed by 0200,
+# with the default 32 bit locator block and 16 bit CSIDs. grout must shift
+# the destination to 5f00:102:200:: and hand the packet to the neighbour
+# configured on p0-bis. No route covers the shifted destination, so a FIB
+# lookup would drop it instead.
+#
+
+grcli nexthop add srv6-local behavior end.x nexthop 2001:db8:62::2 iface p0-bis \
+	flavor next-csid id 201
+grcli route add 5f00:102:100::/48 via id 201
+
+grcli trace clear
+
+# Start the capture before the traffic. ping6 -i0.2 -c5 is done emitting after
+# 0.8s, which tcpdump may not beat to opening its capture.
+capture=$(mktemp)
+ip netns exec n0 timeout 5 tcpdump -c1 -pnnli x-p0-bis ip6 dst 5f00:102:200:: >"$capture" 2>&1 &
+tcpdump_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" "$capture"; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n1 ping6 -i0.2 -c5 -n 5f00:102:100:200:: >/dev/null 2>&1 &
+ping_pid=$!
+
+if ! wait $tcpdump_pid; then
+	cat "$capture"
+	rm -f "$capture"
+	wait $ping_pid
+	grcli trace show count 20
+	fail "uA did not forward the shifted container to the configured nexthop"
+fi
+rm -f "$capture"
+wait $ping_pid || true
