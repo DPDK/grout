@@ -327,7 +327,7 @@ static inline bool csid_shift(struct rte_ipv6_addr *da, uint8_t block_bits, uint
 
 //
 // End/End.X behavior (RFC 8986 Section 4.1 and 4.10)
-// If nh_id is set in sr_d, uses explicit nexthop (END.X), otherwise FIB lookup (END)
+// END.X hands the packet to its configured L3 nexthop, END does a FIB lookup.
 //
 static int process_behav_end(
 	struct rte_mbuf *m,
@@ -341,16 +341,8 @@ static int process_behav_end(
 	if (sr_d->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
 		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
 
-		if (csid_shift(&ip6->dst_addr, sr_d->block_bits, sr_d->csid_bits)) {
-			if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
-				iface = get_vrf_iface(sr_d->out_vrf_id);
-				if (iface == NULL)
-					return DEST_UNREACH;
-				mbuf_data(m)->iface = iface;
-			}
-			eth_input_mbuf_data(m)->domain = ETH_DOMAIN_LOCAL;
-			return IP6_INPUT;
-		}
+		if (csid_shift(&ip6->dst_addr, sr_d->block_bits, sr_d->csid_bits))
+			goto forward;
 		// container exhausted, fall through to standard End
 	}
 
@@ -376,6 +368,7 @@ static int process_behav_end(
 		ip6->dst_addr = ((struct rte_ipv6_addr *)(sr + 1))[sr->segments_left];
 	}
 
+forward:
 	if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
 		iface = get_vrf_iface(sr_d->out_vrf_id);
 		if (iface == NULL)
@@ -751,6 +744,61 @@ static void srv6_decap_dt4_behind_dop(void **) {
 	assert_int_equal(fm.mbuf.data_len, 0);
 }
 
+// A container packing the active CSID 0100 and a trailing 0200, with the
+// default 32 bit locator block and 16 bit CSIDs.
+#define CSID_CONTAINER ((struct rte_ipv6_addr)RTE_IPV6(0x5f00, 0x102, 0x100, 0x200, 0, 0, 0, 0))
+
+// uN: the shifted container goes back to the FIB.
+static void srv6_end_next_csid(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {
+			.behavior = SR_BEHAVIOR_END,
+			.out_vrf_id = GR_VRF_ID_UNDEF,
+			.flags = GR_SR_FL_FLAVOR_NEXT_CSID,
+			.block_bits = 32,
+			.csid_bits = 16
+		},
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	fm.ip6.dst_addr = CSID_CONTAINER;
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
+	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
+	// 0100 consumed, 0200 is now the active CSID
+	assert_int_equal(fm.ip6.dst_addr.a[4], 0x02);
+	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
+}
+
+// uA: the shifted container goes to the configured L3 nexthop.
+static void srv6_end_x_next_csid(void **) {
+	struct nexthop l3_nh = {0};
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {
+			.behavior = SR_BEHAVIOR_END_X,
+			.out_vrf_id = GR_VRF_ID_UNDEF,
+			.flags = GR_SR_FL_FLAVOR_NEXT_CSID,
+			.block_bits = 32,
+			.csid_bits = 16,
+		},
+		.l3_nh = &l3_nh,
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	fm.ip6.dst_addr = CSID_CONTAINER;
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_FORWARD);
+	assert_ptr_equal(l3_mbuf_data(&fm.mbuf)->nh, &l3_nh);
+	assert_int_equal(fm.ip6.dst_addr.a[4], 0x02);
+	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
+}
+
 // ---- runner -----------------------------------------------------------------
 int main(void) {
 	const struct CMUnitTest tests[] = {
@@ -760,6 +808,8 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
 		cmocka_unit_test(srv6_decap_dt4_behind_dop),
+		cmocka_unit_test(srv6_end_next_csid),
+		cmocka_unit_test(srv6_end_x_next_csid),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
