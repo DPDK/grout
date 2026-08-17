@@ -112,7 +112,7 @@ static inline int find_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info
 }
 
 // On return, proto is the upper layer protocol only when sr is NULL.
-static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+static int ip6_parse_to_srh(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_hdr *ip6;
 
 	// already checked by ip6_input_process
@@ -263,7 +263,7 @@ static int process_behav_decap(
 	if (sr != NULL && sr->segments_left > 0)
 		return NO_TRANSIT;
 
-	// ip6_fill_infos() stopped on the SRH, resolve the real upper layer
+	// ip6_parse_to_srh() stopped on the SRH, resolve the real upper layer
 	if (unlikely(find_upper_layer(m, ip6_info) < 0))
 		return INVALID_PACKET;
 
@@ -450,7 +450,7 @@ srv6_local_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		m = objs[i];
-		ret = ip6_fill_infos(m, &ip6_info);
+		ret = ip6_parse_to_srh(m, &ip6_info);
 		if (ret < 0) {
 			edge = INVALID_PACKET;
 			goto next;
@@ -703,7 +703,7 @@ static void srv6_parse_only_ipv6(void **) {
 	fm_init_ipv6(&fm, &expect);
 	// no extensions added
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 }
 
@@ -714,7 +714,7 @@ static void srv6_parse_ipv6_srv6(void **) {
 	fm_init_ipv6(&fm, &expect);
 	push_srh_1sid(&fm, &expect);
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
 	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
@@ -729,7 +729,7 @@ static void srv6_parse_ipv6_hop_srv6(void **) {
 	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, sizeof(struct ipv6_ext_hdr), false);
 	push_srh_1sid(&fm, &expect);
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
 	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
@@ -744,7 +744,7 @@ static void srv6_parse_ipv6_srv6_dop(void **) {
 	push_srh_1sid(&fm, &expect);
 	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
 	// sr_prev_nh must still point before the SRH
@@ -764,7 +764,7 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	push_srh_1sid(&fm, &expect);
 	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
 	// sr_prev_nh must still point before the SRH
@@ -788,7 +788,7 @@ static void srv6_decap_dt4_behind_dop(void **) {
 	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
 	*fm.prev_next = IPPROTO_IPIP;
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_decap(&fm.mbuf, &sr_d, &info), IP_INPUT);
 	// the whole outer encapsulation must be gone, not just up to the SRH
 	assert_int_equal(fm.mbuf.data_len, 0);
@@ -816,7 +816,7 @@ static void srv6_end_x_usd(bool inner_v4, rte_edge_t expected_edge, uint16_t exp
 	else
 		push_inner_ipv6(&fm);
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), expected_edge);
 	assert_ptr_equal(eth_input_mbuf_data(&fm.mbuf)->nh, &l3_nh);
 	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
@@ -851,7 +851,7 @@ static void srv6_end_x_usd_no_inner(void **) {
 	push_srh_1sid(&fm, &expect);
 	*fm.prev_next = IPPROTO_IPIP;
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP_INPUT);
 	assert_int_equal(fm.mbuf.data_len, 0);
 }
@@ -880,7 +880,7 @@ static void srv6_end_next_csid(void **) {
 	// a previous packet in this mbuf may have left an adjacency behind
 	eth_input_mbuf_data(&fm.mbuf)->nh = &stale_nh;
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
 	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
 	// ip6_input must look the shifted container up, not reuse the stale one
@@ -909,7 +909,7 @@ static void srv6_end_x_next_csid(void **) {
 	fm_init_ipv6(&fm, &expect);
 	fm.ip6.dst_addr = CSID_CONTAINER;
 
-	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_FORWARD);
 	assert_ptr_equal(l3_mbuf_data(&fm.mbuf)->nh, &l3_nh);
 	assert_int_equal(fm.ip6.dst_addr.a[4], 0x02);
