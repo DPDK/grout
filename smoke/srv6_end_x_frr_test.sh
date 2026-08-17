@@ -129,3 +129,35 @@ assert_nexthop "$nh_id" '.behavior == "end.x"' || {
 	grcli route
 	fail "No SRv6-local END.X nexthops found - ISIS SRv6 integration failed"
 }
+
+# The locator uses uSID, so the adjacency SID is a uA: grout consumes the
+# active CSID and hands the packet to the peer over the adjacency instead
+# of looking the result up. 5f00:100:0:1:: shifts to 5f00:100:1::, which
+# no route covers, so the packet only comes back out if the L3 nexthop is
+# really used.
+ip -n isis-peer -6 route add 5f00:100::/48 via 2001:db8:1::1 dev x-p0
+
+# Start the capture before the traffic. ping6 -i0.2 -c5 is done emitting after
+# 0.8s, which tcpdump may not beat to opening its capture.
+capture=$(mktemp)
+ip netns exec isis-peer timeout 5 tcpdump -c1 -pnnli x-p0 ip6 dst 5f00:100:1:: >"$capture" 2>&1 &
+tcpdump_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" "$capture"; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec isis-peer ping6 -i0.2 -c5 -n 5f00:100:0:1:: >/dev/null 2>&1 &
+ping_pid=$!
+
+if ! wait $tcpdump_pid; then
+	cat "$capture"
+	rm -f "$capture"
+	wait $ping_pid
+	grcli trace show count 20
+	fail "END.X did not forward the packet to the adjacency"
+fi
+rm -f "$capture"
+wait $ping_pid || true
