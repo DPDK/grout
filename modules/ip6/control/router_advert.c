@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
+#include "config.h"
 #include "event.h"
 #include "icmp6.h"
 #include "iface.h"
@@ -32,7 +33,7 @@ struct ra_iface_conf {
 	uint16_t lifetime;
 };
 
-static struct ra_iface_conf ra_conf[GR_MAX_IFACES];
+static struct ra_iface_conf *ra_conf;
 
 static struct api_out iface_ra_set(const void *request, struct api_ctx *) {
 	const struct gr_ip6_ra_set_req *req = request;
@@ -77,7 +78,7 @@ static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	else if (iface_from_id(req->iface_id) == NULL)
 		return api_out(errno, 0, NULL);
 
-	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < gr_config.max_ifaces; iface_id++) {
 		addrs = addr6_get_all(iface_id);
 		if (addrs == NULL || vec_len(addrs->nh) == 0)
 			continue;
@@ -182,14 +183,23 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 	}
 }
 
+static void ra_fini(struct event_base *) {
+	free(ra_conf);
+	ra_conf = NULL;
+}
+
 static void ra_init(struct event_base *base) {
 	ev_base = base;
+	ra_conf = calloc(gr_config.max_ifaces, sizeof(*ra_conf));
+	if (ra_conf == NULL)
+		ABORT("calloc(ra_conf)");
 }
 
 static struct module ra_module = {
 	.name = "ip6_router_advert",
 	.depends_on = "graph",
 	.init = ra_init,
+	.fini = ra_fini,
 };
 
 static void iface_event_handler(uint32_t event, const void *obj) {

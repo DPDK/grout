@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "iface.h"
 #include "ip4.h"
 #include "ipip.h"
@@ -128,7 +129,7 @@ static const struct iface_type iface_type_ipip = {
 static void ipip_init(struct event_base *) {
 	struct rte_hash_parameters params = {
 		.name = "ipip",
-		.entries = GR_MAX_IFACES,
+		.entries = gr_config.max_ifaces,
 		.key_len = sizeof(struct ipip_key),
 		.socket_id = SOCKET_ID_ANY,
 		.extra_flag = RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF

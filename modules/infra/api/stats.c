@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "metrics.h"
 #include "module.h"
 #include "port.h"
@@ -178,7 +179,7 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 	iface = NULL;
 
 	// Reset software stats for all interfaces.
-	memset(iface_stats, 0, sizeof(iface_stats));
+	memset(iface_stats, 0, gr_config.max_ifaces * sizeof(*iface_stats));
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);

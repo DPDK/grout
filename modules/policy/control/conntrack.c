@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "config.h"
 #include "conntrack.h"
 #include "log.h"
 #include "module.h"
@@ -308,7 +309,6 @@ bool gr_conn_parse_key(
 	return true;
 }
 
-#define DEFAULT_CONN_COUNT 16384
 #define DEFAULT_TIMEOUT_CLOSED 5
 #define DEFAULT_TIMEOUT_NEW 5
 #define DEFAULT_TIMEOUT_UDP_ESTABLISHED 30
@@ -317,7 +317,6 @@ bool gr_conn_parse_key(
 #define DEFAULT_TIMEOUT_TIME_WAIT 30
 
 static struct gr_conntrack_config conf = {
-	.max_count = DEFAULT_CONN_COUNT,
 	.timeout_closed_sec = DEFAULT_TIMEOUT_CLOSED,
 	.timeout_new_sec = DEFAULT_TIMEOUT_NEW,
 	.timeout_udp_established_sec = DEFAULT_TIMEOUT_UDP_ESTABLISHED,
@@ -645,6 +644,7 @@ static struct api_out config_get(const void * /*request*/, struct api_ctx *) {
 }
 
 static void conntrack_init(struct event_base *ev_base) {
+	conf.max_count = gr_config.max_conntracks;
 	if (config_update(&conf) < 0)
 		ABORT("conntrack config_update");
 

@@ -205,6 +205,7 @@ static struct api_out unsubscribe(const void * /*request*/, struct api_ctx *ctx)
 
 static struct api_out hello(const void *request, struct api_ctx *) {
 	const struct gr_hello_req *req = request;
+	struct gr_hello_resp *resp;
 
 	if (req->api_version != GR_API_VERSION) {
 		LOG(WARNING,
@@ -215,7 +216,13 @@ static struct api_out hello(const void *request, struct api_ctx *) {
 		return api_out(EBADMSG, 0, NULL);
 	}
 
-	return api_out(0, 0, NULL);
+	resp = malloc(sizeof(*resp));
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+
+	resp->max_ifaces = gr_config.max_ifaces;
+
+	return api_out(0, sizeof(*resp), resp);
 }
 
 static void disconnect_client(struct api_ctx *ctx) {

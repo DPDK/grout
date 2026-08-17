@@ -40,11 +40,7 @@ netns_add bgp-peer
 move_to_netns x-p0 bgp-peer
 ip -n bgp-peer addr add 172.16.0.2/24 dev x-p0
 
-
-set_ip_address p0 172.16.0.1/24
-set_ip_route 0.0.0.0/0 172.16.0.2
-
-grcli route config set vrf main  rib4-routes 1000000
+grcli interface set vrf main rib4-routes 1000000
 
 # Configure Grout FRR instance
 vtysh <<-EOF
@@ -56,6 +52,12 @@ route-map allow-all permit 1
 exit
 route-map deny-all deny 1
 exit
+
+interface p0
+	ip address 172.16.0.1/24
+exit
+
+ip route 0.0.0.0/0 172.16.0.2 vrf default
 
 router bgp 65002
 	bgp router-id 172.16.0.1

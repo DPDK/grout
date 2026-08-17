@@ -76,6 +76,8 @@ static int setup(void **) {
 	struct iface_info_port *port;
 	struct iface_info_vlan *vlan;
 
+	gr_config.max_ifaces = 1024;
+
 	iface = calloc(1, sizeof(*iface) + sizeof(*port));
 	assert_non_null(iface);
 	iface->name = strdup("p0");

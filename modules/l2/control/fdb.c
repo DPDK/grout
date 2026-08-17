@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "config.h"
 #include "event.h"
 #include "iface.h"
 #include "l2.h"
@@ -485,10 +486,9 @@ static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 
 static struct event *ageing_timer;
 
-#define FDB_DEFAULT_MAX_ENTRIES 4096
-
 static void fdb_init(struct event_base *base) {
-	if (fdb_reconfig(FDB_DEFAULT_MAX_ENTRIES) < 0)
+	uint32_t max = gr_config.max_fdb_entries;
+	if (fdb_reconfig(max) < 0)
 		ABORT("fdb_reconfig failed");
 
 	ageing_timer = event_new(base, -1, EV_PERSIST | EV_FINALIZE, fdb_ageing_cb, NULL);

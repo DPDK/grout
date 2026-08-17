@@ -24,7 +24,7 @@ LOG_TYPE("iface");
 
 static const struct iface_type *iface_types[UINT_NUM_VALUES(gr_iface_type_t)];
 
-struct iface_stats iface_stats[GR_MAX_IFACES][RTE_MAX_LCORE];
+struct iface_stats (*iface_stats)[RTE_MAX_LCORE];
 
 static bool iface_type_valid(gr_iface_type_t type) {
 	switch (type) {
@@ -125,7 +125,7 @@ static struct iface **ifaces;
 // Reserve a specific interface id.
 // Returns 0 on success, -errno on failure.
 static int reserve_ifid(uint16_t ifid) {
-	if (ifid >= GR_MAX_IFACES)
+	if (ifid >= gr_config.max_ifaces)
 		return errno_set(EINVAL);
 
 	if (ifaces[ifid] == NULL)
@@ -136,7 +136,7 @@ static int reserve_ifid(uint16_t ifid) {
 
 // Slot GR_VRF_DEFAULT_ID (1) is reserved for the default VRF.
 static int next_ifid(uint16_t *ifid) {
-	for (uint16_t i = GR_VRF_DEFAULT_ID + 1; i < GR_MAX_IFACES; i++) {
+	for (uint16_t i = GR_VRF_DEFAULT_ID + 1; i < gr_config.max_ifaces; i++) {
 		if (reserve_ifid(i) < 0)
 			continue;
 
@@ -430,7 +430,7 @@ err:
 uint16_t ifaces_count(gr_iface_type_t type_id) {
 	uint16_t count = 0;
 
-	for (uint16_t ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
+	for (uint16_t ifid = IFACE_ID_FIRST; ifid < gr_config.max_ifaces; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			count++;
@@ -447,7 +447,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 	else
 		start_id = prev->id + 1;
 
-	for (uint16_t ifid = start_id; ifid < GR_MAX_IFACES; ifid++) {
+	for (uint16_t ifid = start_id; ifid < gr_config.max_ifaces; ifid++) {
 		struct iface *iface = ifaces[ifid];
 		if (iface != NULL && (type_id == GR_IFACE_TYPE_UNDEF || iface->type == type_id))
 			return iface;
@@ -458,7 +458,7 @@ struct iface *iface_next(gr_iface_type_t type_id, const struct iface *prev) {
 
 struct iface *iface_from_id(uint16_t ifid) {
 	struct iface *iface = NULL;
-	if (ifid != GR_IFACE_ID_UNDEF && ifid < GR_MAX_IFACES)
+	if (ifid != GR_IFACE_ID_UNDEF && ifid < gr_config.max_ifaces)
 		iface = ifaces[ifid];
 	if (iface == NULL)
 		errno = ENODEV;
@@ -731,9 +731,14 @@ int iface_destroy(struct iface *iface) {
 }
 
 static void iface_init(struct event_base *) {
-	ifaces = rte_calloc(__func__, GR_MAX_IFACES, sizeof(struct iface *), RTE_CACHE_LINE_SIZE);
+	ifaces = rte_calloc(
+		__func__, gr_config.max_ifaces, sizeof(struct iface *), RTE_CACHE_LINE_SIZE
+	);
 	if (ifaces == NULL)
 		ABORT("rte_calloc(ifaces)");
+	iface_stats = calloc(gr_config.max_ifaces, sizeof(*iface_stats));
+	if (iface_stats == NULL)
+		ABORT("calloc(iface_stats)");
 }
 
 static void iface_fini(struct event_base *) {
@@ -751,7 +756,7 @@ static void iface_fini(struct event_base *) {
 		GR_IFACE_TYPE_VRF, // no dependencies
 	};
 	for (unsigned t = 0; t < ARRAY_DIM(types); t++) {
-		for (ifid = IFACE_ID_FIRST; ifid < GR_MAX_IFACES; ifid++) {
+		for (ifid = IFACE_ID_FIRST; ifid < gr_config.max_ifaces; ifid++) {
 			iface = ifaces[ifid];
 			if (iface == NULL || iface->type != types[t])
 				continue;
@@ -763,6 +768,8 @@ static void iface_fini(struct event_base *) {
 	vec_free(reserved_names);
 	rte_free(ifaces);
 	ifaces = NULL;
+	free(iface_stats);
+	iface_stats = NULL;
 }
 
 static struct module iface_module = {

@@ -55,6 +55,8 @@ static int queue_buffer_us(uint32_t link_speed, uint16_t queue_size) {
 
 static uint16_t get_rxq_size(struct iface_info_port *p, const struct rte_eth_dev_info *info) {
 	if (p->rxq_size == 0)
+		p->rxq_size = gr_config.port_queue_size;
+	if (p->rxq_size == 0)
 		p->rxq_size = info->default_rxportconf.ring_size;
 	if (p->rxq_size == 0)
 		p->rxq_size = RTE_ETH_DEV_FALLBACK_RX_RINGSIZE;
@@ -62,6 +64,8 @@ static uint16_t get_rxq_size(struct iface_info_port *p, const struct rte_eth_dev
 }
 
 static uint16_t get_txq_size(struct iface_info_port *p, const struct rte_eth_dev_info *info) {
+	if (p->txq_size == 0)
+		p->txq_size = gr_config.port_queue_size;
 	if (p->txq_size == 0)
 		p->txq_size = info->default_txportconf.ring_size;
 	if (p->txq_size == 0)

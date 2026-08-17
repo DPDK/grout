@@ -75,6 +75,8 @@ struct grout_ctx_t {
 	// wait for this before proceeding, otherwise vrf_terminate()
 	// inside grout_ns_reset() can destroy the marker or VRF tables.
 	bool startup_done;
+
+	uint16_t max_ifaces;
 };
 
 static struct grout_ctx_t grout_ctx = {0};
@@ -184,7 +186,7 @@ static void grout_sync_fdb(struct event *) {
 		gr_log_err("GR_FDB_LIST: %s", strerror(errno));
 
 	// Start per-VRF sync chain with the first VRF
-	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = 0; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				dplane_get_thread_master(),
@@ -431,7 +433,7 @@ route6:
 	// Pass 3: chain to routes of next VRF. NHEs from all VRFs are
 	// already registered (Pass 2 ran nhs for every VRF before any
 	// routes), so cross-VRF NH references resolve at inject time.
-	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = EVENT_VAL(e) + 1; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				zrouter.master,
@@ -477,7 +479,7 @@ static void grout_sync_nh_groups(struct event *) {
 	}
 
 	// Kick off routes starting from the first VRF.
-	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = 0; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				zrouter.master,
@@ -517,7 +519,7 @@ static void grout_sync_nhs(struct event *e) {
 	// Chain to individual NHs of next VRF. All individual NHs across
 	// all VRFs must be registered before groups, so that group member
 	// references resolve.
-	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = EVENT_VAL(e) + 1; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
@@ -568,7 +570,7 @@ static void grout_sync_addrs(struct event *e) {
 	// Pass 1 (this VRF done): chain to addrs of next VRF.
 	// All addrs across all VRFs are processed before any nhs, mirroring
 	// the kernel dplane init order (links -> addrs -> nexthops -> routes).
-	for (unsigned int i = EVENT_VAL(e) + 1; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = EVENT_VAL(e) + 1; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				dplane_get_thread_master(),
@@ -583,7 +585,7 @@ static void grout_sync_addrs(struct event *e) {
 
 	// Pass 1 done across all VRFs. Kick off Pass 2 (nhs) starting
 	// from the first VRF.
-	for (unsigned int i = 0; i < GR_MAX_IFACES; i++) {
+	for (unsigned int i = 0; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
 				zrouter.master, grout_sync_nhs, NULL, i, &grout_ctx.dg_t_zebra_sync
@@ -605,6 +607,9 @@ static void grout_sync(struct event *) {
 		event_add_timer(zrouter.master, grout_sync, NULL, 1, &grout_ctx.dg_t_sync);
 		return;
 	}
+
+	grout_ctx.max_ifaces = gr_api_client_info(grout_ctx.sync_client)->max_ifaces;
+	bf_init(grout_ctx.sync_vrf, grout_ctx.max_ifaces);
 
 	// grout is available, schedule notification channels and sync
 	event_add_timer(dplane_get_thread_master(), dplane_grout_connect, NULL, 0, NULL);
@@ -1154,7 +1159,6 @@ static int zd_grout_module_init(void) {
 	hook_register(frr_late_init, zd_grout_plugin_init);
 	hook_register(frr_config_post, zd_grout_start_sync);
 	init_ifindex_mappings();
-	bf_init(grout_ctx.sync_vrf, GR_MAX_IFACES);
 	return 0;
 }
 

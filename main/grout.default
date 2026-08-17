@@ -5,6 +5,15 @@
 # Add grout command line flags here and restart grout.service.
 GROUT_OPTS='--syslog'
 
+# Path to the control plane API socket (default: /run/grout.sock).
+#GROUT_SOCK_PATH=/run/grout.sock
+
+# API socket file permissions in octal (default: 0660).
+#GROUT_SOCK_MODE=0660
+
+# API socket file ownership as USER:GROUP (default: current user:group).
+#GROUT_SOCK_OWNER=
+
 # Override the default route in the main routing table. Required when running
 # in a private network namespace (PrivateNetwork=true) or in a container. Must
 # be set to false if removing PrivateNetwork=true from the systemd service and
@@ -15,3 +24,51 @@ GROUT_OVERRIDE_DEFAULT_ROUTE=true
 # Required when net.ipv4.conf.all.rp_filter is set to 1 (strict) in the network
 # namespace where grout is running.
 GROUT_OVERRIDE_RP_FILTER=true
+
+# Run in test mode, disabling huge pages (default: false).
+#GROUT_TEST_MODE=false
+
+# Disable automatic micro-sleep (default: false).
+#GROUT_POLL_MODE=false
+
+# Enable adaptive interrupt RX (default: false).
+#GROUT_ADAPTIVE_IRQ=false
+
+# Redirect logs to syslog (default: false).
+#GROUT_SYSLOG=false
+
+# Print all ingress/egress packets (default: false).
+#GROUT_TRACE_PACKETS=false
+
+# Maximum Transmission Unit (default: 1800).
+#GROUT_MAX_MTU=1800
+
+# Maximum number of interfaces (default: 1024).
+#GROUT_MAX_IFACES=1024
+
+# Mempool chunk size in number of mbufs (default: 65535).
+#GROUT_MEMPOOL_CHUNK_SIZE=65535
+
+# Maximum number of nexthops for all address families (default: 131072).
+#GROUT_MAX_NEXTHOPS=131072
+
+# Default maximum number of routes per VRF (default: 65536).
+#GROUT_MAX_ROUTES=65536
+
+# Maximum number of FDB entries (default: 4096).
+#GROUT_MAX_FDB_ENTRIES=4096
+
+# Maximum number of conntrack entries (default: 16384).
+#GROUT_MAX_CONNTRACKS=16384
+
+# Default port RX/TX queue size. 0 means use the device driver default.
+# Only useful for testing (default: 0).
+#GROUT_PORT_QUEUE_SIZE=0
+
+# IPv4 FIB algorithm: DIR24_8 or DUMMY. Only use DUMMY for testing
+# (default: DIR24_8).
+#GROUT_FIB4_ALGORITHM=DIR24_8
+
+# IPv6 FIB algorithm: TRIE or DUMMY. Only use DUMMY for testing
+# (default: TRIE).
+#GROUT_FIB6_ALGORITHM=TRIE
