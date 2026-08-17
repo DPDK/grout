@@ -3,6 +3,7 @@
 
 #include "conntrack.h"
 #include "eth.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -144,7 +145,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		// A pre-resolved nexthop means the packet was handed over by a node
 		// that already picked an adjacency, skip the route lookup.
 		if (likely(e->nh == NULL))
-			nh = fib4_lookup(iface->vrf_id, ip->dst_addr, mbuf->hash.rss);
+			nh = fib4_lookup(
+				iface->vrf_id,
+				ip->dst_addr,
+				gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4))
+			);
 		else
 			nh = e->nh;
 		if (nh == NULL) {
@@ -253,6 +258,7 @@ mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip_format(char *, size_t, const struct rte_ipv4_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
 mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+mock_func(uint32_t, gr_mbuf_flow_hash_l3(const struct rte_mbuf *, rte_be16_t));
 mock_func(
 	bool,
 	gr_conn_parse_key(
@@ -372,6 +378,7 @@ static void ip_input_conntrack_dnat(void **) {
 	l3->flags = GR_NH_F_LOCAL;
 	l3->ipv4 = fake_mbuf.ipv4_hdr.dst_addr;
 	will_return(fib4_lookup, &nh);
+	will_return(gr_mbuf_flow_hash_l3, 0);
 
 	iface.flags |= GR_IFACE_F_SNAT_DYNAMIC;
 	struct conn conn;

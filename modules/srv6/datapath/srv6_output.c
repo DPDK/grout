@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6.h"
@@ -51,6 +52,8 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
 	const struct nexthop *nh;
+	rte_be16_t eth_type;
+	uint32_t hash;
 	uint32_t optlen, plen;
 	struct rte_mbuf *m;
 	uint8_t proto, reduc;
@@ -76,17 +79,20 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip4->total_length);
 			proto = IPPROTO_IPIP;
+			eth_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 
 		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct rte_ipv6_hdr *inner_ip6;
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip6->payload_len) + sizeof(*inner_ip6);
 			proto = IPPROTO_IPV6;
+			eth_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 
 		} else {
 			edge = INVALID;
 			goto next;
 		}
+		hash = gr_mbuf_flow_hash_get_l3(m, eth_type);
 
 		// Encapsulate with another IPv6 header
 		optlen = 0;
@@ -121,7 +127,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 
 		// Resolve nexthop for the encapsulated packet.
-		nh = fib6_lookup(nh->vrf_id, GR_IFACE_ID_UNDEF, d->seglist, m->hash.rss);
+		nh = fib6_lookup(nh->vrf_id, GR_IFACE_ID_UNDEF, d->seglist, hash);
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;

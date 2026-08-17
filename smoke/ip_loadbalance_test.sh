@@ -45,3 +45,25 @@ grcli ping 192.200.0.2 count 1 ident 2 delay 10
 
 # Externally generated ICMP requests
 ip netns exec n0 ping -i0.01 -c3 -n 192.200.0.2
+
+# Distinct flows entering through a port without RSS must spread across both
+# group members instead of all collapsing onto one nexthop.
+ip netns exec n0 ping -i0.01 -c1 -W1 -n -I x-p0 172.16.0.1
+ip netns exec n0 ping -i0.01 -c1 -W1 -n -I x-p1 172.16.1.1
+
+rx_pkts() {
+	ip -n n0 -j -s link show "$1" | jq '.[0].stats64.rx.packets'
+}
+p0_before=$(rx_pkts x-p0)
+p1_before=$(rx_pkts x-p1)
+ip netns exec n1 bash -c \
+	'for i in $(seq 64); do echo flow > /dev/udp/192.200.0.2/7777; done'
+sleep 0.3
+p0_delta=$(($(rx_pkts x-p0) - p0_before))
+p1_delta=$(($(rx_pkts x-p1) - p1_before))
+[ $((p0_delta + p1_delta)) -ge 32 ] ||
+	fail "expected forwarded UDP flows on the members, saw $((p0_delta + p1_delta))"
+[ "$p0_delta" -ge 8 ] ||
+	fail "member p0 carried $p0_delta of 64 distinct flows"
+[ "$p1_delta" -ge 8 ] ||
+	fail "member p1 carried $p1_delta of 64 distinct flows"

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -32,6 +33,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	struct rte_ipv4_hdr *outer;
 	const struct iface *iface;
 	struct rte_mbuf *mbuf;
+	uint32_t hash;
 	rte_edge_t edge;
 
 	IFACE_STATS_VARS(tx, self);
@@ -59,6 +61,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 		// Encapsulate with another IPv4 header.
 		inner = rte_pktmbuf_mtod(mbuf, const struct rte_ipv4_hdr *);
+		hash = gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4));
 		tunnel.src = ipip->local;
 		tunnel.dst = ipip->remote;
 		tunnel.len = rte_be_to_cpu_16(inner->total_length);
@@ -75,7 +78,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		IFACE_STATS_INC(tx, self, mbuf, iface);
 
 		// Resolve nexthop for the encapsulated packet.
-		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote, mbuf->hash.rss);
+		ip_data->nh = fib4_lookup(iface->vrf_id, ipip->remote, hash);
 		edge = IP_OUTPUT;
 
 next:
