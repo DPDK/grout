@@ -27,7 +27,7 @@ static int bond_trace_format(char *buf, size_t len, const void *data, size_t /*d
 }
 
 static inline const struct iface *
-hash_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bond) {
+hash_tx_member(struct rte_mbuf *m, const struct iface_info_bond *bond) {
 	gr_mbuf_flow_hash_mode_t mode;
 	uint32_t hash;
 	uint8_t member;
@@ -49,7 +49,10 @@ hash_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bond) {
 		return NULL;
 	}
 
-	hash = gr_mbuf_flow_hash(m, mode);
+	if (mode == GR_MBUF_FLOW_HASH_RSS)
+		hash = gr_mbuf_flow_hash_get(m);
+	else
+		hash = gr_mbuf_flow_hash(m, mode);
 	member = bond->redirection_table[hash % ARRAY_DIM(bond->redirection_table)];
 	if (member < bond->n_members)
 		return bond->members[member].iface;
@@ -57,7 +60,7 @@ hash_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bond) {
 }
 
 static inline const struct iface *
-bond_select_tx_member(const struct rte_mbuf *m, const struct iface_info_bond *bond) {
+bond_select_tx_member(struct rte_mbuf *m, const struct iface_info_bond *bond) {
 	switch (bond->mode) {
 	case GR_BOND_MODE_ACTIVE_BACKUP: {
 		uint8_t active = bond->active_member;
