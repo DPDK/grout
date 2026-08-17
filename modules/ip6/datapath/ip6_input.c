@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "eth.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
@@ -122,7 +123,12 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// A pre-resolved nexthop means the packet was handed over by a node
 		// that already picked an adjacency, skip the route lookup.
 		if (likely(e->nh == NULL))
-			nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr, mbuf->hash.rss);
+			nh = fib6_lookup(
+				iface->vrf_id,
+				iface->id,
+				&ip->dst_addr,
+				gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV6))
+			);
 		else
 			nh = e->nh;
 		if (nh == NULL) {
@@ -217,6 +223,7 @@ mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(int, trace_ip6_format(char *, size_t, const struct rte_ipv6_hdr *, size_t));
 mock_func(void, gr_eth_input_add_type(rte_be16_t, const char *));
 mock_func(void, loopback_input_add_type(rte_be16_t, const char *));
+mock_func(uint32_t, gr_mbuf_flow_hash_l3(const struct rte_mbuf *, rte_be16_t));
 mock_func(struct nexthop *, mcast6_get_member(uint16_t, const struct rte_ipv6_addr *));
 
 struct fake_mbuf {
