@@ -52,7 +52,7 @@ static const uint8_t is_ipv6_ext[256] = {
 };
 
 // stop_sr stops the walk on the first routing header instead of running to the ULP.
-static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
+static int walk_ext_headers(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
 	uint16_t data_len = rte_pktmbuf_data_len(m);
 
 	// advance through IPv6 extension headers
@@ -92,12 +92,23 @@ static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bo
 	return 0;
 }
 
-static inline int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
+// Stop on the SRH, filling in sr and sr_len, and track the next header field
+// preceding it so that decap_srv6() can unlink it.
+static inline int find_srh(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	// no IPv6 extension headers
 	if (!is_ipv6_ext[ip6_info->proto])
 		return 0;
 
-	return __fetch_upper_layer(m, ip6_info, stop_sr);
+	return walk_ext_headers(m, ip6_info, true);
+}
+
+// Run to the upper layer protocol, leaving sr and sr_prev_nh alone.
+static inline int find_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
+	// no IPv6 extension headers
+	if (!is_ipv6_ext[ip6_info->proto])
+		return 0;
+
+	return walk_ext_headers(m, ip6_info, false);
 }
 
 // On return, proto is the upper layer protocol only when sr is NULL.
@@ -115,7 +126,7 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
 
-	if (fetch_upper_layer(m, ip6_info, true) < 0)
+	if (find_srh(m, ip6_info) < 0)
 		return -1;
 
 	if (ip6_info->sr) {
@@ -219,7 +230,7 @@ static int process_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	if (ip6_info->sr) {
 		decap_srv6(m, ip6_info);
 
-		if (unlikely(fetch_upper_layer(m, ip6_info, false) < 0))
+		if (unlikely(find_upper_layer(m, ip6_info) < 0))
 			return INVALID_PACKET;
 	}
 
@@ -253,7 +264,7 @@ static int process_behav_decap(
 		return NO_TRANSIT;
 
 	// ip6_fill_infos() stopped on the SRH, resolve the real upper layer
-	if (unlikely(fetch_upper_layer(m, ip6_info, false) < 0))
+	if (unlikely(find_upper_layer(m, ip6_info) < 0))
 		return INVALID_PACKET;
 
 	switch (ip6_info->proto) {
@@ -706,7 +717,7 @@ static void srv6_parse_ipv6_srv6(void **) {
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
-	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 }
 
@@ -721,7 +732,7 @@ static void srv6_parse_ipv6_hop_srv6(void **) {
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
-	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 }
 
@@ -740,7 +751,7 @@ static void srv6_parse_ipv6_srv6_dop(void **) {
 	expect.ext_offset += 8;
 	expect.proto = IPPROTO_NONE;
 
-	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 }
 
@@ -760,7 +771,7 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	expect.ext_offset += 8;
 	expect.proto = IPPROTO_NONE;
 
-	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
+	assert_int_equal(find_upper_layer(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 }
 
