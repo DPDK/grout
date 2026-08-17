@@ -198,6 +198,36 @@ struct nexthop *rib4_lookup_exact(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefix
 	return nh_id_to_ptr(nh_id);
 }
 
+static bool is_addr_owned_route(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen) {
+	struct rte_fib *fib = get_fib(vrf_id);
+	struct nexthop_info_l3 *l3;
+	struct rte_rib_node *rn;
+	struct rte_rib *rib;
+	struct nexthop *nh;
+	gr_nh_origin_t *o;
+	uintptr_t nh_id;
+
+	if (fib == NULL)
+		return false;
+
+	rib = rte_fib_get_rib(fib);
+	rn = rte_rib_lookup_exact(rib, rte_be_to_cpu_32(ip), prefixlen);
+	if (rn == NULL)
+		return false;
+
+	o = rte_rib_get_ext(rn);
+	if (*o != GR_NH_ORIGIN_LINK && *o != GR_NH_ORIGIN_INTERNAL)
+		return false;
+
+	rte_rib_get_nh(rn, &nh_id);
+	nh = nh_id_to_ptr(nh_id);
+	if (nh->type != GR_NH_T_L3)
+		return false;
+
+	l3 = nexthop_info_l3(nh);
+	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+}
+
 struct route4_event {
 	struct ip4_net dest;
 	uint16_t vrf_id;
@@ -339,6 +369,14 @@ static struct api_out route4_add(const void *request, struct api_ctx *) {
 	if (req->origin == GR_NH_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0, NULL);
 
+	// Address-owned connected routes are authoritative. During control-plane
+	// replay, a routing protocol can transiently offer the same prefix before
+	// Zebra has reconciled the interface address. Do not replace the connected
+	// route: the later protocol withdrawal would otherwise remove the only
+	// route while leaving the address configured.
+	if (is_addr_owned_route(req->vrf_id, req->dest.ip, req->dest.prefixlen))
+		return api_out(0, 0, NULL);
+
 	if (req->nh_id != GR_NH_ID_UNSET) {
 		nh = nexthop_lookup_id(req->nh_id);
 		if (nh == NULL)
@@ -387,7 +425,11 @@ static struct api_out route4_del(const void *request, struct api_ctx *) {
 	struct nexthop *nh = NULL;
 	int ret;
 
-	nh = rib4_lookup(req->vrf_id, req->dest.ip);
+	if (is_addr_owned_route(req->vrf_id, req->dest.ip, req->dest.prefixlen))
+		return api_out(EBUSY, 0, NULL);
+	nh = rib4_lookup_exact(req->vrf_id, req->dest.ip, req->dest.prefixlen);
+	if (nh == NULL)
+		nh = rib4_lookup(req->vrf_id, req->dest.ip);
 	ret = rib4_delete(
 		req->vrf_id, req->dest.ip, req->dest.prefixlen, nh ? nh->type : GR_NH_T_L3
 	);
