@@ -195,6 +195,21 @@ static inline void decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->sr_len = 0;
 }
 
+// Steer the packet to the local SID output VRF, if it has one.
+static inline bool set_out_vrf_iface(struct rte_mbuf *m, struct nexthop_info_srv6_local *sr_d) {
+	const struct iface *iface;
+
+	if (sr_d->out_vrf_id == GR_VRF_ID_UNDEF)
+		return true;
+
+	iface = get_vrf_iface(sr_d->out_vrf_id);
+	if (iface == NULL)
+		return false;
+
+	mbuf_data(m)->iface = iface;
+	return true;
+}
+
 //
 // 4.1.1. Upper-Layer Header
 //
@@ -231,7 +246,6 @@ static int process_behav_decap(
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	struct eth_input_mbuf_data *id;
-	const struct iface *iface;
 	rte_edge_t edge;
 
 	// transit is not allowed
@@ -270,16 +284,12 @@ static int process_behav_decap(
 	// Clear the offload flag so that ip_input will check it in software.
 	m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
 
-	id = eth_input_mbuf_data(m);
-	if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
-		iface = get_vrf_iface(sr_d->out_vrf_id);
-		if (iface == NULL)
-			return DEST_UNREACH;
-		id->iface = iface;
-	}
+	if (!set_out_vrf_iface(m, sr_d))
+		return DEST_UNREACH;
 
 	// 4.16.3 USD: End.X hands the exposed packet to its L3 adjacency instead
 	// of looking it up. The input node still validates the exposed header.
+	id = eth_input_mbuf_data(m);
 	id->nh = NULL;
 	if (sr_d->behavior == SR_BEHAVIOR_END_X) {
 		if (sr_d->l3_nh == NULL)
@@ -346,7 +356,6 @@ static int process_behav_end(
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	struct eth_input_mbuf_data *id;
-	const struct iface *iface;
 
 	// NEXT-CSID processing (RFC 9800)
 	if (sr_d->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
@@ -380,12 +389,8 @@ static int process_behav_end(
 	}
 
 forward:
-	if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
-		iface = get_vrf_iface(sr_d->out_vrf_id);
-		if (iface == NULL)
-			return DEST_UNREACH;
-		mbuf_data(m)->iface = iface;
-	}
+	if (!set_out_vrf_iface(m, sr_d))
+		return DEST_UNREACH;
 
 	// END.X: set explicit nexthop and go directly to ip6_forward (bypass FIB lookup)
 	if (sr_d->behavior == SR_BEHAVIOR_END_X) {
