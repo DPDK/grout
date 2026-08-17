@@ -61,7 +61,7 @@ static int walk_ext_headers(struct rte_mbuf *m, struct ip6_info *ip6_info, bool 
 		int next_proto;
 		uint8_t *ext;
 
-		// minimal precheck: rte_ipv6_get_next_ext() touches ≤ 2 bytes
+		// minimal precheck: rte_ipv6_get_next_ext() touches at most 2 bytes
 		if (unlikely(ip6_info->ext_offset + 2 > data_len))
 			return -1;
 
@@ -85,7 +85,6 @@ static int walk_ext_headers(struct rte_mbuf *m, struct ip6_info *ip6_info, bool 
 			ip6_info->sr_prev_nh = ext;
 	} while (is_ipv6_ext[ip6_info->proto]);
 
-	// single final guard
 	if (unlikely(ip6_info->ext_offset > data_len))
 		return -1;
 
@@ -134,7 +133,7 @@ static int ip6_parse_to_srh(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 		// hdr_len is in 8B units (excl. first 8B)
 		// -> ext_len = 8 * (hdr_len + 1)
-		// each segment is 16B = 2×8B
+		// each segment is 16B = 2x8B
 		// -> nsegs = hdr_len/2
 		// -> last_entry < hdr_len/2
 		if ((size_t)((sr->hdr_len + 1) << 3) != ip6_info->sr_len
@@ -193,7 +192,6 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6 = (void *)ip6 + adj_len;
 	ip6->payload_len = rte_cpu_to_be_16(rte_be_to_cpu_16(ip6->payload_len) - adj_len);
 
-	// After decap_srv6
 	ip6_info->ip6_hdr = ip6;
 	ip6_info->ext_offset -= adj_len;
 	ip6_info->sr = NULL;
@@ -546,7 +544,7 @@ struct fake_mbuf {
 	struct rte_mbuf mbuf;
 	uint8_t priv[GR_MBUF_PRIV_MAX_SIZE]; // rte_mbuf_to_priv() lands here
 	uint16_t offset;
-	uint8_t *prev_next; // points inside data[] to the previous “Next Header” byte
+	uint8_t *prev_next; // points inside data[] to the previous "Next Header" byte
 };
 
 static inline void fm_update_lengths(struct fake_mbuf *fm) {
@@ -706,7 +704,6 @@ static void srv6_parse_only_ipv6(void **) {
 	struct fake_mbuf fm;
 
 	fm_init_ipv6(&fm, &expect);
-	// no extensions added
 
 	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
