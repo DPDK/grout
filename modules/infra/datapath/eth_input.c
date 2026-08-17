@@ -66,6 +66,7 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				}
 				last_iface_id = d->iface->id;
 			}
+			d->nh = NULL;
 			if (unlikely(rte_is_multicast_ether_addr(&eth->dst_addr))) {
 				if (rte_is_broadcast_ether_addr(&eth->dst_addr))
 					d->domain = ETH_DOMAIN_BROADCAST;

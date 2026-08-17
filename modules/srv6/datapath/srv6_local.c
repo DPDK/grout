@@ -270,14 +270,28 @@ static int process_behav_decap(
 	// remove tunnel ipv6 + ext headers
 	decap_outer(m, ip6_info);
 
+	// The hw checksum offload only works on the outer IP.
+	// Clear the offload flag so that ip_input will check it in software.
+	m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
+
 	id = eth_input_mbuf_data(m);
-	id->domain = ETH_DOMAIN_LOCAL;
 	if (sr_d->out_vrf_id != GR_VRF_ID_UNDEF) {
 		iface = get_vrf_iface(sr_d->out_vrf_id);
 		if (iface == NULL)
 			return DEST_UNREACH;
 		id->iface = iface;
 	}
+
+	// 4.16.3 USD: End.X hands the exposed packet to its L3 adjacency instead
+	// of looking it up. The input node still validates the exposed header.
+	id->nh = NULL;
+	if (sr_d->behavior == SR_BEHAVIOR_END_X) {
+		if (sr_d->l3_nh == NULL)
+			return DEST_UNREACH;
+		id->nh = sr_d->l3_nh;
+	}
+
+	id->domain = ETH_DOMAIN_LOCAL;
 
 	return edge;
 }
@@ -335,6 +349,7 @@ static int process_behav_end(
 	struct ip6_info *ip6_info
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
+	struct eth_input_mbuf_data *id;
 	const struct iface *iface;
 
 	// NEXT-CSID processing (RFC 9800)
@@ -385,7 +400,9 @@ forward:
 	}
 
 	// END: go to ip6_input for FIB lookup
-	eth_input_mbuf_data(m)->domain = ETH_DOMAIN_LOCAL;
+	id = eth_input_mbuf_data(m);
+	id->domain = ETH_DOMAIN_LOCAL;
+	id->nh = NULL;
 	return IP6_INPUT;
 }
 
@@ -508,7 +525,8 @@ struct fake_mbuf {
 			[sizeof(struct rte_ipv6_hdr) + sizeof(struct ipv6_ext_hdr) + // for hbh
 			 sizeof(struct rte_ipv6_routing_ext) + sizeof(struct rte_ipv6_addr)
 			 + // for sid0
-			 sizeof(struct ipv6_ext_hdr)]; // for dstopts
+			 sizeof(struct ipv6_ext_hdr) + // for dstopts
+			 sizeof(struct rte_ipv6_hdr)]; // for the inner packet
 	};
 	struct rte_mbuf mbuf;
 	uint8_t priv[GR_MBUF_PRIV_MAX_SIZE]; // rte_mbuf_to_priv() lands here
@@ -618,6 +636,40 @@ static void push_srh_1sid(struct fake_mbuf *fm, struct ip6_info *expect) {
 	expect->sr = sr;
 	expect->sr_len = srh_bytes;
 	expect->ext_offset += srh_bytes;
+}
+
+// Inner IPv4 packet, header only.
+static void push_inner_ipv4(struct fake_mbuf *fm) {
+	struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(fm->data + fm->offset);
+
+	*fm->prev_next = IPPROTO_IPIP;
+	memset(ip, 0, sizeof(*ip));
+	ip->version_ihl = RTE_IPV4_VHL_DEF;
+	ip->total_length = rte_cpu_to_be_16(sizeof(*ip));
+	ip->time_to_live = 64;
+	ip->next_proto_id = IPPROTO_ICMP;
+	ip->src_addr = RTE_IPV4(10, 0, 0, 1);
+	ip->dst_addr = RTE_IPV4(10, 0, 0, 2);
+	ip->hdr_checksum = rte_ipv4_cksum(ip);
+
+	fm->offset += sizeof(*ip);
+	fm_update_lengths(fm);
+}
+
+// Inner IPv6 packet, header only.
+static void push_inner_ipv6(struct fake_mbuf *fm) {
+	struct rte_ipv6_hdr *ip = (struct rte_ipv6_hdr *)(fm->data + fm->offset);
+
+	*fm->prev_next = IPPROTO_IPV6;
+	memset(ip, 0, sizeof(*ip));
+	ip->vtc_flow = rte_cpu_to_be_32(6u << 28);
+	ip->proto = IPPROTO_ICMPV6;
+	ip->hop_limits = 64;
+	ip->src_addr = IP6_SRC;
+	ip->dst_addr = IP6_DST;
+
+	fm->offset += sizeof(*ip);
+	fm_update_lengths(fm);
 }
 
 static void assert_ipv6_equal(const struct rte_ipv6_addr *got, const struct rte_ipv6_addr *exp) {
@@ -744,12 +796,75 @@ static void srv6_decap_dt4_behind_dop(void **) {
 	assert_int_equal(fm.mbuf.data_len, 0);
 }
 
+// End.X with USD hands the exposed packet to the L3 adjacency instead of the
+// FIB, but still lets the input node validate it.
+static void srv6_end_x_usd(bool inner_v4, rte_edge_t expected_edge, uint16_t expected_len) {
+	struct nexthop l3_nh = {0};
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {
+			.behavior = SR_BEHAVIOR_END_X,
+			.out_vrf_id = GR_VRF_ID_UNDEF,
+			.flags = GR_SR_FL_FLAVOR_USD,
+		},
+		.l3_nh = &l3_nh,
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	if (inner_v4)
+		push_inner_ipv4(&fm);
+	else
+		push_inner_ipv6(&fm);
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), expected_edge);
+	assert_ptr_equal(eth_input_mbuf_data(&fm.mbuf)->nh, &l3_nh);
+	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
+	// only the inner packet is left, the input node validates it
+	assert_int_equal(fm.mbuf.data_len, expected_len);
+}
+
+static void srv6_end_x_usd_inner_ipv4(void **) {
+	srv6_end_x_usd(true, IP_INPUT, sizeof(struct rte_ipv4_hdr));
+}
+
+static void srv6_end_x_usd_inner_ipv6(void **) {
+	srv6_end_x_usd(false, IP6_INPUT, sizeof(struct rte_ipv6_hdr));
+}
+
+// A SID announcing an inner packet that is not there must still reach the input
+// node, which is the only place that rejects it.
+static void srv6_end_x_usd_no_inner(void **) {
+	struct nexthop l3_nh = {0};
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {
+			.behavior = SR_BEHAVIOR_END_X,
+			.out_vrf_id = GR_VRF_ID_UNDEF,
+			.flags = GR_SR_FL_FLAVOR_USD,
+		},
+		.l3_nh = &l3_nh,
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	*fm.prev_next = IPPROTO_IPIP;
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP_INPUT);
+	assert_int_equal(fm.mbuf.data_len, 0);
+}
+
 // A container packing the active CSID 0100 and a trailing 0200, with the
 // default 32 bit locator block and 16 bit CSIDs.
 #define CSID_CONTAINER ((struct rte_ipv6_addr)RTE_IPV6(0x5f00, 0x102, 0x100, 0x200, 0, 0, 0, 0))
 
 // uN: the shifted container goes back to the FIB.
 static void srv6_end_next_csid(void **) {
+	struct nexthop stale_nh = {0};
 	struct nexthop_info_srv6_local sr_d = {
 		.base = {
 			.behavior = SR_BEHAVIOR_END,
@@ -764,10 +879,14 @@ static void srv6_end_next_csid(void **) {
 
 	fm_init_ipv6(&fm, &expect);
 	fm.ip6.dst_addr = CSID_CONTAINER;
+	// a previous packet in this mbuf may have left an adjacency behind
+	eth_input_mbuf_data(&fm.mbuf)->nh = &stale_nh;
 
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
 	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
+	// ip6_input must look the shifted container up, not reuse the stale one
+	assert_null(eth_input_mbuf_data(&fm.mbuf)->nh);
 	// 0100 consumed, 0200 is now the active CSID
 	assert_int_equal(fm.ip6.dst_addr.a[4], 0x02);
 	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
@@ -808,6 +927,9 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
 		cmocka_unit_test(srv6_decap_dt4_behind_dop),
+		cmocka_unit_test(srv6_end_x_usd_inner_ipv4),
+		cmocka_unit_test(srv6_end_x_usd_inner_ipv6),
+		cmocka_unit_test(srv6_end_x_usd_no_inner),
 		cmocka_unit_test(srv6_end_next_csid),
 		cmocka_unit_test(srv6_end_x_next_csid),
 	};

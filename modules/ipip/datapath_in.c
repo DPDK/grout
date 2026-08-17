@@ -65,6 +65,7 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		eth_data = eth_input_mbuf_data(mbuf);
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
+		eth_data->nh = NULL;
 		edge = IP_INPUT;
 		IFACE_STATS_INC(rx, self, mbuf, ipip);
 next:

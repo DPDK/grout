@@ -41,6 +41,7 @@ xvrf_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16
 
 		eth_data = eth_input_mbuf_data(m);
 		eth_data->domain = ETH_DOMAIN_LOCAL;
+		eth_data->nh = NULL;
 
 		// XXX: increment tx stats on source VRF
 		IFACE_STATS_INC(rx, self, m, eth_data->iface);

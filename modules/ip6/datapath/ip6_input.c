@@ -119,7 +119,12 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
-		nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr, mbuf->hash.rss);
+		// A pre-resolved nexthop means the packet was handed over by a node
+		// that already picked an adjacency, skip the route lookup.
+		if (likely(e->nh == NULL))
+			nh = fib6_lookup(iface->vrf_id, iface->id, &ip->dst_addr, mbuf->hash.rss);
+		else
+			nh = e->nh;
 		if (nh == NULL) {
 			edge = DEST_UNREACH;
 			goto next;
@@ -238,6 +243,7 @@ static void ipv6_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
 	fake_mbuf->mbuf.packet_type = RTE_PTYPE_L3_IPV6;
 
 	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_OTHER;
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->nh = NULL;
 }
 
 static void ip6_input_invalid_version(void **) {

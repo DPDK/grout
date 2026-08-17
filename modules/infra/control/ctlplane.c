@@ -172,6 +172,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		// iface->vrf_id either way.
 		e->iface = iface;
 		e->domain = ETH_DOMAIN_LOOPBACK;
+		e->nh = NULL;
 
 		if (loopback_input_send(mbuf) < 0) {
 			LOG(ERR, "loopback_input_send: %s", strerror(errno));
