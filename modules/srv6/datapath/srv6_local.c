@@ -35,8 +35,6 @@ struct trace_srv6_data {
 };
 
 struct ip6_info {
-	struct rte_ipv6_addr src;
-	struct rte_ipv6_addr dst;
 	uint16_t ext_offset;
 	uint16_t sr_len;
 	uint8_t proto;
@@ -111,8 +109,6 @@ static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 	ip6_info->ip6_hdr = ip6;
 
-	ip6_info->src = ip6->src_addr;
-	ip6_info->dst = ip6->dst_addr;
 	ip6_info->proto = ip6->proto;
 	ip6_info->sr_prev_nh = &ip6->proto;
 	ip6_info->ext_offset = sizeof(*ip6);
@@ -567,8 +563,6 @@ static void fm_init_ipv6(struct fake_mbuf *fm, struct ip6_info *expect) {
 
 	fm_update_lengths(fm);
 
-	expect->src = IP6_SRC;
-	expect->dst = IP6_DST;
 	expect->ext_offset = sizeof(struct rte_ipv6_hdr);
 	expect->proto = IPPROTO_NONE;
 	expect->sr_prev_nh = &ip6->proto;
@@ -670,20 +664,10 @@ static void push_inner_ipv6(struct fake_mbuf *fm) {
 	fm_update_lengths(fm);
 }
 
-static void assert_ipv6_equal(const struct rte_ipv6_addr *got, const struct rte_ipv6_addr *exp) {
-	assert_non_null(got);
-	assert_non_null(exp);
-	assert_memory_equal(got, exp, sizeof(struct rte_ipv6_addr));
-}
-
 // Compare every field of ip6_info using only cmocka assert_ macros.
 static inline void assert_ip6_info_equal(const struct ip6_info *got, const struct ip6_info *exp) {
 	assert_non_null(got);
 	assert_non_null(exp);
-
-	// Addresses
-	assert_ipv6_equal(&got->src, &exp->src);
-	assert_ipv6_equal(&got->dst, &exp->dst);
 
 	// Scalars
 	assert_int_equal(got->ext_offset, exp->ext_offset);
@@ -704,7 +688,7 @@ static void srv6_parse_only_ipv6(void **) {
 	// no extensions added
 
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
-	assert_memory_equal(&info, &expect, sizeof info);
+	assert_ip6_info_equal(&info, &expect);
 }
 
 static void srv6_parse_ipv6_srv6(void **) {
