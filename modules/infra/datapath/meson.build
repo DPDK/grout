@@ -25,3 +25,10 @@ src += files(
   'xconnect.c',
 )
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('trace_test.c'),
+    'link_args': [],
+  }
+]

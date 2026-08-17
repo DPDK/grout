@@ -577,6 +577,7 @@ err:
 
 static struct rte_mempool *trace_pool;
 static struct rte_ring *traced_packets;
+static _Thread_local __rte_cache_aligned uint8_t trace_scratch[GR_TRACE_ITEM_MAX_LEN];
 
 static void free_trace(struct gr_trace_item *t) {
 	// free the whole chain of trace items
@@ -587,6 +588,28 @@ static void free_trace(struct gr_trace_item *t) {
 	}
 }
 
+// Reclaim a completed trace when possible. If every trace item is attached to
+// an in-flight packet there is nothing safe to reclaim: abandon tracing for
+// the current packet instead of spinning a datapath worker indefinitely while
+// it owns an mbuf. A worker stalled here can eventually exhaust the shared
+// packet pool and starve the FRR control-plane TAPs.
+static bool trace_item_get(struct rte_mbuf *m, void **data) {
+	while (rte_mempool_get(trace_pool, data) < 0) {
+		void *oldest = NULL;
+
+		if (rte_ring_dequeue(traced_packets, &oldest) < 0) {
+			struct gr_trace_head *traces = gr_mbuf_traces(m);
+
+			free_trace(STAILQ_FIRST(traces));
+			STAILQ_INIT(traces);
+			return false;
+		}
+		free_trace(oldest);
+	}
+
+	return true;
+}
+
 void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_len) {
 	struct gr_trace_head *traces = gr_mbuf_traces(m);
 	struct gr_trace_item *trace;
@@ -595,11 +618,8 @@ void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_l
 	// XXX: should we always abort even if -DNDEBUG is defined?
 	assert(data_len <= GR_TRACE_ITEM_MAX_LEN);
 
-	while (rte_mempool_get(trace_pool, &data) < 0) {
-		void *oldest = NULL;
-		rte_ring_dequeue(traced_packets, &oldest);
-		free_trace(oldest);
-	}
+	if (!trace_item_get(m, &data))
+		return trace_scratch;
 
 	trace = data;
 	trace->node_id = node->id;
@@ -629,11 +649,8 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src) {
 	// Copy each trace item from source to destination
 	STAILQ_FOREACH (src_trace, src_traces, next) {
 		// Allocate new trace item for destination
-		while (rte_mempool_get(trace_pool, &data) < 0) {
-			void *oldest = NULL;
-			rte_ring_dequeue(traced_packets, &oldest);
-			free_trace(oldest);
-		}
+		if (!trace_item_get(dst, &data))
+			return;
 
 		dst_trace = data;
 
