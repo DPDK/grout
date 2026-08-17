@@ -53,6 +53,7 @@ tests += [
     'link_args': [
       '-Wl,--wrap=iface_from_id',
       '-Wl,--wrap=rte_eth_allmulticast_enable',
+      '-Wl,--wrap=rte_eth_allmulticast_get',
       '-Wl,--wrap=rte_eth_dev_mac_addr_add',
       '-Wl,--wrap=rte_eth_dev_mac_addr_remove',
       '-Wl,--wrap=rte_eth_promiscuous_disable',
