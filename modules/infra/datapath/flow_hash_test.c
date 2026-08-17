@@ -70,11 +70,26 @@ static void hardware_rss_takes_precedence(void **) {
 	assert_int_equal(gr_mbuf_flow_hash(&p.mbuf, GR_MBUF_FLOW_HASH_RSS), 0x12345678);
 }
 
+static void ipv4_fragments_share_one_hash(void **) {
+	struct test_packet first, later;
+
+	packet_init(&first, RTE_BE16(20000));
+	packet_init(&later, RTE_BE16(20001));
+	first.ip.fragment_offset = RTE_BE16(RTE_IPV4_HDR_MF_FLAG);
+	later.ip.fragment_offset = RTE_BE16(1);
+
+	assert_int_equal(
+		gr_mbuf_flow_hash(&first.mbuf, GR_MBUF_FLOW_HASH_RSS),
+		gr_mbuf_flow_hash(&later.mbuf, GR_MBUF_FLOW_HASH_RSS)
+	);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(software_hash_is_stable_per_flow),
 		cmocka_unit_test(software_hash_distinguishes_udp_flows),
 		cmocka_unit_test(hardware_rss_takes_precedence),
+		cmocka_unit_test(ipv4_fragments_share_one_hash),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
