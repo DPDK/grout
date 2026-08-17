@@ -502,19 +502,20 @@ mock_func(struct iface *, get_vrf_iface(uint16_t));
 mock_func(struct iface *, iface_from_id(uint16_t));
 mock_func(struct nexthop *, nexthop_lookup_id(uint32_t));
 
-struct ipv6_ext_base {
+struct ipv6_ext_hdr {
 	uint8_t next_hdr;
 	uint8_t hdr_ext_len; // in 8-octet units, not including first 8 bytes
+	uint8_t options[6]; // hdr_ext_len == 0 still means 8 octets on the wire
 } __attribute__((packed));
 
 struct fake_mbuf {
 	union {
 		struct rte_ipv6_hdr ip6; // always first.
 		uint8_t data
-			[sizeof(struct rte_ipv6_hdr) + sizeof(struct ipv6_ext_base) + // for hbh
+			[sizeof(struct rte_ipv6_hdr) + sizeof(struct ipv6_ext_hdr) + // for hbh
 			 sizeof(struct rte_ipv6_routing_ext) + sizeof(struct rte_ipv6_addr)
 			 + // for sid0
-			 sizeof(struct ipv6_ext_base)]; // for dstopts
+			 sizeof(struct ipv6_ext_hdr)]; // for dstopts
 	};
 	struct rte_mbuf mbuf;
 	uint16_t offset;
@@ -575,7 +576,7 @@ static void push_ext8(
 	bool after_srh
 ) {
 	uint8_t *p = fm->data + fm->offset;
-	struct ipv6_ext_base *b = (struct ipv6_ext_base *)p;
+	struct ipv6_ext_hdr *b = (struct ipv6_ext_hdr *)p;
 
 	memset(p, 0, bytes);
 	*fm->prev_next = proto_value;
@@ -681,7 +682,7 @@ static void srv6_parse_ipv6_hop_srv6(void **) {
 	struct fake_mbuf fm;
 
 	fm_init_ipv6(&fm, &expect);
-	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, 8, false);
+	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, sizeof(struct ipv6_ext_hdr), false);
 	push_srh_1sid(&fm, &expect);
 
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
@@ -697,7 +698,7 @@ static void srv6_parse_ipv6_srv6_dop(void **) {
 
 	fm_init_ipv6(&fm, &expect);
 	push_srh_1sid(&fm, &expect);
-	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, 8, true);
+	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
 
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
@@ -715,9 +716,9 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	struct fake_mbuf fm;
 
 	fm_init_ipv6(&fm, &expect);
-	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, 8, false);
+	push_ext8(&fm, &expect, IPPROTO_HOPOPTS, sizeof(struct ipv6_ext_hdr), false);
 	push_srh_1sid(&fm, &expect);
-	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, 8, true);
+	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
 
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
