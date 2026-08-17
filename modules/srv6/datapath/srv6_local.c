@@ -53,6 +53,7 @@ static const uint8_t is_ipv6_ext[256] = {
 	[IPPROTO_DSTOPTS] = 1,
 };
 
+// stop_sr stops the walk on the first routing header instead of running to the ULP.
 static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bool stop_sr) {
 	uint16_t data_len = rte_pktmbuf_data_len(m);
 
@@ -80,8 +81,10 @@ static int __fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_info, bo
 		}
 
 		ip6_info->proto = (uint8_t)next_proto;
-		// next header is always the first field of any extension
-		ip6_info->sr_prev_nh = ext;
+		// next header is always the first field of any extension.
+		// only decap_srv6() reads it, to unlink the SRH.
+		if (stop_sr)
+			ip6_info->sr_prev_nh = ext;
 	} while (is_ipv6_ext[ip6_info->proto]);
 
 	// single final guard
@@ -182,7 +185,7 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	ip6_info->ext_offset -= adj_len;
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
-	// ip6_info->sr_prev_nh is invalid, but not used
+	ip6_info->sr_prev_nh = NULL;
 }
 
 // Remove ipv6 headers and extension
@@ -699,8 +702,8 @@ static void srv6_parse_ipv6_srv6_dop(void **) {
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
+	// sr_prev_nh must still point before the SRH
 	expect.ext_offset += 8;
-	expect.sr_prev_nh = fm.prev_next;
 	expect.proto = IPPROTO_NONE;
 
 	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
@@ -719,8 +722,8 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
 	assert_ip6_info_equal(&info, &expect);
 
+	// sr_prev_nh must still point before the SRH
 	expect.ext_offset += 8;
-	expect.sr_prev_nh = fm.prev_next;
 	expect.proto = IPPROTO_NONE;
 
 	assert_int_equal(fetch_upper_layer(&fm.mbuf, &info, false), 0);
