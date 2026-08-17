@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "event.h"
 #include "iface.h"
 #include "ip6.h"
@@ -28,10 +29,9 @@
 
 LOG_TYPE("route");
 
-static uint32_t route_counts[GR_MAX_IFACES][UINT_NUM_VALUES(gr_nh_origin_t)];
-static uint64_t route_prefixlens[GR_MAX_IFACES][RTE_IPV6_MAX_DEPTH + 1];
-
-static uint32_t max_routes_default = 1 << 16;
+static uint32_t (*route_counts)[UINT_NUM_VALUES(gr_nh_origin_t)];
+static uint64_t (*route_prefixlens)[RTE_IPV6_MAX_DEPTH + 1];
+static uint32_t max_routes_default;
 
 // Derive num_tbl8 from max_routes for IPv6 TRIE.
 // The trie uses 8-bit levels beyond the first 24 bits. IPv6 routes at
@@ -65,15 +65,17 @@ static struct rte_fib6 *get_fib6(uint16_t vrf_id) {
 
 static struct rte_fib6 *create_fib6(const struct iface *vrf) {
 	struct rte_fib6_conf conf = {
-		.type = RTE_FIB6_TRIE,
 		.default_nh = 0,
 		.max_routes = fib6_get_max_routes(vrf),
 		.rib_ext_sz = sizeof(gr_nh_origin_t),
-		.trie = {
-			.nh_sz = RTE_FIB6_TRIE_8B,
-			.num_tbl8 = fib6_get_num_tbl8(vrf),
-		},
 	};
+	if (strcmp(gr_config.fib6_algorithm, "DUMMY") == 0) {
+		conf.type = RTE_FIB6_DUMMY;
+	} else {
+		conf.type = RTE_FIB6_TRIE;
+		conf.trie.nh_sz = RTE_FIB6_TRIE_8B;
+		conf.trie.num_tbl8 = fib6_get_num_tbl8(vrf);
+	}
 	struct rte_fib6 *fib;
 	static unsigned seq;
 	char name[16];
@@ -84,13 +86,15 @@ static struct rte_fib6 *create_fib6(const struct iface *vrf) {
 	if (fib == NULL)
 		return errno_set_null(rte_errno);
 
-	struct rte_fib6_rcu_config rcu_config = {
-		.v = gr_datapath_rcu(), .mode = RTE_FIB6_QSBR_MODE_DQ
-	};
-	ret = rte_fib6_rcu_qsbr_add(fib, &rcu_config);
-	if (ret < 0) {
-		rte_fib6_free(fib);
-		return errno_set_null(-ret);
+	if (conf.type != RTE_FIB6_DUMMY) {
+		struct rte_fib6_rcu_config rcu_config = {
+			.v = gr_datapath_rcu(), .mode = RTE_FIB6_QSBR_MODE_DQ
+		};
+		ret = rte_fib6_rcu_qsbr_add(fib, &rcu_config);
+		if (ret < 0) {
+			rte_fib6_free(fib);
+			return errno_set_null(-ret);
+		}
 	}
 
 	return fib;
@@ -504,7 +508,7 @@ static int rib6_iter_vrf(struct rte_rib6 *rib, uint16_t vrf_id, struct rib6_iter
 }
 
 int rib6_iter(uint16_t vrf_id, struct rib6_iterator *iter) {
-	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
+	for (uint16_t v = 0; v < gr_config.max_ifaces; v++) {
 		if (v != vrf_id && vrf_id != GR_VRF_ID_UNDEF)
 			continue;
 		struct iface *iface = get_vrf_iface(v);
@@ -633,7 +637,7 @@ static void rib6_metrics_collect(struct metrics_writer *w) {
 	for (unsigned i = 0; i < ARRAY_DIM(buckets); i++)
 		buckets[i] = i;
 
-	for (uint16_t vrf_id = 0; vrf_id < GR_MAX_IFACES; vrf_id++) {
+	for (uint16_t vrf_id = 0; vrf_id < gr_config.max_ifaces; vrf_id++) {
 		const struct iface *vrf_iface = get_vrf_iface(vrf_id);
 		if (vrf_iface == NULL)
 			continue;
@@ -816,7 +820,7 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 		api_send(ctx, sizeof(info), &info);
 	}
 
-	for (uint16_t v = 0; v < GR_MAX_IFACES; v++) {
+	for (uint16_t v = 0; v < gr_config.max_ifaces; v++) {
 		if (v != req->vrf_id && req->vrf_id != GR_VRF_ID_UNDEF)
 			continue;
 		const struct iface *vrf = get_vrf_iface(v);
@@ -839,8 +843,27 @@ static struct api_out fib6_info_list(const void *request, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
+static void route6_fini(struct event_base *) {
+	free(route_counts);
+	route_counts = NULL;
+	free(route_prefixlens);
+	route_prefixlens = NULL;
+}
+
+static void route6_init(struct event_base *) {
+	max_routes_default = gr_config.max_routes;
+	route_counts = calloc(gr_config.max_ifaces, sizeof(*route_counts));
+	if (route_counts == NULL)
+		ABORT("calloc(route_counts)");
+	route_prefixlens = calloc(gr_config.max_ifaces, sizeof(*route_prefixlens));
+	if (route_prefixlens == NULL)
+		ABORT("calloc(route_prefixlens)");
+}
+
 static struct module route6_module = {
 	.name = "ip6_route",
+	.init = route6_init,
+	.fini = route6_fini,
 	.depends_on = "nexthop",
 };
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "event.h"
 #include "iface.h"
 #include "ip4.h"
@@ -29,7 +30,7 @@ static struct hoplist *iface_addrs;
 struct hoplist *addr4_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
-	if (iface_id >= GR_MAX_IFACES)
+	if (iface_id >= gr_config.max_ifaces)
 		return errno_set_null(ENODEV);
 
 	addrs = &iface_addrs[iface_id];
@@ -229,7 +230,7 @@ static struct api_out addr_list(const void *request, struct api_ctx *ctx) {
 	const struct nexthop *nh;
 	uint16_t iface_id;
 
-	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < gr_config.max_ifaces; iface_id++) {
 		if (req->iface_id != GR_IFACE_ID_UNDEF && iface_id != req->iface_id)
 			continue;
 		addrs = addr4_get_all(iface_id);
@@ -297,7 +298,7 @@ static void iface_up_cb(uint32_t event, const void *obj) {
 
 static void addr_init(struct event_base *) {
 	iface_addrs = rte_calloc(
-		__func__, GR_MAX_IFACES, sizeof(struct hoplist), RTE_CACHE_LINE_SIZE
+		__func__, gr_config.max_ifaces, sizeof(struct hoplist), RTE_CACHE_LINE_SIZE
 	);
 	if (iface_addrs == NULL)
 		ABORT("rte_calloc(addrs)");

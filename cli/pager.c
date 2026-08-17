@@ -69,7 +69,7 @@ void pager_disable(void) {
 	disabled = true;
 }
 
-static void pager_start(void) {
+static void pager_start(struct gr_api_client *) {
 	int fds[2];
 
 	if (disabled)
@@ -120,7 +120,7 @@ static void pager_start(void) {
 	signal(SIGCHLD, SIG_IGN);
 }
 
-static void pager_stop(void) {
+static void pager_stop(struct gr_api_client *) {
 	int errsave = errno;
 
 	if (saved_stdout < 0)

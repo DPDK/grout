@@ -192,6 +192,8 @@ static struct queue_map q(uint16_t port_id, uint16_t rxq_id) {
 }
 
 static int setup(void **) {
+	gr_config.max_ifaces = 1024;
+
 	for (int i = 0; i < 3; i++) {
 		struct iface_info_port *port;
 		struct iface *iface = calloc(1, sizeof(*iface) + sizeof(*port));

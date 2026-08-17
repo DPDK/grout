@@ -7,6 +7,7 @@
 
 #include <sched.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -29,8 +30,18 @@ struct gr_config {
 	cpu_set_t datapath_cpus; // datapath threads allowed CPUs
 	const char *metrics_addr; // openmetrics listen address (NULL to disable)
 	uint16_t metrics_port; // openmetrics listen port (0 to disable)
+	uint32_t max_ifaces;
+	uint32_t mempool_chunk_size;
+	uint32_t max_nexthops;
+	uint32_t max_routes;
+	uint32_t max_fdb_entries;
+	uint32_t max_conntracks;
+	uint32_t port_queue_size;
+	const char *fib4_algorithm;
+	const char *fib6_algorithm;
 };
 
 extern struct gr_config gr_config;
 
 int config_parse(int argc, char **argv);
+void config_print(void);

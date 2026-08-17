@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 // Must be bumped when making non-backward compatible changes in API headers
-#define GR_API_VERSION 9
+#define GR_API_VERSION 10
 
 // API request header.
 struct gr_api_request {
@@ -41,6 +41,9 @@ struct gr_api_client;
 // Automatically sends GR_HELLO with version negotiation.
 // Returns NULL on failure (check errno for details).
 struct gr_api_client *gr_api_client_connect(const char *sock_path);
+
+// Return server information received during the initial handshake.
+const struct gr_hello_resp *gr_api_client_info(const struct gr_api_client *);
 
 // Disconnect from the API server.
 // Automatically unsubscribes from all events.
@@ -181,7 +184,11 @@ struct gr_hello_req {
 	char version[128]; // NUL-terminated
 };
 
-GR_REQ(GR_HELLO, struct gr_hello_req, struct gr_empty);
+struct gr_hello_resp {
+	uint16_t max_ifaces;
+};
+
+GR_REQ(GR_HELLO, struct gr_hello_req, struct gr_hello_resp);
 
 // Enable/disable packet ingress/egress logging.
 struct gr_log_packets_set_req {

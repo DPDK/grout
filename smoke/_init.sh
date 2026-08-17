@@ -378,6 +378,13 @@ if [ "$run_grout" = true ]; then
 	smoke_setenv ASAN_OPTIONS disable_coredump=0
 	if [ "$use_hardware_ports" = false ]; then
 		grout_extra_options+=" -t"
+		smoke_setenv GROUT_MAX_IFACES 64
+		smoke_setenv GROUT_MEMPOOL_CHUNK_SIZE 2047
+		smoke_setenv GROUT_MAX_NEXTHOPS ${grout_max_nexthops:-128}
+		smoke_setenv GROUT_MAX_ROUTES ${grout_max_routes:-128}
+		smoke_setenv GROUT_MAX_FDB_ENTRIES 128
+		smoke_setenv GROUT_MAX_CONNTRACKS 32
+		smoke_setenv GROUT_PORT_QUEUE_SIZE 32
 	fi
 
 	: "${grout_max_mtu:-""}"
@@ -427,9 +434,6 @@ else
 fi
 
 smoke_setenv GROUT_PAGER ""
-
-grcli nexthop config set max 128
-grcli route config set default rib4-routes 128 rib6-routes 128
 
 case "$grout_verbose_level" in
 0)

@@ -4,6 +4,7 @@
 
 grout_verbose_level=1
 grout_memory=4096
+grout_max_nexthops=4096
 trace_enable=false
 follow_events=hide
 . $(dirname $0)/_init.sh

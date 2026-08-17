@@ -244,7 +244,7 @@ static exec_status_t exec_strvec(
 
 	STAILQ_FOREACH (ctx, &contexts, next) {
 		if (ctx->pre_cmd != NULL)
-			ctx->pre_cmd();
+			ctx->pre_cmd(client);
 	}
 	switch (cb(client, parsed)) {
 	case CMD_SUCCESS:
@@ -259,7 +259,7 @@ static exec_status_t exec_strvec(
 	}
 	STAILQ_FOREACH (ctx, &contexts, next) {
 		if (ctx->post_cmd != NULL)
-			ctx->post_cmd();
+			ctx->post_cmd(client);
 	}
 out:
 	print_status(status, cmdlist, args);

@@ -106,8 +106,13 @@ struct response {
 
 struct gr_api_client {
 	int sock_fd;
+	struct gr_hello_resp info;
 	STAILQ_HEAD(, response) responses;
 };
+
+const struct gr_hello_resp *gr_api_client_info(const struct gr_api_client *client) {
+	return &client->info;
+}
 
 struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 	union {
@@ -134,8 +139,13 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 		goto err;
 
 	struct gr_hello_req hello = {.api_version = GR_API_VERSION, .version = GROUT_VERSION};
-	if (gr_api_client_send_recv(client, GR_HELLO, sizeof(hello), &hello, NULL) < 0)
+	void *resp = NULL;
+	if (gr_api_client_send_recv(client, GR_HELLO, sizeof(hello), &hello, &resp) < 0)
 		goto err;
+	if (resp != NULL) {
+		client->info = *(const struct gr_hello_resp *)resp;
+		free(resp);
+	}
 
 	return client;
 

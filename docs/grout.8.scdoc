@@ -40,16 +40,17 @@ Grout is a software router based on DPDK _rte_graph_.
 	Change the API socket file permissions after creating it. Only octal
 	values are supported.
 
-	Default: _0660_.
+	Default: *GROUT_SOCK_MODE* from environment or _0660_.
 
 *-o*, *--socket-owner* _USER_:_GROUP_
 	Change the owner of the API socket file after creating it. Symbolic
 	names and numeric IDs are supported.
 
-	Default: current user and current group.
+	Default: *GROUT_SOCK_OWNER* from environment or current user and
+	current group.
 
 *-p*, *--poll-mode*
-	Disable automatic micro-sleep.
+	Disable automatic micro-sleep. Can also be enabled via *GROUT_POLL_MODE*.
 
 *-a*, *--adaptive-irq*
 	Make idle workers block on their RX queue interrupts instead of
@@ -59,8 +60,10 @@ Grout is a software router based on DPDK _rte_graph_.
 	falls back to the micro-sleep ramp, unless *--poll-mode* is also
 	given.
 
+	Can also be enabled via *GROUT_ADAPTIVE_IRQ*.
+
 *-S*, *--syslog*
-	Redirect logs to syslog.
+	Redirect logs to syslog. Can also be enabled via *GROUT_SYSLOG*.
 
 *-s*, *--socket* _PATH_
 	Path the control plane API socket.
@@ -68,10 +71,11 @@ Grout is a software router based on DPDK _rte_graph_.
 	Default: *GROUT_SOCK_PATH* from environment or _/run/grout.sock_.
 
 *-t*, *--test-mode*
-	Run in test mode (no huge pages).
+	Run in test mode (no huge pages). Can also be enabled via
+	*GROUT_TEST_MODE*.
 
 *-u*, *--max-mtu* _MTU_
-	Maximum Transmission Unit.
+	Maximum Transmission Unit. Can also be set via *GROUT_MAX_MTU*.
 
 	Default: _1800_.
 
@@ -82,12 +86,48 @@ Grout is a software router based on DPDK _rte_graph_.
 	Print version and exit.
 
 *-x*, *--trace-packets*
-	Print all ingress/egress packets (for debugging purposes).
+	Print all ingress/egress packets (for debugging purposes). Can also be
+	enabled via *GROUT_TRACE_PACKETS*.
 
 # ENVIRONMENT
 
+All settings can be configured via environment variables. When both an
+environment variable and a CLI flag are set, the CLI flag takes precedence.
+Boolean variables accept _1_, _true_, _on_, _yes_ (case insensitive) to
+enable and _0_, _false_, _off_, _no_ to disable.
+
+## Daemon settings
+
 *GROUT_SOCK_PATH*
 	Path to the control plane API socket. See *-s*.
+
+*GROUT_SOCK_MODE*
+	API socket file permissions in octal notation. See *-m*.
+
+	Default: _0660_.
+
+*GROUT_SOCK_OWNER*
+	API socket file ownership as _USER:GROUP_. See *-o*.
+
+*GROUT_TEST_MODE*
+	Run in test mode (no huge pages). See *-t*.
+
+*GROUT_POLL_MODE*
+	Disable automatic micro-sleep. See *-p*.
+
+*GROUT_ADAPTIVE_IRQ*
+	Enable adaptive interrupt RX. See *-a*.
+
+*GROUT_SYSLOG*
+	Redirect logs to syslog. See *-S*.
+
+*GROUT_TRACE_PACKETS*
+	Print all ingress/egress packets. See *-x*.
+
+*GROUT_MAX_MTU*
+	Maximum Transmission Unit. See *-u*.
+
+	Default: _1800_.
 
 *GROUT_OVERRIDE_DEFAULT_ROUTE*
 	When set to _1_, _true_, _on_, or _yes_ (case insensitive), override the
@@ -103,6 +143,67 @@ Grout is a software router based on DPDK _rte_graph_.
 	strict reverse path filtering (_rp_filter=1_) is enabled globally. This
 	is required when _net.ipv4.conf.all.rp_filter_ is set to _1_ (strict) in
 	the network namespace where grout is running.
+
+## Sizing
+
+These variables control the size of internal data structures. Reducing them
+lowers memory consumption, which is useful for testing and CI environments.
+
+Variables marked *[startup only]* are fixed once grout starts and cannot be
+changed at runtime. Other sizing variables provide initial defaults that can
+be adjusted at runtime via the API (e.g. *grcli route config set*,
+*grcli nexthop config set*).
+
+*GROUT_MAX_IFACES* [startup only]
+	Maximum number of interfaces.
+
+	Default: _1024_.
+
+*GROUT_MEMPOOL_CHUNK_SIZE* [startup only]
+	Initial mempool chunk size in number of mbufs.
+
+	Default: _65535_.
+
+*GROUT_MAX_NEXTHOPS*
+	Maximum number of nexthops for all address families.
+
+	Default: _131072_.
+
+*GROUT_MAX_ROUTES*
+	Default maximum number of routes per VRF (both IPv4 and IPv6).
+
+	Default: _65536_.
+
+*GROUT_MAX_FDB_ENTRIES*
+	Maximum number of bridge FDB entries.
+
+	Default: _4096_.
+
+*GROUT_MAX_CONNTRACKS*
+	Maximum number of conntrack entries for stateful NAT.
+
+	Default: _16384_.
+
+*GROUT_PORT_QUEUE_SIZE* [startup only, testing]
+	Default port RX/TX queue ring size. When set to _0_, the device driver
+	default is used. Only use in test/CI environments to reduce memory.
+
+	Default: _0_.
+
+*GROUT_FIB4_ALGORITHM* [startup only, testing]
+	IPv4 FIB lookup algorithm. Supported values: _DIR24_8_, _DUMMY_.
+	The _DUMMY_ algorithm avoids the large static arrays of _DIR24_8_
+	at the cost of linear-time lookups. Only use _DUMMY_ in test/CI
+	environments.
+
+	Default: _DIR24_8_.
+
+*GROUT_FIB6_ALGORITHM* [startup only, testing]
+	IPv6 FIB lookup algorithm. Supported values: _TRIE_, _DUMMY_.
+	The _DUMMY_ algorithm avoids the trie memory overhead at the cost
+	of linear-time lookups. Only use _DUMMY_ in test/CI environments.
+
+	Default: _TRIE_.
 
 # EXTRA EAL ARGUMENTS
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "event.h"
 #include "iface.h"
 #include "ip6.h"
@@ -30,7 +31,7 @@ static struct hoplist *iface_addrs;
 struct hoplist *addr6_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
 
-	if (iface_id >= GR_MAX_IFACES)
+	if (iface_id >= gr_config.max_ifaces)
 		return errno_set_null(ENODEV);
 
 	addrs = &iface_addrs[iface_id];
@@ -83,7 +84,7 @@ struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr 
 	struct hoplist *maddrs;
 	struct nexthop *nh;
 
-	if (iface_id >= GR_MAX_IFACES)
+	if (iface_id >= gr_config.max_ifaces)
 		return NULL;
 
 	maddrs = &iface_mcast_addrs[iface_id];
@@ -376,7 +377,7 @@ static struct api_out addr6_list(const void *request, struct api_ctx *ctx) {
 	const struct nexthop *nh;
 	uint16_t iface_id;
 
-	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < gr_config.max_ifaces; iface_id++) {
 		if (req->iface_id != GR_IFACE_ID_UNDEF && iface_id != req->iface_id)
 			continue;
 		addrs = addr6_get_all(iface_id);
@@ -509,12 +510,12 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 
 static void addr6_init(struct event_base *) {
 	iface_addrs = rte_calloc(
-		__func__, GR_MAX_IFACES, sizeof(*iface_addrs), RTE_CACHE_LINE_SIZE
+		__func__, gr_config.max_ifaces, sizeof(*iface_addrs), RTE_CACHE_LINE_SIZE
 	);
 	if (iface_addrs == NULL)
 		ABORT("rte_calloc(iface_addrs)");
 	iface_mcast_addrs = rte_calloc(
-		__func__, GR_MAX_IFACES, sizeof(*iface_mcast_addrs), RTE_CACHE_LINE_SIZE
+		__func__, gr_config.max_ifaces, sizeof(*iface_mcast_addrs), RTE_CACHE_LINE_SIZE
 	);
 	if (iface_mcast_addrs == NULL)
 		ABORT("rte_calloc(iface_mcast_addrs)");

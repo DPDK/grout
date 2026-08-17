@@ -32,7 +32,6 @@ struct mempool_tracker {
 };
 
 #define MAX_MEMPOOL_PER_NUMA 32
-#define MEMPOOL_DEFAULT_SIZE (1 << 16) - 1
 #define ETHER_HDR_SIZE 14
 #define VLAN_HDR_SIZE 4
 
@@ -52,7 +51,7 @@ static int mt_sort(const void *p1, const void *p2) {
 // 1 mempool tracker for each numa + SOCKET_ID_ANY
 #define MT_COUNT RTE_MAX_NUMA_NODES + 1
 static struct mempool_tracker trackers[MT_COUNT][MAX_MEMPOOL_PER_NUMA];
-static uint32_t mempool_default_size = MEMPOOL_DEFAULT_SIZE;
+static uint32_t mempool_default_size;
 static bool pending_has_name(const char *name);
 
 struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
@@ -88,10 +87,13 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 			    count,
 			    alloc_size,
 			    mbuf_size);
+			uint32_t cache_size = RTE_MIN(
+				(uint32_t)RTE_MEMPOOL_CACHE_MAX_SIZE, alloc_size / 2
+			);
 			mt->mp = rte_pktmbuf_pool_create(
 				mp_name,
 				alloc_size,
-				RTE_MEMPOOL_CACHE_MAX_SIZE,
+				cache_size,
 				GR_MBUF_PRIV_MAX_SIZE,
 				mbuf_size,
 				socket_id
@@ -248,6 +250,8 @@ sort:
 }
 
 static void mempool_init(struct event_base *ev_base) {
+	mempool_default_size = gr_config.mempool_chunk_size;
+
 	pending_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, pending_free_cb, NULL);
 	if (pending_timer == NULL)
 		ABORT("event_new() failed");

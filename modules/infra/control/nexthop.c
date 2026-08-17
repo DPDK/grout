@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "control_queue.h"
 #include "event.h"
 #include "id_pool.h"
@@ -18,7 +19,6 @@
 
 LOG_TYPE("nexthop");
 
-#define DEFAULT_MAX_COUNT (1 << 17)
 #define DEFAULT_MAX_HELD_PKTS 256
 #define DEFAULT_LIFETIME_REACHABLE (20 * 60)
 #define DEFAULT_LIFETIME_UNREACHABLE 60
@@ -35,7 +35,6 @@ static const struct nexthop_type_ops *type_ops[UINT_NUM_VALUES(gr_nh_type_t)];
 		for (ops = type_ops[t]; ops != NULL; ops = NULL)
 
 struct gr_nexthop_config nh_conf = {
-	.max_count = DEFAULT_MAX_COUNT,
 	.lifetime_reachable_sec = DEFAULT_LIFETIME_REACHABLE,
 	.lifetime_unreachable_sec = DEFAULT_LIFETIME_UNREACHABLE,
 	.max_held_pkts = DEFAULT_MAX_HELD_PKTS,
@@ -531,6 +530,7 @@ void nexthop_incref(struct nexthop *nh) {
 }
 
 static void nh_init(struct event_base *) {
+	nh_conf.max_count = gr_config.max_nexthops;
 	if (nexthop_config_allocate(&nh_conf) < 0)
 		ABORT("nexthop_config_allocate failed: %s", strerror(errno));
 }

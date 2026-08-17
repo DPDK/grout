@@ -22,9 +22,9 @@ struct cli_context {
 	// Called once at program initialization to populate the command grammar tree.
 	int (*init)(struct ec_node *root);
 	// Called before the execution of every command.
-	void (*pre_cmd)(void);
+	void (*pre_cmd)(struct gr_api_client *);
 	// Called after the execution of every command.
-	void (*post_cmd)(void);
+	void (*post_cmd)(struct gr_api_client *);
 
 	STAILQ_ENTRY(cli_context) next;
 };

@@ -166,17 +166,23 @@ struct gr_iface *iface_from_id(struct gr_api_client *c, uint16_t iface_id) {
 	return resp_ptr;
 }
 
-static char name_cache[GR_MAX_IFACES][IFNAMSIZ];
+static char (*name_cache)[IFNAMSIZ];
+static uint16_t name_cache_len;
 
-static void cache_reset(void) {
+static void cache_reset(struct gr_api_client *c) {
+	if (name_cache_len != gr_api_client_info(c)->max_ifaces || name_cache == NULL) {
+		name_cache_len = gr_api_client_info(c)->max_ifaces;
+		name_cache = calloc(name_cache_len, sizeof(*name_cache));
+		assert(name_cache != NULL);
+	}
 	// flush the cache before every command to ensure the names are consistent
-	memset(name_cache, 0, sizeof(name_cache));
+	memset(name_cache, 0, name_cache_len * sizeof(*name_cache));
 }
 
 const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
 	if (ifid == GR_IFACE_ID_UNDEF)
 		return "";
-	if (ifid >= ARRAY_DIM(name_cache))
+	if (ifid >= name_cache_len)
 		return "[???]";
 
 	if (name_cache[ifid][0] == '\0') {
@@ -603,7 +609,7 @@ static void iface_event_print(uint32_t event, const void *obj) {
 	const struct gr_iface *iface = obj;
 	const char *action;
 
-	if (iface->id < ARRAY_DIM(name_cache))
+	if (iface->id < name_cache_len)
 		gr_strcpy(name_cache[iface->id], sizeof(name_cache[iface->id]), iface->name);
 
 	switch (event) {

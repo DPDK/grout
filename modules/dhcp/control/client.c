@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
+#include "config.h"
 #include "control_queue.h"
 #include "dhcp.h"
 #include "eth.h"
@@ -26,10 +27,10 @@
 LOG_TYPE("dhcp");
 
 static struct event_base *dhcp_ev_base;
-static struct dhcp_client *dhcp_clients[GR_MAX_IFACES];
+static struct dhcp_client **dhcp_clients;
 
 bool dhcp_enabled(uint16_t iface_id) {
-	if (iface_id < GR_MAX_IFACES)
+	if (iface_id < gr_config.max_ifaces)
 		return dhcp_clients[iface_id] != NULL;
 	return false;
 }
@@ -398,6 +399,9 @@ free:
 
 static void dhcp_init(struct event_base *ev_base) {
 	dhcp_ev_base = ev_base;
+	dhcp_clients = calloc(gr_config.max_ifaces, sizeof(*dhcp_clients));
+	if (dhcp_clients == NULL)
+		ABORT("calloc(dhcp_clients)");
 }
 
 static int dhcp_start(uint16_t iface_id) {
@@ -466,7 +470,7 @@ static struct api_out dhcp_list_handler(const void *, struct api_ctx *ctx) {
 	struct dhcp_client *client;
 	uint16_t iface_id;
 
-	for (iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
+	for (iface_id = 0; iface_id < gr_config.max_ifaces; iface_id++) {
 		client = dhcp_clients[iface_id];
 		if (client == NULL)
 			continue;
@@ -506,10 +510,12 @@ static struct api_out dhcp_stop_handler(const void *request, struct api_ctx *) {
 }
 
 static void dhcp_fini(struct event_base *) {
-	for (uint16_t iface_id = 0; iface_id < GR_MAX_IFACES; iface_id++) {
+	for (uint16_t iface_id = 0; iface_id < gr_config.max_ifaces; iface_id++) {
 		if (dhcp_clients[iface_id] != NULL)
 			dhcp_stop(iface_id);
 	}
+	free(dhcp_clients);
+	dhcp_clients = NULL;
 }
 
 static struct module dhcp_module = {

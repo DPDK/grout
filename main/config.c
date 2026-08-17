@@ -9,8 +9,10 @@
 #include <gr_string.h>
 #include <gr_version.h>
 
+#include <rte_log.h>
 #include <rte_version.h>
 
+#include <errno.h>
 #include <getopt.h>
 #include <grp.h>
 #include <pwd.h>
@@ -21,7 +23,7 @@
 #include <strings.h>
 #include <unistd.h>
 
-LOG_TYPE("main");
+LOG_TYPE("config");
 
 // Please keep options/flags in alphabetical order.
 
@@ -149,7 +151,9 @@ static int parse_sock_owner(char *user_group_str) {
 
 	pw = getpwnam(user_str);
 	if (!pw) {
-		if (parse_uint(&gr_config.api_sock_uid, user_str, 10, 0, (uid_t)-1) < 0)
+		if (*user_str == '\0')
+			gr_config.api_sock_uid = getuid();
+		else if (parse_uint(&gr_config.api_sock_uid, user_str, 10, 0, (uid_t)-1) < 0)
 			return perr("--socket-owner: <user>: %s", strerror(errno));
 	} else {
 		gr_config.api_sock_uid = pw->pw_uid;
@@ -157,7 +161,9 @@ static int parse_sock_owner(char *user_group_str) {
 
 	gr = getgrnam(group_str);
 	if (!gr) {
-		if (parse_uint(&gr_config.api_sock_gid, group_str, 10, 0, (gid_t)-1) < 0)
+		if (*group_str == '\0')
+			gr_config.api_sock_gid = getgid();
+		else if (parse_uint(&gr_config.api_sock_gid, group_str, 10, 0, (gid_t)-1) < 0)
 			return perr("--socket-owner: <group>: %s", strerror(errno));
 	} else {
 		gr_config.api_sock_gid = gr->gr_gid;
@@ -166,13 +172,63 @@ static int parse_sock_owner(char *user_group_str) {
 	return 0;
 }
 
-static bool parse_bool_env(const char *name) {
+static int parse_env_bool(bool *dest, const char *name, bool def) {
 	const char *val = getenv(name);
-	if (val == NULL)
-		return false;
-	return strcasecmp(val, "1") == 0 || strcasecmp(val, "true") == 0
-		|| strcasecmp(val, "on") == 0 || strcasecmp(val, "yes") == 0;
+
+	if (val == NULL || *val == '\0') {
+		*dest = def;
+		return 0;
+	}
+	if (strcasecmp(val, "1") == 0 || strcasecmp(val, "true") == 0 || strcasecmp(val, "on") == 0
+	    || strcasecmp(val, "yes") == 0) {
+		*dest = true;
+		return 0;
+	}
+	if (strcasecmp(val, "0") == 0 || strcasecmp(val, "false") == 0
+	    || strcasecmp(val, "off") == 0 || strcasecmp(val, "no") == 0) {
+		*dest = false;
+		return 0;
+	}
+	return perr("%s=%s: Invalid boolean", name, val);
 }
+
+static int parse_env_int(
+	unsigned *dest,
+	const char *name,
+	unsigned def,
+	unsigned base,
+	unsigned min,
+	unsigned max
+) {
+	const char *val = getenv(name);
+
+	if (val == NULL || *val == '\0')
+		*dest = def;
+	else if (parse_uint(dest, val, base, min, max) < 0)
+		return perr("%s=%s: %s", name, val, strerror(errno));
+
+	return 0;
+}
+
+static int parse_env_str(const char **dest, const char *name, const char *def) {
+	const char *val = getenv(name);
+
+	*dest = (val != NULL && *val != '\0') ? val : def;
+	return 0;
+}
+
+#define ENV_INT(field, name, def, min, max)                                                        \
+	if (parse_env_int(&gr_config.field, name, def, 10, min, max) < 0)                          \
+	return -1
+#define ENV_OCT(field, name, def, min, max)                                                        \
+	if (parse_env_int(&gr_config.field, name, def, 8, min, max) < 0)                           \
+	return -1
+#define ENV_BOOL(field, name, def)                                                                 \
+	if (parse_env_bool(&gr_config.field, name, def) < 0)                                       \
+	return -1
+#define ENV_STR(field, name, def)                                                                  \
+	if (parse_env_str(&gr_config.field, name, def) < 0)                                        \
+	return -1
 
 int config_parse(int argc, char **argv) {
 	int c;
@@ -197,18 +253,38 @@ int config_parse(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	gr_config.api_sock_path = getenv("GROUT_SOCK_PATH");
-	if (gr_config.api_sock_path == NULL)
-		gr_config.api_sock_path = GR_DEFAULT_SOCK_PATH;
+	// defaults from environment, then hardcoded fallbacks
 	gr_config.api_sock_uid = getuid();
 	gr_config.api_sock_gid = getgid();
-	gr_config.api_sock_mode = 0660;
-	gr_config.max_mtu = 1800;
 	gr_config.log_level = RTE_LOG_NOTICE;
 	gr_config.eal_extra_args = NULL;
 	gr_config.metrics_addr = "::";
 	gr_config.metrics_port = 9111;
 
+	ENV_STR(api_sock_path, "GROUT_SOCK_PATH", GR_DEFAULT_SOCK_PATH);
+	ENV_OCT(api_sock_mode, "GROUT_SOCK_MODE", 0660, 0, 07777);
+	char *owner = getenv("GROUT_SOCK_OWNER");
+	if (owner != NULL && *owner != '\0' && parse_sock_owner(owner) < 0)
+		return -1;
+	ENV_INT(max_mtu, "GROUT_MAX_MTU", 1800, 512, 16384);
+	ENV_BOOL(test_mode, "GROUT_TEST_MODE", false);
+	ENV_BOOL(poll_mode, "GROUT_POLL_MODE", false);
+	ENV_BOOL(adaptive_irq, "GROUT_ADAPTIVE_IRQ", false);
+	ENV_BOOL(log_syslog, "GROUT_SYSLOG", false);
+	ENV_BOOL(log_packets, "GROUT_TRACE_PACKETS", false);
+	ENV_BOOL(override_default_route, "GROUT_OVERRIDE_DEFAULT_ROUTE", false);
+	ENV_BOOL(override_rp_filter, "GROUT_OVERRIDE_RP_FILTER", false);
+	ENV_INT(max_ifaces, "GROUT_MAX_IFACES", 1024, 16, UINT16_MAX);
+	ENV_INT(mempool_chunk_size, "GROUT_MEMPOOL_CHUNK_SIZE", (1 << 16) - 1, 255, (1 << 20) - 1);
+	ENV_INT(max_nexthops, "GROUT_MAX_NEXTHOPS", 1 << 17, 64, 1 << 24);
+	ENV_INT(max_routes, "GROUT_MAX_ROUTES", 1 << 16, 64, 1 << 24);
+	ENV_INT(max_fdb_entries, "GROUT_MAX_FDB_ENTRIES", 4096, 32, 1 << 24);
+	ENV_INT(max_conntracks, "GROUT_MAX_CONNTRACKS", 16384, 16, 1 << 24);
+	ENV_INT(port_queue_size, "GROUT_PORT_QUEUE_SIZE", 0, 0, 16384);
+	ENV_STR(fib4_algorithm, "GROUT_FIB4_ALGORITHM", "DIR24_8");
+	ENV_STR(fib6_algorithm, "GROUT_FIB6_ALGORITHM", "TRIE");
+
+	// CLI flags override environment
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
 		switch (c) {
 		case 'a':
@@ -266,8 +342,28 @@ int config_parse(int argc, char **argv) {
 	for (c = optind; c < argc; c++)
 		vec_add(gr_config.eal_extra_args, argv[c]);
 
-	gr_config.override_default_route = parse_bool_env("GROUT_OVERRIDE_DEFAULT_ROUTE");
-	gr_config.override_rp_filter = parse_bool_env("GROUT_OVERRIDE_RP_FILTER");
-
 	return 0;
+}
+
+void config_print(void) {
+	LOG(INFO, "GROUT_SOCK_PATH=%s", gr_config.api_sock_path);
+	LOG(INFO, "GROUT_SOCK_MODE=%o", gr_config.api_sock_mode);
+	LOG(INFO, "GROUT_SOCK_OWNER=%u:%u", gr_config.api_sock_uid, gr_config.api_sock_gid);
+	LOG(INFO, "GROUT_MAX_MTU=%u", gr_config.max_mtu);
+	LOG(INFO, "GROUT_TEST_MODE=%hhu", gr_config.test_mode);
+	LOG(INFO, "GROUT_POLL_MODE=%hhu", gr_config.poll_mode);
+	LOG(INFO, "GROUT_ADAPTIVE_IRQ=%hhu", gr_config.adaptive_irq);
+	LOG(INFO, "GROUT_SYSLOG=%hhu", gr_config.log_syslog);
+	LOG(INFO, "GROUT_TRACE_PACKETS=%hhu", gr_config.log_packets);
+	LOG(INFO, "GROUT_OVERRIDE_DEFAULT_ROUTE=%hhu", gr_config.override_default_route);
+	LOG(INFO, "GROUT_OVERRIDE_RP_FILTER=%hhu", gr_config.override_rp_filter);
+	LOG(INFO, "GROUT_MAX_IFACES=%u", gr_config.max_ifaces);
+	LOG(INFO, "GROUT_MEMPOOL_CHUNK_SIZE=%u", gr_config.mempool_chunk_size);
+	LOG(INFO, "GROUT_MAX_NEXTHOPS=%u", gr_config.max_nexthops);
+	LOG(INFO, "GROUT_MAX_ROUTES=%u", gr_config.max_routes);
+	LOG(INFO, "GROUT_MAX_FDB_ENTRIES=%u", gr_config.max_fdb_entries);
+	LOG(INFO, "GROUT_MAX_CONNTRACKS=%u", gr_config.max_conntracks);
+	LOG(INFO, "GROUT_PORT_QUEUE_SIZE=%u", gr_config.port_queue_size);
+	LOG(INFO, "GROUT_FIB4_ALGORITHM=%s", gr_config.fib4_algorithm);
+	LOG(INFO, "GROUT_FIB6_ALGORITHM=%s", gr_config.fib6_algorithm);
 }
