@@ -130,6 +130,11 @@ assert_nexthop "$nh_id" '.behavior == "end.x"' || {
 	fail "No SRv6-local END.X nexthops found - ISIS SRv6 integration failed"
 }
 
+# behavior usid on the locator makes this a uA, not a plain End.X. The
+# shift parameters come from the locator block and node lengths.
+assert_nexthop "$nh_id" '.flavor | contains(["next-csid"])'
+assert_nexthop "$nh_id" '.block_bits == 32 and .csid_bits == 16'
+
 # The locator uses uSID, so the adjacency SID is a uA: grout consumes the
 # active CSID and hands the packet to the peer over the adjacency instead
 # of looking the result up. 5f00:100:0:1:: shifts to 5f00:100:1::, which
