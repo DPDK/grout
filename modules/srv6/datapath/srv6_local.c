@@ -102,6 +102,7 @@ static inline int fetch_upper_layer(struct rte_mbuf *m, struct ip6_info *ip6_inf
 	return __fetch_upper_layer(m, ip6_info, stop_sr);
 }
 
+// On return, proto is the upper layer protocol only when sr is NULL.
 static int ip6_fill_infos(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	struct rte_ipv6_hdr *ip6;
 
@@ -189,17 +190,13 @@ static inline void decap_srv6(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 }
 
 // Remove ipv6 headers and extension
-static inline int decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
-	if (fetch_upper_layer(m, ip6_info, false) < 0)
-		return -1;
-
+static inline void decap_outer(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	// remove ip6 hdr with its extension header
 	rte_pktmbuf_adj(m, ip6_info->ext_offset);
 	ip6_info->ext_offset = 0;
 	ip6_info->ip6_hdr = NULL;
 	ip6_info->sr = NULL;
 	ip6_info->sr_len = 0;
-	return 0;
 }
 
 //
@@ -245,6 +242,10 @@ static int process_behav_decap(
 	if (sr != NULL && sr->segments_left > 0)
 		return NO_TRANSIT;
 
+	// ip6_fill_infos() stopped on the SRH, resolve the real upper layer
+	if (unlikely(fetch_upper_layer(m, ip6_info, false) < 0))
+		return INVALID_PACKET;
+
 	switch (ip6_info->proto) {
 	case IPPROTO_IPV6:
 		if (sr_d->behavior == SR_BEHAVIOR_END_DT4)
@@ -267,8 +268,7 @@ static int process_behav_decap(
 	m->hash.usr = rte_be_to_cpu_32(ip6_info->ip6_hdr->vtc_flow) & RTE_IPV6_HDR_FL_MASK;
 
 	// remove tunnel ipv6 + ext headers
-	if (ip6_info->ext_offset && decap_outer(m, ip6_info) < 0)
-		return INVALID_PACKET;
+	decap_outer(m, ip6_info);
 
 	id = eth_input_mbuf_data(m);
 	id->domain = ETH_DOMAIN_LOCAL;
@@ -732,6 +732,25 @@ static void srv6_parse_ipv6_hop_srv6_dop(void **) {
 	assert_ip6_info_equal(&info, &expect);
 }
 
+// End.DT4 with the inner packet sitting behind a destination options header.
+static void srv6_decap_dt4_behind_dop(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {.behavior = SR_BEHAVIOR_END_DT4, .out_vrf_id = GR_VRF_ID_UNDEF},
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	push_ext8(&fm, &expect, IPPROTO_DSTOPTS, sizeof(struct ipv6_ext_hdr), true);
+	*fm.prev_next = IPPROTO_IPIP;
+
+	assert_int_equal(ip6_fill_infos(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_decap(&fm.mbuf, &sr_d, &info), IP_INPUT);
+	// the whole outer encapsulation must be gone, not just up to the SRH
+	assert_int_equal(fm.mbuf.data_len, 0);
+}
+
 // ---- runner -----------------------------------------------------------------
 int main(void) {
 	const struct CMUnitTest tests[] = {
@@ -740,6 +759,7 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6),
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
+		cmocka_unit_test(srv6_decap_dt4_behind_dop),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
