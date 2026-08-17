@@ -104,7 +104,34 @@ grcli trace clear
 # Return path: n1 -> grout p1 (SRv6 to END.X) -> grout p0-bis -> n0 x-p0-bis
 #
 # END.X forces return traffic via p0-bis instead of default p0 (traffic engineering!)
-if ! ip netns exec n0 ping6 -i0.01 -c3 -n 2001:db8:101::2; then
+# RFC 8986 4.16.3: with USD, End.X must forward the exposed inner packet to
+# the L3 adjacency, so the reply must come back on the TE path and not on the
+# default one.
+
+# Start the capture before the traffic. ping6 -i0.2 -c5 is done emitting after
+# 0.8s, which tcpdump may not beat to opening its capture.
+capture=$(mktemp)
+ip netns exec n0 timeout 5 tcpdump -c1 -pnnli x-p0-bis ip6 dst 2001:db8:61::2 >"$capture" 2>&1 &
+tcpdump_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" "$capture"; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n0 ping6 -i0.2 -c5 -n 2001:db8:101::2 >/dev/null 2>&1 &
+ping_pid=$!
+
+if ! wait $tcpdump_pid; then
+	cat "$capture"
+	rm -f "$capture"
+	wait $ping_pid
+	grcli trace show count 20 | grep -B5 -A8 "sr6_local: action=end.x"
+	fail "END.X with USD did not use the configured adjacency"
+fi
+rm -f "$capture"
+if ! wait $ping_pid; then
 	grcli trace show count 20 | grep -B5 -A7 "sr6_local: action=end.x"
 	fail "SRv6 END.X test failed"
 fi

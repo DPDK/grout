@@ -4,6 +4,7 @@
 #pragma once
 
 #include "mbuf.h"
+#include "nexthop.h"
 
 #include <gr_net_types.h>
 
@@ -19,7 +20,14 @@ typedef enum {
 	ETH_DOMAIN_OTHER, // destination is *not* the input interface mac
 } eth_domain_t;
 
-GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, { eth_domain_t domain; })
+GR_MBUF_PRIV_DATA_TYPE(eth_input_mbuf_data, {
+	eth_domain_t domain;
+	// When set, ip_input and ip6_input use this nexthop instead of a FIB
+	// lookup. Set by nodes that expose a packet which must be handed to a
+	// specific adjacency. Must be reset to NULL by every node that sets
+	// domain, mbuf private data is not cleared between packets.
+	const struct nexthop *nh;
+})
 
 GR_MBUF_PRIV_DATA_TYPE(eth_output_mbuf_data, {
 	struct rte_ether_addr dst;

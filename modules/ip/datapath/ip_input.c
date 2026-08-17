@@ -141,7 +141,12 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 			goto next;
 		}
 
-		nh = fib4_lookup(iface->vrf_id, ip->dst_addr, mbuf->hash.rss);
+		// A pre-resolved nexthop means the packet was handed over by a node
+		// that already picked an adjacency, skip the route lookup.
+		if (likely(e->nh == NULL))
+			nh = fib4_lookup(iface->vrf_id, ip->dst_addr, mbuf->hash.rss);
+		else
+			nh = e->nh;
 		if (nh == NULL) {
 			edge = NO_ROUTE;
 			goto next;
@@ -291,6 +296,7 @@ static void ipv4_init_default_mbuf(struct fake_mbuf *fake_mbuf) {
 
 	eth_input_mbuf_data(&fake_mbuf->mbuf)->iface = &iface;
 	eth_input_mbuf_data(&fake_mbuf->mbuf)->domain = ETH_DOMAIN_LOCAL;
+	eth_input_mbuf_data(&fake_mbuf->mbuf)->nh = NULL;
 }
 
 static void ip_input_invalid_mbuf_len(void **) {
