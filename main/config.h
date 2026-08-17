@@ -32,3 +32,5 @@ struct gr_config {
 };
 
 extern struct gr_config gr_config;
+
+int config_parse(int argc, char **argv);
