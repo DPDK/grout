@@ -170,7 +170,7 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 		if (!rte_ipv6_addr_is_linklocal(&l3->ipv6))
 			continue;
 		if ((m = rte_pktmbuf_alloc(iface->pool)) == NULL) {
-			LOG(ERR, "rte_pktmbuf_alloc");
+			LOG(ERR, "rte_pktmbuf_alloc: pool exhausted");
 			return;
 		}
 		mbuf_data(m)->iface = iface;
