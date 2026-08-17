@@ -509,8 +509,6 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void, ip6_input_register_nexthop_type(gr_nh_type_t, const char *));
 mock_func(struct iface *, get_vrf_iface(uint16_t));
-mock_func(struct iface *, iface_from_id(uint16_t));
-mock_func(struct nexthop *, nexthop_lookup_id(uint32_t));
 
 struct ipv6_ext_hdr {
 	uint8_t next_hdr;
