@@ -118,13 +118,13 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	mbuf = rte_pktmbuf_alloc(iface->pool);
 	if (!mbuf) {
-		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
+		LOG(ERR, "rte_pktmbuf_alloc: pool exhausted");
 		goto err;
 	}
 
 	read_len = iface->mtu + RTE_ETHER_HDR_LEN + RTE_VLAN_HLEN;
 	if ((data = rte_pktmbuf_append(mbuf, read_len)) == NULL) {
-		LOG(ERR, "rte_pktmbuf_alloc %s", rte_strerror(rte_errno));
+		LOG(ERR, "rte_pktmbuf_append: not enough tailroom");
 		goto err;
 	}
 
