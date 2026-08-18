@@ -66,8 +66,6 @@ commits). Follow these general rules:
   * `Requested-by:`
   * `Reported-by:`
   * `Co-authored-by:`
-  * `Assisted-by:` used to acknowledge AI assistants or automated tools that
-    helped with the implementation.
   * `Signed-off-by:` compulsory!
   * `Tested-by:` used in review _after_ submission to the mailing list. If
     minimal changes occur between respins, feel free to include that into your
@@ -76,6 +74,9 @@ commits). Follow these general rules:
     between respins, feel free to include that into your respin to keep track
     of previous reviews.
   * `Acked-by:` used in review _after_ submission.
+
+  Do NOT use any `Assisted-by:` (or related) trailers to indicate that you used
+  AI tools to help writing patches.
 
 There is a great reference for commit messages in the
 [Linux kernel documentation](https://www.kernel.org/doc/html/latest/process/submitting-patches.html#describe-your-changes).
