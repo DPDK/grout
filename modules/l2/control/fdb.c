@@ -118,6 +118,7 @@ void fdb_learn(
 	const struct l3_addr *vtep
 ) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
+	gr_clock_ns_t now = gr_clock_ns();
 	struct fdb_entry *fdb;
 	void *data;
 
@@ -133,6 +134,7 @@ void fdb_learn(
 		fdb->flags = GR_FDB_F_LEARN;
 		fdb->iface_id = iface_id;
 		fdb->vtep = *vtep;
+		fdb->last_seen = now;
 
 		if (rte_hash_add_key_data(fdb_hash, &key, fdb) < 0) {
 			// no space left in hash
@@ -145,16 +147,17 @@ void fdb_learn(
 		fdb = data;
 	}
 
-	fdb->last_seen = gr_clock_ns();
-
 	if ((fdb->flags & GR_FDB_F_LEARN)
-	    && (fdb->iface_id != iface_id || !l3_addr_eq(&fdb->vtep, vtep))) {
+	    && unlikely(fdb->iface_id != iface_id || !l3_addr_eq(&fdb->vtep, vtep))) {
 		// update in case the mac address has moved
 		fdb->prev_iface_id = fdb->iface_id;
 		fdb->iface_id = iface_id;
 		fdb->vtep = *vtep;
 		event_push(GR_EVENT_FDB_UPDATE, fdb);
 	}
+
+	if (unlikely(now - fdb->last_seen > 1 * GR_NS_PER_S))
+		fdb->last_seen = now;
 }
 
 void fdb_purge_iface(uint16_t iface_id) {
