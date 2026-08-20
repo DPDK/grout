@@ -219,6 +219,44 @@ struct nexthop *rib6_lookup_exact(
 	return nh_id_to_ptr(nh_id);
 }
 
+static bool is_addr_owned_route(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen
+) {
+	struct rte_fib6 *fib6 = get_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
+	struct nexthop_info_l3 *l3;
+	struct rte_rib6_node *rn;
+	struct rte_ipv6_addr tmp;
+	struct rte_rib6 *rib;
+	struct nexthop *nh;
+	gr_nh_origin_t *o;
+	uintptr_t nh_id;
+
+	if (fib6 == NULL)
+		return false;
+
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
+	rib = rte_fib6_get_rib(fib6);
+	rn = rte_rib6_lookup_exact(rib, scoped_ip, prefixlen);
+	if (rn == NULL)
+		return false;
+
+	o = rte_rib6_get_ext(rn);
+	if (*o != GR_NH_ORIGIN_LINK && *o != GR_NH_ORIGIN_INTERNAL)
+		return false;
+
+	rte_rib6_get_nh(rn, &nh_id);
+	nh = nh_id_to_ptr(nh_id);
+	if (nh->type != GR_NH_T_L3)
+		return false;
+
+	l3 = nexthop_info_l3(nh);
+	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+}
+
 struct route6_event {
 	struct ip6_net dest;
 	uint16_t vrf_id;
@@ -375,6 +413,11 @@ static struct api_out route6_add(const void *request, struct api_ctx *) {
 	if (req->origin == GR_NH_ORIGIN_INTERNAL)
 		return api_out(EINVAL, 0, NULL);
 
+	// Keep address-owned connected routes authoritative during routing daemon
+	// replay. See the IPv4 handler for the ordering race this prevents.
+	if (is_addr_owned_route(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen))
+		return api_out(0, 0, NULL);
+
 	if (req->nh_id != GR_NH_ID_UNSET) {
 		nh = nexthop_lookup_id(req->nh_id);
 		if (nh == NULL)
@@ -432,7 +475,11 @@ static struct api_out route6_del(const void *request, struct api_ctx *) {
 	struct nexthop *nh = NULL;
 	int ret;
 
-	nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip);
+	if (is_addr_owned_route(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen))
+		return api_out(EBUSY, 0, NULL);
+	nh = rib6_lookup_exact(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen);
+	if (nh == NULL)
+		nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip);
 	ret = rib6_delete(
 		req->vrf_id,
 		GR_IFACE_ID_UNDEF,
