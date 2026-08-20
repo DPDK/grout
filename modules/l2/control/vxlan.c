@@ -198,6 +198,7 @@ static int iface_vxlan_reconfig(
 		cur->template.ipv6.vxlan.vx_vni = vxlan_encode_vni(cur->vni);
 		break;
 	case GR_AF_UNSPEC:
+	case GR_AF_MPLS:
 		break;
 	}
 

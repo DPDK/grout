@@ -46,6 +46,8 @@ const struct nexthop_af_ops *nexthop_af_ops_from_mbuf(const struct rte_mbuf *m) 
 		return af_ops[GR_AF_IP4];
 	if (m->packet_type & RTE_PTYPE_L3_IPV6)
 		return af_ops[GR_AF_IP6];
+	if ((m->packet_type & RTE_PTYPE_TUNNEL_MASK) == RTE_PTYPE_TUNNEL_MPLS_IN_GRE)
+		return af_ops[GR_AF_MPLS];
 	return NULL;
 }
 
@@ -78,6 +80,9 @@ static inline void set_nexthop_key(
 			key->ipv6.a[2] = (iface_id >> 8) & 0xff;
 			key->ipv6.a[3] = iface_id & 0xff;
 		}
+		break;
+	case GR_AF_MPLS:
+		ABORT("AF_MPLS has no nexthop key with gw");
 		break;
 	case GR_AF_UNSPEC:
 		ABORT("AF_UNSPEC has no nexthop key with gw");
@@ -207,6 +212,7 @@ static bool l3_equal(const struct nexthop *a, const struct nexthop *b) {
 	case GR_AF_IP6:
 		return rte_ipv6_addr_eq(&l3_a->ipv6, &l3_b->ipv6);
 	case GR_AF_UNSPEC:
+	case GR_AF_MPLS:
 		return true;
 	}
 	return false;

@@ -27,6 +27,7 @@ typedef enum : uint8_t {
 	GR_AF_UNSPEC = AF_UNSPEC,
 	GR_AF_IP4 = AF_INET,
 	GR_AF_IP6 = AF_INET6,
+	GR_AF_MPLS = AF_MPLS,
 } addr_family_t;
 
 // Convert address family enum to string representation.
@@ -38,6 +39,8 @@ static inline const char *gr_af_name(addr_family_t af) {
 		return "ipv4";
 	case GR_AF_IP6:
 		return "ipv6";
+	case GR_AF_MPLS:
+		return "mpls";
 	}
 	return "?";
 }
@@ -48,6 +51,7 @@ static inline bool gr_af_valid(addr_family_t af) {
 	case GR_AF_UNSPEC:
 	case GR_AF_IP4:
 	case GR_AF_IP6:
+	case GR_AF_MPLS:
 		return true;
 	}
 	return false;
