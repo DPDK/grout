@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "conntrack.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "l3.h"
@@ -91,7 +92,11 @@ static uint16_t dnat44_dynamic_process(
 		);
 
 		o = l3_mbuf_data(m);
-		o->nh = fib4_lookup(o->iface->vrf_id, ip->dst_addr, m->hash.rss);
+		o->nh = fib4_lookup(
+			o->iface->vrf_id,
+			ip->dst_addr,
+			gr_mbuf_flow_hash_get_l3(m, RTE_BE16(RTE_ETHER_TYPE_IPV4))
+		);
 
 		if (o->nh == NULL)
 			edge = NO_ROUTE;

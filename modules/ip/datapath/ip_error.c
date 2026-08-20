@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -33,6 +34,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 	struct rte_ipv4_hdr *ip;
 	struct rte_mbuf *mbuf;
 	ip4_addr_t src, dst;
+	uint32_t hash;
 	rte_edge_t edge;
 	unsigned len;
 
@@ -40,6 +42,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		mbuf = objs[i];
 
 		ip = rte_pktmbuf_mtod(mbuf, struct rte_ipv4_hdr *);
+		hash = gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4));
 		src = ip->src_addr;
 		// RFC792 payload size: ip header + 64 bits of original datagram
 		len = rte_ipv4_hdr_len(ip) + 8;
@@ -53,8 +56,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// Get the local router IP address from the input iface
 		iface = l3_mbuf_data(mbuf)->iface;
-		if (iface == NULL
-		    || (nh = fib4_lookup(iface->vrf_id, src, mbuf->hash.rss)) == NULL) {
+		if (iface == NULL || (nh = fib4_lookup(iface->vrf_id, src, hash)) == NULL) {
 			edge = NO_IP;
 			goto next;
 		}
