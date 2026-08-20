@@ -284,6 +284,24 @@ static int port_mtu_set(struct iface *iface, uint16_t mtu) {
 	return 0;
 }
 
+int port_allmulticast_enable(struct iface *iface) {
+	struct iface_info_port *p = iface_info_port(iface);
+	int ret;
+
+	ret = rte_eth_allmulticast_enable(p->port_id);
+	if (ret == -ENOTSUP) {
+		LOG(WARNING,
+		    "%s: port driver does not support explicit all-multicast mode",
+		    iface->name);
+		return 0;
+	}
+	if (ret < 0)
+		return errno_log(-ret, "rte_eth_allmulticast_enable");
+
+	iface->state |= GR_IFACE_S_ALLMULTI;
+	return 0;
+}
+
 static int iface_port_reconfig(
 	struct iface *iface,
 	uint64_t set_attrs,
@@ -352,10 +370,9 @@ static int iface_port_reconfig(
 		if (ret < 0)
 			return ret;
 
-		// always enable allmulti
-		if ((ret = rte_eth_allmulticast_enable(p->port_id)) < 0)
-			return errno_log(-ret, "rte_eth_allmulticast_enable");
-		iface->state |= GR_IFACE_S_ALLMULTI;
+		// Virtual PMDs may be inherently unfiltered and have no allmulti toggle.
+		if ((ret = port_allmulticast_enable(iface)) < 0)
+			return ret;
 
 		if ((ret = port_plug(p)) < 0)
 			return ret;

@@ -187,6 +187,27 @@ static void port_mac_del_unicast(void **) {
 	assert_true(iface->macs[1].hardware);
 }
 
+static void port_allmulticast_supported(void **) {
+	iface->state &= ~GR_IFACE_S_ALLMULTI;
+	will_return(__wrap_rte_eth_allmulticast_enable, 0);
+	assert_return_code(port_allmulticast_enable(iface), errno);
+	assert_true(iface->state & GR_IFACE_S_ALLMULTI);
+}
+
+static void port_allmulticast_unsupported(void **) {
+	iface->state &= ~GR_IFACE_S_ALLMULTI;
+	will_return(__wrap_rte_eth_allmulticast_enable, -ENOTSUP);
+	assert_return_code(port_allmulticast_enable(iface), errno);
+	assert_false(iface->state & GR_IFACE_S_ALLMULTI);
+}
+
+static void port_allmulticast_error(void **) {
+	iface->state &= ~GR_IFACE_S_ALLMULTI;
+	will_return(__wrap_rte_eth_allmulticast_enable, -EIO);
+	assert_int_equal(port_allmulticast_enable(iface), -EIO);
+	assert_false(iface->state & GR_IFACE_S_ALLMULTI);
+}
+
 static void vlan_mac_add_multicast(void **) {
 	assert_return_code(iface_add_eth_addr(vlan_iface, &mcast1), errno);
 	assert_int_equal(vec_len(vlan_iface->macs), 0);
@@ -275,6 +296,9 @@ int main(void) {
 		cmocka_unit_test(port_mac_add_multicast),
 		cmocka_unit_test(port_mac_add_unicast),
 		cmocka_unit_test(port_mac_del_unicast),
+		cmocka_unit_test(port_allmulticast_supported),
+		cmocka_unit_test(port_allmulticast_unsupported),
+		cmocka_unit_test(port_allmulticast_error),
 		cmocka_unit_test(vlan_mac_add_multicast),
 		cmocka_unit_test(vlan_mac_add_unicast),
 		cmocka_unit_test(vlan_mac_del_unicast),

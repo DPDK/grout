@@ -30,3 +30,4 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 });
 
 const struct iface *port_get_iface(uint16_t port_id);
+int port_allmulticast_enable(struct iface *iface);
