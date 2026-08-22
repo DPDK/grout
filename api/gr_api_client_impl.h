@@ -171,30 +171,6 @@ int gr_api_client_disconnect(struct gr_api_client *client) {
 	return ret;
 }
 
-static ssize_t send_all(const struct gr_api_client *c, const void *buf, size_t len) {
-	size_t remaining = len;
-	const char *ptr = buf;
-	ssize_t n;
-
-	while (remaining > 0) {
-		n = send(c->sock_fd, ptr, remaining, MSG_NOSIGNAL);
-		if (n < 0) {
-			if (remaining < len && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-				// Blocking mid-transmission, wait for socket to be writable again.
-				struct pollfd pfd = {.fd = c->sock_fd, .events = POLLOUT};
-				poll(&pfd, 1, -1);
-				continue;
-			}
-			return n;
-		}
-
-		ptr += n;
-		remaining -= n;
-	}
-
-	return len;
-}
-
 static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
 	size_t remaining = len;
 	char *ptr = buf;
@@ -238,12 +214,35 @@ long int gr_api_client_send(
 		.payload_len = tx_len,
 		.type = req_type,
 	};
+	struct iovec vec[2] = {{&req, sizeof(req)}, {(void *)tx_data, tx_len}};
+	struct msghdr msg = {.msg_iov = vec, .msg_iovlen = tx_len > 0 ? 2 : 1};
+	size_t total_len = vec[0].iov_len + vec[1].iov_len;
+	size_t remaining = total_len;
 
-	if (send_all(client, &req, sizeof(req)) < 0)
-		return -errno;
-
-	if (tx_len > 0 && send_all(client, tx_data, tx_len) < 0)
-		return -errno;
+	while (msg.msg_iovlen > 0) {
+		int n = sendmsg(client->sock_fd, &msg, MSG_NOSIGNAL);
+		if (n < 0) {
+			if (remaining < total_len && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+				// Blocking mid-transmission, wait for socket to be writable again.
+				struct pollfd pfd = {.fd = client->sock_fd, .events = POLLOUT};
+				poll(&pfd, 1, -1);
+				continue;
+			}
+			return n;
+		}
+		remaining -= n;
+		while (n > 0) {
+			if ((int)msg.msg_iov->iov_len <= n) {
+				n -= msg.msg_iov->iov_len;
+				msg.msg_iov++;
+				msg.msg_iovlen--;
+			} else {
+				msg.msg_iov->iov_len -= n;
+				msg.msg_iov->iov_base = (char *)msg.msg_iov->iov_base + n;
+				n = 0;
+			}
+		}
+	}
 
 	return req.id;
 }
