@@ -109,6 +109,9 @@ struct gr_api_client {
 	int sock_fd;
 	struct gr_hello_resp info;
 	STAILQ_HEAD(, response) responses;
+	size_t recv_buf_off;
+	size_t recv_buf_len;
+	char recv_buf[sizeof(struct gr_api_response) + GR_API_MAX_MSG_LEN];
 };
 
 const struct gr_hello_resp *gr_api_client_info(const struct gr_api_client *client) {
@@ -171,13 +174,31 @@ int gr_api_client_disconnect(struct gr_api_client *client) {
 	return ret;
 }
 
-static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
+static ssize_t recv_all(struct gr_api_client *c, void *buf, size_t len) {
 	size_t remaining = len;
 	char *ptr = buf;
 	ssize_t n;
 
 	while (remaining > 0) {
-		n = recv(c->sock_fd, ptr, remaining, 0);
+		if (c->recv_buf_len > 0) {
+			// First, consume any data present in the buffer.
+			n = remaining < c->recv_buf_len ? remaining : c->recv_buf_len;
+			memcpy(ptr, c->recv_buf + c->recv_buf_off, n);
+			c->recv_buf_off += n;
+			c->recv_buf_len -= n;
+			ptr += n;
+			remaining -= n;
+			continue;
+		}
+
+		// Then, receive as much data as possible in the buffer.
+		c->recv_buf_off = 0;
+		n = recv(c->sock_fd, c->recv_buf, sizeof(c->recv_buf), 0);
+		if (n > 0) {
+			c->recv_buf_len = n;
+			continue;
+		}
+
 		if (n == 0) {
 			errno = ECONNRESET;
 			return len - remaining;
@@ -188,11 +209,8 @@ static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
 				poll(&pfd, 1, -1);
 				continue;
 			}
-			return n;
 		}
-
-		ptr += n;
-		remaining -= n;
+		return n;
 	}
 
 	return len;
@@ -329,7 +347,7 @@ err:
 	return -errno;
 }
 
-int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event **event) {
+int gr_api_client_event_recv(struct gr_api_client *c, struct gr_api_event **event) {
 	const struct api_message *m;
 	struct gr_api_event header;
 
