@@ -348,16 +348,8 @@ send:
 			LOG(ERR, "failed to write payload");
 	}
 
-	bufferevent_flush(bev, EV_WRITE, BEV_FLUSH);
-
 	free(req_payload);
 	free(out.payload);
-
-	if (evbuffer_get_length(input) >= sizeof(ctx->header)) {
-		// More data is available in the input buffer.
-		// Force read_cb to be invoked again when possible.
-		bufferevent_flush(bev, EV_READ, BEV_NORMAL);
-	}
 	return;
 
 close:
