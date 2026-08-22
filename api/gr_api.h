@@ -174,6 +174,7 @@ enum gr_main_requests : uint32_t {
 	GR_LOG_LEVEL_SET,
 	GR_EVENT_SUBSCRIBE,
 	GR_EVENT_UNSUBSCRIBE,
+	GR_PING,
 };
 
 // Client handshake with API version negotiation.
@@ -243,3 +244,6 @@ struct gr_api_event {
 // Caller must free(*event) after use.
 // Returns 0 on success, negative errno on failure.
 int gr_api_client_event_recv(struct gr_api_client *, struct gr_api_event **);
+
+// Send an arbitrary payload and receive it back echoed from the server.
+GR_REQ(GR_PING, struct gr_empty, struct gr_empty);
