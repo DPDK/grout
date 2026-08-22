@@ -225,6 +225,17 @@ static struct api_out hello(const void *request, struct api_ctx *) {
 	return api_out(0, sizeof(*resp), resp);
 }
 
+static struct api_out ping(const void *request, struct api_ctx *ctx) {
+	uint32_t len = ctx->header.payload_len;
+	if (len == 0)
+		return api_out(0, 0, NULL);
+	void *resp = malloc(len);
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+	memcpy(resp, request, len);
+	return api_out(0, len, resp);
+}
+
 static void disconnect_client(struct api_ctx *ctx) {
 	assert(ctx != NULL);
 	assert(ctx->bev != NULL);
@@ -465,4 +476,5 @@ RTE_INIT(init) {
 	api_handler(GR_EVENT_SUBSCRIBE, subscribe);
 	api_handler(GR_EVENT_UNSUBSCRIBE, unsubscribe);
 	api_handler(GR_HELLO, hello);
+	api_handler(GR_PING, ping);
 }

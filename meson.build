@@ -206,6 +206,12 @@ executable(
   install: false,
 )
 
+executable(
+  'ping_perf', files('smoke/ping_perf.c') + grout_header,
+  include_directories: api_inc,
+  install: false,
+)
+
 # docs/ must come after grcli_exe since man pages are generated using grcli --man
 subdir('docs')
 
