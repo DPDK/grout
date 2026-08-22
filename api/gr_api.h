@@ -242,4 +242,4 @@ struct gr_api_event {
 // Receive an event notification.
 // Caller must free(*event) after use.
 // Returns 0 on success, negative errno on failure.
-int gr_api_client_event_recv(const struct gr_api_client *, struct gr_api_event **);
+int gr_api_client_event_recv(struct gr_api_client *, struct gr_api_event **);
