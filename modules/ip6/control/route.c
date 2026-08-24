@@ -925,7 +925,7 @@ static struct api_out fib6_default_set(const void *request, struct api_ctx *) {
 	const struct gr_ip6_fib_default_set_req *req = request;
 
 	if (req->max_routes == 0)
-		return api_out(EINVAL, 0, NULL);
+		return api_out(0, 0, NULL);
 
 	if (req->max_routes != max_routes_default) {
 		LOG(INFO, "IPv6 default max_routes %u -> %u", max_routes_default, req->max_routes);
