@@ -36,6 +36,8 @@ int rib4_insert(
 );
 int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type);
 void rib4_cleanup(struct nexthop *);
+// delete the routes of an interface, except those owned by a routing daemon
+void rib4_cleanup_iface(uint16_t iface_id);
 
 typedef int (*rib4_iter_cb_t)(
 	uint16_t vrf_id,

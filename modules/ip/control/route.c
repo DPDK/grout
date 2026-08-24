@@ -537,6 +537,7 @@ struct rib4_cleanup_entry {
 
 struct rib4_cleanup_ctx {
 	const struct nexthop *nh;
+	uint16_t iface_id;
 	vec struct rib4_cleanup_entry *entries;
 };
 
@@ -544,12 +545,21 @@ static int rib4_cleanup_cb(
 	uint16_t vrf_id,
 	ip4_addr_t ip,
 	uint8_t depth,
-	gr_nh_origin_t,
+	gr_nh_origin_t origin,
 	const struct nexthop *nh,
 	void *priv
 ) {
 	struct rib4_cleanup_ctx *ctx = priv;
-	if (ctx->nh == NULL || nh == ctx->nh) {
+	bool match;
+
+	if (ctx->iface_id != GR_IFACE_ID_UNDEF) {
+		// Routes installed by a routing daemon are left to their owner.
+		match = nh->iface_id == ctx->iface_id && origin <= GR_NH_ORIGIN_STATIC;
+	} else {
+		match = ctx->nh == NULL || nh == ctx->nh;
+	}
+
+	if (match) {
 		struct rib4_cleanup_entry entry = {
 			.vrf_id = vrf_id,
 			.ip = ip,
@@ -561,21 +571,35 @@ static int rib4_cleanup_cb(
 	return 0;
 }
 
-void rib4_cleanup(struct nexthop *nh) {
-	struct rib4_cleanup_ctx ctx = {
-		.nh = nh,
-		.entries = NULL,
-	};
+static void rib4_cleanup_run(struct rib4_cleanup_ctx *ctx) {
 	struct rib4_iterator iter = {
 		.max_count = 0,
 		.skip_internal = false,
 		.cb = rib4_cleanup_cb,
-		.priv = &ctx,
+		.priv = ctx,
 	};
 	rib4_iter(GR_VRF_ID_UNDEF, &iter);
-	vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
+	vec_foreach_ref (struct rib4_cleanup_entry *r, ctx->entries)
 		rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
-	vec_free(ctx.entries);
+	vec_free(ctx->entries);
+}
+
+void rib4_cleanup(struct nexthop *nh) {
+	struct rib4_cleanup_ctx ctx = {
+		.nh = nh,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.entries = NULL,
+	};
+	rib4_cleanup_run(&ctx);
+}
+
+void rib4_cleanup_iface(uint16_t iface_id) {
+	struct rib4_cleanup_ctx ctx = {
+		.nh = NULL,
+		.iface_id = iface_id,
+		.entries = NULL,
+	};
+	rib4_cleanup_run(&ctx);
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");

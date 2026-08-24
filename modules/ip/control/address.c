@@ -202,8 +202,11 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		nexthop_decref(nh);
 
 	vec_del(addrs->nh, i);
-	if (vec_len(addrs->nh) == 0)
+	if (vec_len(addrs->nh) == 0) {
 		vec_free(addrs->nh);
+		// no address left to send ARP requests from
+		rib4_cleanup_iface(iface_id);
+	}
 
 	iface = iface_from_id(iface_id);
 	if (iface && iface->cp_id != 0) {
