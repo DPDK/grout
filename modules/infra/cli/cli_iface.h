@@ -72,6 +72,8 @@ int arg_iface(
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("add", "Create an interface."))
 #define INTERFACE_SET_CTX(root)                                                                    \
 	CLI_CONTEXT(root, INTERFACE_ARG, CTX_ARG("set", "Modify an existing interface."))
+#define INTERFACE_CONFIG_CTX(root)                                                                 \
+	CLI_CONTEXT(INTERFACE_CTX(root), CTX_ARG("config", "Interface subsystem configuration."))
 
 #define IFACE_ATTRS_CMD                                                                            \
 	"(up|down),(promisc PROMISC),(neigh_snoop NEIGH_SNOOP),(mtu MTU),"                         \

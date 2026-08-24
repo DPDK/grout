@@ -144,6 +144,16 @@ enable and _0_, _false_, _off_, _no_ to disable.
 	is required when _net.ipv4.conf.all.rp_filter_ is set to _1_ (strict) in
 	the network namespace where grout is running.
 
+*GROUT_FLUSH_ROUTES_ON_IFACE_DOWN*
+	When set to _1_, _true_, _on_, or _yes_ (case insensitive), delete the
+	routes going out of an interface when it goes administratively down,
+	like zebra and Linux do. When disabled, these routes are kept with an
+	unresolved nexthop and start working again when the interface goes back
+	up. Can also be changed at runtime with *grcli interface config set
+	flush-routes-on-iface-down*.
+
+	Default: _false_.
+
 ## Sizing
 
 These variables control the size of internal data structures. Reducing them

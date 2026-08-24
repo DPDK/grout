@@ -902,6 +902,18 @@ static const struct vrf_fib_ops fib4_ops = {
 	.fini = fib4_fini,
 };
 
+static void iface_down_cb(uint32_t /*ev_type*/, const void *obj) {
+	const struct iface *iface = obj;
+
+	// carrier loss alone is not a trigger
+	if (iface->flags & GR_IFACE_F_UP)
+		return;
+	if (!gr_config.flush_routes_on_iface_down)
+		return;
+
+	rib4_cleanup_iface(iface->id);
+}
+
 RTE_INIT(control_ip_init) {
 	api_handler(GR_IP4_ROUTE_ADD, route4_add);
 	api_handler(GR_IP4_ROUTE_DEL, route4_del);
@@ -914,4 +926,6 @@ RTE_INIT(control_ip_init) {
 	module_register(&route4_module);
 	metrics_register(&rib4_collector);
 	vrf_fib_ops_register(GR_AF_IP4, &fib4_ops);
+	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_down_cb);
+	event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_down_cb);
 }

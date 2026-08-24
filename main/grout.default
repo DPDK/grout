@@ -40,6 +40,11 @@ GROUT_OVERRIDE_RP_FILTER=true
 # Print all ingress/egress packets (default: false).
 #GROUT_TRACE_PACKETS=false
 
+# Delete the routes of an interface when it goes administratively down, like
+# zebra and Linux do. Off by default: the routes are kept with an unresolved
+# nexthop and come back when the interface goes up again.
+#GROUT_FLUSH_ROUTES_ON_IFACE_DOWN=false
+
 # Maximum Transmission Unit (default: 1800).
 #GROUT_MAX_MTU=1800
 

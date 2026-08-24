@@ -274,6 +274,7 @@ int config_parse(int argc, char **argv) {
 	ENV_BOOL(log_packets, "GROUT_TRACE_PACKETS", false);
 	ENV_BOOL(override_default_route, "GROUT_OVERRIDE_DEFAULT_ROUTE", false);
 	ENV_BOOL(override_rp_filter, "GROUT_OVERRIDE_RP_FILTER", false);
+	ENV_BOOL(flush_routes_on_iface_down, "GROUT_FLUSH_ROUTES_ON_IFACE_DOWN", false);
 	ENV_INT(max_ifaces, "GROUT_MAX_IFACES", 1024, 16, UINT16_MAX);
 	ENV_INT(mempool_chunk_size, "GROUT_MEMPOOL_CHUNK_SIZE", (1 << 16) - 1, 255, (1 << 20) - 1);
 	ENV_INT(max_nexthops, "GROUT_MAX_NEXTHOPS", 1 << 17, 64, 1 << 24);
@@ -357,6 +358,7 @@ void config_print(void) {
 	LOG(INFO, "GROUT_TRACE_PACKETS=%hhu", gr_config.log_packets);
 	LOG(INFO, "GROUT_OVERRIDE_DEFAULT_ROUTE=%hhu", gr_config.override_default_route);
 	LOG(INFO, "GROUT_OVERRIDE_RP_FILTER=%hhu", gr_config.override_rp_filter);
+	LOG(INFO, "GROUT_FLUSH_ROUTES_ON_IFACE_DOWN=%hhu", gr_config.flush_routes_on_iface_down);
 	LOG(INFO, "GROUT_MAX_IFACES=%u", gr_config.max_ifaces);
 	LOG(INFO, "GROUT_MEMPOOL_CHUNK_SIZE=%u", gr_config.mempool_chunk_size);
 	LOG(INFO, "GROUT_MAX_NEXTHOPS=%u", gr_config.max_nexthops);
