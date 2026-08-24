@@ -68,11 +68,12 @@ int rib6_delete(
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *,
 	uint8_t prefixlen,
-	gr_nh_type_t nh_type
+	gr_nh_type_t nh_type,
+	bool notify
 );
-void rib6_cleanup(struct nexthop *);
+void rib6_cleanup(struct nexthop *, bool notify);
 // delete the routes of an interface, except those owned by a routing daemon
-void rib6_cleanup_iface(uint16_t iface_id);
+void rib6_cleanup_iface(uint16_t iface_id, bool notify);
 struct nexthop *rib6_lookup(uint16_t vrf_id, uint16_t iface_id, const struct rte_ipv6_addr *);
 struct nexthop *rib6_lookup_exact(
 	uint16_t vrf_id,

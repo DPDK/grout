@@ -197,7 +197,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		}
 	);
 
-	nexthop_routes_cleanup(nh);
+	nexthop_routes_cleanup(nh, true);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 
@@ -205,7 +205,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	if (vec_len(addrs->nh) == 0) {
 		vec_free(addrs->nh);
 		// no address left to send ARP requests from
-		rib4_cleanup_iface(iface_id);
+		rib4_cleanup_iface(iface_id, true);
 	}
 
 	iface = iface_from_id(iface_id);

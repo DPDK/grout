@@ -479,7 +479,7 @@ static void nh_cleanup_interface_cb(struct nexthop *nh, void *priv) {
 			if ((l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS)
 				return; // addresses are cleaned per address family
 		}
-		nexthop_routes_cleanup(nh);
+		nexthop_routes_cleanup(nh, !gr_config.skip_route_events_on_iface_down);
 		while (nh->ref_count)
 			nexthop_decref(nh);
 	}

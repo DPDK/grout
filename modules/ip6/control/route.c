@@ -312,7 +312,8 @@ int rib6_delete(
 	uint16_t iface_id,
 	const struct rte_ipv6_addr *ip,
 	uint8_t prefixlen,
-	gr_nh_type_t nh_type
+	gr_nh_type_t nh_type,
+	bool notify
 ) {
 	struct rte_fib6 *fib = get_fib6(vrf_id);
 	const struct rte_ipv6_addr *scoped_ip;
@@ -344,7 +345,7 @@ int rib6_delete(
 	if ((ret = rte_fib6_delete(fib, scoped_ip, prefixlen)) < 0)
 		return errno_set(-ret);
 
-	if (origin != GR_NH_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL && notify) {
 		event_push(
 			GR_EVENT_IP6_ROUTE_DEL,
 			&(const struct route6_event) {
@@ -438,7 +439,8 @@ static struct api_out route6_del(const void *request, struct api_ctx *) {
 		GR_IFACE_ID_UNDEF,
 		&req->dest.ip,
 		req->dest.prefixlen,
-		nh ? nh->type : GR_NH_T_L3
+		nh ? nh->type : GR_NH_T_L3,
+		true
 	);
 	if ((ret == -ENOENT || ret == -ENONET) && req->missing_ok)
 		ret = 0;
@@ -614,7 +616,7 @@ static int rib6_cleanup_cb(
 	return 0;
 }
 
-static void rib6_cleanup_run(struct rib6_cleanup_ctx *ctx) {
+static void rib6_cleanup_run(struct rib6_cleanup_ctx *ctx, bool notify) {
 	struct rib6_iterator iter = {
 		.max_count = 0,
 		.skip_internal = false,
@@ -623,26 +625,26 @@ static void rib6_cleanup_run(struct rib6_cleanup_ctx *ctx) {
 	};
 	rib6_iter(GR_VRF_ID_UNDEF, &iter);
 	vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx->entries)
-		rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type);
+		rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type, notify);
 	vec_free(ctx->entries);
 }
 
-void rib6_cleanup(struct nexthop *nh) {
+void rib6_cleanup(struct nexthop *nh, bool notify) {
 	struct rib6_cleanup_ctx ctx = {
 		.nh = nh,
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.entries = NULL,
 	};
-	rib6_cleanup_run(&ctx);
+	rib6_cleanup_run(&ctx, notify);
 }
 
-void rib6_cleanup_iface(uint16_t iface_id) {
+void rib6_cleanup_iface(uint16_t iface_id, bool notify) {
 	struct rib6_cleanup_ctx ctx = {
 		.nh = NULL,
 		.iface_id = iface_id,
 		.entries = NULL,
 	};
-	rib6_cleanup_run(&ctx);
+	rib6_cleanup_run(&ctx, notify);
 }
 
 METRIC_GAUGE(m_routes, "rib6_routes", "Number of IPv6 routes by origin.");
@@ -908,7 +910,7 @@ static void fib6_fini(struct iface *vrf) {
 		rib6_iter_vrf(rte_fib6_get_rib(fib), vrf->id, &iter);
 
 		vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
-			rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type);
+			rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type, true);
 		vec_free(ctx.entries);
 
 		iface_info_vrf(vrf)->fib6 = NULL;
@@ -948,7 +950,7 @@ static void iface_down_cb(uint32_t /*ev_type*/, const void *obj) {
 	if (!gr_config.flush_routes_on_iface_down)
 		return;
 
-	rib6_cleanup_iface(iface->id);
+	rib6_cleanup_iface(iface->id, !gr_config.skip_route_events_on_iface_down);
 }
 
 RTE_INIT(control_ip_init) {

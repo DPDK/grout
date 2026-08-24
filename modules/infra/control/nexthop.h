@@ -128,7 +128,7 @@ struct gr_nexthop *nexthop_to_api(const struct nexthop *, size_t *len);
 int nexthop_serialize(const void *obj, void **buf);
 
 // Clean all routes that reference a given nexthop.
-void nexthop_routes_cleanup(struct nexthop *);
+void nexthop_routes_cleanup(struct nexthop *, bool notify);
 
 // Increment the reference counter of a nexthop.
 void nexthop_incref(struct nexthop *);
@@ -156,7 +156,7 @@ struct nexthop_af_ops {
 	// Callback that will be invoked when a nexthop needs to be refreshed by sending a probe.
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked to delete all routes which reference a given nexthop.
-	void (*cleanup_routes)(struct nexthop *);
+	void (*cleanup_routes)(struct nexthop *, bool notify);
 	// Callback invoked by resolve() to flush held packets when the nexthop becomes
 	// reachable.
 	int (*resubmit)(struct rte_mbuf *, struct nexthop *);

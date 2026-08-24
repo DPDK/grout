@@ -563,6 +563,13 @@ static cmd_status_t iface_config_show(struct gr_api_client *c, const struct ec_p
 		"%s",
 		resp->flush_routes_on_iface_down ? "true" : "false"
 	);
+	gr_object_field(
+		o,
+		"skip_route_events_on_iface_down",
+		GR_DISP_BOOL,
+		"%s",
+		resp->skip_route_events_on_iface_down ? "true" : "false"
+	);
 	gr_object_free(o);
 	free(resp_ptr);
 
@@ -571,11 +578,19 @@ static cmd_status_t iface_config_show(struct gr_api_client *c, const struct ec_p
 
 static cmd_status_t iface_config_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_iface_config_set_req req = {0};
-	const char *flush;
+	const char *flush, *skip;
 
 	flush = arg_str(p, "FLUSH");
-	if (flush != NULL)
+	if (flush != NULL) {
 		req.flush_routes_on_iface_down = strcmp(flush, "on") == 0;
+		req.set_attrs |= GR_IFACE_CONFIG_SET_FLUSH_ROUTES;
+	}
+
+	skip = arg_str(p, "SKIP");
+	if (skip != NULL) {
+		req.skip_route_events_on_iface_down = strcmp(skip, "on") == 0;
+		req.set_attrs |= GR_IFACE_CONFIG_SET_SKIP_EVENTS;
+	}
 
 	if (gr_api_client_send_recv(c, GR_IFACE_CONFIG_SET, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -594,13 +609,18 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		INTERFACE_CONFIG_CTX(root),
-		"set flush-routes-on-iface-down FLUSH",
+		"set (flush-routes-on-iface-down FLUSH),(skip-route-events-on-iface-down SKIP)",
 		iface_config_set,
 		"Change the interface subsystem configuration.",
 		with_help(
 			"Delete the routes going out of an interface when it goes "
 			"administratively down.",
 			EC_NODE_OR("FLUSH", ec_node_str("", "on"), ec_node_str("", "off"))
+		),
+		with_help(
+			"Do not emit route events for the routes deleted along with an "
+			"interface.",
+			EC_NODE_OR("SKIP", ec_node_str("", "on"), ec_node_str("", "off"))
 		)
 	);
 	if (ret < 0)

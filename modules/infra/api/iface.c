@@ -333,6 +333,7 @@ static struct api_out iface_config_get(const void *, struct api_ctx *) {
 		return api_out(ENOMEM, 0, NULL);
 
 	resp->flush_routes_on_iface_down = gr_config.flush_routes_on_iface_down;
+	resp->skip_route_events_on_iface_down = gr_config.skip_route_events_on_iface_down;
 
 	return api_out(0, sizeof(*resp), resp);
 }
@@ -340,7 +341,10 @@ static struct api_out iface_config_get(const void *, struct api_ctx *) {
 static struct api_out iface_config_set(const void *request, struct api_ctx *) {
 	const struct gr_iface_config_set_req *req = request;
 
-	gr_config.flush_routes_on_iface_down = req->flush_routes_on_iface_down;
+	if (req->set_attrs & GR_IFACE_CONFIG_SET_FLUSH_ROUTES)
+		gr_config.flush_routes_on_iface_down = req->flush_routes_on_iface_down;
+	if (req->set_attrs & GR_IFACE_CONFIG_SET_SKIP_EVENTS)
+		gr_config.skip_route_events_on_iface_down = req->skip_route_events_on_iface_down;
 
 	return api_out(0, 0, NULL);
 }

@@ -154,6 +154,15 @@ enable and _0_, _false_, _off_, _no_ to disable.
 
 	Default: _false_.
 
+*GROUT_SKIP_ROUTE_EVENTS_ON_IFACE_DOWN*
+	When set to _1_, _true_, _on_, or _yes_ (case insensitive), do not emit
+	route events for the routes deleted along with an interface. Only useful
+	for a control plane which already evicts those routes when it receives
+	the interface event. Can also be changed at runtime with *grcli
+	interface config set skip-route-events-on-iface-down*.
+
+	Default: _false_.
+
 ## Sizing
 
 These variables control the size of internal data structures. Reducing them

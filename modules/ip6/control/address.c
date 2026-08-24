@@ -326,7 +326,7 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 		}
 	);
 
-	nexthop_routes_cleanup(nh);
+	nexthop_routes_cleanup(nh, true);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
 

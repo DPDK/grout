@@ -142,12 +142,12 @@ static int l3_reconfig(const struct gr_nexthop_config *c) {
 	return 0;
 }
 
-void nexthop_routes_cleanup(struct nexthop *nh) {
+void nexthop_routes_cleanup(struct nexthop *nh, bool notify) {
 	const struct nexthop_af_ops *ops;
 	for (unsigned i = 0; i < ARRAY_DIM(af_ops); i++) {
 		ops = af_ops[i];
 		if (ops != NULL)
-			ops->cleanup_routes(nh);
+			ops->cleanup_routes(nh, notify);
 	}
 }
 
