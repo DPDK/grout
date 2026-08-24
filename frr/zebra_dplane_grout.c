@@ -713,6 +713,10 @@ static void dplane_grout_connect(struct event *) {
 		&grout_ctx.dg_t_dplane_update
 	);
 
+	// redone on every connection: a restarted grout comes back with its defaults
+	struct gr_iface_config_set_req req = {.flush_routes_on_iface_down = true};
+	grout_client_send_recv(GR_IFACE_CONFIG_SET, sizeof(req), &req, NULL);
+
 	gr_log_notice("connected, monitoring iface/ip events");
 }
 
