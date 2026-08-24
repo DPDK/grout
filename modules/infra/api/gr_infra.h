@@ -253,6 +253,8 @@ enum gr_infra_requests : uint32_t {
 	GR_IFACE_MAC_DEL,
 	GR_IFACE_MAC_LIST,
 	GR_IFACE_MAC_SET,
+	GR_IFACE_CONFIG_GET,
+	GR_IFACE_CONFIG_SET,
 };
 
 enum gr_infra_events : uint32_t {
@@ -363,6 +365,21 @@ struct gr_iface_set_req {
 };
 
 GR_REQ(GR_IFACE_SET, struct gr_iface_set_req, struct gr_empty);
+
+// Get the interface subsystem configuration.
+struct gr_iface_config_get_resp {
+	bool flush_routes_on_iface_down;
+};
+
+GR_REQ(GR_IFACE_CONFIG_GET, struct gr_empty, struct gr_iface_config_get_resp);
+
+// Change the interface subsystem configuration.
+struct gr_iface_config_set_req {
+	// Delete the routes of an interface when it goes administratively down.
+	bool flush_routes_on_iface_down;
+};
+
+GR_REQ(GR_IFACE_CONFIG_SET, struct gr_iface_config_set_req, struct gr_empty);
 
 // Get interface statistics.
 struct gr_iface_stats {

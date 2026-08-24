@@ -547,6 +547,42 @@ static cmd_status_t iface_show(struct gr_api_client *c, const struct ec_pnode *p
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t iface_config_show(struct gr_api_client *c, const struct ec_pnode *) {
+	const struct gr_iface_config_get_resp *resp;
+	void *resp_ptr = NULL;
+
+	if (gr_api_client_send_recv(c, GR_IFACE_CONFIG_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	struct gr_object *o = gr_object_new(NULL);
+	gr_object_field(
+		o,
+		"flush_routes_on_iface_down",
+		GR_DISP_BOOL,
+		"%s",
+		resp->flush_routes_on_iface_down ? "true" : "false"
+	);
+	gr_object_free(o);
+	free(resp_ptr);
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t iface_config_set(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_iface_config_set_req req = {0};
+	const char *flush;
+
+	flush = arg_str(p, "FLUSH");
+	if (flush != NULL)
+		req.flush_routes_on_iface_down = strcmp(flush, "on") == 0;
+
+	if (gr_api_client_send_recv(c, GR_IFACE_CONFIG_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
 static int ctx_init(struct ec_node *root) {
 	int ret;
 
@@ -555,6 +591,29 @@ static int ctx_init(struct ec_node *root) {
 
 	if (INTERFACE_SET_CTX(root) == NULL)
 		return -1;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CONFIG_CTX(root),
+		"set flush-routes-on-iface-down FLUSH",
+		iface_config_set,
+		"Change the interface subsystem configuration.",
+		with_help(
+			"Delete the routes going out of an interface when it goes "
+			"administratively down.",
+			EC_NODE_OR("FLUSH", ec_node_str("", "on"), ec_node_str("", "off"))
+		)
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		INTERFACE_CONFIG_CTX(root),
+		"[show]",
+		iface_config_show,
+		"Show the interface subsystem configuration."
+	);
+	if (ret < 0)
+		return ret;
 
 	ret = CLI_COMMAND(
 		INTERFACE_CTX(root),

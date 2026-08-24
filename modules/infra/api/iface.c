@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "config.h"
 #include "event.h"
 #include "iface.h"
 #include "metrics.h"
@@ -326,6 +327,24 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 	}
 }
 
+static struct api_out iface_config_get(const void *, struct api_ctx *) {
+	struct gr_iface_config_get_resp *resp = calloc(1, sizeof(*resp));
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+
+	resp->flush_routes_on_iface_down = gr_config.flush_routes_on_iface_down;
+
+	return api_out(0, sizeof(*resp), resp);
+}
+
+static struct api_out iface_config_set(const void *request, struct api_ctx *) {
+	const struct gr_iface_config_set_req *req = request;
+
+	gr_config.flush_routes_on_iface_down = req->flush_routes_on_iface_down;
+
+	return api_out(0, 0, NULL);
+}
+
 static struct metrics_collector iface_collector = {
 	.name = "iface",
 	.collect = iface_metrics_collect,
@@ -341,6 +360,8 @@ RTE_INIT(infra_api_init) {
 	api_handler(GR_IFACE_MAC_LIST, iface_mac_list);
 	api_handler(GR_IFACE_MAC_SET, iface_mac_set);
 	api_handler(GR_IFACE_SET, iface_set);
+	api_handler(GR_IFACE_CONFIG_GET, iface_config_get);
+	api_handler(GR_IFACE_CONFIG_SET, iface_config_set);
 	event_serializer(GR_EVENT_IFACE_ADD, iface_event_serialize);
 	event_serializer(GR_EVENT_IFACE_POST_ADD, iface_event_serialize);
 	event_serializer(GR_EVENT_IFACE_PRE_REMOVE, iface_event_serialize);

@@ -579,6 +579,7 @@ struct rib6_cleanup_entry {
 
 struct rib6_cleanup_ctx {
 	const struct nexthop *nh;
+	uint16_t iface_id;
 	vec struct rib6_cleanup_entry *entries;
 };
 
@@ -586,12 +587,21 @@ static int rib6_cleanup_cb(
 	uint16_t vrf_id,
 	const struct rte_ipv6_addr *ip,
 	uint8_t depth,
-	gr_nh_origin_t,
+	gr_nh_origin_t origin,
 	const struct nexthop *nh,
 	void *priv
 ) {
 	struct rib6_cleanup_ctx *ctx = priv;
-	if (ctx->nh == NULL || nh == ctx->nh) {
+	bool match;
+
+	if (ctx->iface_id != GR_IFACE_ID_UNDEF) {
+		// Routes installed by a routing daemon are left to their owner.
+		match = nh->iface_id == ctx->iface_id && origin <= GR_NH_ORIGIN_STATIC;
+	} else {
+		match = ctx->nh == NULL || nh == ctx->nh;
+	}
+
+	if (match) {
 		struct rib6_cleanup_entry entry = {
 			.vrf_id = vrf_id,
 			.iface_id = nh->iface_id,
@@ -604,21 +614,35 @@ static int rib6_cleanup_cb(
 	return 0;
 }
 
-void rib6_cleanup(struct nexthop *nh) {
-	struct rib6_cleanup_ctx ctx = {
-		.nh = nh,
-		.entries = NULL,
-	};
+static void rib6_cleanup_run(struct rib6_cleanup_ctx *ctx) {
 	struct rib6_iterator iter = {
 		.max_count = 0,
 		.skip_internal = false,
 		.cb = rib6_cleanup_cb,
-		.priv = &ctx,
+		.priv = ctx,
 	};
 	rib6_iter(GR_VRF_ID_UNDEF, &iter);
-	vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx.entries)
+	vec_foreach_ref (const struct rib6_cleanup_entry *r, ctx->entries)
 		rib6_delete(r->vrf_id, r->iface_id, &r->ip, r->depth, r->type);
-	vec_free(ctx.entries);
+	vec_free(ctx->entries);
+}
+
+void rib6_cleanup(struct nexthop *nh) {
+	struct rib6_cleanup_ctx ctx = {
+		.nh = nh,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.entries = NULL,
+	};
+	rib6_cleanup_run(&ctx);
+}
+
+void rib6_cleanup_iface(uint16_t iface_id) {
+	struct rib6_cleanup_ctx ctx = {
+		.nh = NULL,
+		.iface_id = iface_id,
+		.entries = NULL,
+	};
+	rib6_cleanup_run(&ctx);
 }
 
 METRIC_GAUGE(m_routes, "rib6_routes", "Number of IPv6 routes by origin.");
@@ -915,6 +939,18 @@ static const struct vrf_fib_ops fib6_ops = {
 	.fini = fib6_fini,
 };
 
+static void iface_down_cb(uint32_t /*ev_type*/, const void *obj) {
+	const struct iface *iface = obj;
+
+	// carrier loss alone is not a trigger
+	if (iface->flags & GR_IFACE_F_UP)
+		return;
+	if (!gr_config.flush_routes_on_iface_down)
+		return;
+
+	rib6_cleanup_iface(iface->id);
+}
+
 RTE_INIT(control_ip_init) {
 	api_handler(GR_IP6_ROUTE_ADD, route6_add);
 	api_handler(GR_IP6_ROUTE_DEL, route6_del);
@@ -927,4 +963,6 @@ RTE_INIT(control_ip_init) {
 	module_register(&route6_module);
 	metrics_register(&rib6_collector);
 	vrf_fib_ops_register(GR_AF_IP6, &fib6_ops);
+	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_down_cb);
+	event_subscribe(GR_EVENT_IFACE_STATUS_DOWN, iface_down_cb);
 }
