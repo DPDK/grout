@@ -198,7 +198,7 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	if (client->offered_ip != 0 && client->prefixlen != 0)
 		addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 	if (client->router_ip != 0)
-		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
+		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3, true);
 
 	client->state = DHCP_STATE_INIT;
 	client->offered_ip = 0;
@@ -370,7 +370,7 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 			if (client->offered_ip != 0 && client->prefixlen != 0)
 				addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 			if (client->router_ip != 0)
-				rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
+				rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3, true);
 
 			client->state = DHCP_STATE_INIT;
 			client->offered_ip = 0;
@@ -454,7 +454,7 @@ static int dhcp_stop(uint16_t iface_id) {
 	if (client->offered_ip != 0 && client->prefixlen != 0)
 		addr4_delete(iface->id, client->offered_ip, client->prefixlen);
 	if (client->router_ip != 0)
-		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3);
+		rib4_delete(iface->vrf_id, 0, 0, GR_NH_T_L3, true);
 
 	dhcp_cancel_timers(client);
 

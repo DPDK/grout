@@ -369,14 +369,22 @@ GR_REQ(GR_IFACE_SET, struct gr_iface_set_req, struct gr_empty);
 // Get the interface subsystem configuration.
 struct gr_iface_config_get_resp {
 	bool flush_routes_on_iface_down;
+	bool skip_route_events_on_iface_down;
 };
 
 GR_REQ(GR_IFACE_CONFIG_GET, struct gr_empty, struct gr_iface_config_get_resp);
+
+// Interface subsystem configuration attribute flags.
+#define GR_IFACE_CONFIG_SET_FLUSH_ROUTES GR_BIT64(0)
+#define GR_IFACE_CONFIG_SET_SKIP_EVENTS GR_BIT64(1)
 
 // Change the interface subsystem configuration.
 struct gr_iface_config_set_req {
 	// Delete the routes of an interface when it goes administratively down.
 	bool flush_routes_on_iface_down;
+	// Do not emit route events for the routes deleted with an interface.
+	bool skip_route_events_on_iface_down;
+	uint64_t set_attrs; // Bit mask of GR_IFACE_CONFIG_SET_*.
 };
 
 GR_REQ(GR_IFACE_CONFIG_SET, struct gr_iface_config_set_req, struct gr_empty);

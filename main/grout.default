@@ -45,6 +45,11 @@ GROUT_OVERRIDE_RP_FILTER=true
 # nexthop and come back when the interface goes up again.
 #GROUT_FLUSH_ROUTES_ON_IFACE_DOWN=false
 
+# Do not emit route events for the routes deleted with an interface. Only
+# useful for a control plane which already evicts them on the interface
+# event (default: false).
+#GROUT_SKIP_ROUTE_EVENTS_ON_IFACE_DOWN=false
+
 # Maximum Transmission Unit (default: 1800).
 #GROUT_MAX_MTU=1800
 

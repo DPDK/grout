@@ -67,7 +67,7 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 			return api_out(EBUSY, 0, NULL);
 	}
 
-	nexthop_routes_cleanup(nh);
+	nexthop_routes_cleanup(nh, true);
 	// The nexthop *may* still have one ref_count when it has been created
 	// manually from the API (see nh_add()). Implicit nexthops created when
 	// creating a gateway route will not have that extra ref_count.
@@ -142,7 +142,7 @@ static struct api_out nh_flush(const void *request, struct api_ctx *) {
 			if ((l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS)
 				continue;
 		}
-		nexthop_routes_cleanup(nh);
+		nexthop_routes_cleanup(nh, true);
 		while (nh->ref_count > 0)
 			nexthop_decref(nh);
 	}

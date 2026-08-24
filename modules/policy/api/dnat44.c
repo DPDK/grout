@@ -176,7 +176,7 @@ static struct api_out dnat44_del(const void *request, struct api_ctx *) {
 	if (iface == NULL)
 		return api_out(ENODEV, 0, NULL);
 
-	ret = rib4_delete(iface->vrf_id, req->match, 32, GR_NH_T_DNAT);
+	ret = rib4_delete(iface->vrf_id, req->match, 32, GR_NH_T_DNAT, true);
 	if (ret == -ENOENT && req->missing_ok)
 		ret = 0;
 

@@ -284,7 +284,13 @@ int rib4_insert(
 	return rib4_insert_or_replace(vrf_id, ip, prefixlen, origin, nh, false);
 }
 
-int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t nh_type) {
+int rib4_delete(
+	uint16_t vrf_id,
+	ip4_addr_t ip,
+	uint8_t prefixlen,
+	gr_nh_type_t nh_type,
+	bool notify
+) {
 	struct rte_fib *fib = get_fib(vrf_id);
 	gr_nh_origin_t *o, origin;
 	struct rte_rib_node *rn;
@@ -312,7 +318,7 @@ int rib4_delete(uint16_t vrf_id, ip4_addr_t ip, uint8_t prefixlen, gr_nh_type_t 
 	if ((ret = rte_fib_delete(fib, rte_be_to_cpu_32(ip), prefixlen)) < 0)
 		return errno_set(-ret);
 
-	if (origin != GR_NH_ORIGIN_INTERNAL) {
+	if (origin != GR_NH_ORIGIN_INTERNAL && notify) {
 		event_push(
 			GR_EVENT_IP_ROUTE_DEL,
 			&(const struct route4_event) {
@@ -393,7 +399,7 @@ static struct api_out route4_del(const void *request, struct api_ctx *) {
 
 	nh = rib4_lookup(req->vrf_id, req->dest.ip);
 	ret = rib4_delete(
-		req->vrf_id, req->dest.ip, req->dest.prefixlen, nh ? nh->type : GR_NH_T_L3
+		req->vrf_id, req->dest.ip, req->dest.prefixlen, nh ? nh->type : GR_NH_T_L3, true
 	);
 	if ((ret == -ENOENT || ret == -ENONET) && req->missing_ok)
 		ret = 0;
@@ -571,7 +577,7 @@ static int rib4_cleanup_cb(
 	return 0;
 }
 
-static void rib4_cleanup_run(struct rib4_cleanup_ctx *ctx) {
+static void rib4_cleanup_run(struct rib4_cleanup_ctx *ctx, bool notify) {
 	struct rib4_iterator iter = {
 		.max_count = 0,
 		.skip_internal = false,
@@ -580,26 +586,26 @@ static void rib4_cleanup_run(struct rib4_cleanup_ctx *ctx) {
 	};
 	rib4_iter(GR_VRF_ID_UNDEF, &iter);
 	vec_foreach_ref (struct rib4_cleanup_entry *r, ctx->entries)
-		rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
+		rib4_delete(r->vrf_id, r->ip, r->depth, r->type, notify);
 	vec_free(ctx->entries);
 }
 
-void rib4_cleanup(struct nexthop *nh) {
+void rib4_cleanup(struct nexthop *nh, bool notify) {
 	struct rib4_cleanup_ctx ctx = {
 		.nh = nh,
 		.iface_id = GR_IFACE_ID_UNDEF,
 		.entries = NULL,
 	};
-	rib4_cleanup_run(&ctx);
+	rib4_cleanup_run(&ctx, notify);
 }
 
-void rib4_cleanup_iface(uint16_t iface_id) {
+void rib4_cleanup_iface(uint16_t iface_id, bool notify) {
 	struct rib4_cleanup_ctx ctx = {
 		.nh = NULL,
 		.iface_id = iface_id,
 		.entries = NULL,
 	};
-	rib4_cleanup_run(&ctx);
+	rib4_cleanup_run(&ctx, notify);
 }
 
 METRIC_GAUGE(m_routes, "rib4_routes", "Number of IPv4 routes by origin.");
@@ -872,7 +878,7 @@ static void fib4_fini(struct iface *vrf) {
 		rib4_iter_vrf(rte_fib_get_rib(fib), vrf->id, &iter);
 
 		vec_foreach_ref (struct rib4_cleanup_entry *r, ctx.entries)
-			rib4_delete(r->vrf_id, r->ip, r->depth, r->type);
+			rib4_delete(r->vrf_id, r->ip, r->depth, r->type, true);
 		vec_free(ctx.entries);
 
 		iface_info_vrf(vrf)->fib4 = NULL;
@@ -911,7 +917,7 @@ static void iface_down_cb(uint32_t /*ev_type*/, const void *obj) {
 	if (!gr_config.flush_routes_on_iface_down)
 		return;
 
-	rib4_cleanup_iface(iface->id);
+	rib4_cleanup_iface(iface->id, !gr_config.skip_route_events_on_iface_down);
 }
 
 RTE_INIT(control_ip_init) {
