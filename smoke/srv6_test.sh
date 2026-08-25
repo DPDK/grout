@@ -135,3 +135,24 @@ ip -n n1 -6 route add fd00:202::/32 via fd00:102::1 dev x-p1 table 10
 
 # test
 ip netns exec n0 ping6 -i0.01 -c3 -n fd00:60::1
+
+#
+# Multi-segment encapsulation test
+#
+# fd00:202:a00:: and fd00:202:b00:: are plain transit nodes, fd00:202:c00::
+# decaps back into the public network. Linux validates the SRH of every
+# packet it receives, so an SRH advertising the wrong number of entries
+# breaks forwarding outright.
+#
+
+ip -n n1 -6 route add fd00:202:a00:: encap seg6local action End count dev x-p1
+ip -n n1 -6 route add fd00:202:b00:: encap seg6local action End count dev x-p1
+ip -n n1 -6 route add fd00:202:c00:: encap seg6local action End.DX4 \
+	nh4 192.168.60.1 count dev x-p1
+
+seglist="fd00:202:a00:: fd00:202:b00:: fd00:202:c00::"
+
+# h.encaps carries the three segments in the SRH: last_entry=2, segments_left=2
+grcli nexthop add srv6 seglist $seglist id 44
+grcli route add 192.168.0.0/16 via id 44
+ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
