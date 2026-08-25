@@ -109,9 +109,9 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			srh->hdr_len = optlen / 8 - 1;
 			srh->type = RTE_IPV6_SRCRT_TYPE_4;
 			srh->segments_left = d->n_seglist - 1;
-			srh->last_entry = d->n_seglist - 1;
+			// flags aliases the whole word: last_entry, flag and tag
 			srh->flags = 0;
-			srh->tag = 0;
+			srh->last_entry = d->n_seglist - 1;
 
 			segments = PAYLOAD(srh);
 			for (k = reduc; k < d->n_seglist; k++)
