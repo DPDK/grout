@@ -53,7 +53,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct nexthop *nh;
 	uint32_t optlen, plen;
 	struct rte_mbuf *m;
-	uint8_t proto, reduc;
+	uint8_t proto, n_omitted_segs;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -90,9 +90,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 		// Encapsulate with another IPv6 header
 		optlen = 0;
-		reduc = d->encap == SR_H_ENCAPS_RED ? 1 : 0;
-		if (d->n_seglist > reduc)
-			optlen += sizeof(*srh) + ((d->n_seglist - reduc) * sizeof(d->seglist[0]));
+		n_omitted_segs = d->encap == SR_H_ENCAPS_RED ? 1 : 0;
+		if (d->n_seglist > n_omitted_segs)
+			optlen += sizeof(*srh)
+				+ ((d->n_seglist - n_omitted_segs) * sizeof(d->seglist[0]));
 
 		outer_ip6 = gr_mbuf_prepend(m, outer_ip6, optlen);
 		if (unlikely(outer_ip6 == NULL)) {
@@ -100,7 +101,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 
-		if (d->n_seglist > reduc) {
+		if (d->n_seglist > n_omitted_segs) {
 			struct rte_ipv6_addr *segments;
 			uint16_t k;
 
@@ -111,10 +112,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			srh->segments_left = d->n_seglist - 1;
 			// flags aliases the whole word: last_entry, flag and tag
 			srh->flags = 0;
-			srh->last_entry = d->n_seglist - 1 - reduc;
+			srh->last_entry = d->n_seglist - 1 - n_omitted_segs;
 
 			segments = PAYLOAD(srh);
-			for (k = reduc; k < d->n_seglist; k++)
+			for (k = n_omitted_segs; k < d->n_seglist; k++)
 				segments[d->n_seglist - k - 1] = d->seglist[k];
 			proto = IPPROTO_ROUTING;
 			plen += optlen;
