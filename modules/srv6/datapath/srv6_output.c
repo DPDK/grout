@@ -92,7 +92,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		optlen = 0;
 		reduc = d->encap == SR_H_ENCAPS_RED ? 1 : 0;
 		if (d->n_seglist > reduc)
-			optlen += sizeof(*srh) + (d->n_seglist * sizeof(d->seglist[0]));
+			optlen += sizeof(*srh) + ((d->n_seglist - reduc) * sizeof(d->seglist[0]));
 
 		outer_ip6 = gr_mbuf_prepend(m, outer_ip6, optlen);
 		if (unlikely(outer_ip6 == NULL)) {
@@ -111,7 +111,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			srh->segments_left = d->n_seglist - 1;
 			// flags aliases the whole word: last_entry, flag and tag
 			srh->flags = 0;
-			srh->last_entry = d->n_seglist - 1;
+			srh->last_entry = d->n_seglist - 1 - reduc;
 
 			segments = PAYLOAD(srh);
 			for (k = reduc; k < d->n_seglist; k++)
