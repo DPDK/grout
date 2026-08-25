@@ -170,6 +170,7 @@ router bgp 64512
 
  segment-routing srv6
   locator loc1
+  encap-behavior H_Encaps_Red
  exit
 exit
 
@@ -194,6 +195,7 @@ EOF
 wait_event -t 20 'route4 add: vrf=gr-vrf1 16.0.0.0/24 origin=bgp'
 nh_id=$(route_nh_id 16.0.0.0/24 gr-vrf1 SRv6)
 assert_nexthop "$nh_id" '.vrf == "main" and .seglist[0] == "2001:db8:1:1:100::"'
+assert_nexthop "$nh_id" '.encap == "h.encaps.red"'
 wait_event -t 20 'route6 add: vrf=main 2001:db8:2:2:100::/128 origin=bgp'
 nh_id=$(route_nh_id 2001:db8:2:2:100::/128 main SRv6-local)
 assert_nexthop "$nh_id" '.vrf == "gr-vrf1" and .behavior == "end.dt4"'
@@ -211,6 +213,29 @@ while ! vtysh -N bgp-peer -c "show ipv6 route" | grep -q "B>\* 2001:db8:1:1:100:
 	attempts=$((attempts + 1))
 done
 
+# A single SID leaves nothing to put in an SRH, so the outer header must point
+# straight at the encapsulated IPv4 packet. The second capture is only there to
+# report what was really sent when the first one fails.
+ip netns exec bgp-peer timeout 10 tcpdump -c1 -pnnli x-p0 \
+	'ip6 dst 2001:db8:1:1:100:: and ip6[6] = 4' >$tmp/vpn4_nosrh 2>&1 &
+tcpdump_pid=$!
+ip netns exec bgp-peer timeout 10 tcpdump -c1 -pnnvli x-p0 ip6 dst 2001:db8:1:1:100:: \
+	>$tmp/vpn4_any 2>&1 &
+tcpdump_any_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" $tmp/vpn4_nosrh && grep -q "listening on" $tmp/vpn4_any; then
+		break
+	fi
+	sleep 0.1
+done
+
 # Verify host-a can ping host-b
 ip netns exec ns-a ping -i0.01 -c3 -n 16.1.0.2
 ip netns exec ns-b ping -i0.01 -c3 -n 16.0.0.2
+
+if ! wait $tcpdump_pid; then
+	wait $tcpdump_any_pid || true
+	cat $tmp/vpn4_any
+	fail "H_Encaps_Red on a single SID still pushed an SRH"
+fi
+wait $tcpdump_any_pid || true
