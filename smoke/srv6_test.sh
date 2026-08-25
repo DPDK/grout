@@ -192,3 +192,53 @@ if ! wait $tcpdump_pid; then
 fi
 wait $tcpdump_any_pid || true
 wait $ping_pid || fail "h.encaps.red did not forward"
+
+#
+# uSID headend test
+#
+# fd00:202:0d00:0e00:: is a CSID container packing the uSIDs 0d00 and 0e00
+# with block-bits=32, csid-bits=16. grout only copies segment list entries, so
+# a container goes through both encap behaviors untouched. With h.encaps.red
+# and a single container no SRH is left at all, which is the usual uSID
+# deployment.
+#
+
+ip -n n1 -6 route add fd00:202:0d00::/48 encap seg6local action End \
+	flavors next-csid lblen 32 nflen 16 dev x-p1
+ip -n n1 -6 route add fd00:202:0e00:: encap seg6local action End.DX4 \
+	nh4 192.168.60.1 count dev x-p1
+
+# h.encaps still emits an SRH holding the container alone, segments_left=0
+grcli nexthop add srv6 seglist fd00:202:0d00:0e00:: id 46
+grcli route add 192.168.0.0/16 via id 46
+ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
+
+# h.encaps.red has nothing left to put in an SRH, so the outer header must
+# point straight at the inner packet instead of a routing header.
+grcli nexthop add srv6 seglist fd00:202:0d00:0e00:: encap h.encaps.red id 47
+grcli route add 192.168.0.0/16 via id 47
+
+ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 \
+	'ip6 dst fd00:202:0d00:0e00:: and ip6[6] = 4' >$tmp/usid_nosrh 2>&1 &
+tcpdump_pid=$!
+ip netns exec n1 timeout 5 tcpdump -c1 -pnnvli x-p1 ip6 dst fd00:202:0d00:0e00:: \
+	>$tmp/usid_any 2>&1 &
+tcpdump_any_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" $tmp/usid_nosrh && grep -q "listening on" $tmp/usid_any; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n0 ping -i0.2 -c5 -n 192.168.60.1 >/dev/null 2>&1 &
+ping_pid=$!
+
+if ! wait $tcpdump_pid; then
+	wait $tcpdump_any_pid || true
+	wait $ping_pid || true
+	cat $tmp/usid_any
+	fail "h.encaps.red on a single container still pushed an SRH"
+fi
+wait $tcpdump_any_pid || true
+wait $ping_pid || fail "uSID container encapsulation did not forward"
