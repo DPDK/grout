@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Olivier Gournet
 
 #include "eth.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip6_datapath.h"
 #include "l3.h"
@@ -260,6 +261,7 @@ static int process_behav_decap(
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 	struct eth_input_mbuf_data *id;
+	uint32_t flow_label;
 	rte_edge_t edge;
 
 	// transit is not allowed
@@ -287,9 +289,15 @@ static int process_behav_decap(
 		return process_upper_layer(m, ip6_info);
 	}
 
-	// Update the mbuf hash with ip6 flow id
-	// to avoid computing a soft RSS
-	m->hash.usr = rte_be_to_cpu_32(ip6_info->ip6_hdr->vtc_flow) & RTE_IPV6_HDR_FL_MASK;
+	// Use the outer flow label as the exposed flow's entropy when the
+	// encapsulating node filled it in (RFC 6438). A zero label carries
+	// no entropy: drop the outer hash instead so the first consumer
+	// hashes the inner packet.
+	flow_label = rte_be_to_cpu_32(ip6_info->ip6_hdr->vtc_flow) & RTE_IPV6_HDR_FL_MASK;
+	if (flow_label != 0)
+		gr_mbuf_flow_hash_set(m, flow_label);
+	else
+		gr_mbuf_flow_hash_invalidate(m);
 
 	// remove tunnel ipv6 + ext headers
 	decap_outer(m, ip6_info);
@@ -796,6 +804,39 @@ static void srv6_decap_dt4_behind_dop(void **) {
 	assert_int_equal(fm.mbuf.data_len, 0);
 }
 
+// Decap must leave a coherent flow hash: a non-zero outer flow label
+// becomes the hash, a zero label invalidates any stale outer RSS value.
+static void srv6_decap_flow_hash(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {.behavior = SR_BEHAVIOR_END_DT4, .out_vrf_id = GR_VRF_ID_UNDEF},
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	// zero flow label: the stale outer hardware hash must be dropped
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	*fm.prev_next = IPPROTO_IPIP;
+	fm.mbuf.hash.rss = 0xdeadbeef;
+	fm.mbuf.ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
+
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_decap(&fm.mbuf, &sr_d, &info), IP_INPUT);
+	assert_false(gr_mbuf_flow_hash_is_valid(&fm.mbuf));
+
+	// non-zero flow label: it becomes the flow hash
+	memset(&info, 0, sizeof(info));
+	fm_init_ipv6(&fm, &expect);
+	fm.ip6.vtc_flow = rte_cpu_to_be_32((6u << 28) | 0xabcde);
+	push_srh_1sid(&fm, &expect);
+	*fm.prev_next = IPPROTO_IPIP;
+
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_decap(&fm.mbuf, &sr_d, &info), IP_INPUT);
+	assert_true(gr_mbuf_flow_hash_is_valid(&fm.mbuf));
+	assert_int_equal(fm.mbuf.hash.rss, 0xabcde);
+}
+
 // End.X with USD hands the exposed packet to the L3 adjacency instead of the
 // FIB, but still lets the input node validate it.
 static void srv6_end_x_usd(bool inner_v4, rte_edge_t expected_edge, uint16_t expected_len) {
@@ -927,6 +968,7 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
 		cmocka_unit_test(srv6_decap_dt4_behind_dop),
+		cmocka_unit_test(srv6_decap_flow_hash),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv4),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv6),
 		cmocka_unit_test(srv6_end_x_usd_no_inner),
