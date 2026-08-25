@@ -156,3 +156,39 @@ seglist="fd00:202:a00:: fd00:202:b00:: fd00:202:c00::"
 grcli nexthop add srv6 seglist $seglist id 44
 grcli route add 192.168.0.0/16 via id 44
 ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
+
+# h.encaps.red leaves the first segment out of the SRH, it is already carried
+# in the outer destination address. Only two entries remain: hdr_len=4,
+# last_entry=1 and segments_left=2, which RFC 8986 4.1 allows to exceed
+# last_entry by one.
+grcli nexthop add srv6 seglist $seglist encap h.encaps.red id 45
+grcli route add 192.168.0.0/16 via id 45
+
+# Start the captures before the traffic. ping -i0.2 -c5 is done emitting after
+# 0.8s, which tcpdump may not beat to opening its capture. The second capture
+# is only there to report what was really sent when the first one fails.
+ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 \
+	'ip6 dst fd00:202:a00:: and ip6[41] = 4 and ip6[43] = 2 and ip6[44] = 1' \
+	>$tmp/srh_reduced 2>&1 &
+tcpdump_pid=$!
+ip netns exec n1 timeout 5 tcpdump -c1 -pnnvli x-p1 ip6 dst fd00:202:a00:: \
+	>$tmp/srh_any 2>&1 &
+tcpdump_any_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" $tmp/srh_reduced && grep -q "listening on" $tmp/srh_any; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n0 ping -i0.2 -c5 -n 192.168.60.1 >/dev/null 2>&1 &
+ping_pid=$!
+
+if ! wait $tcpdump_pid; then
+	wait $tcpdump_any_pid || true
+	wait $ping_pid || true
+	cat $tmp/srh_any
+	fail "h.encaps.red did not produce a reduced SRH"
+fi
+wait $tcpdump_any_pid || true
+wait $ping_pid || fail "h.encaps.red did not forward"
