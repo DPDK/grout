@@ -13,6 +13,7 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <fcntl.h>
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
 #include <lib/libfrr.h>
@@ -702,6 +703,8 @@ static void dplane_grout_connect(struct event *) {
 		return;
 	}
 
+	fcntl(grout_ctx.dplane_notifs->sock_fd, F_SETFL, O_NONBLOCK);
+
 	event_add_read(
 		dg_master,
 		dplane_read_notifications,
@@ -730,6 +733,8 @@ static void zebra_grout_connect(struct event *) {
 		);
 		return;
 	}
+
+	fcntl(grout_ctx.zebra_notifs->sock_fd, F_SETFL, O_NONBLOCK);
 
 	event_add_read(
 		zrouter.master,
@@ -773,6 +778,16 @@ static void dplane_read_notifications(struct event *event) {
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.dplane_notifs, &gr_e) < 0 || gr_e == NULL) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+			event_add_read(
+				dg_master,
+				dplane_read_notifications,
+				NULL,
+				grout_ctx.dplane_notifs->sock_fd,
+				&grout_ctx.dg_t_dplane_update
+			);
+			return;
+		}
 		gr_api_client_disconnect(grout_ctx.dplane_notifs);
 		grout_ctx.dplane_notifs = NULL;
 		gr_api_client_disconnect(grout_ctx.client);
@@ -820,12 +835,8 @@ static void dplane_read_notifications(struct event *event) {
 
 	free(gr_e);
 
-	event_add_read(
-		dg_master,
-		dplane_read_notifications,
-		NULL,
-		grout_ctx.dplane_notifs->sock_fd,
-		&grout_ctx.dg_t_dplane_update
+	event_add_event(
+		dg_master, dplane_read_notifications, NULL, 0, &grout_ctx.dg_t_dplane_update
 	);
 }
 
@@ -834,6 +845,16 @@ static void zebra_read_notifications(struct event *event) {
 	bool new = false;
 
 	if (gr_api_client_event_recv(grout_ctx.zebra_notifs, &gr_e) < 0 || gr_e == NULL) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+			event_add_read(
+				zrouter.master,
+				zebra_read_notifications,
+				NULL,
+				grout_ctx.zebra_notifs->sock_fd,
+				&grout_ctx.dg_t_zebra_update
+			);
+			return;
+		}
 		gr_api_client_disconnect(grout_ctx.zebra_notifs);
 		grout_ctx.zebra_notifs = NULL;
 		event_add_timer(
@@ -868,12 +889,8 @@ static void zebra_read_notifications(struct event *event) {
 
 	free(gr_e);
 
-	event_add_read(
-		zrouter.master,
-		zebra_read_notifications,
-		NULL,
-		grout_ctx.zebra_notifs->sock_fd,
-		&grout_ctx.dg_t_zebra_update
+	event_add_event(
+		zrouter.master, zebra_read_notifications, NULL, 0, &grout_ctx.dg_t_zebra_update
 	);
 }
 
