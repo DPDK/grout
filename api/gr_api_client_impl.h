@@ -79,6 +79,7 @@ static void register_message(struct api_message *m) {
 
 #include <assert.h>
 #include <getopt.h>
+#include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -177,8 +178,15 @@ static ssize_t send_all(const struct gr_api_client *c, const void *buf, size_t l
 
 	while (remaining > 0) {
 		n = send(c->sock_fd, ptr, remaining, MSG_NOSIGNAL);
-		if (n < 0)
+		if (n < 0) {
+			if (remaining < len && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+				// Blocking mid-transmission, wait for socket to be writable again.
+				struct pollfd pfd = {.fd = c->sock_fd, .events = POLLOUT};
+				poll(&pfd, 1, -1);
+				continue;
+			}
 			return n;
+		}
 
 		ptr += n;
 		remaining -= n;
@@ -198,6 +206,12 @@ static ssize_t recv_all(const struct gr_api_client *c, void *buf, size_t len) {
 			errno = ECONNRESET;
 			return len - remaining;
 		} else if (n < 0) {
+			if (remaining < len && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+				// Blocking mid-transmission, wait for socket to be readable again.
+				struct pollfd pfd = {.fd = c->sock_fd, .events = POLLIN};
+				poll(&pfd, 1, -1);
+				continue;
+			}
 			return n;
 		}
 
