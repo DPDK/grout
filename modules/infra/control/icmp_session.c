@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "clock.h"
 #include "icmp_session.h"
 
-#include <gr_clock.h>
 #include <gr_errno.h>
 #include <gr_infra.h>
 
@@ -46,7 +46,7 @@ static void session_free(struct icmp_session *s) {
 
 static void gc_cb(evutil_socket_t, short, void *arg) {
 	struct icmp_session_pool *pool = arg;
-	gr_clock_ns_t now = gr_clock_ns();
+	gr_clock_ns_t now = clock_ns();
 	struct icmp_session *s;
 	uint32_t next = 0;
 	const void *key;
@@ -123,7 +123,7 @@ int icmp_session_add(struct icmp_session_pool *pool, uint16_t ident, uint16_t se
 	if (s == NULL)
 		return errno_set(ENOMEM);
 
-	s->created = gr_clock_ns();
+	s->created = clock_ns();
 
 	if (rte_hash_add_key_data(pool->hash, &k, s) < 0) {
 		free(s);

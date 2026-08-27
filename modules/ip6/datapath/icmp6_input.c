@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "clock.h"
 #include "control_output.h"
 #include "graph.h"
 #include "icmp6.h"
@@ -9,8 +10,6 @@
 #include "log.h"
 #include "mbuf.h"
 #include "trace.h"
-
-#include <gr_clock.h>
 
 enum {
 	ICMP6_OUTPUT = 0,
@@ -92,7 +91,7 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			break;
 		default:
 			if (icmp6_cb[icmp6->type] != NULL) {
-				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], gr_clock_ns());
+				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], clock_ns());
 				next = CONTROL;
 			} else {
 				next = UNSUPPORTED;

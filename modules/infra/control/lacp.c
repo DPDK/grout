@@ -2,13 +2,12 @@
 // Copyright (c) 2025 Robin Jarry
 
 #include "bond.h"
+#include "clock.h"
 #include "iface.h"
 #include "lacp.h"
 #include "log.h"
 #include "mbuf.h"
 #include "module.h"
-
-#include <gr_clock.h>
 
 #include <event2/event.h>
 #include <rte_mbuf.h>
@@ -65,7 +64,7 @@ void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 
 	// Store partner information from received PDU
 	member->remote = pdu->actor;
-	member->last_rx = gr_clock_ns();
+	member->last_rx = clock_ns();
 
 	// Save old member state to detect changes
 	bool old_active = member->active;
@@ -122,7 +121,7 @@ static void lacp_periodic(evutil_socket_t, short, void *) {
 	const struct iface *port;
 	struct iface *iface;
 
-	now = gr_clock_ns();
+	now = clock_ns();
 
 	iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_BOND, iface)) != NULL) {

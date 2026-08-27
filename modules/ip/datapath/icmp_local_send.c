@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "clock.h"
 #include "control_input.h"
 #include "graph.h"
 #include "iface.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
 #include "mbuf.h"
-
-#include <gr_clock.h>
 
 #include <rte_icmp.h>
 
@@ -101,7 +100,7 @@ static uint16_t icmp_local_send_process(
 		);
 
 		payload = rte_pktmbuf_mtod_offset(mbuf, gr_clock_ns_t *, sizeof(*icmp));
-		*payload = gr_clock_ns();
+		*payload = clock_ns();
 
 		// Build ICMP packet
 		icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REQUEST;

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2023 Robin Jarry
+// Copyright (c) 2026 SmartShare Systems
 
+#include "clock.h"
 #include "config.h"
 #include "control_input.h"
 #include "datapath.h"
@@ -456,7 +458,10 @@ reconfig:
 	worker_active_inc();
 
 	for (;;) {
+		clock_set_trusted(true);
+		clock_update();
 		rte_graph_walk(graph);
+		clock_set_trusted(false);
 
 		if (++loop == HOUSEKEEPING_INTERVAL) {
 			// When RCU reclamation will be done in datapath workers,

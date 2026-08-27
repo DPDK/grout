@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "clock.h"
 #include "event.h"
 #include "icmp6.h"
 #include "iface.h"
@@ -9,7 +10,6 @@
 #include "l3.h"
 #include "log.h"
 
-#include <gr_clock.h>
 #include <gr_net_types.h>
 
 #include <event2/event.h>
@@ -225,7 +225,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	} else if (lladdr_found == ICMP6_OPT_FOUND) {
 		// Refresh all fields.
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		l3->last_reply = gr_clock_ns();
+		l3->last_reply = clock_ns();
 		l3->state = GR_NH_S_REACHABLE;
 		l3->ucast_probes = 0;
 		l3->bcast_probes = 0;
