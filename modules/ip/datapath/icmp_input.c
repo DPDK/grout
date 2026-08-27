@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "clock.h"
 #include "control_output.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "log.h"
 #include "mbuf.h"
 #include "trace.h"
-
-#include <gr_clock.h>
 
 #include <rte_icmp.h>
 
@@ -55,7 +54,7 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			ip_data->src = ip;
 			edge = OUTPUT;
 		} else if (icmp_cb[icmp->icmp_type]) {
-			control_output_set_cb(mbuf, icmp_cb[icmp->icmp_type], gr_clock_ns());
+			control_output_set_cb(mbuf, icmp_cb[icmp->icmp_type], clock_ns());
 			edge = CONTROL;
 		} else {
 			edge = UNSUPPORTED;

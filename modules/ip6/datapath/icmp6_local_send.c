@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "clock.h"
 #include "control_input.h"
 #include "graph.h"
 #include "icmp6.h"
@@ -8,8 +9,6 @@
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "mbuf.h"
-
-#include <gr_clock.h>
 
 #include <rte_ip6.h>
 
@@ -111,7 +110,7 @@ static uint16_t icmp6_local_send_process(
 		mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
 
 		payload = PAYLOAD(icmp6_echo);
-		*payload = gr_clock_ns();
+		*payload = clock_ns();
 
 		data = ip6_local_mbuf_data(mbuf);
 		data->iface = msg.iface;

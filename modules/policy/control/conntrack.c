@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "clock.h"
 #include "config.h"
 #include "conntrack.h"
 #include "log.h"
 #include "module.h"
 #include "rcu.h"
 
-#include <gr_clock.h>
 #include <gr_net_types.h>
 
 #include <rte_hash.h>
@@ -241,7 +241,7 @@ again:
 			goto again;
 	}
 
-	atomic_store(&c->last_update, gr_clock_ns());
+	atomic_store(&c->last_update, clock_ns());
 }
 
 bool gr_conn_parse_key(
@@ -388,7 +388,7 @@ struct conn *gr_conn_insert(const struct conn_key *fwd_key, const struct conn_ke
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	gr_clock_ns_t now = gr_clock_ns(), last;
+	gr_clock_ns_t now = clock_ns(), last;
 	uint64_t age, timeout;
 	struct conn *conn;
 	const void *key;

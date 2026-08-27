@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "clock.h"
 #include "iface.h"
 #include "log.h"
 #include "mbuf.h"
 #include "module.h"
 #include "nexthop.h"
 #include "rcu.h"
-
-#include <gr_clock.h>
 
 #include <rte_hash.h>
 
@@ -313,7 +312,7 @@ static struct nexthop_type_ops l3_nh_ops = {
 static void l3_age(struct nexthop *nh) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 	const struct nexthop_af_ops *ops;
-	gr_clock_ns_t now = gr_clock_ns();
+	gr_clock_ns_t now = clock_ns();
 	unsigned probes, max_probes;
 	time_t reply_age;
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "clock.h"
 #include "config.h"
 #include "event.h"
 #include "iface.h"
@@ -8,8 +9,6 @@
 #include "log.h"
 #include "module.h"
 #include "rcu.h"
-
-#include <gr_clock.h>
 
 #include <rte_common.h>
 #include <rte_hash.h>
@@ -118,7 +117,7 @@ void fdb_learn(
 	const struct l3_addr *vtep
 ) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
-	gr_clock_ns_t now = gr_clock_ns();
+	gr_clock_ns_t now = clock_ns();
 	struct fdb_entry *fdb;
 	void *data;
 
@@ -208,7 +207,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 		e->prev_iface_id = GR_IFACE_ID_UNDEF;
 		e->base = req->fdb;
 		e->bridge_id = iface->id;
-		e->last_seen = gr_clock_ns();
+		e->last_seen = clock_ns();
 
 		if ((ret = rte_hash_add_key_data(fdb_hash, &key, data)) < 0) {
 			rte_mempool_put(fdb_pool, e);
@@ -221,7 +220,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 		e->prev_iface_id = e->iface_id;
 		e->base = req->fdb;
 		e->bridge_id = iface->id;
-		e->last_seen = gr_clock_ns();
+		e->last_seen = clock_ns();
 
 		event_push(GR_EVENT_FDB_UPDATE, e);
 	} else {
@@ -458,7 +457,7 @@ static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	void *data;
 	time_t age;
 
-	now = gr_clock_ns();
+	now = clock_ns();
 
 	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
 		fdb = data;

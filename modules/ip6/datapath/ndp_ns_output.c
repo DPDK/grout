@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "clock.h"
 #include "control_input.h"
 #include "graph.h"
 #include "icmp6.h"
@@ -10,7 +11,6 @@
 #include "l3.h"
 #include "trace.h"
 
-#include <gr_clock.h>
 #include <gr_macro.h>
 
 #include <rte_mbuf.h>
@@ -33,7 +33,7 @@ int nh6_solicit(struct nexthop *nh) {
 
 	// This function is called by the control plane main thread.
 	// It is OK to modify the nexthop here.
-	l3->last_request = gr_clock_ns();
+	l3->last_request = clock_ns();
 	if (l3->ucast_probes < nh_conf.max_ucast_probes)
 		l3->ucast_probes++;
 	else

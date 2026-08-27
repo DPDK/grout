@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "clock.h"
 #include "config.h"
 #include "log.h"
 #include "mbuf.h"
 #include "mempool.h"
 #include "module.h"
 #include "sys_queue.h"
-
-#include <gr_clock.h>
 
 #include <event2/event.h>
 
@@ -139,7 +138,7 @@ static bool pending_has_name(const char *name) {
 
 static void pending_free_cb(evutil_socket_t, short, void *) {
 	struct pending_free *pf, *tmp;
-	gr_clock_ns_t now = gr_clock_ns();
+	gr_clock_ns_t now = clock_ns();
 
 	STAILQ_FOREACH_SAFE (pf, &pending_list, next, tmp) {
 		gr_clock_ns_t elapsed = now - pf->timestamp;
@@ -182,7 +181,7 @@ void gr_pktmbuf_pool_release(struct rte_mempool *mp, uint32_t count) {
 					if (pf == NULL)
 						ABORT("malloc(pending_free) failed");
 					pf->mp = mp;
-					pf->timestamp = gr_clock_ns();
+					pf->timestamp = clock_ns();
 					pf->last_warn = 0;
 					STAILQ_INSERT_TAIL(&pending_list, pf, next);
 					LOG(DEBUG,
@@ -272,7 +271,7 @@ static void mempool_fini(struct event_base *) {
 			LOG(ERR,
 			    "freeing mempool %s with mbufs still in-flight (released %lu s ago)",
 			    pf->mp->name,
-			    (gr_clock_ns() - pf->timestamp) / GR_NS_PER_S);
+			    (clock_ns() - pf->timestamp) / GR_NS_PER_S);
 		rte_mempool_free(pf->mp);
 		STAILQ_REMOVE_HEAD(&pending_list, next);
 		free(pf);
