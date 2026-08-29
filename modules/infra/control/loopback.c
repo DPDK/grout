@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
-#include "control_input.h"
 #include "control_queue.h"
 #include "eth.h"
 #include "iface.h"
@@ -285,7 +284,12 @@ err:
 }
 
 int iface_loopback_destroy(struct iface *iface) {
-	event_free_finalize(0, iface->cp_ev, finalize_fd);
+	if (iface->cp_ev) {
+		event_free_finalize(0, iface->cp_ev, finalize_fd);
+	} else if (iface->cp_fd >= 0) {
+		close(iface->cp_fd);
+		iface->cp_fd = -1;
+	}
 	if (iface->pool != NULL) {
 		gr_pktmbuf_pool_release(iface->pool, iface->pool_size);
 		iface->pool = NULL;
