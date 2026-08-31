@@ -24,6 +24,7 @@
 #include <rte_ring.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 
 LOG_TYPE("trace");
 
@@ -416,11 +417,33 @@ err:
 	return -1;
 }
 
-static int trace_udp(char *buf, size_t len, const struct rte_udp_hdr *udp, size_t /*pkt_len*/) {
+// Mutually recursive to follow tunnel encapsulations: VXLAN carries an inner
+// Ethernet frame.
+static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *, size_t pkt_len);
+
+static int trace_udp(char *buf, size_t len, const struct rte_udp_hdr *udp, size_t pkt_len) {
+	const struct rte_vxlan_hdr *vxlan;
+	size_t data_len;
 	size_t n = 0;
+
+	if (pkt_len < sizeof(*udp))
+		return n;
 
 	SAFE_BUF(snprintf, len, " / UDP ");
 	SAFE_BUF(trace_udp_format, len, udp);
+
+	data_len = RTE_MIN(rte_be_to_cpu_16(udp->dgram_len), pkt_len);
+	if (data_len < sizeof(*udp))
+		return n;
+	data_len -= sizeof(*udp);
+
+	if (udp->dst_port == RTE_BE16(RTE_VXLAN_DEFAULT_PORT) && data_len >= sizeof(*vxlan)) {
+		vxlan = PAYLOAD(udp);
+		data_len -= sizeof(*vxlan);
+		SAFE_BUF(snprintf, len, " / VXLAN vni=%u", rte_be_to_cpu_32(vxlan->vx_vni) >> 8);
+		if (vxlan->flag_i && data_len >= sizeof(struct rte_ether_hdr))
+			SAFE_BUF(trace_ether, len, PAYLOAD(vxlan), data_len);
+	}
 
 	return n;
 err:
@@ -573,6 +596,21 @@ trace_eth_payload(char *buf, size_t len, const struct rte_ether_hdr *eth, size_t
 		SAFE_BUF(eth_type_format, len, eth->ether_type);
 		break;
 	}
+
+	return n;
+err:
+	return -1;
+}
+
+// Dissect an inner Ethernet frame exposed by VXLAN decapsulation.
+static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *eth, size_t pkt_len) {
+	size_t n = 0;
+
+	if (pkt_len < sizeof(*eth))
+		return n;
+
+	SAFE_BUF(snprintf, len, " / Ethernet " ETH_F " > " ETH_F, &eth->src_addr, &eth->dst_addr);
+	SAFE_BUF(trace_eth_payload, len, eth, pkt_len - sizeof(*eth));
 
 	return n;
 err:
