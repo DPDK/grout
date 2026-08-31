@@ -516,7 +516,11 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 		return errno_set(EOPNOTSUPP);
 
 	ret = type->set_eth_addr(iface, mac);
-	if (ret == 0)
+	// Skip the notification if the control plane representor does not
+	// exist yet (e.g. during type->init, before the IFACE_ADD event). The
+	// cp_id would be 0 and subscribers such as the FRR plugin cannot map
+	// the interface. The MAC is carried by the upcoming IFACE_ADD event.
+	if (ret == 0 && iface->cp_id != 0)
 		event_push(GR_EVENT_IFACE_MAC_CHANGE, iface);
 
 	return ret;
