@@ -42,7 +42,18 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 }
 
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
-	gr_log_debug("%s iface %s", new ? "add" : "del", gr_if->name);
+	gr_log_debug(
+		"%s iface %s id=%u cp_id=%u",
+		new ? "add" : "del",
+		gr_if->name,
+		gr_if->id,
+		gr_if->cp_id
+	);
+
+	if (gr_if->cp_id == 0) {
+		gr_log_debug("iface %s id=%u has no ifindex, skip", gr_if->name, gr_if->id);
+		return;
+	}
 
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
@@ -59,9 +70,6 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	const struct rte_ether_addr *mac = NULL;
 	struct zebra_dplane_ctx *ctx;
 	uint32_t txqlen = 1000;
-
-	if (new)
-		add_ifindex_mapping(gr_if->id, if_nametoindex(gr_if->name));
 
 	switch (gr_if->base.type) {
 	case GR_IFACE_TYPE_VLAN:
@@ -130,7 +138,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_ns_id(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_link_nsid(ctx, GROUT_NS);
 	dplane_ctx_set_ifp_zif_type(ctx, zif_type);
-	dplane_ctx_set_ifindex(ctx, ifindex_grout_to_frr(gr_if->id));
+	dplane_ctx_set_ifindex(ctx, gr_if->cp_id);
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 7, 0)
 	if (zif_type == ZEBRA_IF_VRF && gr_if->id == GR_VRF_DEFAULT_ID)
 		dplane_ctx_set_ifname(ctx, VRF_DEFAULT_NAME);
@@ -145,6 +153,7 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	dplane_ctx_set_intf_txqlen(ctx, txqlen);
 
 	if (new) {
+		add_ifindex_mapping(gr_if->id, gr_if->cp_id);
 		dplane_ctx_set_ifp_link_ifindex(ctx, link_ifindex);
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_INSTALL);
 		dplane_ctx_set_status(ctx, ZEBRA_DPLANE_REQUEST_QUEUED);
