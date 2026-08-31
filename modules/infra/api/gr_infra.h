@@ -84,6 +84,7 @@ struct __gr_iface_base {
 	uint16_t vrf_id;
 	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
+	uint32_t cp_id; // Linux control plane interface index.
 };
 
 // Complete interface structure including type-specific info.

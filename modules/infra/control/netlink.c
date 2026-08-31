@@ -511,7 +511,7 @@ int netlink_add_addr4(uint32_t ifindex, ip4_addr_t ip) {
 static void netlink_readd_vrf_route(uint32_t ifindex) {
 	const struct iface *iface = NULL;
 	while ((iface = iface_next(GR_IFACE_TYPE_VRF, iface)) != NULL) {
-		if ((uint32_t)iface->cp_id == ifindex) {
+		if (iface->cp_id == ifindex) {
 			if (netlink_add_route(ifindex, vrf_id_to_table_id(iface->vrf_id)) < 0)
 				LOG(WARNING,
 				    "re-add default route on %s: %s",

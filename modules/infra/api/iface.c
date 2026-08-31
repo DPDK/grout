@@ -5,6 +5,7 @@
 #include "iface.h"
 #include "metrics.h"
 #include "module.h"
+#include "vrf.h"
 
 #include <gr_infra.h>
 #include <gr_net_types.h>
@@ -17,6 +18,8 @@ static struct gr_iface *iface_to_api(const struct iface *priv) {
 	if (pub == NULL)
 		return errno_set_null(ENOMEM);
 	pub->base = priv->base;
+	if (pub->type == GR_IFACE_TYPE_VRF && pub->id != GR_VRF_DEFAULT_ID)
+		pub->cp_id = iface_info_vrf(priv)->vrf_ifindex;
 	if (gr_strcpy(pub->name, sizeof(pub->name), priv->name) < 0
 	    || gr_strcpy(pub->description, sizeof(pub->description), priv->description ?: "") < 0) {
 		free(pub);

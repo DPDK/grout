@@ -643,12 +643,15 @@ static void iface_event_print(uint32_t event, const void *obj) {
 		break;
 	}
 
-	printf("iface %s: %s type=%s id=%u mtu=%u\n",
+	printf("iface %s: %s type=%s id=%u cp_id=%u mode=%s mtu=%u speed=%u\n",
 	       action,
 	       iface->name,
 	       gr_iface_type_name(iface->type),
 	       iface->id,
-	       iface->mtu);
+	       iface->cp_id,
+	       gr_iface_mode_name(iface->mode),
+	       iface->mtu,
+	       iface->speed);
 }
 
 static struct cli_event_printer printer = {
