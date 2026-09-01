@@ -11,6 +11,7 @@
 #include "rxtx.h"
 #include "snap.h"
 #include "trace.h"
+#include "worker.h"
 
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -796,6 +797,42 @@ void gr_mbuf_trace_finish(struct rte_mbuf *m) {
 	STAILQ_INIT(traces);
 }
 
+// Format a whole trace chain (one packet) into buf, starting at offset n.
+// Return the number of written bytes or a negative value on error.
+static int trace_packet_format(char *buf, size_t len, const struct gr_trace_item *t) {
+	const struct gr_node_info *info;
+	size_t n = 0;
+	struct tm tm;
+	int s;
+
+	if (localtime_r(&t->ts.tv_sec, &tm) == NULL)
+		goto err;
+
+	if ((s = strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm)) == 0)
+		goto err;
+	n += s;
+	SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
+	SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
+
+	while (t) {
+		SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
+		info = gr_node_info_get(t->node_id);
+		if (info == NULL)
+			info = gr_node_info_get(t->parent_id);
+		if (info != NULL && info->trace_format) {
+			SAFE_BUF(snprintf, len, " ");
+			SAFE_BUF(info->trace_format, len, t->data, t->len);
+		}
+		SAFE_BUF(snprintf, len, "\n");
+
+		t = STAILQ_NEXT(t, next);
+	}
+
+	return n;
+err:
+	return -1;
+}
+
 int gr_trace_dump(
 	char *buf,
 	size_t len,
@@ -803,42 +840,19 @@ int gr_trace_dump(
 	uint32_t *n_bytes,
 	uint16_t *n_packets
 ) {
-	struct gr_trace_item *head = NULL;
-	const struct gr_node_info *info;
 	uint32_t n = 0;
 	uint16_t p = 0;
-	struct tm tm;
 	void *data;
 	int s;
 
 	while (rte_ring_dequeue(traced_packets, &data) == 0 && p < max_packets) {
-		struct gr_trace_item *t = data;
-		head = t;
+		struct gr_trace_item *head = data;
 
-		if (localtime_r(&t->ts.tv_sec, &tm) == NULL)
-			goto err;
-
-		if ((s = strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm)) == 0)
-			goto err;
-		n += s;
-		SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
-		SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
-
-		while (t) {
-			SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
-			info = gr_node_info_get(t->node_id);
-			if (info == NULL)
-				info = gr_node_info_get(t->parent_id);
-			if (info != NULL && info->trace_format) {
-				SAFE_BUF(snprintf, len, " ");
-				SAFE_BUF(info->trace_format, len, t->data, t->len);
-			}
-			SAFE_BUF(snprintf, len, "\n");
-
-			t = STAILQ_NEXT(t, next);
-		}
+		s = trace_packet_format(buf + n, len - n, head);
 		free_trace(head);
-		head = NULL;
+		if (s < 0)
+			return errno ? -errno : errno_set(ENOBUFS);
+		n += s;
 		// add empty line to separate packets
 		SAFE_BUF(snprintf, len, "\n");
 		p += 1;
@@ -849,8 +863,69 @@ int gr_trace_dump(
 
 	return 0;
 err:
-	free_trace(head);
 	return errno ? -errno : errno_set(ENOBUFS);
+}
+
+// Best-effort dump of every buffered trace to the log, meant to be called from
+// a crash handler right before dumping core. Walk all in-flight packets still
+// held in the worker graph node streams and format their (unfinished) trace
+// chains in place, without consuming them or touching the trace pool/ring.
+// Then dump the last finished traces still buffered in the ring so that control
+// plane packets are captured too.
+//
+// Workers are not paused: reads may race with the datapath and are inherently
+// unsafe, but the process is about to die anyway and the core dump preserves
+// the full state regardless.
+void gr_trace_dump_crash(void) {
+	static char buf[GR_TRACE_ITEM_MAX_LEN * 32];
+	uint32_t traced;
+
+	if (traced_packets != NULL) {
+		uint32_t len;
+		uint16_t pkts;
+
+		traced = 0;
+		while (gr_trace_dump(buf, sizeof(buf), 1, &len, &pkts) == 0 && pkts > 0
+		       && traced < PACKET_COUNT_MAX)
+			LOG(NOTICE, "trace #%u: %.*s", traced++, len, buf);
+	}
+
+	traced = 0;
+	struct worker *w;
+	STAILQ_FOREACH (w, &workers, next) {
+		unsigned cur = atomic_load(&w->cur_config);
+		struct rte_graph *graph;
+		struct rte_node *node;
+		rte_graph_off_t off;
+		rte_node_t count;
+		int s;
+
+		if (cur > 1 || (graph = w->graph[cur]) == NULL)
+			continue;
+
+		rte_graph_foreach_node (count, off, graph, node) {
+			uint16_t idx = RTE_MIN(node->idx, node->size);
+
+			for (int i = idx - 1; i >= 0; i--) {
+				struct rte_mbuf *m = node->objs[i];
+				const struct gr_trace_item *head;
+
+				if (m == NULL)
+					continue;
+				head = STAILQ_FIRST(gr_mbuf_traces(m));
+				if (head == NULL)
+					continue;
+				if ((s = trace_packet_format(buf, sizeof(buf), head)) < 0)
+					continue;
+				LOG(NOTICE,
+				    "in-flight #%u node=%s: %.*s",
+				    traced++,
+				    node->name,
+				    s,
+				    buf);
+			}
+		}
+	}
 }
 
 void gr_trace_clear(void) {

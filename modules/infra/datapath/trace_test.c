@@ -9,6 +9,7 @@
 // mocked types/functions
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
+struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 void module_register(struct module *) { }
 const struct gr_node_info *gr_node_info_get(rte_node_t) {
 	return NULL;

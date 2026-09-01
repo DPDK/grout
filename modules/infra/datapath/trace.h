@@ -36,6 +36,10 @@ int gr_trace_dump(
 // Empty the trace buffer.
 void gr_trace_clear(void);
 
+// Best-effort dump of all in-flight and last finished packet traces to the log.
+// Meant to be called from a crash handler before dumping core.
+void gr_trace_dump_crash(void);
+
 // Return true if trace is enabled for all interfaces.
 bool gr_trace_all_enabled(void);
 
