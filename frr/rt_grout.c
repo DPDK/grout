@@ -1055,6 +1055,12 @@ void grout_macfdb_change(const struct gr_fdb_entry *fdb, bool new) {
 	struct ethaddr mac;
 	struct ipaddr vtep;
 
+	// The bridge's own SVI MAC reaches zebra through the interface hw_addr
+	// (used as the EVPN router MAC), not as a local MAC. Feeding it here
+	// would make zebra advertise it as an EVPN type-2 route.
+	if (fdb->flags & GR_FDB_F_LOCAL)
+		return;
+
 	l3_addr_to_ipaddr(&vtep, &fdb->vtep);
 
 	gr_log_debug(
