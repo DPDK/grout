@@ -37,6 +37,7 @@ typedef enum : uint8_t {
 	GR_NH_T_BLACKHOLE, // Drop packets silently.
 	GR_NH_T_REJECT, // Drop packets with ICMP error.
 	GR_NH_T_GROUP, // ECMP for multipath routing.
+	GR_NH_T_MPLS, // MPLS label imposition/swap.
 #define GR_NH_T_ALL UINT8_C(0xff) // Match all types in list operations.
 } gr_nh_type_t;
 
@@ -196,6 +197,8 @@ static inline const char *gr_nh_type_name(const gr_nh_type_t type) {
 		return "reject";
 	case GR_NH_T_GROUP:
 		return "group";
+	case GR_NH_T_MPLS:
+		return "MPLS";
 	}
 	return "?";
 }
