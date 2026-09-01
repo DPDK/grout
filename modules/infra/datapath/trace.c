@@ -358,9 +358,10 @@ int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *tcp) {
 	SAFE_BUF(
 		snprintf,
 		len,
-		"%u > %u flags=",
+		"%u > %u cksum=%#04x flags=",
 		rte_be_to_cpu_16(tcp->src_port),
-		rte_be_to_cpu_16(tcp->dst_port)
+		rte_be_to_cpu_16(tcp->dst_port),
+		rte_be_to_cpu_16(tcp->cksum)
 	);
 
 	if (tcp->tcp_flags & RTE_TCP_FIN_FLAG)
@@ -389,9 +390,10 @@ int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
 	return snprintf(
 		buf,
 		len,
-		"%u > %u",
+		"%u > %u cksum=%#04x",
 		rte_be_to_cpu_16(udp->src_port),
-		rte_be_to_cpu_16(udp->dst_port)
+		rte_be_to_cpu_16(udp->dst_port),
+		rte_be_to_cpu_16(udp->dgram_cksum)
 	);
 }
 
