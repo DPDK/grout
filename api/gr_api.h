@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 // Must be bumped when making non-backward compatible changes in API headers
-#define GR_API_VERSION 11
+#define GR_API_VERSION 10
 
 // API request header.
 struct gr_api_request {
@@ -164,6 +164,12 @@ const char *gr_api_message_name(uint32_t type);
 #endif
 
 struct gr_empty { };
+
+// Unstructured text, not zero-terminated.
+struct gr_text {
+	uint32_t len; // Limited by GR_API_MAX_MSG_LEN.
+	char text[/* len */]; // Text format.
+};
 
 #define GR_MAIN_MODULE 0xcafe
 
