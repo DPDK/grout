@@ -418,8 +418,31 @@ err:
 }
 
 // Mutually recursive to follow tunnel encapsulations: VXLAN carries an inner
-// Ethernet frame.
+// Ethernet frame, SRv6 carries an inner IPv4/IPv6/Ethernet packet.
 static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *, size_t pkt_len);
+static int trace_ipv4(char *buf, size_t len, const struct rte_ipv4_hdr *, size_t pkt_len);
+static int trace_ipv6(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t pkt_len);
+
+// Dump the SRH segment list in path order (last_entry down to 0).
+static int
+trace_srh(char *buf, size_t len, const struct rte_ipv6_routing_ext *sr, size_t ext_size) {
+	const struct rte_ipv6_addr *segs = PAYLOAD(sr);
+	size_t n = 0;
+
+	SAFE_BUF(snprintf, len, " / SRH segleft=%u", sr->segments_left);
+
+	// only dump the segment list if it fully fits in the extension header
+	if (ext_size >= sizeof(*sr) + (sr->last_entry + 1) * sizeof(*segs)) {
+		SAFE_BUF(snprintf, len, " [");
+		for (int i = sr->last_entry; i >= 0; i--)
+			SAFE_BUF(snprintf, len, IP6_F "%s", &segs[i], i > 0 ? " " : "");
+		SAFE_BUF(snprintf, len, "]");
+	}
+
+	return n;
+err:
+	return -1;
+}
 
 static int trace_udp(char *buf, size_t len, const struct rte_udp_hdr *udp, size_t pkt_len) {
 	const struct rte_vxlan_hdr *vxlan;
@@ -487,6 +510,9 @@ static int trace_ipv4(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size
 	case IPPROTO_IPIP:
 		SAFE_BUF(trace_ipv4, len, payload, data_len);
 		break;
+	case IPPROTO_IPV6:
+		SAFE_BUF(trace_ipv6, len, payload, data_len);
+		break;
 	}
 
 	return n;
@@ -517,7 +543,11 @@ static int trace_ipv6(char *buf, size_t len, const struct rte_ipv6_hdr *ip6, siz
 			break;
 		if (ext_size == 0 || ext_size > payload_len)
 			break;
-		if (proto != IPPROTO_HOPOPTS)
+		if (proto == IPPROTO_ROUTING
+		    && ((const struct rte_ipv6_routing_ext *)payload)->type
+			    == RTE_IPV6_SRCRT_TYPE_4)
+			SAFE_BUF(trace_srh, len, payload, ext_size);
+		else if (proto != IPPROTO_HOPOPTS)
 			SAFE_BUF(snprintf, len, " Ext(%hhu len=%zu)", proto, ext_size);
 		payload_len -= ext_size;
 		proto = next_proto;
@@ -539,6 +569,15 @@ static int trace_ipv6(char *buf, size_t len, const struct rte_ipv6_hdr *ip6, siz
 		break;
 	case IPPROTO_UDP:
 		SAFE_BUF(trace_udp, len, payload, payload_len);
+		break;
+	case IPPROTO_IPIP:
+		SAFE_BUF(trace_ipv4, len, payload, payload_len);
+		break;
+	case IPPROTO_IPV6:
+		SAFE_BUF(trace_ipv6, len, payload, payload_len);
+		break;
+	case IPPROTO_ETHERNET:
+		SAFE_BUF(trace_ether, len, payload, payload_len);
 		break;
 	}
 
@@ -602,7 +641,7 @@ err:
 	return -1;
 }
 
-// Dissect an inner Ethernet frame exposed by VXLAN decapsulation.
+// Dissect an inner Ethernet frame exposed by VXLAN or SRv6 decapsulation.
 static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *eth, size_t pkt_len) {
 	size_t n = 0;
 
