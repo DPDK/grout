@@ -37,7 +37,6 @@ int icmp_local_send(
 	uint16_t seq_num,
 	uint8_t ttl
 ) {
-	const struct nexthop_info_l3 *l3;
 	struct icmp_send_mbuf_data *d;
 	const struct nexthop *local;
 	struct iface *iface;
@@ -48,9 +47,7 @@ int icmp_local_send(
 	if (gw->type != GR_NH_T_L3)
 		return errno_set(ENONET);
 
-	l3 = nexthop_info_l3(gw);
-
-	if ((local = addr4_get_preferred(gw->iface_id, l3->ipv4)) == NULL) {
+	if ((local = addr4_get_preferred(gw->iface_id, dst)) == NULL) {
 		return -errno;
 	}
 
