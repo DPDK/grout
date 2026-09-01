@@ -118,7 +118,10 @@ static uint16_t arp_output_request_process(
 		arp->arp_opcode = RTE_BE16(RTE_ARP_OP_REQUEST);
 		arp->arp_hlen = sizeof(struct rte_ether_addr);
 		arp->arp_plen = sizeof(ip4_addr_t);
-		iface = iface_from_id(local->iface_id);
+		// The source address may be borrowed from another interface (e.g. a
+		// loopback), but the request is sent from the output interface and
+		// must advertise its MAC so that replies come back to us.
+		iface = iface_from_id(nh->iface_id);
 		if (iface_get_eth_addr(iface, &arp->arp_data.arp_sha) < 0) {
 			edge = ERROR;
 			goto next;
