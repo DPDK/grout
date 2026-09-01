@@ -66,6 +66,7 @@ static uint16_t ndp_ns_output_process(
 	const struct nexthop_info_l3 *local_l3, *l3;
 	const struct nexthop *local, *nh;
 	struct icmp6_opt_lladdr *lladdr;
+	struct iface *iface;
 	struct icmp6_neigh_solicit *ns;
 	struct ip6_local_mbuf_data *d;
 	struct rte_mbuf *mbuf;
@@ -93,6 +94,16 @@ static uint16_t ndp_ns_output_process(
 
 		local_l3 = nexthop_info_l3(local);
 
+		// The source address may be borrowed from another interface
+		// (e.g. a loopback), but the solicitation is sent from the
+		// output interface and must use its MAC and be dispatched
+		// through it to reach the neighbor.
+		iface = iface_from_id(nh->iface_id);
+		if (iface == NULL) {
+			next = ERROR;
+			goto next;
+		}
+
 		// Fill ICMP6 layer.
 		payload_len = sizeof(*icmp6) + sizeof(*ns) + sizeof(*opt) + sizeof(*lladdr);
 		icmp6 = (struct icmp6 *)rte_pktmbuf_append(mbuf, payload_len);
@@ -105,11 +116,14 @@ static uint16_t ndp_ns_output_process(
 		opt->type = ICMP6_OPT_SRC_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*lladdr));
 		lladdr = PAYLOAD(opt);
-		lladdr->mac = local_l3->mac;
+		if (iface_get_eth_addr(iface, &lladdr->mac) < 0) {
+			next = ERROR;
+			goto next;
+		}
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
-		d->iface = iface_from_id(local->iface_id);
+		d->iface = iface;
 		d->src = local_l3->ipv6;
 		if (l3->last_reply != 0 && l3->bcast_probes == 0)
 			d->dst = l3->ipv6;

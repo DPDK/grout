@@ -41,7 +41,8 @@ struct hoplist *addr6_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
-struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
+static struct nexthop *
+addr6_get_preferred_iface(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
 	struct hoplist *addrs = addr6_get_all(iface_id);
 	const struct nexthop_info_l3 *l3;
 	struct nexthop *pref = NULL, *nh;
@@ -58,6 +59,29 @@ struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_add
 	}
 
 	return pref;
+}
+
+struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
+	const struct iface *iface;
+	struct iface *vrf_iface;
+	struct nexthop *nh;
+
+	if ((nh = addr6_get_preferred_iface(iface_id, dst)) != NULL)
+		return nh;
+
+	// No address on the output interface: fall back to the addresses
+	// configured on the VRF interface (loopback), mimicking the way Linux
+	// inet6 source address selection borrows from the l3mdev/loopback
+	// device when the output device has none.
+	iface = iface_from_id(iface_id);
+	if (iface == NULL)
+		return NULL;
+
+	vrf_iface = get_vrf_iface(iface->vrf_id);
+	if (vrf_iface == NULL || vrf_iface->id == iface_id)
+		return errno_set_null(EADDRNOTAVAIL);
+
+	return addr6_get_preferred_iface(vrf_iface->id, dst);
 }
 
 struct nexthop *addr6_get_linklocal(uint16_t iface_id) {
