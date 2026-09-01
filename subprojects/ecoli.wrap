@@ -1,8 +1,8 @@
 [wrap-file]
-source_url = https://github.com/rjarry/libecoli/archive/refs/tags/v0.11.3.tar.gz
-source_filename = libecoli-0.11.3.tar.gz
-source_hash = 25ed9638452fa050749746c863574dfd47df95bde98347d210c9deedea188151
-directory = libecoli-0.11.3
+source_url = https://github.com/rjarry/libecoli/archive/refs/tags/v0.11.6.tar.gz
+source_filename = libecoli-0.11.6.tar.gz
+source_hash = bd4499f4d9944f357e44ba07f991639475051c044ee87b11cfa6959b8764ac43
+directory = libecoli-0.11.6
 
 [provide]
 dependency_names = libecoli
