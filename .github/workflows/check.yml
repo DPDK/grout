@@ -27,20 +27,20 @@ jobs:
         conf:
           - compiler: gcc-13
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             rebase: true
           - compiler: gcc-14
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             asan: true
             debug: true
           - compiler: gcc-14
-            frr: '10.5'
+            frr: '10.7'
             dpdk: '25.11'
             arch: aarch64
           - compiler: gcc-14
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             adaptive_irq: true
           - compiler: gcc-14
             dpdk: '25.11'
@@ -50,11 +50,11 @@ jobs:
             frr: '10.7'
           - compiler: gcc-14
             dpdk: '25.11-head'
-            frr: '10.5'
+            frr: '10.7'
             allow_fail: true
           - compiler: gcc-14
             dpdk: 'main'
-            frr: '10.5'
+            frr: '10.7'
             allow_fail: true
           - compiler: gcc-14
             dpdk: '25.11'
@@ -62,10 +62,10 @@ jobs:
             allow_fail: true
           - compiler: clang-16
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
           - compiler: clang-18
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
     name: build-and-tests (${{ matrix.conf.arch || 'x86_64' }}, ${{ matrix.conf.compiler }}, DPDK ${{ matrix.conf.dpdk }}, FRR ${{ matrix.conf.frr }}${{ matrix.conf.adaptive_irq && ', adaptive-irq' || '' }})
     runs-on: ubuntu-24.04${{ matrix.conf.arch == 'aarch64' && '-arm' || '' }}
     continue-on-error: ${{ matrix.conf.allow_fail || false }}
