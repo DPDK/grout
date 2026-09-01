@@ -39,6 +39,12 @@ void fdb_learn(
 // Delete all FDB entries referencing the provided interface.
 void fdb_purge_iface(uint16_t iface_id);
 
+// Add or update the bridge's own SVI MAC as a local FDB entry.
+int fdb_add_local(uint16_t bridge_id, const struct rte_ether_addr *mac);
+
+// Remove the bridge's own SVI MAC local FDB entry.
+int fdb_del_local(uint16_t bridge_id, const struct rte_ether_addr *mac);
+
 // Push or remove mac addresses from HW Rx filters.
 void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool add);
 

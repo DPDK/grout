@@ -81,6 +81,7 @@ typedef enum : uint8_t {
 	GR_FDB_F_STATIC = GR_BIT8(0), // User-configured, never aged out.
 	GR_FDB_F_LEARN = GR_BIT8(1), // Learned via local bridge.
 	GR_FDB_F_EXTERN = GR_BIT8(2), // Programmed by external control plane.
+	GR_FDB_F_LOCAL = GR_BIT8(3), // Bridge's own SVI MAC, delivered locally.
 } gr_fdb_flags_t;
 
 // Convert FDB flag enum to string representation.
@@ -93,6 +94,8 @@ static inline const char *gr_fdb_flag_name(gr_fdb_flags_t f) {
 		return "learn";
 	case GR_FDB_F_EXTERN:
 		return "extern";
+	case GR_FDB_F_LOCAL:
+		return "local";
 	}
 	return "?";
 }
