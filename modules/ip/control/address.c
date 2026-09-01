@@ -40,7 +40,7 @@ struct hoplist *addr4_get_all(uint16_t iface_id) {
 	return addrs;
 }
 
-struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+static struct nexthop *addr4_get_preferred_iface(uint16_t iface_id, ip4_addr_t dst) {
 	struct hoplist *addrs = addr4_get_all(iface_id);
 	const struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
@@ -55,6 +55,29 @@ struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	}
 
 	return addrs->nh[0];
+}
+
+struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
+	const struct iface *iface;
+	struct iface *vrf_iface;
+	struct nexthop *nh;
+
+	if ((nh = addr4_get_preferred_iface(iface_id, dst)) != NULL)
+		return nh;
+
+	// No address on the output interface: fall back to the addresses
+	// configured on the VRF interface (loopback), mimicking the way Linux
+	// inet_select_addr() borrows a source address from the l3mdev/loopback
+	// device when the output device has none.
+	iface = iface_from_id(iface_id);
+	if (iface == NULL)
+		return NULL;
+
+	vrf_iface = get_vrf_iface(iface->vrf_id);
+	if (vrf_iface == NULL || vrf_iface->id == iface_id)
+		return errno_set_null(EADDRNOTAVAIL);
+
+	return addr4_get_preferred_iface(vrf_iface->id, dst);
 }
 
 int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin_t origin) {
