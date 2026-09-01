@@ -93,9 +93,21 @@ static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 				LOG(ERR, "failed to insert route: %s", strerror(errno));
 				goto free;
 			}
+		} else if (remote->iface_id != nh->iface_id) {
+			// remote may live on a different interface than the connected
+			// route. In EVPN L3VNI VRFs, a host inside a connected subnet
+			// can be reachable through the VXLAN interface while the subnet
+			// itself is connected on the bridge SVI.
+			LOG(DEBUG,
+			    "remote " IP4_F " (iface=%u), "
+			    "connected route " IP4_F "/%hhu (iface=%u)",
+			    &nexthop_info_l3(remote)->ipv4,
+			    remote->iface_id,
+			    &l3->ipv4,
+			    l3->prefixlen,
+			    nh->iface_id);
 		}
 
-		assert(remote->iface_id == nh->iface_id);
 		nh = remote;
 		l3 = nexthop_info_l3(remote);
 	}
