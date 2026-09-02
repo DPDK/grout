@@ -110,12 +110,23 @@ done < $dir/check_api/inline_funcs
 api_version_a=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/a/*.h)
 api_version_b=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/b/*.h)
 
-if ! $abidiff --non-reachable-types --drop-private-types --show-bytes \
+# The two lowest bits of the abidiff exit status report an abidiff failure.
+status=0
+$abidiff --non-reachable-types --drop-private-types --show-bytes \
 	--headers-dir1 $dir/check_api/a --headers-dir2 $dir/check_api/b \
-	$dir/check_api/a.bin $dir/check_api/b.bin >"$dir/abidiff.log" 2>&1 \
-	|| [ "$inline_change" = true ]
-then
+	$dir/check_api/a.bin $dir/check_api/b.bin >"$dir/abidiff.log" 2>&1 || status=$?
+
+if [ $((status & 3)) -ne 0 ]; then
+	cat "$dir/abidiff.log" >&2
+	echo "error: abidiff failed" >&2
+	exit 1
+fi
+
+if [ "$status" -ne 0 ] || [ "$inline_change" = true ]; then
 	grep -vE '((Functions|Variables) changes|Unreachable types) summary:' "$dir/abidiff.log"
+	# abidiff only reports an incompatible change when a symbol changes, and
+	# the request structs travel by pointer, so rely on the report instead:
+	# [D] and [C] mark a removed or changed artifact, [A] an added one.
 	if grep -q '^  \[[DC]\]' "$dir/abidiff.log" || [ "$inline_change" = true ]; then
 		echo "breaking API changes"
 		if [ "${api_version_a:-0}" -ge "${api_version_b:-0}" ]; then
