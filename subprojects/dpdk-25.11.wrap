@@ -1,8 +1,8 @@
 [wrap-file]
-source_url = http://fast.dpdk.org/rel/dpdk-25.11.2.tar.xz
-source_filename = dpdk-25.11.2.tar.xz
-source_hash = 418bfe3212640ee95a1cb10af6ed360cad2387686fe2721f8a3a9cd02d5ef4f2
-directory = dpdk-stable-25.11.2
+source_url = http://fast.dpdk.org/rel/dpdk-25.11.3.tar.xz
+source_filename = dpdk-25.11.3.tar.xz
+source_hash = 3719acc586b310c4f60ba230683bf4f1e12c6f2f5bee11f7c01b1bbd0ded7490
+directory = dpdk-stable-25.11.3
 diff_files =
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,
 	dpdk/net-tap-support-Rx-queue-interrupt-enable-disable.patch,

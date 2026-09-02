@@ -11,6 +11,7 @@
 #include "rxtx.h"
 #include "snap.h"
 #include "trace.h"
+#include "worker.h"
 
 #include <gr_macro.h>
 #include <gr_net_types.h>
@@ -24,6 +25,7 @@
 #include <rte_ring.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 
 LOG_TYPE("trace");
 
@@ -357,9 +359,10 @@ int trace_tcp_format(char *buf, size_t len, const struct rte_tcp_hdr *tcp) {
 	SAFE_BUF(
 		snprintf,
 		len,
-		"%u > %u flags=",
+		"%u > %u cksum=%#04x flags=",
 		rte_be_to_cpu_16(tcp->src_port),
-		rte_be_to_cpu_16(tcp->dst_port)
+		rte_be_to_cpu_16(tcp->dst_port),
+		rte_be_to_cpu_16(tcp->cksum)
 	);
 
 	if (tcp->tcp_flags & RTE_TCP_FIN_FLAG)
@@ -388,25 +391,18 @@ int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
 	return snprintf(
 		buf,
 		len,
-		"%u > %u",
+		"%u > %u cksum=%#04x",
 		rte_be_to_cpu_16(udp->src_port),
-		rte_be_to_cpu_16(udp->dst_port)
+		rte_be_to_cpu_16(udp->dst_port),
+		rte_be_to_cpu_16(udp->dgram_cksum)
 	);
 }
 
 static int trace_snap_format(char *buf, size_t len, const struct rte_ether_addr *dst) {
-	static const struct rte_ether_addr stp_dst = {
-		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x00},
-	};
-	static const struct rte_ether_addr isis_level1 = {
-		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x14},
-	};
-	static const struct rte_ether_addr isis_level2 = {
-		.addr_bytes = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x15},
-	};
-	static const struct rte_ether_addr isis_all = {
-		.addr_bytes = {0x09, 0x00, 0x2B, 0x00, 0x00, 0x05},
-	};
+	static const struct rte_ether_addr stp_dst = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x00}};
+	static const struct rte_ether_addr isis_level1 = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x14}};
+	static const struct rte_ether_addr isis_level2 = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x15}};
+	static const struct rte_ether_addr isis_all = {{0x09, 0x00, 0x2B, 0x00, 0x00, 0x05}};
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, " / SNAP");
@@ -424,147 +420,263 @@ err:
 	return -1;
 }
 
+// Mutually recursive to follow tunnel encapsulations: VXLAN carries an inner
+// Ethernet frame, SRv6 carries an inner IPv4/IPv6/Ethernet packet.
+static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *, size_t pkt_len);
+static int trace_ipv4(char *buf, size_t len, const struct rte_ipv4_hdr *, size_t pkt_len);
+static int trace_ipv6(char *buf, size_t len, const struct rte_ipv6_hdr *, size_t pkt_len);
+
+// Dump the SRH segment list in path order (last_entry down to 0).
+static int
+trace_srh(char *buf, size_t len, const struct rte_ipv6_routing_ext *sr, size_t ext_size) {
+	const struct rte_ipv6_addr *segs = PAYLOAD(sr);
+	size_t n = 0;
+
+	SAFE_BUF(snprintf, len, " / SRH segleft=%u", sr->segments_left);
+
+	// only dump the segment list if it fully fits in the extension header
+	if (ext_size >= sizeof(*sr) + (sr->last_entry + 1) * sizeof(*segs)) {
+		SAFE_BUF(snprintf, len, " [");
+		for (int i = sr->last_entry; i >= 0; i--)
+			SAFE_BUF(snprintf, len, IP6_F "%s", &segs[i], i > 0 ? " " : "");
+		SAFE_BUF(snprintf, len, "]");
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+static int trace_udp(char *buf, size_t len, const struct rte_udp_hdr *udp, size_t pkt_len) {
+	const struct rte_vxlan_hdr *vxlan;
+	size_t data_len;
+	size_t n = 0;
+
+	if (pkt_len < sizeof(*udp))
+		return n;
+
+	SAFE_BUF(snprintf, len, " / UDP ");
+	SAFE_BUF(trace_udp_format, len, udp);
+
+	data_len = RTE_MIN(rte_be_to_cpu_16(udp->dgram_len), pkt_len);
+	if (data_len < sizeof(*udp))
+		return n;
+	data_len -= sizeof(*udp);
+
+	if (udp->dst_port == RTE_BE16(RTE_VXLAN_DEFAULT_PORT) && data_len >= sizeof(*vxlan)) {
+		vxlan = PAYLOAD(udp);
+		data_len -= sizeof(*vxlan);
+		SAFE_BUF(snprintf, len, " / VXLAN vni=%u", rte_be_to_cpu_32(vxlan->vx_vni) >> 8);
+		if (vxlan->flag_i && data_len >= sizeof(struct rte_ether_hdr))
+			SAFE_BUF(trace_ether, len, PAYLOAD(vxlan), data_len);
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+static int trace_ipv4(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t pkt_len) {
+	size_t hdr_len, data_len;
+	void *payload;
+	size_t n = 0;
+
+	if (pkt_len < sizeof(*ip))
+		return n;
+
+	SAFE_BUF(snprintf, len, " / IP ");
+	SAFE_BUF(trace_ip_format, len, ip, sizeof(*ip));
+
+	hdr_len = rte_ipv4_hdr_len(ip);
+	data_len = RTE_MIN(rte_be_to_cpu_16(ip->total_length), pkt_len);
+	if (hdr_len < sizeof(*ip) || hdr_len > data_len)
+		return n;
+	payload = RTE_PTR_ADD(ip, hdr_len);
+	data_len -= hdr_len;
+
+	switch (ip->next_proto_id) {
+	case IPPROTO_ICMP:
+		if (data_len < sizeof(struct rte_icmp_hdr))
+			break;
+		SAFE_BUF(snprintf, len, " / ICMP ");
+		SAFE_BUF(trace_icmp_format, len, payload, data_len);
+		break;
+	case IPPROTO_TCP:
+		if (data_len < sizeof(struct rte_tcp_hdr))
+			break;
+		SAFE_BUF(snprintf, len, " / TCP ");
+		SAFE_BUF(trace_tcp_format, len, payload);
+		break;
+	case IPPROTO_UDP:
+		SAFE_BUF(trace_udp, len, payload, data_len);
+		break;
+	case IPPROTO_IPIP:
+		SAFE_BUF(trace_ipv4, len, payload, data_len);
+		break;
+	case IPPROTO_IPV6:
+		SAFE_BUF(trace_ipv6, len, payload, data_len);
+		break;
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+static int trace_ipv6(char *buf, size_t len, const struct rte_ipv6_hdr *ip6, size_t pkt_len) {
+	uint16_t payload_len;
+	const void *payload;
+	uint8_t proto;
+	size_t n = 0;
+
+	if (pkt_len < sizeof(*ip6))
+		return n;
+
+	SAFE_BUF(snprintf, len, " / IPv6 ");
+	SAFE_BUF(trace_ip6_format, len, ip6, sizeof(*ip6));
+	payload_len = RTE_MIN(rte_be_to_cpu_16(ip6->payload_len), pkt_len - sizeof(*ip6));
+	proto = ip6->proto;
+
+	payload = PAYLOAD(ip6);
+	// rte_ipv6_get_next_ext() reads up to 2 bytes of the extension header.
+	while (payload_len >= 2) {
+		size_t ext_size = 0;
+		int next_proto = rte_ipv6_get_next_ext(payload, proto, &ext_size);
+		if (next_proto < 0)
+			break;
+		if (ext_size == 0 || ext_size > payload_len)
+			break;
+		if (proto == IPPROTO_ROUTING
+		    && ((const struct rte_ipv6_routing_ext *)payload)->type
+			    == RTE_IPV6_SRCRT_TYPE_4)
+			SAFE_BUF(trace_srh, len, payload, ext_size);
+		else if (proto != IPPROTO_HOPOPTS)
+			SAFE_BUF(snprintf, len, " Ext(%hhu len=%zu)", proto, ext_size);
+		payload_len -= ext_size;
+		proto = next_proto;
+		payload = RTE_PTR_ADD(payload, ext_size);
+	}
+
+	switch (proto) {
+	case IPPROTO_ICMPV6:
+		if (payload_len < sizeof(struct icmp6))
+			break;
+		SAFE_BUF(snprintf, len, " / ICMPv6 ");
+		SAFE_BUF(trace_icmp6_format, len, payload, payload_len);
+		break;
+	case IPPROTO_TCP:
+		if (payload_len < sizeof(struct rte_tcp_hdr))
+			break;
+		SAFE_BUF(snprintf, len, " / TCP ");
+		SAFE_BUF(trace_tcp_format, len, payload);
+		break;
+	case IPPROTO_UDP:
+		SAFE_BUF(trace_udp, len, payload, payload_len);
+		break;
+	case IPPROTO_IPIP:
+		SAFE_BUF(trace_ipv4, len, payload, payload_len);
+		break;
+	case IPPROTO_IPV6:
+		SAFE_BUF(trace_ipv6, len, payload, payload_len);
+		break;
+	case IPPROTO_ETHERNET:
+		SAFE_BUF(trace_ether, len, payload, payload_len);
+		break;
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+// Dispatch on the ethertype and dissect the payload starting at offset.
+static int
+trace_eth_payload(char *buf, size_t len, const struct rte_ether_hdr *eth, size_t pkt_len) {
+	size_t n = 0;
+
+	// ETHERTYPE are greater than 1536 (0x600)
+	// If this is not the case, this represent the len of the SNAP frame
+	if (rte_be_to_cpu_16(eth->ether_type) < 0x600) {
+		SAFE_BUF(trace_snap_format, len, &eth->dst_addr);
+		return n;
+	}
+
+	switch (eth->ether_type) {
+	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
+		SAFE_BUF(trace_ipv4, len, PAYLOAD(eth), pkt_len);
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
+		SAFE_BUF(trace_ipv6, len, PAYLOAD(eth), pkt_len);
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_ARP):
+		if (pkt_len < sizeof(struct rte_arp_hdr))
+			break;
+		SAFE_BUF(snprintf, len, " / ARP ");
+		SAFE_BUF(trace_arp_format, len, PAYLOAD(eth), pkt_len);
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_1588):
+		SAFE_BUF(snprintf, len, " / PTP");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_LLDP):
+		SAFE_BUF(snprintf, len, " / LLDP");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_MPLS):
+		SAFE_BUF(snprintf, len, " / MPLS");
+		break;
+	case RTE_BE16(RTE_ETHER_TYPE_SLOW):
+		if (pkt_len < sizeof(struct lacp_pdu))
+			break;
+		SAFE_BUF(snprintf, len, " / LACP ");
+		SAFE_BUF(trace_lacp_format, len, PAYLOAD(eth), pkt_len);
+		break;
+	case RTE_BE16(ETHER_TYPE_JUMBO_LLC):
+		SAFE_BUF(snprintf, len, " / Jumbo LLC");
+		SAFE_BUF(trace_snap_format, len, &eth->dst_addr);
+		break;
+	default:
+		SAFE_BUF(snprintf, len, " type=");
+		SAFE_BUF(eth_type_format, len, eth->ether_type);
+		break;
+	}
+
+	return n;
+err:
+	return -1;
+}
+
+// Dissect an inner Ethernet frame exposed by VXLAN or SRv6 decapsulation.
+static int trace_ether(char *buf, size_t len, const struct rte_ether_hdr *eth, size_t pkt_len) {
+	size_t n = 0;
+
+	if (pkt_len < sizeof(*eth))
+		return n;
+
+	SAFE_BUF(snprintf, len, " / Ethernet " ETH_F " > " ETH_F, &eth->src_addr, &eth->dst_addr);
+	SAFE_BUF(trace_eth_payload, len, eth, pkt_len - sizeof(*eth));
+
+	return n;
+err:
+	return -1;
+}
+
 void trace_log_packet(const struct rte_mbuf *m, const char *node, const char *iface) {
 	const struct iface_mbuf_data *d = iface_mbuf_data((void *)m);
 	const struct rte_ether_hdr *eth;
 	struct rte_ether_addr src, dst;
-	rte_be16_t ether_type;
-	size_t offset = 0;
 	char buf[BUFSIZ];
 	size_t n = 0;
 
-	eth = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *, offset);
-	offset += sizeof(*eth);
-	ether_type = eth->ether_type;
-	dst = eth->dst_addr;
+	eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
 	src = eth->src_addr;
+	dst = eth->dst_addr;
 
 	SAFE_BUF(snprintf, sizeof(buf), ETH_F " > " ETH_F, &src, &dst);
 
 	if (d->vlan_id != 0)
 		SAFE_BUF(snprintf, sizeof(buf), " / VLAN id=%u", d->vlan_id);
 
-	// ETHERTYPE are greater than 1536 (0x600)
-	// If this is not the case, this represent the len of the SNAP frame
-	if (rte_be_to_cpu_16(ether_type) < 0x600) {
-		SAFE_BUF(trace_snap_format, sizeof(buf), &dst);
-		goto end;
-	}
+	SAFE_BUF(trace_eth_payload, sizeof(buf), eth, m->pkt_len - sizeof(*eth));
 
-	switch (ether_type) {
-	case RTE_BE16(RTE_ETHER_TYPE_IPV4): {
-ipv4:
-		const struct rte_ipv4_hdr *ip;
-
-		ip = rte_pktmbuf_mtod_offset(m, const struct rte_ipv4_hdr *, offset);
-		offset += rte_ipv4_hdr_len(ip);
-		SAFE_BUF(snprintf, sizeof(buf), " / IP ");
-		SAFE_BUF(trace_ip_format, sizeof(buf), ip, sizeof(*ip));
-
-		switch (ip->next_proto_id) {
-		case IPPROTO_ICMP: {
-			const struct rte_icmp_hdr *icmp;
-			icmp = rte_pktmbuf_mtod_offset(m, const struct rte_icmp_hdr *, offset);
-			SAFE_BUF(snprintf, sizeof(buf), " / ICMP ");
-			SAFE_BUF(trace_icmp_format, sizeof(buf), icmp, sizeof(*icmp));
-			break;
-		}
-		case IPPROTO_TCP: {
-			const struct rte_tcp_hdr *tcp;
-			tcp = rte_pktmbuf_mtod_offset(m, const struct rte_tcp_hdr *, offset);
-			SAFE_BUF(snprintf, sizeof(buf), " / TCP ");
-			SAFE_BUF(trace_tcp_format, sizeof(buf), tcp);
-			break;
-		}
-		case IPPROTO_UDP: {
-			const struct rte_udp_hdr *udp;
-			udp = rte_pktmbuf_mtod_offset(m, const struct rte_udp_hdr *, offset);
-			SAFE_BUF(snprintf, sizeof(buf), " / UDP ");
-			SAFE_BUF(trace_udp_format, sizeof(buf), udp);
-			break;
-		}
-		case IPPROTO_IPIP:
-			goto ipv4;
-		}
-
-		break;
-	}
-	case RTE_BE16(RTE_ETHER_TYPE_IPV6): {
-		const struct rte_ipv6_hdr *ip6;
-		uint16_t payload_len;
-		uint8_t proto;
-
-		ip6 = rte_pktmbuf_mtod_offset(m, const struct rte_ipv6_hdr *, offset);
-		offset += sizeof(*ip6);
-		SAFE_BUF(snprintf, sizeof(buf), " / IPv6 ");
-		SAFE_BUF(trace_ip6_format, sizeof(buf), ip6, sizeof(*ip6));
-		payload_len = rte_be_to_cpu_16(ip6->payload_len);
-		proto = ip6->proto;
-
-		for (;;) {
-			size_t ext_size = 0;
-			int next_proto = rte_ipv6_get_next_ext(
-				rte_pktmbuf_mtod_offset(m, const uint8_t *, offset),
-				proto,
-				&ext_size
-			);
-			if (next_proto < 0)
-				break;
-			if (proto != IPPROTO_HOPOPTS)
-				SAFE_BUF(
-					snprintf, sizeof(buf), " Ext(%hhu len=%zu)", proto, ext_size
-				);
-			offset += ext_size;
-			payload_len -= ext_size;
-			proto = next_proto;
-		};
-
-		switch (proto) {
-		case IPPROTO_ICMPV6:
-			SAFE_BUF(snprintf, sizeof(buf), " / ICMPv6 ");
-			SAFE_BUF(
-				trace_icmp6_format,
-				sizeof(buf),
-				rte_pktmbuf_mtod_offset(m, const struct icmp6 *, offset),
-				payload_len
-			);
-			break;
-		}
-		break;
-	}
-	case RTE_BE16(RTE_ETHER_TYPE_ARP): {
-		const struct rte_arp_hdr *arp;
-		arp = rte_pktmbuf_mtod_offset(m, const struct rte_arp_hdr *, offset);
-		SAFE_BUF(snprintf, sizeof(buf), " / ARP ");
-		SAFE_BUF(trace_arp_format, sizeof(buf), arp, sizeof(*arp));
-		break;
-	}
-	case RTE_BE16(RTE_ETHER_TYPE_1588):
-		SAFE_BUF(snprintf, sizeof(buf), " / PTP");
-		break;
-	case RTE_BE16(RTE_ETHER_TYPE_LLDP):
-		SAFE_BUF(snprintf, sizeof(buf), " / LLDP");
-		break;
-	case RTE_BE16(RTE_ETHER_TYPE_MPLS):
-		SAFE_BUF(snprintf, sizeof(buf), " / MPLS");
-		break;
-	case RTE_BE16(RTE_ETHER_TYPE_SLOW): {
-		const struct lacp_pdu *lacp;
-		lacp = rte_pktmbuf_mtod_offset(m, const struct lacp_pdu *, offset);
-		SAFE_BUF(snprintf, sizeof(buf), " / LACP ");
-		SAFE_BUF(trace_lacp_format, sizeof(buf), lacp, sizeof(*lacp));
-		break;
-	}
-	case RTE_BE16(ETHER_TYPE_JUMBO_LLC):
-		SAFE_BUF(snprintf, sizeof(buf), " / Jumbo LLC");
-		SAFE_BUF(trace_snap_format, sizeof(buf), &dst);
-		break;
-	default:
-		SAFE_BUF(snprintf, sizeof(buf), " type=");
-		SAFE_BUF(eth_type_format, sizeof(buf), ether_type);
-		break;
-	}
-end:
 	SAFE_BUF(snprintf, sizeof(buf), ", (pkt_len=%u)", m->pkt_len);
 
 	rte_log(RTE_LOG_NOTICE, _gr_log.type_id, "TRACE: [%s %s] %s\n", node, iface, buf);
@@ -685,6 +797,42 @@ void gr_mbuf_trace_finish(struct rte_mbuf *m) {
 	STAILQ_INIT(traces);
 }
 
+// Format a whole trace chain (one packet) into buf, starting at offset n.
+// Return the number of written bytes or a negative value on error.
+static int trace_packet_format(char *buf, size_t len, const struct gr_trace_item *t) {
+	const struct gr_node_info *info;
+	size_t n = 0;
+	struct tm tm;
+	int s;
+
+	if (localtime_r(&t->ts.tv_sec, &tm) == NULL)
+		goto err;
+
+	if ((s = strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm)) == 0)
+		goto err;
+	n += s;
+	SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
+	SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
+
+	while (t) {
+		SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
+		info = gr_node_info_get(t->node_id);
+		if (info == NULL)
+			info = gr_node_info_get(t->parent_id);
+		if (info != NULL && info->trace_format) {
+			SAFE_BUF(snprintf, len, " ");
+			SAFE_BUF(info->trace_format, len, t->data, t->len);
+		}
+		SAFE_BUF(snprintf, len, "\n");
+
+		t = STAILQ_NEXT(t, next);
+	}
+
+	return n;
+err:
+	return -1;
+}
+
 int gr_trace_dump(
 	char *buf,
 	size_t len,
@@ -692,42 +840,19 @@ int gr_trace_dump(
 	uint32_t *n_bytes,
 	uint16_t *n_packets
 ) {
-	struct gr_trace_item *head = NULL;
-	const struct gr_node_info *info;
 	uint32_t n = 0;
 	uint16_t p = 0;
-	struct tm tm;
 	void *data;
 	int s;
 
 	while (rte_ring_dequeue(traced_packets, &data) == 0 && p < max_packets) {
-		struct gr_trace_item *t = data;
-		head = t;
+		struct gr_trace_item *head = data;
 
-		if (localtime_r(&t->ts.tv_sec, &tm) == NULL)
-			goto err;
-
-		if ((s = strftime(buf + n, len - n, "--------- %H:%M:%S.", &tm)) == 0)
-			goto err;
-		n += s;
-		SAFE_BUF(snprintf, len, "%09lu", t->ts.tv_nsec);
-		SAFE_BUF(snprintf, len, " cpu %u ---------\n", t->cpu_id);
-
-		while (t) {
-			SAFE_BUF(snprintf, len, "%s:", rte_node_id_to_name(t->node_id));
-			info = gr_node_info_get(t->node_id);
-			if (info == NULL)
-				info = gr_node_info_get(t->parent_id);
-			if (info != NULL && info->trace_format) {
-				SAFE_BUF(snprintf, len, " ");
-				SAFE_BUF(info->trace_format, len, t->data, t->len);
-			}
-			SAFE_BUF(snprintf, len, "\n");
-
-			t = STAILQ_NEXT(t, next);
-		}
+		s = trace_packet_format(buf + n, len - n, head);
 		free_trace(head);
-		head = NULL;
+		if (s < 0)
+			return errno ? -errno : errno_set(ENOBUFS);
+		n += s;
 		// add empty line to separate packets
 		SAFE_BUF(snprintf, len, "\n");
 		p += 1;
@@ -738,8 +863,69 @@ int gr_trace_dump(
 
 	return 0;
 err:
-	free_trace(head);
 	return errno ? -errno : errno_set(ENOBUFS);
+}
+
+// Best-effort dump of every buffered trace to the log, meant to be called from
+// a crash handler right before dumping core. Walk all in-flight packets still
+// held in the worker graph node streams and format their (unfinished) trace
+// chains in place, without consuming them or touching the trace pool/ring.
+// Then dump the last finished traces still buffered in the ring so that control
+// plane packets are captured too.
+//
+// Workers are not paused: reads may race with the datapath and are inherently
+// unsafe, but the process is about to die anyway and the core dump preserves
+// the full state regardless.
+void gr_trace_dump_crash(void) {
+	static char buf[GR_TRACE_ITEM_MAX_LEN * 32];
+	uint32_t traced;
+
+	if (traced_packets != NULL) {
+		uint32_t len;
+		uint16_t pkts;
+
+		traced = 0;
+		while (gr_trace_dump(buf, sizeof(buf), 1, &len, &pkts) == 0 && pkts > 0
+		       && traced < PACKET_COUNT_MAX)
+			LOG(NOTICE, "trace #%u: %.*s", traced++, len, buf);
+	}
+
+	traced = 0;
+	struct worker *w;
+	STAILQ_FOREACH (w, &workers, next) {
+		unsigned cur = atomic_load(&w->cur_config);
+		struct rte_graph *graph;
+		struct rte_node *node;
+		rte_graph_off_t off;
+		rte_node_t count;
+		int s;
+
+		if (cur > 1 || (graph = w->graph[cur]) == NULL)
+			continue;
+
+		rte_graph_foreach_node (count, off, graph, node) {
+			uint16_t idx = RTE_MIN(node->idx, node->size);
+
+			for (int i = idx - 1; i >= 0; i--) {
+				struct rte_mbuf *m = node->objs[i];
+				const struct gr_trace_item *head;
+
+				if (m == NULL)
+					continue;
+				head = STAILQ_FIRST(gr_mbuf_traces(m));
+				if (head == NULL)
+					continue;
+				if ((s = trace_packet_format(buf, sizeof(buf), head)) < 0)
+					continue;
+				LOG(NOTICE,
+				    "in-flight #%u node=%s: %.*s",
+				    traced++,
+				    node->name,
+				    s,
+				    buf);
+			}
+		}
+	}
 }
 
 void gr_trace_clear(void) {

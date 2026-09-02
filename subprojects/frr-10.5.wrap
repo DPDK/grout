@@ -1,8 +1,8 @@
 [wrap-file]
-source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.5.4.tar.gz
-source_filename = frr-10.5.4.tar.gz
-source_hash = 1e8401e1bfcbb9b0dfefc9b335013733a3c77cdf85c79ff66d9e65167d9cfb1e
-directory = frr-frr-10.5.4
+source_url = https://github.com/FRRouting/frr/archive/refs/tags/frr-10.5.5.tar.gz
+source_filename = frr-10.5.5.tar.gz
+source_hash = 1f9134e71d81a6ccde3c1575189d5797d793ffe00d1a5bc159991152cf995dad
+directory = frr-frr-10.5.5
 patch_directory = frr
 diff_files =
 	frr/10.5-zebra-route-IPv4-link-local-neighbor-updates-through.patch

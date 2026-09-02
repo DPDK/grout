@@ -3,6 +3,7 @@
 
 #include "log.h"
 #include "signals.h"
+#include "trace.h"
 
 #include <event2/event.h>
 
@@ -30,7 +31,34 @@ static struct event *ev_sigint;
 static struct event *ev_sigquit;
 static struct event *ev_sigterm;
 
+// Alternate stack for the crash handler so it keeps working even when the crash
+// was a stack overflow.
+static char crash_stack[256 * 1024];
+
+static void crash_handler(int sig) {
+	LOG(EMERG, "caught fatal signal SIG%s", sigabbrev_np(sig));
+	gr_trace_dump_crash();
+	// SA_RESETHAND already restored the default disposition, re-raise the signal
+	// to produce the standard core dump.
+	raise(sig);
+}
+
+static void register_crash_handler(void) {
+	stack_t ss = {.ss_sp = crash_stack, .ss_size = sizeof(crash_stack)};
+	struct sigaction sa = {.sa_handler = crash_handler};
+
+	if (sigaltstack(&ss, NULL) < 0)
+		LOG(ERR, "sigaltstack: %s", strerror(errno));
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESETHAND | SA_NODEFER | SA_ONSTACK;
+	if (sigaction(SIGSEGV, &sa, NULL) < 0 || sigaction(SIGABRT, &sa, NULL) < 0)
+		LOG(ERR, "sigaction: %s", strerror(errno));
+}
+
 int register_signals(struct event_base *base) {
+	register_crash_handler();
+
 	ev_sigint = evsignal_new(base, SIGINT, signal_cb, base);
 	if (ev_sigint == NULL || event_add(ev_sigint, NULL) < 0)
 		return errno_set(ENOMEM);

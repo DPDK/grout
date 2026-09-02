@@ -27,20 +27,20 @@ jobs:
         conf:
           - compiler: gcc-13
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             rebase: true
           - compiler: gcc-14
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             asan: true
             debug: true
           - compiler: gcc-14
-            frr: '10.5'
+            frr: '10.7'
             dpdk: '25.11'
             arch: aarch64
           - compiler: gcc-14
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
             adaptive_irq: true
           - compiler: gcc-14
             dpdk: '25.11'
@@ -50,11 +50,11 @@ jobs:
             frr: '10.7'
           - compiler: gcc-14
             dpdk: '25.11-head'
-            frr: '10.5'
+            frr: '10.7'
             allow_fail: true
           - compiler: gcc-14
             dpdk: 'main'
-            frr: '10.5'
+            frr: '10.7'
             allow_fail: true
           - compiler: gcc-14
             dpdk: '25.11'
@@ -62,10 +62,10 @@ jobs:
             allow_fail: true
           - compiler: clang-16
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
           - compiler: clang-18
             dpdk: '25.11'
-            frr: '10.5'
+            frr: '10.7'
     name: build-and-tests (${{ matrix.conf.arch || 'x86_64' }}, ${{ matrix.conf.compiler }}, DPDK ${{ matrix.conf.dpdk }}, FRR ${{ matrix.conf.frr }}${{ matrix.conf.adaptive_irq && ', adaptive-irq' || '' }})
     runs-on: ubuntu-24.04${{ matrix.conf.arch == 'aarch64' && '-arm' || '' }}
     continue-on-error: ${{ matrix.conf.allow_fail || false }}
@@ -101,7 +101,7 @@ jobs:
           sudo apt-get install -qy --no-install-recommends \
             libjson-c-dev libelf-dev libprotobuf-c-dev protobuf-c-compiler \
             libreadline-dev libcap-dev librtr-dev libyang2-dev libyang2-tools
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
@@ -109,7 +109,7 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: git fetch --force origin 'refs/tags/v*:refs/tags/v*'
       - run: echo "CCACHE_DIR=$(ccache -k cache_dir)" >> $GITHUB_ENV
-      - uses: actions/cache/restore@v5
+      - uses: actions/cache/restore@v6
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -140,7 +140,7 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-      - uses: actions/cache/save@v5
+      - uses: actions/cache/save@v6
         if: ${{ ! github.event.pull_request.commits }}
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -152,7 +152,7 @@ jobs:
     container: fedora:latest
     steps:
       - run: dnf install -y gawk make clang-tools-extra git jq curl codespell
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
@@ -172,7 +172,7 @@ jobs:
       REVISION_RANGE: "HEAD~${{ github.event.pull_request.commits }}.."
     steps:
       - run: dnf install -y make git jq curl codespell
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0 # force fetch all history
