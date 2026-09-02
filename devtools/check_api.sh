@@ -8,19 +8,32 @@ abidiff=abidiff
 output=.check_api.stamp
 src_dir=.
 cc_cmd=cc
-prev_revision=${PREV_REVISION:-HEAD^}
+base_revision=${BASE_REVISION:-}
 
-while getopts "d:o:c:p:s:" opt; do
+while getopts "b:d:o:c:s:" opt; do
 	case $opt in
+	b) base_revision="$OPTARG" ;;
 	d) abidiff="$OPTARG" ;;
 	o) output="$OPTARG" ;;
 	c) cc_cmd="$OPTARG" ;;
-	p) prev_revision="$OPTARG" ;;
 	s) src_dir="$OPTARG" ;;
 	*) echo "error: invalid arguments" >&2; exit 1 ;;
 	esac
 done
 shift $((OPTIND - 1))
+
+# The base is the commit this series forks from.
+if [ -z "$base_revision" ]; then
+	# A git rebase -x, as used by CI, already knows where the series starts.
+	onto=$(git -C "$src_dir" rev-parse --absolute-git-dir)/rebase-merge/onto
+	[ ! -f "$onto" ] || base_revision=$(cat "$onto")
+fi
+if [ -z "$base_revision" ]; then
+	# Otherwise rely on @{u}, like REVISION_RANGE in the GNUmakefile.
+	base_revision=$(git -C "$src_dir" merge-base HEAD "@{u}" 2>/dev/null) || true
+fi
+# Without a base, use the parent commit where nothing is exempt.
+[ -n "$base_revision" ] || base_revision=HEAD^
 
 dir=$(dirname "$output")
 
@@ -29,16 +42,33 @@ rm -rf "$dir/check_api"
 # Install current headers to a temp dir.
 install -m 644 -Dt "$dir/check_api/b" "$@"
 
-# Install API headers from the previous revision to another dir.
-mkdir -p "$dir/check_api/a"
-git -C "$src_dir" ls-tree -r --name-only "$prev_revision" | grep '/meson.build$' |
-while read -r meson_build; do
-	git show "$prev_revision:$meson_build" |
-	sed -zn 's#.*api_headers += files(\([^)]\+\)).*#\1 #p' |
-	sed -n "s#,##g; s#'\\([^']\\+\\)'#$(dirname $meson_build)/\\1#gp"
-done | tr ' ' '\n' | sort -u |
-xargs git -C "$src_dir" archive "$prev_revision" |
-tar -C "$dir/check_api/a" -x --transform='s|.*/||'
+# Install the API headers of a git revision into a directory.
+install_headers() {
+	local revision="$1" destdir="$2"
+
+	mkdir -p "$destdir"
+	git -C "$src_dir" ls-tree -r --name-only "$revision" | grep '/meson.build$' |
+	while read -r meson_build; do
+		git show "$revision:$meson_build" |
+		sed -zn 's#.*api_headers += files(\([^)]\+\)).*#\1 #p' |
+		sed -n "s#,##g; s#'\\([^']\\+\\)'#$(dirname $meson_build)/\\1#gp"
+	done | tr ' ' '\n' | sort -u |
+	xargs git -C "$src_dir" archive "$revision" |
+	tar -C "$destdir" -x --transform='s|.*/||'
+}
+
+# Install API headers from the parent commit to another dir.
+install_headers HEAD^ "$dir/check_api/a"
+
+# Same for the base, unless that is the parent commit. Kept out of
+# check_api/ since these headers are only listed, never compiled.
+base_headers=
+if [ "$(git -C "$src_dir" rev-parse "$base_revision")" != \
+	"$(git -C "$src_dir" rev-parse HEAD^)" ]
+then
+	base_headers=$dir/base_headers
+	install_headers "$base_revision" "$base_headers"
+fi
 
 # Exclude gr_api_client_impl.h which isn't a real API header.
 rm -f $dir/check_api/*/gr_api_client_impl.h
@@ -77,7 +107,7 @@ EOF
 done
 
 printf "Checking for API changes between %s and %s\n" \
-	$(git describe --long --abbrev=8 $prev_revision) \
+	$(git describe --long --abbrev=8 HEAD^) \
 	$(git describe --long --abbrev=8 --dirty)
 
 # Check for inline function body changes.
@@ -110,9 +140,25 @@ done < $dir/check_api/inline_funcs
 api_version_a=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/a/*.h)
 api_version_b=$(sed -nE 's/^#define GR_API_VERSION ([0-9]+).*/\1/p' $dir/check_api/b/*.h)
 
+# List the API types declared in a directory of headers.
+api_types() {
+	grep -hoE '^(struct|union|enum)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' "$1"/*.h |
+	awk '{print $2}' | sort -u
+}
+
+# Have abidiff filter out the types this series introduces.
+suppressions=
+if [ -n "$base_headers" ]; then
+	comm -13 <(api_types "$base_headers") <(api_types $dir/check_api/b) |
+	awk '{printf "[suppress_type]\n  name = %s\n", $1}' >$dir/check_api/suppress.ini
+	if [ -s $dir/check_api/suppress.ini ]; then
+		suppressions="--suppressions $dir/check_api/suppress.ini"
+	fi
+fi
+
 # The two lowest bits of the abidiff exit status report an abidiff failure.
 status=0
-$abidiff --non-reachable-types --drop-private-types --show-bytes \
+$abidiff --non-reachable-types --drop-private-types --show-bytes $suppressions \
 	--headers-dir1 $dir/check_api/a --headers-dir2 $dir/check_api/b \
 	$dir/check_api/a.bin $dir/check_api/b.bin >"$dir/abidiff.log" 2>&1 || status=$?
 
