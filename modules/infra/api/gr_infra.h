@@ -84,6 +84,7 @@ struct __gr_iface_base {
 	uint16_t vrf_id;
 	uint16_t domain_id; // Link domain interface ID (!GR_IFACE_MODE_VRF).
 	uint32_t speed; // Link speed in Megabit/sec.
+	uint32_t cp_id; // Linux control plane interface index.
 };
 
 // Complete interface structure including type-specific info.
@@ -246,13 +247,13 @@ enum gr_infra_requests : uint32_t {
 	GR_PACKET_TRACE_CLEAR,
 	GR_PACKET_TRACE_DUMP,
 	GR_PACKET_TRACE_SET,
-	GR_DIAGNOS_OBJ_DUMP,
 	GR_AFFINITY_CPU_GET,
 	GR_AFFINITY_CPU_SET,
 	GR_IFACE_MAC_ADD,
 	GR_IFACE_MAC_DEL,
 	GR_IFACE_MAC_LIST,
 	GR_IFACE_MAC_SET,
+	GR_DIAGNOS_OBJ_DUMP,
 };
 
 enum gr_infra_events : uint32_t {
@@ -492,7 +493,13 @@ struct gr_diagnos_obj_dump_req {
 	char name[GR_DIAGNOS_OBJ_DUMP_ID_SIZE]; // All if empty.
 };
 
-GR_REQ_STREAM(GR_DIAGNOS_OBJ_DUMP, struct gr_diagnos_obj_dump_req, struct gr_text);
+// Stream of unstructured text, not NUL-terminated.
+// This struct only serves for API type validation and compatibility.
+struct gr_diagnos_obj_dump_resp {
+	char text[0]; // Text format
+};
+
+GR_REQ_STREAM(GR_DIAGNOS_OBJ_DUMP, struct gr_diagnos_obj_dump_req, struct gr_diagnos_obj_dump_resp);
 
 // cpu affinities //////////////////////////////////////////////////////////////
 

@@ -36,50 +36,55 @@ typedef void (*dump_list_fn_t)(FILE *f);
 typedef void (*dump_fn_t)(FILE *f, void *obj);
 typedef void *(*lookup_fn_t)(const char *name);
 
-struct obj_dump_helper {
+static const struct obj_dump_helper {
 	char *type;
 	dump_list_fn_t dump_list_fn;
 	dump_fn_t dump_fn;
 	lookup_fn_t lookup_fn;
+	void *lookup_enoent;
 } obj_dump_helpers[] = {
 	// DPDK libs, in alphabetical order.
-	{"bus", rte_bus_dump, NULL, (lookup_fn_t)rte_bus_find_by_name},
-	{"graph", rte_graph_list_dump, (dump_fn_t)graph_dump, (lookup_fn_t)rte_graph_lookup},
-	{"lcore", rte_lcore_dump, NULL, NULL},
-	{"log", rte_log_dump, NULL, NULL},
-	{"malloc_heaps", rte_malloc_dump_heaps, NULL, NULL},
-	{"malloc_stats", malloc_dump_stats, NULL, NULL},
-	{"mbuf_dyn", rte_mbuf_dyn_dump, NULL, NULL},
+	{"bus", rte_bus_dump, NULL, (lookup_fn_t)rte_bus_find_by_name, NULL},
+	{"graph", rte_graph_list_dump, (dump_fn_t)graph_dump, (lookup_fn_t)rte_graph_lookup, NULL},
+	{"lcore", rte_lcore_dump, NULL, NULL, NULL},
+	{"log", rte_log_dump, NULL, NULL, NULL},
+	{"malloc_heaps", rte_malloc_dump_heaps, NULL, NULL, NULL},
+	{"malloc_stats", malloc_dump_stats, NULL, NULL, NULL},
+	{"mbuf_dyn", rte_mbuf_dyn_dump, NULL, NULL, NULL},
 	{"mempool",
 	 rte_mempool_list_dump,
 	 (dump_fn_t)rte_mempool_dump,
-	 (lookup_fn_t)rte_mempool_lookup},
-	{"memzone", rte_memzone_dump, NULL, NULL},
-	{"node", rte_node_list_dump, (dump_fn_t)node_dump, (lookup_fn_t)rte_node_from_name},
-	{"pci", rte_pci_dump, NULL, NULL},
-	{"physmem_layout", rte_dump_physmem_layout, NULL, NULL},
-	{"ring", rte_ring_list_dump, (dump_fn_t)rte_ring_dump, (lookup_fn_t)rte_ring_lookup},
-	{"tailq", rte_dump_tailq, NULL, NULL},
-	{"trace", rte_trace_dump, NULL, NULL},
-	{NULL, NULL, NULL, NULL}
+	 (lookup_fn_t)rte_mempool_lookup,
+	 NULL},
+	{"memzone", rte_memzone_dump, NULL, NULL, NULL},
+	{"node",
+	 rte_node_list_dump,
+	 (dump_fn_t)node_dump,
+	 (lookup_fn_t)rte_node_from_name,
+	 (void *)(uintptr_t)RTE_NODE_ID_INVALID},
+	{"pci", rte_pci_dump, NULL, NULL, NULL},
+	{"physmem_layout", rte_dump_physmem_layout, NULL, NULL, NULL},
+	{"ring", rte_ring_list_dump, (dump_fn_t)rte_ring_dump, (lookup_fn_t)rte_ring_lookup, NULL},
+	{"tailq", rte_dump_tailq, NULL, NULL, NULL},
+	{"trace", rte_trace_dump, NULL, NULL, NULL},
+	{NULL, NULL, NULL, NULL, NULL},
 };
 
 
 static struct api_out obj_dump(const void *request, struct api_ctx *ctx) {
 	const struct gr_diagnos_obj_dump_req *req = request;
-	struct gr_text *resp;
-	struct obj_dump_helper *helper;
+	const struct obj_dump_helper *helper;
 	void *obj = NULL;
 	char *buf = NULL;
-	size_t len = 0, pos;
+	size_t len = 0, pos, payload_len;
 	FILE *f;
 
-	if (strlen(req->type) == 0)
+	if (*req->type == 0)
 		return api_out(EINVAL, 0, NULL);
 
 	// Lookup object type.
 	for (helper = obj_dump_helpers; helper->type != NULL; helper++)
-		if (strcmp(req->type, helper->type) == 0)
+		if (strncmp(helper->type, req->type, sizeof(req->type)) == 0)
 			break;
 	if (helper->type == NULL)
 		return api_out(EINVAL, 0, NULL); // Object type not supported.
@@ -88,12 +93,11 @@ static struct api_out obj_dump(const void *request, struct api_ctx *ctx) {
 	if (*req->name != 0) {
 		if (helper->lookup_fn == NULL || helper->dump_fn == NULL)
 			return api_out(EINVAL, 0, NULL); // Name lookup/dump not supported.
-		if ((obj = helper->lookup_fn(req->name)) == NULL)
+		if ((obj = helper->lookup_fn(req->name)) == helper->lookup_enoent)
 			return api_out(ENOENT, 0, NULL); // Not found.
 	}
 
-	if ((resp = malloc(GR_API_MAX_MSG_LEN)) == NULL)
-		return api_out(ENOMEM, 0, NULL);
+	static_assert(sizeof(struct gr_diagnos_obj_dump_resp) == 0);
 
 	f = open_memstream(&buf, &len);
 	if (obj != NULL)
@@ -102,14 +106,12 @@ static struct api_out obj_dump(const void *request, struct api_ctx *ctx) {
 		helper->dump_list_fn(f);
 	fclose(f);
 
-	for (pos = 0; pos < len; pos += resp->len) {
-		resp->len = RTE_MIN(GR_API_MAX_MSG_LEN - sizeof(*resp), len - pos);
-		memcpy(resp->text, buf + pos, resp->len);
-		api_send(ctx, sizeof(*resp) + resp->len, resp);
+	for (pos = 0; pos < len; pos += payload_len) {
+		payload_len = RTE_MIN(GR_API_MAX_MSG_LEN, len - pos);
+		api_send(ctx, payload_len, buf);
 	}
 
 	free(buf);
-	free(resp);
 
 	return api_out(0, 0, NULL);
 }

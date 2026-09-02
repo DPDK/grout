@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 static cmd_status_t obj_dump(struct gr_api_client *c, const struct ec_pnode *p) {
-	const struct gr_text *resp = NULL;
+	const struct gr_diagnos_obj_dump_resp *resp = NULL;
 	struct gr_diagnos_obj_dump_req req;
 	const char *type = NULL;
 	const char *name = NULL;
@@ -26,8 +26,11 @@ static cmd_status_t obj_dump(struct gr_api_client *c, const struct ec_pnode *p) 
 	    && strlcpy(req.name, name, sizeof(req.name)) >= sizeof(req.name))
 		return CMD_ERROR;
 
-	gr_api_client_stream_foreach(resp, ret, c, GR_DIAGNOS_OBJ_DUMP, sizeof(req), &req)
-		fwrite(resp->text, 1, resp->len, stdout);
+	static_assert(sizeof(struct gr_diagnos_obj_dump_resp) == 0);
+
+	gr_api_client_stream_foreach(resp, ret, c, GR_DIAGNOS_OBJ_DUMP, sizeof(req), &req) {
+		fwrite(resp->text, 1, ret, stdout);
+	}
 
 	if (ret < 0)
 		return CMD_ERROR;
