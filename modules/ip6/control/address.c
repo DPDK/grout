@@ -103,14 +103,6 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 
 	LOG(INFO, "%s: joining multicast group " IP6_F, iface->name, ip);
 
-	vec_foreach (nh, maddrs->nh) {
-		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		if (rte_ipv6_addr_eq(&l3->ipv6, ip)) {
-			nexthop_incref(nh);
-			return errno_set(EEXIST);
-		}
-	}
-
 	if ((nh = nh6_lookup(iface->vrf_id, GR_IFACE_ID_UNDEF, ip)) == NULL) {
 		struct gr_nexthop_base base = {
 			.type = GR_NH_T_L3,
