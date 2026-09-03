@@ -3,6 +3,7 @@
 
 src += files(
   'affinity.c',
+  'diagnos.c',
   'iface.c',
   'nexthop.c',
   'stats.c',
