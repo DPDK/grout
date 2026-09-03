@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
+// Copyright (c) 2026 SmartShare Systems
 
 // This file must be included in *one* of your client application files.
 
@@ -24,12 +25,29 @@ struct api_message {
 	STAILQ_ENTRY(api_message) next;
 };
 
-static STAILQ_HEAD(, api_message) messages = STAILQ_HEAD_INITIALIZER(messages);
+static STAILQ_HEAD(message_registry, api_message) message_registry[256];
+
+static void message_registry_lazy_init(void) {
+	static bool initialized = false;
+
+	if (initialized)
+		return;
+	for (unsigned int i = 0; i < 256; i++) {
+		struct message_registry *mr = &message_registry[i];
+		*mr = (struct message_registry)STAILQ_HEAD_INITIALIZER(*mr);
+	}
+	initialized = true;
+}
+
+static inline __attribute__((const)) uint8_t message_type_hash(uint32_t type) {
+	return (type >> 24) ^ ((type >> 16) & 0xff) ^ ((type >> 8) & 0xff) ^ (type & 0xff);
+}
 
 static const struct api_message *get_message(uint32_t type) {
+	struct message_registry *mr = &message_registry[message_type_hash(type)];
 	struct api_message *m;
 
-	STAILQ_FOREACH (m, &messages, next) {
+	STAILQ_FOREACH (m, mr, next) {
 		if (m->type == type)
 			return m;
 	}
@@ -39,6 +57,9 @@ static const struct api_message *get_message(uint32_t type) {
 }
 
 static void register_message(struct api_message *m) {
+	message_registry_lazy_init();
+
+	struct message_registry *mr = &message_registry[message_type_hash(m->type)];
 	const struct api_message *existing = get_message(m->type);
 
 	if (existing != NULL) {
@@ -49,7 +70,7 @@ static void register_message(struct api_message *m) {
 			existing->name);
 		abort();
 	}
-	STAILQ_INSERT_TAIL(&messages, m, next);
+	STAILQ_INSERT_TAIL(mr, m, next);
 }
 
 #define GR_REQ(r, req, resp)                                                                       \
