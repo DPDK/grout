@@ -55,8 +55,11 @@ static inline bool gr_mbuf_is_traced(struct rte_mbuf *m) {
 // If the mbuf didn't contain any traces, store it as the first one and record
 // the current time into it.
 //
-// This cannot fail. If there are no free trace items available, the trace
-// buffer will be emptied starting from the oldest until one can be returned.
+// This cannot fail. If there are no free trace items available, completed
+// traces are recycled starting from the oldest. When every item is attached
+// to an in-flight packet, tracing for this mbuf is abandoned: its trace chain
+// is freed and a thread-local scratch buffer is returned so that callers can
+// write to it without checking for NULL (the data written there is discarded).
 //
 // Returns a pointer to a gr_trace_item.data buffer.
 void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_len);
@@ -65,6 +68,9 @@ void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_l
 //
 // This creates a deep copy of the entire trace chain, preserving timestamps,
 // node IDs, and trace data. Used when cloning packets to maintain trace history.
+//
+// If the trace pool is exhausted and no completed trace can be recycled, the
+// copy is abandoned: dst ends up with no traces and src is left unchanged.
 void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src);
 
 // Detach the trace items from an mbuf and store them in the trace buffer.
