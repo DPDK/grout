@@ -244,8 +244,11 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 	}
 
 	ret = rib6_insert(iface->vrf_id, iface->id, ip, prefixlen, GR_NH_ORIGIN_LINK, nh);
-	if (ret < 0)
+	if (ret < 0) {
+		mcast6_addr_del(iface, &solicited_node);
+		nexthop_decref(nh);
 		return errno_set(-ret);
+	}
 
 	if (iface->cp_id != 0 && netlink_add_addr6(iface->cp_id, ip) < 0)
 		LOG(WARNING, "add addr " IP6_F " on linux has failed (%s)", ip, strerror(errno));
