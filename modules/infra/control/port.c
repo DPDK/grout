@@ -23,6 +23,7 @@
 #include <rte_build_config.h>
 #include <rte_common.h>
 #include <rte_dev.h>
+#include <rte_eth_vhost.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 
@@ -648,6 +649,7 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	port->port_id = port_id;
 	if (rte_eth_dev_info_get(port_id, &info) < 0)
 		return errno_set(-ret);
+	port->dynamic_queue_state = strcmp(info.driver_name, "net_vhost") == 0;
 	port->virtio_offloads = strcmp(info.driver_name, "net_virtio") == 0
 		&& (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) != 0;
 
@@ -859,6 +861,7 @@ out:
 }
 
 static struct event *link_event;
+static void queue_state_reset(uint16_t port_id);
 
 static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	unsigned max_sleep_us, rx_buffer_us;
@@ -929,11 +932,17 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 }
 
 static int lsc_port_cb(
-	uint16_t /*port_id*/,
+	uint16_t port_id,
 	enum rte_eth_event_type,
 	void * /*cb_arg*/,
 	void * /*ret_param*/
 ) {
+	struct rte_eth_link link;
+
+	// net_vhost does not emit queue-disable events when its client disconnects.
+	if (rte_eth_link_get_nowait(port_id, &link) == 0 && link.link_status == RTE_ETH_LINK_DOWN)
+		queue_state_reset(port_id);
+
 	// This callback may be executed from any dataplane or DPDK thread.
 	// In order to serialize the update of port status, propagate the callback
 	// event to the event loop running in the main lcore.
@@ -944,6 +953,132 @@ static int lsc_port_cb(
 static struct event *reset_event;
 static vec uint16_t *reset_ports;
 static pthread_mutex_t reset_ports_lock = PTHREAD_MUTEX_INITIALIZER;
+
+struct queue_state_change {
+	uint16_t port_id;
+	uint16_t queue_id;
+	bool rx;
+	bool enable;
+	bool reset;
+};
+
+static struct event *queue_state_event;
+static vec struct queue_state_change *queue_state_changes;
+static pthread_mutex_t queue_state_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void queue_state_reset(uint16_t port_id) {
+	struct queue_state_change change = {
+		.port_id = port_id,
+		.reset = true,
+	};
+
+	pthread_mutex_lock(&queue_state_lock);
+	vec_add(queue_state_changes, change);
+	pthread_mutex_unlock(&queue_state_lock);
+	event_active(queue_state_event, 0, 0);
+}
+
+static int queue_state_intr_cb(
+	uint16_t port_id,
+	enum rte_eth_event_type,
+	void * /*cb_arg*/,
+	void * /*ret_param*/
+) {
+	struct rte_eth_vhost_queue_event event;
+	bool changed = false;
+
+	// event.rx is from the ethdev point of view: an ethdev RX queue drains the
+	// guest's TX virtqueue and an ethdev TX queue fills the guest's RX virtqueue.
+	while (rte_eth_vhost_get_queue_event(port_id, &event) == 0) {
+		struct queue_state_change change = {
+			.port_id = port_id,
+			.queue_id = event.queue_id,
+			.rx = event.rx,
+			.enable = event.enable,
+		};
+		pthread_mutex_lock(&queue_state_lock);
+		vec_add(queue_state_changes, change);
+		pthread_mutex_unlock(&queue_state_lock);
+		changed = true;
+	}
+
+	// Queue callbacks run on DPDK threads. Rebuild graphs on the main lcore.
+	if (changed)
+		event_active(queue_state_event, 0, 0);
+
+	return 0;
+}
+
+// Clear the recorded state of every queue. Only the configured ones affect
+// the worker graphs, so only they count as a change.
+static bool queue_state_clear(bool *enabled, uint16_t n_queues) {
+	bool changed = false;
+
+	for (uint16_t queue_id = 0; queue_id < n_queues; queue_id++)
+		changed |= enabled[queue_id];
+	memset(enabled, 0, RTE_MAX_QUEUES_PER_PORT * sizeof(*enabled));
+
+	return changed;
+}
+
+static void queue_state_event_cb(evutil_socket_t, short, void * /*priv*/) {
+	vec struct queue_state_change *changes;
+	bool changed = false;
+
+	pthread_mutex_lock(&queue_state_lock);
+	changes = queue_state_changes;
+	queue_state_changes = NULL;
+	pthread_mutex_unlock(&queue_state_lock);
+
+	vec_foreach_ref (struct queue_state_change *change, changes) {
+		const struct iface *iface = port_get_iface(change->port_id);
+		struct iface_info_port *port;
+		uint16_t n_queues;
+		bool *enabled;
+
+		if (iface == NULL)
+			continue;
+		port = iface_info_port(iface);
+		if (!port->dynamic_queue_state)
+			continue;
+		if (change->reset) {
+			bool rx_changed = queue_state_clear(port->rxq_enabled, port->n_rxq);
+			bool tx_changed = queue_state_clear(port->txq_enabled, port->n_txq);
+			if (rx_changed || tx_changed) {
+				changed = true;
+				LOG(INFO, "%s: reset vhost queue state", iface->name);
+			}
+			continue;
+		}
+		if (change->rx) {
+			enabled = port->rxq_enabled;
+			n_queues = port->n_rxq;
+		} else {
+			enabled = port->txq_enabled;
+			n_queues = port->n_txq;
+		}
+		if (change->queue_id >= RTE_MAX_QUEUES_PER_PORT)
+			continue;
+		if (enabled[change->queue_id] == change->enable)
+			continue;
+
+		// net_vhost does not replay queue state after a reconfiguration, so
+		// queues beyond the configured count are recorded for later use.
+		enabled[change->queue_id] = change->enable;
+		if (change->queue_id < n_queues)
+			changed = true;
+		LOG(INFO,
+		    "%s: vhost %s queue %u %s",
+		    iface->name,
+		    change->rx ? "RX" : "TX",
+		    change->queue_id,
+		    change->enable ? "enabled" : "disabled");
+	}
+	vec_free(changes);
+
+	if (changed && worker_queue_refresh() < 0)
+		LOG(ERR, "worker_queue_refresh: %s", strerror(errno));
+}
 
 static int intr_reset_cb(
 	uint16_t port_id,
@@ -995,6 +1130,16 @@ static void port_init(struct event_base *base) {
 	struct timeval tv = {.tv_sec = 1};
 	if (event_add(link_event, &tv) < 0)
 		ABORT("event_add() failed");
+
+	// net_vhost exposes configured queues before every guest vring is active.
+	queue_state_event = event_new(
+		base, -1, EV_PERSIST | EV_FINALIZE, queue_state_event_cb, NULL
+	);
+	if (queue_state_event == NULL)
+		ABORT("event_new() failed");
+	rte_eth_dev_callback_register(
+		RTE_ETH_ALL, RTE_ETH_EVENT_QUEUE_STATE, queue_state_intr_cb, NULL
+	);
 	rte_eth_dev_callback_register(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
 
 	// register an interrupt callback for port hardware reset events
@@ -1008,6 +1153,14 @@ static void port_fini(struct event_base *) {
 	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_LSC, lsc_port_cb, NULL);
 	event_free(link_event);
 	link_event = NULL;
+	rte_eth_dev_callback_unregister(
+		RTE_ETH_ALL, RTE_ETH_EVENT_QUEUE_STATE, queue_state_intr_cb, NULL
+	);
+	event_free(queue_state_event);
+	queue_state_event = NULL;
+	pthread_mutex_lock(&queue_state_lock);
+	vec_free(queue_state_changes);
+	pthread_mutex_unlock(&queue_state_lock);
 	rte_eth_dev_callback_unregister(RTE_ETH_ALL, RTE_ETH_EVENT_INTR_RESET, intr_reset_cb, NULL);
 	event_free(reset_event);
 	reset_event = NULL;
