@@ -21,39 +21,50 @@ struct api_message {
 	const char *name;
 	size_t payload_min_size;
 	bool stream;
-	STAILQ_ENTRY(api_message) next;
 };
 
-static STAILQ_HEAD(, api_message) messages = STAILQ_HEAD_INITIALIZER(messages);
+struct api_module {
+	const struct api_message *messages[1 << 16];
+};
+
+static struct api_module *modules[1 << 16];
 
 static const struct api_message *get_message(uint32_t type) {
-	struct api_message *m;
+	uint16_t mod = (type >> 16) & 0xffff;
+	uint16_t msg = type & 0xffff;
 
-	STAILQ_FOREACH (m, &messages, next) {
-		if (m->type == type)
-			return m;
-	}
+	if (modules[mod] != NULL && modules[mod]->messages[msg] != NULL)
+		return modules[mod]->messages[msg];
 
 	errno = EIDRM;
 	return NULL;
 }
 
-static void register_message(struct api_message *m) {
+static void register_message(const struct api_message *m) {
 	const struct api_message *existing = get_message(m->type);
+	uint16_t mod = (m->type >> 16) & 0xffff;
+	uint16_t msg = m->type & 0xffff;
 
 	if (existing != NULL) {
 		fprintf(stderr,
-			"fatal: message %s has duplicate type id %#08x with message %s",
+			"fatal: message %s has duplicate type id %#08x with message %s\n",
 			m->name,
 			m->type,
 			existing->name);
 		abort();
 	}
-	STAILQ_INSERT_TAIL(&messages, m, next);
+	if (modules[mod] == NULL) {
+		modules[mod] = calloc(1, sizeof(*modules[mod]));
+		if (modules[mod] == NULL) {
+			fprintf(stderr, "fatal: cannot allocate memory\n");
+			abort();
+		}
+	}
+	modules[mod]->messages[msg] = m;
 }
 
 #define GR_REQ(r, req, resp)                                                                       \
-	static struct api_message r##_msg = {                                                      \
+	static const struct api_message r##_msg = {                                                \
 		.type = r,                                                                         \
 		.name = #r,                                                                        \
 		.payload_min_size = sizeof(resp),                                                  \
@@ -63,7 +74,7 @@ static void register_message(struct api_message *m) {
 	}
 
 #define GR_REQ_STREAM(r, req, resp)                                                                \
-	static struct api_message r##_msg = {                                                      \
+	static const struct api_message r##_msg = {                                                \
 		.type = r,                                                                         \
 		.name = #r,                                                                        \
 		.payload_min_size = sizeof(resp),                                                  \
