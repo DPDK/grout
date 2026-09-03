@@ -94,6 +94,32 @@ static void exhausted_pool_recycles_completed_traces(void **) {
 	assert_int_equal(rte_mempool_avail_count(trace_pool), 0);
 }
 
+// The abandon path is also reachable from gr_mbuf_trace_copy() via
+// gr_mbuf_copy(): when the pool runs out mid-copy and nothing can be
+// recycled, the partial copy must be freed and the source chain left intact.
+static void exhausted_pool_abandons_trace_copy(void **) {
+	struct gr_trace_item *trace;
+	struct test_mbuf copy;
+	unsigned count;
+
+	STAILQ_INIT(gr_mbuf_traces(&pkt.m));
+	for (unsigned i = 0; i < TRACE_TEST_POOL_SIZE - 2; i++)
+		assert_non_null(gr_mbuf_trace_add(&pkt.m, &fake_node, 0));
+
+	// Two free items remain: the copy exhausts the pool mid-chain.
+	gr_mbuf_trace_copy(&copy.m, &pkt.m);
+
+	// The partial copy was abandoned and its items returned to the pool.
+	assert_true(STAILQ_EMPTY(gr_mbuf_traces(&copy.m)));
+	assert_int_equal(rte_mempool_avail_count(trace_pool), 2);
+
+	// The source chain was not touched.
+	count = 0;
+	STAILQ_FOREACH (trace, gr_mbuf_traces(&pkt.m), next)
+		count++;
+	assert_int_equal(count, TRACE_TEST_POOL_SIZE - 2);
+}
+
 int main(void) {
 	char arg0[] = "trace_test";
 	char arg1[] = "--no-huge";
@@ -110,6 +136,9 @@ int main(void) {
 		cmocka_unit_test_setup_teardown(exhausted_pool_does_not_deadlock, setup, teardown),
 		cmocka_unit_test_setup_teardown(
 			exhausted_pool_recycles_completed_traces, setup, teardown
+		),
+		cmocka_unit_test_setup_teardown(
+			exhausted_pool_abandons_trace_copy, setup, teardown
 		),
 	};
 
