@@ -128,22 +128,36 @@ assert_nexthop "$nh_id" '.behavior == "end.x"' || {
 	fail "No SRv6-local END.X nexthops found - ISIS SRv6 integration failed"
 }
 
+case "$frr_version" in
+10.5.*|10.6.*|10.7.*)
+	csid_bits=16
+	# 5f00:100:0:1:: shifts to 5f00:100:1::
+	shifted_dst=5f00:100:1::
+	;;
+*)
+	csid_bits=32
+	# the last CSID is consumed, only the block remains
+	shifted_dst=5f00:100::
+	;;
+esac
+
 # behavior usid on the locator makes this a uA, not a plain End.X. The
 # shift parameters come from the locator block and node lengths.
 assert_nexthop "$nh_id" '.flavor | contains(["next-csid"])'
-assert_nexthop "$nh_id" '.block_bits == 32 and .csid_bits == 16'
+assert_nexthop "$nh_id" ".block_bits == 32 and .csid_bits == $csid_bits"
 
 # The locator uses uSID, so the adjacency SID is a uA: grout consumes the
 # active CSID and hands the packet to the peer over the adjacency instead
-# of looking the result up. 5f00:100:0:1:: shifts to 5f00:100:1::, which
-# no route covers, so the packet only comes back out if the L3 nexthop is
-# really used.
+# of looking the result up. The consumed CSID width depends on csid_bits,
+# so the shifted destination differs between FRR versions. Either way it
+# is distinct from the ping destination, so the packet only reaches the peer
+# if the L3 nexthop is really used.
 ip -n isis-peer -6 route add 5f00:100::/48 via 2001:db8:1::1 dev x-p0
 
 # Start the capture before the traffic. ping6 -i0.2 -c5 is done emitting after
 # 0.8s, which tcpdump may not beat to opening its capture.
 capture=$(mktemp)
-ip netns exec isis-peer timeout 5 tcpdump -c1 -pnnli x-p0 ip6 dst 5f00:100:1:: >"$capture" 2>&1 &
+ip netns exec isis-peer timeout 5 tcpdump -c1 -pnnli x-p0 ip6 dst "$shifted_dst" >"$capture" 2>&1 &
 tcpdump_pid=$!
 for _ in $(seq 50); do
 	if grep -q "listening on" "$capture"; then

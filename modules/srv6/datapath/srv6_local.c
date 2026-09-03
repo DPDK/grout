@@ -377,7 +377,16 @@ static int process_behav_end(
 
 		if (csid_shift(&ip6->dst_addr, sr_d->block_bits, sr_d->csid_bits))
 			goto forward;
-		// container exhausted, fall through to standard End
+		// Container exhausted: this was the last CSID. A uA (End.X) is a
+		// cross-connect, it must still hand the packet to its L3 adjacency.
+		// Consume the last CSID, leaving the bare locator block, then
+		// forward. A uN (End) falls through to standard End processing.
+		if (sr_d->behavior == SR_BEHAVIOR_END_X) {
+			memset(&ip6->dst_addr.a[sr_d->block_bits / CHAR_BIT],
+			       0,
+			       sr_d->csid_bits / CHAR_BIT);
+			goto forward;
+		}
 	}
 
 	// at the end of the tunnel
@@ -918,6 +927,41 @@ static void srv6_end_x_next_csid(void **) {
 	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
 }
 
+// uA as the last CSID: the container is exhausted but End.X still crosses the
+// adjacency. The consumed CSID is zeroed, leaving the bare locator block.
+static void srv6_end_x_next_csid_last(void **) {
+	struct nexthop l3_nh = {0};
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {
+			.behavior = SR_BEHAVIOR_END_X,
+			.out_vrf_id = GR_VRF_ID_UNDEF,
+			.flags = GR_SR_FL_FLAVOR_NEXT_CSID,
+			.block_bits = 32,
+			// node + function: consumes the whole 32 bit CSID
+			.csid_bits = 32,
+		},
+		.l3_nh = &l3_nh,
+	};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	fm.ip6.dst_addr = CSID_CONTAINER;
+
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_FORWARD);
+	assert_ptr_equal(l3_mbuf_data(&fm.mbuf)->nh, &l3_nh);
+	// the last CSID is consumed, only the 32 bit locator block remains
+	assert_int_equal(fm.ip6.dst_addr.a[0], 0x5f);
+	assert_int_equal(fm.ip6.dst_addr.a[1], 0x00);
+	assert_int_equal(fm.ip6.dst_addr.a[2], 0x01);
+	assert_int_equal(fm.ip6.dst_addr.a[3], 0x02);
+	assert_int_equal(fm.ip6.dst_addr.a[4], 0x00);
+	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
+	assert_int_equal(fm.ip6.dst_addr.a[6], 0x00);
+	assert_int_equal(fm.ip6.dst_addr.a[7], 0x00);
+}
+
 // ---- runner -----------------------------------------------------------------
 int main(void) {
 	const struct CMUnitTest tests[] = {
@@ -932,6 +976,7 @@ int main(void) {
 		cmocka_unit_test(srv6_end_x_usd_no_inner),
 		cmocka_unit_test(srv6_end_next_csid),
 		cmocka_unit_test(srv6_end_x_next_csid),
+		cmocka_unit_test(srv6_end_x_next_csid_last),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
