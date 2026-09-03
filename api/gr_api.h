@@ -57,14 +57,14 @@ gr_api_client_send(struct gr_api_client *, uint32_t req_type, size_t tx_len, con
 
 // Receive an API response with minimum payload size validation.
 // Caller must free(*rx_data) after use.
-// Returns 0 on success, negative errno on failure.
+// Returns response payload size on success, negative errno on failure.
 // Returns -EMSGSIZE if payload is non-empty but smaller than min_resp_size.
 int gr_api_client_recv(struct gr_api_client *, uint32_t req_type, uint32_t for_id, void **rx_data);
 
 // Send a request and receive the response.
 // Validates response payload size against GR_REQ-declared type.
 // Caller must free(*rx_data) after use.
-// Returns 0 on success, negative errno on failure.
+// Returns response payload size on success, negative errno on failure.
 static inline int gr_api_client_send_recv(
 	struct gr_api_client *client,
 	uint32_t req_type,
@@ -84,7 +84,7 @@ int __gr_api_client_stream_drain(struct gr_api_client *, uint32_t req_type, uint
 // Send a request and iterate over the received stream of responses.
 //
 // @param obj Iterator variable (const pointer to response object type).
-// @param ret Final return code of the operation.
+// @param ret Final return code of the operation. (Inside the loop: Response payload size.)
 // @param client API client handle.
 // @param req_type Request type code.
 // @param tx_len Request payload size (0 if tx_data is NULL).
@@ -241,5 +241,5 @@ struct gr_api_event {
 
 // Receive an event notification.
 // Caller must free(*event) after use.
-// Returns 0 on success, negative errno on failure.
+// Returns event size (incl. gr_api_event) on success, negative errno on failure.
 int gr_api_client_event_recv(const struct gr_api_client *, struct gr_api_event **);

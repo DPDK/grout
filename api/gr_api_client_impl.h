@@ -310,7 +310,7 @@ out:
 		*rx_data = payload;
 	}
 
-	return 0;
+	return resp.payload_len;
 err:
 	free(payload);
 	return -errno;
@@ -336,14 +336,12 @@ int gr_api_client_event_recv(const struct gr_api_client *c, struct gr_api_event 
 		errno = EMSGSIZE;
 		goto err;
 	}
-	if (header.payload_len > 0) {
-		if ((*event = malloc(sizeof(header) + header.payload_len)) == NULL)
-			goto err;
-		**event = header;
-		if (recv_all(c, PAYLOAD(*event), header.payload_len) != (int)header.payload_len)
-			goto err;
-	}
-	return 0;
+	if ((*event = malloc(sizeof(header) + header.payload_len)) == NULL)
+		goto err;
+	**event = header;
+	if (recv_all(c, PAYLOAD(*event), header.payload_len) != (int)header.payload_len)
+		goto err;
+	return sizeof(header) + header.payload_len;
 
 err:
 	free(*event);
