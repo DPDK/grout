@@ -52,7 +52,7 @@ int icmp_local_send(
 	}
 
 	iface = iface_from_id(gw->iface_id);
-	if (iface == NULL)
+	if (iface == NULL || iface->pool == NULL)
 		return errno_set(ENODEV);
 
 	m = rte_pktmbuf_alloc(iface->pool);
