@@ -323,6 +323,9 @@ static void iface_up_cb(uint32_t event, const void *obj) {
 		// fallthrough
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		vec_foreach (struct nexthop *nh, ifaddrs->nh) {
+			struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (iface_get_eth_addr(iface, &l3->mac) == 0)
+				event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 			if (arp_output_request_solicit(nh) < 0)
 				LOG(WARNING, "garp_output: %s", strerror(errno));
 		}

@@ -518,6 +518,9 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
 		vec_foreach (nh, addrs->nh) {
+			struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (iface_get_eth_addr(iface, &l3->mac) == 0)
+				event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 			if (nh6_advertise(nh, NULL) < 0)
 				LOG(WARNING, "nh6_advertise: %s", strerror(errno));
 		}
