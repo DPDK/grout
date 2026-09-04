@@ -40,22 +40,36 @@ int icmp6_local_send(
 ) {
 	struct icmp6_send_mbuf_data *d;
 	const struct nexthop *local;
-	struct iface *iface;
+	struct iface *iface, *out, *pool_iface;
 	struct rte_mbuf *m;
 	int ret;
 
-	// FIXME
-	if (gw->type != GR_NH_T_L3)
+	// Only these nexthop types have an output path. The others, DNAT in
+	// particular, are registered on ip_input and never carry a locally
+	// generated packet.
+	if (gw->type != GR_NH_T_L3 && gw->type != GR_NH_T_SR6_OUTPUT)
 		return errno_set(ENONET);
 
-	if ((local = addr6_get_preferred(gw->iface_id, dst)) == NULL)
+	out = iface_from_id(gw->iface_id);
+	local = NULL;
+	if (out != NULL && out->vrf_id == gw->vrf_id)
+		local = addr6_get_preferred(gw->iface_id, dst);
+	if (local == NULL)
+		local = addr6_get_preferred_vrf(gw->vrf_id, dst);
+	if (local == NULL)
 		return -errno;
 
-	iface = iface_from_id(gw->iface_id);
-	if (iface == NULL || iface->pool == NULL)
+	iface = iface_from_id(local->iface_id);
+	if (iface == NULL)
 		return errno_set(ENODEV);
 
-	m = rte_pktmbuf_alloc(iface->pool);
+	// Only the interfaces packets originate from have a mempool. The source
+	// address may live on one which has none, fall back to the VRF loopback.
+	pool_iface = iface->pool != NULL ? iface : get_vrf_iface(gw->vrf_id);
+	if (pool_iface == NULL || pool_iface->pool == NULL)
+		return errno_set(ENODEV);
+
+	m = rte_pktmbuf_alloc(pool_iface->pool);
 	if (m == NULL)
 		return errno_set(ENOMEM);
 

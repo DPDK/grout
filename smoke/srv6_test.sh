@@ -60,6 +60,7 @@ grcli route add fd00:202:100::/48 via id 666
 
 # test
 ip netns exec n0 ping -i0.01 -c3 -n 192.168.60.1
+grcli ping 192.168.60.1 count 3 || fail "grcli ping through an SRv6 nexthop failed"
 # check that sid is reachable
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:202:100::
 
@@ -135,6 +136,7 @@ ip -n n1 -6 route add fd00:202::/32 via fd00:102::1 dev x-p1 table 10
 
 # test
 ip netns exec n0 ping6 -i0.01 -c3 -n fd00:60::1
+grcli ping fd00:60::1 count 3 || fail "grcli ping through an SRv6 nexthop failed (IPv6)"
 
 #
 # Multi-segment encapsulation test
