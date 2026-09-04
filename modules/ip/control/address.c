@@ -57,6 +57,34 @@ static struct nexthop *addr4_get_preferred_iface(uint16_t iface_id, ip4_addr_t d
 	return addrs->nh[0];
 }
 
+struct nexthop *addr4_get_preferred_vrf(uint16_t vrf_id, ip4_addr_t dst) {
+	const struct iface *iface = NULL;
+	struct nexthop *pref = NULL, *nh;
+	struct iface *vrf_iface;
+
+	vrf_iface = get_vrf_iface(vrf_id);
+	if (vrf_iface == NULL)
+		return NULL;
+
+	if ((nh = addr4_get_preferred_iface(vrf_iface->id, dst)) != NULL)
+		return nh;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
+		if (iface->vrf_id != vrf_id || iface->id == vrf_iface->id)
+			continue;
+		if ((nh = addr4_get_preferred_iface(iface->id, dst)) == NULL)
+			continue;
+		if (ip4_addr_same_subnet(
+			    dst, nexthop_info_l3(nh)->ipv4, nexthop_info_l3(nh)->prefixlen
+		    ))
+			return nh;
+		if (pref == NULL)
+			pref = nh;
+	}
+
+	return pref != NULL ? pref : errno_set_null(EADDRNOTAVAIL);
+}
+
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst) {
 	const struct iface *iface;
 	struct iface *vrf_iface;

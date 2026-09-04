@@ -26,3 +26,4 @@ ip -n n1 route add default via 10.98.0.1
 
 ip netns exec n0 ping -i0.01 -c3 -n 10.98.0.2
 ip netns exec n1 ping -i0.01 -c3 -n 10.99.0.2
+grcli ping 10.98.0.2 count 3 || fail "grcli ping through an ipip nexthop failed"
