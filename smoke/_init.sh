@@ -258,6 +258,13 @@ move_to_netns() {
 	fi
 }
 
+stable_mac() {
+	# Ensure the Linux net device has a different mac address from
+	# grout's. This is required to avoid Linux from wrongfully
+	# assuming the packets sent by grout originated locally.
+	echo "$1" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/'
+}
+
 tap_counter=0
 port_add() {
 	local name="$1"
@@ -282,10 +289,7 @@ port_add() {
 		grcli interface add port "$name" devargs "${vfio_pci_ports[$tap_counter]}" "$@"
 	else
 		grcli interface add port "$name" devargs "net_tap$tap_counter,iface=x-$name" "$@"
-		# Ensure the Linux net device has a different mac address from
-		# grout's. This is required to avoid Linux from wrongfully
-		# assuming the packets sent by grout originated locally.
-		local mac=$(echo "$name" | md5sum | sed -E 's/(..)(..)(..)(..)(..).*/02:\1:\2:\3:\4:\5/')
+		local mac=$(stable_mac "$name")
 		ip link set "x-$name" address "$mac"
 	fi
 	tap_counter=$((tap_counter + 1))

@@ -307,19 +307,30 @@ static void iface_up_cb(uint32_t event, const void *obj) {
 	if (ifaddrs == NULL)
 		return;
 
-	if (event == GR_EVENT_IFACE_STATUS_UP && iface->cp_id != 0) {
-		vec_foreach (struct nexthop *nh, ifaddrs->nh) {
-			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-			if (netlink_add_addr4(iface->cp_id, l3->ipv4) < 0 && errno != EEXIST)
-				LOG(WARNING,
-				    "re-add addr " IP4_F " on linux: %s",
-				    &l3->ipv4,
-				    strerror(errno));
+	switch (event) {
+	case GR_EVENT_IFACE_STATUS_UP:
+		if (iface->cp_id != 0) {
+			vec_foreach (struct nexthop *nh, ifaddrs->nh) {
+				const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+				if (netlink_add_addr4(iface->cp_id, l3->ipv4) < 0
+				    && errno != EEXIST)
+					LOG(WARNING,
+					    "re-add addr " IP4_F " on linux: %s",
+					    &l3->ipv4,
+					    strerror(errno));
+			}
 		}
+		// fallthrough
+	case GR_EVENT_IFACE_MAC_CHANGE:
+		vec_foreach (struct nexthop *nh, ifaddrs->nh) {
+			struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (iface_get_eth_addr(iface, &l3->mac) == 0)
+				event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+			if (arp_output_request_solicit(nh) < 0)
+				LOG(WARNING, "garp_output: %s", strerror(errno));
+		}
+		break;
 	}
-
-	vec_foreach (struct nexthop *nh, ifaddrs->nh)
-		arp_output_request_solicit(nh);
 }
 
 static void addr_init(struct event_base *) {
