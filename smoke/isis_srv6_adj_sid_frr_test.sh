@@ -128,23 +128,26 @@ assert_nexthop "$nh_id" '.behavior == "end.x"' || {
 	fail "No SRv6-local END.X nexthops found - ISIS SRv6 integration failed"
 }
 
-case "$frr_version" in
-10.5.*|10.6.*|10.7.*)
-	csid_bits=16
-	# 5f00:100:0:1:: shifts to 5f00:100:1::
-	shifted_dst=5f00:100:1::
-	;;
-*)
-	csid_bits=32
-	# the last CSID is consumed, only the block remains
-	shifted_dst=5f00:100::
-	;;
-esac
-
 # behavior usid on the locator makes this a uA, not a plain End.X. The
 # shift parameters come from the locator block and node lengths.
 assert_nexthop "$nh_id" '.flavor | contains(["next-csid"])'
-assert_nexthop "$nh_id" ".block_bits == 32 and .csid_bits == $csid_bits"
+assert_nexthop "$nh_id" '.block_bits == 32'
+
+# isisd reports 16 (node) or 32 (node + function) depending on the build.
+csid_bits=$(grcli -j nexthop show id "$nh_id" | jq -re .csid_bits)
+case "$csid_bits" in
+16)
+	# 5f00:100:0:1:: shifts to 5f00:100:1::
+	shifted_dst=5f00:100:1::
+	;;
+32)
+	# the last CSID is consumed, only the block remains
+	shifted_dst=5f00:100::
+	;;
+*)
+	fail "unexpected csid_bits=$csid_bits, expected 16 or 32"
+	;;
+esac
 
 # The locator uses uSID, so the adjacency SID is a uA: grout consumes the
 # active CSID and hands the packet to the peer over the adjacency instead
