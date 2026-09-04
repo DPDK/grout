@@ -255,6 +255,7 @@ enum gr_infra_requests : uint32_t {
 	GR_IFACE_MAC_SET,
 	GR_IFACE_CONFIG_GET,
 	GR_IFACE_CONFIG_SET,
+	GR_DIAGNOS_OBJ_DUMP,
 };
 
 enum gr_infra_events : uint32_t {
@@ -507,6 +508,24 @@ struct gr_packet_trace_set_req {
 };
 
 GR_REQ(GR_PACKET_TRACE_SET, struct gr_packet_trace_set_req, struct gr_empty);
+
+// diagnostics (for developers) ////////////////////////////////////////////////
+
+// Dump an object.
+struct gr_diagnos_obj_dump_req {
+#define GR_DIAGNOS_OBJ_DUMP_ID_SIZE 128
+	char type[GR_DIAGNOS_OBJ_DUMP_ID_SIZE];
+	char name[GR_DIAGNOS_OBJ_DUMP_ID_SIZE]; // All if empty.
+};
+
+// Stream of unstructured text.
+// Not NUL-terminated.
+// This struct only serves for API type validation and compatibility.
+struct gr_diagnos_obj_dump_resp {
+	char text[1];
+};
+
+GR_REQ_STREAM(GR_DIAGNOS_OBJ_DUMP, struct gr_diagnos_obj_dump_req, struct gr_diagnos_obj_dump_resp);
 
 // cpu affinities //////////////////////////////////////////////////////////////
 
