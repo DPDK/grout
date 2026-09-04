@@ -317,7 +317,7 @@ dnf install gawk gdb clang-tools-extra iputils jq codespell curl traceroute grap
 or
 
 ```sh
-apt install arping gawk gdb clang-format jq codespell curl traceroute graphviz ndisc6 abigail-tools inotify-tools
+apt install iputils-arping gawk gdb clang-format jq codespell curl traceroute graphviz ndisc6 abigail-tools inotify-tools
 ```
 
 ### Build
