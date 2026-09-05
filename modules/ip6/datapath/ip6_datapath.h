@@ -31,7 +31,7 @@ void ip6_output_register_interface_type(gr_iface_type_t type, const char *next_n
 void ip6_output_register_nexthop_type(gr_nh_type_t type, const char *next_node);
 int ip6_output_send(struct rte_mbuf *m);
 int nh6_solicit(struct nexthop *nh);
-int nh6_advertise(const struct nexthop *local, const struct nexthop *remote);
+int nh6_advertise(const struct iface *, const struct nexthop *local, const struct nexthop *remote);
 
 #define IP6_DEFAULT_HOP_LIMIT 255
 

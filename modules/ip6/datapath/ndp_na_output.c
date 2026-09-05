@@ -13,6 +13,7 @@
 
 enum {
 	OUTPUT = 0,
+	ERROR,
 	EDGE_COUNT,
 };
 
@@ -23,16 +24,17 @@ GR_MBUF_PRIV_DATA_TYPE(ndp_na_mbuf_data, {
 
 static rte_edge_t na_output;
 
-int nh6_advertise(const struct nexthop *local, const struct nexthop *remote) {
+int nh6_advertise(
+	const struct iface *iface,
+	const struct nexthop *local,
+	const struct nexthop *remote
+) {
 	struct ndp_na_mbuf_data *d;
-	struct iface *iface;
 	struct rte_mbuf *m;
 
+	assert(iface != NULL);
 	assert(local != NULL);
 	assert(local->type == GR_NH_T_L3);
-
-	iface = iface_from_id(local->iface_id);
-	assert(iface != NULL);
 
 	m = rte_pktmbuf_alloc(iface->pool);
 	if (m == NULL)
@@ -66,6 +68,7 @@ static uint16_t ndp_na_output_process(
 	struct rte_mbuf *mbuf;
 	uint16_t payload_len;
 	struct icmp6 *icmp6;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -91,7 +94,10 @@ static uint16_t ndp_na_output_process(
 		opt->type = ICMP6_OPT_TARGET_LLADDR;
 		opt->len = ICMP6_OPT_LEN(sizeof(*opt) + sizeof(*ll));
 		ll = PAYLOAD(opt);
-		ll->mac = l3->mac;
+		if (iface_get_eth_addr(iface, &ll->mac) < 0) {
+			edge = ERROR;
+			goto next;
+		}
 
 		// Fill in IP local data
 		d = ip6_local_mbuf_data(mbuf);
@@ -108,13 +114,14 @@ static uint16_t ndp_na_output_process(
 		d->len = payload_len;
 		d->hop_limit = IP6_DEFAULT_HOP_LIMIT;
 		d->proto = IPPROTO_ICMPV6;
-
+		edge = OUTPUT;
+next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			uint8_t trace_len = RTE_MIN(payload_len, GR_TRACE_ITEM_MAX_LEN);
 			struct icmp6 *t = gr_mbuf_trace_add(mbuf, node, trace_len);
 			memcpy(t, icmp6, trace_len);
 		}
-		rte_node_enqueue_x1(graph, node, OUTPUT, mbuf);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
 	return nb_objs;
@@ -132,6 +139,7 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "icmp6_output",
+		[ERROR] = "ndp_na_output_error",
 	},
 };
 
@@ -143,3 +151,5 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(ndp_na_output_error);

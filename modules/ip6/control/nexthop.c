@@ -253,7 +253,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			LOG(INFO, "local address " IP6_F " has disappeared", local);
 			goto free;
 		}
-		if (nh6_advertise(local_nh, nh) < 0) {
+		if (nh6_advertise(iface, local_nh, nh) < 0) {
 			LOG(ERR, "nh6_advertise: %s", strerror(errno));
 			goto free;
 		}

@@ -546,7 +546,7 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 	case GR_EVENT_IFACE_MAC_CHANGE:
 		addrs = &iface_addrs[iface->id];
 		vec_foreach (nh, addrs->nh) {
-			if (nh6_advertise(nh, NULL) < 0)
+			if (nh6_advertise(iface, nh, NULL) < 0)
 				LOG(WARNING, "nh6_advertise: %s", strerror(errno));
 		}
 		break;
