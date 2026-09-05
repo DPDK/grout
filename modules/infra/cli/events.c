@@ -83,7 +83,7 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 	sigaction(SIGPIPE, &sa, &old_pipe);
 
 	stop = false;
-	while (!stop && gr_api_client_event_recv(c, &e) == 0) {
+	while (!stop && gr_api_client_event_recv(c, &e) >= 0) {
 		printf("> ");
 
 		printer = get_event_printer(e->ev_type);
