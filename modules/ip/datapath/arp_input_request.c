@@ -50,6 +50,12 @@ static uint16_t arp_input_request_process(
 			edge = DROP;
 			goto next;
 		}
+		if (local->iface_id != iface->id) {
+			// Strong host model: only reply for an address owned by
+			// the interface the request was received on.
+			edge = DROP;
+			goto next;
+		}
 
 		control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 		edge = CONTROL;

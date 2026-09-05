@@ -75,6 +75,12 @@ static uint16_t ndp_ns_input_process(
 			next = DROP;
 			goto next;
 		}
+		if (local->iface_id != d.iface->id) {
+			// Strong host model: only reply for an address owned by
+			// the interface the solicitation was received on.
+			next = DROP;
+			goto next;
+		}
 
 		if (rte_ipv6_addr_is_unspec(&d.src)) {
 			// - If the IP source address is the unspecified address, the IP
