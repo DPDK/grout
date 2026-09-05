@@ -109,5 +109,13 @@ struct hoplist *addr6_get_all(uint16_t iface_id);
 // delete an ipv6 address from an interface
 int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *, uint8_t prefixlen);
 
+// Allow an interface to answer neighbor solicitations for a local address
+// (strong host bypass). Joins the solicited node multicast group on iface.
+int addr6_expose(struct nexthop *local, const struct iface *iface);
+// Stop an interface from answering neighbor solicitations for a local address.
+int addr6_unexpose(struct nexthop *local, const struct iface *iface);
+// True if the local address may answer neighbor solicitations received on iface_id.
+bool addr6_exposed_on_iface(const struct nexthop *local, uint16_t iface_id);
+
 // determine if the given interface is member of the provided multicast address group
 struct nexthop *mcast6_get_member(uint16_t iface_id, const struct rte_ipv6_addr *mcast);

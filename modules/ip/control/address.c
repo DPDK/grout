@@ -20,12 +20,115 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
 
 LOG_TYPE("address");
 
 static struct hoplist *iface_addrs;
+
+bool addr4_exposed_on_iface(const struct nexthop *local, uint16_t iface_id) {
+	const struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	uint16_t id;
+
+	if (iface_id == local->iface_id)
+		return true;
+
+	vec_foreach (id, l3->exposed_iface_ids)
+		if (id == iface_id)
+			return true;
+
+	return false;
+}
+
+static void addr4_clear_exposed(struct nexthop *local) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+
+	vec_free(l3->exposed_iface_ids);
+	l3->flags &= ~GR_NH_F_EXPOSED;
+}
+
+int addr4_expose(struct nexthop *local, uint16_t iface_id) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	uint16_t id;
+
+	// The owning interface always answers, no need to record it.
+	if (iface_id == local->iface_id)
+		return 0;
+
+	vec_foreach (id, l3->exposed_iface_ids)
+		if (id == iface_id)
+			return 0;
+
+	vec_add(l3->exposed_iface_ids, iface_id);
+	l3->flags |= GR_NH_F_EXPOSED;
+	event_push(GR_EVENT_NEXTHOP_UPDATE, local);
+
+	return 0;
+}
+
+int addr4_unexpose(struct nexthop *local, uint16_t iface_id) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	bool found = false;
+	unsigned i;
+
+	for (i = 0; i < vec_len(l3->exposed_iface_ids); i++) {
+		if (l3->exposed_iface_ids[i] == iface_id) {
+			vec_del(l3->exposed_iface_ids, i);
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	if (vec_len(l3->exposed_iface_ids) == 0) {
+		vec_free(l3->exposed_iface_ids);
+		l3->flags &= ~GR_NH_F_EXPOSED;
+	}
+	event_push(GR_EVENT_NEXTHOP_UPDATE, local);
+
+	return 0;
+}
+
+// Find a local address nexthop by value within a VRF.
+static struct nexthop *addr4_find_vrf(uint16_t vrf_id, ip4_addr_t ip, uint16_t prefixlen) {
+	for (uint16_t id = 0; id < gr_config.max_ifaces; id++) {
+		struct nexthop *nh;
+		vec_foreach (nh, iface_addrs[id].nh) {
+			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (nh->vrf_id == vrf_id && l3->ipv4 == ip && l3->prefixlen == prefixlen)
+				return nh;
+		}
+	}
+	return errno_set_null(ENOENT);
+}
+
+// Find a local address nexthop by value on its owning interface.
+static struct nexthop *addr4_find(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
+	struct hoplist *addrs = addr4_get_all(iface_id);
+	struct nexthop *nh;
+
+	if (addrs == NULL)
+		return NULL;
+
+	vec_foreach (nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (l3->ipv4 == ip && l3->prefixlen == prefixlen)
+			return nh;
+	}
+	return errno_set_null(ENOENT);
+}
+
+// An interface being removed can no longer expose any address.
+static void addr4_exposed_iface_cleanup(uint16_t iface_id) {
+	for (uint16_t id = 0; id < gr_config.max_ifaces; id++) {
+		struct nexthop *nh;
+		vec_foreach (nh, iface_addrs[id].nh)
+			addr4_unexpose(nh, iface_id);
+	}
+}
 
 struct hoplist *addr4_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
@@ -197,6 +300,61 @@ static struct api_out addr_add(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out addr_expose(const void *request, struct api_ctx *) {
+	const struct gr_ip4_addr_expose_req *req = request;
+	const struct iface *iface;
+	struct nexthop *local;
+
+	iface = iface_from_id(req->iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0, NULL);
+
+	local = addr4_find_vrf(iface->vrf_id, req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (addr4_expose(local, iface->id) < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out addr_unexpose(const void *request, struct api_ctx *) {
+	const struct gr_ip4_addr_expose_req *req = request;
+	const struct iface *iface;
+	struct nexthop *local;
+
+	iface = iface_from_id(req->iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0, NULL);
+
+	local = addr4_find_vrf(iface->vrf_id, req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (addr4_unexpose(local, iface->id) < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out addr_expose_list(const void *request, struct api_ctx *ctx) {
+	const struct gr_ip4_ifaddr *req = request;
+	const struct nexthop_info_l3 *l3;
+	const struct nexthop *local;
+	uint16_t id;
+
+	local = addr4_find(req->iface_id, req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	l3 = nexthop_info_l3(local);
+	vec_foreach (id, l3->exposed_iface_ids)
+		api_send(ctx, sizeof(id), &id);
+
+	return api_out(0, 0, NULL);
+}
+
 int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 	const struct iface *iface;
 	struct hoplist *addrs;
@@ -225,6 +383,7 @@ int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen) {
 		}
 	);
 
+	addr4_clear_exposed(nh);
 	nexthop_routes_cleanup(nh, true);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
@@ -311,6 +470,10 @@ static void iface_event_cb(uint32_t event, const void *obj) {
 	struct nexthop_info_l3 *l3;
 	struct hoplist *ifaddrs;
 
+	// An interface being removed can no longer expose any address.
+	if (event == GR_EVENT_IFACE_PRE_REMOVE)
+		addr4_exposed_iface_cleanup(iface->id);
+
 	ifaddrs = addr4_get_all(iface->id);
 	if (ifaddrs == NULL || vec_len(ifaddrs->nh) == 0)
 		return;
@@ -390,6 +553,9 @@ RTE_INIT(address_constructor) {
 	api_handler(GR_IP4_ADDR_DEL, addr_del);
 	api_handler(GR_IP4_ADDR_FLUSH, addr_flush);
 	api_handler(GR_IP4_ADDR_LIST, addr_list);
+	api_handler(GR_IP4_ADDR_EXPOSE, addr_expose);
+	api_handler(GR_IP4_ADDR_UNEXPOSE, addr_unexpose);
+	api_handler(GR_IP4_ADDR_EXPOSE_LIST, addr_expose_list);
 	module_register(&addr_module);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, iface_event_cb);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, iface_event_cb);

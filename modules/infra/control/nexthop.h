@@ -51,6 +51,11 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	uint16_t held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
+
+	// Local addresses only: interfaces the address is exposed on, allowed to
+	// answer ARP/NDP for it in addition to the owning interface (strong host
+	// model bypass). Control plane only.
+	vec uint16_t *exposed_iface_ids;
 });
 
 // Append a packet to the hold queue. Returns -ENOBUFS if the queue is full.

@@ -50,9 +50,11 @@ static uint16_t arp_input_request_process(
 			edge = DROP;
 			goto next;
 		}
-		if (local->iface_id != iface->id) {
+		if (local->iface_id != iface->id && !(l3->flags & GR_NH_F_EXPOSED)) {
 			// Strong host model: only reply for an address owned by
-			// the interface the request was received on.
+			// the interface the request was received on. Exposed
+			// addresses are punted to the control plane which checks
+			// whether this interface is allowed to answer.
 			edge = DROP;
 			goto next;
 		}

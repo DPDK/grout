@@ -196,9 +196,10 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
 		// Reply only for a local address owned by the interface the
-		// request was received on (strong host model).
+		// request was received on (strong host model), or explicitly
+		// exposed on it.
 		struct nexthop *local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip);
-		if (local != NULL && local->iface_id == iface->id) {
+		if (local != NULL && addr4_exposed_on_iface(local, iface->id)) {
 			struct arp_reply_mbuf_data *d = arp_reply_mbuf_data(m);
 			d->local = local;
 			d->iface = iface;

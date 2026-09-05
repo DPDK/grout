@@ -75,9 +75,11 @@ static uint16_t ndp_ns_input_process(
 			next = DROP;
 			goto next;
 		}
-		if (local->iface_id != d.iface->id) {
+		if (local->iface_id != d.iface->id && !(l3->flags & GR_NH_F_EXPOSED)) {
 			// Strong host model: only reply for an address owned by
-			// the interface the solicitation was received on.
+			// the interface the solicitation was received on. Exposed
+			// addresses are punted to the control plane which checks
+			// whether this interface is allowed to answer.
 			next = DROP;
 			goto next;
 		}
