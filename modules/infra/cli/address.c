@@ -22,6 +22,8 @@ void cli_addr_ops_register(struct cli_addr_ops *ops) {
 	assert(ops != NULL);
 	assert(ops->add != NULL);
 	assert(ops->del != NULL);
+	assert(ops->expose != NULL);
+	assert(ops->unexpose != NULL);
 	assert(ops->list != NULL);
 	assert(ops->flush != NULL);
 	struct cli_addr_ops *o;
@@ -50,6 +52,32 @@ static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if (arg_ip_net(p, "ADDR", addr, false, ops->af) == 0)
 			return ops->del(c, p);
+	}
+
+	errno = ENOPROTOOPT;
+	return CMD_ERROR;
+}
+
+static cmd_status_t addr_expose(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct cli_addr_ops *ops;
+	uint8_t addr[64];
+
+	STAILQ_FOREACH (ops, &addr_ops, next) {
+		if (arg_ip_net(p, "ADDR", addr, false, ops->af) == 0)
+			return ops->expose(c, p);
+	}
+
+	errno = ENOPROTOOPT;
+	return CMD_ERROR;
+}
+
+static cmd_status_t addr_unexpose(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct cli_addr_ops *ops;
+	uint8_t addr[64];
+
+	STAILQ_FOREACH (ops, &addr_ops, next) {
+		if (arg_ip_net(p, "ADDR", addr, false, ops->af) == 0)
+			return ops->unexpose(c, p);
 	}
 
 	errno = ENOPROTOOPT;
@@ -88,6 +116,7 @@ static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p)
 	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 0
 	gr_table_column(table, "FAMILY", GR_DISP_LEFT); // 1
 	gr_table_column(table, "ADDRESS", GR_DISP_LEFT); // 2
+	gr_table_column(table, "EXPOSED", GR_DISP_LEFT); // 3
 
 	STAILQ_FOREACH (ops, &addr_ops, next) {
 		if (af != GR_AF_UNSPEC && ops->af != af)
@@ -127,6 +156,32 @@ static int ctx_init(struct ec_node *root) {
 		with_help("IP address with prefix length.", ec_node_re("ADDR", IP_ANY_NET_RE)),
 		with_help(
 			"Interface name.",
+			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		ADDR_CTX(root),
+		"expose ADDR iface IFACE",
+		addr_expose,
+		"Allow an interface to answer ARP/NDP for a local address.",
+		with_help("IP address with prefix length.", ec_node_re("ADDR", IP_ANY_NET_RE)),
+		with_help(
+			"Interface allowed to answer ARP/NDP for this address.",
+			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
+		)
+	);
+	if (ret < 0)
+		return ret;
+	ret = CLI_COMMAND(
+		ADDR_CTX(root),
+		"unexpose ADDR iface IFACE",
+		addr_unexpose,
+		"Stop an interface from answering ARP/NDP for a local address.",
+		with_help("IP address with prefix length.", ec_node_re("ADDR", IP_ANY_NET_RE)),
+		with_help(
+			"Interface to stop answering ARP/NDP for this address.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		)
 	);

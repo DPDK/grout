@@ -39,6 +39,9 @@ enum gr_ip4_requests : uint32_t {
 	GR_IP4_ICMP_RECV,
 	GR_IP4_FIB_DEFAULT_SET,
 	GR_IP4_FIB_INFO_LIST,
+	GR_IP4_ADDR_EXPOSE,
+	GR_IP4_ADDR_UNEXPOSE,
+	GR_IP4_ADDR_EXPOSE_LIST,
 };
 
 // routes //////////////////////////////////////////////////////////////////////
@@ -116,6 +119,23 @@ struct gr_ip4_addr_flush_req {
 };
 
 GR_REQ(GR_IP4_ADDR_FLUSH, struct gr_ip4_addr_flush_req, struct gr_empty);
+
+// Expose or unexpose a local address on an interface. By default a local
+// address is only answered on the interface it is configured on (strong host
+// model). Exposing it lets another interface in the same VRF answer ARP
+// requests for it. The address is identified by its value within the exposing
+// interface's VRF.
+struct gr_ip4_addr_expose_req {
+	struct ip4_net addr;
+	uint16_t iface_id; // interface to (un)expose the address on
+};
+
+GR_REQ(GR_IP4_ADDR_EXPOSE, struct gr_ip4_addr_expose_req, struct gr_empty);
+GR_REQ(GR_IP4_ADDR_UNEXPOSE, struct gr_ip4_addr_expose_req, struct gr_empty);
+
+// List the interfaces a local address is exposed on. The address is identified
+// by its owning interface and value. The response is a stream of interface ids.
+GR_REQ_STREAM(GR_IP4_ADDR_EXPOSE_LIST, struct gr_ip4_ifaddr, uint16_t);
 
 // icmp ////////////////////////////////////////////////////////////////////////
 

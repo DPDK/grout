@@ -21,12 +21,148 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
 
 LOG_TYPE("address");
 
 static struct hoplist *iface_addrs;
+
+static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip);
+static int mcast6_addr_del(const struct iface *iface, const struct rte_ipv6_addr *ip);
+
+bool addr6_exposed_on_iface(const struct nexthop *local, uint16_t iface_id) {
+	const struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	uint16_t id;
+
+	if (iface_id == local->iface_id)
+		return true;
+
+	vec_foreach (id, l3->exposed_iface_ids)
+		if (id == iface_id)
+			return true;
+
+	return false;
+}
+
+static void addr6_clear_exposed(struct nexthop *local) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	struct rte_ipv6_addr solicited_node;
+	uint16_t id;
+
+	rte_ipv6_solnode_from_addr(&solicited_node, &l3->ipv6);
+
+	vec_foreach (id, l3->exposed_iface_ids) {
+		const struct iface *iface = iface_from_id(id);
+		// Leave the solicited node group so the interface stops accepting NS.
+		if (iface != NULL)
+			mcast6_addr_del(iface, &solicited_node);
+	}
+
+	vec_free(l3->exposed_iface_ids);
+	l3->flags &= ~GR_NH_F_EXPOSED;
+}
+
+int addr6_expose(struct nexthop *local, const struct iface *iface) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	struct rte_ipv6_addr solicited_node;
+	uint16_t id;
+
+	// The owning interface always answers, no need to record it.
+	if (iface->id == local->iface_id)
+		return 0;
+
+	vec_foreach (id, l3->exposed_iface_ids)
+		if (id == iface->id)
+			return 0;
+
+	// Join the solicited node multicast group so the exposing interface
+	// accepts neighbor solicitations for this address.
+	rte_ipv6_solnode_from_addr(&solicited_node, &l3->ipv6);
+	if (mcast6_addr_add(iface, &solicited_node) < 0 && errno != EOPNOTSUPP && errno != EEXIST)
+		return -errno;
+
+	vec_add(l3->exposed_iface_ids, iface->id);
+	l3->flags |= GR_NH_F_EXPOSED;
+	event_push(GR_EVENT_NEXTHOP_UPDATE, local);
+
+	return 0;
+}
+
+int addr6_unexpose(struct nexthop *local, const struct iface *iface) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(local);
+	struct rte_ipv6_addr solicited_node;
+	bool found = false;
+	unsigned i;
+
+	for (i = 0; i < vec_len(l3->exposed_iface_ids); i++) {
+		if (l3->exposed_iface_ids[i] == iface->id) {
+			vec_del(l3->exposed_iface_ids, i);
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	rte_ipv6_solnode_from_addr(&solicited_node, &l3->ipv6);
+	mcast6_addr_del(iface, &solicited_node);
+
+	if (vec_len(l3->exposed_iface_ids) == 0) {
+		vec_free(l3->exposed_iface_ids);
+		l3->flags &= ~GR_NH_F_EXPOSED;
+	}
+	event_push(GR_EVENT_NEXTHOP_UPDATE, local);
+
+	return 0;
+}
+
+// Find a local address nexthop by value within a VRF.
+static struct nexthop *
+addr6_find_vrf(uint16_t vrf_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+	for (uint16_t id = 0; id < gr_config.max_ifaces; id++) {
+		struct nexthop *nh;
+		vec_foreach (nh, iface_addrs[id].nh) {
+			const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+			if (nh->vrf_id == vrf_id && l3->prefixlen == prefixlen
+			    && rte_ipv6_addr_eq(&l3->ipv6, ip))
+				return nh;
+		}
+	}
+	return errno_set_null(ENOENT);
+}
+
+// Find a local address nexthop by value on its owning interface.
+static struct nexthop *
+addr6_find(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
+	struct hoplist *addrs = addr6_get_all(iface_id);
+	struct nexthop *nh;
+
+	if (addrs == NULL)
+		return NULL;
+
+	vec_foreach (nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (l3->prefixlen == prefixlen && rte_ipv6_addr_eq(&l3->ipv6, ip))
+			return nh;
+	}
+	return errno_set_null(ENOENT);
+}
+
+// An interface being removed can no longer expose any address.
+static void addr6_exposed_iface_cleanup(uint16_t iface_id) {
+	const struct iface *iface = iface_from_id(iface_id);
+
+	if (iface == NULL)
+		return;
+
+	for (uint16_t id = 0; id < gr_config.max_ifaces; id++) {
+		struct nexthop *nh;
+		vec_foreach (nh, iface_addrs[id].nh)
+			addr6_unexpose(nh, iface);
+	}
+}
 
 struct hoplist *addr6_get_all(uint16_t iface_id) {
 	struct hoplist *addrs;
@@ -294,6 +430,61 @@ static struct api_out addr6_add(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out addr_expose(const void *request, struct api_ctx *) {
+	const struct gr_ip6_addr_expose_req *req = request;
+	const struct iface *iface;
+	struct nexthop *local;
+
+	iface = iface_from_id(req->iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0, NULL);
+
+	local = addr6_find_vrf(iface->vrf_id, &req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (addr6_expose(local, iface) < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out addr_unexpose(const void *request, struct api_ctx *) {
+	const struct gr_ip6_addr_expose_req *req = request;
+	const struct iface *iface;
+	struct nexthop *local;
+
+	iface = iface_from_id(req->iface_id);
+	if (iface == NULL)
+		return api_out(errno, 0, NULL);
+
+	local = addr6_find_vrf(iface->vrf_id, &req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	if (addr6_unexpose(local, iface) < 0)
+		return api_out(errno, 0, NULL);
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out addr_expose_list(const void *request, struct api_ctx *ctx) {
+	const struct gr_ip6_ifaddr *req = request;
+	const struct nexthop_info_l3 *l3;
+	const struct nexthop *local;
+	uint16_t id;
+
+	local = addr6_find(req->iface_id, &req->addr.ip, req->addr.prefixlen);
+	if (local == NULL)
+		return api_out(errno, 0, NULL);
+
+	l3 = nexthop_info_l3(local);
+	vec_foreach (id, l3->exposed_iface_ids)
+		api_send(ctx, sizeof(id), &id);
+
+	return api_out(0, 0, NULL);
+}
+
 int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t prefixlen) {
 	const struct iface *iface = iface_from_id(iface_id);
 	struct rte_ipv6_addr solicited_node;
@@ -326,6 +517,7 @@ int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *ip, uint8_t pref
 		}
 	);
 
+	addr6_clear_exposed(nh);
 	nexthop_routes_cleanup(nh, true);
 	while (nh->ref_count > 0)
 		nexthop_decref(nh);
@@ -499,6 +691,8 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 		}
 		break;
 	case GR_EVENT_IFACE_PRE_REMOVE:
+		// An interface being removed can no longer expose any address.
+		addr6_exposed_iface_cleanup(iface->id);
 		ip6_iface_addrs_flush(iface);
 		break;
 	case GR_EVENT_IFACE_STATUS_UP:
@@ -566,6 +760,9 @@ RTE_INIT(address_constructor) {
 	api_handler(GR_IP6_ADDR_DEL, addr6_del);
 	api_handler(GR_IP6_ADDR_FLUSH, addr6_flush);
 	api_handler(GR_IP6_ADDR_LIST, addr6_list);
+	api_handler(GR_IP6_ADDR_EXPOSE, addr_expose);
+	api_handler(GR_IP6_ADDR_UNEXPOSE, addr_unexpose);
+	api_handler(GR_IP6_ADDR_EXPOSE_LIST, addr_expose_list);
 	module_register(&addr6_module);
 	event_subscribe(GR_EVENT_IFACE_POST_ADD, ip6_iface_event_handler);
 	event_subscribe(GR_EVENT_IFACE_POST_RECONFIG, ip6_iface_event_handler);

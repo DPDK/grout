@@ -29,6 +29,34 @@ static cmd_status_t addr_add(struct gr_api_client *c, const struct ec_pnode *p) 
 	return CMD_SUCCESS;
 }
 
+static cmd_status_t addr_expose(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip6_addr_expose_req req = {0};
+
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
+		return CMD_ERROR;
+	if (arg_ip6_net(p, "ADDR", &req.addr, false) < 0)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_IP6_ADDR_EXPOSE, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t addr_unexpose(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_ip6_addr_expose_req req = {0};
+
+	if (arg_iface(c, p, "IFACE", GR_IFACE_TYPE_UNDEF, &req.iface_id) < 0)
+		return CMD_ERROR;
+	if (arg_ip6_net(p, "ADDR", &req.addr, false) < 0)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_IP6_ADDR_UNEXPOSE, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
 static cmd_status_t addr_del(struct gr_api_client *c, const struct ec_pnode *p) {
 	struct gr_ip6_addr_del_req req = {.missing_ok = true};
 
@@ -58,6 +86,7 @@ static int addr_list(struct gr_api_client *c, uint16_t iface_id, struct gr_table
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, addr->iface_id));
 		gr_table_cell(table, 1, "%s", gr_af_name(GR_AF_IP6));
 		gr_table_cell(table, 2, IP6_NET_F, &addr->addr);
+		cli_expose_cell(c, table, 3, GR_IP6_ADDR_EXPOSE_LIST, sizeof(*addr), addr);
 
 		if (gr_table_print_row(table) < 0)
 			break;
@@ -70,6 +99,8 @@ static struct cli_addr_ops addr_ops = {
 	.af = GR_AF_IP6,
 	.add = addr_add,
 	.del = addr_del,
+	.expose = addr_expose,
+	.unexpose = addr_unexpose,
 	.list = addr_list,
 	.flush = addr_flush,
 };

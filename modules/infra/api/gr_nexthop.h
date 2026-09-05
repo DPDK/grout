@@ -26,6 +26,7 @@ typedef enum : uint8_t {
 	GR_NH_F_MCAST = GR_BIT8(3), // Multicast address.
 	GR_NH_F_REMOTE = GR_BIT8(4), // Remote VTEP nexthop (EVPN).
 	GR_NH_F_NEIGH = GR_BIT8(5), // Learned from ARP/NDP traffic.
+	GR_NH_F_EXPOSED = GR_BIT8(6), // Local address exposed on other interfaces.
 } gr_nh_flags_t;
 
 // Nexthop types for different forwarding behaviors.
@@ -175,6 +176,8 @@ static inline const char *gr_nh_flag_name(const gr_nh_flags_t flag) {
 		return "remote";
 	case GR_NH_F_NEIGH:
 		return "neigh";
+	case GR_NH_F_EXPOSED:
+		return "exposed";
 	}
 	return "?";
 }

@@ -248,13 +248,15 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	if (icmp6->type == ICMP6_TYPE_NEIGH_SOLICIT && local != NULL) {
 		// Reply only for a local address owned by the interface the
-		// solicitation was received on (strong host model).
+		// solicitation was received on (strong host model), or
+		// explicitly exposed on it.
 		const struct nexthop *local_nh = nh6_lookup(iface->vrf_id, iface->id, local);
 		if (local_nh == NULL) {
 			LOG(INFO, "local address " IP6_F " has disappeared", local);
 			goto free;
 		}
-		if (local_nh->iface_id == iface->id && nh6_advertise(iface, local_nh, nh) < 0) {
+		if (addr6_exposed_on_iface(local_nh, iface->id)
+		    && nh6_advertise(iface, local_nh, nh) < 0) {
 			LOG(ERR, "nh6_advertise: %s", strerror(errno));
 			goto free;
 		}

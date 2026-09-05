@@ -69,3 +69,10 @@ struct hoplist *addr4_get_all(uint16_t iface_id);
 
 int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin_t);
 int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen);
+
+// Allow iface_id to answer ARP requests for a local address (strong host bypass).
+int addr4_expose(struct nexthop *local, uint16_t iface_id);
+// Stop iface_id from answering ARP requests for a local address.
+int addr4_unexpose(struct nexthop *local, uint16_t iface_id);
+// True if the local address may answer ARP requests received on iface_id.
+bool addr4_exposed_on_iface(const struct nexthop *local, uint16_t iface_id);

@@ -42,6 +42,9 @@ enum gr_ip6_requests : uint32_t {
 	GR_IP6_IFACE_RA_SHOW,
 	GR_IP6_ICMP6_SEND,
 	GR_IP6_ICMP6_RECV,
+	GR_IP6_ADDR_EXPOSE,
+	GR_IP6_ADDR_UNEXPOSE,
+	GR_IP6_ADDR_EXPOSE_LIST,
 };
 
 // routes //////////////////////////////////////////////////////////////////////
@@ -119,6 +122,23 @@ struct gr_ip6_addr_flush_req {
 };
 
 GR_REQ(GR_IP6_ADDR_FLUSH, struct gr_ip6_addr_flush_req, struct gr_empty);
+
+// Expose or unexpose a local address on an interface. By default a local
+// address is only answered on the interface it is configured on (strong host
+// model). Exposing it lets another interface in the same VRF answer neighbor
+// solicitations for it. The address is identified by its value within the
+// exposing interface's VRF.
+struct gr_ip6_addr_expose_req {
+	struct ip6_net addr;
+	uint16_t iface_id; // interface to (un)expose the address on
+};
+
+GR_REQ(GR_IP6_ADDR_EXPOSE, struct gr_ip6_addr_expose_req, struct gr_empty);
+GR_REQ(GR_IP6_ADDR_UNEXPOSE, struct gr_ip6_addr_expose_req, struct gr_empty);
+
+// List the interfaces a local address is exposed on. The address is identified
+// by its owning interface and value. The response is a stream of interface ids.
+GR_REQ_STREAM(GR_IP6_ADDR_EXPOSE_LIST, struct gr_ip6_ifaddr, uint16_t);
 
 // fib info ////////////////////////////////////////////////////////////////////
 
