@@ -327,6 +327,10 @@ static void iface_up_cb(uint32_t event, const void *obj) {
 			if (iface_get_eth_addr(iface, &l3->mac) < 0)
 				continue;
 			event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+			// Addresses on the loopback (VRF) interface are not on any
+			// L2 segment: never announce them with a gratuitous ARP.
+			if (iface->type == GR_IFACE_TYPE_VRF)
+				continue;
 			if (arp_output_request_solicit(nh) < 0)
 				LOG(WARNING, "garp_output: %s", strerror(errno));
 		}
