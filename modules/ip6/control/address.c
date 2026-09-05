@@ -550,6 +550,10 @@ static void ip6_iface_event_handler(uint32_t event, const void *obj) {
 			if (iface_get_eth_addr(iface, &l3->mac) < 0)
 				continue;
 			event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+			// Addresses on the loopback (VRF) interface are not on any
+			// L2 segment: never announce them with an unsolicited NA.
+			if (iface->type == GR_IFACE_TYPE_VRF)
+				continue;
 			if (nh6_advertise(iface, nh, NULL) < 0)
 				LOG(WARNING, "nh6_advertise: %s", strerror(errno));
 		}
