@@ -2,6 +2,9 @@
 // Copyright (c) 2024 Christophe Fontaine, Red Hat
 // Copyright (c) 2025 Maxime Leroy, Free Mobile
 
+#include <lib/zebra.h>
+#include <linux/rtnetlink.h>
+
 #include <lib/queue.h>
 
 // clang-format off
