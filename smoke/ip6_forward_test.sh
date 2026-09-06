@@ -32,6 +32,7 @@ ip netns exec n1 ping6 -i0.01 -c3 -n fd00:f00:2::2
 ip netns exec n2 ping6 -i0.01 -c3 -n fd00:f00:1::2
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:ba4:2::2
 ip netns exec n2 ping6 -i0.01 -c3 -n fd00:ba4:1::2
+grcli ping fd00:ba4:1::2 count 3 || fail "grcli ping6 failed"
 # Verify that NDP neighbor advertisement flags are correct (RFC 4861 §4.4).
 # The Solicited flag must be set in NA replies, otherwise Linux never
 # transitions the neighbor entry to REACHABLE.
