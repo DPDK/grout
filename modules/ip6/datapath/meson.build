@@ -33,4 +33,8 @@ tests += [
     'sources': files('ip6_local.c'),
     'link_args': [],
   },
+  {
+    'sources': files('icmp6_input.c'),
+    'link_args': [],
+  },
 ]
