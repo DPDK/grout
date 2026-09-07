@@ -28,8 +28,8 @@ static struct icmp6_echo_reply *icmp6_inner_echo(struct rte_mbuf *m, struct icmp
 	*outer = hdr;
 
 	if (hdr->type == ICMP6_TYPE_ECHO_REPLY) {
-		// GR_ICMP6_HDR_LEN already covers the echo ident+seqnum.
-		if (data->len < GR_ICMP6_HDR_LEN + sizeof(gr_clock_ns_t))
+		// nothing checks that minimum upstream, unlike the IPv4 side
+		if (data->len < GR_ICMP6_HDR_LEN)
 			return errno_set_null(EMSGSIZE);
 		return PAYLOAD(hdr);
 	}
@@ -73,6 +73,10 @@ static int icmp6_extract_info(
 	*seq_num = echo->seqnum;
 
 	if (outer->type == ICMP6_TYPE_ECHO_REPLY) {
+		// RFC 4443 makes the echo data optional, our own probes always
+		// carry a timestamp there.
+		if (ip6_local_mbuf_data(m)->len < GR_ICMP6_HDR_LEN + sizeof(*timestamp))
+			return errno_set(EBADMSG);
 		gr_clock_ns_t *ts = PAYLOAD(echo);
 		*timestamp = *ts;
 	} else {
