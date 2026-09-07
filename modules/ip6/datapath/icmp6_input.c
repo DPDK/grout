@@ -2,9 +2,11 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "clock.h"
+#include "control_input.h"
 #include "control_output.h"
 #include "graph.h"
 #include "icmp6.h"
+#include "iface.h"
 #include "ip6.h"
 #include "ip6_datapath.h"
 #include "log.h"
@@ -26,6 +28,21 @@ enum {
 };
 
 static control_queue_cb_t icmp6_cb[UINT8_MAX];
+static rte_edge_t control_to_l4_loopback_output;
+
+int icmp6_deliver_to_kernel(struct rte_mbuf *m) {
+	const struct ip6_local_mbuf_data *ip_data = ip6_local_mbuf_data(m);
+	struct mbuf_data *d = mbuf_data(m);
+
+	// See the IPv4 twin.
+	if (!addr6_is_local_on_iface(d->iface->id, &ip_data->dst)) {
+		d->iface = get_vrf_iface(d->iface->vrf_id);
+		if (d->iface == NULL)
+			return errno_set(EHOSTUNREACH);
+	}
+
+	return post_to_stack(control_to_l4_loopback_output, m);
+}
 
 // RFC 4443 2.3: the checksum covers a pseudo header made of the addresses, the
 // upper layer packet length and the ICMPv6 next header value.
@@ -148,6 +165,7 @@ void icmp6_input_register_callback(uint8_t icmp6_type, control_queue_cb_t cb) {
 
 static void icmp6_input_register(void) {
 	ip6_input_local_add_proto(IPPROTO_ICMPV6, "icmp6_input");
+	control_to_l4_loopback_output = gr_control_input_register_handler("l4_loopback_output");
 }
 
 static struct rte_node_register icmp6_input_node = {

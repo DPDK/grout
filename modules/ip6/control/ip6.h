@@ -106,6 +106,8 @@ struct nexthop *addr6_get_preferred_vrf(uint16_t vrf_id, const struct rte_ipv6_a
 struct nexthop *addr6_get_linklocal(uint16_t iface_id);
 // get all addresses for a given interface
 struct hoplist *addr6_get_all(uint16_t iface_id);
+
+bool addr6_is_local_on_iface(uint16_t iface_id, const struct rte_ipv6_addr *ip);
 // delete an ipv6 address from an interface
 int addr6_delete(uint16_t iface_id, const struct rte_ipv6_addr *, uint8_t prefixlen);
 

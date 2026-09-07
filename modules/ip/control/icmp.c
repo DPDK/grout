@@ -86,7 +86,10 @@ static int icmp_extract_info(
 }
 
 static void icmp_input_cb(void *m, uintptr_t timestamp, const struct control_queue_drain *drain) {
-	icmp_session_input(sessions, m, timestamp, drain);
+	struct rte_mbuf *unclaimed = icmp_session_input(sessions, m, timestamp, drain);
+
+	if (unclaimed != NULL && icmp_deliver_to_kernel(unclaimed) < 0)
+		rte_pktmbuf_free(unclaimed);
 }
 
 static void icmp_event_cb(uint32_t ev_type, const void *obj) {

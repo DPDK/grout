@@ -67,3 +67,5 @@ int icmp6_local_send(
 );
 
 void icmp6_input_register_callback(uint8_t icmp6_type, control_queue_cb_t cb);
+
+int icmp6_deliver_to_kernel(struct rte_mbuf *);

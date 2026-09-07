@@ -61,7 +61,7 @@ static void gc_cb(evutil_socket_t, short, void *arg) {
 	}
 }
 
-void icmp_session_input(
+struct rte_mbuf *icmp_session_input(
 	struct icmp_session_pool *pool,
 	void *m,
 	uintptr_t timestamp,
@@ -76,11 +76,14 @@ void icmp_session_input(
 	    && mbuf_data(m)->iface == drain->obj)
 		goto drop;
 
-	if (pool->extract_info(m, &k.ident, &k.seq_num, &sent_timestamp) < 0)
+	if (pool->extract_info(m, &k.ident, &k.seq_num, &sent_timestamp) < 0) {
+		if (errno == EBADMSG)
+			return m; // well formed, but not about a probe of ours
 		goto drop;
+	}
 
 	if (rte_hash_lookup_data(pool->hash, &k, &data) < 0)
-		goto drop;
+		return m; // no session waiting for it
 
 	s = data;
 	if (s->mbuf != NULL)
@@ -88,10 +91,11 @@ void icmp_session_input(
 	s->mbuf = m;
 	s->sent = sent_timestamp;
 	s->received = timestamp;
-	return;
+	return NULL;
 
 drop:
 	rte_pktmbuf_free(m);
+	return NULL;
 }
 
 void icmp_session_iface_remove(struct icmp_session_pool *pool, const void *iface) {

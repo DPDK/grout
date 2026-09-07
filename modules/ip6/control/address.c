@@ -225,6 +225,21 @@ struct nexthop *addr6_get_preferred_vrf(uint16_t vrf_id, const struct rte_ipv6_a
 	return pref != NULL ? pref : errno_set_null(EADDRNOTAVAIL);
 }
 
+bool addr6_is_local_on_iface(uint16_t iface_id, const struct rte_ipv6_addr *ip) {
+	struct hoplist *addrs = addr6_get_all(iface_id);
+	struct nexthop *nh;
+
+	if (addrs == NULL)
+		return false;
+
+	vec_foreach (nh, addrs->nh) {
+		if (rte_ipv6_addr_eq(&nexthop_info_l3(nh)->ipv6, ip))
+			return true;
+	}
+
+	return false;
+}
+
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
 	const struct iface *iface;
 	struct iface *vrf_iface;

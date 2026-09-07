@@ -2,8 +2,11 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "clock.h"
+#include "control_input.h"
 #include "control_output.h"
 #include "graph.h"
+#include "iface.h"
+#include "ip4.h"
 #include "ip4_datapath.h"
 #include "log.h"
 #include "mbuf.h"
@@ -22,6 +25,21 @@ enum {
 #define ICMP_MIN_SIZE 8
 
 static control_queue_cb_t icmp_cb[UINT8_MAX];
+static rte_edge_t control_to_l4_loopback_output;
+
+int icmp_deliver_to_kernel(struct rte_mbuf *m) {
+	const struct ip_local_mbuf_data *ip_data = ip_local_mbuf_data(m);
+	struct mbuf_data *d = mbuf_data(m);
+
+	// the kernel drops what lands on an interface without that address
+	if (!addr4_is_local_on_iface(d->iface->id, ip_data->dst)) {
+		d->iface = get_vrf_iface(d->iface->vrf_id);
+		if (d->iface == NULL)
+			return errno_set(EHOSTUNREACH);
+	}
+
+	return post_to_stack(control_to_l4_loopback_output, m);
+}
 
 // RFC 792: the number of bytes of the datagram in error that an ICMP error
 // message carries after the quoted IP header.
@@ -116,6 +134,7 @@ void icmp_input_register_callback(uint8_t icmp_type, control_queue_cb_t cb) {
 
 static void icmp_input_register(void) {
 	ip_input_local_add_proto(IPPROTO_ICMP, "icmp_input");
+	control_to_l4_loopback_output = gr_control_input_register_handler("l4_loopback_output");
 }
 
 static struct rte_node_register icmp_input_node = {
