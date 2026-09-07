@@ -89,4 +89,4 @@ while ! vtysh -c 'show ip route isis json' | jq -e '."16.0.0.1/32"' ; do
 	attempts=$((attempts - 1))
 done
 
-grcli ping 16.0.0.1 count 3 delay 10
+ping -i0.01 -c3 -n 16.0.0.1

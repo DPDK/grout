@@ -94,4 +94,4 @@ done
 # Wait for ISIS route exchange
 wait_event -t 90 'route4 add: vrf=main 203.0.113.1/32 origin=isis'
 
-grcli ping 203.0.113.1 count 3 delay 10
+ping -i0.01 -c3 -n 203.0.113.1

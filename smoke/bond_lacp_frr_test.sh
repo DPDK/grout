@@ -62,4 +62,4 @@ for p in x-p0 x-p1 x-p2; do
 done
 
 ip netns exec n0 ping -i0.01 -c3 -n 172.16.0.1
-grcli ping 172.16.0.2 delay 10 count 3
+ping -i0.01 -c3 -n 172.16.0.2

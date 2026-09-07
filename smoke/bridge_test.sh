@@ -37,7 +37,7 @@ mac=$(ip netns exec n0 cat /sys/class/net/x-p0/address)
 grcli fdb add "$mac" iface p0
 grcli -j fdb show iface p0 static | jq -e --arg mac "$mac" '.[] | select(.mac == $mac)'
 
-grcli ping 172.16.0.10 count 3 delay 10
+ping -i0.01 -c3 -n 172.16.0.10
 
 ip netns exec n0 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n0->bridge failed"
 ip netns exec n1 ping -i0.01 -c3 -W1 -n 172.16.0.1 || fail "L3 ping n1->bridge failed"
