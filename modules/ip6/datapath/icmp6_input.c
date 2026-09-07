@@ -40,6 +40,12 @@ static inline int icmp6_cksum_verify(const struct ip6_local_mbuf_data *d, const 
 	return rte_ipv6_udptcp_cksum_verify(&phdr, icmp6);
 }
 
+// RFC 4443 2.1: error messages are the types with the high order bit clear.
+// They all quote the invoking packet, of which at least its IPv6 header fits.
+static inline bool icmp6_is_error(uint8_t type) {
+	return (type & 0x80) == 0;
+}
+
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip6_local_mbuf_data *d;
@@ -113,6 +119,11 @@ icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			break;
 		default:
 			if (icmp6_cb[icmp6->type] != NULL) {
+				if (icmp6_is_error(icmp6->type)
+				    && d->len < GR_ICMP6_HDR_LEN + sizeof(struct rte_ipv6_hdr)) {
+					next = INVALID;
+					goto next;
+				}
 				control_output_set_cb(mbuf, icmp6_cb[icmp6->type], clock_ns());
 				next = CONTROL;
 			} else {
@@ -176,6 +187,8 @@ GR_DROP_REGISTER(icmp6_input_no_local_addr);
 #ifdef __GROUT_UNIT_TEST__
 #include "_cmocka.h"
 
+#include <stddef.h>
+
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
@@ -201,12 +214,22 @@ mock_func(int, trace_icmp6_format(char *, size_t, const struct icmp6 *, size_t))
 
 struct fake_mbuf {
 	struct icmp6 icmp6;
-	uint8_t payload[TEST_PAYLOAD_LEN];
+	uint8_t payload[64];
 	struct rte_mbuf mbuf;
 	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
 };
 
 static struct iface test_iface;
+
+static void test_cb(void *, uintptr_t, const struct control_queue_drain *) { }
+
+static int setup(void **) {
+	// Dynamic fields live inside the mbuf reserved area, as in a real one.
+	cq_callback_offset = offsetof(struct rte_mbuf, dynfield1);
+	cq_priv_offset = cq_callback_offset + sizeof(control_queue_cb_t);
+	icmp6_cb[ICMP6_ERR_PKT_TOO_BIG] = test_cb;
+	return 0;
+}
 
 static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	struct ip6_local_mbuf_data *d;
@@ -217,7 +240,7 @@ static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	fm->icmp6.code = 0;
 
 	fm->mbuf.buf_addr = &fm->icmp6;
-	fm->mbuf.data_len = sizeof(fm->icmp6) + TEST_PAYLOAD_LEN;
+	fm->mbuf.data_len = sizeof(fm->icmp6) + sizeof(fm->payload);
 	fm->mbuf.pkt_len = fm->mbuf.data_len;
 	fm->mbuf.nb_segs = 1;
 
@@ -298,12 +321,42 @@ static void icmp6_input_echo_request(void **) {
 	assert_int_equal(fm.icmp6.type, ICMP6_TYPE_ECHO_REPLY);
 }
 
+// RFC 4443: the 8 byte error header plus the invoking IPv6 header. Spelled
+// out on purpose, see icmp6_input_too_short().
+#define ICMP6_ERROR_MIN_LEN 48
+
+// RFC 4443: an error message quotes at least the IPv6 header of the packet
+// that caused it.
+static void icmp6_input_error_too_short(void **) {
+	struct fake_mbuf fm;
+	void *obj = &fm.mbuf;
+
+	fake_mbuf_init(&fm, ICMP6_ERR_PKT_TOO_BIG, ICMP6_ERROR_MIN_LEN - 1);
+	fake_mbuf_cksum(&fm);
+
+	expect_uint_value(rte_node_enqueue_x1, next, INVALID);
+	icmp6_input_process(NULL, NULL, &obj, 1);
+}
+
+static void icmp6_input_error_valid(void **) {
+	struct fake_mbuf fm;
+	void *obj = &fm.mbuf;
+
+	fake_mbuf_init(&fm, ICMP6_ERR_PKT_TOO_BIG, ICMP6_ERROR_MIN_LEN);
+	fake_mbuf_cksum(&fm);
+
+	expect_uint_value(rte_node_enqueue_x1, next, CONTROL);
+	icmp6_input_process(NULL, NULL, &obj, 1);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(icmp6_input_too_short),
-		cmocka_unit_test(icmp6_input_shortest_valid),
-		cmocka_unit_test(icmp6_input_bad_cksum),
-		cmocka_unit_test(icmp6_input_echo_request),
+		cmocka_unit_test_setup(icmp6_input_too_short, setup),
+		cmocka_unit_test_setup(icmp6_input_shortest_valid, setup),
+		cmocka_unit_test_setup(icmp6_input_bad_cksum, setup),
+		cmocka_unit_test_setup(icmp6_input_echo_request, setup),
+		cmocka_unit_test_setup(icmp6_input_error_too_short, setup),
+		cmocka_unit_test_setup(icmp6_input_error_valid, setup),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
