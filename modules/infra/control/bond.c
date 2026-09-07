@@ -144,6 +144,7 @@ static int bond_promisc_set(struct iface *iface, bool enabled) {
 static int bond_attach_member(struct iface *iface, struct iface *member) {
 	struct iface_info_bond *bond = iface_info_bond(iface);
 	static const struct rte_ether_addr zero = {0};
+	struct rte_ether_addr old_mac;
 	int ret;
 
 	if (member->type != GR_IFACE_TYPE_PORT)
@@ -172,6 +173,8 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 	m->iface = member;
 	bond->n_members++;
 
+	old_mac = bond->mac;
+
 	if (!bond->mac_explicit) {
 		if (bond_mac_set(iface, &zero) < 0) {
 			bond->n_members--;
@@ -192,6 +195,12 @@ static int bond_attach_member(struct iface *iface, struct iface *member) {
 		return ret;
 	if ((ret = port_plug(iface_info_port(member))) < 0)
 		return ret;
+
+	// the TAP was created before any member gave the bond its address
+	if (!rte_is_same_ether_addr(&old_mac, &bond->mac)) {
+		event_push(GR_EVENT_IFACE_POST_RECONFIG, iface);
+		iface_refresh_subinterface_macs(iface, &old_mac);
+	}
 
 	return 0;
 }

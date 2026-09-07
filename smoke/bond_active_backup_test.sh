@@ -23,6 +23,12 @@ wait_member_active() {
 
 grcli interface add bond bond0 mode active-backup
 
+# Sub interfaces created before any member joined inherit the random address the
+# bond starts with. One follows the bond, the other keeps what it was given.
+vlan_mac=02:f0:00:b4:44:55
+grcli interface add vlan bond0.42 parent bond0 vlan_id 42
+grcli interface add vlan bond0.43 parent bond0 vlan_id 43 mac $vlan_mac
+
 port_add p0 domain bond0
 port_add p1 domain bond0
 port_add p2 domain bond0
@@ -31,6 +37,24 @@ port_add p2 domain bond0
 p0_mac=$(grcli -j interface show name p0 | jq -r .mac)
 grcli -j interface show name bond0 | jq -e --arg mac "$p0_mac" 'select(.mac == $mac)' ||
 	fail "bond0 mac not derived from primary member p0"
+
+# The control plane TAP was created before any member had joined, it must
+# follow, otherwise the kernel discards everything grout delivers on it.
+kernel_mac=$(ip -j link show bond0 | jq -r '.[0].address')
+echo "bond0 mac: grout=$p0_mac kernel=$kernel_mac"
+[ "$p0_mac" = "$kernel_mac" ] || fail "bond0 mac not synced to its control plane TAP"
+
+# The sub interface which was inheriting the bond address must follow it on its
+# own TAP too, otherwise the kernel discards everything grout delivers there.
+vlan42_mac=$(ip -j link show bond0.42 | jq -r '.[0].address')
+echo "bond0.42 mac: kernel=$vlan42_mac (bond0=$p0_mac)"
+[ "$vlan42_mac" = "$p0_mac" ] || fail "bond0.42 mac did not follow the bond"
+
+# an address given explicitly is left alone
+vlan43_mac=$(ip -j link show bond0.43 | jq -r '.[0].address')
+echo "bond0.43 mac: kernel=$vlan43_mac (explicit=$vlan_mac)"
+[ "$vlan43_mac" = "$vlan_mac" ] ||
+	fail "bond0.43 explicit mac overwritten when the bond address changed"
 
 mac=02:f0:00:b4:44:44
 
