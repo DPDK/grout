@@ -174,5 +174,6 @@ RTE_INIT(icmp_module_init) {
 	event_subscribe(GR_EVENT_IFACE_REMOVE, icmp_event_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_DEST_UNREACHABLE, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_TTL_EXCEEDED, icmp_input_cb);
+	icmp_input_register_callback(RTE_ICMP_TYPE_PARAM_PROBLEM, icmp_input_cb);
 	icmp_input_register_callback(RTE_ICMP_TYPE_ECHO_REPLY, icmp_input_cb);
 }
