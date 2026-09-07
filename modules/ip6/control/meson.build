@@ -3,7 +3,6 @@
 
 src += files(
   'address.c',
-  'icmp6.c',
   'nexthop.c',
   'route.c',
   'router_advert.c',

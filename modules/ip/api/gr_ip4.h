@@ -35,8 +35,6 @@ enum gr_ip4_requests : uint32_t {
 	GR_IP4_ADDR_DEL,
 	GR_IP4_ADDR_LIST,
 	GR_IP4_ADDR_FLUSH,
-	GR_IP4_ICMP_SEND,
-	GR_IP4_ICMP_RECV,
 	GR_IP4_FIB_DEFAULT_SET,
 	GR_IP4_FIB_INFO_LIST,
 	GR_IP4_ADDR_EXPOSE,
@@ -136,37 +134,6 @@ GR_REQ(GR_IP4_ADDR_UNEXPOSE, struct gr_ip4_addr_expose_req, struct gr_empty);
 // List the interfaces a local address is exposed on. The address is identified
 // by its owning interface and value. The response is a stream of interface ids.
 GR_REQ_STREAM(GR_IP4_ADDR_EXPOSE_LIST, struct gr_ip4_ifaddr, uint16_t);
-
-// icmp ////////////////////////////////////////////////////////////////////////
-
-// Send an ICMP echo request (ping).
-struct gr_ip4_icmp_send_req {
-	ip4_addr_t addr;
-	uint16_t vrf;
-	uint16_t ident;
-	uint16_t seq_num;
-	uint8_t ttl;
-};
-
-GR_REQ(GR_IP4_ICMP_SEND, struct gr_ip4_icmp_send_req, struct gr_empty);
-
-// Receive an ICMP echo reply (ping response) or error.
-struct gr_ip4_icmp_recv_req {
-	uint16_t ident;
-	uint16_t seq_num;
-};
-
-struct gr_ip4_icmp_recv_resp {
-	uint8_t type;
-	uint8_t code;
-	uint8_t ttl;
-	uint16_t ident;
-	uint16_t seq_num;
-	ip4_addr_t src_addr;
-	gr_clock_ns_t response_time;
-};
-
-GR_REQ(GR_IP4_ICMP_RECV, struct gr_ip4_icmp_recv_req, struct gr_ip4_icmp_recv_resp);
 
 // fib info ////////////////////////////////////////////////////////////////////
 

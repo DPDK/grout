@@ -5,7 +5,6 @@ src += files(
   'bond.c',
   'capture.c',
   'ctlplane.c',
-  'icmp_session.c',
   'graph.c',
   'group_nexthop.c',
   'iface.c',
