@@ -29,6 +29,14 @@ for _ in $(seq 50); do
 	sleep 0.1
 done
 
+# The nodebox connectivity watchdog pings its DHCP gateway only to have grout
+# resolve it, then reads the nexthop state through the API and never looks at
+# the ping result. Keep that sequence working.
+ping -c1 -W1 -n 172.16.0.2 >/dev/null 2>&1 || true
+grcli -j nexthop show internal type l3 vrf main |
+	jq -e '[.[] | select(.addr == "172.16.0.2" and .state == "reachable")] | length > 0' \
+	>/dev/null || fail "gateway nexthop is not reachable after pinging it"
+
 ping -c3 -i0.2 -W1 -n 172.16.0.2 || fail "kernel ping did not receive its replies"
 ping -6 -c3 -i0.2 -W1 -n fd00::2 || fail "kernel ping6 did not receive its replies"
 
