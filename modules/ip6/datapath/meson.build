@@ -29,4 +29,8 @@ tests += [
     'sources': files('ndp_na_input.c'),
     'link_args': [],
   },
+  {
+    'sources': files('ip6_local.c'),
+    'link_args': [],
+  },
 ]
