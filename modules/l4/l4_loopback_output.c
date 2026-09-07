@@ -60,8 +60,8 @@ static uint16_t l4_loopback_output_process(
 		// If the packet arrived on a port with a TAP control plane
 		// interface, send it there instead of the TUN loopback.
 		// This allows SO_BINDTODEVICE sockets to receive replies
-		// on the same device they are bound to.
-		if (d->iface->cp_fd != 0) {
+		// on the same device they are bound to. A VRF interface has no TAP.
+		if (d->iface->type != GR_IFACE_TYPE_VRF && d->iface->cp_fd != 0) {
 			struct rte_ether_addr mac;
 			struct rte_ether_hdr *eth;
 			rte_be16_t ether_type;

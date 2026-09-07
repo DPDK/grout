@@ -32,9 +32,9 @@ struct icmp_session_pool *icmp_session_pool_new(
 );
 void icmp_session_pool_free(struct icmp_session_pool *pool);
 
-// control_queue callback: extract key via get_key, store mbuf if session
-// exists, drop otherwise. Handles iface removal drain.
-void icmp_session_input(
+// Store the mbuf in the matching session. Handles iface removal drain.
+// Returns it when no session claimed it, NULL when consumed or freed.
+struct rte_mbuf *icmp_session_input(
 	struct icmp_session_pool *pool,
 	void *m,
 	uintptr_t timestamp,
