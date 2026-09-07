@@ -67,7 +67,7 @@ static int icmp6_extract_info(
 
 	echo = icmp6_inner_echo(m, &outer);
 	if (echo == NULL)
-		return errno_set(EBADMSG);
+		return -errno; // set by the helper above
 
 	*ident = echo->ident;
 	*seq_num = echo->seqnum;
