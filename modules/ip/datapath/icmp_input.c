@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
-#include "clock.h"
-#include "control_input.h"
-#include "control_output.h"
 #include "graph.h"
-#include "iface.h"
-#include "ip4.h"
 #include "ip4_datapath.h"
-#include "log.h"
 #include "mbuf.h"
 #include "trace.h"
 
@@ -16,30 +10,13 @@
 
 enum {
 	OUTPUT = 0,
-	CONTROL,
+	DELIVER,
 	INVALID,
 	UNSUPPORTED,
 	EDGE_COUNT,
 };
 
 #define ICMP_MIN_SIZE 8
-
-static control_queue_cb_t icmp_cb[UINT8_MAX];
-static rte_edge_t control_to_l4_loopback_output;
-
-int icmp_deliver_to_kernel(struct rte_mbuf *m) {
-	const struct ip_local_mbuf_data *ip_data = ip_local_mbuf_data(m);
-	struct mbuf_data *d = mbuf_data(m);
-
-	// the kernel drops what lands on an interface without that address
-	if (!addr4_is_local_on_iface(d->iface->id, ip_data->dst)) {
-		d->iface = get_vrf_iface(d->iface->vrf_id);
-		if (d->iface == NULL)
-			return errno_set(EHOSTUNREACH);
-	}
-
-	return post_to_stack(control_to_l4_loopback_output, m);
-}
 
 // RFC 792: the number of bytes of the datagram in error that an ICMP error
 // message carries after the quoted IP header.
@@ -91,7 +68,8 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		if (icmp->icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST) {
+		switch (icmp->icmp_type) {
+		case RTE_ICMP_TYPE_ECHO_REQUEST:
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
 				goto next;
@@ -101,15 +79,19 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			ip_data->dst = ip_data->src;
 			ip_data->src = ip;
 			edge = OUTPUT;
-		} else if (icmp_cb[icmp->icmp_type]) {
+			break;
+		case RTE_ICMP_TYPE_DEST_UNREACHABLE:
+		case RTE_ICMP_TYPE_TTL_EXCEEDED:
+		case RTE_ICMP_TYPE_PARAM_PROBLEM:
+		case RTE_ICMP_TYPE_ECHO_REPLY:
 			if (icmp_quotes_datagram(icmp->icmp_type)
 			    && !icmp_quoted_datagram_valid(icmp, ip_data->len)) {
 				edge = INVALID;
 				goto next;
 			}
-			control_output_set_cb(mbuf, icmp_cb[icmp->icmp_type], clock_ns());
-			edge = CONTROL;
-		} else {
+			edge = DELIVER;
+			break;
+		default:
 			edge = UNSUPPORTED;
 		}
 next:
@@ -123,18 +105,8 @@ next:
 	return nb_objs;
 }
 
-void icmp_input_register_callback(uint8_t icmp_type, control_queue_cb_t cb) {
-	if (icmp_type == RTE_ICMP_TYPE_ECHO_REQUEST)
-		ABORT("cannot register callback for echo request");
-	if (icmp_cb[icmp_type])
-		ABORT("callback already registered for %d", icmp_type);
-
-	icmp_cb[icmp_type] = cb;
-}
-
 static void icmp_input_register(void) {
 	ip_input_local_add_proto(IPPROTO_ICMP, "icmp_input");
-	control_to_l4_loopback_output = gr_control_input_register_handler("l4_loopback_output");
 }
 
 static struct rte_node_register icmp_input_node = {
@@ -145,7 +117,7 @@ static struct rte_node_register icmp_input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[OUTPUT] = "icmp_output",
-		[CONTROL] = "control_output",
+		[DELIVER] = "icmp_input_deliver",
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
 	},
@@ -165,6 +137,7 @@ GR_DROP_REGISTER(icmp_input_unsupported);
 
 #ifdef __GROUT_UNIT_TEST__
 #include "_cmocka.h"
+#include "log.h"
 
 #include <stddef.h>
 
@@ -176,17 +149,7 @@ mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t
 mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void, ip_input_local_add_proto(uint8_t, const char *));
-mock_func(rte_edge_t, gr_control_input_register_handler(const char *));
-mock_func(int, post_to_stack(rte_edge_t, struct rte_mbuf *));
-mock_func(struct iface *, get_vrf_iface(uint16_t));
-mock_func(bool, addr4_is_local_on_iface(uint16_t, ip4_addr_t));
 mock_func(int, trace_icmp_format(char *, size_t, const struct rte_icmp_hdr *, size_t));
-
-// Referenced by the inline helpers in clock.h and control_output.h.
-__thread gr_clock_ns_t clock_snapshot_ns;
-__thread bool clock_trusted;
-int cq_callback_offset;
-int cq_priv_offset;
 
 struct fake_mbuf {
 	struct rte_icmp_hdr icmp;
@@ -195,18 +158,6 @@ struct fake_mbuf {
 	struct rte_mbuf mbuf;
 	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
 };
-
-static struct iface test_iface;
-
-static void test_cb(void *, uintptr_t, const struct control_queue_drain *) { }
-
-static int setup(void **) {
-	// Dynamic fields live inside the mbuf reserved area, as in a real one.
-	cq_callback_offset = offsetof(struct rte_mbuf, dynfield1);
-	cq_priv_offset = cq_callback_offset + sizeof(control_queue_cb_t);
-	icmp_cb[RTE_ICMP_TYPE_TTL_EXCEEDED] = test_cb;
-	return 0;
-}
 
 static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	struct ip_local_mbuf_data *d;
@@ -231,7 +182,6 @@ static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	d->len = len;
 	d->ttl = 64;
 	d->proto = IPPROTO_ICMP;
-	d->iface = &test_iface;
 }
 
 static void fake_mbuf_cksum(struct fake_mbuf *fm) {
@@ -312,18 +262,18 @@ static void icmp_input_error_valid(void **) {
 	fake_mbuf_init(&fm, RTE_ICMP_TYPE_TTL_EXCEEDED, ICMP_ERROR_MIN_LEN);
 	fake_mbuf_cksum(&fm);
 
-	expect_uint_value(rte_node_enqueue_x1, next, CONTROL);
+	expect_uint_value(rte_node_enqueue_x1, next, DELIVER);
 	icmp_input_process(NULL, NULL, &obj, 1);
 }
 
 int main(void) {
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test_setup(icmp_input_too_short, setup),
-		cmocka_unit_test_setup(icmp_input_bad_cksum, setup),
-		cmocka_unit_test_setup(icmp_input_echo_request, setup),
-		cmocka_unit_test_setup(icmp_input_error_too_short, setup),
-		cmocka_unit_test_setup(icmp_input_error_inner_ihl_too_long, setup),
-		cmocka_unit_test_setup(icmp_input_error_valid, setup),
+		cmocka_unit_test(icmp_input_too_short),
+		cmocka_unit_test(icmp_input_bad_cksum),
+		cmocka_unit_test(icmp_input_echo_request),
+		cmocka_unit_test(icmp_input_error_too_short),
+		cmocka_unit_test(icmp_input_error_inner_ihl_too_long),
+		cmocka_unit_test(icmp_input_error_valid),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

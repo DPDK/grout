@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "control_queue.h"
 #include "iface.h"
 #include "mbuf.h"
 #include "nexthop.h"
@@ -57,15 +56,3 @@ void ndp_update_nexthop(
 	const struct iface *iface,
 	const struct rte_ether_addr *mac
 );
-
-int icmp6_local_send(
-	const struct rte_ipv6_addr *dst,
-	const struct nexthop *gw,
-	uint16_t ident,
-	uint16_t seq_num,
-	uint8_t hop_limit
-);
-
-void icmp6_input_register_callback(uint8_t icmp6_type, control_queue_cb_t cb);
-
-int icmp6_deliver_to_kernel(struct rte_mbuf *);
