@@ -9,7 +9,6 @@ cli_src += files(
   'diag.c',
   'events.c',
   'graph.c',
-  'icmp.c',
   'iface.c',
   'mac.c',
   'nexthop.c',
