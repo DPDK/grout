@@ -24,5 +24,9 @@ tests += [
   {
     'sources': files('ip_input.c'),
     'link_args': [],
+  },
+  {
+    'sources': files('ip_local.c'),
+    'link_args': [],
   }
 ]
