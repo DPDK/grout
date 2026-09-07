@@ -21,13 +21,13 @@ done
 
 set -m
 
-grcli ping 172.16.0.2 count 10 delay 100 &
-grcli ping 172.16.1.2 count 3 delay 10
+ping -i0.1 -c10 -n 172.16.0.2 &
+ping -i0.01 -c3 -n 172.16.1.2
 
 fg
 
-# Expect this test to fail
-grcli ping 1.1.1.1 count 1 && fail "ping to unknown route succeeded"
-grcli ping 172.16.1.3 count 1 && fail "ping to non-existent host succeeded"
+# Expect these to fail
+grcli route get 1.1.1.1 && fail "unknown destination resolved"
+ping -c1 -W1 -n 172.16.1.3 && fail "ping to non-existent host succeeded"
 
-grcli traceroute 172.16.0.2
+traceroute -N1 -n 172.16.0.2
