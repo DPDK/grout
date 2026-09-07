@@ -78,4 +78,4 @@ wait_event -t 20 'route4 add: vrf=main 16.0.0.0/24 origin=bgp'
 nh_id=$(route_nh_id 16.0.0.0/24 main L3)
 assert_nexthop "$nh_id" '.vrf == "main" and .addr == "172.16.0.2"'
 
-grcli ping 16.0.0.1 count 3 delay 10
+ping -i0.01 -c3 -n 16.0.0.1

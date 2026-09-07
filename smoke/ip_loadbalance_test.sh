@@ -40,8 +40,7 @@ grcli nexthop add group id 10 member 100 member 101
 grcli route add 192.200.0.0/24 via id 10
 
 # Locally generated ICMP requests
-grcli ping 192.200.0.2 count 1 ident 1 delay 10
-grcli ping 192.200.0.2 count 1 ident 2 delay 10
+ping -i0.01 -c3 -n 192.200.0.2
 
 # Externally generated ICMP requests
 ip netns exec n0 ping -i0.01 -c3 -n 192.200.0.2
