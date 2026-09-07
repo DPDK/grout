@@ -91,6 +91,8 @@ static uint16_t ip6_input_local_process(
 		if (edge == UNKNOWN_PROTO)
 			goto next;
 
+		m->packet_type = RTE_PTYPE_L3_IPV6;
+
 		switch (d->proto) {
 		case IPPROTO_AH:
 		case IPPROTO_HOPOPTS:
@@ -103,7 +105,6 @@ static uint16_t ip6_input_local_process(
 		case IPPROTO_TCP:
 		case IPPROTO_SCTP:
 		case IPPROTO_DCCP:
-			m->packet_type = RTE_PTYPE_L3_IPV6;
 			// These protocols have checksum fields to be verified.
 			break;
 		default:
@@ -283,6 +284,21 @@ static void ip6_local_valid_length(void **) {
 	assert_int_equal(ip6_local_mbuf_data(&fm.mbuf)->len, TEST_PAYLOAD_LEN);
 }
 
+// l4_loopback_output picks the address family from the packet type, so a
+// protocol with no checksum to verify needs it set just the same.
+static void ip6_local_sets_packet_type(void **) {
+	struct fake_mbuf fm;
+	void *obj = &fm.mbuf;
+
+	fake_mbuf_init(&fm);
+	assert_int_not_equal(fm.mbuf.packet_type, RTE_PTYPE_L3_IPV6);
+
+	expect_uint_value(rte_node_enqueue_x1, next, TEST_EDGE);
+	ip6_input_local_process(NULL, NULL, &obj, 1);
+
+	assert_int_equal(fm.mbuf.packet_type, RTE_PTYPE_L3_IPV6);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test_setup(ip6_local_payload_len_beyond_mbuf, setup),
@@ -290,6 +306,7 @@ int main(void) {
 		cmocka_unit_test_setup(ip6_local_ext_beyond_payload_len, setup),
 		cmocka_unit_test_setup(ip6_local_payload_len_below_mbuf, setup),
 		cmocka_unit_test_setup(ip6_local_valid_length, setup),
+		cmocka_unit_test_setup(ip6_local_sets_packet_type, setup),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
