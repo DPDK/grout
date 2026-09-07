@@ -69,7 +69,7 @@ static int icmp_extract_info(
 	struct rte_icmp_hdr *outer = rte_pktmbuf_mtod(m, struct rte_icmp_hdr *);
 	struct rte_icmp_hdr *inner = icmp_inner_hdr(m);
 	if (inner == NULL)
-		return errno_set(EBADMSG);
+		return -errno; // set by the helper above
 	*ident = inner->icmp_ident;
 	*seq_num = inner->icmp_seq_nb;
 	if (outer->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY) {
