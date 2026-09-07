@@ -73,6 +73,10 @@ static int icmp_extract_info(
 	*ident = inner->icmp_ident;
 	*seq_num = inner->icmp_seq_nb;
 	if (outer->icmp_type == RTE_ICMP_TYPE_ECHO_REPLY) {
+		// RFC 792 makes the echo data optional, our own probes always
+		// carry a timestamp there.
+		if (ip_local_mbuf_data(m)->len < sizeof(*outer) + sizeof(*timestamp))
+			return errno_set(EBADMSG);
 		gr_clock_ns_t *ts = PAYLOAD(inner);
 		*timestamp = *ts;
 	} else {
