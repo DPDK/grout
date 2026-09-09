@@ -15,6 +15,7 @@ LOG_TYPE("graph");
 enum edges {
 	MANAGEMENT = 0,
 	BAD_PROTO,
+	BAD_LENGTH,
 	EDGE_COUNT,
 };
 
@@ -101,12 +102,14 @@ static uint16_t l4_input_local_process(
 	struct rte_udp_hdr *hdr;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
+	uint16_t avail;
 	uint8_t proto;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
 		edge = BAD_PROTO;
 		proto = 0;
+		avail = rte_pktmbuf_data_len(mbuf);
 
 		if (mbuf->packet_type & RTE_PTYPE_L3_IPV4)
 			proto = ip_local_mbuf_data(mbuf)->proto;
@@ -115,25 +118,36 @@ static uint16_t l4_input_local_process(
 		else
 			goto next;
 
-		if (proto != IPPROTO_UDP) {
+		switch (proto) {
+		case IPPROTO_UDP:
+			if (avail < sizeof(struct rte_udp_hdr)) {
+				edge = BAD_LENGTH;
+				goto next;
+			}
+			hdr = rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
+			edge = udp_edges[hdr->dst_port];
+			break;
+		case IPPROTO_TCP:
+			if (avail < sizeof(struct rte_tcp_hdr)) {
+				edge = BAD_LENGTH;
+				goto next;
+			}
 			edge = MANAGEMENT;
-			goto next;
+			break;
+		default:
+			edge = MANAGEMENT;
+			break;
 		}
-
-		hdr = rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
-		edge = udp_edges[hdr->dst_port];
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct l4_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
 			t->proto = proto;
-			switch (proto) {
-			case IPPROTO_UDP:
+			if (edge == BAD_LENGTH)
+				memset(&t->tcp, 0, sizeof(t->tcp)); // union, covers udp
+			else if (proto == IPPROTO_UDP)
 				t->udp = *rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
-				break;
-			case IPPROTO_TCP:
+			else if (proto == IPPROTO_TCP)
 				t->tcp = *rte_pktmbuf_mtod(mbuf, struct rte_tcp_hdr *);
-				break;
-			}
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
@@ -153,6 +167,7 @@ static struct rte_node_register input_node = {
 	.next_nodes = {
 		[MANAGEMENT] = "l4_loopback_output",
 		[BAD_PROTO] = "l4_bad_proto",
+		[BAD_LENGTH] = "l4_input_local_bad_length",
 	},
 };
 
@@ -164,3 +179,5 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(l4_input_local_bad_length);
