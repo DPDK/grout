@@ -23,3 +23,13 @@ int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data
 void ipaddr_to_l3_addr(struct l3_addr *dst, const struct ipaddr *src);
 
 void l3_addr_to_ipaddr(struct ipaddr *dst, const struct l3_addr *src);
+
+typedef void (*foreach_cb_t)(const void *obj, void *priv);
+
+int grout_client_foreach(
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	foreach_cb_t cb,
+	void *priv
+);
