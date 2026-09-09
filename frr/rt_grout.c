@@ -945,7 +945,7 @@ void grout_nexthop_group_add(struct gr_nexthop *gr_nh, bool startup) {
 	);
 }
 
-static void grout_neigh_notify(bool new, struct gr_nexthop *gr_nh) {
+static void grout_neigh_notify(bool new, const struct gr_nexthop *gr_nh) {
 	const struct gr_nexthop_info_l3 *l3;
 	static const struct ethaddr zero_mac = {};
 	struct zebra_dplane_ctx *ctx;
@@ -1393,6 +1393,56 @@ enum zebra_dplane_result grout_fdb_read_ctx(struct zebra_dplane_ctx *ctx) {
 	);
 
 	grout_client_foreach(GR_FDB_LIST, sizeof(req), &req, fdb_change_cb, ctx);
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
+static void neigh_change_cb(const void *obj, void *priv) {
+	const struct zebra_dplane_ctx *ctx = priv;
+	const struct gr_nexthop *gr_nh = obj;
+	const struct gr_nexthop_info_l3 *l3;
+	const struct ipaddr *ip;
+	ifindex_t ifindex;
+
+	if (gr_nh->type != GR_NH_T_L3)
+		return;
+	l3 = (const struct gr_nexthop_info_l3 *)gr_nh->info;
+
+	ifindex = dplane_ctx_get_neigh_read_ifindex(ctx);
+	if (ifindex != 0 && ifindex_grout_to_frr(gr_nh->iface_id) != ifindex)
+		return;
+
+	ip = dplane_ctx_get_neigh_read_ip(ctx);
+	if (ip != NULL && !ipaddr_is_zero(ip)) {
+		if (ip->ipa_type == IPADDR_V4) {
+			if (l3->af != GR_AF_IP4
+			    || memcmp(&ip->ipaddr_v4, &l3->ipv4, sizeof(l3->ipv4)) != 0)
+				return;
+		} else {
+			if (l3->af != GR_AF_IP6
+			    || memcmp(&ip->ipaddr_v6, &l3->ipv6, sizeof(l3->ipv6)) != 0)
+				return;
+		}
+	}
+
+	grout_neigh_notify(true, gr_nh);
+}
+
+enum zebra_dplane_result grout_neigh_read_ctx(struct zebra_dplane_ctx *ctx) {
+	struct gr_nh_list_req req = {
+		.vrf_id = GR_VRF_ID_UNDEF,
+		.type = GR_NH_T_L3,
+		.max_count = 0,
+		.include_internal = false,
+	};
+
+	gr_log_debug(
+		"iface=%d ip=%pIA",
+		dplane_ctx_get_neigh_read_ifindex(ctx),
+		dplane_ctx_get_neigh_read_ip(ctx)
+	);
+
+	grout_client_foreach(GR_NH_LIST, sizeof(req), &req, neigh_change_cb, ctx);
 
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
