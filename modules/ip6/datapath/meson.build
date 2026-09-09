@@ -30,6 +30,10 @@ tests += [
     'link_args': [],
   },
   {
+    'sources': files('ndp_ns_input.c'),
+    'link_args': [],
+  },
+  {
     'sources': files('ip6_local.c'),
     'link_args': [],
   },
