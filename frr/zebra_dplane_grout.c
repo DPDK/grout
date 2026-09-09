@@ -780,6 +780,43 @@ int grout_client_send_recv(uint32_t req_type, size_t tx_len, const void *tx_data
 	return ret;
 }
 
+int grout_client_foreach(
+	uint32_t req_type,
+	size_t tx_len,
+	const void *tx_data,
+	foreach_cb_t cb,
+	void *priv
+) {
+	const void *obj;
+	int ret;
+
+	assert(cb != NULL);
+	assert((tx_len == 0 && tx_data == NULL) || (tx_len > 0 && tx_data != NULL));
+
+	if (grout_ctx.client == NULL)
+		return errno_set(ENOTCONN);
+
+	gr_api_client_stream_foreach (obj, ret, grout_ctx.client, req_type, tx_len, tx_data)
+		cb(obj, priv);
+
+	if (ret == 0) {
+		gr_log_debug("%s: success", gr_api_message_name(req_type));
+		return 0;
+	}
+
+	gr_log_err("%s: %s", gr_api_message_name(req_type), strerror(errno));
+
+	if (errno == ECONNRESET || errno == EPIPE || errno == ENOTCONN) {
+		gr_api_client_disconnect(grout_ctx.client);
+		grout_ctx.client = NULL;
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_reconnect
+		);
+	}
+
+	return ret;
+}
+
 static void dplane_read_notifications(struct event *event) {
 	struct event_loop *dg_master = dplane_get_thread_master();
 	struct gr_api_event *gr_e = NULL;
