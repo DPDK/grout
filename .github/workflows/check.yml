@@ -47,7 +47,7 @@ jobs:
             frr: '10.6'
           - compiler: gcc-14
             dpdk: '25.11'
-            frr: '10.7'
+            frr: '10.5'
           - compiler: gcc-14
             dpdk: '25.11-head'
             frr: '10.7'
