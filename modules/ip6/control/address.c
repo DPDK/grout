@@ -61,32 +61,19 @@ addr6_get_preferred_iface(uint16_t iface_id, const struct rte_ipv6_addr *dst) {
 	return pref;
 }
 
-struct nexthop *addr6_get_preferred_vrf(uint16_t vrf_id, const struct rte_ipv6_addr *dst) {
-	const struct iface *iface = NULL;
-	struct nexthop *pref = NULL, *nh;
-	struct iface *vrf_iface;
+bool addr6_is_local_on_iface(uint16_t iface_id, const struct rte_ipv6_addr *ip) {
+	struct hoplist *addrs = addr6_get_all(iface_id);
+	struct nexthop *nh;
 
-	vrf_iface = get_vrf_iface(vrf_id);
-	if (vrf_iface == NULL)
-		return NULL;
+	if (addrs == NULL)
+		return false;
 
-	if ((nh = addr6_get_preferred_iface(vrf_iface->id, dst)) != NULL)
-		return nh;
-
-	while ((iface = iface_next(GR_IFACE_TYPE_UNDEF, iface)) != NULL) {
-		if (iface->vrf_id != vrf_id || iface->id == vrf_iface->id)
-			continue;
-		if ((nh = addr6_get_preferred_iface(iface->id, dst)) == NULL)
-			continue;
-		if (rte_ipv6_addr_eq_prefix(
-			    dst, &nexthop_info_l3(nh)->ipv6, nexthop_info_l3(nh)->prefixlen
-		    ))
-			return nh;
-		if (pref == NULL)
-			pref = nh;
+	vec_foreach (nh, addrs->nh) {
+		if (rte_ipv6_addr_eq(&nexthop_info_l3(nh)->ipv6, ip))
+			return true;
 	}
 
-	return pref != NULL ? pref : errno_set_null(EADDRNOTAVAIL);
+	return false;
 }
 
 struct nexthop *addr6_get_preferred(uint16_t iface_id, const struct rte_ipv6_addr *dst) {

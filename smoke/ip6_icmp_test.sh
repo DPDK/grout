@@ -18,11 +18,11 @@ for n in 0 1; do
 	ip -n $ns route add fd00:ba4::/62 via fd00:ba4:$n::1 dev $p
 done
 
-grcli ping fd00:ba4:0::2 count 10 delay 100
-grcli ping fd00:ba4:1::2 count 3 delay 10
+ping6 -i0.1 -c10 -n fd00:ba4:0::2
+ping6 -i0.01 -c3 -n fd00:ba4:1::2
 
-# Expect this test to fail
-grcli ping fd00:baa::1 count 1 && fail "ping to unknown route succeeded"
-grcli ping fd00:ba4:1::3 count 1 && fail "ping to non-existent host succeeded"
+# Expect these to fail
+grcli route get fd00:baa::1 && fail "unknown destination resolved"
+ping6 -c1 -W1 -n fd00:ba4:1::3 && fail "ping to non-existent host succeeded"
 
-grcli traceroute fd00:ba4:1::2
+traceroute -N1 -n fd00:ba4:1::2

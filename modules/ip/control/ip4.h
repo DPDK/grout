@@ -64,9 +64,10 @@ int rib4_iter(uint16_t vrf_id, struct rib4_iterator *);
 
 // get the default address for a given interface
 struct nexthop *addr4_get_preferred(uint16_t iface_id, ip4_addr_t dst);
-struct nexthop *addr4_get_preferred_vrf(uint16_t vrf_id, ip4_addr_t dst);
 // get all addresses for a given interface
 struct hoplist *addr4_get_all(uint16_t iface_id);
+
+bool addr4_is_local_on_iface(uint16_t iface_id, ip4_addr_t ip);
 
 int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin_t);
 int addr4_delete(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen);

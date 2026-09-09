@@ -8,7 +8,6 @@ src += files(
   'arp_output_reply.c',
   'arp_output_request.c',
   'icmp_input.c',
-  'icmp_local_send.c',
   'icmp_output.c',
   'ip_error.c',
   'ip_forward.c',
@@ -23,6 +22,14 @@ inc += include_directories('.')
 tests += [
   {
     'sources': files('ip_input.c'),
+    'link_args': [],
+  },
+  {
+    'sources': files('ip_local.c'),
+    'link_args': [],
+  },
+  {
+    'sources': files('icmp_input.c'),
     'link_args': [],
   }
 ]

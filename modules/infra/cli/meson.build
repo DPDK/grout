@@ -7,7 +7,6 @@ cli_src += files(
   'bond.c',
   'events.c',
   'graph.c',
-  'icmp.c',
   'iface.c',
   'mac.c',
   'vrf.c',

@@ -85,4 +85,4 @@ done
 
 wait_event -t 60 'route6 add: vrf=main 2001:db8:1000::/64 origin=ospf'
 
-grcli ping 2001:db8:1000::1 count 3 delay 10
+ping6 -i0.01 -c3 -n 2001:db8:1000::1

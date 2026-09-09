@@ -526,6 +526,21 @@ int iface_set_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	return ret;
 }
 
+void iface_refresh_subinterface_macs(struct iface *iface, const struct rte_ether_addr *old_mac) {
+	static const struct rte_ether_addr zero = {0};
+	struct rte_ether_addr mac;
+
+	vec_foreach (struct iface *s, iface->subinterfaces) {
+		// a subinterface which no longer carries the previous parent
+		// address was given one of its own, leave it alone
+		if (iface_get_eth_addr(s, &mac) < 0 || !rte_is_same_ether_addr(&mac, old_mac))
+			continue;
+		if (iface_set_eth_addr(s, &zero) < 0)
+			continue;
+		event_push(GR_EVENT_IFACE_POST_RECONFIG, s);
+	}
+}
+
 int iface_add_eth_addr(struct iface *iface, const struct rte_ether_addr *mac) {
 	const struct iface_type *type;
 	struct iface_mac new_m;

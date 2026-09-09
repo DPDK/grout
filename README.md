@@ -164,14 +164,12 @@ graph                Show packet processing graph info (requires interfaces to b
 interface            Interfaces.
 logging              Ingress/egress packet logging.
 nexthop              Nexthops.
-ping                 Send ICMPv6 echo requests and wait for replies.
 quit                 Exit the CLI.
 route                Routing tables.
 router-advert        IPv6 router advertisements.
 snat44               Dynamic source NAT44.
 stats                Packet processing statistics.
 trace                Packet tracing.
-traceroute           Discover IPv6 intermediate gateways.
 tunsrc               SRv6 source address.
 grout# interface show
 NAME  ID   FLAGS       MODE  DOMAIN  TYPE  INFO
@@ -218,7 +216,6 @@ graph               (Show packet processing graph info (requires interfaces to b
 interface           (Interfaces.)
 logging             (Ingress/egress packet logging.)
 nexthop             (Nexthops.)
-ping                (Send ICMPv6 echo requests and wait for replies.)
 quit                (Exit the CLI.)
 route               (Routing tables.)
 router-advert       (IPv6 router advertisements.)
@@ -228,7 +225,6 @@ snat44              (Dynamic source NAT44.)
 stats               (Packet processing statistics.)
 --trace-commands    (Print executed commands.)
 trace               (Packet tracing.)
-traceroute          (Discover IPv6 intermediate gateways.)
 tunsrc              (SRv6 source address.)
 -x                  (Print executed commands.)
 [root@grout]$ grcli stats <TAB><TAB>

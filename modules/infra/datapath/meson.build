@@ -30,5 +30,9 @@ tests += [
   {
     'sources': files('trace_test.c'),
     'link_args': [],
+  },
+  {
+    'sources': files('flow_hash_test.c'),
+    'link_args': [],
   }
 ]

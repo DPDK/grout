@@ -88,4 +88,4 @@ done
 
 wait_event -t 60 'route4 add: vrf=main 16.0.0.1/32 origin=ospf'
 
-grcli ping 16.0.0.1 count 1
+ping -c1 -W1 -n 16.0.0.1

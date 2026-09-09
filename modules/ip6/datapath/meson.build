@@ -3,7 +3,6 @@
 
 src += files(
   'icmp6_input.c',
-  'icmp6_local_send.c',
   'icmp6_output.c',
   'ip6_error.c',
   'ip6_forward.c',
@@ -27,6 +26,18 @@ tests += [
   },
   {
     'sources': files('ndp_na_input.c'),
+    'link_args': [],
+  },
+  {
+    'sources': files('ndp_ns_input.c'),
+    'link_args': [],
+  },
+  {
+    'sources': files('ip6_local.c'),
+    'link_args': [],
+  },
+  {
+    'sources': files('icmp6_input.c'),
     'link_args': [],
   },
 ]

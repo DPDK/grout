@@ -15,6 +15,7 @@
 #   * bind to port TAP in a non-default VRF
 #   * bind to VRF master device of a non-default VRF
 #   * bind to VLAN sub-interface TAP (default and non-default VRF)
+#   * bind to bond TAP, whose address only exists once a member has joined
 #   * no bind (baseline)
 #
 # Each scenario runs UDP/IPv4, UDP/IPv6, TCP/IPv4 and TCP/IPv6 echoes.
@@ -25,6 +26,9 @@ grcli interface add vrf gr-vrf1
 
 port_add p0
 port_add p1 vrf gr-vrf1
+# no explicit mac: the bond takes the one of its member, after its TAP was made
+grcli interface add bond bond0 mode active-backup
+port_add p2 domain bond0
 grcli interface add vlan p0.42 parent p0 vlan_id 42
 grcli interface add vlan p1.43 parent p1 vlan_id 43 vrf gr-vrf1
 
@@ -36,6 +40,8 @@ grcli address add 172.18.0.1/24 iface p0.42
 grcli address add fd02::1/64    iface p0.42
 grcli address add 172.19.0.1/24 iface p1.43
 grcli address add fd03::1/64    iface p1.43
+grcli address add 172.20.0.1/24 iface bond0
+grcli address add fd04::1/64    iface bond0
 
 # peer0: x-p0 + x-p0.42 (vlan 42)
 netns_add peer0
@@ -57,13 +63,19 @@ ip -n peer1 link set x-p1.43 up
 ip -n peer1 addr add 172.19.0.2/24 dev x-p1.43
 ip -n peer1 addr add fd03::2/64    dev x-p1.43
 
-for ns in peer0 peer1; do
+# peer2: x-p2, the only member of bond0
+netns_add peer2
+move_to_netns x-p2 peer2
+ip -n peer2 addr add 172.20.0.2/24 dev x-p2
+ip -n peer2 addr add fd04::2/64    dev x-p2
+
+for ns in peer0 peer1 peer2; do
 	ip netns exec $ns socat UDP4-RECVFROM:9001,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat UDP6-RECVFROM:9000,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat TCP4-LISTEN:9003,fork EXEC:'/bin/cat' &
 	ip netns exec $ns socat TCP6-LISTEN:9002,fork EXEC:'/bin/cat' &
 done
-for ns in peer0 peer1; do
+for ns in peer0 peer1 peer2; do
 	wait_listeners --netns $ns 9000 9001 9002 9003
 done
 
@@ -125,10 +137,14 @@ run_scenario "bind=p1.43" 172.19.0.2 fd03::2 ",so-bindtodevice=p1.43"
 # Same src-IP requirement as scenario 3 (see comment there).
 run_scenario "bind=gr-vrf1/vlan" 172.19.0.2 fd03::2 ",so-bindtodevice=gr-vrf1" 172.19.0.1 fd03::1
 
-# 7. no bind (baseline)
+# 7. bind to bond TAP. The bond has no address of its own until a member joins,
+# well after its TAP was created, so the two must have been kept in sync.
+run_scenario "bind=bond0" 172.20.0.2 fd04::2 ",so-bindtodevice=bond0"
+
+# 8. no bind (baseline)
 run_scenario "nobind" 172.16.0.2 fd00::2 ""
 
-# 8. IPv6 link-local on port TAP. grout pushes fe80::xxx/128 (host route)
+# 9. IPv6 link-local on port TAP. grout pushes fe80::xxx/128 (host route)
 # rather than /64; this scenario verifies the daemon can still reach a
 # link-local peer when the egress interface is provided via socat's
 # scope_id syntax (peer_ll%p0). FRR daemons (ospf6d, etc.) do the same

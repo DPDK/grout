@@ -40,8 +40,6 @@ enum gr_ip6_requests : uint32_t {
 	GR_IP6_IFACE_RA_SET,
 	GR_IP6_IFACE_RA_CLEAR,
 	GR_IP6_IFACE_RA_SHOW,
-	GR_IP6_ICMP6_SEND,
-	GR_IP6_ICMP6_RECV,
 };
 
 // routes //////////////////////////////////////////////////////////////////////
@@ -180,38 +178,6 @@ struct gr_ip6_ra_conf {
 };
 
 GR_REQ_STREAM(GR_IP6_IFACE_RA_SHOW, struct gr_ip6_ra_show_req, struct gr_ip6_ra_conf);
-
-// icmpv6 //////////////////////////////////////////////////////////////////////
-
-// Send an ICMPv6 echo request (ping6).
-struct gr_ip6_icmp_send_req {
-	struct rte_ipv6_addr addr;
-	uint16_t iface;
-	uint16_t vrf;
-	uint16_t ident;
-	uint16_t seq_num;
-	uint8_t ttl;
-};
-
-GR_REQ(GR_IP6_ICMP6_SEND, struct gr_ip6_icmp_send_req, struct gr_empty);
-
-// Receive an ICMPv6 echo reply (ping6 response) or error.
-struct gr_ip6_icmp_recv_req {
-	uint16_t ident;
-	uint16_t seq_num;
-};
-
-struct gr_ip6_icmp_recv_resp {
-	uint8_t type;
-	uint8_t code;
-	uint8_t ttl;
-	uint16_t ident;
-	uint16_t seq_num;
-	struct rte_ipv6_addr src_addr;
-	gr_clock_ns_t response_time;
-};
-
-GR_REQ(GR_IP6_ICMP6_RECV, struct gr_ip6_icmp_recv_req, struct gr_ip6_icmp_recv_resp);
 
 // events //////////////////////////////////////////////////////////////////////
 
