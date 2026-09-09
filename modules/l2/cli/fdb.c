@@ -24,6 +24,8 @@ static cmd_status_t fdb_add(struct gr_api_client *c, const struct ec_pnode *p) {
 		return CMD_ERROR;
 	if (arg_u16(p, "VLAN", &req.fdb.vlan_id) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+	if (arg_ip_guess(p, "VTEP", &req.fdb.vtep.af, &req.fdb.vtep.addr) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	req.fdb.flags = GR_FDB_F_STATIC;
 
@@ -189,7 +191,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		FDB_CTX(root),
-		"add MAC iface IFACE [vlan VLAN]",
+		"add MAC iface IFACE [(vlan VLAN),(vtep VTEP)]",
 		fdb_add,
 		"Add a static FDB entry.",
 		with_help("MAC address.", ec_node_re("MAC", ETH_ADDR_RE)),
@@ -197,7 +199,8 @@ static int ctx_init(struct ec_node *root) {
 			"Bridge member interface.",
 			ec_node_dyn("IFACE", complete_iface_names, INT2PTR(GR_IFACE_TYPE_UNDEF))
 		),
-		with_help("VLAN ID.", ec_node_uint("VLAN", 1, 4094, 10))
+		with_help("VLAN ID.", ec_node_uint("VLAN", 1, 4094, 10)),
+		with_help("Remote VTEP.", ec_node_re("VTEP", IP_ANY_RE))
 	);
 	if (ret < 0)
 		return ret;
