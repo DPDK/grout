@@ -61,7 +61,7 @@ static uint16_t ndp_ns_input_process(
 		// - ICMP Code is 0.
 		ASSERT_NDP(icmp6->code == 0);
 		// - ICMP length (derived from the IP length) is 24 or more octets.
-		ASSERT_NDP(d.len >= 0);
+		ASSERT_NDP(d.len >= sizeof(*icmp6) + sizeof(*ns));
 		// - Target Address is not a multicast address.
 		ASSERT_NDP(!rte_ipv6_addr_is_mcast(&ns->target));
 
@@ -125,3 +125,77 @@ GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ndp_ns_input_inval);
 GR_DROP_REGISTER(ndp_ns_input_drop);
+
+#ifdef __GROUT_UNIT_TEST__
+
+#include "_cmocka.h"
+
+struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
+
+int cq_callback_offset;
+int cq_priv_offset;
+mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t));
+mock_func(int, drop_format(char *, size_t, const void *, size_t));
+mock_func(void *, gr_mbuf_trace_add(struct rte_mbuf *, struct rte_node *, size_t));
+mock_func(int, trace_icmp6_format(char *, size_t, const struct icmp6 *, size_t));
+mock_func(struct nexthop *, nexthop_lookup_l3(addr_family_t, uint16_t, uint16_t, const void *));
+mock_func(void, ndp_probe_input_cb(void *, uintptr_t, const struct control_queue_drain *));
+
+struct fake_ndp_ns_mbuf {
+	struct icmp6 icmp6_hdr;
+	struct icmp6_neigh_solicit ns_hdr;
+	struct rte_mbuf mbuf;
+	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
+};
+
+static struct iface test_iface;
+
+static void init_default_ns_mbuf(struct fake_ndp_ns_mbuf *ndp_mbuf) {
+	memset(ndp_mbuf, 0, sizeof(*ndp_mbuf));
+
+	ndp_mbuf->icmp6_hdr.type = ICMP6_TYPE_NEIGH_SOLICIT;
+	ndp_mbuf->icmp6_hdr.code = 0;
+	ndp_mbuf->ns_hdr.target = (struct rte_ipv6_addr)RTE_IPV6(
+		0xfe80, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00aa
+	);
+
+	ndp_mbuf->mbuf.buf_addr = &ndp_mbuf->icmp6_hdr;
+	ndp_mbuf->mbuf.data_len = sizeof(struct icmp6) + sizeof(struct icmp6_neigh_solicit);
+	ndp_mbuf->mbuf.pkt_len = ndp_mbuf->mbuf.data_len;
+	ndp_mbuf->mbuf.next = NULL;
+	ndp_mbuf->mbuf.ol_flags = 0;
+	ndp_mbuf->mbuf.packet_type = RTE_PTYPE_L4_ICMP;
+
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->hop_limit = 255;
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->len = ndp_mbuf->mbuf.data_len;
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->src = (struct rte_ipv6_addr)RTE_IPV6(
+		0xfe80, 0, 0, 0, 0, 0, 0, 0x00bb
+	);
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->dst = (struct rte_ipv6_addr)RTE_IPV6(
+		0xfe80, 0, 0, 0, 0, 0, 0, 0x00aa
+	);
+	ip6_local_mbuf_data(&ndp_mbuf->mbuf)->iface = &test_iface;
+}
+
+// A solicitation carrying only the generic ICMPv6 header has no target address
+// to read. RFC 4861 requires 24 octets.
+static void ndp_ns_input_icmp_len_invalid(void **) {
+	struct fake_ndp_ns_mbuf ndp_mbuf;
+	void *obj = &ndp_mbuf.mbuf;
+
+	init_default_ns_mbuf(&ndp_mbuf);
+	ip6_local_mbuf_data(obj)->len = GR_ICMP6_HDR_LEN;
+
+	expect_uint_value(rte_node_enqueue_x1, next, INVAL);
+
+	ndp_ns_input_process(NULL, NULL, &obj, 1);
+}
+
+int main(void) {
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(ndp_ns_input_icmp_len_invalid),
+	};
+	return cmocka_run_group_tests(tests, NULL, NULL);
+}
+
+#endif
