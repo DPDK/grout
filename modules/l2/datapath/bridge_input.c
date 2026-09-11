@@ -34,7 +34,7 @@ static uint16_t bridge_input_process(
 ) {
 	const struct iface *bridge, *iface;
 	const struct iface_info_bridge *br;
-	const struct gr_fdb_entry *fdb;
+	const struct fdb_entry *fdb;
 	struct iface_mbuf_data *d;
 	struct rte_ether_hdr *eth;
 	struct rte_mbuf *m;
