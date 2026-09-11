@@ -16,6 +16,11 @@
 
 #include <stdint.h>
 
+struct fdb_entry {
+	BASE(gr_fdb_entry);
+	uint16_t prev_iface_id;
+};
+
 // Internal bridge info structure.
 GR_IFACE_INFO(GR_IFACE_TYPE_BRIDGE, iface_info_bridge, {
 	BASE(__gr_iface_info_bridge_base);
@@ -24,7 +29,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_BRIDGE, iface_info_bridge, {
 });
 
 // Lookup a FDB entry from a MAC address and VLAN
-const struct gr_fdb_entry *
+const struct fdb_entry *
 fdb_lookup(uint16_t bridge_id, const struct rte_ether_addr *, uint16_t vlan_id);
 
 // Learn a new FDB entry or refresh its last_seen timestamp.

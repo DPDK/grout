@@ -21,11 +21,6 @@ struct fdb_key {
 	struct rte_ether_addr mac;
 };
 
-struct fdb_entry {
-	BASE(gr_fdb_entry);
-	uint16_t prev_iface_id;
-};
-
 static unsigned fdb_max_entries;
 static struct rte_hash *fdb_hash;
 static struct rte_mempool *fdb_pool;
@@ -97,7 +92,7 @@ static int fdb_reconfig(unsigned max_entries) {
 	return 0;
 }
 
-const struct gr_fdb_entry *
+const struct fdb_entry *
 fdb_lookup(uint16_t bridge_id, const struct rte_ether_addr *mac, uint16_t vlan_id) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
 	void *data;
@@ -305,7 +300,7 @@ static struct api_out fdb_del(const void *request, struct api_ctx *) {
 }
 
 static inline bool fdb_match(
-	const struct gr_fdb_entry *e,
+	const struct fdb_entry *e,
 	gr_fdb_flags_t flags,
 	uint16_t bridge_id,
 	uint16_t iface_id,
