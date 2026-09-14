@@ -48,32 +48,45 @@ static const gr_conn_state_t generic_state_machine[CONN_S_COUNT][CONN_FLOW_COUNT
 
 typedef enum {
 	TCP_FS_INVALID = 0,
-	TCP_FS_SYN,
-	TCP_FS_SYNACK,
-	TCP_FS_ACK,
-	TCP_FS_FIN,
+	TCP_FS_SYN, // 1
+	TCP_FS_SYNACK, // 2
+	TCP_FS_ACK, // 3
+	TCP_FS_FIN, // 4
 	TCP_FS_COUNT,
 } tcp_flagstate_t;
 
-static inline tcp_flagstate_t tcp_flagstate(const uint8_t tcp_flags) {
+static inline tcp_flagstate_t tcp_flagstate(uint8_t tcp_flags) {
 	tcp_flagstate_t s;
 
 	// Flags are shifted to use three least significant bits, thus each
-	// flag combination has a unique number ranging from 0 to 7, e.g.
-	// TH_SYN | TH_ACK has number 6, since (0x02 | (0x10 >> 2)) == 6.
+	// flag combination has a unique number ranging from 0 to 0x7, e.g.
+	// SYN | ACK has number 0x6, since (0x02 | (0x10 >> 2)) == 0x6.
 	// However, the requirement is to have number 0 for invalid cases,
-	// such as TH_SYN | TH_FIN, and to have the same number for TH_FIN
-	// and TH_FIN|TH_ACK cases.  Thus, we generate a mask assigning 3
-	// bits for each number, which contains the actual case numbers:
+	// such as SYN | FIN, and to have the same number for FIN and
+	// and FIN | ACK cases.  Thus, we use a lookup table indexed by
+	// the flags combination to get the enum value.
+	// The lookup table is implemented as a word of nibbles, ordered
+	// from the least to the most significant nibble, where lookup is
+	// performed by shifting down the word by index number of nibbles,
+	// and masking the least significant nibble.
 	//
-	// TCP_FS_SYNACK << (6 << 2) == 0x2000000 (6 - SYN,ACK)
-	// TCP_FS_FIN << (5 << 2) == 0x0400000 (5 - FIN,ACK)
-	// ...
+	// +---+------+------+------+---------+
+	// |idx|ACK(4)|SYN(2)|FIN(1)|flagstate|
+	// +---+------+------+------+---------+
+	// |  0|      |      |      |INVALID 0|
+	// |  1|      |      |   X  |FIN     4|
+	// |  2|      |   X  |      |SYN     1|
+	// |  3|      |   X  |   X  |INVALID 0|
+	// |  4|   X  |      |      |ACK     3|
+	// |  5|   X  |      |   X  |FIN     4|
+	// |  6|   X  |   X  |      |SYNACK  2|
+	// |  7|   X  |   X  |   X  |INVALID 0|
+	// +---+------+------+------+---------+
 	//
-	// Hence, OR'ed mask value is 0x2430140.
-	s = tcp_flags & (RTE_TCP_SYN_FLAG | RTE_TCP_FIN_FLAG);
-	s |= (tcp_flags & RTE_TCP_ACK_FLAG) >> 2;
-	s = (0x2430140 >> (s << 2)) & 7;
+	// Hence, the lookup table word is 0x02430140.
+	tcp_flags = (tcp_flags & (RTE_TCP_SYN_FLAG /*0x2*/ | RTE_TCP_FIN_FLAG /*0x1*/))
+		| ((tcp_flags & RTE_TCP_ACK_FLAG /*0x10*/) >> 2);
+	s = (0x02430140 >> (tcp_flags << 2)) & 0xF;
 
 	assert(s < TCP_FS_COUNT);
 
@@ -229,14 +242,19 @@ void gr_conn_update(struct conn *c, conn_flow_t flow, const struct rte_tcp_hdr *
 
 again:
 	cur_state = atomic_load(&c->state);
-	if (c->fwd_key.proto == IPPROTO_TCP)
+	if (c->fwd_key.proto == IPPROTO_TCP) {
 		new_state = tcp_state_machine[cur_state][flow][tcp_flagstate(tcp->tcp_flags)];
-	else
+		// When the state machine is passed an invalid flags combination,
+		// it returns CONN_S_CLOSED.
+		// In that case, ignore the request to update the connection state.
+		if (unlikely(new_state == CONN_S_CLOSED))
+			return;
+
+		// TODO: inspect TCP window to determine if packet is part of the connection.
+	} else
 		new_state = generic_state_machine[cur_state][flow];
 
-	// TODO: inspect TCP window to determine if packet is part of the connection.
-
-	if (new_state != cur_state) {
+	if (unlikely(new_state != cur_state)) {
 		if (!atomic_compare_exchange_weak(&c->state, &cur_state, new_state))
 			goto again;
 
