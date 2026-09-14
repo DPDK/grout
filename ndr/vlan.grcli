@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: VLAN 802.1Q IPv4 forwarding
+#
+# IPv4 forwarding over 802.1Q subinterfaces: grout strips the VLAN tag on
+# ingress, routes, and re-tags on egress (vlan 100 on p0, vlan 200 on p1).
+#
+# The VLAN subinterface MAC is what TRex must target: after the port strips the
+# tag, grout reclassifies the frame to the subinterface and only routes it if the
+# destination MAC matches the subinterface MAC. Give each subinterface the same
+# fixed MAC as its parent port so a single hardcoded MAC works for RX and TX.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+interface add vlan p0.100 parent p0 vlan_id 100 mac 02:00:00:00:00:00
+interface add vlan p1.200 parent p1 vlan_id 200 mac 02:00:00:00:00:01
+
+address add 172.16.0.1/24 iface p0.100
+address add 172.16.1.1/24 iface p1.200
+
+nexthop add l3 iface p0.100 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+nexthop add l3 iface p1.200 id 2 address 172.16.1.2 mac 02:00:00:00:01:01
+
+route add 16.0.0.0/16 via id 1
+route add 48.0.0.0/16 via id 2
