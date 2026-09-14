@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: IPv6 forwarding
+#
+# Plain IPv6 forwarding between two directly connected /64 links.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+address add fd00:0::1/64 iface p0
+address add fd00:1::1/64 iface p1
+
+nexthop add l3 iface p0 id 1 address fd00:0::2 mac 02:00:00:00:01:00
+nexthop add l3 iface p1 id 2 address fd00:1::2 mac 02:00:00:00:01:01
+
+route add fd00:100::/64 via id 1
+route add fd00:200::/64 via id 2
