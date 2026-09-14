@@ -39,4 +39,8 @@ if [ "$#" -eq 0 ]; then
 	echo smoke-tests "($(nproc) parallel jobs)"
 	echo -------------------------------------------------------------------
 	time make smoke-tests -j$(nproc) -k
+	echo -------------------------------------------------------------------
+	echo bench-validate
+	echo -------------------------------------------------------------------
+	time make bench-validate
 fi
