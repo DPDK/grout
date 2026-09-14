@@ -333,21 +333,24 @@ static _Atomic(struct rte_hash *) conn_hash;
 static _Atomic(struct rte_mempool *) conn_pool;
 static struct event *ageing_timer;
 
-#define CONN_FLOW_FWD_BIT ((uintptr_t)0x1)
+#define CONN_FLOW_REV_BIT ((uintptr_t)0x1)
+
+static_assert(CONN_FLOW_REV_BIT != 0);
+static_assert(CONN_FLOW_REV_BIT == (uintptr_t)CONN_FLOW_REV);
 
 static inline conn_flow_t conn_flow(void *data) {
-	if ((uintptr_t)data & CONN_FLOW_FWD_BIT)
-		return CONN_FLOW_FWD;
-	return CONN_FLOW_REV;
+	return (conn_flow_t)((uintptr_t)data & CONN_FLOW_REV_BIT);
 }
 
 static inline struct conn *conn_ptr(void *data) {
-	return (struct conn *)((uintptr_t)data & ~CONN_FLOW_FWD_BIT);
+	return (struct conn *)((uintptr_t)data & ~CONN_FLOW_REV_BIT);
 }
 
 static inline void *conn_data(struct conn *conn, conn_flow_t flow) {
-	if (flow == CONN_FLOW_FWD)
-		return (void *)((uintptr_t)conn | CONN_FLOW_FWD_BIT);
+	if (!__rte_constant(flow))
+		return (void *)((uintptr_t)conn | (uintptr_t)flow);
+	if (flow == CONN_FLOW_REV)
+		return (void *)((uintptr_t)conn | CONN_FLOW_REV_BIT);
 	return conn;
 }
 
