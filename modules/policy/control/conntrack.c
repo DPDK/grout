@@ -239,9 +239,14 @@ again:
 	if (new_state != cur_state) {
 		if (!atomic_compare_exchange_weak(&c->state, &cur_state, new_state))
 			goto again;
+
+		c->last_update = clock_ns();
+		return;
 	}
 
-	atomic_store(&c->last_update, clock_ns());
+	// Update the timestamp if at least 1/4 second since the last update.
+	if (unlikely(clock_ns() - c->last_update >= GR_NS_PER_S / 4))
+		c->last_update = clock_ns();
 }
 
 bool gr_conn_parse_key(
@@ -386,8 +391,8 @@ struct conn *gr_conn_insert(const struct conn_key *fwd_key, const struct conn_ke
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	gr_clock_ns_t now = clock_ns(), last;
-	uint64_t age, timeout;
+	gr_clock_ns_t now = clock_ns();
+	time_t timeout;
 	struct conn *conn;
 	const void *key;
 	uint32_t iter;
@@ -438,11 +443,7 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 			break;
 		}
 
-		last = atomic_load(&conn->last_update);
-		if (last > now)
-			continue;
-		age = (now - last) / GR_NS_PER_S;
-		if (age > timeout)
+		if (now - conn->last_update >= timeout * GR_NS_PER_S)
 			gr_conn_destroy(conn);
 	}
 }
@@ -586,7 +587,7 @@ static struct api_out conntrack_list(const void * /*request*/, struct api_ctx *c
 				.dst_id = conn->rev_key.dst_id,
 			},
 			.state = atomic_load(&conn->state),
-			.last_update = atomic_load(&conn->last_update),
+			.last_update = conn->last_update,
 		};
 		api_send(ctx, sizeof(ct), &ct);
 	}
