@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: VXLAN L2VPN, IPv6 underlay
+#
+# Same as vxlan_l2vpn_ipv4 but with an IPv6 underlay. p0 is the underlay (VTEP)
+# port and p1 a plain L2 access port in the same bridge domain as the tunnel.
+# The overlay (inner) traffic stays IPv4 so only the underlay changes between
+# the two L2VPN scenarios.
+
+interface set port p0 mac 02:00:00:00:00:00
+
+# Underlay: local VTEP address and a static neighbor for the remote VTEP.
+address add fd00:0::1/64 iface p0
+nexthop add l3 iface p0 id 1 address fd00:0::2 mac 02:00:00:00:01:00
+route add fd00:0::2/128 via id 1
+
+# Bridge domain: VXLAN tunnel + p1 as an L2 access port.
+interface add bridge br0
+interface add vxlan v100 vni 100 local fd00:0::1 domain br0
+interface set port p1 domain br0
+flood vtep add fd00:0::2 vni 100
+
+# Static forwarding database (no learning).
+fdb add 02:00:00:00:0c:00 iface v100 vtep fd00:0::2
+fdb add 02:00:00:00:0c:01 iface p1
