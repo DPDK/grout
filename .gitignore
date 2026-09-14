@@ -22,3 +22,4 @@
 /subprojects/frr-*
 /subprojects/packagecache
 /subprojects/.wraplock
+*.pyc

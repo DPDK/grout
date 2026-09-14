@@ -74,6 +74,25 @@ $(smoke_scripts):
 	fi; \
 	exit "$$rc"
 
+.PHONY: ndr-validate
+ndr-validate:
+	$Q pass=0 fail=0 failed=; \
+	for grcli in ndr/*.grcli; do \
+		[ -f "$$grcli" ] || continue; \
+		name=`basename "$$grcli" .grcli`; \
+		if sudo ndr/harness/validate.sh "$$name" $(BUILDDIR); then \
+			pass=$$((pass + 1)); \
+		else \
+			fail=$$((fail + 1)); \
+			failed="$$failed $$name"; \
+		fi; \
+	done; \
+	echo "PASS: $$pass FAIL: $$fail"; \
+	if [ -n "$$failed" ]; then \
+		echo "FAILED: $$failed"; \
+	fi; \
+	exit "$$fail"
+
 .PHONY: update-graph
 update-graph: all
 	$Q set -xe; tmp=`mktemp -d`; \

@@ -317,13 +317,15 @@ In order to run the `smoke-tests`, `lint`, `check-patches` and `update-graph`
 targets, you'll need additional packages:
 
 ```sh
-dnf install gawk gdb clang-tools-extra iputils jq codespell curl traceroute graphviz ndisc6 abidiff inotify-tools
+dnf install gawk gdb clang-tools-extra iputils jq codespell curl traceroute \
+        graphviz ndisc6 abidiff inotify-tools python3-scapy
 ```
 
 or
 
 ```sh
-apt install iputils-arping gawk gdb clang-format jq codespell curl traceroute graphviz ndisc6 abigail-tools inotify-tools
+apt install iputils-arping gawk gdb clang-format jq codespell curl traceroute \
+        graphviz ndisc6 abigail-tools inotify-tools python3-scapy
 ```
 
 ### Build
