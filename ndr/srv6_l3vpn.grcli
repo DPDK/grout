@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: SRv6 L3VPN (H.Encaps / End.DT4)
+#
+# grout is an SRv6 L3VPN endpoint (modeled on smoke/srv6_test.sh). p0 is the
+# customer IPv4 side and p1 is the IPv6 SRv6 underlay (core) side. The two
+# directions are asymmetric:
+#   - p0 -> p1: customer IPv4 toward the remote site is encapsulated in SRv6
+#     (H.Encaps) toward the remote End.DT4 SID and sent out the IPv6 underlay;
+#   - p1 -> p0: SRv6 traffic destined to grout's local End.DT4 SID is
+#     decapsulated back to IPv4 and routed to the local customer subnet.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+# Customer IPv4 side (local site behind p0).
+address add 172.16.0.1/24 iface p0
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+route add 16.0.0.0/16 via id 1
+
+# IPv6 SRv6 underlay side (core behind p1).
+address add fd00:1::1/64 iface p1
+nexthop add l3 iface p1 id 2 address fd00:1::2 mac 02:00:00:00:01:01
+
+# Encap: IPv4 toward the remote site -> SRv6 to the remote End.DT4 SID.
+nexthop add srv6 seglist fd00:b::1 id 42
+route add 48.0.0.0/16 via id 42
+route add fd00:b::/64 via id 2
+
+# Decap: our local End.DT4 SID -> IPv4.
+nexthop add srv6-local behavior end.dt4 id 43
+route add fd00:a::1/128 via id 43
