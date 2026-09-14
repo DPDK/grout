@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: VXLAN L3VPN, IPv4 underlay
+#
+# Symmetric-IRB L3VPN over VXLAN with an IPv4 underlay, modeled on
+# smoke/evpn_l3vpn_frr_test.sh but configured statically (no FRR/BGP). The
+# underlay and the overlay live in two separate VRFs, which is what keeps the
+# encapsulated outer packet from being routed back into the tunnel:
+#   - VRF main   holds the underlay (p0, local VTEP, remote VTEP reachability);
+#   - VRF tenant holds the overlay (the L3 VNI VXLAN interface and the customer
+#     port p1).
+#
+#   - traffic from p1 toward the overlay subnet (16.0.0.0/16) is routed in the
+#     tenant VRF to the remote next hop on the VXLAN interface, VXLAN-encaped,
+#     and the outer packet is routed in the main VRF out p0;
+#   - VXLAN traffic on p0 is decapsulated, the inner frame is routed in the
+#     tenant VRF toward the customer subnet (48.0.0.0/16) and sent plain out p1.
+
+interface set port p0 mac 02:00:00:00:00:00
+
+# Underlay (VRF main): local VTEP address and a static neighbor for the remote
+# VTEP. The overlay next hop below reuses this address in the tenant VRF; being
+# in a different VRF is what prevents an encap loop.
+address add 172.16.0.1/24 iface p0
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+route add 172.16.0.2/32 via id 1
+
+# Tenant VRF: the overlay/customer routing domain.
+interface add vrf tenant
+
+# L3 VNI VXLAN interface in the tenant VRF. Outer (underlay) addresses are looked
+# up in the main VRF (encap_vrf); the local RMAC is fixed so decapsulated inner
+# frames addressed to it are accepted and routed.
+interface add vxlan v100 vni 100 local 172.16.0.1 vrf tenant encap_vrf main mac 02:00:00:00:0b:00
+
+# Customer side (plain routed port) in the tenant VRF.
+interface set port p1 mac 02:00:00:00:00:01 vrf tenant
+address add 172.16.1.1/24 iface p1
+nexthop add l3 iface p1 id 2 address 172.16.1.2 mac 02:00:00:00:01:01
+route add 48.0.0.0/16 via id 2 vrf tenant
+
+# Overlay: EVPN-style remote next hop toward the remote VTEP, carrying the remote
+# router MAC. Its address is the tunnel endpoint (resolved in the main VRF at
+# encap time); traffic routed via it is VXLAN-encaped out p0.
+nexthop add l3 iface v100 id 3 address 172.16.0.2 mac 02:00:00:00:0b:01 remote
+route add 16.0.0.0/16 via id 3 vrf tenant
