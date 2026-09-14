@@ -745,7 +745,7 @@ static int fib4_migrate_cb(
 					}
 				);
 			}
-			nexthop_decref((void *)nh);
+			nexthop_decref((struct nexthop *)nh);
 		}
 		return 0;
 	}

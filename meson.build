@@ -33,7 +33,7 @@ endforeach
 
 # additional project C flags (keep alpha sorted)
 add_project_arguments('-Wmissing-prototypes', language: 'c')
-add_project_arguments('-Wstrict-aliasing=2', language: 'c')
+add_project_arguments('-Wstrict-aliasing', language: 'c')
 add_project_arguments('-fstrict-aliasing', language: 'c')
 
 # optional project C flags (keep alpha sorted)

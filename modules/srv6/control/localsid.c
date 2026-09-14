@@ -79,14 +79,14 @@ static bool srv6_local_nh_equal(const struct nexthop *a, const struct nexthop *b
 
 static struct nexthop *srv6_local_nh_lookup(const struct gr_nexthop_base *base, const void *info) {
 	struct srv6_local_key key;
-	void *data;
+	struct nexthop *nh;
 
 	set_srv6_local_key(&key, base->iface_id, info);
 
-	if (rte_hash_lookup_data(srv6_local_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(srv6_local_hash, &key, (void **)&nh) < 0)
 		return errno_set_null(ENOENT);
 
-	return data;
+	return nh;
 }
 
 static int srv6_local_nh_import_info(struct nexthop *nh, const void *info) {

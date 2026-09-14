@@ -37,12 +37,12 @@ static struct rte_hash *ipip_hash;
 
 struct iface *ipip_get_iface(ip4_addr_t local, ip4_addr_t remote, uint16_t vrf_id) {
 	struct ipip_key key = {local, remote, vrf_id};
-	void *data;
+	struct iface *iface;
 
-	if (rte_hash_lookup_data(ipip_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(ipip_hash, &key, (void **)&iface) < 0)
 		return NULL;
 
-	return data;
+	return iface;
 }
 
 static int iface_ipip_reconfig(

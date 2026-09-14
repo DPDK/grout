@@ -359,28 +359,26 @@ struct conn *gr_conn_lookup(const struct conn_key *key, conn_flow_t *flow) {
 
 struct conn *gr_conn_insert(const struct conn_key *fwd_key, const struct conn_key *rev_key) {
 	struct conn *conn;
-	void *data;
 
 	// create a new connection object
-	if (rte_mempool_get(conn_pool, &data) < 0)
+	if (rte_mempool_get(conn_pool, (void **)&conn) < 0)
 		return NULL;
 
-	conn = data;
 	memset(conn, 0, sizeof(*conn));
 	conn->rev_key = *rev_key;
 	conn->fwd_key = *fwd_key;
 
-	if (rte_hash_add_key_data(conn_hash, fwd_key, conn_data(data, CONN_FLOW_FWD)) < 0) {
+	if (rte_hash_add_key_data(conn_hash, fwd_key, conn_data(conn, CONN_FLOW_FWD)) < 0) {
 		// hash full
-		rte_mempool_put(conn_pool, data);
+		rte_mempool_put(conn_pool, conn);
 		return NULL;
 	}
 
 	// Also reference the conntrack by its *reverse* key for replies.
-	if (rte_hash_add_key_data(conn_hash, rev_key, conn_data(data, CONN_FLOW_REV)) < 0) {
+	if (rte_hash_add_key_data(conn_hash, rev_key, conn_data(conn, CONN_FLOW_REV)) < 0) {
 		// hash full, remove forward key,
 		rte_hash_del_key(conn_hash, fwd_key);
-		rte_mempool_put(conn_pool, data);
+		rte_mempool_put(conn_pool, conn);
 		return NULL;
 	}
 

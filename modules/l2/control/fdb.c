@@ -95,12 +95,12 @@ static int fdb_reconfig(unsigned max_entries) {
 const struct fdb_entry *
 fdb_lookup(uint16_t bridge_id, const struct rte_ether_addr *mac, uint16_t vlan_id) {
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
-	void *data;
+	const struct fdb_entry *fdb;
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) < 0)
 		return errno_set_null(ENOENT);
 
-	return data;
+	return fdb;
 }
 
 // Learn a new FDB entry or refresh its last_seen timestamp.
@@ -114,13 +114,11 @@ void fdb_learn(
 	const struct fdb_key key = {bridge_id, vlan_id, *mac};
 	gr_clock_ns_t now = clock_ns();
 	struct fdb_entry *fdb;
-	void *data;
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) < 0) {
-		if (rte_mempool_get(fdb_pool, &data) < 0)
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) < 0) {
+		if (rte_mempool_get(fdb_pool, (void **)&fdb) < 0)
 			return; // pool exhausted
 
-		fdb = data;
 		fdb->prev_iface_id = GR_IFACE_ID_UNDEF;
 		fdb->bridge_id = bridge_id;
 		fdb->vlan_id = vlan_id;
@@ -137,8 +135,6 @@ void fdb_learn(
 		}
 
 		event_push(GR_EVENT_FDB_ADD, fdb);
-	} else {
-		fdb = data;
 	}
 
 	if ((fdb->flags & GR_FDB_F_LEARN)
@@ -158,10 +154,8 @@ void fdb_purge_iface(uint16_t iface_id) {
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		fdb = data;
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
 		if (fdb->iface_id == iface_id) {
 			rte_hash_del_key(fdb_hash, key);
 		}
@@ -174,16 +168,14 @@ void fdb_purge_iface(uint16_t iface_id) {
 int fdb_add_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 	const struct fdb_key key = {bridge_id, 0, *mac};
 	struct fdb_entry *fdb;
-	void *data;
 	int ret;
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) >= 0)
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) >= 0)
 		return errno_set(EEXIST);
 
-	if (rte_mempool_get(fdb_pool, &data) < 0)
+	if (rte_mempool_get(fdb_pool, (void **)&fdb) < 0)
 		return errno_set(ENOMEM);
 
-	fdb = data;
 	fdb->prev_iface_id = GR_IFACE_ID_UNDEF;
 	fdb->bridge_id = bridge_id;
 	fdb->vlan_id = 0;
@@ -206,12 +198,10 @@ int fdb_add_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 int fdb_del_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 	const struct fdb_key key = {bridge_id, 0, *mac};
 	struct fdb_entry *fdb;
-	void *data;
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) < 0)
 		return errno_set(ENOENT);
 
-	fdb = data;
 	if (!(fdb->flags & GR_FDB_F_LOCAL))
 		return errno_set(EPERM);
 
@@ -224,7 +214,6 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 	const struct gr_fdb_add_req *req = request;
 	const struct iface *iface;
 	struct fdb_entry *e;
-	void *data;
 	int ret;
 
 	if (req->fdb.flags & ~(GR_FDB_F_STATIC | GR_FDB_F_EXTERN))
@@ -243,24 +232,22 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 
 	const struct fdb_key key = {iface->id, req->fdb.vlan_id, req->fdb.mac};
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) < 0) {
-		if ((ret = rte_mempool_get(fdb_pool, &data)) < 0)
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&e) < 0) {
+		if ((ret = rte_mempool_get(fdb_pool, (void **)&e)) < 0)
 			return api_out(-ret, 0, NULL);
 
-		e = data;
 		e->prev_iface_id = GR_IFACE_ID_UNDEF;
 		e->base = req->fdb;
 		e->bridge_id = iface->id;
 		e->last_seen = clock_ns();
 
-		if ((ret = rte_hash_add_key_data(fdb_hash, &key, data)) < 0) {
+		if ((ret = rte_hash_add_key_data(fdb_hash, &key, e)) < 0) {
 			rte_mempool_put(fdb_pool, e);
 			return api_out(-ret, 0, NULL);
 		}
 
 		event_push(GR_EVENT_FDB_ADD, e);
 	} else if (req->exist_ok) {
-		e = data;
 		if (e->flags & GR_FDB_F_LOCAL)
 			return api_out(EPERM, 0, NULL);
 
@@ -280,12 +267,11 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 static struct api_out fdb_del(const void *request, struct api_ctx *) {
 	const struct gr_fdb_del_req *req = request;
 	const struct fdb_key key = {req->bridge_id, req->vlan_id, req->mac};
-	void *data;
+	const struct fdb_entry *fdb;
 	int ret;
 
-	if (rte_hash_lookup_data(fdb_hash, &key, &data) >= 0) {
+	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) >= 0) {
 		// The bridge's own SVI MAC is managed by the bridge lifecycle.
-		const struct fdb_entry *fdb = data;
 		if (fdb->flags & GR_FDB_F_LOCAL)
 			return api_out(EPERM, 0, NULL);
 	}
@@ -325,18 +311,18 @@ static inline bool fdb_match(
 
 static struct api_out fdb_flush(const void *request, struct api_ctx *) {
 	const struct gr_fdb_flush_req *req = request;
+	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 	int ret;
 
 	if (req->flags & ~(GR_FDB_F_STATIC | GR_FDB_F_LEARN))
 		return api_out(EINVAL, 0, NULL);
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		if (((struct fdb_entry *)data)->flags & GR_FDB_F_LOCAL)
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
+		if (fdb->flags & GR_FDB_F_LOCAL)
 			continue;
-		if (!fdb_match(data, req->flags, req->bridge_id, req->iface_id, &req->mac))
+		if (!fdb_match(fdb, req->flags, req->bridge_id, req->iface_id, &req->mac))
 			continue;
 
 		ret = rte_hash_del_key(fdb_hash, key);
@@ -352,13 +338,11 @@ static struct api_out fdb_list(const void *request, struct api_ctx *ctx) {
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		if (!fdb_match(data, req->flags, req->bridge_id, req->iface_id, NULL))
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
+		if (!fdb_match(fdb, req->flags, req->bridge_id, req->iface_id, NULL))
 			continue;
 
-		fdb = data;
 		api_send(ctx, sizeof(fdb->base), fdb);
 	}
 
@@ -457,11 +441,8 @@ void fdb_sync_hardware(const struct iface *bridge, struct iface *member, bool ad
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		fdb = data;
-
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
 		if (fdb->bridge_id != bridge->id)
 			continue;
 		// skip the interface where the MAC was learned
@@ -492,11 +473,8 @@ static void fdb_iface_del_cb(uint32_t /*event*/, const void *obj) {
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		fdb = data;
-
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
 		if (iface->type == GR_IFACE_TYPE_BRIDGE && fdb->bridge_id == iface->id) {
 			fdb_remove_hw_filters(iface, fdb);
 			rte_hash_del_key(fdb_hash, key);
@@ -516,14 +494,11 @@ static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	uint32_t next = 0;
 	uint16_t max_age;
 	const void *key;
-	void *data;
 	time_t age;
 
 	now = clock_ns();
 
-	while (rte_hash_iterate(fdb_hash, &key, &data, &next) >= 0) {
-		fdb = data;
-
+	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
 		if ((fdb->flags & GR_FDB_F_STATIC) || !(fdb->flags & GR_FDB_F_LEARN))
 			continue;
 
