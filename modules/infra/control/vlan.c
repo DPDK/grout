@@ -25,12 +25,13 @@ struct vlan_key {
 static struct rte_hash *vlan_hash;
 
 struct iface *vlan_get_iface(uint16_t parent_id, uint16_t vlan_id) {
-	void *data;
+	const struct vlan_key key = {parent_id, vlan_id};
+	struct iface *iface;
 
-	if (rte_hash_lookup_data(vlan_hash, &(struct vlan_key) {parent_id, vlan_id}, &data) < 0)
+	if (rte_hash_lookup_data(vlan_hash, &key, (void **)&iface) < 0)
 		return NULL;
 
-	return data;
+	return iface;
 }
 
 static int iface_vlan_reconfig(

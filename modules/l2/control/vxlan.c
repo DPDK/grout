@@ -35,12 +35,12 @@ static struct rte_hash *vxlan_hash;
 
 struct iface *vxlan_get_iface(rte_be32_t vni, uint16_t encap_vrf_id) {
 	const struct vxlan_key key = {vni, encap_vrf_id};
-	void *data;
+	struct iface *iface;
 
-	if (rte_hash_lookup_data(vxlan_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(vxlan_hash, &key, (void **)&iface) < 0)
 		return NULL;
 
-	return data;
+	return iface;
 }
 
 static bool vrf_has_other_vxlan(const struct iface *iface, uint16_t vrf_id) {
@@ -403,12 +403,11 @@ static int vtep_flood_del(const struct gr_flood_entry *entry, bool missing_ok) {
 static int vtep_flood_list(uint16_t vrf_id, struct api_ctx *ctx) {
 	struct gr_flood_entry entry = {.type = GR_FLOOD_T_VTEP};
 	const struct iface_info_vxlan *vxlan;
+	struct iface *iface;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(vxlan_hash, &key, &data, &next) >= 0) {
-		struct iface *iface = data;
+	while (rte_hash_iterate(vxlan_hash, &key, (void **)&iface, &next) >= 0) {
 		vxlan = iface_info_vxlan(iface);
 
 		if (vrf_id != GR_VRF_ID_UNDEF && vxlan->encap_vrf_id != vrf_id)

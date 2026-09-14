@@ -87,17 +87,17 @@ static inline void set_nexthop_key(
 struct nexthop *
 nexthop_lookup_l3(addr_family_t af, uint16_t vrf_id, uint16_t iface_id, const void *addr) {
 	struct nexthop_key key;
-	void *data;
+	struct nexthop *nh;
 
 	if (af == AF_UNSPEC)
 		return NULL;
 
 	set_nexthop_key(&key, af, vrf_id, iface_id, addr);
 
-	if (rte_hash_lookup_data(l3_hash, &key, &data) < 0)
+	if (rte_hash_lookup_data(l3_hash, &key, (void **)&nh) < 0)
 		return errno_set_null(ENOENT);
 
-	return data;
+	return nh;
 }
 
 static struct nexthop *l3_lookup(const struct gr_nexthop_base *base, const void *info) {
@@ -362,10 +362,8 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
-	void *data;
 
-	while (rte_hash_iterate(l3_hash, &key, &data, &next) >= 0) {
-		nh = data;
+	while (rte_hash_iterate(l3_hash, &key, (void **)&nh, &next) >= 0) {
 		if (nh->origin == GR_NH_ORIGIN_LEARN)
 			l3_age(nh);
 	}

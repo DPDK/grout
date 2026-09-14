@@ -131,7 +131,7 @@ uint16_t tx_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 
 	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
 
-	tx_finish(graph, node, (void *)mbufs, nb_objs, tx_ok, 0);
+	tx_finish(graph, node, (void **)mbufs, nb_objs, tx_ok, 0);
 
 	return nb_objs;
 }
@@ -153,7 +153,7 @@ tx_shared_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
 	rte_spinlock_unlock(ctx->lock);
 
-	tx_finish(graph, node, (void *)mbufs, nb_objs, tx_ok, RXTX_F_TXQ_SHARED);
+	tx_finish(graph, node, (void **)mbufs, nb_objs, tx_ok, RXTX_F_TXQ_SHARED);
 
 	return nb_objs;
 }

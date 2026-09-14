@@ -705,11 +705,11 @@ static void free_trace(struct gr_trace_item *t) {
 // the current packet instead of spinning a datapath worker indefinitely while
 // it owns an mbuf. A worker stalled here can eventually exhaust the shared
 // packet pool and starve the FRR control-plane TAPs.
-static bool trace_item_get(struct rte_mbuf *m, void **data) {
-	while (rte_mempool_get(trace_pool, data) < 0) {
-		void *oldest = NULL;
+static bool trace_item_get(struct rte_mbuf *m, struct gr_trace_item **t) {
+	while (rte_mempool_get(trace_pool, (void **)t) < 0) {
+		struct gr_trace_item *oldest = NULL;
 
-		if (rte_ring_dequeue(traced_packets, &oldest) < 0) {
+		if (rte_ring_dequeue(traced_packets, (void **)&oldest) < 0) {
 			struct gr_trace_head *traces = gr_mbuf_traces(m);
 
 			free_trace(STAILQ_FIRST(traces));
@@ -725,15 +725,13 @@ static bool trace_item_get(struct rte_mbuf *m, void **data) {
 void *gr_mbuf_trace_add(struct rte_mbuf *m, struct rte_node *node, size_t data_len) {
 	struct gr_trace_head *traces = gr_mbuf_traces(m);
 	struct gr_trace_item *trace;
-	void *data;
 
 	// XXX: should we always abort even if -DNDEBUG is defined?
 	assert(data_len <= GR_TRACE_ITEM_MAX_LEN);
 
-	if (!trace_item_get(m, &data))
+	if (!trace_item_get(m, &trace))
 		return trace_scratch;
 
-	trace = data;
 	trace->node_id = node->id;
 	trace->parent_id = node->parent_id;
 	trace->len = data_len;
@@ -753,7 +751,6 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src) {
 	struct gr_trace_head *src_traces = gr_mbuf_traces(src);
 	struct gr_trace_head *dst_traces = gr_mbuf_traces(dst);
 	struct gr_trace_item *src_trace, *dst_trace;
-	void *data;
 
 	// Reset trace head
 	STAILQ_INIT(dst_traces);
@@ -761,10 +758,8 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src) {
 	// Copy each trace item from source to destination
 	STAILQ_FOREACH (src_trace, src_traces, next) {
 		// Allocate new trace item for destination
-		if (!trace_item_get(dst, &data))
+		if (!trace_item_get(dst, &dst_trace))
 			return;
-
-		dst_trace = data;
 
 		// Copy all trace item data
 		dst_trace->ts = src_trace->ts;
@@ -840,14 +835,12 @@ int gr_trace_dump(
 	uint32_t *n_bytes,
 	uint16_t *n_packets
 ) {
+	struct gr_trace_item *head;
 	uint32_t n = 0;
 	uint16_t p = 0;
-	void *data;
 	int s;
 
-	while (rte_ring_dequeue(traced_packets, &data) == 0 && p < max_packets) {
-		struct gr_trace_item *head = data;
-
+	while (rte_ring_dequeue(traced_packets, (void **)&head) == 0 && p < max_packets) {
 		s = trace_packet_format(buf + n, len - n, head);
 		free_trace(head);
 		if (s < 0)
