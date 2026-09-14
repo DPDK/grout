@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: Example scenario (rename me)
+#
+# Template for a grout RFC 2544 scenario configuration.
+#
+# This file is applied with:
+#
+#     grcli -xef ndr/<test>.grcli
+#
+# on top of a grout that already has CPU affinity configured and the two
+# physical ports "p0" and "p1" created (with the desired rxqs/qsize). Do NOT
+# recreate the ports or set affinity here.
+#
+# Conventions (see README.md for the full address plan):
+#   - grout p0 MAC       02:00:00:00:00:00
+#   - grout p1 MAC       02:00:00:00:00:01
+#   - TRex p0 MAC (nh)   02:00:00:00:01:00
+#   - TRex p1 MAC (nh)   02:00:00:00:01:01
+#
+# Everything is static: hardcode MACs in the port config and in every nexthop,
+# so the test never relies on ARP/NDP and stays independent of physical NIC MACs.
+
+# Give the grout ports deterministic MAC addresses. TRex sends its frames to
+# these addresses and grout uses them as the source of forwarded frames.
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+# Local addresses on each link.
+address add 172.16.0.1/24 iface p0
+address add 172.16.1.1/24 iface p1
+
+# Static next hops toward the TRex ports (hardcoded MAC, no ARP/NDP).
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+nexthop add l3 iface p1 id 2 address 172.16.1.2 mac 02:00:00:00:01:01
+
+# Routes to the traffic subnets living behind each TRex port.
+route add 16.0.0.0/16 via id 1
+route add 48.0.0.0/16 via id 2
