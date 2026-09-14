@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: VXLAN L2VPN, IPv4 underlay
+#
+# L2 stretch over VXLAN with an IPv4 underlay. p0 is the underlay (VTEP) port and
+# p1 is a plain L2 access port; both the VXLAN tunnel and p1 belong to the same
+# bridge domain, so grout bridges Ethernet frames between them:
+#   - frames from p1 whose destination MAC lives behind the tunnel are
+#     VXLAN-encapsulated toward the remote VTEP and sent out p0;
+#   - VXLAN frames arriving on p0 are decapsulated and bridged out p1.
+#
+# Static FDB entries replace MAC learning: 0c:00 is behind the tunnel, 0c:01 is
+# behind the access port.
+
+interface set port p0 mac 02:00:00:00:00:00
+
+# Underlay: local VTEP address and a static neighbor for the remote VTEP.
+address add 172.16.0.1/24 iface p0
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+route add 172.16.0.2/32 via id 1
+
+# Bridge domain: VXLAN tunnel + p1 as an L2 access port.
+interface add bridge br0
+interface add vxlan v100 vni 100 local 172.16.0.1 domain br0
+interface set port p1 domain br0
+flood vtep add 172.16.0.2 vni 100
+
+# Static forwarding database (no learning).
+fdb add 02:00:00:00:0c:00 iface v100 vtep 172.16.0.2
+fdb add 02:00:00:00:0c:01 iface p1
