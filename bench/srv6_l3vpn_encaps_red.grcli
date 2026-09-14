@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: SRv6 L3VPN, reduced encap (H.Encaps.Red / End.DT4)
+#
+# Same L3VPN service as srv6_l3vpn but the encapsulation uses H.Encaps.Red. With
+# a single segment the reduced encapsulation carries the SID in the outer IPv6
+# destination and emits no SRH at all, which is the common single-SID deployment.
+# p0 is the customer IPv4 side, p1 the IPv6 SRv6 underlay side:
+#   - p0 -> p1: customer IPv4 -> H.Encaps.Red toward the remote End.DT4 SID
+#     (outer IPv6, no SRH) out the underlay;
+#   - p1 -> p0: reduced SRv6 (outer IPv6, no SRH) to grout's local End.DT4 SID is
+#     decapsulated back to IPv4 and routed to the local customer subnet.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+# Customer IPv4 side (local site behind p0).
+address add 172.16.0.1/24 iface p0
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+route add 16.0.0.0/16 via id 1
+
+# IPv6 SRv6 underlay side (core behind p1).
+address add fd00:1::1/64 iface p1
+nexthop add l3 iface p1 id 2 address fd00:1::2 mac 02:00:00:00:01:01
+
+# Encap: IPv4 toward the remote site -> reduced SRv6 to the remote End.DT4 SID.
+nexthop add srv6 seglist fd00:b::1 encap h.encaps.red id 42
+route add 48.0.0.0/16 via id 42
+route add fd00:b::/64 via id 2
+
+# Decap: our local End.DT4 SID -> IPv4.
+nexthop add srv6-local behavior end.dt4 id 43
+route add fd00:a::1/128 via id 43

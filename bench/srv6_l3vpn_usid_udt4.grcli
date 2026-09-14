@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: SRv6 L3VPN, uSID uDT4 (H.Encaps.Red / uN + End.DT4)
+#
+# SRv6 L3VPN using compressed SIDs (uSID, RFC 9800). Locator block is 32 bits and
+# each CSID is 16 bits (the grout defaults). grout has no End.DX4 behavior, so the
+# uSID egress uses uDT4: a uN transit (End + NEXT-CSID) that shifts the container,
+# followed by a plain End.DT4 that decapsulates and does an IPv4 FIB lookup.
+# p0 is the customer IPv4 side, p1 the IPv6 uSID underlay side:
+#   - p0 -> p1: customer IPv4 -> H.Encaps.Red into a remote uSID container
+#     (fd00:b:100:200::), out the underlay;
+#   - p1 -> p0: a uSID packet destined to grout's container (fd00:a:100:200::)
+#     matches the uN endpoint fd00:a:100::/48; grout shifts it to fd00:a:200::,
+#     which matches the uDT4 endpoint fd00:a:200::/48, decapsulates it and routes
+#     the inner IPv4 to the local customer subnet.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+# Customer IPv4 side (local site behind p0).
+address add 172.16.0.1/24 iface p0
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+route add 16.0.0.0/16 via id 1
+
+# IPv6 uSID underlay side (core behind p1).
+address add fd00:1::1/64 iface p1
+nexthop add l3 iface p1 id 2 address fd00:1::2 mac 02:00:00:00:01:01
+
+# Encap: customer IPv4 -> H.Encaps.Red into a remote uSID container.
+nexthop add srv6 seglist fd00:b:100:200:: encap h.encaps.red id 42
+route add 48.0.0.0/16 via id 42
+route add fd00:b::/32 via id 2
+
+# uN transit (End + NEXT-CSID): shift the container to the next uSID.
+nexthop add srv6-local behavior end flavor next-csid id 43
+route add fd00:a:100::/48 via id 43
+
+# uDT4 endpoint (End.DT4): decapsulate and IPv4 FIB lookup toward the customer.
+nexthop add srv6-local behavior end.dt4 id 44
+route add fd00:a:200::/48 via id 44
