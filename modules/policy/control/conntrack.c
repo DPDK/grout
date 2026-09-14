@@ -400,10 +400,10 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 
 	iter = 0;
 	while (rte_hash_iterate(conn_hash, &key, &data, &iter) >= 0) {
-		conn = conn_ptr(data);
 		if (conn_flow(data) != CONN_FLOW_FWD)
 			continue;
 
+		conn = conn_ptr(data);
 		switch (atomic_load(&conn->state)) {
 		case CONN_S_NEW:
 		case CONN_S_SIMSYN_SENT:
@@ -603,9 +603,9 @@ static struct api_out conntrack_flush(const void * /*request*/, struct api_ctx *
 
 	iter = 0;
 	while (rte_hash_iterate(conn_hash, &key, &data, &iter) >= 0) {
-		conn = conn_ptr(data);
 		if (conn_flow(data) != CONN_FLOW_FWD)
 			continue;
+		conn = conn_ptr(data);
 		gr_conn_destroy(conn);
 	}
 
