@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+#
+# name: IPv4 + IPv6 dual-stack forwarding
+#
+# IPv4 and IPv6 forwarding configured on the same ports at the same time. The
+# TRex profile sends one IPv4 and one IPv6 stream in each direction.
+
+interface set port p0 mac 02:00:00:00:00:00
+interface set port p1 mac 02:00:00:00:00:01
+
+address add 172.16.0.1/24 iface p0
+address add 172.16.1.1/24 iface p1
+address add fd00:0::1/64 iface p0
+address add fd00:1::1/64 iface p1
+
+# IPv4 next hops.
+nexthop add l3 iface p0 id 1 address 172.16.0.2 mac 02:00:00:00:01:00
+nexthop add l3 iface p1 id 2 address 172.16.1.2 mac 02:00:00:00:01:01
+# IPv6 next hops.
+nexthop add l3 iface p0 id 3 address fd00:0::2 mac 02:00:00:00:01:00
+nexthop add l3 iface p1 id 4 address fd00:1::2 mac 02:00:00:00:01:01
+
+route add 16.0.0.0/16 via id 1
+route add 48.0.0.0/16 via id 2
+route add fd00:100::/64 via id 3
+route add fd00:200::/64 via id 4
