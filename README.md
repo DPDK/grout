@@ -5,18 +5,24 @@
 `grout` stands for *Graph Router*. In English, *"grout"* refers to thin mortar
 that hardens to fill gaps between tiles.
 
-`grout` is a DPDK based network processing application. It uses the [rte_graph]
-library for data path processing.
+`grout` is a DPDK-based software router that uses the `rte_graph` library for
+datapath packet processing. It implements an L3 forwarding stack in userspace.
+It is configured over a UNIX socket API and a CLI (`grcli`), and integrates with
+FRR for dynamic routing via a dedicated zebra dplane plugin.
 
-Its main purpose is to provide an example of a network function or a physical
-router, replicating real (usually closed source) VNF/CNF behavior with an
-opensource tool.
+## What is it for?
 
-It comes with a client library to configure it over a standard UNIX socket and
-a CLI that uses that library. The CLI can be used as an interactive shell, but
-also in scripts one command at a time, or by batches.
+* Acting as a datapath for FRR
+* Pure L3 forwarding datapath (with some L2 features)
+* High performance with a low CPU and power footprint
+* Running on Linux (within VMs, containers, bare metal)
+* Programmable via a UNIX socket API
 
-[rte_graph]: http://doc.dpdk.org/guides/prog_guide/graph_lib.html
+## What is it NOT for?
+
+* TCP/TLS termination
+* Reinventing existing control plane daemons (FRR, LLDP, etc.)
+* CLI beyond debugging, NETCONF/YANG backend, etc.
 
 ## License
 
