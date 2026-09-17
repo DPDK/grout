@@ -90,8 +90,8 @@ static int netlink_send_req_dump(struct nlmsghdr *nlh, mnl_cb_t cb, void *data) 
 
 int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg)) + NLA_SPACE(sizeof(uint8_t))];
-	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
+	struct nlmsghdr *nlh;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -112,8 +112,8 @@ int netlink_link_set_admin_state(uint32_t ifindex, bool up, bool carrier) {
 
 int netlink_link_set_master(uint32_t ifindex, uint32_t master_ifindex) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg) + NLA_SPACE(sizeof(uint32_t)))];
-	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
+	struct nlmsghdr *nlh;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -135,9 +135,9 @@ int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
 		NLA_SPACE(sizeof(uint32_t)) + // IFLA_VRF_TABLE
 		2 * NLA_HDRLEN // LNKINFO + INFO_DATA containers
 	)];
-	struct nlmsghdr *nlh;
-	struct ifinfomsg *ifi;
 	struct nlattr *linkinfo, *infodata;
+	struct ifinfomsg *ifi;
+	struct nlmsghdr *nlh;
 	int ifindex;
 
 	memset(buf, 0, sizeof(buf));
@@ -169,8 +169,8 @@ int netlink_link_add_vrf(const char *vrf_name, uint32_t table_id) {
 
 int netlink_link_del_iface(uint32_t ifindex) {
 	char buf[NLMSG_SPACE(sizeof(struct ifinfomsg))];
-	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
+	struct nlmsghdr *nlh;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -373,10 +373,11 @@ struct flush_route_entry {
 static int rule_flush_cb(const struct nlmsghdr *nlh, void *data) {
 	struct fib_rule_hdr *frh = mnl_nlmsg_get_payload(nlh);
 	vec struct flush_rule_entry **rules = data;
-	const char *oifname = NULL;
 	uint32_t table = frh->table;
-	struct flush_rule_entry e = {.family = frh->family};
+	const char *oifname = NULL;
 	struct nlattr *attr;
+
+	struct flush_rule_entry e = {.family = frh->family};
 
 	mnl_attr_for_each(attr, nlh, sizeof(*frh)) {
 		switch (mnl_attr_get_type(attr)) {
@@ -400,8 +401,9 @@ static int route_flush_cb(const struct nlmsghdr *nlh, void *data) {
 	struct rtmsg *rtm = mnl_nlmsg_get_payload(nlh);
 	vec struct flush_route_entry **routes = data;
 	uint32_t table = rtm->rtm_table;
-	struct flush_route_entry e = {.family = rtm->rtm_family};
 	struct nlattr *attr;
+
+	struct flush_route_entry e = {.family = rtm->rtm_family};
 
 	mnl_attr_for_each(attr, nlh, sizeof(*rtm)) {
 		switch (mnl_attr_get_type(attr)) {
@@ -423,8 +425,8 @@ static int route_flush_cb(const struct nlmsghdr *nlh, void *data) {
 int netlink_flush_cp_route_table(void) {
 	const uint8_t families[] = {AF_INET, AF_INET6};
 	char buf[NLMSG_SPACE(sizeof(struct rtmsg))];
-	vec struct flush_rule_entry *rules = NULL;
 	vec struct flush_route_entry *routes = NULL;
+	vec struct flush_rule_entry *rules = NULL;
 	struct fib_rule_hdr *frh;
 	struct nlmsghdr *nlh;
 	struct rtmsg *rtm;
@@ -475,8 +477,8 @@ static int netlink_add_del_addr(uint32_t ifindex, const void *addr, size_t addr_
 		// IFA_LOCAL + IFA_ADDRESS
 	)];
 	bool is_ipv4 = (addr_len == sizeof(ip4_addr_t));
-	struct nlmsghdr *nlh;
 	struct ifaddrmsg *ifa;
+	struct nlmsghdr *nlh;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -538,15 +540,15 @@ int netlink_del_addr6(uint32_t ifindex, const struct rte_ipv6_addr *ip) {
 }
 
 int netlink_set_addr_gen_mode_none(uint32_t ifindex) {
-	uint8_t mode = IN6_ADDR_GEN_MODE_NONE;
 	char buf[NLMSG_SPACE(
 		sizeof(struct ifinfomsg)
 		+ 3 * NLA_SPACE(sizeof(uint8_t)) // AF_SPEC, AF_INET6, ADDR_GEN_MODE
 	)];
-	struct nlmsghdr *nlh;
-	struct ifinfomsg *ifm;
-	struct nlattr *af_spec;
+	uint8_t mode = IN6_ADDR_GEN_MODE_NONE;
 	struct nlattr *af_inet6;
+	struct nlattr *af_spec;
+	struct ifinfomsg *ifm;
+	struct nlmsghdr *nlh;
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);
@@ -594,8 +596,8 @@ struct link_info {
 };
 
 static int link_info_cb(const struct nlmsghdr *nlh, void *data) {
-	struct link_info *info = data;
 	struct ifinfomsg *ifi = mnl_nlmsg_get_payload(nlh);
+	struct link_info *info = data;
 	struct nlattr *attr;
 
 	mnl_attr_for_each(attr, nlh, sizeof(*ifi)) {
@@ -624,8 +626,8 @@ static int link_info_cb(const struct nlmsghdr *nlh, void *data) {
 
 static int netlink_link_get_info(const char *ifname, struct link_info *info) {
 	char req[NLMSG_SPACE(sizeof(struct ifinfomsg)) + NLA_SPACE(IFNAMSIZ)];
-	struct nlmsghdr *nlh;
 	struct ifinfomsg *ifi;
+	struct nlmsghdr *nlh;
 
 	if (info->alias)
 		info->alias[0] = '\0';

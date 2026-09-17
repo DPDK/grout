@@ -98,11 +98,11 @@ end:
 }
 
 static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
+	struct rte_ether_addr iface_mac;
 	struct iface *iface = ev_iface;
 	struct rte_ether_addr src, dst;
 	struct iface_stats *stats;
 	struct rte_ether_hdr *eth;
-	struct rte_ether_addr iface_mac;
 	struct rte_vlan_hdr *vlan;
 	struct rte_mbuf *mbuf;
 	rte_be16_t ether_type;
@@ -149,8 +149,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	// grout can route it and set the correct destination MAC.
 	if (iface_get_eth_addr(iface, &iface_mac) == 0
 	    && rte_is_same_ether_addr(&eth->dst_addr, &iface_mac)) {
-		struct eth_input_mbuf_data *e;
 		rte_be16_t ether_type = eth->ether_type;
+		struct eth_input_mbuf_data *e;
 
 		rte_pktmbuf_adj(mbuf, sizeof(*eth));
 

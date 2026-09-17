@@ -294,8 +294,8 @@ int rib4_delete(
 	struct rte_fib *fib = get_fib(vrf_id);
 	gr_nh_origin_t *o, origin;
 	struct rte_rib_node *rn;
-	struct nexthop *nh;
 	struct rte_rib *rib;
+	struct nexthop *nh;
 	uintptr_t nh_id;
 	int ret;
 

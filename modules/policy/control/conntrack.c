@@ -413,9 +413,9 @@ struct conn *gr_conn_insert(const struct conn_key *fwd_key, const struct conn_ke
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 	gr_clock_ns_t now = clock_ns();
-	time_t timeout;
 	struct conn *conn;
 	const void *key;
+	time_t timeout;
 	uint32_t iter;
 	void *data;
 

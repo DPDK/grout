@@ -69,8 +69,8 @@ void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 	// Save old member state to detect changes
 	bool old_active = member->active;
 
-	bool remote_sync = member->remote.state & LACP_STATE_SYNCHRONIZED;
 	bool remote_collect = member->remote.state & LACP_STATE_COLLECTING;
+	bool remote_sync = member->remote.state & LACP_STATE_SYNCHRONIZED;
 
 	member->local.state |= LACP_STATE_SYNCHRONIZED;
 	member->local.state &= ~(LACP_STATE_EXPIRED | LACP_STATE_DEFAULTED);

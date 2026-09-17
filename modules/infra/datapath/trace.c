@@ -399,10 +399,10 @@ int trace_udp_format(char *buf, size_t len, const struct rte_udp_hdr *udp) {
 }
 
 static int trace_snap_format(char *buf, size_t len, const struct rte_ether_addr *dst) {
-	static const struct rte_ether_addr stp_dst = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x00}};
 	static const struct rte_ether_addr isis_level1 = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x14}};
 	static const struct rte_ether_addr isis_level2 = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x15}};
 	static const struct rte_ether_addr isis_all = {{0x09, 0x00, 0x2B, 0x00, 0x00, 0x05}};
+	static const struct rte_ether_addr stp_dst = {{0x01, 0x80, 0xc2, 0x00, 0x00, 0x00}};
 	size_t n = 0;
 
 	SAFE_BUF(snprintf, len, " / SNAP");
@@ -874,8 +874,8 @@ void gr_trace_dump_crash(void) {
 	uint32_t traced;
 
 	if (traced_packets != NULL) {
-		uint32_t len;
 		uint16_t pkts;
+		uint32_t len;
 
 		traced = 0;
 		while (gr_trace_dump(buf, sizeof(buf), 1, &len, &pkts) == 0 && pkts > 0

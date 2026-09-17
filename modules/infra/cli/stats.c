@@ -76,8 +76,9 @@ static cmd_status_t stats_get(struct gr_api_client *c, const struct ec_pnode *p)
 
 	resp = resp_ptr;
 
-	int (*sort_func)(const void *, const void *);
 	const char *order = arg_str(p, "ORDER") ?: "";
+	int (*sort_func)(const void *, const void *);
+
 	if (strcmp(order, "name") == 0)
 		sort_func = stats_order_name;
 	else if (strcmp(order, "cycles") == 0)

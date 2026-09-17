@@ -95,8 +95,8 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 	vec const char **graph_nodes = NULL;
 	char graph_name[RTE_GRAPH_NAMESIZE];
 	char node_name[RTE_NODE_NAMESIZE];
-	vec char **rx_nodes = NULL;
 	struct iface_info_port *port;
+	vec char **rx_nodes = NULL;
 	struct queue_map *qmap;
 	struct rte_node *node;
 	uint16_t burst_size;
@@ -414,6 +414,7 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 		{GR_NODE_T_L3, "L3"},
 		{GR_NODE_T_L4, "L4"},
 	};
+
 	const struct gr_graph_dump_req *req = request;
 	vec const char **seen_edges = NULL;
 	struct gr_node_info *info;
@@ -544,8 +545,8 @@ static struct api_out graph_dump(const void *request, struct api_ctx *) {
 			goto err;
 
 		for (unsigned i = 0; i < nb_edges; i++) {
-			const char *edge = edges[i];
 			const char *node_attrs = attrs;
+			const char *edge = edges[i];
 			rte_node_t id = rte_node_from_name(edge);
 			unsigned num = rte_node_edge_count(id);
 
@@ -611,8 +612,8 @@ static struct api_out graph_conf_get(const void * /*request*/, struct api_ctx *)
 
 static struct api_out graph_conf_set(const void *request, struct api_ctx *) {
 	const struct gr_graph_conf *req = request;
-	struct gr_graph_conf prev = graph_conf;
 	vec struct iface_info_port **ports = NULL;
+	struct gr_graph_conf prev = graph_conf;
 	struct iface *iface = NULL;
 	int ret;
 

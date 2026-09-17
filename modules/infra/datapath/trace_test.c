@@ -120,13 +120,14 @@ static void exhausted_pool_abandons_trace_copy(void **) {
 }
 
 int main(void) {
-	char arg0[] = "trace_test";
-	char arg1[] = "--no-huge";
-	char arg2[] = "--in-memory";
-	char arg3[] = "--lcores=0";
-	char arg4[] = "--no-pci";
-	char arg5[] = "--log-level=*:error";
-	char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5};
+	char *argv[] = {
+		"trace_test",
+		"--no-huge",
+		"--in-memory",
+		"--lcores=0",
+		"--no-pci",
+		"--log-level=*:error",
+	};
 
 	if (rte_eal_init(ARRAY_DIM(argv), argv) < 0)
 		return 1;

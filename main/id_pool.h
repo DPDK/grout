@@ -245,8 +245,8 @@ static inline int id_pool_book(struct id_pool *p, uint32_t id) {
 		return errno_set(EADDRINUSE); // ID was already reserved
 
 	if ((old_level1 & ~GR_BIT64(level1_bit)) == 0) {
-		uint16_t l0 = l1 / __ID_POOL_SLAB_SIZE;
 		uint16_t level0_bit = l1 % __ID_POOL_SLAB_SIZE;
+		uint16_t l0 = l1 / __ID_POOL_SLAB_SIZE;
 		// The level1 slab where we reserved the ID is full.
 		// Clear the corresponding bit in the relevant level0.
 		//

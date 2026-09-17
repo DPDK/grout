@@ -110,8 +110,8 @@ static void bench_summary(const char *func, const char *fill, struct id_pool_ben
 	assert_true(fail_rate < 0.001);
 
 	// check consistency
-	uint32_t used = 0;
 	uint16_t l0, l0_bit;
+	uint32_t used = 0;
 	for (uint16_t l1 = 0; l1 < bench->pool->level1_len; l1++) {
 		used += 64 - rte_popcount64(bench->pool->level1[l1]);
 		l0 = l1 / 64;

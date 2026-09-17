@@ -44,10 +44,11 @@ static uint16_t ip_input_local_process(
 
 		edge = edges[ip->next_proto_id];
 		if (edge != UNKNOWN_PROTO) {
-			const struct iface *iface = l3_mbuf_data(mbuf)->iface;
 			struct ip_local_mbuf_data *data = ip_local_mbuf_data(mbuf);
-			uint16_t hdr_len = rte_ipv4_hdr_len(ip);
+			const struct iface *iface = l3_mbuf_data(mbuf)->iface;
+
 			uint16_t total_len = rte_be_to_cpu_16(ip->total_length);
+			uint16_t hdr_len = rte_ipv4_hdr_len(ip);
 
 			if (total_len < hdr_len || total_len > rte_pktmbuf_data_len(mbuf)) {
 				edge = BAD_LENGTH;

@@ -237,8 +237,8 @@ static void grout_main_router_started(void) {
 // INFINITY + type != KERNEL): never selected, never installed.
 static void grout_sync_poll_marker(struct event *e) {
 	struct route_table *table;
-	struct route_node *rn;
 	struct route_entry *re;
+	struct route_node *rn;
 	bool found = false;
 
 	// !table: keep polling, do not dispatch. The marker is a strict
@@ -336,9 +336,9 @@ static void grout_sync_inject_marker(void) {
 	// Local non-const copy: rib_add_multipath takes a non-const prefix
 	// pointer and may apply_mask in-place.
 	struct prefix p = grout_sync_marker_prefix;
-	struct nexthop *nh;
 	struct nexthop_group *ng;
 	struct route_entry *re;
+	struct nexthop *nh;
 
 	nh = nexthop_new();
 	nh->type = NEXTHOP_TYPE_BLACKHOLE;
@@ -667,7 +667,6 @@ err:
 }
 
 static void dplane_grout_connect(struct event *) {
-	struct event_loop *dg_master = dplane_get_thread_master();
 	static const struct grout_evt gr_evts[] = {
 		{.type = GR_EVENT_IFACE_ADD, .suppress_self_events = true},
 		{.type = GR_EVENT_IFACE_STATUS_UP, .suppress_self_events = true},
@@ -683,6 +682,7 @@ static void dplane_grout_connect(struct event *) {
 		{.type = GR_EVENT_FDB_DEL, .suppress_self_events = true},
 		{.type = GR_EVENT_FDB_UPDATE, .suppress_self_events = true},
 	};
+	struct event_loop *dg_master = dplane_get_thread_master();
 
 	gr_api_client_disconnect(grout_ctx.client);
 	grout_ctx.client = gr_api_client_connect(gr_sock_path);

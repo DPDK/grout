@@ -77,8 +77,8 @@ static int fdb_reconfig(unsigned max_entries) {
 		return errno_log(rte_errno, "rte_hash_rcu_qsbr_add");
 	}
 
-	struct rte_hash *tmp_h = fdb_hash;
 	struct rte_mempool *tmp_p = fdb_pool;
+	struct rte_hash *tmp_h = fdb_hash;
 	fdb_hash = h;
 	fdb_pool = p;
 

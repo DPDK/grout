@@ -57,8 +57,8 @@ static cmd_status_t route_del(struct gr_api_client *c, const struct ec_pnode *p)
 }
 
 static cmd_status_t route_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	uint16_t vrf_id = GR_VRF_ID_UNDEF;
 	addr_family_t af = cli_parse_family(p);
+	uint16_t vrf_id = GR_VRF_ID_UNDEF;
 	uint16_t max_routes = 1000;
 	struct cli_route_ops *ops;
 	int ret = 0;
@@ -113,8 +113,8 @@ static cmd_status_t route_config_set(struct gr_api_client *c, const struct ec_pn
 }
 
 static cmd_status_t route_config_show(struct gr_api_client *c, const struct ec_pnode *p) {
-	uint16_t vrf_id = GR_VRF_ID_UNDEF;
 	addr_family_t af = cli_parse_family(p);
+	uint16_t vrf_id = GR_VRF_ID_UNDEF;
 	struct cli_route_ops *ops;
 	int ret = 0;
 

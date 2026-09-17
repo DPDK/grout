@@ -104,8 +104,8 @@ static cmd_status_t addr_flush(struct gr_api_client *c, const struct ec_pnode *p
 }
 
 static cmd_status_t addr_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	uint16_t iface_id = GR_IFACE_ID_UNDEF;
 	addr_family_t af = cli_parse_family(p);
+	uint16_t iface_id = GR_IFACE_ID_UNDEF;
 	struct cli_addr_ops *ops;
 	int ret = 0;
 

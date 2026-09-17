@@ -49,9 +49,9 @@ static inline bool icmp6_is_error(uint8_t type) {
 static uint16_t
 icmp6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	struct ip6_local_mbuf_data *d;
-	struct icmp6 *icmp6;
 	struct rte_ipv6_addr tmp_ip;
 	struct rte_mbuf *mbuf;
+	struct icmp6 *icmp6;
 	rte_edge_t next;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {

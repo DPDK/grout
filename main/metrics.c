@@ -126,8 +126,8 @@ void metric_emit_histogram(
 
 	const char *gauge_infix = m->type == METRIC_GAUGE_HISTOGRAM ? "g" : "";
 	uint64_t cumulative = 0;
-	uint64_t sum = 0;
 	unsigned slot = 0;
+	uint64_t sum = 0;
 
 	for (unsigned b = 0; b < n_buckets; b++) {
 		unsigned le = bucket_bounds[b];

@@ -51,8 +51,8 @@ err:
 static uint16_t
 iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	uint16_t last_iface_id, last_vlan_id;
-	const struct iface *vlan_iface;
 	const struct iface *parent_iface;
+	const struct iface *vlan_iface;
 	struct iface_mbuf_data *d;
 	struct rte_mbuf *m;
 	uint16_t vlan_id;

@@ -25,8 +25,8 @@ static inline bool rte_ipv6_addr_is_unspec(const struct rte_ipv6_addr *ip) {
 
 static inline void rte_ipv6_addr_mask(struct rte_ipv6_addr *ip, uint8_t depth) {
 	if (depth < RTE_IPV6_MAX_DEPTH) {
-		unsigned int d = depth / CHAR_BIT;
 		uint8_t mask = ~(UINT8_MAX >> (depth % CHAR_BIT));
+		unsigned int d = depth / CHAR_BIT;
 		ip->a[d] &= mask;
 		d++;
 		while (d < sizeof(*ip))

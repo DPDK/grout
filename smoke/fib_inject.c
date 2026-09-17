@@ -156,8 +156,9 @@ static int inject_ipv6(struct gr_api_client *c, uint32_t count) {
 		// base prefix. For a /N prefix, we need (N-8) unique bits.
 		// Place the sequence counter in the top (N-8) bits after
 		// byte 0 so each value produces a distinct prefix.
-		uint32_t v = seq + 1;
 		unsigned net_bits = p->prefixlen > 8 ? p->prefixlen - 8 : 1;
+		uint32_t v = seq + 1;
+
 		// Compute which byte within a[1..15] each bit of v maps to.
 		// Bit 0 of v should map to bit (net_bits-1) after byte 0.
 		unsigned bit_offset = net_bits > 32 ? net_bits - 32 : 0;

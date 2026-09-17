@@ -136,8 +136,8 @@ static bool pending_has_name(const char *name) {
 }
 
 static void pending_free_cb(evutil_socket_t, short, void *) {
-	struct pending_free *pf, *tmp;
 	gr_clock_ns_t now = clock_ns();
+	struct pending_free *pf, *tmp;
 
 	STAILQ_FOREACH_SAFE (pf, &pending_list, next, tmp) {
 		gr_clock_ns_t elapsed = now - pf->timestamp;

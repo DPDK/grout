@@ -9,8 +9,8 @@
 #include <sys/socket.h>
 
 static int format_pointer(FILE *f, const struct printf_info *info, const void *const *args) {
-	char buf[INET6_ADDRSTRLEN];
 	const void *arg = *(const void **)*args;
+	char buf[INET6_ADDRSTRLEN];
 
 	if (arg == NULL)
 		return fprintf(f, "(nil)");

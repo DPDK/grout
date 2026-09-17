@@ -35,8 +35,8 @@ int snat44_static_policy_del(struct iface *iface, ip4_addr_t match) {
 	if (ret < 0)
 		return errno_set(-ret);
 
-	uint32_t next = 0;
 	unsigned count = 0;
+	uint32_t next = 0;
 	const void *k;
 	void *data;
 

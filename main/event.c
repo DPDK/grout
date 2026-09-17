@@ -80,8 +80,8 @@ static struct module_serializers *mod_serializers[UINT_NUM_VALUES(uint16_t)];
 
 void __event_serializer(uint32_t ev_type, event_serializer_cb_t callback, size_t size) {
 	uint16_t mod = (ev_type >> 16) & 0xffff;
-	uint16_t ev = ev_type & 0xffff;
 	struct module_serializers *sers;
+	uint16_t ev = ev_type & 0xffff;
 
 	if (callback == NULL && size == 0)
 		ABORT("one of callback or size are required");

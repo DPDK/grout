@@ -281,8 +281,8 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 
 		// Attach the MAC as a label so the address is reported on
 		// every per-iface metric without requiring a separate API call.
-		struct rte_ether_addr mac_addr = {0};
 		char mac_str[18] = "00:00:00:00:00:00";
+		struct rte_ether_addr mac_addr = {0};
 		if (iface_get_eth_addr(iface, &mac_addr) == 0)
 			snprintf(mac_str, sizeof(mac_str), ETH_F, &mac_addr);
 		metrics_labels_add(&ctx, "mac", mac_str, NULL);
@@ -293,8 +293,8 @@ static void iface_metrics_collect(struct metrics_writer *w) {
 		metric_emit(&ctx, &m_promisc, !!(iface->flags & GR_IFACE_F_PROMISC));
 
 		// Aggregate per-core stats
-		uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
 		uint64_t cp_rx_pkts = 0, cp_rx_bytes = 0, cp_tx_pkts = 0, cp_tx_bytes = 0;
+		uint64_t rx_pkts = 0, rx_bytes = 0, tx_pkts = 0, tx_bytes = 0;
 
 		for (int i = 0; i < RTE_MAX_LCORE; i++) {
 			struct iface_stats *s = iface_get_stats(i, iface->id);
