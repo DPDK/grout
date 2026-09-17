@@ -180,6 +180,10 @@ lint:
 	@echo '[clang-format]'
 	$Q tmp=`mktemp` && trap "rm -f $$tmp" EXIT && $(c_src) > "$$tmp" && \
 		$(CLANG_FORMAT) --files="$$tmp" --dry-run --Werror
+	@echo '[xmas-tree]'
+	$Q if devtools/check-xmas-tree --help >/dev/null; then \
+		$(c_src) | xargs devtools/check-xmas-tree || exit; \
+	fi
 	@echo '[license-check]'
 	$Q ! $(licensed_files) | while read -r f; do \
 		if echo "$$f" | grep -q '^frr/'; then \
