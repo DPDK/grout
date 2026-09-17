@@ -316,8 +316,8 @@ static const unsigned rx_burst_buckets[] = {0, 1, 2, 4, 8, 16, 32, 64, 128};
 
 static void rx_burst_metrics_collect(struct metrics_writer *w) {
 	uint64_t histogram[RTE_GRAPH_BURST_SIZE + 1];
-	struct metrics_ctx ctx;
 	struct iface *iface = NULL;
+	struct metrics_ctx ctx;
 
 	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
 		struct iface_info_port *port = iface_info_port(iface);

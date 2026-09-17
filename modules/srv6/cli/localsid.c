@@ -39,15 +39,16 @@ static int str_to_behavior(const char *str, gr_srv6_behavior_t *behavior) {
 }
 
 static cmd_status_t srv6_localsid_add(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_add_req *req = NULL;
 	struct gr_nexthop_info_srv6_local *sr6;
+	struct gr_nh_add_req *req = NULL;
 	cmd_status_t ret = CMD_ERROR;
-	size_t len = sizeof(*req) + sizeof(*sr6);
-
-	const struct ec_pnode *n;
 	const struct ec_strvec *v;
+	const struct ec_pnode *n;
 	const char *str;
+	size_t len;
 	uint32_t i;
+
+	len = sizeof(*req) + sizeof(*sr6);
 
 	req = calloc(1, len);
 	if (req == NULL)

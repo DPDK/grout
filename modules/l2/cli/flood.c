@@ -51,11 +51,11 @@ static cmd_status_t vtep_del(struct gr_api_client *c, const struct ec_pnode *p) 
 }
 
 static cmd_status_t vtep_show(struct gr_api_client *c, const struct ec_pnode *p) {
+	const struct gr_flood_entry *entry;
 	struct gr_flood_list_req req = {
 		.type = GR_FLOOD_T_VTEP,
 		.vrf_id = GR_VRF_ID_UNDEF,
 	};
-	const struct gr_flood_entry *entry;
 	int ret;
 
 	if (arg_str(p, "VRF") != NULL && arg_vrf(c, p, "VRF", &req.vrf_id) < 0)

@@ -69,9 +69,9 @@ static struct api_out iface_ra_clear(const void *request, struct api_ctx *) {
 
 static struct api_out iface_ra_show(const void *request, struct api_ctx *ctx) {
 	const struct gr_ip6_ra_show_req *req = request;
-	uint16_t iface_id;
 	struct hoplist *addrs;
 	bool show_all = false;
+	uint16_t iface_id;
 
 	if (req->iface_id == 0)
 		show_all = true;

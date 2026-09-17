@@ -101,8 +101,8 @@ static void register_message(const struct api_message *m) {
 #include <unistd.h>
 
 const char *gr_api_message_name(uint32_t type) {
-	static __thread char buf[64];
 	const struct api_message *m = get_message(type);
+	static __thread char buf[64];
 	if (m == NULL) {
 		snprintf(buf, sizeof(buf), "0x%08x?", type);
 		return buf;

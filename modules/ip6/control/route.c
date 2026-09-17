@@ -320,8 +320,8 @@ int rib6_delete(
 	gr_nh_origin_t *o, origin;
 	struct rte_ipv6_addr tmp;
 	struct rte_rib6_node *rn;
-	struct nexthop *nh;
 	struct rte_rib6 *rib;
+	struct nexthop *nh;
 	uintptr_t nh_id;
 	int ret;
 

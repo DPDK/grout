@@ -59,8 +59,8 @@ static void remove_group_member_cb(struct nexthop *nh, void *deleted) {
 	if (nh->type != GR_NH_T_GROUP)
 		return;
 
-	bool removed = false;
 	struct nexthop_info_group *g = nexthop_info_group(nh);
+	bool removed = false;
 	for (uint32_t i = 0; i < g->n_members; i++) {
 		if (g->members[i].nh == deleted) {
 			g->members[i].nh = g->members[g->n_members - 1].nh;

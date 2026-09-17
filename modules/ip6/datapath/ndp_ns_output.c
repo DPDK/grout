@@ -66,9 +66,9 @@ static uint16_t ndp_ns_output_process(
 	const struct nexthop_info_l3 *local_l3, *l3;
 	const struct nexthop *local, *nh;
 	struct icmp6_opt_lladdr *lladdr;
-	struct iface *iface;
 	struct icmp6_neigh_solicit *ns;
 	struct ip6_local_mbuf_data *d;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	struct icmp6_opt *opt;
 	uint16_t payload_len;

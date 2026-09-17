@@ -425,8 +425,8 @@ static cmd_status_t nh_del(struct gr_api_client *c, const struct ec_pnode *p) {
 }
 
 static cmd_status_t nh_flush(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_nh_flush_req req = {};
 	const char *origin = arg_str(p, "ORIGIN");
+	struct gr_nh_flush_req req = {};
 
 	if (origin == NULL)
 		return CMD_ERROR;
@@ -502,9 +502,8 @@ static cmd_status_t nh_show_id(struct gr_api_client *c, const struct ec_pnode *p
 	if (gr_api_client_send_recv(c, GR_NH_GET, sizeof(req), &req, &resp_ptr) < 0)
 		return CMD_ERROR;
 
-	const struct gr_nexthop *nh = resp_ptr;
 	struct gr_object *o = gr_object_new(NULL);
-	cli_nexthop_fill_object(o, c, nh, true);
+	cli_nexthop_fill_object(o, c, resp_ptr, true);
 	gr_object_free(o);
 	free(resp_ptr);
 

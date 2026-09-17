@@ -372,8 +372,8 @@ move:
 
 int worker_queue_distribute(const cpu_set_t *affinity, vec struct iface_info_port **ports) {
 	struct iface_info_port *port;
-	vec unsigned *cpus = NULL;
 	struct worker *worker, *tmp;
+	vec unsigned *cpus = NULL;
 	char buf[BUFSIZ];
 	int ret = 0;
 	unsigned i;

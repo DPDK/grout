@@ -421,8 +421,8 @@ static void grout_route_change(
 		flags |= ZEBRA_FLAG_SELFROUTE;
 
 	if (new) {
-		struct route_entry *re;
 		struct nexthop_group *ng = NULL;
+		struct route_entry *re;
 
 		re = zebra_rib_route_entry_new(vrf_id, proto, 0, flags, nh_id, tableid, 0, 0, 0, 0);
 		if (nh) {
@@ -508,15 +508,16 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6, bool startup) {
 }
 
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
-	bool new = dplane_ctx_get_op(ctx) != DPLANE_OP_ROUTE_DELETE;
 	union {
 		struct gr_ip4_route_add_req r4_add;
 		struct gr_ip4_route_del_req r4_del;
 		struct gr_ip6_route_add_req r6_add;
 		struct gr_ip6_route_del_req r6_del;
 	} req;
-	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
+
+	bool new = dplane_ctx_get_op(ctx) != DPLANE_OP_ROUTE_DELETE;
 	uint32_t vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
 	const struct prefix *p;
 	gr_nh_origin_t origin;
 	uint32_t req_type;
@@ -946,8 +947,8 @@ void grout_nexthop_group_add(struct gr_nexthop *gr_nh, bool startup) {
 }
 
 static void grout_neigh_notify(bool new, const struct gr_nexthop *gr_nh) {
-	const struct gr_nexthop_info_l3 *l3;
 	static const struct ethaddr zero_mac = {};
+	const struct gr_nexthop_info_l3 *l3;
 	struct zebra_dplane_ctx *ctx;
 	struct ethaddr mac;
 	struct ipaddr ip;

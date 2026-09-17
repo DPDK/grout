@@ -63,8 +63,8 @@ static uint16_t iface_output_process(
 	void **objs,
 	uint16_t nb_objs
 ) {
-	const struct iface *iface;
 	const struct iface *parent;
+	const struct iface *iface;
 	struct iface_mbuf_data *d;
 	struct rte_mbuf *m;
 	rte_edge_t edge;

@@ -58,12 +58,14 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	enum zebra_slave_iftype slave_type = ZEBRA_IF_SLAVE_NONE;
 	enum zebra_link_type link_type = ZEBRA_LLT_UNKNOWN;
 	enum zebra_iftype zif_type = ZEBRA_IF_OTHER;
+
 	const struct gr_iface_info_bridge *gr_bridge = NULL;
 	const struct gr_iface_info_vxlan *gr_vxlan = NULL;
 	const struct gr_iface_info_vlan *gr_vlan = NULL;
 	const struct gr_iface_info_port *gr_port = NULL;
 	const struct gr_iface_info_bond *gr_bond = NULL;
 	const struct gr_iface_info_vrf *gr_vrf = NULL;
+
 	ifindex_t bridge_ifindex = IFINDEX_INTERNAL;
 	ifindex_t link_ifindex = IFINDEX_INTERNAL;
 	ifindex_t bond_ifindex = IFINDEX_INTERNAL;
@@ -251,8 +253,8 @@ static void grout_interface_addr_change(
 	const void *addr,
 	uint8_t prefixlen
 ) {
-	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
 	struct prefix p = {.family = af, .prefixlen = prefixlen};
+	struct zebra_dplane_ctx *ctx = dplane_ctx_alloc();
 
 	if (new)
 		dplane_ctx_set_op(ctx, DPLANE_OP_INTF_ADDR_ADD);

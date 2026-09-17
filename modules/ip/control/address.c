@@ -262,8 +262,9 @@ int addr4_add(uint16_t iface_id, ip4_addr_t ip, uint16_t prefixlen, gr_nh_origin
 
 	// vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
 	vec struct nexthop **nhs_old = ifaddrs->nh;
+	vec struct nexthop **nhs_copy = NULL;
+
 	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
 	vec_extend(nhs_copy, nhs_old);
 	vec_add(nhs_copy, nh);

@@ -145,8 +145,8 @@ static int srv6_local_nh_import_info(struct nexthop *nh, const void *info) {
 		}
 	}
 
-	struct srv6_local_key key, old_key;
 	struct nexthop *old_l3_nh = priv->l3_nh;
+	struct srv6_local_key key, old_key;
 	int ret;
 
 	set_srv6_local_key(&old_key, priv->prev_iface_id, &priv->base);

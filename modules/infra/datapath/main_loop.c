@@ -363,12 +363,6 @@ static void worker_perf_floor(const struct worker *w) {
 }
 
 void *gr_datapath_loop(void *priv) {
-	struct stats_context ctx = {
-		.stats = NULL,
-		.last_count = 0,
-		.node_to_index = NULL,
-		.w_stats = NULL,
-	};
 	vec struct queue_map *airq_registered = NULL;
 	uint64_t timestamp, timestamp_tmp, cycles;
 	vec struct queue_map *airq_rxqs = NULL;
@@ -378,6 +372,13 @@ void *gr_datapath_loop(void *priv) {
 	struct rte_graph *graph;
 	bool airq_off = false;
 	char name[16];
+
+	struct stats_context ctx = {
+		.stats = NULL,
+		.last_count = 0,
+		.node_to_index = NULL,
+		.w_stats = NULL,
+	};
 
 #define log(lvl, fmt, ...) LOG(lvl, "[CPU %d] " fmt, w->cpu_id __VA_OPT__(, ) __VA_ARGS__)
 

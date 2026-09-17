@@ -50,10 +50,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct nexthop_info_l3 *l3;
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
+	uint8_t proto, n_omitted_segs;
 	const struct nexthop *nh;
 	uint32_t optlen, plen;
 	struct rte_mbuf *m;
-	uint8_t proto, n_omitted_segs;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {

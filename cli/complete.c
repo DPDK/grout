@@ -70,8 +70,8 @@ static const char *find_help(const struct ec_comp_item *item) {
 int bash_complete(struct ec_node *cmdlist) {
 	const char *comp_point = getenv("COMP_POINT");
 	const char *comp_line = getenv("COMP_LINE");
-	const char *comp_word, *last_colon;
 	int count, comp_width, colon_prefix;
+	const char *comp_word, *last_colon;
 	struct ec_strvec *vec = NULL;
 	struct ec_comp *cmpl = NULL;
 	struct ec_comp_item *item;

@@ -37,9 +37,9 @@ int icmp_local_send(
 	uint16_t seq_num,
 	uint8_t ttl
 ) {
+	struct iface *iface, *out, *pool_iface;
 	struct icmp_send_mbuf_data *d;
 	const struct nexthop *local;
-	struct iface *iface, *out, *pool_iface;
 	struct rte_mbuf *m;
 	int ret;
 

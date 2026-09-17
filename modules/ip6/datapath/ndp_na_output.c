@@ -58,9 +58,9 @@ static uint16_t ndp_na_output_process(
 	uint16_t nb_objs
 ) {
 	const struct nexthop *local, *remote;
-	struct ndp_na_mbuf_data *ctx;
 	struct ip6_local_mbuf_data *d;
 	struct icmp6_neigh_advert *na;
+	struct ndp_na_mbuf_data *ctx;
 	struct icmp6_opt_lladdr *ll;
 	struct nexthop_info_l3 *l3;
 	const struct iface *iface;

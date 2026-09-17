@@ -150,11 +150,12 @@ free:
 
 void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct rte_mbuf *m = obj;
+
 	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
 	const struct rte_ipv6_addr *remote, *local;
-	const struct ip6_local_mbuf_data *d;
 	const struct icmp6_neigh_solicit *ns;
 	const struct icmp6_neigh_advert *na;
+	const struct ip6_local_mbuf_data *d;
 	icmp6_opt_found_t lladdr_found;
 	const struct iface *iface;
 	struct rte_ether_addr mac;

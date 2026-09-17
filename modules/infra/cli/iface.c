@@ -332,9 +332,9 @@ static cmd_status_t iface_del(struct gr_api_client *c, const struct ec_pnode *p)
 }
 
 static cmd_status_t iface_list(struct gr_api_client *c, const struct ec_pnode *p) {
-	struct gr_iface_list_req req;
 	const struct cli_iface_type *type;
 	const struct gr_iface *iface;
+	struct gr_iface_list_req req;
 	char buf[128];
 	size_t n;
 	int ret;

@@ -313,8 +313,8 @@ static int mcast6_addr_add(const struct iface *iface, const struct rte_ipv6_addr
 
 	// vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
 	vec struct nexthop **nhs_old = maddrs->nh;
+	vec struct nexthop **nhs_copy = NULL;
 	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
 	vec_extend(nhs_copy, nhs_old);
 	vec_add(nhs_copy, nh);
@@ -419,8 +419,8 @@ iface6_addr_add(const struct iface *iface, const struct rte_ipv6_addr *ip, uint8
 
 	// vec_add may realloc() and free the old vector
 	// Duplicate the whole vector and append to the clone.
-	vec struct nexthop **nhs_copy = NULL;
 	vec struct nexthop **nhs_old = addrs->nh;
+	vec struct nexthop **nhs_copy = NULL;
 	vec_cap_set(nhs_copy, vec_len(nhs_old) + 1); // avoid malloc+realloc
 	vec_extend(nhs_copy, nhs_old);
 	vec_add(nhs_copy, nh);
@@ -587,8 +587,8 @@ static struct api_out addr6_flush(const void *request, struct api_ctx *) {
 	const struct gr_ip6_addr_flush_req *req = request;
 	const struct nexthop_info_l3 *l3;
 	const struct iface *iface;
-	struct hoplist *addrs;
 	const struct nexthop *nh;
+	struct hoplist *addrs;
 	unsigned i = 0;
 
 	iface = iface_from_id(req->iface_id);

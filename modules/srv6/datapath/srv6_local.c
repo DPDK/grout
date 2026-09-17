@@ -873,7 +873,6 @@ static void srv6_end_x_usd_no_inner(void **) {
 
 // uN: the shifted container goes back to the FIB.
 static void srv6_end_next_csid(void **) {
-	struct nexthop stale_nh = {0};
 	struct nexthop_info_srv6_local sr_d = {
 		.base = {
 			.behavior = SR_BEHAVIOR_END,
@@ -884,6 +883,7 @@ static void srv6_end_next_csid(void **) {
 		},
 	};
 	struct ip6_info info = {0}, expect;
+	struct nexthop stale_nh = {0};
 	struct fake_mbuf fm;
 
 	fm_init_ipv6(&fm, &expect);

@@ -39,8 +39,8 @@ dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct dhcp_input_trace_data *t;
-			const struct rte_udp_hdr *udp;
 			const struct dhcp_packet *dhcp;
+			const struct rte_udp_hdr *udp;
 			uint16_t pkt_len;
 
 			t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -56,8 +56,9 @@ dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 
 				// Extract message type from options (option 53)
 				t->msg_type = 0;
-				const uint8_t *options = dhcp->options;
+
 				uint16_t options_len = pkt_len - sizeof(*udp) - sizeof(*dhcp);
+				const uint8_t *options = dhcp->options;
 				uint16_t pos = 0;
 
 				while (pos < options_len && pos < 64) { // Limit search
