@@ -3,6 +3,7 @@
 
 #include "cli.h"
 #include "cli_event.h"
+#include "cli_iface.h"
 
 #include <gr_api.h>
 #include <gr_infra.h>
@@ -45,6 +46,12 @@ static cmd_status_t events_show(struct gr_api_client *c, const struct ec_pnode *
 
 	if (arg_u64(p, "COUNT", &max_count) < 0 && errno != ENOENT)
 		return CMD_ERROR;
+
+	// Seed the interface name cache with the current interfaces before
+	// subscribing. Event printers only learn names from the iface add events
+	// they observe, so interfaces that already exist would otherwise be
+	// printed by their numeric id.
+	iface_names_cache_seed(c);
 
 	if (ec_pnode_find(p, "TYPE") != NULL) {
 		const struct ec_pnode *t = NULL;
