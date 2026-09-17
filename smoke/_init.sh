@@ -142,6 +142,9 @@ stop_grout() {
 		tmux kill-window -t gdb
 	fi
 
+	kill -9 "$grout_log_pid" "$grout_err_pid" \
+		"$grcli_events_pid" "$grcli_events_log_pid" 2>/dev/null || true
+
 	if [ "$ret" -ne 0 ]; then
 		status="$ret"
 		if [ "$ret" -gt 128 ]; then
@@ -376,7 +379,43 @@ fi
 
 echo "INTERACTIVE=${INTERACTIVE:-false} GDB=${GDB:-false} PAUSE_ON_FAILURE=${PAUSE_ON_FAILURE:-false}"
 
+grout_pid=
+grout_log_pid=
+grout_err_pid=
+grcli_events_pid=
+grcli_events_log_pid=
+
 set -x
+
+_start_grout() {
+	$local_grout_cmd >$tmp/grout.log 2>$tmp/grout.err &
+	grout_pid=$!
+
+	if [ -t 1 ]; then
+		# print grout logs in blue (stderr in bold red)
+		tail -f $tmp/grout.log > >(awk '{print "\033[34m" $0 "\033[0m"}') &
+		grout_log_pid=$!
+		tail -f  $tmp/grout.err > >(awk '{print "\033[1;31m" $0 "\033[0m"}') >&2 &
+		grout_err_pid=$!
+	else
+		tail -f $tmp/grout.log &
+		grout_log_pid=$!
+		tail -f $tmp/grout.err >&2 &
+		grout_err_pid=$!
+	fi
+}
+
+_wait_grout_started() {
+	SECONDS=0
+	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
+		if [ "$SECONDS" -gt 30 ]; then
+			gdb -p "$grout_pid" -batch -ex 'thread apply all bt' grout
+			fail "grout took more than 30s to start"
+		fi
+		kill -0 "$grout_pid"
+		sleep 1
+	done
+}
 
 if [ "$run_grout" = true ]; then
 	smoke_setenv ASAN_OPTIONS disable_coredump=0
@@ -409,15 +448,8 @@ if [ "$run_grout" = true ]; then
 		tmux new-window -d -n gdb gdb \
 			-ex 'handle SIGTERM nostop print pass' \
 			--args $local_grout_cmd
-	elif [ -t 1 ]; then
-		# print grout logs in blue (stderr in bold red)
-		$local_grout_cmd \
-			> >(awk '{print "\033[34m" $0 "\033[0m"}') \
-			2> >(awk '{print "\033[1;31m" $0 "\033[0m"}' >&2) &
-		grout_pid=$!
 	else
-		$local_grout_cmd &
-		grout_pid=$!
+		_start_grout
 	fi
 fi
 if [ "${GDB:-false}" = true ]; then
@@ -426,15 +458,7 @@ if [ "${GDB:-false}" = true ]; then
 	gdb_pid=$(tmux list-windows -F '#{window_name} #{pane_pid}' | awk '/gdb/{print $2}')
 	grout_pid=$(pgrep -P $gdb_pid | head -n1)
 else
-	SECONDS=0
-	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
-		if [ "$SECONDS" -gt 30 ]; then
-			gdb -p "$grout_pid" -batch -ex 'thread apply all bt' grout
-			fail "grout took more than 30s to start"
-		fi
-		kill -0 "$grout_pid"
-		sleep 1
-	done
+	_wait_grout_started
 fi
 
 smoke_setenv GROUT_PAGER ""
@@ -458,23 +482,56 @@ fi
 # Truncates events.log and resets __event_mark so wait_event reads
 # from the new line 1 onwards.
 _start_events_stream() {
-	case "${follow_events:-true}" in
-		hide)
-			grcli events > $tmp/events.log &
-			;;
-		false)
-			touch $tmp/events.log
-			;;
-		*)
-			if [ -t 1 ]; then
-				# print events in yellow
-				grcli events | tee $tmp/events.log | awk '{print "\033[33m" $0 "\033[0m"}' &
-			else
-				grcli events | tee $tmp/events.log &
-			fi
-			;;
-	esac
 	__event_mark=0
+
+	if [ "${follow_events:-true}" = false ]; then
+		touch $tmp/events.log
+		return
+	fi
+
+	local end level wait_subscribe=false
+
+	# Only the daemon we spawned ourselves writes to $tmp/grout.log. When
+	# connecting to an already running daemon (run_grout=false) or running
+	# under gdb, the file does not exist and subscription readiness cannot be
+	# detected from it.
+	if [ -f "$tmp/grout.log" ]; then
+		wait_subscribe=true
+		end=$(wc -l < $tmp/grout.log)
+		level=$(grcli -j log level show | jq -re '.[] | select(.name == "grout.api") .level')
+
+		# Enable api debug logs so we can detect when grcli has subscribed.
+		# The stream is started in the background and racing with interface
+		# creation: if we returned before the subscription is active, the
+		# first iface add events would be missed and never resolved.
+		grcli log level set grout.api:debug
+	fi
+
+	grcli events > $tmp/events.log &
+	grcli_events_pid=$!
+
+	if [ "${follow_events:-true}" = true ]; then
+		if [ -t 1 ]; then
+			# print events in yellow
+			tail -f $tmp/events.log > >(awk '{print "\033[33m" $0 "\033[0m"}') &
+			grcli_events_log_pid=$!
+		else
+			tail -f $tmp/events.log &
+			grcli_events_log_pid=$!
+		fi
+	fi
+
+	if [ "$wait_subscribe" = false ]; then
+		return
+	fi
+
+	# Wait until the daemon logs our own subscription before returning so
+	# that no interface event is missed.
+	{ tail -f -n +$((end + 1)) $tmp/grout.log || : ; } |
+		timeout 10 grep -qE "pid=$grcli_events_pid\>.*GR_EVENT_SUBSCRIBE.*Success" ||
+		fail "timeout after 10s waiting for grcli events"
+
+	grcli log level set grout.api:$level
 }
 
 _start_events_stream
@@ -484,25 +541,18 @@ _start_events_stream
 # with grout). The events log is truncated and the mark is reset by
 # _start_events_stream, so the caller can directly use wait_event after.
 restart_grout() {
-	kill -9 "$grout_pid" || true
+	kill -9 "$grout_pid" \
+		"$grout_log_pid" "$grout_err_pid" \
+		"$grcli_events_pid" "$grcli_events_log_pid" || true
 	SECONDS=0
 	while kill -0 "$grout_pid" 2>/dev/null; do
 		[ "$SECONDS" -gt 5 ] && fail "grout still alive after SIGKILL"
 		sleep 0.1
 	done
 
-	kill %?grcli 2>/dev/null || true
-	wait %?grcli 2>/dev/null || true
+	_start_grout
 
-	$local_grout_cmd &
-	grout_pid=$!
-
-	SECONDS=0
-	while ! socat FILE:/dev/null UNIX-CONNECT:$GROUT_SOCK_PATH 2>/dev/null; do
-		[ "$SECONDS" -gt 30 ] && fail "respawned grout did not open its socket"
-		kill -0 "$grout_pid" || fail "respawned grout died"
-		sleep 0.2
-	done
+	_wait_grout_started
 
 	_start_events_stream
 }
