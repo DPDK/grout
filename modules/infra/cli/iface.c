@@ -200,6 +200,24 @@ const char *iface_name_from_id(struct gr_api_client *c, uint16_t ifid) {
 	return name_cache[ifid];
 }
 
+// Seed the name cache with a snapshot of all existing interfaces. This must be
+// called before subscribing to events so that interfaces created before the
+// subscription are still resolved by name (event printers only learn names from
+// the iface add events they observe).
+void iface_names_cache_seed(struct gr_api_client *c) {
+	struct gr_iface_list_req req = {.type = GR_IFACE_TYPE_UNDEF};
+	const struct gr_iface *iface;
+	int ret;
+
+	cache_reset(c);
+
+	gr_api_client_stream_foreach (iface, ret, c, GR_IFACE_LIST, sizeof(req), &req) {
+		if (iface->id >= name_cache_len)
+			continue;
+		gr_strcpy(name_cache[iface->id], sizeof(name_cache[iface->id]), iface->name);
+	}
+}
+
 static ssize_t iface_flags_format(char *buf, size_t len, const struct gr_iface *iface) {
 	ssize_t n = 0;
 
