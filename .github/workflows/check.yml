@@ -151,7 +151,10 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:
-      - run: dnf install -y gawk make clang-tools-extra git jq curl codespell
+      - name: install packages
+        run: |
+          dnf install -y gawk make clang-tools-extra git jq curl codespell python3-pip
+          pip install --user tree_sitter tree_sitter_c
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
