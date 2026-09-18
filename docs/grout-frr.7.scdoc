@@ -27,7 +27,9 @@ routes to grout, and grout notifies FRR of link and address changes.
 The following zebra dataplane operations are handled:
 
 - IPv4/IPv6 route install, update and delete
-- Nexthop install, update and delete
+- Nexthop install, update and delete (including labeled nexthops for
+  MPLS imposition, e.g. BGP-LU, L3VPN and SR-MPLS)
+- MPLS LSP install, update and delete (e.g. from LDP)
 - IP address install and uninstall
 - MAC/FDB install and delete
 - VXLAN flood VTEP add and delete

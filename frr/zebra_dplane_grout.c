@@ -13,6 +13,8 @@
 #include "log_grout.h"
 #include "rt_grout.h"
 
+#include <gr_mpls.h>
+
 #include <fcntl.h>
 #include <lib/bitfield.h>
 #include <lib/frr_pthread.h>
@@ -90,6 +92,8 @@ static void zebra_grout_connect(struct event *);
 static void grout_sync(struct event *);
 static void grout_sync_ifaces(struct event *);
 static void grout_sync_addrs(struct event *);
+static void grout_sync_lsps(struct event *);
+static void grout_sync_routes(struct event *);
 static void grout_reconnect(struct event *);
 static void grout_reconnect_finish(void);
 static void grout_main_router_started(void);
@@ -380,6 +384,51 @@ static void grout_sync_inject_marker(void) {
 	);
 }
 
+static void grout_sync_lsps(struct event *e) {
+	struct gr_mpls_label_route_list_req req = {.vrf_id = EVENT_VAL(e), .max_count = 0};
+	struct gr_mpls_label_route *route;
+	int ret;
+
+	gr_log_info("vrf %u", EVENT_VAL(e));
+
+	gr_api_client_stream_foreach (
+		route, ret, grout_ctx.sync_client, GR_MPLS_LABEL_ROUTE_LIST, sizeof(req), &req
+	) {
+		grout_mpls_route_change(true, route, true);
+	}
+	if (ret < 0) {
+		gr_log_err("GR_MPLS_LABEL_ROUTE_LIST: %s", strerror(errno));
+		event_add_timer(
+			zrouter.master, grout_reconnect, NULL, 1, &grout_ctx.dg_t_zebra_sync
+		);
+		return;
+	}
+
+	// Chain to next VRF's LSPs.
+	for (unsigned int i = EVENT_VAL(e) + 1; i < grout_ctx.max_ifaces; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master, grout_sync_lsps, NULL, i, &grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
+
+	// All VRFs' LSPs done. Kick off Pass 4 (routes) from the first VRF.
+	for (unsigned int i = 0; i < grout_ctx.max_ifaces; i++) {
+		if (bf_test_index(grout_ctx.sync_vrf, i)) {
+			event_add_event(
+				zrouter.master,
+				grout_sync_routes,
+				NULL,
+				i,
+				&grout_ctx.dg_t_zebra_sync
+			);
+			return;
+		}
+	}
+}
+
 static void grout_sync_routes(struct event *e) {
 	struct gr_ip4_route_list_req r4_req = {.vrf_id = EVENT_VAL(e), .max_count = 0};
 	struct gr_ip4_route *r4;
@@ -479,15 +528,11 @@ static void grout_sync_nh_groups(struct event *) {
 		return;
 	}
 
-	// Kick off routes starting from the first VRF.
+	// Kick off LSPs starting from the first VRF.
 	for (unsigned int i = 0; i < grout_ctx.max_ifaces; i++) {
 		if (bf_test_index(grout_ctx.sync_vrf, i)) {
 			event_add_event(
-				zrouter.master,
-				grout_sync_routes,
-				NULL,
-				i,
-				&grout_ctx.dg_t_zebra_sync
+				zrouter.master, grout_sync_lsps, NULL, i, &grout_ctx.dg_t_zebra_sync
 			);
 			return;
 		}
@@ -530,7 +575,7 @@ static void grout_sync_nhs(struct event *e) {
 	}
 
 	// Individual NHs done across all VRFs. Sync NH groups (global, not
-	// per-VRF) so that group member references resolve before routes.
+	// per-VRF) so that group member references resolve before LSPs and routes.
 	event_add_event(zrouter.master, grout_sync_nh_groups, NULL, 0, &grout_ctx.dg_t_zebra_sync);
 }
 
@@ -733,6 +778,8 @@ static void zebra_grout_connect(struct event *) {
 		{.type = GR_EVENT_NEXTHOP_NEW, .suppress_self_events = true},
 		{.type = GR_EVENT_NEXTHOP_DELETE, .suppress_self_events = true},
 		{.type = GR_EVENT_NEXTHOP_UPDATE, .suppress_self_events = true},
+		{.type = GR_EVENT_MPLS_ROUTE_ADD, .suppress_self_events = true},
+		{.type = GR_EVENT_MPLS_ROUTE_DEL, .suppress_self_events = true},
 	};
 
 	if (grout_notif_subscribe(&grout_ctx.zebra_notifs, gr_evts, ARRAY_DIM(gr_evts)) < 0) {
@@ -930,6 +977,12 @@ static void zebra_read_notifications(struct event *event) {
 	case GR_EVENT_NEXTHOP_DELETE:
 		grout_nexthop_change(new, PAYLOAD(gr_e), false);
 		break;
+	case GR_EVENT_MPLS_ROUTE_ADD:
+		new = true;
+		// fallthrough
+	case GR_EVENT_MPLS_ROUTE_DEL:
+		grout_mpls_route_change(new, PAYLOAD(gr_e), false);
+		break;
 	}
 
 	free(gr_e);
@@ -955,6 +1008,11 @@ static enum zebra_dplane_result zd_grout_process_update(struct zebra_dplane_ctx 
 	case DPLANE_OP_NH_UPDATE:
 	case DPLANE_OP_NH_DELETE:
 		return grout_add_del_nexthop(ctx);
+
+	case DPLANE_OP_LSP_INSTALL:
+	case DPLANE_OP_LSP_UPDATE:
+	case DPLANE_OP_LSP_DELETE:
+		return grout_add_del_lsp(ctx);
 
 	case DPLANE_OP_MAC_INSTALL:
 	case DPLANE_OP_MAC_DELETE:
