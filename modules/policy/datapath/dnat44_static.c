@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Robin Jarry
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -74,7 +75,11 @@ static uint16_t dnat44_static_process(
 		// We need the old address value to fixup the checksum properly.
 		ip->dst_addr = dnat->replace;
 
-		d->nh = fib4_lookup(d->iface->vrf_id, ip->dst_addr, mbuf->hash.rss);
+		d->nh = fib4_lookup(
+			d->iface->vrf_id,
+			ip->dst_addr,
+			gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4))
+		);
 
 		if (d->nh == NULL)
 			edge = NO_ROUTE;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "icmp6.h"
 #include "ip6.h"
@@ -58,7 +59,12 @@ static uint16_t icmp6_output_process(
 		if (rte_ipv6_addr_is_mcast(&d->dst))
 			nh = nh6_lookup(d->iface->vrf_id, d->iface->id, &d->src);
 		else
-			nh = fib6_lookup(d->iface->vrf_id, d->iface->id, &d->dst, mbuf->hash.rss);
+			nh = fib6_lookup(
+				d->iface->vrf_id,
+				d->iface->id,
+				&d->dst,
+				gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV6))
+			);
 
 		if (nh == NULL) {
 			edge = NO_ROUTE;

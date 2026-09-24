@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -44,7 +45,11 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 		ip_set_fields(ip, local_data);
-		nh = fib4_lookup(local_data->vrf_id, local_data->dst, mbuf->hash.rss);
+		nh = fib4_lookup(
+			local_data->vrf_id,
+			local_data->dst,
+			gr_mbuf_flow_hash_get_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4))
+		);
 		if (nh == NULL) {
 			// Do not let packets go to ip_output from icmp_output
 			// with no available route to avoid loops of destination

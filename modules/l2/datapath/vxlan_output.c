@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "flow_hash.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip6.h"
@@ -46,6 +47,7 @@ static uint16_t vxlan_output_process(
 	const struct nexthop *nh;
 	struct rte_mbuf *m;
 	rte_edge_t edge;
+	uint32_t hash;
 	uint16_t len;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -72,10 +74,11 @@ static uint16_t vxlan_output_process(
 		}
 
 		len = rte_pktmbuf_pkt_len(m);
+		hash = gr_mbuf_flow_hash_get(m);
 
 		switch (d->vtep.af) {
 		case GR_AF_IP4:
-			nh = fib4_lookup(vxlan->encap_vrf_id, d->vtep.ipv4, m->hash.rss);
+			nh = fib4_lookup(vxlan->encap_vrf_id, d->vtep.ipv4, hash);
 			if (nh == NULL) {
 				edge = NO_ROUTE;
 				goto next;
@@ -87,7 +90,7 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh4 = vxlan->template.ipv4;
-			vh4->udp.src_port = vxlan_src_port(m->hash.rss);
+			vh4->udp.src_port = vxlan_src_port(hash);
 			vh4->udp.dgram_len = rte_cpu_to_be_16(
 				len + sizeof(vh4->udp) + sizeof(vh4->vxlan)
 			);
@@ -98,9 +101,7 @@ static uint16_t vxlan_output_process(
 			edge = IP_OUTPUT;
 			break;
 		case GR_AF_IP6:
-			nh = fib6_lookup(
-				vxlan->encap_vrf_id, d->iface->id, &d->vtep.ipv6, m->hash.rss
-			);
+			nh = fib6_lookup(vxlan->encap_vrf_id, d->iface->id, &d->vtep.ipv6, hash);
 			if (nh == NULL) {
 				edge = NO_ROUTE;
 				goto next;
@@ -112,7 +113,7 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh6 = vxlan->template.ipv6;
-			vh6->udp.src_port = vxlan_src_port(m->hash.rss);
+			vh6->udp.src_port = vxlan_src_port(hash);
 			vh6->udp.dgram_len = rte_cpu_to_be_16(
 				len + sizeof(vh6->udp) + sizeof(vh6->vxlan)
 			);
