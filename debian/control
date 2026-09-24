@@ -32,6 +32,7 @@ Vcs-Git: https://github.com/DPDK/grout
 Package: grout
 Architecture: linux-any
 Depends:
+ tcpdump,
  driverctl,
  less,
  ${misc:Depends},
