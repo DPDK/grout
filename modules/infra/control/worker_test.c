@@ -444,6 +444,34 @@ static void queue_distribute_increase(void **) {
 	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
 }
 
+static void txq_refresh_uses_only_active_dynamic_queues(void **) {
+	struct iface_info_port *port = iface_info_port(ifaces[0]);
+
+	common_mocks();
+	port->dynamic_txq_state = true;
+	port->txq_enabled[0] = true;
+	port->txq_enabled[2] = true;
+
+	assert_int_equal(worker_txq_refresh(), 0);
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 2), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	port->txq_enabled[2] = false;
+	assert_int_equal(worker_txq_refresh(), 0);
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 0), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	port->txq_enabled[0] = false;
+	assert_int_equal(worker_txq_refresh(), 0);
+	assert_qmaps(w1.txqs, q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	port->dynamic_txq_state = false;
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(rxq_assign_main_lcore),
@@ -451,6 +479,7 @@ int main(void) {
 		cmocka_unit_test(rxq_assign_invalid_port),
 		cmocka_unit_test(rxq_assign_invalid_rxq),
 		cmocka_unit_test(rxq_assign_already_set),
+		cmocka_unit_test(txq_refresh_uses_only_active_dynamic_queues),
 		cmocka_unit_test(rxq_assign_existing_worker),
 		cmocka_unit_test(rxq_assign_existing_worker_destroy),
 		cmocka_unit_test(rxq_assign_new_worker),
