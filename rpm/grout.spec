@@ -62,6 +62,7 @@ BuildRequires: systemd
 %endif
 
 Requires: less
+Requires: tcpdump
 
 %description
 grout stands for Graph Router. In English, "grout" refers to thin mortar that
@@ -144,8 +145,10 @@ rm -rf %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
 %endif
 %attr(644, root, root) %{_datadir}/bash-completion/completions/grout
 %attr(644, root, root) %{_datadir}/bash-completion/completions/grcli
+%attr(644, root, root) %{_datadir}/bash-completion/completions/grtcpdump
 %attr(755, root, root) %{_bindir}/grcli
 %attr(755, root, root) %{_bindir}/grout
+%attr(755, root, root) %{_bindir}/grtcpdump
 %if %{with docs}
 %attr(644, root, root) %{_mandir}/man1/grcli*.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*

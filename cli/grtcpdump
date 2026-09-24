@@ -1,0 +1,275 @@
+#!/bin/bash
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+# tcpdump(8) wrapper for grout interfaces.
+#
+# Options that select or describe a live capture source (-i, -D, -L, -s, -Q,
+# -p), the -c packet count, the -F filter file and the filter expression are
+# translated to grout equivalents so that grout only captures the matching
+# packets and stops on its own. tcpdump defaults to promiscuous mode; -p
+# disables it. Live-capture-only options with no grout equivalent (-I, -B, -j,
+# -J, -y, --immediate-mode, --time-stamp-*) are dropped. Everything else is
+# forwarded to tcpdump which merely formats the captured packets read from
+# a pcapng stream:
+#
+#     grcli capture ... promisc on filter EXPR count N | tcpdump -r - ...
+#
+# When no live capture is involved (-r, -V, --help, --version), tcpdump is
+# executed directly with the original arguments.
+
+set -euo pipefail
+
+read -ra GRCLI <<<"${GRCLI:-grcli}"
+read -ra TCPDUMP <<<"${TCPDUMP:-tcpdump}"
+
+# tcpdump(8) 'interface show' -> "N.<name> [<state>]", mimicking 'tcpdump -D'.
+list_interfaces() {
+	{
+		"${GRCLI[@]}" -j interface show | jq -r '
+			.[] | "\(.name) [" +
+			(if any(.flags[]?; . == "up") then "Up" else "Down" end) +
+			(if any(.flags[]?; . == "running") then ", Running" else "" end) +
+			"]"'
+		echo "any (Pseudo-device that captures on all interfaces) [Up, Running]"
+	} | nl -ba -w1 -s.
+}
+
+# Datalink types for an interface, mimicking 'tcpdump -L'.
+list_data_link_types() {
+	local name="$1" type dlt
+
+	if [ -z "$name" ] || [ "$name" = any ]; then
+		type=port
+	else
+		type=$("${GRCLI[@]}" -j interface show name "$name" | jq -r '.type // empty')
+		if [ -z "$type" ]; then
+			echo "grtcpdump: unknown interface '$name'" >&2
+			exit 1
+		fi
+	fi
+
+	# grout captures VRF and IPIP interfaces as raw IP, all others as Ethernet.
+	case "$type" in
+	vrf | ipip) dlt="RAW (Raw IP)" ;;
+	*) dlt="EN10MB (Ethernet)" ;;
+	esac
+
+	echo "Data link types for ${name:-any} (use option -y to set):"
+	echo "  $dlt"
+}
+
+# tcpdump(8) short options that take an argument.
+opt_with_arg="BcCEFGijmMQrsTVwWyzZ"
+
+iface=""
+snaplen=""
+direction=""
+count=""
+promisc="on" # tcpdump enables promiscuous mode by default; -p disables it
+list_ifaces=0
+list_dlt=0
+direct=0
+no_more_opts=0
+td_args=()
+filter_args=()
+
+argv=("$@")
+n=${#argv[@]}
+i=0
+while [ "$i" -lt "$n" ]; do
+	arg="${argv[i]}"
+
+	# Non-option argument (filter expression, "-" or after "--"). The filter
+	# expression is sent to grout, not tcpdump, so packets are filtered at
+	# the source.
+	if [ "$no_more_opts" = 1 ] || [ "$arg" = "-" ] || [ "${arg:0:1}" != "-" ]; then
+		filter_args+=("$arg")
+		i=$((i + 1))
+		continue
+	fi
+
+	case "$arg" in
+	--)
+		no_more_opts=1
+		i=$((i + 1))
+		continue
+		;;
+	--interface)
+		iface="${argv[i + 1]:-}"
+		i=$((i + 2))
+		continue
+		;;
+	--interface=*)
+		iface="${arg#*=}"
+		i=$((i + 1))
+		continue
+		;;
+	--snapshot-length | --snaplen)
+		snaplen="${argv[i + 1]:-}"
+		i=$((i + 2))
+		continue
+		;;
+	--snapshot-length=* | --snaplen=*)
+		snaplen="${arg#*=}"
+		i=$((i + 1))
+		continue
+		;;
+	--direction)
+		direction="${argv[i + 1]:-}"
+		i=$((i + 2))
+		continue
+		;;
+	--direction=*)
+		direction="${arg#*=}"
+		i=$((i + 1))
+		continue
+		;;
+	--list-interfaces)
+		list_ifaces=1
+		i=$((i + 1))
+		continue
+		;;
+	--list-data-link-types)
+		list_dlt=1
+		i=$((i + 1))
+		continue
+		;;
+	--buffer-size | --time-stamp-type | --time-stamp-precision)
+		# live-capture only, drop with its argument
+		i=$((i + 2))
+		continue
+		;;
+	--buffer-size=* | --time-stamp-type=* | --time-stamp-precision=*)
+		i=$((i + 1))
+		continue
+		;;
+	--monitor-mode | --immediate-mode)
+		# live-capture only, drop
+		i=$((i + 1))
+		continue
+		;;
+	--no-promiscuous-mode)
+		promisc="off"
+		i=$((i + 1))
+		continue
+		;;
+	--help | --version)
+		direct=1
+		i=$((i + 1))
+		continue
+		;;
+	--*)
+		# unknown long option: forward verbatim, a separate value token (if
+		# any) is forwarded as-is on the next iteration
+		td_args+=("$arg")
+		i=$((i + 1))
+		continue
+		;;
+	esac
+
+	# Short option cluster, e.g. "-nvvi" or "-c10".
+	cluster="${arg#-}"
+	rebuilt=""
+	skip_next=0
+	while [ -n "$cluster" ]; do
+		ch="${cluster:0:1}"
+		cluster="${cluster:1}"
+
+		if [[ "$opt_with_arg" == *"$ch"* ]]; then
+			# argument is the rest of the cluster, or the next token
+			if [ -n "$cluster" ]; then
+				value="$cluster"
+			else
+				value="${argv[i + 1]:-}"
+				skip_next=1
+			fi
+			cluster=""
+			case "$ch" in
+			i) iface="$value" ;;
+			s) snaplen="$value" ;;
+			Q) direction="$value" ;;
+			c) count="$value" ;;
+			F) # read filter from file, strip '#' comments, join lines
+				filter_args=("$(sed -e 's/#.*//' -- "$value" | tr '\n\t' '  ')") ;;
+			r | V) direct=1 ;;
+			B | j | y) : ;; # live-capture only, drop with arg
+			*) td_args+=("-$ch" "$value") ;;
+			esac
+		else
+			case "$ch" in
+			D) list_ifaces=1 ;;
+			L) list_dlt=1 ;;
+			p) promisc="off" ;;
+			I | J) : ;; # live-capture only, drop
+			*) rebuilt="$rebuilt$ch" ;;
+			esac
+		fi
+	done
+
+	if [ -n "$rebuilt" ]; then
+		td_args+=("-$rebuilt")
+	fi
+	if [ "$skip_next" = 1 ]; then
+		i=$((i + 2))
+	else
+		i=$((i + 1))
+	fi
+done
+
+if [ "$direct" = 1 ]; then
+	exec "${TCPDUMP[@]}" "$@"
+fi
+
+if [ "$list_ifaces" = 1 ]; then
+	list_interfaces
+	exit 0
+fi
+
+if [ "$list_dlt" = 1 ]; then
+	list_data_link_types "$iface"
+	exit 0
+fi
+
+capture_cmd=(capture)
+if [ -z "$iface" ] || [ "$iface" = any ]; then
+	capture_cmd+=(any)
+else
+	capture_cmd+=(iface "$iface")
+fi
+capture_cmd+=(promisc "$promisc")
+if [ -n "$snaplen" ]; then
+	capture_cmd+=(snaplen "$snaplen")
+fi
+case "$direction" in
+"") ;;
+in) capture_cmd+=(direction in) ;;
+out) capture_cmd+=(direction out) ;;
+inout) capture_cmd+=(direction both) ;;
+*)
+	echo "grtcpdump: invalid direction '$direction' (expected in, out or inout)" >&2
+	exit 1
+	;;
+esac
+if [ -n "$count" ]; then
+	capture_cmd+=(count "$count")
+fi
+if [ "${#filter_args[@]}" -gt 0 ]; then
+	capture_cmd+=(filter "${filter_args[*]}")
+fi
+
+# tcpdump writes a few informational banners to stderr: the "reading from
+# file ..." header, "dropped privs to ..." when started as root, and the
+# "verbose output suppressed" hint. Route stderr through sed to drop only those
+# lines while keeping stdout (the packet dump) and any real diagnostics
+# untouched. fd 3 carries stdout past the sed filter; sed is a real pipeline
+# stage so its output is not lost and pipefail still reports grcli/tcpdump
+# failures.
+{
+	{
+		"${GRCLI[@]}" "${capture_cmd[@]}" | "${TCPDUMP[@]}" -r - "${td_args[@]}"
+	} 2>&1 1>&3 3>&- | sed \
+		-e '/^reading from file /d' \
+		-e '/^dropped privs to /d' \
+		-e '/^tcpdump: verbose output suppressed/d' >&2
+} 3>&1

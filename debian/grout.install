@@ -2,8 +2,10 @@
 /etc/grout.init
 /usr/bin/grcli
 /usr/bin/grout
+/usr/bin/grtcpdump
 /usr/lib/systemd/system/grout.service
 /usr/share/bash-completion/completions/grcli
 /usr/share/bash-completion/completions/grout
+/usr/share/bash-completion/completions/grtcpdump
 /usr/share/man/man1/grcli*.1
 /usr/share/man/man8/grout.8
