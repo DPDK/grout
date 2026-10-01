@@ -7,7 +7,9 @@
 # grout replies to ARP requests and neighbor solicitations following the strong
 # host model: an address is only answered on the interface that owns it, unless
 # it is explicitly exposed on other interfaces. When an interface MAC changes,
-# the new MAC is used in subsequent replies.
+# the new MAC is used in subsequent replies. Gratuitous ARP announcements are
+# learned into the neighbor table when the sender is already known, or when
+# neighbor snooping is enabled on the receiving interface.
 
 reply() {
 	local ns="$1" mac="$2"
@@ -101,3 +103,48 @@ reply n0 $mac0 arping -c1 -I x-p0 -s 192.168.0.2 192.168.0.1
 reply n0 $mac0 ndisc6 -1 -r1 -s fd00:1::2 fd00:1::1 x-p0
 reply n0 $mac0 arping -c1 -I x-p0 -s 192.168.0.2 10.99.0.1
 reply n0 $mac0 ndisc6 -1 -r1 -s fd00:1::2 fd00:99::1 x-p0
+
+# Gratuitous ARP announcements (ARP requests where sip == tip) are treated
+# like unsolicited ARP replies: the neighbor table is updated only if an entry
+# already exists for the sender, or if neighbor snooping is enabled on the
+# receiving interface (similar to Linux's net.ipv4.arp_accept sysctl). A
+# gratuitous ARP is learned but never answered.
+
+# p1 already knows 192.168.1.2 (learned from the reply above): a gratuitous
+# announcement with a new MAC for it is accepted even without neigh_snoop.
+garp_mac=ba:d0:ca:ca:00:03
+ip -n n1 link set x-p1 address $garp_mac
+mark_events
+ip netns exec n1 arping -U -c3 -w3 -I x-p1 192.168.1.2 &
+garp_pid=$!
+# grout must not answer a gratuitous ARP: no reply claiming 192.168.1.2
+# (opcode=2, sender protocol address 192.168.1.2 == 0xc0a80102).
+ip netns exec n1 timeout 3 \
+	tcpdump -c1 -tlpnn -i x-p1 'arp[6:2] = 2 and arp[14:4] = 0xc0a80102' 2>&1 &&
+	fail "grout replied to a gratuitous ARP for 192.168.1.2"
+wait $garp_pid
+wait_event "nh update: type=L3 .*addr=192.168.1.2 state=reachable mac=$garp_mac"
+ip -n n1 link set x-p1 address $(stable_mac p1)
+
+# p1 has no entry for 192.168.1.50 and neigh_snoop is off: the announcement is
+# ignored and no nexthop is created for it. arping -U uses the target as the
+# source, so the address must exist on the interface.
+ip -n n1 addr add 192.168.1.50/24 dev x-p1
+ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.1.50
+grcli nexthop show | grep -q 192.168.1.50 && fail "gratuitous ARP learned without neigh_snoop"
+
+# Enabling neighbor snooping on p1 makes the same announcement learned.
+grcli interface set port p1 neigh_snoop on
+mark_events
+ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.1.50
+wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.1.50 state=reachable mac=$(stable_mac p1)"
+
+# A gratuitous ARP must only touch a neighbor learned on the interface it was
+# received on. 192.168.0.2 is a neighbor on p0; announcing it on p1 (even with
+# neigh_snoop on) must not steal it or rewrite its MAC.
+ip -n n1 addr add 192.168.0.2/24 dev x-p1
+ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.0.2
+sleep 1
+nh=$(grcli -j nexthop show type l3 | jq -r '.[] | select(.addr == "192.168.0.2")')
+[ "$(echo "$nh" | jq -r .iface)" = p0 ] || fail "192.168.0.2 moved away from p0"
+[ "$(echo "$nh" | jq -r .mac)" = "$(stable_mac p0)" ] || fail "192.168.0.2 MAC was hijacked from p1"
