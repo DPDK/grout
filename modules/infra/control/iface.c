@@ -386,6 +386,10 @@ int iface_reconfig(
 				goto err;
 			iface->user_promisc = want;
 		}
+		if (conf->flags & GR_IFACE_F_NEIGH_SNOOP)
+			iface->flags |= GR_IFACE_F_NEIGH_SNOOP;
+		else
+			iface->flags &= ~GR_IFACE_F_NEIGH_SNOOP;
 		if ((ret = iface_set_up_down(iface, conf->flags & GR_IFACE_F_UP)) < 0)
 			goto err;
 	}
