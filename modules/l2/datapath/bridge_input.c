@@ -61,9 +61,17 @@ static uint16_t bridge_input_process(
 
 		if (rte_is_unicast_ether_addr(&eth->src_addr) && (br->flags & GR_BRIDGE_F_LEARN)) {
 			struct l3_addr vtep = {0};
-			if (d->iface->type == GR_IFACE_TYPE_VXLAN)
+			bool learn = true;
+			if (d->iface->type == GR_IFACE_TYPE_VXLAN) {
+				// EVPN control planes own the overlay FDB. Only
+				// learn from a VXLAN member if explicitly enabled.
+				learn = iface_info_vxlan(d->iface)->flags & GR_VXLAN_F_LEARN;
 				vtep = d->vtep;
-			fdb_learn(bridge->id, d->iface->id, &eth->src_addr, d->vlan_id, &vtep);
+			}
+			if (learn)
+				fdb_learn(
+					bridge->id, d->iface->id, &eth->src_addr, d->vlan_id, &vtep
+				);
 		}
 
 		if (rte_is_unicast_ether_addr(&eth->dst_addr)) {

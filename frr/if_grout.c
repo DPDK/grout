@@ -41,6 +41,38 @@ static uint64_t gr_if_flags_to_netlink(struct gr_iface *gr_if, enum zebra_link_t
 	return frr_if_flags;
 }
 
+// Disable dynamic FDB learning on a bridged (L2 VNI) VXLAN interface. In an
+// EVPN deployment BGP owns the overlay FDB (type-2 routes), so data-plane
+// learning is redundant and may install conflicting or stale entries. This
+// mirrors the "nolearning" / "bridge_slave learning off" settings used on Linux.
+static void grout_vxlan_disable_learning(const struct gr_iface *gr_if) {
+	const struct gr_iface_info_vxlan *gr_vxlan;
+	struct gr_iface_info_vxlan *info;
+	struct gr_iface_set_req *req;
+	size_t len;
+
+	gr_vxlan = (const struct gr_iface_info_vxlan *)&gr_if->info;
+	if (!(gr_vxlan->flags & GR_VXLAN_F_LEARN))
+		return;
+
+	len = sizeof(*req) + sizeof(*info);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("calloc: %s", strerror(errno));
+		return;
+	}
+
+	req->set_attrs = GR_VXLAN_SET_FLAGS;
+	req->iface.base.id = gr_if->id;
+	req->iface.base.type = GR_IFACE_TYPE_VXLAN;
+	info = (struct gr_iface_info_vxlan *)req->iface.info;
+	info->flags = gr_vxlan->flags & ~GR_VXLAN_F_LEARN;
+
+	gr_log_debug("disable fdb learning on bridged vxlan %s", gr_if->name);
+	grout_client_send_recv(GR_IFACE_SET, len, req, NULL);
+	free(req);
+}
+
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	gr_log_debug(
 		"%s iface %s id=%u cp_id=%u",
@@ -194,8 +226,10 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		case GR_IFACE_MODE_BRIDGE:
 			bridge_ifindex = ifindex_grout_to_frr(gr_if->domain_id);
 			slave_type = ZEBRA_IF_SLAVE_BRIDGE;
-			if (zif_type == ZEBRA_IF_VXLAN)
+			if (zif_type == ZEBRA_IF_VXLAN) {
 				l3vni_del_iface(gr_if->id);
+				grout_vxlan_disable_learning(gr_if);
+			}
 			break;
 		default:
 			break;

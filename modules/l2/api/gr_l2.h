@@ -58,12 +58,32 @@ struct gr_iface_info_bridge {
 	uint16_t members[GR_BRIDGE_MAX_MEMBERS]; // Interface IDs of bridge members.
 };
 
+// VXLAN configuration flags.
+typedef enum : uint16_t {
+	// Dynamic FDB/VTEP learning when attached to a bridge domain (L2 VNI).
+	// Disabled by EVPN control planes which own the FDB. No effect in VRF
+	// mode (L3 VNI), where there is no FDB learning.
+	GR_VXLAN_F_LEARN = GR_BIT16(0),
+#define GR_VXLAN_F_VALID (GR_VXLAN_F_LEARN)
+} gr_vxlan_flags_t;
+
+// Convert VXLAN flag enum to string representation.
+// For flag masks, iterate individual flags using gr_flags_foreach.
+static inline const char *gr_vxlan_flag_name(gr_vxlan_flags_t f) {
+	switch (f) {
+	case GR_VXLAN_F_LEARN:
+		return "learn";
+	}
+	return "?";
+}
+
 // VXLAN reconfiguration attribute flags.
 #define GR_VXLAN_SET_VNI GR_BIT64(32)
 #define GR_VXLAN_SET_ENCAP_VRF GR_BIT64(33)
 #define GR_VXLAN_SET_DST_PORT GR_BIT64(34)
 #define GR_VXLAN_SET_LOCAL GR_BIT64(35)
 #define GR_VXLAN_SET_MAC GR_BIT64(37)
+#define GR_VXLAN_SET_FLAGS GR_BIT64(38)
 
 // Info structure for GR_IFACE_TYPE_VXLAN interfaces.
 struct gr_iface_info_vxlan {
@@ -72,6 +92,7 @@ struct gr_iface_info_vxlan {
 	uint16_t dst_port; // UDP destination port (default 4789).
 	struct l3_addr local; // Local VTEP IP address (must be valid in encap_vrf_id).
 	struct rte_ether_addr mac; // Default to random address.
+	gr_vxlan_flags_t flags;
 };
 
 // FDB (L2 Forwarding Database) management /////////////////////////////////////
