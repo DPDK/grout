@@ -324,6 +324,14 @@ static void cp_create(struct iface *iface) {
 	// would then fail to bind() sockets on those addresses.
 	sysctl_write("net/ipv6/conf", iface, "keep_addr_on_down", "1");
 
+	// Router Advertisements received on the datapath are punted to the tap
+	// so that FRR daemons (e.g. bgpd unnumbered) can process them. FRR reads
+	// them directly off the interface and does not rely on the kernel RA
+	// state machine. Disable kernel RA processing so it does not install
+	// RA-derived default routes or prefixes on the representor, which would
+	// conflict with grout's routing.
+	sysctl_write("net/ipv6/conf", iface, "accept_ra", "0");
+
 	if (gr_config.override_rp_filter) {
 		// Set loose reverse path filtering on the TAP so that packets
 		// delivered by grout are not dropped by rp_filter. The effective
