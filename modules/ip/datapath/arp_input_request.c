@@ -39,6 +39,27 @@ static uint16_t arp_input_request_process(
 		}
 
 		iface = mbuf_data(mbuf)->iface;
+
+		if (arp->arp_data.arp_sip == arp->arp_data.arp_tip) {
+			// Gratuitous ARP announcement: refresh a neighbor already
+			// learned on this interface, or learn a new one if neighbor
+			// snooping is enabled. Never touch a local address, a remote
+			// (EVPN) nexthop, or a neighbor reachable through another
+			// interface.
+			if (iface->flags & GR_IFACE_F_NEIGH_SNOOP)
+				goto accept;
+
+			const struct nexthop *remote = nh4_lookup(
+				iface->vrf_id, arp->arp_data.arp_sip
+			);
+			if (remote != NULL && remote->iface_id == iface->id
+			    && nexthop_info_l3(remote)->flags & GR_NH_F_NEIGH)
+				goto accept;
+
+			edge = DROP;
+			goto next;
+		}
+
 		if ((local = nh4_lookup(iface->vrf_id, arp->arp_data.arp_tip)) == NULL) {
 			// Unknown IP address
 			edge = DROP;
@@ -58,7 +79,7 @@ static uint16_t arp_input_request_process(
 			edge = DROP;
 			goto next;
 		}
-
+accept:
 		control_output_set_cb(mbuf, arp_probe_input_cb, 0);
 		edge = CONTROL;
 next:
