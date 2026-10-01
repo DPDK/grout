@@ -183,15 +183,20 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			goto free;
 		}
 	} else {
-		// Refresh all fields.
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-		l3->last_reply = clock_ns();
-		l3->state = GR_NH_S_REACHABLE;
-		l3->ucast_probes = 0;
-		l3->bcast_probes = 0;
-		l3->mac = arp->arp_data.arp_sha;
-		if (nh->origin != GR_NH_ORIGIN_INTERNAL)
-			event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+		// Only refresh a nexthop reachable through the interface the
+		// packet was received on. Never overwrite a local address, a
+		// remote (EVPN) nexthop, or a neighbor reachable through another
+		// interface.
+		if (nh->iface_id == iface->id && !(l3->flags & (GR_NH_F_LOCAL | GR_NH_F_REMOTE))) {
+			l3->last_reply = clock_ns();
+			l3->state = GR_NH_S_REACHABLE;
+			l3->ucast_probes = 0;
+			l3->bcast_probes = 0;
+			l3->mac = arp->arp_data.arp_sha;
+			if (nh->origin != GR_NH_ORIGIN_INTERNAL)
+				event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+		}
 	}
 
 	if (arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST)) {
