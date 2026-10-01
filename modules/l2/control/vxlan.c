@@ -150,6 +150,15 @@ static int iface_vxlan_reconfig(
 		conf_done |= GR_VXLAN_SET_LOCAL;
 	}
 
+	if (set_attrs & GR_VXLAN_SET_FLAGS) {
+		if (next->flags & ~GR_VXLAN_F_VALID) {
+			errno = EINVAL;
+			goto err;
+		}
+		cur->flags = next->flags;
+		conf_done |= GR_VXLAN_SET_FLAGS;
+	}
+
 	if (set_attrs & (GR_IFACE_SET_VRF | GR_VXLAN_SET_ENCAP_VRF | GR_VXLAN_SET_MAC)) {
 		struct iface *vrf = get_vrf_iface(cur->encap_vrf_id);
 		struct rte_ether_addr mac = next->mac;
@@ -208,6 +217,9 @@ static int iface_vxlan_reconfig(
 
 err:
 	ret = errno ?: EINVAL;
+	if (conf_done & GR_VXLAN_SET_FLAGS) {
+		cur->flags = prev.flags;
+	}
 	if (conf_done & GR_VXLAN_SET_MAC) {
 		iface_set_eth_addr(iface, &prev.mac);
 	}

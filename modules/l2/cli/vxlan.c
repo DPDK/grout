@@ -12,6 +12,21 @@
 #include <ecoli.h>
 
 #include <errno.h>
+#include <string.h>
+
+static const char *format_vxlan_flags(gr_vxlan_flags_t flags) {
+	static char buf[128]; // grcli is single threaded, this is safe
+	size_t n = 0;
+	buf[0] = 0;
+
+	gr_flags_foreach (f, flags) {
+		if (n > 0)
+			SAFE_BUF(snprintf, sizeof(buf), " ");
+		SAFE_BUF(snprintf, sizeof(buf), "%s", gr_vxlan_flag_name(f));
+	}
+err:
+	return buf;
+}
 
 static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface, struct gr_object *o) {
 	const struct gr_iface_info_vxlan *vxlan = (const struct gr_iface_info_vxlan *)iface->info;
@@ -21,6 +36,9 @@ static void vxlan_show(struct gr_api_client *c, const struct gr_iface *iface, st
 	gr_object_field(o, "encap_vrf", 0, "%s", iface_name_from_id(c, vxlan->encap_vrf_id));
 	gr_object_field(o, "dst_port", GR_DISP_INT, "%u", vxlan->dst_port);
 	gr_object_field(o, "mac", 0, ETH_F, &vxlan->mac);
+	gr_object_field(
+		o, "vxlan_flags", GR_DISP_STR_ARRAY, "%s", format_vxlan_flags(vxlan->flags)
+	);
 }
 
 static void
@@ -92,6 +110,15 @@ static uint64_t parse_vxlan_args(
 		set_attrs |= GR_VXLAN_SET_MAC;
 	}
 
+	const char *on_off = arg_str(p, "LEARN");
+	if (on_off != NULL && strcmp(on_off, "on") == 0) {
+		vxlan->flags |= GR_VXLAN_F_LEARN;
+		set_attrs |= GR_VXLAN_SET_FLAGS;
+	} else if (on_off != NULL && strcmp(on_off, "off") == 0) {
+		vxlan->flags &= ~GR_VXLAN_F_LEARN;
+		set_attrs |= GR_VXLAN_SET_FLAGS;
+	}
+
 	if (set_attrs == 0)
 		errno = EINVAL;
 	return set_attrs;
@@ -109,6 +136,7 @@ static cmd_status_t vxlan_add(struct gr_api_client *c, const struct ec_pnode *p)
 
 	req->iface.type = GR_IFACE_TYPE_VXLAN;
 	req->iface.flags = GR_IFACE_F_UP;
+	((struct gr_iface_info_vxlan *)req->iface.info)->flags = GR_VXLAN_F_LEARN;
 
 	if (parse_vxlan_args(c, p, &req->iface, false) == 0)
 		goto err;
@@ -147,7 +175,7 @@ out:
 	return ret;
 }
 
-#define VXLAN_ATTRS_CMD "(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT)"
+#define VXLAN_ATTRS_CMD "(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT),(learn LEARN)"
 
 #define VXLAN_ATTRS_ARGS                                                                           \
 	IFACE_ATTRS_ARGS,                                                                          \
@@ -164,6 +192,10 @@ out:
 		with_help(                                                                         \
 			"UDP destination port (default 4789).",                                    \
 			ec_node_uint("DST_PORT", 1, 65535, 10)                                     \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Enable/disable dynamic MAC learning when bridged (default on).",          \
+			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
 		)
 
 static int ctx_init(struct ec_node *root) {

@@ -44,6 +44,17 @@ In grout, L3 VNI VXLAN interfaces use a "VRF mode" that does not require
 a bridge and SVI as Linux does. The plugin takes care of presenting VXLAN
 interfaces to FRR in the way its EVPN code expects.
 
+When a VXLAN interface is attached to a bridge domain (L2 VNI), the plugin
+automatically disables dynamic FDB learning on it. In an EVPN deployment, BGP
+is the authoritative source of MAC-to-VTEP reachability (type-2 routes), so
+data-plane learning over the overlay is redundant and could install conflicting
+or stale entries. This mirrors the _nolearning_ and _bridge_slave learning off_
+settings used on Linux VXLAN interfaces in EVPN setups. The setting can be
+overridden manually with *grcli interface set vxlan NAME learning on*, but the
+plugin disables it again whenever it re-synchronizes the interface. Learning is
+not involved for L3 VNI (VRF mode) interfaces, where reachability is driven
+entirely by routes.
+
 # CONTROL PLANE REPRESENTORS
 
 For each grout interface (port, VLAN, bond, bridge, VXLAN), grout creates

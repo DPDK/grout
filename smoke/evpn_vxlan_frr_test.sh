@@ -136,6 +136,15 @@ while ! vtysh -c "show evpn vni 100" | grep -q "VNI: 100"; do
 	attempts=$((attempts + 1))
 done
 
+# The FRR plugin disables dynamic FDB learning on bridged (L2 VNI) VXLAN
+# interfaces so BGP remains the sole owner of the overlay FDB.
+attempts=0
+while grcli -j interface show name vxlan100 | jq -e '.vxlan_flags | contains(["learning"])' >/dev/null; do
+	[ "$attempts" -ge 5 ] && fail "FRR plugin did not disable learning on vxlan100"
+	sleep 1
+	attempts=$((attempts + 1))
+done
+
 create_interface p1 domain br100
 
 netns_add host-b
