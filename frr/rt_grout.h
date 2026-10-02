@@ -26,3 +26,16 @@ enum zebra_dplane_result grout_neigh_update_ctx(struct zebra_dplane_ctx *ctx);
 enum zebra_dplane_result grout_vxlan_flood_update_ctx(struct zebra_dplane_ctx *ctx);
 enum zebra_dplane_result grout_fdb_read_ctx(struct zebra_dplane_ctx *ctx);
 enum zebra_dplane_result grout_neigh_read_ctx(struct zebra_dplane_ctx *ctx);
+
+#ifdef __GROUT_UNIT_TEST__
+#include <lib/mpls.h>
+#include <zebra/zebra_mpls.h>
+gr_nh_origin_t lsptype2origin(enum lsp_types_t type);
+bool nh_has_mpls_labels(const struct nexthop *nh);
+int grout_fill_mpls_nh(
+	struct gr_nh_add_req *req,
+	uint32_t nh_id,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh
+);
+#endif
