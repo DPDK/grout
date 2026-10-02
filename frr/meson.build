@@ -61,6 +61,25 @@ if install_build_flag
   )
 endif
 
+if cmocka_dep.found()
+  # FRR is built as an external subproject and only provides include dirs
+  # (the dplane_grout plugin inherits FRR symbols from the parent process at
+  # runtime). For a standalone test binary we must link libfrr explicitly.
+  frr_prefix = frr_dep.get_variable('prefix')
+  frr_libdir = frr_prefix / 'lib'
+  mpls_frr_test_exe = executable(
+    'mpls_frr_test',
+    files('mpls_frr_test.c', 'rt_grout.c') + grout_header,
+    c_args: frr_c_args + ['-D__GROUT_UNIT_TEST__'],
+    include_directories: api_inc + include_directories('.'),
+    dependencies: [frr_dep, cmocka_dep],
+    link_args: ['-L' + frr_libdir, '-lfrr', '-Wl,-rpath,' + frr_libdir],
+    install: false,
+    override_options: ['b_sanitize=none'],
+  )
+  test('mpls_frr_test', mpls_frr_test_exe, suite: 'unit')
+endif
+
 systemd_dep = dependency('systemd', required: false)
 if systemd_dep.found()
   systemd_system_unit_dir = systemd_dep.get_variable(
