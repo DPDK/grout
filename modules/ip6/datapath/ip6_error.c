@@ -26,6 +26,7 @@ enum edges {
 static uint16_t
 ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct ip6_error_ctx *ctx = ip6_error_ctx(node);
+	struct icmp6_err_pkt_too_big *ptb;
 	struct icmp6_err_dest_unreach *du;
 	struct icmp6_err_ttl_exceeded *te;
 	const struct nexthop_info_l3 *l3;
@@ -67,6 +68,19 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			if (unlikely(te == NULL)) {
 				edge = NO_HEADROOM;
 				goto next;
+			}
+			break;
+		case ICMP6_ERR_PKT_TOO_BIG:
+			ptb = gr_mbuf_prepend(mbuf, ptb);
+			if (unlikely(ptb == NULL)) {
+				edge = NO_HEADROOM;
+				goto next;
+			}
+			{
+				const struct iface *err_iface = mbuf_data(mbuf)->iface;
+				ptb->mtu = (err_iface != NULL) ?
+					rte_cpu_to_be_32(err_iface->mtu) :
+					0;
 			}
 			break;
 		default:
@@ -120,6 +134,13 @@ static int no_route_init(const struct rte_graph *, struct rte_node *node) {
 	return 0;
 }
 
+static int pkt_too_big_init(const struct rte_graph *, struct rte_node *node) {
+	struct ip6_error_ctx *ctx = ip6_error_ctx(node);
+	ctx->icmp_type = ICMP6_ERR_PKT_TOO_BIG;
+	ctx->icmp_code = 0;
+	return 0;
+}
+
 static struct rte_node_register dest_unreach_node = {
 	.name = "ip6_error_dest_unreach",
 	.process = ip6_error_process,
@@ -144,6 +165,18 @@ static struct rte_node_register ttl_exceeded_node = {
 	.init = ttl_exceeded_init,
 };
 
+static struct rte_node_register pkt_too_big_node = {
+	.name = "ip6_error_pkt_too_big",
+	.process = ip6_error_process,
+	.nb_edges = EDGE_COUNT,
+	.next_nodes = {
+		[ICMP_OUTPUT] = "icmp6_output",
+		[NO_HEADROOM] = "error_no_headroom",
+		[NO_IP] = "error_no_local_ip",
+	},
+	.init = pkt_too_big_init,
+};
+
 static struct gr_node_info dest_unreach_info = {
 	.node = &dest_unreach_node,
 	.type = GR_NODE_T_L3,
@@ -154,5 +187,11 @@ static struct gr_node_info ttl_exceeded_info = {
 	.type = GR_NODE_T_L3,
 };
 
+static struct gr_node_info pkt_too_big_info = {
+	.node = &pkt_too_big_node,
+	.type = GR_NODE_T_L3,
+};
+
 GR_NODE_REGISTER(dest_unreach_info);
 GR_NODE_REGISTER(ttl_exceeded_info);
+GR_NODE_REGISTER(pkt_too_big_info);

@@ -7,9 +7,11 @@
 #include "rt_grout.h"
 
 #include <gr_l2.h>
+#include <gr_mpls.h>
 #include <gr_srv6.h>
 
 #include <lib/libfrr.h>
+#include <lib/mpls.h>
 #include <lib/srv6.h>
 #include <lib/version.h>
 #include <linux/neighbour.h>
@@ -17,7 +19,24 @@
 #include <zebra/rib.h>
 #include <zebra/table_manager.h>
 #include <zebra/zebra_l2.h>
+#include <zebra/zebra_mpls.h>
 #include <zebra_dplane_grout.h>
+
+// Synthesize a deterministic grout nexthop ID for an MPLS label route. Label
+// routes are 1:1 with their incoming label, so the label doubles as the key.
+// The 0x80000000 offset keeps these IDs clear of both grout's allocation pool
+// (<= 1 << 17) and FRR's proto-NHG range (< ZEBRA_NHG_PROTO_UPPER, ~250M).
+#define GROUT_MPLS_NH_ID(label) (0x80000000u | (uint32_t)(label))
+
+// Under __GROUT_UNIT_TEST__, expose the three MPLS helper functions so that
+// mpls_frr_test.c can call them directly without the full plugin link context.
+#ifdef __GROUT_UNIT_TEST__
+#define TESTABLE_STATIC
+#else
+#define TESTABLE_STATIC static
+#endif
+
+#ifndef __GROUT_UNIT_TEST__
 
 static inline bool is_selfroute(gr_nh_origin_t origin) {
 	switch (origin) {
@@ -507,6 +526,21 @@ void grout_route6_change(bool new, struct gr_ip6_route *gr_r6, bool startup) {
 	);
 }
 
+void grout_mpls_route_change(bool new, const struct gr_mpls_label_route *route, bool startup) {
+	gr_log_debug(
+		"%s in_label %u vrf %u nh_id %u",
+		new ? "add" : "del",
+		route->in_label,
+		route->vrf_id,
+		route->nh_id
+	);
+	// MPLS route events from grout (e.g. statically added via grcli) are
+	// informational only — FRR is the label distribution protocol and owns
+	// the LFIB. A full ZAPI push would require lsp_add/del_nhlfe which is
+	// internal to zebra_mpls.
+	(void)startup;
+}
+
 enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	union {
 		struct gr_ip4_route_add_req r4_add;
@@ -627,6 +661,173 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
+#endif /* !__GROUT_UNIT_TEST__ */
+
+TESTABLE_STATIC inline gr_nh_origin_t lsptype2origin(enum lsp_types_t type) {
+	switch (type) {
+	case ZEBRA_LSP_STATIC:
+		return GR_NH_ORIGIN_ZSTATIC;
+	case ZEBRA_LSP_LDP:
+		return GR_NH_ORIGIN_LDP;
+	case ZEBRA_LSP_BGP:
+		return GR_NH_ORIGIN_BGP;
+	case ZEBRA_LSP_OSPF_SR:
+		return GR_NH_ORIGIN_OSPF;
+	case ZEBRA_LSP_ISIS_SR:
+		return GR_NH_ORIGIN_ISIS;
+	case ZEBRA_LSP_SHARP:
+		return GR_NH_ORIGIN_SHARP;
+	case ZEBRA_LSP_SRTE:
+		return GR_NH_ORIGIN_SRTE;
+	case ZEBRA_LSP_NONE:
+	case ZEBRA_LSP_EVPN:
+	default:
+		return GR_NH_ORIGIN_ZEBRA;
+	}
+}
+
+// A lone implicit-null is penultimate hop popping, which grout
+// represents as an MPLS nexthop with zero output labels, so it does not count
+// as "having labels" here.
+TESTABLE_STATIC bool nh_has_mpls_labels(const struct nexthop *nh) {
+	const struct mpls_label_stack *nhl = nh->nh_label;
+
+	return nhl != NULL && nhl->num_labels > 0
+		&& !(nhl->num_labels == 1 && nhl->label[0] == MPLS_LABEL_IMPLICIT_NULL);
+}
+
+// Populate an MPLS nexthop add request from a FRR nexthop carrying output
+// labels. Returns 0 on success, -1 if the nexthop cannot be represented in
+// grout. The caller must allocate req with room for a gr_nexthop_info_mpls.
+TESTABLE_STATIC int grout_fill_mpls_nh(
+	struct gr_nh_add_req *req,
+	uint32_t nh_id,
+	gr_nh_origin_t origin,
+	const struct nexthop *nh
+) {
+	struct gr_nexthop_info_mpls *mpls = (struct gr_nexthop_info_mpls *)req->nh.info;
+
+	req->exist_ok = true;
+	req->nh.nh_id = nh_id;
+	req->nh.origin = origin;
+	req->nh.type = GR_NH_T_MPLS;
+	req->nh.vrf_id = vrf_frr_to_grout(nh->vrf_id);
+	req->nh.iface_id = ifindex_frr_to_grout(nh->ifindex);
+
+	// grout resolves the outgoing L2 header through an L3 gateway, so an
+	// MPLS nexthop must carry one. Extract it from the FRR nexthop.
+	switch (nh->type) {
+	case NEXTHOP_TYPE_IPV4:
+	case NEXTHOP_TYPE_IPV4_IFINDEX:
+		mpls->via.af = GR_AF_IP4;
+		memcpy(&mpls->via.ipv4, &nh->gate.ipv4, sizeof(mpls->via.ipv4));
+		break;
+	case NEXTHOP_TYPE_IPV6:
+	case NEXTHOP_TYPE_IPV6_IFINDEX:
+		mpls->via.af = GR_AF_IP6;
+		memcpy(&mpls->via.ipv6, &nh->gate.ipv6, sizeof(mpls->via.ipv6));
+		break;
+	default:
+		gr_log_err("MPLS nexthop requires an IP gateway, type %u unsupported", nh->type);
+		return -1;
+	}
+
+	// Copy the output label stack. A lone implicit-null (penultimate hop
+	// popping) leaves n_labels at 0, i.e. pop with no imposition. Explicit
+	// null (0/2) is a real label and stays on the wire.
+	if (nh_has_mpls_labels(nh)) {
+		const struct mpls_label_stack *nhl = nh->nh_label;
+
+		if (nhl->num_labels > GR_MPLS_MAX_LABELS) {
+			gr_log_err("too many output labels: %u", nhl->num_labels);
+			return -1;
+		}
+		mpls->n_labels = nhl->num_labels;
+		for (uint8_t i = 0; i < nhl->num_labels; i++)
+			mpls->labels[i] = nhl->label[i];
+	}
+
+	mpls->ttl = 0; // copy TTL from the incoming label / payload
+	mpls->payload_af = GR_AF_UNSPEC; // auto-detect payload after pop
+
+	return 0;
+}
+
+#ifndef __GROUT_UNIT_TEST__
+
+enum zebra_dplane_result grout_add_del_lsp(struct zebra_dplane_ctx *ctx) {
+	bool new = dplane_ctx_get_op(ctx) != DPLANE_OP_LSP_DELETE;
+	mpls_label_t in_label = dplane_ctx_get_in_label(ctx);
+	uint32_t vrf_id = vrf_frr_to_grout(dplane_ctx_get_vrf(ctx));
+	uint32_t nh_id = GROUT_MPLS_NH_ID(in_label);
+	const struct zebra_nhlfe *best;
+	struct gr_nh_add_req *req;
+	gr_nh_origin_t origin;
+	size_t len;
+
+	gr_log_debug("%s in_label %u vrf %u", new ? "add" : "del", in_label, vrf_id);
+
+	if (in_label == MPLS_INVALID_LABEL || in_label > GR_MPLS_LABEL_MAX) {
+		gr_log_err("invalid in_label %u, skip", in_label);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (!new) {
+		struct gr_mpls_label_route_del_req del = {
+			.vrf_id = vrf_id,
+			.in_label = in_label,
+			.missing_ok = true,
+		};
+		struct gr_nh_del_req nh_del = {.missing_ok = true, .nh = {.nh_id = nh_id}};
+
+		// Drop the label route first so nothing references the nexthop,
+		// then remove the synthesized nexthop.
+		if (grout_client_send_recv(GR_MPLS_LABEL_ROUTE_DEL, sizeof(del), &del, NULL) < 0)
+			return ZEBRA_DPLANE_REQUEST_FAILURE;
+		if (grout_client_send_recv(GR_NH_DEL, sizeof(nh_del), &nh_del, NULL) < 0)
+			return ZEBRA_DPLANE_REQUEST_FAILURE;
+		return ZEBRA_DPLANE_REQUEST_SUCCESS;
+	}
+
+	best = dplane_ctx_get_best_nhlfe(ctx);
+	if (best == NULL || best->nexthop == NULL) {
+		gr_log_err("LSP %u has no best nexthop, skip", in_label);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	origin = lsptype2origin(best->type);
+
+	len = sizeof(*req) + sizeof(struct gr_nexthop_info_mpls);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("calloc: %s", strerror(errno));
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (grout_fill_mpls_nh(req, nh_id, origin, best->nexthop) < 0) {
+		free(req);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+
+	if (grout_client_send_recv(GR_NH_ADD, len, req, NULL) < 0) {
+		free(req);
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+	}
+	free(req);
+
+	struct gr_mpls_label_route_add_req add = {
+		.vrf_id = vrf_id,
+		.in_label = in_label,
+		.nh_id = nh_id,
+		.origin = origin,
+		.exist_ok = true,
+	};
+	if (grout_client_send_recv(GR_MPLS_LABEL_ROUTE_ADD, sizeof(add), &add, NULL) < 0)
+		return ZEBRA_DPLANE_REQUEST_FAILURE;
+
+	return ZEBRA_DPLANE_REQUEST_SUCCESS;
+}
+
 static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx *ctx) {
 	enum zebra_dplane_result ret = ZEBRA_DPLANE_REQUEST_SUCCESS;
 	uint32_t nh_id = dplane_ctx_get_nhe_id(ctx);
@@ -702,6 +903,9 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 			len += sizeof(*sr6)
 				+ nh->nh_srv6->seg6_segs->num_segs * sizeof(sr6->seglist[0]);
 			type = GR_NH_T_SR6_OUTPUT;
+		} else if (nh_has_mpls_labels(nh)) {
+			len += sizeof(struct gr_nexthop_info_mpls);
+			type = GR_NH_T_MPLS;
 		} else {
 			len += sizeof(*l3);
 			type = GR_NH_T_L3;
@@ -731,6 +935,10 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 	req->nh.iface_id = ifindex_frr_to_grout(nh->ifindex);
 
 	switch (type) {
+	case GR_NH_T_MPLS:
+		if (grout_fill_mpls_nh(req, nh_id, origin, nh) < 0)
+			goto out;
+		break;
 	case GR_NH_T_L3:
 		// For L3 nexthops in VRFs with an L3VNI, redirect the iface from
 		// the VRF (SVI in FRR's model) to the VXLAN interface. Grout
@@ -1448,3 +1656,4 @@ enum zebra_dplane_result grout_neigh_read_ctx(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 #endif
+#endif /* !__GROUT_UNIT_TEST__ */
