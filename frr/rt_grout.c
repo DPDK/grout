@@ -28,6 +28,16 @@
 // (<= 1 << 17) and FRR's proto-NHG range (< ZEBRA_NHG_PROTO_UPPER, ~250M).
 #define GROUT_MPLS_NH_ID(label) (0x80000000u | (uint32_t)(label))
 
+// Under __GROUT_UNIT_TEST__, expose the three MPLS helper functions so that
+// mpls_frr_test.c can call them directly without the full plugin link context.
+#ifdef __GROUT_UNIT_TEST__
+#define TESTABLE_STATIC
+#else
+#define TESTABLE_STATIC static
+#endif
+
+#ifndef __GROUT_UNIT_TEST__
+
 static inline bool is_selfroute(gr_nh_origin_t origin) {
 	switch (origin) {
 	case GR_NH_ORIGIN_ZEBRA:
@@ -650,7 +660,9 @@ enum zebra_dplane_result grout_add_del_route(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 
-static inline gr_nh_origin_t lsptype2origin(enum lsp_types_t type) {
+#endif /* !__GROUT_UNIT_TEST__ */
+
+TESTABLE_STATIC inline gr_nh_origin_t lsptype2origin(enum lsp_types_t type) {
 	switch (type) {
 	case ZEBRA_LSP_STATIC:
 		return GR_NH_ORIGIN_ZSTATIC;
@@ -676,7 +688,7 @@ static inline gr_nh_origin_t lsptype2origin(enum lsp_types_t type) {
 // A lone implicit-null is penultimate hop popping, which grout
 // represents as an MPLS nexthop with zero output labels, so it does not count
 // as "having labels" here.
-static bool nh_has_mpls_labels(const struct nexthop *nh) {
+TESTABLE_STATIC bool nh_has_mpls_labels(const struct nexthop *nh) {
 	const struct mpls_label_stack *nhl = nh->nh_label;
 
 	return nhl != NULL && nhl->num_labels > 0
@@ -686,7 +698,7 @@ static bool nh_has_mpls_labels(const struct nexthop *nh) {
 // Populate an MPLS nexthop add request from a FRR nexthop carrying output
 // labels. Returns 0 on success, -1 if the nexthop cannot be represented in
 // grout. The caller must allocate req with room for a gr_nexthop_info_mpls.
-static int grout_fill_mpls_nh(
+TESTABLE_STATIC int grout_fill_mpls_nh(
 	struct gr_nh_add_req *req,
 	uint32_t nh_id,
 	gr_nh_origin_t origin,
@@ -739,6 +751,8 @@ static int grout_fill_mpls_nh(
 
 	return 0;
 }
+
+#ifndef __GROUT_UNIT_TEST__
 
 enum zebra_dplane_result grout_add_del_lsp(struct zebra_dplane_ctx *ctx) {
 	struct gr_mpls_label_route_del_req del;
@@ -1649,3 +1663,4 @@ enum zebra_dplane_result grout_neigh_read_ctx(struct zebra_dplane_ctx *ctx) {
 	return ZEBRA_DPLANE_REQUEST_SUCCESS;
 }
 #endif
+#endif /* !__GROUT_UNIT_TEST__ */
