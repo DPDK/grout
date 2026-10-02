@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "eth.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "log.h"
 #include "rxtx.h"
@@ -78,6 +79,13 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 				d->domain = ETH_DOMAIN_OTHER;
 			}
 			rte_pktmbuf_adj(m, sizeof(*eth));
+
+			// Not all PMDs provide one, and rte_pktmbuf_reset()
+			// leaves it alone.
+			if (unlikely(!(m->ol_flags & RTE_MBUF_F_RX_RSS_HASH))
+			    && flow_hash_l3l4(m, 0, eth->ether_type, &m->hash.rss))
+				m->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
+
 			edge = l2l3_edges[eth->ether_type];
 		}
 next:

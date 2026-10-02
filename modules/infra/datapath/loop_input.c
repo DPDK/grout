@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Christophe Fontaine
 
 #include "control_input.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "iface.h"
 #include "log.h"
@@ -38,6 +39,7 @@ static uint16_t loopback_input_process(
 	uint16_t nb_objs
 ) {
 	struct rte_mbuf *mbuf;
+	rte_be16_t eth_type;
 	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
@@ -50,15 +52,23 @@ static uint16_t loopback_input_process(
 
 		switch (mbuf->packet_type) {
 		case RTE_PTYPE_L3_IPV4:
-			edge = l3_edges[RTE_BE16(RTE_ETHER_TYPE_IPV4)];
+			eth_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+			edge = l3_edges[eth_type];
 			break;
 		case RTE_PTYPE_L3_IPV6:
-			edge = l3_edges[RTE_BE16(RTE_ETHER_TYPE_IPV6)];
+			eth_type = RTE_BE16(RTE_ETHER_TYPE_IPV6);
+			edge = l3_edges[eth_type];
 			break;
 		default:
+			eth_type = 0;
 			edge = UNKNOWN_PROTO;
 			break;
 		}
+
+		// The kernel provides no RSS hash.
+		if (flow_hash_l3l4(mbuf, 0, eth_type, &mbuf->hash.rss))
+			mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
+
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
 
