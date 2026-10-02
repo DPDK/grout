@@ -162,6 +162,9 @@ subdir('main')
 subdir('modules')
 subdir('cli')
 subdir('api')
+
+cmocka_dep = dependency('cmocka', required: get_option('tests'))
+
 subdir('frr')
 
 fs = import('fs')
@@ -224,7 +227,6 @@ pkg.generate(
   install_dir: get_option('datadir') / 'pkgconfig',
 )
 
-cmocka_dep = dependency('cmocka', required: get_option('tests'))
 if cmocka_dep.found()
   foreach t : tests
     name = fs.replace_suffix(t['sources'].get(0), '').underscorify()

@@ -140,3 +140,10 @@ static struct nexthop_type_ops mpls_nh_ops = {
 RTE_INIT(mpls_nexthop_init) {
 	nexthop_type_ops_register(GR_NH_T_MPLS, &mpls_nh_ops);
 }
+
+#ifdef __GROUT_UNIT_TEST__
+bool mpls_nh_equal_test(const struct nexthop *a, const struct nexthop *b);
+bool mpls_nh_equal_test(const struct nexthop *a, const struct nexthop *b) {
+	return mpls_nh_equal(a, b);
+}
+#endif
