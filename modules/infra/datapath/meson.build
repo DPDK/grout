@@ -8,6 +8,7 @@ src += files(
   'drop.c',
   'eth_input.c',
   'eth_output.c',
+  'flow_hash.c',
   'iface_input.c',
   'iface_output.c',
   'l2_redirect.c',
@@ -27,6 +28,10 @@ src += files(
 inc += include_directories('.')
 
 tests += [
+  {
+    'sources': files('flow_hash_test.c', 'flow_hash.c'),
+    'link_args': [],
+  },
   {
     'sources': files('trace_test.c'),
     'link_args': [],
