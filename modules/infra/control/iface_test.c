@@ -56,6 +56,7 @@ mock_func(int, port_unplug(struct iface_info_port *));
 mock_func(int, port_plug(struct iface_info_port *));
 mock_func(unsigned, worker_count(void));
 mock_func(int, worker_queue_distribute(const cpu_set_t *, vec struct iface_info_port **));
+mock_func(int, worker_txq_refresh(void));
 mock_func(int, __wrap_rte_eth_allmulticast_enable(uint16_t));
 mock_func(int, __wrap_rte_eth_allmulticast_get(uint16_t));
 mock_func(int, __wrap_rte_eth_dev_mac_addr_add(uint16_t, struct rte_ether_addr *, uint32_t));
