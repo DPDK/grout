@@ -146,6 +146,8 @@ struct gr_api_client *gr_api_client_connect(const char *sock_path) {
 	if (client->sock_fd == -1)
 		goto err;
 
+	sock_path = gr_api_sock_path(sock_path);
+
 	addr.un.sun_family = AF_UNIX;
 	if (memccpy(addr.un.sun_path, sock_path, 0, sizeof(addr.un.sun_path)) == NULL) {
 		errno = ENAMETOOLONG;

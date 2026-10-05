@@ -41,7 +41,7 @@ static void usage(const char *prog) {
 }
 
 int main(int argc, char **argv) {
-	const char *sock_path = getenv("GROUT_SOCK_PATH");
+	const char *sock_path = NULL;
 	unsigned int count = 10000;
 	struct gr_api_client *c;
 	size_t payload_len = 0;
@@ -67,8 +67,6 @@ int main(int argc, char **argv) {
 			return o == 'h' ? EXIT_SUCCESS : EXIT_FAILURE;
 		}
 	}
-	if (sock_path == NULL)
-		sock_path = GR_DEFAULT_SOCK_PATH;
 
 	c = gr_api_client_connect(sock_path);
 	if (c == NULL) {

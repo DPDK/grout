@@ -261,7 +261,6 @@ int config_parse(int argc, char **argv) {
 	gr_config.metrics_addr = "::";
 	gr_config.metrics_port = 9111;
 
-	ENV_STR(api_sock_path, "GROUT_SOCK_PATH", GR_DEFAULT_SOCK_PATH);
 	ENV_OCT(api_sock_mode, "GROUT_SOCK_MODE", 0660, 0, 07777);
 	char *owner = getenv("GROUT_SOCK_OWNER");
 	if (owner != NULL && *owner != '\0' && parse_sock_owner(owner) < 0)
@@ -344,6 +343,9 @@ int config_parse(int argc, char **argv) {
 
 	for (c = optind; c < argc; c++)
 		vec_add(gr_config.eal_extra_args, argv[c]);
+
+	// resolve socket path from environment/default if unset
+	gr_config.api_sock_path = gr_api_sock_path(gr_config.api_sock_path);
 
 	return 0;
 }
