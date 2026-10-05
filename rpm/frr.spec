@@ -15,6 +15,7 @@ License: GPL-2.0-or-later AND ISC AND LGPL-2.0-or-later AND BSD-2-Clause AND BSD
 URL: http://www.frrouting.org
 Source0: %{name}-%{version}.tar.gz
 Patch0: zebra-route-IPv4-link-local-neighbor-updates-through.patch
+Patch1: bgpd-fix-crash-when-debug-bgp-updates-out-enabled.patch
 
 BuildRequires: autoconf
 BuildRequires: automake

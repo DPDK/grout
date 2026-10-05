@@ -5,7 +5,8 @@ source_hash = 6aaf9d89deb94eeda6acceaa6fe48d8cd365d0908231e58f628538ff49696fc4
 directory = frr-frr-10.7.1
 patch_directory = frr
 diff_files =
-	frr/10.7-zebra-route-IPv4-link-local-neighbor-updates-through.patch
+	frr/10.7-zebra-route-IPv4-link-local-neighbor-updates-through.patch,
+	frr/10.7-bgpd-fix-crash-when-debug-bgp-updates-out-enabled.patch
 
 [provide]
 dependency_names = frr-10.7
