@@ -1,0 +1,55 @@
+From 15eacc591b81e8515fddef4ab66966ea2af6295d Mon Sep 17 00:00:00 2001
+From: Philippe Guibert <philippe.guibert@6wind.com>
+Date: Mon, 24 Aug 2026 10:05:43 +0200
+Subject: [PATCH] bgpd: fix crash when 'debug bgp updates out' enabled
+
+The following crash happens.
+
+> #2  __GI___pthread_kill (threadid=<optimized out>, signo=signo@entry=11) at ./nptl/pthread_kill.c:89
+> #3  0x000073e57164527e in __GI_raise (sig=sig@entry=11) at ../sysdeps/posix/raise.c:26
+> #4  0x000073e571b170ca in core_handler (signo=11, siginfo=0x7ffcb67b8ff0, context=<optimized out>) at lib/sigevent.c:267
+> #5  <signal handler called>
+> #6  bgp_dump_attr (attr=attr@entry=0x7ffcb67bb5d0, buf=buf@entry=0x7ffcb67b9550 "nexthop 0.0.0.0, metric 0, extcommunity RT:77:77, originator 192.0.2.1, path ", size=size@entry=8192) at bgpd/bgp_debug.c:506
+> #7  0x00005e8134cf1254 in bgp_adj_out_set_subgroup (dest=dest@entry=0x5e8153c50b60, subgrp=subgrp@entry=0x5e8153c564d0, attr=attr@entry=0x7ffcb67bb5d0, path=path@entry=0x5e8153c50c10) at bgpd/bgp_updgrp_adv.c:605
+> #8  0x00005e8134cb3759 in subgroup_process_announce_selected (subgrp=subgrp@entry=0x5e8153c564d0, selected=0x5e8153c50c10, dest=0x5e8153c50b60, afi=afi@entry=AFI_IP, safi=safi@entry=SAFI_MPLS_VPN, addpath_tx_id=0)
+>     at bgpd/bgp_route.c:4131
+> #9  0x00005e8134cf08ab in group_announce_route_walkcb (updgrp=<optimized out>, arg=0x7ffcb67bb860) at bgpd/bgp_updgrp_adv.c:280
+> #10 0x000073e571ab96a2 in hash_walk (hash=0x5e8153c71b90, func=func@entry=0x5e8134ceb650 <update_group_walkcb>, arg=arg@entry=0x7ffcb67bb7b0) at lib/hash.c:270
+> #11 0x00005e8134cef8b5 in update_group_af_walk (bgp=bgp@entry=0x5e8153c5e540, afi=<optimized out>, safi=<optimized out>, cb=cb@entry=0x5e8134cf0750 <group_announce_route_walkcb>, ctx=ctx@entry=0x7ffcb67bb860) at bgpd/bgp_updgrp.c:2182
+> #12 0x00005e8134cf246d in group_announce_route (bgp=bgp@entry=0x5e8153c5e540, afi=afi@entry=AFI_IP, safi=safi@entry=SAFI_MPLS_VPN, dest=dest@entry=0x5e8153c50b60, pi=pi@entry=0x5e8153c50c10) at bgpd/bgp_updgrp_adv.c:1195
+> #13 0x00005e8134cd5a75 in bgp_process_main_one (bgp=0x5e8153c5e540, dest=dest@entry=0x5e8153c50b60, afi=AFI_IP, safi=SAFI_MPLS_VPN) at bgpd/bgp_route.c:4693
+> #14 0x00005e8134cd6d36 in process_subq_other_route (dest=<optimized out>) at bgpd/bgp_route.c:5206
+> #15 process_subq (qindex=<optimized out>, subq=<optimized out>) at bgpd/bgp_route.c:5253
+> #16 meta_queue_process (dummy=<optimized out>, data=0x5e8153c5c8e0) at bgpd/bgp_route.c:5289
+> #17 0x000073e571b363b3 in work_queue_run (event=0x7ffcb67bbb80) at lib/workqueue.c:279
+> #18 0x000073e571b2b3fe in event_call (event=event@entry=0x7ffcb67bbb80) at lib/event.c:2744
+> #19 0x000073e571ac8668 in frr_run (loop=0x5e8153290fc0) at lib/libfrr.c:1258
+
+Attr_new should be used, because a recent commit used another attr
+by means of attr_intern() function. Actually, the old attr pointer
+was freed.
+
+Fixes: 84bb1de14 ("bgpd: fix bugs with suppress-duplicates")
+
+Signed-off-by: Philippe Guibert <philippe.guibert@6wind.com>
+(cherry picked from commit 56c0b8ccd91c2f6a9439aca7afb65b0a752c8903)
+---
+ bgpd/bgp_updgrp_adv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bgpd/bgp_updgrp_adv.c b/bgpd/bgp_updgrp_adv.c
+index 020ed75f6805..d29e9560ffa7 100644
+--- a/bgpd/bgp_updgrp_adv.c
++++ b/bgpd/bgp_updgrp_adv.c
+@@ -602,7 +602,7 @@ bool bgp_adj_out_set_subgroup(struct bgp_dest *dest,
+ 		if (debug) {
+ 			char attr_str[BUFSIZ] = {0};
+ 
+-			bgp_dump_attr(attr, attr_str, sizeof(attr_str));
++			bgp_dump_attr(attr_new, attr_str, sizeof(attr_str));
+ 
+ 			zlog_debug("%s suppress UPDATE %pBD w/ attr: %s, afi=%s, safi=%s",
+ 				   peer->host, dest, attr_str, afi2str(afi), safi2str(safi));
+-- 
+2.55.0
+
