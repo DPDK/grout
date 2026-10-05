@@ -46,8 +46,6 @@ static struct gr_api_client *connect_client(struct ec_comp *comp) {
 		if (ec_strvec_len(vec) == 1)
 			sock_path = ec_strvec_val(vec, 0);
 	}
-	if (sock_path == NULL)
-		sock_path = GR_DEFAULT_SOCK_PATH; // not specified, use default
 
 	client = gr_api_client_connect(sock_path);
 	if (client != NULL) {

@@ -82,7 +82,6 @@ static int parse_args(int argc, char **argv) {
 
 	opterr = 0; // disable getopt default error reporting
 
-	opts.sock_path = getenv("GROUT_SOCK_PATH");
 	opts.cmds_file = stdin;
 
 	while ((c = getopt_long(argc, argv, FLAGS, long_options, NULL)) != -1) {
@@ -134,9 +133,6 @@ static int parse_args(int argc, char **argv) {
 
 	if (!is_tty(opts.cmds_file))
 		pager_disable();
-
-	if (opts.sock_path == NULL)
-		opts.sock_path = GR_DEFAULT_SOCK_PATH;
 
 	return optind;
 }

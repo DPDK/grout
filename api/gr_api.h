@@ -38,7 +38,20 @@ struct gr_api_response {
 // Opaque API client handle (NOT thread-safe, use one per thread).
 struct gr_api_client;
 
+// Resolve the path to the API UNIX socket. In order of priority:
+//   1) The path argument if not NULL.
+//   2) The value of GROUT_SOCK_PATH from the environment, if set.
+//   3) GR_DEFAULT_SOCK_PATH
+static inline const char *gr_api_sock_path(const char *path) {
+	if (path == NULL)
+		path = getenv("GROUT_SOCK_PATH");
+	if (path == NULL)
+		path = GR_DEFAULT_SOCK_PATH;
+	return path;
+}
+
 // Connect to the API server.
+// If sock_path is NULL, GROUT_SOCK_PATH from env or GR_DEFAULT_SOCK_PATH will be used.
 // Automatically sends GR_HELLO with version negotiation.
 // Returns NULL on failure (check errno for details).
 struct gr_api_client *gr_api_client_connect(const char *sock_path);

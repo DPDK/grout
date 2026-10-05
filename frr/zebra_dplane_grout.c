@@ -27,7 +27,7 @@
 
 #define TOSTRING(x) #x
 
-static const char *gr_sock_path = GR_DEFAULT_SOCK_PATH;
+static const char *gr_sock_path;
 
 // Marker prefix and polling cadence. The marker is a dummy ::/128 SHARP
 // entry the plugin uses as a metaQ drain barrier: once observable in
@@ -1099,15 +1099,12 @@ static void zd_grout_ns(struct event *) {
 }
 
 static int zd_grout_start(struct zebra_dplane_provider *prov) {
-	const char *sock_path = getenv("GROUT_SOCK_PATH");
-
 	if (vrf_is_backend_netns()) {
 		gr_log_err("vrf backend netns is not supported with grout");
 		exit(1); // Exit because zebra_dplane_start() does not check the return value
 	}
 
-	if (sock_path)
-		gr_sock_path = sock_path;
+	gr_sock_path = gr_api_sock_path(NULL);
 
 	event_add_timer(zrouter.master, zd_grout_ns, NULL, 0, NULL);
 
