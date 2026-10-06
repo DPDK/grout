@@ -13,6 +13,7 @@
 
 // High-resolution clock [nanoseconds].
 // Used with GR_CLOCK_SOURCE, unless otherwise specified.
+// Useful for registering relative timestamps and measuring time intervals within the system.
 // Note: Does not have Y2038 problems. Not even with CLOCK_REALTIME.
 // Note: Using signed, to avoid need for casting to signed
 // in calculations where race conditions may cause negative differences.
@@ -28,5 +29,26 @@ typedef int64_t gr_clock_ns_t;
 static inline gr_clock_ns_t gr_clock_ns(void) {
 	struct timespec tp = {0};
 	clock_gettime(GR_CLOCK_SOURCE, &tp);
+	return tp.tv_sec * GR_NS_PER_S + tp.tv_nsec;
+}
+
+// High-resolution wall clock [nanoseconds].
+// Used with the UNIX epoch (time since 1970-JAN-01 00:00:00 UTC, not counting leap seconds),
+// unless otherwise specified.
+// Useful for sharing absolute timestamps across diverse systems.
+// Note: Does not have Y2038 problems.
+// Note: Using signed, to avoid need for casting to signed
+// in calculations where race conditions may cause negative differences.
+typedef gr_clock_ns_t gr_wallclock_ns_t;
+
+// Get wall clock time [nanoseconds],
+// relative to the UNIX epoch, a common clock across diverse systems.
+// Returns incorrect values if the wall clock has not been set or is out of adjustment.
+// May jump forwards or backwards, e.g. when the wall clock is set or adjusted by NTP.
+// May jump slightly forwards or backwards, when the clock drifts from the wall clock.
+// Does not return negative values.
+static inline gr_wallclock_ns_t gr_wallclock_ns(void) {
+	struct timespec tp = {0};
+	clock_gettime(CLOCK_REALTIME, &tp);
 	return tp.tv_sec * GR_NS_PER_S + tp.tv_nsec;
 }
