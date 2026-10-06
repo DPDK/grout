@@ -193,7 +193,6 @@ static cmd_status_t capture_dump(struct gr_api_client *c, const struct ec_pnode 
 			continue;
 		}
 
-		uint64_t ts_ns = gr_capture_slot_timestamp_ns(ring, &slot);
 		int iface_idx = find_iface_idx(ring, slot.iface_id);
 		if (iface_idx < 0)
 			continue; // packet from an interface without an IDB
@@ -201,7 +200,7 @@ static cmd_status_t capture_dump(struct gr_api_client *c, const struct ec_pnode 
 		ret = pcapng_write_epb(
 			stdout,
 			iface_idx,
-			ts_ns,
+			slot.timestamp_ns,
 			slot.cap_len,
 			slot.pkt_len,
 			slot.data,

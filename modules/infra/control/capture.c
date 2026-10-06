@@ -308,11 +308,6 @@ struct capture_session *capture_session_start(
 	s->ring->slot_size = GR_CAPTURE_SLOT_SIZE;
 	s->ring->snap_len = s->snap_len;
 	s->ring->n_ifaces = n_ifaces;
-	s->ring->tsc_hz = rte_get_tsc_hz();
-	s->ring->tsc_ref = rte_rdtsc();
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	s->ring->realtime_ref_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 	struct gr_capture_iface *itbl = gr_capture_ring_ifaces(s->ring);
 	if (iface_id != GR_IFACE_ID_UNDEF) {
