@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "clock.h"
 #include "iface.h"
 #include "rxtx.h"
 
@@ -102,7 +103,6 @@ capture_enqueue(const struct iface *iface, const gr_capture_dir_t direction, str
 	struct gr_capture_ring *ring = s->ring;
 	uint32_t mask = s->slot_count - 1;
 	uint32_t snap = s->snap_len;
-	uint64_t tsc = rte_rdtsc();
 	bool match = false;
 
 	if (s->bpf_jit_func != NULL) {
@@ -133,7 +133,7 @@ capture_enqueue(const struct iface *iface, const gr_capture_dir_t direction, str
 	slot->cap_len = cap_len;
 	slot->iface_id = iface->id;
 	slot->direction = direction;
-	slot->timestamp_tsc = tsc;
+	slot->timestamp_ns = wallclock_ns();
 
 	if (vlan_id != 0) {
 		// The VLAN tag was stripped on rx and stored in mbuf metadata.

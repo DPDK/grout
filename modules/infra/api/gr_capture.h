@@ -129,6 +129,7 @@
 #pragma once
 
 #include <gr_api.h>
+#include <gr_clock.h>
 #include <gr_infra.h>
 
 #include <assert.h>
@@ -169,7 +170,7 @@ struct gr_capture_slot {
 	uint16_t iface_id;
 	gr_capture_dir_t direction;
 	uint8_t __padding[7];
-	uint64_t timestamp_tsc; // raw TSC value
+	gr_wallclock_ns_t timestamp_ns;
 	uint8_t data[GR_CAPTURE_SLOT_DATA_MAX];
 };
 
@@ -185,10 +186,6 @@ struct gr_capture_ring {
 	uint32_t snap_len;
 	uint16_t n_ifaces;
 	uint16_t _reserved;
-	// TSC calibration for timestamp conversion.
-	uint64_t tsc_hz; // TSC ticks per second
-	uint64_t tsc_ref; // TSC value at capture start
-	uint64_t realtime_ref_ns; // CLOCK_REALTIME at capture start (nanoseconds)
 	// Producer index (multiple workers, atomic fetch-add).
 	alignas(64) _Atomic uint32_t prod_head;
 	// Consumer index (single reader, not shared with producers).
@@ -264,17 +261,6 @@ GR_API_INLINE bool gr_capture_ring_dequeue(struct gr_capture_ring *r, struct gr_
 
 	r->cons_head = pos + 1;
 	return true;
-}
-
-// Convert a slot TSC timestamp to nanoseconds since epoch.
-// Split into seconds + remainder to avoid overflow: rem < tsc_hz
-// (at most ~5e9 for a 5 GHz CPU), so rem * 1e9 stays within uint64_t.
-GR_API_INLINE uint64_t
-gr_capture_slot_timestamp_ns(const struct gr_capture_ring *r, const struct gr_capture_slot *s) {
-	uint64_t delta = s->timestamp_tsc - r->tsc_ref;
-	uint64_t sec = delta / r->tsc_hz;
-	uint64_t rem = delta % r->tsc_hz;
-	return r->realtime_ref_ns + sec * 1000000000ULL + rem * 1000000000ULL / r->tsc_hz;
 }
 
 enum gr_capture_requests : uint32_t {

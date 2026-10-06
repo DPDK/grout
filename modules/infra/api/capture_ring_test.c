@@ -75,7 +75,7 @@ static void *producer_thread(void *arg) {
 			slot->cap_len = (uint32_t)((seq + j) & 0xFFFFFFFF);
 			slot->iface_id = (uint16_t)pa->id;
 			slot->direction = GR_CAPTURE_DIR_IN;
-			slot->timestamp_tsc = seq + j;
+			slot->timestamp_ns = seq + j;
 
 			uint64_t sig = ((uint64_t)pa->id << 32) | (uint32_t)(seq + j);
 			memcpy(slot->data, &sig, sizeof(sig));
