@@ -13,6 +13,7 @@
 #include <rte_mbuf.h>
 
 #include <assert.h>
+#include <stdatomic.h>
 
 extern struct gr_nexthop_config nh_conf;
 
@@ -48,7 +49,7 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	uint8_t bcast_probes;
 
 	// packets waiting for address resolution
-	uint16_t held_pkts;
+	_Atomic(uint16_t) held_pkts;
 	struct rte_mbuf *held_pkts_head;
 	struct rte_mbuf *held_pkts_tail;
 
@@ -57,6 +58,17 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	// model bypass). Control plane only.
 	vec uint16_t *exposed_iface_ids;
 });
+
+static inline bool nexthop_l3_hold_queue_full(const struct nexthop *nh) {
+	if (nh->type != GR_NH_T_L3)
+		return false;
+
+	const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	if (atomic_load_explicit(&l3->held_pkts, memory_order_relaxed) >= nh_conf.max_held_pkts)
+		return true;
+
+	return false;
+}
 
 // Append a packet to the hold queue. Returns -ENOBUFS if the queue is full.
 int nexthop_l3_hold_queue_add(struct nexthop *, struct rte_mbuf *);
