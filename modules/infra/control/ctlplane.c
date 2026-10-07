@@ -345,12 +345,12 @@ static void cp_create(struct iface *iface) {
 		sysctl_write("net/ipv4/conf", iface, "rp_filter", "2");
 	}
 
-	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
+	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, gr_config.cp_mempool_size);
 	if (iface->pool == NULL) {
 		LOG(ERR, "gr_pktmbuf_pool_get: %s", strerror(errno));
 		goto err;
 	}
-	iface->pool_size = RTE_GRAPH_BURST_SIZE;
+	iface->pool_size = gr_config.cp_mempool_size;
 
 	iface->cp_ev = event_new(
 		ev_base,

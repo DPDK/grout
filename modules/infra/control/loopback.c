@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "config.h"
 #include "control_queue.h"
 #include "eth.h"
 #include "iface.h"
@@ -245,12 +246,12 @@ int iface_loopback_create(struct iface *iface) {
 		goto err;
 	}
 
-	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, RTE_GRAPH_BURST_SIZE);
+	iface->pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, gr_config.cp_mempool_size);
 	if (iface->pool == NULL) {
 		LOG(ERR, "gr_pktmbuf_pool_get: %s", strerror(errno));
 		goto err;
 	}
-	iface->pool_size = RTE_GRAPH_BURST_SIZE;
+	iface->pool_size = gr_config.cp_mempool_size;
 
 	iface->cp_ev = event_new(
 		ev_base,

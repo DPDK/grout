@@ -75,6 +75,9 @@ GROUT_OVERRIDE_RP_FILTER=true
 # Only useful for testing (default: 0).
 #GROUT_PORT_QUEUE_SIZE=0
 
+# Per-interface control plane/loopback mbuf pool size (default: 256).
+#GROUT_CP_MEMPOOL_SIZE=256
+
 # IPv4 FIB algorithm: DIR24_8 or DUMMY. Only use DUMMY for testing
 # (default: DIR24_8).
 #GROUT_FIB4_ALGORITHM=DIR24_8

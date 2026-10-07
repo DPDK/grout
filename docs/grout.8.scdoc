@@ -209,6 +209,13 @@ be adjusted at runtime via the API (e.g. *grcli route config set*,
 
 	Default: _0_.
 
+*GROUT_CP_MEMPOOL_SIZE* [startup only]
+	Size of the per-interface mbuf pool used for packets exchanged with
+	the control plane TAP/TUN devices (loopback and representor
+	interfaces).
+
+	Default: _256_.
+
 *GROUT_FIB4_ALGORITHM* [startup only, testing]
 	IPv4 FIB lookup algorithm. Supported values: _DIR24_8_, _DUMMY_.
 	The _DUMMY_ algorithm avoids the large static arrays of _DIR24_8_
