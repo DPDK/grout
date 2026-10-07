@@ -116,6 +116,83 @@ grcli tunsrc show | grep -qF 'fd00::1' || fail "tunsrc addr should be fd00::1"
 grcli tunsrc clear || fail "tunsrc clear should succeed"
 grcli tunsrc show | grep -qF '::' || fail "tunsrc addr should be unspec after clear"
 
+# Test control-plane log rate limiting and error accounting.
+grcli -j log rate show | jq -e 'select(.rate == 10)' || fail "default log rate should be 10"
+grcli log rate set 42
+grcli -j log rate show | jq -e 'select(.rate == 42)' || fail "log rate should be 42"
+grcli log rate set 0
+grcli -j log rate show | jq -e 'select(.rate == 0)' || fail "log rate should be 0 (unlimited)"
+# Use a limit of 1 message/second so that any flood is deterministically capped.
+grcli log rate set 1
+grcli -j log rate show | jq -e 'select(.rate == 1)' || fail "log rate should be 1"
+
+# The control-plane counters are reported through "stats show software" and are
+# hidden while zero unless "zero" is passed.
+grcli -j stats show software zero | jq -e '.[] | select(.node == "ctlplane.rx_bad_ether_type")' \
+	|| fail "ctlplane control-plane stat should be reported"
+grcli -j stats show software | jq -e '.[] | select(.node == "ctlplane.rx_bad_ether_type")' \
+	&& fail "zero control-plane stat should be hidden without zero"
+
+# Drive a floodable control-plane path on purpose and check that every
+# occurrence is counted while the log output stays bounded. A unicast frame
+# addressed to the port MAC with a non-IP ethertype injected into the control
+# plane tap hits CP_ERR(rx_bad_ether_type) in iface_cp_poll.
+cp_mac=$(grcli -j interface show name p2 | jq -r .mac)
+# grout reads the control plane tap once the port link is up; force it up and
+# wait for LOWER_UP before injecting, otherwise the kernel drops the frames.
+ip link set p2 up
+SECONDS=0
+while ! ip -o link show p2 | grep -qw LOWER_UP; do
+	[ "$SECONDS" -gt 5 ] && fail "control plane tap p2 was not up after 5 seconds"
+	sleep 0.2
+done
+
+# Inject raw unicast frames with a python AF_PACKET socket (no scapy).
+cp_send() {
+	python3 - p2 "$cp_mac" "$1" <<'EOF'
+import socket, sys
+dev, mac, count = sys.argv[1], sys.argv[2], int(sys.argv[3])
+dst = bytes(int(b, 16) for b in mac.split(":"))
+frame = dst + b"\x02\x00\x00\x00\x00\x99" + b"\x08\x06" + b"\x00" * 46
+s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
+s.bind((dev, 0))
+for _ in range(count):
+    s.send(frame)
+EOF
+}
+
+# First burst: with a 1/s limit, a single line is logged and the rest suppressed.
+cp_send 5
+# Every frame is accounted for even though most are not logged.
+SECONDS=0
+while [ "$(grcli -j stats show software zero |
+	jq '.[] | select(.node == "ctlplane.rx_bad_ether_type") | .packets')" -lt 5 ]; do
+	[ "$SECONDS" -gt 5 ] && fail "control-plane errors were not all accounted"
+	sleep 0.2
+done
+logged=$(grep -c "unexpected ether_type" $tmp/grout.log || true)
+[ "$logged" -lt 5 ] || fail "log was not rate limited ($logged lines for 5 errors)"
+
+# Second burst in the next window: the first emitted line reports the number of
+# messages suppressed since the previous one.
+sleep 1.2
+cp_send 5
+SECONDS=0
+while ! grep -qF "messages rate limited" $tmp/grout.log; do
+	[ "$SECONDS" -gt 10 ] && fail "resume message with suppressed count never appeared"
+	sleep 0.2
+done
+
+accounted=$(grcli -j stats show software zero |
+	jq '.[] | select(.node == "ctlplane.rx_bad_ether_type") | .packets')
+[ "$accounted" = 10 ] || fail "all 10 errors should be accounted, got $accounted"
+
+# "stats reset" clears the control-plane counters.
+grcli stats reset
+accounted=$(grcli -j stats show software zero |
+	jq '.[] | select(.node == "ctlplane.rx_bad_ether_type") | .packets')
+[ "$accounted" = 0 ] || fail "control-plane counter should be 0 after reset, got $accounted"
+
 grcli nexthop del 42
 grcli nexthop del 666
 grcli nexthop del 123456
