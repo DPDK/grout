@@ -8,26 +8,35 @@
 
 enum {
 	CONTROL = 0,
+	QUEUE_FULL,
 	EDGE_COUNT,
 };
 
 static uint16_t
 ip6_hold_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct nexthop_af_ops *ops;
+	const struct nexthop *nh;
 	struct rte_mbuf *mbuf;
+	rte_edge_t edge;
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
-		ops = nexthop_af_ops_from_nh(l3_mbuf_data(mbuf)->nh);
+		nh = l3_mbuf_data(mbuf)->nh;
+		if (nexthop_l3_hold_queue_full(nh)) {
+			edge = QUEUE_FULL;
+			goto next;
+		}
+		ops = nexthop_af_ops_from_nh(nh);
 		if (ops == NULL)
 			ops = nexthop_af_ops_from_mbuf(mbuf);
 		assert(ops != NULL);
 		control_output_set_cb(mbuf, ops->resolve, 0);
+		edge = CONTROL;
+next:
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
+		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
-
-	rte_node_next_stream_move(graph, node, CONTROL);
 
 	return nb_objs;
 }
@@ -38,6 +47,7 @@ static struct rte_node_register node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[CONTROL] = "control_output",
+		[QUEUE_FULL] = "ip6_hold_queue_full",
 	},
 };
 
@@ -47,3 +57,5 @@ static struct gr_node_info info = {
 };
 
 GR_NODE_REGISTER(info);
+
+GR_DROP_REGISTER(ip6_hold_queue_full);

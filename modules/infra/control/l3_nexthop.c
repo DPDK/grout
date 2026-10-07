@@ -164,10 +164,10 @@ static void l3_remove_references(struct nexthop *nh) {
 }
 
 int nexthop_l3_hold_queue_add(struct nexthop *nh, struct rte_mbuf *m) {
-	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-
-	if (l3->held_pkts >= nh_conf.max_held_pkts)
+	if (nexthop_l3_hold_queue_full(nh))
 		return errno_set(ENOBUFS);
+
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 
 	queue_mbuf_data(m)->next = NULL;
 	if (l3->held_pkts_head == NULL)
@@ -175,14 +175,14 @@ int nexthop_l3_hold_queue_add(struct nexthop *nh, struct rte_mbuf *m) {
 	else
 		queue_mbuf_data(l3->held_pkts_tail)->next = m;
 	l3->held_pkts_tail = m;
-	l3->held_pkts++;
+	atomic_fetch_add_explicit(&l3->held_pkts, 1, memory_order_relaxed);
 
 	return 0;
 }
 
 void nexthop_l3_hold_queue_reset(struct nexthop *nh) {
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
-	l3->held_pkts = 0;
+	atomic_store_explicit(&l3->held_pkts, 0, memory_order_relaxed);
 	l3->held_pkts_head = NULL;
 	l3->held_pkts_tail = NULL;
 }
@@ -333,7 +333,7 @@ static void l3_age(struct nexthop *nh) {
 			    &l3->addr,
 			    nh->vrf_id,
 			    probes,
-			    l3->held_pkts,
+			    atomic_load_explicit(&l3->held_pkts, memory_order_relaxed),
 			    gr_nh_state_name(l3->state));
 
 			l3->state = GR_NH_S_FAILED;
