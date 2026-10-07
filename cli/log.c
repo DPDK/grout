@@ -125,8 +125,38 @@ static int complete_log_expr(
 	return 0;
 }
 
+static cmd_status_t log_rate_set(struct gr_api_client *c, const struct ec_pnode *p) {
+	struct gr_log_rate_set_req req;
+
+	if (arg_u16(p, "RATE", &req.rate) < 0)
+		return CMD_ERROR;
+
+	if (gr_api_client_send_recv(c, GR_LOG_RATE_SET, sizeof(req), &req, NULL) < 0)
+		return CMD_ERROR;
+
+	return CMD_SUCCESS;
+}
+
+static cmd_status_t log_rate_show(struct gr_api_client *c, const struct ec_pnode *) {
+	const struct gr_log_rate_get_resp *resp;
+	void *resp_ptr = NULL;
+	struct gr_object *o;
+
+	if (gr_api_client_send_recv(c, GR_LOG_RATE_GET, 0, NULL, &resp_ptr) < 0)
+		return CMD_ERROR;
+
+	resp = resp_ptr;
+	o = gr_object_new(NULL);
+	gr_object_field(o, "rate", GR_DISP_INT, "%u", resp->rate);
+	gr_object_free(o);
+
+	free(resp_ptr);
+	return CMD_SUCCESS;
+}
+
 #define LOG_CTX(root) CLI_CONTEXT(root, CTX_ARG("log", "Logging."))
 #define LOG_LEVEL_CTX(root) CLI_CONTEXT(LOG_CTX(root), CTX_ARG("level", "Logging levels."))
+#define LOG_RATE_CTX(root) CLI_CONTEXT(LOG_CTX(root), CTX_ARG("rate", "Log rate limiting."))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -166,6 +196,25 @@ static int ctx_init(struct ec_node *root) {
 		log_level_show,
 		"Show log types and their levels.",
 		with_help("Include all DPDK log types.", ec_node_str("all", "all"))
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		LOG_RATE_CTX(root),
+		"set RATE",
+		log_rate_set,
+		"Set the max rate-limited log messages per second per stat (0 = unlimited).",
+		with_help("Messages per second.", ec_node_uint("RATE", 0, UINT16_MAX, 10))
+	);
+	if (ret < 0)
+		return ret;
+
+	ret = CLI_COMMAND(
+		LOG_RATE_CTX(root),
+		"[show]",
+		log_rate_show,
+		"Show the max rate-limited log messages per second per stat."
 	);
 	if (ret < 0)
 		return ret;

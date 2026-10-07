@@ -17,6 +17,7 @@ struct gr_config {
 	gid_t api_sock_gid;
 	mode_t api_sock_mode;
 	unsigned log_level;
+	unsigned log_max_rate; // max LOG_COUNTER() messages per second per counter (0 = unlimited)
 	unsigned max_mtu;
 	bool test_mode;
 	bool poll_mode;

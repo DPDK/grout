@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "config.h"
+#include "log.h"
 #include "metrics.h"
 #include "module.h"
 #include "port.h"
@@ -44,6 +45,35 @@ static struct api_out stats_get(const void *request, struct api_ctx *) {
 		stats = worker_dump_stats(req->cpu_id);
 		if (stats == NULL && req->cpu_id != UINT16_MAX)
 			return api_out(ENODEV, 0, NULL);
+
+		// Control-plane counters are global (not per-CPU).
+		if (req->cpu_id == UINT16_MAX) {
+			struct log_counter *c;
+
+			STAILQ_FOREACH (c, &log_counters, next) {
+				const char *mod = c->log->name;
+				struct gr_stat stat = {
+					.packets = c->count,
+					.topo_order = UINT64_MAX - 2,
+				};
+				struct gr_stat *agg = NULL;
+
+				if (strncmp(mod, "grout.", 6) == 0)
+					mod += 6;
+				snprintf(stat.name, sizeof(stat.name), "%s.%s", mod, c->name);
+
+				vec_foreach_ref (s, stats) {
+					if (strncmp(s->name, stat.name, sizeof(s->name)) == 0) {
+						agg = s;
+						break;
+					}
+				}
+				if (agg != NULL)
+					agg->packets += c->count;
+				else
+					vec_add(stats, stat);
+			}
+		}
 	}
 
 	if (req->flags & GR_STATS_F_HW) {
@@ -176,6 +206,8 @@ static struct api_out stats_reset(const void * /*request*/, struct api_ctx *) {
 		worker_wakeup(worker);
 	}
 
+	log_counter_reset_all();
+
 	iface = NULL;
 
 	// Reset software stats for all interfaces.
@@ -259,6 +291,30 @@ err:
 	free(resp);
 	return api_out(-ret, 0, NULL);
 }
+
+METRIC_COUNTER(m_log_counters, "log_counters", "Control plane event log counters.");
+
+static void log_metrics_collect(struct metrics_writer *w) {
+	struct metrics_ctx ctx;
+	struct log_counter *c;
+	char name[128];
+
+	STAILQ_FOREACH (c, &log_counters, next) {
+		const char *mod = c->log->name;
+
+		if (strncmp(mod, "grout.", 6) == 0)
+			mod += 6;
+		snprintf(name, sizeof(name), "%s.%s", mod, c->name);
+
+		metrics_ctx_init(&ctx, w, "name", name, NULL);
+		metric_emit(&ctx, &m_log_counters, c->count);
+	}
+}
+
+static struct metrics_collector log_collector = {
+	.name = "log",
+	.collect = log_metrics_collect,
+};
 
 METRIC_COUNTER(m_packets, "node_packets", "Number of packets processed by a node.");
 METRIC_COUNTER(m_batches, "node_batches", "Number of times a node was visited.");
@@ -344,6 +400,7 @@ RTE_INIT(infra_stats_init) {
 	api_handler(GR_STATS_GET, stats_get);
 	api_handler(GR_STATS_RESET, stats_reset);
 	api_handler(GR_IFACE_STATS_GET, iface_stats_get);
+	metrics_register(&log_collector);
 	metrics_register(&graph_collector);
 	metrics_register(&cpu_collector);
 	metrics_register(&rx_burst_collector);

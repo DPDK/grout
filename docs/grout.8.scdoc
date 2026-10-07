@@ -18,6 +18,7 @@ Grout is a software router based on DPDK _rte_graph_.
 \[*-m* _PERMISSIONS_]
 \[*-o* _USER_:_GROUP_]
 \[*-p*]
+\[*-r* _RATE_]
 \[*-s* _PATH_]
 \[*-t*]
 \[*-u* _MTU_]
@@ -61,6 +62,15 @@ Grout is a software router based on DPDK _rte_graph_.
 	given.
 
 	Can also be enabled via *GROUT_ADAPTIVE_IRQ*.
+
+*-r*, *--log-rate* _RATE_
+	Maximum number of rate-limited control plane log messages per second per
+	counter. Only log messages tied to a control plane counter are rate
+	limited; the counters keep accounting for every occurrence. Set to _0_
+	to disable rate limiting. Can also be set via *GROUT_LOG_MAX_RATE* and
+	changed at runtime with *grcli log rate set*.
+
+	Default: _10_.
 
 *-S*, *--syslog*
 	Redirect logs to syslog. Can also be enabled via *GROUT_SYSLOG*.
@@ -123,6 +133,12 @@ enable and _0_, _false_, _off_, _no_ to disable.
 
 *GROUT_TRACE_PACKETS*
 	Print all ingress/egress packets. See *-x*.
+
+*GROUT_LOG_MAX_RATE*
+	Maximum number of rate-limited control plane log messages per second
+	per counter. See *-r*.
+
+	Default: _10_.
 
 *GROUT_MAX_MTU*
 	Maximum Transmission Unit. See *-u*.

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gr_clock.h>
 #include <gr_errno.h>
 
 #include <rte_errno.h>
@@ -103,3 +104,54 @@ __errno_log_null(int errnum, int logtype, const char *prefix, const char *func, 
 
 #define errno_log_null(err, what)                                                                  \
 	__errno_log_null(err, _gr_log.type_id, _gr_log.prefix, __func__, what)
+
+// Control-plane log counter. One per LOG_COUNTER() declaration.
+struct log_counter {
+	STAILQ_ENTRY(log_counter) next;
+	const struct log_type *log; // owning file's _gr_log (display namespace)
+	const char *name; // short stat name
+	uint64_t count; // total occurrences, never rate-limited
+	uint64_t suppressed; // messages dropped since the last emitted one
+	uint64_t tokens; // messages left before rate limiting
+	gr_clock_ns_t last_refill; // last time the token bucket was refilled
+};
+
+STAILQ_HEAD(log_counters, log_counter);
+extern struct log_counters log_counters;
+
+void log_counter_register(struct log_counter *);
+// Return true if a message must not be logged. On false, *suppressed receives
+// the number of messages suppressed since the previously emitted one (0 if none).
+bool log_counter_rate_limited(struct log_counter *, uint64_t *suppressed);
+void log_counter_reset_all(void);
+
+// Register a control-plane counter at file scope. The displayed name is
+// "<logtype>.<name>" (e.g. "ctlplane.pool_exhausted"). The declaration must
+// appear before the first LOG_RATELIMIT() that uses it; referencing an
+// unregistered name is a compile error (undeclared __log_counter_<name>).
+#define LOG_COUNTER(sym)                                                                           \
+	static struct log_counter __log_counter_##sym = {.log = &_gr_log, .name = #sym};           \
+	RTE_INIT(__log_counter_reg_##sym) {                                                        \
+		log_counter_register(&__log_counter_##sym);                                        \
+	}
+
+// Account a control-plane event and log it at level. The counter is always
+// incremented; only the log output is rate-limited (per counter, defaulting to
+// GROUT_LOG_MAX_RATE messages per second). Plain LOG() is never rate-limited.
+//
+// LOG_RATELIMIT() is for control-plane (main thread) code only; the datapath
+// uses drop nodes for per-node error accounting. Calling it from a datapath
+// worker thread aborts in debug builds.
+#define LOG_RATELIMIT(level, sym, fmt, ...)                                                        \
+	do {                                                                                       \
+		uint64_t _suppressed;                                                              \
+		__log_counter_##sym.count++;                                                       \
+		if (!log_counter_rate_limited(&__log_counter_##sym, &_suppressed)) {               \
+			if (_suppressed != 0)                                                      \
+				LOG(level,                                                         \
+				    fmt " (%lu messages rate limited)" __VA_OPT__(, ) __VA_ARGS__, \
+				    _suppressed);                                                  \
+			else                                                                       \
+				LOG(level, fmt __VA_OPT__(, ) __VA_ARGS__);                        \
+		}                                                                                  \
+	} while (0)

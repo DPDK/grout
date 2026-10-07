@@ -37,6 +37,7 @@ static void usage(void) {
 	printf(" [-o USER:GROUP]");
 	printf("\n            ");
 	printf(" [-p]");
+	printf(" [-r RATE]");
 	printf(" [-s PATH]");
 	printf(" [-t]");
 	printf(" [-u MTU]");
@@ -59,6 +60,8 @@ static void usage(void) {
 	puts("  -m, --socket-mode PERMISSIONS  API socket file permissions (Default: 0660).");
 	puts("  -o, --socket-owner USER:GROUP  API socket file ownership");
 	puts("  -p, --poll-mode                Disable automatic micro-sleep.");
+	puts("  -r, --log-rate RATE            Max rate-limited log messages per second");
+	puts("                                 per counter (default 10, 0 = unlimited).");
 	puts("  -s, --socket PATH              Path the control plane API socket.");
 	puts("                                 Default: GROUT_SOCK_PATH from env or");
 	printf("                                 %s).\n", GR_DEFAULT_SOCK_PATH);
@@ -233,10 +236,11 @@ static int parse_env_str(const char **dest, const char *name, const char *def) {
 int config_parse(int argc, char **argv) {
 	int c;
 
-#define FLAGS ":aM:Vhm:o:pSs:tu:vx"
+#define FLAGS ":aM:Vhm:o:pr:Ss:tu:vx"
 	static struct option long_options[] = {
 		{"adaptive-irq", no_argument, NULL, 'a'},
 		{"help", no_argument, NULL, 'h'},
+		{"log-rate", required_argument, NULL, 'r'},
 		{"max-mtu", required_argument, NULL, 'u'},
 		{"metrics", required_argument, NULL, 'M'},
 		{"poll-mode", no_argument, NULL, 'p'},
@@ -271,6 +275,7 @@ int config_parse(int argc, char **argv) {
 	ENV_BOOL(adaptive_irq, "GROUT_ADAPTIVE_IRQ", false);
 	ENV_BOOL(log_syslog, "GROUT_SYSLOG", false);
 	ENV_BOOL(log_packets, "GROUT_TRACE_PACKETS", false);
+	ENV_INT(log_max_rate, "GROUT_LOG_MAX_RATE", 10, 0, UINT16_MAX);
 	ENV_BOOL(override_default_route, "GROUT_OVERRIDE_DEFAULT_ROUTE", false);
 	ENV_BOOL(override_rp_filter, "GROUT_OVERRIDE_RP_FILTER", false);
 	ENV_BOOL(flush_routes_on_iface_down, "GROUT_FLUSH_ROUTES_ON_IFACE_DOWN", false);
@@ -306,6 +311,10 @@ int config_parse(int argc, char **argv) {
 			break;
 		case 'p':
 			gr_config.poll_mode = true;
+			break;
+		case 'r':
+			if (parse_uint(&gr_config.log_max_rate, optarg, 10, 0, UINT16_MAX) < 0)
+				return perr("--log-rate: %s", strerror(errno));
 			break;
 		case 'M':
 			if (parse_metrics_addr(optarg) < 0)
@@ -360,6 +369,7 @@ void config_print(void) {
 	LOG(INFO, "GROUT_ADAPTIVE_IRQ=%hhu", gr_config.adaptive_irq);
 	LOG(INFO, "GROUT_SYSLOG=%hhu", gr_config.log_syslog);
 	LOG(INFO, "GROUT_TRACE_PACKETS=%hhu", gr_config.log_packets);
+	LOG(INFO, "GROUT_LOG_MAX_RATE=%u", gr_config.log_max_rate);
 	LOG(INFO, "GROUT_OVERRIDE_DEFAULT_ROUTE=%hhu", gr_config.override_default_route);
 	LOG(INFO, "GROUT_OVERRIDE_RP_FILTER=%hhu", gr_config.override_rp_filter);
 	LOG(INFO, "GROUT_FLUSH_ROUTES_ON_IFACE_DOWN=%hhu", gr_config.flush_routes_on_iface_down);
