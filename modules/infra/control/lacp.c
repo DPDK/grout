@@ -16,6 +16,10 @@
 
 LOG_TYPE("lacp");
 
+// Rate-limited counters for the 1s periodic timer that walks every bond member.
+LOG_COUNTER(member_timeout);
+LOG_COUNTER(send_failed);
+
 static struct event *lacp_timer;
 
 void lacp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
@@ -152,10 +156,13 @@ static void lacp_periodic(evutil_socket_t, short, void *) {
 					member->local.state |= LACP_STATE_DEFAULTED;
 					member->need_to_transmit = true;
 					active_changed = true;
-					LOG(WARNING,
-					    "LACP timeout on %s member %s",
-					    iface->name,
-					    port->name);
+					LOG_RATELIMIT(
+						WARNING,
+						member_timeout,
+						"LACP timeout on %s member %s",
+						iface->name,
+						port->name
+					);
 				}
 			}
 
@@ -167,7 +174,7 @@ static void lacp_periodic(evutil_socket_t, short, void *) {
 				continue;
 
 			if (lacp_send(member) < 0) {
-				LOG(ERR, "lacp_send: %s", strerror(errno));
+				LOG_RATELIMIT(ERR, send_failed, "lacp_send: %s", strerror(errno));
 				member->need_to_transmit = true;
 				continue;
 			}

@@ -28,6 +28,17 @@
 
 LOG_TYPE("loopback");
 
+// Rate-limited counters for the per-packet loopback tun paths.
+LOG_COUNTER(tx_malloc_failed);
+LOG_COUNTER(tx_bad_proto);
+LOG_COUNTER(tx_write_failed);
+LOG_COUNTER(tun_deleted);
+LOG_COUNTER(rx_pool_exhausted);
+LOG_COUNTER(rx_no_tailroom);
+LOG_COUNTER(rx_read_failed);
+LOG_COUNTER(rx_bad_proto);
+LOG_COUNTER(rx_loopback_send_failed);
+
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
 #define GR_LOOPBACK_TUN_NAME_PREFIX "gr-loop"
@@ -59,7 +70,12 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	} else {
 		data = rte_malloc(NULL, rte_pktmbuf_pkt_len(m), 0);
 		if (data == NULL) {
-			LOG(ERR, "rte_malloc failed %s", rte_strerror(rte_errno));
+			LOG_RATELIMIT(
+				ERR,
+				tx_malloc_failed,
+				"rte_malloc failed %s",
+				rte_strerror(rte_errno)
+			);
 			goto end;
 		}
 		// with a non-contiguous mbuf, rte_pktmbuf_read returns a pointer
@@ -72,7 +88,7 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	else if ((data[0] & 0xf0) == 0x60)
 		pi.proto = RTE_BE16(RTE_ETHER_TYPE_IPV6);
 	else {
-		LOG(ERR, "Bad proto: 0x%x - drop packet", data[0]);
+		LOG_RATELIMIT(ERR, tx_bad_proto, "Bad proto: 0x%x - drop packet", data[0]);
 		goto end;
 	}
 	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
@@ -89,7 +105,9 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 		if (errno == EBADFD) {
 			iface_destroy((struct iface *)d->iface);
 		}
-		LOG(ERR, "write to tun device failed %s", strerror(errno));
+		LOG_RATELIMIT(
+			ERR, tx_write_failed, "write to tun device failed %s", strerror(errno)
+		);
 	}
 
 	stats = iface_get_stats(rte_lcore_id(), d->iface->id);
@@ -114,19 +132,19 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
-		LOG(ERR, "tun device %s deleted", iface->name);
+		LOG_RATELIMIT(ERR, tun_deleted, "tun device %s deleted", iface->name);
 		iface_destroy(iface);
 		return;
 	}
 
 	mbuf = rte_pktmbuf_alloc(iface->pool);
 	if (!mbuf) {
-		LOG(ERR, "rte_pktmbuf_alloc: pool exhausted");
+		LOG_RATELIMIT(ERR, rx_pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
 		goto err;
 	}
 
 	if ((data = rte_pktmbuf_append(mbuf, iface->mtu)) == NULL) {
-		LOG(ERR, "rte_pktmbuf_append: not enough tailroom");
+		LOG_RATELIMIT(ERR, rx_no_tailroom, "rte_pktmbuf_append: not enough tailroom");
 		goto err;
 	}
 
@@ -137,7 +155,13 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	if ((len = readv(iface->cp_fd, iov, ARRAY_DIM(iov))) <= 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			goto err;
-		LOG(ERR, "read from tun device %s failed %s", iface->name, strerror(errno));
+		LOG_RATELIMIT(
+			ERR,
+			rx_read_failed,
+			"read from tun device %s failed %s",
+			iface->name,
+			strerror(errno)
+		);
 		goto err;
 	}
 
@@ -154,7 +178,7 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
 		break;
 	default:
-		LOG(ERR, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
+		LOG_RATELIMIT(ERR, rx_bad_proto, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
 		goto err;
 	}
 
@@ -165,7 +189,9 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	e->nh = NULL;
 
 	if (loopback_input_send(mbuf) < 0) {
-		LOG(ERR, "loopback_input_send: %s", strerror(errno));
+		LOG_RATELIMIT(
+			ERR, rx_loopback_send_failed, "loopback_input_send: %s", strerror(errno)
+		);
 		goto err;
 	}
 
