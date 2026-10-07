@@ -283,6 +283,7 @@ int config_parse(int argc, char **argv) {
 	ENV_INT(max_fdb_entries, "GROUT_MAX_FDB_ENTRIES", 4096, 32, 1 << 24);
 	ENV_INT(max_conntracks, "GROUT_MAX_CONNTRACKS", 16384, 16, 1 << 24);
 	ENV_INT(port_queue_size, "GROUT_PORT_QUEUE_SIZE", 0, 0, 16384);
+	ENV_INT(cp_mempool_size, "GROUT_CP_MEMPOOL_SIZE", RTE_GRAPH_BURST_SIZE, 1, 65535);
 	ENV_STR(fib4_algorithm, "GROUT_FIB4_ALGORITHM", "DIR24_8");
 	ENV_STR(fib6_algorithm, "GROUT_FIB6_ALGORITHM", "TRIE");
 
@@ -370,6 +371,7 @@ void config_print(void) {
 	LOG(INFO, "GROUT_MAX_FDB_ENTRIES=%u", gr_config.max_fdb_entries);
 	LOG(INFO, "GROUT_MAX_CONNTRACKS=%u", gr_config.max_conntracks);
 	LOG(INFO, "GROUT_PORT_QUEUE_SIZE=%u", gr_config.port_queue_size);
+	LOG(INFO, "GROUT_CP_MEMPOOL_SIZE=%u", gr_config.cp_mempool_size);
 	LOG(INFO, "GROUT_FIB4_ALGORITHM=%s", gr_config.fib4_algorithm);
 	LOG(INFO, "GROUT_FIB6_ALGORITHM=%s", gr_config.fib6_algorithm);
 }

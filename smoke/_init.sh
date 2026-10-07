@@ -431,6 +431,7 @@ if [ "$run_grout" = true ]; then
 		smoke_setenv GROUT_MAX_FDB_ENTRIES 128
 		smoke_setenv GROUT_MAX_CONNTRACKS 32
 		smoke_setenv GROUT_PORT_QUEUE_SIZE 32
+		smoke_setenv GROUT_CP_MEMPOOL_SIZE 32
 	fi
 
 	: "${grout_max_mtu:-""}"
