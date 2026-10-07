@@ -282,7 +282,7 @@ struct gr_nexthop_config {
 	uint32_t lifetime_reachable_sec;
 	// Unreachable next hop lifetime after last unreplied probe was sent (default: 1 min).
 	uint32_t lifetime_unreachable_sec;
-	// Max number of packets to hold per next hop waiting for resolution (default: 256).
+	// Max number of packets to hold per next hop waiting for resolution (default: 32).
 	uint16_t max_held_pkts;
 	// Max number of unicast probes to send after NH_LIFETIME_REACHABLE.
 	uint8_t max_ucast_probes;
