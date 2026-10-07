@@ -15,6 +15,10 @@
 
 LOG_TYPE("nexthop");
 
+// Rate-limited counter for the ageing timer that walks every learned nexthop.
+LOG_COUNTER(neigh_unresponsive);
+LOG_COUNTER(solicit_failed);
+
 static struct rte_hash *l3_hash;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
@@ -310,6 +314,7 @@ static struct nexthop_type_ops l3_nh_ops = {
 };
 
 static void l3_age(struct nexthop *nh) {
+	const struct iface *vrf = iface_from_id(nh->vrf_id);
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 	const struct nexthop_af_ops *ops;
 	gr_clock_ns_t now = clock_ns();
@@ -327,24 +332,29 @@ static void l3_age(struct nexthop *nh) {
 	case GR_NH_S_PENDING:
 	case GR_NH_S_STALE:
 		if (probes >= max_probes) {
-			LOG(DEBUG,
-			    ADDR_F " vrf=%u failed_probes=%u held_pkts=%u: %s -> failed",
-			    ADDR_W(l3->af),
-			    &l3->addr,
-			    nh->vrf_id,
-			    probes,
-			    atomic_load_explicit(&l3->held_pkts, memory_order_relaxed),
-			    gr_nh_state_name(l3->state));
-
+			LOG_RATELIMIT(
+				DEBUG,
+				neigh_unresponsive,
+				ADDR_F " vrf=%s failed_probes=%u held_pkts=%u: %s -> failed",
+				ADDR_W(l3->af),
+				&l3->addr,
+				vrf ? vrf->name : "?",
+				probes,
+				atomic_load_explicit(&l3->held_pkts, memory_order_relaxed),
+				gr_nh_state_name(l3->state)
+			);
 			l3->state = GR_NH_S_FAILED;
 		} else {
 			if (ops->solicit(nh) < 0)
-				LOG(ERR,
-				    ADDR_F " vrf=%u solicit failed: %s",
-				    ADDR_W(l3->af),
-				    &l3->addr,
-				    nh->vrf_id,
-				    strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					solicit_failed,
+					ADDR_F " vrf=%s solicit failed: %s",
+					ADDR_W(l3->af),
+					&l3->addr,
+					vrf ? vrf->name : "?",
+					strerror(errno)
+				);
 		}
 		break;
 	case GR_NH_S_REACHABLE:

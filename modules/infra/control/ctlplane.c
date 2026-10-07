@@ -35,6 +35,24 @@
 
 LOG_TYPE("ctlplane");
 
+// Rate-limited counters for the per-packet control-plane tap paths.
+LOG_COUNTER(tx_malloc_failed);
+LOG_COUNTER(tx_write_failed);
+LOG_COUNTER(tap_deleted);
+LOG_COUNTER(rx_pool_exhausted);
+LOG_COUNTER(rx_no_tailroom);
+LOG_COUNTER(rx_read_failed);
+LOG_COUNTER(rx_bad_ether_type);
+LOG_COUNTER(rx_loopback_send_failed);
+LOG_COUNTER(rx_vlan_no_headroom);
+LOG_COUNTER(rx_eth_no_headroom);
+LOG_COUNTER(rx_parent_not_found);
+LOG_COUNTER(rx_output_send_failed);
+LOG_COUNTER(set_master_failed);
+LOG_COUNTER(set_name_failed);
+LOG_COUNTER(set_mtu_failed);
+LOG_COUNTER(set_mac_failed);
+
 #define TUN_TAP_DEV_PATH "/dev/net/tun"
 
 static struct event_base *ev_base;
@@ -65,7 +83,12 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	} else {
 		data = rte_malloc(NULL, rte_pktmbuf_pkt_len(m), 0);
 		if (data == NULL) {
-			LOG(ERR, "rte_malloc failed %s", rte_strerror(rte_errno));
+			LOG_RATELIMIT(
+				ERR,
+				tx_malloc_failed,
+				"rte_malloc failed %s",
+				rte_strerror(rte_errno)
+			);
 			goto end;
 		}
 		// with a non-contiguous mbuf, rte_pktmbuf_read returns a pointer
@@ -82,7 +105,9 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 		if (errno == EBADF) {
 			iface_destroy((struct iface *)d->iface);
 		}
-		LOG(ERR, "write to tap device failed %s", strerror(errno));
+		LOG_RATELIMIT(
+			ERR, tx_write_failed, "write to tap device failed %s", strerror(errno)
+		);
 	}
 
 	stats = iface_get_stats(rte_lcore_id(), d->iface->id);
@@ -114,26 +139,32 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	char *data;
 
 	if (reason & EV_CLOSED) {
-		LOG(ERR, "tap device %s deleted", iface->name);
+		LOG_RATELIMIT(ERR, tap_deleted, "tap device %s deleted", iface->name);
 		iface_destroy(iface);
 		return;
 	}
 
 	mbuf = rte_pktmbuf_alloc(iface->pool);
 	if (!mbuf) {
-		LOG(ERR, "rte_pktmbuf_alloc: pool exhausted");
+		LOG_RATELIMIT(ERR, rx_pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
 		goto err;
 	}
 
 	read_len = iface->mtu + RTE_ETHER_HDR_LEN + RTE_VLAN_HLEN;
 	if ((data = rte_pktmbuf_append(mbuf, read_len)) == NULL) {
-		LOG(ERR, "rte_pktmbuf_append: not enough tailroom");
+		LOG_RATELIMIT(ERR, rx_no_tailroom, "rte_pktmbuf_append: not enough tailroom");
 		goto err;
 	}
 
 	if ((len = read(iface->cp_fd, data, read_len)) <= 0) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK)
-			LOG(ERR, "read from tap device %s failed %s", iface->name, strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				rx_read_failed,
+				"read from tap device %s failed %s",
+				iface->name,
+				strerror(errno)
+			);
 		goto err;
 	}
 
@@ -162,10 +193,13 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		else if (ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6))
 			mbuf->packet_type = RTE_PTYPE_L3_IPV6;
 		else {
-			LOG(ERR,
-			    "cp_poll: unexpected ether_type %#x on %s",
-			    rte_be_to_cpu_16(ether_type),
-			    iface->name);
+			LOG_RATELIMIT(
+				ERR,
+				rx_bad_ether_type,
+				"unexpected ether_type %#x on %s",
+				rte_be_to_cpu_16(ether_type),
+				iface->name
+			);
 			goto err;
 		}
 
@@ -178,7 +212,12 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		e->nh = NULL;
 
 		if (loopback_input_send(mbuf) < 0) {
-			LOG(ERR, "loopback_input_send: %s", strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				rx_loopback_send_failed,
+				"loopback_input_send: %s",
+				strerror(errno)
+			);
 			goto err;
 		}
 
@@ -198,7 +237,9 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 		vlan = gr_mbuf_prepend(mbuf, vlan);
 		if (vlan == NULL) {
-			LOG(ERR, "ctlplane vlan_hdr insertion: no headroom");
+			LOG_RATELIMIT(
+				ERR, rx_vlan_no_headroom, "ctlplane vlan_hdr insertion: no headroom"
+			);
 			goto err;
 		}
 
@@ -207,7 +248,9 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 		eth = gr_mbuf_prepend(mbuf, eth);
 		if (eth == NULL) {
-			LOG(ERR, "ctlplane ether_hdr insertion: no headroom");
+			LOG_RATELIMIT(
+				ERR, rx_eth_no_headroom, "ctlplane ether_hdr insertion: no headroom"
+			);
 			goto err;
 		}
 		eth->src_addr = src;
@@ -221,7 +264,12 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		const uint32_t parent_id = iface_info_vlan(iface)->parent_id;
 		iface = iface_from_id(parent_id);
 		if (iface == NULL) {
-			LOG(ERR, "iface_from_id: no iface for id %u", parent_id);
+			LOG_RATELIMIT(
+				ERR,
+				rx_parent_not_found,
+				"iface_from_id: no iface for id %u",
+				parent_id
+			);
 			goto err;
 		}
 	}
@@ -232,7 +280,7 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	capture_enqueue(iface, GR_CAPTURE_DIR_IN, mbuf);
 
 	if (iface_output_send(mbuf) < 0) {
-		LOG(ERR, "iface_output_send: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, rx_output_send_failed, "iface_output_send: %s", strerror(errno));
 		goto err;
 	}
 
@@ -446,11 +494,14 @@ static void cp_set_vrf_master(const struct iface *iface) {
 	}
 
 	if (netlink_link_set_master(iface->cp_id, master) < 0)
-		LOG(ERR,
-		    "netlink_link_set_master(%s, %u): %s",
-		    iface->name,
-		    master,
-		    strerror(errno));
+		LOG_RATELIMIT(
+			ERR,
+			set_master_failed,
+			"netlink_link_set_master(%s, %u): %s",
+			iface->name,
+			master,
+			strerror(errno)
+		);
 }
 
 static void cp_update(struct iface *iface) {
@@ -462,31 +513,40 @@ static void cp_update(struct iface *iface) {
 
 	if (if_indextoname(iface->cp_id, cur_name) != NULL && strcmp(cur_name, iface->name) != 0) {
 		if (netlink_link_set_name(iface->cp_id, iface->name) < 0)
-			LOG(ERR,
-			    "netlink_link_set_name(%s, %s): %s",
-			    cur_name,
-			    iface->name,
-			    strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				set_name_failed,
+				"netlink_link_set_name(%s, %s): %s",
+				cur_name,
+				iface->name,
+				strerror(errno)
+			);
 	}
 
 	cp_set_vrf_master(iface);
 
 	if (iface->mtu != 0) {
 		if (netlink_link_set_mtu(iface->cp_id, iface->mtu) < 0)
-			LOG(ERR,
-			    "netlink_link_set_mtu(%s, %u): %s",
-			    iface->name,
-			    iface->mtu,
-			    strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				set_mtu_failed,
+				"netlink_link_set_mtu(%s, %u): %s",
+				iface->name,
+				iface->mtu,
+				strerror(errno)
+			);
 	}
 
 	if (iface_get_eth_addr(iface, &mac) == 0) {
 		if (netlink_link_set_mac(iface->cp_id, &mac) < 0)
-			LOG(ERR,
-			    "netlink_link_set_mac(%s, " ETH_F "): %s",
-			    iface->name,
-			    &mac,
-			    strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				set_mac_failed,
+				"netlink_link_set_mac(%s, " ETH_F "): %s",
+				iface->name,
+				&mac,
+				strerror(errno)
+			);
 	}
 }
 

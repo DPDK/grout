@@ -26,6 +26,18 @@
 
 LOG_TYPE("dhcp");
 
+// Rate-limited counters for the packet-driven DHCP client state machine.
+LOG_COUNTER(config_no_mask);
+LOG_COUNTER(config_addr_failed);
+LOG_COUNTER(invalid_offer);
+LOG_COUNTER(request_send_failed);
+LOG_COUNTER(invalid_ack);
+LOG_COUNTER(configure_failed);
+LOG_COUNTER(nak_in_requesting);
+LOG_COUNTER(nak_in_renewing);
+LOG_COUNTER(discover_send_failed);
+LOG_COUNTER(unexpected_state);
+
 static struct event_base *dhcp_ev_base;
 static struct dhcp_client **dhcp_clients;
 
@@ -44,13 +56,17 @@ static int dhcp_configure_interface(struct dhcp_client *client) {
 		return -errno;
 
 	if (client->prefixlen == 0) {
-		LOG(ERR, "server did not provide subnet mask, rejecting offer");
+		LOG_RATELIMIT(
+			ERR, config_no_mask, "server did not provide subnet mask, rejecting offer"
+		);
 		return errno_set(EINVAL);
 	}
 
 	ret = addr4_add(client->iface_id, client->offered_ip, client->prefixlen, GR_NH_ORIGIN_DHCP);
 	if (ret < 0) {
-		LOG(ERR, "failed to configure address: %s", strerror(errno));
+		LOG_RATELIMIT(
+			ERR, config_addr_failed, "failed to configure address: %s", strerror(errno)
+		);
 		return ret;
 	}
 
@@ -165,7 +181,7 @@ static void dhcp_t1_callback(evutil_socket_t, short, void *arg) {
 	client->state = DHCP_STATE_RENEWING;
 
 	if (dhcp_send_request(client) < 0)
-		LOG(ERR, "dhcp_send_request: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, request_send_failed, "dhcp_send_request: %s", strerror(errno));
 }
 
 static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
@@ -182,7 +198,7 @@ static void dhcp_t2_callback(evutil_socket_t, short, void *arg) {
 	client->state = DHCP_STATE_REBINDING;
 
 	if (dhcp_send_request(client) < 0)
-		LOG(ERR, "dhcp_send_request: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, request_send_failed, "dhcp_send_request: %s", strerror(errno));
 }
 
 static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
@@ -208,7 +224,7 @@ static void dhcp_expire_callback(evutil_socket_t, short, void *arg) {
 	client->xid = rte_rand();
 
 	if (dhcp_send_discover(client) < 0) {
-		LOG(ERR, "dhcp_send_discover: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, discover_send_failed, "dhcp_send_discover: %s", strerror(errno));
 		return;
 	}
 
@@ -295,14 +311,23 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 	case DHCP_STATE_SELECTING:
 		if (msg_type == DHCP_OFFER) {
 			if (client->server_ip == 0 || client->offered_ip == 0) {
-				LOG(ERR, "invalid OFFER (no server IP or offered IP)");
+				LOG_RATELIMIT(
+					ERR,
+					invalid_offer,
+					"invalid OFFER (no server IP or offered IP)"
+				);
 				break;
 			}
 
 			LOG(INFO, "received OFFER, sending REQUEST (iface=%s)", iface->name);
 
 			if (dhcp_send_request(client) < 0) {
-				LOG(ERR, "dhcp_send_request: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					request_send_failed,
+					"dhcp_send_request: %s",
+					strerror(errno)
+				);
 				break;
 			}
 
@@ -314,14 +339,16 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 	case DHCP_STATE_REQUESTING:
 		if (msg_type == DHCP_ACK) {
 			if (client->offered_ip == 0) {
-				LOG(ERR, "invalid ACK (no offered IP)");
+				LOG_RATELIMIT(ERR, invalid_ack, "invalid ACK (no offered IP)");
 				break;
 			}
 
 			LOG(INFO, "received ACK, transitioning to BOUND (iface=%u)", iface->id);
 
 			if (dhcp_configure_interface(client) < 0) {
-				LOG(ERR, "failed to configure interface");
+				LOG_RATELIMIT(
+					ERR, configure_failed, "failed to configure interface"
+				);
 				break;
 			}
 
@@ -334,7 +361,12 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 			    client->renewal_time,
 			    client->rebind_time);
 		} else if (msg_type == DHCP_NAK) {
-			LOG(WARNING, "received NAK, returning to INIT (iface=%u)", iface->id);
+			LOG_RATELIMIT(
+				WARNING,
+				nak_in_requesting,
+				"received NAK, returning to INIT (iface=%u)",
+				iface->id
+			);
 			client->state = DHCP_STATE_INIT;
 		}
 		break;
@@ -361,9 +393,12 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 			    client->renewal_time,
 			    client->rebind_time);
 		} else if (msg_type == DHCP_NAK) {
-			LOG(WARNING,
-			    "received NAK during renewal, returning to INIT (iface=%u)",
-			    iface->id);
+			LOG_RATELIMIT(
+				WARNING,
+				nak_in_renewing,
+				"received NAK during renewal, returning to INIT (iface=%u)",
+				iface->id
+			);
 
 			dhcp_cancel_timers(client);
 
@@ -380,7 +415,12 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 			client->xid = rte_rand();
 
 			if (dhcp_send_discover(client) < 0) {
-				LOG(ERR, "dhcp_send_discover: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					discover_send_failed,
+					"dhcp_send_discover: %s",
+					strerror(errno)
+				);
 				break;
 			}
 
@@ -389,7 +429,12 @@ void dhcp_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain
 		break;
 
 	default:
-		LOG(WARNING, "received message in unexpected state %d", client->state);
+		LOG_RATELIMIT(
+			WARNING,
+			unexpected_state,
+			"received message in unexpected state %d",
+			client->state
+		);
 		break;
 	}
 

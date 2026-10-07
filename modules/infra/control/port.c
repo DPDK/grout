@@ -34,6 +34,9 @@
 
 LOG_TYPE("port");
 
+// Rate-limited counter for the periodic link-status poll over every rxq.
+LOG_COUNTER(link_get_failed);
+
 static void port_hide_netdev(struct iface_info_port *port);
 
 #define ETHER_FRAME_GAP 20
@@ -868,7 +871,12 @@ static void link_event_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 				continue;
 
 			if (rte_eth_link_get_nowait(qmap->port_id, &link) < 0) {
-				LOG(WARNING, "rte_eth_link_get_nowait: %s", strerror(rte_errno));
+				LOG_RATELIMIT(
+					WARNING,
+					link_get_failed,
+					"rte_eth_link_get_nowait: %s",
+					strerror(rte_errno)
+				);
 				continue;
 			}
 			iface->speed = link.link_speed;

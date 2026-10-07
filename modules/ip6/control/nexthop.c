@@ -22,12 +22,19 @@
 
 LOG_TYPE("nexthop");
 
+LOG_COUNTER(resubmit_failed);
+LOG_COUNTER(nh_alloc_failed);
+LOG_COUNTER(route_insert_failed);
+LOG_COUNTER(learn_nh_alloc_failed);
+LOG_COUNTER(learn_route_insert_failed);
+LOG_COUNTER(na_advert_failed);
+
 static int ip6_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
 	d->nh = nh;
 	d->iface = NULL;
 	if (ip6_output_send(m) < 0) {
-		LOG(ERR, "post_to_stack: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, resubmit_failed, "post_to_stack: %s", strerror(errno));
 		return -errno;
 	}
 	return 0;
@@ -86,7 +93,12 @@ static void nh6_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 				}
 			);
 			if (remote == NULL) {
-				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					nh_alloc_failed,
+					"cannot allocate nexthop: %s",
+					strerror(errno)
+				);
 				goto free;
 			}
 			// Create an associated /128 route so that next packets take it
@@ -101,7 +113,12 @@ static void nh6_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 			);
 			if (ret < 0) {
 				nexthop_decref(remote);
-				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					route_insert_failed,
+					"failed to insert route: %s",
+					strerror(errno)
+				);
 				goto free;
 			}
 		} else if (remote->iface_id != nh->iface_id) {
@@ -217,7 +234,9 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			}
 		);
 		if (nh == NULL) {
-			LOG(ERR, "ip6_nexthop_new: %s", strerror(errno));
+			LOG_RATELIMIT(
+				ERR, learn_nh_alloc_failed, "ip6_nexthop_new: %s", strerror(errno)
+			);
 			goto free;
 		}
 
@@ -232,7 +251,12 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		);
 		if (ret < 0) {
 			nexthop_decref(nh);
-			LOG(ERR, "ip6_route_insert: %s", strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				learn_route_insert_failed,
+				"ip6_route_insert: %s",
+				strerror(errno)
+			);
 			goto free;
 		}
 	} else if (lladdr_found == ICMP6_OPT_FOUND) {
@@ -263,7 +287,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		}
 		if (addr6_exposed_on_iface(local_nh, iface->id)
 		    && nh6_advertise(iface, local_nh, nh) < 0) {
-			LOG(ERR, "nh6_advertise: %s", strerror(errno));
+			LOG_RATELIMIT(ERR, na_advert_failed, "nh6_advertise: %s", strerror(errno));
 			goto free;
 		}
 	}

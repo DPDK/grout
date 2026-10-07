@@ -30,6 +30,8 @@
 
 LOG_TYPE("worker");
 
+LOG_COUNTER(wakeup_write_failed);
+
 struct workers workers = STAILQ_HEAD_INITIALIZER(workers);
 
 atomic_uint gr_worker_active;
@@ -146,7 +148,13 @@ static void worker_kick(struct worker *w, uint64_t val) {
 	if (gr_config.adaptive_irq
 	    && write(w->adaptive_irq.wakeup_fd, &val, sizeof(val)) != sizeof(val)
 	    && errno != EAGAIN)
-		LOG(ERR, "worker %u wakeup_fd write: %s", w->cpu_id, strerror(errno));
+		LOG_RATELIMIT(
+			ERR,
+			wakeup_write_failed,
+			"worker %u wakeup_fd write: %s",
+			w->cpu_id,
+			strerror(errno)
+		);
 }
 
 void worker_wakeup(struct worker *w) {

@@ -18,13 +18,20 @@
 
 LOG_TYPE("nexthop");
 
+LOG_COUNTER(resubmit_failed);
+LOG_COUNTER(nh_alloc_failed);
+LOG_COUNTER(route_insert_failed);
+LOG_COUNTER(learn_nh_alloc_failed);
+LOG_COUNTER(learn_route_insert_failed);
+LOG_COUNTER(arp_reply_failed);
+
 static int ip_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	struct l3_mbuf_data *d = l3_mbuf_data(m);
 	d->nh = nh;
 	d->iface = NULL;
 
 	if (ip_output_send(m) < 0) {
-		LOG(ERR, "post_to_stack: %s", strerror(errno));
+		LOG_RATELIMIT(ERR, resubmit_failed, "post_to_stack: %s", strerror(errno));
 		return -errno;
 	}
 	return 0;
@@ -83,14 +90,24 @@ static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 				}
 			);
 			if (remote == NULL) {
-				LOG(ERR, "cannot allocate nexthop: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					nh_alloc_failed,
+					"cannot allocate nexthop: %s",
+					strerror(errno)
+				);
 				goto free;
 			}
 			// Create an associated /32 route so that next packets take it
 			// in priority with a single route lookup.
 			if (rib4_insert(nh->vrf_id, dst, 32, GR_NH_ORIGIN_INTERNAL, remote) < 0) {
 				nexthop_decref(remote);
-				LOG(ERR, "failed to insert route: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR,
+					route_insert_failed,
+					"failed to insert route: %s",
+					strerror(errno)
+				);
 				goto free;
 			}
 		} else if (remote->iface_id != nh->iface_id) {
@@ -174,12 +191,19 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			}
 		);
 		if (nh == NULL) {
-			LOG(ERR, "ip4_nexthop_new: %s", strerror(errno));
+			LOG_RATELIMIT(
+				ERR, learn_nh_alloc_failed, "ip4_nexthop_new: %s", strerror(errno)
+			);
 			goto free;
 		}
 		// Add an internal /32 route to reference the newly created nexthop.
 		if (rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
-			LOG(ERR, "ip4_nexthop_insert: %s", strerror(errno));
+			LOG_RATELIMIT(
+				ERR,
+				learn_route_insert_failed,
+				"ip4_nexthop_insert: %s",
+				strerror(errno)
+			);
 			goto free;
 		}
 	} else {
@@ -211,7 +235,9 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			d->local = local;
 			d->iface = iface;
 			if (arp_output_reply_send(m) < 0) {
-				LOG(ERR, "post_to_stack: %s", strerror(errno));
+				LOG_RATELIMIT(
+					ERR, arp_reply_failed, "post_to_stack: %s", strerror(errno)
+				);
 				goto free;
 			}
 			// prevent double free, mbuf has been re-consumed by datapath

@@ -21,6 +21,10 @@
 
 LOG_TYPE("ra");
 
+// Rate-limited counters for RA emission (periodic timer and RS-triggered).
+LOG_COUNTER(pool_exhausted);
+LOG_COUNTER(send_failed);
+
 #define RA_DEFAULT_INTERVAL 600
 #define RA_DEFAULT_LIFETIME 1800
 
@@ -171,14 +175,14 @@ static void send_ra_cb(evutil_socket_t, short /*what*/, void *priv) {
 		if (!rte_ipv6_addr_is_linklocal(&l3->ipv6))
 			continue;
 		if ((m = rte_pktmbuf_alloc(iface->pool)) == NULL) {
-			LOG(ERR, "rte_pktmbuf_alloc: pool exhausted");
+			LOG_RATELIMIT(ERR, pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
 			return;
 		}
 		mbuf_data(m)->iface = iface;
 		build_ra_packet(m, &l3->ipv6);
 		if (ip6_output_send(m) < 0) {
 			rte_pktmbuf_free(m);
-			LOG(ERR, "post_to_stack: %s", strerror(errno));
+			LOG_RATELIMIT(ERR, send_failed, "post_to_stack: %s", strerror(errno));
 		}
 	}
 }

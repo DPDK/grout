@@ -6,6 +6,18 @@
 
 LOG_TYPE("dhcp");
 
+// Rate-limited counters for parsing attacker-influenceable DHCP options.
+LOG_COUNTER(opt_truncated);
+LOG_COUNTER(opt_overflow);
+LOG_COUNTER(bad_msgtype_len);
+LOG_COUNTER(bad_mask_len);
+LOG_COUNTER(bad_router_len);
+LOG_COUNTER(bad_serverid_len);
+LOG_COUNTER(bad_lease_len);
+LOG_COUNTER(bad_renewal_len);
+LOG_COUNTER(bad_rebind_len);
+LOG_COUNTER(no_msgtype);
+
 int dhcp_parse_options(
 	const uint8_t *options,
 	uint16_t options_len,
@@ -30,21 +42,25 @@ int dhcp_parse_options(
 			continue;
 
 		if (pos >= options_len) {
-			LOG(ERR, "truncated option %u", opt);
+			LOG_RATELIMIT(ERR, opt_truncated, "truncated option %u", opt);
 			return errno_set(EBADMSG);
 		}
 
 		len = options[pos++];
 
 		if (pos + len > options_len) {
-			LOG(ERR, "option %u length %u exceeds packet", opt, len);
+			LOG_RATELIMIT(
+				ERR, opt_overflow, "option %u length %u exceeds packet", opt, len
+			);
 			return errno_set(E2BIG);
 		}
 
 		switch (opt) {
 		case DHCP_OPT_MESSAGE_TYPE:
 			if (len != sizeof(*msg_type)) {
-				LOG(ERR, "invalid message type length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_msgtype_len, "invalid message type length %u", len
+				);
 				return errno_set(EBADMSG);
 			}
 			*msg_type = options[pos];
@@ -52,7 +68,9 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_SUBNET_MASK:
 			if (len != sizeof(mask)) {
-				LOG(ERR, "invalid subnet mask length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_mask_len, "invalid subnet mask length %u", len
+				);
 				break;
 			}
 			memcpy(&mask, &options[pos], 4);
@@ -61,7 +79,7 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_ROUTER:
 			if (len < sizeof(client->router_ip)) {
-				LOG(ERR, "invalid router length %u", len);
+				LOG_RATELIMIT(ERR, bad_router_len, "invalid router length %u", len);
 				break;
 			}
 			memcpy(&client->router_ip, &options[pos], sizeof(client->router_ip));
@@ -69,7 +87,9 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_SERVER_ID:
 			if (len != sizeof(client->server_ip)) {
-				LOG(ERR, "invalid server ID length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_serverid_len, "invalid server ID length %u", len
+				);
 				break;
 			}
 			memcpy(&client->server_ip, &options[pos], sizeof(client->server_ip));
@@ -77,7 +97,9 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_LEASE_TIME:
 			if (len != sizeof(time)) {
-				LOG(ERR, "invalid lease time length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_lease_len, "invalid lease time length %u", len
+				);
 				break;
 			}
 			memcpy(&time, &options[pos], sizeof(time));
@@ -86,7 +108,9 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_RENEWAL_TIME:
 			if (len != sizeof(time)) {
-				LOG(ERR, "invalid renewal time length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_renewal_len, "invalid renewal time length %u", len
+				);
 				break;
 			}
 			memcpy(&time, &options[pos], sizeof(time));
@@ -95,7 +119,9 @@ int dhcp_parse_options(
 
 		case DHCP_OPT_REBIND_TIME:
 			if (len != sizeof(time)) {
-				LOG(ERR, "invalid rebind time length %u", len);
+				LOG_RATELIMIT(
+					ERR, bad_rebind_len, "invalid rebind time length %u", len
+				);
 				break;
 			}
 			memcpy(&time, &options[pos], sizeof(time));
@@ -111,7 +137,7 @@ int dhcp_parse_options(
 	}
 
 	if (*msg_type == 0) {
-		LOG(ERR, "no message type found");
+		LOG_RATELIMIT(ERR, no_msgtype, "no message type found");
 		return errno_set(EBADMSG);
 	}
 
