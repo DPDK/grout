@@ -21,6 +21,11 @@
 // mocked types/functions
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
+void log_counter_register(struct log_counter *) { }
+bool log_counter_rate_limited(struct log_counter *, uint64_t *suppressed) {
+	*suppressed = 0;
+	return false;
+}
 struct gr_config gr_config;
 struct workers workers;
 void module_register(struct module *) { }

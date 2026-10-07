@@ -35,6 +35,11 @@ static struct rte_eth_dev_info dev_info = {
 // mocked types/functions
 int gr_rte_log_type;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
+void log_counter_register(struct log_counter *) { }
+bool log_counter_rate_limited(struct log_counter *, uint64_t *suppressed) {
+	*suppressed = 0;
+	return false;
+}
 struct gr_config gr_config;
 void __api_handler(uint32_t, api_handler_func, const char *, size_t) { }
 void module_register(struct module *) { }

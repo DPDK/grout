@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "clock.h"
 #include "config.h"
 #include "log.h"
 #include "module.h"
@@ -9,11 +10,62 @@
 #include <gr_string.h>
 
 #include <rte_common.h>
+#include <rte_lcore.h>
 #include <rte_log.h>
 
+#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
+
+struct log_counters log_counters = STAILQ_HEAD_INITIALIZER(log_counters);
+
+void log_counter_register(struct log_counter *c) {
+	STAILQ_INSERT_TAIL(&log_counters, c, next);
+}
+
+bool log_counter_rate_limited(struct log_counter *c, uint64_t *suppressed) {
+	gr_clock_ns_t now = clock_ns();
+
+	// Rate limiting is only meant for control-plane (main thread) code. The
+	// datapath accounts for errors through drop nodes instead.
+	assert(rte_lcore_has_role(rte_lcore_id(), ROLE_RTE));
+	assert(c != NULL);
+	assert(suppressed != NULL);
+
+	*suppressed = 0;
+	if (gr_config.log_max_rate == 0)
+		return false;
+
+	uint64_t add = (now - c->last_refill) * gr_config.log_max_rate / GR_NS_PER_S;
+	if (add > 0) {
+		c->tokens = RTE_MIN(c->tokens - add, gr_config.log_max_rate);
+		c->last_refill = now;
+	}
+
+	if (c->tokens == 0) {
+		c->suppressed++;
+		return true;
+	}
+
+	c->tokens--;
+	*suppressed = c->suppressed;
+	c->suppressed = 0;
+
+	return false;
+}
+
+void log_counter_reset_all(void) {
+	struct log_counter *c;
+
+	STAILQ_FOREACH (c, &log_counters, next) {
+		c->count = 0;
+		c->suppressed = 0;
+		c->last_refill = 0;
+		c->tokens = 0;
+	}
+}
 
 static struct api_out log_packets_set(const void *request, struct api_ctx *) {
 	const struct gr_log_packets_set_req *req = request;
@@ -75,8 +127,29 @@ static struct api_out log_level_set(const void *request, struct api_ctx *) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out log_rate_set(const void *request, struct api_ctx *) {
+	const struct gr_log_rate_set_req *req = request;
+
+	gr_config.log_max_rate = req->rate;
+
+	return api_out(0, 0, NULL);
+}
+
+static struct api_out log_rate_get(const void * /*request*/, struct api_ctx *) {
+	struct gr_log_rate_get_resp *resp = malloc(sizeof(*resp));
+
+	if (resp == NULL)
+		return api_out(ENOMEM, 0, NULL);
+
+	resp->rate = gr_config.log_max_rate;
+
+	return api_out(0, sizeof(*resp), resp);
+}
+
 RTE_INIT(log_api_init) {
 	api_handler(GR_LOG_PACKETS_SET, log_packets_set);
 	api_handler(GR_LOG_LEVEL_LIST, log_level_list);
 	api_handler(GR_LOG_LEVEL_SET, log_level_set);
+	api_handler(GR_LOG_RATE_SET, log_rate_set);
+	api_handler(GR_LOG_RATE_GET, log_rate_get);
 }

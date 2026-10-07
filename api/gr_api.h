@@ -213,6 +213,8 @@ enum gr_main_requests : uint32_t {
 	GR_EVENT_SUBSCRIBE,
 	GR_EVENT_UNSUBSCRIBE,
 	GR_PING,
+	GR_LOG_RATE_SET,
+	GR_LOG_RATE_GET,
 };
 
 // Client handshake with API version negotiation.
@@ -256,6 +258,19 @@ struct gr_log_level_set_req {
 };
 
 GR_REQ(GR_LOG_LEVEL_SET, struct gr_log_level_set_req, struct gr_empty);
+
+// Set the max number of rate-limited log messages per second per stat (0 = unlimited).
+struct gr_log_rate_set_req {
+	uint16_t rate;
+};
+
+GR_REQ(GR_LOG_RATE_SET, struct gr_log_rate_set_req, struct gr_empty);
+
+struct gr_log_rate_get_resp {
+	uint16_t rate;
+};
+
+GR_REQ(GR_LOG_RATE_GET, struct gr_empty, struct gr_log_rate_get_resp);
 
 // Subscribe to events of a given type.
 // Use GR_EVENT_ALL to subscribe to all event types.
