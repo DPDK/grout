@@ -79,8 +79,8 @@ static struct api_out nh_del(const void *request, struct api_ctx *) {
 
 static struct api_out nh_list(const void *request, struct api_ctx *ctx) {
 	const struct gr_nh_list_req *req = request;
-	const struct nexthop *nh = NULL;
 	struct gr_nexthop *pub_nh;
+	struct nexthop *nh = NULL;
 	unsigned n = 0;
 	size_t len;
 

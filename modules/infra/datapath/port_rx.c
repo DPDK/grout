@@ -108,11 +108,11 @@ err:
 	return -1;
 }
 
-static inline uint16_t strip_vlan(struct rte_mbuf *m, const struct rte_ether_hdr *eth) {
-	const struct rte_vlan_hdr *vlan;
+static inline uint16_t strip_vlan(struct rte_mbuf *m, struct rte_ether_hdr *eth) {
+	struct rte_vlan_hdr *vlan;
 	uint16_t vlan_id;
 
-	vlan = rte_pktmbuf_mtod_offset(m, const struct rte_vlan_hdr *, sizeof(*eth));
+	vlan = rte_pktmbuf_mtod_offset(m, struct rte_vlan_hdr *, sizeof(*eth));
 	vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0xfff;
 
 	memmove(RTE_PTR_ADD(eth, sizeof(*vlan)), eth, sizeof(*eth) - sizeof(eth->ether_type));
@@ -282,8 +282,8 @@ uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void
 uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	const struct rte_ether_hdr *eth;
 	struct iface_mbuf_data *d;
+	struct rte_ether_hdr *eth;
 	struct rte_mbuf *m;
 	uint16_t rx;
 
@@ -300,7 +300,7 @@ uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uin
 		d = iface_mbuf_data(m);
 		d->iface = ctx->iface;
 
-		eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
 			d->vlan_id = strip_vlan(m, eth);
 		} else {
@@ -416,8 +416,8 @@ rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **,
 uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	const struct rte_ether_hdr *eth;
 	struct iface_mbuf_data *d;
+	struct rte_ether_hdr *eth;
 	const struct iface *iface;
 	struct rte_mbuf *m;
 	uint16_t rx;
@@ -436,7 +436,7 @@ uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
-		eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 		switch (eth->ether_type) {
 		case RTE_BE16(RTE_ETHER_TYPE_VLAN):

@@ -478,7 +478,7 @@ err:
 
 static int trace_ipv4(char *buf, size_t len, const struct rte_ipv4_hdr *ip, size_t pkt_len) {
 	size_t hdr_len, data_len;
-	void *payload;
+	const void *payload;
 	size_t n = 0;
 
 	if (pkt_len < sizeof(*ip))
