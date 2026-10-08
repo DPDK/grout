@@ -443,7 +443,7 @@ void nexthop_iter(nh_iter_cb_t nh_cb, void *priv) {
 	rte_mempool_obj_iter(pool, nh_pool_iter_cb, &it);
 }
 
-struct nexthop *nexthop_next(const struct nexthop *prev) {
+struct nexthop *nexthop_next(struct nexthop *prev) {
 	struct rte_mempool_objhdr *hdr;
 
 	if (prev == NULL)
