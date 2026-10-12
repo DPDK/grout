@@ -51,7 +51,7 @@ static int mt_sort(const void *p1, const void *p2) {
 // 1 mempool tracker for each numa + SOCKET_ID_ANY
 #define MT_COUNT RTE_MAX_NUMA_NODES + 1
 static struct mempool_tracker trackers[MT_COUNT][MAX_MEMPOOL_PER_NUMA];
-static uint32_t mempool_default_size;
+static uint32_t mempool_default_size[MT_COUNT];
 static bool pending_has_name(const char *name);
 
 // Resolve SOCKET_ID_ANY (used by control plane and loopback interfaces) to the
@@ -82,28 +82,31 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 	struct rte_mempool *mp = NULL;
 	uint32_t alloc_size;
 	uint32_t mbuf_size;
+	unsigned mt_index;
 
 	if (socket_id < SOCKET_ID_ANY || socket_id >= RTE_MAX_NUMA_NODES)
 		return errno_set_null(EINVAL);
 
 	socket_id = resolve_socket_id(socket_id);
+	mt_index = socket_id == SOCKET_ID_ANY ? 0 : socket_id + 1;
 
 	mbuf_size = rte_align32pow2(
 		RTE_PKTMBUF_HEADROOM + ETHER_HDR_SIZE + VLAN_HDR_SIZE + gr_config.max_mtu
 	);
 
 	for (int i = 0; i < MAX_MEMPOOL_PER_NUMA; i++) {
-		unsigned mt_index = socket_id == SOCKET_ID_ANY ? 0 : socket_id + 1;
 		struct mempool_tracker *mt = &trackers[mt_index][i];
 		if (mt->mp == NULL) {
 			sprintf(mp_name, "mbuf_%d:%d", socket_id, i);
 			if (pending_has_name(mp_name))
 				continue;
-			alloc_size = mempool_default_size;
-			if (count > mempool_default_size / 4) {
+			alloc_size = mempool_default_size[mt_index];
+			if (count > alloc_size / 4) {
 				alloc_size = count * 2;
-				// For future mempools, increase default size;
-				mempool_default_size = alloc_size;
+				// Grow this socket's default so future shared
+				// pools can absorb similarly large reservations.
+				if (alloc_size > mempool_default_size[mt_index])
+					mempool_default_size[mt_index] = alloc_size;
 			}
 			LOG(DEBUG,
 			    "allocate mempool %s reserved %u (size %u, mbuf_size %u)",
@@ -274,7 +277,8 @@ sort:
 }
 
 static void mempool_init(struct event_base *ev_base) {
-	mempool_default_size = gr_config.mempool_chunk_size;
+	for (int s = 0; s < MT_COUNT; s++)
+		mempool_default_size[s] = gr_config.mempool_chunk_size;
 
 	pending_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, pending_free_cb, NULL);
 	if (pending_timer == NULL)
