@@ -10,6 +10,7 @@
 #include "sys_queue.h"
 
 #include <event2/event.h>
+#include <numa.h>
 
 #include <stdlib.h>
 
@@ -53,6 +54,29 @@ static struct mempool_tracker trackers[MT_COUNT][MAX_MEMPOOL_PER_NUMA];
 static uint32_t mempool_default_size;
 static bool pending_has_name(const char *name);
 
+// Resolve SOCKET_ID_ANY (used by control plane and loopback interfaces) to the
+// NUMA socket of the control plane thread, so those pools share the same
+// tracker array as the port pools on that socket and can be reused.
+static int8_t resolve_socket_id(int8_t socket_id) {
+	if (socket_id != SOCKET_ID_ANY)
+		return socket_id;
+
+	if (numa_available() == -1)
+		return socket_id;
+
+	for (int cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+		int node;
+		if (!CPU_ISSET(cpu, &gr_config.control_cpus))
+			continue;
+		node = numa_node_of_cpu(cpu);
+		if (node >= 0 && node < RTE_MAX_NUMA_NODES)
+			return node;
+		break;
+	}
+
+	return socket_id;
+}
+
 struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 	char mp_name[RTE_MEMPOOL_NAMESIZE];
 	struct rte_mempool *mp = NULL;
@@ -61,6 +85,8 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 
 	if (socket_id < SOCKET_ID_ANY || socket_id >= RTE_MAX_NUMA_NODES)
 		return errno_set_null(EINVAL);
+
+	socket_id = resolve_socket_id(socket_id);
 
 	mbuf_size = rte_align32pow2(
 		RTE_PKTMBUF_HEADROOM + ETHER_HDR_SIZE + VLAN_HDR_SIZE + gr_config.max_mtu
