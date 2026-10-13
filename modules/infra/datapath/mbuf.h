@@ -76,15 +76,22 @@ void gr_mbuf_trace_copy(struct rte_mbuf *dst, struct rte_mbuf *src);
 // Detach the trace items from an mbuf and store them in the trace buffer.
 void gr_mbuf_trace_finish(struct rte_mbuf *m);
 
-// Deep copy of an mbuf: duplicates mbuf, copies mbuf priv data and traces
-static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len) {
-	struct rte_mbuf *copy = rte_pktmbuf_copy(m, m->pool, 0, data_len);
+// Deep copy of an mbuf into a specific pool: duplicates mbuf, copies mbuf priv
+// data and traces.
+static inline struct rte_mbuf *
+gr_mbuf_copy_to_pool(struct rte_mbuf *m, struct rte_mempool *mp, size_t data_len) {
+	struct rte_mbuf *copy = rte_pktmbuf_copy(m, mp, 0, data_len);
 	if (copy) {
 		memcpy(mbuf_data(copy), mbuf_data(m), GR_MBUF_PRIV_MAX_SIZE);
 		if (gr_mbuf_is_traced(m))
 			gr_mbuf_trace_copy(copy, m);
 	}
 	return copy;
+}
+
+// Deep copy of an mbuf: duplicates mbuf, copies mbuf priv data and traces
+static inline struct rte_mbuf *gr_mbuf_copy(struct rte_mbuf *m, size_t data_len) {
+	return gr_mbuf_copy_to_pool(m, m->pool, data_len);
 }
 
 #undef rte_pktmbuf_copy
