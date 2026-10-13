@@ -232,6 +232,14 @@ be adjusted at runtime via the API (e.g. *grcli route config set*,
 
 	Default: _256_.
 
+*GROUT_MAX_HELD_PACKETS* [startup only]
+	Number of mbufs reserved to hold packets while waiting for L3 address
+	resolution (ARP/NDP). Incoming packets are copied into this reserved
+	pool so that the original hardware buffers can be returned to their RX
+	pool instead of being held for a potentially long time.
+
+	Default: _2048_.
+
 *GROUT_FIB4_ALGORITHM* [startup only, testing]
 	IPv4 FIB lookup algorithm. Supported values: _DIR24_8_, _DUMMY_.
 	The _DUMMY_ algorithm avoids the large static arrays of _DIR24_8_

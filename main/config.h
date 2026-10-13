@@ -41,6 +41,7 @@ struct gr_config {
 	uint32_t max_conntracks;
 	uint32_t port_queue_size;
 	uint32_t cp_mempool_size;
+	uint32_t max_held_packets;
 	const char *fib4_algorithm;
 	const char *fib6_algorithm;
 };

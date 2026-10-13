@@ -2,9 +2,11 @@
 // Copyright (c) 2026 Robin Jarry
 
 #include "clock.h"
+#include "config.h"
 #include "iface.h"
 #include "log.h"
 #include "mbuf.h"
+#include "mempool.h"
 #include "module.h"
 #include "nexthop.h"
 #include "rcu.h"
@@ -22,6 +24,12 @@ LOG_COUNTER(solicit_failed);
 static struct rte_hash *l3_hash;
 static struct event *ageing_timer;
 static const struct nexthop_af_ops *af_ops[256];
+
+// Pool for packets held while waiting for address resolution. The hardware
+// originated buffers are copied into this pool so that the original buffers can
+// be returned to their RX pool instead of sitting here for a potentially long
+// time.
+static struct rte_mempool *held_pkts_pool;
 
 void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops) {
 	assert(ops != NULL);
@@ -173,12 +181,20 @@ int nexthop_l3_hold_queue_add(struct nexthop *nh, struct rte_mbuf *m) {
 
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 
-	queue_mbuf_data(m)->next = NULL;
+	// Copy the hardware originated buffer into the dedicated held packets
+	// pool and return the original to its pool. Held packets may sit here
+	// for a long time; we don't want to keep RX buffers reserved for that.
+	struct rte_mbuf *copy = gr_mbuf_copy_to_pool(m, held_pkts_pool, UINT32_MAX);
+	rte_pktmbuf_free(m);
+	if (copy == NULL)
+		return errno_set(ENOBUFS);
+
+	queue_mbuf_data(copy)->next = NULL;
 	if (l3->held_pkts_head == NULL)
-		l3->held_pkts_head = m;
+		l3->held_pkts_head = copy;
 	else
-		queue_mbuf_data(l3->held_pkts_tail)->next = m;
-	l3->held_pkts_tail = m;
+		queue_mbuf_data(l3->held_pkts_tail)->next = copy;
+	l3->held_pkts_tail = copy;
 	atomic_fetch_add_explicit(&l3->held_pkts, 1, memory_order_relaxed);
 
 	return 0;
@@ -380,6 +396,10 @@ static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
 }
 
 static void l3_init(struct event_base *ev_base) {
+	held_pkts_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, gr_config.max_held_packets);
+	if (held_pkts_pool == NULL)
+		ABORT("gr_pktmbuf_pool_get(held_pkts): %s", strerror(errno));
+
 	ageing_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, do_ageing, NULL);
 	if (ageing_timer == NULL)
 		ABORT("event_new() failed");
@@ -392,11 +412,12 @@ static void l3_fini(struct event_base *) {
 	rte_hash_free(l3_hash);
 	if (ageing_timer)
 		event_free(ageing_timer);
+	gr_pktmbuf_pool_release(held_pkts_pool, gr_config.max_held_packets);
 }
 
 static struct module module = {
 	.name = "l3_nexthop",
-	.depends_on = "nexthop",
+	.depends_on = "nexthop,mempool",
 	.init = l3_init,
 	.fini = l3_fini,
 };
