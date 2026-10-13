@@ -3,8 +3,14 @@
 
 #pragma once
 
+#include <rte_graph.h>
+
 #include <sched.h>
 #include <stdint.h>
+
+// Number of items that can be queued between the data plane and the control plane,
+// in both directions (control_queue and control_input rings).
+#define CONTROL_QUEUE_SIZE (RTE_GRAPH_BURST_SIZE * 4)
 
 struct control_queue_drain {
 	uint32_t event; // GR_EVENT_*

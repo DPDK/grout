@@ -2,6 +2,7 @@
 // Copyright (c) 2023 Robin Jarry
 
 #include "config.h"
+#include "control_queue.h"
 #include "event.h"
 #include "iface.h"
 #include "log.h"
@@ -135,9 +136,13 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 	rxq_size = get_rxq_size(p, &info);
 	txq_size = get_txq_size(p, &info);
 
+	// Account for every place where mbufs allocated from this pool can be
+	// held: the RX/TX descriptor rings, the per-queue burst in flight in the
+	// graph, and the control plane punt queue.
 	mbuf_count = rxq_size * p->n_rxq;
 	mbuf_count += txq_size * p->n_txq;
-	mbuf_count += RTE_GRAPH_BURST_SIZE;
+	mbuf_count += p->n_rxq * RTE_GRAPH_BURST_SIZE;
+	mbuf_count += CONTROL_QUEUE_SIZE;
 	if (mbuf_count != p->pool_size) {
 		p->pool = gr_pktmbuf_pool_resize(p->pool, socket_id, p->pool_size, mbuf_count);
 		p->pool_size = p->pool ? mbuf_count : 0;
