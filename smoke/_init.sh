@@ -430,7 +430,7 @@ if [ "$run_grout" = true ]; then
 		smoke_setenv GROUT_MAX_ROUTES ${grout_max_routes:-128}
 		smoke_setenv GROUT_MAX_FDB_ENTRIES 128
 		smoke_setenv GROUT_MAX_CONNTRACKS 32
-		smoke_setenv GROUT_PORT_QUEUE_SIZE 32
+		smoke_setenv GROUT_PORT_QUEUE_SIZE ${grout_port_queue_size:-32}
 		smoke_setenv GROUT_CP_MEMPOOL_SIZE 32
 	fi
 
