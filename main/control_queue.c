@@ -21,7 +21,6 @@ struct control_queue_item {
 	uintptr_t priv;
 };
 
-#define CONTROL_QUEUE_SIZE RTE_GRAPH_BURST_SIZE * 4
 static atomic_uint_fast64_t push_failed_items;
 static atomic_uint_fast64_t pushed_items;
 static atomic_uint_fast64_t popped_items;

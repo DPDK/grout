@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "control_input.h"
+#include "control_queue.h"
 #include "graph.h"
 #include "log.h"
 #include "mbuf.h"
@@ -83,7 +84,7 @@ static void control_input_register(void) {
 	control_input_ring = rte_ring_create_elem(
 		"control_input",
 		sizeof(struct gr_control_input_msg),
-		RTE_GRAPH_BURST_SIZE * 4,
+		CONTROL_QUEUE_SIZE,
 		SOCKET_ID_ANY,
 		RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ
 	);
