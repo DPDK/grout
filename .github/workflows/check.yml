@@ -75,6 +75,9 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: l
       CC: ccache ${{ matrix.conf.compiler }}
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros,locale,system_headers
+      CCACHE_COMPILERCHECK: content
       FRR: ${{ matrix.conf.frr }}
       DPDK: ${{ matrix.conf.dpdk }}
       DPDK_CPU: generic
@@ -113,7 +116,9 @@ jobs:
         id: cache
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.conf.arch || 'x86_64' }}-${{ matrix.conf.compiler }}
+          key: ccache-${{ matrix.conf.arch || 'x86_64' }}-${{ matrix.conf.compiler }}-dpdk${{ matrix.conf.dpdk }}-frr${{ matrix.conf.frr }}-${{ env.BUILDTYPE }}-${{ env.SANITIZE }}
+          restore-keys: |
+            ccache-${{ matrix.conf.arch || 'x86_64' }}-${{ matrix.conf.compiler }}-
       - run: ccache -z
       - run: git rebase -x .github/workflows/check.sh "HEAD~${{ github.event.pull_request.commits }}"
         if: ${{ matrix.conf.rebase && github.event.pull_request.commits }}
