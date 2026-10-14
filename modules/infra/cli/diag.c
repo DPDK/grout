@@ -5,6 +5,7 @@
 
 #include <gr_api.h>
 #include <gr_infra.h>
+#include <gr_string.h>
 
 #include <ecoli.h>
 
@@ -17,13 +18,11 @@ static cmd_status_t obj_dump(struct gr_api_client *c, const struct ec_pnode *p) 
 	const char *name = NULL;
 	int ret;
 
-	if ((type = arg_str(p, "TYPE")) == NULL
-	    || strlcpy(req.type, type, sizeof(req.type)) >= sizeof(req.type))
+	if ((type = arg_str(p, "TYPE")) == NULL || gr_strcpy(req.type, sizeof(req.type), type) < 0)
 		return CMD_ERROR;
 
 	*req.name = 0;
-	if ((name = arg_str(p, "NAME")) != NULL
-	    && strlcpy(req.name, name, sizeof(req.name)) >= sizeof(req.name))
+	if ((name = arg_str(p, "NAME")) != NULL && gr_strcpy(req.name, sizeof(req.name), name) < 0)
 		return CMD_ERROR;
 
 	gr_api_client_stream_foreach (resp, ret, c, GR_DIAG_OBJ_DUMP, sizeof(req), &req)
