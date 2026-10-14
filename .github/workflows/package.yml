@@ -19,6 +19,10 @@ jobs:
       actions: write
     runs-on: ubuntu-24.04
     container: "debian:stable"
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros,locale,system_headers
+      CCACHE_COMPILERCHECK: content
     steps:
       - name: install system dependencies
         run: |
@@ -59,6 +63,8 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-x86_64-deb
+          restore-keys: |
+            ccache-x86_64-deb
       - run: ccache -z
       - run: make deb CC="ccache gcc" DEB_BUILD_OPTIONS=nofrr
       - run: ccache -sv
@@ -96,6 +102,10 @@ jobs:
         arch: [x86_64, aarch64]
     runs-on: ubuntu-24.04${{ matrix.arch == 'aarch64' && '-arm' || '' }}
     container: "quay.io/centos/centos:stream10"
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros,locale,system_headers
+      CCACHE_COMPILERCHECK: content
     steps:
       - name: install system dependencies
         run: |
@@ -149,6 +159,8 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ matrix.arch }}-rpm
+          restore-keys: |
+            ccache-${{ matrix.arch }}-rpm
       - run: ccache -z
       - run: make frr-rpm CC="ccache gcc"
       - run: dnf install -y --nodocs --setopt=install_weak_deps=0 ./frr-headers.noarch.rpm
