@@ -3,6 +3,22 @@
 
 test_frr=true
 
+# Skip the test (exit 125) when the resolved FRR is older than the version
+# required by a feature. Tests request a minimum by setting frr_min_version
+# (and optionally frr_feature for the skip message) before sourcing this file.
+# This happens before _init.sh so unsupported versions are skipped without
+# spawning grout; the _SMOKE_UNSHARED guard avoids rerunning it after the
+# unshare re-exec in _init.sh.
+if [ "${_SMOKE_UNSHARED:-}" != 1 ] && [ -n "${frr_min_version:-}" ]; then
+	zebra=$(PATH="$1/frr_install/sbin:$1/frr_install/bin:$PATH" command -v zebra)
+	frr_version=$($zebra --version | sed -En 's/zebra version //p')
+	oldest=$(printf '%s\n%s\n' "$frr_version" "$frr_min_version" | sort -V | head -n1)
+	if [ "$oldest" != "$frr_min_version" ]; then
+		echo "$0: FRR $frr_version does not support ${frr_feature:-this feature}"
+		exit 125
+	fi
+fi
+
 . $(dirname $0)/_init.sh
 
 route_nh_id() {

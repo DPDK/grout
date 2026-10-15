@@ -22,14 +22,8 @@
 #
 
 set -e
-zebra=$(PATH="$1/frr_install/sbin:$1/frr_install/bin:$PATH" command -v zebra)
-frr_version=$($zebra --version | sed -En 's/zebra version //p')
-min_version=$(printf '%s\n%s\n' "$frr_version" "10.6.0" | sort -V | head -n1)
-if ! [ "$min_version" = "10.6.0" ]; then
-       echo "$0: FRR $frr_version does not support SRv6 adjacency SIDs"
-       exit 125
-fi
-
+frr_min_version=10.6.0
+frr_feature="SRv6 adjacency SIDs"
 . $(dirname $0)/_init_frr.sh
 
 # Create interface for ISIS link
