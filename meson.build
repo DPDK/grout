@@ -142,6 +142,24 @@ elif compiler.has_function(
   grout_cflags += ['-DHAVE_RTE_FIB_TBL8_GET_STATS']
 endif
 
+# rte_pci_dump() lives in the bus/pci driver library. When DPDK is linked
+# statically, driver libraries are pulled in via libdpdk.pc Libs.private and the
+# symbol is available. When DPDK is linked dynamically, driver libraries are not
+# listed in the .pc files (they are meant to be loaded at runtime), so the symbol
+# must be resolved by explicitly linking against librte_bus_pci.
+dpdk_bus_pci_dep = dependency('', required: false)
+if dpdk_dep.type_name() != 'internal' and not compiler.has_function(
+  'rte_pci_dump',
+  prefix: '#include <rte_bus_pci.h>',
+  dependencies: [dpdk_dep],
+)
+  dpdk_bus_pci_dep = compiler.find_library(
+    'rte_bus_pci',
+    dirs: [dpdk_dep.get_variable(pkgconfig: 'libdir')],
+    required: false,
+  )
+endif
+
 # glibc >= 2.41 provides struct sched_attr and the sched_setattr() wrapper.
 if compiler.has_header_symbol('sched.h', 'sched_setattr', args: '-D_GNU_SOURCE')
   grout_cflags += ['-DHAVE_SCHED_SETATTR']
@@ -188,7 +206,7 @@ endif
 grout_exe = executable(
   'grout', src,
   include_directories: inc + api_inc,
-  dependencies: [dpdk_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep, pcap_dep],
+  dependencies: [dpdk_dep, dpdk_bus_pci_dep, ev_core_dep, ev_extra_dep, ev_thread_dep, mnl_dep, numa_dep, pcap_dep],
   c_args: ['-D__GROUT_MAIN__'] + grout_cflags,
   install: true,
 )
