@@ -188,7 +188,7 @@ out=$(vtysh -c "show ipv6 route ::/128 json" 2>/dev/null)
 # zebra's RIB must contain exactly the static routes declared in frr.conf
 # ($prefix_kept was appended; $prefix_orphan was vty-only and must be swept).
 # Count across all VRFs since the SR6 L3VPN entry lives in vrf2.
-expected=$(grep -cE '^[[:space:]]*ip route ' "$builddir/frr_install/etc/frr/frr.conf" || true)
+expected=$(grep -cE '^[[:space:]]*ip route ' "$frr_etc/frr.conf" || true)
 actual_default=$(vtysh -c "show ip route static json" 2>/dev/null | jq 'length // 0')
 actual_vrf2=$(vtysh -c "show ip route vrf vrf2 static json" 2>/dev/null | jq 'length // 0')
 actual=$((actual_default + actual_vrf2))

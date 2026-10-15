@@ -30,10 +30,11 @@ debug: all
 unit-tests: $(BUILDDIR)/build.ninja
 	$Q meson test -C $(BUILDDIR) --print-errorlogs $(if $(filter 1,$V),--verbose)
 
+frr_dirs = $(BUILDDIR)/frr /usr/lib64/frr/modules /usr/lib/x86_64-linux-gnu/frr/modules
+frr_plugin = $(wildcard $(addsuffix /dplane_grout.so,$(frr_dirs)))
 smoke_scripts := $(sort $(wildcard smoke/*_test.sh))
-smoke_frr := $(filter %_frr_test.sh,$(smoke_scripts))
-ifeq ($(wildcard $(BUILDDIR)/frr/dplane_grout.so*),)
-smoke_scripts := $(filter-out $(smoke_frr),$(smoke_scripts))
+ifeq ($(frr_plugin),)
+override SMOKE_SKIP := $(SMOKE_SKIP) frr
 endif
 ifneq ($(SMOKE_MATCH),)
 smoke_match := $(foreach m,$(SMOKE_MATCH),$(wildcard smoke/*$(m)*))
