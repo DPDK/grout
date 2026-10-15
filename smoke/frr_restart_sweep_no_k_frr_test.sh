@@ -98,7 +98,7 @@ out=$(vtysh -c "show ipv6 route ::/128 json" 2>/dev/null)
 
 # zebra's RIB must contain exactly the static routes declared in frr.conf
 # (none here - $prefix was added via vty only and must be swept).
-expected=$(grep -cE '^[[:space:]]*ip route ' "$builddir/frr_install/etc/frr/frr.conf" || true)
+expected=$(grep -cE '^[[:space:]]*ip route ' "$frr_etc/frr.conf" || true)
 actual=$(vtysh -c "show ip route static json" 2>/dev/null | jq 'length // 0')
 [ "$expected" = "$actual" ] \
 	|| fail "static route count mismatch: expected $expected from frr.conf, got $actual"
