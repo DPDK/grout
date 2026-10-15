@@ -47,11 +47,13 @@ endif
 .PHONY: smoke-tests smoke smoke/
 smoke-tests smoke smoke/: $(smoke_scripts)
 
+RESULTSDIR ?= $(BUILDDIR)/smoke
+
 .PHONY: $(smoke_scripts)
 $(smoke_scripts):
-	$Q mkdir -p $(BUILDDIR)/$(@D)
-	$Q log=$(BUILDDIR)/$@.log; \
-	time=$(BUILDDIR)/$@.time; \
+	$Q mkdir -p $(RESULTSDIR)
+	$Q log=$(RESULTSDIR)/$(@F).log; \
+	time=$(RESULTSDIR)/$(@F).time; \
 	printf '%s\n' $@; \
 	time -qf '%E' -o "$$time" sudo $(if $(ADAPTIVE_IRQ),adaptive_irq=$(ADAPTIVE_IRQ)) timeout 5m $@ $(BUILDDIR) </dev/null >"$$log" 2>&1; \
 	rc=$$?; \
