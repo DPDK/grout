@@ -233,6 +233,12 @@ netns_add() {
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_dad=0
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.all.accept_ra=0
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_ra=0
+	# Disable reverse-path filtering in test netns: the Linux peers are
+	# not under test and some tests (e.g. ECMP) rely on asymmetric paths
+	# that strict RPF would drop. New netns inherit the host's default
+	# rp_filter, which is strict (1) on some distros.
+	ip netns exec "$ns" sysctl -wq net.ipv4.conf.all.rp_filter=0
+	ip netns exec "$ns" sysctl -wq net.ipv4.conf.default.rp_filter=0
 	cat >> $tmp/cleanup <<EOF
 ip netns pids "$ns" | xargs -r kill -TERM 2>/dev/null || true
 sleep 0.5
