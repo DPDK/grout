@@ -78,10 +78,9 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 
 		// (2) The IP checksum must be correct.
 		switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
 		case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
-			// if this is not checked in H/W, check it.
-			if (rte_ipv4_cksum(ip)) {
+			// not checked in H/W, check it.
+			if (rte_ipv4_cksum(ip) != 0) {
 				edge = BAD_CHECKSUM;
 				goto next;
 			}
@@ -89,6 +88,11 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
 			edge = BAD_CHECKSUM;
 			goto next;
+		case RTE_MBUF_F_RX_IP_CKSUM_GOOD:
+			break;
+		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
+			// checksum field unset, but packet known to be good
+			break;
 		}
 
 		if (unlikely(ip->dst_addr == RTE_IPV4_ANY)) {
