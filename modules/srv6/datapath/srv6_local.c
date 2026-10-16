@@ -295,8 +295,8 @@ static int process_behav_decap(
 	decap_outer(m, ip6_info);
 
 	// The hw checksum offload only works on the outer IP.
-	// Clear the offload flag so that ip_input will check it in software.
-	m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
+	// Clear the offload flags so that ip_input will check it in software.
+	m->ol_flags &= ~(RTE_MBUF_F_RX_IP_CKSUM_MASK | RTE_MBUF_F_RX_L4_CKSUM_MASK);
 
 	if (!set_out_vrf_iface(m, sr_d))
 		return DEST_UNREACH;
