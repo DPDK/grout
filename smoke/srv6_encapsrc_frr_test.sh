@@ -3,14 +3,8 @@
 # Copyright (c) 2026 Robin Jarry
 
 set -e
-zebra=$(PATH="$1/frr_install/sbin:$1/frr_install/bin:$PATH" command -v zebra)
-frr_version=$($zebra --version | sed -En 's/zebra version //p')
-min_version=$(printf '%s\n%s\n' "$frr_version" "10.8.0" | sort -V | head -n1)
-if ! [ "$min_version" = "10.8.0" ]; then
-	echo "$0: FRR $frr_version does not support per-nexthop encap source"
-	exit 125
-fi
-
+frr_min_version=10.8.0
+frr_feature="per-nexthop encap source"
 . $(dirname $0)/_init_frr.sh
 
 create_interface p0

@@ -3,7 +3,100 @@
 
 test_frr=true
 
+# Resolve the FRR binary and state directories.
+#
+# When grout has been built with the FRR subproject, the daemons and their
+# tooling are installed under $builddir/frr_install with a self-contained
+# prefix. Otherwise, use the system FRR: locate frrinit.sh in $PATH (adding the
+# usual package directories) and read the compiled-in config/state paths from
+# the neighbouring frrcommon.sh. Those paths are then shadowed with per-test
+# tmpfs mounts (see below), so the host configuration is left untouched.
+#
+# This runs before sourcing _init.sh so the version check below can skip
+# unsupported FRR versions without spawning grout. It only touches $PATH and
+# must not rely on anything defined by _init.sh.
+resolve_frr_paths() {
+	# Mirror _init.sh's optional build directory resolution.
+	local builddir=${1-}
+	if [ -z "$builddir" ] && [ -d "$(dirname "$0")/../build" ]; then
+		builddir=$(cd "$(dirname "$0")/../build" && pwd)
+	fi
+
+	if [ -n "$builddir" ] && [ -d "$builddir/frr_install" ]; then
+		frr_bindir="$builddir/frr_install/bin"
+		frr_sbindir="$builddir/frr_install/sbin"
+		frr_etc="$builddir/frr_install/etc/frr"
+		frr_logdir="$builddir/frr_install/var/log/frr"
+		frr_rundir="$builddir/frr_install/var/run/frr"
+		frr_libdir="$builddir/frr_install/var/lib/frr"
+		export PATH="$frr_sbindir:$frr_bindir:$PATH"
+		return
+	fi
+
+	export PATH="/usr/lib/frr:/usr/libexec/frr:$PATH"
+
+	local frrinit
+	frrinit=$(command -v frrinit.sh) || {
+		echo "fail: frrinit.sh not found; install FRR or pass a build directory" >&2
+		exit 1
+	}
+
+	local frrcommon
+	frrcommon="$(dirname "$frrinit")/frrcommon.sh"
+	[ -r "$frrcommon" ] || {
+		echo "fail: $frrcommon not found next to frrinit.sh" >&2
+		exit 1
+	}
+
+	# Extract the compiled-in paths without sourcing the whole script (it
+	# exits when the daemons file is missing). suffix is empty here; the
+	# per-namespace suffix is handled by frrcommon.sh itself at runtime.
+	local suffix=""
+	local C_PATH V_PATH B_PATH
+	eval "$(sed -nE 's/^(C_PATH|V_PATH|B_PATH)=("[^"]*").*/\1=\2/p' "$frrcommon")"
+
+	frr_bindir="$B_PATH"
+	frr_sbindir="$(dirname "$frrinit")"
+	frr_etc="$C_PATH"
+	frr_rundir="$V_PATH"
+	# frrcommon.sh only exports the run dir (localstatedir/run/frr or an
+	# overridden /run/frr). The log and lib dirs live under the same
+	# localstatedir; recover it by stripping the trailing run/frr and fall
+	# back to /var when the run dir was overridden to /run.
+	local localstatedir="${V_PATH%/run/frr}"
+	case "$localstatedir" in
+	""|/run) localstatedir=/var ;;
+	esac
+	frr_logdir="$localstatedir/log/frr"
+	frr_libdir="$localstatedir/lib/frr"
+	export PATH="$frr_sbindir:$frr_bindir:$PATH"
+}
+
+resolve_frr_paths "$@"
+
+# Skip the test (exit 125) when the resolved FRR is older than the version
+# required by a feature. Tests request a minimum by setting frr_min_version
+# (and optionally frr_feature for the skip message) before sourcing this file.
+# This happens before _init.sh so unsupported versions are skipped without
+# spawning grout; the _SMOKE_UNSHARED guard avoids rerunning it after the
+# unshare re-exec in _init.sh.
+if [ "${_SMOKE_UNSHARED:-}" != 1 ] && [ -n "${frr_min_version:-}" ]; then
+	frr_version=$(zebra --version | sed -En 's/zebra version //p')
+	oldest=$(printf '%s\n%s\n' "$frr_version" "$frr_min_version" | sort -V | head -n1)
+	if [ "$oldest" != "$frr_min_version" ]; then
+		echo "$0: FRR $frr_version does not support ${frr_feature:-this feature}"
+		exit 125
+	fi
+fi
+
 . $(dirname $0)/_init.sh
+
+# Re-apply the FRR binary PATH through smoke_setenv so it also propagates to
+# the tmux environment in interactive mode.
+smoke_setenv PATH "$frr_sbindir:$frr_bindir:$PATH"
+
+require_tools frrinit.sh vtysh zebra bfdd staticd bgpd isisd ospfd ospf6d \
+	inotifywait
 
 route_nh_id() {
 	local route_nh nh_id
@@ -93,7 +186,7 @@ EOF
 	[ -n "$wait_pattern" ] && wait_event -t 10 "$wait_pattern"
 
 	if [ "$persist" = 1 ]; then
-		cat >>"$builddir/frr_install/etc/frr/frr.conf" <<EOF
+		cat >>"$frr_etc/frr.conf" <<EOF
 $config
 EOF
 	fi
@@ -310,7 +403,7 @@ set_srv6_route() {
 #
 # Simulate a crash of the named FRR daemons (e.g. zebra, staticd) and
 # block until watchfrr has respawned each one. PIDs are read from the
-# per-test pidfiles under $builddir/frr_install/var/run/frr/ so this is
+# per-test pidfiles under the FRR run dir so this is
 # safe to call from tests running in parallel; a host-wide pkill would
 # clobber daemons spawned by sibling smoke tests.
 #
@@ -321,7 +414,7 @@ set_srv6_route() {
 #
 # Fails after 10s if any daemon is not respawned with a different pid.
 kill_frr_daemons() {
-	local frr_run="$builddir/frr_install/var/run/frr"
+	local frr_run="$frr_rundir"
 	local daemon f
 	declare -A pids
 
@@ -348,8 +441,6 @@ start_frr() {
 	local namespace="$1"
 	local use_grout="$2"
 
-	local frr_etc="$builddir/frr_install/etc/frr"
-	local frr_logdir="$builddir/frr_install/var/log/frr"
 	# $frr_log is intentionally global (not local) so tests sourcing
 	# _init_frr.sh can grep it after start_frr completes.
 	local conf_dir daemons_file frrconf_file frr_global_opts
@@ -496,16 +587,15 @@ EOF
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
 	chmod 0777 $tmp # to access on tmp
 
-	if [ -n "${builddir}" ]; then
-		smoke_setenv PATH "$builddir/frr_install/sbin:$builddir/frr_install/bin:$PATH"
-		# isolate FRR state dirs so parallel tests don't collide;
-		# FRR daemons drop privileges to the user that compiled
-		# them (--enable-user), use mode=1777 so they can write
-		for d in etc/frr var/log/frr var/run/frr var/lib/frr; do
-			mkdir -p "$builddir/frr_install/$d"
-			mount -t tmpfs -o mode=1777 tmpfs "$builddir/frr_install/$d"
-		done
-	fi
+	# Isolate the FRR state dirs so parallel tests don't collide and the
+	# host configuration is left untouched. We run in a private mount
+	# namespace, so tmpfs mounts over the compiled-in paths only shadow
+	# them for this test. FRR daemons drop privileges to their configured
+	# user/group (--enable-user), use mode=1777 so they can write.
+	for d in "$frr_etc" "$frr_logdir" "$frr_rundir" "$frr_libdir"; do
+		mkdir -p "$d"
+		mount -t tmpfs -o mode=1777 tmpfs "$d"
+	done
 
 	start_frr "" 1
 fi

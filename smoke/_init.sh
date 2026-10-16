@@ -5,6 +5,8 @@ set -e -o pipefail
 trap '' PIPE
 ulimit -c unlimited
 
+here=$(dirname $0)
+
 if [ "${_SMOKE_UNSHARED:-}" != 1 ]; then
 	# pass the host netns as fd 3 so we can reference it after unshare
 	export _SMOKE_UNSHARED=1
@@ -187,9 +189,24 @@ fail() {
 	return 1
 }
 
+require_tools() {
+	local tool missing=()
+	for tool in "$@"; do
+		command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+	done
+	if [ "${#missing[@]}" -gt 0 ]; then
+		fail "missing required tools: ${missing[*]}"
+	fi
+}
+
 tmp=$(mktemp -d)
 trap cleanup EXIT
+# The build directory is optional. When not given on the command line, use a
+# local ./build if it exists, otherwise assume the binaries are in $PATH.
 builddir=${1-}
+if [ -z "$builddir" ] && [ -x "$here/../build/grout" ]; then
+	builddir=$(cd "$here/../build" && pwd)
+fi
 tmux_windows=()
 
 smoke_setenv() {
@@ -216,6 +233,12 @@ netns_add() {
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_dad=0
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.all.accept_ra=0
 	ip netns exec "$ns" sysctl -wq net.ipv6.conf.default.accept_ra=0
+	# Disable reverse-path filtering in test netns: the Linux peers are
+	# not under test and some tests (e.g. ECMP) rely on asymmetric paths
+	# that strict RPF would drop. New netns inherit the host's default
+	# rp_filter, which is strict (1) on some distros.
+	ip netns exec "$ns" sysctl -wq net.ipv4.conf.all.rp_filter=0
+	ip netns exec "$ns" sysctl -wq net.ipv4.conf.default.rp_filter=0
 	cat >> $tmp/cleanup <<EOF
 ip netns pids "$ns" | xargs -r kill -TERM 2>/dev/null || true
 sleep 0.5
@@ -347,8 +370,6 @@ wait_listeners() {
 	done
 }
 
-here=$(dirname $0)
-
 if [ "$run_grout" = true ]; then
 	smoke_setenv GROUT_SOCK_PATH "$tmp/grout.sock"
 	smoke_setenv GROUT_OVERRIDE_DEFAULT_ROUTE true
@@ -358,6 +379,8 @@ if [ -n "${builddir}" ]; then
 	smoke_setenv PATH "$builddir:$PATH"
 fi
 smoke_setenv PATH "$here/../cli:$PATH"
+
+require_tools grout grcli jq socat taskset ss md5sum tcpdump arping ndisc6
 
 grout_extra_options=""
 if [ "$test_frr" = true ] && [ "$run_frr" = true ]; then
