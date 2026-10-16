@@ -61,8 +61,8 @@ ipip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 		// The hw checksum offload only works on the outer IP.
-		// Clear the offload flag so that ip_input will check it in software.
-		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
+		// Clear the offload flags so that ip_input will check it in software.
+		mbuf->ol_flags &= ~(RTE_MBUF_F_RX_IP_CKSUM_MASK | RTE_MBUF_F_RX_L4_CKSUM_MASK);
 		eth_data = eth_input_mbuf_data(mbuf);
 		eth_data->iface = ipip;
 		eth_data->domain = ETH_DOMAIN_LOCAL;
