@@ -169,7 +169,7 @@ static void fix_l4_csum(struct rte_mbuf *m) {
 	uint32_t hdr_len;
 	uint32_t ptype;
 
-	// return early if the L4 checksum was not offloaded
+	// return early unless the L4 checksum field needs to be set
 	if ((m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) != RTE_MBUF_F_RX_L4_CKSUM_NONE)
 		return;
 
