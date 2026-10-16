@@ -114,11 +114,11 @@ static uint16_t ip6_input_local_process(
 
 		// verify checksum if not already checked by hardware
 		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
 		case RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN:
 			if (rte_ipv6_udptcp_cksum_verify(
 				    ip, rte_pktmbuf_mtod_offset(m, void *, d->ext_offset)
-			    )) {
+			    )
+			    < 0) {
 				edge = BAD_CHECKSUM;
 				goto next;
 			}
@@ -126,6 +126,11 @@ static uint16_t ip6_input_local_process(
 		case RTE_MBUF_F_RX_L4_CKSUM_BAD:
 			edge = BAD_CHECKSUM;
 			goto next;
+		case RTE_MBUF_F_RX_L4_CKSUM_GOOD:
+			break;
+		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
+			// checksum field unset, but packet known to be good
+			break;
 		}
 
 adj_next:
