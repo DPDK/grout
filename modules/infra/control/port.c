@@ -159,6 +159,14 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 		conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 	conf.rxmode.offloads &= info.rx_offload_capa;
 	conf.txmode.offloads &= info.tx_offload_capa;
+
+	// Only expect an RSS hash in received mbufs when the port is configured
+	// for RSS and the driver can deliver one. net_virtio only advertises the
+	// offload when the host offers hash reports, which are not requested
+	// here, so it never delivers a hash either.
+	p->soft_rss = conf.rxmode.mq_mode != RTE_ETH_MQ_RX_RSS
+		|| (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_RSS_HASH) == 0
+		|| strcmp(info.driver_name, "net_virtio") == 0;
 	if (info.dev_flags != NULL && *info.dev_flags & RTE_ETH_DEV_INTR_LSC) {
 		conf.intr_conf.lsc = 1;
 	}
