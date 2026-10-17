@@ -184,6 +184,58 @@ static void ipv4_fragments_share_one_hash(void **) {
 	);
 }
 
+static void short_frames_hash_what_they_carry(void **) {
+	struct test_packet full, no_l4, no_l3, frag;
+	uint32_t l3_only;
+
+	packet_init(&full, RTE_BE16(20000));
+	packet_init(&frag, RTE_BE16(20000));
+	frag.ip.fragment_offset = RTE_BE16(1);
+	l3_only = gr_mbuf_flow_hash(&frag.mbuf, GR_MBUF_FLOW_HASH_RSS);
+	assert_int_not_equal(gr_mbuf_flow_hash(&full.mbuf, GR_MBUF_FLOW_HASH_RSS), l3_only);
+
+	// a frame cut inside the UDP ports is hashed on addresses only
+	packet_init(&no_l4, RTE_BE16(20000));
+	no_l4.mbuf.data_len = sizeof(no_l4.eth) + sizeof(no_l4.ip) + 2;
+	no_l4.mbuf.pkt_len = no_l4.mbuf.data_len;
+	assert_int_equal(gr_mbuf_flow_hash(&no_l4.mbuf, GR_MBUF_FLOW_HASH_RSS), l3_only);
+
+	// a frame cut inside the IP header hashes to zero
+	packet_init(&no_l3, RTE_BE16(20000));
+	no_l3.mbuf.data_len = sizeof(no_l3.eth) + sizeof(no_l3.ip) - 1;
+	no_l3.mbuf.pkt_len = no_l3.mbuf.data_len;
+	assert_int_equal(gr_mbuf_flow_hash(&no_l3.mbuf, GR_MBUF_FLOW_HASH_RSS), 0);
+	no_l3.mbuf.data_len = sizeof(no_l3.eth) - 1;
+	no_l3.mbuf.pkt_len = no_l3.mbuf.data_len;
+	assert_int_equal(gr_mbuf_flow_hash(&no_l3.mbuf, GR_MBUF_FLOW_HASH_L2), 0);
+}
+
+static void runt_ipv6_hashes_to_zero(void **) {
+	struct test_packet6 p;
+
+	packet6_init(&p, RTE_BE16(20000));
+	p.mbuf.data_len = sizeof(p.eth) + sizeof(p.ip) - 1;
+	p.mbuf.pkt_len = p.mbuf.data_len;
+	assert_int_equal(gr_mbuf_flow_hash(&p.mbuf, GR_MBUF_FLOW_HASH_RSS), 0);
+}
+
+// L3 is complete but the ports are not: hash the addresses alone, like a next
+// header that carries no ports, instead of reading past the packet.
+static void truncated_ipv6_ports_hash_like_no_ports(void **) {
+	struct test_packet6 no_ports, truncated;
+
+	packet6_init(&no_ports, RTE_BE16(20000));
+	no_ports.ip.proto = IPPROTO_HOPOPTS;
+	packet6_init(&truncated, RTE_BE16(20000));
+	truncated.mbuf.data_len = sizeof(truncated.eth) + sizeof(truncated.ip);
+	truncated.mbuf.pkt_len = truncated.mbuf.data_len;
+
+	assert_int_equal(
+		gr_mbuf_flow_hash(&no_ports.mbuf, GR_MBUF_FLOW_HASH_RSS),
+		gr_mbuf_flow_hash(&truncated.mbuf, GR_MBUF_FLOW_HASH_RSS)
+	);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(software_hash_is_stable_per_flow),
@@ -196,6 +248,9 @@ int main(void) {
 		cmocka_unit_test(fragment_with_df_ignores_ports),
 		cmocka_unit_test(ipv4_fragments_share_one_hash),
 		cmocka_unit_test(ipv6_fragments_ignore_ports),
+		cmocka_unit_test(short_frames_hash_what_they_carry),
+		cmocka_unit_test(runt_ipv6_hashes_to_zero),
+		cmocka_unit_test(truncated_ipv6_ports_hash_like_no_ports),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
