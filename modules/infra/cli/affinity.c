@@ -72,24 +72,52 @@ static cmd_status_t rxq_set(struct gr_api_client *c, const struct ec_pnode *p) {
 	return CMD_SUCCESS;
 }
 
-static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
-	const struct gr_port_rxq_map *q;
-	int ret;
+static cmd_status_t qmap_list(struct gr_api_client *c, const struct ec_pnode *p) {
+	bool rx = arg_str(p, "rx") != NULL;
+	bool tx = arg_str(p, "tx") != NULL;
+	char buf[BUFSIZ];
+	int ret = 0;
+
+	if (!rx && !tx)
+		rx = tx = true;
 
 	struct gr_table *table = gr_table_new();
-	gr_table_column(table, "CPU_ID", GR_DISP_RIGHT | GR_DISP_INT); // 0
-	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 1
-	gr_table_column(table, "RXQ_ID", GR_DISP_RIGHT | GR_DISP_INT); // 2
-	gr_table_column(table, "ENABLED", GR_DISP_BOOL); // 3
+	gr_table_column(table, "DIR", GR_DISP_LEFT); // 0
+	gr_table_column(table, "CPU_IDS", GR_DISP_LEFT); // 1
+	gr_table_column(table, "IFACE", GR_DISP_LEFT); // 2
+	gr_table_column(table, "QUEUE_ID", GR_DISP_RIGHT | GR_DISP_INT); // 3
+	gr_table_column(table, "ENABLED", GR_DISP_BOOL); // 4
 
-	gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
-		gr_table_cell(table, 0, "%u", q->cpu_id);
-		gr_table_cell(table, 1, "%s", iface_name_from_id(c, q->iface_id));
-		gr_table_cell(table, 2, "%u", q->rxq_id);
-		gr_table_cell(table, 3, "%s", q->enabled ? "true" : "false");
+	if (rx) {
+		const struct gr_port_rxq_map *q;
 
-		if (gr_table_print_row(table) < 0)
-			break;
+		gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_RXQ_LIST, 0, NULL) {
+			gr_table_cell(table, 0, "%s", "rx");
+			gr_table_cell(table, 1, "%u", q->cpu_id);
+			gr_table_cell(table, 2, "%s", iface_name_from_id(c, q->iface_id));
+			gr_table_cell(table, 3, "%u", q->rxq_id);
+			gr_table_cell(table, 4, "%s", q->enabled ? "true" : "false");
+
+			if (gr_table_print_row(table) < 0)
+				break;
+		}
+	}
+
+	if (tx && ret >= 0) {
+		const struct gr_port_txq_map *q;
+
+		gr_api_client_stream_foreach (q, ret, c, GR_AFFINITY_TXQ_LIST, 0, NULL) {
+			if (cpuset_format(buf, sizeof(buf), &q->cpus) < 0)
+				buf[0] = '\0';
+			gr_table_cell(table, 0, "%s", "tx");
+			gr_table_cell(table, 1, "%s", buf);
+			gr_table_cell(table, 2, "%s", iface_name_from_id(c, q->iface_id));
+			gr_table_cell(table, 3, "%u", q->txq_id);
+			gr_table_cell(table, 4, "%s", q->enabled ? "true" : "false");
+
+			if (gr_table_print_row(table) < 0)
+				break;
+		}
 	}
 
 	gr_table_free(table);
@@ -100,7 +128,7 @@ static cmd_status_t rxq_list(struct gr_api_client *c, const struct ec_pnode *) {
 #define CPU_LIST_RE "^[0-9,-]+$"
 #define AFFINITY_ARG CTX_ARG("affinity", "CPU and physical queue affinity.")
 #define CPU_CTX(root) CLI_CONTEXT(root, AFFINITY_ARG, CTX_ARG("cpus", "CPU masks."))
-#define QMAP_CTX(root) CLI_CONTEXT(root, AFFINITY_ARG, CTX_ARG("qmap", "Physical RXQ mappings."))
+#define QMAP_CTX(root) CLI_CONTEXT(root, AFFINITY_ARG, CTX_ARG("qmap", "Physical queue mappings."))
 
 static int ctx_init(struct ec_node *root) {
 	int ret;
@@ -138,7 +166,14 @@ static int ctx_init(struct ec_node *root) {
 	);
 	if (ret < 0)
 		return ret;
-	ret = CLI_COMMAND(QMAP_CTX(root), "[show]", rxq_list, "Display DPDK port RXQ affinity.");
+	ret = CLI_COMMAND(
+		QMAP_CTX(root),
+		"[show] [rx|tx]",
+		qmap_list,
+		"Display DPDK port queue affinity.",
+		with_help("Only display RX queues.", ec_node_str("rx", "rx")),
+		with_help("Only display TX queues.", ec_node_str("tx", "tx"))
+	);
 	if (ret < 0)
 		return ret;
 

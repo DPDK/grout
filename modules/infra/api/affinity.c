@@ -82,6 +82,38 @@ static struct api_out rxq_list(const void * /*request*/, struct api_ctx *ctx) {
 	return api_out(0, 0, NULL);
 }
 
+static struct api_out txq_list(const void * /*request*/, struct api_ctx *ctx) {
+	struct iface *iface = NULL;
+
+	while ((iface = iface_next(GR_IFACE_TYPE_PORT, iface)) != NULL) {
+		const struct iface_info_port *port = iface_info_port(iface);
+
+		for (uint16_t txq_id = 0; txq_id < port->n_txq; txq_id++) {
+			struct gr_port_txq_map q = {
+				.iface_id = iface->id,
+				.txq_id = txq_id,
+				.enabled = port->started
+					&& (!port->dynamic_queue_state
+					    || port->txq_enabled[txq_id]),
+			};
+			struct queue_map *qmap;
+			struct worker *worker;
+
+			CPU_ZERO(&q.cpus);
+			STAILQ_FOREACH (worker, &workers, next) {
+				vec_foreach_ref (qmap, worker->txqs) {
+					if (qmap->port_id == port->port_id
+					    && qmap->queue_id == txq_id)
+						CPU_SET(worker->cpu_id, &q.cpus);
+				}
+			}
+			api_send(ctx, sizeof(q), &q);
+		}
+	}
+
+	return api_out(0, 0, NULL);
+}
+
 static struct api_out rxq_set(const void *request, struct api_ctx *) {
 	const struct gr_affinity_rxq_set_req *req = request;
 	struct iface *iface = iface_from_id(req->iface_id);
@@ -100,6 +132,7 @@ static struct api_out rxq_set(const void *request, struct api_ctx *) {
 RTE_INIT(_init) {
 	api_handler(GR_AFFINITY_RXQ_LIST, rxq_list);
 	api_handler(GR_AFFINITY_RXQ_SET, rxq_set);
+	api_handler(GR_AFFINITY_TXQ_LIST, txq_list);
 	api_handler(GR_AFFINITY_CPU_GET, affinity_get);
 	api_handler(GR_AFFINITY_CPU_SET, affinity_set);
 }

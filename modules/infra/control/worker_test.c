@@ -19,6 +19,8 @@
 
 #include <rte_ethdev.h>
 
+#include <string.h>
+
 static struct iface *ifaces[] = {NULL, NULL, NULL};
 static struct worker w1 = {.cpu_id = 1};
 static struct worker w2 = {.cpu_id = 2};
@@ -449,6 +451,115 @@ static void queue_distribute_increase(void **) {
 	assert_qmaps(w5.txqs, q(0, 1), q(1, 1), q(2, 1));
 }
 
+static bool rxq_enabled(const struct worker *w, uint16_t port_id, uint16_t queue_id) {
+	const struct queue_map *qmap;
+
+	vec_foreach_ref (qmap, w->rxqs) {
+		if (qmap->port_id == port_id && qmap->queue_id == queue_id)
+			return qmap->enabled;
+	}
+	fail_msg("port %u rxq %u not found", port_id, queue_id);
+	return false;
+}
+
+static void dynamic_queue_state_reset(struct iface_info_port *port) {
+	port->dynamic_queue_state = false;
+	memset(port->rxq_enabled, 0, sizeof(port->rxq_enabled));
+	memset(port->txq_enabled, 0, sizeof(port->txq_enabled));
+}
+
+static void txq_refresh_uses_only_active_dynamic_queues(void **) {
+	struct iface_info_port *port = iface_info_port(ifaces[0]);
+
+	common_mocks();
+	port->dynamic_queue_state = true;
+	port->rxq_enabled[0] = true;
+	port->rxq_enabled[1] = true;
+	port->txq_enabled[0] = true;
+	port->txq_enabled[2] = true;
+
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 2), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	port->txq_enabled[2] = false;
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 0), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	port->txq_enabled[0] = false;
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_qmaps(w1.txqs, q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	dynamic_queue_state_reset(port);
+}
+
+static void rxq_refresh_follows_dynamic_queues(void **) {
+	struct iface_info_port *p0 = iface_info_port(ifaces[0]);
+	struct iface_info_port *p1 = iface_info_port(ifaces[1]);
+	struct queue_map *qmap;
+	struct worker *w;
+
+	common_mocks();
+	p0->dynamic_queue_state = true;
+	p1->dynamic_queue_state = true;
+	for (uint16_t i = 0; i < 3; i++) {
+		p0->txq_enabled[i] = true;
+		p1->txq_enabled[i] = true;
+	}
+	p0->rxq_enabled[0] = true;
+	p0->rxq_enabled[1] = false;
+	p1->rxq_enabled[0] = true;
+	p1->rxq_enabled[1] = true;
+
+	// disabled guest queues are skipped, other queues on the port stay polled
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_true(rxq_enabled(&w1, 0, 0));
+	assert_false(rxq_enabled(&w1, 0, 1));
+	assert_true(rxq_enabled(&w1, 1, 0));
+	assert_true(rxq_enabled(&w2, 1, 1));
+	assert_true(rxq_enabled(&w2, 2, 0));
+	assert_true(rxq_enabled(&w2, 2, 1));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	// every queue polled by w1 disabled: its graph is empty, TX is unchanged
+	p0->rxq_enabled[0] = false;
+	p1->rxq_enabled[0] = false;
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_false(rxq_enabled(&w1, 0, 0));
+	assert_false(rxq_enabled(&w1, 0, 1));
+	assert_false(rxq_enabled(&w1, 1, 0));
+	assert_true(rxq_enabled(&w2, 1, 1));
+	assert_qmaps(w1.txqs, q(0, 0), q(1, 0), q(2, 0));
+	assert_qmaps(w2.txqs, q(0, 1), q(1, 1), q(2, 1));
+	assert_qmaps(w3.txqs);
+
+	// guest re-enables one queue
+	p1->rxq_enabled[0] = true;
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_true(rxq_enabled(&w1, 1, 0));
+
+	// a stopped port stays disabled whatever the guest reports
+	p1->started = false;
+	assert_int_equal(worker_queue_refresh(), 0);
+	assert_false(rxq_enabled(&w1, 1, 0));
+	assert_false(rxq_enabled(&w2, 1, 1));
+	p1->started = true;
+
+	dynamic_queue_state_reset(p0);
+	dynamic_queue_state_reset(p1);
+	STAILQ_FOREACH (w, &workers, next) {
+		vec_foreach_ref (qmap, w->rxqs)
+			qmap->enabled = true;
+	}
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(rxq_assign_main_lcore),
@@ -456,6 +567,8 @@ int main(void) {
 		cmocka_unit_test(rxq_assign_invalid_port),
 		cmocka_unit_test(rxq_assign_invalid_rxq),
 		cmocka_unit_test(rxq_assign_already_set),
+		cmocka_unit_test(txq_refresh_uses_only_active_dynamic_queues),
+		cmocka_unit_test(rxq_refresh_follows_dynamic_queues),
 		cmocka_unit_test(rxq_assign_existing_worker),
 		cmocka_unit_test(rxq_assign_existing_worker_destroy),
 		cmocka_unit_test(rxq_assign_new_worker),
