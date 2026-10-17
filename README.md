@@ -184,9 +184,13 @@ NAME  ID   FLAGS       MODE  DOMAIN  TYPE  INFO
 p0    256  up running  L3    0       port  devargs=0000:8a:00.0 mac=30:3e:a7:0b:eb:c0
 p1    257  up running  L3    0       port  devargs=0000:8a:00.1 mac=30:3e:a7:0b:eb:c1
 grout# affinity qmap show
-IFACE  RXQ_ID  CPU_ID  ENABLED
-p0     0       2       1
-p1     0       22      1
+DIR  CPU_IDS  IFACE  QUEUE_ID  ENABLED
+rx   2        p0            0  true
+rx   22       p1            0  true
+tx   2        p0            0  true
+tx   22       p0            1  true
+tx   2        p1            0  true
+tx   22       p1            1  true
 grout# address show
 IFACE  ADDRESS
 p0     172.16.0.2/24
