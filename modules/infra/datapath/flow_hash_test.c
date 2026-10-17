@@ -236,6 +236,28 @@ static void truncated_ipv6_ports_hash_like_no_ports(void **) {
 	);
 }
 
+static void l3_ipv4_hash_matches_ethernet_hash(void **) {
+	struct test_packet p;
+	uint32_t expected;
+
+	packet_init(&p, RTE_BE16(20000));
+	expected = gr_mbuf_flow_hash(&p.mbuf, GR_MBUF_FLOW_HASH_L3_L4);
+	assert_non_null(rte_pktmbuf_adj(&p.mbuf, sizeof(p.eth)));
+
+	assert_int_equal(gr_mbuf_flow_hash_l3(&p.mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4)), expected);
+}
+
+static void l3_ipv6_hash_matches_ethernet_hash(void **) {
+	struct test_packet6 p;
+	uint32_t expected;
+
+	packet6_init(&p, RTE_BE16(20000));
+	expected = gr_mbuf_flow_hash(&p.mbuf, GR_MBUF_FLOW_HASH_L3_L4);
+	assert_non_null(rte_pktmbuf_adj(&p.mbuf, sizeof(p.eth)));
+
+	assert_int_equal(gr_mbuf_flow_hash_l3(&p.mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV6)), expected);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(software_hash_is_stable_per_flow),
@@ -251,6 +273,8 @@ int main(void) {
 		cmocka_unit_test(short_frames_hash_what_they_carry),
 		cmocka_unit_test(runt_ipv6_hashes_to_zero),
 		cmocka_unit_test(truncated_ipv6_ports_hash_like_no_ports),
+		cmocka_unit_test(l3_ipv4_hash_matches_ethernet_hash),
+		cmocka_unit_test(l3_ipv6_hash_matches_ethernet_hash),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

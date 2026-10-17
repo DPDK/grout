@@ -4,11 +4,14 @@
 #include "config.h"
 #include "control_input.h"
 #include "control_queue.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "log.h"
 #include "mbuf.h"
 #include "trace.h"
 #include "worker.h"
+
+#include <rte_ether.h>
 
 LOG_TYPE("graph");
 
@@ -71,6 +74,25 @@ static uint16_t control_input_process(
 	for (unsigned i = 0; i < n; i++) {
 		mbuf = msg[i].mbuf;
 		edge = msg[i].edge;
+
+		// Nothing upstream of here computes an RSS hash. Hash the packets
+		// that are IP framed, as told by the packet type set by the sender.
+		if (!(mbuf->ol_flags & RTE_MBUF_F_RX_RSS_HASH)) {
+			switch (mbuf->packet_type) {
+			case RTE_PTYPE_L3_IPV4:
+				gr_mbuf_flow_hash_set(
+					mbuf,
+					gr_mbuf_flow_hash_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV4))
+				);
+				break;
+			case RTE_PTYPE_L3_IPV6:
+				gr_mbuf_flow_hash_set(
+					mbuf,
+					gr_mbuf_flow_hash_l3(mbuf, RTE_BE16(RTE_ETHER_TYPE_IPV6))
+				);
+				break;
+			}
+		}
 
 		if (gr_trace_all_enabled())
 			gr_mbuf_trace_add(mbuf, node, 0); // no data
