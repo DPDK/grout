@@ -12,6 +12,7 @@
 
 #include <rte_common.h>
 #include <rte_hash.h>
+#include <rte_spinlock.h>
 
 LOG_TYPE("fdb");
 
@@ -24,6 +25,20 @@ struct fdb_key {
 static unsigned fdb_max_entries;
 static struct rte_hash *fdb_hash;
 static struct rte_mempool *fdb_pool;
+// Hash mutations have one writer at a time; lookups remain lock-free.
+// Online datapath readers may only try this lock, never wait for a writer
+// which can be waiting for those readers' QSBR grace period.
+static rte_spinlock_t fdb_writer_lock = RTE_SPINLOCK_INITIALIZER;
+
+static rte_spinlock_t *fdb_write_lock(void) {
+	rte_spinlock_lock(&fdb_writer_lock);
+	return &fdb_writer_lock;
+}
+
+static void fdb_write_unlock(rte_spinlock_t **lock) {
+	if (*lock != NULL)
+		rte_spinlock_unlock(*lock);
+}
 
 static void fdb_free_entry(void *pool, void *fdb) {
 	event_push(GR_EVENT_FDB_DEL, fdb);
@@ -116,6 +131,19 @@ void fdb_learn(
 	struct fdb_entry *fdb;
 
 	if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) < 0) {
+		// A reader must not wait for a writer which may itself be waiting
+		// for this reader's QSBR grace period. Learning is best effort.
+		__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t
+			*lock = rte_spinlock_trylock(&fdb_writer_lock) ? &fdb_writer_lock : NULL;
+		if (lock == NULL)
+			return;
+
+		// Another learner or an API writer may have inserted after the
+		// first lookup. Never overwrite its pointer from an online reader:
+		// DPDK's synchronous reclamation would wait for that same reader.
+		if (rte_hash_lookup_data(fdb_hash, &key, (void **)&fdb) >= 0)
+			goto update;
+
 		if (rte_mempool_get(fdb_pool, (void **)&fdb) < 0)
 			return; // pool exhausted
 
@@ -137,6 +165,7 @@ void fdb_learn(
 		event_push(GR_EVENT_FDB_ADD, fdb);
 	}
 
+update:
 	if ((fdb->flags & GR_FDB_F_LEARN)
 	    && unlikely(fdb->iface_id != iface_id || !l3_addr_eq(&fdb->vtep, vtep))) {
 		// update in case the mac address has moved
@@ -151,6 +180,7 @@ void fdb_learn(
 }
 
 void fdb_purge_iface(uint16_t iface_id) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
 	const void *key;
@@ -158,6 +188,9 @@ void fdb_purge_iface(uint16_t iface_id) {
 	while (rte_hash_iterate(fdb_hash, &key, (void **)&fdb, &next) >= 0) {
 		if (fdb->iface_id == iface_id) {
 			rte_hash_del_key(fdb_hash, key);
+			// Synchronous reclamation may already have returned this entry
+			// to the pool. Do not inspect or modify it after deletion.
+			continue;
 		}
 		if (fdb->prev_iface_id == iface_id) {
 			fdb->prev_iface_id = GR_IFACE_ID_UNDEF;
@@ -166,6 +199,7 @@ void fdb_purge_iface(uint16_t iface_id) {
 }
 
 int fdb_add_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct fdb_key key = {bridge_id, 0, *mac};
 	struct fdb_entry *fdb;
 	int ret;
@@ -196,6 +230,7 @@ int fdb_add_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 }
 
 int fdb_del_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct fdb_key key = {bridge_id, 0, *mac};
 	struct fdb_entry *fdb;
 
@@ -211,6 +246,7 @@ int fdb_del_local(uint16_t bridge_id, const struct rte_ether_addr *mac) {
 }
 
 static struct api_out fdb_add(const void *request, struct api_ctx *) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct gr_fdb_add_req *req = request;
 	const struct iface *iface;
 	struct fdb_entry *e;
@@ -265,6 +301,7 @@ static struct api_out fdb_add(const void *request, struct api_ctx *) {
 }
 
 static struct api_out fdb_del(const void *request, struct api_ctx *) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct gr_fdb_del_req *req = request;
 	const struct fdb_key key = {req->bridge_id, req->vlan_id, req->mac};
 	const struct fdb_entry *fdb;
@@ -310,6 +347,7 @@ static inline bool fdb_match(
 }
 
 static struct api_out fdb_flush(const void *request, struct api_ctx *) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct gr_fdb_flush_req *req = request;
 	struct fdb_entry *fdb;
 	uint32_t next = 0;
@@ -362,6 +400,7 @@ static struct api_out fdb_config_get(const void * /*request*/, struct api_ctx *)
 }
 
 static struct api_out fdb_config_set(const void *request, struct api_ctx *) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct gr_fdb_config_set_req *req = request;
 
 	if (req->max_entries == 0)
@@ -468,6 +507,7 @@ static void fdb_remove_hw_filters(const struct iface *bridge, const struct fdb_e
 }
 
 static void fdb_iface_del_cb(uint32_t /*event*/, const void *obj) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct iface *iface = obj;
 	const struct iface *bridge;
 	struct fdb_entry *fdb;
@@ -488,6 +528,7 @@ static void fdb_iface_del_cb(uint32_t /*event*/, const void *obj) {
 }
 
 static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	const struct iface *bridge;
 	struct fdb_entry *fdb;
 	gr_clock_ns_t now;
@@ -526,6 +567,7 @@ static void fdb_ageing_cb(evutil_socket_t, short /*what*/, void * /*priv*/) {
 static struct event *ageing_timer;
 
 static void fdb_init(struct event_base *base) {
+	__attribute__((cleanup(fdb_write_unlock))) rte_spinlock_t *lock = fdb_write_lock();
 	uint32_t max = gr_config.max_fdb_entries;
 	if (fdb_reconfig(max) < 0)
 		ABORT("fdb_reconfig failed");
