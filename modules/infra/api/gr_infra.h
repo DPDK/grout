@@ -220,6 +220,14 @@ struct gr_port_rxq_map {
 	uint16_t enabled;
 };
 
+// Port TX queue state and the worker CPUs transmitting on it.
+struct gr_port_txq_map {
+	uint16_t iface_id;
+	uint16_t txq_id;
+	uint16_t enabled;
+	cpu_set_t cpus;
+};
+
 // Infrastructure statistics entry.
 struct gr_stat {
 	char name[64];
@@ -257,6 +265,7 @@ enum gr_infra_requests : uint32_t {
 	GR_IFACE_CONFIG_GET,
 	GR_IFACE_CONFIG_SET,
 	GR_DIAG_OBJ_DUMP,
+	GR_AFFINITY_TXQ_LIST,
 };
 
 enum gr_infra_events : uint32_t {
@@ -417,6 +426,7 @@ GR_REQ(GR_IFACE_STATS_GET, struct gr_empty, struct gr_iface_stats_get_resp);
 
 // List RX queue to CPU mappings.
 GR_REQ_STREAM(GR_AFFINITY_RXQ_LIST, struct gr_empty, struct gr_port_rxq_map);
+GR_REQ_STREAM(GR_AFFINITY_TXQ_LIST, struct gr_empty, struct gr_port_txq_map);
 
 // Modify one RXQ to CPU mapping (only for GR_IFACE_TYPE_PORT).
 struct gr_affinity_rxq_set_req {
