@@ -25,6 +25,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	char *linux_ifname;
 	uint32_t pool_size;
 	bool virtio_offloads;
+	bool soft_rss;
 	uint64_t rx_offloads;
 	rte_spinlock_t txq_locks[RTE_MAX_QUEUES_PER_PORT];
 });

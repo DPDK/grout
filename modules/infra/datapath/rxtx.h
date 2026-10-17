@@ -64,6 +64,7 @@ typedef enum : uint16_t {
 	RXTX_F_TXQ_SHARED = GR_BIT16(1),
 	RXTX_F_BOND = GR_BIT16(2),
 	RXTX_F_VIRTIO = GR_BIT16(3),
+	RXTX_F_SOFT_RSS = GR_BIT16(4),
 } rxtx_flags_t;
 
 struct rxtx_trace_data {
@@ -74,9 +75,11 @@ struct rxtx_trace_data {
 uint16_t rx_virtio_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_soft_rss_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_virtio_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_offload_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t rx_bond_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
+uint16_t rx_bond_soft_rss_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 
 uint16_t tx_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t tx_shared_process(struct rte_graph *, struct rte_node *, void **, uint16_t);

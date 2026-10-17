@@ -168,6 +168,8 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 			// virtio driver supports Rx vlan stripping but requires help for L4 csum
 			if (port->virtio_offloads)
 				node->process = rx_bond_virtio_process;
+			else if (port->soft_rss)
+				node->process = rx_bond_soft_rss_process;
 			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 				node->process = rx_bond_offload_process;
 			else
@@ -176,6 +178,8 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 			// virtio driver supports Rx vlan stripping but requires help for L4 csum
 			if (port->virtio_offloads)
 				node->process = rx_virtio_process;
+			else if (port->soft_rss)
+				node->process = rx_soft_rss_process;
 			else if (port->rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 				node->process = rx_offload_process;
 			else
