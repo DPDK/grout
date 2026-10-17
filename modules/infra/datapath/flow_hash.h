@@ -26,3 +26,10 @@ static inline uint32_t gr_mbuf_flow_hash(const struct rte_mbuf *m, gr_mbuf_flow_
 		return m->hash.rss;
 	return gr_mbuf_flow_hash_compute(m, mode);
 }
+
+// Store a software flow hash where a driver would have put its RSS value, so
+// that every consumer keeps reading m->hash.rss the same way.
+static inline void gr_mbuf_flow_hash_set(struct rte_mbuf *m, uint32_t hash) {
+	m->hash.rss = hash;
+	m->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
+}
