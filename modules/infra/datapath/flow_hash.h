@@ -27,6 +27,10 @@ static inline uint32_t gr_mbuf_flow_hash(const struct rte_mbuf *m, gr_mbuf_flow_
 	return gr_mbuf_flow_hash_compute(m, mode);
 }
 
+// Same as gr_mbuf_flow_hash_compute() in L3/L4 mode for packets whose data
+// starts with an IPv4 or IPv6 header. eth_type must match that header.
+uint32_t gr_mbuf_flow_hash_l3(const struct rte_mbuf *, rte_be16_t eth_type);
+
 // Store a software flow hash where a driver would have put its RSS value, so
 // that every consumer keeps reading m->hash.rss the same way.
 static inline void gr_mbuf_flow_hash_set(struct rte_mbuf *m, uint32_t hash) {

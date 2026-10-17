@@ -3,6 +3,7 @@
 
 #include "clock.h"
 #include "control_input.h"
+#include "flow_hash.h"
 #include "graph.h"
 #include "iface.h"
 #include "ip4.h"
@@ -120,8 +121,7 @@ static uint16_t icmp_local_send_process(
 
 		// Fake RSS to spread the traffic
 		// for ECMP routes or active/active bonds.
-		mbuf->hash.rss = msg.ident;
-		mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
+		gr_mbuf_flow_hash_set(mbuf, msg.ident);
 
 		data = ip_local_mbuf_data(mbuf);
 		data->proto = IPPROTO_ICMP;
