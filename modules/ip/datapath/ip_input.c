@@ -84,6 +84,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 				edge = BAD_CHECKSUM;
 				goto next;
 			}
+			mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
 			break;
 		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
 			edge = BAD_CHECKSUM;
@@ -91,7 +92,16 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		case RTE_MBUF_F_RX_IP_CKSUM_GOOD:
 			break;
 		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
-			// checksum field unset, but packet known to be good
+			// Packet known to be good, checksum field unset, set it.
+			ip->hdr_checksum = 0;
+			ip->hdr_checksum = rte_ipv4_cksum(ip);
+#if 0 // Non-optimized
+			mbuf->ol_flags &= ~RTE_MBUF_F_RX_IP_CKSUM_MASK;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+#else // Optimized
+			// Note: CKSUM_GOOD (0b10) = CKSUM_NONE (0b11) & ~(CKSUM_BAD (0b01))
+			mbuf->ol_flags &= ~RTE_MBUF_F_RX_IP_CKSUM_BAD;
+#endif
 			break;
 		}
 
@@ -118,7 +128,7 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		// (5) The IP total length field must be large enough to hold the IP
 		//     datagram header, whose length is specified in the IP header
 		//     length field.
-		if (rte_cpu_to_be_16(ip->total_length) < sizeof(struct rte_ipv4_hdr)) {
+		if (rte_cpu_to_be_16(ip->total_length) < rte_ipv4_hdr_len(ip)) {
 			edge = BAD_LENGTH;
 			goto next;
 		}
@@ -191,8 +201,14 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
-			struct rte_ipv4_hdr *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
-			*t = *ip;
+			size_t len = rte_ipv4_hdr_len(ip);
+			if (unlikely(len < sizeof(struct rte_ipv4_hdr)))
+				len = sizeof(struct rte_ipv4_hdr);
+			void *t = gr_mbuf_trace_add(mbuf, node, len);
+			__rte_assume((len & 0x3) == 0);
+			__rte_assume(len >= 20);
+			__rte_assume(len <= 60);
+			rte_memcpy(t, ip, len);
 		}
 		rte_node_enqueue_x1(graph, node, edge, mbuf);
 	}
