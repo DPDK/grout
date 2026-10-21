@@ -170,9 +170,16 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	rte_pktmbuf_trim(mbuf, read_len - len);
 
-	// packet sent from linux tun iface, no need to compute checksum;
-	mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
 	mbuf->packet_type = rte_net_get_ptype(mbuf, NULL, RTE_PTYPE_ALL_MASK);
+
+	// Packet sent from linux TAP interface, no need to compute checksums.
+	// XXX: Malicious/faulty application could send packet with bad checksums using raw socket.
+	if (mbuf->packet_type & RTE_PTYPE_L3_IPV4)
+		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+	if ((mbuf->packet_type & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_TCP
+	    || (mbuf->packet_type & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP
+	    || (mbuf->packet_type & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_SCTP)
+		mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 
@@ -188,11 +195,10 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 		rte_pktmbuf_adj(mbuf, sizeof(*eth));
 
-		if (ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV4))
-			mbuf->packet_type = RTE_PTYPE_L3_IPV4;
-		else if (ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6))
-			mbuf->packet_type = RTE_PTYPE_L3_IPV6;
-		else {
+		if (unlikely(!(
+			    ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV4)
+			    || ether_type == RTE_BE16(RTE_ETHER_TYPE_IPV6)
+		    ))) {
 			LOG_RATELIMIT(
 				ERR,
 				rx_bad_ether_type,
