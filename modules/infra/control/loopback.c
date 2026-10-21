@@ -17,6 +17,7 @@
 #include <event2/event.h>
 #include <rte_errno.h>
 #include <rte_malloc.h>
+#include <rte_net.h>
 
 #include <fcntl.h>
 #include <linux/if_tun.h>
@@ -36,6 +37,7 @@ LOG_COUNTER(tun_deleted);
 LOG_COUNTER(rx_pool_exhausted);
 LOG_COUNTER(rx_no_tailroom);
 LOG_COUNTER(rx_read_failed);
+LOG_COUNTER(rx_read_truncated);
 LOG_COUNTER(rx_bad_proto);
 LOG_COUNTER(rx_loopback_send_failed);
 
@@ -122,6 +124,8 @@ end:
 
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct iface *iface = ev_iface;
+	const struct rte_ipv4_hdr *ip4;
+	const struct rte_ipv6_hdr *ip6;
 	struct eth_input_mbuf_data *e;
 	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
@@ -165,17 +169,61 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
+	if (unlikely(pi.flags & TUN_PKT_STRIP)) {
+		LOG_RATELIMIT(ERR, rx_read_truncated, "tun_pi: packet truncated");
+		goto err;
+	}
+
 	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi)));
 
 	// packet sent from linux tun iface, no need to compute checksum;
-	mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
-
+	// XXX: Malicious/faulty application could send packet with bad L4 checksum?
 	switch (pi.proto) {
 	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
-		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		ip4 = rte_pktmbuf_mtod(mbuf, const struct rte_ipv4_hdr *);
+		if (likely(ip4->version_ihl == 0x45))
+			mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		else
+			mbuf->packet_type = RTE_PTYPE_L3_IPV4_EXT;
+		mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+		if (ip4->next_proto_id == IPPROTO_TCP) {
+			mbuf->packet_type |= RTE_PTYPE_L4_TCP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+		} else if (ip4->next_proto_id == IPPROTO_UDP) {
+			mbuf->packet_type |= RTE_PTYPE_L4_UDP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+		} else if (ip4->next_proto_id == IPPROTO_SCTP) {
+			mbuf->packet_type |= RTE_PTYPE_L4_SCTP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+		}
 		break;
 	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
-		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
+		ip6 = rte_pktmbuf_mtod(mbuf, const struct rte_ipv6_hdr *);
+		switch (ip6->proto) {
+		case IPPROTO_AH:
+		case IPPROTO_HOPOPTS:
+		case IPPROTO_ROUTING:
+		case IPPROTO_DSTOPTS:
+		case IPPROTO_FRAGMENT:
+			// IPv6 extensions are L3 and need the IPv6 header.
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6_EXT;
+			break;
+		case IPPROTO_TCP:
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6 | RTE_PTYPE_L4_TCP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+			break;
+		case IPPROTO_UDP:
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6 | RTE_PTYPE_L4_UDP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+			break;
+		case IPPROTO_SCTP:
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6 | RTE_PTYPE_L4_SCTP;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+			break;
+		default:
+			mbuf->packet_type = RTE_PTYPE_L3_IPV6;
+			break;
+		}
 		break;
 	default:
 		LOG_RATELIMIT(ERR, rx_bad_proto, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
