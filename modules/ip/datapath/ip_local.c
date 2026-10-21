@@ -59,7 +59,12 @@ static uint16_t ip_input_local_process(
 				data->vrf_id = iface->vrf_id;
 				data->proto = ip->next_proto_id;
 				data->ttl = ip->time_to_live;
-				mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+				mbuf->packet_type = likely(ip->version_ihl == 0x45) ?
+					RTE_PTYPE_L3_IPV4 :
+					RTE_PTYPE_L3_IPV4_EXT;
+
+				// XXX: Verify L4 checksum, like in ip6_input_local_process?
+
 				rte_pktmbuf_adj(mbuf, hdr_len);
 			}
 		}

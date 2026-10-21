@@ -13,7 +13,7 @@ LOG_TYPE("graph");
 
 enum {
 	UNKNOWN_PROTO = 0,
-	BAD_CHECKSUM,
+	BAD_L4_CHECKSUM,
 	BAD_LENGTH,
 	ERROR,
 	EDGE_COUNT,
@@ -114,18 +114,40 @@ static uint16_t ip6_input_local_process(
 
 		// verify checksum if not already checked by hardware
 		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
 		case RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN:
-			if (rte_ipv6_udptcp_cksum_verify(
-				    ip, rte_pktmbuf_mtod_offset(m, void *, d->ext_offset)
-			    )) {
-				edge = BAD_CHECKSUM;
-				goto next;
+			switch (d->proto) {
+			case IPPROTO_UDP:
+				// RFC 8200 section 8.1 allows zero-checksum for tunnels
+				if (rte_pktmbuf_mtod_offset(m, struct rte_udp_hdr *, d->ext_offset)
+					    ->dgram_cksum
+				    == 0) {
+					m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+					break;
+				}
+				// fallthrough
+			case IPPROTO_TCP:
+				if (rte_ipv6_udptcp_cksum_verify(
+					    ip, rte_pktmbuf_mtod_offset(m, void *, d->ext_offset)
+				    )
+				    < 0) {
+					edge = BAD_L4_CHECKSUM;
+					goto next;
+				}
+				m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+				break;
+			default:
+				// unsupported packet type
+				break;
 			}
 			break;
 		case RTE_MBUF_F_RX_L4_CKSUM_BAD:
-			edge = BAD_CHECKSUM;
+			edge = BAD_L4_CHECKSUM;
 			goto next;
+		case RTE_MBUF_F_RX_L4_CKSUM_GOOD:
+			break;
+		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
+			// checksum field unset, but packet known to be good
+			break;
 		}
 
 adj_next:
@@ -144,7 +166,7 @@ static struct rte_node_register input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[UNKNOWN_PROTO] = "ip6_input_local_unknown_proto",
-		[BAD_CHECKSUM] = "ip6_input_local_bad_checksum",
+		[BAD_L4_CHECKSUM] = "ip6_input_local_bad_l4_checksum",
 		[BAD_LENGTH] = "ip6_input_local_bad_length",
 		[ERROR] = "ip6_input_local_error",
 	},
@@ -158,7 +180,7 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_input_local_unknown_proto);
-GR_DROP_REGISTER(ip6_input_local_bad_checksum);
+GR_DROP_REGISTER(ip6_input_local_bad_l4_checksum);
 GR_DROP_REGISTER(ip6_input_local_bad_length);
 GR_DROP_REGISTER(ip6_input_local_error);
 
