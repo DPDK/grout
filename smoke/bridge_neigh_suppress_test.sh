@@ -60,3 +60,23 @@ if ! grep -qi 'ba:d0:ca:ca:99:99' $tmp/arping.out; then
 	cat $tmp/arping.out
 	fail "ARP reply did not contain expected MAC ba:d0:ca:ca:99:99"
 fi
+
+# Announcements and RFC 5227 address probes for a cached remote address must
+# be flooded, not answered with the stale remote MAC.
+ip -n host-a addr add 10.0.0.99/32 dev x-p0
+
+ip netns exec host-a arping -U -c2 -w3 -I x-p0 10.0.0.99 >$tmp/garp.out &
+arping_pid=$!
+ip netns exec host-b timeout 3 \
+	tcpdump -c1 -tlpnn -i x-p1 'arp[6:2] = 1 and arp[14:4] = 0x0a000063 and arp[24:4] = 0x0a000063' ||
+	fail "gratuitous ARP was not flooded to host-b"
+wait $arping_pid
+! grep -qi 'ba:d0:ca:ca:99:99' $tmp/garp.out || fail "gratuitous ARP got a proxy reply"
+
+ip netns exec host-a arping -D -c2 -w3 -I x-p0 10.0.0.99 >$tmp/probe.out &
+arping_pid=$!
+ip netns exec host-b timeout 3 \
+	tcpdump -c1 -tlpnn -i x-p1 'arp[6:2] = 1 and arp[14:4] = 0 and arp[24:4] = 0x0a000063' ||
+	fail "ARP address probe was not flooded to host-b"
+wait $arping_pid
+! grep -qi 'ba:d0:ca:ca:99:99' $tmp/probe.out || fail "ARP probe got a proxy reply"
