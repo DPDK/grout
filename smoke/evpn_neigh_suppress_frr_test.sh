@@ -221,3 +221,38 @@ check_arp_suppression host-a host-b 10.0.0.3
 # -- Final connectivity check through overlay ----------------------------------
 ip netns exec host-b ping -i0.1 -c3 -W1 10.0.0.2
 ip netns exec host-a ping -i0.1 -c3 -W1 10.0.0.3
+
+# Learn a VIP behind the Linux peer, then move it without waiting for the old
+# neighbor to expire.
+# The announcement must cross the bridge despite the cached remote nexthop.
+ip -n host-a addr add 10.0.0.99/32 dev x-p1
+ip netns exec host-a ping -I 10.0.0.99 -c1 -W1 10.0.0.4
+wait_event -t 10 "nh new:.*addr=10.0.0.99.*flags=.*remote"
+grcli -j nexthop show type l3 |
+	jq -e 'any(.[]; .addr == "10.0.0.99" and .origin == "zebra" and (.flags | index("remote") != null))' ||
+	arp_suppress_fail "VIP was not installed as a remote neighbor before move"
+ip -n host-a addr del 10.0.0.99/32 dev x-p1
+ip -n host-b addr add 10.0.0.99/32 dev x-p1
+ip netns exec host-b arping -U -c3 -w3 -I x-p1 10.0.0.99
+
+mac=$(ip netns exec host-b cat /sys/class/net/x-p1/address)
+attempts=0
+while ! grcli -j nexthop show type l3 |
+	jq -e --arg mac "$mac" 'any(.[]; .addr == "10.0.0.99" and .origin == "learn" and .mac == $mac)' >/dev/null; do
+	if [ "$attempts" -ge 10 ]; then
+		arp_suppress_fail "VIP did not become a local neighbor after move"
+	fi
+	sleep 1
+	attempts=$((attempts + 1))
+done
+attempts=0
+while ! vtysh -N evpn-peer -c 'show evpn arp-cache vni 100 json' |
+	jq -e --arg mac "$mac" '."10.0.0.99" | select(.state == "active" and .type == "remote" and (.mac | ascii_downcase) == $mac)' >/dev/null; do
+	if [ "$attempts" -ge 10 ]; then
+		arp_suppress_fail "VIP was not advertised to the former owner's VTEP"
+	fi
+	sleep 1
+	attempts=$((attempts + 1))
+done
+ip netns exec host-a ping -c3 -W1 10.0.0.99 ||
+	arp_suppress_fail "VIP unreachable from former owner's VTEP after move"
