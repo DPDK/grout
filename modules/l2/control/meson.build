@@ -9,3 +9,15 @@ src += files(
 )
 
 inc += include_directories('.')
+
+tests += [
+  {
+    'sources': files('fdb_test.c', 'fdb.c'),
+    'link_args': [
+      '-Wl,--wrap=rte_hash_lookup_data',
+      '-Wl,--wrap=rte_hash_add_key_data',
+      '-Wl,--wrap=rte_hash_del_key',
+      '-Wl,--wrap=rte_hash_count',
+    ],
+  },
+]
