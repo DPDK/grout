@@ -29,16 +29,13 @@ try:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         while True:
             s.sendto(data, dest)
+            time.sleep(0.0001)
 except KeyboardInterrupt:
     pass
 EOF
 
 ip netns exec n0 python3 $tmp/udpflow.py 10.0.0.1 &
-pid=$!
-echo "kill -INT $pid" >> $tmp/cleanup
 ip netns exec n1 python3 $tmp/udpflow.py 10.0.1.1 &
-pid=$!
-echo "kill -INT $pid" >> $tmp/cleanup
 
 SECONDS=0
 while [ "$SECONDS" -lt 5 ]; do
