@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+---
+name: Rebase PR on latest main
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bot-commands-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  rebase:
+    if: >-
+      ${{ github.event.issue.pull_request
+          && contains(github.event.comment.body, '@grout-bot rebase') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Get PR info and check commenter permission
+        id: info
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number,
+            });
+
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.payload.comment.user.login,
+            });
+
+            return {
+              allowed: perm.permission === 'admin' || perm.permission === 'write',
+              commits: pr.commits,
+              head_repo: pr.head.repo.full_name,
+              head_ref: pr.head.ref,
+              base_ref: pr.base.ref,
+            };
+
+      - uses: actions/checkout@v7
+        if: ${{ fromJSON(steps.info.outputs.result).allowed }}
+        with:
+          token: ${{ secrets.TRAILER_BOT_TOKEN }}
+          repository: ${{ fromJSON(steps.info.outputs.result).head_repo }}
+          ref: ${{ fromJSON(steps.info.outputs.result).head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Rebase onto the latest base branch
+        if: ${{ fromJSON(steps.info.outputs.result).allowed }}
+        env:
+          BASE_REF: ${{ fromJSON(steps.info.outputs.result).base_ref }}
+          HEAD_REF: ${{ fromJSON(steps.info.outputs.result).head_ref }}
+        run: |
+          set -xe
+
+          GIT_COMMITTER_NAME=$(git log -1 --pretty=%cN)
+          GIT_COMMITTER_EMAIL=$(git log -1 --pretty=%cE)
+          git config set user.name "$GIT_COMMITTER_NAME"
+          git config set user.email "$GIT_COMMITTER_EMAIL"
+          export GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+          git fetch "https://github.com/$GITHUB_REPOSITORY" "$BASE_REF"
+          git rebase FETCH_HEAD
+          git push --force origin "HEAD:$HEAD_REF"
+
+      - name: Report rebase failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: 'Automatic rebase failed, most likely due to conflicts. Please rebase manually.',
+            });
