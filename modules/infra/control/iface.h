@@ -82,6 +82,8 @@ void iface_add_subinterface(struct iface *parent, struct iface *sub);
 void iface_del_subinterface(struct iface *parent, struct iface *sub);
 int iface_get_eth_addr(const struct iface *, struct rte_ether_addr *);
 int iface_set_eth_addr(struct iface *, const struct rte_ether_addr *);
+// Re-derive the address of the subinterfaces which were inheriting old_mac.
+void iface_refresh_subinterface_macs(struct iface *, const struct rte_ether_addr *old_mac);
 int iface_add_eth_addr(struct iface *, const struct rte_ether_addr *);
 int iface_del_eth_addr(struct iface *, const struct rte_ether_addr *);
 int iface_set_mtu(struct iface *, uint16_t mtu);
