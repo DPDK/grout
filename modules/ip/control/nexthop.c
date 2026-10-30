@@ -154,6 +154,21 @@ free:
 	rte_pktmbuf_free(m);
 }
 
+// Check whether sip is reachable through a connected (on-link) route via
+// iface. ARP senders outside any locally connected subnet are not directly
+// connected and must not be learned as a neighbor (e.g. a reply routed back
+// asymmetrically on behalf of a remote, indirectly reachable address).
+static bool arp_sender_is_connected(const struct iface *iface, ip4_addr_t sip) {
+	const struct nexthop *nh = fib4_lookup(iface->vrf_id, sip, 0);
+	const struct nexthop_info_l3 *l3;
+
+	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+		return false;
+
+	l3 = nexthop_info_l3(nh);
+	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+}
+
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	const struct iface *iface;
 	struct rte_mbuf *m = obj;
@@ -170,7 +185,7 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	sip = arp->arp_data.arp_sip;
 	nh = nh4_lookup(iface->vrf_id, sip);
-	if (nh == NULL) {
+	if (nh == NULL && arp_sender_is_connected(iface, sip)) {
 		// We don't have an entry for the ARP request sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address,
@@ -206,7 +221,7 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			);
 			goto free;
 		}
-	} else {
+	} else if (nh != NULL) {
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		// Only refresh a nexthop reachable through the interface the
 		// packet was received on. Never overwrite a local address, a
@@ -246,15 +261,17 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	}
 
 	// Flush all held packets.
-	nexthop_l3_hold_queue_foreach (held, nh) {
-		const struct nexthop_af_ops *ops;
+	if (nh != NULL) {
+		nexthop_l3_hold_queue_foreach (held, nh) {
+			const struct nexthop_af_ops *ops;
 
-		ops = nexthop_af_ops_from_mbuf(held);
-		assert(ops != NULL);
-		if (ops->resubmit(held, nh) < 0)
-			rte_pktmbuf_free(held);
+			ops = nexthop_af_ops_from_mbuf(held);
+			assert(ops != NULL);
+			if (ops->resubmit(held, nh) < 0)
+				rte_pktmbuf_free(held);
+		}
+		nexthop_l3_hold_queue_reset(nh);
 	}
-	nexthop_l3_hold_queue_reset(nh);
 
 free:
 	rte_pktmbuf_free(m);

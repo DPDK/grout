@@ -165,6 +165,23 @@ free:
 	rte_pktmbuf_free(m);
 }
 
+// Check whether remote is reachable through a connected (on-link) route via
+// iface. NS/NA senders outside any locally connected subnet are not directly
+// connected and must not be learned as a neighbor (e.g. a reply routed back
+// asymmetrically on behalf of a remote, indirectly reachable address). This
+// also covers link-local addresses: each interface owns a connected route
+// for its own link-local prefix.
+static bool ndp_sender_is_connected(const struct iface *iface, const struct rte_ipv6_addr *remote) {
+	const struct nexthop *nh = fib6_lookup(iface->vrf_id, iface->id, remote, 0);
+	const struct nexthop_info_l3 *l3;
+
+	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+		return false;
+
+	l3 = nexthop_info_l3(nh);
+	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+}
+
 void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
 	struct rte_mbuf *m = obj;
 
@@ -214,7 +231,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		goto free;
 
 	nh = nh6_lookup(iface->vrf_id, iface->id, remote);
-	if (nh == NULL) {
+	if (nh == NULL && ndp_sender_is_connected(iface, remote)) {
 		// We don't have an entry for the probe sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address, they
@@ -259,7 +276,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			);
 			goto free;
 		}
-	} else if (lladdr_found == ICMP6_OPT_FOUND) {
+	} else if (nh != NULL && lladdr_found == ICMP6_OPT_FOUND) {
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 		// Only refresh a nexthop reachable through the interface the
 		// packet was received on. Never overwrite a local address, a
@@ -293,15 +310,17 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 	}
 
 	// Flush all held packets.
-	nexthop_l3_hold_queue_foreach (held, nh) {
-		const struct nexthop_af_ops *ops;
+	if (nh != NULL) {
+		nexthop_l3_hold_queue_foreach (held, nh) {
+			const struct nexthop_af_ops *ops;
 
-		ops = nexthop_af_ops_from_mbuf(held);
-		assert(ops != NULL);
-		if (ops->resubmit(held, nh) < 0)
-			rte_pktmbuf_free(held);
+			ops = nexthop_af_ops_from_mbuf(held);
+			assert(ops != NULL);
+			if (ops->resubmit(held, nh) < 0)
+				rte_pktmbuf_free(held);
+		}
+		nexthop_l3_hold_queue_reset(nh);
 	}
-	nexthop_l3_hold_queue_reset(nh);
 
 free:
 	rte_pktmbuf_free(m);
