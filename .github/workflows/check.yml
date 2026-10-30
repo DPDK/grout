@@ -17,8 +17,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-trailer-push:
+    if: ${{ github.actor == 'grout-bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: read
+    outputs:
+      trailer_added: ${{ steps.check.outputs.result }}
+    steps:
+      - name: Check for the skip-ci marker on the head commit
+        id: check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.payload.pull_request.head.sha,
+            });
+            return statuses.some(
+              s => s.context === 'grout-bot/skip-ci' && s.state === 'success'
+            );
+
   build-and-tests:
-    if: ${{ github.actor != 'grout-bot' }}
+    needs: detect-trailer-push
+    if: >-
+      ${{ !cancelled()
+          && (needs.detect-trailer-push.result == 'skipped'
+              || needs.detect-trailer-push.outputs.trailer_added != 'true') }}
     permissions:
       actions: write
     strategy:
@@ -152,7 +178,11 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
   lint:
-    if: ${{ github.actor != 'grout-bot' }}
+    needs: detect-trailer-push
+    if: >-
+      ${{ !cancelled()
+          && (needs.detect-trailer-push.result == 'skipped'
+              || needs.detect-trailer-push.outputs.trailer_added != 'true') }}
     runs-on: ubuntu-24.04
     container: fedora:latest
     steps:

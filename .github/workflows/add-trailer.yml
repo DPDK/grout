@@ -97,6 +97,7 @@ jobs:
           persist-credentials: true
 
       - name: Amend all pull request commits with the trailer
+        id: amend
         env:
           GIT_TRAILER_DEBUG: 1
           COMMITS: ${{ fromJSON(steps.info.outputs.result).commits }}
@@ -138,3 +139,18 @@ jobs:
             --exec "git commit -C HEAD --no-edit --amend --trailer='$TRAILER'"
 
           git push --force origin "$HEAD_REF"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Mark the new commit to skip CI
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.TRAILER_BOT_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.amend.outputs.sha }}',
+              state: 'success',
+              context: 'grout-bot/skip-ci',
+              description: 'Trailer added automatically, no need to re-run CI',
+            });
