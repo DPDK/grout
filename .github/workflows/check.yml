@@ -20,8 +20,6 @@ jobs:
   detect-trailer-push:
     if: ${{ github.actor == 'grout-bot' }}
     runs-on: ubuntu-latest
-    permissions:
-      statuses: read
     outputs:
       trailer_added: ${{ steps.check.outputs.result }}
     steps:
@@ -30,14 +28,20 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.payload.pull_request.head.sha,
-            });
-            return statuses.some(
-              s => s.context === 'grout-bot/skip-ci' && s.state === 'success'
-            );
+            const head = context.payload.pull_request.head;
+            try {
+              const { data: ref } = await github.rest.git.getRef({
+                owner: head.repo.owner.login,
+                repo: head.repo.name,
+                ref: `grout-bot/skip-ci/${context.issue.number}`,
+              });
+              return ref.object.sha === head.sha;
+            } catch (e) {
+              if (e.status === 404) {
+                return false;
+              }
+              throw e;
+            }
 
   build-and-tests:
     needs: detect-trailer-push
