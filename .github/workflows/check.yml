@@ -192,7 +192,8 @@ jobs:
     steps:
       - name: install packages
         run: |
-          dnf install -y gawk make clang-tools-extra git jq curl codespell python3-pip
+          dnf install -y gawk make clang-tools-extra git jq curl codespell \
+            python3-pip python3-devel gcc
           pip install --user tree_sitter tree_sitter_c
       - uses: actions/checkout@v7
         with:
