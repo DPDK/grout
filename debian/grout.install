@@ -4,6 +4,9 @@
 /usr/bin/grout
 /usr/bin/grtcpdump
 /usr/lib/systemd/system/grout.service
+/usr/libexec/grout/dhcpcd-hook
+/usr/libexec/grout/odhcp6c-script
+/usr/libexec/grout/udhcpc-script
 /usr/share/bash-completion/completions/grcli
 /usr/share/bash-completion/completions/grout
 /usr/share/bash-completion/completions/grtcpdump
