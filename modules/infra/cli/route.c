@@ -181,11 +181,15 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"del DEST [vrf VRF]",
+		"del DEST [vrf VRF] [origin ORIGIN]",
 		route_del,
 		"Delete a route.",
 		with_help("IP destination prefix.", ec_node_re("DEST", IP_ANY_NET_RE)),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
+		with_help(
+			"Only delete the route if it has this origin.",
+			ec_node_dyn("ORIGIN", complete_route_origins, NULL)
+		)
 	);
 	if (ret < 0)
 		return ret;

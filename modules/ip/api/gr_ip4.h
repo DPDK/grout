@@ -60,6 +60,8 @@ GR_REQ(GR_IP4_ROUTE_ADD, struct gr_ip4_route_add_req, struct gr_empty);
 struct gr_ip4_route_del_req {
 	uint16_t vrf_id;
 	struct ip4_net dest;
+	// GR_NH_ORIGIN_UNSPEC matches any origin.
+	gr_nh_origin_t origin;
 	uint8_t missing_ok;
 };
 
