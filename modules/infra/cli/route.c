@@ -165,13 +165,17 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		ROUTE_CTX(root),
-		"add DEST via (NH)|(id ID) [vrf VRF]",
+		"add DEST via (NH)|(id ID) [vrf VRF] [origin ORIGIN]",
 		route_add,
 		"Add a new route.",
 		with_help("IP destination prefix.", ec_node_re("DEST", IP_ANY_NET_RE)),
 		with_help("IP next hop address.", ec_node_re("NH", IP_ANY_RE)),
 		with_help("Next hop user ID.", ec_node_uint("ID", 1, UINT32_MAX - 1, 10)),
-		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL))
+		with_help("L3 routing domain name.", ec_node_dyn("VRF", complete_vrf_names, NULL)),
+		with_help(
+			"Route origin (default: static).",
+			ec_node_dyn("ORIGIN", complete_route_origins, NULL)
+		)
 	);
 	if (ret < 0)
 		return ret;
