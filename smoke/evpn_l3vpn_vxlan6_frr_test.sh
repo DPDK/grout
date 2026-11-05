@@ -254,4 +254,4 @@ ip netns exec host-a ping -6 -i0.1 -c3 -W1 fd00:48::2
 # Route to 10.0.0.0/24 (behind host-b) via local gateway 48.0.0.2. The nexthop
 # for 48.0.0.2 must use port p1, not the VXLAN interface.
 set_ip_route 10.0.0.0/24 48.0.0.2 tenant
-ip vrf exec tenant /usr/bin/ping -i0.01 -c3 -n 10.0.0.1
+ping -I tenant -i0.01 -c3 -n 10.0.0.1

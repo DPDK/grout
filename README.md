@@ -328,17 +328,6 @@ apt install iputils-arping gawk gdb clang-format jq codespell curl traceroute \
         graphviz ndisc6 abigail-tools inotify-tools python3-scapy
 ```
 
-On hosts with SELinux in enforcing mode, some smoke tests run `ping(8)` via
-`ip vrf exec`, which requires the local policy module in
-[`smoke/ping_vrf.te`](smoke/ping_vrf.te):
-
-```sh
-cd smoke
-checkmodule -M -m -o ping_vrf.mod ping_vrf.te
-semodule_package -o ping_vrf.pp -m ping_vrf.mod
-sudo semodule -i ping_vrf.pp
-```
-
 ### Build
 
 ```
