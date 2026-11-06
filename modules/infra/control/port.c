@@ -650,8 +650,9 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	if (rte_eth_dev_info_get(port_id, &info) < 0)
 		return errno_set(-ret);
 	port->dynamic_queue_state = strcmp(info.driver_name, "net_vhost") == 0;
-	port->virtio_offloads = strcmp(info.driver_name, "net_virtio") == 0
-		&& (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) != 0;
+	port->virtio_offloads = strcmp(info.driver_name, "net_vhost") == 0
+		|| (strcmp(info.driver_name, "net_virtio") == 0
+		    && (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) != 0);
 
 	port->devargs = strndup(api->devargs, GR_PORT_DEVARGS_SIZE);
 	if (port->devargs == NULL) {
