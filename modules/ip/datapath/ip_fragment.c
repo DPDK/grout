@@ -66,6 +66,8 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		iface = mbuf_data(mbuf)->iface;
 		assert(iface != NULL);
 
+		gr_cksum_l4_complete(mbuf, 0);
+
 		ip_hdr_len = rte_ipv4_hdr_len(ip);
 		data_len = rte_be_to_cpu_16(ip->total_length) - ip_hdr_len;
 

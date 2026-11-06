@@ -77,6 +77,8 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	if (d->iface->cp_fd == 0)
 		goto end;
 
+	gr_cksum_l4_complete(m, gr_cksum_eth_l2_len(m));
+
 	capture_enqueue(d->iface, GR_CAPTURE_DIR_OUT, m);
 
 	if (rte_pktmbuf_linearize(m) == 0) {

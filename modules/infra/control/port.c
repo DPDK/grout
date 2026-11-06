@@ -93,7 +93,7 @@ static struct rte_eth_conf default_port_config = {
 		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	},
 	.txmode = {
-		.offloads = 0,
+		.offloads = RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM,
 	},
 };
 
@@ -179,6 +179,7 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 		return errno_log(-ret, "rte_eth_dev_configure");
 
 	p->rx_offloads = conf.rxmode.offloads;
+	p->tx_offloads = conf.txmode.offloads;
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {

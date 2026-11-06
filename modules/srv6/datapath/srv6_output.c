@@ -72,7 +72,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			t->encap_src = d->encap_src;
 		}
 
-		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_IPIP);
+		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_IPIP, 0);
 
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
 			struct rte_ipv4_hdr *inner_ip4;

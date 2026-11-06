@@ -66,6 +66,8 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
 		goto end;
 
+	gr_cksum_l4_complete(m, 0);
+
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
 	} else {

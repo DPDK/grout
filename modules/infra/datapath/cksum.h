@@ -3,9 +3,14 @@
 
 #pragma once
 
+#include "l3.h"
 #include "mbuf.h"
 
+#include <rte_ethdev.h>
+#include <rte_ip.h>
 #include <rte_mbuf.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
 
 #define GR_CKSUM_IP_BAD RTE_MBUF_F_RX_IP_CKSUM_BAD
 #define GR_CKSUM_IP_GOOD RTE_MBUF_F_RX_IP_CKSUM_GOOD
@@ -55,7 +60,45 @@ static inline void gr_cksum_reset(struct rte_mbuf *m) {
 	m->ol_flags &= ~GR_CKSUM_MASK;
 }
 
-static inline void gr_cksum_tunnel_push(struct rte_mbuf *m, uint64_t tunnel_type) {
+static inline uint16_t gr_cksum_eth_l2_len(const struct rte_mbuf *m) {
+	const struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
+	if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN))
+		return sizeof(*eth) + sizeof(struct rte_vlan_hdr);
+	return sizeof(*eth);
+}
+
+static inline void gr_cksum_l4_complete(struct rte_mbuf *m, uint16_t l2_len) {
+	int proto;
+	void *ip;
+	void *l4;
+
+	if (!gr_cksum_l4_partial(m))
+		return;
+
+	ip = rte_pktmbuf_mtod_offset(m, void *, l2_len);
+	proto = gr_ip_l4_proto(ip, rte_pktmbuf_pkt_len(m) - l2_len, &l4);
+
+	if (proto == IPPROTO_UDP) {
+		struct rte_udp_hdr *udp = l4;
+		udp->dgram_cksum = 0;
+		if (GR_IP_IS_IPV4(*(uint8_t *)ip))
+			udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+		else
+			udp->dgram_cksum = rte_ipv6_udptcp_cksum(ip, udp);
+	} else if (proto == IPPROTO_TCP) {
+		struct rte_tcp_hdr *tcp = l4;
+		tcp->cksum = 0;
+		if (GR_IP_IS_IPV4(*(uint8_t *)ip))
+			tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
+		else
+			tcp->cksum = rte_ipv6_udptcp_cksum(ip, tcp);
+	}
+
+	gr_cksum_l4_set_good(m);
+}
+
+static inline void gr_cksum_tunnel_push(struct rte_mbuf *m, uint64_t tunnel_type, uint16_t l2_len) {
+	gr_cksum_l4_complete(m, l2_len);
 	gr_cksum_reset(m);
 	gr_mbuf_tunnel_set(m, tunnel_type);
 }

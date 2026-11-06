@@ -59,7 +59,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip_data->iface = iface;
 		ipip = iface_info_ipip(iface);
 
-		gr_cksum_tunnel_push(mbuf, GR_MBUF_TUNNEL_IPIP);
+		gr_cksum_tunnel_push(mbuf, GR_MBUF_TUNNEL_IPIP, 0);
 
 		// Encapsulate with another IPv4 header.
 		inner = rte_pktmbuf_mtod(mbuf, const struct rte_ipv4_hdr *);

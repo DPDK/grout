@@ -72,7 +72,7 @@ static uint16_t vxlan_output_process(
 			t->vtep = d->vtep;
 		}
 
-		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_VXLAN);
+		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_VXLAN, gr_cksum_eth_l2_len(m));
 
 		len = rte_pktmbuf_pkt_len(m);
 
@@ -122,8 +122,7 @@ static uint16_t vxlan_output_process(
 			);
 			vh6->ip.dst_addr = d->vtep.ipv6;
 			vh6->ip.payload_len = vh6->udp.dgram_len;
-			vh6->udp.dgram_cksum = rte_ipv6_udptcp_cksum(&vh6->ip, &vh6->udp);
-			gr_cksum_l4_set_good(m);
+			gr_cksum_l4_set_partial(m);
 
 			edge = IP6_OUTPUT;
 			break;
