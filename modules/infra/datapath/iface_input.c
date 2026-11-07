@@ -73,7 +73,10 @@ iface_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		parent_iface = d->iface;
 
 		capture_enqueue(d->iface, GR_CAPTURE_DIR_IN, m);
-		if (d->vlan_id != 0 && d->iface->mode == GR_IFACE_MODE_VRF) {
+		// A native bridge member can also be the parent of tagged subinterfaces.
+		if (d->vlan_id != 0
+		    && (d->iface->mode == GR_IFACE_MODE_VRF
+			|| d->iface->mode == GR_IFACE_MODE_BRIDGE)) {
 			if (last_iface_id != d->iface->id || d->vlan_id != last_vlan_id) {
 				vlan_iface = vlan_get_iface(d->iface->id, d->vlan_id);
 				last_iface_id = d->iface->id;
