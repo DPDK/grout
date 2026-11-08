@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip6.h"
@@ -71,6 +72,8 @@ static uint16_t vxlan_output_process(
 			t->vtep = d->vtep;
 		}
 
+		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_VXLAN);
+
 		len = rte_pktmbuf_pkt_len(m);
 
 		switch (d->vtep.af) {
@@ -94,6 +97,7 @@ static uint16_t vxlan_output_process(
 			vh4->ip.dst_addr = d->vtep.ipv4;
 			vh4->ip.total_length = rte_cpu_to_be_16(len + sizeof(*vh4));
 			vh4->ip.hdr_checksum = rte_ipv4_cksum(&vh4->ip);
+			gr_cksum_ip_set_good(m);
 
 			edge = IP_OUTPUT;
 			break;
@@ -119,6 +123,7 @@ static uint16_t vxlan_output_process(
 			vh6->ip.dst_addr = d->vtep.ipv6;
 			vh6->ip.payload_len = vh6->udp.dgram_len;
 			vh6->udp.dgram_cksum = rte_ipv6_udptcp_cksum(&vh6->ip, &vh6->udp);
+			gr_cksum_l4_set_good(m);
 
 			edge = IP6_OUTPUT;
 			break;

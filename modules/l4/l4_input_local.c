@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6_datapath.h"
@@ -142,10 +143,10 @@ static uint16_t l4_input_local_process(
 			goto next;
 		}
 
-		if (mbuf->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_GOOD)
+		if (gr_cksum_l4_valid(mbuf))
 			goto next;
 
-		if (mbuf->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_BAD) {
+		if (gr_cksum_l4_bad(mbuf)) {
 			edge = BAD_CHECKSUM;
 			goto next;
 		}

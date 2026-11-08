@@ -120,3 +120,23 @@ static inline void *__gr_mbuf_prepend(struct rte_mbuf *m, uint16_t len) {
 
 #undef rte_pktmbuf_prepend
 #define rte_pktmbuf_prepend GR_SYMBOL_FORBIDDEN(rte_pktmbuf_prepend, gr_mbuf_prepend)
+
+#define GR_MBUF_TUNNEL_VXLAN RTE_MBUF_F_TX_TUNNEL_VXLAN
+#define GR_MBUF_TUNNEL_IPIP RTE_MBUF_F_TX_TUNNEL_IPIP
+#define GR_MBUF_TUNNEL_MASK RTE_MBUF_F_TX_TUNNEL_MASK
+
+static inline bool gr_mbuf_tunnel_is_vxlan(const struct rte_mbuf *m) {
+	return (m->ol_flags & GR_MBUF_TUNNEL_MASK) == GR_MBUF_TUNNEL_VXLAN;
+}
+
+static inline bool gr_mbuf_tunnel_is_ipip(const struct rte_mbuf *m) {
+	return (m->ol_flags & GR_MBUF_TUNNEL_MASK) == GR_MBUF_TUNNEL_IPIP;
+}
+
+static inline void gr_mbuf_tunnel_set(struct rte_mbuf *m, uint64_t type) {
+	m->ol_flags = (m->ol_flags & ~GR_MBUF_TUNNEL_MASK) | type;
+}
+
+static inline void gr_mbuf_tunnel_clear(struct rte_mbuf *m) {
+	m->ol_flags &= ~GR_MBUF_TUNNEL_MASK;
+}

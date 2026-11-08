@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
+#include "cksum.h"
 #include "graph.h"
 #include "iface.h"
 #include "mbuf.h"
@@ -89,6 +90,8 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip->fragment_offset = RTE_BE16(RTE_IPV4_HDR_MF_FLAG);
 		ip->hdr_checksum = 0;
 		ip->hdr_checksum = rte_ipv4_cksum(ip);
+		gr_cksum_reset(mbuf);
+		gr_cksum_ip_set_good(mbuf);
 
 		// First fragment trace will be handled last, and is already part
 		// of the frags array at position 0.
@@ -120,6 +123,8 @@ ip_fragment_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			);
 			frag_ip->hdr_checksum = 0;
 			frag_ip->hdr_checksum = rte_ipv4_cksum(frag_ip);
+			gr_cksum_reset(frag_mbuf);
+			gr_cksum_ip_set_good(frag_mbuf);
 
 			frag_mbuf->packet_type = mbuf->packet_type;
 			if (gr_mbuf_is_traced(mbuf)) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -44,6 +45,7 @@ icmp_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 		ip_set_fields(ip, local_data);
+		gr_cksum_ip_set_good(mbuf);
 		nh = fib4_lookup(local_data->vrf_id, local_data->dst, mbuf->hash.rss);
 		if (nh == NULL) {
 			// Do not let packets go to ip_output from icmp_output

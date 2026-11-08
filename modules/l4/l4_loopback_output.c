@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cksum.h"
 #include "control_output.h"
 #include "graph.h"
 #include "ip4_datapath.h"
@@ -42,6 +43,7 @@ static uint16_t l4_loopback_output_process(
 				goto next;
 			}
 			ip_set_fields(ip, ld);
+			gr_cksum_ip_set_good(mbuf);
 		} else if (mbuf->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct ip6_local_mbuf_data *ld = ip6_local_mbuf_data(mbuf);
 			struct rte_ipv6_hdr *ip;

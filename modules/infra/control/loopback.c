@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cksum.h"
 #include "config.h"
 #include "control_queue.h"
 #include "eth.h"
@@ -167,12 +168,13 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi)));
 
-	// packet sent from linux tun iface, no need to compute checksum;
-	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+	gr_cksum_reset(mbuf);
 
 	switch (pi.proto) {
 	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
 		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		// Packet sent from linux, no need to verify the IP header checksum.
+		gr_cksum_ip_set_good(mbuf);
 		break;
 	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
 		mbuf->packet_type = RTE_PTYPE_L3_IPV6;

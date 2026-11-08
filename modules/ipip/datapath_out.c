@@ -2,6 +2,7 @@
 // Copyright (c) 2024 Robin Jarry
 
 #include "capture.h"
+#include "cksum.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip4_datapath.h"
@@ -58,6 +59,8 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		ip_data->iface = iface;
 		ipip = iface_info_ipip(iface);
 
+		gr_cksum_tunnel_push(mbuf, GR_MBUF_TUNNEL_IPIP);
+
 		// Encapsulate with another IPv4 header.
 		inner = rte_pktmbuf_mtod(mbuf, const struct rte_ipv4_hdr *);
 		tunnel.src = ipip->local;
@@ -72,6 +75,7 @@ ipip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			goto next;
 		}
 		ip_set_fields(outer, &tunnel);
+		gr_cksum_ip_set_good(mbuf);
 
 		IFACE_STATS_INC(tx, self, mbuf, iface);
 		capture_enqueue(iface, GR_CAPTURE_DIR_OUT, mbuf);

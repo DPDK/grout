@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Christophe Fontaine
 
 #include "capture.h"
+#include "cksum.h"
 #include "config.h"
 #include "control_queue.h"
 #include "eth.h"
@@ -170,8 +171,10 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 
 	rte_pktmbuf_trim(mbuf, read_len - len);
 
-	// packet sent from linux tun iface, no need to compute checksum;
-	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+	// Packet sent from linux, no need to verify the IP header checksum.
+	// IPv6 has no header checksum, but no code checks this bit for IPv6.
+	gr_cksum_reset(mbuf);
+	gr_cksum_ip_set_good(mbuf);
 	mbuf->packet_type = rte_net_get_ptype(mbuf, NULL, RTE_PTYPE_ALL_MASK);
 
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
