@@ -77,16 +77,15 @@ ip_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		}
 
 		// (2) The IP checksum must be correct.
-		switch (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_IP_CKSUM_NONE:
-		case RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN:
+		if (!(mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK)) {
 			// if this is not checked in H/W, check it.
 			if (rte_ipv4_cksum(ip)) {
 				edge = BAD_CHECKSUM;
 				goto next;
 			}
-			break;
-		case RTE_MBUF_F_RX_IP_CKSUM_BAD:
+		} else if (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_BAD) {
+			// the "NONE" case is absorbed here as invalid, as no DPDK driver
+			// should ever set this, and we support no Tx IP checksum offload.
 			edge = BAD_CHECKSUM;
 			goto next;
 		}
