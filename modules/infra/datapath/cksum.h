@@ -11,6 +11,7 @@
 #include <rte_mbuf.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 
 #include <linux/virtio_net.h>
 
@@ -60,6 +61,73 @@ static inline void gr_cksum_l4_set_partial(struct rte_mbuf *m) {
 
 static inline void gr_cksum_reset(struct rte_mbuf *m) {
 	m->ol_flags &= ~GR_CKSUM_MASK;
+}
+
+// Compute the outer UDP checksum from headers only, leveraging the fact
+// that the inner L4 checksum already covers the payload (C + ~C = 0).
+// Returns false if the inner L4 is not TCP/UDP or inner UDP has no checksum.
+static inline bool gr_cksum_tunnel_udp(struct rte_udp_hdr *udp, uint16_t outer_phdr_cksum) {
+	struct rte_ether_hdr *inner_eth;
+	struct rte_ipv6_hdr *inner_ip6;
+	struct rte_ipv4_hdr *inner_ip4;
+	struct rte_udp_hdr *inner_udp;
+	uint16_t inner_phdr_cksum;
+	void *inner_l4;
+	uint32_t sum;
+
+	inner_eth = (struct rte_ether_hdr *)((struct rte_vxlan_hdr *)(udp + 1) + 1);
+	if (inner_eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN))
+		inner_ip4 = (struct rte_ipv4_hdr *)((struct rte_vlan_hdr *)(inner_eth + 1) + 1);
+	else
+		inner_ip4 = (struct rte_ipv4_hdr *)(inner_eth + 1);
+
+	if (GR_IP_IS_IPV4(inner_ip4->version_ihl)) {
+		if (inner_ip4->next_proto_id != IPPROTO_TCP
+		    && inner_ip4->next_proto_id != IPPROTO_UDP)
+			return false;
+		inner_l4 = (char *)inner_ip4 + rte_ipv4_hdr_len(inner_ip4);
+		if (inner_ip4->next_proto_id == IPPROTO_UDP) {
+			inner_udp = inner_l4;
+			if (!inner_udp->dgram_cksum)
+				return false;
+		}
+		inner_phdr_cksum = rte_ipv4_phdr_cksum(inner_ip4, 0);
+	} else {
+		size_t ext_len;
+		uint8_t *p;
+		int proto;
+		int next;
+
+		inner_ip6 = (struct rte_ipv6_hdr *)inner_ip4;
+		proto = inner_ip6->proto;
+		p = (uint8_t *)(inner_ip6 + 1);
+
+		while ((next = rte_ipv6_get_next_ext(p, proto, &ext_len)) >= 0 && ext_len > 0) {
+			p += ext_len;
+			proto = next;
+		}
+
+		if (proto != IPPROTO_TCP && proto != IPPROTO_UDP)
+			return false;
+		inner_l4 = p;
+		if (proto == IPPROTO_UDP) {
+			inner_udp = inner_l4;
+			if (!inner_udp->dgram_cksum)
+				return false;
+		}
+		inner_phdr_cksum = rte_ipv6_phdr_cksum(inner_ip6, 0);
+	}
+
+	udp->dgram_cksum = 0;
+	sum = __rte_raw_cksum(udp, (char *)inner_l4 - (char *)udp, 0);
+	sum += outer_phdr_cksum;
+	sum += (~inner_phdr_cksum) & 0xffff;
+	sum += 0xffff;
+	udp->dgram_cksum = ~__rte_raw_cksum_reduce(sum);
+	if (!udp->dgram_cksum)
+		udp->dgram_cksum = RTE_BE16(0xffff);
+
+	return true;
 }
 
 static inline uint16_t gr_cksum_eth_l2_len(const struct rte_mbuf *m) {

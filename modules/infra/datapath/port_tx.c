@@ -122,8 +122,10 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 	struct rte_ether_hdr *eth;
 	struct rte_ipv4_hdr *ip4;
 
-	if (!gr_cksum_l4_partial(m))
+	if (!gr_cksum_l4_partial(m)) {
+		gr_mbuf_tunnel_clear(m);
 		return;
+	}
 
 	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
@@ -139,14 +141,17 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 			struct rte_udp_hdr
 				*udp = (struct rte_udp_hdr *)((char *)ip4 + rte_ipv4_hdr_len(ip4));
 
-			if (tx_offloads & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) {
-				m->l2_len = (char *)ip4 - (char *)eth;
-				m->l3_len = (char *)udp - (char *)ip4;
-				m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_UDP_CKSUM;
-				udp->dgram_cksum = rte_ipv4_phdr_cksum(ip4, m->ol_flags);
-			} else {
-				udp->dgram_cksum = 0;
-				udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip4, udp);
+			if (!gr_mbuf_tunnel_is_vxlan(m)
+			    || !gr_cksum_tunnel_udp(udp, rte_ipv4_phdr_cksum(ip4, 0))) {
+				if (tx_offloads & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) {
+					m->l2_len = (char *)ip4 - (char *)eth;
+					m->l3_len = (char *)udp - (char *)ip4;
+					m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_UDP_CKSUM;
+					udp->dgram_cksum = rte_ipv4_phdr_cksum(ip4, m->ol_flags);
+				} else {
+					udp->dgram_cksum = 0;
+					udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip4, udp);
+				}
 			}
 		} else if (ip4->next_proto_id == IPPROTO_TCP) {
 			struct rte_tcp_hdr
@@ -172,14 +177,17 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 		if (proto == IPPROTO_UDP) {
 			struct rte_udp_hdr *udp = l4;
 
-			if (tx_offloads & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) {
-				m->l2_len = (char *)ip6 - (char *)eth;
-				m->l3_len = (char *)udp - (char *)ip6;
-				m->ol_flags |= RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM;
-				udp->dgram_cksum = rte_ipv6_phdr_cksum(ip6, m->ol_flags);
-			} else {
-				udp->dgram_cksum = 0;
-				udp->dgram_cksum = rte_ipv6_udptcp_cksum(ip6, udp);
+			if (!gr_mbuf_tunnel_is_vxlan(m)
+			    || !gr_cksum_tunnel_udp(udp, rte_ipv6_phdr_cksum(ip6, 0))) {
+				if (tx_offloads & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) {
+					m->l2_len = (char *)ip6 - (char *)eth;
+					m->l3_len = (char *)udp - (char *)ip6;
+					m->ol_flags |= RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM;
+					udp->dgram_cksum = rte_ipv6_phdr_cksum(ip6, m->ol_flags);
+				} else {
+					udp->dgram_cksum = 0;
+					udp->dgram_cksum = rte_ipv6_udptcp_cksum(ip6, udp);
+				}
 			}
 		} else if (proto == IPPROTO_TCP) {
 			struct rte_tcp_hdr *tcp = l4;
@@ -196,6 +204,7 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 		}
 	}
 
+	gr_mbuf_tunnel_clear(m);
 	gr_cksum_l4_set_good(m);
 }
 
