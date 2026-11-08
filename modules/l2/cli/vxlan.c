@@ -119,6 +119,15 @@ static uint64_t parse_vxlan_args(
 		set_attrs |= GR_VXLAN_SET_FLAGS;
 	}
 
+	on_off = arg_str(p, "UDP_CKSUM");
+	if (on_off != NULL && strcmp(on_off, "on") == 0) {
+		vxlan->flags |= GR_VXLAN_F_UDP_CKSUM;
+		set_attrs |= GR_VXLAN_SET_FLAGS;
+	} else if (on_off != NULL && strcmp(on_off, "off") == 0) {
+		vxlan->flags &= ~GR_VXLAN_F_UDP_CKSUM;
+		set_attrs |= GR_VXLAN_SET_FLAGS;
+	}
+
 	if (set_attrs == 0)
 		errno = EINVAL;
 	return set_attrs;
@@ -175,7 +184,8 @@ out:
 	return ret;
 }
 
-#define VXLAN_ATTRS_CMD "(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT),(learn LEARN)"
+#define VXLAN_ATTRS_CMD                                                                            \
+	"(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT),(learn LEARN),(udp_cksum UDP_CKSUM)"
 
 #define VXLAN_ATTRS_ARGS                                                                           \
 	IFACE_ATTRS_ARGS,                                                                          \
@@ -196,6 +206,10 @@ out:
 		with_help(                                                                         \
 			"Enable/disable dynamic MAC learning when bridged (default on).",          \
 			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
+		),                                                                                 \
+		with_help(                                                                         \
+			"Enable/disable outer UDP checksum (default off).",                        \
+			EC_NODE_OR("UDP_CKSUM", ec_node_str("", "on"), ec_node_str("", "off"))     \
 		)
 
 static int ctx_init(struct ec_node *root) {

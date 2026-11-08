@@ -18,7 +18,8 @@ move_to_netns x-p0 n1
 ip -n n1 addr add 3fff::2/64 dev x-p0
 ip -n n1 link add br100 type bridge
 ip -n n1 link set br100 up
-ip -n n1 link add vxlan100 type vxlan id 100 local 3fff::2 dstport 4789 dev x-p0
+ip -n n1 link add vxlan100 type vxlan id 100 local 3fff::2 dstport 4789 dev x-p0 \
+	udp6zerocsumrx udp6zerocsumtx
 ip -n n1 link set vxlan100 master br100
 ip -n n1 link set vxlan100 up
 ip -n n1 addr add 192.168.100.2/24 dev br100

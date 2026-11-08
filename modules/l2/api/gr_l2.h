@@ -64,7 +64,11 @@ typedef enum : uint16_t {
 	// Disabled by EVPN control planes which own the FDB. No effect in VRF
 	// mode (L3 VNI), where there is no FDB learning.
 	GR_VXLAN_F_LEARN = GR_BIT16(0),
-#define GR_VXLAN_F_VALID (GR_VXLAN_F_LEARN)
+	// Compute outer UDP checksum on encapsulation. When disabled, the outer
+	// UDP checksum is left at zero (allowed per RFC 768 for IPv4, and
+	// RFC 6935/6936 for IPv6 tunnels).
+	GR_VXLAN_F_UDP_CKSUM = GR_BIT16(1),
+#define GR_VXLAN_F_VALID (GR_VXLAN_F_LEARN | GR_VXLAN_F_UDP_CKSUM)
 } gr_vxlan_flags_t;
 
 // Convert VXLAN flag enum to string representation.
@@ -73,6 +77,8 @@ static inline const char *gr_vxlan_flag_name(gr_vxlan_flags_t f) {
 	switch (f) {
 	case GR_VXLAN_F_LEARN:
 		return "learn";
+	case GR_VXLAN_F_UDP_CKSUM:
+		return "udp_cksum";
 	}
 	return "?";
 }

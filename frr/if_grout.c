@@ -73,6 +73,32 @@ static void grout_vxlan_disable_learning(const struct gr_iface *gr_if) {
 	free(req);
 }
 
+static void grout_vxlan_enable_udp_cksum(const struct gr_iface *gr_if) {
+	const struct gr_iface_info_vxlan *gr_vxlan;
+	struct gr_iface_info_vxlan *info;
+	struct gr_iface_set_req *req;
+	size_t len;
+
+	gr_vxlan = (const struct gr_iface_info_vxlan *)&gr_if->info;
+
+	len = sizeof(*req) + sizeof(*info);
+	req = calloc(1, len);
+	if (req == NULL) {
+		gr_log_err("calloc: %s", strerror(errno));
+		return;
+	}
+
+	req->set_attrs = GR_VXLAN_SET_FLAGS;
+	req->iface.base.id = gr_if->id;
+	req->iface.base.type = GR_IFACE_TYPE_VXLAN;
+	info = (struct gr_iface_info_vxlan *)req->iface.info;
+	info->flags = gr_vxlan->flags | GR_VXLAN_F_UDP_CKSUM;
+
+	gr_log_debug("enable outer udp checksum on vxlan %s", gr_if->name);
+	grout_client_send_recv(GR_IFACE_SET, len, req, NULL);
+	free(req);
+}
+
 void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 	gr_log_debug(
 		"%s iface %s id=%u cp_id=%u",
@@ -234,6 +260,9 @@ void grout_link_change(struct gr_iface *gr_if, bool new, bool startup) {
 		default:
 			break;
 		}
+
+		if (zif_type == ZEBRA_IF_VXLAN && gr_vxlan->local.af == GR_AF_IP6)
+			grout_vxlan_enable_udp_cksum(gr_if);
 
 		dplane_ctx_set_ifp_bridge_ifindex(ctx, bridge_ifindex);
 		dplane_ctx_set_ifp_master_ifindex(ctx, IFINDEX_INTERNAL);

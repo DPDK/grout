@@ -45,7 +45,9 @@ static uint16_t vxlan_output_process(
 	struct vxlan_template_ipv6 *vh6;
 	struct iface_mbuf_data *d;
 	const struct nexthop *nh;
+	struct rte_udp_hdr *udp;
 	struct rte_mbuf *m;
+	uint16_t udp_len;
 	rte_edge_t edge;
 	uint16_t len;
 
@@ -90,10 +92,8 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh4 = vxlan->template.ipv4;
-			vh4->udp.src_port = vxlan_src_port(m->hash.rss);
-			vh4->udp.dgram_len = rte_cpu_to_be_16(
-				len + sizeof(vh4->udp) + sizeof(vh4->vxlan)
-			);
+			udp = &vh4->udp;
+			udp_len = len + sizeof(vh4->udp) + sizeof(vh4->vxlan);
 			vh4->ip.dst_addr = d->vtep.ipv4;
 			vh4->ip.total_length = rte_cpu_to_be_16(len + sizeof(*vh4));
 			vh4->ip.hdr_checksum = rte_ipv4_cksum(&vh4->ip);
@@ -116,13 +116,10 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh6 = vxlan->template.ipv6;
-			vh6->udp.src_port = vxlan_src_port(m->hash.rss);
-			vh6->udp.dgram_len = rte_cpu_to_be_16(
-				len + sizeof(vh6->udp) + sizeof(vh6->vxlan)
-			);
+			udp = &vh6->udp;
+			udp_len = len + sizeof(vh6->udp) + sizeof(vh6->vxlan);
 			vh6->ip.dst_addr = d->vtep.ipv6;
-			vh6->ip.payload_len = vh6->udp.dgram_len;
-			gr_cksum_l4_set_partial(m);
+			vh6->ip.payload_len = rte_cpu_to_be_16(udp_len);
 
 			edge = IP6_OUTPUT;
 			break;
@@ -131,6 +128,11 @@ static uint16_t vxlan_output_process(
 			goto next;
 		}
 		l3_mbuf_data(m)->nh = nh;
+
+		udp->src_port = vxlan_src_port(m->hash.rss);
+		udp->dgram_len = rte_cpu_to_be_16(udp_len);
+		if (vxlan->flags & GR_VXLAN_F_UDP_CKSUM)
+			gr_cksum_l4_set_partial(m);
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
