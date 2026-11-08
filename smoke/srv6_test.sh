@@ -64,6 +64,15 @@ ping -i0.01 -c3 -n 192.168.60.1 || fail "ping through an SRv6 nexthop failed"
 # check that sid is reachable
 ip netns exec n1 ping6 -i0.01 -c3 -n fd00:202:100::
 
+# TCP bulk transfer through SRv6 tunnel to exercise tunnel TSO/sw_gso
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+ip netns exec n0 socat -u OPEN:$tmp/payload TCP4:192.168.60.1:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "SRv6 TCP bulk transfer: data mismatch"
+
 #
 # NEXT-CSID transit test
 #

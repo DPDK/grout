@@ -122,7 +122,7 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 	struct rte_ether_hdr *eth;
 	struct rte_ipv4_hdr *ip4;
 
-	if (!gr_cksum_l4_partial(m)) {
+	if (!m->tso_segsz && !gr_cksum_l4_partial(m)) {
 		gr_mbuf_tunnel_clear(m);
 		return;
 	}
@@ -161,6 +161,11 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 				m->l2_len = (char *)ip4 - (char *)eth;
 				m->l3_len = (char *)tcp - (char *)ip4;
 				m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_TCP_CKSUM;
+				if (m->tso_segsz) {
+					m->l4_len = (tcp->data_off >> 4) * 4;
+					m->ol_flags |= RTE_MBUF_F_TX_TCP_SEG
+						| RTE_MBUF_F_TX_IP_CKSUM;
+				}
 				tcp->cksum = rte_ipv4_phdr_cksum(ip4, m->ol_flags);
 			} else {
 				tcp->cksum = 0;
@@ -196,6 +201,10 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 				m->l2_len = (char *)ip6 - (char *)eth;
 				m->l3_len = (char *)tcp - (char *)ip6;
 				m->ol_flags |= RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM;
+				if (m->tso_segsz) {
+					m->l4_len = (tcp->data_off >> 4) * 4;
+					m->ol_flags |= RTE_MBUF_F_TX_TCP_SEG;
+				}
 				tcp->cksum = rte_ipv6_phdr_cksum(ip6, m->ol_flags);
 			} else {
 				tcp->cksum = 0;

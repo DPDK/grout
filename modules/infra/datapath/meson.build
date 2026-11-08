@@ -22,6 +22,7 @@ src += files(
   'port_rx.c',
   'port_tx.c',
   'snap_input.c',
+  'sw_gso.c',
   'trace.c',
   'xconnect.c',
 )

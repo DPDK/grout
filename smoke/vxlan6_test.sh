@@ -30,3 +30,12 @@ bridge -n n1 fdb add 00:00:00:00:00:00 dev vxlan100 self vni 100 dst 3fff::1
 ip netns exec n1 ping -i0.01 -c3 -W1 192.168.100.1
 
 grcli fdb show
+
+# TCP bulk transfer through VxLAN over IPv6 tunnel
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+socat -u OPEN:$tmp/payload TCP4:192.168.100.2:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "VxLAN6 TCP bulk transfer: data mismatch"

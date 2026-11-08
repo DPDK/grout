@@ -4,9 +4,14 @@
 #include "control_output.h"
 #include "graph.h"
 #include "log.h"
+#include "loopback.h"
 #include "mbuf.h"
+#include "sw_gso.h"
 
-#define ERROR 0
+enum {
+	ERROR = 0,
+	SW_GSO,
+};
 
 int cq_callback_offset;
 int cq_priv_offset;
@@ -21,6 +26,11 @@ static uint16_t control_output_process(
 	struct rte_mbuf *m;
 	unsigned sent = 0;
 	uintptr_t priv;
+
+	if (batch_has_tso(objs, n_objs)) {
+		rte_node_enqueue(graph, node, SW_GSO, objs, n_objs);
+		return n_objs;
+	}
 
 	for (unsigned i = 0; i < n_objs; i++) {
 		m = objs[i];
@@ -66,9 +76,10 @@ static void control_output_register(void) {
 static struct rte_node_register control_output_node = {
 	.name = "control_output",
 	.process = control_output_process,
-	.nb_edges = 1,
+	.nb_edges = 2,
 	.next_nodes = {
 		[ERROR] = "control_output_error",
+		[SW_GSO] = "sw_gso_cp",
 	},
 };
 
@@ -81,3 +92,20 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(control_output_error);
+
+static struct rte_node_register sw_gso_cp_node = {
+	.name = "sw_gso_cp",
+	.process = sw_gso_process,
+	.nb_edges = 2,
+	.next_nodes = {
+		[0] = "control_output",
+		[1] = "sw_gso_error",
+	},
+};
+
+static struct gr_node_info sw_gso_cp_info = {
+	.node = &sw_gso_cp_node,
+	.type = GR_NODE_T_CONTROL,
+};
+
+GR_NODE_REGISTER(sw_gso_cp_info);

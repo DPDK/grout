@@ -94,7 +94,7 @@ ip6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 			goto next;
 		}
 
-		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
+		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu && !mbuf->tso_segsz) {
 			edge = TOO_BIG;
 			goto next;
 		}

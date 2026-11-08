@@ -15,7 +15,33 @@ port_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 	const struct port_output_edges *ctx = node->ctx_ptr;
 	const struct iface_info_port *port;
 	const struct iface *iface;
-	rte_edge_t edge;
+	const rte_edge_t *edges;
+	bool needs_sw_gso;
+
+	needs_sw_gso = false;
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		struct rte_mbuf *m = objs[i];
+		uint64_t tx_offloads;
+
+		if (!m->tso_segsz)
+			continue;
+		port = iface_info_port(mbuf_data(m)->iface);
+		tx_offloads = port->tx_offloads;
+		if (!(tx_offloads & RTE_ETH_TX_OFFLOAD_TCP_TSO)) {
+			needs_sw_gso = true;
+			break;
+		}
+		if (gr_mbuf_tunnel_is_vxlan(m)) {
+			needs_sw_gso = true;
+			break;
+		}
+		if (gr_mbuf_tunnel_is_ipip(m)) {
+			needs_sw_gso = true;
+			break;
+		}
+	}
+
+	edges = unlikely(needs_sw_gso) ? ctx->sw_gso_edges : ctx->edges;
 
 	for (unsigned i = 0; i < nb_objs; i++) {
 		struct rte_mbuf *mbuf = objs[i];
@@ -25,8 +51,7 @@ port_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		if (gr_mbuf_is_traced(mbuf))
 			gr_mbuf_trace_add(mbuf, node, 0);
 
-		edge = ctx->edges[port->port_id];
-		rte_node_enqueue_x1(graph, node, edge, mbuf);
+		rte_node_enqueue_x1(graph, node, edges[port->port_id], mbuf);
 	}
 
 	return nb_objs;
@@ -40,9 +65,10 @@ static struct rte_node_register node = {
 	.name = "port_output",
 	.process = port_output_process,
 	.fini = port_output_fini,
-	.nb_edges = 2,
+	.nb_edges = 3,
 	.next_nodes = {
 		"port_tx", // will be overridden at runtime
+		"sw_gso", // will be overridden at runtime
 		"port_output_invalid",
 	},
 };

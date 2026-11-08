@@ -204,7 +204,8 @@ static inline void gr_cksum_vnet_to_mbuf(struct rte_mbuf *m, const struct virtio
 }
 
 static inline void gr_cksum_tunnel_push(struct rte_mbuf *m, uint64_t tunnel_type, uint16_t l2_len) {
-	gr_cksum_l4_complete(m, l2_len);
+	if (!m->tso_segsz)
+		gr_cksum_l4_complete(m, l2_len);
 	gr_cksum_reset(m);
 	gr_mbuf_tunnel_set(m, tunnel_type);
 }

@@ -140,3 +140,11 @@ static inline void gr_mbuf_tunnel_set(struct rte_mbuf *m, uint64_t type) {
 static inline void gr_mbuf_tunnel_clear(struct rte_mbuf *m) {
 	m->ol_flags &= ~GR_MBUF_TUNNEL_MASK;
 }
+
+static inline bool batch_has_tso(void **objs, uint16_t nb_objs) {
+	for (uint16_t i = 0; i < nb_objs; i++) {
+		if (((struct rte_mbuf *)objs[i])->tso_segsz)
+			return true;
+	}
+	return false;
+}

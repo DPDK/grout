@@ -57,3 +57,12 @@ encap_count=$(wc -l < $tmp/vxlan-src-ports.txt)
 uniq_ports=$(sort -u $tmp/vxlan-src-ports.txt | wc -l)
 [ "$uniq_ports" -ge 24 ] ||
 	fail "32 flows shared $uniq_ports vxlan source ports"
+
+# TCP bulk transfer through VxLAN tunnel to exercise tunnel TSO/sw_gso
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+ip netns exec n2 socat -u OPEN:$tmp/payload TCP4:192.168.100.2:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "VxLAN TCP bulk transfer: data mismatch"
