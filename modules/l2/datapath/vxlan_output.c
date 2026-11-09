@@ -10,6 +10,7 @@
 #include "l3.h"
 #include "mbuf.h"
 #include "rxtx.h"
+#include "sw_gso.h"
 
 #include <rte_byteorder.h>
 #include <rte_ip6.h>
@@ -131,8 +132,20 @@ static uint16_t vxlan_output_process(
 
 		udp->src_port = vxlan_src_port(m->hash.rss);
 		udp->dgram_len = rte_cpu_to_be_16(udp_len);
-		if (vxlan->flags & GR_VXLAN_F_UDP_CKSUM)
+		if (vxlan->flags & GR_VXLAN_F_UDP_CKSUM) {
 			gr_cksum_l4_set_partial(m);
+
+			if (m->tso_segsz) {
+				// Partially segment this packet so that outer UDP checksum
+				// optimisation can be applied on Tx.
+				struct rte_mbuf *rem = sw_gso_segment_partial(m, 0);
+
+				rte_node_enqueue_x1(graph, node, edge, m);
+				if (rem)
+					rte_node_enqueue_x1(graph, node, edge, rem);
+				continue;
+			}
+		}
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}

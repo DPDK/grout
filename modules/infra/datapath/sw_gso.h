@@ -118,8 +118,13 @@ static inline void sw_gso_prepare_offloads(
 	}
 }
 
-static inline uint16_t
-sw_gso_segment(struct rte_mbuf *m, uint16_t l2_len, struct rte_mbuf **segs, uint16_t max_segs) {
+static inline uint16_t sw_gso_segment__(
+	struct rte_mbuf *m,
+	uint16_t l2_len,
+	struct rte_mbuf **segs,
+	uint16_t max_segs,
+	bool partial_seg
+) {
 	uint16_t seg_payload_len, payload_off;
 	struct rte_ipv4_hdr *outer_ip4;
 	uint16_t outer_ip_hdr_len;
@@ -213,6 +218,77 @@ sw_gso_segment(struct rte_mbuf *m, uint16_t l2_len, struct rte_mbuf **segs, uint
 
 	payload_len = rte_pktmbuf_pkt_len(m) - hdr_len;
 
+	if (partial_seg) {
+		uint16_t remainder_len;
+
+		if (!tunnel_hdr_len) {
+			segs[0] = m;
+			return 1;
+		}
+
+		n_segs = payload_len / tso_segsz;
+		remainder_len = payload_len - (uint32_t)n_segs * tso_segsz;
+
+		if (remainder_len == 0 || n_segs == 0) {
+			segs[0] = m;
+			return 1;
+		}
+
+		seg = gr_mbuf_copy(m, hdr_len);
+		if (seg == NULL) {
+			segs[0] = m;
+			return 1;
+		}
+		dst = rte_pktmbuf_append(seg, remainder_len);
+		if (dst == NULL) {
+			rte_pktmbuf_free(seg);
+			segs[0] = m;
+			return 1;
+		}
+		memcpy(dst,
+		       rte_pktmbuf_mtod_offset(
+			       m, const void *, hdr_len + (uint32_t)n_segs * tso_segsz
+		       ),
+		       remainder_len);
+
+		sw_gso_update_segment(
+			seg,
+			l2_len,
+			outer_ip_hdr_len,
+			tunnel_hdr_len,
+			ip_hdr_len,
+			tcp_hdr_len,
+			remainder_len,
+			n_segs,
+			(uint32_t)n_segs * tso_segsz,
+			true
+		);
+
+		sw_gso_prepare_offloads(seg, tunnel_hdr_len, ip_hdr_len, outer_ip4);
+
+		rte_pktmbuf_trim(m, remainder_len);
+		if (n_segs == 1)
+			m->tso_segsz = 0;
+		sw_gso_update_segment(
+			m,
+			l2_len,
+			outer_ip_hdr_len,
+			tunnel_hdr_len,
+			ip_hdr_len,
+			tcp_hdr_len,
+			(uint32_t)n_segs * tso_segsz,
+			0,
+			0,
+			false
+		);
+		if (!m->tso_segsz)
+			sw_gso_prepare_offloads(m, tunnel_hdr_len, ip_hdr_len, outer_ip4);
+
+		segs[0] = m;
+		segs[1] = seg;
+		return 2;
+	}
+
 	n_segs = (payload_len + tso_segsz - 1) / tso_segsz;
 	if (n_segs == 0 || n_segs > max_segs)
 		return 0;
@@ -275,6 +351,18 @@ error:
 	for (uint16_t j = 1; j < i; j++)
 		rte_pktmbuf_free(segs[j]);
 	return 0;
+}
+
+static inline uint16_t
+sw_gso_segment(struct rte_mbuf *m, uint16_t l2_len, struct rte_mbuf **segs, uint16_t max_segs) {
+	return sw_gso_segment__(m, l2_len, segs, max_segs, false);
+}
+
+static inline struct rte_mbuf *sw_gso_segment_partial(struct rte_mbuf *m, uint16_t l2_len) {
+	struct rte_mbuf *segs[2] = {NULL, NULL};
+
+	sw_gso_segment__(m, l2_len, segs, RTE_DIM(segs), true);
+	return segs[1];
 }
 
 uint16_t sw_gso_tunnel_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
