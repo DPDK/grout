@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Christophe Fontaine, Red Hat
 
+#include <lib/zebra.h>
+
 #include "if_map.h"
 
 #include <gr_infra.h>

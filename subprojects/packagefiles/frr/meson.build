@@ -77,7 +77,7 @@ alias_target('configure', configure)
 
 build_stamp = '.build-stamp'
 install_cmd = 'make install && sh -x ' + srcdir + '/frr_install.sh ' + srcdir + ' ' + prefix + ' && '
-build_cmd = 'cd "' + builddir + '" && make -j && ' + install_cmd + 'touch "' + build_stamp + '"'
+build_cmd = 'cd "' + builddir + '" && make -j${JOBS:-1} && ' + install_cmd + 'touch "' + build_stamp + '"'
 
 build = custom_target(
   'build',
@@ -91,6 +91,7 @@ alias_target('build', build)
 frr_dep = declare_dependency(
   include_directories: include_directories('.', 'lib'),
   compile_args: [
+    '-DHAVE_CONFIG_H',
     '-fms-extensions',
     '-DMULTIPATH_NUM=256',
     '-Wno-missing-field-initializers',
