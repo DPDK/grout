@@ -57,8 +57,16 @@ static uint16_t icmp6_output_process(
 
 		if (rte_ipv6_addr_is_mcast(&d->dst))
 			nh = nh6_lookup(d->iface->vrf_id, d->iface->id, &d->src);
-		else
-			nh = fib6_lookup(d->iface->vrf_id, d->iface->id, &d->dst, mbuf->hash.rss);
+		else {
+			// Snoop-only neighbors have no FIB route; use the ingress
+			// interface cache when replying to them.
+			nh = nh6_lookup(d->iface->vrf_id, d->iface->id, &d->dst);
+			if (nh == NULL || nh->iface_id != d->iface->id
+			    || !nexthop_info_l3(nh)->snoop_only)
+				nh = fib6_lookup(
+					d->iface->vrf_id, d->iface->id, &d->dst, mbuf->hash.rss
+				);
+		}
 
 		if (nh == NULL) {
 			edge = NO_ROUTE;
