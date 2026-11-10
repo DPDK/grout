@@ -10,6 +10,7 @@
 #include "module.h"
 #include "nexthop.h"
 #include "rcu.h"
+#include "vec.h"
 
 #include <rte_hash.h>
 
@@ -36,6 +37,7 @@ void nexthop_af_ops_register(addr_family_t af, const struct nexthop_af_ops *ops)
 	assert(ops->resolve != NULL);
 	assert(ops->solicit != NULL);
 	assert(ops->cleanup_routes != NULL);
+	assert(ops->cleanup_learned != NULL);
 	assert(ops->resubmit != NULL);
 	if (!gr_af_valid(af))
 		ABORT("invalid af value %hhu", af);
@@ -329,7 +331,7 @@ static struct nexthop_type_ops l3_nh_ops = {
 	.to_api = l3_to_api,
 };
 
-static void l3_age(struct nexthop *nh) {
+static bool l3_age(struct nexthop *nh) {
 	const struct iface *vrf = iface_from_id(nh->vrf_id);
 	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
 	const struct nexthop_af_ops *ops;
@@ -360,6 +362,7 @@ static void l3_age(struct nexthop *nh) {
 				gr_nh_state_name(l3->state)
 			);
 			l3->state = GR_NH_S_FAILED;
+			l3->failed_since = now;
 		} else {
 			if (ops->solicit(nh) < 0)
 				LOG_RATELIMIT(
@@ -380,19 +383,28 @@ static void l3_age(struct nexthop *nh) {
 		break;
 	case GR_NH_S_FAILED:
 		nexthop_l3_hold_queue_flush(nh);
-		break;
+		return (now - l3->failed_since) / GR_NS_PER_S > nh_conf.lifetime_unreachable_sec;
 	}
+	return false;
 }
 
 static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
+	vec struct nexthop **expired = NULL;
 	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
 
 	while (rte_hash_iterate(l3_hash, &key, (void **)&nh, &next) >= 0) {
-		if (nh->origin == GR_NH_ORIGIN_LEARN)
-			l3_age(nh);
+		if (nh->origin == GR_NH_ORIGIN_LEARN && l3_age(nh))
+			vec_add(expired, nh);
 	}
+	vec_foreach (nh, expired) {
+		const struct nexthop_af_ops *ops = nexthop_af_ops_from_nh(nh);
+		ops->cleanup_learned(nh);
+		if (nh->ref_count == 1)
+			nexthop_decref(nh);
+	}
+	vec_free(expired);
 }
 
 static void l3_init(struct event_base *ev_base) {

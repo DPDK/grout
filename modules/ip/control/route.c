@@ -586,6 +586,7 @@ struct rib4_cleanup_entry {
 struct rib4_cleanup_ctx {
 	const struct nexthop *nh;
 	uint16_t iface_id;
+	bool internal_only;
 	vec struct rib4_cleanup_entry *entries;
 };
 
@@ -606,6 +607,8 @@ static int rib4_cleanup_cb(
 	} else {
 		match = ctx->nh == NULL || nh == ctx->nh;
 	}
+	if (ctx->internal_only)
+		match = match && origin == GR_NH_ORIGIN_INTERNAL && depth == 32;
 
 	if (match) {
 		struct rib4_cleanup_entry entry = {
@@ -639,6 +642,15 @@ void rib4_cleanup(struct nexthop *nh, bool notify) {
 		.entries = NULL,
 	};
 	rib4_cleanup_run(&ctx, notify);
+}
+
+void rib4_cleanup_learned(struct nexthop *nh) {
+	struct rib4_cleanup_ctx ctx = {
+		.nh = nh,
+		.iface_id = GR_IFACE_ID_UNDEF,
+		.internal_only = true,
+	};
+	rib4_cleanup_run(&ctx, false);
 }
 
 void rib4_cleanup_iface(uint16_t iface_id, bool notify) {
