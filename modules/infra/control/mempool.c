@@ -52,7 +52,10 @@ static int mt_sort(const void *p1, const void *p2) {
 #define MT_COUNT RTE_MAX_NUMA_NODES + 1
 static struct mempool_tracker trackers[MT_COUNT][MAX_MEMPOOL_PER_NUMA];
 static uint32_t mempool_default_size[MT_COUNT];
-static bool pending_has_name(const char *name);
+// Tracker slots are reordered on every get/release, their index cannot be used
+// to name pools. Use a monotonic counter so that a name is never reused, even
+// while the previous pool is still waiting for deferred free.
+static uint32_t mempool_next_id[MT_COUNT];
 
 // Resolve SOCKET_ID_ANY (used by control plane and loopback interfaces) to the
 // NUMA socket of the control plane thread, so those pools share the same
@@ -97,9 +100,13 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 	for (int i = 0; i < MAX_MEMPOOL_PER_NUMA; i++) {
 		struct mempool_tracker *mt = &trackers[mt_index][i];
 		if (mt->mp == NULL) {
-			sprintf(mp_name, "mbuf_%d:%d", socket_id, i);
-			if (pending_has_name(mp_name))
-				continue;
+			snprintf(
+				mp_name,
+				sizeof(mp_name),
+				"mbuf_%d:%u",
+				socket_id,
+				mempool_next_id[mt_index]++
+			);
 			alloc_size = mempool_default_size[mt_index];
 			if (count > alloc_size / 4) {
 				alloc_size = count * 2;
@@ -153,16 +160,6 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 }
 
 #define PENDING_WARN_INTERVAL (5 * 60 * GR_NS_PER_S)
-
-static bool pending_has_name(const char *name) {
-	struct pending_free *pf;
-
-	STAILQ_FOREACH (pf, &pending_list, next) {
-		if (strcmp(pf->mp->name, name) == 0)
-			return true;
-	}
-	return false;
-}
 
 static void pending_free_cb(evutil_socket_t, short, void *) {
 	gr_clock_ns_t now = clock_ns();
