@@ -331,6 +331,7 @@ static struct nexthop_af_ops nh_ops = {
 	.resolve = nh6_resolve_cb,
 	.solicit = nh6_solicit,
 	.cleanup_routes = rib6_cleanup,
+	.cleanup_learned = rib6_cleanup_learned,
 	.resubmit = ip6_resubmit_cb,
 };
 
