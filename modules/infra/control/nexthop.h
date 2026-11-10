@@ -46,6 +46,8 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	gr_clock_ns_t last_request;
 	gr_clock_ns_t failed_since;
 
+	bool snoop_only;
+
 	uint8_t ucast_probes;
 	uint8_t bcast_probes;
 
