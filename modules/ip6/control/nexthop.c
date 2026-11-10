@@ -9,6 +9,7 @@
 #include "ip6_datapath.h"
 #include "l3.h"
 #include "log.h"
+#include "vec.h"
 
 #include <gr_net_types.h>
 
@@ -165,21 +166,21 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-// Check whether remote is reachable through a connected (on-link) route via
-// iface. NS/NA senders outside any locally connected subnet are not directly
-// connected and must not be learned as a neighbor (e.g. a reply routed back
-// asymmetrically on behalf of a remote, indirectly reachable address). This
-// also covers link-local addresses: each interface owns a connected route
-// for its own link-local prefix.
+// Check whether remote is covered by a prefix configured on iface. NS/NA
+// senders outside any locally connected subnet are not directly connected and
+// must not be learned as a neighbor unless snooping is enabled.
 static bool ndp_sender_is_connected(const struct iface *iface, const struct rte_ipv6_addr *remote) {
-	const struct nexthop *nh = fib6_lookup(iface->vrf_id, iface->id, remote, 0);
-	const struct nexthop_info_l3 *l3;
-
-	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+	struct hoplist *addrs = addr6_get_all(iface->id);
+	if (addrs == NULL)
 		return false;
 
-	l3 = nexthop_info_l3(nh);
-	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+	vec_foreach (const struct nexthop *nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (rte_ipv6_addr_eq_prefix(remote, &l3->ipv6, l3->prefixlen))
+			return true;
+	}
+
+	return false;
 }
 
 void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {

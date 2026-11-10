@@ -8,6 +8,7 @@
 #include "ip4_datapath.h"
 #include "l3.h"
 #include "log.h"
+#include "vec.h"
 
 #include <gr_net_types.h>
 
@@ -159,14 +160,17 @@ free:
 // connected and must not be learned as a neighbor (e.g. a reply routed back
 // asymmetrically on behalf of a remote, indirectly reachable address).
 static bool arp_sender_is_connected(const struct iface *iface, ip4_addr_t sip) {
-	const struct nexthop *nh = fib4_lookup(iface->vrf_id, sip, 0);
-	const struct nexthop_info_l3 *l3;
-
-	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+	struct hoplist *addrs = addr4_get_all(iface->id);
+	if (addrs == NULL)
 		return false;
 
-	l3 = nexthop_info_l3(nh);
-	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+	vec_foreach (const struct nexthop *nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (ip4_addr_same_subnet(sip, l3->ipv4, l3->prefixlen))
+			return true;
+	}
+
+	return false;
 }
 
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
