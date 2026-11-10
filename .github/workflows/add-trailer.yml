@@ -100,6 +100,7 @@ jobs:
       - name: Amend all pull request commits with the trailer
         env:
           GIT_TRAILER_DEBUG: 1
+          BASE_REPO: ${{ github.repository }}
           COMMITS: ${{ fromJSON(steps.info.outputs.result).commits }}
           HEAD_REF: ${{ fromJSON(steps.info.outputs.result).head_ref }}
           PR_NUMBER: ${{ fromJSON(steps.info.outputs.result).number }}
@@ -139,5 +140,9 @@ jobs:
           git rebase "HEAD~$COMMITS" \
             --exec "git commit -C HEAD --no-edit --amend --trailer='$TRAILER'"
 
-          git push --force --atomic origin \
-            "HEAD:$HEAD_REF" "HEAD:refs/grout-bot/skip-ci/$PR_NUMBER"
+          git remote add base "https://github.com/$BASE_REPO.git"
+
+          # Push the marker first so that the CI triggered by the branch
+          # update already sees it.
+          git push --force base "HEAD:refs/skip-ci/$PR_NUMBER"
+          git push --force origin "HEAD:$HEAD_REF"

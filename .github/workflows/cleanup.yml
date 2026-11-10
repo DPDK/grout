@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+---
+name: Cleanup
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  delete-skip-ci-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the skip-ci marker ref
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.TRAILER_BOT_TOKEN }}
+          script: |
+            const ref = `skip-ci/${context.payload.pull_request.number}`;
+
+            try {
+              await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: ref,
+              });
+            } catch (e) {
+              if (e.status === 404) {
+                return;
+              }
+              throw e;
+            }
+
+            await github.rest.git.deleteRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: ref,
+            });

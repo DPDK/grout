@@ -31,9 +31,9 @@ jobs:
             const head = context.payload.pull_request.head;
             try {
               const { data: ref } = await github.rest.git.getRef({
-                owner: head.repo.owner.login,
-                repo: head.repo.name,
-                ref: `grout-bot/skip-ci/${context.issue.number}`,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `skip-ci/${context.issue.number}`,
               });
               return ref.object.sha === head.sha;
             } catch (e) {
