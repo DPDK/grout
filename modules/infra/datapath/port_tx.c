@@ -130,6 +130,9 @@ uint16_t tx_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		return 0;
 
 	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
+	struct iface_stats *stats = iface_get_stats(rte_lcore_id(), mbuf_data(objs[0])->iface->id);
+	stats->tx_burst_attempted += nb_objs;
+	stats->tx_burst_enqueued += tx_ok;
 
 	tx_finish(graph, node, (void **)mbufs, nb_objs, tx_ok, 0);
 
@@ -152,6 +155,9 @@ tx_shared_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 	rte_spinlock_lock(ctx->lock);
 	tx_ok = rte_eth_tx_burst(ctx->txq.port_id, ctx->txq.queue_id, mbufs, nb_objs);
 	rte_spinlock_unlock(ctx->lock);
+	struct iface_stats *stats = iface_get_stats(rte_lcore_id(), mbuf_data(objs[0])->iface->id);
+	stats->tx_burst_attempted += nb_objs;
+	stats->tx_burst_enqueued += tx_ok;
 
 	tx_finish(graph, node, (void **)mbufs, nb_objs, tx_ok, RXTX_F_TXQ_SHARED);
 

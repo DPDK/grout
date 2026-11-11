@@ -428,6 +428,8 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 	gr_table_column(table, "CP_RX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 8
 	gr_table_column(table, "CP_TX_PACKETS", GR_DISP_RIGHT | GR_DISP_INT); // 9
 	gr_table_column(table, "CP_TX_BYTES", GR_DISP_RIGHT | GR_DISP_INT); // 10
+	gr_table_column(table, "TX_BURST_ATTEMPTED", GR_DISP_RIGHT | GR_DISP_INT); // 11
+	gr_table_column(table, "TX_BURST_ENQUEUED", GR_DISP_RIGHT | GR_DISP_INT); // 12
 
 	for (uint16_t i = 0; i < resp->n_stats; i++) {
 		gr_table_cell(table, 0, "%s", iface_name_from_id(c, resp->stats[i].iface_id));
@@ -437,6 +439,8 @@ static cmd_status_t iface_stats(struct gr_api_client *c, const struct ec_pnode *
 		gr_table_cell(table, 4, "%lu", resp->stats[i].tx_packets);
 		gr_table_cell(table, 5, "%lu", resp->stats[i].tx_bytes);
 		gr_table_cell(table, 6, "%lu", resp->stats[i].tx_errors);
+		gr_table_cell(table, 11, "%lu", resp->stats[i].tx_burst_attempted);
+		gr_table_cell(table, 12, "%lu", resp->stats[i].tx_burst_enqueued);
 		gr_table_cell(table, 7, "%lu", resp->stats[i].cp_rx_packets);
 		gr_table_cell(table, 8, "%lu", resp->stats[i].cp_rx_bytes);
 		gr_table_cell(table, 9, "%lu", resp->stats[i].cp_tx_packets);

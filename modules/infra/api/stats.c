@@ -241,6 +241,8 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 		s.rx_drops = 0;
 		s.tx_packets = 0;
 		s.tx_bytes = 0;
+		s.tx_burst_attempted = 0;
+		s.tx_burst_enqueued = 0;
 		s.tx_errors = 0;
 		s.cp_rx_packets = 0;
 		s.cp_rx_bytes = 0;
@@ -254,6 +256,8 @@ static struct api_out iface_stats_get(const void * /*request*/, struct api_ctx *
 			s.rx_bytes += sw_stats->rx_bytes;
 			s.tx_packets += sw_stats->tx_packets;
 			s.tx_bytes += sw_stats->tx_bytes;
+			s.tx_burst_attempted += sw_stats->tx_burst_attempted;
+			s.tx_burst_enqueued += sw_stats->tx_burst_enqueued;
 			s.cp_rx_packets += sw_stats->cp_rx_packets;
 			s.cp_rx_bytes += sw_stats->cp_rx_bytes;
 			s.cp_tx_packets += sw_stats->cp_tx_packets;

@@ -408,6 +408,8 @@ struct gr_iface_stats {
 	uint64_t rx_drops;
 	uint64_t tx_packets;
 	uint64_t tx_bytes;
+	uint64_t tx_burst_attempted;
+	uint64_t tx_burst_enqueued;
 	uint64_t tx_errors;
 	uint64_t cp_rx_packets;
 	uint64_t cp_rx_bytes;
