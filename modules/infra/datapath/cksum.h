@@ -175,7 +175,7 @@ gr_cksum_mbuf_to_vnet(struct virtio_net_hdr *vhdr, struct rte_mbuf *m, uint16_t 
 
 	memset(vhdr, 0, sizeof(*vhdr));
 
-	if (!gr_cksum_l4_partial(m))
+	if (!gr_cksum_l4_partial(m) && !m->tso_segsz)
 		return;
 
 	ip = rte_pktmbuf_mtod_offset(m, void *, l2_len);
@@ -186,10 +186,22 @@ gr_cksum_mbuf_to_vnet(struct virtio_net_hdr *vhdr, struct rte_mbuf *m, uint16_t 
 	vhdr->csum_start = (uint8_t *)l4 - rte_pktmbuf_mtod(m, uint8_t *);
 	vhdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
 
-	if (proto == IPPROTO_TCP)
+	if (proto == IPPROTO_TCP) {
+		if (m->tso_segsz) {
+			uint16_t tcp_hdr_len = (((struct rte_tcp_hdr *)l4)->data_off >> 4) * 4;
+
+			if (GR_IP_IS_IPV4(*(uint8_t *)ip))
+				vhdr->gso_type = VIRTIO_NET_HDR_GSO_TCPV4;
+			else
+				vhdr->gso_type = VIRTIO_NET_HDR_GSO_TCPV6;
+			vhdr->gso_size = m->tso_segsz;
+			vhdr->hdr_len = vhdr->csum_start + tcp_hdr_len;
+		}
+
 		vhdr->csum_offset = offsetof(struct rte_tcp_hdr, cksum);
-	else if (proto == IPPROTO_UDP)
+	} else if (proto == IPPROTO_UDP) {
 		vhdr->csum_offset = offsetof(struct rte_udp_hdr, dgram_cksum);
+	}
 }
 
 static inline void gr_cksum_vnet_to_mbuf(struct rte_mbuf *m, const struct virtio_net_hdr *vhdr) {
@@ -201,6 +213,11 @@ static inline void gr_cksum_vnet_to_mbuf(struct rte_mbuf *m, const struct virtio
 		else if (vhdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
 			gr_cksum_l4_set_partial(m);
 	}
+
+	if ((vhdr->gso_type == VIRTIO_NET_HDR_GSO_TCPV4
+	     || vhdr->gso_type == VIRTIO_NET_HDR_GSO_TCPV6)
+	    && l4_type == RTE_PTYPE_L4_TCP)
+		m->tso_segsz = vhdr->gso_size;
 }
 
 static inline void gr_cksum_tunnel_push(struct rte_mbuf *m, uint64_t tunnel_type, uint16_t l2_len) {

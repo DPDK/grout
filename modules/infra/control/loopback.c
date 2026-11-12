@@ -8,6 +8,7 @@
 #include "iface.h"
 #include "log.h"
 #include "loopback.h"
+#include "mbuf.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
@@ -35,7 +36,6 @@ LOG_COUNTER(tx_bad_proto);
 LOG_COUNTER(tx_write_failed);
 LOG_COUNTER(tun_deleted);
 LOG_COUNTER(rx_pool_exhausted);
-LOG_COUNTER(rx_no_tailroom);
 LOG_COUNTER(rx_read_failed);
 LOG_COUNTER(rx_bad_proto);
 LOG_COUNTER(rx_loopback_send_failed);
@@ -130,13 +130,14 @@ end:
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct iface *iface = ev_iface;
 	struct eth_input_mbuf_data *e;
+	struct rte_mbuf *mbuf = NULL;
 	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
-	struct rte_mbuf *mbuf;
+	char data[UINT16_MAX];
 	struct iovec iov[3];
+	uint32_t data_len;
 	struct tun_pi pi;
 	ssize_t len;
-	char *data;
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
@@ -145,20 +146,9 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(iface->pool);
-	if (!mbuf) {
-		LOG_RATELIMIT(ERR, rx_pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
-		goto err;
-	}
-
-	if ((data = rte_pktmbuf_append(mbuf, iface->mtu)) == NULL) {
-		LOG_RATELIMIT(ERR, rx_no_tailroom, "rte_pktmbuf_append: not enough tailroom");
-		goto err;
-	}
-
 	iov[0] = (struct iovec) {.iov_base = &pi, .iov_len = sizeof(pi)};
 	iov[1] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
-	iov[2] = (struct iovec) {.iov_base = data, .iov_len = iface->mtu};
+	iov[2] = (struct iovec) {.iov_base = data, .iov_len = sizeof(data)};
 
 	len = readv(iface->cp_fd, iov, ARRAY_DIM(iov));
 	if (len <= (ssize_t)(sizeof(pi) + sizeof(vhdr))) {
@@ -173,7 +163,14 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi) - sizeof(vhdr)));
+	data_len = len - sizeof(pi) - sizeof(vhdr);
+	mbuf = gr_mbuf_alloc(iface->pool, data_len);
+	if (!mbuf) {
+		LOG_RATELIMIT(ERR, rx_pool_exhausted, "gr_mbuf_alloc: pool exhausted");
+		goto err;
+	}
+
+	memcpy(rte_pktmbuf_append(mbuf, data_len), data, data_len);
 
 	gr_cksum_reset(mbuf);
 
@@ -265,7 +262,7 @@ int iface_loopback_create(struct iface *iface) {
 		goto err;
 	}
 
-	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM) < 0) {
+	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM | TUN_F_TSO4 | TUN_F_TSO6) < 0) {
 		LOG(ERR, "ioctl(TUNSETOFFLOAD): %s", strerror(errno));
 		goto err;
 	}

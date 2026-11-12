@@ -10,6 +10,7 @@
 #include "iface.h"
 #include "log.h"
 #include "loopback.h"
+#include "mbuf.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
@@ -138,16 +139,16 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct rte_ether_addr iface_mac;
 	struct rte_ether_addr src, dst;
 	struct iface *iface = ev_iface;
+	struct rte_mbuf *mbuf = NULL;
 	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
 	struct rte_ether_hdr *eth;
 	struct rte_vlan_hdr *vlan;
-	struct rte_mbuf *mbuf;
+	char data[UINT16_MAX];
 	rte_be16_t ether_type;
 	struct iovec iov[2];
-	size_t read_len;
+	uint32_t data_len;
 	ssize_t len;
-	char *data;
 
 	if (reason & EV_CLOSED) {
 		LOG_RATELIMIT(ERR, tap_deleted, "tap device %s deleted", iface->name);
@@ -155,20 +156,8 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(iface->pool);
-	if (!mbuf) {
-		LOG_RATELIMIT(ERR, rx_pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
-		goto err;
-	}
-
-	read_len = iface->mtu + RTE_ETHER_HDR_LEN + RTE_VLAN_HLEN;
-	if ((data = rte_pktmbuf_append(mbuf, read_len)) == NULL) {
-		LOG_RATELIMIT(ERR, rx_no_tailroom, "rte_pktmbuf_append: not enough tailroom");
-		goto err;
-	}
-
 	iov[0] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
-	iov[1] = (struct iovec) {.iov_base = data, .iov_len = read_len};
+	iov[1] = (struct iovec) {.iov_base = data, .iov_len = sizeof(data)};
 
 	len = readv(iface->cp_fd, iov, 2);
 	if (len <= (ssize_t)sizeof(vhdr)) {
@@ -183,7 +172,14 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	rte_pktmbuf_trim(mbuf, read_len - (len - sizeof(vhdr)));
+	data_len = len - sizeof(vhdr);
+	mbuf = gr_mbuf_alloc(iface->pool, data_len);
+	if (!mbuf) {
+		LOG_RATELIMIT(ERR, rx_pool_exhausted, "gr_mbuf_alloc: pool exhausted");
+		goto err;
+	}
+
+	memcpy(rte_pktmbuf_append(mbuf, data_len), data, data_len);
 
 	gr_cksum_reset(mbuf);
 	gr_cksum_ip_set_good(mbuf);
@@ -359,7 +355,7 @@ static void cp_create(struct iface *iface) {
 		goto err;
 	}
 
-	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM) < 0) {
+	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM | TUN_F_TSO4 | TUN_F_TSO6) < 0) {
 		LOG(ERR, "ioctl(TUNSETOFFLOAD): %s", strerror(errno));
 		goto err;
 	}

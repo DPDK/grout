@@ -277,5 +277,4 @@ error:
 	return 0;
 }
 
-uint16_t sw_gso_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
 uint16_t sw_gso_tunnel_process(struct rte_graph *, struct rte_node *, void **, uint16_t);

@@ -63,7 +63,7 @@ static inline uint16_t sw_gso_do(
 	return nb_objs;
 }
 
-uint16_t
+static uint16_t
 sw_gso_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	return sw_gso_do(graph, node, objs, nb_objs, true);
 }
