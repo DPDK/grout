@@ -173,12 +173,12 @@ static inline void soft_rss(struct rte_mbuf *m) {
 		gr_mbuf_flow_hash_set(m, gr_mbuf_flow_hash_compute(m, GR_MBUF_FLOW_HASH_L3_L4));
 }
 
-static void virtio_rx_validate_offloads(struct rte_mbuf *m) {
+static inline void virtio_rx_validate_offloads(struct rte_mbuf *m) {
 	struct rte_net_hdr_lens hdr_lens;
 	uint32_t ptype;
 
-	// return early if the L4 checksum was not offloaded
-	if (!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK))
+	// return early if the L4 checksum was not offloaded and no TSO
+	if (!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) && !m->tso_segsz)
 		return;
 
 	ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
@@ -187,10 +187,12 @@ static void virtio_rx_validate_offloads(struct rte_mbuf *m) {
 	case RTE_PTYPE_L4_TCP:
 		break;
 	case RTE_PTYPE_L4_UDP:
+		m->tso_segsz = 0;
 		break;
 	default:
 		// unsupported packet type
 		gr_cksum_reset(m);
+		m->tso_segsz = 0;
 		return;
 	}
 }
