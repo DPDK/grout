@@ -68,15 +68,6 @@ sw_gso_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint
 	return sw_gso_do(graph, node, objs, nb_objs, true);
 }
 
-uint16_t sw_gso_tunnel_process(
-	struct rte_graph *graph,
-	struct rte_node *node,
-	void **objs,
-	uint16_t nb_objs
-) {
-	return sw_gso_do(graph, node, objs, nb_objs, false);
-}
-
 static struct rte_node_register sw_gso_node = {
 	.name = SW_GSO_NODE_BASE,
 	.process = sw_gso_process,

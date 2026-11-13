@@ -220,6 +220,59 @@ static inline void tx_vxlan_tso_offload(
 	m->ol_flags |= ol_flags;
 }
 
+static inline void tx_ipip_tso_offload(
+	struct rte_mbuf *m,
+	uint64_t outer_ol_flags,
+	uint16_t outer_l2_len,
+	uint16_t outer_l3_len,
+	uint64_t tx_offloads
+) {
+	struct rte_ipv4_hdr *inner_ip4;
+	uint16_t inner_ip_hdr_len;
+	struct rte_tcp_hdr *tcp;
+	uint64_t ol_flags;
+
+	inner_ip4 = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, outer_l2_len + outer_l3_len);
+
+	if (tx_offloads & RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO)
+		ol_flags = RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_TUNNEL_IPIP
+			| RTE_MBUF_F_TX_TCP_CKSUM | outer_ol_flags;
+	else
+		ol_flags = RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_TUNNEL_IP | RTE_MBUF_F_TX_TCP_CKSUM
+			| outer_ol_flags;
+
+	if (GR_IP_IS_IPV4(inner_ip4->version_ihl)) {
+		inner_ip_hdr_len = rte_ipv4_hdr_len(inner_ip4);
+		tcp = (struct rte_tcp_hdr *)((char *)inner_ip4 + inner_ip_hdr_len);
+		tcp->cksum = rte_ipv4_phdr_cksum(inner_ip4, RTE_MBUF_F_TX_TCP_SEG);
+		ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
+	} else {
+		struct rte_ipv6_hdr *inner_ip6 = (struct rte_ipv6_hdr *)inner_ip4;
+		void *l4;
+
+		if (gr_ip_l4_proto(
+			    inner_ip4,
+			    rte_pktmbuf_pkt_len(m)
+				    - ((uint8_t *)inner_ip4 - rte_pktmbuf_mtod(m, uint8_t *)),
+			    &l4
+		    )
+		    < 0)
+			return;
+
+		inner_ip_hdr_len = (uint8_t *)l4 - (uint8_t *)inner_ip6;
+		tcp = l4;
+		tcp->cksum = rte_ipv6_phdr_cksum(inner_ip6, RTE_MBUF_F_TX_TCP_SEG);
+		ol_flags |= RTE_MBUF_F_TX_IPV6;
+	}
+
+	m->outer_l2_len = outer_l2_len;
+	m->outer_l3_len = outer_l3_len;
+	m->l2_len = 0;
+	m->l3_len = inner_ip_hdr_len;
+	m->l4_len = (tcp->data_off >> 4) * 4;
+	m->ol_flags = (m->ol_flags & ~RTE_MBUF_F_TX_TUNNEL_MASK) | ol_flags;
+}
+
 static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads) {
 	struct rte_ether_hdr *eth;
 	struct rte_ipv4_hdr *ip4;
@@ -274,6 +327,43 @@ static inline void tx_prepare_offloads(struct rte_mbuf *m, uint64_t tx_offloads)
 				RTE_MBUF_F_TX_OUTER_IPV6,
 				(char *)outer_ip6 - (char *)eth,
 				(char *)outer_udp - (char *)outer_ip6
+			);
+			gr_cksum_reset(m);
+		}
+		gr_cksum_l4_set_good(m);
+		return;
+	}
+
+	if (m->tso_segsz && gr_mbuf_tunnel_is_ipip(m)) {
+		if (GR_IP_IS_IPV4(ip4->version_ihl)) {
+			tx_ipip_tso_offload(
+				m,
+				RTE_MBUF_F_TX_OUTER_IPV4 | RTE_MBUF_F_TX_OUTER_IP_CKSUM,
+				(char *)ip4 - (char *)eth,
+				rte_ipv4_hdr_len(ip4),
+				tx_offloads
+			);
+			gr_cksum_reset(m);
+			gr_cksum_ip_set_good(m);
+		} else {
+			struct rte_ipv6_hdr *outer_ip6 = (struct rte_ipv6_hdr *)ip4;
+			void *l4;
+
+			if (gr_ip_l4_proto(
+				    outer_ip6,
+				    rte_pktmbuf_pkt_len(m)
+					    - ((uint8_t *)outer_ip6 - (uint8_t *)eth),
+				    &l4
+			    )
+			    < 0)
+				return;
+
+			tx_ipip_tso_offload(
+				m,
+				RTE_MBUF_F_TX_OUTER_IPV6,
+				(char *)outer_ip6 - (char *)eth,
+				(uint8_t *)l4 - (uint8_t *)outer_ip6,
+				tx_offloads
 			);
 			gr_cksum_reset(m);
 		}

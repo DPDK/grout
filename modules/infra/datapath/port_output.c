@@ -36,7 +36,8 @@ port_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			needs_sw_gso = true;
 			break;
 		}
-		if (gr_mbuf_tunnel_is_ipip(m)) {
+		if (gr_mbuf_tunnel_is_ipip(m) && !(tx_offloads & RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO)
+		    && !(tx_offloads & RTE_ETH_TX_OFFLOAD_IP_TNL_TSO)) {
 			needs_sw_gso = true;
 			break;
 		}

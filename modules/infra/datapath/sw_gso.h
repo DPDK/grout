@@ -364,5 +364,3 @@ static inline struct rte_mbuf *sw_gso_segment_partial(struct rte_mbuf *m, uint16
 	sw_gso_segment__(m, l2_len, segs, RTE_DIM(segs), true);
 	return segs[1];
 }
-
-uint16_t sw_gso_tunnel_process(struct rte_graph *, struct rte_node *, void **, uint16_t);
