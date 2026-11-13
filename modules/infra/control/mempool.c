@@ -12,6 +12,7 @@
 #include <event2/event.h>
 #include <numa.h>
 
+#include <errno.h>
 #include <stdlib.h>
 
 LOG_TYPE("mempool");
@@ -29,6 +30,7 @@ static struct event *pending_timer;
 struct mempool_tracker {
 	struct rte_mempool *mp;
 	uint32_t reserved;
+	unsigned id;
 };
 
 #define MAX_MEMPOOL_PER_NUMA 32
@@ -156,7 +158,7 @@ struct rte_mempool *gr_pktmbuf_pool_get(int8_t socket_id, uint32_t count) {
 		qsort(mt, MAX_MEMPOOL_PER_NUMA, sizeof(*mt), mt_sort);
 	}
 
-	return mp;
+	return mp ? mp : errno_set_null(ENOSPC);
 }
 
 #define PENDING_WARN_INTERVAL (5 * 60 * GR_NS_PER_S)
@@ -274,8 +276,11 @@ sort:
 }
 
 static void mempool_init(struct event_base *ev_base) {
-	for (int s = 0; s < MT_COUNT; s++)
+	for (int s = 0; s < MT_COUNT; s++) {
 		mempool_default_size[s] = gr_config.mempool_chunk_size;
+		for (unsigned i = 0; i < MAX_MEMPOOL_PER_NUMA; i++)
+			trackers[s][i].id = i;
+	}
 
 	pending_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, pending_free_cb, NULL);
 	if (pending_timer == NULL)
