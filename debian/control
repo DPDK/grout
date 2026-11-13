@@ -33,6 +33,7 @@ Package: grout
 Architecture: linux-any
 Depends:
  tcpdump,
+ jq,
  driverctl,
  less,
  ${misc:Depends},

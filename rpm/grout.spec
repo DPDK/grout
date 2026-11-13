@@ -61,6 +61,7 @@ BuildRequires: frr-headers >= 10.5
 BuildRequires: systemd
 %endif
 
+Requires: jq
 Requires: less
 Requires: tcpdump
 
