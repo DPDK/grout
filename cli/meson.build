@@ -25,14 +25,16 @@ install_data(
   install_dir: get_option('datadir') / 'bash-completion/completions',
 )
 
-install_data(
-  files('grtcpdump'),
-  install_dir: get_option('bindir'),
-  install_mode: 'rwxr-xr-x',
-)
+if not get_option('grtcpdump').disabled()
+  install_data(
+    files('grtcpdump'),
+    install_dir: get_option('bindir'),
+    install_mode: 'rwxr-xr-x',
+  )
 
-install_data(
-  files('grtcpdump.bash-completion'),
-  rename: ['grtcpdump'],
-  install_dir: get_option('datadir') / 'bash-completion/completions',
-)
+  install_data(
+    files('grtcpdump.bash-completion'),
+    rename: ['grtcpdump'],
+    install_dir: get_option('datadir') / 'bash-completion/completions',
+  )
+endif

@@ -22,6 +22,11 @@ option(
 )
 
 option(
+  'grtcpdump', type: 'feature', value: 'enabled',
+  description: 'Install the grtcpdump wrapper script. It requires bash, jq and tcpdump at runtime.',
+)
+
+option(
   'tests', type: 'feature', value: 'auto',
   description: 'Build unit-tests. If set to "auto", only build if cmocka is found.',
 )
