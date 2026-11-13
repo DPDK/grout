@@ -26,11 +26,26 @@ check_nexthop() {
 	return 1
 }
 
+wait_nexthop_gone() {
+	local ip="$1"
+	local attempts=50
+	while [ "$attempts" -gt 0 ]; do
+		if grcli -j nexthop show type l3 |
+			jq -e --arg a "$ip" '[.[] | select(.addr == $a)] | length == 0'; then
+			return 0
+		fi
+		sleep 0.2
+		attempts=$((attempts - 1))
+	done
+	return 1
+}
+
 grcli nexthop config set lifetime 2 unreachable 1 ucast-probes 1 bcast-probes 1
 port_add p0
 port_add p1
 grcli address add 172.16.0.1/24 iface p0
 grcli address add 172.16.1.1/24 iface p1
+grcli address add fd00:1::1/64 iface p0
 
 for n in 0 1; do
 	p=x-p$n
@@ -41,8 +56,19 @@ for n in 0 1; do
 	ip -n $ns route add default via 172.16.$n.1
 done
 
+ip -n n0 -6 addr add fd00:1::2/64 dev x-p0
+ip netns exec n0 ndisc6 -1 -r1 -s fd00:1::2 fd00:1::1 x-p0
+
 ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec n1 ping -i0.01 -c3 -n 172.16.0.2
+grcli route add 10.77.1.0/24 via 172.16.1.2
+
+grcli interface set port p0 neigh_snoop on
+ip -n n0 addr add 172.16.99.2/24 dev x-p0
+ip netns exec n0 arping -U -c1 -w1 -I x-p0 172.16.99.2
+ip -n n0 addr add 172.16.99.3/24 dev x-p0
+ip netns exec n0 arping -U -c1 -w1 -I x-p0 172.16.99.3
+grcli route add 10.77.0.0/24 via 172.16.99.2
 
 grcli nexthop show
 # let nexthops lifetime expire and wait for ARP probes to be sent
@@ -65,9 +91,23 @@ ip -n n1 link set x-p1 down
 # let nexthops lifetime expire and wait for ARP probes to be sent
 sleep 3
 
-# ensure that nexthops have been aged out and destroyed
-check_nexthop '172.16.0.2' false || fail "nexthop 172.16.0.2 should be destroyed"
-check_nexthop '172.16.1.2' false || fail "nexthop 172.16.1.2 should be destroyed"
+# ensure that learned neighbors and their host routes have been removed
+wait_nexthop_gone '172.16.0.2' || fail "nexthop 172.16.0.2 should be destroyed"
+wait_nexthop_gone 'fd00:1::2' || fail "nexthop fd00:1::2 should be destroyed"
+wait_nexthop_gone '172.16.99.3' || fail "snooped neighbor without a route should be destroyed"
+grcli -j route get 172.16.0.2 | jq -e '.nexthop.addr == "172.16.0.1/24"' || fail "learned IPv4 host route was not removed"
+grcli -j route get 172.16.1.2 | jq -e '.nexthop.addr == "172.16.1.1/24"' || fail "referenced learned IPv4 host route was not removed"
+grcli -j route get fd00:1::2 | jq -e '.nexthop.addr == "fd00:1::1/64"' || fail "learned IPv6 host route was not removed"
+
+# An external route keeps the unreachable nexthop alive.
+grcli -j route show | jq -e '.[] | select(.destination == "10.77.0.0/24")' || fail "external route was removed"
+grcli -j route show | jq -e '.[] | select(.destination == "10.77.1.0/24")' || fail "external route was removed with host route"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.addr == "172.16.99.2" and .state == "failed")' || fail "unreachable nexthop was removed with its external route"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.addr == "172.16.1.2" and .state == "failed")' || fail "unreachable nexthop was removed with its external route"
+grcli route del 10.77.0.0/24
+wait_nexthop_gone '172.16.99.2' || fail "snooped neighbor should be destroyed after its last route is removed"
+grcli route del 10.77.1.0/24
+wait_nexthop_gone '172.16.1.2' || fail "learned neighbor should be destroyed after its last route is removed"
 
 # ensure addresses were not destroyed
 grcli -j address show | jq -e '.[] | select(.iface == "p0" and .address == "172.16.0.1/24")' || fail "addresses were destroyed"

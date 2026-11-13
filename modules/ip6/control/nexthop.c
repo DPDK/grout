@@ -9,6 +9,7 @@
 #include "ip6_datapath.h"
 #include "l3.h"
 #include "log.h"
+#include "vec.h"
 
 #include <gr_net_types.h>
 
@@ -36,6 +37,42 @@ static int ip6_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	if (ip6_output_send(m) < 0) {
 		LOG_RATELIMIT(ERR, resubmit_failed, "post_to_stack: %s", strerror(errno));
 		return -errno;
+	}
+	return 0;
+}
+
+static int nh6_promote(struct nexthop *nh, uint16_t iface_id) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	uint16_t old_iface_id = nh->iface_id;
+	struct rte_ether_addr mac = l3->mac;
+	gr_nh_state_t state = l3->state;
+
+	if (old_iface_id != iface_id) {
+		if (nh->ref_count != 1)
+			return errno_set(EBUSY);
+		nh->iface_id = iface_id;
+		l3->state = GR_NH_S_NEW;
+		memset(&l3->mac, 0, sizeof(l3->mac));
+	}
+
+	if (rib6_insert(
+		    nh->vrf_id, iface_id, &l3->ipv6, RTE_IPV6_MAX_DEPTH, GR_NH_ORIGIN_INTERNAL, nh
+	    )
+	    < 0) {
+		nh->iface_id = old_iface_id;
+		l3->state = state;
+		l3->mac = mac;
+		return -errno;
+	}
+
+	l3->snoop_only = false;
+	if (old_iface_id != iface_id) {
+		nexthop_l3_hold_queue_flush(nh);
+		l3->last_reply = 0;
+		l3->last_request = 0;
+		l3->ucast_probes = 0;
+		l3->bcast_probes = 0;
+		event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 	return 0;
 }
@@ -75,7 +112,7 @@ static void nh6_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 		// The resolved nexthop is associated with a "connected" route.
 		// We currently do not have an explicit route entry for this
 		// destination IP.
-		struct nexthop *remote = nh6_lookup(nh->vrf_id, mbuf_data(m)->iface->id, dst);
+		struct nexthop *remote = nh6_lookup(nh->vrf_id, nh->iface_id, dst);
 
 		if (remote == NULL) {
 			// No existing nexthop for this IP, create one.
@@ -117,6 +154,16 @@ static void nh6_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 					ERR,
 					route_insert_failed,
 					"failed to insert route: %s",
+					strerror(errno)
+				);
+				goto free;
+			}
+		} else if (nexthop_info_l3(remote)->snoop_only) {
+			if (nh6_promote(remote, nh->iface_id) < 0) {
+				LOG_RATELIMIT(
+					ERR,
+					route_insert_failed,
+					"promote nexthop: %s",
 					strerror(errno)
 				);
 				goto free;
@@ -165,24 +212,25 @@ free:
 	rte_pktmbuf_free(m);
 }
 
-// Check whether remote is reachable through a connected (on-link) route via
-// iface. NS/NA senders outside any locally connected subnet are not directly
-// connected and must not be learned as a neighbor (e.g. a reply routed back
-// asymmetrically on behalf of a remote, indirectly reachable address). This
-// also covers link-local addresses: each interface owns a connected route
-// for its own link-local prefix.
+// Check whether remote is covered by a prefix configured on iface. NS/NA
+// senders outside any locally connected subnet are not directly connected and
+// must not be learned as a neighbor unless snooping is enabled.
 static bool ndp_sender_is_connected(const struct iface *iface, const struct rte_ipv6_addr *remote) {
-	const struct nexthop *nh = fib6_lookup(iface->vrf_id, iface->id, remote, 0);
-	const struct nexthop_info_l3 *l3;
-
-	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+	struct hoplist *addrs = addr6_get_all(iface->id);
+	if (addrs == NULL)
 		return false;
 
-	l3 = nexthop_info_l3(nh);
-	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+	vec_foreach (const struct nexthop *nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (rte_ipv6_addr_eq_prefix(remote, &l3->ipv6, l3->prefixlen))
+			return true;
+	}
+
+	return false;
 }
 
 void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	bool connected, snoop_only;
 	struct rte_mbuf *m = obj;
 
 	const struct icmp6 *icmp6 = rte_pktmbuf_mtod(m, const struct icmp6 *);
@@ -229,9 +277,17 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 
 	if (rte_ipv6_addr_is_unspec(remote) || rte_ipv6_addr_is_mcast(remote))
 		goto free;
-
+	connected = ndp_sender_is_connected(iface, remote);
+	snoop_only = !connected && (iface->flags & GR_IFACE_F_NEIGH_SNOOP);
 	nh = nh6_lookup(iface->vrf_id, iface->id, remote);
-	if (nh == NULL && ndp_sender_is_connected(iface, remote)) {
+	if (!connected
+	    && (lladdr_found != ICMP6_OPT_FOUND
+		|| (!snoop_only
+		    && (nh == NULL || nh->iface_id != iface->id
+			|| nexthop_info_l3(nh)->snoop_only))))
+		goto free;
+
+	if (nh == NULL) {
 		// We don't have an entry for the probe sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address, they
@@ -256,33 +312,48 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			);
 			goto free;
 		}
+		nexthop_info_l3(nh)->snoop_only = snoop_only;
+		if (nexthop_info_l3(nh)->state == GR_NH_S_REACHABLE)
+			nexthop_info_l3(nh)->last_reply = clock_ns();
 
-		// Add an internal /128 route to reference the newly created nexthop.
-		int ret = rib6_insert(
-			iface->vrf_id,
-			iface->id,
-			remote,
-			RTE_IPV6_MAX_DEPTH,
-			GR_NH_ORIGIN_INTERNAL,
-			nh
-		);
-		if (ret < 0) {
-			nexthop_decref(nh);
-			LOG_RATELIMIT(
-				ERR,
-				learn_route_insert_failed,
-				"ip6_route_insert: %s",
-				strerror(errno)
+		// Snoop-only neighbors belong in the neighbor cache, not the FIB.
+		if (!snoop_only) {
+			int ret = rib6_insert(
+				iface->vrf_id,
+				iface->id,
+				remote,
+				RTE_IPV6_MAX_DEPTH,
+				GR_NH_ORIGIN_INTERNAL,
+				nh
 			);
-			goto free;
+			if (ret < 0) {
+				nexthop_decref(nh);
+				LOG_RATELIMIT(
+					ERR,
+					learn_route_insert_failed,
+					"ip6_route_insert: %s",
+					strerror(errno)
+				);
+				goto free;
+			}
 		}
-	} else if (nh != NULL && lladdr_found == ICMP6_OPT_FOUND) {
+	} else if (nh != NULL) {
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (l3->snoop_only && connected) {
+			if (nh6_promote(nh, iface->id) < 0)
+				LOG_RATELIMIT(
+					ERR,
+					learn_route_insert_failed,
+					"ip6_route_insert: %s",
+					strerror(errno)
+				);
+		}
 		// Only refresh a nexthop reachable through the interface the
 		// packet was received on. Never overwrite a local address, a
 		// remote (EVPN) nexthop, or a neighbor reachable through another
 		// interface.
-		if (nh->iface_id == iface->id && !(l3->flags & (GR_NH_F_LOCAL | GR_NH_F_REMOTE))) {
+		if (lladdr_found == ICMP6_OPT_FOUND && nh->iface_id == iface->id
+		    && !(l3->flags & (GR_NH_F_LOCAL | GR_NH_F_REMOTE))) {
 			l3->last_reply = clock_ns();
 			l3->state = GR_NH_S_REACHABLE;
 			l3->ucast_probes = 0;
@@ -330,6 +401,7 @@ static struct nexthop_af_ops nh_ops = {
 	.resolve = nh6_resolve_cb,
 	.solicit = nh6_solicit,
 	.cleanup_routes = rib6_cleanup,
+	.cleanup_learned = rib6_cleanup_learned,
 	.resubmit = ip6_resubmit_cb,
 };
 

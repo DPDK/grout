@@ -139,6 +139,53 @@ mark_events
 ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.1.50
 wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.1.50 state=reachable mac=$(stable_mac p1)"
 
+# Off-prefix NDP traffic is rejected without snooping and cached without a
+# /128 route when snooping is enabled.
+ip -n n1 -6 addr add fd00:dead::2/64 dev x-p1
+grcli interface set port p1 neigh_snoop off
+no_reply n1 ndisc6 -1 -r1 -w1000 -s fd00:dead::2 fd00:2::1 x-p1
+grcli nexthop show | grep -q fd00:dead::2 && fail "off-prefix NDP learned without neigh_snoop"
+grcli interface set port p1 neigh_snoop on
+mark_events
+reply n1 $mac1 ndisc6 -1 -r1 -s fd00:dead::2 fd00:2::1 x-p1
+wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv6 addr=fd00:dead::2 state=reachable mac=$(stable_mac p1)"
+if grcli route get fd00:dead::2; then fail "snoop-only neighbor installed a /128 route"; fi
+
+# Without neighbor snooping, off-prefix ARP requests for local addresses
+# still get a reply, but their senders are not learned.
+ip -n n1 addr add 192.168.0.50/24 dev x-p1
+grcli interface set port p1 neigh_snoop off
+reply n1 $mac1 arping -c1 -w1 -I x-p1 -s 192.168.0.50 192.168.1.1
+ip netns exec n1 arping -A -c1 -I x-p1 192.168.0.50
+grcli nexthop show | grep -q 192.168.0.50 && fail "off-prefix ARP learned without neigh_snoop"
+
+# Snoop-only neighbors are cached but must not install an internal /32 route.
+grcli interface set port p1 neigh_snoop on
+mark_events
+ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.0.50
+wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.0.50 state=reachable mac=$(stable_mac p1)"
+grcli -j route get 192.168.0.50 | jq -e '.nexthop.iface == "p0"' || fail "snoop-only neighbor installed a /32 route"
+
+# The same behavior applies when the SVI has no IPv4 address at all.
+ip -n n1 addr add 192.168.0.51/24 dev x-p1
+grcli address del 192.168.1.1/24 iface p1
+mark_events
+ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.0.51
+wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.0.51 state=reachable mac=$(stable_mac p1)"
+grcli -j route get 192.168.0.51 | jq -e '.nexthop.iface == "p0"' || fail "snooped neighbor on unnumbered SVI installed a /32 route"
+
+# A connected neighbor takes over the snooped entry and installs a host route.
+ip -n n0 addr add 192.168.0.50/24 dev x-p0
+reply n0 $mac0 arping -c1 -w1 -I x-p0 -s 192.168.0.50 192.168.0.1
+grcli -j route get 192.168.0.50 | jq -e '.nexthop.addr == "192.168.0.50" and .nexthop.iface == "p0"' || fail "snooped IPv4 neighbor was not promoted"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.addr == "192.168.0.50" and .iface == "p0")' || fail "snooped IPv4 neighbor is on the wrong interface"
+
+grcli address add fd00:dead::1/64 iface p0
+ip -n n0 -6 addr add fd00:dead::2/64 dev x-p0
+reply n0 $mac0 ndisc6 -1 -r1 -s fd00:dead::2 fd00:dead::1 x-p0
+grcli -j route get fd00:dead::2 | jq -e '.nexthop.addr == "fd00:dead::2" and .nexthop.iface == "p0"' || fail "snooped IPv6 neighbor was not promoted"
+grcli -j nexthop show type l3 | jq -e '.[] | select(.addr == "fd00:dead::2" and .iface == "p0")' || fail "snooped IPv6 neighbor is on the wrong interface"
+
 # A gratuitous ARP must only touch a neighbor learned on the interface it was
 # received on. 192.168.0.2 is a neighbor on p0; announcing it on p1 (even with
 # neigh_snoop on) must not steal it or rewrite its MAC.

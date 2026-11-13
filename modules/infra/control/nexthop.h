@@ -44,6 +44,9 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 
 	gr_clock_ns_t last_reply; //!< timestamp when last update was received
 	gr_clock_ns_t last_request;
+	gr_clock_ns_t failed_since;
+
+	bool snoop_only;
 
 	uint8_t ucast_probes;
 	uint8_t bcast_probes;
@@ -174,6 +177,8 @@ struct nexthop_af_ops {
 	int (*solicit)(struct nexthop *);
 	// Callback that will be invoked to delete all routes which reference a given nexthop.
 	void (*cleanup_routes)(struct nexthop *, bool notify);
+	// Delete only automatically learned host routes for this nexthop.
+	void (*cleanup_learned)(struct nexthop *);
 	// Callback invoked by resolve() to flush held packets when the nexthop becomes
 	// reachable.
 	int (*resubmit)(struct rte_mbuf *, struct nexthop *);

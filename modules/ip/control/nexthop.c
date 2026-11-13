@@ -8,6 +8,7 @@
 #include "ip4_datapath.h"
 #include "l3.h"
 #include "log.h"
+#include "vec.h"
 
 #include <gr_net_types.h>
 
@@ -33,6 +34,39 @@ static int ip_resubmit_cb(struct rte_mbuf *m, struct nexthop *nh) {
 	if (ip_output_send(m) < 0) {
 		LOG_RATELIMIT(ERR, resubmit_failed, "post_to_stack: %s", strerror(errno));
 		return -errno;
+	}
+	return 0;
+}
+
+static int nh4_promote(struct nexthop *nh, uint16_t iface_id) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	uint16_t old_iface_id = nh->iface_id;
+	struct rte_ether_addr mac = l3->mac;
+	gr_nh_state_t state = l3->state;
+
+	if (old_iface_id != iface_id) {
+		if (nh->ref_count != 1)
+			return errno_set(EBUSY);
+		nh->iface_id = iface_id;
+		l3->state = GR_NH_S_NEW;
+		memset(&l3->mac, 0, sizeof(l3->mac));
+	}
+
+	if (rib4_insert(nh->vrf_id, l3->ipv4, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+		nh->iface_id = old_iface_id;
+		l3->state = state;
+		l3->mac = mac;
+		return -errno;
+	}
+
+	l3->snoop_only = false;
+	if (old_iface_id != iface_id) {
+		nexthop_l3_hold_queue_flush(nh);
+		l3->last_reply = 0;
+		l3->last_request = 0;
+		l3->ucast_probes = 0;
+		l3->bcast_probes = 0;
+		event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 	}
 	return 0;
 }
@@ -110,6 +144,16 @@ static void nh4_resolve_cb(void *obj, uintptr_t, const struct control_queue_drai
 				);
 				goto free;
 			}
+		} else if (nexthop_info_l3(remote)->snoop_only) {
+			if (nh4_promote(remote, nh->iface_id) < 0) {
+				LOG_RATELIMIT(
+					ERR,
+					route_insert_failed,
+					"promote nexthop: %s",
+					strerror(errno)
+				);
+				goto free;
+			}
 		} else if (remote->iface_id != nh->iface_id) {
 			// remote may live on a different interface than the connected
 			// route. In EVPN L3VNI VRFs, a host inside a connected subnet
@@ -159,17 +203,21 @@ free:
 // connected and must not be learned as a neighbor (e.g. a reply routed back
 // asymmetrically on behalf of a remote, indirectly reachable address).
 static bool arp_sender_is_connected(const struct iface *iface, ip4_addr_t sip) {
-	const struct nexthop *nh = fib4_lookup(iface->vrf_id, sip, 0);
-	const struct nexthop_info_l3 *l3;
-
-	if (nh == NULL || nh->type != GR_NH_T_L3 || nh->iface_id != iface->id)
+	struct hoplist *addrs = addr4_get_all(iface->id);
+	if (addrs == NULL)
 		return false;
 
-	l3 = nexthop_info_l3(nh);
-	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
+	vec_foreach (const struct nexthop *nh, addrs->nh) {
+		const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (ip4_addr_same_subnet(sip, l3->ipv4, l3->prefixlen))
+			return true;
+	}
+
+	return false;
 }
 
 void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *drain) {
+	bool connected, snoop_only, arp_probe;
 	const struct iface *iface;
 	struct rte_mbuf *m = obj;
 	struct rte_arp_hdr *arp;
@@ -184,8 +232,15 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		goto free;
 
 	sip = arp->arp_data.arp_sip;
+	connected = arp_sender_is_connected(iface, sip);
+	arp_probe = arp->arp_opcode == RTE_BE16(RTE_ARP_OP_REQUEST) && sip == 0;
+	snoop_only = !connected && (iface->flags & GR_IFACE_F_NEIGH_SNOOP);
 	nh = nh4_lookup(iface->vrf_id, sip);
-	if (nh == NULL && arp_sender_is_connected(iface, sip)) {
+	if (!connected && !snoop_only && !arp_probe
+	    && (nh == NULL || nh->iface_id != iface->id || nexthop_info_l3(nh)->snoop_only))
+		nh = NULL;
+
+	if (nh == NULL && sip != 0 && (connected || snoop_only)) {
 		// We don't have an entry for the ARP request sender address yet.
 		//
 		// Create one now. If the sender has requested our mac address,
@@ -211,8 +266,12 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			);
 			goto free;
 		}
-		// Add an internal /32 route to reference the newly created nexthop.
-		if (rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+		nexthop_info_l3(nh)->snoop_only = snoop_only;
+		nexthop_info_l3(nh)->last_reply = clock_ns();
+		// Snoop-only neighbors belong in the neighbor cache, not the FIB.
+		if (!snoop_only
+		    && rib4_insert(iface->vrf_id, sip, 32, GR_NH_ORIGIN_INTERNAL, nh) < 0) {
+			nexthop_decref(nh);
 			LOG_RATELIMIT(
 				ERR,
 				learn_route_insert_failed,
@@ -223,6 +282,16 @@ void arp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 		}
 	} else if (nh != NULL) {
 		struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+		if (l3->snoop_only && connected) {
+			if (nh4_promote(nh, iface->id) < 0) {
+				LOG_RATELIMIT(
+					ERR,
+					learn_route_insert_failed,
+					"ip4_nexthop_insert: %s",
+					strerror(errno)
+				);
+			}
+		}
 		// Only refresh a nexthop reachable through the interface the
 		// packet was received on. Never overwrite a local address, a
 		// remote (EVPN) nexthop, or a neighbor reachable through another
@@ -281,6 +350,7 @@ static struct nexthop_af_ops nh_ops = {
 	.resolve = nh4_resolve_cb,
 	.solicit = arp_output_request_solicit,
 	.cleanup_routes = rib4_cleanup,
+	.cleanup_learned = rib4_cleanup_learned,
 	.resubmit = ip_resubmit_cb,
 };
 
