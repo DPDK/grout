@@ -108,6 +108,45 @@ ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 ip6 src $encap_src  || {
 wait $ping_pid
 
 #
+# Outer Traffic Class and Flow Label test
+#
+# RFC 2473 section 5.1.1.1: the encapsulated packet inherits the DSCP and
+# ECN marking of the inner packet. RFC 6438: it also carries a Flow Label
+# so that transit routers can load balance the tunnel.
+#
+
+capture=$(mktemp)
+ip netns exec n1 timeout 5 tcpdump -c1 -vnnli x-p1 'ip6 and (ip6[6] == 43 or ip6[6] == 4)' >"$capture" 2>&1 &
+tcpdump_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" "$capture"; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n0 ping -Q 0xb8 -i0.01 -c3 -n 192.168.60.1 >/dev/null 2>&1 || true
+
+if ! wait $tcpdump_pid; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "no encapsulated packet captured on x-p1"
+fi
+
+if ! grep -q "class 0xb8" "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer Traffic Class does not inherit the inner DSCP marking"
+fi
+
+if grep -q "flowlabel 0x0," "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer IPv6 header has a zero Flow Label"
+fi
+rm -f "$capture"
+
+#
 # IPv6-in-SRv6 encapsulation test
 #
 # Full round-trip IPv6 ping through SRv6
