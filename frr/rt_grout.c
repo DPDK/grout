@@ -677,6 +677,20 @@ static enum zebra_dplane_result grout_add_nexthop_group(struct zebra_dplane_ctx 
 	return ret;
 }
 
+// Resolve the VRF of an End.T or End.DT* SID. FRR always sends an explicit
+// table, so a non-default table that grout did not export must not silently
+// fall back to the ingress VRF: reject the SID instead.
+static bool srv6_local_out_vrf(uint16_t *out_vrf_id, vrf_id_t table) {
+	uint16_t vrf_id = vrf_frr_to_grout(table);
+
+	if (table != VRF_DEFAULT && vrf_id == GR_VRF_ID_UNDEF) {
+		gr_log_err("seg6local table %u has no matching grout VRF", table);
+		return false;
+	}
+	*out_vrf_id = vrf_id;
+	return true;
+}
+
 static enum zebra_dplane_result grout_del_nexthop(uint32_t nh_id) {
 	gr_log_debug("nh_id %u", nh_id);
 
@@ -803,28 +817,22 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 		switch (nh->nh_srv6->seg6local_action) {
 		case ZEBRA_SEG6_LOCAL_ACTION_END:
 			sr6_local->behavior = SR_BEHAVIOR_END;
-			sr6_local->out_vrf_id = GR_VRF_ID_UNDEF;
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_T:
 			sr6_local->behavior = SR_BEHAVIOR_END_T;
-			sr6_local->out_vrf_id = vrf_frr_to_grout(nh->nh_srv6->seg6local_ctx.table);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT6:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT6;
-			sr6_local->out_vrf_id = vrf_frr_to_grout(nh->nh_srv6->seg6local_ctx.table);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT4:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT4;
-			sr6_local->out_vrf_id = vrf_frr_to_grout(nh->nh_srv6->seg6local_ctx.table);
 			break;
 		case ZEBRA_SEG6_LOCAL_ACTION_END_DT46:
 			sr6_local->behavior = SR_BEHAVIOR_END_DT46;
-			sr6_local->out_vrf_id = vrf_frr_to_grout(nh->nh_srv6->seg6local_ctx.table);
 			break;
 #if CURRENT_FRR_VERSION >= MAKE_FRRVERSION(10, 6, 0)
 		case ZEBRA_SEG6_LOCAL_ACTION_END_X:
 			sr6_local->behavior = SR_BEHAVIOR_END_X;
-			sr6_local->out_vrf_id = GR_VRF_ID_UNDEF;
 			req->nh.iface_id = ifindex_frr_to_grout(nh->nh_srv6->seg6local_ctx.ifindex);
 			memcpy(&sr6_local->endx_addr,
 			       &nh->nh_srv6->seg6local_ctx.nh6,
@@ -836,6 +844,23 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 				"unsupported seg6local action %u", nh->nh_srv6->seg6local_action
 			);
 			goto out;
+		}
+
+		// End.T and End.DT* associate the SID with the table sent by FRR,
+		// the other behaviors use the ingress one.
+		switch (sr6_local->behavior) {
+		case SR_BEHAVIOR_END_T:
+		case SR_BEHAVIOR_END_DT6:
+		case SR_BEHAVIOR_END_DT4:
+		case SR_BEHAVIOR_END_DT46:
+			if (!srv6_local_out_vrf(
+				    &sr6_local->out_vrf_id, nh->nh_srv6->seg6local_ctx.table
+			    ))
+				goto out;
+			break;
+		default:
+			sr6_local->out_vrf_id = GR_VRF_ID_UNDEF;
+			break;
 		}
 
 		uint32_t flv = nh->nh_srv6->seg6local_ctx.flv.flv_ops;
