@@ -33,16 +33,15 @@ void gr_eth_input_add_type(rte_be16_t eth_type, const char *next_node) {
 
 static uint16_t
 eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	rte_edge_t edge, last_edge = RTE_EDGE_ID_INVALID;
+	uint16_t last_iface_id = GR_IFACE_ID_UNDEF;
 	struct rte_ether_addr iface_mac;
 	struct eth_input_mbuf_data *d;
 	struct rte_ether_hdr *eth;
-	uint16_t last_iface_id;
+	uint16_t i, from_i = 0;
 	struct rte_mbuf *m;
-	rte_edge_t edge;
 
-	last_iface_id = GR_IFACE_ID_UNDEF;
-
-	for (uint16_t i = 0; i < nb_objs; i++) {
+	for (i = 0; i < nb_objs; i++) {
 		m = objs[i];
 
 		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
@@ -81,8 +80,16 @@ eth_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			edge = l2l3_edges[eth->ether_type];
 		}
 next:
-		rte_node_enqueue_x1(graph, node, edge, m);
+		if (unlikely(edge != last_edge)) {
+			if (last_edge != RTE_EDGE_ID_INVALID)
+				rte_node_enqueue(graph, node, last_edge, objs + from_i, i - from_i);
+			from_i = i;
+			last_edge = edge;
+		}
 	}
+
+	if (last_edge != RTE_EDGE_ID_INVALID)
+		rte_node_enqueue(graph, node, last_edge, objs + from_i, i - from_i);
 
 	return nb_objs;
 }
