@@ -79,6 +79,10 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct rte_ipv4_hdr *inner_ip4;
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip4->total_length);
+			if (unlikely(plen < sizeof(*inner_ip4))) {
+				edge = INVALID;
+				goto next;
+			}
 			// the IPv4 TOS octet carries the same DSCP and ECN bits
 			// as the IPv6 Traffic Class.
 			tc = inner_ip4->type_of_service;
@@ -92,6 +96,14 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			proto = IPPROTO_IPV6;
 
 		} else {
+			edge = INVALID;
+			goto next;
+		}
+
+		// The length announced by the inner header cannot exceed what
+		// was actually received, otherwise the outer header would
+		// advertise more bytes than are transmitted.
+		if (unlikely(plen > rte_pktmbuf_pkt_len(m))) {
 			edge = INVALID;
 			goto next;
 		}
