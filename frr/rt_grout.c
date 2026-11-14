@@ -19,6 +19,19 @@
 #include <zebra/zebra_l2.h>
 #include <zebra_dplane_grout.h>
 
+// Reject flavors that grout cannot honour instead of silently installing them as
+// a plain End SID (RFC 9800 section 4.2, e.g. REPLACE-CSID).
+static bool srv6_local_flavors_check(uint32_t flv) {
+	const uint32_t supported = 1u << ZEBRA_SEG6_LOCAL_FLV_OP_PSP
+		| 1u << ZEBRA_SEG6_LOCAL_FLV_OP_USP | 1u << ZEBRA_SEG6_LOCAL_FLV_OP_USD
+		| 1u << ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID;
+
+	if ((flv & ~supported) == 0)
+		return true;
+	gr_log_err("unsupported seg6local flavors 0x%x", flv & ~supported);
+	return false;
+}
+
 static inline bool is_selfroute(gr_nh_origin_t origin) {
 	switch (origin) {
 	case GR_NH_ORIGIN_ZEBRA:
@@ -827,6 +840,8 @@ grout_add_nexthop(uint32_t nh_id, gr_nh_origin_t origin, const struct nexthop *n
 
 		uint32_t flv = nh->nh_srv6->seg6local_ctx.flv.flv_ops;
 
+		if (!srv6_local_flavors_check(flv))
+			goto out;
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_PSP))
 			sr6_local->flags |= GR_SR_FL_FLAVOR_PSP;
 		if (CHECK_SRV6_FLV_OP(flv, ZEBRA_SEG6_LOCAL_FLV_OP_USP))
