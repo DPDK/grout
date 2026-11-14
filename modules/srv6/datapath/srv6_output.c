@@ -23,6 +23,10 @@ enum {
 	EDGE_COUNT,
 };
 
+// RFC 2473 section 5.1: the Hop Limit of the outer header is configurable,
+// 64 is the common default (and what the Linux seg6 encapsulation uses).
+#define SR6_ENCAP_HOP_LIMIT 64
+
 struct trace_srv6_data {
 	gr_srv6_encap_behavior_t encap;
 	sr_encap_flags_t flags;
@@ -153,6 +157,7 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			(6u << 28) | ((uint32_t)tc << RTE_IPV6_HDR_TC_SHIFT)
 			| (m->hash.rss & RTE_IPV6_HDR_FL_MASK)
 		);
+		outer_ip6->hop_limits = SR6_ENCAP_HOP_LIMIT;
 		edge = IP6_OUTPUT;
 
 next:

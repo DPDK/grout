@@ -144,6 +144,12 @@ if grep -q "flowlabel 0x0," "$capture"; then
 	rm -f "$capture"
 	fail "the outer IPv6 header has a zero Flow Label"
 fi
+
+if ! grep -q "hlim 64," "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer IPv6 header does not use the default Hop Limit of 64"
+fi
 rm -f "$capture"
 
 #
