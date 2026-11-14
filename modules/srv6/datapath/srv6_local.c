@@ -131,6 +131,12 @@ static int ip6_parse_to_srh(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 	if (ip6_info->sr) {
 		struct rte_ipv6_routing_ext *sr = ip6_info->sr;
 
+		// The Payload Length must cover the headers it announces:
+		// decap_srv6() subtracts the SRH length from it and would wrap
+		// the 16 bit field around otherwise.
+		if (rte_be_to_cpu_16(ip6->payload_len) < ip6_info->sr_len)
+			return -1;
+
 		// hdr_len is in 8B units (excl. first 8B)
 		// -> ext_len = 8 * (hdr_len + 1)
 		// each segment is 16B = 2x8B
@@ -962,6 +968,21 @@ static void srv6_end_x_next_csid_last(void **) {
 	assert_int_equal(fm.ip6.dst_addr.a[7], 0x00);
 }
 
+// A packet announcing a payload shorter than the SRH it carries must be
+// rejected: removing the SRH would wrap the Payload Length around.
+static void srv6_parse_payload_len_underflow(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	fm.ip6.payload_len = rte_cpu_to_be_16(8);
+
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), -1);
+	assert_int_equal(rte_be_to_cpu_16(fm.ip6.payload_len), 8);
+	assert_int_equal(fm.mbuf.data_len, expect.ext_offset);
+}
+
 // ---- runner -----------------------------------------------------------------
 int main(void) {
 	const struct CMUnitTest tests[] = {
@@ -970,6 +991,7 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6),
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
+		cmocka_unit_test(srv6_parse_payload_len_underflow),
 		cmocka_unit_test(srv6_decap_dt4_behind_dop),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv4),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv6),

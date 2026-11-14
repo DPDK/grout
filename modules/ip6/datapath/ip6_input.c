@@ -74,6 +74,14 @@ ip6_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 			goto next;
 		}
 
+		// The payload length must fit in the received packet. Without
+		// this check, a forged length would be propagated as is and
+		// could underflow when a tunnel header is removed.
+		if (rte_be_to_cpu_16(ip->payload_len) > rte_pktmbuf_pkt_len(mbuf) - sizeof(*ip)) {
+			edge = BAD_LENGTH;
+			goto next;
+		}
+
 		if (rte_ipv6_addr_is_mcast(&ip->src_addr)
 		    || rte_ipv6_addr_is_unspec(&ip->dst_addr)) {
 			edge = BAD_ADDR;
@@ -315,6 +323,18 @@ static void ip6_input_invalid_mbuf_len(void **) {
 	ip6_input_process(NULL, NULL, &obj, 1);
 }
 
+// The payload length announces more than the packet carries.
+static void ip6_input_invalid_payload_len(void **) {
+	struct fake_mbuf fake_mbuf;
+	void *obj = &fake_mbuf.mbuf;
+
+	ipv6_init_default_mbuf(&fake_mbuf);
+
+	fake_mbuf.ipv6_hdr.payload_len = rte_cpu_to_be_16(8);
+	expect_uint_value(rte_node_enqueue_x1, next, BAD_LENGTH);
+	ip6_input_process(NULL, NULL, &obj, 1);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(ip6_input_invalid_version),
@@ -322,6 +342,7 @@ int main(void) {
 		cmocka_unit_test(ip6_input_invalid_dst_unspec_addr),
 		cmocka_unit_test(ip6_input_invalid_dst_mcast_addr),
 		cmocka_unit_test(ip6_input_invalid_mbuf_len),
+		cmocka_unit_test(ip6_input_invalid_payload_len),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
