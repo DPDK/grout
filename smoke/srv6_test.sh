@@ -19,6 +19,19 @@ ip -n n0 addr add 192.168.61.2/24 dev x-p0
 ip -n n1 addr add fd00:102::2/32 dev x-p1
 
 #
+# Adding the same NEXT-CSID SID twice without an explicit id must update the
+# nexthop created by the first call instead of creating a duplicate: the
+# default block/csid lengths have to be filled in before the dedup lookup.
+#
+grcli nexthop add srv6-local behavior end flavor next-csid
+before=$(grcli -j nexthop show type srv6-local)
+grcli nexthop add srv6-local behavior end flavor next-csid \
+	|| fail "re-adding an identical NEXT-CSID SID failed"
+after=$(grcli -j nexthop show type srv6-local)
+[ "$before" = "$after" ] || fail "the second add did not reuse the existing nexthop"
+grcli nexthop del "$(grcli -j nexthop show type srv6-local | jq -r '.[0].id')"
+
+#
 # network layout:
 #  (client) x-p0(netns) <--> p0 <grout> p1 <--->  x-p1(netns) (public: 192.168.60.1/24 on p0)
 #       ipv4 ---------------|        srv6        |-- ipv4
