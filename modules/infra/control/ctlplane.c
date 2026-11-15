@@ -33,6 +33,7 @@
 #include <net/if.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
+#include <sys/uio.h>
 
 LOG_TYPE("ctlplane");
 
@@ -65,9 +66,11 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 }
 
 void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct rte_mbuf *m = obj;
-	struct mbuf_data *d = mbuf_data(m);
+	struct mbuf_data *d = mbuf_data(obj);
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
+	struct rte_mbuf *m = obj;
+	struct iovec iov[2];
 	char *data = NULL;
 
 	// Check if packet references deleted interface.
@@ -77,7 +80,7 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	if (d->iface->cp_fd == 0)
 		goto end;
 
-	gr_cksum_l4_complete(m, gr_cksum_eth_l2_len(m));
+	gr_cksum_mbuf_to_vnet(&vhdr, m, gr_cksum_eth_l2_len(m));
 
 	capture_enqueue(d->iface, GR_CAPTURE_DIR_OUT, m);
 
@@ -99,10 +102,13 @@ void iface_cp_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 		rte_pktmbuf_read(m, 0, rte_pktmbuf_pkt_len(m), data);
 	}
 
-	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
+	iov[0] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
+	iov[1] = (struct iovec) {.iov_base = data, .iov_len = rte_pktmbuf_pkt_len(m)};
+
+	// Do not retry even in case of EAGAIN || EWOULDBLOCK.
 	// If the tun device queue is full, something really bad is
 	// already happening on the management plane side.
-	if (write(d->iface->cp_fd, data, rte_pktmbuf_pkt_len(m)) != rte_pktmbuf_pkt_len(m)) {
+	if (writev(d->iface->cp_fd, iov, 2) != (ssize_t)(sizeof(vhdr) + rte_pktmbuf_pkt_len(m))) {
 		// The user messed up and removed the tap interface
 		// release resources on our side to try to recover
 		if (errno == EBADF) {
@@ -130,15 +136,17 @@ end:
 
 static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct rte_ether_addr iface_mac;
-	struct iface *iface = ev_iface;
 	struct rte_ether_addr src, dst;
+	struct iface *iface = ev_iface;
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
 	struct rte_ether_hdr *eth;
 	struct rte_vlan_hdr *vlan;
 	struct rte_mbuf *mbuf;
 	rte_be16_t ether_type;
+	struct iovec iov[2];
 	size_t read_len;
-	size_t len;
+	ssize_t len;
 	char *data;
 
 	if (reason & EV_CLOSED) {
@@ -159,8 +167,12 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	if ((len = read(iface->cp_fd, data, read_len)) <= 0) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
+	iov[0] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
+	iov[1] = (struct iovec) {.iov_base = data, .iov_len = read_len};
+
+	len = readv(iface->cp_fd, iov, 2);
+	if (len <= (ssize_t)sizeof(vhdr)) {
+		if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
 			LOG_RATELIMIT(
 				ERR,
 				rx_read_failed,
@@ -171,13 +183,13 @@ static void iface_cp_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	rte_pktmbuf_trim(mbuf, read_len - len);
+	rte_pktmbuf_trim(mbuf, read_len - (len - sizeof(vhdr)));
 
-	// Packet sent from linux, no need to verify the IP header checksum.
-	// IPv6 has no header checksum, but no code checks this bit for IPv6.
 	gr_cksum_reset(mbuf);
 	gr_cksum_ip_set_good(mbuf);
 	mbuf->packet_type = rte_net_get_ptype(mbuf, NULL, RTE_PTYPE_ALL_MASK);
+
+	gr_cksum_vnet_to_mbuf(mbuf, &vhdr);
 
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 
@@ -317,6 +329,7 @@ static void sysctl_write(const char *dir, struct iface *iface, const char *prop,
 }
 
 static void cp_create(struct iface *iface) {
+	int vnet_hdr_sz = sizeof(struct virtio_net_hdr);
 	char ifalias[IFALIASZ];
 	struct ifreq ifr;
 	int ioctl_sock;
@@ -324,7 +337,7 @@ static void cp_create(struct iface *iface) {
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	gr_strcpy(ifr.ifr_name, IFNAMSIZ, iface->name);
-	ifr.ifr_flags = IFF_TAP | IFF_NO_PI | IFF_MULTICAST;
+	ifr.ifr_flags = IFF_TAP | IFF_NO_PI | IFF_VNET_HDR | IFF_MULTICAST;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
@@ -338,6 +351,16 @@ static void cp_create(struct iface *iface) {
 
 	if (ioctl(iface->cp_fd, TUNSETIFF, &ifr) < 0) {
 		LOG(ERR, "ioctl(TUNSETIFF): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETVNETHDRSZ, &vnet_hdr_sz) < 0) {
+		LOG(ERR, "ioctl(TUNSETVNETHDRSZ): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM) < 0) {
+		LOG(ERR, "ioctl(TUNSETOFFLOAD): %s", strerror(errno));
 		goto err;
 	}
 

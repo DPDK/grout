@@ -55,10 +55,11 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 }
 
 void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct rte_mbuf *m = obj;
-	struct mbuf_data *d = mbuf_data(m);
+	struct mbuf_data *d = mbuf_data(obj);
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
-	struct iovec iov[2];
+	struct rte_mbuf *m = obj;
+	struct iovec iov[3];
 	char *data = NULL;
 	struct tun_pi pi;
 
@@ -66,7 +67,7 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
 		goto end;
 
-	gr_cksum_l4_complete(m, 0);
+	gr_cksum_mbuf_to_vnet(&vhdr, m, 0);
 
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
@@ -94,13 +95,16 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 		LOG_RATELIMIT(ERR, tx_bad_proto, "Bad proto: 0x%x - drop packet", data[0]);
 		goto end;
 	}
-	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
+
+	// Do not retry even in case of EAGAIN || EWOULDBLOCK.
 	// If the tun device queue is full, something really bad is
 	// already happening on the management plane side.
 	iov[0].iov_base = &pi;
 	iov[0].iov_len = sizeof(pi);
-	iov[1].iov_base = data;
-	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
+	iov[1].iov_base = &vhdr;
+	iov[1].iov_len = sizeof(vhdr);
+	iov[2].iov_base = data;
+	iov[2].iov_len = rte_pktmbuf_pkt_len(m);
 
 	if (writev(d->iface->cp_fd, iov, ARRAY_DIM(iov)) < 0) {
 		// The user messed up and removed gr-loopX
@@ -126,11 +130,12 @@ end:
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct iface *iface = ev_iface;
 	struct eth_input_mbuf_data *e;
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
 	struct rte_mbuf *mbuf;
-	struct iovec iov[2];
+	struct iovec iov[3];
 	struct tun_pi pi;
-	size_t len;
+	ssize_t len;
 	char *data;
 
 	if (reason & EV_CLOSED) {
@@ -151,24 +156,24 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		goto err;
 	}
 
-	iov[0].iov_base = &pi;
-	iov[0].iov_len = sizeof(pi);
-	iov[1].iov_base = data;
-	iov[1].iov_len = iface->mtu;
-	if ((len = readv(iface->cp_fd, iov, ARRAY_DIM(iov))) <= 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto err;
-		LOG_RATELIMIT(
-			ERR,
-			rx_read_failed,
-			"read from tun device %s failed %s",
-			iface->name,
-			strerror(errno)
-		);
+	iov[0] = (struct iovec) {.iov_base = &pi, .iov_len = sizeof(pi)};
+	iov[1] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
+	iov[2] = (struct iovec) {.iov_base = data, .iov_len = iface->mtu};
+
+	len = readv(iface->cp_fd, iov, ARRAY_DIM(iov));
+	if (len <= (ssize_t)(sizeof(pi) + sizeof(vhdr))) {
+		if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
+			LOG_RATELIMIT(
+				ERR,
+				rx_read_failed,
+				"read from tun device %s failed %s",
+				iface->name,
+				strerror(errno)
+			);
 		goto err;
 	}
 
-	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi)));
+	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi) - sizeof(vhdr)));
 
 	gr_cksum_reset(mbuf);
 
@@ -185,6 +190,17 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		LOG_RATELIMIT(ERR, rx_bad_proto, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
 		goto err;
 	}
+
+	switch (gr_ip_l4_proto(rte_pktmbuf_mtod(mbuf, void *), rte_pktmbuf_pkt_len(mbuf), NULL)) {
+	case IPPROTO_TCP:
+		mbuf->packet_type |= RTE_PTYPE_L4_TCP;
+		break;
+	case IPPROTO_UDP:
+		mbuf->packet_type |= RTE_PTYPE_L4_UDP;
+		break;
+	}
+
+	gr_cksum_vnet_to_mbuf(mbuf, &vhdr);
 
 	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
@@ -210,6 +226,7 @@ err:
 }
 
 int iface_loopback_create(struct iface *iface) {
+	int vnet_hdr_sz = sizeof(struct virtio_net_hdr);
 	char tun_name[IFNAMSIZ];
 	int ioctl_sock = -1;
 	struct ifreq ifr;
@@ -226,7 +243,7 @@ int iface_loopback_create(struct iface *iface) {
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	gr_strcpy(ifr.ifr_name, IFNAMSIZ, tun_name);
-	ifr.ifr_flags = IFF_TUN;
+	ifr.ifr_flags = IFF_TUN | IFF_VNET_HDR;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
@@ -240,6 +257,16 @@ int iface_loopback_create(struct iface *iface) {
 
 	if (ioctl(iface->cp_fd, TUNSETIFF, &ifr) < 0) {
 		LOG(ERR, "ioctl(TUNSETIFF): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETVNETHDRSZ, &vnet_hdr_sz) < 0) {
+		LOG(ERR, "ioctl(TUNSETVNETHDRSZ): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM) < 0) {
+		LOG(ERR, "ioctl(TUNSETOFFLOAD): %s", strerror(errno));
 		goto err;
 	}
 

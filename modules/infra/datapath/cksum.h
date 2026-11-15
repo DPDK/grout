@@ -12,6 +12,8 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 
+#include <linux/virtio_net.h>
+
 #define GR_CKSUM_IP_BAD RTE_MBUF_F_RX_IP_CKSUM_BAD
 #define GR_CKSUM_IP_GOOD RTE_MBUF_F_RX_IP_CKSUM_GOOD
 #define GR_CKSUM_IP_MASK (GR_CKSUM_IP_BAD | GR_CKSUM_IP_GOOD)
@@ -95,6 +97,42 @@ static inline void gr_cksum_l4_complete(struct rte_mbuf *m, uint16_t l2_len) {
 	}
 
 	gr_cksum_l4_set_good(m);
+}
+
+static inline void
+gr_cksum_mbuf_to_vnet(struct virtio_net_hdr *vhdr, struct rte_mbuf *m, uint16_t l2_len) {
+	int proto;
+	void *ip;
+	void *l4;
+
+	memset(vhdr, 0, sizeof(*vhdr));
+
+	if (!gr_cksum_l4_partial(m))
+		return;
+
+	ip = rte_pktmbuf_mtod_offset(m, void *, l2_len);
+	proto = gr_ip_l4_proto(ip, rte_pktmbuf_pkt_len(m) - l2_len, &l4);
+	if (proto < 0)
+		return;
+
+	vhdr->csum_start = (uint8_t *)l4 - rte_pktmbuf_mtod(m, uint8_t *);
+	vhdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+
+	if (proto == IPPROTO_TCP)
+		vhdr->csum_offset = offsetof(struct rte_tcp_hdr, cksum);
+	else if (proto == IPPROTO_UDP)
+		vhdr->csum_offset = offsetof(struct rte_udp_hdr, dgram_cksum);
+}
+
+static inline void gr_cksum_vnet_to_mbuf(struct rte_mbuf *m, const struct virtio_net_hdr *vhdr) {
+	uint32_t l4_type = m->packet_type & RTE_PTYPE_L4_MASK;
+
+	if (l4_type == RTE_PTYPE_L4_TCP || l4_type == RTE_PTYPE_L4_UDP) {
+		if (vhdr->flags & VIRTIO_NET_HDR_F_DATA_VALID)
+			gr_cksum_l4_set_good(m);
+		else if (vhdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+			gr_cksum_l4_set_partial(m);
+	}
 }
 
 static inline void gr_cksum_tunnel_push(struct rte_mbuf *m, uint64_t tunnel_type, uint16_t l2_len) {
