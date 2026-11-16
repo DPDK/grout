@@ -98,12 +98,19 @@ ndr-validate:
 
 .PHONY: update-graph
 update-graph: all
-	$Q set -xe; tmp=`mktemp -d`; \
+	$Q set -e; tmp=`mktemp -d`; \
 	trap "kill %1; wait; rm -rf $$tmp" EXIT; \
 	export GROUT_SOCK_PATH="$$tmp/sock"; \
 	$(BUILDDIR)/grout -t & \
 	socat FILE:/dev/null UNIX-CONNECT:$$GROUT_SOCK_PATH,retry=10 && \
-	$(BUILDDIR)/grcli graph show brief | dot -Tsvg > docs/graph.svg
+	$(BUILDDIR)/grcli graph show brief | dot -Tsvg > $$tmp/graph.svg && \
+	svg_to_edges() { grep -A1 'class="edge"' | sed -En 's,^<title>(.+)</title>$$,\1,p' | sed 's/&#45;&gt;/ -> /' | LC_ALL=C sort -u; } && \
+	svg_to_edges < $$tmp/graph.svg > $$tmp/edges_runtime && \
+	svg_to_edges < docs/graph.svg > $$tmp/edges_git && \
+	if ! diff -u $$tmp/edges_git $$tmp/edges_runtime; then \
+		cp $$tmp/graph.svg docs/graph.svg && \
+		echo "docs/graph.svg updated"; \
+	fi
 
 .PHONY: coverage
 coverage:
