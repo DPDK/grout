@@ -124,7 +124,7 @@ jobs:
             libibverbs-dev libasan8 libcmocka-dev libedit-dev libarchive-dev \
             libevent-dev libmnl-dev libnuma-dev python3-pyelftools iputils-arping \
             socat tcpdump traceroute graphviz iproute2 iputils-ping ndisc6 jq \
-            dnsmasq dhcpcd-base systemd-coredump abigail-tools python3-scapy libpcap-dev
+            dnsmasq dhcpcd-base udhcpc systemd-coredump abigail-tools python3-scapy libpcap-dev
           # FRR dependencies
           sudo mkdir -p /etc/apt/keyrings
           sudo curl -s -o /etc/apt/keyrings/frrouting.gpg https://deb.frrouting.org/frr/keys.gpg
