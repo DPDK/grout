@@ -36,3 +36,12 @@ ip netns exec n0 traceroute -N1 -n 16.1.0.1
 ip netns exec n1 traceroute -N1 -n 16.0.0.1
 ip netns exec n0 traceroute -N1 -n 172.16.1.2
 ip netns exec n1 traceroute -N1 -n 172.16.0.2
+
+# TCP bulk transfer to exercise L4 Tx checksum offload and TSO/sw_gso
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+ip netns exec n0 socat -u OPEN:$tmp/payload TCP4:16.1.0.1:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "TCP bulk transfer: data mismatch"

@@ -96,7 +96,7 @@ ip_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 
 		mbuf_data(mbuf)->iface = iface;
 
-		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu) {
+		if (rte_pktmbuf_pkt_len(mbuf) > iface->mtu && !mbuf->tso_segsz) {
 			if (ip->fragment_offset & rte_cpu_to_be_16(RTE_IPV4_HDR_DF_FLAG)) {
 				edge = FRAG_NEEDED;
 			} else {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
+#include "cksum.h"
 #include "dhcp.h"
 #include "eth.h"
 #include "iface.h"
@@ -149,6 +150,7 @@ static struct rte_mbuf *dhcp_build_packet(
 	ip->dst_addr = RTE_BE32(0xFFFFFFFF);
 	ip->hdr_checksum = 0;
 	ip->hdr_checksum = rte_ipv4_cksum(ip);
+	gr_cksum_ip_set_good(m);
 
 	return m;
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6_datapath.h"
@@ -94,6 +95,7 @@ vxlan_input_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 		}
 
 		rte_pktmbuf_adj(m, sizeof(struct rte_udp_hdr) + sizeof(*vh));
+		gr_cksum_tunnel_pop(m);
 
 		d = iface_mbuf_data(m);
 		d->iface = iface;

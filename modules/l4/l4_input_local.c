@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6_datapath.h"
@@ -15,6 +16,7 @@ LOG_TYPE("graph");
 enum edges {
 	MANAGEMENT = 0,
 	BAD_PROTO,
+	BAD_CHECKSUM,
 	BAD_LENGTH,
 	EDGE_COUNT,
 };
@@ -126,6 +128,8 @@ static uint16_t l4_input_local_process(
 			}
 			hdr = rte_pktmbuf_mtod(mbuf, struct rte_udp_hdr *);
 			edge = udp_edges[hdr->dst_port];
+			if (!hdr->dgram_cksum)
+				goto next;
 			break;
 		case IPPROTO_TCP:
 			if (avail < sizeof(struct rte_tcp_hdr)) {
@@ -136,8 +140,45 @@ static uint16_t l4_input_local_process(
 			break;
 		default:
 			edge = MANAGEMENT;
-			break;
+			goto next;
 		}
+
+		if (gr_cksum_l4_valid(mbuf))
+			goto next;
+
+		if (gr_cksum_l4_bad(mbuf)) {
+			edge = BAD_CHECKSUM;
+			goto next;
+		}
+
+		if (mbuf->packet_type & RTE_PTYPE_L3_IPV4) {
+			struct ip_local_mbuf_data *d = ip_local_mbuf_data(mbuf);
+			struct rte_ipv4_hdr ip4 = {
+				.version_ihl = IPV4_VERSION_IHL,
+				.total_length = rte_cpu_to_be_16(sizeof(ip4) + d->len),
+				.next_proto_id = d->proto,
+				.src_addr = d->src,
+				.dst_addr = d->dst,
+			};
+			if (rte_ipv4_udptcp_cksum_verify(&ip4, rte_pktmbuf_mtod(mbuf, void *))) {
+				edge = BAD_CHECKSUM;
+				goto next;
+			}
+		} else {
+			struct ip6_local_mbuf_data *d6 = ip6_local_mbuf_data(mbuf);
+			struct rte_ipv6_hdr ip6 = {
+				.vtc_flow = RTE_BE32(0x60000000),
+				.payload_len = rte_cpu_to_be_16(d6->len),
+				.proto = d6->proto,
+				.src_addr = d6->src,
+				.dst_addr = d6->dst,
+			};
+			if (rte_ipv6_udptcp_cksum_verify(&ip6, rte_pktmbuf_mtod(mbuf, void *))) {
+				edge = BAD_CHECKSUM;
+				goto next;
+			}
+		}
+
 next:
 		if (gr_mbuf_is_traced(mbuf)) {
 			struct l4_trace_data *t = gr_mbuf_trace_add(mbuf, node, sizeof(*t));
@@ -167,6 +208,7 @@ static struct rte_node_register input_node = {
 	.next_nodes = {
 		[MANAGEMENT] = "l4_loopback_output",
 		[BAD_PROTO] = "l4_bad_proto",
+		[BAD_CHECKSUM] = "l4_input_local_bad_checksum",
 		[BAD_LENGTH] = "l4_input_local_bad_length",
 	},
 };
@@ -180,4 +222,5 @@ static struct gr_node_info info = {
 
 GR_NODE_REGISTER(info);
 
+GR_DROP_REGISTER(l4_input_local_bad_checksum);
 GR_DROP_REGISTER(l4_input_local_bad_length);

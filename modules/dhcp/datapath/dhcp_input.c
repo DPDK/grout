@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Anthony Harivel
 
+#include "cksum.h"
 #include "control_output.h"
 #include "dhcp.h"
 #include "graph.h"
@@ -93,6 +94,7 @@ dhcp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 				goto next;
 			}
 			ip_set_fields(ip, d);
+			gr_cksum_ip_set_good(mbuf);
 
 			struct rte_ether_hdr *eth = gr_mbuf_prepend(mbuf, eth);
 			if (eth == NULL) {

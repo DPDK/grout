@@ -13,7 +13,6 @@ LOG_TYPE("graph");
 
 enum {
 	UNKNOWN_PROTO = 0,
-	BAD_CHECKSUM,
 	BAD_LENGTH,
 	ERROR,
 	EDGE_COUNT,
@@ -101,36 +100,12 @@ static uint16_t ip6_input_local_process(
 		case IPPROTO_FRAGMENT:
 			// IPv6 extensions are L3 and need the IPv6 header.
 			goto next;
-		case IPPROTO_UDP:
-		case IPPROTO_TCP:
-		case IPPROTO_SCTP:
-		case IPPROTO_DCCP:
-			// These protocols have checksum fields to be verified.
-			break;
 		default:
-			// No checksum to verify.
-			goto adj_next;
-		}
-
-		// verify checksum if not already checked by hardware
-		switch (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) {
-		case RTE_MBUF_F_RX_L4_CKSUM_NONE:
-		case RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN:
-			if (rte_ipv6_udptcp_cksum_verify(
-				    ip, rte_pktmbuf_mtod_offset(m, void *, d->ext_offset)
-			    )) {
-				edge = BAD_CHECKSUM;
-				goto next;
-			}
+			rte_pktmbuf_adj(m, d->ext_offset);
+			d->ext_offset = 0;
 			break;
-		case RTE_MBUF_F_RX_L4_CKSUM_BAD:
-			edge = BAD_CHECKSUM;
-			goto next;
 		}
 
-adj_next:
-		rte_pktmbuf_adj(m, d->ext_offset);
-		d->ext_offset = 0;
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}
@@ -144,7 +119,6 @@ static struct rte_node_register input_node = {
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
 		[UNKNOWN_PROTO] = "ip6_input_local_unknown_proto",
-		[BAD_CHECKSUM] = "ip6_input_local_bad_checksum",
 		[BAD_LENGTH] = "ip6_input_local_bad_length",
 		[ERROR] = "ip6_input_local_error",
 	},
@@ -158,7 +132,6 @@ static struct gr_node_info info = {
 GR_NODE_REGISTER(info);
 
 GR_DROP_REGISTER(ip6_input_local_unknown_proto);
-GR_DROP_REGISTER(ip6_input_local_bad_checksum);
 GR_DROP_REGISTER(ip6_input_local_bad_length);
 GR_DROP_REGISTER(ip6_input_local_error);
 
