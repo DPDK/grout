@@ -228,6 +228,9 @@ int nexthop_config_set(const struct gr_nexthop_config *c) {
 	if (c->max_bcast_probes != 0)
 		nh_conf.max_bcast_probes = c->max_bcast_probes;
 
+	// Ageing timers are relative, recompute them with the new lifetimes.
+	nexthop_l3_ageing_rearm_all();
+
 	return 0;
 }
 
