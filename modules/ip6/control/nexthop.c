@@ -203,6 +203,7 @@ hold:
 		if (l3->state != GR_NH_S_PENDING) {
 			nh6_solicit(nh);
 			l3->state = GR_NH_S_PENDING;
+			nexthop_l3_ageing_update(nh);
 		}
 		return;
 	} else {
@@ -359,6 +360,7 @@ void ndp_probe_input_cb(void *obj, uintptr_t, const struct control_queue_drain *
 			l3->ucast_probes = 0;
 			l3->bcast_probes = 0;
 			l3->mac = mac;
+			nexthop_l3_ageing_update(nh);
 			if (nh->origin != GR_NH_ORIGIN_INTERNAL)
 				event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
 		}
