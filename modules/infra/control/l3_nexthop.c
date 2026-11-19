@@ -3,6 +3,7 @@
 
 #include "clock.h"
 #include "config.h"
+#include "event.h"
 #include "iface.h"
 #include "log.h"
 #include "mbuf.h"
@@ -10,7 +11,6 @@
 #include "module.h"
 #include "nexthop.h"
 #include "rcu.h"
-#include "vec.h"
 
 #include <rte_hash.h>
 
@@ -18,12 +18,13 @@
 
 LOG_TYPE("nexthop");
 
-// Rate-limited counter for the ageing timer that walks every learned nexthop.
+// Rate-limited counter for nexthops that never reply to probes.
 LOG_COUNTER(neigh_unresponsive);
 LOG_COUNTER(solicit_failed);
+LOG_COUNTER(ageing_timer_failed);
 
 static struct rte_hash *l3_hash;
-static struct event *ageing_timer;
+static struct event_base *ev_base;
 static const struct nexthop_af_ops *af_ops[256];
 
 // Pool for packets held while waiting for address resolution. The hardware
@@ -300,6 +301,9 @@ static int l3_import_info(struct nexthop *nh, const void *info) {
 
 	*nexthop_info_l3(nh) = priv;
 
+	// Dynamically learned nexthops are the only ones that age out.
+	nexthop_l3_ageing_update(nh);
+
 	return 0;
 }
 
@@ -321,11 +325,19 @@ static struct gr_nexthop *l3_to_api(const struct nexthop *nh, size_t *len) {
 	return pub;
 }
 
+static void l3_free(struct nexthop *nh) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+
+	if (l3->ageing_ev != NULL)
+		event_free(l3->ageing_ev);
+	nexthop_l3_hold_queue_flush(nh);
+}
+
 static struct nexthop_type_ops l3_nh_ops = {
 	.reconfig = l3_reconfig,
 	.lookup = l3_lookup,
 	.remove_references = l3_remove_references,
-	.free = nexthop_l3_hold_queue_flush,
+	.free = l3_free,
 	.equal = l3_equal,
 	.import_info = l3_import_info,
 	.to_api = l3_to_api,
@@ -363,6 +375,7 @@ static bool l3_age(struct nexthop *nh) {
 			);
 			l3->state = GR_NH_S_FAILED;
 			l3->failed_since = now;
+			nexthop_l3_hold_queue_flush(nh);
 		} else {
 			if (ops->solicit(nh) < 0)
 				LOG_RATELIMIT(
@@ -382,48 +395,138 @@ static bool l3_age(struct nexthop *nh) {
 		}
 		break;
 	case GR_NH_S_FAILED:
-		nexthop_l3_hold_queue_flush(nh);
 		return (now - l3->failed_since) / GR_NS_PER_S > nh_conf.lifetime_unreachable_sec;
 	}
 	return false;
 }
 
-static void do_ageing(evutil_socket_t, short /*what*/, void * /*priv*/) {
-	vec struct nexthop **expired = NULL;
+// Compute the delay until the next ageing check of a learned nexthop.
+// Returns a zeroed timeval if the nexthop does not need to be checked again.
+static struct timeval l3_ageing_timeout(const struct nexthop *nh) {
+	const struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+	gr_clock_ns_t deadline, now, lifetime;
+	struct timeval tv = {0};
+
+	switch (l3->state) {
+	case GR_NH_S_NEW:
+		break;
+	case GR_NH_S_PENDING:
+	case GR_NH_S_STALE:
+		// Send one probe per second.
+		tv.tv_sec = 1;
+		break;
+	case GR_NH_S_REACHABLE:
+	case GR_NH_S_FAILED:
+		if (l3->state == GR_NH_S_REACHABLE) {
+			lifetime = nh_conf.lifetime_reachable_sec;
+			deadline = l3->last_reply;
+		} else {
+			lifetime = nh_conf.lifetime_unreachable_sec;
+			deadline = l3->failed_since;
+		}
+		// l3_age() compares whole seconds: (now - deadline) / GR_NS_PER_S > lifetime.
+		// Fire at the first second where this condition becomes true.
+		deadline += (lifetime + 1) * GR_NS_PER_S;
+		now = clock_ns();
+		if (deadline <= now)
+			tv.tv_sec = 1;
+		else
+			tv.tv_sec = (deadline - now + GR_NS_PER_S - 1) / GR_NS_PER_S;
+		break;
+	}
+
+	return tv;
+}
+
+static void l3_ageing_cb(evutil_socket_t, short /*what*/, void *priv) {
+	struct nexthop *nh = priv;
+
+	if (l3_age(nh)) {
+		const struct nexthop_af_ops *ops = nexthop_af_ops_from_nh(nh);
+		ops->cleanup_learned(nh);
+		event_push(GR_EVENT_NEXTHOP_UPDATE, nh);
+		if (nh->ref_count == 1) {
+			nexthop_decref(nh);
+			return;
+		}
+		// Still referenced (e.g. by an external route): keep the timer
+		// alive and retry until the last reference is gone.
+	}
+
+	struct timeval tv = l3_ageing_timeout(nh);
+	if (tv.tv_sec > 0 && event_add(nexthop_info_l3(nh)->ageing_ev, &tv) < 0)
+		LOG_RATELIMIT(CRIT, ageing_timer_failed, "event_add() failed");
+}
+
+void nexthop_l3_ageing_update(struct nexthop *nh) {
+	struct nexthop_info_l3 *l3 = nexthop_info_l3(nh);
+
+	if (nh->origin != GR_NH_ORIGIN_LEARN) {
+		// Not (or no longer) dynamically learned: stop ageing.
+		if (l3->ageing_ev != NULL) {
+			event_free(l3->ageing_ev);
+			l3->ageing_ev = NULL;
+		}
+		return;
+	}
+
+	if (l3->ageing_ev == NULL) {
+		l3->ageing_ev = event_new(ev_base, -1, EV_FINALIZE, l3_ageing_cb, nh);
+		if (l3->ageing_ev == NULL) {
+			LOG_RATELIMIT(CRIT, ageing_timer_failed, "event_new() failed");
+			return;
+		}
+	} else {
+		event_del(l3->ageing_ev);
+	}
+
+	struct timeval tv = l3_ageing_timeout(nh);
+	if (tv.tv_sec > 0 && event_add(l3->ageing_ev, &tv) < 0)
+		LOG_RATELIMIT(CRIT, ageing_timer_failed, "event_add() failed");
+}
+
+static void l3_ageing_stop_all(void) {
+	struct nexthop_info_l3 *l3;
 	struct nexthop *nh;
 	uint32_t next = 0;
 	const void *key;
 
+	if (l3_hash == NULL)
+		return;
+
 	while (rte_hash_iterate(l3_hash, &key, (void **)&nh, &next) >= 0) {
-		if (nh->origin == GR_NH_ORIGIN_LEARN && l3_age(nh))
-			vec_add(expired, nh);
+		l3 = nexthop_info_l3(nh);
+		if (l3->ageing_ev != NULL) {
+			event_free(l3->ageing_ev);
+			l3->ageing_ev = NULL;
+		}
 	}
-	vec_foreach (nh, expired) {
-		const struct nexthop_af_ops *ops = nexthop_af_ops_from_nh(nh);
-		ops->cleanup_learned(nh);
-		if (nh->ref_count == 1)
-			nexthop_decref(nh);
-	}
-	vec_free(expired);
 }
 
-static void l3_init(struct event_base *ev_base) {
+void nexthop_l3_ageing_rearm_all(void) {
+	struct nexthop *nh;
+	uint32_t next = 0;
+	const void *key;
+
+	if (l3_hash == NULL)
+		return;
+
+	while (rte_hash_iterate(l3_hash, &key, (void **)&nh, &next) >= 0) {
+		if (nh->origin == GR_NH_ORIGIN_LEARN)
+			nexthop_l3_ageing_update(nh);
+	}
+}
+
+static void l3_init(struct event_base *base) {
+	ev_base = base;
 	held_pkts_pool = gr_pktmbuf_pool_get(SOCKET_ID_ANY, gr_config.max_held_packets);
 	if (held_pkts_pool == NULL)
 		ABORT("gr_pktmbuf_pool_get(held_pkts): %s", strerror(errno));
-
-	ageing_timer = event_new(ev_base, -1, EV_PERSIST | EV_FINALIZE, do_ageing, NULL);
-	if (ageing_timer == NULL)
-		ABORT("event_new() failed");
-
-	if (event_add(ageing_timer, &(struct timeval) {.tv_sec = 1}) < 0)
-		ABORT("event_add() failed");
 }
 
 static void l3_fini(struct event_base *) {
+	l3_ageing_stop_all();
 	rte_hash_free(l3_hash);
-	if (ageing_timer)
-		event_free(ageing_timer);
 	gr_pktmbuf_pool_release(held_pkts_pool, gr_config.max_held_packets);
 }
 

@@ -60,7 +60,17 @@ GR_NH_TYPE_INFO(GR_NH_T_L3, nexthop_info_l3, {
 	// answer ARP/NDP for it in addition to the owning interface (strong host
 	// model bypass). Control plane only.
 	vec uint16_t *exposed_iface_ids;
+
+	// Ageing timer. Only allocated for dynamically learned nexthops.
+	struct event *ageing_ev;
 });
+
+// Arm, rearm or stop the ageing timer of an L3 nexthop according to its
+// origin and current state.
+void nexthop_l3_ageing_update(struct nexthop *);
+
+// Recompute the ageing timers of all learned L3 nexthops.
+void nexthop_l3_ageing_rearm_all(void);
 
 static inline bool nexthop_l3_hold_queue_full(const struct nexthop *nh) {
 	if (nh->type != GR_NH_T_L3)
