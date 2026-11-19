@@ -57,3 +57,9 @@ install_data(
   rename: ['grout'],
   install_dir: get_option('datadir') / 'bash-completion/completions',
 )
+
+install_data(
+  files('dhcpcd-hook', 'odhcp6c-script', 'udhcpc-script'),
+  install_dir: get_option('libexecdir') / 'grout',
+  install_mode: 'rwxr-xr-x',
+)

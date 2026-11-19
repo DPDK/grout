@@ -1,0 +1,162 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+# Apply DHCPv4 leases obtained by udhcpc to a grout interface.
+#
+# udhcpc delegates all address and route configuration to its script. Pass this
+# script with -s:
+#
+#   udhcpc -B -i p0 -s /usr/libexec/grout/udhcpc-script
+#
+# IMPORTANT: udhcpc must run in the same network namespace as grout, otherwise
+# it cannot open the control plane TAP. If grout runs in a dedicated netns:
+#
+#   ip netns exec grout udhcpc -B -i p0 -s /usr/libexec/grout/udhcpc-script
+#
+# -B asks the server to broadcast its replies. Until the leased address is
+# configured in grout, a unicast reply cannot be routed to the control plane
+# TAP.
+#
+# The interface name is the grout control plane TAP, which has the same name as
+# the grout interface. Routes are installed with the dhcp origin so that a DHCP
+# client can only remove the routes it owns.
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
+export PATH
+
+iface=${interface:?missing interface}
+state_file=/run/grout-dhcp.$iface
+
+# grout interfaces are backed by a kernel TAP with the same name. It only
+# exists in the network namespace where grout runs.
+grout_tap()
+{
+	local link
+
+	link=$(ip link show dev "$iface" 2>/dev/null) || return 1
+	# iproute2 prints the interface alias, busybox ip does not. When it is
+	# available, make sure this is grout's control plane TAP and not an
+	# unrelated interface with the same name.
+	case "$link" in
+	*"alias Grout control plane interface") return 0 ;;
+	*"alias "*) return 1 ;;
+	esac
+	return 0
+}
+
+if ! grout_tap; then
+	echo "grout-dhcp: $iface is not a grout control plane interface in this network namespace" >&2
+	echo "grout-dhcp: udhcpc must run in the same network namespace as grout" >&2
+	exit 1
+fi
+
+grout_vrf()
+{
+	local vrf
+	vrf=$(grcli -j interface show name "$iface" |
+		sed -n 's/.*"vrf"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+	[ "$vrf" = main ] && vrf=
+	printf '%s' "$vrf"
+}
+
+mask2cidr()
+{
+	local mask=$1 prefix=0 octet
+	local IFS=.
+
+	for octet in $mask; do
+		case "$octet" in
+		255) prefix=$((prefix + 8)) ;;
+		254) prefix=$((prefix + 7)) ;;
+		252) prefix=$((prefix + 6)) ;;
+		248) prefix=$((prefix + 5)) ;;
+		240) prefix=$((prefix + 4)) ;;
+		224) prefix=$((prefix + 3)) ;;
+		192) prefix=$((prefix + 2)) ;;
+		128) prefix=$((prefix + 1)) ;;
+		0) ;;
+		*) return 1 ;;
+		esac
+	done
+
+	printf '%s\n' "$prefix"
+}
+
+add_route()
+{
+	local gw=$1 vrf=$2
+	set -- route add 0.0.0.0/0 via "$gw"
+	[ -n "$vrf" ] && set -- "$@" vrf "$vrf"
+	grcli "$@" origin dhcp
+}
+
+del_route()
+{
+	local vrf=$1
+	set -- route del 0.0.0.0/0
+	[ -n "$vrf" ] && set -- "$@" vrf "$vrf"
+	grcli "$@" origin dhcp
+}
+
+configure()
+{
+	local addr gw prefix prev vrf
+
+	[ -n "${ip:-}" ] || return 0
+	[ -n "${subnet:-}" ] || return 0
+
+	prefix=$(mask2cidr "$subnet") || {
+		echo "grout-dhcp: invalid subnet mask: $subnet" >&2
+		return 1
+	}
+	addr="$ip/$prefix"
+	gw=${router:-}
+	gw=${gw%% *}
+	case "$gw" in
+	"" | 0.0.0.0) gw= ;;
+	esac
+	vrf=$(grout_vrf)
+
+	prev=
+	[ -f "$state_file" ] && read -r prev _ < "$state_file"
+
+	ip link set dev "$iface" up || return 1
+	if [ -n "$prev" ] && [ "$prev" != "$addr" ]; then
+		grcli address del "$prev" iface "$iface" || :
+	fi
+	grcli address add "$addr" iface "$iface" || return 1
+	printf '%s %s\n' "$addr" "$gw" > "$state_file"
+
+	if [ -z "$gw" ]; then
+		del_route "$vrf" || :
+		return 0
+	fi
+	add_route "$gw" "$vrf"
+}
+
+deconfigure()
+{
+	local addr gw vrf
+
+	[ -f "$state_file" ] || return 0
+	read -r addr gw < "$state_file"
+	vrf=$(grout_vrf)
+
+	# The route may have been taken over by another origin, ignore failures.
+	del_route "$vrf" || :
+	if [ -n "$addr" ]; then
+		grcli address del "$addr" iface "$iface" || :
+	fi
+	rm -f "$state_file"
+}
+
+case "${1:-}" in
+bound|renew)
+	configure
+	;;
+deconfig|leasefail|nak)
+	deconfigure
+	ip link set dev "$iface" up
+	;;
+esac

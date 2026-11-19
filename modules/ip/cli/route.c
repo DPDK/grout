@@ -27,6 +27,8 @@ static cmd_status_t route4_add(struct gr_api_client *c, const struct ec_pnode *p
 		return CMD_ERROR;
 	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
 		return CMD_ERROR;
+	if (cli_parse_route_origin(p, &req.origin) < 0 && errno != ENOENT)
+		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_ADD, sizeof(req), &req, NULL) < 0)
 		return CMD_ERROR;
@@ -40,6 +42,8 @@ static cmd_status_t route4_del(struct gr_api_client *c, const struct ec_pnode *p
 	if (arg_ip4_net(p, "DEST", &req.dest, true) < 0)
 		return CMD_ERROR;
 	if (arg_vrf(c, p, "VRF", &req.vrf_id) < 0)
+		return CMD_ERROR;
+	if (cli_parse_route_origin(p, &req.origin) < 0 && errno != ENOENT)
 		return CMD_ERROR;
 
 	if (gr_api_client_send_recv(c, GR_IP4_ROUTE_DEL, sizeof(req), &req, NULL) < 0)
