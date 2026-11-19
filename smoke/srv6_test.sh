@@ -19,6 +19,19 @@ ip -n n0 addr add 192.168.61.2/24 dev x-p0
 ip -n n1 addr add fd00:102::2/32 dev x-p1
 
 #
+# Adding the same NEXT-CSID SID twice without an explicit id must update the
+# nexthop created by the first call instead of creating a duplicate: the
+# default block/csid lengths have to be filled in before the dedup lookup.
+#
+grcli nexthop add srv6-local behavior end flavor next-csid
+before=$(grcli -j nexthop show type srv6-local)
+grcli nexthop add srv6-local behavior end flavor next-csid \
+	|| fail "re-adding an identical NEXT-CSID SID failed"
+after=$(grcli -j nexthop show type srv6-local)
+[ "$before" = "$after" ] || fail "the second add did not reuse the existing nexthop"
+grcli nexthop del "$(grcli -j nexthop show type srv6-local | jq -r '.[0].id')"
+
+#
 # network layout:
 #  (client) x-p0(netns) <--> p0 <grout> p1 <--->  x-p1(netns) (public: 192.168.60.1/24 on p0)
 #       ipv4 ---------------|        srv6        |-- ipv4
@@ -106,6 +119,51 @@ ip netns exec n1 timeout 5 tcpdump -c1 -pnnli x-p1 ip6 src $encap_src  || {
 }
 
 wait $ping_pid
+
+#
+# Outer Traffic Class and Flow Label test
+#
+# RFC 2473 section 5.1.1.1: the encapsulated packet inherits the DSCP and
+# ECN marking of the inner packet. RFC 6438: it also carries a Flow Label
+# so that transit routers can load balance the tunnel.
+#
+
+capture=$(mktemp)
+ip netns exec n1 timeout 5 tcpdump -c1 -vnnli x-p1 'ip6 and (ip6[6] == 43 or ip6[6] == 4)' >"$capture" 2>&1 &
+tcpdump_pid=$!
+for _ in $(seq 50); do
+	if grep -q "listening on" "$capture"; then
+		break
+	fi
+	sleep 0.1
+done
+
+ip netns exec n0 ping -Q 0xb8 -i0.01 -c3 -n 192.168.60.1 >/dev/null 2>&1 || true
+
+if ! wait $tcpdump_pid; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "no encapsulated packet captured on x-p1"
+fi
+
+if ! grep -q "class 0xb8" "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer Traffic Class does not inherit the inner DSCP marking"
+fi
+
+if grep -q "flowlabel 0x0," "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer IPv6 header has a zero Flow Label"
+fi
+
+if ! grep -q "hlim 64," "$capture"; then
+	cat "$capture"
+	rm -f "$capture"
+	fail "the outer IPv6 header does not use the default Hop Limit of 64"
+fi
+rm -f "$capture"
 
 #
 # IPv6-in-SRv6 encapsulation test

@@ -23,6 +23,10 @@ enum {
 	EDGE_COUNT,
 };
 
+// RFC 2473 section 5.1: the Hop Limit of the outer header is configurable,
+// 64 is the common default (and what the Linux seg6 encapsulation uses).
+#define SR6_ENCAP_HOP_LIMIT 64
+
 struct trace_srv6_data {
 	gr_srv6_encap_behavior_t encap;
 	sr_encap_flags_t flags;
@@ -47,10 +51,10 @@ err:
 static uint16_t
 srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
 	const struct nexthop_info_srv6_output *d;
+	uint8_t proto, tc, n_omitted_segs;
 	const struct nexthop_info_l3 *l3;
 	struct rte_ipv6_routing_ext *srh;
 	struct rte_ipv6_hdr *outer_ip6;
-	uint8_t proto, n_omitted_segs;
 	const struct nexthop *nh;
 	uint32_t optlen, plen;
 	struct rte_mbuf *m;
@@ -75,15 +79,31 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			struct rte_ipv4_hdr *inner_ip4;
 			inner_ip4 = rte_pktmbuf_mtod(m, struct rte_ipv4_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip4->total_length);
+			if (unlikely(plen < sizeof(*inner_ip4))) {
+				edge = INVALID;
+				goto next;
+			}
+			// the IPv4 TOS octet carries the same DSCP and ECN bits
+			// as the IPv6 Traffic Class.
+			tc = inner_ip4->type_of_service;
 			proto = IPPROTO_IPIP;
 
 		} else if (m->packet_type & RTE_PTYPE_L3_IPV6) {
 			struct rte_ipv6_hdr *inner_ip6;
 			inner_ip6 = rte_pktmbuf_mtod(m, struct rte_ipv6_hdr *);
 			plen = rte_be_to_cpu_16(inner_ip6->payload_len) + sizeof(*inner_ip6);
+			tc = rte_be_to_cpu_32(inner_ip6->vtc_flow) >> RTE_IPV6_HDR_TC_SHIFT;
 			proto = IPPROTO_IPV6;
 
 		} else {
+			edge = INVALID;
+			goto next;
+		}
+
+		// The length announced by the inner header cannot exceed what
+		// was actually received, otherwise the outer header would
+		// advertise more bytes than are transmitted.
+		if (unlikely(plen > rte_pktmbuf_pkt_len(m))) {
 			edge = INVALID;
 			goto next;
 		}
@@ -140,6 +160,16 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			l3 = nexthop_info_l3(nh);
 			ip6_set_fields(outer_ip6, plen, proto, &l3->ipv6, &d->seglist[0]);
 		}
+		// RFC 2473 section 5.1.1.1: the outer Traffic Class inherits the
+		// inner one, so that DSCP and ECN marking survive the tunnel.
+		// RFC 6438: set a Flow Label so that transit routers can load
+		// balance encapsulated flows; derive it from the same hash
+		// grout uses for its own ECMP.
+		outer_ip6->vtc_flow = rte_cpu_to_be_32(
+			(6u << 28) | ((uint32_t)tc << RTE_IPV6_HDR_TC_SHIFT)
+			| (m->hash.rss & RTE_IPV6_HDR_FL_MASK)
+		);
+		outer_ip6->hop_limits = SR6_ENCAP_HOP_LIMIT;
 		edge = IP6_OUTPUT;
 
 next:

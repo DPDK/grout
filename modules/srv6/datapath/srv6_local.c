@@ -25,6 +25,7 @@ enum {
 	NOT_ALLOWED_UPPER,
 	NO_TRANSIT,
 	DEST_UNREACH,
+	TTL_EXCEEDED,
 	EDGE_COUNT,
 };
 
@@ -130,6 +131,12 @@ static int ip6_parse_to_srh(struct rte_mbuf *m, struct ip6_info *ip6_info) {
 
 	if (ip6_info->sr) {
 		struct rte_ipv6_routing_ext *sr = ip6_info->sr;
+
+		// The Payload Length must cover the headers it announces:
+		// decap_srv6() subtracts the SRH length from it and would wrap
+		// the 16 bit field around otherwise.
+		if (rte_be_to_cpu_16(ip6->payload_len) < ip6_info->sr_len)
+			return -1;
 
 		// hdr_len is in 8B units (excl. first 8B)
 		// -> ext_len = 8 * (hdr_len + 1)
@@ -369,12 +376,12 @@ static int process_behav_end(
 	struct ip6_info *ip6_info
 ) {
 	struct rte_ipv6_routing_ext *sr = ip6_info->sr;
+	struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
 	struct eth_input_mbuf_data *id;
+	const struct nexthop *nh;
 
 	// NEXT-CSID processing (RFC 9800)
 	if (sr_d->flags & GR_SR_FL_FLAVOR_NEXT_CSID) {
-		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
-
 		if (csid_shift(&ip6->dst_addr, sr_d->block_bits, sr_d->csid_bits))
 			goto forward;
 		// Container exhausted: this was the last CSID. A uA (End.X) is a
@@ -404,8 +411,6 @@ static int process_behav_end(
 	if (sr->segments_left == 1 && (sr_d->flags & GR_SR_FL_FLAVOR_PSP)) {
 		decap_srv6(m, ip6_info);
 	} else {
-		struct rte_ipv6_hdr *ip6 = ip6_info->ip6_hdr;
-
 		// use next sid in list
 		--sr->segments_left;
 		ip6->dst_addr = srh_segment(sr, sr->segments_left);
@@ -423,10 +428,22 @@ forward:
 		return IP6_FORWARD;
 	}
 
-	// END: go to ip6_input for FIB lookup
+	// END: submit the packet to the FIB lookup of the (possibly End.T)
+	// output VRF. A packet hopping from one local SID to the next one never
+	// goes through ip6_forward, which is the node that normally checks and
+	// decrements the Hop Limit: do it here when the new destination is
+	// another local SID (RFC 8986 section 4.1, lines S05-S12 and RFC 9800
+	// section 4.3, lines N02-N07), and hand the resolved nexthop to
+	// ip6_input so that it does not resolve it a second time.
 	id = eth_input_mbuf_data(m);
+	nh = fib6_lookup(id->iface->vrf_id, id->iface->id, &ip6->dst_addr, m->hash.rss);
+	if (nh != NULL && nh->type == GR_NH_T_SR6_LOCAL) {
+		if (ip6->hop_limits <= 1)
+			return TTL_EXCEEDED;
+		ip6->hop_limits -= 1;
+	}
 	id->domain = ETH_DOMAIN_LOCAL;
-	id->nh = NULL;
+	id->nh = nh;
 	return IP6_INPUT;
 }
 
@@ -506,6 +523,7 @@ static struct rte_node_register srv6_local_node = {
 		[NOT_ALLOWED_UPPER] = "sr6_local_not_allowed_upper",
 		[NO_TRANSIT] = "sr6_local_no_transit",
 		[DEST_UNREACH] = "ip6_error_dest_unreach",
+		[TTL_EXCEEDED] = "ip6_error_ttl_exceeded",
 	},
 };
 
@@ -533,6 +551,10 @@ mock_func(uint16_t, drop_packets(struct rte_graph *, struct rte_node *, void **,
 mock_func(int, drop_format(char *, size_t, const void *, size_t));
 mock_func(void, ip6_input_register_nexthop_type(gr_nh_type_t, const char *));
 mock_func(struct iface *, get_vrf_iface(uint16_t));
+mock_func(
+	const struct nexthop *,
+	fib6_lookup(uint16_t, uint16_t, const struct rte_ipv6_addr *, uint32_t)
+);
 
 struct ipv6_ext_hdr {
 	uint8_t next_hdr;
@@ -882,23 +904,103 @@ static void srv6_end_next_csid(void **) {
 			.csid_bits = 16
 		},
 	};
+	struct iface iface = {.id = 1, .vrf_id = GR_VRF_ID_UNDEF};
+	struct nexthop next_sid = {.type = GR_NH_T_SR6_LOCAL};
 	struct ip6_info info = {0}, expect;
 	struct nexthop stale_nh = {0};
 	struct fake_mbuf fm;
 
 	fm_init_ipv6(&fm, &expect);
 	fm.ip6.dst_addr = CSID_CONTAINER;
+	fm.ip6.hop_limits = 64;
+	eth_input_mbuf_data(&fm.mbuf)->iface = &iface;
 	// a previous packet in this mbuf may have left an adjacency behind
 	eth_input_mbuf_data(&fm.mbuf)->nh = &stale_nh;
 
+	will_return_ptr(fib6_lookup, &next_sid);
 	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
 	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
 	assert_int_equal(eth_input_mbuf_data(&fm.mbuf)->domain, ETH_DOMAIN_LOCAL);
-	// ip6_input must look the shifted container up, not reuse the stale one
-	assert_null(eth_input_mbuf_data(&fm.mbuf)->nh);
+	// ip6_input must use the nexthop resolved here, not the stale one
+	assert_ptr_equal(eth_input_mbuf_data(&fm.mbuf)->nh, &next_sid);
+	// the next hop is another local SID: this node is one hop
+	assert_int_equal(fm.ip6.hop_limits, 63);
 	// 0100 consumed, 0200 is now the active CSID
 	assert_int_equal(fm.ip6.dst_addr.a[4], 0x02);
 	assert_int_equal(fm.ip6.dst_addr.a[5], 0x00);
+}
+
+// End transit to a local SID: the Hop Limit is checked and decremented here,
+// since the packet never reaches ip6_forward.
+static void srv6_end_transit_local_sid(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {.behavior = SR_BEHAVIOR_END, .out_vrf_id = GR_VRF_ID_UNDEF},
+	};
+	struct iface iface = {.id = 1, .vrf_id = GR_VRF_ID_UNDEF};
+	struct nexthop next_sid = {.type = GR_NH_T_SR6_LOCAL};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	expect.sr->segments_left = 1;
+	fm.ip6.hop_limits = 64;
+	eth_input_mbuf_data(&fm.mbuf)->iface = &iface;
+
+	will_return_ptr(fib6_lookup, &next_sid);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
+	assert_ptr_equal(eth_input_mbuf_data(&fm.mbuf)->nh, &next_sid);
+	assert_int_equal(fm.ip6.hop_limits, 63);
+	// the last segment is now the destination
+	struct rte_ipv6_addr last_sid = srh_segment(expect.sr, 0);
+	assert_memory_equal(&fm.ip6.dst_addr, &last_sid, sizeof(last_sid));
+}
+
+// A Hop Limit of 1 must not be forwarded to another local SID.
+static void srv6_end_transit_hop_limit(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {.behavior = SR_BEHAVIOR_END, .out_vrf_id = GR_VRF_ID_UNDEF},
+	};
+	struct iface iface = {.id = 1, .vrf_id = GR_VRF_ID_UNDEF};
+	struct nexthop next_sid = {.type = GR_NH_T_SR6_LOCAL};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	expect.sr->segments_left = 1;
+	fm.ip6.hop_limits = 1;
+	eth_input_mbuf_data(&fm.mbuf)->iface = &iface;
+
+	will_return_ptr(fib6_lookup, &next_sid);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), TTL_EXCEEDED);
+	assert_int_equal(fm.ip6.hop_limits, 1);
+}
+
+// End transit to a remote destination: ip6_forward decrements the Hop Limit,
+// this node must not do it a second time.
+static void srv6_end_transit_remote(void **) {
+	struct nexthop_info_srv6_local sr_d = {
+		.base = {.behavior = SR_BEHAVIOR_END, .out_vrf_id = GR_VRF_ID_UNDEF},
+	};
+	struct iface iface = {.id = 1, .vrf_id = GR_VRF_ID_UNDEF};
+	struct nexthop remote = {.type = GR_NH_T_L3};
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	expect.sr->segments_left = 1;
+	fm.ip6.hop_limits = 64;
+	eth_input_mbuf_data(&fm.mbuf)->iface = &iface;
+
+	will_return_ptr(fib6_lookup, &remote);
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), 0);
+	assert_int_equal(process_behav_end(&fm.mbuf, &sr_d, &info), IP6_INPUT);
+	assert_ptr_equal(eth_input_mbuf_data(&fm.mbuf)->nh, &remote);
+	assert_int_equal(fm.ip6.hop_limits, 64);
 }
 
 // uA: the shifted container goes to the configured L3 nexthop.
@@ -962,6 +1064,21 @@ static void srv6_end_x_next_csid_last(void **) {
 	assert_int_equal(fm.ip6.dst_addr.a[7], 0x00);
 }
 
+// A packet announcing a payload shorter than the SRH it carries must be
+// rejected: removing the SRH would wrap the Payload Length around.
+static void srv6_parse_payload_len_underflow(void **) {
+	struct ip6_info info = {0}, expect;
+	struct fake_mbuf fm;
+
+	fm_init_ipv6(&fm, &expect);
+	push_srh_1sid(&fm, &expect);
+	fm.ip6.payload_len = rte_cpu_to_be_16(8);
+
+	assert_int_equal(ip6_parse_to_srh(&fm.mbuf, &info), -1);
+	assert_int_equal(rte_be_to_cpu_16(fm.ip6.payload_len), 8);
+	assert_int_equal(fm.mbuf.data_len, expect.ext_offset);
+}
+
 // ---- runner -----------------------------------------------------------------
 int main(void) {
 	const struct CMUnitTest tests[] = {
@@ -970,11 +1087,15 @@ int main(void) {
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6),
 		cmocka_unit_test(srv6_parse_ipv6_srv6_dop),
 		cmocka_unit_test(srv6_parse_ipv6_hop_srv6_dop),
+		cmocka_unit_test(srv6_parse_payload_len_underflow),
 		cmocka_unit_test(srv6_decap_dt4_behind_dop),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv4),
 		cmocka_unit_test(srv6_end_x_usd_inner_ipv6),
 		cmocka_unit_test(srv6_end_x_usd_no_inner),
 		cmocka_unit_test(srv6_end_next_csid),
+		cmocka_unit_test(srv6_end_transit_local_sid),
+		cmocka_unit_test(srv6_end_transit_hop_limit),
+		cmocka_unit_test(srv6_end_transit_remote),
 		cmocka_unit_test(srv6_end_x_next_csid),
 		cmocka_unit_test(srv6_end_x_next_csid_last),
 	};

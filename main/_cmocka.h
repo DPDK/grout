@@ -19,6 +19,12 @@
 #define expect_uint_value(function, parameter, value) expect_value(function, parameter, value)
 #endif
 
+#ifndef will_return_ptr
+// will_return() casts the value to an integer large enough to hold a pointer,
+// which is how cmocka < 2.0 returns pointers from mock().
+#define will_return_ptr(function, value) will_return(function, value)
+#endif
+
 #define mock_func(type, func, ...)                                                                 \
 	type func;                                                                                 \
 	type func {                                                                                \
