@@ -48,7 +48,8 @@ static uint16_t loopback_input_process(
 			gr_mbuf_trace_add(mbuf, node, 0);
 		}
 
-		switch (mbuf->packet_type) {
+		// Don't care about L3 header extensions.
+		switch (mbuf->packet_type & (RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L3_IPV6)) {
 		case RTE_PTYPE_L3_IPV4:
 			edge = l3_edges[RTE_BE16(RTE_ETHER_TYPE_IPV4)];
 			break;
