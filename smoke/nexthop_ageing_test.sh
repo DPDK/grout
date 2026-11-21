@@ -40,6 +40,20 @@ wait_nexthop_gone() {
 	return 1
 }
 
+wait_route_via() {
+	local dest="$1"
+	local nh="$2"
+	local attempts=50
+	while [ "$attempts" -gt 0 ]; do
+		if grcli -j route get "$dest" | jq -e --arg nh "$nh" '.nexthop.addr == $nh'; then
+			return 0
+		fi
+		sleep 0.2
+		attempts=$((attempts - 1))
+	done
+	return 1
+}
+
 grcli nexthop config set lifetime 2 unreachable 1 ucast-probes 1 bcast-probes 1
 port_add p0
 port_add p1
@@ -96,7 +110,7 @@ wait_nexthop_gone '172.16.0.2' || fail "nexthop 172.16.0.2 should be destroyed"
 wait_nexthop_gone 'fd00:1::2' || fail "nexthop fd00:1::2 should be destroyed"
 wait_nexthop_gone '172.16.99.3' || fail "snooped neighbor without a route should be destroyed"
 grcli -j route get 172.16.0.2 | jq -e '.nexthop.addr == "172.16.0.1/24"' || fail "learned IPv4 host route was not removed"
-grcli -j route get 172.16.1.2 | jq -e '.nexthop.addr == "172.16.1.1/24"' || fail "referenced learned IPv4 host route was not removed"
+wait_route_via 172.16.1.2 172.16.1.1/24 || fail "referenced learned IPv4 host route was not removed"
 grcli -j route get fd00:1::2 | jq -e '.nexthop.addr == "fd00:1::1/64"' || fail "learned IPv6 host route was not removed"
 
 # An external route keeps the unreachable nexthop alive.
