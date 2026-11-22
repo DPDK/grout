@@ -353,6 +353,8 @@ int nexthop_update(struct nexthop *nh, const struct gr_nexthop_base *base, const
 		return errno_set(ESOCKTNOSUPPORT);
 	if (!nexthop_origin_valid(base->origin))
 		return errno_set(EPFNOSUPPORT);
+	if (nh->ref_count > 0 && base->type != nh->type)
+		return errno_set(EMEDIUMTYPE);
 
 	nexthop_id_put(nh);
 
