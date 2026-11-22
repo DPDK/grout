@@ -227,8 +227,9 @@ level1:
 
 // Reserve a user‑chosen ID. Returns 0 on success, <0 on error
 static inline int id_pool_book(struct id_pool *p, uint32_t id) {
-	uint16_t level1_bit, l1, offset;
+	uint16_t level1_bit, l1;
 	uint64_t old_level1;
+	uint32_t offset;
 
 	if (id < p->min_id || id > p->max_id)
 		return errno_set(ERANGE);
@@ -265,8 +266,9 @@ static inline int id_pool_book(struct id_pool *p, uint32_t id) {
 
 // Put an ID back to the pool
 static inline int id_pool_put(struct id_pool *p, uint32_t id) {
-	uint16_t level0_bit, level1_bit, l0, l1, offset;
+	uint16_t level0_bit, level1_bit, l0, l1;
 	uint64_t old_level1;
+	uint32_t offset;
 
 	if (id < p->min_id || id > p->max_id)
 		return errno_set(ERANGE);

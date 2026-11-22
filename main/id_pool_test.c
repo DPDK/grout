@@ -53,6 +53,25 @@ static void id_sequence(void **) {
 	assert_int_equal(errno, ERANGE);
 }
 
+#define LARGE_POOL_SIZE (1 << 17)
+
+static void id_large(void **) {
+	// First ID whose offset in the pool does not fit in 16 bits.
+	const uint32_t id = UINT16_MAX + 2;
+	struct id_pool *p;
+
+	p = id_pool_create(1, LARGE_POOL_SIZE);
+	assert_non_null(p);
+	assert_return_code(id_pool_book(p, id), errno);
+	assert_int_equal(id_pool_book(p, id), -EADDRINUSE);
+	assert_int_equal(id_pool_get(p), 1);
+	assert_return_code(id_pool_put(p, id), errno);
+	assert_int_equal(id_pool_put(p, id), -EIDRM);
+	assert_int_equal(id_pool_used(p), 1);
+	assert_return_code(id_pool_book(p, id), errno);
+	id_pool_destroy(p);
+}
+
 #define THREADS 8
 #define LOOPS 100000
 
@@ -250,6 +269,7 @@ static void id_random_bench(void **) {
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(id_sequence),
+		cmocka_unit_test(id_large),
 		cmocka_unit_test(id_sequence_bench),
 		cmocka_unit_test(id_random),
 		cmocka_unit_test(id_random_bench),
