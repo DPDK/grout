@@ -60,6 +60,23 @@ check_members 20 '[10,11]'
 check_members 21 '[12]'
 check_members 22 '[10,13,14]'
 
+# A nexthop keeps its type.
+grcli nexthop add blackhole id 17
+grcli nexthop add blackhole id 17
+grcli nexthop add l3 iface p0 id 17 address 172.16.0.7 && fail "blackhole 17 became an L3 nexthop"
+grcli nexthop add group id 17 member 10 && fail "blackhole 17 became a group"
+grcli nexthop add blackhole id 10 && fail "nexthop 10 became a blackhole"
+grcli nexthop add group id 10 member 11 && fail "nexthop 10 became a group"
+grcli nexthop add blackhole id 20 && fail "group 20 became a blackhole"
+grcli nexthop add l3 iface p0 id 10 address 172.16.0.2 mac 02:00:00:00:00:03
+grcli nexthop del 17
+# Once it is deleted, its ID can be given to a nexthop of another type.
+grcli nexthop add l3 iface p0 id 17 address 172.16.0.7
+has_nexthop 17 || fail "nexthop 17 not created"
+grcli nexthop del 17
+has_route 10.0.0.0/24 || fail "route via nexthop 10 deleted"
+check_members 20 '[10,11]'
+
 # A nexthop which no route and no group references.
 grcli nexthop add l3 iface p1 id 15 address 172.16.1.6 mac 02:00:00:00:01:06
 grcli nexthop del 15
