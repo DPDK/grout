@@ -82,14 +82,11 @@ int arg_iface(
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
-		with_help(                                                                         \
-			"Enable/disable promiscuous mode.",                                        \
-			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))       \
-		),                                                                                 \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
-		with_help(                                                                         \
+		ON_OFF_ARG("Enable/disable promiscuous mode.", "PROMISC"),                         \
+		ON_OFF_ARG(                                                                        \
 			"Enable/disable neighbor snooping (learn from unsolicited ARP/NDP).",      \
-			EC_NODE_OR("NEIGH_SNOOP", ec_node_str("", "on"), ec_node_str("", "off"))   \
+			"NEIGH_SNOOP"                                                              \
 		),                                                                                 \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \

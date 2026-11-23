@@ -630,15 +630,15 @@ static int ctx_init(struct ec_node *root) {
 		"set (flush-routes-on-iface-down FLUSH),(skip-route-events-on-iface-down SKIP)",
 		iface_config_set,
 		"Change the interface subsystem configuration.",
-		with_help(
+		ON_OFF_ARG(
 			"Delete the routes going out of an interface when it goes "
 			"administratively down.",
-			EC_NODE_OR("FLUSH", ec_node_str("", "on"), ec_node_str("", "off"))
+			"FLUSH"
 		),
-		with_help(
+		ON_OFF_ARG(
 			"Do not emit route events for the routes deleted along with an "
 			"interface.",
-			EC_NODE_OR("SKIP", ec_node_str("", "on"), ec_node_str("", "off"))
+			"SKIP"
 		)
 	);
 	if (ret < 0)

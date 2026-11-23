@@ -172,20 +172,9 @@ out:
 			ec_node_uint("AGE", 0, UINT16_MAX, 10)                                     \
 		),                                                                                 \
 		with_help("Bridge ethernet address.", ec_node_re("MAC", ETH_ADDR_RE)),             \
-		with_help(                                                                         \
-			"Enable/disable flooding of BUM traffic.",                                 \
-			EC_NODE_OR("FLOOD", ec_node_str("", "on"), ec_node_str("", "off"))         \
-		),                                                                                 \
-		with_help(                                                                         \
-			"Enable/disable ARP/NDP requests suppression.",                            \
-			EC_NODE_OR(                                                                \
-				"NEIGH_SUPPRESS", ec_node_str("", "on"), ec_node_str("", "off")    \
-			)                                                                          \
-		),                                                                                 \
-		with_help(                                                                         \
-			"Enable/disable dynamic MAC learning.",                                    \
-			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
-		)
+		ON_OFF_ARG("Enable/disable flooding of BUM traffic.", "FLOOD"),                    \
+		ON_OFF_ARG("Enable/disable ARP/NDP requests suppression.", "NEIGH_SUPPRESS"),      \
+		ON_OFF_ARG("Enable/disable dynamic MAC learning.", "LEARN")
 
 static int ctx_init(struct ec_node *root) {
 	int ret;

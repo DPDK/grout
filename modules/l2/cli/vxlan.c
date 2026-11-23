@@ -193,9 +193,8 @@ out:
 			"UDP destination port (default 4789).",                                    \
 			ec_node_uint("DST_PORT", 1, 65535, 10)                                     \
 		),                                                                                 \
-		with_help(                                                                         \
-			"Enable/disable dynamic MAC learning when bridged (default on).",          \
-			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
+		ON_OFF_ARG(                                                                        \
+			"Enable/disable dynamic MAC learning when bridged (default on).", "LEARN"  \
 		)
 
 static int ctx_init(struct ec_node *root) {

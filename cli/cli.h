@@ -107,6 +107,9 @@ static inline int arg_u32(const struct ec_pnode *p, const char *id, uint32_t *va
 		)                                                                                  \
 	)
 
+#define ON_OFF_ARG(desc, id)                                                                       \
+	with_help(desc, EC_NODE_OR(id, ec_node_str("", "on"), ec_node_str("", "off")))
+
 typedef int (*ec_node_dyn_comp_t)(
 	struct gr_api_client *,
 	const struct ec_node *,
