@@ -163,8 +163,8 @@ out:
 }
 
 #define BRIDGE_ATTRS_CMD                                                                           \
-	IFACE_ATTRS_CMD ",(ageing_time AGE),(mac MAC)"                                             \
-			",(flood FLOOD),(learn LEARN),(neigh_suppress NEIGH_SUPPRESS)"
+	IFACE_ATTRS_CMD ",(ageing-time AGE),(mac MAC)"                                             \
+			",(flood FLOOD),(learn LEARN),(neigh-suppress NEIGH_SUPPRESS)"
 #define BRIDGE_ATTRS_ARGS                                                                          \
 	IFACE_ATTRS_ARGS,                                                                          \
 		with_help(                                                                         \

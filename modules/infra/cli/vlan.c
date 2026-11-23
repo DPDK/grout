@@ -152,7 +152,7 @@ static int ctx_init(struct ec_node *root) {
 
 	ret = CLI_COMMAND(
 		INTERFACE_ADD_CTX(root),
-		"vlan NAME parent PARENT vlan_id VLAN [" VLAN_ATTRS_CMD "]",
+		"vlan NAME parent PARENT vlan-id VLAN [" VLAN_ATTRS_CMD "]",
 		vlan_add,
 		"Create a new VLAN sub interface.",
 		with_help("Interface name.", ec_node("any", "NAME")),
@@ -167,7 +167,7 @@ static int ctx_init(struct ec_node *root) {
 		return ret;
 	ret = CLI_COMMAND(
 		INTERFACE_SET_CTX(root),
-		"vlan NAME (name NEW_NAME),(parent PARENT),(vlan_id VLAN)," VLAN_ATTRS_CMD,
+		"vlan NAME (name NEW_NAME),(parent PARENT),(vlan-id VLAN)," VLAN_ATTRS_CMD,
 		vlan_set,
 		"Modify VLAN parameters.",
 		with_help(

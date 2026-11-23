@@ -175,7 +175,7 @@ out:
 	return ret;
 }
 
-#define VXLAN_ATTRS_CMD "(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT),(learn LEARN)"
+#define VXLAN_ATTRS_CMD "(encap-vrf ENCAP_VRF),(mac MAC),(dst-port DST_PORT),(learn LEARN)"
 
 #define VXLAN_ATTRS_ARGS                                                                           \
 	IFACE_ATTRS_ARGS,                                                                          \

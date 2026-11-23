@@ -77,7 +77,7 @@ ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
 ip netns exec n1 ping -i0.01 -c3 -n 172.16.0.2
 grcli route add 10.77.1.0/24 via 172.16.1.2
 
-grcli interface set port p0 neigh_snoop on
+grcli interface set port p0 neigh-snoop on
 ip -n n0 addr add 172.16.99.2/24 dev x-p0
 ip netns exec n0 arping -U -c1 -w1 -I x-p0 172.16.99.2
 ip -n n0 addr add 172.16.99.3/24 dev x-p0

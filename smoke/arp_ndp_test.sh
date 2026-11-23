@@ -111,7 +111,7 @@ reply n0 $mac0 ndisc6 -1 -r1 -s fd00:1::2 fd00:99::1 x-p0
 # gratuitous ARP is learned but never answered.
 
 # p1 already knows 192.168.1.2 (learned from the reply above): a gratuitous
-# announcement with a new MAC for it is accepted even without neigh_snoop.
+# announcement with a new MAC for it is accepted even without neigh-snoop.
 garp_mac=ba:d0:ca:ca:00:03
 ip -n n1 link set x-p1 address $garp_mac
 mark_events
@@ -126,15 +126,15 @@ wait $garp_pid
 wait_event "nh update: type=L3 .*addr=192.168.1.2 state=reachable mac=$garp_mac"
 ip -n n1 link set x-p1 address $(stable_mac p1)
 
-# p1 has no entry for 192.168.1.50 and neigh_snoop is off: the announcement is
+# p1 has no entry for 192.168.1.50 and neigh-snoop is off: the announcement is
 # ignored and no nexthop is created for it. arping -U uses the target as the
 # source, so the address must exist on the interface.
 ip -n n1 addr add 192.168.1.50/24 dev x-p1
 ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.1.50
-grcli nexthop show | grep -q 192.168.1.50 && fail "gratuitous ARP learned without neigh_snoop"
+grcli nexthop show | grep -q 192.168.1.50 && fail "gratuitous ARP learned without neigh-snoop"
 
 # Enabling neighbor snooping on p1 makes the same announcement learned.
-grcli interface set port p1 neigh_snoop on
+grcli interface set port p1 neigh-snoop on
 mark_events
 ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.1.50
 wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.1.50 state=reachable mac=$(stable_mac p1)"
@@ -142,10 +142,10 @@ wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.1
 # Off-prefix NDP traffic is rejected without snooping and cached without a
 # /128 route when snooping is enabled.
 ip -n n1 -6 addr add fd00:dead::2/64 dev x-p1
-grcli interface set port p1 neigh_snoop off
+grcli interface set port p1 neigh-snoop off
 no_reply n1 ndisc6 -1 -r1 -w1000 -s fd00:dead::2 fd00:2::1 x-p1
-grcli nexthop show | grep -q fd00:dead::2 && fail "off-prefix NDP learned without neigh_snoop"
-grcli interface set port p1 neigh_snoop on
+grcli nexthop show | grep -q fd00:dead::2 && fail "off-prefix NDP learned without neigh-snoop"
+grcli interface set port p1 neigh-snoop on
 mark_events
 reply n1 $mac1 ndisc6 -1 -r1 -s fd00:dead::2 fd00:2::1 x-p1
 wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv6 addr=fd00:dead::2 state=reachable mac=$(stable_mac p1)"
@@ -154,13 +154,13 @@ if grcli route get fd00:dead::2; then fail "snoop-only neighbor installed a /128
 # Without neighbor snooping, off-prefix ARP requests for local addresses
 # still get a reply, but their senders are not learned.
 ip -n n1 addr add 192.168.0.50/24 dev x-p1
-grcli interface set port p1 neigh_snoop off
+grcli interface set port p1 neigh-snoop off
 reply n1 $mac1 arping -c1 -w1 -I x-p1 -s 192.168.0.50 192.168.1.1
 ip netns exec n1 arping -A -c1 -I x-p1 192.168.0.50
-grcli nexthop show | grep -q 192.168.0.50 && fail "off-prefix ARP learned without neigh_snoop"
+grcli nexthop show | grep -q 192.168.0.50 && fail "off-prefix ARP learned without neigh-snoop"
 
 # Snoop-only neighbors are cached but must not install an internal /32 route.
-grcli interface set port p1 neigh_snoop on
+grcli interface set port p1 neigh-snoop on
 mark_events
 ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.0.50
 wait_event "nh new: type=L3 .*iface=p1 .*origin=learn family=ipv4 addr=192.168.0.50 state=reachable mac=$(stable_mac p1)"
@@ -188,7 +188,7 @@ grcli -j nexthop show type l3 | jq -e '.[] | select(.addr == "fd00:dead::2" and 
 
 # A gratuitous ARP must only touch a neighbor learned on the interface it was
 # received on. 192.168.0.2 is a neighbor on p0; announcing it on p1 (even with
-# neigh_snoop on) must not steal it or rewrite its MAC.
+# neigh-snoop on) must not steal it or rewrite its MAC.
 ip -n n1 addr add 192.168.0.2/24 dev x-p1
 ip netns exec n1 arping -U -c1 -w1 -I x-p1 192.168.0.2
 sleep 1

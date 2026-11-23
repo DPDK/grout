@@ -5,8 +5,8 @@
 # Verify ARP suppression with FRR EVPN Type-2 MAC+IP routes.
 #
 # Both VTEPs have bridge SVIs. The Linux peer has neigh_suppress on the
-# VXLAN interface and advertise-svi-ip in BGP. Grout has neigh_suppress on
-# the bridge and neigh_snoop on the bridge to learn local neighbors.
+# VXLAN interface and advertise-svi-ip in BGP. Grout has neigh-suppress on
+# the bridge and neigh-snoop on the bridge to learn local neighbors.
 #
 # When hosts ARP for their gateways, the VTEPs learn the IP+MAC bindings
 # and advertise them as Type-2 MAC+IP routes. Remote VTEPs install the
@@ -120,7 +120,7 @@ while ! vtysh -c "show evpn" | grep -q "L2 VNIs"; do
 	attempts=$((attempts + 1))
 done
 
-grcli interface add bridge br100 neigh_suppress on neigh_snoop on
+grcli interface add bridge br100 neigh-suppress on neigh-snoop on
 grcli address add 10.0.0.1/24 iface br100
 grcli interface add vxlan vxlan100 vni 100 local 172.16.0.2 domain br100
 

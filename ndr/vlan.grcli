@@ -14,8 +14,8 @@
 interface set port p0 mac 02:00:00:00:00:00
 interface set port p1 mac 02:00:00:00:00:01
 
-interface add vlan p0.100 parent p0 vlan_id 100 mac 02:00:00:00:00:00
-interface add vlan p1.200 parent p1 vlan_id 200 mac 02:00:00:00:00:01
+interface add vlan p0.100 parent p0 vlan-id 100 mac 02:00:00:00:00:00
+interface add vlan p1.200 parent p1 vlan-id 200 mac 02:00:00:00:00:01
 
 address add 172.16.0.1/24 iface p0.100
 address add 172.16.1.1/24 iface p1.200

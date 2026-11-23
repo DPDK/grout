@@ -77,7 +77,7 @@ int arg_iface(
 	CLI_CONTEXT(INTERFACE_CTX(root), CTX_ARG("config", "Interface subsystem configuration."))
 
 #define IFACE_ATTRS_CMD                                                                            \
-	"(up|down),(promisc PROMISC),(neigh_snoop NEIGH_SNOOP),(mtu MTU),"                         \
+	"(up|down),(promisc PROMISC),(neigh-snoop NEIGH_SNOOP),(mtu MTU),"                         \
 	"((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_ATTRS_ARGS                                                                           \

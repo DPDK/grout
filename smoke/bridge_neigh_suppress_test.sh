@@ -4,7 +4,7 @@
 
 # Verify ARP/ND suppression with manually configured remote nexthops.
 #
-# A bridge with neigh_suppress has two ports. A remote nexthop (with a known
+# A bridge with neigh-suppress has two ports. A remote nexthop (with a known
 # MAC) is installed for a target IP. When a host sends an ARP request for that
 # IP, grout replies locally using the remote nexthop's MAC instead of flooding
 # the request to the other port.
@@ -22,7 +22,7 @@
 
 . $(dirname $0)/_init.sh
 
-grcli interface add bridge br0 neigh_suppress on neigh_snoop on
+grcli interface add bridge br0 neigh-suppress on neigh-snoop on
 grcli address add 10.0.0.1/24 iface br0
 
 port_add p0 domain br0

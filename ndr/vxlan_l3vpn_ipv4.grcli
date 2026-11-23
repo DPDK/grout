@@ -30,9 +30,9 @@ route add 172.16.0.2/32 via id 1
 interface add vrf tenant
 
 # L3 VNI VXLAN interface in the tenant VRF. Outer (underlay) addresses are looked
-# up in the main VRF (encap_vrf); the local RMAC is fixed so decapsulated inner
+# up in the main VRF (encap-vrf); the local RMAC is fixed so decapsulated inner
 # frames addressed to it are accepted and routed.
-interface add vxlan v100 vni 100 local 172.16.0.1 vrf tenant encap_vrf main mac 02:00:00:00:0b:00
+interface add vxlan v100 vni 100 local 172.16.0.1 vrf tenant encap-vrf main mac 02:00:00:00:0b:00
 
 # Customer side (plain routed port) in the tenant VRF.
 interface set port p1 mac 02:00:00:00:00:01 vrf tenant
