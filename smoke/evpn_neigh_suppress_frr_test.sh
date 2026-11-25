@@ -145,6 +145,13 @@ ip -n host-b route add default via 10.0.0.1
 # -- Wait for EVPN type-3 (flood VTEP) exchange -------------------------------
 wait_event -t 10 "flood add:.*172.16.0.1.*vni=100"
 
+attempts=0
+while ! bridge -n evpn-peer fdb show dev vxlan100 | grep -qF 172.16.0.2; do
+	[ "$attempts" -ge 5 ] && fail "Linux peer did not learn remote VTEP 172.16.0.2"
+	sleep 1
+	attempts=$((attempts + 1))
+done
+
 # -- Trigger ARP learning on both sides ---------------------------------------
 # Each host pings its gateway SVI. This makes the host ARP for the gateway,
 # teaching the local VTEP the host's IP+MAC. FRR advertises the binding as
