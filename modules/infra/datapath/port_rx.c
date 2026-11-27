@@ -172,14 +172,14 @@ static inline void soft_rss(struct rte_mbuf *m) {
 		gr_mbuf_flow_hash_set(m, gr_mbuf_flow_hash_compute(m, GR_MBUF_FLOW_HASH_L3_L4));
 }
 
-static void fix_l4_csum(struct rte_mbuf *m) {
+static inline void fix_l4_csum(struct rte_mbuf *m, bool virtio_phdr) {
 	struct rte_net_hdr_lens hdr_lens;
 	uint16_t csum_offset;
 	rte_be16_t csum = 0;
 	uint32_t hdr_len;
 	uint32_t ptype;
 
-	// return early if the L4 checksum was not offloaded
+	// return early unless the L4 checksum field needs to be set
 	if ((m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) != RTE_MBUF_F_RX_L4_CKSUM_NONE)
 		return;
 
@@ -199,186 +199,41 @@ static void fix_l4_csum(struct rte_mbuf *m) {
 		return;
 	}
 
+	if (!virtio_phdr) {
+		// Prepare the pseudo-header checksum
+		if (rte_net_intel_cksum_prepare(m) < 0)
+			return;
+	}
+
 	// the pseudo-header checksum is already performed, as per Virtio spec
 	if (rte_raw_cksum_mbuf(m, hdr_len, rte_pktmbuf_pkt_len(m) - hdr_len, &csum) < 0)
 		return;
 
 	csum = ~csum;
 	// see RFC768
-	if (unlikely((ptype & RTE_PTYPE_L4_UDP) && csum == 0))
+	if (unlikely(csum == 0) && (ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP)
 		csum = RTE_BE16(0xffff);
 
 	if (rte_pktmbuf_data_len(m) >= csum_offset + 2)
 		*rte_pktmbuf_mtod_offset(m, rte_be16_t *, csum_offset) = csum;
 
-	m->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_MASK;
-	m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+	// Set RTE_MBUF_F_RX_L4_CKSUM_MASK as RTE_MBUF_F_RX_L4_CKSUM_GOOD.
+	// Note: CKSUM_GOOD (0b10) = CKSUM_NONE (0b11) & ~(CKSUM_BAD (0b01))
+	m->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_BAD;
 }
 
-uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	struct iface_mbuf_data *d;
-	struct rte_mbuf *m;
-	uint16_t rx;
+#define rx_do_process(graph, node, rx_flags)                                                       \
+	({                                                                                         \
+		static_assert(__rte_constant(rx_flags));                                           \
+		_rx_do_process(graph, node, rx_flags);                                             \
+	})
 
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-		d->iface = ctx->iface;
-
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-		} else {
-			d->vlan_id = 0;
-		}
-
-		fix_l4_csum(m);
-		soft_rss(m);
-	}
-
-	trace_log(
-		RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD | RXTX_F_SOFT_RSS, ctx->iface, node, mbufs, rx
-	);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
-}
-
-uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	struct iface_mbuf_data *d;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-		d->iface = ctx->iface;
-
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-		} else {
-			d->vlan_id = 0;
-		}
-	}
-
-	trace_log(RXTX_F_VLAN_OFFLOAD, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
-}
-
-uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+static inline uint16_t
+_rx_do_process(struct rte_graph *graph, struct rte_node *node, const rxtx_flags_t rx_flags) {
 	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
 	const struct rx_node_ctx *ctx = rx_node_ctx(node);
 	struct iface_mbuf_data *d;
 	struct rte_ether_hdr *eth;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-		d->iface = ctx->iface;
-
-		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-		if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
-			d->vlan_id = strip_vlan(m, eth);
-		} else {
-			d->vlan_id = 0;
-		}
-	}
-
-	trace_log(0, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
-}
-
-// Ports without RSS are virtual devices: they may or may not strip VLAN
-// headers, so handle both cases here rather than doubling the variants.
-uint16_t rx_soft_rss_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	struct iface_mbuf_data *d;
-	struct rte_ether_hdr *eth;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-		d->iface = ctx->iface;
-
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-		} else {
-			eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-			if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN))
-				d->vlan_id = strip_vlan(m, eth);
-			else
-				d->vlan_id = 0;
-		}
-
-		soft_rss(m);
-	}
-
-	trace_log(RXTX_F_SOFT_RSS, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
-}
-
-uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	const struct rte_ether_hdr *eth;
-	struct iface_mbuf_data *d;
 	const struct iface *iface;
 	struct rte_mbuf *m;
 	uint16_t rx;
@@ -386,9 +241,12 @@ uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, 
 	if (!iface_info_port(ctx->iface)->started)
 		return 0;
 
-	iface = get_bond(ctx->iface);
-	if (iface == NULL)
-		return 0;
+	if (rx_flags & RXTX_F_BOND) {
+		iface = get_bond(ctx->iface);
+		if (iface == NULL)
+			return 0;
+	} else
+		iface = ctx->iface;
 
 	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
 	rx_burst_histogram_inc(ctx->rxq.port_id, rx);
@@ -398,191 +256,80 @@ uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, 
 	for (unsigned r = 0; r < rx; r++) {
 		m = mbufs[r];
 		d = iface_mbuf_data(m);
+		d->iface = iface;
+		d->vlan_id = 0;
 
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-			d->iface = iface;
-		} else {
-			d->vlan_id = 0;
-			eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
-			if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
-				d->iface = ctx->iface;
-			else
-				d->iface = iface;
+		// Ports without RSS are virtual devices: they may or may not strip VLAN
+		// headers, so handle both cases here rather than doubling the variants.
+		if (rx_flags & (RXTX_F_VLAN_OFFLOAD | RXTX_F_SOFT_RSS)) {
+			if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
+				d->vlan_id = m->vlan_tci & 0xfff;
+				m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+			} else if (rx_flags & RXTX_F_BOND) {
+				eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+				if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+					d->iface = ctx->iface;
+			}
+		}
+		if (!(rx_flags & RXTX_F_VLAN_OFFLOAD)) {
+			eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+			if (eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_VLAN)) {
+				d->vlan_id = strip_vlan(m, eth);
+			} else if (rx_flags & RXTX_F_BOND) {
+				if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
+					d->iface = ctx->iface;
+			}
 		}
 
-		fix_l4_csum(m);
-		soft_rss(m);
+		fix_l4_csum(m, rx_flags & RXTX_F_VIRTIO);
+		if (rx_flags & RXTX_F_SOFT_RSS)
+			soft_rss(m);
+		if (rx_flags & RXTX_F_BOND)
+			capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
 	}
 
-	trace_log(
-		RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND | RXTX_F_SOFT_RSS,
-		ctx->iface,
-		node,
-		mbufs,
-		rx
-	);
+	trace_log(rx_flags, ctx->iface, node, mbufs, rx);
 
 	node->idx = rx;
 	rte_node_next_stream_move(graph, node, IFACE_INPUT);
 
 	return rx;
+}
+
+uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	return rx_do_process(graph, node, RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD | RXTX_F_SOFT_RSS);
+}
+
+uint16_t rx_offload_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	return rx_do_process(graph, node, RXTX_F_VLAN_OFFLOAD);
+}
+
+uint16_t rx_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	return rx_do_process(graph, node, 0);
+}
+
+uint16_t rx_soft_rss_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	return rx_do_process(graph, node, RXTX_F_SOFT_RSS);
+}
+
+uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
+	return rx_do_process(
+		graph, node, RXTX_F_VIRTIO | RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND | RXTX_F_SOFT_RSS
+	);
 }
 
 uint16_t
 rx_bond_offload_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	const struct rte_ether_hdr *eth;
-	struct iface_mbuf_data *d;
-	const struct iface *iface;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	iface = get_bond(ctx->iface);
-	if (iface == NULL)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-			d->iface = iface;
-		} else {
-			d->vlan_id = 0;
-			eth = rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
-			if (unlikely(eth->ether_type == RTE_BE16(RTE_ETHER_TYPE_SLOW)))
-				d->iface = ctx->iface;
-			else
-				d->iface = iface;
-		}
-		capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
-	}
-
-	trace_log(RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
+	return rx_do_process(graph, node, RXTX_F_VLAN_OFFLOAD | RXTX_F_BOND);
 }
 
 uint16_t rx_bond_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	struct iface_mbuf_data *d;
-	struct rte_ether_hdr *eth;
-	const struct iface *iface;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	iface = get_bond(ctx->iface);
-	if (iface == NULL)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-
-		switch (eth->ether_type) {
-		case RTE_BE16(RTE_ETHER_TYPE_VLAN):
-			d->iface = iface;
-			d->vlan_id = strip_vlan(m, eth);
-			break;
-		case RTE_BE16(RTE_ETHER_TYPE_SLOW):
-			d->iface = ctx->iface;
-			d->vlan_id = 0;
-			break;
-		default:
-			d->iface = iface;
-			d->vlan_id = 0;
-		}
-		capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
-	}
-
-	trace_log(RXTX_F_BOND, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
+	return rx_do_process(graph, node, RXTX_F_BOND);
 }
 
 uint16_t
 rx_bond_soft_rss_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
-	struct rte_mbuf **mbufs = (struct rte_mbuf **)node->objs;
-	const struct rx_node_ctx *ctx = rx_node_ctx(node);
-	struct iface_mbuf_data *d;
-	struct rte_ether_hdr *eth;
-	const struct iface *iface;
-	struct rte_mbuf *m;
-	uint16_t rx;
-
-	if (!iface_info_port(ctx->iface)->started)
-		return 0;
-
-	iface = get_bond(ctx->iface);
-	if (iface == NULL)
-		return 0;
-
-	rx = rte_eth_rx_burst(ctx->rxq.port_id, ctx->rxq.queue_id, mbufs, ctx->burst_size);
-	if (rx == 0)
-		return 0;
-
-	for (unsigned r = 0; r < rx; r++) {
-		m = mbufs[r];
-		d = iface_mbuf_data(m);
-
-		if (m->ol_flags & RTE_MBUF_F_RX_VLAN_STRIPPED) {
-			d->vlan_id = m->vlan_tci & 0xfff;
-			m->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
-			d->iface = iface;
-		} else {
-			eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-			switch (eth->ether_type) {
-			case RTE_BE16(RTE_ETHER_TYPE_VLAN):
-				d->iface = iface;
-				d->vlan_id = strip_vlan(m, eth);
-				break;
-			case RTE_BE16(RTE_ETHER_TYPE_SLOW):
-				d->iface = ctx->iface;
-				d->vlan_id = 0;
-				break;
-			default:
-				d->iface = iface;
-				d->vlan_id = 0;
-			}
-		}
-
-		soft_rss(m);
-		capture_enqueue(ctx->iface, GR_CAPTURE_DIR_IN, m);
-	}
-
-	trace_log(RXTX_F_BOND | RXTX_F_SOFT_RSS, ctx->iface, node, mbufs, rx);
-
-	node->idx = rx;
-	rte_node_next_stream_move(graph, node, IFACE_INPUT);
-
-	return rx;
+	return rx_do_process(graph, node, RXTX_F_BOND | RXTX_F_SOFT_RSS);
 }
 
 static void *lcore_cb_handle;
