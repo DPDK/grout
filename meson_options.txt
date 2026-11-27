@@ -2,8 +2,8 @@
 # Copyright (c) 2024 Vincent Jardin
 
 option(
-  'dpdk_version', type: 'combo', choices: ['25.11', '25.11-head', 'main'], value: '25.11',
-  description: 'DPDK version, defaults to 25.11.',
+  'dpdk_version', type: 'combo', choices: ['26.11', '26.11-head', '25.11', 'main'], value: '26.11',
+  description: 'DPDK version, defaults to 26.11.',
 )
 
 option(
