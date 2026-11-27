@@ -1,0 +1,10 @@
+[wrap-file]
+source_url = https://fast.dpdk.org/rel/dpdk-26.11.tar.xz
+source_filename = dpdk-26.11.tar.xz
+source_hash = 392b7be5d830ecd6842ce12f5dbd530f8211c20efebc65e7992dfe15ee32ed33
+directory = dpdk-26.11
+diff_files =
+	dpdk/fib-expose-tbl8-usage-statistics.patch
+
+[provide]
+dependency_names = libdpdk-26.11

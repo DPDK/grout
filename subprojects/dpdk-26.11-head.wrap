@@ -1,10 +1,9 @@
 [wrap-git]
 url = https://github.com/DPDK/dpdk-stable
-revision = 25.11
+revision = 26.11
 depth = 1
 diff_files =
-	dpdk/net-tap-add-software-MAC-address-filtering.patch,
 	dpdk/fib-expose-tbl8-usage-statistics.patch
 
 [provide]
-dependency_names = libdpdk-25.11-head
+dependency_names = libdpdk-26.11-head
