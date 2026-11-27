@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "cksum.h"
 #include "eth.h"
 #include "graph.h"
 #include "ip6_datapath.h"
@@ -294,9 +295,7 @@ static int process_behav_decap(
 	// remove tunnel ipv6 + ext headers
 	decap_outer(m, ip6_info);
 
-	// The hw checksum offload only works on the outer IP.
-	// Clear the offload flag so that ip_input will check it in software.
-	m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_NONE;
+	gr_cksum_tunnel_pop(m);
 
 	if (!set_out_vrf_iface(m, sr_d))
 		return DEST_UNREACH;

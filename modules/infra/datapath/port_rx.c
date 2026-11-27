@@ -3,6 +3,7 @@
 
 #include "bond.h"
 #include "capture.h"
+#include "cksum.h"
 #include "config.h"
 #include "flow_hash.h"
 #include "graph.h"
@@ -172,47 +173,28 @@ static inline void soft_rss(struct rte_mbuf *m) {
 		gr_mbuf_flow_hash_set(m, gr_mbuf_flow_hash_compute(m, GR_MBUF_FLOW_HASH_L3_L4));
 }
 
-static void fix_l4_csum(struct rte_mbuf *m) {
+static inline void virtio_rx_validate_offloads(struct rte_mbuf *m) {
 	struct rte_net_hdr_lens hdr_lens;
-	uint16_t csum_offset;
-	rte_be16_t csum = 0;
-	uint32_t hdr_len;
 	uint32_t ptype;
 
-	// return early if the L4 checksum was not offloaded
-	if ((m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) != RTE_MBUF_F_RX_L4_CKSUM_NONE)
+	// return early if the L4 checksum was not offloaded and no TSO
+	if (!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK) && !m->tso_segsz)
 		return;
 
 	ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
 
-	hdr_len = hdr_lens.l2_len + hdr_lens.l3_len;
-
 	switch (ptype & RTE_PTYPE_L4_MASK) {
 	case RTE_PTYPE_L4_TCP:
-		csum_offset = offsetof(struct rte_tcp_hdr, cksum) + hdr_len;
 		break;
 	case RTE_PTYPE_L4_UDP:
-		csum_offset = offsetof(struct rte_udp_hdr, dgram_cksum) + hdr_len;
+		m->tso_segsz = 0;
 		break;
 	default:
 		// unsupported packet type
+		gr_cksum_reset(m);
+		m->tso_segsz = 0;
 		return;
 	}
-
-	// the pseudo-header checksum is already performed, as per Virtio spec
-	if (rte_raw_cksum_mbuf(m, hdr_len, rte_pktmbuf_pkt_len(m) - hdr_len, &csum) < 0)
-		return;
-
-	csum = ~csum;
-	// see RFC768
-	if (unlikely((ptype & RTE_PTYPE_L4_UDP) && csum == 0))
-		csum = RTE_BE16(0xffff);
-
-	if (rte_pktmbuf_data_len(m) >= csum_offset + 2)
-		*rte_pktmbuf_mtod_offset(m, rte_be16_t *, csum_offset) = csum;
-
-	m->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_MASK;
-	m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 }
 
 uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void **, uint16_t) {
@@ -242,7 +224,7 @@ uint16_t rx_virtio_process(struct rte_graph *graph, struct rte_node *node, void 
 			d->vlan_id = 0;
 		}
 
-		fix_l4_csum(m);
+		virtio_rx_validate_offloads(m);
 		soft_rss(m);
 	}
 
@@ -412,7 +394,7 @@ uint16_t rx_bond_virtio_process(struct rte_graph *graph, struct rte_node *node, 
 				d->iface = iface;
 		}
 
-		fix_l4_csum(m);
+		virtio_rx_validate_offloads(m);
 		soft_rss(m);
 	}
 

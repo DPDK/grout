@@ -18,10 +18,12 @@ src += files(
   'loop_output.c',
   'xvrf.c',
   'main_loop.c',
+  'mbuf.c',
   'port_output.c',
   'port_rx.c',
   'port_tx.c',
   'snap_input.c',
+  'sw_gso.c',
   'trace.c',
   'xconnect.c',
 )

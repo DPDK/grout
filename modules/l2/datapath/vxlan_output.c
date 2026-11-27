@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Robin Jarry
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4.h"
 #include "ip6.h"
@@ -9,6 +10,7 @@
 #include "l3.h"
 #include "mbuf.h"
 #include "rxtx.h"
+#include "sw_gso.h"
 
 #include <rte_byteorder.h>
 #include <rte_ip6.h>
@@ -44,7 +46,9 @@ static uint16_t vxlan_output_process(
 	struct vxlan_template_ipv6 *vh6;
 	struct iface_mbuf_data *d;
 	const struct nexthop *nh;
+	struct rte_udp_hdr *udp;
 	struct rte_mbuf *m;
+	uint16_t udp_len;
 	rte_edge_t edge;
 	uint16_t len;
 
@@ -71,6 +75,8 @@ static uint16_t vxlan_output_process(
 			t->vtep = d->vtep;
 		}
 
+		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_VXLAN, gr_cksum_eth_l2_len(m));
+
 		len = rte_pktmbuf_pkt_len(m);
 
 		switch (d->vtep.af) {
@@ -87,13 +93,12 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh4 = vxlan->template.ipv4;
-			vh4->udp.src_port = vxlan_src_port(m->hash.rss);
-			vh4->udp.dgram_len = rte_cpu_to_be_16(
-				len + sizeof(vh4->udp) + sizeof(vh4->vxlan)
-			);
+			udp = &vh4->udp;
+			udp_len = len + sizeof(vh4->udp) + sizeof(vh4->vxlan);
 			vh4->ip.dst_addr = d->vtep.ipv4;
 			vh4->ip.total_length = rte_cpu_to_be_16(len + sizeof(*vh4));
 			vh4->ip.hdr_checksum = rte_ipv4_cksum(&vh4->ip);
+			gr_cksum_ip_set_good(m);
 
 			edge = IP_OUTPUT;
 			break;
@@ -112,13 +117,10 @@ static uint16_t vxlan_output_process(
 				goto next;
 			}
 			*vh6 = vxlan->template.ipv6;
-			vh6->udp.src_port = vxlan_src_port(m->hash.rss);
-			vh6->udp.dgram_len = rte_cpu_to_be_16(
-				len + sizeof(vh6->udp) + sizeof(vh6->vxlan)
-			);
+			udp = &vh6->udp;
+			udp_len = len + sizeof(vh6->udp) + sizeof(vh6->vxlan);
 			vh6->ip.dst_addr = d->vtep.ipv6;
-			vh6->ip.payload_len = vh6->udp.dgram_len;
-			vh6->udp.dgram_cksum = rte_ipv6_udptcp_cksum(&vh6->ip, &vh6->udp);
+			vh6->ip.payload_len = rte_cpu_to_be_16(udp_len);
 
 			edge = IP6_OUTPUT;
 			break;
@@ -127,6 +129,23 @@ static uint16_t vxlan_output_process(
 			goto next;
 		}
 		l3_mbuf_data(m)->nh = nh;
+
+		udp->src_port = vxlan_src_port(m->hash.rss);
+		udp->dgram_len = rte_cpu_to_be_16(udp_len);
+		if (vxlan->flags & GR_VXLAN_F_UDP_CKSUM) {
+			gr_cksum_l4_set_partial(m);
+
+			if (m->tso_segsz) {
+				// Partially segment this packet so that outer UDP checksum
+				// optimisation can be applied on Tx.
+				struct rte_mbuf *rem = sw_gso_segment_partial(m, 0);
+
+				rte_node_enqueue_x1(graph, node, edge, m);
+				if (rem)
+					rte_node_enqueue_x1(graph, node, edge, rem);
+				continue;
+			}
+		}
 next:
 		rte_node_enqueue_x1(graph, node, edge, m);
 	}

@@ -27,3 +27,12 @@ ip -n n1 route add default via 10.98.0.1
 ip netns exec n0 ping -i0.01 -c3 -n 10.98.0.2
 ip netns exec n1 ping -i0.01 -c3 -n 10.99.0.2
 ping -i0.01 -c3 -n 10.98.0.2 || fail "ping through an ipip nexthop failed"
+
+# TCP bulk transfer through IPIP tunnel to exercise tunnel TSO/sw_gso
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+ip netns exec n0 socat -u OPEN:$tmp/payload TCP4:10.98.0.2:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "IPIP TCP bulk transfer: data mismatch"

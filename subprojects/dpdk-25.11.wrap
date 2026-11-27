@@ -7,7 +7,8 @@ diff_files =
 	dpdk/net-tap-add-software-MAC-address-filtering.patch,
 	dpdk/net-tap-support-Rx-queue-interrupt-enable-disable.patch,
 	dpdk/net-tap-drain-queue-fd-in-Rx-interrupt-mode.patch,
-	dpdk/fib-expose-tbl8-usage-statistics.patch
+	dpdk/fib-expose-tbl8-usage-statistics.patch,
+	dpdk/net-vhost-fix-TSO-announce.patch
 
 [provide]
 dependency_names = libdpdk-25.11

@@ -18,7 +18,8 @@ move_to_netns x-p0 n1
 ip -n n1 addr add 3fff::2/64 dev x-p0
 ip -n n1 link add br100 type bridge
 ip -n n1 link set br100 up
-ip -n n1 link add vxlan100 type vxlan id 100 local 3fff::2 dstport 4789 dev x-p0
+ip -n n1 link add vxlan100 type vxlan id 100 local 3fff::2 dstport 4789 dev x-p0 \
+	udp6zerocsumrx udp6zerocsumtx
 ip -n n1 link set vxlan100 master br100
 ip -n n1 link set vxlan100 up
 ip -n n1 addr add 192.168.100.2/24 dev br100
@@ -29,3 +30,12 @@ bridge -n n1 fdb add 00:00:00:00:00:00 dev vxlan100 self vni 100 dst 3fff::1
 ip netns exec n1 ping -i0.01 -c3 -W1 192.168.100.1
 
 grcli fdb show
+
+# TCP bulk transfer through VxLAN over IPv6 tunnel
+dd if=/dev/urandom of=$tmp/payload bs=1M count=1 2>/dev/null
+ip netns exec n1 socat -u TCP4-LISTEN:5000,reuseaddr OPEN:$tmp/received,create &
+recv_pid=$!
+wait_listeners --netns n1 5000
+socat -u OPEN:$tmp/payload TCP4:192.168.100.2:5000,shut-down
+wait $recv_pid
+cmp $tmp/payload $tmp/received || fail "VxLAN6 TCP bulk transfer: data mismatch"

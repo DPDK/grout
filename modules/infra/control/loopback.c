@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Christophe Fontaine
 
+#include "cksum.h"
 #include "config.h"
 #include "control_queue.h"
 #include "eth.h"
 #include "iface.h"
 #include "log.h"
 #include "loopback.h"
+#include "mbuf.h"
 #include "mempool.h"
 #include "module.h"
 #include "netlink.h"
@@ -34,7 +36,6 @@ LOG_COUNTER(tx_bad_proto);
 LOG_COUNTER(tx_write_failed);
 LOG_COUNTER(tun_deleted);
 LOG_COUNTER(rx_pool_exhausted);
-LOG_COUNTER(rx_no_tailroom);
 LOG_COUNTER(rx_read_failed);
 LOG_COUNTER(rx_bad_proto);
 LOG_COUNTER(rx_loopback_send_failed);
@@ -54,16 +55,19 @@ static void finalize_fd(struct event *ev, void * /*priv*/) {
 }
 
 void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) {
-	struct rte_mbuf *m = obj;
-	struct mbuf_data *d = mbuf_data(m);
+	struct mbuf_data *d = mbuf_data(obj);
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
-	struct iovec iov[2];
+	struct rte_mbuf *m = obj;
+	struct iovec iov[3];
 	char *data = NULL;
 	struct tun_pi pi;
 
 	// Check if packet references deleted interface.
 	if (drain != NULL && drain->event == GR_EVENT_IFACE_REMOVE && d->iface == drain->obj)
 		goto end;
+
+	gr_cksum_mbuf_to_vnet(&vhdr, m, 0);
 
 	if (rte_pktmbuf_linearize(m) == 0) {
 		data = rte_pktmbuf_mtod(m, char *);
@@ -91,13 +95,16 @@ void loopback_tx(void *obj, uintptr_t, const struct control_queue_drain *drain) 
 		LOG_RATELIMIT(ERR, tx_bad_proto, "Bad proto: 0x%x - drop packet", data[0]);
 		goto end;
 	}
-	// Do not retry even in case of  if EAGAIN || EWOULDBLOCK
+
+	// Do not retry even in case of EAGAIN || EWOULDBLOCK.
 	// If the tun device queue is full, something really bad is
 	// already happening on the management plane side.
 	iov[0].iov_base = &pi;
 	iov[0].iov_len = sizeof(pi);
-	iov[1].iov_base = data;
-	iov[1].iov_len = rte_pktmbuf_pkt_len(m);
+	iov[1].iov_base = &vhdr;
+	iov[1].iov_len = sizeof(vhdr);
+	iov[2].iov_base = data;
+	iov[2].iov_len = rte_pktmbuf_pkt_len(m);
 
 	if (writev(d->iface->cp_fd, iov, ARRAY_DIM(iov)) < 0) {
 		// The user messed up and removed gr-loopX
@@ -123,12 +130,14 @@ end:
 static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 	struct iface *iface = ev_iface;
 	struct eth_input_mbuf_data *e;
+	struct rte_mbuf *mbuf = NULL;
+	struct virtio_net_hdr vhdr;
 	struct iface_stats *stats;
-	struct rte_mbuf *mbuf;
-	struct iovec iov[2];
+	char data[UINT16_MAX];
+	struct iovec iov[3];
+	uint32_t data_len;
 	struct tun_pi pi;
-	size_t len;
-	char *data;
+	ssize_t len;
 
 	if (reason & EV_CLOSED) {
 		// The user messed up and removed gr-loopX
@@ -137,42 +146,39 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		return;
 	}
 
-	mbuf = rte_pktmbuf_alloc(iface->pool);
+	iov[0] = (struct iovec) {.iov_base = &pi, .iov_len = sizeof(pi)};
+	iov[1] = (struct iovec) {.iov_base = &vhdr, .iov_len = sizeof(vhdr)};
+	iov[2] = (struct iovec) {.iov_base = data, .iov_len = sizeof(data)};
+
+	len = readv(iface->cp_fd, iov, ARRAY_DIM(iov));
+	if (len <= (ssize_t)(sizeof(pi) + sizeof(vhdr))) {
+		if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
+			LOG_RATELIMIT(
+				ERR,
+				rx_read_failed,
+				"read from tun device %s failed %s",
+				iface->name,
+				strerror(errno)
+			);
+		goto err;
+	}
+
+	data_len = len - sizeof(pi) - sizeof(vhdr);
+	mbuf = gr_mbuf_alloc(iface->pool, data_len);
 	if (!mbuf) {
-		LOG_RATELIMIT(ERR, rx_pool_exhausted, "rte_pktmbuf_alloc: pool exhausted");
+		LOG_RATELIMIT(ERR, rx_pool_exhausted, "gr_mbuf_alloc: pool exhausted");
 		goto err;
 	}
 
-	if ((data = rte_pktmbuf_append(mbuf, iface->mtu)) == NULL) {
-		LOG_RATELIMIT(ERR, rx_no_tailroom, "rte_pktmbuf_append: not enough tailroom");
-		goto err;
-	}
+	memcpy(rte_pktmbuf_append(mbuf, data_len), data, data_len);
 
-	iov[0].iov_base = &pi;
-	iov[0].iov_len = sizeof(pi);
-	iov[1].iov_base = data;
-	iov[1].iov_len = iface->mtu;
-	if ((len = readv(iface->cp_fd, iov, ARRAY_DIM(iov))) <= 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto err;
-		LOG_RATELIMIT(
-			ERR,
-			rx_read_failed,
-			"read from tun device %s failed %s",
-			iface->name,
-			strerror(errno)
-		);
-		goto err;
-	}
-
-	rte_pktmbuf_trim(mbuf, iface->mtu - (len - sizeof(pi)));
-
-	// packet sent from linux tun iface, no need to compute checksum;
-	mbuf->ol_flags = RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+	gr_cksum_reset(mbuf);
 
 	switch (pi.proto) {
 	case RTE_BE16(RTE_ETHER_TYPE_IPV4):
 		mbuf->packet_type = RTE_PTYPE_L3_IPV4;
+		// Packet sent from linux, no need to verify the IP header checksum.
+		gr_cksum_ip_set_good(mbuf);
 		break;
 	case RTE_BE16(RTE_ETHER_TYPE_IPV6):
 		mbuf->packet_type = RTE_PTYPE_L3_IPV6;
@@ -181,6 +187,17 @@ static void iface_loopback_poll(evutil_socket_t, short reason, void *ev_iface) {
 		LOG_RATELIMIT(ERR, rx_bad_proto, "unknown proto: %#x", rte_be_to_cpu_16(pi.proto));
 		goto err;
 	}
+
+	switch (gr_ip_l4_proto(rte_pktmbuf_mtod(mbuf, void *), rte_pktmbuf_pkt_len(mbuf), NULL)) {
+	case IPPROTO_TCP:
+		mbuf->packet_type |= RTE_PTYPE_L4_TCP;
+		break;
+	case IPPROTO_UDP:
+		mbuf->packet_type |= RTE_PTYPE_L4_UDP;
+		break;
+	}
+
+	gr_cksum_vnet_to_mbuf(mbuf, &vhdr);
 
 	// required by ip(6)_input
 	e = eth_input_mbuf_data(mbuf);
@@ -206,6 +223,7 @@ err:
 }
 
 int iface_loopback_create(struct iface *iface) {
+	int vnet_hdr_sz = sizeof(struct virtio_net_hdr);
 	char tun_name[IFNAMSIZ];
 	int ioctl_sock = -1;
 	struct ifreq ifr;
@@ -222,7 +240,7 @@ int iface_loopback_create(struct iface *iface) {
 
 	memset(&ifr, 0, sizeof(struct ifreq));
 	gr_strcpy(ifr.ifr_name, IFNAMSIZ, tun_name);
-	ifr.ifr_flags = IFF_TUN;
+	ifr.ifr_flags = IFF_TUN | IFF_VNET_HDR;
 
 	if ((ioctl_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		LOG(ERR, "socket(SOCK_DGRAM): %s", strerror(errno));
@@ -236,6 +254,16 @@ int iface_loopback_create(struct iface *iface) {
 
 	if (ioctl(iface->cp_fd, TUNSETIFF, &ifr) < 0) {
 		LOG(ERR, "ioctl(TUNSETIFF): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETVNETHDRSZ, &vnet_hdr_sz) < 0) {
+		LOG(ERR, "ioctl(TUNSETVNETHDRSZ): %s", strerror(errno));
+		goto err;
+	}
+
+	if (ioctl(iface->cp_fd, TUNSETOFFLOAD, TUN_F_CSUM | TUN_F_TSO4 | TUN_F_TSO6) < 0) {
+		LOG(ERR, "ioctl(TUNSETOFFLOAD): %s", strerror(errno));
 		goto err;
 	}
 

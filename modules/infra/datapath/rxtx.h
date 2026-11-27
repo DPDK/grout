@@ -40,6 +40,7 @@ GR_NODE_CTX_TYPE(tx_node_ctx, {
 
 struct port_output_edges {
 	rte_edge_t edges[RTE_MAX_ETHPORTS];
+	rte_edge_t sw_gso_edges[RTE_MAX_ETHPORTS];
 };
 
 GR_MBUF_PRIV_DATA_TYPE(iface_mbuf_data, {

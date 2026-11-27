@@ -102,6 +102,7 @@ struct gr_iface {
 #define GR_PORT_SET_N_TXQS GR_BIT64(33)
 #define GR_PORT_SET_Q_SIZE GR_BIT64(34)
 #define GR_PORT_SET_MAC GR_BIT64(35)
+#define GR_PORT_RECONFIGURE GR_BIT64(36)
 
 // Base info structure for GR_IFACE_TYPE_PORT interfaces.
 struct __gr_iface_info_port_base {

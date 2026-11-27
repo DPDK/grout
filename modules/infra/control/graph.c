@@ -6,6 +6,7 @@
 #include "module.h"
 #include "port.h"
 #include "rxtx.h"
+#include "sw_gso.h"
 #include "vec.h"
 #include "worker.h"
 
@@ -27,8 +28,10 @@ struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 static vec const char **base_node_names;
 static vec char **rx_node_names;
 static vec char **tx_node_names;
+static vec char **sw_gso_node_names;
 static rte_node_t port_rx_node;
 static rte_node_t port_tx_node;
+static rte_node_t sw_gso_node;
 static rte_node_t port_output_node;
 static rte_edge_t port_output_invalid;
 
@@ -129,6 +132,7 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 
 	vec_extend(graph_nodes, base_node_names);
 	vec_extend(graph_nodes, tx_node_names);
+	vec_extend(graph_nodes, sw_gso_node_names);
 
 	// graph init
 	struct rte_graph_param params = {
@@ -202,8 +206,10 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 		ret = -ENOMEM;
 		goto out;
 	}
-	for (unsigned i = 0; i < ARRAY_DIM(out->edges); i++)
+	for (unsigned i = 0; i < ARRAY_DIM(out->edges); i++) {
 		out->edges[i] = port_output_invalid;
+		out->sw_gso_edges[i] = port_output_invalid;
+	}
 
 	vec_foreach_ref (qmap, worker->txqs) {
 		if (!qmap->enabled)
@@ -249,6 +255,7 @@ worker_graph_new(struct worker *worker, uint8_t index, vec struct iface_info_por
 				// update the port_output context data to map this port to the
 				// correct edge
 				out->edges[ctx->txq.port_id] = edge;
+				out->sw_gso_edges[ctx->txq.port_id] = vec_len(tx_node_names) + edge;
 				break;
 			}
 		}
@@ -320,6 +327,7 @@ static char *ensure_queue_node(
 }
 
 static vec rte_node_t *worker_graph_nodes_add_missing(vec struct iface_info_port **ports) {
+	vec char **old_sw_gso = vec_clone(sw_gso_node_names);
 	vec char **old_rx = vec_clone(rx_node_names);
 	vec char **old_tx = vec_clone(tx_node_names);
 	rte_node_t *unused_nodes = NULL;
@@ -328,8 +336,9 @@ static vec rte_node_t *worker_graph_nodes_add_missing(vec struct iface_info_port
 
 	vec_free(rx_node_names);
 	vec_free(tx_node_names);
+	vec_free(sw_gso_node_names);
 
-	// clone port_rx and port_tx to match all possible port-queue pairs
+	// clone port_rx, port_tx and sw_gso to match all possible port-queue pairs
 	vec_foreach (struct iface_info_port *port, ports) {
 		for (uint16_t rxq = 0; rxq < port->n_rxq; rxq++) {
 			name = ensure_queue_node(
@@ -338,26 +347,48 @@ static vec rte_node_t *worker_graph_nodes_add_missing(vec struct iface_info_port
 			vec_add(rx_node_names, name);
 		}
 		for (uint16_t txq = 0; txq < port->n_txq; txq++) {
-			name = ensure_queue_node(
+			const char *target;
+			char *gso_name;
+			char *tx_name;
+
+			tx_name = ensure_queue_node(
 				port_tx_node, TX_NODE_FMT, port->port_id, txq, old_tx
 			);
-			vec_add(tx_node_names, name);
+			vec_add(tx_node_names, tx_name);
+
+			gso_name = ensure_queue_node(
+				sw_gso_node, SW_GSO_NODE_FMT, port->port_id, txq, old_sw_gso
+			);
+			vec_add(sw_gso_node_names, gso_name);
+
+			// wire sw_gso clone edge 0 to its corresponding port_tx clone
+			target = tx_name;
+			rte_node_edge_update(rte_node_from_name(gso_name), 0, &target, 1);
 		}
 	}
 
-	// update the port_output edges to allow reaching all possible port_tx clones
+	// update port_output edges: port_tx clones, then sw_gso clones, then error
 	edge = rte_node_edge_update(
 		port_output_node, 0, (const char **)tx_node_names, vec_len(tx_node_names)
 	);
 	assert(edge != RTE_EDGE_ID_INVALID);
-	port_output_invalid = vec_len(tx_node_names);
+
+	edge = rte_node_edge_update(
+		port_output_node,
+		vec_len(tx_node_names),
+		(const char **)sw_gso_node_names,
+		vec_len(sw_gso_node_names)
+	);
+	assert(edge != RTE_EDGE_ID_INVALID);
+
+	port_output_invalid = vec_len(tx_node_names) + vec_len(sw_gso_node_names);
 
 	// this error edge must be last
 	const char *invalid_port = "port_output_invalid";
-	edge = rte_node_edge_update(port_output_node, vec_len(tx_node_names), &invalid_port, 1);
+	edge = rte_node_edge_update(port_output_node, port_output_invalid, &invalid_port, 1);
 	assert(edge != RTE_EDGE_ID_INVALID);
 
-	edge = rte_node_edge_shrink(port_output_node, vec_len(tx_node_names) + 1);
+	edge = rte_node_edge_shrink(port_output_node, port_output_invalid + 1);
 	assert(edge != RTE_EDGE_ID_INVALID);
 
 	// store all unused node_ids in a list to be returned to the caller
@@ -365,8 +396,11 @@ static vec rte_node_t *worker_graph_nodes_add_missing(vec struct iface_info_port
 		vec_add(unused_nodes, rte_node_from_name(name));
 	vec_foreach (name, old_tx)
 		vec_add(unused_nodes, rte_node_from_name(name));
+	vec_foreach (name, old_sw_gso)
+		vec_add(unused_nodes, rte_node_from_name(name));
 	strvec_free(old_rx);
 	strvec_free(old_tx);
+	strvec_free(old_sw_gso);
 
 	return unused_nodes;
 }
@@ -677,6 +711,8 @@ static void graph_init(struct event_base *) {
 			port_rx_node = reg->id;
 		else if (strcmp(reg->name, TX_NODE_BASE) == 0)
 			port_tx_node = reg->id;
+		else if (strcmp(reg->name, SW_GSO_NODE_BASE) == 0)
+			sw_gso_node = reg->id;
 		else
 			vec_add(base_node_names, reg->name);
 
@@ -704,6 +740,7 @@ static void graph_fini(struct event_base *) {
 	vec_free(base_node_names);
 	strvec_free(rx_node_names);
 	strvec_free(tx_node_names);
+	strvec_free(sw_gso_node_names);
 }
 
 static struct module graph_module = {

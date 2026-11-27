@@ -93,7 +93,10 @@ static struct rte_eth_conf default_port_config = {
 		.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM | RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	},
 	.txmode = {
-		.offloads = 0,
+		.offloads = RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM
+			| RTE_ETH_TX_OFFLOAD_TCP_TSO | RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO
+			| RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO | RTE_ETH_TX_OFFLOAD_IP_TNL_TSO
+			| RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM,
 	},
 };
 
@@ -179,6 +182,7 @@ int port_configure(struct iface_info_port *p, uint16_t n_txq_min) {
 		return errno_log(-ret, "rte_eth_dev_configure");
 
 	p->rx_offloads = conf.rxmode.offloads;
+	p->tx_offloads = conf.txmode.offloads;
 
 	// initialize rx/tx queues
 	for (size_t q = 0; q < p->n_rxq; q++) {
@@ -339,9 +343,12 @@ static int iface_port_reconfig(
 	int ret;
 
 	if (!(set_attrs
-	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC)))
+	      & (GR_PORT_SET_N_RXQS | GR_PORT_SET_N_TXQS | GR_PORT_SET_Q_SIZE | GR_PORT_SET_MAC
+		 | GR_PORT_RECONFIGURE)))
 		return 0;
 
+	if (set_attrs & GR_PORT_RECONFIGURE)
+		needs_configure = true;
 	if (set_attrs & GR_PORT_SET_N_RXQS) {
 		p->n_rxq = api->n_rxq;
 		needs_configure = true;
@@ -626,20 +633,36 @@ static int iface_port_fini(struct iface *iface) {
 static int iface_port_init(struct iface *iface, const void *api_info) {
 	struct iface_info_port *port = iface_info_port(iface);
 	const struct gr_iface_info_port *api = api_info;
+	char vhost_devargs[GR_PORT_DEVARGS_SIZE];
 	uint16_t port_id = RTE_MAX_ETHPORTS;
 	struct rte_dev_iterator iterator;
 	struct rte_eth_dev_info info;
+	const char *devargs;
 	int ret;
 
-	RTE_ETH_FOREACH_MATCHING_DEV (port_id, api->devargs, &iterator) {
+	devargs = api->devargs;
+	if (strncmp(devargs, "net_vhost", 9) == 0) {
+		size_t n = strlcpy(vhost_devargs, devargs, sizeof(vhost_devargs));
+		if (n < sizeof(vhost_devargs) && strstr(devargs, "tso=") == NULL)
+			n += strlcpy(&vhost_devargs[n], ",tso=1", sizeof(vhost_devargs) - n);
+		if (n < sizeof(vhost_devargs) && strstr(devargs, "linear-buffer=") == NULL)
+			n += strlcpy(
+				&vhost_devargs[n], ",linear-buffer=1", sizeof(vhost_devargs) - n
+			);
+		if (n < sizeof(vhost_devargs) && strstr(devargs, "ext-buffer=") == NULL)
+			n += strlcpy(&vhost_devargs[n], ",ext-buffer=1", sizeof(vhost_devargs) - n);
+		devargs = vhost_devargs;
+	}
+
+	RTE_ETH_FOREACH_MATCHING_DEV (port_id, devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		return errno_set(EEXIST);
 	}
 
-	if ((ret = rte_dev_probe(api->devargs)) < 0)
+	if ((ret = rte_dev_probe(devargs)) < 0)
 		return errno_set(-ret);
 
-	RTE_ETH_FOREACH_MATCHING_DEV (port_id, api->devargs, &iterator) {
+	RTE_ETH_FOREACH_MATCHING_DEV (port_id, devargs, &iterator) {
 		rte_eth_iterator_cleanup(&iterator);
 		break;
 	}
@@ -650,10 +673,11 @@ static int iface_port_init(struct iface *iface, const void *api_info) {
 	if (rte_eth_dev_info_get(port_id, &info) < 0)
 		return errno_set(-ret);
 	port->dynamic_queue_state = strcmp(info.driver_name, "net_vhost") == 0;
-	port->virtio_offloads = strcmp(info.driver_name, "net_virtio") == 0
-		&& (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) != 0;
+	port->virtio_offloads = strcmp(info.driver_name, "net_vhost") == 0
+		|| (strcmp(info.driver_name, "net_virtio") == 0
+		    && (info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) != 0);
 
-	port->devargs = strndup(api->devargs, GR_PORT_DEVARGS_SIZE);
+	port->devargs = strndup(devargs, GR_PORT_DEVARGS_SIZE);
 	if (port->devargs == NULL) {
 		ret = errno_set(ENOMEM);
 		goto fail;
@@ -1193,6 +1217,24 @@ static struct module port_module = {
 	.fini = port_fini,
 };
 
+static void port_status_up_cb(uint32_t /*event*/, const void *obj) {
+	struct iface *iface = iface_from_id(((const struct iface *)obj)->id);
+	if (iface == NULL || iface->type != GR_IFACE_TYPE_PORT)
+		return;
+
+	struct iface_info_port *port = iface_info_port(iface);
+	struct rte_eth_dev_info info;
+	if (rte_eth_dev_info_get(port->port_id, &info) < 0)
+		return;
+
+	uint64_t tx = default_port_config.txmode.offloads & info.tx_offload_capa;
+	uint64_t rx = default_port_config.rxmode.offloads & info.rx_offload_capa;
+	if (tx != port->tx_offloads || rx != port->rx_offloads) {
+		LOG(INFO, "%s: offloads changed, reconfiguring", iface->name);
+		iface_port_reconfig(iface, GR_PORT_RECONFIGURE, NULL, NULL);
+	}
+}
+
 static void port_unplug_cb(uint32_t /*event*/, const void *obj) {
 	const struct iface *iface = obj;
 	if (iface->type != GR_IFACE_TYPE_PORT)
@@ -1204,5 +1246,6 @@ static void port_unplug_cb(uint32_t /*event*/, const void *obj) {
 RTE_INIT(port_constructor) {
 	iface_type_register(&iface_type_port);
 	module_register(&port_module);
+	event_subscribe(GR_EVENT_IFACE_STATUS_UP, port_status_up_cb);
 	event_subscribe(GR_EVENT_IFACE_PRE_REMOVE, port_unplug_cb);
 }

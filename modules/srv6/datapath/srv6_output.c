@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Olivier Gournet
 
+#include "cksum.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "ip6.h"
@@ -70,6 +71,8 @@ srv6_output_process(struct rte_graph *graph, struct rte_node *node, void **objs,
 			t->seg0 = d->seglist[0];
 			t->encap_src = d->encap_src;
 		}
+
+		gr_cksum_tunnel_push(m, GR_MBUF_TUNNEL_IPIP, 0);
 
 		if (m->packet_type & RTE_PTYPE_L3_IPV4) {
 			struct rte_ipv4_hdr *inner_ip4;

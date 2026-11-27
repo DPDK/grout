@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2025 Christophe Fontaine
 
+#include "cksum.h"
 #include "eth.h"
 #include "graph.h"
 #include "ip4_datapath.h"
@@ -54,6 +55,7 @@ static uint16_t ospf_redirect_process(
 				goto next;
 			}
 			ip_set_fields(ip, d);
+			gr_cksum_ip_set_good(mbuf);
 			ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4);
 			ip_dst = rte_be_to_cpu_32(d->dst);
 			if (RTE_IS_IPV4_MCAST(ip_dst)) {

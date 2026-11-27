@@ -28,6 +28,7 @@ GR_IFACE_INFO(GR_IFACE_TYPE_PORT, iface_info_port, {
 	bool virtio_offloads;
 	bool soft_rss;
 	uint64_t rx_offloads;
+	uint64_t tx_offloads;
 	bool rxq_enabled[RTE_MAX_QUEUES_PER_PORT];
 	bool txq_enabled[RTE_MAX_QUEUES_PER_PORT];
 	rte_spinlock_t txq_locks[RTE_MAX_QUEUES_PER_PORT];

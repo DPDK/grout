@@ -1,0 +1,42 @@
+From a01f22cc2f2194b6cecbd4dad6d33a9af8ffdd01 Mon Sep 17 00:00:00 2001
+From: David Marchand <david.marchand@redhat.com>
+Date: Fri, 13 Nov 2026 11:38:32 +0100
+Subject: [PATCH] net/vhost: fix TSO announce
+
+The vhost library already handles TSO mbufs in virtio_enqueue_offload(),
+filling virtio_net_hdr GSO fields from RTE_MBUF_F_TX_TCP_SEG.
+However, the net_vhost ethdev driver does not advertise
+RTE_ETH_TX_OFFLOAD_TCP_TSO in tx_offload_capa, preventing upper layers
+from using hardware TSO.
+
+Advertise TCP_TSO when the guest has negotiated both
+VIRTIO_NET_F_GUEST_TSO4 and VIRTIO_NET_F_GUEST_TSO6 features.
+
+Before a guest connects, internal->features is 0 so TCP_TSO is not
+advertised. Detecting and taking into account this change in a DPDK
+application is out of the scope of this change.
+
+Cc: stable@dpdk.org
+
+Signed-off-by: David Marchand <david.marchand@redhat.com>
+---
+ drivers/net/vhost/rte_eth_vhost.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/vhost/rte_eth_vhost.c b/drivers/net/vhost/rte_eth_vhost.c
+index 05940f2461..80459253c3 100644
+--- a/drivers/net/vhost/rte_eth_vhost.c
++++ b/drivers/net/vhost/rte_eth_vhost.c
+@@ -1298,6 +1298,9 @@ eth_dev_info(struct rte_eth_dev *dev,
+ 	if (internal->flags & RTE_VHOST_USER_NET_COMPLIANT_OL_FLAGS) {
+ 		dev_info->tx_offload_capa |= RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+ 			RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
++		if ((internal->features & (1ULL << VIRTIO_NET_F_GUEST_TSO4))
++		    && (internal->features & (1ULL << VIRTIO_NET_F_GUEST_TSO6)))
++			dev_info->tx_offload_capa |= RTE_ETH_TX_OFFLOAD_TCP_TSO;
+ 	}
+ 
+ 	dev_info->rx_offload_capa = RTE_ETH_RX_OFFLOAD_VLAN_STRIP;
+-- 
+2.56.0
+
