@@ -175,7 +175,7 @@ out:
 	return ret;
 }
 
-#define VXLAN_ATTRS_CMD "(encap_vrf ENCAP_VRF),(mac MAC),(dst_port DST_PORT),(learn LEARN)"
+#define VXLAN_ATTRS_CMD "(encap-vrf ENCAP_VRF),(mac MAC),(dst-port DST_PORT),(learn LEARN)"
 
 #define VXLAN_ATTRS_ARGS                                                                           \
 	IFACE_ATTRS_ARGS,                                                                          \
@@ -193,9 +193,8 @@ out:
 			"UDP destination port (default 4789).",                                    \
 			ec_node_uint("DST_PORT", 1, 65535, 10)                                     \
 		),                                                                                 \
-		with_help(                                                                         \
-			"Enable/disable dynamic MAC learning when bridged (default on).",          \
-			EC_NODE_OR("LEARN", ec_node_str("", "on"), ec_node_str("", "off"))         \
+		ON_OFF_ARG(                                                                        \
+			"Enable/disable dynamic MAC learning when bridged (default on).", "LEARN"  \
 		)
 
 static int ctx_init(struct ec_node *root) {

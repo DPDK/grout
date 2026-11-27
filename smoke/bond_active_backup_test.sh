@@ -26,8 +26,8 @@ grcli interface add bond bond0 mode active-backup
 # Sub interfaces created before any member joined inherit the random address the
 # bond starts with. One follows the bond, the other keeps what it was given.
 vlan_mac=02:f0:00:b4:44:55
-grcli interface add vlan bond0.42 parent bond0 vlan_id 42
-grcli interface add vlan bond0.43 parent bond0 vlan_id 43 mac $vlan_mac
+grcli interface add vlan bond0.42 parent bond0 vlan-id 42
+grcli interface add vlan bond0.43 parent bond0 vlan-id 43 mac $vlan_mac
 
 port_add p0 domain bond0
 port_add p1 domain bond0

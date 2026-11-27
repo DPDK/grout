@@ -77,20 +77,20 @@ int arg_iface(
 	CLI_CONTEXT(INTERFACE_CTX(root), CTX_ARG("config", "Interface subsystem configuration."))
 
 #define IFACE_ATTRS_CMD                                                                            \
-	"(up|down),(promisc PROMISC),(neigh_snoop NEIGH_SNOOP),(mtu MTU),"                         \
-	"((vrf VRF)|(domain DOMAIN)),(description DESCR)"
+	"(up|down),(promisc PROMISC),(neigh-snoop NEIGH_SNOOP),"                                   \
+	"(ping-ignore PING_IGNORE),(err-ignore ERR_IGNORE),"                                       \
+	"(mtu MTU),((vrf VRF)|(domain DOMAIN)),(description DESCR)"
 
 #define IFACE_ATTRS_ARGS                                                                           \
 	with_help("Set the interface UP.", ec_node_str("up", "up")),                               \
-		with_help(                                                                         \
-			"Enable/disable promiscuous mode.",                                        \
-			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))       \
-		),                                                                                 \
 		with_help("Set the interface DOWN.", ec_node_str("down", "down")),                 \
-		with_help(                                                                         \
+		ON_OFF_ARG("Enable/disable promiscuous mode.", "PROMISC"),                         \
+		ON_OFF_ARG(                                                                        \
 			"Enable/disable neighbor snooping (learn from unsolicited ARP/NDP).",      \
-			EC_NODE_OR("NEIGH_SNOOP", ec_node_str("", "on"), ec_node_str("", "off"))   \
+			"NEIGH_SNOOP"                                                              \
 		),                                                                                 \
+		ON_OFF_ARG("Ignore ICMP echo requests.", "PING_IGNORE"),                           \
+		ON_OFF_ARG("Omit sending ICMP errors to their originating IP.", "ERR_IGNORE"),     \
 		with_help(                                                                         \
 			"Maximum transmission unit size.",                                         \
 			ec_node_uint("MTU", 1280, UINT16_MAX - 1, 10)                              \

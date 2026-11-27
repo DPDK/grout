@@ -253,9 +253,8 @@ static int ctx_init(struct ec_node *root) {
 				)
 			)
 		),
-		with_help(
-			"Toggle promiscuous mode on captured interfaces (default off).",
-			EC_NODE_OR("PROMISC", ec_node_str("", "on"), ec_node_str("", "off"))
+		ON_OFF_ARG(
+			"Toggle promiscuous mode on captured interfaces (default off).", "PROMISC"
 		),
 		with_help(
 			"Stop after COUNT packets (0 = unlimited).",

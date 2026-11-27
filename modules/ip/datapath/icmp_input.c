@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024 Robin Jarry
 
+#include "datapath.h"
 #include "graph.h"
 #include "ip4_datapath.h"
 #include "mbuf.h"
@@ -8,11 +9,15 @@
 
 #include <rte_icmp.h>
 
+GR_NODE_CTX_TYPE(icmp_input_ctx, { struct rate_limit_ctx limit; });
+
 enum {
 	OUTPUT = 0,
 	DELIVER,
 	INVALID,
 	UNSUPPORTED,
+	RATE_LIMITED,
+	IGNORED,
 	EDGE_COUNT,
 };
 
@@ -50,12 +55,19 @@ static inline bool icmp_quoted_datagram_valid(const struct rte_icmp_hdr *icmp, u
 
 static uint16_t
 icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, uint16_t nb_objs) {
+	struct icmp_input_ctx *ctx = icmp_input_ctx(node);
 	struct ip_local_mbuf_data *ip_data;
 	struct rte_icmp_hdr *icmp;
+	const struct iface *iface;
 	struct rte_mbuf *mbuf;
 	rte_edge_t edge;
 	uint16_t cksum;
 	ip4_addr_t ip;
+
+	if (rate_limited(&ctx->limit, graph_conf.icmp_rate, nb_objs)) {
+		rte_node_next_stream_move(graph, node, RATE_LIMITED);
+		return nb_objs;
+	}
 
 	for (uint16_t i = 0; i < nb_objs; i++) {
 		mbuf = objs[i];
@@ -72,6 +84,12 @@ icmp_input_process(struct rte_graph *graph, struct rte_node *node, void **objs, 
 		case RTE_ICMP_TYPE_ECHO_REQUEST:
 			if (icmp->icmp_code != 0) {
 				edge = INVALID;
+				goto next;
+			}
+			iface = mbuf_data(mbuf)->iface;
+			assert(iface != NULL);
+			if (iface->flags & GR_IFACE_F_PING_IGNORE) {
+				edge = IGNORED;
 				goto next;
 			}
 			icmp->icmp_type = RTE_ICMP_TYPE_ECHO_REPLY;
@@ -105,6 +123,13 @@ next:
 	return nb_objs;
 }
 
+static int icmp_input_init(const struct rte_graph *, struct rte_node *node) {
+	struct icmp_input_ctx *ctx = icmp_input_ctx(node);
+	ctx->limit.tokens = graph_conf.icmp_rate;
+	ctx->limit.last_refill = rte_rdtsc();
+	return 0;
+}
+
 static void icmp_input_register(void) {
 	ip_input_local_add_proto(IPPROTO_ICMP, "icmp_input");
 }
@@ -113,6 +138,7 @@ static struct rte_node_register icmp_input_node = {
 	.name = "icmp_input",
 
 	.process = icmp_input_process,
+	.init = icmp_input_init,
 
 	.nb_edges = EDGE_COUNT,
 	.next_nodes = {
@@ -120,6 +146,8 @@ static struct rte_node_register icmp_input_node = {
 		[DELIVER] = "icmp_input_deliver",
 		[INVALID] = "icmp_input_invalid",
 		[UNSUPPORTED] = "icmp_input_unsupported",
+		[RATE_LIMITED] = "error_rate_limited",
+		[IGNORED] = "ping_ignored",
 	},
 };
 
@@ -134,6 +162,7 @@ GR_NODE_REGISTER(icmp_input_info);
 
 GR_DROP_REGISTER(icmp_input_invalid);
 GR_DROP_REGISTER(icmp_input_unsupported);
+GR_DROP_REGISTER(ping_ignored);
 
 #ifdef __GROUT_UNIT_TEST__
 #include "_cmocka.h"
@@ -142,6 +171,7 @@ GR_DROP_REGISTER(icmp_input_unsupported);
 #include <stddef.h>
 
 int gr_rte_log_type;
+struct gr_graph_conf graph_conf;
 struct log_types log_types = STAILQ_HEAD_INITIALIZER(log_types);
 struct node_infos node_infos = STAILQ_HEAD_INITIALIZER(node_infos);
 mock_func(rte_edge_t, gr_node_attach_parent(const char *, const char *));
@@ -158,6 +188,8 @@ struct fake_mbuf {
 	struct rte_mbuf mbuf;
 	uint8_t priv_data[GR_MBUF_PRIV_MAX_SIZE];
 };
+
+static struct iface dummy_iface;
 
 static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	struct ip_local_mbuf_data *d;
@@ -177,6 +209,7 @@ static void fake_mbuf_init(struct fake_mbuf *fm, uint8_t type, uint16_t len) {
 	fm->mbuf.nb_segs = 1;
 
 	d = ip_local_mbuf_data(&fm->mbuf);
+	d->iface = &dummy_iface;
 	d->src = RTE_IPV4(192, 168, 0, 1);
 	d->dst = RTE_IPV4(192, 168, 0, 2);
 	d->len = len;
@@ -266,6 +299,52 @@ static void icmp_input_error_valid(void **) {
 	icmp_input_process(NULL, NULL, &obj, 1);
 }
 
+#define TEST_HZ 1000000
+#define TEST_RATE 1000
+#define TEST_TOKEN_TICKS (TEST_HZ / TEST_RATE)
+
+static void rate_limit_refill(void **) {
+	struct rate_limit_ctx ctx = {0};
+	unsigned taken = 0;
+	uint64_t now;
+
+	assert_false(rate_limited_at(&ctx, 0, RTE_GRAPH_BURST_SIZE, 0, TEST_HZ));
+
+	assert_true(rate_limited_at(&ctx, TEST_RATE, 1, TEST_TOKEN_TICKS - 1, TEST_HZ));
+	assert_false(rate_limited_at(&ctx, TEST_RATE, 1, TEST_TOKEN_TICKS, TEST_HZ));
+	assert_true(rate_limited_at(&ctx, TEST_RATE, 1, TEST_TOKEN_TICKS + 1, TEST_HZ));
+
+	ctx = (struct rate_limit_ctx) {0};
+	for (now = 0; now <= TEST_HZ; now += TEST_TOKEN_TICKS * 19 / 10) {
+		while (!rate_limited_at(&ctx, TEST_RATE, 1, now, TEST_HZ))
+			taken++;
+	}
+	assert_in_range(taken, TEST_RATE - 2, TEST_RATE);
+}
+
+static void rate_limit_idle(void **) {
+	struct rate_limit_ctx ctx = {0};
+
+	assert_false(rate_limited_at(&ctx, TEST_RATE, 1, 131100ULL * TEST_TOKEN_TICKS, TEST_HZ));
+	assert_int_equal(ctx.tokens, TEST_RATE - 1);
+
+	ctx = (struct rate_limit_ctx) {0};
+	assert_false(rate_limited_at(&ctx, UINT16_MAX, 1, UINT64_MAX / 2, TEST_HZ));
+	assert_int_equal(ctx.tokens, UINT16_MAX - 1);
+}
+
+static void rate_limit_vector(void **) {
+	struct rate_limit_ctx ctx = {.tokens = 10};
+
+	assert_false(rate_limited_at(&ctx, TEST_RATE, RTE_GRAPH_BURST_SIZE, 0, TEST_HZ));
+	assert_int_equal(ctx.tokens, 0);
+	assert_true(rate_limited_at(&ctx, TEST_RATE, RTE_GRAPH_BURST_SIZE, 0, TEST_HZ));
+
+	ctx = (struct rate_limit_ctx) {.tokens = TEST_RATE};
+	assert_false(rate_limited_at(&ctx, 10, 1, TEST_HZ / 10, TEST_HZ));
+	assert_int_equal(ctx.tokens, 10 - 1);
+}
+
 int main(void) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(icmp_input_too_short),
@@ -274,6 +353,9 @@ int main(void) {
 		cmocka_unit_test(icmp_input_error_too_short),
 		cmocka_unit_test(icmp_input_error_inner_ihl_too_long),
 		cmocka_unit_test(icmp_input_error_valid),
+		cmocka_unit_test(rate_limit_refill),
+		cmocka_unit_test(rate_limit_idle),
+		cmocka_unit_test(rate_limit_vector),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

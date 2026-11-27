@@ -37,6 +37,8 @@ rte_node_enqueue_x1(struct rte_graph *, struct rte_node *, rte_edge_t next, void
 
 rte_edge_t gr_node_attach_parent(const char *parent, const char *node);
 
+extern struct gr_graph_conf graph_conf;
+
 uint16_t drop_packets(struct rte_graph *, struct rte_node *, void **, uint16_t);
 int drop_format(char *buf, size_t buf_len, const void *data, size_t data_len);
 
