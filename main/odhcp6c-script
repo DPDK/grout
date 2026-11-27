@@ -1,0 +1,285 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 Robin Jarry
+
+# Apply DHCPv6 prefix delegations obtained by odhcp6c to grout interfaces.
+#
+# odhcp6c delegates all address and prefix configuration to its state script.
+# Pass this script with -s and request a prefix with -P:
+#
+#   odhcp6c -s /usr/libexec/grout/odhcp6c-script -P 56 p0
+#
+# IMPORTANT: odhcp6c must run in the same network namespace as grout, otherwise
+# it cannot open the control plane TAP. If grout runs in a dedicated netns:
+#
+#   ip netns exec grout odhcp6c -s /usr/libexec/grout/odhcp6c-script -P 56 p0
+#
+# The delegated prefix is split into subnets as described in
+# /etc/grout/dhcp6-pd.conf. Each non-comment line maps a grout interface to a
+# subnet of the delegated prefix:
+#
+#   <interface> <subnet> [<prefix_len> [<suffix>]]
+#
+# interface   grout interface receiving the subnet
+# subnet      subnet index, from 0 to 2^(prefix_len - delegated_len) - 1
+# prefix_len  subnet length (default: 64)
+# suffix      last 16-bit group of the interface address (default: 1)
+#
+# For example, with a /56 delegation:
+#
+#   lan0 0
+#   lan1 1
+#
+# If several prefixes are delegated, only the first one is used. If the file is
+# missing or empty, nothing is configured.
+#
+# Unlike dhcpcd, no reject route is installed for the part of the delegated
+# prefix that is not assigned to an interface. Traffic to those subnets follows
+# the default route unless a reject route is added manually.
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
+export PATH
+
+iface=${1:?missing interface}
+state=${2:?missing state}
+state_file=/run/grout-dhcp6.$iface
+pd_conf=/etc/grout/dhcp6-pd.conf
+
+# grout interfaces are backed by a kernel TAP with the same name. It only
+# exists in the network namespace where grout runs.
+grout_tap()
+{
+	local link
+
+	link=$(ip link show dev "$iface" 2>/dev/null) || return 1
+	# iproute2 prints the interface alias, busybox ip does not. When it is
+	# available, make sure this is grout's control plane TAP and not an
+	# unrelated interface with the same name.
+	case "$link" in
+	*"alias Grout control plane interface") return 0 ;;
+	*"alias "*) return 1 ;;
+	esac
+	return 0
+}
+
+if ! grout_tap; then
+	echo "grout-dhcp6: $iface is not a grout control plane interface in this network namespace" >&2
+	echo "grout-dhcp6: odhcp6c must run in the same network namespace as grout" >&2
+	exit 1
+fi
+
+ip6_expand()
+{
+	local left right zeros i out g
+
+	case "$1" in
+	*::*)
+		left=${1%%::*}
+		right=${1#*::}
+		;;
+	*)
+		left=$1
+		right=
+		;;
+	esac
+
+	left=$(printf '%s' "$left" | tr ':' ' ')
+	right=$(printf '%s' "$right" | tr ':' ' ')
+
+	set -- $left
+	nleft=$#
+	set -- $right
+	nright=$#
+
+	if [ -z "$left" ] && [ -z "$right" ]; then
+		zeros=8
+	elif [ "$left" = "$right" ] && [ -n "$left" ]; then
+		# no '::' in the address
+		[ $nleft -eq 8 ] || return 1
+		zeros=0
+	else
+		zeros=$((8 - nleft - nright))
+		[ $zeros -ge 1 ] || return 1
+	fi
+
+	out=
+	for g in $left; do
+		out="$out $g"
+	done
+	i=0
+	while [ $i -lt $zeros ]; do
+		out="$out 0"
+		i=$((i + 1))
+	done
+	for g in $right; do
+		out="$out $g"
+	done
+
+	echo $out
+}
+
+# Print <address>/<prefix_len> for the given subnet of a delegated prefix.
+ip6_pd_addr()
+{
+	local pfx=$1 plen=$2 prefix_len=$3 sla=$4 suffix=$5
+	local nbits shift abs gi bit low hostbits mask g g0 g1 g2 g3 g4 g5 g6 g7 i
+
+	case "$plen$prefix_len" in ''|*[!0-9]*) return 1 ;; esac
+	case "$sla$suffix" in ''|*[!0-9]*) return 1 ;; esac
+
+	nbits=$((prefix_len - plen))
+	[ "$nbits" -ge 0 ] || return 1
+	[ "$nbits" -le 32 ] || return 1
+	[ "$sla" -lt $((1 << nbits)) ] || return 1
+
+	set -- $(ip6_expand "$pfx") || return 1
+	[ $# -eq 8 ] || return 1
+	g0=$((0x$1)); g1=$((0x$2)); g2=$((0x$3)); g3=$((0x$4))
+	g4=$((0x$5)); g5=$((0x$6)); g6=$((0x$7)); g7=$((0x$8))
+
+	# zero out host bits of the delegated prefix
+	hostbits=$((128 - plen))
+	i=0
+	while [ $i -lt 8 ]; do
+		low=$(((7 - i) * 16))
+		eval "g=\$g$i"
+		if [ $((low + 15)) -lt $hostbits ]; then
+			g=0
+		elif [ $low -lt $hostbits ]; then
+			g=$((g & (0xffff << (hostbits - low))))
+		fi
+		eval "g$i=\$g"
+		i=$((i + 1))
+	done
+
+	# insert the subnet index between plen and prefix_len
+	shift=$((128 - prefix_len))
+	i=0
+	while [ $i -lt $nbits ]; do
+		if [ $(((sla >> i) & 1)) -eq 1 ]; then
+			abs=$((shift + i))
+			gi=$((7 - abs / 16))
+			bit=$((abs % 16))
+			eval "g=\$g$gi"
+			g=$((g | (1 << bit)))
+			eval "g$gi=\$g"
+		fi
+		i=$((i + 1))
+	done
+
+	# set the host suffix in the last group
+	hostbits=$((128 - prefix_len))
+	[ $hostbits -gt 16 ] && hostbits=16
+	mask=$(((1 << hostbits) - 1))
+	g7=$(((g7 & ~mask) | (suffix & mask)))
+
+	printf '%x:%x:%x:%x:%x:%x:%x:%x/%d\n' \
+		"$g0" "$g1" "$g2" "$g3" "$g4" "$g5" "$g6" "$g7" "$prefix_len"
+}
+
+teardown()
+{
+	local ifname addr
+
+	[ -f "$state_file" ] || return 0
+	while read -r ifname addr; do
+		[ -n "$ifname" ] || continue
+		# The interface may have been removed, ignore failures.
+		grcli address del "$addr" iface "$ifname" || :
+	done < "$state_file"
+	rm -f "$state_file"
+}
+
+configure()
+{
+	local token candidate valid pfx plen
+	local ifname sla prefix_len suffix addr new_state
+
+	# Only the first delegated prefix that is not being withdrawn is used.
+	pfx=
+	for token in ${PREFIXES:-}; do
+		candidate=${token%%,*}
+		case "$candidate" in
+		*/*)
+			plen=${candidate#*/}
+			candidate=${candidate%/*}
+			;;
+		*)
+			plen=
+			;;
+		esac
+		valid=${token#*,}
+		valid=${valid#*,}
+		valid=${valid%%,*}
+
+		case "$plen" in ''|*[!0-9]*) plen= ;; esac
+		case "$valid" in ''|*[!0-9]*) valid= ;; esac
+		if [ -z "$plen" ] || [ -z "$valid" ]; then
+			echo "grout-dhcp6: invalid delegated prefix: $token" >&2
+			continue
+		fi
+		# A zero valid lifetime means the prefix is being withdrawn.
+		[ "$valid" -eq 0 ] && continue
+
+		pfx=$candidate
+		break
+	done
+
+	if [ -z "$pfx" ]; then
+		teardown
+		return 0
+	fi
+
+	if [ ! -f "$pd_conf" ]; then
+		echo "grout-dhcp6: $pd_conf: no such file" >&2
+		return 0
+	fi
+
+	new_state=$state_file.new
+	: > "$new_state"
+
+	sed -e 's/#.*//' "$pd_conf" | while read -r ifname sla prefix_len suffix; do
+		[ -n "$ifname" ] || continue
+		if [ -z "$sla" ]; then
+			echo "grout-dhcp6: $pd_conf: missing subnet index for $ifname" >&2
+			continue
+		fi
+		[ -n "$prefix_len" ] || prefix_len=64
+		[ -n "$suffix" ] || suffix=1
+
+		addr=$(ip6_pd_addr "$pfx" "$plen" "$prefix_len" "$sla" "$suffix") || {
+			echo "grout-dhcp6: $ifname: invalid subnet $sla/$prefix_len" >&2
+			continue
+		}
+
+		if grep -qxF -- "$ifname $addr" "$state_file" 2>/dev/null; then
+			printf '%s %s\n' "$ifname" "$addr" >> "$new_state"
+			continue
+		fi
+		if ! grcli address add "$addr" iface "$ifname"; then
+			echo "grout-dhcp6: $ifname: cannot add $addr" >&2
+			continue
+		fi
+		printf '%s %s\n' "$ifname" "$addr" >> "$new_state"
+	done
+
+	# remove addresses that are no longer assigned
+	if [ -f "$state_file" ]; then
+		while read -r ifname addr; do
+			[ -n "$ifname" ] || continue
+			grep -qxF -- "$ifname $addr" "$new_state" && continue
+			grcli address del "$addr" iface "$ifname" || :
+		done < "$state_file"
+	fi
+
+	mv "$new_state" "$state_file"
+}
+
+case "$state" in
+bound|updated|rebound)
+	configure
+	;;
+unbound|stopped)
+	teardown
+	;;
+esac

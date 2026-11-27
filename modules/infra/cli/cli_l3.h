@@ -7,11 +7,14 @@
 #include "cli_iface.h"
 #include "display.h"
 
+#include <gr_nexthop.h>
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/queue.h>
 
 // Fetch the interfaces a local address is exposed on and fill a table cell with
@@ -60,6 +63,47 @@ static inline addr_family_t cli_parse_family(const struct ec_pnode *p) {
 	}
 
 	return GR_AF_UNSPEC;
+}
+
+static inline int complete_route_origins(
+	struct gr_api_client *,
+	const struct ec_node *node,
+	struct ec_comp *comp,
+	const char *arg,
+	void *
+) {
+	for (unsigned o = 0; o <= UINT8_MAX; o++) {
+		const char *name;
+
+		if (o == GR_NH_ORIGIN_UNSPEC || o == GR_NH_ORIGIN_INTERNAL)
+			continue;
+		name = gr_nh_origin_name((gr_nh_origin_t)o);
+		if (strcmp(name, "?") == 0 || !ec_str_startswith(name, arg))
+			continue;
+		if (!ec_comp_add_item(comp, node, EC_COMP_FULL, arg, name))
+			return -1;
+	}
+
+	return 0;
+}
+
+static inline int cli_parse_route_origin(const struct ec_pnode *p, gr_nh_origin_t *origin) {
+	const char *name = arg_str(p, "ORIGIN");
+
+	if (name == NULL)
+		return -1;
+
+	for (unsigned o = 0; o <= UINT8_MAX; o++) {
+		if (o == GR_NH_ORIGIN_UNSPEC || o == GR_NH_ORIGIN_INTERNAL)
+			continue;
+		if (strcasecmp(gr_nh_origin_name((gr_nh_origin_t)o), name) == 0) {
+			*origin = (gr_nh_origin_t)o;
+			return 0;
+		}
+	}
+
+	errno = EINVAL;
+	return -1;
 }
 
 struct cli_route_ops {

@@ -150,6 +150,9 @@ rm -rf %{buildroot}%{_sysconfdir} %{buildroot}%{_unitdir}
 %attr(755, root, root) %{_bindir}/grcli
 %attr(755, root, root) %{_bindir}/grout
 %attr(755, root, root) %{_bindir}/grtcpdump
+%attr(755, root, root) %{_libexecdir}/grout/dhcpcd-hook
+%attr(755, root, root) %{_libexecdir}/grout/odhcp6c-script
+%attr(755, root, root) %{_libexecdir}/grout/udhcpc-script
 %if %{with docs}
 %attr(644, root, root) %{_mandir}/man1/grcli*.1*
 %attr(644, root, root) %{_mandir}/man8/grout.8*

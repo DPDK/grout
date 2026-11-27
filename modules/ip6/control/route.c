@@ -257,6 +257,39 @@ static bool is_addr_owned_route(
 	return (l3->flags & NH_LOCAL_ADDR_FLAGS) == NH_LOCAL_ADDR_FLAGS;
 }
 
+static int rib6_check_origin(
+	uint16_t vrf_id,
+	uint16_t iface_id,
+	const struct rte_ipv6_addr *ip,
+	uint8_t prefixlen,
+	gr_nh_origin_t expected
+) {
+	struct rte_fib6 *fib = get_fib6(vrf_id);
+	const struct rte_ipv6_addr *scoped_ip;
+	struct rte_ipv6_addr tmp;
+	struct rte_rib6_node *rn;
+	struct rte_rib6 *rib;
+	gr_nh_origin_t *o;
+
+	if (expected == GR_NH_ORIGIN_UNSPEC)
+		return 0;
+
+	if (fib == NULL)
+		return -errno;
+
+	scoped_ip = addr6_linklocal_scope(ip, &tmp, iface_id);
+	rib = rte_fib6_get_rib(fib);
+	rn = rte_rib6_lookup_exact(rib, scoped_ip, prefixlen);
+	if (rn == NULL)
+		return 0;
+
+	o = rte_rib6_get_ext(rn);
+	if (*o != expected)
+		return errno_set(EPERM);
+
+	return 0;
+}
+
 struct route6_event {
 	struct ip6_net dest;
 	uint16_t vrf_id;
@@ -298,6 +331,9 @@ static int rib6_insert_or_replace(
 		existing = nh_id_to_ptr(nh_id);
 		if (!replace)
 			return errno_set(nexthop_equal(nh, existing) ? EEXIST : EBUSY);
+		o = rte_rib6_get_ext(rn);
+		if (*o != origin)
+			return errno_set(EPERM);
 	}
 
 	if ((ret = rte_fib6_add(fib, scoped_ip, prefixlen, nh_ptr_to_id(nh))) < 0)
@@ -411,7 +447,7 @@ static struct api_out route6_add(const void *request, struct api_ctx *) {
 	struct nexthop *nh;
 	int ret;
 
-	if (req->origin == GR_NH_ORIGIN_INTERNAL)
+	if (req->origin == GR_NH_ORIGIN_INTERNAL || req->origin == GR_NH_ORIGIN_UNSPEC)
 		return api_out(EINVAL, 0, NULL);
 
 	if (req->nh_id != GR_NH_ID_UNSET) {
@@ -483,6 +519,11 @@ static struct api_out route6_del(const void *request, struct api_ctx *) {
 
 	if (is_addr_owned_route(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen))
 		return api_out(EBUSY, 0, NULL);
+	ret = rib6_check_origin(
+		req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen, req->origin
+	);
+	if (ret < 0)
+		return api_out(-ret, 0, NULL);
 	nh = rib6_lookup_exact(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip, req->dest.prefixlen);
 	if (nh == NULL)
 		nh = rib6_lookup(req->vrf_id, GR_IFACE_ID_UNDEF, &req->dest.ip);
