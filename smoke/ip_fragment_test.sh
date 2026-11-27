@@ -33,6 +33,13 @@ ip netns exec n0 ping -i0.01 -c3 -n 172.16.1.2
 # Expected: ICMP Type 3 Code 4 (Fragmentation Needed and DF Set)
 ip netns exec n0 ping -i0.01 -c3 -s 1260 -M do -n 172.16.1.2 && fail "ping with DF flag should have failed"
 
+# The error reports the MTU of the egress interface (RFC 1191).
+ip netns exec n0 ip route flush cache
+out=$(ip netns exec n0 ping -c1 -s 1260 -M do -n 172.16.1.2 2>&1 || true)
+echo "$out"
+echo "$out" | grep -qF 'mtu = 1280' || fail "MTU not reported in fragmentation needed error"
+ip -n n0 route get 172.16.1.2 | grep -qw 'mtu 1280' || fail "path MTU not learned"
+
 # Test 3: Large packet without DF flag (should fragment and succeed)
 # Send 1260-byte packet with DF=0 (fragmentation allowed)
 # Packet size: 1260 + 8 (ICMP) + 20 (IP) = 1288 bytes
@@ -42,4 +49,6 @@ ip netns exec n0 ip route flush cache
 ip netns exec n0 ping -i0.01 -c3 -s 1260 -M dont -n 172.16.1.2
 
 # Test 4: run tracepath to do PMTU discovery
-ip netns exec n0 tracepath -n 172.16.1.2
+ip netns exec n0 ip route flush cache
+ip netns exec n0 tracepath -n 172.16.1.2 | tee $tmp/tracepath
+grep -qw 'pmtu 1280' $tmp/tracepath || fail "tracepath did not discover the path MTU"

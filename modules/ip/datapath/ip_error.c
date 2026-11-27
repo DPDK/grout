@@ -13,6 +13,7 @@
 GR_NODE_CTX_TYPE(ip_error_ctx, {
 	uint8_t icmp_type;
 	uint8_t icmp_code;
+	bool report_mtu;
 });
 
 enum edges {
@@ -84,7 +85,7 @@ ip_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, ui
 		icmp->icmp_code = ctx->icmp_code;
 		icmp->icmp_cksum = 0;
 		icmp->icmp_ident = 0;
-		icmp->icmp_seq_nb = 0;
+		icmp->icmp_seq_nb = ctx->report_mtu ? rte_cpu_to_be_16(iface->mtu) : 0;
 
 		edge = ICMP_OUTPUT;
 next:
@@ -115,6 +116,7 @@ static int frag_needed_init(const struct rte_graph *, struct rte_node *node) {
 	struct ip_error_ctx *ctx = ip_error_ctx(node);
 	ctx->icmp_type = RTE_ICMP_TYPE_DEST_UNREACHABLE;
 	ctx->icmp_code = RTE_ICMP_CODE_UNREACH_FRAG;
+	ctx->report_mtu = true;
 	return 0;
 }
 

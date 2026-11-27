@@ -16,6 +16,8 @@ GR_NODE_CTX_TYPE(ip6_error_ctx, {
 	uint8_t icmp_code;
 });
 
+#define ICMP6_ERR_MAX_PAYLOAD (RTE_IPV6_MIN_MTU - sizeof(struct rte_ipv6_hdr) - GR_ICMP6_HDR_LEN)
+
 enum edges {
 	ICMP_OUTPUT = 0,
 	NO_HEADROOM,
@@ -51,8 +53,8 @@ ip6_error_process(struct rte_graph *graph, struct rte_node *node, void **objs, u
 		// ICMPv6 error messages should contain "As much of invoking
 		// packet as possible without the ICMPv6 packet exceeding the
 		// minimum IPv6 MTU (1280)"
-		if (rte_pktmbuf_pkt_len(mbuf) > RTE_IPV6_MIN_MTU)
-			rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf) - RTE_IPV6_MIN_MTU);
+		if (rte_pktmbuf_pkt_len(mbuf) > ICMP6_ERR_MAX_PAYLOAD)
+			rte_pktmbuf_trim(mbuf, rte_pktmbuf_pkt_len(mbuf) - ICMP6_ERR_MAX_PAYLOAD);
 
 		switch (ctx->icmp_type) {
 		case ICMP6_ERR_DEST_UNREACH:
